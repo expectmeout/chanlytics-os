@@ -19,7 +19,7 @@ import { say } from "./today-rows";
 import type { TodayCallRowVM, TodayQueueEmptyVM, TodayQueueRowVM, TodayVM } from "./today-vm";
 
 /** Six rows on Today; the rest is a count for the Inbox link. */
-export const TODAY_QUEUE_MAX = 6;
+const TODAY_QUEUE_MAX = 6;
 /** A question waited this long is warned: the sweep stops it after a day. */
 const SEARCH_WARN_MS = 12 * HOUR_MS;
 

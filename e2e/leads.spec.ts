@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { routeOf } from "./address";
 import { apiGet } from "./workspace";
 import {
   expectLeadsScope,
@@ -83,7 +84,7 @@ async function openSeededSearch(page: Page): Promise<void> {
   await page.goto("/#/clients/leads");
   await page.waitForLoadState("networkidle");
   await page.locator(".cl-rail-row", { hasText: LEAD_SEARCH_NAME }).locator(".ld-search-pick").click();
-  await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/clients\/leads:s-[0-9a-f-]{36}$/);
+  await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/leads:s-[0-9a-f-]{36}$/);
 }
 
 test.describe("Leads on a real workspace", () => {
@@ -124,7 +125,7 @@ test.describe("Leads on a real workspace", () => {
 
     // Excluded is a view, and the view is the address.
     await page.getByTestId("lead-class-excluded").click();
-    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/clients\/leads:s-[0-9a-f-]{36}:c-excluded$/);
+    await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/leads:s-[0-9a-f-]{36}:c-excluded$/);
     const left = page.locator(".cl-table tbody tr").first();
     await expect(left).toContainText(FITCORP);
     await expect(left).toContainText("Chain");
@@ -144,7 +145,7 @@ test.describe("Leads on a real workspace", () => {
     await expect(needs).toBeInViewport({ ratio: 1 });
     await expect(needs).toHaveText("1 search needs you");
     await needs.click();
-    await expect.poll(() => new URL(page.url()).hash).toBe(`#/${search.route}`);
+    await expect.poll(() => routeOf(page.url())).toBe(search.route);
     await expect(page.locator(".cl-rail-row", { hasText: WAITING_SEARCH_NAME })).toBeVisible();
 
     const strip = page.getByTestId("lead-strip");
@@ -262,9 +263,7 @@ test.describe("Leads on a real workspace", () => {
 
   test("an old #/leads bookmark lands on the Leads scope", async ({ page }) => {
     await page.goto("/#/leads");
-    await expect
-      .poll(() => new URL(page.url()).hash, { message: "leads is a scope of People now" })
-      .toBe("#/clients/leads");
+    await expect.poll(() => routeOf(page.url()), { message: "leads is a scope of People now" }).toBe("clients/leads");
     await expect(page.getByTestId("leads-standing")).toBeVisible();
   });
 
@@ -368,7 +367,7 @@ test.describe("Leads on a real workspace", () => {
     await page.getByTestId("plan-approve").click();
     // Approve commits through Ask's door and lands on the new search (spec F4): the address is the search's own,
     // and the strip narrating the run is on screen.
-    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/clients\/leads:s-[0-9a-f-]{36}/);
+    await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/leads:s-[0-9a-f-]{36}/);
     const strip = page.getByTestId("lead-strip");
     await expect(strip).toBeVisible({ timeout: 60_000 });
     await expect(strip).toContainText(/Finding|Stopped|Found/, { timeout: 60_000 });

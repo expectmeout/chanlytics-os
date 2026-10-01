@@ -16,7 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
+import { installLegacyReact, fresh, again, find, textOf, walk } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -96,7 +96,16 @@ const vmOf = (dto, esc = null) => toInboxThreadVM(dto, esc, ZONE, NOW);
 
 /* -------------------------------- a browser -------------------------------- */
 
-globalThis.window = {
+installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+const S = "../../../../../apps/dashboard/src";
+const { Inbox } = await import(`${S}/surfaces/inbox/pages/inbox-page.tsx`);
+const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
+const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
+const { ixReadAgain, ixHeld } = await import(`${S}/surfaces/inbox/rules.ts`);
+const { ixHoldAll } = await import(`${S}/surfaces/inbox/pages/hold-all.ts`);
+const { VW_STORE } = await import(`${S}/surfaces/inbox/store.ts`);
+const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
     hash: "",
@@ -108,125 +117,16 @@ globalThis.window = {
   __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
   __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  __surfaceState: () => "live",
-  __DEMO_MODE: false,
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent() {
-    return true;
-  },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
-};
-globalThis.document = {
-  body: { appendChild() {} },
-  addEventListener() {},
-  removeEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
-};
-
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = fn();
-    return cells[k];
-  },
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
+});
+// The shell's own toast and role gate, which the pages draw through the bridge (surfaces/legacy-verbs.ts).
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of [
-  "StatePill",
-  "MoreMenu",
-  "EmptyState",
-  "PolicyChip",
-  "TlMedia",
-  "FailedRead",
-  "Confirm",
-  "usePPToast",
-  "useHotkey",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
-globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-// The one thread, which the Inbox mounts (thread-pane.jsx): loaded first, published as the page reads it.
-await import("../../../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
-globalThis.ThreadPane = globalThis.window.ThreadPane;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox.jsx");
-const { InboxList, InboxThread } = globalThis.window;
 
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) {
-    for (const k of n) walk(k, fn);
-    return;
-  }
-  fn(n);
-  walk(n.props?.children, fn);
-  walk(n.rendered, fn);
-};
-const find = (tree, pred) => {
-  let hit;
-  walk(tree, (n) => {
-    if (hit === undefined && pred(n)) hit = n;
-  });
-  return hit;
-};
 const hasClass = (cls) => (n) => typeof n.props?.className === "string" && n.props.className.split(" ").includes(cls);
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  return n.rendered !== undefined ? textOf(n.rendered) : textOf(n.props?.children);
-};
 const buttonsOf = (tree) => {
   const out = [];
   walk(tree, (n) => {
@@ -235,9 +135,8 @@ const buttonsOf = (tree) => {
   return out;
 };
 const paneOf = (thread, over = {}) => {
-  cells = [];
-  frames.begin();
-  return InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" }, ...over });
+  fresh();
+  return again(() => InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" }, ...over }));
 };
 
 /* --------------------------------- the pane --------------------------------- */
@@ -257,7 +156,7 @@ test("the Needs you line keeps its words and its buttons apart: the words take t
   assert.deepEqual(buttonsOf(actions), ["Hand back"], "and the way out, in two words");
   assert.equal(
     find(find(take, hasClass("ix-state-says")), hasClass("ix-state-acts")),
-    undefined,
+    null,
     "beside the pill, never inside the words",
   );
   // The to-do is the line's own words, said once (calls you can follow).
@@ -306,7 +205,7 @@ test("past a draft's deadline the Inbox reads again every five seconds while the
   const st = {};
   const at = [0, 1000, 5000, 5200, 10_000, 15_000, 20_000, 25_000, 30_000, 35_000];
   assert.deepEqual(
-    at.map((ms) => globalThis.window.ixReadAgain(st, ms)),
+    at.map((ms) => ixReadAgain(st, ms)),
     [true, false, true, false, true, true, true, true, false, false],
     "REGRESSION: it read once at zero, and 'Auto-sends in 0s' stayed until something else moved",
   );
@@ -315,33 +214,26 @@ test("past a draft's deadline the Inbox reads again every five seconds while the
 test("a hold belongs to the draft it held: the next draft on the same thread counts down, not 'Held'", async () => {
   const state = {};
   const first = { id: "th-1", real: true, who: "Rosa Díaz", veto: { messageId: "m1", endsAtMs: 1 } };
-  const r = await globalThis.window.ixHoldAll([first], { state, cancelSend: async () => ({ ok: true }) });
+  const r = await ixHoldAll([first], { state, cancelSend: async () => ({ ok: true }) });
   assert.equal(r.held, 1);
-  assert.equal(globalThis.window.ixHeld(state, first), true);
+  assert.equal(ixHeld(state, first), true);
   const next = { ...first, veto: { messageId: "m2", endsAtMs: 2 } };
   assert.equal(
-    globalThis.window.ixHeld(state, next),
+    ixHeld(state, next),
     false,
     "REGRESSION: the next draft on the thread read 'Held — manual send', and the server sent it",
   );
   const seeded = { id: "t-seed", real: false, who: "Aisha", veto: { window: 30, draft: "Hi" } };
-  await globalThis.window.ixHoldAll([seeded], { state, cancelSend: null });
-  assert.equal(globalThis.window.ixHeld(state, seeded), true, "the demo's hold is still the thread's");
+  await ixHoldAll([seeded], { state, cancelSend: null });
+  assert.equal(ixHeld(state, seeded), true, "the demo's hold is still the thread's");
 });
 
 test("the countdown on screen, and the Hold that stops it, read and write the draft's own record", () => {
-  let pane = null;
-  globalThis.InboxList = () => null;
-  globalThis.InboxThread = (p) => {
-    pane = p;
-    return null;
-  };
-  globalThis.InboxAgentRail = () => null;
-  globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
   const vm = vmOf(chat({ state: "open", messages: [wrote("m1", "Can I move my appointment to Friday?", 2), draft] }));
+  // What the page gave the pane it drew.
   const draw = (state) => {
-    globalThis.window.VW_STORE = { state };
-    globalThis.window.INBOX_DATA = {
+    VW_STORE.state = state;
+    setSurfaceValue("inbox", {
       INBOX_BUCKETS: [
         { id: "escalated", label: "Needs you" },
         { id: "done", label: "Handled" },
@@ -350,11 +242,10 @@ test("the countdown on screen, and the Hold that stops it, read and write the dr
       CHANNEL_LABELS: {},
       INBOX_BASELINE: {},
       THREADS: [vm],
-    };
-    cells = [];
-    frames.begin();
-    globalThis.window.Inbox({ showAgentRail: false });
-    return pane;
+    });
+    fresh();
+    const tree = again(() => Inbox({ showAgentRail: false }));
+    return find(tree, (n) => n.type === InboxThread).props;
   };
   assert.equal(
     typeof draw({ [vm.id]: { held: true } }).veto,
@@ -363,12 +254,15 @@ test("the countdown on screen, and the Hold that stops it, read and write the dr
   );
   assert.equal(draw({ "draft:m3": { held: true } }).veto, null, "the draft's own hold stops its countdown");
   const state = {};
-  globalThis.window.__cancelSend = () => new Promise(() => {});
+  // The server never answers the withdraw, so the hold stays as the page wrote it.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = () => new Promise(() => {});
   try {
     draw(state).onVetoAct(vm.id, "hold");
     assert.deepEqual(Object.keys(state), ["draft:m3"], "Hold writes the draft's record, not the thread's");
   } finally {
-    delete globalThis.window.__cancelSend;
+    globalThis.fetch = realFetch;
+    VW_STORE.state = {};
   }
 });
 
@@ -377,24 +271,25 @@ test("the countdown on screen, and the Hold that stops it, read and write the dr
 test("the buckets say which one is open, and the select-all box says what it selects", () => {
   const one = vmOf(chat(), asked());
   const two = vmOf(chat({ id: "c2" }), asked({ id: "e2" }));
-  cells = [];
-  frames.begin();
-  const tree = InboxList({
-    threads: [one, two],
-    allThreads: [one, two],
-    buckets: [
-      { id: "escalated", label: "Needs you", icon: "flag", count: 2 },
-      { id: "done", label: "Handled", icon: "check", count: 0 },
-    ],
-    views: [],
-    activeBucket: "escalated",
-    onBucketChange() {},
-    activeThreadId: one.id,
-    onSelectThread() {},
-    selected: [],
-    onToggleSelect() {},
-    onClearSelection() {},
-  });
+  fresh();
+  const tree = again(() =>
+    InboxList({
+      threads: [one, two],
+      allThreads: [one, two],
+      buckets: [
+        { id: "escalated", label: "Needs you", icon: "flag", count: 2 },
+        { id: "done", label: "Handled", icon: "check", count: 0 },
+      ],
+      views: [],
+      activeBucket: "escalated",
+      onBucketChange() {},
+      activeThreadId: one.id,
+      onSelectThread() {},
+      selected: [],
+      onToggleSelect() {},
+      onClearSelection() {},
+    }),
+  );
   const bucket = (label) =>
     find(tree, (n) => n.type === "button" && hasClass("ix-bucket")(n) && textOf(n).includes(label));
   assert.deepEqual(

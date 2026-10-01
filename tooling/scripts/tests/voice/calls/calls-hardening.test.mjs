@@ -12,9 +12,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { toLiveCallVM } from "@chanlytics/contracts";
+import { toLiveCallVM, toLiveVM } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../../_source.mjs";
 import { changesOf } from "../../_live-feed.mjs";
+import { installLegacyReact, fresh, again, byTestId, textOf } from "../../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -23,6 +24,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const { wantsRefresh, subscribesToRealtime, DEFAULT_REFRESH_TABLES } = await import(
   pathToFileURL(path.join(here, "../../../../../apps/dashboard/src/legacy-bridge/surface-realtime.ts")).href
 );
+
+// Live's surface, where it lives since decision 0015 (surfaces/live/surface.ts).
+const { liveOverride } = await import("../../../../../apps/dashboard/src/surfaces/live/surface.ts");
 
 const sql = readRaw("supabase/migrations/00034_call_pipeline_hardening.sql");
 
@@ -75,8 +79,13 @@ test("realtime events are routed by table: a transcript turn repaints Live, not 
   assert.equal(wantsRefresh(live, "messages"), false);
   assert.equal(subscribesToRealtime({}), false);
   assert.equal(subscribesToRealtime(live), true);
-  const seam = readCode("apps/dashboard/src/legacy-bridge/surfaces/live.ts");
-  assert.ok(seam.includes('refreshOnTables: ["calls"]'), "Live listens to calls alone");
+  assert.deepEqual(liveOverride.refreshOnTables, ["calls"], "Live listens to calls alone");
+  assert.equal(subscribesToRealtime(liveOverride), true);
+  assert.deepEqual(
+    [wantsRefresh(liveOverride, "calls"), wantsRefresh(liveOverride, "messages")],
+    [true, false],
+    "and a call's turn repaints it, while the messages the default surfaces follow do not",
+  );
   // The live feed hands the runner a turn's notice as the calls table's UPDATE (packages/db realtime.ts); the runner
   // routes it by table (shell/surfaces/surface-boot.test.mjs runs that).
   const [turn] = await changesOf({ event: "UPDATE", payload: { table: "calls", op: "UPDATE", statuses: ["ongoing"] } });
@@ -98,7 +107,7 @@ test("the storage upload is bounded too", () => {
   assert.ok(lib.includes('"storage upload"'), "the upload is bounded too");
 });
 
-test("Live says only what is true about a silent 'ongoing' row", () => {
+test("Live says only what is true about a silent 'ongoing' row", async () => {
   const NOW = new Date("2026-09-04T18:14:00.000Z");
   const ago = (ms) => new Date(NOW.getTime() - ms).toISOString();
   const base = {
@@ -131,9 +140,43 @@ test("Live says only what is true about a silent 'ongoing' row", () => {
   assert.equal(phantom.stale, true, "neither live nor ended");
   assert.equal(toLiveCallVM({ ...base, status: "ended", duration_ms: 1000 }, ZONE, NOW).stale, false);
   // "No word from the provider" is the one pill's word for a stale call now: run in state-pill.test.mjs.
-  const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor.jsx");
-  assert.ok(page.includes("checked with the phone provider within five minutes"));
-  assert.ok(!page.includes("The transcript arrives when the call ends"), "turns stream now");
+  // The page (surfaces/live, TSX since decision 0015), drawn on the legacy stub React over each state a call can be in as it
+  // is drawn: the words are the ones it says, not the ones its source holds.
+  installLegacyReact({ __DEMO_MODE: false, CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
+  const S = "../../../../../apps/dashboard/src";
+  await import(`${S}/legacy/components/data-bits.jsx`);
+  globalThis.usePPToast = () => [null, () => {}];
+  const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
+  const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+  const at = new Date();
+  const before = (ms) => new Date(at.getTime() - ms).toISOString();
+  const draw = (over) => {
+    setSurfaceValue("live", toLiveVM([{ ...base, ...over }], [], ZONE, at));
+    fresh();
+    return again(() => LivePage({}));
+  };
+  const turns = [
+    { role: "agent", content: "Thank you for calling!" },
+    { role: "user", content: "Is anyone free on Thursday?" },
+  ];
+  const onTheLine = { started_at: before(120_000), updated_at: before(2_000) };
+  const quiet = draw({ ...onTheLine, updated_at: before(6 * 60_000), transcript_object: turns });
+  assert.ok(
+    textOf(byTestId(quiet, "live-checking")).includes("checked with the phone provider within five minutes"),
+    "a live call nobody has heard from says what is being done about it, and by whom",
+  );
+  const talking = draw({ ...onTheLine, transcript_object: turns });
+  assert.match(textOf(talking), /Transcript · as the phone provider sends it/, "turns stream now");
+  assert.ok(textOf(talking).includes("Is anyone free on Thursday?"), "and are drawn as they come");
+  const seen = [
+    quiet,
+    talking,
+    draw({ ...onTheLine, transcript_object: null }),
+    draw({ started_at: before(3_600_000), updated_at: before(20 * 60_000) }),
+    draw({ status: "ended", ended_at: before(30_000), duration_ms: 90_000, updated_at: before(30_000) }),
+  ].map(textOf);
+  for (const words of seen)
+    assert.ok(!words.includes("The transcript arrives when the call ends"), "REGRESSION: turns stream now");
   const tabs = readRaw("apps/dashboard/src/legacy/components/surface-tabs.jsx");
   assert.ok(tabs.includes("window.__LIVE.heartbeatMs"), "the tab applies the heartbeat rule too");
   const today = readCode("packages/contracts/src/today/today-rows.ts");

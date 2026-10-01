@@ -9,14 +9,13 @@
  *   when Broadcasts asks first (C16); a visit reminder's card had no policy chip, its class (booking) being looked
  *   up as a row id (book) (C18); the composer's no-template hint named Messages as plain words (C19).
  * - Run now said "sending now" over a run the server had moved to nine o'clock (C7).
- * Run against the pages on a stub React, over the view models the bridge publishes.
+ * Run against the pages (TSX, apps/dashboard/src/surfaces/campaigns) on a stub React, over the view models the seam holds
+ * (surface-values.ts), their verbs the modules' own; Today's run rows are the shell's, still JSX.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   toBroadcastVM,
-  toRunReportVM,
-  REPLY_WINDOW_MS,
   toTodayVM,
   stateOf,
   fmtDay,
@@ -24,7 +23,17 @@ import {
   POLICY_CLASS_WORDS,
   POLICY_MODE_WORDS,
 } from "@chanlytics/contracts";
-import { hookFrames } from "../_hook-frames.mjs";
+import {
+  installLegacyReact,
+  fresh as freshTree,
+  again as drawAgain,
+  all,
+  find,
+  byTestId,
+  textOf,
+  press,
+  settle,
+} from "../_legacy-react.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -94,7 +103,7 @@ const runOf = (i, over = {}) => ({
   replied: i === 0 ? 1 : 0,
   ...over,
 });
-/** A playbook as the Playbooks surface publishes it: the route's row, its words, its totals (surface-data.ts). */
+/** A playbook as the Playbooks surface publishes it: the route's row, its words, its totals (surface.ts). */
 const playbook = (over = {}) => ({
   id: "pb-1",
   name: "Win-back",
@@ -239,128 +248,13 @@ const metrics = {
 
 /* ---------------------------------- the window ---------------------------------- */
 
-const listeners = {};
-const storage = () => {
-  const m = new Map();
-  return {
-    getItem: (k) => (m.has(k) ? m.get(k) : null),
-    setItem: (k, v) => m.set(k, String(v)),
-    removeItem: (k) => m.delete(k),
-  };
-};
-globalThis.localStorage = storage();
-globalThis.sessionStorage = storage();
-globalThis.document = {
-  body: {},
-  activeElement: null,
-  addEventListener() {},
-  removeEventListener() {},
-  getElementById: () => null,
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
-};
-globalThis.window = {
-  location: {
-    pathname: "/w/studio",
-    hash: "#/broadcasts",
-    origin: "https://app.chanlytics.com",
-    assign() {},
-    replace() {},
-    reload() {},
-  },
-  history: { replaceState() {} },
-  localStorage: globalThis.localStorage,
-  sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => {
-    (listeners[type] ||= new Set()).add(fn);
-  },
-  removeEventListener: (type, fn) => {
-    listeners[type]?.delete(fn);
-  },
-  dispatchEvent: (ev) => {
-    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
-    return true;
-  },
-  setTimeout: (fn, ms) => setTimeout(fn, ms),
-  clearTimeout: (h) => clearTimeout(h),
-  setInterval: () => 1,
-  clearInterval() {},
-  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: TID,
-};
-const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
-installClock();
-
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
+// The page's window is the stub React's (installLegacyReact: window IS globalThis), with the shell's doors the TSX pages
+// reach through the bridge's verbs (surfaces/legacy-verbs.ts, legacy-parts.ts) and the workspace its clock reads.
 const went = [];
 const toasts = [];
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => fn(),
-  useCallback: (fn) => fn,
-  // An effect runs when its inputs change, after its last cleanup, the way React runs it; with no inputs, on every draw.
-  useEffect: (fn, deps) => {
-    const k = frames.key();
-    const prev = cells[k];
-    if (
-      prev &&
-      deps &&
-      prev.deps &&
-      deps.length === prev.deps.length &&
-      deps.every((d, i) => Object.is(d, prev.deps[i]))
-    )
-      return;
-    if (prev && typeof prev.cleanup === "function") prev.cleanup();
-    cells[k] = { deps, cleanup: undefined };
-    cells[k].cleanup = fn();
-  },
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
-for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"])
-  globalThis[k] = globalThis.window[k];
-const { installPolicyStore } = await import("../../../../apps/dashboard/src/legacy-bridge/policy-store.ts");
-installPolicyStore(globalThis.window);
-globalThis.useHotkey = () => {};
-Object.assign(globalThis.window, {
+installLegacyReact({
+  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
+  __ACTIVE_WORKSPACE: TID,
   usePPToast: () => [null, () => {}],
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
   appNavigate: (to) => went.push(to),
@@ -371,104 +265,68 @@ Object.assign(globalThis.window, {
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
   __surfaceState: () => "live",
   __DEMO_MODE: false,
+  useHotkey: () => {},
 });
-await import("../../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
-const { TODAY_HELPERS } = await import("../../../../apps/dashboard/src/legacy-bridge/today.ts");
-globalThis.window.__today = TODAY_HELPERS;
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-run.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/outbound.jsx");
+const S = "../../../../apps/dashboard/src";
+const { installClock } = await import(`${S}/legacy-bridge/zone.ts`);
+installClock();
+// What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (data-bits), the unsaved-work rule (record-fold).
+await import(`${S}/legacy/components/data-bits.jsx`);
+const { installPolicyStore } = await import(`${S}/legacy-bridge/policy-store.ts`);
+installPolicyStore(globalThis.window);
+// Today's queue and card (TSX since decision 0015): the day comes over the seam, the rows a run needs off the window.
+const { AgentCommand } = await import(`${S}/surfaces/today/pages/queue.tsx`);
+const { TodayCard } = await import(`${S}/surfaces/today/pages/card.tsx`);
+// The moved surfaces: TSX, drawn over the values the seam holds, their verbs imported.
+const { BroadcastsPage } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+const { PlaybooksPage } = await import(`${S}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
+const { PlaybookCard } = await import(`${S}/surfaces/campaigns/playbooks/card-detail.tsx`);
+const { broadcasts } = await import(`${S}/surfaces/campaigns/broadcasts/verbs.ts`);
+const { playbooks } = await import(`${S}/surfaces/campaigns/playbooks/verbs.ts`);
+const { playbooksOverride } = await import(`${S}/surfaces/campaigns/playbooks/surface.ts`);
+const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) {
-    for (const k of n) walk(k, fn);
-    return;
-  }
-  fn(n);
-  walk(n.props?.children, fn);
-  walk(n.rendered, fn);
-};
-const all = (tree, pred) => {
-  const out = [];
-  walk(tree, (n) => {
-    if (pred(n)) out.push(n);
-  });
-  return out;
-};
-const find = (tree, pred) => all(tree, pred)[0] ?? null;
-const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
-/** A node's words in reading order: what a drawn component rendered, else its children in turn. */
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  if (n.rendered !== undefined) return textOf(n.rendered);
-  return textOf(n.props?.children);
-};
 const buttonsSaying = (tree, words) => all(tree, (n) => n.type === "button" && textOf(n).trim() === words);
-const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
-const settle = () => new Promise((r) => setImmediate(r));
 /** A fresh mount: nothing kept from the last page, no listener left behind by it. */
 const fresh = () => {
-  cells = [];
-  frames.begin();
+  freshTree();
   went.length = 0;
-  for (const k of Object.keys(listeners)) delete listeners[k];
 };
 
 /** The detail's reads, answered in order per broadcast; the last answer repeats. */
 const answers = new Map();
 const asked = [];
-globalThis.window.__broadcasts = {
-  // The report the verbs publish (broadcast-verbs.ts): the contracts' own, stamped by the clock the page runs on.
-  report: (d) =>
-    toRunReportVM(d, {
-      windowMs: REPLY_WINDOW_MS,
-      nowMs: Date.now(),
-      clock: (iso) => (iso ? globalThis.window.__clock.stamp(Date.parse(iso)) : null),
-    }),
-  detail: async (id) => {
-    asked.push(id);
-    const queue = answers.get(id) || [];
-    return (
-      (queue.length > 1 ? queue.shift() : queue[0]) || {
-        ok: false,
-        code: "not_found",
-        status: 404,
-        message: "Broadcast not found.",
-      }
-    );
-  },
+// The verb the run's screen reads through (verbs.ts `broadcasts.detail`): answered from the queue above. Its report is the
+// verbs' own (`broadcasts.report`, the contracts' words stamped by the clock the page runs on), not a stand-in.
+broadcasts.detail = async (id) => {
+  asked.push(id);
+  const queue = answers.get(id) || [];
+  return (
+    (queue.length > 1 ? queue.shift() : queue[0]) || {
+      ok: false,
+      code: "not_found",
+      status: 404,
+      message: "Broadcast not found.",
+    }
+  );
 };
 const page = (props) => {
   fresh();
-  return globalThis.window.BroadcastsPage(props);
+  return BroadcastsPage(props);
 };
-const again = (props) => {
-  frames.begin();
-  return globalThis.window.BroadcastsPage(props);
-};
+const again = (props) => drawAgain(() => BroadcastsPage(props));
+const cardOf = (p) => PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
 const card = (p) => {
   fresh();
-  return globalThis.window.PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
+  return cardOf(p);
 };
-const redraw = (p) => {
-  frames.begin();
-  return globalThis.window.PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
-};
+const redraw = (p) => drawAgain(() => cardOf(p));
+const outbound = (props = {}) => PlaybooksPage(props);
 
 /* ------------------------------- a run's own door ------------------------------- */
 
 test("REGRESSION (C9): each of a playbook's runs opens that run -- the runs were dead text, and the one door opened every broadcast", () => {
-  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  setSurfaceValue("playbooks", playbooksSurface());
   const tree = card(playbook());
   const doors = all(tree, (n) => n.props?.["data-testid"] === "pb-run-open");
   assert.equal(doors.length, 2, "REGRESSION: a run was a line of text");
@@ -495,7 +353,7 @@ test("REGRESSION (C9): each of a playbook's runs opens that run -- the runs were
 });
 
 test("REGRESSION (C9): a link to a run opens it on Broadcasts -- its report on a screen of its own, as the canvas draws it, whether the list holds it or not", async () => {
-  globalThis.window.__BROADCASTS = broadcastsSurface();
+  setSurfaceValue("broadcasts", broadcastsSurface());
   answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
   // The ledger's own doors: a row's name and its Open (the chevron, named "Open <run>" for a screen reader) are links
   // to the run.
@@ -558,7 +416,7 @@ test("REGRESSION (C9): a link to a run opens it on Broadcasts -- its report on a
 });
 
 test("the page follows its link rather than starting again: opening a run keeps the audience chosen, and a link to a list picks it", () => {
-  globalThis.window.__BROADCASTS = broadcastsSurface();
+  setSurfaceValue("broadcasts", broadcastsSurface());
   const chosen = (tree) =>
     textOf(
       find(tree, (n) => n.props?.["data-testid"] === "bc-audience" && String(n.props.className).includes("active")),
@@ -575,7 +433,7 @@ test("the page follows its link rather than starting again: opening a run keeps 
   tree = again({ initialSegment: "s2", initialRun: null });
   assert.ok(chosen(tree).startsWith("Walk-ins"), "and a later link to another list picks that list");
   press(find(tree, (n) => n.props?.["data-testid"] === "bc-audience" && textOf(n).startsWith("Regulars")));
-  globalThis.window.__BROADCASTS = broadcastsSurface();
+  setSurfaceValue("broadcasts", broadcastsSurface());
   again({ initialSegment: "s2", initialRun: null });
   tree = again({ initialSegment: "s2", initialRun: null });
   assert.ok(
@@ -585,11 +443,12 @@ test("the page follows its link rather than starting again: opening a run keeps 
 });
 
 test("a run opened before opens at once from what the tab holds, and is read again behind -- every open was a read first (~250ms of 'Reading who got it…', measured)", async () => {
-  globalThis.window.__BROADCASTS = broadcastsSurface();
+  setSurfaceValue("broadcasts", broadcastsSurface());
   answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
   answers.set("b-new", [{ ok: true, data: detailOf(dto({ id: "b-new", name: "Win-back · 2026-09-20" })) }]);
-  // What the courier's read cache holds (broadcast-verbs.ts peekDetail): the last answer for a run this tab opened.
-  globalThis.window.__broadcasts.peekDetail = (id) => (id === "b-sent" ? { ok: true, data: detailOf(dto()) } : null);
+  // What the courier's read cache holds (verbs.ts peekDetail): the last answer for a run this tab opened.
+  const peekKept = broadcasts.peekDetail;
+  broadcasts.peekDetail = (id) => (id === "b-sent" ? { ok: true, data: detailOf(dto()) } : null);
   asked.length = 0;
   try {
     const seen = byTestId(page({ initialSegment: null, initialRun: "b-sent" }), "bc-detail");
@@ -602,12 +461,12 @@ test("a run opened before opens at once from what the tab holds, and is read aga
     const cold = byTestId(page({ initialSegment: null, initialRun: "b-new" }), "bc-detail");
     assert.ok(textOf(cold).includes("Reading who got it"), "a run never opened still says it is reading");
   } finally {
-    delete globalThis.window.__broadcasts.peekDetail;
+    broadcasts.peekDetail = peekKept;
   }
 });
 
 test("REGRESSION (C23): a detail that could not be read says so with a Retry, and a link to a broadcast that is not here says that instead", async () => {
-  globalThis.window.__BROADCASTS = broadcastsSurface();
+  setSurfaceValue("broadcasts", broadcastsSurface());
   asked.length = 0;
   answers.set("b-sent", [
     { ok: false, code: "network", status: 0, message: "offline" },
@@ -635,7 +494,7 @@ test("REGRESSION (C23): a detail that could not be read says so with a Retry, an
 });
 
 test("REGRESSION (C23): an open detail keeps up while its broadcast is sending, and stops asking once it has sent", async () => {
-  globalThis.window.__BROADCASTS = broadcastsSurface();
+  setSurfaceValue("broadcasts", broadcastsSurface());
   asked.length = 0;
   answers.set("b-sending", [
     {
@@ -718,11 +577,11 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
     counts: quiet,
   });
   const done = dto({ id: "b-done", name: "Save our number · 2026-09-15", state: "sent", started_at: iso(0) });
-  globalThis.window.__BROADCASTS = { rows: [waiting, soon, done].map((b) => toBroadcastVM(b, ZONE)) };
-  globalThis.window.TODAY_DATA = toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z"));
+  setSurfaceValue("broadcasts", { rows: [waiting, soon, done].map((b) => toBroadcastVM(b, ZONE)) });
+  setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
   try {
     fresh();
-    const queue = globalThis.window.AgentCommand();
+    const queue = AgentCommand();
     const run = byTestId(queue, "brief-run-row");
     const who = buttonsSaying(run, "See who's on it")[0];
     assert.ok(who, "REGRESSION: the run's second door was Open Playbooks");
@@ -738,18 +597,18 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
     );
     fresh();
     // What ran today is a line of the day's card, under the work (TodayCard); it was a beat of the hero above it.
-    const recap = globalThis.window.TodayCard();
+    const recap = TodayCard();
     press(buttonsSaying(byTestId(recap, "brief-run-done"), "Open")[0]);
     assert.deepEqual(went, ["broadcasts/run:b-done"]);
   } finally {
-    delete globalThis.window.TODAY_DATA;
+    setSurfaceValue("today", undefined);
   }
 });
 
 /* ------------------------------ what a card shows ------------------------------ */
 
 test("REGRESSION (C10): a card shows the words its runs send -- it named the template and never showed the message", () => {
-  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  setSurfaceValue("playbooks", playbooksSurface());
   let tree = card(playbook());
   const words = byTestId(tree, "pb-words");
   assert.ok(words, "REGRESSION: the template's name, and no words");
@@ -764,7 +623,7 @@ test("REGRESSION (C10): a card shows the words its runs send -- it named the tem
   assert.ok(byTestId(byTestId(tree, "pb-words"), "message-preview"), "the whole message, as the customer sees it");
   assert.equal(byTestId(tree, "pb-words-toggle"), null, "and nothing to press to see it");
 
-  globalThis.window.__PLAYBOOKS = playbooksSurface({ templates: [] });
+  setSurfaceValue("playbooks", playbooksSurface({ templates: [] }));
   tree = card(playbook());
   assert.equal(byTestId(tree, "pb-words"), null);
   assert.match(
@@ -773,22 +632,21 @@ test("REGRESSION (C10): a card shows the words its runs send -- it named the tem
     "a template WhatsApp no longer approves is said, since the runs skip it",
   );
 
-  globalThis.window.__PLAYBOOKS = playbooksSurface({ templates: null });
+  setSurfaceValue("playbooks", playbooksSurface({ templates: null }));
   fresh();
-  const failed = globalThis.window.OutboundPage({});
+  const failed = outbound();
   assert.ok(byTestId(failed, "pb-cards-templates-failed"), "a templates read that failed is said once, over the cards");
   assert.equal(byTestId(failed, "pb-template-gone"), null, "and no card calls its template withdrawn");
 });
 
 test("REGRESSION (C16): Skip this run asks first, as Broadcasts does -- it skipped on one click", async () => {
   const skipped = [];
-  globalThis.window.__playbooks = {
-    skipRun: async (id) => {
-      skipped.push(id);
-      return { ok: true, data: {} };
-    },
+  const skipKept = playbooks.skipRun;
+  playbooks.skipRun = async (id) => {
+    skipped.push(id);
+    return { ok: true, data: {} };
   };
-  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  setSurfaceValue("playbooks", playbooksSurface());
   const p = playbook({
     totals: { ...playbook().totals, waiting: { id: "b-wait", recipient_count: 3, name: "Win-back · 2026-09-15" } },
   });
@@ -800,13 +658,14 @@ test("REGRESSION (C16): Skip this run asks first, as Broadcasts does -- it skipp
   assert.equal(byTestId(tree, "pb-approve"), null, "while it asks, Approve steps aside");
   assert.equal(byTestId(tree, "pb-delete-confirm"), null, "and the delete's question stays its own");
   await press(byTestId(tree, "pb-skip-yes"));
+  playbooks.skipRun = skipKept;
   assert.deepEqual(skipped, ["b-wait"]);
 });
 
 test("REGRESSION (C18): a visit reminder's card shows its policy chip -- its class, booking, was looked up as a row id", () => {
   globalThis.window.__POLICIES = { role: "owner", rows: [{ class: "booking", mode: "auto", limits: {} }] };
   try {
-    globalThis.window.__PLAYBOOKS = playbooksSurface();
+    setSurfaceValue("playbooks", playbooksSurface());
     const tree = card(
       playbook({
         id: "pb-v",
@@ -829,12 +688,11 @@ test("REGRESSION (C18): a visit reminder's card shows its policy chip -- its cla
 });
 
 test("REGRESSION (C19): with no approved template, the composer's hint opens Messages -- it named the page in plain words", () => {
-  globalThis.window.__PLAYBOOKS = playbooksSurface({ rows: [], templates: [] });
+  setSurfaceValue("playbooks", playbooksSurface({ rows: [], templates: [] }));
   fresh();
-  globalThis.window.OutboundPage({});
+  outbound();
   globalThis.window.dispatchEvent({ type: "playbooks:new" });
-  frames.begin();
-  const tree = globalThis.window.OutboundPage({});
+  const tree = drawAgain(outbound);
   const hint = byTestId(tree, "pb-no-template");
   assert.ok(hint, "the composer is open on a workspace with no template");
   const door = find(hint, (n) => n.type === "button");
@@ -844,21 +702,20 @@ test("REGRESSION (C19): with no approved template, the composer's hint opens Mes
 });
 
 test("REGRESSION (C7): Run now says when the run really goes -- it said 'sending now' over a run the server moved to nine", async () => {
-  globalThis.window.__PLAYBOOKS = playbooksSurface();
-  globalThis.window.__playbooks = {
-    runNow: async () => ({
-      ok: true,
-      data: {
-        id: "pb-1",
-        outcome: "sent",
-        eligible: 3,
-        broadcast_id: "b-new",
-        name: "Win-back",
-        scheduled_for: iso(10 * H),
-        moved_from: iso(0),
-      },
-    }),
-  };
+  setSurfaceValue("playbooks", playbooksSurface());
+  const runKept = playbooks.runNow;
+  playbooks.runNow = async () => ({
+    ok: true,
+    data: {
+      id: "pb-1",
+      outcome: "sent",
+      eligible: 3,
+      broadcast_id: "b-new",
+      name: "Win-back",
+      scheduled_for: iso(10 * H),
+      moved_from: iso(0),
+    },
+  });
   toasts.length = 0;
   await press(byTestId(card(playbook()), "pb-run-now"));
   let said = textOf(toasts.at(-1).msg);
@@ -866,19 +723,18 @@ test("REGRESSION (C7): Run now says when the run really goes -- it said 'sending
   assert.ok(!said.includes("sending now"), said);
 
   // A dashboard deployed ahead of its edge gets no time back, and does not claim one.
-  globalThis.window.__playbooks = {
-    runNow: async () => ({
-      ok: true,
-      data: { id: "pb-1", outcome: "sent", eligible: 3, broadcast_id: "b-new", name: "Win-back" },
-    }),
-  };
+  playbooks.runNow = async () => ({
+    ok: true,
+    data: { id: "pb-1", outcome: "sent", eligible: 3, broadcast_id: "b-new", name: "Win-back" },
+  });
   await press(byTestId(card(playbook()), "pb-run-now"));
   said = textOf(toasts.at(-1).msg);
+  playbooks.runNow = runKept;
   assert.ok(!/\bnow\b/.test(said), said);
 });
 
 test("A card says what its runs earned as one sentence, and nothing when it has not run", () => {
-  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  setSurfaceValue("playbooks", playbooksSurface());
   // Five numbers with dots between them became a sentence, the way Today,
   // Reports and People say theirs; each run below still says its own.
   const words = textOf(byTestId(card(playbook()), "pb-results"))
@@ -893,7 +749,7 @@ test("A card says what its runs earned as one sentence, and nothing when it has 
 });
 
 test("A card leads with what it sends, not with how it is configured", () => {
-  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  setSurfaceValue("playbooks", playbooksSurface());
   const tree = card(playbook());
   // The trigger, the schedule, the audience and the next run were five chips and
   // a meta line above the message; they are one sentence beside it now.
@@ -920,9 +776,7 @@ test("A card leads with what it sends, not with how it is configured", () => {
 
 test("REGRESSION: a playbook whose yes has no number says so and offers no QR -- its card said '0 people on the list said yes' and sent the owner for an answer they had", async () => {
   // The chain, run: the route's pools (server/campaigns/playbooks.ts triggerPools), the surface the bridge builds from them,
-  // the words and the door it publishes (installPlaybooks), and the card that draws them.
-  const { installPlaybooks } = await import("../../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
-  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts");
+  // the words and the door the card imports (playbooks/words.tsx), and the card that draws them.
   const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
   const pools = {
     ...Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty])),
@@ -942,29 +796,17 @@ test("REGRESSION: a playbook whose yes has no number says so and offers no QR --
   ];
   const answer = (data) =>
     new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
-  const kept = globalThis.window.fetch;
-  globalThis.window.fetch = async (url) => {
+  const kept = globalThis.fetch;
+  globalThis.fetch = async (url) => {
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
     if (path === "/api/v1/playbooks") return answer({ playbooks: rows, pools, timezone: ZONE, calendar: "none" });
     if (path === "/api/v1/templates") return answer({ templates: [TEMPLATE] });
     if (path === "/api/v1/channels") return answer({ channels: [] });
     return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
   };
-  const installed = [
-    "__playbooks",
-    "__refreshPlaybooks",
-    "__playbookReach",
-    "__playbookReachWords",
-    "__playbookReachDoor",
-    "__playbookNoNumberWords",
-    "__reachLines",
-    "__poolWords",
-    "__playbookName",
-  ];
-  installPlaybooks();
   try {
     await playbooksOverride.apply();
-    const drawn = (id) => card(globalThis.window.__PLAYBOOKS.rows.find((p) => p.id === id));
+    const drawn = (id) => card(surfaceValue("playbooks").rows.find((p) => p.id === id));
     const sentence = (tree) =>
       textOf(find(tree, (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
     const hint = PLAYBOOK_TRIGGERS.find((t) => t.id === "quiet_30").hint;
@@ -982,13 +824,11 @@ test("REGRESSION: a playbook whose yes has no number says so and offers no QR --
     // Nobody on it at all: there is no yes to get.
     assert.equal(byTestId(drawn("pb-phoned"), "pb-reach-door"), null);
   } finally {
-    for (const k of installed) delete globalThis.window[k];
-    globalThis.window.fetch = kept;
+    globalThis.fetch = kept;
   }
 });
 
 test("REGRESSION: a playbook's list that could not be read is not called deleted, and one of People's is named by contracts (decision 0009)", async () => {
-  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts");
   const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
   const pools = Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty]));
   const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
@@ -999,9 +839,9 @@ test("REGRESSION: a playbook's list that could not be read is not called deleted
   ];
   const answer = (data) =>
     new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
-  const fetchKept = globalThis.window.fetch;
+  const fetchKept = globalThis.fetch;
   // The route's reads of the lists failed: its own lists null, People's none.
-  globalThis.window.fetch = async (url) => {
+  globalThis.fetch = async (url) => {
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
     if (path === "/api/v1/playbooks")
       return answer({ playbooks: rows, pools, timezone: ZONE, calendar: "none", lists: null, people_lists: [] });
@@ -1011,7 +851,7 @@ test("REGRESSION: a playbook's list that could not be read is not called deleted
   };
   try {
     await playbooksOverride.apply();
-    const label = (id) => globalThis.window.__PLAYBOOKS.rows.find((p) => p.id === id).triggerLabel;
+    const label = (id) => surfaceValue("playbooks").rows.find((p) => p.id === id).triggerLabel;
     assert.equal(
       label("pb-own"),
       "A list that could not be read",
@@ -1019,13 +859,11 @@ test("REGRESSION: a playbook's list that could not be read is not called deleted
     );
     assert.equal(label("pb-people"), "Lapsed", "a built-in is never deleted: contracts names it");
   } finally {
-    globalThis.window.fetch = fetchKept;
+    globalThis.fetch = fetchKept;
   }
 });
 
 test("a playbook on an archived list says so on its card, one press from its list coming back, and no new playbook is offered the list (00169)", async () => {
-  const { installPlaybooks } = await import("../../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
-  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts");
   const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
   const pools = {
     ...Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty])),
@@ -1053,8 +891,8 @@ test("a playbook on an archived list says so on its card, one press from its lis
   ];
   const answer = (data) =>
     new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
-  const fetchKept = globalThis.window.fetch;
-  globalThis.window.fetch = async (url) => {
+  const fetchKept = globalThis.fetch;
+  globalThis.fetch = async (url) => {
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
     if (path === "/api/v1/playbooks")
       return answer({ playbooks: rows, pools, timezone: ZONE, calendar: "none", lists: kept, people_lists: [] });
@@ -1062,20 +900,7 @@ test("a playbook on an archived list says so on its card, one press from its lis
     if (path === "/api/v1/channels") return answer({ channels: [] });
     return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
   };
-  const installed = [
-    "__playbooks",
-    "__refreshPlaybooks",
-    "__playbookReach",
-    "__playbookReachWords",
-    "__playbookReachDoor",
-    "__playbookNoNumberWords",
-    "__reachLines",
-    "__poolWords",
-    "__playbookName",
-    "__lists",
-  ];
   const restored = [];
-  installPlaybooks();
   globalThis.window.__lists = {
     restore: async (id) => {
       restored.push(id);
@@ -1084,7 +909,7 @@ test("a playbook on an archived list says so on its card, one press from its lis
   };
   try {
     await playbooksOverride.apply();
-    const P = globalThis.window.__PLAYBOOKS;
+    const P = surfaceValue("playbooks");
     assert.equal(P.rows[0].listArchived, true);
     assert.deepEqual(
       P.lists.filter((l) => !l.builtin).map((l) => l.id),
@@ -1102,44 +927,30 @@ test("a playbook on an archived list says so on its card, one press from its lis
     assert.deepEqual(restored, ["l1"]);
     assert.match(textOf(toasts.at(-1).msg), /^VIP is back; resume the playbook when you want it running/);
   } finally {
-    for (const k of installed) delete globalThis.window[k];
-    globalThis.window.fetch = fetchKept;
+    delete globalThis.window.__lists;
+    globalThis.fetch = fetchKept;
   }
 });
 
 test("REGRESSION: counts that could not be read are said once, and nothing draws a zero it never counted -- a People read that failed drew '0 of 0', 'nobody to send to' and the QR on every card", async () => {
-  const { installPlaybooks } = await import("../../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
-  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts");
   // The route's answer when its People read failed (server/campaigns/playbooks.ts triggerPools): no moment was counted.
   const pools = Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, null]));
   const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
   const route = Object.fromEntries(Object.entries(playbook()).filter(([k]) => !surfaceOnly.has(k)));
   const answer = (data) =>
     new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
-  const kept = globalThis.window.fetch;
-  globalThis.window.fetch = async (url) => {
+  const kept = globalThis.fetch;
+  globalThis.fetch = async (url) => {
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
     if (path === "/api/v1/playbooks") return answer({ playbooks: [route], pools, timezone: ZONE, calendar: "none" });
     if (path === "/api/v1/templates") return answer({ templates: [TEMPLATE] });
     if (path === "/api/v1/channels") return answer({ channels: [] });
     return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
   };
-  const installed = [
-    "__playbooks",
-    "__refreshPlaybooks",
-    "__playbookReach",
-    "__playbookReachWords",
-    "__playbookReachDoor",
-    "__playbookNoNumberWords",
-    "__reachLines",
-    "__poolWords",
-    "__playbookName",
-  ];
-  installPlaybooks();
   try {
     await playbooksOverride.apply();
     fresh();
-    let page = globalThis.window.OutboundPage({});
+    let page = outbound();
     assert.match(
       textOf(byTestId(page, "pb-counts-failed")),
       /Couldn't read who each moment reaches/,
@@ -1155,21 +966,20 @@ test("REGRESSION: counts that could not be read are said once, and nothing draws
     for (const s of slots)
       assert.ok(!/nobody today|people today|person today/i.test(textOf(s)), `REGRESSION: ${textOf(s)}`);
     // The card says what it knows -- the moment, the clock, the next run -- and no count, no reach, no door.
-    const opened = card(globalThis.window.__PLAYBOOKS.rows[0]);
+    const opened = card(surfaceValue("playbooks").rows[0]);
     const said = textOf(find(opened, (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
     assert.ok(/Next run/.test(said), said);
     assert.ok(!said.includes("on the list said yes") && !said.includes("nobody to send to"), `REGRESSION: ${said}`);
     assert.equal(byTestId(opened, "pb-reach-door"), null);
     // Nor does the composer, where a moment is picked by who it reaches.
     fresh();
-    page = globalThis.window.OutboundPage({});
+    page = outbound();
     find(
       all(page, (n) => n.props?.["data-testid"] === "pb-slot")[0],
       (n) => n.props?.["data-testid"] === "pb-slot-start",
     ).props.onClick();
-    frames.begin();
-    page = globalThis.window.OutboundPage({});
-    // Its "Who it's for" section (the sheet around it is record-sheet.jsx, not loaded here).
+    page = drawAgain(outbound);
+    // Its "Who it's for" section (the sheet around it is the record kit's, not loaded here).
     const who = byTestId(page, "pb-who");
     assert.ok(who, "the composer opens");
     assert.equal(byTestId(who, "pb-reach"), null, "REGRESSION: the composer drew '0 of 0'");
@@ -1178,19 +988,17 @@ test("REGRESSION: counts that could not be read are said once, and nothing draws
       who,
       (n) => String(n.props?.className || "").includes("pb-pick") && typeof n.props?.onClick === "function",
     ).props.onClick({});
-    frames.begin();
-    page = globalThis.window.OutboundPage({});
+    page = drawAgain(outbound);
     const options = all(page, (n) => n.props?.role === "option");
     assert.ok(options.length > 0, "the moments are listed");
     for (const o of options) assert.ok(!/nobody today|\d+ today/i.test(textOf(o)), `REGRESSION: ${textOf(o)}`);
   } finally {
-    for (const k of installed) delete globalThis.window[k];
-    globalThis.window.fetch = kept;
+    globalThis.fetch = kept;
   }
 });
 
 test("A paused playbook says it is paused, and a run's day is words", () => {
-  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  setSurfaceValue("playbooks", playbooksSurface());
   // `nextRunLabel` returns the literal "paused" when it is, and the card read
   // "Next run paused" -- seen in production on the month's offer.
   const off = textOf(
@@ -1221,8 +1029,6 @@ test("A paused playbook says it is paused, and a run's day is words", () => {
 });
 
 test("a proposal follow-up's card (0006): where deals are on, who it reaches with a proposal waiting; where they are off, why it runs nothing, and no count it never took", async () => {
-  const { installPlaybooks } = await import("../../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
-  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts");
   const { FOLLOW_UP_NEEDS_DEALS } = await import("@chanlytics/contracts");
   const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
   const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
@@ -1237,7 +1043,7 @@ test("a proposal follow-up's card (0006): where deals are on, who it reaches wit
   };
   const answer = (data) =>
     new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
-  const kept = globalThis.window.fetch;
+  const kept = globalThis.fetch;
   // The route's answer (server/campaigns/playbooks.ts triggerPools): the moment counted where deals are on, and not where they
   // are off, when it runs nothing.
   const read = async (dealsOn) => {
@@ -1245,7 +1051,7 @@ test("a proposal follow-up's card (0006): where deals are on, who it reaches wit
       ...Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty])),
       proposal_waiting: dealsOn ? { ...empty, pool: 3, candidates: 2, noYes: 1, saidYes: 2 } : null,
     };
-    globalThis.window.fetch = async (url) => {
+    globalThis.fetch = async (url) => {
       const path = new URL(String(url), "https://app.chanlytics.com").pathname;
       if (path === "/api/v1/playbooks")
         return answer({ playbooks: [follow], pools, timezone: ZONE, calendar: "none", deals_on: dealsOn });
@@ -1254,20 +1060,8 @@ test("a proposal follow-up's card (0006): where deals are on, who it reaches wit
       return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
     };
     await playbooksOverride.apply();
-    return globalThis.window.__PLAYBOOKS;
+    return surfaceValue("playbooks");
   };
-  const installed = [
-    "__playbooks",
-    "__refreshPlaybooks",
-    "__playbookReach",
-    "__playbookReachWords",
-    "__playbookReachDoor",
-    "__playbookNoNumberWords",
-    "__reachLines",
-    "__poolWords",
-    "__playbookName",
-  ];
-  installPlaybooks();
   try {
     const sentence = (tree) =>
       textOf(find(tree, (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
@@ -1292,7 +1086,6 @@ test("a proposal follow-up's card (0006): where deals are on, who it reaches wit
       `why it runs nothing, never a zero it did not count: ${drawnOff}`,
     );
   } finally {
-    for (const k of installed) delete globalThis.window[k];
-    globalThis.window.fetch = kept;
+    globalThis.fetch = kept;
   }
 });

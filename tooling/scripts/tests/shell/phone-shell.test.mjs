@@ -22,14 +22,14 @@ function pngSize(rel) {
 
 test("the Inbox and Conversations take turns on a phone, with a Back that only a phone sees", () => {
   // The Inbox's turns and its Back run in inbox-place.test.mjs, on the page itself.
-  const thread = readRaw("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+  const thread = readRaw("apps/dashboard/src/surfaces/inbox/thread/header.tsx");
   assert.ok(thread.includes('data-testid="ix-back"'));
   assert.ok(thread.includes("{onBack && ("), "no Back on desktop's markup path when nobody asked for one");
-  const cv = readRaw("apps/dashboard/src/legacy/pages/conversations.jsx");
+  const cv = readRaw("apps/dashboard/src/surfaces/inbox/pages/conversations-page.tsx");
   assert.ok(cv.includes('${phoneOpen ? "phone-detail" : ""}'));
   // A row pressed opens the pane (openRow: the row, the phone's turn, and the address).
   assert.ok(
-    cv.includes("const openRow = (id) => {") &&
+    cv.includes("const openRow = (id: string) => {") &&
       cv.includes("    setPhoneOpen(true);") &&
       cv.includes("onSelect={openRow}"),
   );

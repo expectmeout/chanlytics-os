@@ -4,7 +4,7 @@
  *   - the surfaces the registry marks demo (Agents: store, fleet, studio, tasks; Content; the Deal board), kept and
  *     hidden from every real workspace, revisited when the product is at 100% (Ruben, 11 September 2026; none of
  *     their features is built before then);
- *   - the seeded twin of four real pages (outbound, broadcasts, live-monitor, calendar), each published as the
+ *   - the seeded twin of three real pages (outbound, broadcasts, live-monitor), each published as the
  *     `*Seed` its real page draws only where the bridge has not fed it, which a real workspace's route gate never lets
  *     it reach;
  *   - the seeded Lists (segments.jsx), drawn only where the address is not a real workspace's (a real workspace's
@@ -19,7 +19,6 @@ import "@/legacy/demo/data/dashboard-data.jsx";
 import "@/legacy/demo/data/store-data.jsx";
 import "@/legacy/demo/data/fleet-data.jsx";
 import "@/legacy/demo/data/pipeline-data.jsx";
-import "@/legacy/demo/data/live-data.jsx";
 import "@/legacy/demo/data/calendar-data.jsx";
 import "@/legacy/demo/data/reports-data.jsx";
 import "@/legacy/demo/data/tasks-data.jsx";
@@ -27,12 +26,9 @@ import "@/legacy/demo/pages/segments.jsx";
 import "@/legacy/demo/pages/agent-store.jsx";
 import "@/legacy/demo/pages/agent-fleet.jsx";
 import "@/legacy/demo/pages/agent-studio.jsx";
-import "@/legacy/demo/pages/outbound.jsx";
 import "@/legacy/demo/pages/content-cal.jsx";
-import "@/legacy/demo/pages/broadcasts.jsx";
 import "@/legacy/demo/pages/pipeline.jsx";
-import "@/legacy/demo/pages/live-monitor.jsx";
-import "@/legacy/demo/pages/calendar.jsx";
+
 import "@/legacy/demo/pages/tasks.jsx";
 
 export {};

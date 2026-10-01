@@ -3,7 +3,6 @@ export {
   lineStuckProvisioning,
   lineRetryRefusal,
   textingWords,
-  setupRoute,
   setupLaterOf,
   forwardedLineOf,
   PROVISIONING_DEADLINE_MS,

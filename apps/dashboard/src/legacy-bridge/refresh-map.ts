@@ -17,17 +17,17 @@
  * thread with them.
  */
 import type { RouteKey } from "../client/api";
-import { broadcastsOverride } from "./surfaces/broadcasts";
-import { calendarOverride } from "./surfaces/calendar";
-import { conversationsOverride } from "./surfaces/conversations";
-import { inboxOverride } from "./surfaces/inbox";
-import { liveOverride } from "./surfaces/live";
+import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
+import { calendarOverride } from "@/surfaces/calendar/surface";
+import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
+import { inboxOverride } from "@/surfaces/inbox/surface";
+import { liveOverride } from "@/surfaces/live/surface";
 import { notificationsOverride } from "./surfaces/notifications";
-import { peopleOverride } from "./surfaces/people";
-import { playbooksOverride } from "./surfaces/playbooks";
-import { reportsOverride } from "./surfaces/reports";
+import { peopleOverride } from "@/surfaces/people/surface";
+import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
+import { reportsOverride } from "@/surfaces/reports/surface";
 import { settingsOverride } from "./surfaces/settings";
-import { todayOverride } from "./surfaces/today";
+import { todayOverride } from "@/surfaces/today/surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
 import { billingOverride } from "./billing";
 import { partnerOverride } from "./partner";
@@ -35,7 +35,7 @@ import { googleOverride } from "./google";
 import { leadsOverride } from "./leads";
 import { setupOverride } from "./setup";
 import { refreshSurfaces } from "./surface-runner";
-import { reachOutsOverride } from "./reach-out/reach-outs";
+import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
 import { repliesOverride } from "./reach-out/replies";
 
 const thread = () => [inboxOverride, conversationsOverride, todayOverride];

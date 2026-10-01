@@ -1,15 +1,17 @@
 /**
- * A menu that escapes its pane (MoreMenu `escape`, data-bits.jsx moreFit).
+ * A menu that escapes its pane (MoreMenu `escape`, surfaces/kit/more-menu moreFit).
  *
  * On 21 September the Leads rail's search menu was capped at 196px (#760), because the rail scrolls and cuts off
  * whatever crosses its edge, and #769 then gave every menu 13px words, 11px gaps and a 232px floor. In the rail the
  * cap won: "Remove the ones you haven't touched" and its meta broke onto six lines, the item 116px tall. An escaped
  * menu is placed against the window instead, as wide as every other menu. Its placement is arithmetic on the boxes a
- * browser reports, so it is run here on elements that report them; the menu's own wiring is run on a stub React.
+ * browser reports, so it is run here on elements that report them (the menu's effect places them, from the ref it
+ * holds); the menu's own wiring is run on a stub React.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hookFrames } from "../_hook-frames.mjs";
+import { kitHooks, kitPages } from "../_legacy-react.mjs";
 
 const listeners = [];
 globalThis.window = {
@@ -82,8 +84,9 @@ globalThis.React = {
   useCallback: (fn) => fn,
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-const { MoreMenu, moreFit } = globalThis.window;
+// MoreMenu is the kit's (surfaces/kit/more-menu), which imports its hooks from "react": the stub's are set on it.
+kitHooks();
+const { MoreMenu } = kitPages;
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -141,11 +144,18 @@ const boxes = ({ trigger, w = 292, h = 296, alignLeft = true, offset = { x: 0, y
   };
   return { wrap, menu, classes };
 };
+/** An escaped menu drawn open over `wrap`, as the page would hold it: its state and its box, the first two hooks it calls. */
+const drawnOpenOver = (wrap, props = {}) => {
+  listeners.length = 0;
+  cells = { ":0": true, ":1": { current: wrap } };
+  frames.begin();
+  return MoreMenu({ items: [], escape: true, ...props });
+};
 const placed = (spec, size = { w: 1440, h: 900 }) => {
   globalThis.window.innerWidth = size.w;
   globalThis.window.innerHeight = size.h;
   const b = boxes(spec);
-  moreFit(b.wrap);
+  drawnOpenOver(b.wrap, { align: "left" });
   const r = b.menu.getBoundingClientRect();
   return {
     top: r.top,
@@ -203,10 +213,10 @@ test("an escaped menu lands where it was meant to under a transformed ancestor, 
 });
 
 test("a menu that cannot be measured is left alone", () => {
-  moreFit(null);
-  moreFit({});
-  moreFit({ querySelector: () => null });
-  moreFit({ querySelector: (s) => (s === ":scope > button" ? {} : null) });
+  drawnOpenOver(null);
+  drawnOpenOver({});
+  drawnOpenOver({ querySelector: () => null });
+  drawnOpenOver({ querySelector: (s) => (s === ":scope > button" ? {} : null) });
 });
 
 test("the menu wears .escape only when asked, and an escaped one closes on a scroll outside it or a resize", () => {
@@ -294,7 +304,10 @@ test("an item with `checked` is one of a set: a menuitemradio, ticked when chose
   // Every item of a set draws the tick, and components.css hides it where aria-checked is false, so the words of the
   // one chosen and the rest stand in one column.
   assert.deepEqual(
-    rows.map((n) => (kids(n).find((k) => k && k.type === "Icon") || { props: {} }).props.name),
+    rows.map(
+      (n) =>
+        (kids(n).find((k) => k && typeof k.type === "function" && k.type.name === "Icon") || { props: {} }).props.name,
+    ),
     ["check", "check", "external"],
   );
 });

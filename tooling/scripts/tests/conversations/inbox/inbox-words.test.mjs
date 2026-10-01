@@ -9,12 +9,12 @@
  * - its button said "Send booking link" whichever template was picked;
  * - the search offered "threads, clients, tags" on a workspace with no tags and no clients page;
  * - a teammate with no name was shouted in capitals: "BILLING@RJCAPITAL.IO HAS IT".
- * Run against the contracts, the server's row mapping, the bridge, and the pages on a stub React.
+ * Run against the contracts, the server's row mapping, and the pages on a stub React.
  */
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
+import { installLegacyReact, fresh, again } from "../../_legacy-react.mjs";
 
 // New exports are read at run time, so a missing one fails its own test and not the file.
 const contracts = await import("@chanlytics/contracts");
@@ -216,7 +216,8 @@ test("the thread knows what the composer needs: whether they said yes to offers,
 
 /* -------------------------------- a browser -------------------------------- */
 
-globalThis.window = {
+const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
+installLegacyReact({
   location: {
     pathname: "/w/marisas",
     hash: "",
@@ -225,8 +226,6 @@ globalThis.window = {
     replace() {},
     reload() {},
   },
-  localStorage: globalThis.localStorage,
-  sessionStorage: globalThis.sessionStorage,
   __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf },
@@ -234,102 +233,30 @@ globalThis.window = {
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   __surfaceState: () => "live",
   __DEMO_MODE: false,
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent() {
-    return true;
-  },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
-};
-globalThis.document = {
-  visibilityState: "hidden",
-  body: { appendChild() {} },
-  addEventListener() {},
-  removeEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
-};
-const quiet = async (fn) => {
-  const e = console.error;
-  console.error = () => {};
-  try {
-    return await fn();
-  } finally {
-    console.error = e;
-  }
-};
-
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = fn();
-    return cells[k];
-  },
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
+});
+globalThis.document.visibilityState = "hidden";
+after(() => Object.assign(globalThis, timers));
+// The shell's own helpers the pages spread and call (gate, the toast, canDo), as the app publishes them.
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of [
-  "StatePill",
-  "MoreMenu",
-  "EmptyState",
-  "PolicyChip",
-  "TlMedia",
-  "FailedRead",
-  "Confirm",
-  "usePPToast",
-  "useHotkey",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
-globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-const { InboxList, InboxComposer } = globalThis.window;
+const S = "../../../../../apps/dashboard/src/surfaces";
+const { InboxList } = await import(`${S}/inbox/pages/inbox-list.tsx`);
+const { Composer: InboxComposer } = await import(`${S}/inbox/thread/composer.tsx`);
+const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+after(() => setSurfaceValue("inbox", undefined));
+/** The Inbox's approved templates, as the surface publishes them (what window.__TEMPLATES was): the composer reads them from the seam. */
+const setTemplates = (templates) =>
+  setSurfaceValue("inbox", {
+    INBOX_BUCKETS: [],
+    INBOX_VIEWS: [],
+    THREADS: [],
+    CHANNEL_LABELS: {},
+    INBOX_BASELINE: { doneThisWeek: 0 },
+    templates,
+  });
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -365,16 +292,14 @@ const textOf = (n) => {
 };
 const buttonsOf = (tree) => findAll(tree, (n) => n.type === "button").map((n) => textOf(n).trim());
 const composerOf = (thread) => {
-  cells = [];
-  frames.begin();
+  fresh();
   return InboxComposer({ thread, reply: "", onSend() {} });
 };
 
 /* --------------------------------- the pages --------------------------------- */
 
 test("the composer names the channel and the number the way the header does", () => {
-  globalThis.window.__TEMPLATES = [booking];
-  globalThis.window.__inboxTemplates = contracts.inboxTemplates;
+  setTemplates([booking]);
   const phoneOnly = toInboxThreadVM(
     conv({ last_wa_inbound_at: null, contact: person({ phone_e164: "+19175550106" }), messages: [callNote] }),
     asked({ reason: "callback", details: "Call back" }),
@@ -395,10 +320,9 @@ test("the composer names the channel and the number the way the header does", ()
 });
 
 test("the template send offers what can go to this person, by title and language, says why the rest are not offered, and names what it sends", () => {
-  globalThis.window.__inboxTemplates = contracts.inboxTemplates;
   const closed = toInboxThreadVM(conv(), asked(), ZONE, NOW);
 
-  globalThis.window.__TEMPLATES = [booking, offer, note];
+  setTemplates([booking, offer, note]);
   let tree = composerOf(closed);
   assert.equal(
     find(tree, (n) => n.type === "select"),
@@ -412,15 +336,14 @@ test("the template send offers what can go to this person, by title and language
   // Why the rest are not offered is one tap away, never a sentence sitting under the reply box.
   assert.equal(find(tree, byTestId("ix-tpl-hidden")), undefined, "not until it is asked for");
   find(tree, (n) => n.type === "button" && textOf(n).trim() === "Why?").props.onClick();
-  frames.begin();
-  tree = InboxComposer({ thread: closed, reply: "", onSend() {} });
+  tree = again(() => InboxComposer({ thread: closed, reply: "", onSend() {} }));
   assert.equal(
     textOf(find(tree, byTestId("ix-tpl-hidden"))),
     "Not offered: 2 that need words the Inbox doesn't ask for.",
     "REGRESSION: all seven were offered, and most would be refused",
   );
 
-  globalThis.window.__TEMPLATES = [booking, saveEs];
+  setTemplates([booking, saveEs]);
   tree = composerOf(closed);
   const pick = find(tree, (n) => n.type === "select");
   assert.deepEqual(
@@ -430,7 +353,7 @@ test("the template send offers what can go to this person, by title and language
   );
   assert.ok(buttonsOf(tree).includes("Send template"));
 
-  globalThis.window.__TEMPLATES = [tpl("welcome_new", { category: "marketing", variables: welcome.variables }), note];
+  setTemplates([tpl("welcome_new", { category: "marketing", variables: welcome.variables }), note]);
   tree = composerOf(closed);
   assert.match(
     textOf(find(tree, hasClass("ix-tpl-none"))),
@@ -438,8 +361,7 @@ test("the template send offers what can go to this person, by title and language
     "eight words, with the counts behind them",
   );
   find(tree, (n) => n.type === "button" && textOf(n).trim() === "Why?").props.onClick();
-  frames.begin();
-  tree = InboxComposer({ thread: closed, reply: "", onSend() {} });
+  tree = again(() => InboxComposer({ thread: closed, reply: "", onSend() {} }));
   assert.equal(
     textOf(find(tree, byTestId("ix-tpl-hidden"))),
     "Not offered: 1 promotion (Rosa Díaz hasn't said yes to offers) and 1 that needs words the Inbox doesn't ask for.",
@@ -449,7 +371,7 @@ test("the template send offers what can go to this person, by title and language
     "REGRESSION: a button whose only outcome was a refusal",
   );
 
-  globalThis.window.__TEMPLATES = [];
+  setTemplates([]);
   assert.match(textOf(composerOf(closed)), /No approved template yet/, "none approved is still its own answer");
 });
 
@@ -457,8 +379,7 @@ test("the search asks for what it searches, and a teammate's email keeps its own
   globalThis.window.__TEAM = [{ userId: "u-b", email: "billing@rjcapital.io", displayName: "" }];
   try {
     const theirs = toInboxThreadVM(conv({ assignee_user_id: "u-b", assignee_is_me: false }), asked(), ZONE, NOW);
-    cells = [];
-    frames.begin();
+    fresh();
     const tree = InboxList({
       threads: [theirs],
       allThreads: [theirs],
@@ -488,23 +409,25 @@ test("the search asks for what it searches, and a teammate's email keeps its own
   }
 });
 
-/* --------------------------------- the bridge --------------------------------- */
+/* ------------------------------- the rule it offers by ------------------------------- */
 
-test("the bridge publishes the rule the composer offers templates by", async () => {
-  const { installInboxVerbs } = await quiet(
-    () => import("../../../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts"),
-  );
-  delete globalThis.window.__inboxTemplates;
-  installInboxVerbs();
+test("the composer offers templates by contracts' rule, which it imports: there is no door on the window to publish it", () => {
   assert.equal(
-    typeof globalThis.window.__inboxTemplates,
-    "function",
-    "REGRESSION: the page had no rule to offer templates by",
+    globalThis.window.__inboxTemplates,
+    undefined,
+    "the rule is the composer's own import (thread/composer.tsx), not a verb the bridge publishes for the page",
   );
-  assert.deepEqual(
-    globalThis.window
-      .__inboxTemplates([booking, offer], { who: "Rosa Díaz", offersOk: false })
-      .sendable.map((s) => s.title),
-    ["Booking link"],
+  setTemplates([booking, offer]);
+  const closed = toInboxThreadVM(conv(), asked(), ZONE, NOW);
+  const offered = contracts
+    .inboxTemplates([booking, offer], { who: "Rosa Díaz", offersOk: false })
+    .sendable.map((s) => s.title);
+  assert.deepEqual(offered, ["Booking link"]);
+  const tree = composerOf(closed);
+  assert.ok(buttonsOf(tree).includes(`Send “${offered[0]}”`), "REGRESSION: the page had no rule to offer templates by");
+  assert.equal(
+    find(tree, (n) => n.type === "select"),
+    undefined,
+    "the one template it can send, and no picker for the promotion it cannot",
   );
 });

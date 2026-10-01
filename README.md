@@ -94,9 +94,9 @@ you change a package — CI has a drift guard that will fail otherwise. Never ad
 guard will fail on someone else's machine.
 
 **`apps/dashboard/src/legacy` is the operator UI, and it began as a design
-mockup.** A hash-routed single-page shell of hand-written JSX, imported in a
-fixed order by `src/legacy-bridge/manifest.ts`, talking through `window`
-globals. Surfaces were made real one at a time by _branching inside the
+mockup.** A single-page shell of hand-written JSX, routed by the address after
+the workspace's slug (`/w/acme/inbox`), imported in a fixed order by
+`src/legacy-bridge/manifest.ts`, talking through `window` globals. Surfaces were made real one at a time by _branching inside the
 existing components_ (`XReal`/`XSeed`), never by redesigning them; the seam
 that feeds a real surface from `/api/v1` is `src/legacy-bridge`, and
 `surface-registry.ts` there is the table that says which routes are real. The
@@ -108,8 +108,8 @@ seeded twin of each real page and the seeds only they read live under
 app loads only in a declared demo session. The mockup's own
 prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
 
-**`dynamic(ssr:false)` on the legacy app is required.** `inbox-data.jsx` does
-unguarded module-scope `window` access and throws during prerender.
+**`dynamic(ssr:false)` on the legacy app is required.** `data/people-data.jsx` and the seed publishers do
+unguarded module-scope `window` access and throw during prerender.
 
 **Nothing in the UI may state a fact the database cannot support.** Unbacked
 mockup regions stay behind `window.__DEMO_MODE`. A zero is a real measurement

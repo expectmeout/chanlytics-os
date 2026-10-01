@@ -212,16 +212,17 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
   // The slots per person and the hold on an unfillable one are run: core-broadcast.test.mjs.
   assert.ok(h.includes('const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";'));
   // The specs and the booking-link refusal are run: core-campaigns.test.mjs.
-  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx");
+  const p = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/page/send-screen.tsx");
   assert.ok(p.includes('data-testid="bc-var-source"') && p.includes('data-testid="bc-new-template"'));
-  assert.ok(p.includes("<window.TemplateComposer"), "one composer, mounted where a template is needed");
-  const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
+  assert.ok(p.includes("<TemplateComposer"), "one composer, mounted where a template is needed");
+  const head = readCode("apps/dashboard/src/surfaces/campaigns/templates/page-parts.tsx");
+  const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
   assert.ok(
-    s.includes('data-testid="template-new"') &&
+    head.includes('data-testid="template-new"') &&
       s.includes('data-testid="template-delete"') &&
       s.includes('" · made here"'),
   );
-  const tc = readCode("apps/dashboard/src/legacy/pages/templates-real.jsx");
+  const tc = readCode("apps/dashboard/src/surfaces/campaigns/templates/composer-forms.tsx");
   for (const id of [
     "tpl-composer",
     "tpl-brief",
@@ -233,10 +234,9 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
     "tpl-submit",
   ])
     assert.ok(tc.includes(`data-testid="${id}"`), id);
-  assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/templates-real.jsx";'),
-  );
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/templates.ts").includes("window.__templates = templates;"));
+  // The composer is a module of the Templates page and the verbs it presses are imported, not published: the page draws
+  // it (the Templates page test), and `templates` is the verbs' export (surfaces/campaigns/templates/verbs.ts).
+  assert.ok(readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts").includes("export const templates"));
   assert.ok(
     /It can be sent now — from a broadcast, or from the Inbox outside the 24-hour window\.`,\s*alert: true,?\s*\}/.test(
       readCode("apps/edge/lib/whatsapp/waba-events.ts"),

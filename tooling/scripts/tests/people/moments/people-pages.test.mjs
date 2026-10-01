@@ -93,9 +93,7 @@ const quietly = async (fn) => {
     console.error = e;
   }
 };
-const { everyPerson } = await quietly(
-  () => import("../../../../../apps/dashboard/src/legacy-bridge/surfaces/people.ts"),
-);
+const { everyPerson } = await quietly(() => import("../../../../../apps/dashboard/src/surfaces/people/surface.ts"));
 
 test("every page after the first starts just past the last row, where the page before said, with the rows held counted beside it", async () => {
   const asked = contactsServer(2300, { cursors: true });

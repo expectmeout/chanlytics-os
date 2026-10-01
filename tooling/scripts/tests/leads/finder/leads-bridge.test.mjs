@@ -964,29 +964,26 @@ test("the view a cold boot reads: the one the address names, in the order this t
     view: { searchId: null, list: "all", cls: null, chips: {}, sort: "rating", dir: "desc", ...over },
   });
   assert.deepEqual(
-    leadsBootView(
-      `#/clients/leads:s-${SEARCH_ID}:c-review:p-${PEEK}`,
-      restored({ searchId: SEARCH_ID, cls: "review" }),
-    ),
+    leadsBootView(`clients/leads:s-${SEARCH_ID}:c-review:p-${PEEK}`, restored({ searchId: SEARCH_ID, cls: "review" })),
     { searchId: SEARCH_ID, list: "all", cls: "review", chips: {}, sort: "rating", dir: "desc" },
     "the lead open over the view is no part of it",
   );
   assert.deepEqual(
-    leadsBootView("#/clients/leads:l-ready", null),
+    leadsBootView("clients/leads:l-ready", null),
     { searchId: null, list: "ready", cls: null, chips: {}, sort: "fit", dir: "asc" },
     "nothing restored: the view's own default order",
   );
   assert.deepEqual(
-    leadsBootView("#/today", restored({})),
+    leadsBootView("today", restored({})),
     { searchId: null, list: "all", cls: null, chips: {}, sort: "rating", dir: "desc" },
     "off the page: all leads, in the order the page will ask for when it opens",
   );
   assert.deepEqual(
-    leadsBootView("#/clients/leads", restored({ sort: "nonsense", dir: "sideways" })),
+    leadsBootView("clients/leads", restored({ sort: "nonsense", dir: "sideways" })),
     { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" },
     "an order the server does not know is never sent",
   );
-  assert.deepEqual(leadsBootView("#/clients/leads", { view: "garbage" }), {
+  assert.deepEqual(leadsBootView("clients/leads", { view: "garbage" }), {
     searchId: null,
     list: "all",
     cls: null,

@@ -412,9 +412,8 @@ const pinned = async (ms, fn) => {
     Date.now = real;
   }
 };
-const { inboxOverride } = await quiet(
-  () => import("../../../../../apps/dashboard/src/legacy-bridge/surfaces/inbox.ts"),
-);
+const { inboxOverride } = await quiet(() => import("../../../../../apps/dashboard/src/surfaces/inbox/surface.ts"));
+const { surfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 test("REGRESSION (D5): on a cold load the Inbox waits for the workspace's zone -- it said the minute by the browser's clock", async () => {
   const seen = wire({
@@ -424,7 +423,7 @@ test("REGRESSION (D5): on a cold load the Inbox waits for the workspace's zone -
     "GET /api/v1/templates": { templates: [] },
   });
   await quiet(() => inboxOverride.apply());
-  const row = globalThis.window.INBOX_DATA.THREADS[0];
+  const row = surfaceValue("inbox").THREADS[0];
   assert.match(
     row.lastAt,
     /^Sep 7/,
@@ -450,7 +449,7 @@ test("a person's profile says its days by the workspace's zone", async () => {
     added: { at: WROTE, source: "manual", title: null },
   };
   wire({ "GET /api/v1/contacts/k1": { person: detail } });
-  const { personDetail } = await import("../../../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+  const { personDetail } = await import("../../../../../apps/dashboard/src/surfaces/people/people-detail.ts");
   const vm = await personDetail("k1");
   assert.equal(vm.about.find((a) => a.k === "Added").v, "Sep 7, 2026 · by hand");
 });
@@ -458,7 +457,7 @@ test("a person's profile says its days by the workspace's zone", async () => {
 test("REGRESSION: a snooze with no time asked for wakes at ten tomorrow by the business's clock -- it was ten wherever the browser was", async () => {
   Object.assign(globalThis.window, { __WORKSPACES: [WORKSPACE], __ACTIVE_WORKSPACE: WORKSPACE.id });
   const seen = wire({ "POST /api/v1/conversations/c1/snooze": { conversation: { id: "c1", state: "snoozed" } } });
-  const { inboxVerb } = await import("../../../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
+  const { inboxVerb } = await import("../../../../../apps/dashboard/src/surfaces/inbox/verbs.ts");
   // 1:30 AM on the 7th in Tokyo; 12:30 PM on the 6th in New York.
   await pinned(at(WROTE), () =>
     quiet(() => inboxVerb({ conversationId: "c1", escalationId: null, who: "Aiko" }, "snooze")),

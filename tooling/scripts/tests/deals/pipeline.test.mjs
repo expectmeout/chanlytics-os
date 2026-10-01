@@ -6,17 +6,18 @@
  * something. The rows are People's own, made from the shape the database returns (toPersonRowVM over people_list's
  * row), so what is proved is what the page will be handed.
  *
- * Then the page (pipeline-scope.jsx) through the stub React, over the real People surface on a fake wire: the switch
- * with its third tab, the line, the sections and their fold, a row that opens its person, the keys, the search, the
- * phone's bar and cards, and People in its place where deals are off. Executed, never read from source.
+ * Then the page (surfaces/people/pipeline/scope.tsx) through the stub React, over the real People surface on a fake
+ * wire: the switch with its third tab, the line, the sections and their fold, a row that opens its person, the keys, the
+ * search, the phone's bar and cards, and People in its place where deals are off. Executed, never read from source.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installRoleStore } from "../_legacy-react.mjs";
+import { legacyAddress } from "../shell/address/_address.mjs";
+import { installRoleStore, kitPages, useStubHooks } from "../_legacy-react.mjs";
 import {
   CONSENT_SOURCES,
+  proposalMessage,
   DEAL_ACT_WORDS,
-  DEAL_CARD_WORDS,
   DEAL_STAGE_WORDS,
   DEAL_LOST_REASON_WORDS,
   DEAL_REFUSALS,
@@ -28,7 +29,6 @@ import {
   clockNear,
   clockNearWhen,
   csvCell,
-  dealCardsOf,
   dealMenuActs,
   dealNextAct,
   dealOf,
@@ -57,7 +57,6 @@ import {
   zoneDayKey,
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { pipelineHelpers } from "../../../../apps/dashboard/src/legacy-bridge/pipeline-helpers.ts";
 import { EVERY_EVENT, changesOf, toldFor } from "../_live-feed.mjs";
 
 const TZ = "America/New_York";
@@ -722,21 +721,119 @@ const quietly = async (fn) => {
     console.error = e;
   }
 };
-const { peopleOverride } = await quietly(
-  () => import("../../../../apps/dashboard/src/legacy-bridge/surfaces/people.ts"),
-);
+const { peopleOverride } = await quietly(() => import("../../../../apps/dashboard/src/surfaces/people/surface.ts"));
 const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
 installClock();
+// The page's own reads: what the tab kept of a person, and the seam's typed value (the mirror is `window.__PEOPLE`).
+const { clearReadCaches } = await import("../../../../apps/dashboard/src/legacy-bridge/read-cache.ts");
+const { setSurfaceValue, surfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { personDetail } = await import("../../../../apps/dashboard/src/surfaces/people/people-detail.ts");
 
-/** People over the wire, as GET contacts answers: whether deals are on here, and any view saved (which lands in `viewSaves`). */
+/**
+ * A person as GET contacts/<id> answers them, from their People row: the same columns, their deal as the route lists it,
+ * and a thread they wrote in a few hours ago, so a free-text send can go. The profile's courier (people-detail.ts) reads
+ * it through the wire and maps it, as the app does; a test that needs someone said differently gives the wire its own.
+ */
+const detailOf = (raw, over = {}) => {
+  const { visits, ...cols } = raw;
+  const deals = raw.deal_id
+    ? [
+        {
+          id: raw.deal_id,
+          contact_id: raw.id,
+          service: raw.deal_service,
+          stage: raw.deal_stage,
+          proposed_at: raw.deal_proposed_at,
+          decided_at: raw.deal_decided_at,
+          ended_at: raw.deal_ended_at,
+          amount_cents: raw.deal_amount_cents,
+          per: raw.deal_per,
+          currency: "USD",
+          note: null,
+          version: 3,
+          created_at: raw.deal_proposed_at,
+          proposal_url: raw.deal_proposal_url,
+          valid_until: raw.deal_valid_until,
+          lost_reason: raw.deal_lost_reason,
+        },
+      ]
+    : [];
+  const heard = iso(Date.now() - 4 * H);
+  return {
+    row: { ...cols, latest_wa_inbound_at: heard },
+    identities: [],
+    conversations: [
+      {
+        id: raw.latest_conversation_id,
+        state: "open",
+        paused_until: null,
+        last_wa_inbound_at: heard,
+        last_message_at: raw.last_message_at,
+        contact: {
+          id: raw.id,
+          display_name: raw.display_name,
+          wa_profile_name: null,
+          phone_e164: raw.phone_e164,
+          consent: "opted_in",
+          dnc: false,
+        },
+        messages: [],
+      },
+    ],
+    calls: [],
+    escalations: [],
+    decisions: [],
+    receptionist_mode: null,
+    workspace_reply_mode: "auto",
+    deals,
+    deals_on: true,
+    services: ["Color correction", "Extensions"],
+    visits,
+    ...over,
+  };
+};
+
+/**
+ * People over the wire, as GET contacts answers: whether deals are on here, and any view saved (which lands in
+ * `viewSaves`). And what the page's verbs ask of the door beside it: a person read (`reads`, answered by `seen.person`), a
+ * person added (`added`, answered by `seen.add`) and a deal recorded (`posted`).
+ */
 const wire = ({ people, dealsOn, total = people.length, hasMore = false, dealPace = null, followUp = null }) => {
-  const seen = { viewSaves: [] };
+  const seen = { viewSaves: [], reads: [], added: [], posted: [] };
+  seen.rawOf = (id) => people.find((r) => r.id === id);
+  seen.person = (id) => {
+    const raw = seen.rawOf(id);
+    return raw ? detailOf(raw) : null;
+  };
+  // A test holds the person's reads on their way (a promise), and lets them land when it says.
+  seen.hold = null;
+  seen.add = () => json(200, { ok: true, data: { contact_id: "new-1", existed: false } });
   globalThis.window.fetch = async (url, init = {}) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
     const saving = u.pathname.match(/^\/api\/v1\/views\/([^/]+)$/);
     if (saving && init.method === "PUT") {
       seen.viewSaves.push({ page: saving[1], view: JSON.parse(init.body).view });
       return json(200, { ok: true, data: { views: {} } });
+    }
+    const one = u.pathname.match(/^\/api\/v1\/contacts\/([^/]+)$/);
+    if (one && (init.method || "GET") === "GET") {
+      seen.reads.push(one[1]);
+      if (seen.hold) await seen.hold;
+      const d = seen.person(one[1]);
+      if (d instanceof Error) return json(500, { ok: false, error: { code: "boom", message: d.message } });
+      return d
+        ? json(200, { ok: true, data: { person: d } })
+        : json(404, { ok: false, error: { code: "not_found", message: "gone" } });
+    }
+    if (u.pathname === "/api/v1/contacts" && init.method === "POST") {
+      const body = JSON.parse(init.body);
+      seen.added.push(body);
+      return seen.add(body);
+    }
+    const dealPost = u.pathname.match(/^\/api\/v1\/contacts\/([^/]+)\/deal$/);
+    if (dealPost && init.method === "POST") {
+      seen.posted.push({ id: dealPost[1], body: JSON.parse(init.body) });
+      return json(200, { ok: true, data: { deal: null, from: "proposed", decision_id: "dec-1", current: null } });
     }
     // More people than the surface reads (past its fifty pages): the first page is everyone it gets, and the next is
     // empty, which ends its reading with the server still saying more follow.
@@ -819,26 +916,29 @@ globalThis.React = {
     cells[k] = { deps, cleanup: undefined };
     cells[k].cleanup = fn();
   },
+  // What the TSX page and the kit's parts take from React: the seam's hook (a store outside React, read as it stands:
+  // these tests draw once, and the redraw is proved in shell/surfaces) and an id.
+  useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
+  useId: () => ":r0:",
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 // The record kit's sheet, which New proposal is drawn in on a desk.
-await import("../../../../apps/dashboard/src/legacy/components/record-sheet.jsx");
 // The record kit's toggle group, which a selection's pass asks why with, as the deal sheet does.
-await import("../../../../apps/dashboard/src/legacy/components/record-field.jsx");
+Object.assign(globalThis.window, kitPages);
+useStubHooks();
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "mayAtLeast"])
   globalThis[k] = globalThis.window[k];
 installRoleStore();
-// Menus, questions and glyphs as their props: nothing here presses them.
-globalThis.MoreMenu = () => null;
+// Questions and glyphs as their props: nothing here presses them; the row's and the card's menus are the kit's own.
 globalThis.Confirm = () => null;
 globalThis.ChannelGlyph = () => null;
 globalThis.useHotkey = () => {};
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
   AttnRow: () => null,
-  CHANLY: { nav: (to) => went.push(to), R: { thread: (id) => `inbox/${id}` } },
+  CHANLY: { nav: (to) => went.push(to), address: await legacyAddress(), R: { thread: (id) => `inbox/${id}` } },
   // The chrome bridge's state map (shell.ts): a chip's tone is the pill's, and nothing else.
   __chrome: { state: stateOf },
   __csvCell: csvCell,
@@ -846,40 +946,14 @@ Object.assign(globalThis.window, {
   __consentSources: CONSENT_SOURCES,
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,
-  // What seed-globals.ts publishes for the page (pipeline-helpers.ts): contracts' own, never a stand-in that could
-  // say a word differently.
-  __pipeline: pipelineHelpers(),
-  // What people-detail.ts publishes of the deal for the card the peek draws (installPeopleCourier): contracts' own,
-  // with the thread's Deal group (the row's menu) and the card's next act (a phone peek's pinned act).
-  __deal: { cards: dealCardsOf, cardWords: DEAL_CARD_WORDS, menu: dealMenuActs, next: dealNextAct },
 });
-await import("../../../../apps/dashboard/src/legacy/pages/people-table.jsx");
-for (const k of [
-  "PeopleTable",
-  "PeopleColumnsMenu",
-  "plLocked",
-  "plShows",
-  "plSortKeys",
-  "plDrawnColumns",
-  "plShownColumns",
-  "plColumnChoices",
-  "plColumnOptions",
-  "PL_NO_SEL",
-  "PL_FIRST_ROWS",
-  "PL_WINDOW_ROWS",
-  "usePlRowWindow",
-])
-  globalThis[k] = globalThis.window[k];
-// In the order both lists load them (manifest.ts, Chanlytics.html): the peek and the board before the Pipeline, the
-// Pipeline before the page that draws it, and the person's deal card, which the peek draws, after.
-await import("../../../../apps/dashboard/src/legacy/pages/pipeline-row.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/pipeline-peek.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/pipeline-board.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/pipeline-new.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/pipeline-scope.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/people.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/person-deal.jsx");
+// People's TSX, which the Pipeline draws by import (decision 0015): its table, columns menu and rail kit are the names
+// the tree is found by below, and the page is the module itself.
+const { PEOPLE_GLOBALS } = await import("../../../../apps/dashboard/src/surfaces/people/people-globals.ts");
+Object.assign(globalThis.window, PEOPLE_GLOBALS);
+const { PipelineScope } = await import("../../../../apps/dashboard/src/surfaces/people/pipeline/scope.tsx");
+const { PeopleReal } = await import("../../../../apps/dashboard/src/surfaces/people/page/people-real.tsx");
+const { PipelineRailRows } = await import("../../../../apps/dashboard/src/surfaces/people/pipeline/rail.tsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -953,6 +1027,8 @@ const fresh = async ({
   dealPace = null,
   followUp = null,
 } = {}) => {
+  // The last test's reads still on their way land on its wire, never on this one's.
+  await settled();
   const seen = wire({ people, dealsOn, total, hasMore, dealPace, followUp });
   await quietly(() => peopleOverride.apply());
   cells = [];
@@ -964,16 +1040,31 @@ const fresh = async ({
   globalThis.localStorage.removeItem("chanlytics-people-view");
   globalThis.localStorage.removeItem("chanlytics-pipeline-view");
   globalThis.localStorage.removeItem("pipeline.view");
-  globalThis.window.__saveView = (page, view) => {
-    seen.viewSaves.push({ page, view });
-    return Promise.resolve({ ok: true, data: { views: {} } });
-  };
+  // What the tab kept of each view's place (the words in the box, the cursor) belongs to the test that kept it.
+  globalThis.sessionStorage.removeItem("chanlytics.place.v1");
+  clearReadCaches();
   return seen;
+};
+const tick = () => new Promise((r) => setTimeout(r, 0));
+/** Every read the page has out, let land. */
+const settled = async () => {
+  for (let i = 0; i < 40; i++) await tick();
 };
 const draw = (props = {}) => {
   frames.begin();
-  return globalThis.window.ClientsA({
-    scope: "pipeline",
+  return PipelineScope({
+    onNavigate: (to, opts) => {
+      went.push(to);
+      if (opts && opts.replace) replaced.push(to);
+    },
+    onOpenProfile: (id) => opened.push(id),
+    ...props,
+  });
+};
+/** People's own page, where an address of the Pipeline draws it (deals off): the route picks it, not the Pipeline's page. */
+const drawPeople = (props = {}) => {
+  frames.begin();
+  return PeopleReal({
     onNavigate: (to, opts) => {
       went.push(to);
       if (opts && opts.replace) replaced.push(to);
@@ -1137,17 +1228,11 @@ test("Passed or ended opens with its Show, folds again with Hide, and a row open
 });
 
 test("the Pipeline reads the people it shows ahead, in their order, so a row's peek opens on what the tab holds", async () => {
-  await fresh();
-  const lists = [];
-  const was = globalThis.window.__warmPeople;
-  globalThis.window.__warmPeople = (ids) => lists.push(ids);
-  try {
-    const tree = draw();
-    assert.ok(lists.length, "the rows on screen went to the courier");
-    assert.deepEqual(lists.at(-1), rowIds(tree).slice(0, 12), "the ones drawn, first to last");
-  } finally {
-    globalThis.window.__warmPeople = was;
-  }
+  const seen = await fresh();
+  const tree = draw();
+  await settled();
+  assert.ok(seen.reads.length, "the rows on screen went to the courier");
+  assert.deepEqual(seen.reads, rowIds(tree).slice(0, 12), "the ones drawn, first to last");
 });
 
 test("the keys are People's: J walks the rows shown, Enter opens the peek, Esc closes it, and a folded group is passed by", async () => {
@@ -1232,7 +1317,7 @@ test("one clock with the rows: the Pipeline counts at the moment the surface pub
   // The rows were said at `published`; a page that grouped them at the draw's own moment could say a consultation
   // held two days ago beside a proposal's wait said the day before. Moved back a day, the Pipeline's own counts move
   // with the surface's clock, and never with the wall's.
-  globalThis.window.__PEOPLE = { ...globalThis.window.__PEOPLE, fetchedAt: published - DAY };
+  setSurfaceValue("people", { ...surfaceValue("people"), fetchedAt: published - DAY });
   const tree = draw();
   const hana = find(tree, (n) => n.type === "tr" && n.props?.id === "person-hana");
   assert.equal(
@@ -1265,8 +1350,13 @@ test("with nobody to follow, the table says so in contracts' words", async () =>
 test("where deals are off the address draws People, and its switch has no Pipeline", async () => {
   await fresh({ dealsOn: false });
   globalThis.window.location.hash = "#/clients/pipeline";
-  const tree = draw();
-  assert.equal(globalThis.window.location.hash, "#/clients", "People's own address takes the Pipeline's place");
+  // The route draws People's own page for this address (surfaces/people/chrome.ts peopleTakes), which says its own.
+  const tree = drawPeople();
+  assert.equal(
+    globalThis.window.location.hash,
+    "/w/studio/people",
+    "People's own address takes the Pipeline's place: replaced under the workspace's path",
+  );
   assert.equal(byTestId(tree, "pipeline"), null);
   assert.ok(byTestId(tree, "people-standing"), "People");
   assert.deepEqual(
@@ -1369,7 +1459,7 @@ test("the peek is in the address: opening pushes it, the cursor walking it repla
 });
 
 test("New proposal: pick someone, or add them by number, and the one deal sheet opens to propose", async () => {
-  await fresh();
+  const seen = await fresh();
   const asked = [];
   globalThis.window.openDealSheet = (a) => {
     asked.push(a);
@@ -1412,11 +1502,6 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
   assert.deepEqual(asked, [{ personId: "wes", mode: "propose" }]);
   assert.equal(byTestId(tree, "pipeline-new"), null, "the picker closes as the sheet opens");
   // Someone new, by number, through People's own door.
-  const added = [];
-  globalThis.window.__addPerson = async (b) => {
-    added.push(b);
-    return { ok: true, data: { contact_id: "new-1", existed: false } };
-  };
   click(byTestId(tree, "pipeline-new-open"));
   tree = draw();
   click(byTestId(tree, "pipeline-new-add-open"));
@@ -1429,10 +1514,18 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
   tree = draw();
   await byTestId(tree, "pipeline-new-go").props.onClick();
   tree = draw();
-  assert.deepEqual(added, [{ phone: "+1 786 555 0199", name: "Ana Ruiz" }]);
+  assert.deepEqual(seen.added, [{ phone: "+1 786 555 0199", name: "Ana Ruiz" }]);
   assert.deepEqual(asked.at(-1), { personId: "new-1", mode: "propose" });
   // A number the door refuses says why under the field, and nothing opens.
-  globalThis.window.__addPerson = async () => ({ ok: false, fields: { phone: "That is not a mobile number." } });
+  seen.add = () =>
+    json(422, {
+      ok: false,
+      error: {
+        code: "invalid_input",
+        message: "Check the number.",
+        details: { fields: { phone: "That is not a mobile number." } },
+      },
+    });
   click(byTestId(tree, "pipeline-new-open"));
   tree = draw();
   click(byTestId(tree, "pipeline-new-add-open"));
@@ -1467,7 +1560,7 @@ test("the Pipeline's rows, compact in a phone's sheet: an empty view is said in 
     );
   // The stub tree reaches a node through its parent's children and its own drawing both: each is counted once.
   const said = (tree) => [...new Set(all(tree, (n) => n.props?.className === "cl-rail-empty"))].map(textOf);
-  const Rows = globalThis.window.PipelineRailRows;
+  const Rows = PipelineRailRows;
   const compact = Rows({ sections, view: "clients", onPick: () => {}, compact: true });
   assert.deepEqual([...new Set(ids(compact))], ["all", "consultations", "clients"]);
   assert.deepEqual(said(compact), ["Empty now: Proposal out · Passed or ended"]);
@@ -1841,42 +1934,14 @@ test("People repaints on a teammate's deal: the surface asks for the deals table
   );
 });
 
-/** A person as the peek reads them (contracts DealPerson over the People row), for the card the peek draws. */
-const personFor = (id, over = {}) => {
-  const r = globalThis.window.__PEOPLE.rows.find((x) => x.id === id);
-  return {
-    id: r.id,
-    name: r.name,
-    dealsOn: true,
-    services: ["Color correction", "Extensions"],
-    deal: r.deal,
-    deals: r.deal ? [r.deal] : [],
-    replyVia: "WhatsApp",
-    replyWindow: { open: true, hoursLeft: 20 },
-    consent: { state: "opted_in", dnc: false },
-    openThread: `inbox/${r.threadId}`,
-    threadId: r.threadId,
-    proposal: r.deal && r.deal.proposal ? { url: r.deal.proposal.url, sent: null } : null,
-    ownMessages: [],
-    askedMs: r.askedMs,
-    consultedMs: r.consultedMs,
-    consultationVisit: r.consultationVisit,
-    consultationTitle: null,
-    ...over,
-  };
-};
 const peekOf = (tree) => byTestId(tree, "pipeline-peek");
-const tick = () => new Promise((r) => setTimeout(r, 0));
 
 test("a row opens its deal in a peek beside the rows: the head at once, the person page's own card as they land, its acts, and the two doors", async () => {
-  await fresh();
+  const seen = await fresh();
   const asked = [];
-  const reads = [];
-  globalThis.window.__peekPerson = () => null;
-  globalThis.window.__personDetail = (id) => {
-    reads.push(id);
-    return Promise.resolve(personFor(id));
-  };
+  // The read is on its way until the test says: the peek is drawn at once, and says so.
+  let release = () => {};
+  seen.hold = new Promise((r) => (release = r));
   globalThis.window.openDealSheet = (ask) => {
     asked.push(ask);
     return true;
@@ -1891,8 +1956,10 @@ test("a row opens its deal in a peek beside the rows: the head at once, the pers
   assert.equal(textOf(byTestId(peek, "pipeline-peek-name")), "Wes");
   assert.equal(textOf(byTestId(peek, "pipeline-peek-sub")), "Proposal out · Color correction");
   assert.ok(byTestId(peek, "pipeline-peek-reading"), "the person is still on their way: said, never a blank");
-  assert.deepEqual(reads, ["wes"], "read through the profile's own courier");
   await tick();
+  assert.ok(seen.reads.includes("wes"), "read through the profile's own courier");
+  release();
+  await settled();
   tree = draw();
   const card = byTestId(peekOf(tree), "person-deal-card");
   assert.ok(card, "the person page's own card");
@@ -1930,29 +1997,32 @@ test("a row opens its deal in a peek beside the rows: the head at once, the pers
 });
 
 test("the peek reads the person again when a deal is recorded on them, opens on the tab's copy where there is one, and says a read that failed", async () => {
-  await fresh();
-  const reads = [];
-  globalThis.window.__peekPerson = (id) => (id === "cat" ? personFor("cat") : null);
-  globalThis.window.__personDetail = (id) => {
-    reads.push(id);
-    return id === "nia" ? Promise.reject(new Error("no route")) : Promise.resolve(personFor(id));
-  };
+  const seen = await fresh();
+  seen.person = (id) => (id === "nia" ? new Error("no route") : detailOf(seen.rawOf(id)));
+  // The tab read them a moment ago: that is the copy the peek opens on.
+  await personDetail("cat");
   let tree = draw();
+  await settled();
+  seen.reads.length = 0;
   find(tree, (n) => n.type === "tr" && n.props?.id === "person-cat").props.onClick();
   tree = draw();
   assert.ok(byTestId(peekOf(tree), "person-deal-card"), "the tab's copy: the card is there as the peek opens");
-  assert.deepEqual(reads, ["cat"], "and the read goes out behind it");
+  await settled();
+  assert.deepEqual(seen.reads, ["cat"], "and the read goes out behind it");
   globalThis.window.dispatchEvent({ type: "deal:recorded", detail: { personId: "wes" } });
-  assert.deepEqual(reads, ["cat"], "someone else's deal is not this peek's");
+  await settled();
+  assert.deepEqual(seen.reads, ["cat"], "someone else's deal is not this peek's");
   globalThis.window.dispatchEvent({ type: "deal:recorded", detail: { personId: "cat" } });
-  assert.deepEqual(reads, ["cat", "cat"], "a deal recorded on them reads them again");
+  await settled();
+  assert.deepEqual(seen.reads, ["cat", "cat"], "a deal recorded on them reads them again");
   // And a step set, changed or done on them (the card in the peek draws their next step).
   globalThis.window.dispatchEvent({ type: "note:saved", detail: { personId: "cat" } });
-  assert.deepEqual(reads, ["cat", "cat", "cat"], "a step saved on them reads them again");
+  await settled();
+  assert.deepEqual(seen.reads, ["cat", "cat", "cat"], "a step saved on them reads them again");
   // A read that failed, with nothing held: said, with Retry.
   find(tree, (n) => n.type === "tr" && n.props?.id === "person-nia").props.onClick();
   draw();
-  await tick();
+  await settled();
   tree = draw();
   const failed = byTestId(peekOf(tree), "pipeline-peek-failed");
   assert.ok(failed, "the house's FailedRead");
@@ -1961,7 +2031,8 @@ test("the peek reads the person again when a deal is recorded on them, opens on 
   assert.ok(retry, "with its Retry");
   click(retry);
   draw();
-  assert.deepEqual(reads, ["cat", "cat", "cat", "nia", "nia"]);
+  await settled();
+  assert.deepEqual(seen.reads, ["cat", "cat", "cat", "nia", "nia"]);
 });
 
 test("on a desk the rows can be a board: every group a column, the cards, a drop that asks the sheet, a refused one that asks nothing, and the choice kept", async () => {
@@ -2339,7 +2410,7 @@ test("the Pipeline's rail: every group always, what waits only when some does, t
 
 test("a recorded move lands on the row as the door answers: the Pipeline regroups while People is still being read again", async () => {
   await fresh();
-  const { recordDeal } = await import("../../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+  const { recordDeal } = await import("../../../../apps/dashboard/src/surfaces/people/people-detail.ts");
   const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
   const before = globalThis.window.__PEOPLE.rows.find((r) => r.id === "wes").deal;
   const now = Date.now();
@@ -2421,7 +2492,7 @@ test("a recorded move lands on the row as the door answers: the Pipeline regroup
     answer = { deal: dto({ stage: "lost", decided_at: iso(now), version: 3 }), from: "won", decision_id: "dec-3" };
     await Promise.race([recordDeal("wes", { stage: "lost", deal_id: before.id, version: 2 }), waited()]);
     assert.equal(globalThis.window.__PEOPLE.rows.find((x) => x.id === "wes").deal.stage, "won");
-    const { placeDeal } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/people.ts");
+    const { placeDeal } = await import("../../../../apps/dashboard/src/surfaces/people/surface.ts");
     assert.equal(placeDeal("nobody-here", won), false, "someone People does not hold: nothing to move");
   } finally {
     land();
@@ -2632,16 +2703,16 @@ test("a row's menu: the deal's own acts where the member may record one, then th
 });
 
 test("a selection: People's bar leads with Mark as passed · N; why is asked once, the bridge records them, what it came to is said once, and only those who passed leave the selection", async () => {
-  await fresh();
+  const seen = await fresh();
   const flashes = [];
   const keepToast = globalThis.window.usePPToast;
-  const keepPass = globalThis.window.__passDeals;
   globalThis.window.usePPToast = () => [null, (f) => flashes.push(f)];
   const dealOfRow = (id) => globalThis.window.__PEOPLE.rows.find((r) => r.id === id).deal;
-  const asked = [];
-  globalThis.window.__passDeals = async (items, reason) => {
-    asked.push({ items, reason });
-    return { passed: ["wes"], changed: ["nia"], failed: [] };
+  // The bridge reads each person afresh (people-detail.ts passDeals): Wes is still a proposal out, Nia has become a
+  // client since the rows were drawn.
+  seen.person = (id) => {
+    const d = detailOf(seen.rawOf(id));
+    return id === "nia" ? { ...d, deals: d.deals.map((x) => ({ ...x, stage: "won" })) } : d;
   };
   try {
     let tree = draw();
@@ -2673,15 +2744,22 @@ test("a selection: People's bar leads with Mark as passed · N; why is asked onc
     find(byTestId(tree, "pipe-pass"), (n) => n.type === globalThis.window.RecordToggleGroup).props.onChange("price");
     tree = draw();
     await byTestId(tree, "pipe-pass-go").props.onClick();
-    assert.deepEqual(asked, [
-      {
-        items: [
-          { personId: "wes", dealId: dealOfRow("wes").id },
-          { personId: "nia", dealId: dealOfRow("nia").id },
-        ],
-        reason: "price",
-      },
-    ]);
+    await settled();
+    assert.deepEqual(
+      seen.posted,
+      [
+        {
+          id: "wes",
+          body: {
+            stage: "lost",
+            deal_id: dealOfRow("wes").id,
+            version: 3,
+            lost_reason: "price",
+          },
+        },
+      ],
+      "only Wes is still a proposal out: he is recorded, with the version their own read says",
+    );
     assert.deepEqual(flashes.at(-1), {
       tone: "warn",
       msg: "1 marked as passed · 1 had changed, and was left as it is",
@@ -2694,7 +2772,6 @@ test("a selection: People's bar leads with Mark as passed · N; why is asked onc
     );
   } finally {
     globalThis.window.usePPToast = keepToast;
-    globalThis.window.__passDeals = keepPass;
   }
 });
 
@@ -2724,75 +2801,54 @@ test("beside an open peek on a desk the table keeps who and where they stand; th
 });
 
 test("the peek says how to reach them and what happened, once they are read; on a phone the next act and Call are pinned under it", async () => {
-  await fresh();
-  const keepPeek = globalThis.window.__peekPerson;
-  const keepDetail = globalThis.window.__personDetail;
-  const wesPerson = () =>
-    personFor("wes", {
-      phone: "+1 555-000-1114",
-      email: "wes@example.com",
-      hasChat: true,
-      timeline: [
-        {
-          id: "t1",
-          ts: 1,
-          time: "",
-          day: "Sep 12",
-          kind: "deal",
-          who: "You",
-          text: "Proposal out · Color correction · $1,200",
-        },
-        { id: "t2", ts: 2, time: "", day: "Mon", kind: "customer", who: "Wes", text: "Thanks" },
-      ],
-    });
-  globalThis.window.__peekPerson = () => wesPerson();
-  globalThis.window.__personDetail = () => Promise.resolve(wesPerson());
-  try {
+  // Wes, as their page would read them: a number and an address, and the proposal in their timeline.
+  const wesWire = (seen) => {
+    seen.person = (id) => {
+      const d = detailOf(seen.rawOf(id));
+      return { ...d, row: { ...d.row, email: "wes@example.com" } };
+    };
+  };
+  const seen = await fresh();
+  wesWire(seen);
+  let tree = draw();
+  rowNode(tree, "wes").props.onClick();
+  draw();
+  await settled();
+  tree = draw();
+  const reach = byTestId(peekOf(tree), "pipeline-peek-reach");
+  assert.deepEqual(
+    all(reach, (n) => /^pipeline-peek-reach-(phone|email|replies)$/.test(n.props?.["data-testid"] || "")).map((n) =>
+      textOf(n),
+    ),
+    ["Phone+1 (555) 000-1114CallCopy", "Emailwes@example.comCopy", "RepliesAny message, for 20 more hours"],
+  );
+  assert.equal(byTestId(reach, "pipeline-peek-call").props.href, "tel:+15550001114");
+  assert.match(
+    all(byTestId(peekOf(tree), "pipeline-peek-history"), (n) => n.props?.className === "pipe-peek-history-row")
+      .map(textOf)
+      .join("|"),
+    /^Proposal out · Color correction · \$1,200[A-Z][a-z]{2} \d{1,2}$/,
+  );
+  assert.equal(
+    byTestId(peekOf(tree), "pipeline-peek-bar"),
+    null,
+    "a desk has no pinned bar: the card's act is beside the rows",
+  );
+  await onPhone(async () => {
+    const onPhoneSeen = await fresh();
+    wesWire(onPhoneSeen);
     let tree = draw();
     rowNode(tree, "wes").props.onClick();
+    draw();
+    await settled();
     tree = draw();
-    const reach = byTestId(peekOf(tree), "pipeline-peek-reach");
-    assert.deepEqual(
-      all(reach, (n) => /^pipeline-peek-reach-(phone|email|replies)$/.test(n.props?.["data-testid"] || "")).map((n) =>
-        textOf(n),
-      ),
-      ["Phone+1 555-000-1114CallCopy", "Emailwes@example.comCopy", "RepliesAny message, for 20 more hours"],
-    );
-    assert.equal(byTestId(reach, "pipeline-peek-call").props.href, "tel:+15550001114");
-    assert.deepEqual(
-      all(byTestId(peekOf(tree), "pipeline-peek-history"), (n) => n.props?.className === "pipe-peek-history-row").map(
-        textOf,
-      ),
-      ["Proposal out · Color correction · $1,200Sep 12"],
-    );
+    const bar = byTestId(peekOf(tree), "pipeline-peek-bar");
     assert.equal(
-      byTestId(peekOf(tree), "pipeline-peek-bar"),
-      null,
-      "a desk has no pinned bar: the card's act is beside the rows",
+      textOf(byTestId(bar, "pipeline-peek-bar-act")),
+      dealNextAct(await personDetail("wes"), Date.now()).label,
+      "the card's own next act",
     );
-  } finally {
-    globalThis.window.__peekPerson = keepPeek;
-    globalThis.window.__personDetail = keepDetail;
-  }
-  await onPhone(async () => {
-    await fresh();
-    globalThis.window.__peekPerson = () => wesPerson();
-    globalThis.window.__personDetail = () => Promise.resolve(wesPerson());
-    try {
-      let tree = draw();
-      rowNode(tree, "wes").props.onClick();
-      tree = draw();
-      const bar = byTestId(peekOf(tree), "pipeline-peek-bar");
-      assert.equal(
-        textOf(byTestId(bar, "pipeline-peek-bar-act")),
-        dealNextAct(wesPerson(), Date.now()).label,
-        "the card's own next act",
-      );
-      assert.equal(byTestId(bar, "pipeline-peek-bar-call").props.href, "tel:+15550001114");
-    } finally {
-      globalThis.window.__peekPerson = keepPeek;
-      globalThis.window.__personDetail = keepDetail;
-    }
+    assert.equal(byTestId(bar, "pipeline-peek-bar-call").props.href, "tel:+15550001114");
   });
 });
 
@@ -2843,7 +2899,7 @@ test("on the board a card wears its steps and a Move to menu of the columns it m
 
 test("the bridge's pass reads each person afresh, records only a deal still a proposal out, tells a change from a failure, and reads People again once after the last whatever it answered", async () => {
   await fresh();
-  const { passDeals } = await import("../../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+  const { passDeals } = await import("../../../../apps/dashboard/src/surfaces/people/people-detail.ts");
   const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
   const now = Date.now();
   const dealDto = (id, contact, stage, version) => ({
@@ -2935,7 +2991,7 @@ test("the bridge's pass reads each person afresh, records only a deal still a pr
 });
 
 test("the bridge publishes the deal kit the pages read, the card's next act with it", async () => {
-  const { installPeopleCourier } = await import("../../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+  const { installPeopleCourier } = await import("../../../../apps/dashboard/src/surfaces/people/people-detail.ts");
   const keep = {};
   const names = ["__deal", "__recordDeal", "__passDeals", "__personDetail", "__peekPerson", "__warmPerson"];
   for (const k of names) keep[k] = globalThis.window[k];
@@ -3046,7 +3102,7 @@ test("their next step on the page: a column after Stage that sorts by its day, i
 
 test("the peek hands the person's deals over once they are read: the step's fact until then, and its deal's card after", async () => {
   const now = Date.now();
-  await fresh({
+  const seen = await fresh({
     people: peopleNow().map((r) =>
       r.id === "wes"
         ? {
@@ -3060,17 +3116,19 @@ test("the peek hands the person's deals over once they are read: the step's fact
         : r,
     ),
   });
-  const W = globalThis.window;
-  W.__peekPerson = () => null;
-  W.__personDetail = (id) => {
-    const p = personFor(id);
-    return Promise.resolve({ ...p, deals: [...p.deals, { ...p.deal, id: "d-other", service: "Extensions" }] });
+  // Read: a second deal of theirs, the one the step names.
+  seen.person = (id) => {
+    const d = detailOf(seen.rawOf(id));
+    return { ...d, deals: [...d.deals, { ...d.deals[0], id: "d-other", service: "Extensions" }] };
   };
+  let release = () => {};
+  seen.hold = new Promise((r) => (release = r));
   let tree = draw();
   find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes").props.onClick();
   tree = draw();
   assert.ok(byTestId(peekOf(tree), "pipeline-peek-step"), "not read yet: the row's deal is not the step's");
-  await tick();
+  release();
+  await settled();
   tree = draw();
   assert.equal(
     byTestId(peekOf(tree), "pipeline-peek-step"),
@@ -3120,10 +3178,10 @@ test("the page waits by the workspace's pace as People reads it: the line, the r
 
 test("the peek's card judges its wait by People's pace, as the rows beside it do, not by the person read's own", async () => {
   // People's pace is eight days (ten to wait); Nia's own read carries none, as one taken before a fifth yes would.
-  await fresh({ dealPace: { median_days: 8, yeses: 6 } });
+  const seen = await fresh({ dealPace: { median_days: 8, yeses: 6 } });
   const W = globalThis.window;
-  W.__peekPerson = () => null;
-  W.__personDetail = (id) => Promise.resolve({ ...personFor(id), dealPace: null });
+  // Nia's own read carries none: the wire says no pace beside their person.
+  seen.person = (id) => ({ ...detailOf(seen.rawOf(id)), deal_pace: null });
   W.openDealSheet = () => true;
   let tree = draw();
   find(tree, (n) => n.type === "tr" && n.props?.id === "person-nia").props.onClick();
@@ -3138,7 +3196,7 @@ test("the peek's card judges its wait by People's pace, as the rows beside it do
 test("the peek's card says the follow-up has them where their row does (0006): the day its run goes, and no nudge of its own", async () => {
   // People's facts: a follow-up running under ask that has reached nobody yet. Wes's proposal went eleven days ago
   // with its link, and nothing back: in its next run.
-  await fresh({
+  const seen = await fresh({
     followUp: {
       run_hour: 10,
       last_run_for: null,
@@ -3152,17 +3210,29 @@ test("the peek's card says the follow-up has them where their row does (0006): t
   });
   const W = globalThis.window;
   assert.equal(W.__PEOPLE.rows.find((r) => r.id === "wes").followUp?.kind, "will", "their row: in a run to come");
-  W.__peekPerson = () => null;
-  W.__personDetail = (id) => {
-    const p = personFor(id);
-    const went = { at: new Date(Date.now() - 11 * 86_400_000).toISOString(), via: "WhatsApp" };
-    return Promise.resolve({ ...p, proposal: p.proposal ? { ...p.proposal, sent: went } : null });
+  // Their thread carries the proposal that went, eleven days ago.
+  seen.person = (id) => {
+    const d = detailOf(seen.rawOf(id));
+    const sent = {
+      id: "m-sent",
+      conversation_id: d.conversations[0].id,
+      direction: "outbound",
+      sender: "human",
+      type: "text",
+      body: proposalMessage(d.deals[0].proposal_url),
+      media: null,
+      meta: null,
+      status: "sent",
+      channel: "whatsapp",
+      created_at: new Date(Date.now() - 11 * 86_400_000).toISOString(),
+    };
+    return { ...d, conversations: [{ ...d.conversations[0], messages: [sent] }] };
   };
   W.openDealSheet = () => true;
   let tree = draw();
   find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes").props.onClick();
   draw();
-  await tick();
+  await settled();
   tree = draw();
   const card = byTestId(peekOf(tree), "person-deal-card");
   assert.match(textOf(byTestId(card, "person-deal-flag")), /^Follow-up to approve /);
@@ -3206,7 +3276,7 @@ test("the Pipeline tells Ask what it draws (the Phase 2 plan, D3): the people of
 test("People tells Ask what it draws (the Phase 2 plan, D3): the rows of its table, in the table's order, and its view", async () => {
   await fresh();
   delete globalThis.window.__askOnScreen;
-  const tree = draw({ scope: "people" });
+  const tree = drawPeople();
   const s = globalThis.window.__askOnScreen;
   assert.equal(s.key, "people");
   assert.ok(s.ids.length > 0);

@@ -16,7 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
+import { installLegacyReact, fresh, again, all, find, textOf, settle } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -112,7 +112,15 @@ test("the fixtures stand where the salon's threads stand", () => {
 /* -------------------------------- a browser -------------------------------- */
 
 const counted = [];
-globalThis.window = {
+installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+const S = "../../../../../apps/dashboard/src";
+const { Inbox } = await import(`${S}/surfaces/inbox/pages/inbox-page.tsx`);
+const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
+const { ThreadPane } = await import(`${S}/surfaces/inbox/thread/thread-pane.tsx`);
+const { ixSending, ixBucketOf, ixWaitsOnYou } = await import(`${S}/surfaces/inbox/rules.ts`);
+const { VW_STORE } = await import(`${S}/surfaces/inbox/store.ts`);
+const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
     hash: "",
@@ -121,148 +129,33 @@ globalThis.window = {
     replace() {},
     reload() {},
   },
-  localStorage: globalThis.localStorage,
-  sessionStorage: globalThis.sessionStorage,
   __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
   __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  __surfaceState: () => "live",
-  __DEMO_MODE: false,
-  addEventListener(type, fn) {
-    (heard[type] = heard[type] || []).push(fn);
-  },
-  removeEventListener(type, fn) {
-    heard[type] = (heard[type] || []).filter((f) => f !== fn);
-  },
-  dispatchEvent(e) {
-    if (e && e.type === "inbox:counts") counted.push(e.detail.needs);
-    return true;
-  },
+  // The workspace's zone, so a bulk snooze says tomorrow at ten by it without reading the workspace first.
+  __WORKSPACES: [{ id: "w-marisas", timezone: ZONE }],
+  __ACTIVE_WORKSPACE: "w-marisas",
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
+});
+// The sidebar's badge counts by the Inbox's rule, which the app publishes under its old name (inbox/legacy-globals.ts).
+globalThis.ixWaitsOnYou = ixWaitsOnYou;
+// The badge's number is what the page tells its listeners, so it is read where it is dispatched.
+const dispatched = globalThis.dispatchEvent;
+globalThis.dispatchEvent = (e) => {
+  if (e && e.type === "inbox:counts") counted.push(e.detail.needs);
+  return dispatched(e);
 };
-globalThis.document = {
-  visibilityState: "hidden",
-  body: { appendChild() {} },
-  addEventListener() {},
-  removeEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
-};
-
-/** What the page is listening for, by type: a read landing (surface:inbox) is fired at it by name, never by the
- *  order it was added -- a page adds several, and the order is not a contract. `page()` empties it, so a listener
- *  from an earlier render cannot write into this one's cells. */
-const heard = {};
-const landsARead = () => [...(heard["surface:inbox"] || [])].forEach((fn) => fn());
-
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = fn();
-    return cells[k];
-  },
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
+// The shell's own toast and role gate, which the page draws through the bridge (surfaces/legacy-verbs.ts).
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of [
-  "StatePill",
-  "MoreMenu",
-  "EmptyState",
-  "PolicyChip",
-  "TlMedia",
-  "FailedRead",
-  "Confirm",
-  "usePPToast",
-  "useHotkey",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
-globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
-const RealInboxList = globalThis.window.InboxList;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-// The one thread, which the Inbox mounts (thread-pane.jsx): loaded first, published as the page reads it.
-await import("../../../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
-globalThis.ThreadPane = globalThis.window.ThreadPane;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox.jsx");
 
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) {
-    for (const k of n) walk(k, fn);
-    return;
-  }
-  fn(n);
-  walk(n.props?.children, fn);
-  walk(n.rendered, fn);
-};
-const find = (tree, pred) => {
-  let hit;
-  walk(tree, (n) => {
-    if (hit === undefined && pred(n)) hit = n;
-  });
-  return hit;
-};
-const findAll = (tree, pred) => {
-  const out = [];
-  walk(tree, (n) => {
-    if (pred(n)) out.push(n);
-  });
-  return out;
-};
+/** A read landing (surface:inbox) is fired at what listens for it, by name: a page adds several listeners. */
+const landsARead = () => globalThis.dispatchEvent({ type: "surface:inbox" });
+
+const findAll = all;
 const hasClass = (cls) => (n) => typeof n.props?.className === "string" && n.props.className.split(" ").includes(cls);
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  return n.rendered !== undefined ? textOf(n.rendered) : textOf(n.props?.children);
-};
 const buttonNamed = (tree, words) => find(tree, (n) => n.type === "button" && textOf(n).trim() === words);
 
 const REAL_BUCKETS = [
@@ -271,34 +164,29 @@ const REAL_BUCKETS = [
   { id: "snoozed", label: "Snoozed", icon: "clock" },
 ];
 const inboxWith = (threads) => {
-  globalThis.window.INBOX_DATA = {
+  setSurfaceValue("inbox", {
     INBOX_BUCKETS: REAL_BUCKETS,
     INBOX_VIEWS: [],
     CHANNEL_LABELS: {},
     INBOX_BASELINE: { doneThisWeek: 0 },
     THREADS: threads,
-  };
+  });
 };
-/** The Inbox page, with the list and the pane replaced by recorders of what they were given. */
+/** The Inbox page, and what its list and its pane were last given: the props of the elements it drew. */
 const page = (threads) => {
-  const seen = { list: null, pane: null };
-  globalThis.InboxList = (p) => {
-    seen.list = p;
-    return null;
-  };
-  globalThis.InboxThread = (p) => {
-    seen.pane = p;
-    return null;
-  };
-  globalThis.InboxAgentRail = () => null;
-  globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
+  VW_STORE.state = {};
   inboxWith(threads);
-  for (const k of Object.keys(heard)) delete heard[k];
-  cells = [];
-  const render = () => {
-    frames.begin();
-    return globalThis.window.Inbox({ showAgentRail: false });
+  fresh();
+  let tree;
+  const seen = {
+    get list() {
+      return find(tree, (n) => n.type === InboxList)?.props ?? null;
+    },
+    get pane() {
+      return find(tree, (n) => n.type === ThreadPane)?.props ?? null;
+    },
   };
+  const render = () => (tree = again(() => Inbox({ showAgentRail: false })));
   render();
   return { seen, render };
 };
@@ -358,6 +246,10 @@ test("REGRESSION: a bucket the member picked survives the next read -- picking a
   globalThis.window.__tabMemory = {
     place: () => place,
     keepPlace: (_p, _k, v) => Object.assign(place, v),
+    // The pane's composer asks for a draft of what was being written, and finds none.
+    draft: () => null,
+    keepDraft() {},
+    dropDraft() {},
   };
   try {
     const { seen, render } = page([rosa, unsent]);
@@ -438,6 +330,17 @@ test("opening a thread that needs you keeps its dot: on a real thread the dot me
     whoMeta: "",
     timeline: [],
     agent: { name: "Front Desk", glyph: "F" },
+    // What the pane the page draws beside the list reads of a seeded thread.
+    avatar: "A",
+    channels: ["whatsapp"],
+    primaryChannel: "whatsapp",
+    subject: "",
+    preview: "",
+    summary: "",
+    lastAt: "",
+    lastAtFull: "",
+    pinned: false,
+    priority: "P2",
   };
   const demo = page([seeded]);
   demo.seen.list.onSelectThread("t-seed");
@@ -451,7 +354,13 @@ test("opening a thread that needs you keeps its dot: on a real thread the dot me
 
 test("the bulk snooze's Undo says they are back in the Inbox -- a snooze lets go of whoever had them, so not 'back where they were'", async () => {
   const { seen, render } = page([rosa, mine]);
-  globalThis.window.__inboxBulk = (threads) => Promise.resolve({ done: threads, refused: [] });
+  // The courier's own asks go to the server, which takes each of them.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ ok: true, data: {} }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
   try {
     seen.list.onToggleSelect(rosa.id);
     render();
@@ -465,8 +374,11 @@ test("the bulk snooze's Undo says they are back in the Inbox -- a snooze lets go
       toasts().find((t) => /snoozed/.test(textOf(t))),
       "Undo",
     ).props.onClick();
-    await new Promise((r) => setTimeout(r, 0));
-    tree = render();
+    // The wake asks the server for each thread, and says so when the last has answered.
+    for (let i = 0; i < 50 && !/Snooze undone/.test(toasts().map(textOf).join(" | ")); i++) {
+      await settle();
+      tree = render();
+    }
     const said = toasts().map(textOf).join(" | ");
     assert.match(said, /Snooze undone — 2 back in the Inbox/);
     assert.ok(
@@ -474,7 +386,7 @@ test("the bulk snooze's Undo says they are back in the Inbox -- a snooze lets go
       "REGRESSION: 'back where they were', for a thread whose claim the snooze had let go",
     );
   } finally {
-    delete globalThis.window.__inboxBulk;
+    globalThis.fetch = realFetch;
   }
 });
 
@@ -483,11 +395,8 @@ test("the bulk snooze's Undo says they are back in the Inbox -- a snooze lets go
 test("each row says whose it is -- nothing more where the bucket already says Needs you, 'You have it', 'Ana García has it' -- and waits in amber only when the wait is on you", () => {
   globalThis.window.__TEAM = TEAM;
   try {
-    cells = [];
-    const draw = (over = {}) => {
-      frames.begin();
-      return RealInboxList(listProps(over));
-    };
+    fresh();
+    const draw = (over = {}) => again(() => InboxList(listProps(over)));
     let tree = draw();
     const row = (who) => find(tree, (n) => n.props?.role === "option" && textOf(n).includes(who));
     // The pills as drawn: the spans, not the StatePill elements that draw them.
@@ -503,7 +412,7 @@ test("each row says whose it is -- nothing more where the bucket already says Ne
     );
     assert.equal(
       find(tree, hasClass("ix-list-head")),
-      undefined,
+      null,
       "REGRESSION: the list's head said the chip's number again ('1 needs you · 2 being answered'), and once '3 threads' under a chip that counts what needs you",
     );
 
@@ -519,7 +428,7 @@ test("each row says whose it is -- nothing more where the bucket already says Ne
       "REGRESSION: a search listed a thread you own as Needs you",
     );
 
-    cells = [];
+    fresh();
     tree = draw({ threads: [unsent], allThreads: [unsent], activeBucket: "done", activeThreadId: unsent.id });
     assert.deepEqual(
       pills(row("Zoe Martin")),
@@ -577,12 +486,12 @@ const sendingThread = () => {
 
 test("REGRESSION: a reply about to send is at the top of Needs you, counted by the chip and the badge -- it sat in Handled, on a row that said nothing about it", () => {
   const W = globalThis.window;
-  W.VW_STORE = { state: {} };
+  VW_STORE.state = {};
   const jess = sendingThread();
   assert.equal(jess.state, "done", "the thread itself is quiet: nobody asked for a person");
   assert.ok(jess.veto && jess.veto.endsAtMs > Date.now(), "and its reply is still counting down");
-  assert.deepEqual([W.ixSending(jess), W.ixBucketOf(jess), W.ixWaitsOnYou(jess)], [true, "escalated", true]);
-  assert.equal(W.ixWaitsOnYou(unsent), false, "a thread with nothing on its way does not");
+  assert.deepEqual([ixSending(jess), ixBucketOf(jess), ixWaitsOnYou(jess)], [true, "escalated", true]);
+  assert.equal(ixWaitsOnYou(unsent), false, "a thread with nothing on its way does not");
 
   const { seen } = page([rosa, mine, anas, unsent, jess]);
   assert.equal(seen.list.activeBucket, "escalated");
@@ -604,35 +513,36 @@ test("REGRESSION: a reply about to send is at the top of Needs you, counted by t
   assert.equal(W.sbNeedsCount(), 2, "and reads the same rule when the Inbox is not mounted");
 
   // Held: the countdown stops, and the thread is quiet again.
-  W.VW_STORE = { state: { [`draft:${jess.veto.messageId}`]: { held: true } } };
+  VW_STORE.state = { [`draft:${jess.veto.messageId}`]: { held: true } };
   assert.deepEqual(
-    [W.ixSending(jess), W.ixBucketOf(jess), W.ixWaitsOnYou(jess)],
+    [ixSending(jess), ixBucketOf(jess), ixWaitsOnYou(jess)],
     [false, "done", false],
     "a held draft claims nothing",
   );
-  W.VW_STORE = { state: {} };
+  VW_STORE.state = {};
   // Past its last second it is Handled again, until the re-read says what actually happened.
-  assert.equal(W.ixBucketOf(jess, jess.veto.endsAtMs + 1), "done");
+  assert.equal(ixBucketOf(jess, jess.veto.endsAtMs + 1), "done");
 });
 
 test("the row says the seconds, where the time it last moved would be", () => {
   const jess = sendingThread();
-  cells = [];
-  frames.begin();
-  const tree = RealInboxList(
-    listProps({
-      threads: [jess, rosa],
-      allThreads: [jess, rosa],
-      activeThreadId: jess.id,
-      sendingIn: (id) => (id === jess.id ? 72 : null),
-    }),
+  fresh();
+  const tree = again(() =>
+    InboxList(
+      listProps({
+        threads: [jess, rosa],
+        allThreads: [jess, rosa],
+        activeThreadId: jess.id,
+        sendingIn: (id) => (id === jess.id ? 72 : null),
+      }),
+    ),
   );
   const row = (who) => find(tree, (n) => n.props?.role === "option" && textOf(n).includes(who));
   assert.equal(textOf(find(row("Jess Park"), hasClass("ix-sending"))).trim(), "sending in 72s");
   assert.equal(
     find(row("Jess Park"), hasClass("ix-thread-time")),
-    undefined,
+    null,
     "REGRESSION: its row said when it last moved, and nothing about the reply going out",
   );
-  assert.equal(find(row("Rosa Díaz"), hasClass("ix-sending")), undefined, "only the thread whose reply is on its way");
+  assert.equal(find(row("Rosa Díaz"), hasClass("ix-sending")), null, "only the thread whose reply is on its way");
 });

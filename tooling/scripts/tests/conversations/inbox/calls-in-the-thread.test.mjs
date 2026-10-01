@@ -10,7 +10,7 @@
  *
  * Run against the contracts and the pages on a stub React, never read from them.
  */
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   toCallVM,
@@ -18,14 +18,12 @@ import {
   stateOf,
   memberWords,
   frameWhisper,
-  linkHost,
   proposalMessage,
-  proposalLinkOf,
   dealMenuActs,
   DEAL_ACT_WORDS,
   RECORDING_RETENTION_DAYS,
 } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
+import { installLegacyReact, fresh, again as drawOver } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-21T14:00:00Z");
@@ -169,7 +167,8 @@ test("a connected call with no recording says so; a call that never connected sa
 
 /* ---------------------------------- a browser ---------------------------------- */
 
-globalThis.window = {
+const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
+installLegacyReact({
   location: {
     pathname: "/w/marisas",
     hash: "",
@@ -193,89 +192,18 @@ globalThis.window = {
   __href: (route, p) => `${route}|${p.id}`,
   canDo: () => true,
   gate: () => ({}),
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent() {
-    return true;
-  },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
-};
-globalThis.document = {
-  body: { appendChild() {} },
-  addEventListener() {},
-  removeEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
-};
-
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => fn(),
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
+});
+after(() => Object.assign(globalThis, timers));
+// The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of [
-  "StatePill",
-  "MoreMenu",
-  "EmptyState",
-  "PolicyChip",
-  "TlMedia",
-  "FailedRead",
-  "Confirm",
-  "usePPToast",
-  "useHotkey",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
-globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-const { InboxThread } = globalThis.window;
+const { InboxThread, ixOpensAt } = await import("../../../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
+const { tlFollowBy } = await import("../../../../../apps/dashboard/src/surfaces/inbox/thread/call.tsx");
+const { setSurfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
+after(() => setSurfaceValue("conversations", undefined));
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -351,17 +279,13 @@ const conv = (messages, over = {}) => ({
 const labels = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
 // The calls Conversations read, which the card finds its call among.
 const calls = (...rows) => {
-  globalThis.window.CONVERSATIONS_DATA = { CONVERSATIONS: rows, CV_CHANNELS: [], CALLS_READ: true };
+  setSurfaceValue("conversations", { CONVERSATIONS: rows, CV_CHANNELS: [], CALLS_READ: true });
 };
 const draw = (vm) => {
-  cells = [];
-  frames.begin();
+  fresh();
   return InboxThread({ thread: vm, channelLabels: labels });
 };
-const again = (vm) => {
-  frames.begin();
-  return InboxThread({ thread: vm, channelLabels: labels });
-};
+const again = (vm) => drawOver(() => InboxThread({ thread: vm, channelLabels: labels }));
 const cardOf = (tree) => find(tree, byTestId("tl-call"));
 const emily = () => toInboxThreadVM(conv([note()]), null, ZONE, NOW);
 
@@ -690,7 +614,7 @@ test("a whisper is the owner's own words, marked as theirs, with no moment in th
 });
 
 test("a thread opens where a call began when a call is the newest thing said; at a message it was opened at; else at its newest", () => {
-  const opensAt = globalThis.window.ixOpensAt;
+  const opensAt = ixOpensAt;
   assert.equal(
     opensAt(emily()),
     "e1",
@@ -711,7 +635,7 @@ test("a thread opens where a call began when a call is the newest thing said; at
 });
 
 test("the line being said is kept in view without moving the thread under the reader: one under the player comes out just below it", () => {
-  const followBy = globalThis.window.tlFollowBy;
+  const followBy = tlFollowBy;
   // A desk pane 744px tall, reading from 56px (the player's 44 and a gap) to its foot at 800.
   const view = { top: 56, bottom: 800, height: 744 };
   const line = (top, height = 40) => ({ top, bottom: top + height });
@@ -776,9 +700,6 @@ test("every message carries its own id on the page, the call's card too, so the 
 test("a proposal on file (00154, 0008): the header's Actions put its words in the box -- only where deals are on, the deal's link over the person's, none for someone who passed or a client, only on a real thread with an open window, never for someone who said stop", () => {
   const url = "https://www.docs.example.com/p/emily";
   const dealUrl = "https://quotes.example.com/p/emily-deal";
-  globalThis.window.__proposalMessage = proposalMessage;
-  globalThis.window.__linkHost = linkHost;
-  globalThis.window.__proposalLinkOf = proposalLinkOf;
   // The deal's kit, as the courier publishes it (0008): the send's words are the Deal group's.
   const dealWas = globalThis.window.__deal;
   globalThis.window.__deal = { menu: dealMenuActs, actWords: DEAL_ACT_WORDS };
@@ -870,9 +791,6 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
   } finally {
     globalThis.window.dispatchEvent = dispatched;
     globalThis.window.__PEOPLE = peopleWas;
-    delete globalThis.window.__proposalMessage;
-    delete globalThis.window.__linkHost;
-    delete globalThis.window.__proposalLinkOf;
     globalThis.window.__deal = dealWas;
   }
 });

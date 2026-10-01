@@ -563,7 +563,7 @@ test("a handover (0016): asked before anything opens, in the partner's name, and
     w.asked.map((r) => [r.method, r.url.split("?")[0]]),
     [["POST", `/api/v1/handovers/${WAITING.tenantId}/accept`]],
   );
-  assert.match(w.went.at(-1) ?? "", /\/w\/luna-studio\/?#\/start$/, "into it, at its first run, by its slug");
+  assert.match(w.went.at(-1) ?? "", /\/w\/luna-studio\/start$/, "into it, at its first run, by its slug");
 });
 
 test("a handover: Decline says no through its door and the app opens; Not now asks nothing and the app opens; a refusal is said", async () => {

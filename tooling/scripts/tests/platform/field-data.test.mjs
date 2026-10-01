@@ -15,6 +15,7 @@ import {
   PAGE_VITALS_READ,
   SCHEMA_SETS,
   pageVitalsWords,
+  routeOfAddress,
   vitalValueWords,
   vitalVerdict,
   vitalsPageOf,
@@ -31,7 +32,6 @@ const { platformVitals } = await import(at("apps/dashboard/src/server/platform/v
 const vitalsRoute = await import(at("apps/dashboard/app/api/v1/vitals/route.ts"));
 const overview = await import(at("apps/dashboard/app/api/v1/platform/overview/route.ts"));
 const { createFieldData, beaconTo, flushWhenHidden } = await import(at("apps/dashboard/src/client/field-data.ts"));
-const { hashRoute } = await import(at("apps/dashboard/src/legacy-bridge/app-bridge.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 after(() => setServiceClient(null));
@@ -58,13 +58,19 @@ const load = (id, name, value) => ({ id: `v4-1727430000000-${id}`, name, value }
 
 test("the five are the table's five, and a page is named for the route a load landed on", () => {
   assert.deepEqual([...PAGE_VITALS], SCHEMA_SETS["page_vitals.metric"]);
-  // The shell's own parser, then the name the table keeps: its first segment, or "other".
-  assert.equal(vitalsPageOf(hashRoute("#/clients/5f0c9a3e")), "clients");
-  assert.equal(vitalsPageOf(hashRoute("#/inbox")), "inbox");
-  assert.equal(vitalsPageOf(hashRoute("")), "today");
-  assert.equal(vitalsPageOf(hashRoute("#/settings?tab=team")), "settings");
-  assert.equal(vitalsPageOf(hashRoute("#/Über")), "other");
-  assert.equal(vitalsPageOf(hashRoute(`#/${"a".repeat(40)}`)), "other");
+  // The address's own reading (a path, else a hash: shell/address.ts), then the name the table keeps: its first
+  // segment, or "other".
+  const landed = (address) => vitalsPageOf(routeOfAddress(address));
+  assert.equal(landed({ hash: "#/clients/5f0c9a3e" }), "clients");
+  assert.equal(landed({ pathname: "/w/acme/clients/5f0c9a3e" }), "clients");
+  assert.equal(landed({ hash: "#/inbox" }), "inbox");
+  assert.equal(landed({ pathname: "/w/acme/inbox", hash: "" }), "inbox");
+  assert.equal(landed({ hash: "" }), "today");
+  assert.equal(landed({ pathname: "/w/acme" }), "today");
+  assert.equal(landed({ hash: "#/settings?tab=team" }), "settings");
+  assert.equal(landed({ pathname: "/w/acme/settings", search: "?tab=team" }), "settings");
+  assert.equal(landed({ hash: "#/Über" }), "other");
+  assert.equal(landed({ hash: `#/${"a".repeat(40)}` }), "other");
 });
 
 test("the route: yours, not a workspace's, counted; it keeps what the page sent and says how many rows took it", async () => {

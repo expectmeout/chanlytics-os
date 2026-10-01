@@ -15,7 +15,18 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { hookFrames } from "../_hook-frames.mjs";
+import {
+  installLegacyReact,
+  fresh as freshTree,
+  again,
+  unmount,
+  all,
+  find,
+  byTestId,
+  textOf,
+  press,
+  settle,
+} from "../_legacy-react.mjs";
 
 const { toBroadcastVM, stateOf, numberHealth } = contracts;
 const TID = "t-studio";
@@ -24,26 +35,9 @@ const NOW = Date.now();
 
 /* ---------------------------------- the window ---------------------------------- */
 
-const listeners = {};
-const storage = () => {
-  const m = new Map();
-  return {
-    getItem: (k) => (m.has(k) ? m.get(k) : null),
-    setItem: (k, v) => m.set(k, String(v)),
-    removeItem: (k) => m.delete(k),
-  };
-};
-globalThis.localStorage = storage();
-globalThis.sessionStorage = storage();
-globalThis.document = {
-  body: {},
-  activeElement: null,
-  addEventListener() {},
-  removeEventListener() {},
-  getElementById: () => null,
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
-};
-globalThis.window = {
+const went = [];
+const toasts = [];
+installLegacyReact({
   location: {
     pathname: "/w/studio",
     hash: "#/broadcasts",
@@ -52,102 +46,21 @@ globalThis.window = {
     replace() {},
     reload() {},
   },
-  history: { replaceState() {} },
-  innerHeight: 800,
-  localStorage: globalThis.localStorage,
-  sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => {
-    (listeners[type] ||= new Set()).add(fn);
-  },
-  removeEventListener: (type, fn) => {
-    listeners[type]?.delete(fn);
-  },
-  dispatchEvent: (ev) => {
-    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
-    return true;
-  },
-  setTimeout: (fn, ms) => setTimeout(fn, ms),
-  clearTimeout: (h) => clearTimeout(h),
-  setInterval: () => 1,
-  clearInterval() {},
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: TID,
-};
-const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
+});
+const SRC = "../../../../apps/dashboard/src";
+const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
 installClock();
-const { installTemplates } = await import("../../../../apps/dashboard/src/legacy-bridge/templates.ts");
-installTemplates();
-const { installPlaybooks } = await import("../../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
-installPlaybooks();
 // The tab's memory, as the app installs it (surface-cache.ts): the one store every composer keeps its words in.
-const { installTabMemory, clearTabMemory } = await import("../../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
-installTabMemory(globalThis.window);
-const TM = globalThis.window.__tabMemory;
-
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-const went = [];
-const toasts = [];
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => fn(),
-  useCallback: (fn) => fn,
-  useEffect: (fn, deps) => {
-    const k = frames.key();
-    const prev = cells[k];
-    if (
-      prev &&
-      deps &&
-      prev.deps &&
-      deps.length === prev.deps.length &&
-      deps.every((d, i) => Object.is(d, prev.deps[i]))
-    )
-      return;
-    if (prev && typeof prev.cleanup === "function") prev.cleanup();
-    cells[k] = { deps, cleanup: undefined };
-    cells[k].cleanup = fn();
-  },
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
-for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"])
-  globalThis[k] = globalThis.window[k];
-globalThis.useHotkey = () => {};
-Object.assign(globalThis.window, {
+const { installTabMemory, clearTabMemory } = await import(`${SRC}/legacy-bridge/tab-memory.ts`);
+installTabMemory(globalThis);
+const TM = globalThis.__tabMemory;
+// What the shell still owns and the pages draw by name (Confirm, StatePill, PolicyChip, the sheet, the unsaved-work rule):
+// the frame's JSX, loaded as the app loads it. The pages are TSX since decision 0015, and their verbs are imported.
+await import(`${SRC}/legacy/components/data-bits.jsx`);
+Object.assign(globalThis, {
+  useHotkey: () => {},
   usePPToast: () => [null, (t) => toasts.push(t)],
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
   appNavigate: (to) => went.push(to),
@@ -159,72 +72,28 @@ Object.assign(globalThis.window, {
   __surfaceState: () => "live",
   __DEMO_MODE: false,
 });
-await import("../../../../apps/dashboard/src/legacy/components/record-sheet.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-run.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/outbound.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/messages.jsx");
+const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+const { PlaybooksPage } = await import(`${SRC}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
+const { PlaybookCard } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
+const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
+const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
+const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
+const { broadcasts } = await import(`${SRC}/surfaces/campaigns/broadcasts/verbs.ts`);
+const { playbooks } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
+const { templates } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
+const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 
 /* ---------------------------------- walking a tree ---------------------------------- */
 
-// What is drawn: a component's own drawing when it has one (the sheet draws the children it is given, and its title
-// and foot, where it puts them), else the children.
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) {
-    for (const k of n) walk(k, fn);
-    return;
-  }
-  fn(n);
-  if (n.rendered !== undefined) walk(n.rendered, fn);
-  else walk(n.props?.children, fn);
-};
-const all = (tree, pred) => {
-  const out = [];
-  walk(tree, (n) => {
-    if (pred(n)) out.push(n);
-  });
-  return out;
-};
-const find = (tree, pred) => all(tree, pred)[0] ?? null;
-const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  if (n.rendered !== undefined) return textOf(n.rendered);
-  return textOf(n.props?.children);
-};
-const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
 const type = (node, value) => node.props.onChange({ target: { value } });
-const settle = () => new Promise((r) => setImmediate(r));
 /** A fresh mount, as React mounts a page a person came back to: every cell forgotten, every listener gone. */
 const fresh = () => {
-  cells = [];
-  frames.begin();
+  freshTree();
   went.length = 0;
   toasts.length = 0;
-  for (const k of Object.keys(listeners)) delete listeners[k];
 };
 /** The tree drawn again over the same cells, as React draws it after a state change. */
-const redraw = (draw) => {
-  frames.begin();
-  return draw();
-};
-/** The tree gone, as React unmounts it: each effect's cleanup, then the cells forgotten. */
-const unmount = () => {
-  for (const c of Object.values(cells)) if (c && typeof c.cleanup === "function") c.cleanup();
-  cells = [];
-  frames.begin();
-};
+const redraw = (draw) => again(draw);
 /** What the tab keeps, whole: every draft in the slot. */
 const drafts = () => JSON.parse(globalThis.sessionStorage.getItem("chanlytics.drafts.v1") || "{}");
 /** The browser's own question before the tab closes: whether the registry's listener held it. */
@@ -237,7 +106,7 @@ const tabClosing = () => {
       this.prevented = true;
     },
   };
-  globalThis.window.dispatchEvent(ev);
+  globalThis.dispatchEvent(ev);
   return ev.prevented;
 };
 
@@ -371,48 +240,43 @@ const playbooksSurface = (over = {}) => ({
   fetchedAt: NOW,
   ...over,
 });
-globalThis.window.__broadcasts = {
-  failureWords: (code) => contracts.broadcastFailureWords(code),
-  noNumberWords: (who, purpose) => contracts.noNumberWords(who, purpose),
-  saidYesWords: (who, purpose, sending, saidYes) => contracts.saidYesWords(who, purpose, sending, saidYes),
-  report: (d) =>
-    contracts.toRunReportVM(d, { windowMs: contracts.REPLY_WINDOW_MS, nowMs: Date.now(), clock: () => null }),
-  detail: async () => ({ ok: false, code: "not_found", status: 404, message: "Broadcast not found." }),
-  send: async () => ({
-    ok: true,
-    data: { id: "b-new", name: "Autumn", recipient_count: 2, scheduled_for: iso(0), moved_from: null },
-  }),
-};
+// The verbs the pages import, as this test holds them: a run's report by no clock, a read that finds nothing, a send the
+// server takes. The words (failureWords, noNumberWords, saidYesWords) are the verbs' own, over contracts.
+broadcasts.report = (d) =>
+  contracts.toRunReportVM(d, { windowMs: contracts.REPLY_WINDOW_MS, nowMs: Date.now(), clock: () => null });
+broadcasts.detail = async () => ({ ok: false, code: "not_found", status: 404, message: "Broadcast not found." });
+broadcasts.send = async () => ({
+  ok: true,
+  data: { id: "b-new", name: "Autumn", recipient_count: 2, scheduled_for: iso(0), moved_from: null },
+});
 
-const page = (props = { initialSegment: null, initialRun: null }) => globalThis.window.BroadcastsPage(props);
+const page = (props = { initialSegment: null, initialRun: null }) => BroadcastsPage(props);
 /** The send's name box, by its own words: the When box's input wears the same class. */
 const nameBox = (tree) =>
   find(tree, (n) => n.type === "input" && String(n.props?.placeholder || "").startsWith("Name this broadcast"));
-const playbooks = () => globalThis.window.OutboundPage({});
+const playbooksPage = () => PlaybooksPage({});
 const messagesPage = () => {
-  Object.assign(globalThis.window, {
-    __TEMPLATES_ALL: [],
-    __TEMPLATE_USE: null,
-    __TEMPLATE_SENT: null,
-    __CHANNELS: [{ kind: "whatsapp" }],
-    __SETTINGS: { config: { brain: { business_name: "Northside Studio" } } },
+  setSurfaceValue("settings", {
+    settings: { config: { brain: { business_name: "Northside Studio" } } },
+    channels: [{ kind: "whatsapp" }],
+    templatesAll: [],
   });
-  return globalThis.window.MessagesPage();
+  return TemplatesPage();
 };
 
 beforeEach(() => {
   unmount();
   fresh();
   clearTabMemory();
-  globalThis.window.__recordFolds.reset();
-  globalThis.window.__BROADCASTS = broadcastsSurface();
-  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  globalThis.__recordFolds.reset();
+  setSurfaceValue("broadcasts", broadcastsSurface());
+  setSurfaceValue("playbooks", playbooksSurface());
 });
 
 /* ---------------------------------- D: an act is said when the server takes it ---------------------------------- */
 
 test("a playbook card's act is said the moment the server takes it, with what it answered -- not after the playbooks, the broadcasts and every contact are read again -- and the button waits for the re-read", async () => {
-  const keep = { ...globalThis.window.__playbooks };
+  const keep = { ...playbooks };
   const reread = [];
   const acceptThenRead =
     (data) =>
@@ -421,15 +285,14 @@ test("a playbook card's act is said the moment the server takes it, with what it
       return new Promise((r) => reread.push(() => r({ ok: true, data })));
     };
   try {
-    globalThis.window.__playbooks.pause = acceptThenRead({ id: "pb-1", state: "paused" });
-    globalThis.window.__playbooks.runNow = acceptThenRead({
+    playbooks.pause = acceptThenRead({ id: "pb-1", state: "paused" });
+    playbooks.runNow = acceptThenRead({
       outcome: "sent",
       eligible: 4,
       scheduled_for: iso(0),
       moved_from: null,
     });
-    const draw = () =>
-      globalThis.window.PlaybookCard({ p: playbook(), canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
+    const draw = () => PlaybookCard({ p: playbook(), canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
     let card = draw();
     press(byTestId(card, "pb-pause"));
     await settle();
@@ -458,14 +321,14 @@ test("a playbook card's act is said the moment the server takes it, with what it
 
     // A client that never says it was accepted (an older bridge): said once the write answers, as before.
     toasts.length = 0;
-    globalThis.window.__playbooks.pause = async () => ({ ok: true, data: { id: "pb-1", state: "paused" } });
+    playbooks.pause = async () => ({ ok: true, data: { id: "pb-1", state: "paused" } });
     card = redraw(draw);
     press(byTestId(card, "pb-pause"));
     await settle();
     assert.equal(toasts.length, 1, "said once, from the answer");
     // A refusal is said as one, and nothing else.
     toasts.length = 0;
-    globalThis.window.__playbooks.pause = async () => ({
+    playbooks.pause = async () => ({
       ok: false,
       code: "forbidden",
       status: 403,
@@ -478,49 +341,49 @@ test("a playbook card's act is said the moment the server takes it, with what it
     assert.equal(toasts[0].tone, "danger");
     assert.match(textOf(toasts[0].msg), /Only an owner or operator/);
   } finally {
-    Object.assign(globalThis.window.__playbooks, keep);
+    Object.assign(playbooks, keep);
   }
 });
 
 /* ---------------------------------- G: the playbook sheet ---------------------------------- */
 
 test("the playbook sheet keeps what was typed in the tab, opens again on it after the page was left, and its Cancel and Escape ask before throwing it away -- Escape dropped everything", () => {
-  playbooks();
-  globalThis.window.dispatchEvent({ type: "playbooks:new" });
-  let tree = redraw(playbooks);
+  playbooksPage();
+  globalThis.dispatchEvent({ type: "playbooks:new" });
+  let tree = redraw(playbooksPage);
   assert.ok(byTestId(tree, "pb-composer"), "the sheet is open");
   assert.deepEqual(drafts(), {}, "nothing typed, nothing kept");
   // Cancel with nothing changed closes at once, as it did.
   press(byTestId(tree, "pb-cancel"));
-  tree = redraw(playbooks);
+  tree = redraw(playbooksPage);
   assert.equal(byTestId(tree, "pb-composer"), null, "Cancel closes it");
 
-  globalThis.window.dispatchEvent({ type: "playbooks:new" });
-  tree = redraw(playbooks);
+  globalThis.dispatchEvent({ type: "playbooks:new" });
+  tree = redraw(playbooksPage);
   type(byTestId(tree, "pb-name"), "Sunday quiet");
-  tree = redraw(playbooks);
+  tree = redraw(playbooksPage);
   assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet");
   const kept = TM.draft("playbook", "new");
   assert.equal(kept && kept.name, "Sunday quiet", "kept in the tab under the composer's kind, as it is typed");
   assert.equal(tabClosing(), true, "and the tab asks before closing over it (the record kit's registry holds it)");
-  assert.equal(globalThis.window.__settingsUnsaved(), true, "the rail's question hears it too");
+  assert.equal(globalThis.__settingsUnsaved(), true, "the rail's question hears it too");
 
   // Escape is the sheet's Close (record-sheet.jsx): it asks, where the sheet's buttons were, and closes nothing.
-  globalThis.window.dispatchEvent({ type: "keydown", key: "Escape", defaultPrevented: false, preventDefault() {} });
-  tree = redraw(playbooks);
+  globalThis.dispatchEvent({ type: "keydown", key: "Escape", defaultPrevented: false, preventDefault() {} });
+  tree = redraw(playbooksPage);
   assert.ok(byTestId(tree, "pb-composer"), "REGRESSION: Escape dropped the sheet and everything typed in it");
   assert.ok(byTestId(tree, "pb-leave-confirm"), "the one question");
   assert.equal(textOf(byTestId(tree, "pb-leave-confirm")).includes("Throw away what you've written?"), true);
   assert.equal(byTestId(tree, "pb-cancel"), null, "in the buttons' place");
   press(byTestId(tree, "pb-leave-no"));
-  tree = redraw(playbooks);
+  tree = redraw(playbooksPage);
   assert.ok(byTestId(tree, "pb-cancel"), "Keep writing: the buttons are back");
   assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet", "and the words with them");
 
   // The page left (People, a reload) and come back to: the sheet opens again on what was typed.
   unmount();
   assert.equal(tabClosing(), false, "gone from the page, it holds the tab no longer");
-  tree = playbooks();
+  tree = playbooksPage();
   assert.ok(byTestId(tree, "pb-composer"), "opens again as the page does");
   assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet", "on the words that were typed");
 
@@ -532,8 +395,8 @@ test("the playbook sheet keeps what was typed in the tab, opens again on it afte
     "the draft's moment: the first one nothing is doing yet",
   );
   unmount();
-  const sheet = globalThis.window.PlaybookComposer({
-    data: globalThis.window.__PLAYBOOKS,
+  const sheet = PlaybookComposer({
+    data: surfaceValue("playbooks"),
     editing: null,
     initialTrigger: "phoned_only",
     onDone() {},
@@ -545,13 +408,13 @@ test("the playbook sheet keeps what was typed in the tab, opens again on it afte
   );
   assert.equal(byTestId(sheet, "pb-name").props.value, "Sunday quiet", "and the words stay");
   unmount();
-  tree = playbooks();
+  tree = playbooksPage();
 
   // Cancel, then Yes: gone, from the sheet and from the tab.
   press(byTestId(tree, "pb-cancel"));
-  tree = redraw(playbooks);
+  tree = redraw(playbooksPage);
   press(byTestId(tree, "pb-leave-yes"));
-  tree = redraw(playbooks);
+  tree = redraw(playbooksPage);
   assert.equal(byTestId(tree, "pb-composer"), null, "thrown away: the sheet closes");
   assert.equal(TM.draft("playbook", "new"), null, "and nothing is kept");
   // The stub draws no unmount of a child the page stopped drawing: React would, and the hold goes with it.
@@ -560,20 +423,20 @@ test("the playbook sheet keeps what was typed in the tab, opens again on it afte
 });
 
 test("a playbook being changed is kept under its own id, and Save, taken, keeps nothing", async () => {
-  const keep = { ...globalThis.window.__playbooks };
+  const keep = { ...playbooks };
   try {
-    globalThis.window.__playbooks.update = async (id, body) => ({
+    playbooks.update = async (id, body) => ({
       ok: true,
       data: { id, name: body.name || "Win-back" },
     });
-    let tree = playbooks();
+    let tree = playbooksPage();
     press(byTestId(tree, "pb-open"));
-    tree = redraw(playbooks);
+    tree = redraw(playbooksPage);
     press(byTestId(tree, "pb-edit"));
-    tree = redraw(playbooks);
+    tree = redraw(playbooksPage);
     assert.ok(byTestId(tree, "pb-composer"));
     type(byTestId(tree, "pb-name"), "Win-back, gentler");
-    tree = redraw(playbooks);
+    tree = redraw(playbooksPage);
     assert.equal(
       TM.draft("playbook", "pb-1") && TM.draft("playbook", "pb-1").name,
       "Win-back, gentler",
@@ -581,15 +444,15 @@ test("a playbook being changed is kept under its own id, and Save, taken, keeps 
     );
     assert.equal(TM.draft("playbook", "new"), null, "not the new one's");
     unmount();
-    tree = playbooks();
+    tree = playbooksPage();
     assert.ok(byTestId(tree, "pb-composer"), "come back to, the change opens again");
     assert.equal(byTestId(tree, "pb-name").props.value, "Win-back, gentler");
     await press(byTestId(tree, "pb-save"));
-    tree = redraw(playbooks);
+    tree = redraw(playbooksPage);
     assert.equal(byTestId(tree, "pb-composer"), null, "saved, the sheet closes");
     assert.equal(TM.draft("playbook", "pb-1"), null, "and the server has it: nothing to keep");
   } finally {
-    Object.assign(globalThis.window.__playbooks, keep);
+    Object.assign(playbooks, keep);
   }
 });
 
@@ -683,10 +546,9 @@ test("a send the server took keeps nothing: the screen closes onto the ledger an
 /* ---------------------------------- G: the template composer ---------------------------------- */
 
 test("a template half-written is kept, comes back with the page, and Close asks once; a translation the assistant wrote is kept too, and is not written again", async () => {
-  const keep = globalThis.window.__templates;
+  const keep = { ...templates };
   const drafted = [];
-  globalThis.window.__templates = {
-    ...keep,
+  Object.assign(templates, {
     draft: async (body) => {
       drafted.push(body);
       return {
@@ -704,12 +566,12 @@ test("a template half-written is kept, comes back with the page, and Close asks 
       };
     },
     create: async (b) => ({ ok: true, data: { name: b.name } }),
-  };
+  });
   try {
     // New, drawn on its own.
     let closed = 0;
     const composeNew = () =>
-      globalThis.window.TemplateComposer({
+      TemplateComposer({
         businessName: "Northside Studio",
         onDone() {},
         onCancel() {
@@ -762,8 +624,7 @@ test("a template half-written is kept, comes back with the page, and Close asks 
     // A translation: written once by the assistant, kept under the message and its language, and never paid for twice.
     fresh();
     const translate = { ref: "tpl-own", from: "en_US", name: "autumn_offer", language: "es", title: "Autumn offer" };
-    const compose = () =>
-      globalThis.window.TemplateComposer({ businessName: "Northside Studio", translate, onDone() {}, onCancel() {} });
+    const compose = () => TemplateComposer({ businessName: "Northside Studio", translate, onDone() {}, onCancel() {} });
     tree = compose();
     await settle();
     assert.equal(drafted.length, 1, "written once");
@@ -789,17 +650,17 @@ test("a template half-written is kept, comes back with the page, and Close asks 
     press(byTestId(tree, "tpl-leave-yes"));
     assert.equal(TM.draft("template", "autumn_offer|es"), null, "thrown away");
   } finally {
-    globalThis.window.__templates = keep;
+    Object.assign(templates, keep);
   }
 });
 
 test("the registry's hold: a composer's words hold the tab and the rail, as an open fold's do, and never stand between two folds", () => {
-  const folds = globalThis.window.__recordFolds;
+  const folds = globalThis.__recordFolds;
   assert.equal(tabClosing(), false);
   let words = true;
   const release = folds.hold("send", () => words);
   assert.equal(tabClosing(), true, "the tab asks");
-  assert.equal(globalThis.window.__settingsUnsaved(), true, "the rail asks");
+  assert.equal(globalThis.__settingsUnsaved(), true, "the rail asks");
   words = false;
   assert.equal(tabClosing(), false, "read at the moment it asks");
   words = true;

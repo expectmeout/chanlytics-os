@@ -12,6 +12,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { legacyAddress } from "../shell/address/_address.mjs";
+import { kitPages } from "../_legacy-react.mjs";
 import {
   PROPOSAL_GATE,
   ROLE_PERMS,
@@ -198,10 +200,14 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-globalThis.Confirm = globalThis.window.Confirm;
+// Confirm is the kit's (surfaces/kit/confirm), which seed-globals publishes as window.Confirm.
+globalThis.Confirm = globalThis.window.Confirm = kitPages.Confirm;
 /** What the palette flashed, in order. */
 const flashed = [];
-Object.assign(globalThis.window, { usePPToast: () => [null, (m) => flashed.push(m)], CHANLY: { nav() {}, R: {} } });
+Object.assign(globalThis.window, {
+  usePPToast: () => [null, (m) => flashed.push(m)],
+  CHANLY: { nav() {}, R: {}, address: await legacyAddress() },
+});
 await import("../../../../apps/dashboard/src/legacy/pages/ask-text.jsx");
 await import("../../../../apps/dashboard/src/legacy/pages/ask-hooks.jsx");
 await import("../../../../apps/dashboard/src/legacy/pages/ask-home.jsx");

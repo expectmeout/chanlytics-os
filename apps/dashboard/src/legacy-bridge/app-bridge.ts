@@ -3,7 +3,7 @@
  * contracts/app-bridge.ts). Installed at boot by LegacyApp, and a no-op anywhere but inside the app: the document is
  * stamped html.in-app before paint, and the shell's WebView puts `ReactNativeWebView.postMessage` on the window.
  *
- * What the page says: the hash route it is on (at install and on every change), that a person is signed in (the
+ * What the page says: the route it is on (at install and on every change), that a person is signed in (the
  * shell only ever boots this bundle for one: the proxy sends anyone else to /login, which the shell reads from the
  * address), the needs-you count the Inbox publishes (inbox:counts, the badge on the native tab), and the workspace
  * the address names, and whether a sheet or a dialog stands over the page. What the shell asks: go to a route, open
@@ -18,7 +18,8 @@ import {
   type TodayVM,
 } from "@chanlytics/contracts";
 import { api } from "./api";
-import { pathWorkspace, workspaceHref } from "./workspace";
+import { goToRoute, hearAddress, pathWorkspace, routeOnScreen, workspaceHref } from "./workspace";
+import type { AddressParts } from "@chanlytics/contracts";
 
 interface BridgeWindow {
   document: {
@@ -32,7 +33,11 @@ interface BridgeWindow {
     activeElement?: unknown;
     body?: unknown;
   };
-  location: { hash: string; pathname: string; assign(url: string): void };
+  location: AddressParts & { assign(url: string): void };
+  history: {
+    pushState(data: unknown, unused: string, url?: string | null): void;
+    replaceState(data: unknown, unused: string, url?: string | null): void;
+  };
   /** The workspace this page is about, by id, once the page has read its workspaces (surface-data.ts). */
   __ACTIVE_WORKSPACE?: string;
   ReactNativeWebView?: { postMessage(s: string): void };
@@ -63,11 +68,6 @@ export const deviceDoors: DeviceDoors = {
   forget: async (token) => (await api()("DELETE me/devices", { body: { token } })).ok,
 };
 
-/** The hash route's name without its leading "#/", "today" when there is none: what app-shell.jsx parses. */
-export function hashRoute(hash: string): string {
-  return (hash || "#/today").replace(/^#\/?/, "") || "today";
-}
-
 export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors = deviceDoors): () => void {
   if (!win.document.documentElement.classList.contains(IN_APP_CLASS) || !win.ReactNativeWebView) return () => {};
   const post = (m: PageMessage) => {
@@ -75,9 +75,9 @@ export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors 
     const raw = JSON.stringify(m);
     if (parsePageMessage(raw)) win.ReactNativeWebView?.postMessage(raw);
   };
-  const route = () => post({ t: "route", route: hashRoute(win.location.hash) });
+  const route = () => post({ t: "route", route: routeOnScreen(win) });
   const workspace = () => {
-    const slug = pathWorkspace(win.location.pathname);
+    const slug = pathWorkspace(win.location.pathname ?? "");
     if (slug) post({ t: "workspace", slug });
   };
   const counts = (e: Event) => {
@@ -90,7 +90,7 @@ export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors 
     if (vm && typeof vm === "object" && vm.standing && vm.queue)
       post({ t: "today", snapshot: todayWidgetSnapshot(vm, new Date()) });
   };
-  win.addEventListener("hashchange", route);
+  const offAddress = hearAddress(route, win);
   win.addEventListener("inbox:counts", counts);
   win.addEventListener("workspace:changed", workspace);
   win.addEventListener("surface:today", today);
@@ -109,7 +109,7 @@ export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors 
     receive: (raw: string) => answerShell(answering, raw),
     forgetPhone: () => forgetPhone(doors, post, phone),
   };
-  // A file the page made (chart-core's CSV), asked for with a cancelable `app:file`: taken to the app's share sheet,
+  // A file the page made (the chart kit's CSV, surfaces/kit/charts/card.tsx), asked for with a cancelable `app:file`: taken to the app's share sheet,
   // and the event cancelled so the page does not also try the download a WebView drops. One that is no file the app
   // would take is left to the page.
   const file = (e: Event) => {
@@ -133,7 +133,7 @@ export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors 
   badge();
   today();
   return () => {
-    win.removeEventListener("hashchange", route);
+    offAddress();
     win.removeEventListener("inbox:counts", counts);
     win.removeEventListener("workspace:changed", workspace);
     win.removeEventListener("surface:today", today);
@@ -195,10 +195,10 @@ function answerShell({ win, doors, post, phone, shell, overlays }: Answering, ra
   if (!m) return;
   if (m.t === "navigate") {
     // A push told for another workspace opens that workspace's page: the site takes its id in the path as it takes a
-    // slug. One for this workspace, or with no workspace said, moves the hash.
+    // slug. One for this workspace, or with no workspace said, moves the route.
     if (m.workspace && m.workspace !== win.__ACTIVE_WORKSPACE)
       win.location.assign(workspaceHref(m.workspace, `#/${m.route}`));
-    else win.location.hash = "/" + m.route;
+    else goToRoute(m.route, {}, win);
     return;
   }
   if (m.t === "menu" || m.t === "top") {

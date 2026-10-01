@@ -1330,3 +1330,295 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    primary: the canvas reads "Open and reply · Snooze" on each. The verb is the
    button AttnRow marks attention-cta; the second word follows it. */
 :where(.dash-a-v2) .tq .cl-attn-cta[data-testid="attention-cta"] { order: -1; }
+
+/* ====================================================================
+   Glass: Today (the plan's step 5.4, canvas E3, "Clear")
+   Every card is a clear pane on the page's light under the page's head (kit/head, drawn by the route in Glass alone); its
+   rows sit on the pane, its verbs are the glass layer's capsules, and coral is the one act. Each rule names the look inside
+   :where() so it weighs what it restyles; none matches in Classic.
+   ==================================================================== */
+
+/* The page starts under the frame's head (kit/head/frame-head.tsx), at the page's gutter. */
+:where([data-look="glass"]) .main-scroll > .dash-a-v2 {
+  --pg-gutter: var(--gutter-page);
+  padding-top: 0;
+  gap: 14px;
+}
+
+/* The cards: the setup card and the queue, the day, the day's card, Worth a look and While you were away are clear panes
+   with the look's rim and depth, and the head and foot bars lose their sunken fills. */
+:where([data-look="glass"]) .dash-a-v2 :is(.tq, .td-day, .tsec),
+:where([data-look="glass"]) .dash-a-v2 > section {
+  position: relative;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+:where([data-look="glass"]) .dash-a-v2 :is(.tq, .td-day, .tsec)::after,
+:where([data-look="glass"]) .dash-a-v2 > section::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .dash-a-v2 :is(.tq-head, .td-day-head, .tsec-head) {
+  background: transparent;
+  border-bottom-color: transparent;
+}
+:where([data-look="glass"]) .dash-a-v2 :is(.tq-foot, .td-day-foot, .tc-foot, .tsec-note) {
+  background: transparent;
+  border-top-color: var(--line);
+}
+
+/* A row you point at is lit. */
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-row:hover,
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-row:focus-visible {
+  background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
+}
+
+/* The verbs: a row's one act is the primary role's coral capsule, its other the control layer's inset capsule. The setup
+   card's acts are the same two. */
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts > button,
+:where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list button:not([class*="skip"]) {
+  border-radius: var(--radius-full);
+  padding: 8px 16px;
+  font-size: var(--text-sm);
+}
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts > button.primary,
+:where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list button.primary {
+  background: var(--primary-fill);
+  border-color: transparent;
+  color: var(--primary-ink);
+  box-shadow: var(--primary-depth);
+}
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts > button.primary:hover,
+:where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list button.primary:hover {
+  background: var(--primary-hover);
+  filter: none;
+}
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts > button:not(.primary),
+:where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list button:not(.primary, [class*="skip"]) {
+  background: var(--surface-inset-fill);
+  border-color: var(--surface-inset-edge);
+  color: var(--ink);
+  box-shadow: var(--surface-inset-depth);
+}
+
+/* ---- The bento (canvas E3): the strip across, the queue's column beside the brief, the bell and the day, the day's
+   card beside Worth a look, the pinned lists across; under 1180px one column in that order (today-page.tsx GlassPage). */
+:where([data-look="glass"]) .main-scroll > .dash-a-v2-glass {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+:where([data-look="glass"]) .dash-a-v2-glass > :is(.today-alert, .today-strip, .dash-a-v2-bottom, .tsec.tp) { grid-column: 1 / -1; }
+:where([data-look="glass"]) .dash-a-v2-glass > .dash-a-v2-work { grid-column: span 8; gap: 16px; }
+:where([data-look="glass"]) .dash-a-v2-glass > .dash-a-v2-side { grid-column: span 4; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* The bottom row: the day's card beside Worth a look, halves; one alone takes the row. */
+:where([data-look="glass"]) .dash-a-v2-bottom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+:where([data-look="glass"]) .dash-a-v2-bottom > :only-child { grid-column: 1 / -1; }
+@media (max-width: 1180px) {
+  :where([data-look="glass"]) .dash-a-v2-glass > :is(.dash-a-v2-work, .dash-a-v2-side) { grid-column: 1 / -1; }
+  :where([data-look="glass"]) .dash-a-v2-bottom { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The strip: one pane of cells, a hairline between them -- the call with its clock and its door, the next appointment
+   under its eyebrow, and the next opening as the one green capsule at the right (the canvas's "Open until"). */
+:where([data-look="glass"]) .today-strip {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+  overflow: hidden;
+}
+:where([data-look="glass"]) .today-strip::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .ts-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 18px;
+  font-size: var(--text-md);
+  color: var(--ink);
+}
+:where([data-look="glass"]) .ts-cell + .ts-cell { border-left: 1px solid var(--line); }
+:where([data-look="glass"]) .ts-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:where([data-look="glass"]) .ts-words b { font-weight: var(--weight-medium); }
+:where([data-look="glass"]) .ts-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .ts-clock { color: var(--accent-ink); font-weight: var(--weight-medium); }
+:where([data-look="glass"]) .ts-more { font-size: var(--text-sm); color: var(--ink-dim); }
+:where([data-look="glass"]) .ts-open { margin-left: auto; }
+:where([data-look="glass"]) .ts-capsule {
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+:where([data-look="glass"]) .ts-capsule.ts-closed { background: var(--surface-inset-fill); color: var(--ink-muted); }
+/* The call rides in the strip, not above the queue's rows. */
+:where([data-look="glass"]) .dash-a-v2 .tq-live { display: none; }
+
+/* The panes' titles at the canvas's size, and the queue's head: the count as the filled disc before the name, the
+   sentence beside it, the door to the Inbox in ink with its arrow. */
+:where([data-look="glass"]) .dash-a-v2 :is(.tq-title, .td-day-title, .tsec-title, .tc-title) {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.01em;
+}
+:where([data-look="glass"]) .dash-a-v2 .today-queue .tq-head {
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  padding: 16px 18px 8px;
+}
+:where([data-look="glass"]) .tq-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--radius-full);
+  background: var(--count-fill);
+  color: var(--count-ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+}
+:where([data-look="glass"]) .dash-a-v2 .today-queue .tq-head > .tq-open {
+  grid-column: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-base);
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+:where([data-look="glass"]) .dash-a-v2 .today-queue .tq-head > .tq-open:hover { color: var(--ink); }
+
+/* The queue's rows as the canvas draws them: the face in a disc, who and when over the words over the state, the
+   verbs at the right in the row's middle. */
+:where([data-look="glass"]) .dash-a-v2 .today-queue .cl-attn-row {
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 4px 14px;
+  align-items: center;
+  padding: 14px 18px;
+}
+:where([data-look="glass"]) .dash-a-v2 .today-queue .cl-attn-row > :first-child {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts { grid-column: 3; grid-row: 1; justify-self: end; padding-top: 0; }
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-name { font-size: var(--text-md); }
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-meta { font-size: var(--text-sm); }
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-sentence { font-size: var(--text-md); }
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-status { font-size: var(--text-sm); }
+:where([data-look="glass"]) .dash-a-v2 .tq-foot { padding: 12px 18px 14px; font-size: var(--text-sm); }
+
+/* The brief: the pane's line in the page's ink, the lines that are not numbers under it as prose (no marks), the
+   doors as words, and the one door to Ask at the foot. */
+:where([data-look="glass"]) .tb .tsec-head { align-items: baseline; gap: 10px; }
+:where([data-look="glass"]) .tb-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .tb-body { display: flex; flex-direction: column; gap: 10px; padding: 0 18px 12px; }
+:where([data-look="glass"]) .tb-line { margin: 0; font-size: var(--text-md); line-height: 1.55; color: var(--ink); text-wrap: pretty; }
+:where([data-look="glass"]) .tb-body .tc-beats { padding: 0; margin: 0; gap: 8px; }
+:where([data-look="glass"]) .tb-body .brief-beat { font-size: var(--text-base); line-height: 1.5; color: var(--ink-muted); }
+:where([data-look="glass"]) .tb-body .brief-beat-glyph { display: none; }
+:where([data-look="glass"]) .tb-foot { display: flex; align-items: center; gap: 12px; padding: 0 18px 14px; }
+
+/* The day's card: the figures in columns with a hairline between them, the numbers at the canvas's size. */
+:where([data-look="glass"]) .dash-a-v2 .tc-figs { gap: 0; padding: 12px 18px 10px; }
+:where([data-look="glass"]) .dash-a-v2 .tc-fig + .tc-fig { border-left: 1px solid var(--line); padding-left: 14px; }
+:where([data-look="glass"]) .dash-a-v2 .tc-fig-n { font-size: var(--text-3xl); }
+:where([data-look="glass"]) .dash-a-v2 .tc-fig-w { font-size: var(--text-base); }
+:where([data-look="glass"]) .dash-a-v2 .tc-fig-m { font-size: var(--text-sm); }
+
+/* The bell's rows: the kind's glyph in a disc, the words beside it. */
+:where([data-look="glass"]) .dash-a-v2 .ta-row { gap: 12px; padding: 12px 18px; }
+:where([data-look="glass"]) .dash-a-v2 .ta-row > .tbn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  color: var(--ink-muted);
+}
+:where([data-look="glass"]) .dash-a-v2 .ta-title { font-size: var(--text-base); }
+:where([data-look="glass"]) .dash-a-v2 .ta-msg { font-size: var(--text-sm); }
+
+/* A phone: the strip's cells are capsules in a row that scrolls, the rest one column. */
+@media (max-width: 720px) {
+  :where([data-look="glass"]) .today-strip {
+    flex-wrap: nowrap;
+    gap: 8px;
+    margin: 0 calc(-1 * var(--gutter-page));
+    padding: 2px var(--gutter-page) 4px;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  :where([data-look="glass"]) .today-strip::after { display: none; }
+  :where([data-look="glass"]) .ts-cell {
+    flex: none;
+    max-width: 82vw;
+    padding: 8px 14px;
+    border-radius: var(--radius-full);
+    background: var(--surface-pane-fill);
+    box-shadow: var(--surface-pane-depth);
+  }
+  :where([data-look="glass"]) .ts-cell + .ts-cell { border-left: 0; }
+  :where([data-look="glass"]) .ts-open { margin-left: 0; }
+  :where([data-look="glass"]) .ts-capsule { padding: 0; background: transparent; }
+  /* A phone's row: the face and the words across, the verbs on a line of their own under them (the canvas's phone board). */
+  :where([data-look="glass"]) .dash-a-v2 .today-queue .cl-attn-row { grid-template-columns: 36px minmax(0, 1fr); gap: 6px 12px; padding: 12px 16px; }
+  :where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts { grid-column: 2; grid-row: auto; justify-self: start; }
+  :where([data-look="glass"]) .dash-a-v2 .today-queue .cl-attn-row > :first-child { align-self: start; }
+}

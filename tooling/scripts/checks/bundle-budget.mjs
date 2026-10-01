@@ -47,7 +47,10 @@ import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const PAGE = "(os)/w/[workspace]/page";
+// The route's one page, the catch-all every workspace address is served by; the frame itself is its layout's (decision
+// 0015, "The address first"), so the segments above it are counted with it, and a surface that gets a page of its own
+// is counted where it lives.
+const PAGE = "(os)/w/[workspace]/[[...route]]/page";
 /** How far a build may sit from the budget, either way, before it must be banked or raised. */
 export const BAND = 0.01;
 /** The sums a budget holds, each banked on its own. */

@@ -148,14 +148,18 @@ test("nothing outside the runner calls activateOverride directly", () => {
 {
   // The third, a failed boot over cached real data said as degraded, runs the runner in surface-boot.test.mjs.
   const { readCode } = await import("../../_source.mjs");
-  // The seam and each surface's module beside it (legacy-bridge/surfaces/), read as one text.
+  // The seam and each surface's module beside it (legacy-bridge/surfaces/, and the surfaces that have left the shell),
+  // read as one text.
   const seam = [
     "apps/dashboard/src/legacy-bridge/surface-data.ts",
+    "apps/dashboard/src/surfaces/reports/surface.ts",
+    "apps/dashboard/src/surfaces/inbox/surface.ts",
+    "apps/dashboard/src/surfaces/inbox/conversations-surface.ts",
     ...fs.readdirSync(path.join(BRIDGE, "surfaces")).map((f) => `apps/dashboard/src/legacy-bridge/surfaces/${f}`),
   ]
     .map((p) => readCode(p))
     .join("\n");
-  const verbs = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
+  const verbs = readCode("apps/dashboard/src/surfaces/inbox/verbs.ts");
   const wrapper = readCode("apps/dashboard/src/server/with-route.ts");
 
   test("a successful write forgets every in-flight read", () => {

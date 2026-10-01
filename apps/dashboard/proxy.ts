@@ -7,6 +7,7 @@ import { writeAuthCookies } from "@/server/auth-cookies";
 import { env, isProduction, servedOverHttps } from "@/server/env";
 import { publicEnv } from "@/lib/public-env";
 import { sessionCookieOptions } from "@/lib/supabase/cookie-options";
+import { returnFragmentOf } from "@/auth/sign-in-return";
 
 /**
  * The complete set of paths reachable without a session. Everything else — every
@@ -209,9 +210,12 @@ export async function proxy(request: NextRequest) {
     url.pathname = "/login";
     // Drop the query string: clone() carries it over, so a conversation id in a
     // param would be copied onto the login URL and into the access logs. The
-    // app routes on the hash, which the browser preserves across redirects
-    // without the server ever seeing it — nothing is lost here.
+    // route of a workspace page rides in the fragment instead (sign-in-return.ts),
+    // which no server or log ever sees: a deep link at /w/acme/inbox/th-1 signs
+    // in and lands there. A hash address (/w/acme#/inbox) needs nothing: the
+    // browser preserves its fragment across the redirect on its own.
     url.search = "";
+    url.hash = returnFragmentOf(path);
     return noStore(NextResponse.redirect(url));
   }
   // A signed-in person has no business on either door: /signup would send a

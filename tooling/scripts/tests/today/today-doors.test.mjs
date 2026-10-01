@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toTodayVM, toLiveVM, setupSteps, FIRST_RUN_HELPERS } from "@chanlytics/contracts";
-import { hookFrames } from "../_hook-frames.mjs";
+import { installLegacyReact, fresh, again, kitPages } from "../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-06T14:00:00Z");
@@ -137,91 +137,34 @@ const liveCall = () => ({
 
 /* -------------------------------- the pages, drawn -------------------------------- */
 
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
 const went = [];
 const flashes = [];
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => fn(),
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
-globalThis.document = {
-  body: {},
-  addEventListener() {},
-  removeEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
-};
-globalThis.window = {
+installLegacyReact({
   CHANLY: { nav: (to) => went.push(to), R: {} },
   appNavigate: (to) => went.push(to),
   __surfaceState: () => "live",
   __DEMO_MODE: false,
   __clock: { dayKey: () => "2026-09-06", time: () => "9:00 AM" },
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent() {
-    return true;
-  },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
-};
+});
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
+// The record kit, as the app publishes it (surfaces/kit/kit-globals.ts), for the pages that still draw it by name.
+Object.assign(globalThis.window, kitPages);
 for (const k of ["StatePill", "EmptyState", "FailedRead", "PolicyChip", "StatStrip", "StatCell"])
   globalThis[k] = globalThis.window[k] || (({ children }) => children ?? null);
 globalThis.useHotkey = () => {};
 globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
-await import("../../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
+// Setup's rows are still the shell's (setup.jsx SetupCardRow, SetupRows): the card draws them by name off the window.
 await import("../../../../apps/dashboard/src/legacy/pages/setup.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
-const { TODAY_HELPERS } = await import("../../../../apps/dashboard/src/legacy-bridge/today.ts");
-globalThis.window.__today = TODAY_HELPERS;
+// Today's pages are TSX (surfaces/today/pages), drawn by import over the day the seam holds (surface-values.ts).
+const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
+const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
+const { TodaySetup } = await import("../../../../apps/dashboard/src/surfaces/today/pages/setup-card.tsx");
+const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -255,29 +198,25 @@ const textOf = (n) => {
 };
 const buttonsSaying = (tree, words) => findAll(tree, (n) => n.type === "button" && textOf(n).includes(words));
 const mountHero = (vm) => {
-  globalThis.window.TODAY_DATA = vm;
-  cells = [];
-  frames.begin();
-  return globalThis.window.HeroBrief();
+  setSurfaceValue("today", vm);
+  fresh();
+  return again(() => HeroBrief());
 };
 // The day's lines (its receipts, the proof, a reply that failed) sit in the day's card under the work (TodayCard).
 const mountCard = (vm) => {
-  globalThis.window.TODAY_DATA = vm;
-  cells = [];
-  frames.begin();
-  return globalThis.window.TodayCard();
+  setSurfaceValue("today", vm);
+  fresh();
+  return again(() => TodayCard());
 };
 // What is left to set up, one card above the queue (TodaySetup): it reads Setup's surface, not the day's.
 const mountSetup = () => {
-  cells = [];
-  frames.begin();
-  return globalThis.window.TodaySetup();
+  fresh();
+  return again(() => TodaySetup());
 };
 const mountQueue = (vm) => {
-  globalThis.window.TODAY_DATA = vm;
-  cells = [];
-  frames.begin();
-  return globalThis.window.AgentCommand();
+  setSurfaceValue("today", vm);
+  fresh();
+  return again(() => AgentCommand());
 };
 const todayWith = (channels, over = {}) =>
   toTodayVM(metrics({ channels, now: zeroNow, period: quietPeriod, ...over }), [], [], [], NOW);

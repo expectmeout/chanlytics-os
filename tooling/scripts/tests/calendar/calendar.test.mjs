@@ -275,30 +275,8 @@ test("the doors and the page: read-only, the feed's address never in the browser
   assert.ok(pv.includes('role: "operator",') && pv.includes("previewFeed(url, timezone)"));
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
   assert.ok(reg.includes('calendar: "real"') && reg.includes('calendar: "calendar"'));
-  const page = readCode("apps/dashboard/src/legacy/pages/calendar.jsx");
-  for (const id of [
-    "calendar-real",
-    "cal-feed",
-    "cal-feed-card",
-    "cal-dayhead",
-    "cal-col",
-    "cal-block",
-    "cal-window",
-    "cal-panel",
-    "cal-prev",
-    "cal-next",
-    "cal-range",
-    "cal-legend",
-  ])
-    assert.ok(page.includes(`data-testid="${id}"`), id);
-  assert.ok(
-    !/drag|Move |cancel\(|Waitlist|two-way|Two-way|Google Calendar|Apple iCal|Utilization|\$\d/.test(page),
-    "a viewer: nothing moved, cancelled, synced two ways, or priced",
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/legacy/demo/pages/calendar.jsx").includes("window.CalendarSeed = CalendarSeed;"),
-  );
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
+  // What the page draws, by the testids it is known by, and that it is a viewer, is executed in calendar-honest.test.mjs.
+  const sd = readCode("apps/dashboard/src/surfaces/calendar/surface.ts");
   assert.ok(sd.includes('key: "calendar"') && sd.includes('read("GET calendar"'), "one override, fed by the route");
   // The form's "Check the address" button went with the form: the Business page's calendar row states its last read
   // and its count, and says a read that failed with its Retry (the spec's "When you're open"), executed in
@@ -354,48 +332,15 @@ test("the words from Settings on the board: hours as runs, closures ahead, servi
 });
 
 test("full-fledged: month and agenda views, a date to jump to, windows that fit a service, the rules bar, Today's line, the assistant's read, and Settings saves that reach the board", async () => {
-  const page = readCode("apps/dashboard/src/legacy/pages/calendar.jsx");
-  for (const id of [
-    "cal-month",
-    "cal-month-cell",
-    "cal-agenda",
-    "cal-agenda-day",
-    "cal-jump",
-    "cal-service",
-    "cal-rules",
-    "cal-consult-note",
-  ])
-    assert.ok(page.includes(`data-testid="${id}"`), id);
-  assert.ok(
-    page.includes("data-testid={`cal-view-${id}`}") && page.includes('["month", "Month"], ["agenda", "Agenda"]'),
-    "four views, one tab each",
-  );
-  assert.ok(
-    page.includes("const fit = (w) => !service || !service.offerMinutes || w.dur >= service.offerMinutes;"),
-    "the same rule the assistant applies for a service",
-  );
-  assert.ok(
-    page.includes('view === "month" ? cal.shiftMonth(anchor, n)') &&
-      page.includes('view === "agenda" ? cal.shiftKey(anchor, 14 * n)'),
-    "a month moves by a month, the agenda by two weeks, by contracts' arithmetic through the bridge (crStep, run by the-pages-say-only-what-is-true.test.mjs)",
-  );
-  assert.ok(
-    !/const cr(Shift|MonthLabel|ShiftMonth|Hour) = /.test(page),
-    "the page keeps no copy of the date arithmetic",
-  );
-  for (const id of ["cal-panel-copy-link", "cal-panel-text-link", "cal-copy-link"])
-    assert.ok(page.includes(`data-testid="${id}"`), id);
-  assert.ok(
-    page.includes("value={anchor}") && page.includes("CR_REFRESH_MS"),
-    "the date picker follows the anchor; the board reads itself again while open",
-  );
+  // Executed in calendar-honest.test.mjs: the four views, one tab each, and every testid the page is known by; the date picker
+  // following the anchor; the open times a service leaves (the assistant's rule); the steps (crStep, the-pages-say-only-what-is-true.test.mjs).
   const svc = readCode("apps/dashboard/src/server/calendar/calendar-week.ts");
   assert.ok(
     svc.includes("const MAX_DAYS = 63;") &&
       svc.includes("consult_first: needsConsultation(s.name, profile?.booking_rules),"),
     "the services as Settings keeps them",
   );
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
+  const sd = readCode("apps/dashboard/src/surfaces/calendar/surface.ts");
   assert.ok(
     sd.includes("days: String(w.days)") &&
       sd.includes("if (from !== calendarFrom || days !== calendarDays) return;") &&
@@ -406,10 +351,10 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
     ["settings", "today", "calendar", "setup"],
     "hours, closures, rules and services saved in Settings reach the board, and Setup",
   );
-  const dayModule = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
+  const dayModule = readCode("apps/dashboard/src/surfaces/today/pages/day.tsx");
   assert.ok(
     dayModule.includes('data-testid="today-day"') &&
-      dayModule.includes('if (C.vm.feed.state !== "ok") return stepsOnly;') &&
+      dayModule.includes('if (!C || !C.vm || C.vm.feed.state !== "ok") return null;') &&
       dayModule.includes('data-testid="today-day-unreadable"'),
     "Today shows the day on the calendar, without a feed only the steps due, and says so about a feed it has and could not read (today-unreadable.test.mjs walks it)",
   );
@@ -456,30 +401,11 @@ test("instant views: the span a view needs, the window loaded around a day, whet
 });
 
 test("the page keeps a view and a day, derives the rest, and reads only when the window does not cover the view", () => {
-  const page = readCode("apps/dashboard/src/legacy/pages/calendar.jsx");
+  // The page's own half is executed in calendar-honest.test.mjs: a read only when the window lacks the view, the shape from dates
+  // and the content from data, the arrows unless the person is typing or something is open, Today always there.
+  const bridge = readCode("apps/dashboard/src/surfaces/calendar/verbs.ts");
   assert.ok(
-    page.includes("const span = vm && cal ? cal.spanFor(view, anchor) : null;") &&
-      page.includes("cal.covers(vm.days, span.from, span.days)"),
-    "one arithmetic, from contracts through the bridge",
-  );
-  assert.ok(page.includes("cal.ensure(view, anchor).then((ok) => {"), "a read only when needed");
-  assert.ok(
-    page.includes("frames.push(byKey.get(k) || { ...cal.frameOf(k, vm.today), loading: true,"),
-    "the shape from dates, the content from data",
-  );
-  // A body that arrives, dimmed by the one rule while its days are read: run in calendar-honest.test.mjs (C2).
-  assert.ok(
-    page.includes('data-testid="cal-today"') && page.includes("disabled={onToday}"),
-    "Today is always there, never shifting the row",
-  );
-  assert.ok(
-    page.includes('if (e.key === "ArrowLeft")') && page.includes("crTyping()"),
-    "arrows move, unless the person is typing",
-  );
-  assert.ok(!page.includes("const [busy, setBusy]"), "no click is ever dropped for being early");
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/calendar.ts");
-  assert.ok(
-    bridge.includes("export async function ensure(view: CalendarView, anchor: string)") &&
+    bridge.includes("async function ensure(view: CalendarView, anchor: string)") &&
       bridge.includes("if (coversSpan(have, need.from, need.days)) return true;"),
   );
   assert.ok(
@@ -489,10 +415,10 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
     "the arithmetic reaches the page, all of it",
   );
   assert.ok(
-    bridge.includes("export async function refresh(opts: { fresh?: boolean } = {}): Promise<boolean>"),
+    bridge.includes("async function refresh(opts: { fresh?: boolean } = {}): Promise<boolean>"),
     "and a refresh the board can call, fresh on request, saying whether a read landed",
   );
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
+  const sd = readCode("apps/dashboard/src/surfaces/calendar/surface.ts");
   assert.ok(
     sd.includes("const w = from ? { from, days } : windowFor(zoneDayKey(Date.now(), await workspaceZone()));"),
     "the first read is the window around the business's today",

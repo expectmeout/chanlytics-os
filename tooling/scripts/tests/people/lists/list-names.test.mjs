@@ -140,7 +140,7 @@ test("People's rail says a rule's lists by the one namer", async () => {
       return new Response(JSON.stringify({ ok: false, error: { code: "not_found" } }), { status: 404 });
     },
   };
-  const { peopleOverride } = await import(at("apps/dashboard/src/legacy-bridge/surfaces/people.ts"));
+  const { peopleOverride } = await import(at("apps/dashboard/src/surfaces/people/surface.ts"));
   await peopleOverride.apply();
   const rail = globalThis.window.__PEOPLE;
   const regulars = rail.saved.find((l) => l.name === "Regulars");

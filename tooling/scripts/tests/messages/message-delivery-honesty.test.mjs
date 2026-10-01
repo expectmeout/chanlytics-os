@@ -95,7 +95,7 @@ test("an ordinary sent message says nothing rather than something reassuring", (
 /* ------------------------ one vocabulary, one place ----------------------- */
 
 test("the thread keeps no private list of these words", () => {
-  const thread = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+  const thread = readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx");
   // The Inbox's ternary WAS the only home of this vocabulary, which is why the
   // other pane had none.
   assert.ok(

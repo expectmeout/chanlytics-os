@@ -14,6 +14,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { refusalOf, stateOf, toTodayVM } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
+import {
+  kitPages,
+  installLegacyReact,
+  useStubHooks,
+  fresh as freshTree,
+  again as againTree,
+} from "../_legacy-react.mjs";
+import { importSrc } from "../_source.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -65,6 +73,8 @@ globalThis.React = {
     }
   },
   useCallback: (fn) => fn,
+  // A store outside React, read as it stands (this test draws once): all Today's queue asks of it.
+  useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.useSurface = () => 0; // the bridge's hook: this test draws once
@@ -90,9 +100,9 @@ globalThis.window = {
   appNavigate() {},
 };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
+
+Object.assign(globalThis.window, kitPages);
+useStubHooks();
 for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError", "PolicyChip"])
   globalThis[k] = globalThis.window[k];
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
@@ -189,31 +199,6 @@ test("a refusal as a toast: the danger tone, the page's words for what did not h
 
 /* ------------------------------- forms ------------------------------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
-
-test("REGRESSION: a template the route refuses says why under the form as a field error -- it was inline red text", async () => {
-  Object.assign(globalThis.window, {
-    __ME: { role: "owner" },
-    __starters: undefined,
-    __templates: { create: async () => refused("A template called spring_offer already exists in English.") },
-  });
-  cells = [];
-  const render = () => {
-    frames.begin();
-    return globalThis.window.TemplateComposer({ onDone() {}, onCancel() {}, businessName: "Marisa's Beauty Salon" });
-  };
-  byTestId(render(), "tpl-name").props.onChange({ target: { value: "spring_offer" } });
-  byTestId(render(), "tpl-body").props.onChange({ target: { value: "Twenty percent off this week." } });
-  await byTestId(render(), "tpl-submit").props.onClick();
-  const tree = render();
-  const err = byTestId(tree, "tpl-error");
-  assert.ok(err, "the refusal is on the form");
-  assert.equal(err.props.className, "field-error");
-  assert.equal(err.props.role, "alert", "announced as it appears");
-  assert.ok(say(err).includes("already exists"), say(err));
-  assert.equal(inlineDanger(tree), 0, "REGRESSION: style={{ color: 'var(--danger)' }}");
-});
-
 await import("../../../../apps/dashboard/src/legacy/pages/business-record.jsx");
 
 const bizApi = (over = {}) => ({
@@ -308,9 +293,11 @@ test("problems found before saving: nothing is sent, each box says what it needs
 
 /* ------------------------- Today: a refusal wears its tone ------------------------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
-const { TODAY_HELPERS } = await import("../../../../apps/dashboard/src/legacy-bridge/today.ts");
-globalThis.window.__today = TODAY_HELPERS;
+// Today's queue is TSX (decision 0015): it draws the kit's AttnRow, reads the day over the seam, and asks its verbs of the
+// wire (surfaces/inbox/verbs.ts over window.fetch), which this test answers.
+const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { AttnRow } = await import("../../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const NOW = new Date("2026-09-06T14:00:00Z");
 const metrics = (oldest) => ({
@@ -382,17 +369,29 @@ const conversation = (id, name) => ({
 
 test("REGRESSION (A13): a refused snooze or approve on Today toasts in the danger tone, saying what did not happen -- they wore the green check", async () => {
   const flashes = [];
-  const rows = [];
+  const wire = [];
   Object.assign(globalThis.window, {
     usePPToast: () => [null, (p) => flashes.push(p)],
-    AttnRow: (p) => {
-      rows.push(p);
-      return null;
+    // The zone a snooze is made in (its "until" is ten tomorrow where the business is).
+    __WORKSPACES: [
+      { id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: "America/New_York" },
+    ],
+    __ACTIVE_WORKSPACE: "t1",
+    // The server refuses every change: the client names the refusal, as it does in the browser.
+    fetch: async (url, init = {}) => {
+      wire.push(`${init.method ?? "GET"} ${new URL(String(url), "https://app.chanlytics.com").pathname}`);
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: {
+            code: "rate_limited",
+            message: "Too many conversation changes in a short time — try again in 20 seconds.",
+            details: { retry_after_s: 20 },
+          },
+        }),
+        { status: 429, headers: { "content-type": "application/json" } },
+      );
     },
-    __inboxVerb: async () =>
-      refused("Too many conversation changes in a short time — try again in 20 seconds.", "rate_limited", 429, {
-        retry_after_s: 20,
-      }),
     __BROADCASTS: {
       rows: [
         {
@@ -412,28 +411,37 @@ test("REGRESSION (A13): a refused snooze or approve on Today toasts in the dange
       cancel: async () => refused("That run has already sent."),
     },
   });
-  globalThis.window.TODAY_DATA = toTodayVM(
-    metrics("2026-09-06T12:00:00Z"),
-    [conversation("cv1", "Zoe Martin")],
-    [
-      {
-        id: "e1",
-        reason: "human_token",
-        details: null,
-        state: "open",
-        created_at: "2026-09-06T12:00:00Z",
-        conversation_id: "cv1",
-      },
-    ],
-    [],
-    NOW,
+  setSurfaceValue(
+    "today",
+    toTodayVM(
+      metrics("2026-09-06T12:00:00Z"),
+      [conversation("cv1", "Zoe Martin")],
+      [
+        {
+          id: "e1",
+          reason: "human_token",
+          details: null,
+          state: "open",
+          created_at: "2026-09-06T12:00:00Z",
+          conversation_id: "cv1",
+        },
+      ],
+      [],
+      NOW,
+    ),
   );
   cells = [];
   frames.begin();
-  globalThis.window.AgentCommand();
+  const tree = AgentCommand();
+  // The rows the queue drew, as the props it handed the kit's row.
+  const rows = [];
+  walk(tree, (n) => {
+    if (n.type === AttnRow) rows.push(n.props);
+  });
   const handoff = rows.find((p) => p.also && p.also.testid === "queue-snooze");
   assert.ok(handoff, "a handoff row offers Snooze");
   await handoff.also.onClick();
+  assert.deepEqual(wire, ["POST /api/v1/conversations/cv1/snooze"], "the ask went to the server, for this thread");
   assert.equal(flashes.at(-1).tone, "danger", "REGRESSION: the refusal wore the green check");
   assert.equal(
     say(flashes.at(-1).msg),
@@ -448,32 +456,39 @@ test("REGRESSION (A13): a refused snooze or approve on Today toasts in the dange
 
 /* ------------------------------ People and Lists ------------------------------ */
 
-await import("../../../../apps/dashboard/src/legacy/pages/people-table.jsx");
-for (const k of [
-  "PeopleTable",
-  "PeopleColumnsMenu",
-  "plLocked",
-  "plShows",
-  "plSortKeys",
-  "plDrawnColumns",
-  "plShownColumns",
-  "plColumnChoices",
-  "plColumnOptions",
-  "PL_NO_SEL",
-  "PL_FIRST_ROWS",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/people.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
+// People's list page is TSX (surfaces/people, decision 0015): its parts are drawn from their own modules, and
+// the person's page and its parts (surfaces/people/person) are TSX too. The verbs the TSX calls (the lists', the person's)
+// are imported by it, so a refusal comes over the wire it would send.
+const { DeleteListButton } = await importSrc("apps/dashboard/src/surfaces/people/lists/list-title.tsx");
+const { NewListRow } = await importSrc("apps/dashboard/src/surfaces/people/rail/new-list.tsx");
+const { AddPersonButton } = await importSrc("apps/dashboard/src/surfaces/people/sheets/add-person.tsx");
+
+/**
+ * The requests the bridge's client sends, answered by `answer(request)` with the server's own envelope: each is kept
+ * (its method, path and JSON body) and returned. A test that sends a write it means to be refused says so here.
+ */
+const wire = (answer) => {
+  const seen = [];
+  globalThis.window.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    const request = { method: init.method, path: u.pathname, body: init.body ? JSON.parse(init.body) : null };
+    seen.push(request);
+    const { status, ...envelope } = answer(request);
+    return new Response(JSON.stringify(envelope), { status, headers: { "content-type": "application/json" } });
+  };
+  return seen;
+};
+const refusedOver = (status, code, message, details) => ({ status, ok: false, error: { code, message, details } });
+// The person's consent ask leaves the shell as TSX (surfaces/people/person): it takes its hooks from the react module the
+// useStubHooks() above set, its field error from the kit, and its recorder as a prop.
+const { ConsentAsk } = await import("../../../../apps/dashboard/src/surfaces/people/person/consent-ask.tsx");
 
 test("REGRESSION (B5): a refused list delete keeps the question open and says why -- it closed with no word", async () => {
-  const DeleteListButton = globalThis.window.DeleteListButton;
   assert.equal(typeof DeleteListButton, "function", "the delete can be drawn on its own");
   let deleted = 0;
-  globalThis.window.__lists = {
-    remove: async () => refused("Only an owner or operator can change lists.", "forbidden", 403, { needs: "operator" }),
-  };
+  const seen = wire(() =>
+    refusedOver(403, "forbidden", "Only an owner or operator can change lists.", { needs: "operator" }),
+  );
   cells = [];
   const render = () => {
     frames.begin();
@@ -488,6 +503,11 @@ test("REGRESSION (B5): a refused list delete keeps the question open and says wh
   await byTestId(render(), "delete-list-yes").props.onClick();
   const tree = render();
   assert.equal(deleted, 0);
+  assert.deepEqual(
+    seen.map((r) => [r.method, r.path]),
+    [["DELETE", "/api/v1/segments/l1"]],
+    "the one request the verb sends",
+  );
   const question = byTestId(tree, "delete-list-confirm");
   assert.ok(question, "REGRESSION: the question closed on a refusal, with no word");
   assert.ok(say(question).includes("Only an owner or operator can change lists."), say(question));
@@ -497,7 +517,6 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
   const taken = () => refused("A list called VIP regulars already exists.");
 
   // People: New list in the rail.
-  const NewListRow = globalThis.window.NewListRow;
   assert.equal(typeof NewListRow, "function");
   cells = [];
   const row = () => {
@@ -513,12 +532,12 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
   assert.equal(inlineDanger(tree), 0);
 
   // People: Add a person.
-  const AddPersonButton = globalThis.window.AddPersonButton;
   assert.equal(typeof AddPersonButton, "function");
-  globalThis.window.__addPerson = async () =>
-    refused("contact_phone: Write it with the country code, like +1 646 555 0123.", "validation", 400, {
+  const added = wire(() =>
+    refusedOver(400, "validation", "contact_phone: Write it with the country code, like +1 646 555 0123.", {
       fields: { phone: "Write it with the country code, like +1 646 555 0123." },
-    });
+    }),
+  );
   cells = [];
   const add = () => {
     frames.begin();
@@ -528,6 +547,11 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
   byTestId(add(), "add-person-phone").props.onChange({ target: { value: "646 555" } });
   await byTestId(add(), "add-person-save").props.onClick();
   tree = add();
+  assert.deepEqual(
+    added.map((r) => [r.method, r.path, r.body]),
+    [["POST", "/api/v1/contacts", { phone: "646 555" }]],
+    "the number as typed goes to the door, and no name that was not typed",
+  );
   const personError = byTestId(tree, "add-person-error");
   assert.equal(personError?.props.role, "alert");
   assert.ok(say(personError).includes("country code"), "the field's own sentence where the route named the field");
@@ -535,7 +559,7 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
   assert.equal(inlineDanger(tree), 0);
 
   // The profile: a consent the route would not record.
-  const ConsentAsk = globalThis.window.ConsentAsk;
+  assert.equal(typeof ConsentAsk, "function", "the ask can be drawn on its own");
   cells = [];
   const ask = () => {
     frames.begin();
@@ -658,4 +682,48 @@ test("REGRESSION: a refused question says why -- a gateway's page read 'Ask fail
     }),
     [{ t: "error", text: "Network error — nothing was asked." }],
   );
+});
+
+/* --------------------------- Templates: the composer (a TSX page) --------------------------- */
+
+// The composer is TSX since decision 0015: drawn on the stub React that patches `react` itself (so it comes last, after
+// the pages above that draw on this file's own), over the shell's doors this file's window already has; the verb it
+// presses is imported, so the refusal is what `templates.create` answers.
+test("REGRESSION: a template the route refuses says why under the form as a field error -- it was inline red text", async () => {
+  const doors = {};
+  for (const k of ["gate", "canDo", "gateTitle", "mayAtLeast", "gatedProps", "ST_STORE", "__roleGate"])
+    doors[k] = globalThis.window[k];
+  installLegacyReact({
+    __DEMO_MODE: false,
+    __surfaceState: () => "live",
+    __ME: { role: "owner" },
+    ...doors,
+    usePPToast: () => [null, () => {}],
+    CHANLY: { nav() {}, R: {} },
+    appNavigate() {},
+    useHotkey: () => {},
+  });
+  Object.assign(globalThis.window, kitPages);
+  const SRC = "../../../../apps/dashboard/src";
+  const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
+  const { templates } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
+  const create = templates.create;
+  templates.create = async () => refused("A template called spring_offer already exists in English.");
+  try {
+    freshTree();
+    const render = () =>
+      againTree(() => TemplateComposer({ onDone() {}, onCancel() {}, businessName: "Marisa's Beauty Salon" }));
+    byTestId(render(), "tpl-name").props.onChange({ target: { value: "spring_offer" } });
+    byTestId(render(), "tpl-body").props.onChange({ target: { value: "Twenty percent off this week." } });
+    await byTestId(render(), "tpl-submit").props.onClick();
+    const tree = render();
+    const err = byTestId(tree, "tpl-error");
+    assert.ok(err, "the refusal is on the form");
+    assert.equal(err.props.className, "field-error");
+    assert.equal(err.props.role, "alert", "announced as it appears");
+    assert.ok(say(err).includes("already exists"), say(err));
+    assert.equal(inlineDanger(tree), 0, "REGRESSION: style={{ color: 'var(--danger)' }}");
+  } finally {
+    templates.create = create;
+  }
 });

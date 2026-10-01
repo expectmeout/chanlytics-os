@@ -4,7 +4,9 @@
  * alone knows (the connection, the live feed, a newer build, surfaces that
  * stopped refreshing), and the chrome's words (contracts/chrome.ts) for the
  * sidebar's menus, the shortcuts sheet, the line under the top bar and the
- * tab's name.
+ * tab's name, and the address's four verbs for the pages that cannot import
+ * (workspace.ts): the route on screen, where a route is linked, a move to one,
+ * and hearing the address move.
  */
 import {
   THEME_OPTIONS,
@@ -27,8 +29,10 @@ import {
 } from "@chanlytics/contracts";
 import { sealSurfaceCache } from "./surface-cache";
 import { switchWorkspace } from "./surface-data";
+import { addressApi, type GoOptions } from "./workspace";
 import { refreshAllSurfaces } from "./surface-runner";
 import type { Connection, SurfaceStatus } from "./surface-status";
+import { crumbsShown } from "@/surfaces/kit/head/standing";
 
 export interface ShellApi {
   /** End the session: the surface cache cleared and closed first, then the server, which redirects to sign-in. */
@@ -40,6 +44,14 @@ export interface ShellApi {
   retry(): Promise<void>;
   /** Name the tab and keep the name; returns the stop, for when the name changes. */
   keepTitle(title: string): () => void;
+  /** The route on screen (`inbox/th-1`; `today` when the address names none), read from the path, else the hash. */
+  route(): string;
+  /** Where a route is linked to from this page: its path in a workspace, so a long press or a new tab opens it. */
+  href(route: string): string;
+  /** Move to a route: a push, or with `replace` a redirect or a page saying the same place more exactly (no entry). */
+  go(route: string, opts?: GoOptions): void;
+  /** Follow the address: runs when the route changes, by a push, a replace or Back. Returns the stop. */
+  hear(fn: () => void): () => void;
 }
 
 export interface ChromeWords {
@@ -69,6 +81,8 @@ export interface ChromeWords {
   replyWaits: typeof replyWaitsOnYou;
   /** Whether a key press belongs to a field being typed in. */
   typing(target: EventTarget | null): boolean;
+  /** The crumbs the shell drew, told to the head Glass draws in the shell's places (kit/head/standing.ts). */
+  crumbsShown: typeof crumbsShown;
 }
 
 declare global {
@@ -83,6 +97,7 @@ declare global {
 
 export function installShell(win: Window = window): void {
   win.__shell = {
+    ...addressApi(win),
     signOut() {
       // Cleared and closed: the form posts after the phone is forgotten, up to two seconds in the app, and a read
       // landing meanwhile used to be written back for the next person on this tab (surface-cache.ts sealSurfaceCache).
@@ -160,6 +175,7 @@ export function installShell(win: Window = window): void {
     state: stateOf,
     // A reply counting down to send waits on you (contracts standing.ts): the Inbox's Needs you and People's, one rule.
     replyWaits: replyWaitsOnYou,
+    crumbsShown,
     typing(target) {
       const el = target as { tagName?: string; isContentEditable?: boolean } | null;
       return isTypingTarget(el?.tagName ?? null, !!el?.isContentEditable);

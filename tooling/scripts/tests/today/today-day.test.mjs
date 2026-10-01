@@ -5,8 +5,31 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { todayDay, TODAY_DAY_MAX } from "@chanlytics/contracts";
+import {
+  todayDay,
+  TODAY_DAY_MAX,
+  toTodayVM,
+  todayPeriodLine,
+  todayRunWords,
+  todayRunsSub,
+  todayRunApproved,
+  todayLeaks,
+  todayAwayGrouped,
+  todaySteps,
+  withReplies,
+  NOTIFICATION_KIND_GROUPS,
+} from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
+import { installLegacyReact, fresh, all, byTestId, textOf } from "../_legacy-react.mjs";
+
+// The pages the wiring test draws are the TSX surface's (apps/dashboard/src/surfaces/today, decision 0015), on the stub React.
+installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
+const { TODAY_HELPERS, installToday } = await import("../../../../apps/dashboard/src/surfaces/today/helpers.ts");
+const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
+const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
+const { TodayDay } = await import("../../../../apps/dashboard/src/surfaces/today/pages/day.tsx");
+const { DashboardA } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-page.tsx");
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const person = (id, name) => ({ id, name, via: "phone" });
 const block = (id, t, time, title, p = null) => ({
@@ -201,28 +224,149 @@ test("five rows on Today, the rest a line to the Calendar: what is over goes fir
   assert.deepEqual([few.more, few.moreLine], [0, null]);
 });
 
+// The day the hero and the card draw: traffic, so the card has its four figures.
+const NOW = new Date("2026-09-06T14:00:00Z");
+const busyMetrics = () => ({
+  workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York", status: "active" },
+  channels: [{ kind: "whatsapp", status: "active", number: "+1 305" }],
+  window: {
+    days: 1,
+    since: "2026-09-06T04:00:00Z",
+    since_local: "2026-09-06T00:00:00",
+    now_local: "2026-09-06T10:00:00",
+  },
+  now: {
+    escalations_open: 0,
+    oldest_open_escalation_at: null,
+    threads_needing_human: 0,
+    threads_snoozed: 0,
+    threads_awaiting_reply: 0,
+    last_inbound_at: "2026-09-06T13:00:00Z",
+    last_outbound_at: "2026-09-06T13:01:00Z",
+  },
+  period: {
+    messages_in: 9,
+    messages_out_ai: 11,
+    messages_out_you: 0,
+    conversations_active: 6,
+    answered_by_ai: 7,
+    answered_by_you: 0,
+    unanswered_in_window: 1,
+    median_reply_seconds_ai: 34,
+    send_failures: 0,
+    escalations_new: 0,
+    escalation_reasons: {},
+    calls: 3,
+    call_seconds: 412,
+    call_sentiments: { Positive: 2, Neutral: 1 },
+    calls_voicemail: 1,
+    new_contacts: 2,
+  },
+});
+const draw = (Comp) => {
+  fresh();
+  return globalThis.React.createElement(Comp, {});
+};
+
 test("the wiring: the bridge publishes the helpers, the page composes the module, the hero adds the facts and drops its one-line calendar, the core shows both", () => {
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/today.ts");
-  assert.ok(
-    /export const TODAY_HELPERS = \{\s*day: todayDay,\s*periodLine: todayPeriodLine,\s*runs: todayRunWords,\s*runsSub: todayRunsSub,\s*runApproved: todayRunApproved,\s*leaks: todayLeaks,\s*awayGrouped: todayAwayGrouped,\s*(?:\/\/[^\n]*\s*)?steps: todaySteps,\s*(?:\/\/[^\n]*\s*)?withReplies: \(rows: TodayQueueRowVM\[\]\) => withReplies\(rows, readings\(\)\),\s*(?:\/\/[^\n]*\s*)?notificationKinds: NOTIFICATION_KIND_GROUPS,?\s*\};/.test(
-      bridge,
-    ),
+  // The helpers (surfaces/today/helpers.ts), as contracts' own functions and in this order; installed, not re-listed.
+  assert.deepEqual(
+    Object.keys(TODAY_HELPERS),
+    [
+      "day",
+      "periodLine",
+      "runs",
+      "runsSub",
+      "runApproved",
+      "leaks",
+      "awayGrouped",
+      "steps",
+      "withReplies",
+      "notificationKinds",
+    ],
     "the helpers, in order",
   );
-  assert.ok(bridge.includes("window.__today = TODAY_HELPERS;"), "installed, not re-listed");
+  // (The dashboard resolves contracts through its own path mapping, so a function is its own by name and by what it says.)
+  for (const [key, own] of Object.entries({
+    day: todayDay,
+    periodLine: todayPeriodLine,
+    runs: todayRunWords,
+    runsSub: todayRunsSub,
+    runApproved: todayRunApproved,
+    leaks: todayLeaks,
+    awayGrouped: todayAwayGrouped,
+    steps: todaySteps,
+  }))
+    assert.equal(TODAY_HELPERS[key].name, own.name, `${key} is contracts' ${own.name}`);
+  assert.deepEqual(
+    TODAY_HELPERS.notificationKinds,
+    NOTIFICATION_KIND_GROUPS,
+    "and the notification kinds are contracts'",
+  );
+  assert.deepEqual(TODAY_HELPERS.day(null, null), todayDay(null, null));
+  assert.deepEqual(TODAY_HELPERS.runsSub(2), todayRunsSub(2));
+  assert.deepEqual(
+    TODAY_HELPERS.runApproved("Win-back", 3, "sending now"),
+    todayRunApproved("Win-back", 3, "sending now"),
+  );
+  // The queue's replies are read where the Inbox's surface publishes them (`window.__REPLIES`): none when unread.
+  const handoff = {
+    id: "h1",
+    kind: "handoff",
+    conversationId: "cv1",
+    callId: null,
+    who: "Brightwater & Co.",
+    initials: "BC",
+    channel: "Email",
+    when: "waited 2h",
+    sentence: "They wrote back to your reach-out. Nothing is sent without you.",
+    quoted: false,
+    status: ["Escalated", "Needs review", "since 2:04 PM"],
+    tone: "escalated",
+    warn: false,
+    cta: { label: "Open and reply", to: "inbox/th-cv1" },
+    also: { label: "Snooze", verb: "snooze", conversationId: "cv1", escalationId: "e-h1" },
+    waitedMs: 7_200_000,
+  };
+  const reading = {
+    message_id: "m1",
+    conversation_id: "cv1",
+    read_at: "2026-09-06T13:00:00.000Z",
+    intent: "interested",
+    claim: "person",
+    summary: "Wants more details",
+    unread: null,
+    undone: false,
+    draft: "Thank you for writing.",
+    draft_state: "written",
+  };
+  delete globalThis.__REPLIES;
+  assert.deepEqual(TODAY_HELPERS.withReplies([handoff]), [handoff], "no readings read, no row changed");
+  globalThis.__REPLIES = { replies: [reading] };
+  assert.deepEqual(TODAY_HELPERS.withReplies([handoff]), withReplies([handoff], [reading]));
+  assert.equal(TODAY_HELPERS.withReplies([handoff])[0].kind, "reply", "the reading is the surface's, read when asked");
+  delete globalThis.__REPLIES;
+  delete globalThis.__today;
+  installToday();
+  assert.equal(globalThis.__today, TODAY_HELPERS, "installed, not re-listed");
+  delete globalThis.__today;
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
-  assert.ok(app.includes('import { installToday } from "./today";') && app.includes("installToday();"));
-  const page = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
+  assert.ok(
+    app.includes('import { installToday } from "@/surfaces/today/helpers";') && app.includes("installToday();"),
+  );
+  const dayModule = readCode("apps/dashboard/src/surfaces/today/pages/day.tsx");
   for (const s of [
     'data-testid="today-day"',
     'if (C.vm.feed.state === "unavailable") {',
-    'if (C.vm.feed.state !== "ok") return stepsOnly;',
-    "window.__today.day(C.vm, P ? P.rows : null, people || null)",
+    // The day's one derivation (dayVmOf), which the card and Glass's strip both read: a feed that is not ok is no day.
+    'if (!C || !C.vm || C.vm.feed.state !== "ok") return null;',
+    "const vm = dayVmOf(C, P, people);",
     'data-testid="today-day-frame"',
     'testid="today-day-item"',
     'nav(b.person ? `clients/${b.person.id}` : "calendar")',
     'data-testid="today-day-reminders"',
-    "<AgendaItems>",
+    'present("AgendaItems", agendaItems<AgendaChildren>())',
+    "<Items>",
     "phase={b.phase}",
     "flag={b.flag}",
     "b.person ? b.person.name : b.service",
@@ -230,27 +374,49 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     'data-testid="today-day-more"',
     "d.moreLine",
   ])
-    assert.ok(page.includes(s), s);
-  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(
-    !brief.includes("__today.dayLine") && !brief.includes("<DayFacts />"),
-    "the day's numbers are the card's figures now, not a sentence or a strip of stat cards",
+    assert.ok(dayModule.includes(s), s);
+  assert.match(
+    dayModule,
+    /TODAY_HELPERS\.day\(C\.vm[^,]*,\s*\(P \? P\.rows : null\)[^,]*,\s*people \|\| null\)/,
+    "the page composes the module: the calendar, the playbooks' rows or none, People or none",
   );
+  // The hero and the card over a busy day, with a calendar the receptionist reads (what the one-line calendar beat drew
+  // from): the day's numbers are the card's figures, not a sentence or a strip of stat cards; no calendar line.
+  setSurfaceValue("today", toTodayVM(busyMetrics(), [], [], [], NOW));
+  globalThis.__CALENDAR = {
+    vm: {
+      timezone: "America/New_York",
+      feed: { present: true, state: "ok", line: "", events: 3, source: "Google Calendar" },
+      stats: { events: 3, windows: 2, next: "Mon 9:30 AM" },
+      days: [],
+    },
+  };
+  const hero = draw(HeroBrief);
+  assert.equal(textOf(hero), "", "the hero says nothing while every line is up: no sentence of the day, no stat cards");
+  const card = draw(TodayCard);
+  assert.ok(byTestId(card, "today-figures"), "the day's numbers are the card's figures");
+  for (const tree of [hero, card]) {
+    assert.equal(byTestId(tree, "brief-calendar"), null, "the one-line calendar beat is the module now");
+    const parts = all(tree, (n) => typeof n.type === "function").map((n) => n.type.name);
+    assert.ok(!parts.includes("CalendarLine") && !parts.includes("DayFacts"), parts.join(", "));
+  }
+  assert.ok(!("dayLine" in TODAY_HELPERS), "no helper says the day's numbers as a sentence");
+  // The core: the queue, then the day; and the day is the module this file imports (what the manifest's load order
+  // held of the JSX pages is an import now).
+  const core = draw(DashboardA);
+  const drawn = all(core, (n) => typeof n.type === "function").map((n) => n.type);
+  assert.ok(drawn.indexOf(TodayDay) > -1, "the core draws the day's module");
   assert.ok(
-    !brief.includes("CalendarLine") && !brief.includes('data-testid="brief-calendar"'),
-    "the one-line calendar beat is the module now",
+    drawn.map((t) => t.name).indexOf("AgentCommand") < drawn.indexOf(TodayDay),
+    "the queue, then the day, in the core",
   );
-  const dash = readCode("apps/dashboard/src/legacy/pages/dashboard-a.jsx");
-  assert.ok(dash.indexOf("<AgentCommand />") < dash.indexOf("<TodayDay />"), "the queue, then the day, in the core");
-  const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
-  assert.ok(
-    manifest.indexOf('"@/legacy/pages/dashboard-a-day.jsx"') < manifest.indexOf('"@/legacy/pages/dashboard-a.jsx"'),
-  );
+  delete globalThis.__CALENDAR;
+  setSurfaceValue("today", undefined);
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");
   assert.ok(
     css.includes(".td-day {") &&
       css.includes(".td-frame.today .td-frame-label") &&
-      !readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx").includes("cal-agenda") &&
+      !dayModule.includes("cal-agenda") &&
       css.includes("@media (max-width: 1180px) {\n  .dash-a-v2-core, .dash-a-v2-foot { grid-template-columns: 1fr; }"),
   );
 });

@@ -16,7 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
+import { installLegacyReact, fresh, again, find, textOf, walk } from "../../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -135,121 +135,24 @@ test("the customer's own words ride with the decision: what they last wrote, quo
 
 /* ------------------------------ the pages, drawn ------------------------------ */
 
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = fn();
-    return cells[k];
-  },
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
-globalThis.document = {
-  body: { appendChild() {} },
-  addEventListener() {},
-  removeEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
-};
-globalThis.window = {
+installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+const S = "../../../../../apps/dashboard/src";
+const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
+const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
+Object.assign(globalThis, {
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  __surfaceState: () => "live",
-  __DEMO_MODE: false,
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent() {},
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
-};
+});
+// The shell's own toast and role gate, which the pages draw through the bridge (surfaces/legacy-verbs.ts).
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of [
-  "StatePill",
-  "MoreMenu",
-  "EmptyState",
-  "PolicyChip",
-  "TlMedia",
-  "FailedRead",
-  "usePPToast",
-  "useHotkey",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
-globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-const { InboxList, InboxThread } = globalThis.window;
 
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) {
-    for (const k of n) walk(k, fn);
-    return;
-  }
-  fn(n);
-  walk(n.props?.children, fn);
-  walk(n.rendered, fn);
-};
-const find = (tree, pred) => {
-  let hit;
-  walk(tree, (n) => {
-    if (hit === undefined && pred(n)) hit = n;
-  });
-  return hit;
-};
 const hasClass = (cls) => (n) => typeof n.props?.className === "string" && n.props.className.split(" ").includes(cls);
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  return n.rendered !== undefined ? textOf(n.rendered) : textOf(n.props?.children);
-};
 const buttonsOf = (tree) => {
   const out = [];
   walk(tree, (n) => {
@@ -259,27 +162,27 @@ const buttonsOf = (tree) => {
 };
 
 const listOf = (threads) => {
-  cells = [];
-  frames.begin();
-  return InboxList({
-    threads,
-    allThreads: threads,
-    buckets: [{ id: "escalated", label: "Needs you", count: threads.length }],
-    views: [],
-    activeBucket: "escalated",
-    onBucketChange() {},
-    activeThreadId: null,
-    onSelectThread() {},
-    selected: [],
-    onToggleSelect() {},
-    onClearSelection() {},
-  });
+  fresh();
+  return again(() =>
+    InboxList({
+      threads,
+      allThreads: threads,
+      buckets: [{ id: "escalated", label: "Needs you", count: threads.length }],
+      views: [],
+      activeBucket: "escalated",
+      onBucketChange() {},
+      activeThreadId: null,
+      onSelectThread() {},
+      selected: [],
+      onToggleSelect() {},
+      onClearSelection() {},
+    }),
+  );
 };
 const rowOf = (tree, who) => find(tree, (n) => hasClass("ix-thread")(n) && textOf(n).includes(who));
 const paneOf = (thread) => {
-  cells = [];
-  frames.begin();
-  return InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" } });
+  fresh();
+  return again(() => InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" } }));
 };
 
 test("the list: a wait reads as days, and a teammate's thread says whose it is instead of Needs you", () => {
@@ -300,13 +203,13 @@ test("the list: a wait reads as days, and a teammate's thread says whose it is i
   assert.ok(wait.props.className.includes("warn"), "past thirty minutes the wait is amber");
   assert.equal(
     find(rosaRow, byTestId("thread-state")),
-    undefined,
+    null,
     "in its own bucket a thread that needs you is not told so again: the chip counts it (I2)",
   );
   assert.ok(hasClass("unread")(rosaRow));
 
   const ninaRow = rowOf(tree, "Nina Park");
-  assert.equal(find(ninaRow, byTestId("thread-state")), undefined, "REGRESSION: a teammate's thread said Needs you");
+  assert.equal(find(ninaRow, byTestId("thread-state")), null, "REGRESSION: a teammate's thread said Needs you");
   assert.equal(textOf(find(ninaRow, byTestId("thread-theirs"))), "Ana García has it");
   assert.ok(!hasClass("unread")(ninaRow), "and carries no unread dot");
   const ninaWait = find(ninaRow, hasClass("ix-wait"));
@@ -342,7 +245,7 @@ test("the pane: a teammate's thread names who is answering, and offers no take-o
     !buttons.some((b) => b.includes("hand it back")),
     "REGRESSION: the hand-back resolved the teammate's request",
   );
-  assert.equal(find(tree, hasClass("ix-take")), undefined, "no Needs you banner on a thread someone has");
+  assert.equal(find(tree, hasClass("ix-take")), null, "no Needs you banner on a thread someone has");
   globalThis.window.__TEAM = null;
 });
 
@@ -368,7 +271,7 @@ test("the pane: beside I'll answer this, the customer's own words -- what they w
     "Call Rosa back to confirm the bridal trial on Oct 3",
     "REGRESSION: the call back promised the details and showed none",
   );
-  assert.equal(find(callTake, byTestId("ix-take-ask")), undefined, "and not again beneath them");
+  assert.equal(find(callTake, byTestId("ix-take-ask")), null, "and not again beneath them");
 });
 
 test("the countdown's tip says what stops a real draft -- Hold, or starting to type -- where Edit only opens the composer", () => {

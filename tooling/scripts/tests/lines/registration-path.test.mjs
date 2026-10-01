@@ -50,6 +50,7 @@ import {
   addressRequest,
 } from "@chanlytics/channels";
 import { registerLine } from "../../../../apps/edge/lib/lines/a2p-register.ts";
+import { kitPages } from "../_legacy-react.mjs";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const LINE = "22222222-2222-2222-2222-222222222222";
@@ -335,7 +336,9 @@ globalThis.document ??= {
 };
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-globalThis.Confirm = globalThis.window.Confirm;
+globalThis.Confirm = kitPages.Confirm;
+// The record's failed read is the kit's (surfaces/kit/empty), which the app publishes from seed-globals.
+Object.assign(globalThis.window, kitPages);
 await import("../../../../apps/dashboard/src/legacy/pages/business-record.jsx");
 const Page = globalThis.window.BusinessRecordForm;
 

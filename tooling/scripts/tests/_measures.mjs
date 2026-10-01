@@ -190,6 +190,16 @@ export const MEASURES = [
     advice: "Publish nothing new on window: import it, or add the name to a component that already publishes.",
   },
   {
+    // Every file of the tree, one each: it may only lose them. The address step (decision 0015) closed the tree: a
+    // surface is written in TSX under src/surfaces, and one that leaves deletes its files and banks the fall.
+    name: "files in the legacy tree",
+    file: "legacy-files.json",
+    measure: () =>
+      Object.fromEntries(repoFiles(["apps/dashboard/src/legacy"], { keep: /./, drop: /^$/ }).map((f) => [f, 1])),
+    advice:
+      "A new page or component goes under apps/dashboard/src/surfaces, in TSX, and never in the legacy tree (decision 0015): the tree only shrinks.",
+  },
+  {
     name: "copies",
     file: "copies.json",
     measure: () => copiesAmong(SRC.filter(notARoute).map(parse), COPY_LIMIT),

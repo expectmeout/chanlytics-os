@@ -1,17 +1,19 @@
-/* global React, Icon, AskBar, Sidebar, Topbar, ShellStatusBar, LiveCallBar, SurfaceTabs, ShortcutsSheet, ReportsPage, FailedRead, useSurface */
+/* global React, Icon, AskBar, Sidebar, Topbar, ShellStatusBar, LiveCallBar, SurfaceTabs, ShortcutsSheet, FailedRead, useSurface */
 // Chanlytics — App Shell
-// The live product frame: hash routing, sidebar click-throughs, page transitions,
+// The live product frame: routing by the address, sidebar click-throughs, page transitions,
 // global Ask Chanlytics (⌘K), and intentional landings for unbuilt surfaces.
 // What each route draws is the route table's (app-routes.jsx SHELL_ROUTES, read through drawRoute); this file
 // resolves the address, holds the gates and the hooks, and draws the chrome around the table's answer.
 //
-// Routes:
-//   #/today                → Operator's brief
-//   #/inbox                → Inbox
-//   #/clients              → Clients portfolio
-//   #/clients/pipeline     → People › Pipeline, where deals are on (else People)
-//   #/clients/<id>         → Client profile
-//   #/soon/<surface>       → In-design landing (pipeline, calendar, fleet, …)
+// Routes (the address after /w/<slug>; the standalone mockup writes them after a #/ instead):
+//   /today                → Operator's brief
+//   /inbox                → Inbox
+//   /clients              → Clients portfolio
+//   /clients/pipeline     → People › Pipeline, where deals are on (else People)
+//   /clients/<id>         → Client profile
+//   /soon/<surface>       → In-design landing (pipeline, calendar, fleet, …)
+// The route is read, followed and moved in one place, CHANLY.address (data/constants.jsx: the bridge's in the app,
+// legacy-bridge/workspace.ts; the mockup's own over its hash). Nothing here reads window.location.
 
 const { useState: useShellState, useEffect: useShellEffect, useCallback: useShellCallback, useRef: useShellRef } = React;
 
@@ -36,9 +38,8 @@ const SurfaceUnavailable = ({ onNavigate }) => (
 );
 
 // ---- Route helpers ----------------------------------------------------
-const parseHash = () => {
-  const raw = (window.location.hash || "#/today").replace(/^#\/?/, "");
-  const [page, param] = raw.split("/");
+const parseRoute = () => {
+  const [page, param] = window.CHANLY.address.route().split("/");
   return { page: page || "today", param: param || null };
 };
 
@@ -50,7 +51,7 @@ const parseHash = () => {
  * soon/<surface> was the landing for a page not built yet, and an old link, a bookmark or a bell row can still name
  * one that has since shipped. The registry decides what it opens, like every other route: a page it lists as real
  * opens, a demo page keeps its landing, and a name it does not know is not found (the wiring audit's N16:
- * #/soon/calendar said the Calendar was not in this release). The standalone mockup has no registry and keeps every
+ * /soon/calendar said the Calendar was not in this release). The standalone mockup has no registry and keeps every
  * landing.
  *
  * Where this address lands now, if it moved (surface-registry surfaceRetiredTo): People took over Leads and the Deal
@@ -114,7 +115,7 @@ class ShellErrorBoundary extends React.Component {
   // Said, not only drawn: the bridge's host hears this and sends it to the server (src/client/client-error.ts).
   componentDidCatch(e) {
     try {
-      window.dispatchEvent(new CustomEvent("chanlytics:shell-error", { detail: { error: e, page: (window.location.hash || "").replace(/^#\/?/, "") } }));
+      window.dispatchEvent(new CustomEvent("chanlytics:shell-error", { detail: { error: e, page: window.CHANLY.address.route() } }));
     } catch { /* a report lost, never a second error */ }
   }
   render() {
@@ -125,7 +126,7 @@ class ShellErrorBoundary extends React.Component {
         <div className="soon-title">This surface hit an error</div>
         <div className="soon-blurb">The rest of the OS is fine — this pane failed to render. {String(this.state.err && this.state.err.message || "")}</div>
         <div className="soon-actions">
-          <button className="btn btn-sm" onClick={() => { window.location.hash = "/today"; }}>
+          <button className="btn btn-sm" onClick={() => { window.CHANLY.address.go("today"); }}>
             <Icon name="home" size={12} /> Back to Today
           </button>
           <button className="btn btn-ghost btn-sm" onClick={() => window.location.reload()}>Reload</button>
@@ -282,60 +283,41 @@ const useRouteGate = ({ page, param, routeKey }) => {
 
 /**
  * The shell's two ways of moving. A navigation is a new entry. `{ replace: true }` is a page saying the same place
- * more exactly -- the lead a peek walked on to -- so it makes none; replaceState fires no hashchange, so the route is
- * read here, at once. The last entry this shell pushed and the address it was pushed from, so a page's own Back can
- * return where the member was rather than push a place of its own. Kept here, never in history.state: Next's router
- * reloads the whole app on a Back to an entry whose state it did not write (app-router.js onPopState), and a
- * state-only replaceState is one it never re-marks.
+ * more exactly -- the lead a peek walked on to -- so it makes none, and no one else is told (a listener hears a page
+ * arrive, not a page say where it stands); the route is read here, at once. The last entry this shell pushed and the
+ * route it was pushed from, so a page's own Back can return where the member was rather than push a place of its own.
+ * Kept here, never in history.state: Next's router reloads the whole app on a Back to an entry whose state it did not
+ * write (app-router.js onPopState), and a state-only replaceState is one it never re-marks.
  */
 const useShellNavigate = (setRoute) => {
   const lastPush = React.useRef(null);
   const navigate = useShellCallback((to, opts) => {
-    if (opts && opts.replace && window.history && window.history.replaceState) {
-      window.history.replaceState(null, "", "#/" + to);
-      setRoute(parseHash());
+    if (opts && opts.replace) {
+      window.CHANLY.address.go(to, { replace: true, quiet: true });
+      setRoute(parseRoute());
       return;
     }
-    lastPush.current = { to: "#/" + to, from: window.location.hash };
-    window.location.hash = "/" + to;
+    lastPush.current = { to, from: window.CHANLY.address.route() };
+    window.CHANLY.address.go(to);
   }, []);
   // A person's Back: the People view (a list, a segment, Leads) this profile was opened from, by the browser's own
   // Back, so its place comes with it. It pushed plain People, and the list the member was working through was gone.
   // Reached any other way -- a link, a reload, another page's door, Back from somewhere else -- it is People itself.
   const backToPeople = useShellCallback(() => {
     const p = lastPush.current;
-    if (p && p.to === window.location.hash && /^#\/clients(?:$|[/:])/.test(p.from) && window.history && window.history.back) window.history.back();
+    if (p && p.to === window.CHANLY.address.route() && /^clients(?:$|[/:])/.test(p.from) && window.history && window.history.back) window.history.back();
     else navigate("clients");
   }, [navigate]);
   return { navigate, backToPeople };
 };
 
-/** The address, followed: the hash, the phone's keyboard, the old list route, and a person's crumb once People lands. */
+/** The address, followed: its route, the phone's keyboard, the old list route, and a person's crumb once People lands. */
 const useShellRouting = ({ route, setRoute, setReadyTick }) => {
-  useShellEffect(() => {
-    const onHash = () => setRoute(parseHash());
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
+  useShellEffect(() => window.CHANLY.address.hear(() => setRoute(parseRoute())), []);
   // What a phone's keyboard covers, as --kb, for Ask's screen and every sheet (data-bits watchKeyboard).
   useShellEffect(() => (window.watchKeyboard ? window.watchKeyboard() : undefined), []);
-  // A list's own route (`segments/<id>`) is People with that list picked on a real workspace; the address says so.
-  // Replaced, not pushed, so Back leaves People rather than bouncing through the old route.
-  // Which list an id names is the People surface's to say, and on a cold load of the old route that surface is
-  // still on its way: the redirect waits for it (surface:people when it first lands, surface:clients when a page
-  // of it does) rather than running once, finding nothing, and never running again.
-  useShellEffect(() => {
-    if (route.page !== "segments" || !window.__listRoute) return;
-    const names = ["surface:people", "surface:clients"];
-    const go = () => {
-      if (!window.__PEOPLE) return;
-      names.forEach((n) => window.removeEventListener(n, go));
-      window.location.replace("#/" + window.__listRoute(route.param));
-    };
-    if (window.__PEOPLE) { go(); return; }
-    names.forEach((n) => window.addEventListener(n, go));
-    return () => names.forEach((n) => window.removeEventListener(n, go));
-  }, [route.page, route.param]);
+  // A list's own route (`segments/<id>`) is People with that list picked on a real workspace: its App Router page replaces
+  // the address once People says which list an id names (surfaces/people/lists-route.tsx), and a demo keeps the seeded page.
   // A person's page opens before People's rows land (it reads its own person), and its crumb and the tab's name come
   // from their row: drawn again when the rows do, once. Asked with what this draw saw, so rows that landed between the
   // draw and this effect draw it again too, rather than waiting for an event that has already gone.
@@ -416,7 +398,7 @@ const useNavDrawer = () => {
 
 /**
  * Retired surfaces and moved panes (retiredTo, resolved with the route). A real workspace lands where the page is
- * now; a demo keeps a retired page only while the mockup still HAS it (the Deal board). `#/leads` has no row of its
+ * now; a demo keeps a retired page only while the mockup still HAS it (the Deal board). `/leads` has no row of its
  * own any more, so without the move the demo would fall through to Not found for a page that is only somewhere else.
  * And a soon/ link to a page that has shipped: the address becomes the page's own, in place, so Back does not land
  * on the old link again.
@@ -424,10 +406,10 @@ const useNavDrawer = () => {
 const useRouteMoves = ({ retiredTo, soonState, raw }) => {
   useShellEffect(() => {
     // Replaced, so Back never lands on an address that only moves again.
-    if (retiredTo) window.location.replace("#/" + retiredTo);
+    if (retiredTo) window.CHANLY.address.go(retiredTo, { replace: true });
   }, [retiredTo]);
   useShellEffect(() => {
-    if (soonState === "real") window.location.replace("#/" + raw.param);
+    if (soonState === "real") window.CHANLY.address.go(raw.param, { replace: true });
   }, [soonState, raw.param]);
 };
 
@@ -520,7 +502,9 @@ const useViewFade = ({ page, param }, mountKey, routeLoading) => {
 // normal chrome with the ComingSoon pane the interception chose,
 // instead of "Serenity Spa — Reports · expires in 7 days" over invented
 // numbers, ungated, in production.
-const sharedViewer = ({ theme, look, navigate }) => (
+// The report it shows is the frame's `sharedPage`, drawn by the bridge (LegacyApp): Reports has left the shell, and a page
+// of the shell does not name it. The standalone mockup has no bridge, so there the viewer is its banner alone.
+const sharedViewer = ({ theme, look, navigate, sharedPage }) => (
   <div className="shared-root" data-theme={theme} data-look={look}>
     <div className="shared-banner">
       <span className="sidebar-brand-mark">C</span>
@@ -534,7 +518,7 @@ const sharedViewer = ({ theme, look, navigate }) => (
       </button>
     </div>
     <div className="shared-body">
-      <ReportsPage />
+      {sharedPage}
     </div>
   </div>
 );
@@ -553,6 +537,7 @@ const firstRunScreen = ({ theme, look, param, navigate, askOpen, setAskOpen }) =
 const appChrome = (s) => {
   const { theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace } = s;
   const { page, param, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeLoading, surfaceUnavailable } = s;
+  const glass = look === "glass";
   return (
     <div className="app-root" data-theme={theme} data-look={look}>
       {/* The first stop for Tab: a way past the sidebar and the bars to the page (drawn only while it has focus). */}
@@ -577,20 +562,36 @@ const appChrome = (s) => {
         />
       </div>
       <div className="main">
+        {/* In Glass the top bar's row holds the date and time where the crumbs were (a place laid over the bar's left,
+            so the bar itself is as it was), and the page's act moves down to the row of views: the frame leaves the
+            places (pg-dateline, pg-head, pg-act) and the kit's head draws into them (surfaces/kit/head/frame-head.tsx,
+            the interface kit's step 5.4). Classic's tree is as it was. */}
+        {glass && <span className="pg-dateline-slot" id="pg-dateline" />}
         <Topbar
-          crumbs={crumbs}
+          crumbs={glass ? [] : crumbs}
           theme={theme}
           themePref={themePref}
           onTheme={onTheme}
           onAsk={openAsk}
           onMenu={() => setNavOpen(true)}
-          right={primaryAction}
+          right={glass ? null : primaryAction}
         />
         {/* A call happening right now outranks a newer build or a stale surface:
             it is the one thing on this line that stops being true by itself. */}
         <LiveCallBar />
         <ShellStatusBar />
-        <SurfaceTabs page={page} param={param} onNavigate={navigate} />
+        {glass ? (
+          <div className="pg-slot">
+            <div className="pg-head-slot" id="pg-head" />
+            <SurfaceTabs page={page} param={param} onNavigate={navigate} />
+            <div className="pg-act-slot">
+              <span id="pg-act" />
+              {primaryAction}
+            </div>
+          </div>
+        ) : (
+          <SurfaceTabs page={page} param={param} onNavigate={navigate} />
+        )}
         {/* On a phone a swipe across the page walks the strip over it (surface-tabs.jsx stripSwipe). */}
         <main
           id="main"
@@ -636,8 +637,10 @@ const appChrome = (s) => {
 // The hooks below are called in the order the shell always called them, so its effects run in the order they always did.
 // The look is stamped beside the theme on every root that carries the theme (the interface kit's §3.2), so a rule that
 // asks for both -- a look's dark side is [data-look][data-theme="dark"] -- matches wherever the theme's own rules do.
-const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sidebar = "open", onSidebar = () => {}, inboxDensity, showInboxAgentRail }) => {
-  const [route, setRoute] = useShellState(parseHash());
+// `routePage` is the page of a route that has left the shell (an App Router page, drawn by the layout's children) and
+// `surfaceRoutes` says how the frame wraps it (src/surfaces/routes.ts); `sharedPage` is the shared viewer's report.
+const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sidebar = "open", onSidebar = () => {}, inboxDensity, showInboxAgentRail, routePage = null, surfaceRoutes = null, sharedPage = null }) => {
+  const [route, setRoute] = useShellState(parseRoute());
   const [askOpen, setAskOpen] = useShellState(false);
   const inboxNeeds = useInboxNeeds();
   const at = routeAt(route);
@@ -654,18 +657,26 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   const PhoneFace = window.AskFace || null;
 
   // Expose for deep components (fleet cards, command rows) without prop-drilling
-  window.appNavigate = navigate;
-  window.appAsk = openAsk;
+  // (A person's page, an App Router page in surfaces/people/person, takes its Back to People from the frame, which knows the
+  // People view it was opened from.)
+  Object.assign(window, { appNavigate: navigate, appAsk: openAsk, appBackToPeople: backToPeople });
 
   useShellRouting({ route, setRoute, setReadyTick: gate.setReadyTick });
   useShellKeys({ setAskOpen, sidebar, onSidebar });
   const { navOpen, setNavOpen } = useNavDrawer();
 
   // The route table's answer (app-routes.jsx, published on window as every shell file's names are), the honesty gate applied.
-  const drawn = window.drawRoute({ ...at, demoGated, navigate, openAsk, backToPeople, inboxDensity, showInboxAgentRail });
+  const drawn = window.drawRoute({ ...at, demoGated, navigate, openAsk, backToPeople, inboxDensity, showInboxAgentRail, routePage, surfaceRoutes });
 
   useRouteMoves(at);
   useTabTitle(drawn.crumbs, inboxNeeds);
+  // The crumbs, told to the head Glass draws in the frame's places (the bridge's, absent in the standalone mockup). Leads is
+  // a scope of People, picked in the page's own strip (People | Leads), so its head is People's, as its canvas draws it.
+  const leadsScope = page === "clients" && !!param && /^leads(:|$)/.test(param);
+  React.useEffect(() => {
+    if (look === "glass" && window.__chrome && window.__chrome.crumbsShown)
+      window.__chrome.crumbsShown(leadsScope ? drawn.crumbs.slice(0, -1) : drawn.crumbs);
+  }, [drawn.crumbs, look, leadsScope]);
   // A route change: the drawer closes, and the gate's clocks start for the new route.
   useShellEffect(() => { setNavOpen(false); return gate.arm(); }, [at.routeKey]);
   const fade = useViewFade(at, drawn.mountKey, gate.routeLoading);
@@ -676,7 +687,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   useShellEffect(() => { window.dispatchEvent(new CustomEvent("shell:ready")); }, []);
 
   // The two full-screen pages, after all hooks so the hook order stays identical on every route.
-  if (page === "shared" && !demoGated) return sharedViewer({ theme, look, navigate });
+  if (page === "shared" && !demoGated) return sharedViewer({ theme, look, navigate, sharedPage });
   if (page === "start" && !demoGated && window.FirstRun) return firstRunScreen({ theme, look, param, navigate, askOpen, setAskOpen });
 
   return appChrome({

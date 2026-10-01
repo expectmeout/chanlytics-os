@@ -60,14 +60,15 @@ export function isSignedOutUrl(url: string): boolean {
 
 /**
  * A link into the app, read back into the workspace and the page route it names: a universal link or an app link the
- * site claims (`https://app.chanlytics.com/w/<slug>#/<route>`, what hrefFor builds), or the scheme's own
+ * site claims (`https://app.chanlytics.com/w/<slug>#/<route>`, what hrefFor builds, or the path the site writes
+ * itself since decision 0015, `/w/<slug>/<route>`: a link a member copies from the browser), or the scheme's own
  * (`chanlytics:///w/<slug>`). The app's routes are its tabs, not the site's paths, so src/app/+native-intent.tsx turns
  * a link into the tab its route belongs to and leaves the route for that tab's page. Anything else is not a link into
  * a workspace.
  */
 interface WorkspaceLink {
   slug: string;
-  /** The page's hash route, `today` when the link names none. */
+  /** The page's route, from the path or else the hash (as the site reads an address); `today` when the link names none. */
   route: string;
 }
 
@@ -78,7 +79,7 @@ export function workspaceLinkOf(path: string): WorkspaceLink | null {
   } catch {
     return null;
   }
-  const m = /^\/w\/([^/?#]+)/.exec(url.pathname);
+  const m = /^\/w\/([^/?#]+)(?:\/([^?#]*))?/.exec(url.pathname);
   if (!m) return null;
   let slug: string;
   try {
@@ -87,7 +88,7 @@ export function workspaceLinkOf(path: string): WorkspaceLink | null {
     return null;
   }
   if (!slug) return null;
-  const hash = url.hash.replace(/^#\/?/, "");
-  const route = hash && APP_ROUTE_RE.test(hash) ? hash : "today";
+  const named = (m[2] ?? "").replace(/\/+$/, "") || url.hash.replace(/^#\/?/, "");
+  const route = named && APP_ROUTE_RE.test(named) ? named : "today";
   return { slug, route };
 }

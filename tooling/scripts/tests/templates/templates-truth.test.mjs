@@ -113,7 +113,10 @@ test("the webhook writes the row Meta changed; Settings shows every template wit
     ),
     "a quality flag leaves an approved template approved",
   );
-  const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
+  // The Templates page is a folder of modules (moved from messages.jsx): its source is read as one.
+  const s = ["page-parts", "message-row-parts", "emails"]
+    .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}.tsx`))
+    .join(" ");
   assert.ok(
     s.includes('data-testid="templates"') &&
       s.includes('data-testid="template-row"') &&
@@ -125,7 +128,6 @@ test("the webhook writes the row Meta changed; Settings shows every template wit
       'read("GET templates", { query: { all: "1" } })',
     ),
   );
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installTemplates();"));
   assert.deepEqual(
     (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["POST templates/sync"]().map(
       (o) => o.key,

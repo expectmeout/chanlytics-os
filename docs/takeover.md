@@ -34,31 +34,31 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit            174   of which over 200 lines: 43
-files over 800 lines                 13
-directories over 20 modules           5
-window globals                      200   names
-window publishers                   443   sites in 164 files
-copies                               52   of 14 names
-as unknown as                       184
+functions over the limit            118   of which over 200 lines: 23
+files over 800 lines                  7
+directories over 20 modules           4
+window globals                      155   names
+window publishers                   263   sites in 87 files
+copies                               73   of 21 names
+as unknown as                       158
 as never                             13
 non-null assertions, x!             128
-index reads the compiler lets pass  449   in 113 files
+index reads the compiler lets pass  481   in 127 files
 table names outside packages/db     503
 SQL functions outside packages/db   137   called by .rpc
 edge statements naming no workspace   28   in 16 files
 doors importing db or channels       54   imports in 50 files
 unnamed durations                    64   in 33 files
-literal style values               1093   in 22 stylesheets
-primitives outside the kit         2169   selectors naming 864 classes
-inline style props                  274   in 47 files
+literal style values               1088   in 22 stylesheets
+primitives outside the kit         2175   selectors naming 862 classes
+inline style props                  219   in 53 files
 wire names not in snake_case         54   in 26 routes
-dead exports, types and modules     300
-source-text reads in tests          837
-lint warnings                       490   in 175 files, 128 of them exhaustive-deps
-workspace route JS, KB gzipped      986   the shell included
-workspace route CSS, KB gzipped     130
-trees the lint's limits hold         40   16 of them with max-params waiting
+dead exports, types and modules     306
+source-text reads in tests          788
+lint warnings                       386   in 156 files, 83 of them exhaustive-deps
+workspace route JS, KB gzipped      882   the shell included
+workspace route CSS, KB gzipped     136
+trees the lint's limits hold         40   15 of them with max-params waiting
 ```
 
 <!-- measured:end -->

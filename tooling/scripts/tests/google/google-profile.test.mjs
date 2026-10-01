@@ -771,7 +771,7 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   assert.ok(card.includes('testid="google-disconnect"'), "the disconnect asks through the one Confirm");
   for (const v of ["google-connect", "google-disconnect"])
     assert.ok(card.includes(`"verb:${v}": "${v}"`), `${v} keeps its name as a row verb`);
-  const reports = readCode("apps/dashboard/src/legacy/pages/reports.jsx");
+  const reports = readCode("apps/dashboard/src/surfaces/reports/google.tsx");
   assert.ok(
     reports.includes("vm.canReply && operator && r.fromProfile") && reports.includes('data-testid="google-reply-send"'),
   );

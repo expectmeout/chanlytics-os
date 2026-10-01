@@ -5,84 +5,22 @@
  * wordings, a button that changed its own label on the first click, a typed
  * name, commit-then-Undo, and nothing at all on the most destructive act on
  * Settings -- removing a teammate fired straight from a menu item (the
- * audit's D13). One primitive now (data-bits.jsx Confirm), pure, so every
- * harness draws it. Run here: its shape, then the three doors the audit
- * named -- the Team row, a broadcast's stop, a playbook's delete -- each
- * mounted over a fake React and pressed.
+ * audit's D13). One primitive now (the kit's Confirm, surfaces/kit/confirm),
+ * pure, so every harness draws it. Run here: its shape, then the three doors
+ * the audit named -- the Team row, a broadcast's stop, a playbook's delete --
+ * each mounted over a fake React and pressed.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
-import { hookFrames } from "../_hook-frames.mjs";
+import { installLegacyReact, fresh, again, find, byTestId, textOf, classes } from "../_legacy-react.mjs";
 
 /* ------------------------------ the harness ------------------------------ */
 
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-const fresh = () => {
-  cells = [];
-  frames.begin();
-};
 const calls = { flash: [], remove: [], cancel: [], arm: [], pbRemove: [], nav: [] };
-globalThis.Icon = "Icon";
-globalThis.StatStrip = "StatStrip";
-globalThis.StatCell = "StatCell";
-globalThis.PolicyChip = "PolicyChip";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = fn();
-    return cells[k];
-  },
-  useCallback: (fn) => fn,
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.document = {
-  body: {},
-  addEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
-};
-globalThis.window = {
+installLegacyReact({
+  StatStrip: "StatStrip",
+  StatCell: "StatCell",
   __chrome: { state: stateOf },
   __ME: { email: "ruben@rjcapital.io", role: "owner" },
   __SETTINGS: { role: "owner" },
@@ -105,62 +43,31 @@ globalThis.window = {
   },
   __teamSetRole: async () => ({ ok: true }),
   __teamInvite: async () => ({ ok: true }),
-  __broadcasts: {
-    cancel: async (id) => {
-      calls.cancel.push(id);
-      return { ok: true, data: { was: "sending" } };
-    },
-  },
-  __playbooks: {
-    remove: async (id) => {
-      calls.pbRemove.push(id);
-      return { ok: true, data: {} };
-    },
-  },
-  __PLAYBOOKS: { triggers: [] },
   CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
-  location: { origin: "https://app.chanlytics.com", reload() {} },
   gate: () => ({}),
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent() {},
-  setTimeout: () => 1,
-  clearTimeout() {},
+});
+const S = "../../../../apps/dashboard/src";
+// The one Confirm is the shell's (data-bits.jsx), and so are the Team card's menu and state pill: JSX the frame loads.
+await import(`${S}/legacy/components/data-bits.jsx`);
+const { Confirm, MoreMenu } = globalThis;
+// The Broadcasts and Playbooks pages are TSX (decision 0015): their verbs are imported, and their surfaces are the seam's.
+const { BcRunVerbs } = await import(`${S}/surfaces/campaigns/broadcasts/run.tsx`);
+const { BcRunCard } = await import(`${S}/surfaces/campaigns/broadcasts/ledger.tsx`);
+const { PlaybookCard } = await import(`${S}/surfaces/campaigns/playbooks/card-detail.tsx`);
+const { playbooks } = await import(`${S}/surfaces/campaigns/playbooks/verbs.ts`);
+const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+setSurfaceValue("playbooks", { rows: [], triggers: [] });
+playbooks.remove = async (id) => {
+  calls.pbRemove.push(id);
+  return { ok: true, data: {} };
 };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
-const { Confirm, MoreMenu, StatePill } = globalThis.window;
-Object.assign(globalThis, { Confirm, MoreMenu, StatePill });
+// The broadcast's own door, as the run's verbs are handed it.
+const cancelBroadcast = async (id) => {
+  calls.cancel.push(id);
+  return { ok: true, data: { was: "sending" } };
+};
 
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  fn(n);
-  for (const k of n.props?.children ?? []) walk(k, fn);
-  if (n.rendered) walk(n.rendered, fn);
-};
-const textOf = (n) => {
-  const out = [];
-  walk(n, (x) => {
-    for (const k of x.props?.children ?? []) if (typeof k === "string" || typeof k === "number") out.push(String(k));
-  });
-  return out.join("");
-};
-const byTestId = (tree, id) => {
-  let hit = null;
-  walk(tree, (n) => {
-    if (!hit && n.props?.["data-testid"] === id) hit = n;
-  });
-  return hit;
-};
-const byClass = (tree, cls) => {
-  let hit = null;
-  walk(tree, (n) => {
-    if (!hit && typeof n.props?.className === "string" && n.props.className.split(" ").includes(cls)) hit = n;
-  });
-  return hit;
-};
+const byClass = (tree, cls) => find(tree, (n) => classes(n).includes(cls));
 const flash = (m) => calls.flash.push(m);
 
 /* ------------------------------ the primitive ---------------------------- */
@@ -289,20 +196,12 @@ test("a typed name gates the Yes -- erasure only -- and the page may know a bett
 
 /* -------------------- Settings › Team: the D13 door ---------------------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/settings.jsx");
-const TeamSection = globalThis.window.TeamSection;
-const drawTeam = () => {
-  frames.begin();
-  return TeamSection({ flash });
-};
+await import(`${S}/legacy/pages/settings.jsx`);
+const TeamSection = globalThis.TeamSection;
+const drawTeam = () => again(() => TeamSection({ flash }));
 /** The row menu that offers `label`, as the props the card handed the shared MoreMenu. */
-const menuFor = (tree, label) => {
-  let hit = null;
-  walk(tree, (n) => {
-    if (!hit && n.type === MoreMenu && (n.props.items || []).some((i) => i.label === label)) hit = n;
-  });
-  return hit;
-};
+const menuFor = (tree, label) =>
+  find(tree, (n) => n.type === MoreMenu && (n.props.items || []).some((i) => i.label === label));
 
 test("REGRESSION (D13): removing a teammate asks first -- the menu item arms, the row asks, and only the Yes reaches the server, with the membership id", async () => {
   fresh();
@@ -352,11 +251,7 @@ test("revoking an invitation asks in its own words", () => {
 
 /* ------------------- Broadcasts: three verbs, each armed ------------------ */
 
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-run.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts.jsx");
-// The run's card on the ledger, where the stop now lives.
-const BcRunCard = globalThis.window.BcRunCard;
+// The run's card on the ledger (BcRunCard, ledger.tsx), where the stop now lives.
 const broadcast = (state) => ({
   id: `b-${state}`,
   name: "September offer",
@@ -370,20 +265,19 @@ const broadcast = (state) => ({
 
 test("a broadcast's stop is armed and named for what it does: Stop a send, Skip a run nobody approved, Cancel one still to come", async () => {
   fresh();
-  // The verbs, as the run's report draws them for every run still open.
-  const BcRunVerbs = globalThis.window.BcRunVerbs;
-  const draw = (state, armed, canSend = true) => {
-    frames.begin();
-    return BcRunVerbs({
-      row: broadcast(state),
-      canSend,
-      armed,
-      onArm: (on) => calls.arm.push(on),
-      stopping: false,
-      approve() {},
-      cancel: (r) => globalThis.window.__broadcasts.cancel(r.id),
-    });
-  };
+  // The verbs (BcRunVerbs, run.tsx), as the run's report draws them for every run still open.
+  const draw = (state, armed, canSend = true) =>
+    again(() =>
+      BcRunVerbs({
+        row: broadcast(state),
+        canSend,
+        armed,
+        onArm: (on) => calls.arm.push(on),
+        stopping: false,
+        approve() {},
+        cancel: (r) => cancelBroadcast(r.id),
+      }),
+    );
   for (const [state, verb, question, yes] of [
     ["sending", "Stop", "Stop September offer?", "Yes, stop it"],
     ["pending_approval", "Skip", "Skip September offer?", "Yes, skip it"],
@@ -408,20 +302,20 @@ test("a broadcast's stop is armed and named for what it does: Stop a send, Skip 
   assert.equal(byTestId(draw("sending", false, false), "bc-stop"), null, "a viewer has no stop to arm");
   // On the ledger only a run waiting on the owner carries its acts -- Approve, and Skip armed the same way, on its
   // row. A run to come or going out is cancelled or stopped from its report (23 Sep, Campaigns made compact).
-  const row = (state, armed = false) => {
-    frames.begin();
-    return BcRunCard({
-      row: broadcast(state),
-      now: Date.now(),
-      canSend: true,
-      onOpen() {},
-      armed,
-      onArm: (on) => calls.arm.push(on),
-      stopping: false,
-      approve() {},
-      cancel() {},
-    });
-  };
+  const row = (state, armed = false) =>
+    again(() =>
+      BcRunCard({
+        row: broadcast(state),
+        now: Date.now(),
+        canSend: true,
+        onOpen() {},
+        armed,
+        onArm: (on) => calls.arm.push(on),
+        stopping: false,
+        approve() {},
+        cancel() {},
+      }),
+    );
   assert.ok(
     byTestId(row("pending_approval"), "bc-approve"),
     "unarmed, a run waiting for approval still offers Approve",
@@ -435,11 +329,6 @@ test("a broadcast's stop is armed and named for what it does: Stop a send, Skip 
 
 /* ---------------- Playbooks: the delete that was two clicks --------------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/outbound.jsx");
-const PlaybookCard = globalThis.window.PlaybookCard;
 const playbook = {
   id: "pb-1",
   name: "Win-back",
@@ -459,10 +348,7 @@ const playbook = {
 
 test("a playbook's delete asks through the one Confirm -- it used to relabel its own button and fire on the second click", async () => {
   fresh();
-  const draw = () => {
-    frames.begin();
-    return PlaybookCard({ p: playbook, canAct: true, onEdit() {}, flash });
-  };
+  const draw = () => again(() => PlaybookCard({ p: playbook, canAct: true, onEdit() {}, flash }));
   let tree = draw();
   const del = byTestId(tree, "pb-delete");
   assert.equal(textOf(del), "Delete");

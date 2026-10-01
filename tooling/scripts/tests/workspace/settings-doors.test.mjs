@@ -20,6 +20,7 @@ import {
   connectionRows,
   CONNECTION_GROUP_WORDS,
 } from "@chanlytics/contracts";
+import { kitPages, useStubHooks } from "../_legacy-react.mjs";
 
 /* ---------------------------------- the window ---------------------------------- */
 
@@ -140,6 +141,8 @@ globalThis.React = {
   },
   useMemo: (fn, deps) => memo(fn, deps),
   useCallback: (fn, deps) => memo(() => fn, deps),
+  // The record kit's field names itself with React's useId when the page gives it no id.
+  useId: () => `id-${slot()}`,
   useEffect: (fn, deps) => {
     const k = slot();
     const prev = cells.get(k);
@@ -154,6 +157,8 @@ globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 // data-bits installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
 globalThis.window.__tip = { show: (el) => tipped.push(el) };
+Object.assign(globalThis.window, kitPages);
+useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
@@ -714,9 +719,10 @@ test("the email row's form: offered from the business's name, judged under its o
 /* ------------------------------ the attention row ------------------------------ */
 
 test("REGRESSION (S23): the attention row's buttons say they are busy and take no second press while their verb is on its way", async () => {
-  await import("../../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
+  // The kit's row (surfaces/kit/attention/attn-row.tsx), the one every page draws.
+  const { AttnRow } = await import("../../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
   const row = (cta, also) =>
-    render(globalThis.window.AttnRow, {
+    render(AttnRow, {
       name: "Your line",
       sentence: "",
       cta,
@@ -1096,8 +1102,6 @@ test("the records draw as a table a registrar can take: each name and value copi
 
 test("a person deletes their own account from Settings, in two steps, and the door's refusal is said where it happened (App Store 5.1.1(v), 00190)", async () => {
   asRole("owner");
-  await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
-  await import("../../../../apps/dashboard/src/legacy/components/record-row.jsx");
   await import("../../../../apps/dashboard/src/legacy/pages/settings.jsx");
   const Profile = (props) => globalThis.window.PaneProfile(props);
   const calls = [];

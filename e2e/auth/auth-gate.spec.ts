@@ -31,6 +31,27 @@ test.describe("unauthenticated", () => {
     });
   }
 
+  test("a page of a workspace sends the visitor to sign in carrying its route, in the fragment, and never the query", async ({
+    page,
+  }) => {
+    // A route is a path (decision 0015), which a redirect drops; the fragment reaches no server and no log, so the gate
+    // writes it there, and the sign-in page keeps it and lands on it.
+    await page.goto("/w/acme/inbox/th-1?private=1", { waitUntil: "domcontentloaded" });
+    const at = new URL(page.url());
+    expect(at.pathname).toBe("/login");
+    expect(at.hash).toBe("#/inbox/th-1");
+    expect(at.search, "the query is never copied onto the sign-in page").toBe("");
+  });
+
+  test("a hash address, which every email and bookmark says, carries its route through the same redirect", async ({
+    page,
+  }) => {
+    await page.goto("/w/acme#/reports", { waitUntil: "domcontentloaded" });
+    const at = new URL(page.url());
+    expect(at.pathname).toBe("/login");
+    expect(at.hash, "the browser keeps a fragment across a redirect that names none").toBe("#/reports");
+  });
+
   for (const path of PROTECTED_APIS) {
     test(`an API answers 401 as JSON, not login HTML: ${path}`, async ({ request }) => {
       // A fetch() redirected into the login PAGE makes every client parse
@@ -93,9 +114,9 @@ test.describe("unauthenticated", () => {
 
   test("the query string does not travel to the login URL", async ({ request }) => {
     // clone() carries it over, so a conversation id in a param would be copied
-    // onto /login and into the access logs of every hop in between. The app
-    // routes on the hash, which the browser keeps across a redirect without
-    // the server ever seeing it, so nothing is lost by dropping this.
+    // onto /login and into the access logs of every hop in between. The route
+    // of a workspace page rides in the fragment instead (the tests above),
+    // which the server never sees, so nothing is lost by dropping this.
     const res = await request.get("/inbox?conversation=leaky-id-12345&token=abc", { maxRedirects: 0 });
     expect(res.headers()["location"]).toBe("/login");
     expect(res.headers()["location"]).not.toContain("leaky-id-12345");

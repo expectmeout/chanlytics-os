@@ -9,201 +9,67 @@
  *   closes it to its list.
  * - A search typed on Phone was gone after a trip to People: it is kept per tab in the tab's storage (tab-memory.ts),
  *   and a tab pressed opens with the words last typed on it.
- * Run against the page on a stub React, with the tab's memory installed as the app installs it.
+ * Run against the page (surfaces/inbox/pages/conversations-page.tsx) on a stub React, over the rows the seam holds, with the
+ * tab's memory installed as the app installs it.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { toConversationVM, toCallVM, stateOf } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
+import { legacyAddress } from "../../shell/address/_address.mjs";
+import {
+  installLegacyReact,
+  fresh as freshTree,
+  again,
+  all,
+  find,
+  byTestId,
+  textOf,
+  press,
+} from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
 
 /* ---------------------------------- the window ---------------------------------- */
 
-const listeners = {};
-const storage = () => {
-  const m = new Map();
-  return {
-    getItem: (k) => (m.has(k) ? m.get(k) : null),
-    setItem: (k, v) => m.set(k, String(v)),
-    removeItem: (k) => m.delete(k),
-  };
-};
-globalThis.localStorage = storage();
-globalThis.sessionStorage = storage();
-globalThis.document = {
-  body: {},
-  activeElement: null,
-  addEventListener() {},
-  removeEventListener() {},
-  getElementById: () => null,
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
-};
 const went = [];
-globalThis.window = {
-  location: {
-    pathname: "/w/studio",
-    hash: "#/conversations",
-    origin: "https://app.chanlytics.com",
-    assign() {},
-    replace() {},
-    reload() {},
-  },
+installLegacyReact({
   history: { replaceState() {}, back: () => went.push(["back"]) },
-  innerHeight: 800,
-  localStorage: globalThis.localStorage,
-  sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => {
-    (listeners[type] ||= new Set()).add(fn);
-  },
-  removeEventListener: (type, fn) => {
-    listeners[type]?.delete(fn);
-  },
-  dispatchEvent: (ev) => {
-    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
-    return true;
-  },
   setInterval: () => 1,
   clearInterval() {},
   __DEMO_MODE: false,
   __chrome: { state: stateOf },
-  CHANLY: {
-    nav: (to) => went.push(["nav", to]),
-    R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
-  },
   appNavigate: (to, opts) => went.push(["app", to, opts || null]),
   canDo: () => true,
   gate: () => ({}),
-};
-const { installTabMemory, clearTabMemory } =
-  await import("../../../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+});
+Object.assign(globalThis, {
+  CHANLY: {
+    nav: (to) => went.push(["nav", to]),
+    address: await legacyAddress(),
+    R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
+  },
+});
+const S = "../../../../../apps/dashboard/src";
+const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
+const { cvRoute: route, cvAddress: address } = await import(`${S}/surfaces/inbox/cv-rules.ts`);
+const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { installTabMemory, clearTabMemory } = await import(`${S}/legacy-bridge/tab-memory.ts`);
 installTabMemory(globalThis.window);
 const TM = globalThis.window.__tabMemory;
 
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => fn(),
-  useCallback: (fn) => fn,
-  useEffect: (fn, deps) => {
-    const k = frames.key();
-    const prev = cells[k];
-    if (
-      prev &&
-      deps &&
-      prev.deps &&
-      deps.length === prev.deps.length &&
-      deps.every((d, i) => Object.is(d, prev.deps[i]))
-    )
-      return;
-    if (prev && typeof prev.cleanup === "function") prev.cleanup();
-    cells[k] = { deps, cleanup: undefined };
-    cells[k].cleanup = fn();
-  },
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of [
-  "StatePill",
-  "MoreMenu",
-  "EmptyState",
-  "PolicyChip",
-  "TlMedia",
-  "FailedRead",
-  "Confirm",
-  "usePPToast",
-  "useHotkey",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
-globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
-globalThis.InboxThread = globalThis.window.InboxThread;
-globalThis.ThreadPane = globalThis.window.ThreadPane;
-globalThis.ThreadCall = globalThis.window.ThreadCall;
-await import("../../../../../apps/dashboard/src/legacy/pages/conversations.jsx");
-const { ConversationsPage, CV_ROUTE: route, CV_ADDRESS: address } = globalThis.window;
-
 /* ---------------------------------- walking a tree ---------------------------------- */
 
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) {
-    for (const k of n) walk(k, fn);
-    return;
-  }
-  fn(n);
-  if (n.rendered !== undefined) walk(n.rendered, fn);
-  else walk(n.props?.children, fn);
-};
-const all = (tree, pred) => {
-  const out = [];
-  walk(tree, (n) => {
-    if (pred(n)) out.push(n);
-  });
-  return out;
-};
-const find = (tree, pred) => all(tree, pred)[0] ?? null;
-const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  if (n.rendered !== undefined) return textOf(n.rendered);
-  return textOf(n.props?.children);
-};
-const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
 const rows = (tree) => all(tree, (n) => String(n.props?.className || "").startsWith("cv-row "));
 const searchBox = (tree) =>
   find(tree, (n) => n.type === "input" && String(n.props?.placeholder || "").startsWith("Search names"));
 /** A fresh mount, as React mounts the page a person came back to. */
 const fresh = () => {
-  cells = [];
-  frames.begin();
+  freshTree();
   went.length = 0;
 };
 /** The page drawn again over the same cells, as React draws it after a state change or a new prop. */
-const redraw = (props) => {
-  frames.begin();
-  return ConversationsPage(props);
-};
+const redraw = (props) => again(() => ConversationsPage(props));
 
 /* ---------------------------------- the rows ---------------------------------- */
 
@@ -284,7 +150,7 @@ const call = (id, name) =>
 const rosa = toConversationVM(conv("c1", "Rosa Díaz", [msg({ id: "m1" }), ours()]), ZONE, NOW);
 const emily = call("k7", "Emily Chen");
 const withRows = (list) => {
-  globalThis.window.CONVERSATIONS_DATA = {
+  setSurfaceValue("conversations", {
     CONVERSATIONS: list,
     CV_CHANNELS: [
       { id: "all", label: "All" },
@@ -292,13 +158,13 @@ const withRows = (list) => {
       { id: "phone", label: "Phone" },
     ],
     CALLS_READ: true,
-  };
+  });
 };
 
 beforeEach(() => {
   fresh();
   clearTabMemory();
-  globalThis.window.INBOX_DATA = { THREADS: [], CHANNEL_LABELS: { whatsapp: "WhatsApp" } };
+  setSurfaceValue("inbox", { THREADS: [], CHANNEL_LABELS: { whatsapp: "WhatsApp" } });
   withRows([rosa, emily]);
 });
 
@@ -376,7 +242,8 @@ test("on a phone a row pressed is an entry of its own: the viewer's Back steps b
   const phone = (tree) =>
     String(find(tree, (n) => String(n.props?.className || "").startsWith("conversations")).props.className);
   const viewerBack = (tree) => find(tree, (n) => typeof n.props?.onBack === "function").props.onBack;
-  globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 720px)" });
+  const wasMedia = globalThis.matchMedia;
+  globalThis.matchMedia = (q) => ({ matches: q === "(max-width: 720px)" });
   try {
     let tree = ConversationsPage({ channel: "phone", initialId: null });
     press(rows(tree)[0]);
@@ -406,7 +273,7 @@ test("on a phone a row pressed is an entry of its own: the viewer's Back steps b
     tree = redraw({ channel: "phone", initialId: "cv-k7" });
     assert.ok(!phone(tree).includes("phone-detail"));
   } finally {
-    delete globalThis.window.matchMedia;
+    globalThis.matchMedia = wasMedia;
     globalThis.window.location.hash = "#/conversations";
   }
 });

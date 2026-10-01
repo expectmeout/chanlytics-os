@@ -45,7 +45,7 @@ import {
 } from "@chanlytics/contracts";
 import { api as client } from "./api";
 import type { Input } from "../client/api";
-import { getActiveWorkspace } from "./workspace";
+import { getActiveWorkspace, goToRoute } from "./workspace";
 
 export const FEED_EVENTS = [
   "surface:inbox",
@@ -269,7 +269,7 @@ export function installNotifications(
         const n = new N(i.title, { body: i.message, tag: i.key, icon: "/icons/icon-192.png" });
         n.onclick = () => {
           win.focus();
-          win.location.hash = `/${i.to}`;
+          goToRoute(i.to, {}, win);
           n.close();
         };
       } catch {

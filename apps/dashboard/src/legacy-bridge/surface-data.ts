@@ -19,10 +19,11 @@
 import { clearSurfaceCache } from "./surface-cache";
 import { ApiError } from "../client/api";
 import { read } from "./api";
-import { getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
+import { addressInWorkspace, getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
 import type { RealtimeChange } from "./surface-realtime";
 import type { MembershipRole, PendingWorkspace } from "@chanlytics/contracts";
-import { peopleLoaded, publishPeople } from "./surfaces/people";
+import { peopleLoaded, publishPeople } from "@/surfaces/people/surface";
+import type { SurfaceKey } from "../surfaces/surface-values";
 export { getActiveWorkspace } from "./workspace";
 
 export interface SurfaceOverride {
@@ -35,6 +36,11 @@ export interface SurfaceOverride {
    * hardcoding a list in the cache) keeps flipping a surface a one-file change.
    */
   globals?: string[];
+  /**
+   * The key its typed value is published under (surface-values.ts), for a surface a TSX page reads through
+   * `useSurface`: the cache keeps that value with the surface's snapshot and gives it back before React draws.
+   */
+  value?: SurfaceKey;
   /** What of its globals the cache holds, when not all of them: given the snapshot, answers the one to keep. */
   trimSnapshot?: (snap: Record<string, unknown>) => Record<string, unknown>;
   /** Fetch real data and write it into the surface's window globals. */
@@ -178,7 +184,7 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
       const here = getActiveWorkspace();
       if (here && here !== slug) {
         clearSurfaceCache();
-        window.location.replace(workspaceHref(slug, window.location.hash));
+        window.location.replace(addressInWorkspace(slug, window.location));
         return;
       }
     }
@@ -213,8 +219,8 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
  * on the first boot and be lost with it (the nightly's workspace-create spec,
  * 13 Sep 2026).
  *
- * `after` is where the workspace opens: a hash for one just made (the first
- * run, `#/start`); nothing, and a switch opens on Today.
+ * `after` is where the workspace opens: a route for one just made (the first
+ * run, `#/start`, which is written as its path); nothing, and a switch opens on Today.
  */
 export function switchWorkspace(id: string, knownSlug?: string, after = ""): void {
   const target = (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES?.find((t) => t.id === id);

@@ -606,7 +606,7 @@ flowchart LR
 
 ### 11.1 Boot
 
-`app/(os)/layout.tsx` (the server-side auth gate) → `page.tsx`, or `w/[workspace]/page.tsx` for a workspace's own address → `LegacyHost` (client only, `ssr: false`, because the mockup touches `window` at module scope) → `LegacyApp`:
+`app/(os)/layout.tsx` (the server-side auth gate) → `page.tsx`, or `w/[workspace]/layout.tsx` for a workspace's own address (its route the catch-all `[[...route]]/page.tsx`'s) → `LegacyHost` (client only, `ssr: false`, because the mockup touches `window` at module scope) → `LegacyApp`:
 
 1. `seed-globals.ts` makes the bundle's React the `window.React` (one hook dispatcher), sets `__DEMO_MODE = false`, and publishes the contracts helpers the pages call (`ROLE_PERMS`, `__FACT_WORDS`, the phone checks, the clock, the tone map, the gate).
 2. `manifest.ts` imports the 68 legacy files in the exact order the mockup's own script tags use; data files seed globals that pages read at module scope. The standalone harness loads the same list (11.5).

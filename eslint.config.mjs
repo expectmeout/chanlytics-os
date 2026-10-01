@@ -280,10 +280,17 @@ export const BASE_UI_INDEX = {
  * plan, §3.6), each by its folder (`apps/dashboard/src/surfaces/reports`). A move draws what the JSX drew, raw
  * elements and all, so it adds its surface here, and the kit step, which draws the surface's controls with the kit,
  * takes it out. Only the rule on raw elements passes over a listed surface: the layers and the function limits hold it
- * as they hold the rest of src/surfaces. Empty until the first move; repo/lint-boundaries.test.mjs fails an entry that
- * names no surface's folder.
+ * as they hold the rest of src/surfaces. repo/lint-boundaries.test.mjs fails an entry that names no surface's folder.
  */
-export const KIT_PENDING = [];
+export const KIT_PENDING = [
+  "apps/dashboard/src/surfaces/reports",
+  "apps/dashboard/src/surfaces/inbox",
+  "apps/dashboard/src/surfaces/today",
+  "apps/dashboard/src/surfaces/campaigns",
+  "apps/dashboard/src/surfaces/live",
+  "apps/dashboard/src/surfaces/calendar",
+  "apps/dashboard/src/surfaces/people",
+];
 
 /** The rule on raw elements, over src/surfaces but the kit and the folders `pending` lists. Its test lists one. */
 export const rawElementsRule = (pending) => ({
@@ -330,7 +337,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/yes",
   "apps/dashboard/src/legacy-bridge/mascot",
   "apps/dashboard/src/legacy-bridge/reach-out",
-  "apps/dashboard/src/legacy-bridge/today-sample",
+  "apps/dashboard/src/legacy-bridge/surfaces",
   "apps/dashboard/src/server/auth",
   "apps/dashboard/src/server/connections",
   "apps/dashboard/src/server/conversations",
@@ -365,7 +372,6 @@ export const WIDE_PARAMS = [
   "packages/contracts/src/playbooks",
   "packages/contracts/src/reach-out",
   "apps/dashboard/src/legacy-bridge/mascot",
-  "apps/dashboard/src/legacy-bridge/today-sample",
   "apps/dashboard/src/server/platform",
   "apps/dashboard/src/server/ports",
   "apps/dashboard/src/server/receptionist",

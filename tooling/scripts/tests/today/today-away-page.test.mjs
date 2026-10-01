@@ -5,23 +5,16 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  todayAwayGrouped,
-  todayDay,
-  todayLeaks,
-  todayPeriodLine,
-  todayRunWords,
-  todayRunsSub,
-  todayRunApproved,
-  unreadCount,
-  leadQuestionRoute,
-} from "@chanlytics/contracts";
+import { todayAwayGrouped, unreadCount, leadQuestionRoute } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, find, all, byTestId, textOf } from "../_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false });
 globalThis.appNavigate = () => {};
-const L = "../../../../apps/dashboard/src/legacy";
-await import(`${L}/pages/dashboard-a-week.jsx`);
+// The pages are the TSX surface's (apps/dashboard/src/surfaces/today/pages, decision 0015), drawn as elements of the stub React.
+const { TodayAway } = await import("../../../../apps/dashboard/src/surfaces/today/pages/away.tsx");
+const { TodayPins } = await import("../../../../apps/dashboard/src/surfaces/today/pages/pins.tsx");
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { Icon } = await import("../../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx");
 
 const queued = (cv, who) => ({
   id: `needs:th-${cv}`,
@@ -52,19 +45,11 @@ const news = (id, title) => ({
 const draw = (rows, cvs, queue = null) => {
   fresh();
   globalThis.__notifs = { feed: () => rows, onChange: () => () => {}, read() {}, dismiss() {}, seenAll() {} };
-  globalThis.__today = {
-    awayGrouped: todayAwayGrouped,
-    day: todayDay,
-    leaks: todayLeaks,
-    periodLine: todayPeriodLine,
-    runs: todayRunWords,
-    runsSub: todayRunsSub,
-    runApproved: todayRunApproved,
-  };
-  globalThis.TODAY_DATA = {
+  // The day, through the seam the page reads it from (surface-values.ts), not off `window.TODAY_DATA`.
+  setSurfaceValue("today", {
     queue: { rows: queue ?? cvs.map((id) => ({ kind: "handoff", conversationId: id, callId: null })) },
-  };
-  return globalThis.React.createElement(globalThis.TodayAway, {});
+  });
+  return globalThis.React.createElement(TodayAway, {});
 };
 const byClass = (tree, cls) => find(tree, (n) => String(n.props?.className || "").includes(cls));
 
@@ -87,7 +72,7 @@ test('REGRESSION: empty because the queue above has everything -- no green check
     "REGRESSION: four unread rows and the card congratulated the owner",
   );
   assert.ok(textOf(line).includes("Everything new is already in the queue above."));
-  const icon = find(line, (n) => n.type === "Icon");
+  const icon = find(line, (n) => n.type === Icon);
   assert.equal(icon.props.name, "arrow-up", "no check mark over unread work");
   assert.equal(textOf(byClass(tree, "tq-count")).trim(), "4", "the head does not read 0 while the bell reads 4");
   assert.equal(byClass(tree, "tq-foot"), null, "the head has said 4 once; the line says where they are");
@@ -97,7 +82,7 @@ test('nothing unread anywhere is the one state that may say "All caught up."', (
   const tree = draw([{ ...news("n:1", "old"), unread: false }], []);
   const line = byTestId(tree, "today-away-empty");
   assert.ok(textOf(line).includes("All caught up."));
-  assert.equal(find(line, (n) => n.type === "Icon").props.name, "check");
+  assert.equal(find(line, (n) => n.type === Icon).props.name, "check");
   assert.equal(textOf(byClass(tree, "tq-count")).trim(), "0");
 });
 
@@ -185,9 +170,10 @@ test("the lists a member pinned are one row of doors on Today, with People's cou
   try {
     fresh();
     globalThis.__PEOPLE = people;
-    // The bridge's own verb (people-lists.ts), over the surface as People publishes it.
-    globalThis.__lists = (await import("../../../../apps/dashboard/src/legacy-bridge/people-lists.ts")).lists;
-    const tree = globalThis.React.createElement(globalThis.TodayPins, {});
+    setSurfaceValue("people", people);
+    // People's own verb (people-lists.ts), over the surface as People publishes it.
+    globalThis.__lists = (await import("../../../../apps/dashboard/src/surfaces/people/people-lists.ts")).lists;
+    const tree = globalThis.React.createElement(TodayPins, {});
     const row = byTestId(tree, "today-pins");
     const pins = [];
     (function walk(n) {
@@ -208,10 +194,12 @@ test("the lists a member pinned are one row of doors on Today, with People's cou
     // Nothing pinned: no row at all.
     fresh();
     globalThis.__PEOPLE = { ...people, views: {} };
-    assert.equal(byTestId(globalThis.React.createElement(globalThis.TodayPins, {}), "today-pins"), null);
+    setSurfaceValue("people", globalThis.__PEOPLE);
+    assert.equal(byTestId(globalThis.React.createElement(TodayPins, {}), "today-pins"), null);
   } finally {
     globalThis.appNavigate = kept;
     delete globalThis.__PEOPLE;
+    setSurfaceValue("people", undefined);
     delete globalThis.__lists;
   }
 });

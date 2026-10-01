@@ -1,5 +1,5 @@
 /**
- * The Inbox's strip and chip for a reply to a reach-out (Reach out Part 5, PR 7), run on the stub React over the
+ * The Inbox's strip and chip for a reply to a reach-out (Reach out Part 5, PR 7; surfaces/inbox/thread/reply-strip.tsx), run on the stub React over the
  * bridge's own words (legacy-bridge/reach-out/replies.ts over contracts reach-out-reply-words.ts) and the readings as
  * `__REPLIES` holds them. The undo is the one verb stubbed, so what is proved is what the page draws and what it asks
  * of the bridge: each intent's strip and doors; the undo pressed once, its refusal said in its own words and its
@@ -25,7 +25,8 @@ Object.assign(W, {
 });
 const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
-await import(`${L}/pages/reach-out/reply-strip.jsx`);
+const { ReplyStrip, ReplyChip, useReplyDraftDoor } =
+  await import("../../../../apps/dashboard/src/surfaces/inbox/thread/reply-strip.tsx");
 const bridge = await import("../../../../apps/dashboard/src/legacy-bridge/reach-out/replies.ts");
 
 const CONV = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
@@ -69,7 +70,7 @@ const THREAD = (over = {}) => ({
   ...over,
 });
 const strip = (thread = THREAD()) => {
-  const draw = () => W.React.createElement(W.ReplyStrip, { thread });
+  const draw = () => W.React.createElement(ReplyStrip, { thread });
   fresh();
   return { tree: again(draw), draw: () => again(draw) };
 };
@@ -96,12 +97,12 @@ test("Use the draft hands the draft to the composer's door, and the door takes i
   press(byTestId(tree, "ix-th-reply-use-draft"));
   assert.deepEqual(sent, [{ threadId: `th-${CONV}`, text: "Thank you for writing.\n\nSam" }]);
 
-  // The composer's side (inbox-thread.jsx calls it with its thread's id and its own writer).
+  // The composer's side (thread/composer.tsx calls it with its thread's id and its own writer).
   const got = [];
   fresh();
   again(() =>
     W.React.createElement(() => {
-      W.useReplyDraftDoor(`th-${CONV}`, (text) => got.push(text));
+      useReplyDraftDoor(`th-${CONV}`, (text) => got.push(text));
       return null;
     }),
   );
@@ -192,11 +193,11 @@ test("the composer's line says why an answer goes from the mailbox; a reply to n
 test("the row's chip says what the newest reply was read as, and nothing for a thread without one", () => {
   world([reading({ intent: "no" })]);
   fresh();
-  const chip = again(() => W.React.createElement(W.ReplyChip, { thread: THREAD() }));
+  const chip = again(() => W.React.createElement(ReplyChip, { thread: THREAD() }));
   assert.equal(textOf(chip), "Said no");
   world([]);
   fresh();
-  assert.equal(textOf(again(() => W.React.createElement(W.ReplyChip, { thread: THREAD() }))), "");
+  assert.equal(textOf(again(() => W.React.createElement(ReplyChip, { thread: THREAD() }))), "");
 });
 
 test("the surface reads the readings, and says so at once when it could not", async () => {

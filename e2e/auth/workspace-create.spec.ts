@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { atRoute } from "../address";
 
 /**
  * A second workspace from the workspace menu: the create screen on demand,
@@ -58,7 +59,7 @@ test.describe("creating another workspace", () => {
       await screen.getByRole("button", { name: "Create workspace" }).click();
       // A new workspace answers nowhere yet, so it opens on its first run (#/start), not Today.
       await expect(page.getByTestId("first-run")).toBeVisible({ timeout: 20000 });
-      await expect(page).toHaveURL(/#\/start/);
+      await expect(page).toHaveURL(atRoute(/^start/));
       // The first run is drawn in place of the shell's chrome (#968), so there is no workspace switch to read there:
       // the page names the new workspace itself, on the receptionist card beside the step.
       await expect(page.getByTestId("first-run")).toContainText(name, { timeout: 20000 });

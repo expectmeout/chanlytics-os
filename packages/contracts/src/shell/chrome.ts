@@ -72,10 +72,10 @@ export const DEFAULT_LOOK_PREF: LookPref = "classic";
 export const lookPrefOf = (stored: unknown): LookPref => (isLookPref(stored) ? stored : DEFAULT_LOOK_PREF);
 
 /**
- * Whether the account menu offers the look to members. Not yet: the menu draws no Look until Glass is drawn (the
- * plan's step 5.5), and a device paints the look it keeps, which is the default unless it was set by hand.
+ * Whether the account menu offers the look to members: it does, since Glass was drawn on every canvas (the plan's step
+ * 5.5). A device paints the look it keeps, which is the default, Classic, until a member picks the other by hand.
  */
-export const LOOK_OFFERED: boolean = false;
+export const LOOK_OFFERED: boolean = true;
 
 /** Where this device keeps its preferences, the theme and the look among them (legacy-bridge/device-prefs.ts). */
 export const DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
@@ -86,6 +86,11 @@ export const DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
  * paper reads as a strip of somebody else's app above this one.
  */
 export const THEME_COLORS: Readonly<Record<Theme, string>> = { light: "#fbfaf8", dark: "#0c0d0f" };
+/** The same paper per look: Glass's page ground (tokens.css, the look's --bg), so the bars match the page whichever look it wears. */
+export const LOOK_THEME_COLORS: Readonly<Record<"classic" | "glass", Readonly<Record<Theme, string>>>> = {
+  classic: THEME_COLORS,
+  glass: { light: "#f1f2f6", dark: "#0f1014" },
+};
 /**
  * The ink on that paper, per theme (tokens.css --ink, as sRGB): what the native shell draws its own words and tab
  * labels with, beside the page. The two pairs are the shell's whole palette; the page's other tones stay the page's.
@@ -93,8 +98,8 @@ export const THEME_COLORS: Readonly<Record<Theme, string>> = { light: "#fbfaf8",
 export const THEME_INK: Readonly<Record<Theme, string>> = { light: "#161616", dark: "#fbfaf8" };
 
 /** The bars' colour for a resolved theme; anything else is the app's own, as the document's markup says. */
-export function themeColorOf(theme: unknown): string {
-  return THEME_COLORS[theme === "light" ? "light" : "dark"];
+export function themeColorOf(theme: unknown, look: unknown = "classic"): string {
+  return LOOK_THEME_COLORS[look === "glass" ? "glass" : "classic"][theme === "light" ? "light" : "dark"];
 }
 
 /**
@@ -138,7 +143,7 @@ export function themeBootScript(): string {
     "document.documentElement.dataset.look=k;",
     `var l=document.querySelectorAll(${JSON.stringify(THEME_COLOR_META)});`,
     'if(!l.length){var m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m);l=[m]}',
-    `for(var i=0;i<l.length;i++)l[i].setAttribute("content",${JSON.stringify(THEME_COLORS)}[t]);`,
+    `for(var i=0;i<l.length;i++)l[i].setAttribute("content",${JSON.stringify(LOOK_THEME_COLORS)}[k][t]);`,
     "}catch(e){}",
   ].join("");
 }
@@ -198,18 +203,21 @@ const PREFETCH_TIMEOUT_MS = 15_000;
  * first byte came at 26 ms (measured on production, 25 Sep 2026). This script runs as the head arrives and starts
  * the two reads every workspace page opens on -- who is looking (GET workspaces) and, on a person's page, the person
  * -- spelled exactly as the client spells them (client/api.ts urlFor: the path, then ?workspace=<slug>), and parks
- * the promises on the window for the client to take once, in place of its own fetch. Off a workspace page nothing
+ * the promises on the window for the client to take once, in place of its own fetch. The person is named by the
+ * route (address.ts), in the path or, before the frame has moved it, in the hash. Off a workspace page nothing
  * is read. A refusal here is the client's to hear, as it would have been, and a read whose headers do not come in
  * PREFETCH_TIMEOUT_MS gives way to the client's own.
  */
 export function routePrefetchScript(): string {
   return [
     "try{",
-    'var p=/^\\/w\\/([^\\/?#]+)/.exec(location.pathname||"");',
+    'var p=/^\\/w\\/([^\\/?#]+)(?:\\/([^?#]*))?/.exec(location.pathname||"");',
     "if(p){",
     "var w=encodeURIComponent(decodeURIComponent(p[1]));",
     'var u=["/api/v1/workspaces?workspace="+w];',
-    'var h=(location.hash||"").replace(/^#\\/?/,"").split("/");',
+    // The route is the path's, else the hash's: an address the frame has not moved yet (address.ts) still opens the person.
+    'var r=p[2]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2):"");',
+    'var h=r.split("/");',
     `if(h[0]==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(h[1]||""))u.push("/api/v1/contacts/"+h[1]+"?workspace="+w);`,
     `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
     "var M=window.AbortController;",

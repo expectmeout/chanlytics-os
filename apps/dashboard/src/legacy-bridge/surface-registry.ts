@@ -22,6 +22,7 @@
 import { FIRST_RUN_ROUTE } from "@chanlytics/contracts";
 
 import { isSurfaceFailed, isSurfaceReady, onSurfaceStatusChange } from "./surface-status";
+import { hearAddress, routeOnScreen } from "./workspace";
 
 export type SurfaceState = "real" | "demo";
 
@@ -163,7 +164,7 @@ export function personRouteId(page: string, param?: string | null): string | nul
  * own surface.
  */
 export const ROUTE_DRAWS: Record<string, readonly string[]> = {
-  // Setup first: what is left to set up is drawn ABOVE the queue (dashboard-a-brief.jsx TodaySetup), and read seventh it
+  // Setup first: what is left to set up is drawn ABOVE the queue (surfaces/today/pages/setup-card.tsx TodaySetup), and read seventh it
   // landed after the queue and pushed it down (Ruben, 24 Sep: "does not load properly like the rest of the page").
   today: [
     "setup",
@@ -186,7 +187,7 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // head while that read is out, so People is read next.
   [PERSON_ROUTE]: ["people"],
   // A reply to a reach-out, read: the Inbox's strip, composer line and row chip (Reach out Part 5, PR 7). A call in a
-  // thread is drawn from the calls Conversations reads (inbox-thread.jsx tlCallFor), the same door as the Inbox's own.
+  // thread is drawn from the calls Conversations reads (surfaces/inbox/thread/call.tsx tlCallFor), the same door as the Inbox's own.
   inbox: ["reach_out_replies", "conversations"],
   // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
   // surface, read beside each page's own.
@@ -230,15 +231,15 @@ export function routeSurfaces(page: string, param?: string | null): string[] {
 
 /* ------------------------- what a message re-reads ------------------------- */
 
-/** The page and its param the address names, as the shell parses it (app-shell.jsx parseHash). */
-function hashRoute(hash: string): { page: string; param: string | null } {
-  const [page, param] = (hash || "#/today").replace(/^#[/]?/, "").split("/");
+/** The page and its param a route names, as the shell parses it (app-shell.jsx parseRoute). */
+function pageOfRoute(route: string): { page: string; param: string | null } {
+  const [page, param] = route.split("/");
   return { page: page || "today", param: param || null };
 }
 
 /** Whether this surface is the one the page on screen is of (its own surface, never one it draws beside it). */
-export function ownsTheScreen(key: string, hash: string): boolean {
-  const { page, param } = hashRoute(hash);
+export function ownsTheScreen(key: string, route: string): boolean {
+  const { page, param } = pageOfRoute(route);
   return routeSurfaceFor(page, param) === key;
 }
 
@@ -255,10 +256,10 @@ const missedWhileAway = new Set<string>();
 export function onlyOnItsPage(
   key: string,
   tables: readonly string[],
-  hash: () => string = () => window.location.hash,
+  route: () => string = () => routeOnScreen(),
 ): (change: { table: string }) => boolean {
   return (change) => {
-    if (!tables.includes(change.table) || ownsTheScreen(key, hash())) return true;
+    if (!tables.includes(change.table) || ownsTheScreen(key, route())) return true;
     missedWhileAway.add(key);
     return false;
   };
@@ -274,12 +275,11 @@ export function readWhatWasMissed(
   win: Window = window,
 ): () => void {
   const onMove = () => {
-    const due = overrides.filter((o) => missedWhileAway.has(o.key) && ownsTheScreen(o.key, win.location.hash));
+    const due = overrides.filter((o) => missedWhileAway.has(o.key) && ownsTheScreen(o.key, routeOnScreen(win)));
     for (const o of due) missedWhileAway.delete(o.key);
     if (due.length) read(due.map((o) => o.key));
   };
-  win.addEventListener("hashchange", onMove);
-  return () => win.removeEventListener("hashchange", onMove);
+  return hearAddress(onMove, win);
 }
 
 /**

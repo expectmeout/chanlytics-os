@@ -1,11 +1,13 @@
 /**
- * Today, EXECUTED on the stub React over the view models the bridge publishes: a line only while a line is down, the day's card
+ * Today (apps/dashboard/src/surfaces/today, TSX since decision 0015), EXECUTED on the stub React over the view models the
+ * bridge publishes through the seam (surface-values.ts): a line only while a line is down, the day's card
  * (four figures, each with its receipt on hover, focus or a tap; the lines that are not numbers; the period in one
  * line with one door), the queue with one primary verb, the day with its cap, Worth a look with a word for its tone
  * and an Ask door, While you were away over all four queue kinds, a borrowed read that failed saying so, and the
  * composition without a seeded panel. Every sentence with a number is read back from contracts, never typed here.
+ * The queue's snooze and resolve run for real over a fetch this test holds (surfaces/inbox/verbs.ts).
  */
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   toTodayVM,
@@ -35,9 +37,10 @@ import {
   textOf,
   classes,
   press,
+  kitPages,
   quiet,
   redrawWanted,
-  surfaceLanded,
+  settle,
 } from "../_legacy-react.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 
@@ -55,12 +58,23 @@ installLegacyReact({
   __surfaceFailed: (k) => failed.has(k),
   __refreshSurface: (k) => refreshed.push(k),
 });
-const L = "../../../../apps/dashboard/src/legacy";
-await import(`${L}/components/data-bits.jsx`);
-// One appointment on a list, the row Today's day and the Calendar's agenda both wear.
-await import(`${L}/components/day-agenda.jsx`);
+// One appointment on a list, the row Today's day and the Calendar's agenda both wear: the kit's (surfaces/kit/agenda), drawn by name.
+Object.assign(globalThis.window, kitPages);
 for (const k of ["AgendaItem", "AgendaItems", "AgendaOpen"]) globalThis[k] = globalThis.window[k];
-const { TODAY_HELPERS } = await import("../../../../apps/dashboard/src/legacy-bridge/today.ts");
+const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
+const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
+const { TodaySetup } = await import("../../../../apps/dashboard/src/surfaces/today/pages/setup-card.tsx");
+const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { TodayDay } = await import("../../../../apps/dashboard/src/surfaces/today/pages/day.tsx");
+const { TodayLeaks } = await import("../../../../apps/dashboard/src/surfaces/today/pages/leaks.tsx");
+const { TodayPins } = await import("../../../../apps/dashboard/src/surfaces/today/pages/pins.tsx");
+const { TodayAway } = await import("../../../../apps/dashboard/src/surfaces/today/pages/away.tsx");
+const { DashboardA } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-page.tsx");
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+// The seam's own signal, from the module the TSX reads it through (the stub's own copy is the shell pages'): a surface's rows landed.
+const { surfaceMoved: surfaceLanded } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-status.ts");
+// The shell's doors and the surfaces Today borrows, which the TSX reads off the window by name when it draws (surfaces/today/shell.ts).
 Object.assign(globalThis, {
   CHANLY: { nav: (to) => went.push(to), R: {} },
   appNavigate: (to) => went.push(to),
@@ -70,15 +84,25 @@ Object.assign(globalThis, {
   gate: () => ({}),
   useHotkey: () => {},
   refusalToast: (res, lead) => ({ msg: `${lead}: ${res.error}`, tone: "danger" }),
-  __today: TODAY_HELPERS,
   __clock: { dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
 });
-await import(`${L}/pages/attention-bits.jsx`);
-await import(`${L}/pages/dashboard-a-brief.jsx`);
-await import(`${L}/pages/dashboard-a-command.jsx`);
-await import(`${L}/pages/dashboard-a-day.jsx`);
-await import(`${L}/pages/dashboard-a-week.jsx`);
-await import(`${L}/pages/dashboard-a.jsx`);
+// A verb the queue asks of the Inbox goes through the typed client to `fetch`: the workspace it names is this tab's, and
+// the refresh a landed write runs reads through the runner (nothing to boot). Any read is refused unless a test holds it.
+Object.assign(globalThis, {
+  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
+  __ACTIVE_WORKSPACE: "t1",
+});
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const refused = () => json(503, { ok: false, error: { code: "unavailable", message: "not read here" } });
+globalThis.window.fetch = async () => refused();
+const stopRunner = startSurfaces([], () => () => {});
+after(() => stopRunner());
+const realConsoleError = console.error;
+console.error = () => {};
+after(() => {
+  console.error = realConsoleError;
+});
 const W = globalThis.window;
 
 /* ------------------------------------ a working day ------------------------------------ */
@@ -431,15 +455,18 @@ const bellRow = (id, kind, title, tone = "", about = null, to = "reports") => ({
   actions: [{ label: "Open", to, primary: true }],
 });
 
+// `today` is the day itself, which the page reads through the seam (setSurfaceValue, surface-values.ts), not off
+// `window.TODAY_DATA`; every other key is a surface Today borrows or a verb of the shell, read off the window by name.
 const set = (globals) => {
   for (const [k, v] of Object.entries(globals)) {
-    if (v === undefined) delete W[k];
+    if (k === "today") setSurfaceValue("today", v);
+    else if (v === undefined) delete W[k];
     else W[k] = v;
   }
 };
 const clear = () => {
   set({
-    TODAY_DATA: undefined,
+    today: undefined,
     __TODAY_SAMPLE: undefined,
     __REPORTS: undefined,
     __PEOPLE: undefined,
@@ -452,7 +479,6 @@ const clear = () => {
     __notifs: undefined,
     __LIVE: undefined,
     __broadcasts: undefined,
-    __inboxVerb: undefined,
   });
   failed.clear();
   refreshed.length = 0;
@@ -472,8 +498,8 @@ const texts = (tree, cls) => all(tree, (n) => classes(n).includes(cls)).map(text
 
 test("above the work, nothing while every line is up; a line that is down is one red line with its own dot", () => {
   clear();
-  set({ TODAY_DATA: busy() });
-  const tree = draw(W.HeroBrief);
+  set({ today: busy() });
+  const tree = draw(HeroBrief);
   assert.equal(byTestId(tree, "today-standing"), null, "the standing line went: no date, no clock, no count");
   assert.equal(byTestId(tree, "today-alert"), null, "and nothing stands in its place while the lines are up");
   assert.equal(textOf(tree), "");
@@ -484,8 +510,8 @@ test("above the work, nothing while every line is up; a line that is down is one
     [],
     NOW,
   );
-  set({ TODAY_DATA: down });
-  const dark = draw(W.HeroBrief);
+  set({ today: down });
+  const dark = draw(HeroBrief);
   const alert = byTestId(dark, "today-alert");
   assert.ok(alert, "a line that is down is the one thing that cannot wait");
   assert.equal(alert.props.role, "alert");
@@ -497,9 +523,9 @@ test("above the work, nothing while every line is up; a line that is down is one
     "the coral live-dot is the agent's live state, never a status light",
   );
   assert.ok(!/Good (morning|afternoon|evening)/.test(textOf(dark)));
-  set({ TODAY_DATA: undefined });
+  set({ today: undefined });
   assert.equal(
-    draw(W.HeroBrief).rendered,
+    draw(HeroBrief).rendered,
     null,
     "no seeded hero: without the view model there is nothing above the work",
   );
@@ -510,8 +536,8 @@ test("above the work, nothing while every line is up; a line that is down is one
 test("the card: four figures in order, each with its clause; nothing said twice; the receipts and the not-numbers under them", () => {
   clear();
   const vm = busy();
-  set({ TODAY_DATA: vm, __BROADCASTS: broadcasts() });
-  const tree = draw(W.TodayCard);
+  set({ today: vm, __BROADCASTS: broadcasts() });
+  const tree = draw(TodayCard);
   const card = byTestId(tree, "today-card");
   assert.ok(card);
   const heading = find(card, (n) => n.type === "h2");
@@ -560,11 +586,11 @@ test("the card: four figures in order, each with its clause; nothing said twice;
 test("a receipt opens on hover, focus or a tap, says its why with one door, never repeats the figure, and closes on Escape", () => {
   clear();
   const vm = busy();
-  set({ TODAY_DATA: vm });
-  const first = draw(W.TodayCard);
+  set({ today: vm });
+  const first = draw(TodayCard);
   const fig = byTestId(first, "today-figure-messages");
   fig.props.onMouseEnter();
-  const hovered = again(() => W.React.createElement(W.TodayCard));
+  const hovered = again(() => W.React.createElement(TodayCard));
   const receipt = byTestId(hovered, "today-receipt-messages");
   assert.ok(receipt, "hover opens it");
   assert.equal(receipt.props.role, "dialog");
@@ -586,19 +612,19 @@ test("a receipt opens on hover, focus or a tap, says its why with one door, neve
   assert.equal(went.at(-1), f.receipt.door.to);
   assert.equal(byTestId(hovered, "today-receipt-answered"), null, "one at a time");
   byTestId(hovered, "today-figures").props.onMouseLeave();
-  const left = again(() => W.React.createElement(W.TodayCard));
+  const left = again(() => W.React.createElement(TodayCard));
   assert.equal(byTestId(left, "today-receipt-messages"), null);
   // A tap or a keyboard: the figure is the button.
   const btn = find(byTestId(left, "today-figure-calls"), (n) => n.type === "button");
   assert.equal(btn.props["aria-expanded"], false);
   press(btn);
-  const tapped = again(() => W.React.createElement(W.TodayCard));
+  const tapped = again(() => W.React.createElement(TodayCard));
   assert.ok(byTestId(tapped, "today-receipt-calls"));
   assert.equal(find(byTestId(tapped, "today-figure-calls"), (n) => n.type === "button").props["aria-expanded"], true);
   find(byTestId(tapped, "today-figure-calls"), (n) => n.type === "button").props.onKeyDown({ key: "Escape" });
   assert.equal(
     byTestId(
-      again(() => W.React.createElement(W.TodayCard)),
+      again(() => W.React.createElement(TodayCard)),
       "today-receipt-calls",
     ),
     null,
@@ -627,8 +653,8 @@ test("a receipt opens on hover, focus or a tap, says its why with one door, neve
     [],
     NOW,
   );
-  set({ TODAY_DATA: thin });
-  const plain = draw(W.TodayCard);
+  set({ today: thin });
+  const plain = draw(TodayCard);
   assert.equal(
     find(byTestId(plain, "today-figure-calls"), (n) => n.type === "button"),
     null,
@@ -638,8 +664,8 @@ test("a receipt opens on hover, focus or a tap, says its why with one door, neve
 
 test("the foot: the last seven days in Reports' own numbers with one door; a failed Reports read says so; nothing while it loads", () => {
   clear();
-  set({ TODAY_DATA: busy(), __REPORTS: reports() });
-  const tree = draw(W.TodayCard);
+  set({ today: busy(), __REPORTS: reports() });
+  const tree = draw(TodayCard);
   const line = byTestId(tree, "today-period");
   assert.equal(textOf(line), todayPeriodLine(reports()).text);
   assert.match(textOf(line), /^Last 7 days: 24 messages \(up from 19\), 88% answered by the receptionist, 4 calls\.$/);
@@ -648,11 +674,11 @@ test("the foot: the last seven days in Reports' own numbers with one door; a fai
   assert.equal(buttons(tree, "Open Reports").length, 1, "one door to Reports on the card: the period card had two");
   set({ __REPORTS: undefined });
   failed.add("reports");
-  const broke = draw(W.TodayCard);
+  const broke = draw(TodayCard);
   assert.equal(byTestId(broke, "today-period"), null);
   assert.match(textOf(byTestId(broke, "today-period-failed")), /Couldn't read Reports/);
   failed.clear();
-  const loading = draw(W.TodayCard);
+  const loading = draw(TodayCard);
   assert.equal(byTestId(loading, "today-period"), null);
   assert.equal(byTestId(loading, "today-period-failed"), null, "not read yet is not failed");
 });
@@ -660,8 +686,8 @@ test("the foot: the last seven days in Reports' own numbers with one door; a fai
 test("a quiet day: the card says nothing came in, proves the lines are listening, and keeps its one door; no figures", () => {
   clear();
   const vm = quietDay();
-  set({ TODAY_DATA: vm });
-  const tree = draw(W.TodayCard);
+  set({ today: vm });
+  const tree = draw(TodayCard);
   assert.equal(byTestId(tree, "today-figures"), null, "no row of zeros");
   const line = textOf(byTestId(tree, "today-quiet-line"));
   assert.ok(line.includes("Nothing has come in yet today.") && line.includes(vm.proof), line);
@@ -701,8 +727,8 @@ test("a quiet day: the card says nothing came in, proves the lines are listening
   );
   assert.equal(waiting.quiet, null);
   assert.equal(waiting.figures, null);
-  set({ TODAY_DATA: waiting });
-  const held = draw(W.TodayCard);
+  set({ today: waiting });
+  const held = draw(TodayCard);
   assert.equal(byTestId(held, "today-figures"), null);
   assert.ok(
     textOf(byTestId(held, "today-quiet-line")).includes(waiting.proof),
@@ -712,8 +738,8 @@ test("a quiet day: the card says nothing came in, proves the lines are listening
 
 test("the calls read failed: the card says so under the figures, once", () => {
   clear();
-  set({ TODAY_DATA: toTodayVM(metrics(), threads(), escalations(), null, NOW) });
-  const tree = draw(W.TodayCard);
+  set({ today: toTodayVM(metrics(), threads(), escalations(), null, NOW) });
+  const tree = draw(TodayCard);
   assert.ok(byTestId(tree, "brief-calls-failed"));
   assert.equal(all(tree, (n) => String(n.props?.className || "").includes("empty-failed")).length, 1);
 });
@@ -723,7 +749,7 @@ test("the calls read failed: the card says so under the figures, once", () => {
 test("the queue: no count badge over the rows, one primary verb, the runs in contracts' words, the approval toast too", async () => {
   clear();
   set({
-    TODAY_DATA: busy(),
+    today: busy(),
     __BROADCASTS: broadcasts(),
     __broadcasts: {
       approve: async () => ({
@@ -734,7 +760,7 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
     },
     bcWhenWords: () => "scheduled for Mon 9:00 AM",
   });
-  const tree = draw(W.AgentCommand);
+  const tree = draw(AgentCommand);
   const queue = byTestId(tree, "today-queue");
   assert.equal(
     find(queue, (n) => classes(n).includes("tq-count")),
@@ -775,7 +801,7 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   // The broadcasts read failed: the queue's rows are current, and it says the runs could not be read.
   set({ __BROADCASTS: undefined });
   failed.add("broadcasts");
-  const broke = draw(W.AgentCommand);
+  const broke = draw(AgentCommand);
   assert.match(textOf(byTestId(broke, "today-runs-failed")), /Couldn't read the playbook runs/);
   // `rows` above counted the two run rows too (they are AttnRows as well); the runs are a FailedRead now, so what must stand is the queue's own.
   assert.equal(
@@ -790,33 +816,50 @@ test("a snooze or a resolve from the queue is said the moment the server takes i
   const vm = busy();
   const row = vm.queue.rows.find((r) => r.also);
   assert.ok(row, "the fixture has a person with a second act");
+  // The verb goes through the typed client to `fetch` (surfaces/inbox/verbs.ts): the server takes the write at once, and
+  // the reads behind it (the Inbox, the threads, Today) wait here until the test lets them land.
+  const asks = [];
+  const reads = [];
   let reread = () => {};
-  set({
-    TODAY_DATA: vm,
-    __BROADCASTS: broadcasts(),
-    __inboxVerb: async (_t, _verb, _payload, opts = {}) => {
-      if (opts.onAccepted) opts.onAccepted();
-      await new Promise((r) => {
-        reread = r;
-      });
-      return { ok: true, data: {} };
-    },
+  const landing = new Promise((r) => {
+    reread = r;
   });
-  const queue = byTestId(draw(W.AgentCommand), "today-queue");
-  const act = byTestId(queue, `queue-${row.also.verb}`);
-  const done = press(act);
-  await new Promise((r) => setTimeout(r, 0));
-  assert.equal(flashes.length, 1, "said at acceptance, while the Inbox, the threads and Today are read again");
-  assert.match(textOf(flashes[0].msg), new RegExp(row.who));
-  reread();
-  await done;
-  assert.equal(flashes.length, 1, "and said once");
-  // A refusal is the refusal, once.
-  set({
-    __inboxVerb: async () => ({ ok: false, code: "conflict", status: 409, message: "A teammate has this one now." }),
-  });
-  await press(byTestId(byTestId(draw(W.AgentCommand), "today-queue"), `queue-${row.also.verb}`));
-  assert.equal(flashes.length, 2);
+  let answer = () => json(200, { ok: true, data: {} });
+  globalThis.window.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    if ((init.method ?? "GET") !== "GET") {
+      asks.push([init.method, u.pathname]);
+      return answer();
+    }
+    reads.push(u.pathname);
+    await landing;
+    return refused();
+  };
+  try {
+    set({ today: vm, __BROADCASTS: broadcasts() });
+    const queue = byTestId(draw(AgentCommand), "today-queue");
+    const act = byTestId(queue, `queue-${row.also.verb}`);
+    let finished = false;
+    const done = Promise.resolve(press(act)).then(() => {
+      finished = true;
+    });
+    for (let i = 0; i < 1000 && (flashes.length === 0 || reads.length === 0); i++) await settle();
+    assert.equal(asks.length, 1, "one ask, to the server");
+    assert.equal(flashes.length, 1, "said at acceptance, while the Inbox, the threads and Today are read again");
+    assert.match(textOf(flashes[0].msg), new RegExp(row.who));
+    assert.ok(reads.length > 0 && !finished, "and the surfaces are still being read again: the verb has not returned");
+    reread();
+    await done;
+    assert.equal(flashes.length, 1, "and said once");
+    // A refusal is the refusal, once.
+    answer = () => json(409, { ok: false, error: { code: "conflict", message: "A teammate has this one now." } });
+    await press(byTestId(byTestId(draw(AgentCommand), "today-queue"), `queue-${row.also.verb}`));
+    assert.equal(asks.length, 2);
+    assert.equal(flashes.length, 2);
+  } finally {
+    reread();
+    globalThis.window.fetch = async () => refused();
+  }
 });
 
 test("a run's Approve from the queue is said the moment the server takes it, with what it scheduled, not after the runs are read again", async () => {
@@ -824,7 +867,7 @@ test("a run's Approve from the queue is said the moment the server takes it, wit
   let reread = () => {};
   const accepted = { recipient_count: 3, scheduled_for: iso(3_600_000), moved_from: iso(0) };
   set({
-    TODAY_DATA: busy(),
+    today: busy(),
     __BROADCASTS: broadcasts(),
     bcWhenWords: () => "scheduled for Mon 9:00 AM",
     __broadcasts: {
@@ -837,7 +880,7 @@ test("a run's Approve from the queue is said the moment the server takes it, wit
       cancel: async () => ({ ok: true, data: {} }),
     },
   });
-  const waiting = byTestId(byTestId(draw(W.AgentCommand), "today-queue"), "brief-run-row");
+  const waiting = byTestId(byTestId(draw(AgentCommand), "today-queue"), "brief-run-row");
   const done = press(buttons(waiting, "Approve")[0]);
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(flashes.length, 1, "said at acceptance");
@@ -861,8 +904,8 @@ test("four rows: people take three while a run wants the fourth, and all four wh
     cta: { ...first.cta },
     also: null,
   }));
-  set({ TODAY_DATA: vm, __BROADCASTS: broadcasts() });
-  const queue = byTestId(draw(W.AgentCommand), "today-queue");
+  set({ today: vm, __BROADCASTS: broadcasts() });
+  const queue = byTestId(draw(AgentCommand), "today-queue");
   const rows = all(queue, (n) => classes(n).includes("cl-attn-row"));
   assert.equal(rows.length, 4, "the card is four rows");
   assert.deepEqual(
@@ -886,7 +929,7 @@ test("four rows: people take three while a run wants the fourth, and all four wh
 
   // No run wants the seat, so a fourth person has it rather than leaving a hole.
   set({ __BROADCASTS: { rows: [] } });
-  const only = byTestId(draw(W.AgentCommand), "today-queue");
+  const only = byTestId(draw(AgentCommand), "today-queue");
   const four = all(only, (n) => classes(n).includes("cl-attn-row"));
   assert.equal(four.length, 4);
   assert.deepEqual(
@@ -934,8 +977,8 @@ test("a search waiting on you is a row of the queue like a person: its name, its
     },
   };
   const vm = toTodayVM(metrics(), threads(), escalations(), calls(), NOW, [waiting]);
-  set({ TODAY_DATA: vm, __BROADCASTS: { rows: [] } });
-  const queue = byTestId(draw(W.AgentCommand), "today-queue");
+  set({ today: vm, __BROADCASTS: { rows: [] } });
+  const queue = byTestId(draw(AgentCommand), "today-queue");
   const row = byTestId(queue, "queue-search");
   assert.ok(row, "the search is drawn by the same row as every person");
   assert.equal(textOf(find(row, (n) => classes(n).includes("cl-attn-who"))), waiting.name);
@@ -953,8 +996,8 @@ test("the day listens for People too: it reads People for a visit that needs som
   // the card drew once with the calendar and never again, so the flag and the glyphs a person's row carries were
   // missing until something else redrew it.
   clear();
-  set({ TODAY_DATA: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: { rows: [] } });
-  draw(W.TodayDay);
+  set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: { rows: [] } });
+  draw(TodayDay);
   for (const key of ["calendar", "playbooks", "people"]) {
     quiet();
     surfaceLanded(key);
@@ -969,15 +1012,15 @@ test("the day listens for People too: it reads People for a visit that needs som
 test("each band of Today is drawn again when a surface it draws from lands, and by no other's", () => {
   // The shell drew whole on every surface's read; a band now names the surfaces it draws (useSurface) and moves on those.
   clear();
-  set({ TODAY_DATA: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: { rows: [] } });
+  set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: { rows: [] } });
   const bands = [
-    ["the alert line", W.HeroBrief, ["today"]],
-    ["the day's card", W.TodayCard, ["today", "reports"]],
-    ["the setup card", W.TodaySetup, ["setup"]],
-    ["the queue", W.AgentCommand, ["today", "broadcasts", "live"]],
-    ["Worth a look", W.TodayLeaks, ["reports", "people", "today"]],
-    ["the pins", W.TodayPins, ["people"]],
-    ["the day", W.TodayDay, ["calendar", "playbooks", "people"]],
+    ["the alert line", HeroBrief, ["today"]],
+    ["the day's card", TodayCard, ["today", "reports"]],
+    ["the setup card", TodaySetup, ["setup"]],
+    ["the queue", AgentCommand, ["today", "broadcasts", "live"]],
+    ["Worth a look", TodayLeaks, ["reports", "people", "today"]],
+    ["the pins", TodayPins, ["people"]],
+    ["the day", TodayDay, ["calendar", "playbooks", "people"]],
   ];
   for (const [name, Band, drawnFrom] of bands) {
     draw(Band);
@@ -997,11 +1040,11 @@ test("each band of Today is drawn again when a surface it draws from lands, and 
 test("the day: five rows and a line to the Calendar; a failed calendar read says so where the day would be", () => {
   clear();
   set({
-    TODAY_DATA: busy(),
+    today: busy(),
     __CALENDAR: calendar([8, 9, 10, 11, 13, 14, 17].map((h) => block(`b${h}`, h, `Slot ${h}`))),
     __PLAYBOOKS: { rows: [] },
   });
-  const tree = draw(W.TodayDay);
+  const tree = draw(TodayDay);
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "today-day-item").length, 5);
   const more = byTestId(tree, "today-day-more");
   assert.equal(textOf(more).trim(), "2 more on the Calendar");
@@ -1009,19 +1052,19 @@ test("the day: five rows and a line to the Calendar; a failed calendar read says
   assert.equal(went.at(-1), "calendar");
   set({ __CALENDAR: undefined });
   failed.add("calendar");
-  const broke = draw(W.TodayDay);
+  const broke = draw(TodayDay);
   assert.ok(byTestId(broke, "today-day-failed"));
   assert.match(textOf(broke), /Couldn't read the calendar/);
   failed.clear();
-  assert.equal(draw(W.TodayDay).rendered, null, "not read yet: the Calendar page's card says why");
+  assert.equal(draw(TodayDay).rendered, null, "not read yet: the Calendar page's card says why");
 });
 
 test("a calendar it HAS and could not read says so where the day goes: the feed's own words, the Retry, the door", () => {
   clear();
   const c = calendar([]);
   c.vm.feed = { ...c.vm.feed, state: "unavailable", problem: feedProblemWords("settings"), events: 0 };
-  set({ TODAY_DATA: busy(), __CALENDAR: c, __PLAYBOOKS: { rows: [] } });
-  const card = byTestId(draw(W.TodayDay), "today-day-unreadable");
+  set({ today: busy(), __CALENDAR: c, __PLAYBOOKS: { rows: [] } });
+  const card = byTestId(draw(TodayDay), "today-day-unreadable");
   // REGRESSION: this returned null. A working day and a broken feed drew exactly the same thing — nothing —
   // so a bad calendar address survived two rounds of being looked straight at.
   assert.ok(card, "the card is there");
@@ -1040,7 +1083,7 @@ test("a calendar it HAS and could not read says so where the day goes: the feed'
   // No calendar at all is not a fault: nothing failed, there is nothing to retry, and the invitation to connect
   // one is the Calendar page's card to make — not a red word on a page about today's work.
   c.vm.feed = { ...c.vm.feed, present: false, state: "none", problem: null };
-  assert.equal(draw(W.TodayDay).rendered, null, "no feed stays silent");
+  assert.equal(draw(TodayDay).rendered, null, "no feed stays silent");
 });
 
 test("the steps due at the head of the day: three at most, the oldest first, each opening its person, the rest a line to People's Steps due; with no calendar the panel is the steps alone", () => {
@@ -1076,9 +1119,9 @@ test("the steps due at the head of the day: three at most, the oldest first, eac
   const clock = W.__clock;
   W.__clock = { ...clock, zone: () => ZONE };
   try {
-    set({ TODAY_DATA: busy(), __PLAYBOOKS: { rows: [] }, __PEOPLE: { rows, fetchedAt: nowMs } });
+    set({ today: busy(), __PLAYBOOKS: { rows: [] }, __PEOPLE: { rows, fetchedAt: nowMs } });
     const want = todaySteps(rows, nowMs, ZONE);
-    const alone = byTestId(draw(W.TodayDay), "today-day-steps");
+    const alone = byTestId(draw(TodayDay), "today-day-steps");
     assert.ok(alone, "no calendar: the panel is the steps alone");
     assert.equal(textOf(find(alone, (n) => classes(n).includes("td-frame-label"))), want.title);
     const items = all(alone, (n) => n.props?.["data-testid"] === "today-step");
@@ -1102,7 +1145,7 @@ test("the steps due at the head of the day: three at most, the oldest first, eac
     assert.equal(went.at(-1), "clients/seg:steps_due", "the rest: People's Steps due");
     // With a calendar, at the head of the day: before its first frame.
     set({ __CALENDAR: calendar([block("b9", 9, "Slot 9")]) });
-    const dayCard = byTestId(draw(W.TodayDay), "today-day");
+    const dayCard = byTestId(draw(TodayDay), "today-day");
     assert.deepEqual(
       all(dayCard, (n) => ["today-steps", "today-day-frame"].includes(n.props?.["data-testid"]))
         .map((n) => n.props["data-testid"])
@@ -1112,23 +1155,23 @@ test("the steps due at the head of the day: three at most, the oldest first, eac
     // A calendar read that failed says so under the steps, which are People's and still true.
     set({ __CALENDAR: undefined });
     failed.add("calendar");
-    const broke = byTestId(draw(W.TodayDay), "today-day-failed");
+    const broke = byTestId(draw(TodayDay), "today-day-failed");
     assert.ok(byTestId(broke, "today-steps") && byTestId(broke, "today-day-failed-read"));
     failed.clear();
     // A feed it has and could not read: the steps, then what went wrong. None connected: the steps alone.
     const cal = calendar([]);
     cal.vm.feed = { ...cal.vm.feed, state: "unavailable", problem: feedProblemWords("settings"), events: 0 };
     set({ __CALENDAR: cal });
-    assert.ok(byTestId(byTestId(draw(W.TodayDay), "today-day-unreadable"), "today-steps"));
+    assert.ok(byTestId(byTestId(draw(TodayDay), "today-day-unreadable"), "today-steps"));
     cal.vm.feed = { ...cal.vm.feed, present: false, state: "none", problem: null };
-    assert.ok(byTestId(draw(W.TodayDay), "today-day-steps"), "no feed: the steps alone, never nothing");
+    assert.ok(byTestId(draw(TodayDay), "today-day-steps"), "no feed: the steps alone, never nothing");
     set({ __CALENDAR: undefined });
     // Judged when People's rows were published, as every page judges a step: six days ago, none was due yet.
     set({ __PEOPLE: { rows, fetchedAt: nowMs - 6 * 86_400_000 } });
-    assert.equal(draw(W.TodayDay).rendered, null, "one clock: People's");
+    assert.equal(draw(TodayDay).rendered, null, "one clock: People's");
     // None due: nothing, and without a calendar nothing at all.
     set({ __PEOPLE: { rows: [row("e", "Eli", 2), row("f", "Flo", null)] } });
-    assert.equal(draw(W.TodayDay).rendered, null);
+    assert.equal(draw(TodayDay).rendered, null);
   } finally {
     W.__clock = clock;
   }
@@ -1140,8 +1183,8 @@ test("worth a look: the tone once, as the row's pill; who is waiting as chips; A
   clear();
   const vm = busy();
   // The chrome bridge, as the app publishes it, so the one pill draws the row's tone.
-  set({ TODAY_DATA: vm, __REPORTS: reports(), __PEOPLE: people(), __chrome: { state: stateOf } });
-  const tree = draw(W.TodayLeaks);
+  set({ today: vm, __REPORTS: reports(), __PEOPLE: people(), __chrome: { state: stateOf } });
+  const tree = draw(TodayLeaks);
   const band = byTestId(tree, "today-leaks");
   const { rows, moreLine } = todayLeaks(reports(), people(), vm.noReply);
   assert.equal(rows.length, 2);
@@ -1217,16 +1260,16 @@ test("worth a look: the tone once, as the row's pill; who is waiting as chips; A
     },
     __PEOPLE: { ...people(), lists: [list("quiet", "Quiet 30+ days", 1, null)] },
   });
-  assert.equal(draw(W.TodayLeaks).rendered, null, "a workspace with nothing wrong gets no band at all");
+  assert.equal(draw(TodayLeaks).rendered, null, "a workspace with nothing wrong gets no band at all");
   set({ __REPORTS: undefined, __PEOPLE: people() });
   failed.add("reports");
-  assert.match(textOf(byTestId(draw(W.TodayLeaks), "today-leaks-failed")), /Couldn't read Reports/);
+  assert.match(textOf(byTestId(draw(TodayLeaks), "today-leaks-failed")), /Couldn't read Reports/);
   failed.clear();
   set({ __REPORTS: reports(), __PEOPLE: undefined });
   failed.add("people");
-  assert.match(textOf(byTestId(draw(W.TodayLeaks), "today-leaks-failed")), /Couldn't read People/);
+  assert.match(textOf(byTestId(draw(TodayLeaks), "today-leaks-failed")), /Couldn't read People/);
   failed.clear();
-  assert.equal(draw(W.TodayLeaks).rendered, null, "not read yet is not failed");
+  assert.equal(draw(TodayLeaks).rendered, null, "not read yet is not failed");
   set({ __chrome: undefined });
 });
 
@@ -1235,14 +1278,14 @@ test("worth a look on a phone: the arithmetic waits behind the sentence, and the
   // font). The words stay in the row, hidden, so Ask and a phone run read the same line as a desk does.
   clear();
   const vm = busy();
-  set({ TODAY_DATA: vm, __REPORTS: reports(), __PEOPLE: people() });
+  set({ today: vm, __REPORTS: reports(), __PEOPLE: people() });
   const had = W.matchMedia;
   W.matchMedia = (q) => ({ matches: q === "(max-width: 720px)" });
   try {
     const { rows } = todayLeaks(reports(), people(), vm.noReply);
     const [first, second] = rows;
     const mathOf = (tree, id) => find(byTestId(tree, `today-leak-${id}`), (n) => classes(n).includes("tl-math"));
-    let tree = draw(W.TodayLeaks);
+    let tree = draw(TodayLeaks);
     assert.equal(all(tree, (n) => classes(n).includes("tsec-sub")).length, 0, "no subtitle over the rows");
     const door = byTestId(tree, `today-leak-text-${first.id}`);
     assert.equal(door.type, "button", "the sentence is the door");
@@ -1253,19 +1296,19 @@ test("worth a look on a phone: the arithmetic waits behind the sentence, and the
     assert.equal(textOf(mathOf(tree, first.id)), first.math, "in the row's own words");
     assert.equal(mathOf(tree, second.id).props.hidden, true);
     press(door);
-    tree = again(() => W.React.createElement(W.TodayLeaks));
+    tree = again(() => W.React.createElement(TodayLeaks));
     assert.equal(byTestId(tree, `today-leak-text-${first.id}`).props["aria-expanded"], true);
     assert.equal(mathOf(tree, first.id).props.hidden, false, "one press shows it");
     assert.equal(mathOf(tree, second.id).props.hidden, true, "and only it");
     press(byTestId(tree, `today-leak-text-${first.id}`));
-    tree = again(() => W.React.createElement(W.TodayLeaks));
+    tree = again(() => W.React.createElement(TodayLeaks));
     assert.equal(mathOf(tree, first.id).props.hidden, true, "a second press puts it away");
   } finally {
     if (had === undefined) delete W.matchMedia;
     else W.matchMedia = had;
   }
   // A desk keeps the sentence a span and the arithmetic in view.
-  const desk = draw(W.TodayLeaks);
+  const desk = draw(TodayLeaks);
   const { rows } = todayLeaks(reports(), people(), vm.noReply);
   assert.equal(byTestId(desk, `today-leak-text-${rows[0].id}`), null);
   assert.equal(
@@ -1358,8 +1401,8 @@ test("REGRESSION: worth a look over People's real rows -- a yes to offers with n
     vm: { ...reports().vm, answered: { totals: { in: 23, ai: 23, you: 0, none: 0 } } },
     booking: { present: true, headline: "17 of 18 booked", sub: "", pct: 94, asked: 18, booked: 17 },
   };
-  set({ TODAY_DATA: busy(), __REPORTS: R, __PEOPLE: P });
-  const reach = byTestId(draw(W.TodayLeaks), "today-leak-unreachable");
+  set({ today: busy(), __REPORTS: R, __PEOPLE: P });
+  const reach = byTestId(draw(TodayLeaks), "today-leak-unreachable");
   assert.ok(reach, "nobody can be sent an offer: the row stands");
   const want = todayLeaks(R, P).rows.find((l) => l.id === "unreachable");
   assert.equal(textOf(find(reach, (n) => classes(n).includes("tl-text"))), want.text);
@@ -1445,10 +1488,10 @@ test("worth a look where deals are on: the consultations row names the count's o
     vm: { ...reports().vm, answered: { totals: { in: 23, ai: 23, you: 0, none: 0 } } },
     booking: { present: true, headline: "17 of 18 booked", sub: "", pct: 94, asked: 18, booked: 17 },
   };
-  set({ TODAY_DATA: busy(), __REPORTS: R, __PEOPLE: P });
+  set({ today: busy(), __REPORTS: R, __PEOPLE: P });
   const want = todayLeaks(R, P).rows.find((l) => l.id === "consults-waiting");
   assert.ok(want, "three consultations this week, no proposal after any");
-  const row = byTestId(draw(W.TodayLeaks), "today-leak-consults-waiting");
+  const row = byTestId(draw(TodayLeaks), "today-leak-consults-waiting");
   assert.ok(row, "the row is drawn");
   assert.equal(textOf(find(row, (n) => classes(n).includes("tl-tag"))), "Next step");
   assert.equal(textOf(find(row, (n) => classes(n).includes("tl-text"))), want.text);
@@ -1472,7 +1515,7 @@ test("worth a look where deals are on: the consultations row names the count's o
   assert.equal(went.at(-1), "clients/pipeline", "the door is the Pipeline, whose number the row re-prints");
   // Where deals are off the same calendar says nothing here.
   set({ __PEOPLE: { ...P, dealsOn: false } });
-  assert.equal(draw(W.TodayLeaks).rendered, null, "no deals, no row, and no band with nothing in it");
+  assert.equal(draw(TodayLeaks).rendered, null, "no deals, no row, and no band with nothing in it");
 });
 
 /* ------------------------------------ while you were away ------------------------------------ */
@@ -1496,9 +1539,9 @@ test("while you were away: drawn wherever the bell is, deduped over every queue 
     unread: () => unreadCount(rows),
   };
   // The queue draws the Win-back run held for a word (broadcasts()), so the bell's "is ready" about it is the queue's.
-  set({ TODAY_DATA: vm, __notifs: api, __BROADCASTS: broadcasts() });
+  set({ today: vm, __notifs: api, __BROADCASTS: broadcasts() });
   W.__DEMO_MODE = true;
-  const tree = draw(W.TodayAway);
+  const tree = draw(TodayAway);
   assert.ok(
     byTestId(tree, "today-away"),
     "the mockup's sample publishes a bell too: the card no longer hides in a demo",
@@ -1521,7 +1564,10 @@ test("while you were away: drawn wherever the bell is, deduped over every queue 
 
 /* ------------------------------------ the mockup ------------------------------------ */
 
-test("the mockup: the borrowed surfaces come from the sample's one global in a demo session, never from the bridge's names", () => {
+// The mockup's sample of Today's borrowed surfaces (`window.__TODAY_SAMPLE`) is deleted (decision 0015, step 4): the
+// standalone mockup no longer draws Today, so a demo session's sample is no source of anything. What is left of this
+// test is its second half, which still holds as it was, and the first half turned round.
+test("the mockup no longer draws Today: a demo session's sample is not read, the borrowed surfaces come from the bridge's names alone", () => {
   clear();
   const bell = {
     feed: () => [bellRow("n:1", "review", "1 new rating on Google", "ok")],
@@ -1532,7 +1578,7 @@ test("the mockup: the borrowed surfaces come from the sample's one global in a d
     unread: () => 1,
   };
   set({
-    TODAY_DATA: busy(),
+    today: busy(),
     __TODAY_SAMPLE: {
       __REPORTS: reports(),
       __PEOPLE: people(),
@@ -1544,11 +1590,11 @@ test("the mockup: the borrowed surfaces come from the sample's one global in a d
     },
   });
   W.__DEMO_MODE = true;
-  const demo = draw(W.DashboardA);
+  const demo = draw(DashboardA);
+  for (const id of ["today-queue", "today-card"])
+    assert.ok(byTestId(demo, id), `${id}: its own view model still draws`);
   for (const id of [
-    "today-queue",
     "today-day",
-    "today-card",
     "today-period",
     "brief-run-row",
     "brief-run-done",
@@ -1556,7 +1602,7 @@ test("the mockup: the borrowed surfaces come from the sample's one global in a d
     "today-away",
     "today-away-row",
   ])
-    assert.ok(byTestId(demo, id), `${id}: drawn from the sample`);
+    assert.equal(byTestId(demo, id), null, `${id}: not drawn from the sample, which nothing reads any more`);
   for (const name of ["__REPORTS", "__PEOPLE", "__BROADCASTS", "__CALENDAR", "__PLAYBOOKS", "__notifs"])
     assert.equal(
       W[name],
@@ -1565,7 +1611,7 @@ test("the mockup: the borrowed surfaces come from the sample's one global in a d
     );
   // A workspace never reads the sample: the same globals outside a demo session draw nothing borrowed.
   W.__DEMO_MODE = false;
-  const real = draw(W.DashboardA);
+  const real = draw(DashboardA);
   for (const id of ["today-day", "today-period", "brief-run-row", "today-leaks", "today-away"])
     assert.equal(byTestId(real, id), null, `${id}: never from the sample outside a demo`);
   assert.ok(byTestId(real, "today-queue") && byTestId(real, "today-card"), "its own view model still draws");
@@ -1576,7 +1622,7 @@ test("the mockup: the borrowed surfaces come from the sample's one global in a d
 test("the page is three bands and nothing seeded: the standing line, the queue with the day, the card, worth a look with away", () => {
   clear();
   set({
-    TODAY_DATA: busy(),
+    today: busy(),
     __REPORTS: reports(),
     __PEOPLE: people(),
     __BROADCASTS: broadcasts(),
@@ -1585,7 +1631,7 @@ test("the page is three bands and nothing seeded: the standing line, the queue w
     __notifs: { feed: () => [], onChange: () => () => {}, read() {}, dismiss() {}, seenAll() {}, unread: () => 0 },
   });
   W.__DEMO_MODE = true;
-  const tree = draw(W.DashboardA);
+  const tree = draw(DashboardA);
   const order = ["today-queue", "today-day", "today-card", "today-leaks", "today-away"].map((id) => byTestId(tree, id));
   assert.ok(order.every(Boolean), "every band");
   const names = all(tree, (n) => typeof n.type === "function").map((n) => n.type.name);

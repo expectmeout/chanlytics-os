@@ -51,6 +51,29 @@ test("on a person's page the head starts who is looking and the person, as the c
   assert.deepEqual(Object.keys(win[PREFETCH_SLOT]).sort(), calls.map(([u]) => u).sort(), "parked under the URL");
 });
 
+test("the route is the path's, else the hash's: a person's page opens the person from either", () => {
+  const person = [`/api/v1/workspaces?workspace=harbor`, `/api/v1/contacts/${ID}?workspace=harbor`];
+  // Decision 0015: the route is what follows the slug.
+  assert.deepEqual(
+    headRuns({ pathname: `/w/harbor/clients/${ID}`, hash: "" }).calls.map(([u]) => u),
+    person,
+  );
+  // An address the frame has not moved yet still says it in the hash, and the person is read while the frame moves it.
+  assert.deepEqual(
+    headRuns({ pathname: "/w/harbor", hash: `#/clients/${ID}` }).calls.map(([u]) => u),
+    person,
+  );
+  // The path wins over a hash left in it, and a path for another page reads no person.
+  assert.deepEqual(
+    headRuns({ pathname: "/w/harbor/inbox", hash: `#/clients/${ID}` }).calls.map(([u]) => u),
+    [`/api/v1/workspaces?workspace=harbor`],
+  );
+  assert.deepEqual(
+    headRuns({ pathname: "/w/harbor/clients/not-a-uuid", hash: "" }).calls.map(([u]) => u),
+    [`/api/v1/workspaces?workspace=harbor`],
+  );
+});
+
 test("on any other workspace page only who is looking is started; off a workspace page nothing is", () => {
   assert.deepEqual(
     headRuns({ pathname: "/w/acme", hash: "#/today" }).calls.map(([u]) => u),

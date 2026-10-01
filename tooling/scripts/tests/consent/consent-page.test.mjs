@@ -316,7 +316,7 @@ test("the sign's markup carries every word of its view model, the code as given,
   assert.ok(!nodes(empty).some((n) => n.type === PrintButton), "no button that prints nothing");
 });
 
-test("the wiring: public by one prefix, read by slug, writes nothing, and the owner is given the link", () => {
+test("the wiring: public by one prefix, read by slug, writes nothing, and the owner is given the link", async () => {
   const page = readCode("apps/dashboard/app/yes/[slug]/page.tsx");
   assert.ok(page.includes("const facts = await consentPageFor(slug);") && page.includes("if (!facts) notFound();"));
   assert.ok(!/<form|<input|useState|"POST"/.test(page), "no field, no write: a number typed into a box is not consent");
@@ -335,9 +335,53 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
     "exactly the facts the page shows leave this boundary",
   );
   assert.ok(!/insert|update|delete|upsert/i.test(server), "the public page's reader may not write");
-  const bc = readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx");
-  assert.ok(bc.includes('data-testid="bc-optin-page"') && bc.includes("the wording the phone carriers ask for"));
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts");
+  // The owner's Broadcasts page names that address, and says why it is there: drawn (the ledger's Get their yes section,
+  // surfaces/campaigns/broadcasts) over a surface that holds it, from this test's workspace.
+  const { installLegacyReact, fresh, byTestId, textOf } = await import("../_legacy-react.mjs");
+  installLegacyReact({
+    __WORKSPACES: [
+      { id: "t-marisa", slug: "marisas", name: "Marisa's", status: "active", timezone: "America/New_York" },
+    ],
+    __ACTIVE_WORKSPACE: "t-marisa",
+    usePPToast: () => [null, () => {}],
+    canDo: () => true,
+    gate: () => ({}),
+    __DEMO_MODE: false,
+  });
+  const SRC = "../../../../apps/dashboard/src";
+  const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+  const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+  setSurfaceValue("broadcasts", {
+    rows: [],
+    templates: [],
+    listsRead: true,
+    audiences: [],
+    number: null,
+    heldReasons: {},
+    chunk: 25,
+    replyWindow: "within 3 days",
+    optIn: {
+      phrase: CONSENT_PHRASE,
+      phraseEs: CONSENT_PHRASE_ES,
+      link: optInLink("+13055550188"),
+      qrPath: "/api/v1/consent/qr",
+      pageUrl: "https://app.chanlytics.com/yes/marisas",
+    },
+    getYes: "broadcasts/get-yes",
+    businessName: "Marisa's Beauty Salon",
+    bookingLink: false,
+    offersNote: "",
+    more: false,
+    scheduleMaxDays: 30,
+    fetchedAt: 1,
+  });
+  fresh();
+  const line = textOf(byTestId(BroadcastsPage({}), "bc-optin-page"));
+  assert.ok(
+    line.includes("app.chanlytics.com/yes/marisas") && line.includes("the wording the phone carriers ask for"),
+    line,
+  );
+  const sd = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
   assert.ok(
     sd.includes("const slug = workspaceOverride.current()?.slug ?? null;") &&
       sd.includes("pageUrl: slug ? `${window.location.origin}/yes/${slug}` : null,"),

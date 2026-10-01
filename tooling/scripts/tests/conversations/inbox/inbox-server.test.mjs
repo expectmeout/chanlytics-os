@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
+import { installLegacyReact, fresh, again, find } from "../../_legacy-react.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -343,7 +343,8 @@ test("an email intake that died leaves the email flagged for a person, and marks
 
 /* ------------------------------- the bridge's read ------------------------------- */
 
-globalThis.window = {
+installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+Object.assign(globalThis, {
   location: {
     pathname: "/w/harbor",
     hash: "",
@@ -352,28 +353,17 @@ globalThis.window = {
     replace() {},
     reload() {},
   },
-  localStorage: globalThis.localStorage,
-  sessionStorage: globalThis.sessionStorage,
   __WORKSPACES: [{ id: "t1", slug: "harbor", name: "Harbor", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  __surfaceState: () => "live",
-  __DEMO_MODE: false,
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent() {
-    return true;
-  },
-  setTimeout: () => 1,
-  clearTimeout() {},
-  setInterval: () => 1,
-  clearInterval() {},
-};
+});
+globalThis.document.visibilityState = "hidden";
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-const { inboxOverride } = await quiet(() => import(at("apps/dashboard/src/legacy-bridge/surfaces/inbox.ts")));
+const { inboxOverride } = await quiet(() => import(at("apps/dashboard/src/surfaces/inbox/surface.ts")));
+const { surfaceValue } = await import(at("apps/dashboard/src/surfaces/surface-values.ts"));
 
 test("the bridge asks once for every escalated thread past the newest hundred, and says how many it could not read", async () => {
   const dtoConv = (id) => ({
@@ -420,18 +410,14 @@ test("the bridge asks once for every escalated thread past the newest hundred, a
     "REGRESSION: one read per thread",
   );
   assert.equal(asked.filter((p) => p === "/api/v1/conversations?ids").length, 1, "one read for all of them");
-  assert.equal(
-    globalThis.window.INBOX_DATA.THREADS.length,
-    125,
-    "REGRESSION: the first twenty only; the other five vanished",
-  );
-  assert.equal(globalThis.window.INBOX_DATA.UNREAD_ESCALATED, 0);
+  assert.equal(surfaceValue("inbox").THREADS.length, 125, "REGRESSION: the first twenty only; the other five vanished");
+  assert.equal(surfaceValue("inbox").UNREAD_ESCALATED, 0);
 
   asked = [];
   idsFail = true;
   await quiet(() => inboxOverride.apply());
   assert.equal(
-    globalThis.window.INBOX_DATA.UNREAD_ESCALATED,
+    surfaceValue("inbox").UNREAD_ESCALATED,
     25,
     "every waiting customer the read could not bring is counted, and the list says so",
   );
@@ -439,98 +425,10 @@ test("the bridge asks once for every escalated thread past the newest hundred, a
 
 /* -------------------------------- the composer -------------------------------- */
 
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = fn();
-    return cells[k];
-  },
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.document = {
-  visibilityState: "hidden",
-  body: { appendChild() {} },
-  addEventListener() {},
-  removeEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
-};
-
 test("the composer of a text thread says Text, not WhatsApp", async () => {
+  // The shell's own toast and role gate, which the pane draws through the bridge (surfaces/legacy-verbs.ts).
   await import(at("apps/dashboard/src/legacy/components/data-bits.jsx"));
-  for (const k of [
-    "StatePill",
-    "MoreMenu",
-    "EmptyState",
-    "PolicyChip",
-    "TlMedia",
-    "FailedRead",
-    "Confirm",
-    "usePPToast",
-    "useHotkey",
-  ])
-    globalThis[k] = globalThis.window[k];
-  await import(at("apps/dashboard/src/legacy/pages/inbox-thread.jsx"));
-  const walk = (n, fn) => {
-    if (n == null || typeof n !== "object") return;
-    if (Array.isArray(n)) {
-      for (const k of n) walk(k, fn);
-      return;
-    }
-    fn(n);
-    walk(n.props?.children, fn);
-    walk(n.rendered, fn);
-  };
-  const find = (tree, pred) => {
-    let hit;
-    walk(tree, (n) => {
-      if (hit === undefined && pred(n)) hit = n;
-    });
-    return hit;
-  };
+  const { Composer } = await import(at("apps/dashboard/src/surfaces/inbox/thread/composer.tsx"));
   const rows = [message("m1", uuid(1), A, { channel: "sms", created_at: ago(50 * HOUR), channel_ts: ago(50 * HOUR) })];
   const vm = toInboxThreadVM(
     {
@@ -548,9 +446,8 @@ test("the composer of a text thread says Text, not WhatsApp", async () => {
     ZONE,
     new Date(),
   );
-  cells = [];
-  frames.begin();
-  const tree = globalThis.window.InboxComposer({ thread: vm, reply: "", onSend() {} });
+  fresh();
+  const tree = again(() => Composer({ thread: vm, reply: "", onSend() {} }));
   // The reply box names the channel in its field; the line under it that said "Text · to Ada" is gone.
   assert.equal(
     find(tree, (n) => n.type === "textarea").props.placeholder,

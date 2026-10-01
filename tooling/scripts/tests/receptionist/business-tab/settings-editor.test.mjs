@@ -28,6 +28,7 @@ import {
   formatPhoneDisplay,
 } from "@chanlytics/contracts";
 import * as C from "@chanlytics/contracts";
+import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
 
 const TID = "t-studio";
 
@@ -169,10 +170,9 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../../apps/dashboard/src/legacy/components/record-field.jsx");
-await import("../../../../../apps/dashboard/src/legacy/components/record-row.jsx");
-// The record kit's folds answer the rail's question too, and the kit loads before any page, as it does in the app.
-await import("../../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
+// The record kit's folds answer the rail's question too, and the kit is published before any page, as it is in the app.
+Object.assign(globalThis.window, kitPages);
+useStubHooks();
 const kitUnsaved = globalThis.window.__settingsUnsaved;
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
 Object.assign(globalThis.window, {

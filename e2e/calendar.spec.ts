@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { activeWorkspace, scoped, apiGet } from "./workspace";
+import { routeOf } from "./address";
 
 /**
  * Calendar on a real workspace.
@@ -11,6 +12,9 @@ import { activeWorkspace, scoped, apiGet } from "./workspace";
  * no calendar is connected; one with a feed gets the taken blocks and the
  * windows the receptionist would offer. Read-only: moving weeks only
  * issues a GET.
+ *
+ * The Calendar is a page of its own on its path (decision 0015, step 6): an App Router page at `/w/<slug>/calendar`, and at
+ * `/w/<slug>/calendar/<YYYY-MM-DD>` a day opened in Day view, the frame drawing its chrome around it.
  */
 /** A write is refused unless it comes from the app: the same-origin guard every mutating route applies. */
 const fromTheApp = { headers: { origin: new URL(process.env.E2E_BASE_URL ?? "https://app.chanlytics.com").origin } };
@@ -194,6 +198,59 @@ test.describe("Calendar on a real workspace", () => {
         expect(reached, `${view} at ${size.width}x${size.height}`).toEqual({ lastDay: true, legend: true });
       }
     }
+  });
+
+  test("the Calendar is a page of its own on its path: it boots there, a day address opens that day, and the router walks it", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.waitForURL(/\/w\/[^/?#]+/, { timeout: 30_000 });
+    const slug = /\/w\/([^/?#]+)/.exec(new URL(page.url()).pathname)?.[1];
+    if (!slug) throw new Error(`the home sent this tab somewhere with no workspace in it: ${page.url()}`);
+
+    // A load of the path boots the frame with Calendar lit and the page drawn inside it.
+    await page.goto("/api/version");
+    await page.goto(`/w/${slug}/calendar`);
+    await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Calendar");
+    await expect(page.getByTestId("calendar-real")).toBeVisible();
+    expect(routeOf(page.url())).toBe("calendar");
+
+    // An address under it: a whole date opens that day in Day view, one column, and the frame around it is the same.
+    const day = new Date();
+    day.setDate(day.getDate() + 1);
+    const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+    await page.goto("/api/version");
+    await page.goto(`/w/${slug}/calendar/${key}`);
+    await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
+    const board = page.getByTestId("calendar-real");
+    await expect(board).toBeVisible();
+    await expect(board.getByTestId("cal-view-day")).toHaveAttribute("aria-pressed", "true");
+    await expect(board.getByTestId("cal-col")).toHaveCount(1);
+    expect(routeOf(page.url())).toBe(`calendar/${key}`);
+    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Calendar");
+
+    // Away to a route the frame's own table draws, and Back: the router lands on the day again, and the page is there.
+    await page.locator(".nav-item", { hasText: "Today" }).click();
+    await expect.poll(() => routeOf(page.url())).toBe("today");
+    await expect(page.getByTestId("calendar-real")).toHaveCount(0);
+    await page.goBack();
+    await expect.poll(() => routeOf(page.url())).toBe(`calendar/${key}`);
+    await expect(page.getByTestId("calendar-real")).toBeVisible();
+    await page.goForward();
+    await expect.poll(() => routeOf(page.url())).toBe("today");
+
+    // And to the Calendar by the sidebar: a route with a page of its own asks the router, and the frame stays.
+    await page.locator(".nav-item", { hasText: "Calendar" }).click();
+    await expect.poll(() => routeOf(page.url())).toBe("calendar");
+    await expect(page.getByTestId("calendar-real")).toBeVisible();
+    await expect(board.getByTestId("cal-view-week")).toHaveAttribute("aria-pressed", "true");
+
+    // The hash address the emails and the phone app say lands on the path.
+    await page.goto("/api/version");
+    await page.goto(`/w/${slug}#/calendar/${key}`);
+    await page.waitForURL((u) => u.pathname === `/w/${slug}/calendar/${key}`, { timeout: 30_000 });
+    await expect(page.getByTestId("calendar-real")).toBeVisible();
   });
 
   test("the calendar sweep on the edge refuses a call without the sweep key", async ({ request }) => {

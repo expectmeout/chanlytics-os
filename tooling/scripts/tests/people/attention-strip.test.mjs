@@ -7,7 +7,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { attentionRow, toPersonRowVM } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { importSrc, readCode, readRaw } from "../_source.mjs";
+
+// The name cell a People row draws its words in (surfaces/people/cells/columns.tsx), run rather than read.
+const { plNameCell } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
+const { peopleSample } = await importSrc("apps/dashboard/src/surfaces/people/sample.ts");
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -203,21 +207,75 @@ test("the wiring: the door carries the summary, the surface carries the rows, an
       "callSummary: r.last_inbound_call_summary?.trim() || null,",
     ),
   );
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/people.ts");
-  assert.ok(
-    sd.includes("attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, tz, now.getTime())])),"),
+  // Run, not read: the surface's mapping (surface-map.ts, over the sample's people) carries each row's attention row.
+  const surface = peopleSample(NOW);
+  assert.ok(surface.rows.length > 0);
+  assert.deepEqual(
+    surface.attention,
+    Object.fromEntries(surface.rows.map((r) => [r.id, attentionRow(r, "America/New_York", nowMs)])),
     "computed once with the surface",
   );
   // The strip that drew three of these rows above the table is gone: it showed
   // the table's own first rows over again, with the same sentences. The row
   // still speaks -- People reads the same attention row for its words.
-  const page = readCode("apps/dashboard/src/legacy/pages/people.jsx");
-  assert.ok(page.includes("const said = attention && attention[p.id];"), "every row reads its own attention row");
-  assert.ok(
-    page.includes('<div className="cl-row-words" title={words} data-testid="row-words">{words}</div>'),
-    "and says their words on it",
-  );
-  assert.ok(!page.includes("nothing written to quote"), "the confession is gone");
+  // Run, not read: the name cell People draws (plNameCell), over a row and the attention row the surface computed for it.
+  const hadReact = globalThis.React;
+  globalThis.React = {
+    createElement: (type, p, ...kids) => ({ type, props: { ...(p || {}), children: kids.flat() } }),
+  };
+  try {
+    const find = (node, testid) => {
+      if (!node || typeof node !== "object") return null;
+      if (node.props?.["data-testid"] === testid) return node;
+      for (const kid of node.props?.children ?? []) {
+        const hit = find(kid, testid);
+        if (hit) return hit;
+      }
+      return null;
+    };
+    const wordsOn = (over, attention) => {
+      const vm = toPersonRowVM(dto(over), ZONE, NOW);
+      const said = attention === undefined ? { [vm.id]: attentionRow(vm, ZONE, nowMs) } : attention;
+      return { el: find(plNameCell(vm, { attention: said, onOpen() {} }), "row-words"), said: said?.[vm.id] };
+    };
+    const spoken = wordsOn({});
+    assert.equal(spoken.el.props.children[0], `“${spoken.said.sentence}”`, "every row reads its own attention row");
+    assert.equal(spoken.el.props.title, spoken.el.props.children[0], "and says their words on it");
+    const phoned = wordsOn({
+      display_name: null,
+      wa_profile_name: null,
+      channels: ["voice"],
+      conversation_count: 0,
+      latest_conversation_id: null,
+      has_chat: false,
+      last_inbound_text: null,
+      last_inbound_at: null,
+      last_message_at: null,
+      last_call_at: iso(2 * D),
+      last_inbound_call_at: iso(2 * D),
+      call_count: 1,
+      last_inbound_call_summary: "Asked about a gel manicure for Saturday.",
+    });
+    assert.equal(
+      phoned.el.props.children[0],
+      "Asked about a gel manicure for Saturday.",
+      "what they said on the phone",
+    );
+    // The confession is gone: nothing to quote and no call's summary is no line under the name, not a line saying so.
+    const silent = wordsOn({
+      last_inbound_text: null,
+      last_inbound_at: null,
+      last_message_at: null,
+      has_chat: false,
+      latest_conversation_id: null,
+      conversation_count: 0,
+    });
+    assert.equal(silent.el, null, "nothing written to quote: nothing said");
+    assert.equal(wordsOn({}, null).el, null, "before the surface has computed its attention rows, no words");
+  } finally {
+    if (hadReact === undefined) delete globalThis.React;
+    else globalThis.React = hadReact;
+  }
   // Today's queue, Setup and the back office still draw AttnRow, so the row's
   // own rules stay; only the strip's container, footer and empty state went.
   const css = readRaw("apps/dashboard/src/legacy/styles/clients.css");

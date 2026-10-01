@@ -16,8 +16,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, toCallVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
+import { toTodayVM, toCallVM, toInboxThreadVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
+import {
+  kitPages,
+  installLegacyReact,
+  useStubHooks,
+  fresh as freshTree,
+  again as againTree,
+} from "../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -257,6 +264,11 @@ globalThis.React = {
     }
   },
   useCallback: (fn) => fn,
+  // A store outside React (the TSX surfaces' useSurface): read at each draw, which these tests make by hand.
+  useSyncExternalStore: (_subscribe, snapshot) => {
+    frames.key();
+    return snapshot();
+  },
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
@@ -277,13 +289,29 @@ globalThis.window = {
   clearTimeout() {},
 };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
-globalThis.StatePill = globalThis.window.StatePill;
-await import("../../../../apps/dashboard/src/legacy/pages/conversations.jsx");
-const { OutcomePill } = globalThis.window;
+// The record kit, published as the app publishes it before any page loads.
+Object.assign(globalThis.window, kitPages);
+useStubHooks();
+// The kit's components (Confirm, StatePill, ...) are on the window the pages read them off (seed-globals, in the app).
+Object.assign(globalThis.window, kitPages);
+// The shell's doors the TSX Campaigns pages reach (by name, through the bridge's verbs), kept for the tests that draw them at the foot.
+const shellDoors = {};
+for (const k of [
+  "gate",
+  "canDo",
+  "gateTitle",
+  "mayAtLeast",
+  "gatedProps",
+  "ST_STORE",
+  "__roleGate",
+  "Confirm",
+  "StatePill",
+  "PolicyChip",
+  "FieldError",
+])
+  shellDoors[k] = globalThis.window[k];
+globalThis.StatePill = kitPages.StatePill;
+const { OutcomePill } = await import("../../../../apps/dashboard/src/surfaces/inbox/pages/conversations-page.tsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -325,9 +353,8 @@ test("Conversations draws a call's own story in amber -- 'Asked for a call back'
 
 /* ------------- Today: a dark line silences the reassurance -------------- */
 
-globalThis.EmptyState = globalThis.window.EmptyState;
-globalThis.FailedRead = globalThis.window.FailedRead;
-globalThis.PolicyChip = globalThis.window.PolicyChip;
+Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPages.FailedRead });
+globalThis.PolicyChip = kitPages.PolicyChip;
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
 globalThis.useHotkey = () => {};
@@ -338,11 +365,11 @@ Object.assign(globalThis.window, {
   clearInterval() {},
   dispatchEvent() {},
 });
-await import("../../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
-const { TODAY_HELPERS } = await import("../../../../apps/dashboard/src/legacy-bridge/today.ts");
-globalThis.window.__today = TODAY_HELPERS;
+// Today's pages are TSX (decision 0015): they draw the kit's AttnRow and read the day over the seam.
+const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
+const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
+const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { setSurfaceValue, surfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const todayWith = (channels) =>
   toTodayVM(
@@ -365,17 +392,17 @@ const todayWith = (channels) =>
     NOW,
   );
 const mountToday = (vm) => {
-  globalThis.window.TODAY_DATA = vm;
+  setSurfaceValue("today", vm);
   cells = [];
   frames.begin();
-  const hero = textOf(globalThis.window.HeroBrief());
+  const hero = textOf(HeroBrief());
   cells = [];
   frames.begin();
   // The day's card sits under the work; the hero is the line above it, drawn only while a line is down.
-  const recap = textOf(globalThis.window.TodayCard());
+  const recap = textOf(TodayCard());
   cells = [];
   frames.begin();
-  const queue = textOf(globalThis.window.AgentCommand());
+  const queue = textOf(AgentCommand());
   return { hero, recap, queue };
 };
 
@@ -400,13 +427,24 @@ test("with every line up and nothing waiting, the reassurance stands", () => {
 /* ---------------- the Inbox: Hold all, and a missing link ---------------- */
 
 globalThis.window.CHANLY = { ...globalThis.window.CHANLY, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } };
-// The one thread, which the Inbox mounts (thread-pane.jsx): loaded first, published as the page reads it.
-await import("../../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
-globalThis.ThreadPane = globalThis.window.ThreadPane;
-await import("../../../../apps/dashboard/src/legacy/pages/inbox.jsx");
+// The Inbox (surfaces/inbox, TSX), drawn over the rows the seam holds; the one thread it mounts is thread-pane.tsx's.
+const SRC = "../../../../apps/dashboard/src";
+const { Inbox } = await import(`${SRC}/surfaces/inbox/pages/inbox-page.tsx`);
+const { InboxThread } = await import(`${SRC}/surfaces/inbox/thread/thread.tsx`);
+const { ixHoldAll } = await import(`${SRC}/surfaces/inbox/pages/hold-all.ts`);
+const { ixRouteThread } = await import(`${SRC}/surfaces/inbox/rules.ts`);
+const inboxValue = () => surfaceValue("inbox");
+/** The threads a draw of the Inbox handed the one thread's pane: none while a link's notice stands. */
+const openedIn = (tree) => {
+  const opened = [];
+  walk(tree, (n) => {
+    if (n.type === InboxThread) opened.push(n.props.thread ? n.props.thread.id : null);
+  });
+  return opened.filter(Boolean);
+};
 
 test("REGRESSION: Hold all withdraws every real draft through the door the single Hold uses, stops every countdown at once, and names a draft the server would not hold", async () => {
-  assert.equal(typeof globalThis.window.ixHoldAll, "function", "Hold all is one act that can be run");
+  assert.equal(typeof ixHoldAll, "function", "Hold all is one act that can be run");
   const state = {};
   const calls = [];
   const heldWhenAsked = [];
@@ -419,7 +457,7 @@ test("REGRESSION: Hold all withdraws every real draft through the door the singl
     { id: "th-1", real: true, who: "Rosa", veto: { messageId: "m1" } },
     { id: "th-2", real: true, who: "Ana", veto: { messageId: "m2" } },
   ];
-  const result = await globalThis.window.ixHoldAll(drafts, { state, cancelSend });
+  const result = await ixHoldAll(drafts, { state, cancelSend });
   assert.deepEqual(
     calls,
     ["m1", "m2"],
@@ -440,32 +478,24 @@ test("REGRESSION: Hold all withdraws every real draft through the door the singl
 });
 
 test("REGRESSION: the shell passes a thread id on even when the Inbox has not loaded it, instead of dropping it", () => {
-  assert.equal(typeof globalThis.window.ixRouteThread, "function", "the route's thread is one rule that can be run");
+  assert.equal(typeof ixRouteThread, "function", "the route's thread is one rule that can be run");
   const threads = [{ id: "th-a", who: "Emily Chen" }];
-  assert.deepEqual(globalThis.window.ixRouteThread("th-missing", threads), { id: "th-missing", who: null });
-  assert.deepEqual(globalThis.window.ixRouteThread("th-a", threads), { id: "th-a", who: "Emily Chen" });
-  assert.deepEqual(globalThis.window.ixRouteThread(undefined, threads), { id: null, who: null });
+  assert.deepEqual(ixRouteThread("th-missing", threads), { id: "th-missing", who: null });
+  assert.deepEqual(ixRouteThread("th-a", threads), { id: "th-a", who: "Emily Chen" });
+  assert.deepEqual(ixRouteThread(undefined, threads), { id: null, who: null });
 });
 
 test("REGRESSION: a link to a thread the Inbox has not loaded draws the missing notice in the pane and opens nobody else's conversation", () => {
-  const opened = [];
-  globalThis.InboxList = () => null;
-  globalThis.InboxThread = (p) => {
-    opened.push(p.thread ? p.thread.id : null);
-    return null;
-  };
-  globalThis.InboxAgentRail = () => null;
-  globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
-  globalThis.window.INBOX_DATA = {
+  setSurfaceValue("inbox", {
     INBOX_BUCKETS: [],
     INBOX_VIEWS: [],
     CHANNEL_LABELS: {},
     INBOX_BASELINE: {},
     THREADS: [{ id: "th-a", real: true, who: "Emily Chen", state: "escalated", needsYou: true, tags: [], whoMeta: "" }],
-  };
+  });
   cells = [];
   frames.begin();
-  const tree = globalThis.window.Inbox({ initialThreadId: "th-missing", showAgentRail: false });
+  const tree = Inbox({ initialThreadId: "th-missing", showAgentRail: false });
   const missing = (() => {
     let hit = null;
     walk(tree, (n) => {
@@ -475,11 +505,7 @@ test("REGRESSION: a link to a thread the Inbox has not loaded draws the missing 
   })();
   assert.ok(missing, "the pane says the conversation is not among those loaded");
   assert.ok(textOf(missing).includes("isn't among the newest"), textOf(missing));
-  assert.deepEqual(
-    opened.filter(Boolean),
-    [],
-    "REGRESSION: Emily Chen's thread opened in place of the one the link named",
-  );
+  assert.deepEqual(openedIn(tree), [], "REGRESSION: Emily Chen's thread opened in place of the one the link named");
 });
 
 test("REGRESSION: the missing notice holds when the Inbox is read again -- on the live salon a refresh moments later opened Emily Chen in its place", () => {
@@ -492,33 +518,20 @@ test("REGRESSION: the missing notice holds when the Inbox is read again -- on th
   };
   globalThis.window.removeEventListener = () => {};
   try {
-    const opened = [];
-    globalThis.InboxList = () => null;
-    globalThis.InboxThread = (p) => {
-      opened.push(p.thread ? p.thread.id : null);
-      return null;
-    };
-    globalThis.InboxAgentRail = () => null;
-    globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
-    const emily = {
-      id: "th-a",
-      real: true,
-      who: "Emily Chen",
-      state: "escalated",
-      needsYou: true,
-      tags: [],
-      whoMeta: "",
-    };
-    globalThis.window.INBOX_DATA = {
+    // Threads as the view model makes them: the one the link names is drawn by the real pane when it arrives.
+    const threadOf = (id, name) =>
+      toInboxThreadVM(conversation(id, name), escalation(`e-${id}`, id, "2026-08-29T12:00:00Z"), ZONE, NOW);
+    const emily = threadOf("a", "Emily Chen");
+    setSurfaceValue("inbox", {
       INBOX_BUCKETS: [],
       INBOX_VIEWS: [],
       CHANNEL_LABELS: {},
       INBOX_BASELINE: {},
       THREADS: [emily],
-    };
+    });
     const render = () => {
       frames.begin();
-      return globalThis.window.Inbox({ initialThreadId: "th-missing", showAgentRail: false });
+      return Inbox({ initialThreadId: "th-missing", showAgentRail: false });
     };
     const missingIn = (tree) => {
       let hit = null;
@@ -528,7 +541,7 @@ test("REGRESSION: the missing notice holds when the Inbox is read again -- on th
       return hit;
     };
     const reread = (threads) => {
-      globalThis.window.INBOX_DATA = { ...globalThis.window.INBOX_DATA, THREADS: threads };
+      setSurfaceValue("inbox", { ...inboxValue(), THREADS: threads });
       for (const fn of listeners["surface:inbox"] ?? []) fn();
     };
     cells = [];
@@ -539,16 +552,16 @@ test("REGRESSION: the missing notice holds when the Inbox is read again -- on th
     reread([{ ...emily }]);
     assert.ok(missingIn(render()), "REGRESSION: after the re-read the notice was gone");
     assert.deepEqual(
-      opened.filter(Boolean),
+      openedIn(render()),
       [],
       "REGRESSION: Emily Chen's thread opened in place of the one the link named",
     );
 
     // The link was right, only early: when a later read brings the thread, it opens.
-    reread([{ ...emily }, { ...emily, id: "th-missing", who: "Nina Park" }]);
+    reread([{ ...emily }, threadOf("missing", "Nina Park")]);
     const arrived = render();
     assert.equal(missingIn(arrived), null, "no notice once the thread is loaded");
-    assert.equal(opened.at(-1), "th-missing", "the thread the link named opens");
+    assert.equal(openedIn(arrived).at(-1), "th-missing", "the thread the link named opens");
   } finally {
     globalThis.window.addEventListener = keep.add;
     globalThis.window.removeEventListener = keep.remove;
@@ -557,10 +570,10 @@ test("REGRESSION: the missing notice holds when the Inbox is read again -- on th
 
 /* ---------- the composer: no Save draft that keeps nothing ---------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+const { Composer } = await import(`${SRC}/surfaces/inbox/thread/composer.tsx`);
 
 test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'Draft saved' and kept nothing", () => {
-  assert.equal(typeof globalThis.window.InboxComposer, "function", "the composer can be drawn on its own");
+  assert.equal(typeof Composer, "function", "the composer can be drawn on its own");
   const buttons = (tree) => {
     const out = [];
     walk(tree, (n) => {
@@ -570,7 +583,7 @@ test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'D
   };
   cells = [];
   frames.begin();
-  const real = globalThis.window.InboxComposer({
+  const real = Composer({
     thread: {
       id: "th-1",
       real: true,
@@ -589,7 +602,7 @@ test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'D
   );
   cells = [];
   frames.begin();
-  const seed = globalThis.window.InboxComposer({
+  const seed = Composer({
     thread: { id: "t-seed", real: false, who: "Aisha", primaryChannel: "sms" },
     reply: "",
   });
@@ -603,23 +616,22 @@ test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'D
 
 /* ---------------------- Calendar: Day view steps a day ---------------------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/calendar.jsx");
-
 test("REGRESSION: in Day view the arrows move one day -- they moved seven", async () => {
   const { shiftKey, shiftMonth } = await import("@chanlytics/contracts");
-  assert.equal(typeof globalThis.window.crStep, "function", "the step is one rule that can be run");
+  const { crStep } = await import("../../../../apps/dashboard/src/surfaces/calendar/words.ts");
+  assert.equal(typeof crStep, "function", "the step is one rule that can be run");
   const kit = { shiftKey, shiftMonth };
-  assert.equal(globalThis.window.crStep("day", "2026-09-14", 1, kit), "2026-09-15");
-  assert.equal(globalThis.window.crStep("day", "2026-09-14", -1, kit), "2026-09-13");
-  assert.equal(globalThis.window.crStep("week", "2026-09-14", 1, kit), "2026-09-21");
-  assert.equal(globalThis.window.crStep("agenda", "2026-09-14", 1, kit), "2026-09-28");
-  assert.equal(globalThis.window.crStep("month", "2026-09-14", 1, kit), shiftMonth("2026-09-14", 1));
+  assert.equal(crStep("day", "2026-09-14", 1, kit), "2026-09-15");
+  assert.equal(crStep("day", "2026-09-14", -1, kit), "2026-09-13");
+  assert.equal(crStep("week", "2026-09-14", 1, kit), "2026-09-21");
+  assert.equal(crStep("agenda", "2026-09-14", 1, kit), "2026-09-28");
+  assert.equal(crStep("month", "2026-09-14", 1, kit), shiftMonth("2026-09-14", 1));
 });
 
 /* ---------------- the policy chip: no invented trust figures ---------------- */
 
 test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -- it quoted the mockup's '128 auto-sent · 9% edited'", () => {
-  const PolicyChip = globalThis.window.PolicyChip;
+  const { PolicyChip } = kitPages;
   Object.assign(globalThis.window, {
     POLICY: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" },
     TRUST: { cls: () => ({ sent: 128 }), rate: () => 9 },
@@ -641,71 +653,9 @@ test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -
 // The pages' one clock (legacy-bridge/zone.ts): the workspace's zone once one is published.
 const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
 installClock();
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-run.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/outbound.jsx");
-
-test("REGRESSION: approving a run the server moved to nine says so -- the toast said 'sending now'", async () => {
-  assert.equal(typeof globalThis.window.bcWhenWords, "function", "one sentence for when a send really goes");
-  const moved = globalThis.window.bcWhenWords({
-    scheduled_for: "2026-09-15T13:00:00Z",
-    moved_from: "2026-09-15T02:00:00Z",
-  });
-  assert.ok(moved.startsWith("scheduled for "), moved);
-  assert.ok(moved.includes("between 9:00 and 20:59"), moved);
-  assert.equal(
-    globalThis.window.bcWhenWords({ scheduled_for: new Date(Date.now() + 5_000).toISOString(), moved_from: null }),
-    "sending now",
-  );
-
-  const toasts = [];
-  globalThis.window.__playbooks = {
-    approveRun: async () => ({
-      ok: true,
-      data: { recipient_count: 3, scheduled_for: "2026-09-15T13:00:00Z", moved_from: "2026-09-15T02:00:00Z" },
-    }),
-  };
-  const p = {
-    id: "pb-1",
-    name: "Win-back",
-    state: "running",
-    trigger: "winback",
-    triggerLabel: "Quiet 30 days",
-    triggerHint: "",
-    schedule: "daily at 10:00",
-    next: "tomorrow 10:00",
-    policy_class: "marketing",
-    template_name: "winback_offer",
-    template_language: "en_US",
-    candidates: 3,
-    last_run_for: null,
-    totals: {
-      waiting: { id: "b-w", recipient_count: 3 },
-      runs: 1,
-      sent: 0,
-      delivered: 0,
-      replied: 0,
-      held: 0,
-      history: [],
-    },
-  };
-  cells = [];
-  frames.begin();
-  const tree = globalThis.window.PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
-  let approve = null;
-  walk(tree, (n) => {
-    if (!approve && n.props?.["data-testid"] === "pb-approve") approve = n;
-  });
-  assert.ok(approve, "a waiting run offers Approve");
-  await approve.props.onClick();
-  const said = textOf(toasts.at(-1).msg);
-  assert.ok(!said.includes("sending now"), said);
-  assert.ok(said.includes("scheduled for"), said);
-});
+// The schedule box and the receipt's words, and the ledger's numbers: TSX modules of Broadcasts (decision 0015).
+const { BcWhenBox, bcWhenNote, bcWhenWords } = await import(`${SRC}/surfaces/campaigns/broadcasts/when.tsx`);
+const { BcHistoryStats } = await import(`${SRC}/surfaces/campaigns/broadcasts/ledger.tsx`);
 
 /** A Tokyo workspace, with "now" pinned, for one page test: New York and UTC disagree with it about the day. */
 const inTokyo = (nowIso, fn) => {
@@ -738,7 +688,7 @@ test("REGRESSION (C11): the schedule box reads and writes the business's clock, 
     let picked;
     cells = [];
     frames.begin();
-    const box = globalThis.window.BcWhenBox({
+    const box = BcWhenBox({
       at: null,
       maxDays: 30,
       onChange: (v) => {
@@ -749,27 +699,20 @@ test("REGRESSION (C11): the schedule box reads and writes the business's clock, 
     assert.equal(box.props.max, "2027-01-14T12:00", "and within thirty days");
     box.props.onChange({ target: { value: "2026-12-15T22:30" } });
     assert.equal(picked, Date.parse("2026-12-15T13:30:00Z"), "REGRESSION: 10:30 PM was read on the device's clock");
-    const late = globalThis.window.bcWhenNote(picked, 30);
+    const late = bcWhenNote(picked, 30);
     assert.deepEqual(
       [late.ok, late.words],
       [true, "Goes out tomorrow 9:00 AM, Tokyo time — sends wait for 9:00–20:59"],
     );
+    assert.equal(bcWhenNote(Date.parse("2026-12-15T05:00:00Z"), 30).words, "Goes out today 2:00 PM, Tokyo time");
     assert.equal(
-      globalThis.window.bcWhenNote(Date.parse("2026-12-15T05:00:00Z"), 30).words,
-      "Goes out today 2:00 PM, Tokyo time",
-    );
-    assert.equal(
-      globalThis.window.bcWhenNote(Date.parse("2026-12-15T02:00:00Z"), 30).ok,
+      bcWhenNote(Date.parse("2026-12-15T02:00:00Z"), 30).ok,
       false,
       "a time that has passed is not scheduled",
     );
-    assert.equal(
-      globalThis.window.bcWhenNote(Date.parse("2027-02-01T02:00:00Z"), 30).ok,
-      false,
-      "nor one past thirty days",
-    );
-    assert.equal(globalThis.window.bcWhenNote(null, 30).words, "By Tokyo time · within 30 days");
-    const receipt = globalThis.window.bcWhenWords({
+    assert.equal(bcWhenNote(Date.parse("2027-02-01T02:00:00Z"), 30).ok, false, "nor one past thirty days");
+    assert.equal(bcWhenNote(null, 30).words, "By Tokyo time · within 30 days");
+    const receipt = bcWhenWords({
       scheduled_for: "2026-12-16T00:00:00Z",
       moved_from: "2026-12-15T13:30:00Z",
     });
@@ -793,12 +736,12 @@ test("REGRESSION (D5): Today's 'went out' line is the business's today, at the b
         },
       ],
     };
-    globalThis.window.TODAY_DATA = todayWith([{ kind: "whatsapp", status: "active", number: "+1 305" }]);
+    setSurfaceValue("today", todayWith([{ kind: "whatsapp", status: "active", number: "+1 305" }]));
     cells = [];
     frames.begin();
     // The line is drawn by a component that returns a list, which the walk does not enter: read it off its own node.
     let lines = null;
-    walk(globalThis.window.TodayCard(), (n) => {
+    walk(TodayCard(), (n) => {
       if (lines === null && typeof n.type === "function" && n.type.name === "RunsDone") lines = n.rendered;
     });
     const said = (lines || []).map(textOf).join(" | ");
@@ -809,156 +752,11 @@ test("REGRESSION (D5): Today's 'went out' line is the business's today, at the b
   });
 });
 
-/* ------ Messages: an unread number, and the business the preview names ------ */
-
-await import("../../../../apps/dashboard/src/legacy/pages/messages.jsx");
-
-const mountMessages = (over) => {
-  Object.assign(
-    globalThis.window,
-    {
-      __TEMPLATES_ALL: [],
-      __CHANNELS: [],
-      __ME: { role: "owner" },
-      __starters: undefined,
-      __SETTINGS: {
-        config: { brain: { business_name: "Marisa's Beauty Salon", booking_link: "https://book.example.com/marisa" } },
-      },
-    },
-    over,
-  );
-  cells = [];
-  frames.begin();
-  return globalThis.window.MessagesPage();
-};
-const byId = (tree, id) => {
-  let hit = null;
-  walk(tree, (n) => {
-    if (!hit && n.props?.["data-testid"] === id) hit = n;
-  });
-  return hit;
-};
-/**
- * Messages with ONE named message open: a row carries a line of the words, and
- * the whole message -- its slots filled with this business's own -- is inside it.
- * Named, because eight starters are rows on the same page and opening whichever
- * is first passes a preview assertion with another message's words.
- */
-const mountMessagesOpen = (over, name) => {
-  const tree = mountMessages(over);
-  let row = null;
-  // By the name WhatsApp knows it by, which the row carries as data-template: the row's own words are its title and
-  // its quote, and the name in type left the closed row (23 Sep, Campaigns made compact).
-  walk(tree, (n) => {
-    if (
-      !row &&
-      /^(starter|custom)-row$/.test(String(n.props?.["data-testid"] || "")) &&
-      n.props?.["data-template"] === name
-    )
-      row = n;
-  });
-  assert.ok(row, `no row for ${name}`);
-  byId(row, "template-open").props.onClick();
-  frames.begin();
-  return globalThis.window.MessagesPage();
-};
-
-test("REGRESSION: when the number could not be read, Messages says that -- it said 'Connect a WhatsApp number first' on a workspace that has one", () => {
-  const failed = mountMessages({ __CHANNELS: null });
-  assert.ok(byId(failed, "messages-channels-failed"), "the failed read has its own card");
-  assert.equal(byId(failed, "messages-no-number"), null, "REGRESSION: a null read was shown as no number");
-  const none = mountMessages({ __CHANNELS: [] });
-  assert.ok(byId(none, "messages-no-number"), "a workspace with no number is still told to connect one");
-});
-
-test("REGRESSION: a message's preview names this business and its booking link -- it showed the sample filed with Meta, 'Luna Studio'", async () => {
-  // The page reads the starter library the bridge installs, not a stand-in.
-  const { installTemplates } = await import("../../../../apps/dashboard/src/legacy-bridge/templates.ts");
-  installTemplates();
-  const starters = globalThis.window.__starters;
-  // A row as the sync stores it (apps/edge/api/admin/whatsapp/templates-create.ts): a position, a label,
-  // the example filed with Meta -- and no kind. The first fix read a `kind` no real row carries, so the
-  // salon's five approved starters still said "Luna Studio" on 14 September.
-  const filed = [
-    { label: "Value 1", example: "Dani", position: 1 },
-    { label: "Value 2", example: "Luna Studio", position: 2 },
-    { label: "Value 3", example: "https://booksy.com/luna-studio", position: 3 },
-  ];
-  const row = (over) => ({
-    id: "t1",
-    channel: "whatsapp",
-    name: "save_our_number",
-    language: "en_US",
-    meta_status: "approved",
-    category: "marketing",
-    source: "chanlytics",
-    hidden_at: null,
-    title: null,
-    quality: null,
-    rejected_reason: null,
-    synced_at: null,
-    body_preview: "Hi {{1}}, thanks for calling {{2}}. Book any time: {{3}} or just write to us here.",
-    variables: filed,
-    ...over,
-  });
-  for (const language of ["en_US", "es"]) {
-    const said = textOf(
-      byId(
-        mountMessagesOpen(
-          { __CHANNELS: [{ kind: "whatsapp" }], __starters: starters, __TEMPLATES_ALL: [row({ language })] },
-          "save_our_number",
-        ),
-        "template-open-body",
-      ),
-    );
-    assert.ok(said.includes("Marisa's Beauty Salon"), `${language}: ${said}`);
-    assert.ok(said.includes("https://book.example.com/marisa"), `${language}: ${said}`);
-    assert.ok(
-      !said.includes("Luna Studio") && !said.includes("booksy.com/luna-studio"),
-      `REGRESSION (${language}): another business's name and link in this business's message`,
-    );
-    assert.ok(said.includes("Hi Dani"), "the customer's name stays a sample: no one customer is being shown");
-  }
-  // A template written in WhatsApp Manager is that business's own words: a slot nothing names keeps the example it filed.
-  const theirs = textOf(
-    byId(
-      mountMessagesOpen(
-        {
-          __CHANNELS: [{ kind: "whatsapp" }],
-          __starters: starters,
-          __TEMPLATES_ALL: [
-            row({
-              id: "t2",
-              name: "front_desk_note",
-              source: "meta",
-              body_preview: "A note from {{1}}.",
-              variables: [{ label: "Value 1", example: "the front desk", position: 1 }],
-            }),
-          ],
-        },
-        "front_desk_note",
-      ),
-      "template-open-body",
-    ),
-  );
-  assert.ok(theirs.includes("A note from the front desk."), theirs);
-});
-
 /* ------ Broadcasts: numbers over the latest fifty say they are the latest fifty ------ */
 
 test("REGRESSION (D12): past fifty broadcasts the header says its numbers are the latest fifty -- they read as everything", () => {
-  assert.equal(
-    typeof globalThis.window.BcHistoryStats,
-    "function",
-    "the history's numbers are one piece that can be drawn",
-  );
-  const cellWords = (p) => ({
-    type: "stat",
-    props: { children: [String(p.label), " ", String(p.value), " ", String(p.meta || "")] },
-  });
-  const keep = globalThis.StatCell;
-  globalThis.StatCell = cellWords;
-  try {
+  assert.equal(typeof BcHistoryStats, "function", "the history's numbers are one piece that can be drawn");
+  {
     const row = (i) => ({
       id: `b${i}`,
       open: false,
@@ -967,15 +765,13 @@ test("REGRESSION (D12): past fifty broadcasts the header says its numbers are th
     });
     cells = [];
     frames.begin();
-    const capped = textOf(globalThis.window.BcHistoryStats({ rows: [row(1), row(2)], more: true }));
+    const capped = textOf(BcHistoryStats({ rows: [row(1), row(2)], more: true }));
     assert.ok(capped.includes("latest 50"), capped);
     cells = [];
     frames.begin();
-    const whole = textOf(globalThis.window.BcHistoryStats({ rows: [row(1), row(2)], more: false }));
+    const whole = textOf(BcHistoryStats({ rows: [row(1), row(2)], more: false }));
     assert.ok(!whole.includes("latest 50"), whole);
     assert.ok(whole.includes("4 messages"), whole);
-  } finally {
-    globalThis.StatCell = keep;
   }
 });
 
@@ -1183,4 +979,234 @@ test("REGRESSION: the Terms name the password among the ways to sign in -- they 
   const signIn = lines.find((s) => s.startsWith("Sign-in is"));
   assert.ok(signIn, `the sign-in sentence among ${lines.length} lines`);
   assert.ok(signIn.includes("password"), signIn);
+});
+
+/* ------------- Campaigns, drawn as TSX (decision 0015): the pages that hold state ------------- */
+
+// The stub React that patches `react` itself (_legacy-react.mjs) replaces this file's own, so these come last: the pages
+// above were drawn on this file's stub. A TSX page reads its data through the seam and imports its verbs, so a test hands the
+// seam a value (setSurfaceValue) and holds a verb where the page presses it.
+let campaigns = null;
+const campaignsWorld = async () => {
+  if (campaigns) return campaigns;
+  const toasts = [];
+  installLegacyReact({
+    __DEMO_MODE: false,
+    __surfaceState: () => "live",
+    __ME: { role: "owner" },
+    ...shellDoors,
+    // The policy store the chip on a card reads (the shell publishes it; policy-store.ts).
+    POLICY: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" },
+    location: {
+      pathname: "/w/studio",
+      hash: "#/outbound",
+      origin: "https://app.chanlytics.com",
+      assign() {},
+      replace() {},
+      reload() {},
+    },
+    __WORKSPACES: [
+      { id: "t-studio", slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" },
+    ],
+    __ACTIVE_WORKSPACE: "t-studio",
+    usePPToast: () => [null, (t) => toasts.push(t)],
+    CHANLY: { nav() {}, R: {} },
+    appNavigate() {},
+    useHotkey: () => {},
+    setInterval: () => 1,
+    clearInterval() {},
+  });
+  Object.assign(globalThis.window, kitPages);
+  const { PlaybookCard } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
+  const { playbooks } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
+  const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
+  const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+  campaigns = { toasts, PlaybookCard, playbooks, TemplatesPage, setSurfaceValue };
+  return campaigns;
+};
+
+test("REGRESSION: approving a run the server moved to nine says so -- the toast said 'sending now'", async () => {
+  const { toasts, PlaybookCard, playbooks } = await campaignsWorld();
+  assert.equal(typeof bcWhenWords, "function", "one sentence for when a send really goes");
+  const moved = bcWhenWords({
+    scheduled_for: "2026-09-15T13:00:00Z",
+    moved_from: "2026-09-15T02:00:00Z",
+  });
+  assert.ok(moved.startsWith("scheduled for "), moved);
+  assert.ok(moved.includes("between 9:00 and 20:59"), moved);
+  assert.equal(
+    bcWhenWords({ scheduled_for: new Date(Date.now() + 5_000).toISOString(), moved_from: null }),
+    "sending now",
+  );
+
+  const approveRun = playbooks.approveRun;
+  playbooks.approveRun = async () => ({
+    ok: true,
+    data: { recipient_count: 3, scheduled_for: "2026-09-15T13:00:00Z", moved_from: "2026-09-15T02:00:00Z" },
+  });
+  try {
+    const p = {
+      id: "pb-1",
+      name: "Win-back",
+      state: "running",
+      trigger: "winback",
+      triggerLabel: "Quiet 30 days",
+      triggerHint: "",
+      schedule: "daily at 10:00",
+      next: "tomorrow 10:00",
+      policy_class: "marketing",
+      template_name: "winback_offer",
+      template_language: "en_US",
+      candidates: 3,
+      last_run_for: null,
+      totals: {
+        waiting: { id: "b-w", recipient_count: 3 },
+        runs: 1,
+        sent: 0,
+        delivered: 0,
+        replied: 0,
+        held: 0,
+        history: [],
+      },
+    };
+    freshTree();
+    const tree = PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
+    let approve = null;
+    walk(tree, (n) => {
+      if (!approve && n.props?.["data-testid"] === "pb-approve") approve = n;
+    });
+    assert.ok(approve, "a waiting run offers Approve");
+    await approve.props.onClick();
+    const said = textOf(toasts.at(-1).msg);
+    assert.ok(!said.includes("sending now"), said);
+    assert.ok(said.includes("scheduled for"), said);
+  } finally {
+    playbooks.approveRun = approveRun;
+  }
+});
+
+/* ------ Messages: an unread number, and the business the preview names ------ */
+
+const mountMessages = async ({ channels = [], templatesAll = [] } = {}) => {
+  const { TemplatesPage, setSurfaceValue } = await campaignsWorld();
+  setSurfaceValue("settings", {
+    settings: {
+      config: { brain: { business_name: "Marisa's Beauty Salon", booking_link: "https://book.example.com/marisa" } },
+    },
+    facts: null,
+    channels,
+    templatesAll,
+    templateUse: null,
+    templateSent: null,
+  });
+  // A template's title is looked up among the workspace's rows by its name (verbs.ts titleOf), as the app publishes them.
+  globalThis.__TEMPLATES_ALL = templatesAll;
+  freshTree();
+  return TemplatesPage();
+};
+const byId = (tree, id) => {
+  let hit = null;
+  walk(tree, (n) => {
+    if (!hit && n.props?.["data-testid"] === id) hit = n;
+  });
+  return hit;
+};
+/**
+ * Templates with ONE named message open: a row carries a line of the words, and
+ * the whole message -- its slots filled with this business's own -- is inside it.
+ * Named, because eight starters are rows on the same page and opening whichever
+ * is first passes a preview assertion with another message's words.
+ */
+const mountMessagesOpen = async (over, name) => {
+  const tree = await mountMessages(over);
+  let row = null;
+  // By the name WhatsApp knows it by, which the row carries as data-template: the row's own words are its title and
+  // its quote, and the name in type left the closed row (23 Sep, Campaigns made compact).
+  walk(tree, (n) => {
+    if (
+      !row &&
+      /^(starter|custom)-row$/.test(String(n.props?.["data-testid"] || "")) &&
+      n.props?.["data-template"] === name
+    )
+      row = n;
+  });
+  assert.ok(row, `no row for ${name}`);
+  byId(row, "template-open").props.onClick();
+  return againTree(() => campaigns.TemplatesPage());
+};
+
+test("REGRESSION: when the number could not be read, Messages says that -- it said 'Connect a WhatsApp number first' on a workspace that has one", async () => {
+  const failed = await mountMessages({ channels: null });
+  assert.ok(byId(failed, "messages-channels-failed"), "the failed read has its own card");
+  assert.equal(byId(failed, "messages-no-number"), null, "REGRESSION: a null read was shown as no number");
+  const none = await mountMessages({ channels: [] });
+  assert.ok(byId(none, "messages-no-number"), "a workspace with no number is still told to connect one");
+});
+
+test("REGRESSION: a message's preview names this business and its booking link -- it showed the sample filed with Meta, 'Luna Studio'", async () => {
+  // A row as the sync stores it (apps/edge/api/admin/whatsapp/templates-create.ts): a position, a label,
+  // the example filed with Meta -- and no kind. The first fix read a `kind` no real row carries, so the
+  // salon's five approved starters still said "Luna Studio" on 14 September.
+  const filed = [
+    { label: "Value 1", example: "Dani", position: 1 },
+    { label: "Value 2", example: "Luna Studio", position: 2 },
+    { label: "Value 3", example: "https://booksy.com/luna-studio", position: 3 },
+  ];
+  const row = (over) => ({
+    id: "t1",
+    channel: "whatsapp",
+    name: "save_our_number",
+    language: "en_US",
+    meta_status: "approved",
+    category: "marketing",
+    source: "chanlytics",
+    hidden_at: null,
+    title: null,
+    quality: null,
+    rejected_reason: null,
+    synced_at: null,
+    body_preview: "Hi {{1}}, thanks for calling {{2}}. Book any time: {{3}} or just write to us here.",
+    variables: filed,
+    ...over,
+  });
+  for (const language of ["en_US", "es"]) {
+    const said = textOf(
+      byId(
+        await mountMessagesOpen(
+          { channels: [{ kind: "whatsapp" }], templatesAll: [row({ language })] },
+          "save_our_number",
+        ),
+        "template-open-body",
+      ),
+    );
+    assert.ok(said.includes("Marisa's Beauty Salon"), `${language}: ${said}`);
+    assert.ok(said.includes("https://book.example.com/marisa"), `${language}: ${said}`);
+    assert.ok(
+      !said.includes("Luna Studio") && !said.includes("booksy.com/luna-studio"),
+      `REGRESSION (${language}): another business's name and link in this business's message`,
+    );
+    assert.ok(said.includes("Hi Dani"), "the customer's name stays a sample: no one customer is being shown");
+  }
+  // A template written in WhatsApp Manager is that business's own words: a slot nothing names keeps the example it filed.
+  const theirs = textOf(
+    byId(
+      await mountMessagesOpen(
+        {
+          channels: [{ kind: "whatsapp" }],
+          templatesAll: [
+            row({
+              id: "t2",
+              name: "front_desk_note",
+              source: "meta",
+              body_preview: "A note from {{1}}.",
+              variables: [{ label: "Value 1", example: "the front desk", position: 1 }],
+            }),
+          ],
+        },
+        "front_desk_note",
+      ),
+      "template-open-body",
+    ),
+  );
+  assert.ok(theirs.includes("A note from the front desk."), theirs);
 });

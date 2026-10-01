@@ -89,7 +89,8 @@ Object.assign(globalThis.window, {
     LEAD_QUESTION_WAIT_LINE,
   },
 });
-await import("../../../../../apps/dashboard/src/legacy/components/icons.jsx");
+// The real glyphs, the kit's now (surfaces/kit/icon): a page's icon draws as it did.
+globalThis.window.Icon = (await import("../../../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx")).Icon;
 await import("../../../../../apps/dashboard/src/legacy/pages/leads-finder.jsx");
 
 // Task 10's view model. The plan writes `leadStrip` in contracts (step 4) and

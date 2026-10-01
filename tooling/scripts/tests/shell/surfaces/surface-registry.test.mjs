@@ -24,6 +24,21 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DASH = path.join(here, "../../../../../apps/dashboard/src");
 const registry = await import(pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href);
+// The routes that have left the shell: each has an App Router page of its own (decision 0015).
+const { SURFACE_ROUTES, routeHasPage } = await import(pathToFileURL(path.join(DASH, "surfaces/routes.ts")).href);
+const { setSurfaceValue } = await import(pathToFileURL(path.join(DASH, "surfaces/surface-values.ts")).href);
+const WORKSPACE_APP = path.join(DASH, "../app/(os)/w/[workspace]");
+// The product's word for a route the shell names otherwise (contracts shell/address.ts): the page's folder says the word.
+const { ROUTE_WORDS } = await import("@chanlytics/contracts");
+const wordOf = (route) => (Object.hasOwn(ROUTE_WORDS, route) ? ROUTE_WORDS[route] : route);
+// Rows a moved route keeps in app-routes.jsx: each for an address its page does not take, or (address null) for a session
+// its page is not drawn for. People's Leads scope is drawn by its own row until Leads leaves the shell (decision 0015, step
+// 9); the mockup's seeded Lists page is drawn where there is no workspace to read (a demo session), a real workspace's
+// Lists being the App Router page. A person's page and the Pipeline are the page's own since they moved.
+const ROWS_LEFT = {
+  clients: [{ word: "leads", address: "leads" }],
+  segments: [{ word: "realWorkspace", address: null }],
+};
 const { SURFACE_STATES, ROUTE_SURFACE, surfaceStateFor, routeSurfaceFor, surfaceRetiredTo } = await import(
   pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href
 );
@@ -33,9 +48,25 @@ const shell = fs.readFileSync(path.join(DASH, "legacy/pages/app-shell.jsx"), "ut
 // still names the two pages it draws outside the table (shared, start) and the family it fades (clients).
 const routes = fs.readFileSync(path.join(DASH, "legacy/pages/app-routes.jsx"), "utf8");
 
-/** Every page key the shell's router matches on, and the retired pages it routes by their move (surfaceRetiredTo). */
+/** A route's App Router page: `<word>/page.tsx`, or under an optional catch-all (`<word>/[[...thread]]/page.tsx`) where the route takes an address under it. */
+function pageFileOf(route) {
+  const dir = path.join(WORKSPACE_APP, wordOf(route));
+  if (fs.existsSync(path.join(dir, "page.tsx"))) return true;
+  if (!fs.existsSync(dir)) return false;
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
+    .some(
+      (e) =>
+        e.isDirectory() && /^\[\[\.\.\.[a-z]+\]\]$/.test(e.name) && fs.existsSync(path.join(dir, e.name, "page.tsx")),
+    );
+}
+
+/**
+ * Every page key the shell's router matches on, the retired pages it routes by their move (surfaceRetiredTo), and the
+ * routes that have left the shell, which the frame draws around an App Router page (surfaces/routes.ts).
+ */
 function routedPages() {
-  const pages = new Set(Object.keys(registry.SURFACE_RETIRED));
+  const pages = new Set([...Object.keys(registry.SURFACE_RETIRED), ...Object.keys(SURFACE_ROUTES)]);
   for (const m of (shell + routes).matchAll(/page(?: ===|:) "([a-z-]+)"/g)) pages.add(m[1]);
   return pages;
 }
@@ -57,6 +88,50 @@ test("the registry classifies nothing the shell does not route", () => {
   // admin/workspace through the admin branch, not a literal of its own.
   const stale = Object.keys(SURFACE_STATES).filter((p) => !routed.has(p) && !routed.has(p.split("/")[0]));
   assert.deepEqual(stale, [], "classified but not routed");
+});
+
+test("a route with an App Router page has no row in app-routes.jsx, and a page has its route", () => {
+  // A route is drawn once. A surface that moved took its row with it (decision 0015, step 3); a row left behind would be
+  // drawn by the frame's table while the layout drew the page too, and a page with no entry here is a route the frame
+  // draws no chrome around.
+  for (const [route, page] of Object.entries(SURFACE_ROUTES)) {
+    // A page that takes addresses under its route is an optional catch-all, and draws the route alone as well.
+    assert.ok(
+      pageFileOf(route),
+      `${route} is in SURFACE_ROUTES and has no app/(os)/w/[workspace]/${wordOf(route)}/page.tsx (or, for a route that takes an address under it, ${wordOf(route)}/[[...x]]/page.tsx)`,
+    );
+    const rows = [...routes.matchAll(new RegExp(String.raw`\{ page: "${route}"([^\n]*)`, "g"))].map((m) => m[1]);
+    const allowed = ROWS_LEFT[route] ?? [];
+    assert.deepEqual(
+      rows.filter((row) => !allowed.some(({ word }) => row.includes(word))),
+      [],
+      `${route} has an App Router page and still a row in app-routes.jsx for an address the page takes`,
+    );
+    assert.ok(
+      routeHasPage(route) && routeHasPage(`${route}/x`) === (page.params === true || !!page.takes?.("x")),
+      "the route alone is the page, and an address under it only where the route takes one (for every address, or for the ones it names)",
+    );
+    for (const { address, dealsOn } of allowed) {
+      if (address === null) continue;
+      setSurfaceValue("people", { dealsOn: !!dealsOn });
+      try {
+        assert.ok(!routeHasPage(`${route}/${address}`), `${route}/${address} is a row's, not the page's`);
+      } finally {
+        setSurfaceValue("people", undefined);
+      }
+    }
+  }
+  const pages = fs
+    .readdirSync(WORKSPACE_APP, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && !e.name.startsWith("["))
+    .map((e) => e.name)
+    .filter((name) => pageFileOf(name))
+    .sort();
+  assert.deepEqual(
+    pages,
+    Object.keys(SURFACE_ROUTES).map(wordOf).sort(),
+    "every page beside the catch-all has its route in SURFACE_ROUTES",
+  );
 });
 
 test("'real' and the SurfaceData wiring agree exactly", () => {

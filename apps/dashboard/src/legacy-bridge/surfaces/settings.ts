@@ -22,7 +22,8 @@ import { read } from "../api";
 import { pageClock, workspaceZone } from "../zone";
 import type { PoliciesSurface } from "../policy-store";
 import type { SurfaceOverride } from "../surface-data";
-import type { TemplateDto } from "./inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
+import { setSurfaceValue } from "../../surfaces/surface-values";
 
 /**
  * Settings · Workspace — the business's own facts, and who is on the team.
@@ -45,8 +46,41 @@ export interface WorkspaceSettings {
   };
 }
 
+/** What Settings holds of the workspace (`__SETTINGS`): its config, the version it is at, and the prompt the receptionist reads. */
+export interface SettingsRecord {
+  config: WorkspaceSettings | null;
+  version: number;
+  role: string;
+  broken: { issues: string[] } | null;
+  prompt: PromptPreviewDto | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+}
+
+/** What each template is used by, as the card says it (`__TEMPLATE_USE`), by the template's name. */
+export type TemplateUse = Record<
+  string,
+  { words: string; note: string | null; unused: boolean; playbook: string | null; running: boolean }
+>;
+
+/**
+ * The slice of Settings a TSX surface reads through `useSurface("settings")`: the workspace's record, its channels and its
+ * templates with what uses each and when each last went out, exactly what the globals below hold, and each null where
+ * that read failed. Campaigns' Templates reads it; the panes of Settings still read the globals.
+ */
+export interface SettingsSurface {
+  settings: SettingsRecord | null;
+  /** What the workspace's facts resolve to, and where two sources disagree (`__FACTS`); null on a broken config. */
+  facts: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
+  channels: ChannelVM[] | null;
+  templatesAll: TemplateDto[] | null;
+  templateUse: TemplateUse | null;
+  templateSent: Record<string, TemplateSentWords> | null;
+}
+
 export const settingsOverride: SurfaceOverride = {
   key: "settings",
+  value: "settings",
   globals: [
     "__SETTINGS",
     "__FACTS",
@@ -77,25 +111,14 @@ export const settingsOverride: SurfaceOverride = {
       workspaceZone().catch(() => pageClock().zone()),
     ]);
     const w = window as unknown as {
-      __SETTINGS?: {
-        config: WorkspaceSettings | null;
-        version: number;
-        role: string;
-        broken: { issues: string[] } | null;
-        prompt: PromptPreviewDto | null;
-        updatedBy: string | null;
-        updatedAt: string | null;
-      };
+      __SETTINGS?: SettingsRecord;
       __FACTS?: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
       __TEAM?: unknown[] | null;
       __TEAM_INVITES?: unknown[] | null;
       __POLICIES?: PoliciesSurface | null;
       __CHANNELS?: ChannelVM[] | null;
       __TEMPLATES_ALL?: TemplateDto[] | null;
-      __TEMPLATE_USE?: Record<
-        string,
-        { words: string; note: string | null; unused: boolean; playbook: string | null; running: boolean }
-      > | null;
+      __TEMPLATE_USE?: TemplateUse | null;
       __TEMPLATE_SENT?: Record<string, TemplateSentWords> | null;
     };
     // `broken` is its own state, not an empty config: the pane closes its
@@ -207,5 +230,14 @@ export const settingsOverride: SurfaceOverride = {
       // invisible on the one card whose job is saying who has access.
       w.__TEAM_INVITES = team.invites ?? [];
     }
+    // The slice a TSX surface reads (Campaigns' Templates), published beside the globals it copies.
+    setSurfaceValue("settings", {
+      settings: w.__SETTINGS ?? null,
+      facts: w.__FACTS ?? null,
+      channels: w.__CHANNELS ?? null,
+      templatesAll: w.__TEMPLATES_ALL ?? null,
+      templateUse: w.__TEMPLATE_USE ?? null,
+      templateSent: w.__TEMPLATE_SENT ?? null,
+    });
   },
 };

@@ -23,6 +23,7 @@ import {
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
+import { declareSurfaceValue, setSurfaceValue } from "../surfaces/surface-values";
 
 export interface GoogleSurface {
   dto: GoogleDto;
@@ -70,22 +71,37 @@ export interface GoogleApi {
 
 declare global {
   interface Window {
-    __GOOGLE?: GoogleSurface;
     __google?: GoogleApi;
   }
 }
 
+// The pages still on the shell (Today's line, Setup, the first run) read the surface under its old name.
+declareSurfaceValue("google", "__GOOGLE");
+
 export const googleOverride: SurfaceOverride = {
   key: "google",
-  globals: ["__GOOGLE"],
+  value: "google",
   events: ["surface:google"],
   // The edge writes the listing on every read, the connection on every sync, and a review the first time it is seen.
   refreshOnTables: ["google_listings", "google_reviews", "google_connections"],
   apply: async () => {
     const d = await read("GET google");
-    window.__GOOGLE = { dto: d.google, fetchedAt: Date.now() };
+    setSurfaceValue("google", { dto: d.google, fetchedAt: Date.now() });
   },
 };
+
+/** An answer to a review, on Google. Operators and owners. */
+export async function replyToReview(id: string, comment: string): Promise<{ ok: boolean; message: string }> {
+  const r = await api()("POST google/reviews/[id]/reply", { params: { id }, body: { comment } });
+  return { ok: r.ok, message: r.ok ? "" : r.message };
+}
+
+/** The receptionist's draft of a reply, for the composer. Nothing is posted. Refused under Never, with the words for it. */
+export async function draftReply(id: string): Promise<{ ok: boolean; text: string; message: string }> {
+  const r = await api()("POST google/reviews/[id]/draft", { params: { id }, body: {} });
+  if (!r.ok) return { ok: false, text: "", message: r.message };
+  return { ok: typeof r.data.text === "string", text: r.data.text ?? "", message: "" };
+}
 
 /** The words the card says for what came back from Google. */
 export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
@@ -158,15 +174,8 @@ export function installGoogle(win: Window = window): void {
       const r = await api()("DELETE google/connection");
       return { ok: r.ok, message: r.ok ? "" : r.message };
     },
-    async reply(id, comment) {
-      const r = await api()("POST google/reviews/[id]/reply", { params: { id }, body: { comment } });
-      return { ok: r.ok, message: r.ok ? "" : r.message };
-    },
-    async draft(id) {
-      const r = await api()("POST google/reviews/[id]/draft", { params: { id }, body: {} });
-      if (!r.ok) return { ok: false, text: "", message: r.message };
-      return { ok: typeof r.data.text === "string", text: r.data.text ?? "", message: "" };
-    },
+    reply: replyToReview,
+    draft: draftReply,
     outcome() {
       try {
         const q = new URLSearchParams(win.location.search);

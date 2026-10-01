@@ -5,43 +5,53 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseCsv, matchColumns, importRowsOf, importCounts } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, byTestId, textOf, press } from "../_legacy-react.mjs";
+import { importSrc } from "../_source.mjs";
 
 installLegacyReact();
 const W = globalThis.window;
-const R = globalThis.React;
-// The reader, as seed-globals.ts publishes it from contracts.
-W.__csvImport = { parseCsv, matchColumns, importRowsOf, importCounts };
-// The kit's sheet, as a shell: its body, the page's foot, and its one Save when the sheet has one.
-W.RecordSheet = ({
-  children,
-  foot = null,
-  onSave = null,
-  saveLabel = "Save",
-  saving = false,
-  savingLabel = "Saving…",
-  testid = null,
-}) =>
-  R.createElement(
-    "div",
-    { "data-testid": testid || "rec-sheet" },
-    children,
-    foot,
-    onSave
-      ? R.createElement(
-          "button",
-          { "data-testid": "sheet-save", onClick: onSave, disabled: saving },
-          saving ? savingLabel : saveLabel,
-        )
-      : null,
-  );
-// The kit's one error line (data-bits.jsx), as its words.
-W.FieldError = ({ id = null, message = null, testid = null }) =>
-  message ? R.createElement("span", { id, role: "alert", "data-testid": testid }, message) : null;
-await import("../../../../apps/dashboard/src/legacy/pages/people-import.jsx");
-const Sheet = W.PeopleImportSheet;
+// The sheet, its plan and the kit's own RecordSheet and FieldError it draws: the TSX over the stub React
+// (installLegacyReact has put the stub's hooks on the react module), the door the real verb over a recorded fake wire.
+const { PeopleImportSheet: Sheet } = await importSrc("apps/dashboard/src/surfaces/people/import/import-sheet.tsx");
+const { plImportPlan, plImportCountWords, plImportColumnWords } = await importSrc(
+  "apps/dashboard/src/surfaces/people/import/plan.ts",
+);
 assert.equal(typeof Sheet, "function");
+
+// The sheet's one Save, as the kit's foot names it (RecordSheet id "people-import").
+const SAVE = "rec-sheet-save-people-import";
+
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+/**
+ * The wire the import goes through: importPeople's request over the bridge's client, answered by `answer(body, n)`
+ * (the part's body and its number from 1) with a Response. Each part the door was sent is kept in `parts`.
+ */
+const importWire = (answer) => {
+  const parts = [];
+  W.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    assert.equal(u.pathname, "/api/v1/contacts/import", `only the import door is asked: ${u.pathname}`);
+    assert.equal(init.method, "POST");
+    const body = JSON.parse(init.body);
+    parts.push(body);
+    return answer(body, parts.length);
+  };
+  return parts;
+};
+/**
+ * The sheet drawn again until `ready(tree)` holds, and that tree. The Save's button does not hand back the run it starts
+ * (the kit's foot calls it), and the wire answers on its own clock: what the page shows is waited for, by condition.
+ */
+const drawnWhen = async (draw, ready, what) => {
+  for (let i = 0; i < 1000; i += 1) {
+    const tree = again(draw);
+    if (ready(tree)) return tree;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  return assert.fail(`the sheet never showed ${what}`);
+};
+const went = (over) => ({ added: 0, existed: 0, emails_set: 0, skipped: [], failed: [], stopped: false, ...over });
 
 // A header, n people with a 555-01xx number and an example.com address each, and one row with neither.
 const csv = (n) =>
@@ -63,28 +73,16 @@ const readSixty = (props) => {
 };
 
 test("pasted rows are read and counted before anything is written; the door is called in parts of fifty under one import id; the summary says what happened", async () => {
-  const parts = [];
-  W.__importPeople = async (body) => {
-    parts.push(body);
-    return {
-      ok: true,
-      data: {
-        added: body.rows.length - 1,
-        existed: 1,
-        emails_set: body.rows.length,
-        skipped: [],
-        failed: [],
-        stopped: false,
-      },
-    };
-  };
+  const parts = importWire((body) =>
+    json(200, { ok: true, data: went({ added: body.rows.length - 1, existed: 1, emails_set: body.rows.length }) }),
+  );
   const toasts = [];
   let done = null;
   const props = { onClose() {}, onDone: (t) => (done = t), flash: (t) => toasts.push(t) };
   fresh();
   const draw = () => Sheet(props);
   let tree = again(draw);
-  assert.equal(byTestId(tree, "sheet-save"), null, "nothing to save before a file is read");
+  assert.equal(byTestId(tree, SAVE), null, "nothing to save before a file is read");
   assert.equal(byTestId(tree, "import-preview"), null, "and nothing to preview");
   byTestId(tree, "import-paste").props.onChange({ target: { value: csv(60) } });
   tree = again(draw);
@@ -99,11 +97,10 @@ test("pasted rows are read and counted before anything is written; the door is c
   for (const words of ["name “Name”", "mobile “Mobile”", "email “Email”", "1 row has neither"]) {
     assert.ok(columns.includes(words), `"${columns}" says ${words}`);
   }
-  assert.equal(textOf(byTestId(tree, "sheet-save")), "Import 60 people");
+  assert.equal(textOf(byTestId(tree, SAVE)), "Import 60 people");
 
-  await press(byTestId(tree, "sheet-save"));
-  await settle();
-  tree = again(draw);
+  press(byTestId(tree, SAVE));
+  tree = await drawnWhen(draw, (t) => byTestId(t, "import-summary"), "the summary");
   assert.equal(parts.length, 2, "sixty readable rows are two parts");
   assert.deepEqual(
     parts.map((p) => p.rows.length),
@@ -124,7 +121,7 @@ test("pasted rows are read and counted before anything is written; the door is c
     textOf(byTestId(tree, "import-skipped")).includes("Line 62: No number and no address."),
     "the file's own line",
   );
-  assert.equal(byTestId(tree, "sheet-save"), null, "done: nothing left to save");
+  assert.equal(byTestId(tree, SAVE), null, "done: nothing left to save");
   assert.equal(byTestId(tree, "import-preview"), null, "the preview has gone with it");
   assert.equal(byTestId(tree, "import-error"), null);
   assert.equal(byTestId(tree, "import-done").props.onClick, props.onClose, "Done is the sheet's Close");
@@ -135,54 +132,41 @@ test("pasted rows are read and counted before anything is written; the door is c
 });
 
 test("a part the door refuses stops the import and says so by the Save; nothing after it is sent", async () => {
-  let calls = 0;
-  W.__importPeople = async () => {
-    calls += 1;
-    return {
-      ok: false,
-      code: "forbidden",
-      status: 403,
-      title: "Not allowed",
-      message: "Only the owner can import people.",
-    };
-  };
+  const asked = importWire(() =>
+    json(403, { ok: false, error: { code: "forbidden", message: "Only the owner can import people." } }),
+  );
   const toasts = [];
   let { draw, tree } = readSixty({ onClose() {}, flash: (t) => toasts.push(t) });
-  await press(byTestId(tree, "sheet-save"));
-  await settle();
-  tree = again(draw);
-  assert.equal(calls, 1);
+  press(byTestId(tree, SAVE));
+  tree = await drawnWhen(draw, (t) => byTestId(t, "import-error"), "the refusal");
+  assert.equal(asked.length, 1);
   assert.ok(textOf(byTestId(tree, "import-error")).includes("Only the owner can import people."));
   // Nothing went: no summary, no toast, and the Save stays for another try over the same preview.
   assert.equal(byTestId(tree, "import-summary"), null);
   assert.equal(toasts.length, 0);
-  assert.equal(textOf(byTestId(tree, "sheet-save")), "Import 60 people");
+  assert.equal(textOf(byTestId(tree, SAVE)), "Import 60 people");
   assert.ok(byTestId(tree, "import-preview"));
 });
 
 test("a part the door stops mid-way ends the import at the file's own line, and the summary says what went through", async () => {
-  const parts = [];
-  W.__importPeople = async (body) => {
-    parts.push(body);
-    if (parts.length === 1)
-      return { ok: true, data: { added: 49, existed: 1, emails_set: 50, skipped: [], failed: [], stopped: false } };
-    // The door's lines are counted within the part: its first row is the file's line 52, its third line 54.
-    return {
-      ok: true,
-      data: {
-        added: 2,
-        existed: 0,
-        emails_set: 2,
-        skipped: [{ line: 1, reason: "Not a number we can text." }],
-        failed: [{ line: 3, message: "The people table is not taking writes right now." }],
-        stopped: true,
-      },
-    };
-  };
+  const parts = importWire((_body, n) =>
+    n === 1
+      ? json(200, { ok: true, data: went({ added: 49, existed: 1, emails_set: 50 }) })
+      : // The door's lines are counted within the part: its first row is the file's line 52, its third line 54.
+        json(200, {
+          ok: true,
+          data: went({
+            added: 2,
+            emails_set: 2,
+            skipped: [{ line: 1, reason: "Not a number we can text." }],
+            failed: [{ line: 3, message: "The people table is not taking writes right now." }],
+            stopped: true,
+          }),
+        }),
+  );
   let { draw, tree } = readSixty({ onClose() {}, flash() {} });
-  await press(byTestId(tree, "sheet-save"));
-  await settle();
-  tree = again(draw);
+  press(byTestId(tree, SAVE));
+  tree = await drawnWhen(draw, (t) => byTestId(t, "import-summary"), "the summary");
   assert.equal(parts.length, 2, "nothing after the stopped part is sent");
   assert.equal(
     textOf(byTestId(tree, "import-error")),
@@ -200,28 +184,19 @@ test("a part the door stops mid-way ends the import at the file's own line, and 
   assert.ok(
     textOf(byTestId(tree, "import-failed")).includes("Line 54: The people table is not taking writes right now."),
   );
-  assert.equal(byTestId(tree, "sheet-save"), null, "a stopped import is not tried again from the summary");
+  assert.equal(byTestId(tree, SAVE), null, "a stopped import is not tried again from the summary");
 });
 
 test("a part refused after others went through ends the import at the line it began; the summary says what went through", async () => {
-  const parts = [];
-  W.__importPeople = async (body) => {
-    parts.push(body);
-    if (parts.length === 1)
-      return { ok: true, data: { added: 49, existed: 1, emails_set: 50, skipped: [], failed: [], stopped: false } };
-    return {
-      ok: false,
-      code: "internal",
-      status: 500,
-      title: "Chanlytics hit a problem",
-      message:
-        "Chanlytics hit a problem and couldn't confirm this — check whether it went through before trying again.",
-    };
-  };
+  // The server's own catch-all on the second part: the client says it in the owner's words (contracts refusalOf).
+  const parts = importWire((_body, n) =>
+    n === 1
+      ? json(200, { ok: true, data: went({ added: 49, existed: 1, emails_set: 50 }) })
+      : json(500, { ok: false, error: { code: "internal", message: "Something went wrong." } }),
+  );
   let { draw, tree } = readSixty({ onClose() {}, flash() {} });
-  await press(byTestId(tree, "sheet-save"));
-  await settle();
-  tree = again(draw);
+  press(byTestId(tree, SAVE));
+  tree = await drawnWhen(draw, (t) => byTestId(t, "import-summary"), "the summary");
   assert.equal(parts.length, 2, "nothing after the refused part is sent");
   // The second part began at P50, which is the file's line 52 (the header is line 1, P0 line 2).
   assert.equal(
@@ -233,23 +208,23 @@ test("a part refused after others went through ends the import at the line it be
     assert.ok(summary.includes(words), `"${summary}" says ${words}`);
   }
   assert.ok(!summary.includes("could not be added"), summary);
-  assert.equal(byTestId(tree, "sheet-save"), null, "what went through is not tried again from the summary");
+  assert.equal(byTestId(tree, SAVE), null, "what went through is not tried again from the summary");
   assert.equal(byTestId(tree, "import-preview"), null);
 });
 
 test("rows with no header are told apart by what is in them, and one row is said in the singular", () => {
-  const plan = W.plImportPlan("Ana Ruiz,(646) 555-0101\n");
+  const plan = plImportPlan("Ana Ruiz,(646) 555-0101\n");
   assert.equal(plan.header, false);
   assert.deepEqual(
     plan.people.map((p) => [p.line, p.name, p.phone, p.email]),
     [[1, "Ana Ruiz", "+16465550101", null]],
   );
-  assert.equal(W.plImportCountWords(plan.counts), "1 row · 1 with a number · 0 with an email · 0 with neither");
-  assert.equal(W.plImportColumnWords(plan), "No header row: the columns were told apart by what is in them.");
-  const headed = W.plImportPlan("Client,Correo\nAna,ana@example.com\n");
-  assert.equal(W.plImportColumnWords(headed), "Columns: name “Client”, mobile not found, email “Correo”.");
+  assert.equal(plImportCountWords(plan.counts), "1 row · 1 with a number · 0 with an email · 0 with neither");
+  assert.equal(plImportColumnWords(plan), "No header row: the columns were told apart by what is in them.");
+  const headed = plImportPlan("Client,Correo\nAna,ana@example.com\n");
+  assert.equal(plImportColumnWords(headed), "Columns: name “Client”, mobile not found, email “Correo”.");
   assert.equal(
-    W.plImportCountWords(W.plImportPlan("").counts),
+    plImportCountWords(plImportPlan("").counts),
     "0 rows · 0 with a number · 0 with an email · 0 with neither",
   );
 });

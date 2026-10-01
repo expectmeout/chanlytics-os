@@ -3,7 +3,7 @@
  * Exclude, Put back, a call from their own phone with its six outcomes, and a draft for their own inbox.
  *
  * Drawn on the tests' stub React, as refusals-on-the-page does: the components are hookless, so a draw is a call and
- * the state is this file's, the way ClientsAReal holds it on the real page. Nothing is mocked that the owner reads:
+ * the state is this file's, the way LeadsReal holds it on the real page. Nothing is mocked that the owner reads:
  * the view model is contracts' own toLeadPeekVM and the words are contracts' LEAD_WORDS.
  */
 import { test, mock } from "node:test";
@@ -23,6 +23,7 @@ import {
   leadPeekMenu,
 } from "../../../../../packages/contracts/src/leads/leads.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { kitPages, peoplePages, useStubHooks } from "../../_legacy-react.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -99,30 +100,23 @@ globalThis.window = {
   // The one colour vocabulary, as the app publishes it: the verdict's pill takes its tone from here.
   __chrome: { state: stateOf },
 };
-await import("../../../../../apps/dashboard/src/legacy/components/icons.jsx");
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-globalThis.Icon = globalThis.window.Icon;
+// The real glyphs, the kit's now (surfaces/kit/icon): a page's icon draws as it did.
+globalThis.Icon = globalThis.window.Icon = (
+  await import("../../../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx")
+).Icon;
+// The pill, the menu and the question are the kit's (surfaces/kit), which seed-globals publishes on the window.
+Object.assign(globalThis.window, kitPages);
+useStubHooks();
 globalThis.StatePill = globalThis.window.StatePill;
 // Call is the ways-of-calling menu, the house one, drawn for real: pressing it opens it.
 globalThis.MoreMenu = globalThis.window.MoreMenu;
 // Erase asks first, in the house question (PR 9), drawn for real.
-globalThis.Confirm = globalThis.window.Confirm;
-// The table's own helpers: `leads-scope.jsx` reads plSortKeys at module scope (LEAD_SORT_KEYS), so the file it was
-// lifted from loads first here, as people-honest's harness loads it.
-await import("../../../../../apps/dashboard/src/legacy/pages/people-table.jsx");
-for (const k of [
-  "PeopleTable",
-  "PeopleColumnsMenu",
-  "plLocked",
-  "plShows",
-  "plSortKeys",
-  "plDrawnColumns",
-  "plShownColumns",
-  "plColumnChoices",
-  "plColumnOptions",
-  "PL_NO_SEL",
-  "PL_FIRST_ROWS",
-])
+globalThis.Confirm = kitPages.Confirm;
+// People's parts, TSX now (surfaces/people/people-globals.ts): `leads-scope.jsx` reads plSortKeys at module scope
+// (LEAD_SORT_KEYS), so they are on the window before it loads, as the app publishes them before any page.
+Object.assign(globalThis.window, peoplePages);
+for (const k of ["PeopleTable", "PeopleColumnsMenu", "plSortKeys", "plDrawnColumns", "plColumnOptions", "PL_NO_SEL"])
   globalThis[k] = globalThis.window[k];
 await import("../../../../../apps/dashboard/src/legacy/pages/leads-cells.jsx");
 await import("../../../../../apps/dashboard/src/legacy/pages/leads-bench.jsx");
@@ -373,7 +367,7 @@ const courierOf = (over = {}) => {
   return api;
 };
 
-/** The page's own state, the way ClientsAReal holds it: peekMode, armed and draft beside peekId. */
+/** The page's own state, the way LeadsReal holds it: peekMode, armed and draft beside peekId. */
 const page = (over = {}) => {
   const st = { peekId: LEAD, mode: "info", armed: null, draft: null, ...over };
   const p = {

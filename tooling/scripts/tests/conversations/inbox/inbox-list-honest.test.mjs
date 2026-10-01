@@ -9,12 +9,12 @@
  * - The agent rail invented the receptionist on a real thread: an autonomy line and a voice nobody set,
  *   an Ask box answering with canned text, a menu to a hidden Fleet page (D11, A3, A17). Dormant, because
  *   nothing turns the rail on; not drawn for a real thread now, so nothing can.
- * Run against the contracts, the bridge over a fake wire with a runner mounted, and the pages on a stub React.
+ * Run against the contracts, the courier over a fake wire with a runner mounted, and the pages on a stub React.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
+import { installLegacyReact, fresh, again, all, find, textOf, settle } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -55,7 +55,8 @@ const asked = (id) => ({ id: `e-${id}`, reason: "human_token", details: null, st
 
 /* -------------------------------- a browser -------------------------------- */
 
-globalThis.window = {
+installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
     hash: "",
@@ -64,32 +65,17 @@ globalThis.window = {
     replace() {},
     reload() {},
   },
-  localStorage: globalThis.localStorage,
-  sessionStorage: globalThis.sessionStorage,
   __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
   __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  __surfaceState: () => "live",
-  __DEMO_MODE: false,
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent() {
-    return true;
-  },
-  setTimeout: () => 1,
-  clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
-};
-globalThis.document = {
-  visibilityState: "hidden",
-  body: { appendChild() {} },
-  addEventListener() {},
-  removeEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
-};
+});
+globalThis.document.visibilityState = "hidden";
+// The shell's own toast and role gate, which the pages draw through the bridge (surfaces/legacy-verbs.ts).
+await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const quiet = async (fn) => {
@@ -105,14 +91,11 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* --------------------------- the bulk courier, run --------------------------- */
 
-const { inboxBulk, inboxVerb } = await quiet(
-  () => import("../../../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts"),
-);
-const { startSurfaces } = await quiet(
-  () => import("../../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts"),
-);
+const S = "../../../../../apps/dashboard/src";
+const { inboxBulk, inboxVerb } = await quiet(() => import(`${S}/surfaces/inbox/verbs.ts`));
+const { startSurfaces } = await quiet(() => import(`${S}/legacy-bridge/surface-runner.ts`));
 // Loaded now, so a re-read the courier starts is not held up loading the table.
-await quiet(() => import("../../../../../apps/dashboard/src/legacy-bridge/refresh-map.ts"));
+const { AFTER } = await quiet(() => import(`${S}/legacy-bridge/refresh-map.ts`));
 
 test("REGRESSION (A19): a bulk snooze asks once per thread and reads the Inbox again once every ask is answered -- not after each -- with what was refused named", async () => {
   const seen = [];
@@ -189,112 +172,13 @@ test("REGRESSION (A19): a bulk snooze asks once per thread and reads the Inbox a
 
 /* ------------------------------ the pages, drawn ------------------------------ */
 
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = fn();
-    return cells[k];
-  },
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of [
-  "StatePill",
-  "MoreMenu",
-  "EmptyState",
-  "PolicyChip",
-  "TlMedia",
-  "FailedRead",
-  "Confirm",
-  "usePPToast",
-  "useHotkey",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
-globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
-const RealInboxList = globalThis.window.InboxList;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-// The one thread, which the Inbox mounts (thread-pane.jsx): loaded first, published as the page reads it.
-await import("../../../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
-globalThis.ThreadPane = globalThis.window.ThreadPane;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox.jsx");
+const { Inbox } = await import(`${S}/surfaces/inbox/pages/inbox-page.tsx`);
+const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
+const { InboxAgentRail } = await import(`${S}/surfaces/inbox/pages/agent-rail.tsx`);
+const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) {
-    for (const k of n) walk(k, fn);
-    return;
-  }
-  fn(n);
-  walk(n.props?.children, fn);
-  walk(n.rendered, fn);
-};
-const find = (tree, pred) => {
-  let hit;
-  walk(tree, (n) => {
-    if (hit === undefined && pred(n)) hit = n;
-  });
-  return hit;
-};
-const findAll = (tree, pred) => {
-  const out = [];
-  walk(tree, (n) => {
-    if (pred(n)) out.push(n);
-  });
-  return out;
-};
+const findAll = all;
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  return n.rendered !== undefined ? textOf(n.rendered) : textOf(n.props?.children);
-};
 const buttonNamed = (tree, words) => find(tree, (n) => n.type === "button" && textOf(n).trim() === words);
 
 const rosa = toInboxThreadVM(conv("c1", "Rosa Díaz"), asked("c1"), ZONE, NOW);
@@ -315,13 +199,13 @@ const listProps = (over = {}) => ({
   ...over,
 });
 const inboxWith = (threads) => {
-  globalThis.window.INBOX_DATA = {
+  setSurfaceValue("inbox", {
     INBOX_BUCKETS: [],
     INBOX_VIEWS: [],
     CHANNEL_LABELS: {},
     INBOX_BASELINE: {},
     THREADS: threads,
-  };
+  });
 };
 
 /** Today's read, in the shape the server answers it: without it Today's boot failed and tried again 800ms later. */
@@ -387,11 +271,11 @@ test("a single act tells the page the moment the server takes it, while the Inbo
     });
   };
   const [{ inboxOverride }, { conversationsOverride }, { todayOverride }] = await quiet(() =>
-    Promise.all(
-      ["inbox", "conversations", "today"].map(
-        (m) => import(`../../../../../apps/dashboard/src/legacy-bridge/surfaces/${m}.ts`),
-      ),
-    ),
+    Promise.all([
+      import(`${S}/surfaces/inbox/surface.ts`),
+      import(`${S}/surfaces/inbox/conversations-surface.ts`),
+      import(`${S}/surfaces/today/surface.ts`),
+    ]),
   );
   let joined = 0;
   const stop = startSurfaces([inboxOverride, conversationsOverride, todayOverride], () => {
@@ -433,60 +317,70 @@ test("a single act tells the page the moment the server takes it, while the Inbo
 });
 
 test("REGRESSION (A19): the Inbox's bulk snooze is one act -- busy while it runs, one toast with the count and each refusal named, the refused left selected, and an Undo that wakes what it snoozed", async () => {
-  let list = null;
-  globalThis.InboxList = (p) => {
-    list = p;
-    return null;
-  };
-  globalThis.InboxThread = () => null;
-  globalThis.InboxAgentRail = () => null;
-  globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
   inboxWith([rosa, nina]);
-  const bulk = [];
-  let finish = () => {};
-  globalThis.window.__inboxBulk = (threads, verb) => {
-    bulk.push([verb, threads.map((t) => t.id)]);
-    if (verb === "wake") return Promise.resolve({ done: threads, refused: [] });
-    return new Promise((r) => {
-      finish = () =>
-        r({
-          done: threads.slice(0, 1),
-          refused: [{ thread: threads[1], message: "That conversation changed; read it again." }],
-        });
-    });
+  // The server answers each snooze when the test lets it: the first thread's is taken, the second's refused.
+  const asked = [];
+  const gates = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const path = new URL(String(url), "https://app.chanlytics.com").pathname;
+    const [, id, verb] = /\/conversations\/([^/]+)\/(snooze|wake)$/.exec(path) ?? [];
+    if (!verb) return json(404, { ok: false, error: { code: "not_found", message: "not read here" } });
+    asked.push([verb, id]);
+    if (verb === "snooze") await new Promise((r) => gates.push(r));
+    if (verb === "snooze" && id === nina.conversationId)
+      return json(409, {
+        ok: false,
+        error: { code: "conflict", message: "That conversation changed; read it again." },
+      });
+    return json(200, { ok: true, data: { conversation: { id, state: verb === "wake" ? "open" : "snoozed" } } });
   };
-  const single = [];
-  globalThis.window.__inboxVerb = (t, verb) => {
-    single.push(verb);
-    return Promise.resolve({ ok: true, data: {} });
+  // The courier reads the surfaces again by the table's own row for the verb: counted, and answered by no surface.
+  const rereads = [];
+  const row = "POST conversations/[id]/snooze";
+  const tableRow = AFTER[row];
+  AFTER[row] = () => {
+    rereads.push(row);
+    return [];
   };
+  // The toast's own clock does not run here: its timers are the page's window's, which stood still.
+  const clocks = { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout };
+  globalThis.setTimeout = () => 1;
+  globalThis.clearTimeout = () => {};
   try {
-    cells = [];
-    const render = () => {
-      frames.begin();
-      return globalThis.window.Inbox({ showAgentRail: false });
-    };
+    fresh();
+    let tree;
+    const render = () => (tree = again(() => Inbox({ showAgentRail: false })));
+    const list = () => find(tree, (n) => n.type === InboxList).props;
     render();
-    list.onToggleSelect(rosa.id);
+    list().onToggleSelect(rosa.id);
     render();
-    list.onToggleSelect(nina.id);
+    list().onToggleSelect(nina.id);
     render();
-    const pending = list.onBulkSnooze();
+    const pending = list().onBulkSnooze();
+    render();
+    assert.equal(list().bulkBusy, "snooze", "the bar says it is working");
+    list().onBulkSnooze();
+    for (let i = 0; i < 400 && gates.length < 2; i += 1) await settle();
+    for (let i = 0; i < 20; i += 1) await settle();
     assert.deepEqual(
-      single,
-      [],
+      asked,
+      [
+        ["snooze", rosa.conversationId],
+        ["snooze", nina.conversationId],
+      ],
+      "a second press while it runs asks nothing: one ask per thread, in the order they were picked",
+    );
+    gates.splice(0).forEach((open) => open());
+    await pending;
+    render();
+    assert.deepEqual(
+      rereads,
+      [row],
       "REGRESSION: the single verb went out once per thread, each with its own toast and its own re-read",
     );
-    render();
-    assert.equal(list.bulkBusy, "snooze", "the bar says it is working");
-    list.onBulkSnooze();
-    assert.equal(bulk.length, 1, "a second press while it runs asks nothing");
-    finish();
-    await pending;
-    const tree = render();
-    assert.deepEqual(bulk[0], ["snooze", [rosa.id, nina.id]]);
-    assert.equal(list.bulkBusy, null);
-    assert.deepEqual(list.selected, [nina.id], "the refused stay selected, to try again");
+    assert.equal(list().bulkBusy, null);
+    assert.deepEqual(list().selected, [nina.id], "the refused stay selected, to try again");
     const toasts = findAll(
       tree,
       (n) => typeof n.props?.className === "string" && n.props.className.startsWith("pp-toast "),
@@ -499,16 +393,26 @@ test("REGRESSION (A19): the Inbox's bulk snooze is one act -- busy while it runs
       "the refusal is named in it",
     );
     buttonNamed(toasts[0], "Undo").props.onClick();
-    assert.deepEqual(bulk[1], ["wake", [rosa.id]], "Undo wakes what was snoozed, and only that");
+    for (let i = 0; i < 400 && asked.length < 3; i += 1) await settle();
+    for (let i = 0; i < 20; i += 1) await settle();
+    assert.deepEqual(asked.slice(2), [["wake", rosa.conversationId]], "Undo wakes what was snoozed, and only that");
+    // The wake has its answer and the page says so: nothing is left running when the test ends.
+    const said = () =>
+      findAll(render(), (n) => typeof n.props?.className === "string" && n.props.className.startsWith("pp-toast "))
+        .map(textOf)
+        .join(" | ");
+    for (let i = 0; i < 400 && !/Snooze undone/.test(said()); i += 1) await settle();
+    assert.match(said(), /Snooze undone — 1 back in the Inbox/);
   } finally {
-    delete globalThis.window.__inboxBulk;
-    delete globalThis.window.__inboxVerb;
+    Object.assign(globalThis, clocks);
+    globalThis.fetch = realFetch;
+    AFTER[row] = tableRow;
   }
 });
 
 test("REGRESSION (A19): a bulk archive of real threads asks first -- it has no undo -- and the question says it is working until it is done", () => {
   const archived = [];
-  cells = [];
+  fresh();
   const props = listProps({
     selected: [rosa.id, nina.id],
     onBulkArchive: () => {
@@ -516,10 +420,7 @@ test("REGRESSION (A19): a bulk archive of real threads asks first -- it has no u
       return new Promise(() => {});
     },
   });
-  const draw = (over = {}) => {
-    frames.begin();
-    return RealInboxList({ ...props, ...over });
-  };
+  const draw = (over = {}) => again(() => InboxList({ ...props, ...over }));
   buttonNamed(draw(), "Archive").props.onClick();
   assert.deepEqual(
     archived,
@@ -540,19 +441,20 @@ test("REGRESSION (A19): a bulk archive of real threads asks first -- it has no u
     "and the question says it is working",
   );
   const seeded = { ...rosa, id: "t-seed", real: false };
-  cells = [];
+  fresh();
   let pressed = 0;
-  frames.begin();
   buttonNamed(
-    RealInboxList(
-      listProps({
-        threads: [seeded],
-        allThreads: [seeded],
-        selected: ["t-seed"],
-        onBulkArchive: () => {
-          pressed += 1;
-        },
-      }),
+    again(() =>
+      InboxList(
+        listProps({
+          threads: [seeded],
+          allThreads: [seeded],
+          selected: ["t-seed"],
+          onBulkArchive: () => {
+            pressed += 1;
+          },
+        }),
+      ),
     ),
     "Archive",
   ).props.onClick();
@@ -563,16 +465,13 @@ test("REGRESSION (A25): the rows are a list a keyboard can walk -- Tab lands on 
   const opened = [];
   const toggled = [];
   const focused = [];
-  cells = [];
+  fresh();
   const props = listProps({
     selected: [ada.id],
     onSelectThread: (id) => opened.push(id),
     onToggleSelect: (id) => toggled.push(id),
   });
-  const draw = (over = {}) => {
-    frames.begin();
-    return RealInboxList({ ...props, ...over });
-  };
+  const draw = (over = {}) => again(() => InboxList({ ...props, ...over }));
   let tree = draw();
   const box = find(tree, (n) => n.props?.role === "listbox");
   assert.ok(box, "REGRESSION: a screen reader heard no list");
@@ -661,22 +560,16 @@ test("REGRESSION (D11, A3, A17): no invented receptionist on a real thread -- th
     ["glyph", "name"],
     "REGRESSION: 'Pauses on handoff' and 'Warm · bilingual (EN/ES)' were written into every real thread",
   );
-  const railed = [];
-  globalThis.InboxList = () => null;
-  globalThis.InboxThread = () => null;
-  globalThis.InboxAgentRail = (p) => {
-    railed.push(p.thread ? p.thread.id : null);
-    return null;
-  };
-  globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
+  // The threads the rail was drawn for: the rail's elements in what the page drew.
+  const railed = (tree) =>
+    all(tree, (n) => n.type === InboxAgentRail).map((n) => (n.props.thread ? n.props.thread.id : null));
   const draw = (threads) => {
-    cells = [];
-    frames.begin();
+    fresh();
     inboxWith(threads);
-    return globalThis.window.Inbox({ showAgentRail: true });
+    return again(() => Inbox({ showAgentRail: true }));
   };
   const real = draw([rosa]);
-  assert.deepEqual(railed, [], "REGRESSION: the rail drew canned answers beside a real customer");
+  assert.deepEqual(railed(real), [], "REGRESSION: the rail drew canned answers beside a real customer");
   assert.ok(!String(real.props.className).includes("with-rail"), "and the page keeps no column for it");
   const seeded = {
     id: "t-seed",
@@ -687,26 +580,36 @@ test("REGRESSION (D11, A3, A17): no invented receptionist on a real thread -- th
     whoMeta: "",
     timeline: [],
     agent: { name: "Front Desk", glyph: "F", autonomy: "Asks first", tone: "Warm" },
+    // What the list and the pane the page draws beside it read of a seeded thread.
+    avatar: "A",
+    channels: ["whatsapp"],
+    primaryChannel: "whatsapp",
+    subject: "",
+    preview: "",
+    summary: "",
+    lastAt: "",
+    lastAtFull: "",
+    unread: false,
+    pinned: false,
+    priority: "P2",
   };
   const demo = draw([seeded]);
-  assert.deepEqual(railed, ["t-seed"], "the demo keeps its rail");
+  assert.deepEqual(railed(demo), ["t-seed"], "the demo keeps its rail");
   assert.ok(String(demo.props.className).includes("with-rail"));
 });
 
 test("the list tells Ask what it draws (the Phase 2 plan, D3): the conversations in its bucket, in the list's order, and the bucket that chose them", () => {
-  cells = [];
+  fresh();
   delete globalThis.window.__askOnScreen;
-  frames.begin();
-  RealInboxList(listProps());
+  again(() => InboxList(listProps()));
   assert.deepEqual(globalThis.window.__askOnScreen, {
     key: "inbox",
     ids: ["c1", "c2", "c3"],
     labels: ["Rosa Díaz", "Nina Park", "Ada Lovelace"],
     view: "escalated",
   });
-  cells = [];
-  frames.begin();
-  RealInboxList(listProps({ threads: [ada], activeBucket: "all" }));
+  fresh();
+  again(() => InboxList(listProps({ threads: [ada], activeBucket: "all" })));
   assert.deepEqual(
     [globalThis.window.__askOnScreen.ids, globalThis.window.__askOnScreen.view],
     [["c3"], "all"],

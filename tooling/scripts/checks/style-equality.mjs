@@ -55,10 +55,14 @@ const PERSON = "clients/5c0e0000-0000-4000-8000-000000000003";
  * pages, a seeded person and every Settings pane; the pipeline the real People, Pipeline and person's page; the
  * nightly its empty Business pane (its other pages are the salon's own, element for element); the kit its gallery,
  * which draws every class of the kit (e2e-harness/kit-gallery.mjs) and has no routes, so its one is a name.
+ *
+ * A route that has left the shell (decision 0015: an App Router page, src/surfaces/routes.ts) is not in the list: the harness
+ * draws the shell's table and answers "No surface at" for it, so `record` refuses it. The Inbox, Reports and Campaigns' three
+ * (outbound, broadcasts, messages) are out; a page that leaves takes its route out of this list in the same change.
  */
 export const PAGES = {
   salon: [
-    ...["today", "inbox", "clients", "clients/c-aisha", "calendar", "outbound", "broadcasts", "messages", "reports"],
+    ...["clients", "clients/c-aisha", "calendar"],
     // Settings: Business is the bare route, and then each pane in the rail (settings.jsx SET_TABS).
     "admin",
     ...["profile", "partner", "team", "autonomy", "integrations", "notifications", "billing", "activity"].map(
@@ -66,7 +70,7 @@ export const PAGES = {
     ),
   ],
   pipeline: ["clients", "clients/pipeline", "clients/leads", PERSON],
-  nightly: ["today", "admin"],
+  nightly: ["admin"],
   kit: ["kit"],
 };
 

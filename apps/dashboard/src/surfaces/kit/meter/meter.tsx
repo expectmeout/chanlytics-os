@@ -2,7 +2,7 @@
  * The kit's meter (kit.css, "Meter"): a whole in its parts, 8px tall, large (10px) or small (4px). A part's share is
  * its flex-grow, and its colour a tone (ok, warn) or the series colour a chart gives it; the rest of the whole, where a
  * page has one, is a part of its own after them. A part of nothing is not drawn. The meter draws no words: what it
- * says is its `aria-label`, as SegmentBar says its parts (chart-core.jsx), and a title or a legend is the page's or
+ * says is its `aria-label`, as SegmentBar says its parts (charts/card.tsx), and a title or a legend is the page's or
  * the chart's. The share is data no class can hold, so it is the one style the kit writes in a prop, as SegmentBar
  * writes it (docs/debt.md, "Rises"). `className` is for the page's layout, and comes last; the ref reaches the element.
  *

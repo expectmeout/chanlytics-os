@@ -1,6 +1,8 @@
 /**
- * A reach-out on Playbooks and on Templates (Reach out, Part 4 PR 8), run on the stub React over the bridge's own
- * words (legacy-bridge/reach-out/reach-outs.ts, contracts reach-out-sheet.ts) and a stubbed `window.__reachOuts`:
+ * A reach-out on Playbooks and on Templates (Reach out, Part 4 PR 8), run on the stub React over the surface's own
+ * words (surfaces/campaigns/reach-out/surface.ts, contracts reach-out-sheet.ts) and its verbs stubbed on the surface's
+ * one `reachOuts` object, which the TSX row imports (a test sets what a verb answers there, as it once set
+ * `window.__reachOuts`):
  *
  * - Playbooks: a chain is one row among the moments, with its steps, its search and its next run as they are (R23);
  *   its report is read when the row opens, never before, and its table is the report's counts and nothing else; Pause
@@ -35,25 +37,20 @@ Object.assign(W, {
   __surfaceState: () => "live",
   useHotkey: () => {},
 });
+// The shell's own parts (Confirm, StatePill, the role gate, the record kit) are still JSX the frame loads.
 const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
-await import(`${L}/components/record-fold.jsx`);
-await import(`${L}/components/record-sheet.jsx`);
-await import(`${L}/components/message-preview.jsx`);
-await import(`${L}/components/template-chips.jsx`);
-await import(`${L}/components/campaign-bits.jsx`);
-await import(`${L}/pages/templates-real.jsx`);
-await import(`${L}/pages/playbook-bits.jsx`);
-await import(`${L}/pages/playbook-card.jsx`);
-await import(`${L}/pages/playbook-composer.jsx`);
-await import(`${L}/pages/reach-out/reach-out-sheet.jsx`);
-await import(`${L}/pages/reach-out/reach-out-row.jsx`);
-await import(`${L}/pages/outbound.jsx`);
-await import(`${L}/pages/reach-out/email-template-row.jsx`);
-await import(`${L}/pages/messages.jsx`);
-const bridge = await import("../../../../apps/dashboard/src/legacy-bridge/reach-out/reach-outs.ts");
+// The pages and their rows are TSX (decision 0015): Playbooks, Templates, and the reach-out's row, sheet and email row.
+const S = "../../../../apps/dashboard/src/surfaces";
+const { ReachOutRow } = await import(`${S}/campaigns/reach-out/row.tsx`);
+const { PlaybooksPage } = await import(`${S}/campaigns/playbooks/playbooks-page.tsx`);
+const { TemplatesPage } = await import(`${S}/campaigns/templates/templates-page.tsx`);
+const { setSurfaceValue, surfaceValue } = await import(`${S}/surface-values.ts`);
+const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
 const WORDS = bridge.reachOuts.words;
-W.__reachOuts = { words: WORDS };
+// The verbs as the surface has them: a test stubs some on the surface's one object, and `realVerbs()` puts every one back.
+const REAL_VERBS = { ...bridge.reachOuts };
+const realVerbs = (stubs = {}) => Object.assign(bridge.reachOuts, REAL_VERBS, stubs);
 
 const ZONE = "America/Chicago";
 const ROOT = "r1";
@@ -113,8 +110,7 @@ const REACH = { ready: 0, with_unconfirmed: 0, phone_only: 72, of: 160, chain: R
 /** The verbs, stubbed: each press recorded, each report answered as the test says. */
 const verbs = (report = REPORT(), ok = true) => {
   const pressed = [];
-  W.__reachOuts = {
-    words: WORDS,
+  realVerbs({
     report: async (id) => (
       pressed.push(["report", id]),
       ok ? { ok: true, data: { report, reach: REACH } } : { ok: false, message: "down" }
@@ -127,14 +123,14 @@ const verbs = (report = REPORT(), ok = true) => {
       pressed.push(["update", id, body]),
       { ok: true, data: { root_id: id, step_ids: [], rechecked: 0, start: null } }
     ),
-  };
+  });
   return pressed;
 };
 
 /** One row, drawn as the page draws it, open or not; `state` holds the open flag between draws. */
 const row = (chain, state) => {
   const draw = () =>
-    W.React.createElement(W.ReachOutRow, {
+    W.React.createElement(ReachOutRow, {
       chain,
       canAct: true,
       flash: (t) => toasts.push(t),
@@ -297,13 +293,12 @@ test("a report that could not be read says so, and draws no count", async () => 
 test("Retry on a report that could not be read reads it again, and draws it once it reads", async () => {
   let ok = false;
   const pressed = [];
-  W.__reachOuts = {
-    words: WORDS,
+  realVerbs({
     report: async (id) => (
       pressed.push(id),
       ok ? { ok: true, data: { report: REPORT(), reach: REACH } } : { ok: false }
     ),
-  };
+  });
   fresh();
   const r = row(chainOf(), { open: true });
   r.redraw();
@@ -322,7 +317,7 @@ test("Retry on a report that could not be read reads it again, and draws it once
 
 test("a refused Pause is said as every refusal is (window.refusalToast), never a blank toast", async () => {
   verbs();
-  W.__reachOuts.pause = async () => ({
+  bridge.reachOuts.pause = async () => ({
     ok: false,
     title: "Not allowed",
     message: "Only an owner or operator can pause a reach-out.",
@@ -385,12 +380,12 @@ const surface = (over = {}) => ({
   fetchedAt: Date.now(),
   ...over,
 });
-/** The Playbooks page over its surface and the reach-outs surface (its own: __REACH_OUTS). */
+/** The Playbooks page over its surface and the reach-outs surface (its own: the seam's "reach_outs"). */
 const playbooksPage = (s, props = {}, chains = [chainOf()]) => {
-  W.__PLAYBOOKS = s;
-  W.__REACH_OUTS = chains;
+  setSurfaceValue("playbooks", s);
+  setSurfaceValue("reach_outs", chains);
   fresh();
-  return again(() => W.OutboundPage(props));
+  return again(() => W.React.createElement(PlaybooksPage, props));
 };
 
 test("Playbooks draws each chain as a row among the moments, counts it in the head, and a link to it opens its row", () => {
@@ -431,12 +426,12 @@ test("a link to a chain is 'gone' only once the chains were read, and lands on i
     scrollIntoView: () => scrolled.push(id),
   });
   try {
-    W.__PLAYBOOKS = surface();
-    W.__REACH_OUTS = undefined;
+    setSurfaceValue("playbooks", surface());
+    setSurfaceValue("reach_outs", undefined);
     fresh();
-    again(() => W.OutboundPage({ initialPlaybook: ROOT }));
-    W.__REACH_OUTS = [chainOf()];
-    again(() => W.OutboundPage({ initialPlaybook: ROOT }));
+    again(() => W.React.createElement(PlaybooksPage, { initialPlaybook: ROOT }));
+    setSurfaceValue("reach_outs", [chainOf()]);
+    again(() => W.React.createElement(PlaybooksPage, { initialPlaybook: ROOT }));
     assert.deepEqual(scrolled, [`pb-${ROOT}`, `pb-${ROOT}`], "brought into view again as its row arrives");
   } finally {
     globalThis.document.getElementById = was;
@@ -466,8 +461,12 @@ const WHATSAPP_ROW = {
   body_preview: "Our offer.",
   variables: [],
 };
+// What Templates reads through the seam: the settings surface holds the WhatsApp rows, the numbers and the business's
+// words (what `__TEMPLATES_ALL`, `__CHANNELS` and `__SETTINGS` held), the reach_outs surface the chains. `over` names them
+// as the test always has; a key that is present and undefined is a read not landed.
+const drawTemplates = () => W.React.createElement(TemplatesPage, {});
 const templatesPage = (over = {}) => {
-  Object.assign(W, {
+  const o = {
     __TEMPLATES_ALL: [WHATSAPP_ROW],
     __REACH_OUTS: [templatesChain()],
     __TEMPLATE_USE: null,
@@ -476,9 +475,19 @@ const templatesPage = (over = {}) => {
     __CHANNELS: [{ kind: "whatsapp" }],
     __SETTINGS: { config: { brain: { business_name: "Harbor" } } },
     ...over,
+  };
+  setSurfaceValue("settings", {
+    settings: o.__SETTINGS,
+    facts: null,
+    channels: o.__CHANNELS,
+    templatesAll: o.__TEMPLATES_ALL,
+    templateUse: o.__TEMPLATE_USE,
+    templateSent: o.__TEMPLATE_SENT,
   });
+  setSurfaceValue("reach_outs", o.__REACH_OUTS);
+  setSurfaceValue("playbooks", o.__PLAYBOOKS);
   fresh();
-  return again(() => W.MessagesPage());
+  return again(drawTemplates);
 };
 
 test("Templates: a chain's emails are their own rows, with the Email chip and what sends them; the page counts them, and its hover says so", () => {
@@ -508,9 +517,9 @@ test("an email row says how many it wrote once it opens and its chain's report r
   let pressed = verbs();
   let tree = templatesPage();
   press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "template-email")[1], "template-email-open"));
-  again(() => W.MessagesPage());
+  again(drawTemplates);
   await settle();
-  tree = again(() => W.MessagesPage());
+  tree = again(drawTemplates);
   assert.deepEqual(pressed, [["report", ROOT]], "its chain's report, read as it opens");
   const nudge = all(tree, (n) => n.props?.["data-testid"] === "template-email")[1];
   assert.equal(textOf(byTestId(nudge, "template-email-sent")), "28 sent", "the report's own count for its step");
@@ -518,9 +527,9 @@ test("an email row says how many it wrote once it opens and its chain's report r
   pressed = verbs(REPORT(), false);
   tree = templatesPage();
   press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "template-email")[1], "template-email-open"));
-  again(() => W.MessagesPage());
+  again(drawTemplates);
   await settle();
-  tree = again(() => W.MessagesPage());
+  tree = again(drawTemplates);
   assert.deepEqual(pressed, [["report", ROOT]]);
   assert.equal(
     textOf(byTestId(all(tree, (n) => n.props?.["data-testid"] === "template-email")[1], "template-email-sent")),
@@ -553,7 +562,7 @@ test("an open email row: email only, its slots as chips, the check and the foot,
   verbs();
   let tree = templatesPage();
   press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "template-email")[1], "template-email-open"));
-  tree = again(() => W.MessagesPage());
+  tree = again(drawTemplates);
   const body = byTestId(tree, "template-email-body");
   assert.equal(textOf(byTestId(body, "template-email-versions")), "a reach-out sends email only");
   assert.deepEqual(
@@ -571,7 +580,7 @@ test("an open email row: email only, its slots as chips, the check and the foot,
   );
   // Edit in its reach-out: the sheet over its chain as the reach_outs surface read it.
   press(byTestId(body, "template-email-edit"));
-  tree = again(() => W.MessagesPage());
+  tree = again(drawTemplates);
   assert.deepEqual(went, [], "no page change");
   assert.equal(byTestId(tree, "ro-name").props.value, templatesChain().name);
   assert.equal(textOf(byTestId(tree, "ro-start")), "Save");
@@ -585,16 +594,10 @@ test("an email row's Edit, for a role that may not change the chain, opens its P
   try {
     let tree = templatesPage();
     press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "template-email")[1], "template-email-open"));
-    tree = again(() => W.MessagesPage());
+    tree = again(drawTemplates);
     press(byTestId(byTestId(tree, "template-email-body"), "template-email-edit"));
     assert.deepEqual(went, [`outbound/${ROOT}`]);
-    assert.equal(
-      byTestId(
-        again(() => W.MessagesPage()),
-        "ro-sheet",
-      ),
-      null,
-    );
+    assert.equal(byTestId(again(drawTemplates), "ro-sheet"), null);
   } finally {
     W.ST_STORE = keep;
   }
@@ -603,6 +606,7 @@ test("an email row's Edit, for a role that may not change the chain, opens its P
 /* ------------------------------ the bridge ------------------------------ */
 
 test("the bridge's verbs press the doors they name: the report, the first step's state, the chain's removal", async () => {
+  realVerbs();
   const calls = [];
   W.__apiForTest = null;
   const api = await import("../../../../apps/dashboard/src/legacy-bridge/api.ts");
@@ -652,10 +656,13 @@ test("the reach-outs surface reads the chains and nothing more: no report, set a
   try {
     await bridge.reachOutsOverride.apply();
     assert.deepEqual(read, ["reach-outs"], "one read, no report: every page pays it, so it scans no audience (R23)");
-    assert.equal(W.__REACH_OUTS.length, 1);
+    // Set on the seam the pages read (`useSurface("reach_outs")`), and mirrored under the name Leads still reads.
+    const chains = surfaceValue("reach_outs");
+    assert.equal(chains.length, 1);
+    assert.equal(W.__REACH_OUTS, chains, "the mirror is the one object");
     // Templates' rows are contracts' over the chains: each step with words, and no count of what it wrote.
     assert.deepEqual(
-      WORDS.emailTemplateRowsOf(W.__REACH_OUTS).map((r) => [r.template_id, r.step_id, r.step_n, "written" in r]),
+      WORDS.emailTemplateRowsOf(chains).map((r) => [r.template_id, r.step_id, r.step_n, "written" in r]),
       [
         ["t1", ROOT, 0, false],
         ["t2", "n1", 1, false],
@@ -664,11 +671,12 @@ test("the reach-outs surface reads the chains and nothing more: no report, set a
     W.fetch = async () =>
       new Response(JSON.stringify({ ok: false, error: { code: "internal", message: "down" } }), { status: 500 });
     await assert.rejects(bridge.reachOutsOverride.apply());
-    assert.equal(W.__REACH_OUTS, null, "unread is null, never an empty list");
+    assert.equal(surfaceValue("reach_outs"), null, "unread is null, never an empty list");
+    assert.equal(W.__REACH_OUTS, null, "and the mirror says the same");
   } finally {
     W.fetch = was;
   }
-  assert.deepEqual(bridge.reachOutsOverride.globals, ["__REACH_OUTS"]);
+  assert.equal(bridge.reachOutsOverride.value, "reach_outs", "the tab's cache keeps the value under its seam key");
 });
 
 test("who may press is the role store's one answer: a viewer is told by it, and a partner acts as an operator does (00201)", async () => {
@@ -676,7 +684,7 @@ test("who may press is the role store's one answer: a viewer is told by it, and 
   fresh();
   const draw = (canAct) =>
     again(() =>
-      W.React.createElement(W.ReachOutRow, {
+      W.React.createElement(ReachOutRow, {
         chain: chainOf(),
         canAct,
         flash: () => {},
@@ -698,7 +706,15 @@ test("who may press is the role store's one answer: a viewer is told by it, and 
 
 test("Edit opens the reach-out sheet over the chain as read, saves through its own door, and is out of a viewer's sight", async () => {
   const pressed = verbs();
-  W.__SETTINGS = { config: { brain: { business_name: "Harbor" } } };
+  // The sheet reads the business's words through the settings seam, and its sending domains from Setup (still the shell's).
+  setSurfaceValue("settings", {
+    settings: { config: { brain: { business_name: "Harbor" } } },
+    facts: null,
+    channels: null,
+    templatesAll: null,
+    templateUse: null,
+    templateSent: null,
+  });
   W.__SETUP = {
     dto: {
       email: {

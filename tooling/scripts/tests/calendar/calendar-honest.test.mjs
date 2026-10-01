@@ -1,5 +1,7 @@
 /**
  * Calendar: an appointment opens as a dialog, a failed read says so, and the page names the days it shows.
+ * The page is the TSX module (apps/dashboard/src/surfaces/calendar, decision 0015) executed on a stub React, over the view
+ * models the seam gives it (surface-values.ts).
  *
  * - An appointment's panel was a borrowed modal with no dialog role and no Escape, and the arrow keys kept
  *   moving the board behind it (the interface audit's D14).
@@ -38,8 +40,10 @@ import {
   toCalendarVM,
   todayDay,
 } from "@chanlytics/contracts";
+import { createRequire } from "node:module";
 import { hookFrames } from "../_hook-frames.mjs";
 import { keysDrawn } from "../_keys.mjs";
+import { kitHooks, kitPages } from "../_legacy-react.mjs";
 
 const TZ = "America/New_York";
 // Tuesday noon in New York, the week calendar.test.mjs draws.
@@ -171,7 +175,15 @@ globalThis.React = {
     }
   },
   useCallback: (fn) => fn,
+  // A store outside React (the seam): the value it holds now, which each draw here asks again.
+  useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
+// The TSX surface imports its hooks from "react", which under this runner has none: the same stub is set on that module.
+const reactModule = createRequire(new URL("../../../../apps/dashboard/src/legacy-bridge/_.js", import.meta.url))(
+  "react",
+);
+for (const hook of ["useState", "useReducer", "useRef", "useMemo", "useEffect", "useCallback", "useSyncExternalStore"])
+  reactModule[hook] = globalThis.React[hook];
 globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.document = {
   body: {},
@@ -217,19 +229,26 @@ globalThis.window.trapFocus = (box) => {
   trapped.push(box);
   return realTrapFocus(box ?? dialogBox);
 };
+Object.assign(globalThis.window, kitPages);
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
   globalThis[k] = globalThis.window[k];
-// One appointment on a list, the row Today's day and the agenda both wear.
-await import("../../../../apps/dashboard/src/legacy/components/day-agenda.jsx");
+// One appointment on a list, the row Today's day and the agenda both wear (the kit's, which kitPages publishes).
 for (const k of ["AgendaItem", "AgendaItems", "AgendaOpen"]) globalThis[k] = globalThis.window[k];
 globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
 // A pill's tone and words are contracts', as the shell's chrome bridge publishes them.
 globalThis.window.__chrome = { state: stateOf };
-// The bridge's own object, with its reads answered here.
-const { calendar } = await import("../../../../apps/dashboard/src/legacy-bridge/calendar.ts");
-await import("../../../../apps/dashboard/src/legacy/pages/calendar.jsx");
-// Today's day, which names the next open time the way the Calendar does.
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
+// The surface's own verbs, with their reads answered here, and the seam that holds what the page draws.
+const S = "../../../../apps/dashboard/src/surfaces";
+const { calendar } = await import(`${S}/calendar/verbs.ts`);
+const { CalendarPage } = await import(`${S}/calendar/calendar-page.tsx`);
+const { CALENDAR_PAGE } = await import(`${S}/calendar/words.ts`);
+const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+const realVerbs = { ...calendar };
+globalThis.window.__calendar = calendar;
+// Today's day (TSX since decision 0015), which names the next open time the way the Calendar does: the hooks it
+// imports are the stub's, set on the module it imports them from.
+kitHooks();
+const { TodayDay } = await import("../../../../apps/dashboard/src/surfaces/today/pages/day.tsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -246,13 +265,24 @@ const all = (tree, pred) => {
 };
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
 const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
+// What a node says: a component's text is what it drew (its children go through it, and a kit button hands its words to the
+// press that hands them to the element, so counting each layer's children says them three times), a host's is its own words
+// and what is inside it.
 const textOf = (n) => {
   const out = [];
-  walk(n, (x) => {
-    for (const k of x.props?.children ?? []) if (typeof k === "string" || typeof k === "number") out.push(String(k));
-  });
+  const visit = (x) => {
+    if (x == null || typeof x !== "object") return;
+    if (Array.isArray(x)) return x.forEach(visit);
+    if (x.rendered !== undefined) return visit(x.rendered);
+    const kids = x.props?.children ?? [];
+    for (const k of kids) if (typeof k === "string" || typeof k === "number") out.push(String(k));
+    for (const k of kids) visit(k);
+  };
+  visit(n);
   return out.join("");
 };
+// The element a node draws: a kit button is a component around a press around the <button>, and its classes are the element's.
+const hostOf = (n) => (n && n.rendered && !Array.isArray(n.rendered) ? hostOf(n.rendered) : n);
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const settle = async (n = 6) => {
   for (let i = 0; i < n; i += 1) await tick();
@@ -269,9 +299,8 @@ const fresh = (week = dto(), answers = []) => {
   homes = 0;
   toasts = [];
   for (const k of Object.keys(listeners)) delete listeners[k];
-  globalThis.window.__CALENDAR = { vm: toCalendarVM(week, NOW) };
-  globalThis.window.__calendar = {
-    ...calendar,
+  setSurfaceValue("calendar", { vm: toCalendarVM(week, NOW), fetchedAt: 1 });
+  Object.assign(calendar, realVerbs, {
     ensure: (view, anchor) => {
       reads.push([view, anchor]);
       return Promise.resolve(answers.length ? answers.shift() : true);
@@ -281,7 +310,7 @@ const fresh = (week = dto(), answers = []) => {
       homes += 1;
       return true;
     },
-  };
+  });
 };
 /** The page goes away: what its effects handed back runs, last first. */
 const leave = () => {
@@ -294,7 +323,7 @@ const page = (props = {}) => {
   globalThis.setInterval = () => 0;
   globalThis.clearInterval = () => {};
   try {
-    return globalThis.window.CalendarPage(props);
+    return CalendarPage(props);
   } finally {
     globalThis.setInterval = si;
     globalThis.clearInterval = ci;
@@ -524,7 +553,7 @@ test("REGRESSION (0008): the peek's act closes the dialog first and opens the on
     });
     const act = startAct(tree);
     assert.equal(textOf(act), "Start a proposal");
-    assert.ok(classes(act).includes("btn-primary"), "the dialog's one primary act");
+    assert.ok(classes(hostOf(act)).includes("btn-primary"), "the dialog's one primary act");
     globalThis.document.activeElement = focusable("Start a proposal");
     act.props.onClick();
     assert.deepEqual(sheets, [], "not in the same press: the dialog goes first");
@@ -838,7 +867,7 @@ test("the agenda's rows ARE Today's rows, and a customer is named once: it drew 
   }
   const row = all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-item")[0];
   assert.ok(row, "the agenda draws rows");
-  // The shared row (components/day-agenda.jsx), not a second one of the Calendar's own.
+  // The shared row (the kit's agenda), not a second one of the Calendar's own.
   const cls = (n) => String((n && (n.rendered || n).props?.className) || "");
   assert.match(cls(row), /\bag-item\b/, "the one row every list of appointments wears");
   assert.equal(
@@ -1074,13 +1103,12 @@ test("REGRESSION (C1): leaving the Calendar takes the loaded weeks back to today
   leave();
   assert.equal(homes, 1, "REGRESSION: the page left the window wherever it had moved it");
   // The bridge's half: a moved window goes home; one already home is not read again.
-  const { getCalendarSpan, setCalendarSpan } =
-    await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
-  globalThis.window.__CALENDAR = { vm: toCalendarVM(span("2026-08-31", 63), NOW) };
+  const { getCalendarSpan, setCalendarSpan } = await import(`${S}/calendar/surface.ts`);
+  setSurfaceValue("calendar", { vm: toCalendarVM(span("2026-08-31", 63), NOW), fetchedAt: 1 });
   setCalendarSpan("2026-11-23", 63);
-  assert.equal(await calendar.home(), true, "a window moved to November goes home");
+  assert.equal(await realVerbs.home(), true, "a window moved to November goes home");
   assert.equal(getCalendarSpan().from, null, "to the weeks around today");
-  assert.equal(await calendar.home(), false, "and a window already home stays as it is");
+  assert.equal(await realVerbs.home(), false, "and a window already home stays as it is");
 });
 
 /* ------------------- C2: refresh, loading, and a calendar that can't be read ------------------- */
@@ -1153,12 +1181,13 @@ test("REGRESSION (C2): the feed line has a Refresh that reads the calendar afres
   assert.match(textOf(toasts.at(-1).msg), /Read your calendar just now/);
   // It landed, and the calendar still couldn't be reached: the last good read stays, and the toast says so.
   globalThis.window.__calendar.refresh = async () => {
-    globalThis.window.__CALENDAR = {
+    setSurfaceValue("calendar", {
       vm: toCalendarVM(
         dto({ feed: { ...dto().feed, stale: true, reason: "http", problem: "The calendar answered 503." } }),
         NOW,
       ),
-    };
+      fetchedAt: 2,
+    });
     return true;
   };
   await byTestId(page(), "cal-refresh").props.onClick();
@@ -1231,8 +1260,7 @@ test("REGRESSION (C2): days on their way say so in words -- the board only dimme
 });
 
 test("(C2) the bridge's fresh read asks the route for fresh=1 once, then reads as before", async () => {
-  const { calendarOverride, setCalendarFresh } =
-    await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
+  const { calendarOverride, setCalendarFresh } = await import(`${S}/calendar/surface.ts`);
   const seen = [];
   const was = {
     location: globalThis.window.location,
@@ -1271,7 +1299,7 @@ test("(C2) the bridge's fresh read asks the route for fresh=1 once, then reads a
 
 test("(C2) the bridge's refresh reads through the runner, fresh when asked, says whether a read landed, and never leaves fresh behind", async () => {
   const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
-  const { calendarOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
+  const { calendarOverride } = await import(`${S}/calendar/surface.ts`);
   const seen = [];
   const was = {
     location: globalThis.window.location,
@@ -1298,11 +1326,11 @@ test("(C2) the bridge's refresh reads through the runner, fresh when asked, says
     for (let i = 0; i < 20 && !seen.length; i += 1) await pause();
     await pause();
     seen.length = 0;
-    assert.equal(await calendar.refresh({ fresh: true }), true, "a read that landed says so");
+    assert.equal(await realVerbs.refresh({ fresh: true }), true, "a read that landed says so");
     assert.equal(seen.length, 1);
     assert.match(seen[0], /[?&]fresh=1(&|$)/, "REGRESSION: the Refresh read the route's cache");
     await pause();
-    assert.equal(await calendar.refresh(), true);
+    assert.equal(await realVerbs.refresh(), true);
     assert.ok(!/fresh=/.test(seen[1]), "the five-minute read reads as before");
   } finally {
     stop();
@@ -1310,7 +1338,7 @@ test("(C2) the bridge's refresh reads through the runner, fresh when asked, says
   try {
     seen.length = 0;
     assert.equal(
-      await calendar.refresh({ fresh: true }),
+      await realVerbs.refresh({ fresh: true }),
       false,
       "with no runner nothing lands, and the board is told so",
     );
@@ -1331,8 +1359,7 @@ test("a window the board has read paints at once on the way back, and is read ag
   // Measured on the salon's workspace, 22 Sep: the board held one window, so back to this week, and back to December,
   // were 390-500ms of "Reading those days…" each, and leaving for Reports read today's weeks again besides.
   const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
-  const { calendarOverride, getCalendarSpan } =
-    await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
+  const { calendarOverride, getCalendarSpan } = await import(`${S}/calendar/surface.ts`);
   const { windowFor, zoneDayKey } = await import("@chanlytics/contracts");
   const seen = [];
   const parked = [];
@@ -1370,14 +1397,14 @@ test("a window the board has read paints at once on the way back, and is read ag
   try {
     await release();
     assert.equal(shown(), home, "the weeks around today, read at boot");
-    const toNov = calendar.goTo("2026-11-23", 63);
+    const toNov = realVerbs.goTo("2026-11-23", 63);
     await release();
     assert.equal(await toNov, true);
     assert.equal(shown(), "2026-11-23");
     // Back home: held, so painted before any read lands, and read again behind.
     seen.length = 0;
     let back = false;
-    calendar.goTo(null).then(() => {
+    realVerbs.goTo(null).then(() => {
       back = true;
     });
     await pause();
@@ -1387,7 +1414,7 @@ test("a window the board has read paints at once on the way back, and is read ag
     await release();
     assert.equal(getCalendarSpan().from, null);
     // And back to November: held too.
-    calendar.goTo("2026-11-23", 63);
+    realVerbs.goTo("2026-11-23", 63);
     await pause();
     assert.equal(shown(), "2026-11-23", "the way back is at once");
     await release();
@@ -1421,19 +1448,19 @@ test("REGRESSION (C3): the times the receptionist would offer are open times whe
   );
   const vm = toCalendarVM(withNext(), NOW);
   assert.equal(todayDay(vm, null).nextOpening, "today 3:30 PM", "REGRESSION: Today's day said 'next opening'");
-  const was = { cal: globalThis.window.__CALENDAR, today: globalThis.window.__today };
-  Object.assign(globalThis.window, { __CALENDAR: { vm }, __today: { day: todayDay } });
+  const was = { cal: globalThis.window.__CALENDAR };
+  Object.assign(globalThis.window, { __CALENDAR: { vm } });
   try {
     cells = [];
     frames.begin();
-    const day = globalThis.window.TodayDay({});
+    const day = TodayDay();
     assert.equal(
       textOf(find(day, (n) => n.props?.className === "td-day-sub")),
       "next open time today 3:30 PM",
       "REGRESSION: Today's day said 'next opening'",
     );
   } finally {
-    Object.assign(globalThis.window, { __CALENDAR: was.cal, __today: was.today });
+    Object.assign(globalThis.window, { __CALENDAR: was.cal });
   }
 });
 
@@ -1857,7 +1884,7 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
 test("the page publishes how long it keeps a read and its words for a read that gives no reason, and says those words itself", () => {
   // Settings › Business states the same calendar's last read in a row of its own (business-tab-open.jsx), for as long
   // as this board keeps one, and in these words: one number and one spelling, this page's.
-  const keeps = globalThis.window.__calendarPage;
+  const keeps = CALENDAR_PAGE;
   assert.equal(keeps.refreshMs, 5 * 60 * 1000, "the five minutes after which the board reads itself again");
   assert.deepEqual(Object.keys(keeps.words).sort(), ["stale", "unavailable"]);
   fresh(dto({ feed: { ...dto().feed, stale: true, reason: "unreachable", problem: null } }));
@@ -1911,4 +1938,86 @@ test("the Calendar tells Ask what it draws (the Phase 2 plan, D3): the span on s
   assert.deepEqual(s.labels, ["Rosa Díaz", "Ana Ruiz"]);
   leave();
   assert.equal(globalThis.window.__askOnScreen, null, "the board gone, its people are no longer on screen");
+});
+
+test("every testid the page is known by is drawn in its view, the date picker follows the anchor, and nothing on the page moves, cancels, syncs two ways or prices", () => {
+  const services = [{ name: "Balayage", duration_min: 90, consult_first: true }];
+  const week = dto({
+    services,
+    rules: { ...dto().rules, consult_first: ["Balayage"] },
+    feed: { ...dto().feed, skipped_recurring: 1, dropped: 1 },
+  });
+  fresh(week);
+  let tree = page();
+  const drawn = [];
+  const has = (id) => !!byTestId(tree, id);
+  const expectIds = (view, ids) => {
+    for (const id of ids) assert.ok(has(id), `${view}: ${id}`);
+    drawn.push(textOf(tree));
+  };
+  expectIds("week", [
+    "calendar-real",
+    "cal-pane",
+    "cal-bar",
+    "cal-prev",
+    "cal-today",
+    "cal-next",
+    "cal-range",
+    "cal-jump",
+    "cal-service",
+    "cal-view-week",
+    "cal-view-day",
+    "cal-view-month",
+    "cal-view-agenda",
+    "cal-body",
+    "cal-dayhead",
+    "cal-dayhead-open",
+    "cal-col",
+    "cal-block",
+    "cal-window",
+    "cal-legend",
+    "cal-about-toggle",
+    "cal-about",
+    "cal-rules",
+    "cal-feed",
+    "cal-feed-state",
+    "cal-refresh",
+    "cal-copy-link",
+    "cal-feed-note-repeats",
+    "cal-feed-note-undrawn",
+  ]);
+  assert.equal(byTestId(tree, "cal-jump").props.value, "2026-09-08", "the date picker follows the anchor");
+  byTestId(tree, "cal-next").props.onClick();
+  tree = page();
+  assert.equal(byTestId(tree, "cal-jump").props.value, "2026-09-15", "and the anchor is what a step moves");
+  byTestId(tree, "cal-today").props.onClick();
+  byTestId(tree, "cal-service").props.onChange({ target: { value: "Balayage" } });
+  tree = page();
+  expectIds("a service that needs a consultation", ["cal-consult-note"]);
+  byTestId(tree, "cal-view-month").props.onClick();
+  tree = page();
+  expectIds("month", ["cal-month", "cal-month-cell"]);
+  byTestId(tree, "cal-view-agenda").props.onClick();
+  tree = page();
+  expectIds("agenda", ["cal-agenda", "cal-agenda-day", "cal-agenda-item"]);
+  byTestId(tree, "cal-view-day").props.onClick();
+  tree = page();
+  expectIds("day", ["cal-col", "cal-block"]);
+  byTestId(tree, "cal-block").props.onClick();
+  tree = page();
+  expectIds("the appointment", ["cal-panel", "cal-panel-when", "cal-panel-person", "cal-panel-copy-link"]);
+  for (const feed of [
+    { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
+    { ...dto().feed, stale: true, reason: "http" },
+  ]) {
+    fresh(dto({ feed }));
+    tree = page();
+    expectIds(feed.state, [has("cal-feed-card") ? "cal-feed-card" : "cal-feed-stale"]);
+  }
+  // A viewer: the owner's booking link books, so nothing here moves, cancels, syncs two ways, or prices an appointment.
+  assert.doesNotMatch(
+    drawn.join("\n"),
+    /drag|Move |cancel\(|Waitlist|two-way|Two-way|Apple iCal|Utilization|\$\d/,
+    "a viewer: nothing moved, cancelled, synced two ways, or priced",
+  );
 });

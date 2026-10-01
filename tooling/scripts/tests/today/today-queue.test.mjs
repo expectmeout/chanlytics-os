@@ -7,9 +7,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, QUOTE_MAX, leadQuestionRoute } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { toTodayVM, QUOTE_MAX, leadQuestionRoute, attentionRow } from "@chanlytics/contracts";
+import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { personRow, daysAgo, ROW_NOW, ROW_TZ } from "../consent/_person-row.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
+import { installLegacyReact, fresh, again, all, byTestId } from "../_legacy-react.mjs";
+
+// People's cells, from the code the page draws its rows with (surfaces/people/cells/columns.tsx).
+const { PL_COLUMNS, PL_PHONE_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
 
 // 10:00 in New York on Sunday 6 September 2026.
 const NOW = new Date("2026-09-06T14:00:00Z");
@@ -336,45 +341,133 @@ test("the cap and the rest: six rows on Today, the rest counted for the Inbox li
   assert.deepEqual([quiet.queue.empty.testid, quiet.queue.empty.sub], ["today-queue-empty-ok", "nothing needs you"]);
 });
 
+/* ------------------------------ the queue, drawn ------------------------------ */
+
+// Today's queue is TSX (surfaces/today/pages/queue.tsx, with the runs in queue-runs.tsx), drawn by import over the day the
+// seam holds (surface-values.ts); its row is the kit's (surfaces/kit/attention/attn-row.tsx).
+installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { AttnRow } = await import("../../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+
+/** The queue drawn over a day and the runs the broadcasts surface holds: the rows it handed the kit's row, by testid. */
+const rowsDrawn = (vm, runs) => {
+  setSurfaceValue("today", vm);
+  Object.assign(globalThis, { __BROADCASTS: runs ? { rows: runs } : undefined });
+  fresh();
+  try {
+    const tree = again(() => AgentCommand());
+    return { tree, testids: all(tree, (n) => n.type === AttnRow).map((n) => n.props.testid) };
+  } finally {
+    setSurfaceValue("today", undefined);
+    delete globalThis.__BROADCASTS;
+  }
+};
+
 test("the wiring: one row component for People and Today, the queue in the command slot, the hero keeping only the narrative, the runs split between them", () => {
-  const bits = readCode("apps/dashboard/src/legacy/pages/attention-bits.jsx");
+  const bits = readCode("apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
   assert.ok(
-    bits.includes("window.AttnRow = AttnRow;") && bits.includes('className="cl-attn-acts"'),
-    "the grammar lives in one place",
+    bits.includes("export function AttnRow") &&
+      globalThis.window.AttnRow === AttnRow &&
+      bits.includes('className="cl-attn-acts"'),
+    "the grammar lives in one place, and it is the row the shell publishes for the pages that still draw it by name",
   );
-  const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
-  assert.ok(
-    manifest.indexOf('"@/legacy/pages/attention-bits.jsx"') <
-      manifest.indexOf('"@/legacy/pages/dashboard-a-brief.jsx"'),
-    "loaded before the pages that draw it",
+  // Loaded before the pages that draw it: the manifest used to order the row's script ahead of the pages'; they import
+  // the row now, so the queue draws the kit's own component for each of the day's rows.
+  const day = toTodayVM(metrics(), conversations, escalations, calls, NOW);
+  const { tree, testids } = rowsDrawn(day);
+  assert.ok(byTestId(tree, "today-queue"), "the queue is drawn over the day the seam holds");
+  assert.deepEqual(
+    testids,
+    ["queue-handoff", "queue-callback", "queue-window", "queue-call"],
+    "the row component the manifest loaded first is the one the queue draws, once for each row of the day",
   );
-  const people = readCode("apps/dashboard/src/legacy/pages/people.jsx");
+  // The runs are drawn by queue-runs.tsx (the queue's own file holds no such text): one waiting for a word, one about to send.
+  const runs = [
+    {
+      id: "b1",
+      state: "pending_approval",
+      recipient_count: 3,
+      audience: { label: "Win-back" },
+      playbook_id: "p1",
+      scheduled_for: null,
+      when: "today 6:00 PM",
+      counts: { sent: 0, replied: 0 },
+    },
+    {
+      id: "b2",
+      state: "scheduled",
+      recipient_count: 2,
+      audience: { label: "Rebooking" },
+      playbook_id: "p2",
+      scheduled_for: new Date(Date.now() + 3_600_000).toISOString(),
+      when: "today 7:00 PM",
+      counts: { sent: 0, replied: 0 },
+    },
+  ];
+  const quietDay = toTodayVM(metrics(), [], [], [], NOW);
+  assert.deepEqual(
+    rowsDrawn(quietDay, runs).testids,
+    ["brief-run-row", "brief-run-soon"],
+    "a run waiting for a word and a run under its Stop are rows of the same grammar",
+  );
   // People drew three of these rows above its table -- the table's own first rows
-  // again -- so the strip went and each row carries the words itself.
+  // again -- so the strip went and each row carries the words itself. Run, not read: a person who needs you,
+  // every cell of their row drawn (the desktop's columns and the phone's card) with the attention row the surface
+  // computed for them, holds no AttnRow and no strip's status, and the words are on the row.
+  installLegacyReact();
+  const needsYou = personRow({
+    id: "p1",
+    needs_human: true,
+    open_escalation_reason: "human_token",
+    open_escalation_since: daysAgo(0.1),
+    last_inbound_text: "Can I move Saturday to 11?",
+  });
+  const attention = { p1: attentionRow(needsYou, ROW_TZ, ROW_NOW) };
+  const ctx = { bookingLink: null, attention, onOpen() {}, onWarm() {}, drop: null, listsOf: {}, shows: {} };
+  const drawn = [];
+  for (const c of [...PL_COLUMNS, ...PL_PHONE_COLUMNS]) {
+    fresh();
+    drawn.push(
+      ...all(
+        again(() => c.cell(needsYou, ctx)),
+        () => true,
+      ),
+    );
+  }
   assert.ok(
-    !people.includes("<window.AttnRow") && !people.includes('className="cl-attn-status"'),
+    drawn.some((n) => n.props?.["data-testid"] === "row-words" || n.props?.["data-testid"] === "row-state-detail"),
+    "People says it on the row",
+  );
+  assert.ok(
+    !drawn.some(
+      (n) =>
+        (typeof n.type === "function" && n.type.name === "AttnRow") ||
+        String(n.props?.className || "").includes("cl-attn-status"),
+    ),
     "People says it on the row, once",
   );
-  const queue = readCode("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
+  const queue = readCode("apps/dashboard/src/surfaces/today/pages/queue.tsx");
   for (const s of [
     'data-testid="today-queue"',
-    "<TodayQueue vm={window.TODAY_DATA} />",
+    // The day is the seam's (surface-values.ts), where the JSX read window.TODAY_DATA.
+    'surfaceValue("today")',
+    "<TodayQueue vm={vm} />",
     "vm.queue.rows",
-    'testid="brief-run-row"',
-    'testid="brief-run-soon"',
     'data-testid="brief-live-call"',
-    'useSurface("live")',
-    'useSurface("broadcasts")',
-    "verb(r, r.also.verb)",
+    // The call in progress is read through the one hook the strip reads too (live-now.ts), which watches Live.
+    "useLiveNow()",
+    'useMoved("broadcasts")',
+    "queueVerb(flash, r, also)",
   ])
     assert.ok(queue.includes(s), s);
   const real = queue.slice(queue.indexOf("const LiveRail"));
   assert.ok(
-    real.includes("Your queue") && !real.includes("Agent Command"),
+    real.includes("Need you") && !real.includes("Agent Command"),
     "the queue, not a command bar; the seed is gone",
   );
   assert.ok(!real.includes("tq-count"), "no count over rows that say it");
-  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
+  const brief = readCode("apps/dashboard/src/surfaces/today/pages/brief.tsx");
   for (const gone of [
     "needsYou.rows.slice(0, 2)",
     "earCalls.map",
@@ -383,8 +476,10 @@ test("the wiring: one row component for People and Today, the queue in the comma
     "<RunsWaiting",
   ])
     assert.ok(!brief.includes(gone), `${gone} left the hero`);
+  // The day's card (card.tsx) draws them: the JSX's one brief file is the hero (brief.tsx) and the card apart.
+  const card = readCode("apps/dashboard/src/surfaces/today/pages/card.tsx");
   assert.ok(
-    brief.includes("<RunsDone nav={nav} />") && brief.includes('data-testid="brief-run-done"'),
+    card.includes("<RunsDone nav={nav} />") && card.includes('data-testid="brief-run-done"'),
     "what went out today is a line of the day's card",
   );
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");

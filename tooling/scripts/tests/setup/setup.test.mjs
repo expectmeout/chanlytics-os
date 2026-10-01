@@ -8,7 +8,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   setupSteps,
-  setupRoute,
   SETUP_STATE_WORDS,
   formatPhoneDisplay,
   agoWords,
@@ -1025,12 +1024,8 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   );
 });
 
-// The landing rule itself moved with the page it lands on: first-run.test.mjs, shouldLandOnFirstRun.
-test("the route a hash names, which the landing rule reads", () => {
-  assert.equal(setupRoute(""), "today");
-  assert.equal(setupRoute("#/start"), "start");
-  assert.equal(setupRoute("#today"), "today");
-});
+// The landing rule itself moved with the page it lands on: first-run.test.mjs, shouldLandOnFirstRun. The route it
+// reads is the address's (shell/address.ts), tested in shell/address/address.test.mjs.
 
 test("the words: four states, no jargon, no trade", () => {
   assert.deepEqual(SETUP_STATE_WORDS, {

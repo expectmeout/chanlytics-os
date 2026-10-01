@@ -3318,11 +3318,6 @@ html.legacy-on .msg-use-link { position: relative; }
   }
 }
 
-/* The strip of views stands in the page under the top bar, a capsule set in from the page's edge as the canvases'
-   title blocks set theirs (its padding is the capsule's own in Glass, the kit's). */
-:where([data-look="glass"]) .main > .stabs {
-  margin: 0 24px 8px;
-}
 
 /* The Inbox's sending strip (inbox.css, fixed under the top bar), on a desk: at the right end of the strip of views'
    row, which the capsule of views leaves free (it is as wide as its tabs), so it covers neither the views nor the
@@ -3341,3 +3336,574 @@ html.legacy-on .msg-use-link { position: relative; }
     top: 118px;
   }
 }
+
+/* The head's places (the interface kit's step 5.4; kit/head/frame-head.tsx draws into them): the date and time in the
+   top bar's row where Classic's crumbs stand, the page's name with its sentence under the bar, and the row of views with
+   the page's act at its right, as the canvases open every page. The frame leaves the places in Glass alone
+   (app-shell.jsx), so Classic's tree is as it was. The head, the row and the panes keep to one gutter (--gutter-page). */
+:where([data-look="glass"]) .topbar .crumbs {
+  display: none;
+}
+/* The date and time's place: laid over the top bar's left, at the page's gutter, so the bar's own markup is as it was
+   (the bar's height is its Glass one, above); the live island and the capsules keep the bar's right. */
+:where([data-look="glass"]) .pg-dateline-slot {
+  position: absolute;
+  top: 0;
+  left: var(--gutter-page);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  height: 64px;
+  min-width: 0;
+  pointer-events: none;
+}
+:where([data-look="glass"]) .pg-slot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: var(--space-4);
+  row-gap: 14px;
+  align-items: end;
+  padding: 2px var(--gutter-page) 14px;
+}
+:where([data-look="glass"]) .pg-head-slot {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+:where([data-look="glass"]) .pg-slot > .stabs {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 0;
+}
+/* The page's act, at the right of the row of views, or of the name where the page has no views: the page's own
+   (pg-act, said through the head) or the frame's, never both. */
+:where([data-look="glass"]) .pg-act-slot {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+:where([data-look="glass"]) #pg-act {
+  display: contents;
+}
+:where([data-look="glass"]) .pg-act-slot:has(> #pg-act:not(:empty)) > :not(#pg-act) {
+  display: none;
+}
+/* The way back above the name (a person's People): the quiet link, in the muted ink. */
+:where([data-look="glass"]) .pg-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+:where([data-look="glass"]) .pg-back:hover {
+  color: var(--ink);
+}
+:where([data-look="glass"]) .pg-back-glyph {
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+/* A phone: the head alone over the page (the canvases' phone boards), the row of views under it as the phone's strip. */
+@media (max-width: 900px) {
+  :where([data-look="glass"]) .pg-slot {
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: 10px;
+  }
+  :where([data-look="glass"]) .pg-act-slot {
+    grid-column: 1;
+    grid-row: 3;
+    justify-content: flex-start;
+  }
+}
+
+:where([data-look="glass"]) .pb-standing > * > :first-child {
+  font-weight: var(--weight-regular);
+}
+
+/* The list: a clear pane with its rim, and its rows as insets inside it. */
+:where([data-look="glass"]) .pb-list,
+:where([data-look="glass"]) .pb-more-list {
+  position: relative;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+:where([data-look="glass"]) .pb-list::after,
+:where([data-look="glass"]) .pb-more-list::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .pb-list-head {
+  padding: var(--space-4) calc(var(--space-2) + var(--space-3)) var(--space-2);
+  border-bottom-color: var(--line);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .pb-list > .pb-row {
+  border-bottom: 0;
+}
+:where([data-look="glass"]) .pb-list > .pb-row:first-of-type,
+:where([data-look="glass"]) .pb-list-head + .pb-row {
+  margin-top: var(--space-2);
+}
+:where([data-look="glass"]) .pb-list > .pb-row:last-child {
+  margin-bottom: var(--space-2);
+}
+:where([data-look="glass"]) .pb-row-line {
+  margin: 0 var(--space-2);
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--surface-inset-radius);
+}
+:where([data-look="glass"]) .pb-row-line:hover {
+  background: var(--bg-hover);
+}
+:where([data-look="glass"]) .pb-row.is-open {
+  background: transparent;
+}
+:where([data-look="glass"]) .pb-row.is-open > .pb-row-line {
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .pb-row-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+:where([data-look="glass"]) .pb-row-hint {
+  font-size: var(--text-sm);
+}
+:where([data-look="glass"]) .pb-row-open {
+  padding-inline: calc(var(--space-3) + var(--space-2));
+}
+
+/* The moments not set up: rows of a pane, the name and what it does at the left, the press at the right. */
+:where([data-look="glass"]) .pb-more-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: var(--space-2) 0;
+}
+:where([data-look="glass"]) .pb-slot {
+  margin: 0 var(--space-2);
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--surface-inset-radius);
+  background: transparent;
+}
+:where([data-look="glass"]) .pb-slot:hover {
+  background: var(--bg-hover);
+}
+:where([data-look="glass"]) .pb-slot-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+:where([data-look="glass"]) .pb-slot-hint {
+  font-size: var(--text-sm);
+}
+
+/* The playbook composer's rows (C2): the word at the left, what the row holds beside it, a hairline between rows. The
+   sections keep their own markup and testids; their eyebrows (Who it's for, What it says, When it runs) go, since the
+   row's word says it. */
+:where([data-look="glass"]) .pb-compose {
+  gap: 0;
+}
+:where([data-look="glass"]) .pb-grow {
+  display: grid;
+  grid-template-columns: var(--space-12) minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--line);
+}
+:where([data-look="glass"]) .pb-grow:last-of-type {
+  border-bottom: 0;
+}
+:where([data-look="glass"]) .pb-grow-word {
+  padding-top: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .pb-grow-body {
+  min-width: 0;
+}
+:where([data-look="glass"]) .pb-grow .pb-sec {
+  padding: 0;
+  gap: var(--space-2);
+}
+:where([data-look="glass"]) .pb-grow .pb-sec-k {
+  display: none;
+}
+
+/* In a row a picker is a token, as the canvases draw them: a capsule of the inset's fill with its label in ink and its
+   chevron after it, and what a token is for said under it by the row (the reach, the message's line). */
+:where([data-look="glass"]) .pb-grow .lp-trigger.pb-pick {
+  align-self: flex-start;
+  display: inline-flex;
+  width: auto;
+  min-height: 0;
+  height: var(--control-h-sm);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  gap: var(--space-1);
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-full);
+  background: var(--bg-sunken);
+}
+:where([data-look="glass"]) .pb-grow .lp-trigger.pb-pick:hover:not(:disabled),
+:where([data-look="glass"]) .pb-grow .lp-trigger.pb-pick.is-open {
+  border-color: var(--surface-inset-edge);
+  background: var(--bg-hover);
+}
+:where([data-look="glass"]) .pb-grow .lp-trigger.pb-pick .lp-caret {
+  width: auto;
+  margin-left: 0;
+}
+:where([data-look="glass"]) .pb-grow .lp-trigger.pb-pick > span[aria-hidden="true"]:first-child,
+:where([data-look="glass"]) .pb-grow .pb-pick-sub {
+  display: none;
+}
+:where([data-look="glass"]) .pb-grow .pb-pick-text {
+  flex: 0 1 auto;
+}
+:where([data-look="glass"]) .pb-grow .pb-msg-head {
+  align-items: center;
+  flex-wrap: wrap;
+}
+:where([data-look="glass"]) .pb-grow .pb-msg-head > .lp-trigger.pb-pick {
+  flex: 0 1 auto;
+}
+:where([data-look="glass"]) .pb-grow .pb-msg-head > .lp-trigger:not(.pb-pick) {
+  height: var(--control-h-sm);
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-full);
+  background: var(--bg-sunken);
+}
+:where([data-look="glass"]) .pb-tok > select {
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-full);
+  background: var(--bg-sunken);
+  font-weight: var(--weight-semibold);
+}
+:where([data-look="glass"]) .pb-tok > select:hover {
+  background: var(--bg-hover);
+}
+:where([data-look="glass"]) .pb-when {
+  line-height: 2;
+}
+/* The bubble stands on the pane itself, not on a stage of its own; the fields under it are an inset. */
+:where([data-look="glass"]) .pb-preview {
+  justify-content: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+:where([data-look="glass"]) .pb-fills {
+  border: 0;
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .pb-guard {
+  border: 1px solid var(--surface-inset-edge);
+  background: var(--bg-sunken);
+}
+
+/* The broadcast composer's rows (C2, the second door): one pane, the width of the canvases' composer, each question a
+   row with its word at the left, the foot the glass bar. The columns keep their own markup; their eyebrows go. */
+:where([data-look="glass"]) .bc-send.bc-glass {
+  position: relative;
+  max-width: 560px;
+  gap: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+:where([data-look="glass"]) .bc-send.bc-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .bc-grows {
+  padding: 0 calc(var(--space-4) + var(--space-2));
+}
+:where([data-look="glass"]) .bc-grow {
+  display: grid;
+  grid-template-columns: var(--space-12) minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--line);
+}
+:where([data-look="glass"]) .bc-grow:last-child {
+  border-bottom: 0;
+}
+:where([data-look="glass"]) .bc-grow-word {
+  padding-top: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .bc-grow-body {
+  min-width: 0;
+}
+:where([data-look="glass"]) .bc-glass .bc-col {
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+:where([data-look="glass"]) .bc-glass .bc-col-label {
+  display: none;
+}
+:where([data-look="glass"]) .bc-glass .bc-cols {
+  display: block;
+}
+:where([data-look="glass"]) .bc-send.bc-glass .bc-foot {
+  position: relative;
+  margin: 0 var(--space-4) var(--space-4);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-top: 0;
+  border-radius: var(--surface-control-radius);
+  background: var(--surface-control-fill);
+  box-shadow: var(--surface-control-depth);
+}
+:where([data-look="glass"]) .bc-send.bc-glass .bc-foot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .bc-send.bc-glass .bc-actions button {
+  height: var(--control-h-lg);
+  border-radius: var(--control-radius);
+}
+
+/* The template composer's rows (C2, the third door): one pane, the width of the canvases' composer, the kind first, then
+   what it says; its rows keep their own markup, the word at the left as the other two doors', its foot the glass bar. A
+   translation (a language added to a message) is the same form and keeps Classic's layout. */
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) {
+  position: relative;
+  max-width: 560px;
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) 0 0;
+  gap: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) .ct-sec-head {
+  flex-wrap: wrap;
+  padding: var(--space-3) calc(var(--space-4) + var(--space-2)) var(--space-1);
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) .ct-sec-title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) .ct-sec-meta {
+  flex: 1 1 100%;
+  order: 3;
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) .tpl-row {
+  margin: 0 calc(var(--space-4) + var(--space-2));
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--line);
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) .bc-row-label {
+  width: var(--space-12);
+  padding-top: var(--space-1);
+  font-size: var(--text-sm);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) .tpl-fields,
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-preview-wrap,
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-excl-hint {
+  margin: var(--space-3) calc(var(--space-4) + var(--space-2)) 0;
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-actions {
+  position: relative;
+  margin: var(--space-4);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-radius: var(--surface-control-radius);
+  background: var(--surface-control-fill);
+  box-shadow: var(--surface-control-depth);
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-actions::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-actions button {
+  height: var(--control-h-lg);
+  padding: 0 var(--space-4);
+  border-radius: var(--control-radius);
+}
+/* The card the page sets the composer in is the composer's own pane in Glass: it draws nothing of its own. */
+:where([data-look="glass"]) section:has(> .tpl-composer:not(.is-translate)) {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+/* The kind comes first, as the canvas asks it (Kind, then what it says): the composer's rows are From, Say, Kind in the
+   markup, and Kind is its fourth child, after the head. */
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .ct-sec-head {
+  order: -2;
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .tpl-row:nth-child(4) {
+  order: -1;
+}
+
+/* Broadcasts' week and runs and Templates' list stand as the Playbooks' list does: a clear pane with its rim, its head
+   the canvases' small capitals, its hairlines the roles'. */
+:where([data-look="glass"]) :is(.bc-week, .bc-runs, .msg-list, .bc-optin) {
+  position: relative;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+:where([data-look="glass"]) :is(.bc-week, .bc-runs, .msg-list, .bc-optin)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .bc-week {
+  padding-inline: var(--space-4) var(--space-3);
+}
+:where([data-look="glass"]) .msg-list-head {
+  padding: var(--space-4) calc(var(--space-2) + var(--space-3)) var(--space-2);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+}
+:where([data-look="glass"]) .msg-list > .msg-row:last-child {
+  border-bottom: 0;
+}
+
+/* The pools of light move as the canvases' do (their glow drifts over twenty seconds): the app's root carries their
+   centres from the tokens' registered properties, on a desk, and never where less motion is asked. */
+@keyframes pg-drift {
+  0% {
+    --pool-a-x: 23%;
+    --pool-a-y: 6%;
+    --pool-b-x: 89%;
+    --pool-b-y: 40%;
+    --pool-c-x: 39%;
+    --pool-c-y: 91%;
+  }
+  100% {
+    --pool-a-x: 29%;
+    --pool-a-y: 12%;
+    --pool-b-x: 84%;
+    --pool-b-y: 46%;
+    --pool-c-x: 45%;
+    --pool-c-y: 86%;
+  }
+}
+@media (width > 900px) and (prefers-reduced-motion: no-preference) {
+  :where([data-look="glass"]) .app-root {
+    animation: pg-drift 20s ease-in-out infinite alternate;
+  }
+}
+
+/* The runs by state, as the Broadcasts head's line in Glass (the canvas C1's sentence: "1 waiting on you · 1 scheduled ·
+   1 sent"): words with a dot between them, the chosen one in the ink, the warning in amber; no chip. */
+:where([data-look="glass"]) .bc-band {
+  gap: 0;
+}
+:where([data-look="glass"]) .bc-band-part {
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font-size: var(--text-md);
+  color: var(--ink-muted);
+}
+:where([data-look="glass"]) .bc-band-part + .bc-band-part::before {
+  content: " B7";
+  margin: 0 8px;
+  color: var(--ink-faint);
+}
+:where([data-look="glass"]) .bc-band-part:hover,
+:where([data-look="glass"]) .bc-band-part.on {
+  border-color: transparent;
+  background: none;
+  color: var(--ink);
+}
+:where([data-look="glass"]) .bc-band-part[data-tone="warn"],
+:where([data-look="glass"]) .bc-band-part[data-tone="warn"] .bc-band-n {
+  color: var(--warn-ink);
+}
+
+/* The sidebar as the canvases draw it (E3 and the five after it): the places in one list without the groups' labels,
+   each at the page's reading size, and no Collapse: the sidebar is as tall as its places. */
+:where([data-look="glass"]) .sidebar-label { display: none; }
+:where([data-look="glass"]) .sidebar-section + .sidebar-section { margin-top: 0; }
+:where([data-look="glass"]) .sb-collapse { display: none; }
+:where([data-look="glass"]) .nav-item { padding: 10px 12px; font-size: var(--text-md); }

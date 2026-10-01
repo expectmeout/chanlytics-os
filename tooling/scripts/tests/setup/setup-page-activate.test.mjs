@@ -21,6 +21,7 @@ import {
   FIRST_RUN_WORDS,
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
+import { kitPages } from "../_legacy-react.mjs";
 
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const ago = (h) => new Date(NOW - h * 3600_000).toISOString();
@@ -205,8 +206,7 @@ globalThis.ReactDOM ??= { createPortal: (node) => node };
 globalThis.window.addEventListener ??= () => {};
 globalThis.window.removeEventListener ??= () => {};
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-globalThis.FailedRead = globalThis.window.FailedRead;
-globalThis.EmptyState = globalThis.window.EmptyState;
+Object.assign(globalThis, { FailedRead: kitPages.FailedRead, EmptyState: kitPages.EmptyState });
 // data-bits also publishes the shell's toast hook; this harness keeps its own flash.
 globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
 await import("../../../../apps/dashboard/src/legacy/pages/setup.jsx");

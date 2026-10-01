@@ -44,7 +44,7 @@ const VITAL_ID = /^[A-Za-z0-9-]{1,64}$/;
 const VITAL_CEILING = 10 * MIN_MS;
 
 /**
- * The page a load landed on, from the shell's hash route (legacy-bridge hashRoute): "clients" for
+ * The page a load landed on, from the shell's route (address.ts routeOfAddress): "clients" for
  * "clients/<id>", and "other" for a route the table would refuse.
  */
 export function vitalsPageOf(route: string): string {

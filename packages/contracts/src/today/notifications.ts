@@ -447,7 +447,7 @@ export const SERVER_KEY_PREFIX = "n:";
  * such a row has, because it carries no `about` (nothing wrote it down; it is
  * computed from the Inbox the browser is already holding).
  */
-export const NEEDS_KEY_PREFIX = "needs:th-";
+const NEEDS_KEY_PREFIX = "needs:th-";
 
 /** The conversation a derived "needs you" row stands for, or null. */
 export function conversationOfNeedsKey(key: string): string | null {
@@ -455,7 +455,7 @@ export function conversationOfNeedsKey(key: string): string | null {
 }
 
 /** A derived missed-call row's key: this prefix plus the call's id (buildNotificationFeed). */
-export const CALL_KEY_PREFIX = "call:";
+const CALL_KEY_PREFIX = "call:";
 
 /** The call a derived missed-call row stands for, or null. */
 export function callOfKey(key: string): string | null {

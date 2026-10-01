@@ -94,7 +94,7 @@ Five real pages still fork to a seeded twin when their surface is absent: `pages
 `pages/broadcasts.jsx:959` (`BroadcastsSeed`), `pages/outbound.jsx:239` (`OutboundSeed`), `pages/live-monitor.jsx:21`
 and `:584` (`LiveMonitorPage`), and `pages/client-profile.jsx:1830` (`ClientProfileSeed`); `pages/segments.jsx:157`
 reads `BC_HISTORY_SEED`. The first four twins live under `demo/`, and they and `BC_HISTORY_SEED` are why the manifest
-still loads the demo tree for every workspace (`docs/debt.md`, the demo row). Reports and Today draw a declared demo session from a contracts sample instead (`reports-sample.ts`,
+still loads the demo tree for every workspace (`docs/debt.md`, the demo row). Reports and Today draw a declared demo session from a contracts sample instead (`surfaces/reports/sample.ts`, formerly `reports-sample.ts`,
 `today-sample.ts`), which is the shape a twin should have had.
 
 ### What the plan and the register already say
@@ -294,3 +294,163 @@ and about 34 of them would stay over it after the frame's step. So condition 1 o
 bridge modules the surface owned, and condition 5 banks the bridge folder's fall with the other numbers. Since this
 note was written, #1278 split the seam's overrides out of `surface-data.ts` into
 `apps/dashboard/src/legacy-bridge/surfaces/`, one module per surface; that module is the first each step takes.
+
+## Built: the pilot (30 September 2026, branch `kit/k1-address-reports-inbox-today`)
+
+Reports left the shell as step 3 of the steps above (step 2 of the order). What the pilot settled, for the surfaces after it:
+
+- **The seam is a typed store, mirrored.** `apps/dashboard/src/surfaces/surface-values.ts` holds one value for each key of
+  `SurfaceValues` (`reports`, `google`), written by the override that owns the surface (`setSurfaceValue`), and mirrored
+  under the window name the pages that have not moved still read (`declareSurfaceValue("reports", "__REPORTS")`: one line,
+  deleted with its last reader). `useSurface(key)` (`src/surfaces/use-surface.ts`) is React's `useSyncExternalStore` over
+  the surface's own signal. The cache keeps the value beside the globals a surface owns, under the reserved name
+  `$value`, and gives it back before React draws (`SurfaceOverride.value` names the key).
+- **The frame draws the page as `children`, through a prop.** `LegacyHost` passes the layout's children to the frame only
+  while the address is a route with a page (`src/surfaces/routes.ts` `SURFACE_ROUTES`: the sidebar item, the crumbs and
+  whether it draws in a pane, which the row said), so a move between the shell's own routes changes no prop and draws
+  the frame no more than it did. `drawRoute` (`app-routes.jsx`) wraps the page it is given. A route with a page moves
+  through the App Router (`goToRoute` asks the router `LegacyHost` registered), and the frame is told when the address
+  says it landed (`AddressFollower`).
+- **What a page still asks of the shell is one module of verbs** (`src/surfaces/legacy-verbs.ts`: navigate, the role gate,
+  holdStill, askAbout, the People list door, the toast, a failed read's Retry). Each calls the window's own and is a line
+  to delete when its owner moves. A surface imports it and reads nothing off `window`.
+- **What is shared moved once**: `Icon`, `EmptyState`, `FailedRead`, `SegmentBar` and the chart kit are the kit's TSX
+  (`src/surfaces/kit`); seed-globals publishes the four the pages still read; the standalone mockup gets them from a
+  bundle its server builds (`data/kit-globals.js`), and has no Reports, which only the app draws.
+- **The amendment's bridge modules** (the override, the sample, the period's verb) are in `src/surfaces/reports/`.
+- **Proof.** A throwaway recorder drew the JSX page and the TSX module over the page's own worlds (37), every handler
+  with every event it takes and 15 scripted sequences, and the shared components over 738 property sets: 11,918 steps,
+  no difference, and 18 planted faults, every one caught (`docs/plans/` holds nothing of it: it is never committed).
+- **Its kit step took what a stub can draw**: the reply's Send is the kit's `Button`, and the quiet words that act (Reply,
+  Cancel, Asked, never booked, Read every review on Google) are its `LinkButton`. The one canvas of the six that could
+  have covered Reports does not exist: Today, Inbox, People, Leads, Campaigns and the Pipeline are the six.
+- **Two things the pilot could not do.** Base UI's parts (the kit's Field, Segmented, toast) cannot be imported on the
+  stub React the page tests use, so Reports' period tabs, its reply box and its toast stay as the JSX drew them until the
+  page tests can draw a Base UI part (the next step of the plan's Phase 4); Reports is listed in `KIT_PENDING` for that.
+  And a route's page is not drawn for an address under it (`reports/anything`): it is not found, where the table drew
+  Reports for any param.
+
+## Built: the Inbox (30 September 2026, same branch)
+
+The Inbox, Conversations and the one thread left the shell together as step 4 of the steps above (step 3 of the order); the
+bridge modules only they used moved with them (the amendment). What it settled, for the surfaces after it:
+
+- **A surface may be several routes, and an address may name a thing in one.** `apps/dashboard/app/(os)/w/[workspace]/inbox/[[...thread]]/page.tsx`
+  and `.../conversations/[[...tab]]/page.tsx` draw `inbox/th-<id>` and `conversations/<tab>:<row>`. A `SURFACE_ROUTES` row
+  takes `params` (the address may carry a tail: `routeHasPage` splits at the first `/`), `mount` and, where the chrome
+  follows the address, a function for `activeNav` and `crumbs`. The page reads its route with `usePathname()`, never
+  `useParams`: the App Router keys a dynamic segment by its param, so a `router.replace` between two threads would remount
+  the page and read again. `goToRoute` keeps a move that stays within one route's page (`onOnePage`, for a route that
+  takes an address) on the patched history, and the real-app run shows the Inbox's root element is the same node across
+  thread moves. A thread pressed is a replace on a desktop (Back leaves the Inbox instead of replaying every thread read)
+  and an entry of its own on a phone (Back closes it).
+- **The store and the twin.** `IX_STORE`, `VW_STORE` and `VW_UTIL` are typed modules (`surfaces/inbox/store.ts`); the mockup's
+  seeds are `sample.ts` and its `sample/`; the old names the pages that have not moved still read (`INBOX_DATA`,
+  `CONVERSATIONS_DATA`, `IX_STORE`, `ixWaitsOnYou`, `CV_ROUTE`, `CV_IN_CHANNEL`) are one object, `legacy-globals.ts`,
+  published by `seed-globals.ts` and, in the standalone mockup, by a bundle its server builds (`data/inbox-globals.js`). The
+  seam's values are `useSurface("inbox")` and `useSurface("conversations")`.
+- **The bridge modules** (the two overrides, and the verbs of `inbox-verbs.ts` only the Inbox used: `inboxVerb`, `inboxBulk`,
+  `steerDraft`, `cancelSend`, `refreshInbox`) are in `surfaces/inbox/`; what Today, Ask and the deal sheet still call stays in
+  the bridge. The surface held 29 modules against a ceiling of 20 the day it moved, so it is `pages/` (what a route draws)
+  and `thread/` (what one thread draws, wherever it opens) and a root of the seam, the rules and the demo.
+- **The shared parts moved once into the kit**: `StatePill`, `Confirm`, `MoreMenu`, `PolicyChip` and `TlMedia`
+  (`surfaces/kit/`), published for the pages that still draw them by name.
+- **Proof.** The pilot's recorder, extended for a surface that fetches: 142 worlds (every seeded thread, the real payloads in
+  every state, each composer, each call, Conversations by tab), 6,495 handlers poked with each event they take, 74 scripted
+  sequences and a matrix of 1,436 checks over the pure rules and the small components: 13,437 steps, no difference, and 24
+  faults planted in the TSX, each caught (20 by the recorder; the shared verbs' four by their own test, which the moved verbs
+  had none of). A fault at a boundary is caught only by a world that stands on it, so the plants ran off the boundary and over
+  every world and script.
+- **Its kit step took what a stub can draw**: 32 buttons are the kit's `Button` and 3 quiet words that act its `LinkButton`.
+  `KIT_PENDING` keeps the Inbox for what waits: six inputs, three textareas and a select (Field, Switch and Select are Base
+  UI's, which no page test can import yet), the chips and rows that are the page's own looks, and the toasts and menus.
+  `ConfidenceMeter` is not the kit's `Meter` (the kit's draws parts by share and no words): a redraw the Glass canvas decides.
+- **What a surface may not assume, from the day.** A route of a surface that follows its address (`params`) is not moved through
+  the router within itself; the lint probe of the raw-element rule stands in a folder no surface will take
+  (`surfaces/probe/`), since each surface that leaves waits in `KIT_PENDING`; and a test that imports a surface module through
+  a template path hides its exports from knip, so they are written as literals.
+
+## Built: Today (30 September 2026, same branch)
+
+Today left the shell as step 5 of the steps above (step 4 of the order), after the Inbox whose decisions it counts; the bridge modules only it
+used moved with it (the amendment). What it settled, for the surfaces after it:
+
+- **The workspace's own address is a page.** `/w/<slug>` names no route, which is Today (`routeOfAddress`), so the catch-all
+  page beside `today/page.tsx` draws Today when the path names none, and `LegacyHost` asks `pageRouteOf` (an empty route is `today`)
+  before it hands the layout's children to the frame. `/w/<slug>/today` is the same page by the product's word. An address under it
+  (`today/anything`) is no page, as `reports/anything` is not.
+- **A moved surface may name the top bar's one act.** A `SURFACE_ROUTES` row takes `act` (`label`, `glyph`, `primary`, `ask`,
+  `prompt`), which `drawRoute` draws for a demo session (Today's "New task" opens Ask composing): what `drawToday` gave the row.
+- **What a surface borrows, it borrows through one file of doors.** Today draws from the nine surfaces of `ROUTE_DRAWS.today`, and
+  eight of them have not moved. `surfaces/today/shell.ts` reads each by its global's name at call time (`borrowed`), redraws on it
+  with the shell's own hook (`useMoved` is `surfaceHook` over React's `useCallback` and `useSyncExternalStore`, so the hook cells
+  the page had are the ones it has), and draws the rows of the shell's pages it borrows by name (Setup's card rows, the agenda's). Each
+  is a line to delete on the day its owner moves; nothing reads `window` but that file.
+- **The shared component moved once, with the first surface that drew it.** The attention row (`AttnRow`: Today's queue, People's strip,
+  Setup, the partner and platform panes) is the kit's TSX (`surfaces/kit/attention/`), published by `seed-globals.ts` as `window.AttnRow`
+  for the pages still on the shell.
+- **The twin is deleted.** The standalone mockup drew Today from a sample (`legacy-bridge/today-sample.ts` and its folder: 1,372 lines and
+  its bundle, `window.__TODAY_SAMPLE`); the page is an App Router page, which only the app draws, so the mockup no longer draws it (nor
+  the Inbox, nor Reports), and its bundle, its script tag and its test leave with the sample.
+- **The seam.** `today` is a key of `SurfaceValues` (contracts' `TodayVM`), mirrored as `window.TODAY_DATA` for Ask, the phone's bridge
+  and the bell; the override and the helpers (`TODAY_HELPERS`, published as `window.__today` for Settings) are in `surfaces/today/`.
+- **Proof.** The pilot's recorder over 75 worlds (every state of the day, the queue's rows and runs, the day's calendar and steps, the
+  leaks, the pins, the bell), every handler of them, 21 sequences and 82 checks of the attention row: 3,116 steps, no difference, and
+  25 faults planted in the TSX, every one caught.
+- **Its kit step took what a stub can draw**: three buttons are the kit's `Button` (Open Reports, Open Calendar, Mark all read). The
+  rest of Today's buttons are the page's own looks (the chips, the door rows, the queue's open, the leaks' acts), which no kit part
+  has yet; Today waits in `KIT_PENDING` for them.
+
+## Built: Campaigns and Live (30 September 2026, branch `kit/k3-campaigns-live-leads`)
+
+Steps 7 and 8 of the order, on the pilot's mechanism and People's (`takes` and `chrome`, for the addresses a page takes under its route).
+
+**Campaigns** (step 7): Playbooks, Broadcasts and Templates are TSX in `apps/dashboard/src/surfaces/campaigns/` on `playbooks`, `broadcasts` and `templates`
+(the path says the product's word; the shell's routes are still `outbound` and `messages`, `ROUTE_WORDS`), with the reach-out rows, the sheet, the door and the
+approval, the shared head, picker, reach bar and message preview, and the twins and stores retired: `BroadcastsSeed`, `OutboundSeed`, their demo pages. 19 JSX files
+(6,061 lines) are deleted. The typed values are `playbooks`, `broadcasts`, `reach_outs` and `settings` in the seam; Today and Leads still read four names
+(`__broadcasts`, `__refreshPlaybooks`, `__reachOuts`, and the components `bcWhenWords`, `ReachOutDoor`, `ReachOutSheet`, which `surfaces/campaigns/globals.ts`
+publishes in the call that publishes the kit's names).
+
+**Live** (step 8): `apps/dashboard/src/surfaces/live/` on `live`, `LM_STORE` and the twin (`demo/pages/live-monitor.jsx`, `demo/data/live-data.jsx`) retired, three
+JSX files (1,023 lines) deleted. Live is never kept by the tab's cache: a reload must not paint a call that ended while the tab was closed. The call verbs
+(`whisperCall`, `endCall`, `handOverCall`, `refreshLive`) stay in the Inbox's bridge until that file moves.
+
+Proved equal by value (docs/decisions, "Tests"): 53,673 steps over 798 worlds for Campaigns, 0 differences, 205 planted faults caught but one argued; Live 0 differences
+over 870 steps. What a demo draws is the contracts' sample, not the twin. The kit step (Phase 4) and the Base UI parts wait: `campaigns` and `live` stand in `KIT_PENDING`.
+
+## Built: the People family and the Calendar (30 September 2026, branch `kit/k2-people-calendar`)
+
+The Calendar, People's list, Lists, the Pipeline and a person's page left the shell as steps 5 and 6 of the order. What the
+family settled, for the surfaces after it:
+
+- **The path says the product's word.** `ROUTE_WORDS` (contracts `shell/address.ts`) names `clients` as `people` and
+  `segments` as `lists`: `workspacePath` writes the word, `routeOfPath` and `routeOfHash` answer the shell's own route, and
+  `movedAddress` sends an old name, in a path or a hash, to the word, keeping the search and the hash. A page's folder is
+  the word: `app/(os)/w/[workspace]/people/[[...param]]/page.tsx`.
+- **A family of addresses is one page.** A `SURFACE_ROUTES` entry says every address under its route is the page's
+  (`params`, as the Inbox's) or which of them it draws (`takes(param)`, as People's: Leads is not), and what the frame draws
+  around each: the crumbs and the nav item as functions of the param, or (`chrome({ param, backToPeople })`, where they depend on
+  what the surface holds and on the frame's own Back) the crumbs, the mount its view is kept under and the top bar's one act,
+  which `drawRoute` draws from `surfaceAct` (a link out, or the Ask door, composing from a `prompt` where the entry gives one).
+  `staysOnPage(from, to)` says a move between two of them stays on the page, so `goToRoute` asks the App Router only across pages and otherwise pushes or replaces an
+  entry, which `usePathname` follows. The page follows its own address, so a list picked is said in the path and nothing
+  is mounted afresh for it. People's one page draws a person's page, the Pipeline where deals are on and People's list
+  everywhere else; Leads, which has not moved, is the one address under it the frame's table still draws.
+- **Shared parts moved once.** The kit took what more than one surface draws (`kit/record`: the record sheet, its folds and fields, fourteen modules; Confirm, FieldError, and the Calendar's
+  agenda); People's parts the pages that have not moved still read are published by `seed-globals` from one object
+  (`people/people-globals.ts`), deleted name by name as the last reader moves. The seam gained `people` and `calendar`.
+- **Nothing in a module graph may read an export at load.** The frame's modules (`workspace.ts`, `routes.ts`) and the
+  surfaces' chromes reach one another, so a route's `takes` and `chrome` are read when an address is drawn, never when
+  `routes.ts` loads, and the person's cache (`people-detail.ts`) is made on first use: read in the other import order, both
+  were a temporal-dead-zone error at load that only a test importing the modules in that order could see.
+- **Proof.** A throwaway recorder per piece drew the JSX and the TSX over the pieces' own worlds, every handler with every
+  event it takes, scripted sequences and property-set matrices, and planted 18 to 35 faults in each: the record kit 310,366
+  steps and the house parts 42,354; the Calendar 15,682; People's list 47 worlds, 6,081 handlers, 80 sequences, and 495
+  property sets (2,151 handlers); the Pipeline 89,658 steps over its scope, its parts and the deal card; the person's page
+  and the two sheets 19,990. No difference in any, and every planted fault caught. A saved list's route taking the wrong
+  slice of its param (`list:` cut at 6, the row's at 5) was found by the Calendar's tests, not by the list's matrix: a
+  matrix needs a world with a list kept by hand.
+- **Two tests may not share what they fake.** Two stub worlds on one window clobber each other's `CHANLY.nav` (the later
+  install wins), and a fetch double that is not put back answers the tests after it (`t.after`); both were found only when
+  the pieces were folded into one file.

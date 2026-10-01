@@ -12,6 +12,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { frameSteer, whisperText } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
+import { installLegacyReact, settle } from "../_legacy-react.mjs";
+
+installLegacyReact({});
+const S = "../../../../apps/dashboard/src";
+const { steerDraft } = await import(`${S}/surfaces/inbox/verbs.ts`);
+const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
 
 test("the frame quotes the owner, asks for a rewrite that keeps what was right, and restates the rules", () => {
   const f = frameSteer("  mention Saturday is full  ");
@@ -88,17 +94,46 @@ test("the dashboard route keeps its doors and records the decision only after th
   );
   const svc = readCode("apps/dashboard/src/server/conversations/thread-control.ts");
   assert.ok(svc.includes('"/api/admin/steer"'));
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
-  assert.ok(bridge.includes("window.__steerDraft = steerDraft;"));
-  assert.ok(bridge.includes('"POST messages/[id]/steer", { params: { id: messageId }, body: { text } }'));
+});
+
+test("the Inbox's courier asks the steer route for the rewrite, with the owner's one line", async () => {
+  const asked = [];
+  const wire = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    asked.push([init.method ?? "GET", u.pathname, init.body ? JSON.parse(init.body) : null]);
+    return new Response(JSON.stringify({ ok: true, data: { message_id: "m2" } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  // The runner a write's re-read goes to: nothing to boot.
+  const stop = startSurfaces([], () => () => {});
+  try {
+    const r = await steerDraft("m1", "mention Saturday is full");
+    await settle();
+    assert.equal(r.ok, true, "the route's answer is the courier's");
+    // The one write; the reads behind it are the surfaces read again (refresh-map.ts).
+    assert.deepEqual(
+      asked.filter(([method]) => method === "POST"),
+      [["POST", "/api/v1/messages/m1/steer", { text: "mention Saturday is full" }]],
+    );
+  } finally {
+    stop();
+    globalThis.fetch = wire;
+  }
 });
 
 test("the Inbox offers the rewrite only on a real draft that is still counting down", () => {
-  const page = readRaw("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-  assert.ok(page.includes("{thread.veto && !decided && thread.real && veto != null && thread.veto.messageId && ("));
-  assert.ok(page.includes("<SteerBox messageId={thread.veto.messageId} />"));
-  assert.ok(page.includes('data-testid="steer-box"'));
-  assert.ok(page.includes("Rewritten — the new draft waits its turn like the first one"));
-  assert.ok(page.includes('{...window.gate("approve")}'), "same door as Approve and Hold");
+  const status = readRaw("apps/dashboard/src/surfaces/inbox/thread/status.tsx");
+  const box = readRaw("apps/dashboard/src/surfaces/inbox/thread/veto.tsx");
+  assert.ok(
+    /hasVeto\(thread\) &&\s*!decided &&\s*thread\.real &&\s*veto != null &&\s*thread\.veto\.messageId &&\s*<SteerBox messageId=\{thread\.veto\.messageId\} \/>/.test(
+      status,
+    ),
+  );
+  assert.ok(box.includes('data-testid="steer-box"'));
+  assert.ok(box.includes("Rewritten — the new draft waits its turn like the first one"));
+  assert.ok(box.includes('{...gate("approve")}'), "same door as Approve and Hold");
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/components.css").includes(".ix-steer-input {"));
 });

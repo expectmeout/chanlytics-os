@@ -483,7 +483,7 @@
 .cal-rules-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .cal-about-note { font-size: var(--text-xs); color: var(--ink-dim); }
 .cal-rules-doors { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-5); }
-.cal-rules-doors .cl-bucket-link { gap: 5px; font-size: var(--text-xs); }
+.cal-rules-doors .cal-door { gap: 5px; font-size: var(--text-xs); }
 .cal-month { display: flex; flex-direction: column; margin: 0 var(--cal-gutter, 28px) 12px; border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; background: var(--bg-raised); }
 .cal-month-head { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--bg-sunken); border-bottom: 1px solid var(--line); }
 .cal-month-head span { padding: 6px 10px; font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
@@ -635,3 +635,32 @@
 
 /* Three verbs and a Close on one row at 480px is a clipped word: they wrap. */
 .cal-ev-foot-left { flex-wrap: wrap; }
+
+/* ====================================================================
+   Glass: the Calendar (no canvas of its own; the panes the other surfaces wear). The board is one clear pane under the
+   frame's head, at the page's gutter, its toolbar on the page above it; the sticky day heads take the pane's solid so a
+   scrolled board keeps them legible. Each rule names the look inside :where(); none matches in Classic.
+   ==================================================================== */
+:where([data-look="glass"]) .main-scroll > .calendar { padding: 0 var(--gutter-page) 16px; }
+:where([data-look="glass"]) .calendar > .cal-bar { padding: 2px 0 12px; }
+:where([data-look="glass"]) .calendar > .cal-body {
+  position: relative;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+  overflow: hidden auto;
+}
+:where([data-look="glass"]) .calendar > .cal-body::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .calendar :is(.cal-corner, .cal-dayhead) { background: var(--surface-pane-solid); }
+:where([data-look="glass"]) .calendar > .cal-foot { padding-top: 12px; }

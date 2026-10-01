@@ -31,6 +31,36 @@ const CHANLY = {
     admin: (pane) => `admin/${pane}`,
   },
   nav(route) { if (window.appNavigate) window.appNavigate(route); },
+  // The address: the route on screen, followed and moved, in one place. In the app it is /w/<slug>/<route> and the
+  // bridge's (legacy-bridge/workspace.ts, on window.__shell); the standalone mockup has no workspace path and keeps
+  // its #/<route>, which is what stands in here. `go(route, { replace, quiet })`: a push; `replace`, a redirect;
+  // with `quiet` too, a page saying where it stands, which no listener is told of.
+  address: (() => {
+    const shell = () => (window.__shell && window.__shell.route ? window.__shell : null);
+    return {
+      route() {
+        const s = shell();
+        if (s) return s.route();
+        const h = window.location.hash;
+        return (h.indexOf("#/") === 0 ? h.slice(2) : "") || "today";
+      },
+      href(route) { const s = shell(); return s ? s.href(route) : "#/" + route; },
+      go(route, opts) {
+        const s = shell();
+        if (s) return s.go(route, opts);
+        if (!(opts && opts.replace)) { window.location.hash = "/" + route; return undefined; }
+        if (opts.quiet) window.history.replaceState(null, "", "#/" + route);
+        else window.location.replace("#/" + route);
+        return undefined;
+      },
+      hear(fn) {
+        const s = shell();
+        if (s) return s.hear(fn);
+        window.addEventListener("hashchange", fn);
+        return () => window.removeEventListener("hashchange", fn);
+      },
+    };
+  })(),
 
   // ---- Formatting ----
   fmtMoney(n) { return "$" + Math.round(n).toLocaleString(); },

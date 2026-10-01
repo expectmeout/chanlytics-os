@@ -1,22 +1,17 @@
 /**
- * The Reports page, EXECUTED on a stub React over the view models the bridge publishes: the headline (the
+ * The Reports page (apps/dashboard/src/surfaces/reports, TSX since decision 0015), EXECUTED on a stub React over the view
+ * models the bridge publishes through the seam (surface-values.ts): the headline (the
  * receptionist's share, Worth knowing), the tiles compared in counts, every card under its testid with the view
  * model's own sentence, the empty, failed, unreadable-calendar and no-calendar states, a v2 payload, the Ask door, a
  * period that fails to load, Google's section, and the demo. The page's regressions live here too, moved from
  * reports-honest and rewritten for this page (C13, C25 to C28): every row a door, the period before drawn where it
- * reads, one keyboard stop per chart, tabs that hold while a period loads, and a table that leaves the page.
+ * reads, one keyboard stop per chart, tabs that hold while a period loads, and a table that leaves the page. The
+ * period's own door (period.ts) runs for real, over a fetch this test holds, answers or refuses.
  */
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
-import {
-  toReportVM,
-  toCampaignReportVM,
-  toBookingReportVM,
-  toDealReportVM,
-  reportFacts,
-  toGoogleVM,
-} from "@chanlytics/contracts";
+import { toReportVM, toCampaignReportVM, toBookingReportVM, toDealReportVM, reportFacts } from "@chanlytics/contracts";
 import {
   installLegacyReact,
   fresh,
@@ -32,22 +27,26 @@ import {
 
 const went = [];
 const asked = [];
+const flashed = [];
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
-const L = "../../../../apps/dashboard/src/legacy";
-await import(`${L}/components/data-bits.jsx`);
-for (const f of ["core", "bar", "line", "pie", "radar", "radial", "heat"])
-  await import(`${L}/components/chart-${f}.jsx`);
-await import(`${L}/pages/reports-sections.jsx`);
-await import(`${L}/pages/reports.jsx`);
-const { reportsSample } = await import("../../../../apps/dashboard/src/legacy-bridge/reports-sample.ts");
-// The shell's doors, set after data-bits (which publishes its own gate and toast).
+const S = "../../../../apps/dashboard/src";
+const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
+const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
+// The shell's doors, which the surface reaches through the bridge's verbs (surfaces/legacy-verbs.ts).
 Object.assign(globalThis, {
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
-  appNavigate: (to) => went.push(to),
   askAbout: (a) => asked.push(a),
-  usePPToast: () => [null, () => {}],
+  usePPToast: () => [null, (m) => flashed.push([m.tone, textOf(m.msg)])],
   canDo: () => true,
-  gate: () => ({}),
+});
+// The page reads through the runner, which the period's own door refreshes through; nothing to boot.
+const stopRunner = startSurfaces([], () => () => {});
+after(() => stopRunner());
+const realConsoleError = console.error;
+console.error = () => {};
+after(() => {
+  console.error = realConsoleError;
 });
 
 /* ------------- a week that has everything: Sat Aug 29 to Fri Sep 4, 2026, after a quieter week ------------- */
@@ -251,9 +250,47 @@ const surface = ({ report = {}, campaigns = campaignDto(), booking = CALENDAR, d
     fetchedAt: 1,
   };
 };
-const draw = () => globalThis.ReportsPage();
+/* ------------- the period's read: period.ts over a fetch this test holds, answers or refuses ------------- */
+
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const period = { asked: [], held: [], mode: "hold" };
+const answer = (days) =>
+  json(200, { ok: true, data: { report: reportDto({ days }), booking: { ...CALENDAR, days }, deals: null } });
+globalThis.window.fetch = async (url) => {
+  const u = new URL(String(url), "https://app.test");
+  if (/\/reports\/(campaigns|reach-outs)$/.test(u.pathname))
+    return json(500, { ok: false, error: { code: "internal", message: "not read here" } });
+  if (!u.pathname.endsWith("/reports")) return json(404, { ok: false, error: { code: "not_found", message: "no" } });
+  const days = Number(u.searchParams.get("days"));
+  period.asked.push(days);
+  if (period.mode === "refuse") return json(500, { ok: false, error: { code: "internal", message: "down" } });
+  if (period.mode === "answer") return answer(days);
+  return new Promise((res) => period.held.push({ days, res }));
+};
+/** A period asked for and held is answered (it lands) or refused (it fails), and the read behind it is over. */
+const land = async () => {
+  for (const h of period.held.splice(0)) h.res(answer(h.days));
+  for (let i = 0; i < 12; i++) await settle();
+};
+const refuse = async () => {
+  for (const h of period.held.splice(0)) h.res(json(500, { ok: false, error: { code: "internal", message: "down" } }));
+  for (let i = 0; i < 12; i++) await settle();
+};
+const inPeriodTest = async (mode, run) => {
+  period.mode = mode;
+  period.asked.length = 0;
+  try {
+    await run();
+  } finally {
+    await refuse();
+    period.mode = "hold";
+  }
+};
+
+const draw = () => ReportsPage();
 const page = (opts) => {
-  globalThis.__REPORTS = surface(opts);
+  setSurfaceValue("reports", surface(opts));
   fresh();
   went.length = 0;
   asked.length = 0;
@@ -462,23 +499,16 @@ test("when they reach you, as a table: the seven days, then the twenty-four hour
 /* ------------------------------------------ states ------------------------------------------ */
 
 test("a period with nothing in it: one card that says so, no Worth knowing, and the door to 90 days", async () => {
-  const days = [];
-  globalThis.__setReportDays = async (d) => {
-    days.push(d);
-    return true;
-  };
-  try {
+  await inPeriodTest("hold", async () => {
     const tree = page({ report: quiet() });
     const empty = card(tree, "reports-empty");
     assert.ok(textOf(empty).includes("Nobody wrote or called between Aug 29 and Sep 4."));
     assert.equal(card(tree, "chart-answered"), null, "no chart of nothing");
     assert.equal(card(tree, "reports-facts"), null, "the headline and this card already say it");
     press(find(empty, (n) => n.type === "button"));
-    assert.deepEqual(days, [90]);
+    assert.deepEqual(period.asked, [90]);
     await settle();
-  } finally {
-    delete globalThis.__setReportDays;
-  }
+  });
 });
 
 test("the campaign read failing leaves the receptionist's numbers standing; nothing sent says so and opens Broadcasts", () => {
@@ -562,7 +592,7 @@ test("where they reach you: the same split the period before, under the donut, i
 test("a v2 payload still draws: what it cannot know is said, never invented", () => {
   const v2 = reportDto();
   for (const k of ["replies", "channels", "hours"]) delete v2[k];
-  globalThis.__REPORTS = { ...surface(), vm: toReportVM(v2) };
+  setSurfaceValue("reports", { ...surface(), vm: toReportVM(v2) });
   fresh();
   const tree = draw();
   assert.ok(textOf(card(tree, "chart-channels")).includes("Not counted for this period yet."));
@@ -583,12 +613,7 @@ test("a period on its way keeps the one showing, dimmed by the one rule every pa
   // The loading standard's H: Reports dimmed its own way (.rpt-body.is-loading, at once, to 0.55). It is the shared
   // rule now -- the page wears data-loading, the body data-dims (components.css): a beat before it dims, so a period
   // the tab holds (painted at once) never flickers.
-  let land = () => {};
-  globalThis.__setReportDays = () =>
-    new Promise((r) => {
-      land = r;
-    });
-  try {
+  await inPeriodTest("hold", async () => {
     let tree = page();
     assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing on its way");
     press(tabOf(tree, "90 days"));
@@ -598,31 +623,36 @@ test("a period on its way keeps the one showing, dimmed by the one rule every pa
     assert.equal(body.props["aria-busy"], "true");
     assert.equal(body.props["data-dims"], true, "and the body is what dims");
     assert.ok(!String(body.props.className).includes("is-loading"), "by the one rule, not a page's own");
-    // Clearing it is the new answer's (its fetchedAt, an effect this stub runs once): unchanged here.
-    land(true);
-    await settle();
-  } finally {
-    delete globalThis.__setReportDays;
-  }
+    // The answer lands: its own read is published (the surface's fetchedAt moves), and the page clears what it held.
+    await land();
+    redraw(); // the effect that follows the new answer clears what the page held, and the next draw shows it
+    tree = redraw();
+    assert.equal(
+      byTestId(tree, "reports-real").props["data-loading"],
+      undefined,
+      "the period landed: nothing on its way",
+    );
+    assert.equal(tabOf(tree, "90 days").props["aria-pressed"], true, "and it is the period the read answered");
+  });
 });
 
 test("a period that fails to load says so, keeps the one showing, and lets the tabs go again", async () => {
-  globalThis.__setReportDays = async () => false;
-  try {
+  // 30 days, which no test above has read: a period this tab holds paints at once (held views) and cannot fail to load.
+  await inPeriodTest("refuse", async () => {
     let tree = page();
-    press(tabOf(tree, "90 days"));
-    await settle();
+    press(tabOf(tree, "30 days"));
+    for (let i = 0; i < 12; i++) await settle();
     tree = redraw();
-    assert.equal(textOf(cls(tree, "rpt-failed")), "Couldn't load 90 days. Still showing 7 days.");
-    assert.equal(tabOf(tree, "30 days").props["aria-disabled"], false, "the tabs hold only while a period loads");
+    assert.equal(textOf(cls(tree, "rpt-failed")), "Couldn't load 30 days. Still showing 7 days.");
+    assert.equal(tabOf(tree, "90 days").props["aria-disabled"], false, "the tabs hold only while a period loads");
     assert.equal(tabOf(tree, "7 days").props["aria-pressed"], true);
-  } finally {
-    delete globalThis.__setReportDays;
-  }
+  });
 });
 
 test("Google's reviews under the period: four tiles, the ratings gained day by day, the latest reviews with the reply door", () => {
   const NOW = Date.parse("2026-09-04T15:00:00Z");
+  const realNow = Date.now;
+  Date.now = () => NOW;
   const dto = {
     ready: { places: true, profile: true },
     listing: {
@@ -671,12 +701,7 @@ test("Google's reviews under the period: four tiles, the ratings gained day by d
     ],
     reply_mode: "ask",
   };
-  globalThis.__GOOGLE = { dto };
-  globalThis.__google = {
-    vm: (d, days) => toGoogleVM(d, days, NOW),
-    draft: async () => ({ ok: true, text: "Thank you, Ana." }),
-    reply: async () => ({ ok: true }),
-  };
+  setSurfaceValue("google", { dto, fetchedAt: 1 });
   try {
     const tree = page();
     const section = find(tree, (n) => n.type === "section" && n.props["aria-label"] === "Google reviews");
@@ -704,7 +729,10 @@ test("Google's reviews under the period: four tiles, the ratings gained day by d
       null,
       "no address from Google, no link: the card never invents one",
     );
-    globalThis.__GOOGLE = { dto: { ...dto, listing: { ...dto.listing, maps_uri: "https://maps.google.com/?cid=7" } } };
+    setSurfaceValue("google", {
+      dto: { ...dto, listing: { ...dto.listing, maps_uri: "https://maps.google.com/?cid=7" } },
+      fetchedAt: 1,
+    });
     const out = byTestId(card(page(), "chart-google-latest"), "google-open-listing");
     assert.equal(textOf(out), "Read every review on Google");
     assert.deepEqual(
@@ -713,15 +741,14 @@ test("Google's reviews under the period: four tiles, the ratings gained day by d
       "the listing's own address, in a tab of its own",
     );
   } finally {
-    delete globalThis.__GOOGLE;
-    delete globalThis.__google;
+    setSurfaceValue("google", undefined);
+    Date.now = realNow;
   }
 });
 
-test("a demo draws the same page from the sample, its tabs switch the sample; without one the page says what Reports reads", () => {
-  delete globalThis.__REPORTS;
+test("a demo draws the same page from the sample, its tabs switch the sample; without a demo the page says what Reports reads", () => {
+  setSurfaceValue("reports", undefined);
   globalThis.__DEMO_MODE = true;
-  globalThis.__reportsSample = (days) => reportsSample(days, "2026-09-18");
   try {
     fresh();
     let tree = draw();
@@ -733,12 +760,11 @@ test("a demo draws the same page from the sample, its tabs switch the sample; wi
     press(tabOf(tree, "90 days"));
     tree = redraw();
     assert.equal(tabOf(tree, "90 days").props["aria-pressed"], true, "the sample's own period");
-    delete globalThis.__reportsSample;
+    globalThis.__DEMO_MODE = false;
     fresh();
-    assert.ok(byTestId(draw(), "reports-none"), "no bridge, no sample: the page says what Reports reads");
+    assert.ok(byTestId(draw(), "reports-none"), "no workspace and no demo: the page says what Reports reads");
   } finally {
     globalThis.__DEMO_MODE = false;
-    delete globalThis.__reportsSample;
   }
 });
 
@@ -792,26 +818,15 @@ test("REGRESSION (C26): a chart is one keyboard stop whose arrows read each day 
 });
 
 test("REGRESSION (C27): the period tabs hold while a period loads -- a second press started a second load", async () => {
-  const loads = [];
-  let finish = () => {};
-  globalThis.__setReportDays = (d) => {
-    loads.push(d);
-    return new Promise((r) => {
-      finish = r;
-    });
-  };
-  try {
+  await inPeriodTest("hold", async () => {
     let tree = page();
     press(tabOf(tree, "30 days"));
     tree = redraw();
     assert.equal(tabOf(tree, "90 days").props["aria-disabled"], true, "REGRESSION: pressable while a period loaded");
     press(tabOf(tree, "90 days"));
-    assert.deepEqual(loads, [30], "REGRESSION: a second load began");
-    finish(true);
-    await settle();
-  } finally {
-    delete globalThis.__setReportDays;
-  }
+    assert.deepEqual(period.asked, [30], "REGRESSION: a second load began");
+    await land();
+  });
 });
 
 test("REGRESSION (C28): a card with a table saves it as a CSV -- the numbers were on screen and nowhere else", async () => {

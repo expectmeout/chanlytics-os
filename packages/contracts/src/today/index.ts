@@ -17,7 +17,6 @@ export { tzClock } from "./today-clock";
 export { QUOTE_MAX } from "./today-facts";
 export { todayProof } from "./today-figures";
 export { NO_REPLY_AFTER_MS } from "./today-rows";
-export { TODAY_QUEUE_MAX } from "./today-queue";
 export { toTodayVM } from "./today-brief";
 export { durationLabel, todayDay, TODAY_DAY_MAX } from "./today-day";
 export type {
@@ -64,8 +63,6 @@ export {
   ALERT_KINDS,
   SERVER_NOTIFICATION_KINDS,
   SERVER_KEY_PREFIX,
-  NEEDS_KEY_PREFIX,
-  CALL_KEY_PREFIX,
 } from "./notifications";
 export type {
   NotificationKind,

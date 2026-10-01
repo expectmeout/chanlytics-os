@@ -55,126 +55,7 @@ const StatCell = ({ label, value, valueSize, meta, metaTone = "", spark, tip, ch
   </div>
 );
 
-// ---- MoreMenu — shared 3-dot popover -----------------------------------
-// items: [{ label, icon, onClick, danger, meta, gate } | { divider:true } | { header:"…" }]
-// Renders its own trigger button; closes on backdrop, Escape, or item click.
-// `gated` (a sentence) keeps the whole menu shut and says why; an item's `gate`
-// is window.gate(...)'s props, spread after its click, so a refused item stays in
-// the menu, says why when pressed, and leaves the menu open.
-// `escape` is for a menu opened inside a pane that scrolls (the People rail): see moreFit.
-// An item with `checked` (true or false) is one of a set: a menuitemradio, ticked when true.
-
-/**
- * Where a menu that escapes its pane hangs (MoreMenu `escape`). A pane that scrolls cuts off whatever crosses its
- * edge, so a menu in the People rail had to fit beside its trigger: 196px, where every other menu is 232 to 292, and
- * its words broke onto three to six lines. An escaped menu is placed against the window instead: under its trigger, on
- * the side `align` names, above the trigger when the window has more room there, and held inside the window. Where
- * neither side has room for all of it, it takes the room there is and scrolls (the room is its max-height). Until
- * placed it is drawn but not shown (.placed), so it never flashes at the window's corner.
- */
-const MORE_EDGE = 8; // kept clear of the window's edges
-const MORE_GAP = 8; // between trigger and menu, as .more-menu's own top: calc(100% + 8px)
-const moreFit = (wrap) => {
-  if (!wrap || typeof wrap.querySelector !== "function") return;
-  const btn = wrap.querySelector(":scope > button");
-  const menu = wrap.querySelector(":scope > .more-menu");
-  if (!btn || !menu || typeof btn.getBoundingClientRect !== "function" || typeof menu.getBoundingClientRect !== "function") return;
-  const t = btn.getBoundingClientRect();
-  const m = menu.getBoundingClientRect();
-  const vw = window.innerWidth || 0;
-  const vh = window.innerHeight || 0;
-  const from = menu.classList.contains("align-left") ? t.left : t.right - m.width;
-  const left = Math.max(MORE_EDGE, Math.min(from, vw - MORE_EDGE - m.width));
-  const below = vh - MORE_EDGE - (t.bottom + MORE_GAP);
-  const above = t.top - MORE_GAP - MORE_EDGE;
-  const up = below < m.height && above > below;
-  const room = Math.max(96, up ? above : below);
-  const height = Math.min(m.height, room);
-  if (room < m.height) menu.style.maxHeight = `${Math.floor(room)}px`;
-  const top = up ? Math.max(MORE_EDGE, t.top - MORE_GAP - height) : t.bottom + MORE_GAP;
-  const put = (x, y) => { menu.style.left = `${Math.round(x)}px`; menu.style.top = `${Math.round(y)}px`; };
-  put(left, top);
-  // A transformed or filtered ancestor makes itself a fixed box's containing block and moves the menu with it; that
-  // offset is taken back, so the menu lands where it was meant to whatever the page around it does.
-  const got = menu.getBoundingClientRect();
-  if (Math.round(got.left) !== Math.round(left) || Math.round(got.top) !== Math.round(top)) put(2 * left - got.left, 2 * top - got.top);
-  menu.classList.toggle("up", up);
-  menu.classList.add("placed");
-};
-
-// `icon` is the trigger's glyph where the menu is not a "more": Leads' Call opens the ways of calling, and a ⋯
-// there would hide what the button is for.
-const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnClass = "btn btn-ghost btn-icon btn-sm", label = null, icon = "more", gated = null, escape = false, testid = null }) => {
-  const [open, setOpen] = React.useState(false);
-  const wrapRef = React.useRef(null);
-
-  React.useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    window.addEventListener("keydown", onKey);
-    if (!escape) return () => window.removeEventListener("keydown", onKey);
-    // Placed against the window, an escaped menu would stay put while the page under it moved, so a scroll anywhere
-    // but inside the menu itself, or a resize, closes it rather than leave it beside the wrong row. Only a node can be
-    // inside it: a resize's target is the window, which contains() refuses with a throw.
-    const wrap = wrapRef.current;
-    moreFit(wrap);
-    const menu = wrap && typeof wrap.querySelector === "function" ? wrap.querySelector(":scope > .more-menu") : null;
-    const inside = (t) => !!(menu && t && typeof t.nodeType === "number" && typeof menu.contains === "function" && menu.contains(t));
-    const onMove = (e) => { if (!inside(e && e.target)) setOpen(false); };
-    window.addEventListener("scroll", onMove, true);
-    window.addEventListener("resize", onMove);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onMove, true);
-      window.removeEventListener("resize", onMove);
-    };
-  }, [open, escape]);
-
-  const run = (it) => {
-    // Synchronous: fire the action, then close. Deferring the action behind a
-    // timeout let a re-render/close race swallow clicks on lower items.
-    if (it.onClick) it.onClick();
-    setOpen(false);
-  };
-
-  return (
-    <div className="more-wrap" ref={wrapRef}>
-      <button
-        className={btnClass}
-        title={title}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        data-testid={testid || undefined}
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        {...(gated ? gatedProps(gated) : {})}
-      >
-        {label ? <>{label} <Icon name="chevron-down" size={10} /></> : <Icon name={icon} size={size} />}
-      </button>
-      {open && (
-        <>
-          <div className="more-backdrop" role="presentation" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
-          <div className={`more-menu ${align === "left" ? "align-left" : "align-right"}${escape ? " escape" : ""}`} role="menu" onClick={(e) => e.stopPropagation()}>
-            {items.map((it, i) => {
-              if (it.divider) return <div key={i} className="more-divider" />;
-              if (it.header) return <div key={i} className="more-header">{it.header}</div>;
-              // One of a set (a sort, say): a radio item with the tick drawn on every one, hidden where it is not the
-              // one chosen (components.css), so the words stand in one column either way.
-              const radio = typeof it.checked === "boolean";
-              return (
-                <button key={i} className={`more-item ${it.danger ? "danger" : ""}`} role={radio ? "menuitemradio" : "menuitem"} aria-checked={radio ? it.checked : undefined} title={it.title || undefined} onClick={() => run(it)} {...(it.gate || {})}>
-                  {radio ? <Icon name="check" size={13} /> : it.icon && <Icon name={it.icon} size={13} />}
-                  <span className="more-item-label">{it.label}</span>
-                  {it.meta && <span className="more-item-meta">{it.meta}</span>}
-                  {it.hint && <span className="more-item-hint">{it.hint}</span>}
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
+// MoreMenu and its placement, `moreFit`, are the kit's now (surfaces/kit/more-menu); seed-globals publishes MoreMenu.
 
 // ---- Shared toast — usePPToast --------------------------------------------
 // The ONE toast implementation (CLAUDE.md · UI patterns). Portals to <body> so
@@ -280,7 +161,7 @@ const usePPToast = () => {
 };
 usePPToast._seq = 0;
 
-Object.assign(window, { Sparkline, KPI, StatStrip, StatCell, MoreMenu, moreFit, usePPToast });
+Object.assign(window, { Sparkline, KPI, StatStrip, StatCell, usePPToast });
 
 // Shared hotkey hook (CLAUDE.md): suppress-while-typing is handled here.
 // matcher(e, typing) -> true means preventDefault + handler(e).
@@ -884,7 +765,7 @@ const routeDoor = (to, go = null) => {
   const person = RD_PERSON.exec(to);
   const warm = person ? () => { if (window.__warmPerson) window.__warmPerson(person[1]); } : null;
   return {
-    href: `#/${to}`,
+    href: window.CHANLY && window.CHANLY.address ? window.CHANLY.address.href(to) : `#/${to}`,
     onClick: (e) => {
       if (e && (e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) return;
       if (e && e.preventDefault) e.preventDefault();
@@ -939,31 +820,7 @@ const gatedProps = (reason) => {
 const gate = (a, doing) => (canDo(a) ? {} : gatedProps(gateTitle(a, doing)));
 Object.assign(window, { canDo, mayAtLeast, gateTitle, gate, gatedProps });
 
-// ---- Attachments in a thread (real sessions) ---------------------------
-// The bytes live in a private bucket; the route answers with a five-minute
-// signed URL by redirect, so an <img>, <audio> or <video> can point straight
-// at it. Without the bridge there is no route, and a seeded thread never
-// carries `media`, so the standalone mockup renders nothing here.
-const TlMedia = ({ media }) => {
-  if (!media || !window.__href) return null;
-  if (!media.available) return <div className="tl-media tl-media-missing">Attachment couldn't be saved.</div>;
-  const src = window.__href("GET messages/[id]/media", { id: media.messageId });
-  if (media.kind === "image") {
-    return (
-      <a className="tl-media" href={src} target="_blank" rel="noopener noreferrer" title="Open the photo">
-        <img src={src} alt={media.caption || "Photo the customer sent"} loading="lazy" />
-      </a>
-    );
-  }
-  if (media.kind === "audio") return <audio className="tl-media tl-media-audio" controls preload="none" src={src} />;
-  if (media.kind === "video") return <video className="tl-media tl-media-video" controls preload="metadata" src={src} />;
-  return (
-    <a className="tl-media tl-media-file" href={src} download>
-      <Icon name="external" size={12} /> {media.filename || "Download attachment"}
-    </a>
-  );
-};
-window.TlMedia = TlMedia;
+// TlMedia is the kit's now (surfaces/kit/media), which seed-globals publishes under this name.
 
 // ---- Presence (Take transfers) — phone agents check this before warm-transferring ----
 window.PR_STORE = window.PR_STORE || {
@@ -1009,203 +866,9 @@ window.POLICY = window.POLICY || {
   set(id, m) { const r = this.row(id); if (!r || r.locked) return; window.ST_STORE.set("policy." + id, m); window.dispatchEvent(new CustomEvent("policy:changed", { detail: { id, mode: m } })); },
 };
 
-// ---- PolicyChip — the ONE policy-class chip. Self-subscribes to policy:changed. ----
-const PolicyChip = ({ cls, className = "" }) => {
-  const [, pcTick] = React.useReducer((n) => n + 1, 0);
-  React.useEffect(() => {
-    window.addEventListener("policy:changed", pcTick);
-    return () => window.removeEventListener("policy:changed", pcTick);
-  }, []);
-  const r = cls && window.POLICY.row(cls);
-  if (!r) return null;
-  // What the mode DOES, not how it is filed: "Replies · holds it", never
-  // "Replies · Veto". One word map, the matrix's (window.POLICY.WORDS).
-  const polWords = (m) => ((window.POLICY.WORDS || {})[m] || {}).chip || m;
-  // TRUST is the mockup's seeded table ("128 auto-sent · 9% edited"). A real
-  // workspace has its policies loaded (__POLICIES is set, or null when the read
-  // failed) and no such figures, so its chip names the policy instead.
-  return (
-    <button className={`chip pol-chip ${className}`} data-tip={(() => { const t = window.__POLICIES === undefined && window.TRUST && window.TRUST.cls(r.id); return t ? `${r.chip} · ${polWords(window.POLICY.modeOf(r.id))} — ${t.sent.toLocaleString()} auto-sent · ${window.TRUST.rate(t)}% edited (30d)` : "Workspace policy — Settings · Autonomy"; })()} onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(window.CHANLY.R.admin("autonomy")); }}>
-      {r.locked ? <>Owner-only · {r.chip}</> : <>{r.chip} · {polWords(window.POLICY.modeOf(r.id))}</>}
-    </button>
-  );
-};
-// ---- StatePill — the one pill for a state ---------------------------------
-// The tone comes from contracts (tone.ts, through the chrome bridge), the
-// words from the label maps contracts keeps unless the page has better ones,
-// and a live dot rides the accent, which means "right now" and nothing else.
-// Ten components drew this before, each with its own colours: "Needs you" was
-// the accent in the Inbox, amber in Conversations and the accent on a
-// playbook. Without the bridge (the standalone mockup) it is a plain pill.
-// Usage: <StatePill kind="thread" value={t.state} /> · label= overrides the words.
-const StatePill = ({ kind, value, label = null, className = "", title = null, tip = null, testid = null }) => {
-  const said = window.__chrome && window.__chrome.state ? window.__chrome.state(kind, value) : { tone: "plain", label: String(value ?? "") };
-  const tone = said.tone;
-  return (
-    <span
-      className={`pill${tone === "plain" ? "" : ` pill-${tone}`}${className ? ` ${className}` : ""}`}
-      data-state={value}
-      data-tone={tone}
-      title={title || undefined}
-      data-tip={tip || undefined}
-      data-testid={testid || undefined}
-    >
-      {tone === "accent" && <span className="live-dot" style={{ width: 5, height: 5 }} />}
-      {label ?? said.label}
-    </span>
-  );
-};
-// ---- Confirm — the one way an act is confirmed -----------------------------
-// Armed inline, where the control that armed it was: the question names the
-// thing, the detail says what happens, the Yes names the verb and is a real
-// button (red when the act destroys or cannot be undone), the No is quiet.
-// Five idioms did this before -- a hand-rolled Yes/No sentence in four
-// wordings, a button that changed its own label on the first click, a typed
-// name, commit-then-Undo, and nothing at all on the most destructive act on
-// Settings (the audit's D13). One shape now; pure, so any harness can draw it.
-//
-//   <Confirm question="Disconnect Google?" detail="The public listing stays; replies and the history do not."
-//            yes="Yes, disconnect" danger busy={busy} onYes={...} onNo={...} testid="google-disconnect" />
-//
-// `typed` with `value`/`onType` gates the Yes on a typed match -- for erasure
-// only; `ready` overrides the match when the page knows better (a phone
-// number for a name). `block` draws a panel under the row instead of a line
-// beside it. The Yes takes focus as the question appears; Escape is No.
-// Testids from `testid`: `${testid}-confirm` on the group, -yes, -no, -typed.
-const Confirm = ({ question, detail = null, yes = "Yes", no = "No", onYes, onNo, busy = false, busyLabel = "Working…", danger = false, typed = null, value = "", onType = null, ready = null, error = null, block = false, className = "", testid = null }) => {
-  const ok = ready != null ? !!ready : typed == null || String(value).trim() === String(typed);
-  const id = (part) => (testid ? `${testid}-${part}` : undefined);
-  const onKey = (e) => { if (e.key === "Escape" && !busy && onNo) { e.stopPropagation(); onNo(); } };
-  return (
-    <span
-      className={`confirm${block ? " confirm-block" : ""}${danger ? " confirm-danger" : ""}${className ? ` ${className}` : ""}`}
-      role="group"
-      aria-label={typeof question === "string" ? question : undefined}
-      data-testid={id("confirm")}
-      onKeyDown={onKey}
-    >
-      <span className="confirm-words">
-        <span className="confirm-q">{question}</span>
-        {detail && <span className="confirm-detail">{detail}</span>}
-      </span>
-      {typed != null && (
-        <input
-          className="confirm-typed"
-          value={value}
-          onChange={(e) => onType && onType(e.target.value)}
-          placeholder={String(typed)}
-          aria-label={`Type ${typed} to confirm`}
-          autoFocus
-          disabled={busy}
-          data-testid={id("typed")}
-        />
-      )}
-      {error && <span className="confirm-error" role="alert">{error}</span>}
-      <span className="confirm-acts">
-        <button type="button" className={`btn btn-sm${danger ? " btn-danger" : ""}`} disabled={busy || !ok} onClick={onYes} autoFocus={typed == null} data-testid={id("yes")}>
-          {busy ? busyLabel : yes}
-        </button>
-        <button type="button" className="cl-bucket-link" disabled={busy} onClick={onNo} data-testid={id("no")}>{no}</button>
-      </span>
-    </span>
-  );
-};
-// ---- EmptyState — the one way "nothing here" is said ------------------------
-// Thirteen classes said it before, each with its own glyph, size and colour,
-// and one of them offered a next step. One shape: a glyph, a title, a line
-// of body, and the next thing to do -- given whenever the reader can do
-// something about it. `kind`: "page" centres it in a whole pane, "card" sits
-// in a card or a rail, "line" is one sentence in a table or a list (with
-// className="empty-center" to centre it in a table cell).
-//   <EmptyState kind="page" glyph="inbox" title="Inbox zero" body="…"
-//               action={{ label: "See what it handled", to: "conversations" }} />
-// `action.to` navigates (window.CHANLY.nav), `action.onClick` runs, and
-// `action.gate` carries the honesty gate's props; `also` is a quieter second;
-// `tone="ok"` is the green check of a day with nothing left to do.
-const EmptyState = ({ kind = "card", glyph = null, title = null, body = null, action = null, also = null, tone = null, className = "", testid = null, children = null }) => {
-  const go = (a) => () => { if (a.onClick) a.onClick(); else if (a.to && window.CHANLY) window.CHANLY.nav(a.to); };
-  const size = kind === "page" ? 24 : kind === "card" ? 16 : 13;
-  const act = (a, primary) => (
-    <button
-      type="button"
-      className={kind === "line" ? "cl-bucket-link" : primary ? (kind === "page" ? "btn btn-primary btn-sm" : "btn btn-sm") : "btn btn-ghost btn-sm"}
-      onClick={go(a)}
-      data-testid={a.testid || undefined}
-      // An act that opens a record fold carries the fold's id, where the fold gives focus back as it closes
-      // (record-fold.jsx data-rec-act): the Business tab's "Set up the receptionist".
-      data-rec-act={a.recAct || undefined}
-      {...(a.gate || {})}
-    >
-      {a.label}{kind === "line" && <Icon name="arrow-right" size={10} />}
-    </button>
-  );
-  return (
-    <div className={`empty empty-${kind}${tone ? ` empty-${tone}` : ""}${className ? ` ${className}` : ""}`} data-testid={testid || undefined}>
-      {glyph && <div className="empty-glyph"><Icon name={glyph} size={size} /></div>}
-      <div className="empty-words">
-        {title && <div className="empty-title">{title}</div>}
-        {body && <div className="empty-body">{body}</div>}
-        {children}
-      </div>
-      {(action || also) && (
-        <div className="empty-acts">
-          {action && act(action, true)}
-          {also && act(also, false)}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ---- FailedRead — the one way "couldn't read" is said ------------------------
-// Never as "nothing there". A read that failed is its own state -- the
-// audit's D9: Reports went blank when one of its two reads failed; Today,
-// Conversations, Broadcasts and Playbooks kept silent; Team reloaded the
-// whole page. The same three kinds as EmptyState, the alert glyph, a Retry
-// that re-reads the surface, and the sentence that the rest is current.
-//   <FailedRead kind="card" what="your team" surface="settings" />
-//   <FailedRead kind="line" what="the calls" onRetry={fn} busy={busy} />
-// `surface` retries through window.__refreshSurface(key); `onRetry` runs
-// instead; neither, and there is nothing to press (a state support repairs).
-const FailedRead = ({ kind = "card", what = "this", why = null, title = null, body = null, surface = null, onRetry = null, busy = false, also = null, className = "", testid = null, retryTestid = null, children = null }) => {
-  const retry = onRetry || (surface && window.__refreshSurface ? () => window.__refreshSurface(surface) : null);
-  const reason = why ? `${String(why).replace(/\.?\s*$/, "")}. ` : "";
-  return (
-    <div className={`empty empty-${kind} empty-failed${className ? ` ${className}` : ""}`} role="status" data-testid={testid || undefined}>
-      <div className="empty-glyph"><Icon name="alert" size={kind === "page" ? 24 : kind === "card" ? 16 : 13} /></div>
-      <div className="empty-words">
-        <div className="empty-title">{title || `Couldn't read ${what}`}</div>
-        <div className="empty-body">{body ? <>{reason}{body}</> : <>{reason}Everything else here is current, and the receptionist keeps working.</>}</div>
-        {children}
-      </div>
-      {(retry || also) && (
-        <div className="empty-acts">
-          {retry && (
-            <button type="button" className={kind === "line" ? "cl-bucket-link" : kind === "page" ? "btn btn-primary btn-sm" : "btn btn-sm"} disabled={busy} onClick={retry} data-testid={retryTestid || (testid ? `${testid}-retry` : undefined)}>
-              <Icon name="refresh" size={11} /> {busy ? "Retrying…" : "Retry"}
-            </button>
-          )}
-          {also && <button type="button" className={kind === "line" ? "cl-bucket-link" : "btn btn-ghost btn-sm"} onClick={also.onClick} data-testid={also.testid || undefined}>{also.label}</button>}
-        </div>
-      )}
-    </div>
-  );
-};
-// ---- FieldError — the one way a field says what is wrong with it -------------
-// Six forms coloured their own hint red inline, one had a class of its own, and
-// none was announced. One sentence under the box it belongs to, read out as it
-// appears, with the id the box names:
-//   <input aria-invalid={error ? true : undefined} aria-describedby={error ? "list-name-error" : undefined} />
-//   <FieldError id="list-name-error" message={error} />
-const FieldError = ({ id = null, message = null, testid = null }) => {
-  if (!message) return null;
-  return (
-    <span className="field-error" id={id || undefined} role="alert" data-testid={testid || undefined}>
-      <Icon name="alert" size={11} />
-      <span className="field-error-words">{message}</span>
-    </span>
-  );
-};
+// PolicyChip, StatePill, MoreMenu and Confirm are the kit's now (surfaces/kit/policy-chip, pill, more-menu and confirm), and FieldError too
+// (surfaces/kit/field-error): seed-globals publishes them under these names.
+// EmptyState and FailedRead are the kit's now (surfaces/kit/empty), which seed-globals publishes under these names.
 
 // ---- refusalToast — a refusal, as a toast ------------------------------------
 // The client names every refusal (contracts refusalOf): a title for the kind of
@@ -1218,7 +881,7 @@ const refusalToast = (r, what = null) => {
   const why = (r && r.message) || "That didn't go through.";
   return { tone: "danger", msg: lead ? <><b>{lead}</b> — {why}</> : <>{why}</> };
 };
-Object.assign(window, { PolicyChip, StatePill, Confirm, EmptyState, FailedRead, FieldError, refusalToast, trapFocus, dialogRef, keyPress });
+Object.assign(window, { refusalToast, trapFocus, dialogRef, keyPress });
 
 // ---- Tip — one styled tooltip for every [data-tip] element (hover + keyboard focus) ----
 (() => {

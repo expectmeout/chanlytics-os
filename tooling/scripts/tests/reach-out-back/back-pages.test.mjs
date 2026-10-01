@@ -1,6 +1,6 @@
 /**
  * What comes back, drawn (Reach out Part 6: H3, H8–H10), on the stub React over the bridge's own words
- * (legacy-bridge/reach-out/reach-outs.ts over contracts). The reads and the writes are the only things stubbed, so what
+ * (surfaces/campaigns/reach-out/surface.ts over contracts). The reads and the writes are the only things stubbed, so what
  * is proved is what each page draws and what it asks of the bridge: Reports' Reach-outs section in each state it can
  * be in; Leads' strip over a search a reach-out writes to, and its doors; the Stage column beside the name with its
  * line; and the peek's block, its story, "Stop writing to them" asked first and pressed once, and the undo of a no.
@@ -8,7 +8,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
+import {
+  installLegacyReact,
+  peoplePages,
+  fresh,
+  again,
+  all,
+  byTestId,
+  textOf,
+  press,
+  settle,
+} from "../_legacy-react.mjs";
 
 // The fixtures are dated around 28 Sep 2026 and the lines say "Tue" within a week and a date after it, so the clock
 // the bridge reads (Date.now) is the fixtures' own: a wall clock a week on turned "Written Tue" into "Written Sep 22".
@@ -18,14 +28,14 @@ installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome:
 const W = globalThis;
 const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
-for (const f of ["core", "bar"]) await import(`${L}/components/chart-${f}.jsx`);
-await import(`${L}/pages/reports-sections.jsx`);
-await import(`${L}/pages/reach-out/reach-out-report.jsx`);
+// Reports' Reach-outs section is TSX (decision 0015): the surface's own module, on the same stub.
+const { RptReachOuts } = await import("../../../../apps/dashboard/src/surfaces/reports/reach-outs.tsx");
 await import(`${L}/pages/leads-finder.jsx`);
-await import(`${L}/pages/people-table.jsx`);
+// People's table and its helpers are TSX too (surfaces/people, decision 0015): the names the Leads scope reads off the window.
+Object.assign(W.window, peoplePages);
 await import(`${L}/pages/leads-cells.jsx`);
 await import(`${L}/pages/reach-out/reach-out-leads.jsx`);
-const bridge = await import("../../../../apps/dashboard/src/legacy-bridge/reach-out/reach-outs.ts");
+const bridge = await import("../../../../apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts");
 
 const went = [];
 const flashed = [];
@@ -98,7 +108,7 @@ const reportDto = (over = {}) => ({
 });
 const section = (reachOuts) => {
   fresh();
-  return again(() => W.React.createElement(W.RptReachOuts, { R: { reachOuts } }));
+  return again(() => W.React.createElement(RptReachOuts, { R: { reachOuts } }));
 };
 
 test("Reports draws the reach-outs' section: the funnel, the angles, the domains, the days, and each step on its line", () => {

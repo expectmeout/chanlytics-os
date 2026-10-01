@@ -1,13 +1,21 @@
 /**
  * Campaigns, honest: a playbook link opens its card and a deleted one says so (the wiring audit's C13), and the
  * reply window is one rule said one way (C25). The Reports page's own regressions (C13, C25 to C28) moved to
- * reports-page.test.mjs with the page's redesign. Run against the pages on a stub React, over the view models the
- * bridge publishes.
+ * reports-page.test.mjs with the page's redesign. Run against the pages (TSX, apps/dashboard/src/surfaces/campaigns) on
+ * a stub React, over the view models the seam holds (surface-values.ts).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { hookFrames } from "../_hook-frames.mjs";
+import {
+  installLegacyReact,
+  fresh as freshTree,
+  again as drawAgain,
+  all,
+  find,
+  byTestId,
+  textOf,
+} from "../_legacy-react.mjs";
 
 const { toCampaignReportVM, stateOf } = contracts;
 const TID = "t-studio";
@@ -111,133 +119,13 @@ const playbooksSurface = (over = {}) => ({
 
 /* ---------------------------------- the window ---------------------------------- */
 
-const listeners = {};
-const storage = () => {
-  const m = new Map();
-  return {
-    getItem: (k) => (m.has(k) ? m.get(k) : null),
-    setItem: (k, v) => m.set(k, String(v)),
-    removeItem: (k) => m.delete(k),
-  };
-};
-globalThis.localStorage = storage();
-globalThis.sessionStorage = storage();
-globalThis.document = {
-  body: { appendChild() {} },
-  activeElement: null,
-  addEventListener() {},
-  removeEventListener() {},
-  getElementById: () => null,
-  createElement: () => ({
-    setAttribute() {},
-    style: {},
-    classList: { add() {}, remove() {} },
-    click() {},
-    remove() {},
-  }),
-};
-globalThis.window = {
-  location: {
-    pathname: "/w/studio",
-    hash: "#/reports",
-    origin: "https://app.chanlytics.com",
-    assign() {},
-    replace() {},
-    reload() {},
-  },
-  history: { replaceState() {} },
-  innerHeight: 800,
-  localStorage: globalThis.localStorage,
-  sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => {
-    (listeners[type] ||= new Set()).add(fn);
-  },
-  removeEventListener: (type, fn) => {
-    listeners[type]?.delete(fn);
-  },
-  dispatchEvent: (ev) => {
-    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
-    return true;
-  },
-  setTimeout: (fn, ms) => setTimeout(fn, ms),
-  clearTimeout: (h) => clearTimeout(h),
-  setInterval: () => 1,
-  clearInterval() {},
+// The page's window is the stub React's (installLegacyReact: window IS globalThis), with the shell's doors the TSX pages
+// reach through the bridge's verbs (surfaces/legacy-verbs.ts, legacy-parts.ts) and the workspace its clock reads.
+const went = [];
+installLegacyReact({
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: TID,
-};
-const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
-installClock();
-const { installTemplates } = await import("../../../../apps/dashboard/src/legacy-bridge/templates.ts");
-installTemplates();
 
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-const went = [];
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => fn(),
-  useCallback: (fn) => fn,
-  // An effect runs when its inputs change, after its last cleanup, the way React runs it; with no inputs, on every draw.
-  useEffect: (fn, deps) => {
-    const k = frames.key();
-    const prev = cells[k];
-    if (
-      prev &&
-      deps &&
-      prev.deps &&
-      deps.length === prev.deps.length &&
-      deps.every((d, i) => Object.is(d, prev.deps[i]))
-    )
-      return;
-    if (prev && typeof prev.cleanup === "function") prev.cleanup();
-    cells[k] = { deps, cleanup: undefined };
-    cells[k].cleanup = fn();
-  },
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-sheet.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
-for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"])
-  globalThis[k] = globalThis.window[k];
-Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
   appNavigate: (to) => went.push(to),
@@ -249,53 +137,23 @@ Object.assign(globalThis.window, {
   __surfaceState: () => "live",
   __DEMO_MODE: false,
 });
-await import("../../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-run.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/outbound.jsx");
+const S = "../../../../apps/dashboard/src";
+const { installClock } = await import(`${S}/legacy-bridge/zone.ts`);
+installClock();
+// What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (data-bits), the unsaved-work rule
+// (record-fold) and the record kit's sheet the composer opens in (record-sheet).
+await import(`${S}/legacy/components/data-bits.jsx`);
+// The moved surfaces: TSX, drawn over the values the seam holds.
+const { PlaybooksPage } = await import(`${S}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
+const { BcHistoryStats } = await import(`${S}/surfaces/campaigns/broadcasts/ledger.tsx`);
+const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) {
-    for (const k of n) walk(k, fn);
-    return;
-  }
-  fn(n);
-  walk(n.props?.children, fn);
-  walk(n.rendered, fn);
-};
-// A drawn component is walked twice, as the children it was given and as what it rendered: each node counts once.
-const all = (tree, pred) => {
-  const out = [];
-  const seen = new Set();
-  walk(tree, (n) => {
-    if (!seen.has(n) && pred(n)) {
-      seen.add(n);
-      out.push(n);
-    }
-  });
-  return out;
-};
-const find = (tree, pred) => all(tree, pred)[0] ?? null;
-const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  if (n.rendered !== undefined) return textOf(n.rendered);
-  return textOf(n.props?.children);
-};
 const classes = (n) => String(n?.props?.className || "").split(" ");
 const fresh = () => {
-  cells = [];
-  frames.begin();
+  freshTree();
   went.length = 0;
-  for (const k of Object.keys(listeners)) delete listeners[k];
 };
+const outbound = (props = {}) => PlaybooksPage(props);
 
 /* ------------------------------ doors ------------------------------ */
 
@@ -317,9 +175,9 @@ test("Playbooks shows every moment, not only the ones somebody made: an empty on
     trig("visited", "After the visit", "the day after a visit", 0),
   ];
   // Two playbooks are made -- for quiet_30 and new_week -- so two moments are left.
-  globalThis.window.__PLAYBOOKS = playbooksSurface({ triggers: moments() });
+  setSurfaceValue("playbooks", playbooksSurface({ triggers: moments() }));
   fresh();
-  let tree = globalThis.window.OutboundPage({});
+  let tree = outbound({});
   let slots = all(tree, (n) => n.props?.["data-testid"] === "pb-slot");
   assert.deepEqual(
     slots.map((s) => s.props["data-trigger"]),
@@ -339,9 +197,9 @@ test("Playbooks shows every moment, not only the ones somebody made: an empty on
 
   // On a first day every moment is offered, and that is the empty state: the
   // generic "No playbook yet" card does not also appear.
-  globalThis.window.__PLAYBOOKS = playbooksSurface({ triggers: moments(), rows: [] });
+  setSurfaceValue("playbooks", playbooksSurface({ triggers: moments(), rows: [] }));
   fresh();
-  tree = globalThis.window.OutboundPage({});
+  tree = outbound({});
   slots = all(tree, (n) => n.props?.["data-testid"] === "pb-slot");
   assert.deepEqual(
     slots.map((s) => s.props["data-trigger"]),
@@ -352,8 +210,7 @@ test("Playbooks shows every moment, not only the ones somebody made: an empty on
 
   // Pressing the third opens the composer ON that moment, not on whichever trigger is first.
   find(slots[2], (n) => n.props?.["data-testid"] === "pb-slot-start").props.onClick();
-  frames.begin();
-  tree = globalThis.window.OutboundPage({});
+  tree = drawAgain(outbound);
   assert.ok(byTestId(tree, "pb-composer"), "the composer opens");
   const moment = textOf(byTestId(tree, "pb-moment"));
   assert.ok(
@@ -381,64 +238,67 @@ test("A playbook is a card of the moment it does: its message and languages, who
     held,
     named: { pool: candidates + held, noYes: 0, stopped: 0, noNumber: 0, saidYes: candidates + held },
   });
-  globalThis.window.__PLAYBOOKS = playbooksSurface({
-    rows: [
-      playbook({
-        id: "pb-1",
-        name: "Win-back",
-        trigger: "quiet_30",
-        candidates: 24,
-        held: 12,
-        totals: {
-          runs: 18,
-          sent: 198,
-          delivered: 180,
-          replied: 36,
+  setSurfaceValue(
+    "playbooks",
+    playbooksSurface({
+      rows: [
+        playbook({
+          id: "pb-1",
+          name: "Win-back",
+          trigger: "quiet_30",
+          candidates: 24,
+          held: 12,
+          totals: {
+            runs: 18,
+            sent: 198,
+            delivered: 180,
+            replied: 36,
+            held: 0,
+            lastRun: null,
+            waiting: null,
+            history: [
+              { id: "r1", run_for: "2026-09-19", state: "sent", sent: 12 },
+              { id: "r2", run_for: "2026-09-18", state: "sent", sent: 9 },
+            ],
+          },
+        }),
+        playbook({
+          id: "pb-2",
+          name: "Save our number",
+          trigger: "phoned_only",
+          state: "paused",
+          candidates: 0,
           held: 0,
-          lastRun: null,
-          waiting: null,
-          history: [
-            { id: "r1", run_for: "2026-09-19", state: "sent", sent: 12 },
-            { id: "r2", run_for: "2026-09-18", state: "sent", sent: 9 },
-          ],
-        },
-      }),
-      playbook({
-        id: "pb-2",
-        name: "Save our number",
-        trigger: "phoned_only",
-        state: "paused",
-        candidates: 0,
-        held: 0,
-        template_name: "save_our_number",
-      }),
-      playbook({
-        id: "pb-3",
-        name: "The month's offer",
-        trigger: "everyone_monthly",
-        candidates: 186,
-        held: 32,
-        totals: {
-          runs: 9,
-          sent: 99,
-          delivered: 90,
-          replied: 18,
-          held: 0,
-          lastRun: null,
-          waiting: { id: "b-w", recipient_count: 186 },
-          history: [],
-        },
-      }),
-    ],
-    triggers: [
-      trig("quiet_30", "Win-back", "Nothing heard in 30 days", 24, 12),
-      trig("phoned_only", "Save our number", "Only ever phoned", 41),
-      trig("everyone_monthly", "The month's offer", "Everyone who said yes", 186, 32),
-      trig("visited", "After the visit", "The day after a visit", 6),
-    ],
-  });
+          template_name: "save_our_number",
+        }),
+        playbook({
+          id: "pb-3",
+          name: "The month's offer",
+          trigger: "everyone_monthly",
+          candidates: 186,
+          held: 32,
+          totals: {
+            runs: 9,
+            sent: 99,
+            delivered: 90,
+            replied: 18,
+            held: 0,
+            lastRun: null,
+            waiting: { id: "b-w", recipient_count: 186 },
+            history: [],
+          },
+        }),
+      ],
+      triggers: [
+        trig("quiet_30", "Win-back", "Nothing heard in 30 days", 24, 12),
+        trig("phoned_only", "Save our number", "Only ever phoned", 41),
+        trig("everyone_monthly", "The month's offer", "Everyone who said yes", 186, 32),
+        trig("visited", "After the visit", "The day after a visit", 6),
+      ],
+    }),
+  );
   fresh();
-  let tree = globalThis.window.OutboundPage({});
+  let tree = outbound({});
   // The moments' own order, each with the playbook doing it or the card saying nothing is.
   const cards = all(tree, (n) => n.props?.["data-testid"] === "pb-card" || n.props?.["data-testid"] === "pb-slot");
   assert.deepEqual(
@@ -474,8 +334,7 @@ test("A playbook is a card of the moment it does: its message and languages, who
   assert.ok(textOf(byTestId(offer, "pb-tile-approve")).includes("Approve it and it goes at 10:00"));
   assert.equal(byTestId(tree, "pb-approve"), null, "a closed card carries no verbs");
   byTestId(offer, "pb-tile-approve").props.onClick();
-  frames.begin();
-  tree = globalThis.window.OutboundPage({});
+  tree = drawAgain(outbound);
   const opened = all(tree, (n) => n.props?.["data-testid"] === "pb-card").find((c) => c.props.id === "pb-pb-3");
   assert.ok(classes(opened).includes("is-open"), "it opens in place, across the grid");
   assert.ok(byTestId(opened, "pb-approve") && byTestId(opened, "pb-skip"), "with Approve and Skip in it");
@@ -490,8 +349,6 @@ test("A playbook is a card of the moment it does: its message and languages, who
 });
 
 test("A card's bar is everyone its moment names -- green reaches, amber waits, grey never will -- and the one reason an owner can change opens where it is changed", () => {
-  // As the playbooks bridge publishes them (legacy-bridge/playbooks.ts).
-  Object.assign(globalThis.window, { __reachLines: contracts.reachLines, __poolWords: contracts.poolWords });
   const visitTrig = {
     id: "visit_tomorrow",
     label: "Visit tomorrow",
@@ -503,41 +360,44 @@ test("A card's bar is everyone its moment names -- green reaches, amber waits, g
     held: 0,
     named: null,
   };
-  globalThis.window.__PLAYBOOKS = playbooksSurface({
-    rows: [
-      playbook({
-        id: "pb-1",
-        name: "Win-back",
-        candidates: 24,
-        held: 6,
-        named: { pool: 130, noYes: 94, stopped: 4, noNumber: 2 },
-      }),
-      playbook({
-        id: "pb-2",
-        name: "Save our number",
-        trigger: "phoned_only",
-        state: "paused",
-        template_name: "save_our_number",
-        candidates: 10,
-        held: 2,
-        named: { pool: 40, noYes: 28, stopped: 0, noNumber: 0 },
-      }),
-      playbook({
-        id: "pb-3",
-        name: "Visit reminder",
-        trigger: "visit_tomorrow",
-        policy_class: "booking",
-        template_name: "visit_reminder",
-        cap_per_run: 25,
-        candidates: 30,
-        held: 0,
-        named: { pool: 31, noYes: 1, stopped: 0, noNumber: 0 },
-      }),
-    ],
-    triggers: [visitTrig],
-  });
+  setSurfaceValue(
+    "playbooks",
+    playbooksSurface({
+      rows: [
+        playbook({
+          id: "pb-1",
+          name: "Win-back",
+          candidates: 24,
+          held: 6,
+          named: { pool: 130, noYes: 94, stopped: 4, noNumber: 2 },
+        }),
+        playbook({
+          id: "pb-2",
+          name: "Save our number",
+          trigger: "phoned_only",
+          state: "paused",
+          template_name: "save_our_number",
+          candidates: 10,
+          held: 2,
+          named: { pool: 40, noYes: 28, stopped: 0, noNumber: 0 },
+        }),
+        playbook({
+          id: "pb-3",
+          name: "Visit reminder",
+          trigger: "visit_tomorrow",
+          policy_class: "booking",
+          template_name: "visit_reminder",
+          cap_per_run: 25,
+          candidates: 30,
+          held: 0,
+          named: { pool: 31, noYes: 1, stopped: 0, noNumber: 0 },
+        }),
+      ],
+      triggers: [visitTrig],
+    }),
+  );
   fresh();
-  const tree = globalThis.window.OutboundPage({});
+  const tree = outbound({});
   const card = (id) => all(tree, (n) => n.props?.["data-testid"] === "pb-card").find((c) => c.props.id === `pb-${id}`);
   const reach = (id) => byTestId(card(id), "pb-tile-reach");
   const lines = (id) => all(reach(id), (n) => n.type === "li").map((li) => textOf(li));
@@ -581,14 +441,14 @@ test("A card's bar is everyone its moment names -- green reaches, amber waits, g
 });
 
 test("REGRESSION (C13): Playbooks opened on a playbook marks its card and brings it into view, and a playbook since deleted says so", () => {
-  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  setSurfaceValue("playbooks", playbooksSurface());
   const scrolled = [];
   const keep = globalThis.document.getElementById;
   globalThis.document.getElementById = (id) =>
     id === "pb-pb-2" ? { getBoundingClientRect: () => ({ top: 1400 }), scrollIntoView: () => scrolled.push(id) } : null;
   try {
     fresh();
-    const tree = globalThis.window.OutboundPage({ initialPlaybook: "pb-2" });
+    const tree = outbound({ initialPlaybook: "pb-2" });
     const cards = all(tree, (n) => n.props?.["data-testid"] === "pb-card");
     assert.deepEqual(
       cards.map((c) => [c.props.id, classes(c).includes("is-focus")]),
@@ -600,8 +460,8 @@ test("REGRESSION (C13): Playbooks opened on a playbook marks its card and brings
     assert.deepEqual(scrolled, ["pb-pb-2"], "brought into view");
     fresh();
     // Gone is said once the reach-outs were read too, and none is it (a link may name a chain: Part 4 PR 8).
-    globalThis.window.__REACH_OUTS = [];
-    const gone = globalThis.window.OutboundPage({ initialPlaybook: "pb-deleted" });
+    setSurfaceValue("reach_outs", []);
+    const gone = outbound({ initialPlaybook: "pb-deleted" });
     assert.ok(
       textOf(byTestId(gone, "pb-gone")).includes("isn't here any more"),
       "a link to a deleted playbook says so, and the cards stay",
@@ -609,7 +469,7 @@ test("REGRESSION (C13): Playbooks opened on a playbook marks its card and brings
     assert.equal(all(gone, (n) => n.props?.["data-testid"] === "pb-card").length, 2);
   } finally {
     globalThis.document.getElementById = keep;
-    delete globalThis.window.__REACH_OUTS;
+    setSurfaceValue("reach_outs", undefined);
   }
 });
 
@@ -621,7 +481,7 @@ test("REGRESSION (C25): the reply window is one rule said one way -- three place
   const replied = toCampaignReportVM(campaignDto()).tiles.find((t) => t.id === "replied");
   assert.equal(replied.meta, `4 wrote back ${contracts.REPLY_WINDOW_WORDS}`);
   fresh();
-  const stats = globalThis.window.BcHistoryStats({
+  const stats = BcHistoryStats({
     rows: [
       { id: "b1", open: false, state: "sent", counts: { sent: 2, delivered: 2, replied: 1, skipped: 0, failed: 0 } },
     ],
@@ -632,9 +492,9 @@ test("REGRESSION (C25): the reply window is one rule said one way -- three place
     find(stats, (n) => String(n.props?.["data-tip"]).includes("within 2 days of a broadcast")),
     "Broadcasts reads the published words",
   );
-  globalThis.window.__PLAYBOOKS = playbooksSurface({ replyWindow: "within 2 days" });
+  setSurfaceValue("playbooks", playbooksSurface({ replyWindow: "within 2 days" }));
   fresh();
-  const page = globalThis.window.OutboundPage({});
+  const page = outbound({});
   assert.ok(
     find(page, (n) => String(n.props?.["data-tip"]).includes("within 2 days of a run")),
     "REGRESSION: Playbooks said 'after a run'",

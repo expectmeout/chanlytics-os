@@ -9,12 +9,23 @@
  * SurfaceData runner; the pill reports live/degraded per surface, carries
  * sign-out, and flags stale deployments (version heartbeat).
  */
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { FIRST_RUN_ROUTE, type PendingWorkspace, type Theme, type LookPref } from "@chanlytics/contracts";
 import { subscribeWorkspaceChanges } from "@chanlytics/db";
 import { authErrorInHash } from "@/auth/hash-error";
 import { createClient } from "@/lib/supabase/client";
 import { paintThemeColor } from "./theme-color";
+import { FrameHead } from "@/surfaces/kit/head/frame-head";
 import { loadPrefs, choosePref, documentStamps, type Prefs, type ChosenPref } from "./device-prefs";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
@@ -22,16 +33,17 @@ import "./manifest";
 // 254KB design system ships as document <link>s and downloads in parallel
 // with this chunk, rather than serially behind it.
 import { workspaceOverride, switchWorkspace, type Workspace } from "./surface-data";
-import { conversationsOverride } from "./surfaces/conversations";
-import { inboxOverride } from "./surfaces/inbox";
-import { todayOverride } from "./surfaces/today";
+import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
+import { inboxOverride } from "@/surfaces/inbox/surface";
+import { todayOverride } from "@/surfaces/today/surface";
 import { settingsOverride } from "./surfaces/settings";
-import { peopleOverride } from "./surfaces/people";
-import { reportsOverride } from "./surfaces/reports";
-import { liveOverride } from "./surfaces/live";
-import { broadcastsOverride } from "./surfaces/broadcasts";
-import { playbooksOverride } from "./surfaces/playbooks";
-import { calendarOverride } from "./surfaces/calendar";
+import { peopleOverride } from "@/surfaces/people/surface";
+import { reportsOverride } from "@/surfaces/reports/surface";
+import { SURFACE_ROUTES } from "@/surfaces/routes";
+import { liveOverride } from "@/surfaces/live/surface";
+import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
+import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
+import { calendarOverride } from "@/surfaces/calendar/surface";
 import { notificationsOverride } from "./surfaces/notifications";
 import {
   getConnection,
@@ -46,22 +58,21 @@ import {
 import { hydrateSurfaceCache } from "./surface-cache";
 import { hearSurfaces, surfaceHook } from "./surface-status";
 import { installInboxVerbs } from "./inbox-verbs";
-import { installPeopleCourier, warmPersonOnScreen } from "./people-detail";
+import { installPeopleCourier, warmPersonOnScreen } from "@/surfaces/people/people-detail";
 import { installLeadsCourier, leadsOverride } from "./leads";
 import { installLeadMap } from "./lead-map";
 import { installTabMemory } from "./tab-memory";
-import { installLists } from "./people-lists";
+import { installLists } from "@/surfaces/people/people-lists";
 import { installPolicyStore } from "./policy-store";
 import { installNotifications } from "./notifications";
 import { installAsk } from "./ask";
 import { installWhatsAppConnect } from "./whatsapp-connect";
-import { installTemplates } from "./templates";
-import { installBroadcasts } from "./broadcast-verbs";
-import { installPlaybooks } from "./playbooks";
-import { installReachOuts, reachOutsOverride } from "./reach-out/reach-outs";
+import { installBroadcasts } from "@/surfaces/campaigns/broadcasts/verbs";
+import { installPlaybooks } from "@/surfaces/campaigns/playbooks/verbs";
+import { installReachOuts, reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
 import { installReplies, repliesOverride } from "./reach-out/replies";
-import { installCalendar } from "./calendar";
-import { installToday } from "./today";
+import { installCalendar } from "@/surfaces/calendar/verbs";
+import { installToday } from "@/surfaces/today/helpers";
 import { installMascot } from "./mascot";
 import { installArrival } from "./arrival";
 import { installAppBridge } from "./app-bridge";
@@ -107,7 +118,6 @@ installPolicyStore();
 installNotifications();
 installAsk();
 installWhatsAppConnect();
-installTemplates();
 installBroadcasts();
 installPlaybooks();
 installReachOuts();
@@ -232,14 +242,16 @@ installSurfaceRefresh();
  * Supabase returns a failed provider sign-in in the URL fragment, and the
  * browser carries it through the callback's redirect AND through the
  * middleware's bounce off /login when the person does have a session. It
- * arrives here, where the shell's parseHash reads window.location.hash, and
- * the shell drew `No surface at "error=server_error&error_code=..."` -- a
- * sign-in failure wearing a routing error's clothes.
+ * arrives here. The shell once read it as a route and drew `No surface at
+ * "error=server_error&error_code=..."` -- a sign-in failure wearing a routing
+ * error's clothes. A route always begins "#/" now (contracts routeOfHash), so
+ * the address cannot mistake it, and it is still taken out of the address so
+ * nothing else reads it.
  *
- * Module scope for the same reason as the route gate above: the shell reads
- * the hash during its FIRST render, so anything that runs in an effect is
- * already too late and shows the wrong page for a frame. Replaced rather than
- * pushed, because that address is not somewhere to go Back to.
+ * Module scope for the same reason as the route gate above: anything that
+ * runs in an effect is already too late, and the page would draw with the
+ * fragment in its address for a frame. Replaced rather than pushed, because
+ * that address is not somewhere to go Back to.
  */
 function installAuthHashScrub(): void {
   const refused = authErrorInHash(window.location.hash);
@@ -283,8 +295,8 @@ function useSystemDark(): boolean {
 function useDocumentStamps(theme: Theme, look: LookPref): void {
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    paintThemeColor(document, theme);
-  }, [theme]);
+    paintThemeColor(document, theme, look);
+  }, [theme, look]);
   useEffect(() => {
     document.documentElement.setAttribute("data-look", look);
   }, [look]);
@@ -300,7 +312,19 @@ type ChanlyticsAppComponent = React.ComponentType<{
   onSidebar: (v: string) => void;
   inboxDensity: string;
   showInboxAgentRail: boolean;
+  /** The page of a route that has left the shell, which the layout drew (src/surfaces/routes.ts). */
+  routePage: ReactNode;
+  surfaceRoutes: typeof SURFACE_ROUTES;
+  /** What the shared viewer shows: the Reports page, in a chunk of its own that only that viewer loads. */
+  sharedPage: ReactNode;
 }>;
+
+const SharedReports = lazy(() => import("@/surfaces/reports/reports-page").then((m) => ({ default: m.ReportsPage })));
+const SHARED_PAGE = (
+  <Suspense fallback={null}>
+    <SharedReports />
+  </Suspense>
+);
 
 /** The workspaces this account may open, as the workspace's read last said. */
 const listedWorkspaces = (): Workspace[] => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? [];
@@ -311,7 +335,13 @@ const listedWorkspaces = (): Workspace[] => (window as unknown as { __WORKSPACES
  * on its own surfaces (surface-status.ts), and the shell on the route's (app-shell.jsx). It was drawn again, with three
  * new callbacks, on every surface's read.
  */
-function useShellApp(prefs: Prefs, theme: Theme, look: LookPref, choose: (key: ChosenPref, v: string) => void) {
+function useShellApp(
+  prefs: Prefs,
+  theme: Theme,
+  look: LookPref,
+  choose: (key: ChosenPref, v: string) => void,
+  routePage: ReactNode,
+) {
   const onTheme = useCallback((v: string) => choose("theme", v), [choose]);
   const onLook = useCallback((v: string) => choose("look", v), [choose]);
   const onSidebar = useCallback((v: string) => choose("sidebar", v), [choose]);
@@ -320,23 +350,47 @@ function useShellApp(prefs: Prefs, theme: Theme, look: LookPref, choose: (key: C
   return useMemo(
     () =>
       ChanlyticsApp ? (
-        <ChanlyticsApp
-          theme={theme}
-          themePref={themePref}
-          onTheme={onTheme}
-          look={look}
-          onLook={onLook}
-          sidebar={sidebar}
-          onSidebar={onSidebar}
-          inboxDensity={inboxDensity}
-          showInboxAgentRail={showInboxAgentRail}
-        />
+        <>
+          <ChanlyticsApp
+            theme={theme}
+            themePref={themePref}
+            onTheme={onTheme}
+            look={look}
+            onLook={onLook}
+            sidebar={sidebar}
+            onSidebar={onSidebar}
+            inboxDensity={inboxDensity}
+            showInboxAgentRail={showInboxAgentRail}
+            routePage={routePage}
+            surfaceRoutes={SURFACE_ROUTES}
+            sharedPage={SHARED_PAGE}
+          />
+          {/* The head Glass draws into the shell's places (kit/head/frame-head.tsx): beside the shell, in one tree. */}
+          <FrameHead look={look} />
+        </>
       ) : null,
-    [ChanlyticsApp, theme, themePref, onTheme, look, onLook, sidebar, onSidebar, inboxDensity, showInboxAgentRail],
+    [
+      ChanlyticsApp,
+      theme,
+      themePref,
+      onTheme,
+      look,
+      onLook,
+      sidebar,
+      onSidebar,
+      inboxDensity,
+      showInboxAgentRail,
+      routePage,
+    ],
   );
 }
 
-export default function LegacyApp() {
+/**
+ * `routePage`: the page of the route on screen, when that route has one of its own (src/surfaces/routes.ts): the layout's
+ * children, which LegacyHost hands over only while the address is such a route, so a move between the shell's own routes
+ * draws this frame no more than it did.
+ */
+export default function LegacyApp({ routePage }: { routePage?: ReactNode }) {
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs(browserStorage));
   // Another workspace, asked for from the workspace menu (shell.createWorkspace).
   const [creating, setCreating] = useState(false);
@@ -369,7 +423,7 @@ export default function LegacyApp() {
     (key: ChosenPref, v: string) => setPrefs((p) => choosePref(browserStorage, p, key, v)),
     [],
   );
-  const shellApp = useShellApp(prefs, theme, look, choose);
+  const shellApp = useShellApp(prefs, theme, look, choose, routePage);
 
   useDocumentStamps(theme, look);
   // Viewport scoping, exactly what the inline boot script did.

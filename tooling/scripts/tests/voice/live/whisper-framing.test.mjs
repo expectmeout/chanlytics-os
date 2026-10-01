@@ -12,12 +12,21 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { frameWhisper, whisperText, toLiveCallVM, toCallVM } from "@chanlytics/contracts";
+import { frameWhisper, whisperText, toLiveCallVM, toLiveVM, toCallVM } from "@chanlytics/contracts";
 import { liveTurns } from "@chanlytics/channels";
-import { readRaw } from "../../_source.mjs";
+import { installLegacyReact, fresh, again, all, byTestId, classes, textOf } from "../../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
+
+// The Live page (apps/dashboard/src/surfaces/live, TSX since decision 0015) is drawn on the legacy stub React, its view
+// model handed over the seam: the transcript says the owner's whisper the way the owner said it.
+installLegacyReact({ __DEMO_MODE: false, CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
+const S = "../../../../../apps/dashboard/src";
+await import(`${S}/legacy/components/data-bits.jsx`);
+globalThis.usePPToast = () => [null, () => {}];
+const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
+const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 
 test("the frame is an owner instruction with the words quoted, and its inverse gives the words back", () => {
   const framed = frameWhisper("  tell them we have a haircut special ");
@@ -103,8 +112,21 @@ test("both transcripts show the whisper as the owner's own words, where it lande
     ["client", "whisper", "agent"],
   );
   assert.equal(call.transcript[1].text, "tell them we have a haircut special");
-  const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor.jsx");
-  assert.ok(page.includes('data-testid="live-whisper-line"') && page.includes("You whispered"));
+  // And the page draws it as the owner's: labelled "You whispered", in the owner's words, between what the caller and the
+  // receptionist said, and never as the frame the receptionist was given.
+  setSurfaceValue("live", toLiveVM([dto(turns)], [], ZONE, new Date()));
+  fresh();
+  const tree = again(() => LivePage({}));
+  const spoken = all(tree, (n) => classes(n).includes("tl-msg") || n.props?.["data-testid"] === "live-whisper-line");
+  assert.deepEqual(
+    spoken.map((n) => (n.props["data-testid"] === "live-whisper-line" ? "whisper" : classes(n).at(-1))),
+    ["client", "whisper", "agent"],
+    "the whisper sits where it landed in the call",
+  );
+  const line = byTestId(tree, "live-whisper-line");
+  assert.match(textOf(line), /You whispered/);
+  assert.ok(textOf(line).includes("tell them we have a haircut special"));
+  assert.ok(!textOf(tree).includes("A whisper from the business owner"), "the frame is never drawn");
   // The call's own transcript says it on the thread's call card, run in calls-in-the-thread.test.mjs.
   // The edge sending the frame (and the ledger keeping the words) is run in whisper-door.test.mjs.
 });

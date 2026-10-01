@@ -82,13 +82,9 @@ Object.assign(globalThis, {
   __unknownDetails: unknownDetails,
 });
 await import(`${L}/components/data-bits.jsx`);
-await import(`${L}/components/record-row.jsx`);
-await import(`${L}/components/record-field.jsx`);
-await import(`${L}/components/record-fold.jsx`);
-await import(`${L}/components/record-sheet.jsx`);
-// The Calendar page, which loads before the tab in both lists: it publishes how long it keeps a read and its words for
-// a read that gives no reason (window.__calendarPage), which the tab's calendar row keeps too.
-await import(`${L}/pages/calendar.jsx`);
+// How long the Calendar keeps a read and its words for a read that gives no reason (window.__calendarPage), which the tab's
+// calendar row keeps too: the app publishes them from the Calendar's surface (surfaces/calendar/verbs.ts installCalendar).
+globalThis.window.__calendarPage = (await import(`${L}/../surfaces/calendar/words.ts`)).CALENDAR_PAGE;
 // What the tab's saves write and the one saver they go through, before the page, as both load lists have them.
 await import(`${L}/pages/business-tab-save.jsx`);
 await import(`${L}/pages/business-tab-folds.jsx`);

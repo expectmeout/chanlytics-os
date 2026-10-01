@@ -315,7 +315,7 @@ test("the handler keeps the record on the row, holds a reply below the dial, and
 
 // The route's side runs in workspace/settings-routes.test.mjs: the dial taken by its row's name (and, for one release,
 // its old one), kept to two places, a dial edit keeping the row's mode.
-test("the dial reaches the policy row through the pane and the bridge", () => {
+test("the dial reaches the policy row through the pane and the bridge", async () => {
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts").includes(
       "if (d.minConfidence !== undefined) wire.min_confidence = d.minConfidence;",
@@ -325,11 +325,44 @@ test("the dial reaches the policy row through the pane and the bridge", () => {
   assert.ok(pane.includes('const AUT_CONF = [["Off", 0], ["60%", 0.6], ["75%", 0.75], ["90%", 0.9]];'));
   assert.ok(pane.includes('label="Send on its own only when it\'s sure"'));
   assert.ok(pane.includes("put(reply, undefined, { minConfidence: c[1] })"));
-  const thread = readRaw("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+  const thread = readRaw("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx");
   assert.ok(
     thread.includes("· {why.summary}"),
     "the summary the dial drives, now inside the button that opens the reason",
   );
-  assert.ok(thread.includes('"Not sure enough to send alone · "'));
+  // The bar over a draft the dial held says so, drawn (thread/veto.tsx): a component with no hooks, on the plainest
+  // React there is, and nothing of the shell's on the window.
+  const { VetoBar } = await import("../../../../apps/dashboard/src/surfaces/inbox/thread/veto.tsx");
+  const seen = { React: globalThis.React, window: globalThis.window };
+  globalThis.React = {
+    Fragment: "Fragment",
+    createElement: (type, p, ...kids) => ({ type, props: { ...(p || {}), children: kids.flat(Infinity) } }),
+  };
+  globalThis.window = {};
+  const textOf = (n) =>
+    n == null || typeof n === "boolean"
+      ? ""
+      : typeof n === "string" || typeof n === "number"
+        ? String(n)
+        : Array.isArray(n)
+          ? n.map(textOf).join("")
+          : textOf(n.props?.children);
+  try {
+    const why = replyWhy({ source: "low_confidence", intent: "hours", confidence: 0.6 });
+    const held = {
+      id: "th-1",
+      real: true,
+      agent: { name: "Receptionist" },
+      veto: { window: 30, draft: "We open at 9.", why },
+    };
+    assert.ok(
+      textOf(VetoBar({ thread: held, remaining: 12 })).includes("Not sure enough to send alone · Hours · 60% sure"),
+    );
+  } finally {
+    for (const [k, v] of Object.entries(seen)) {
+      if (v === undefined) delete globalThis[k];
+      else globalThis[k] = v;
+    }
+  }
   // Conversations draws the one thread, this button included (one-thread.test.mjs).
 });

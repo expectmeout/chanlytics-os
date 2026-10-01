@@ -87,10 +87,9 @@ const quietly = async (fn) => {
     console.error = e;
   }
 };
-const { peopleOverride } = await quietly(
-  () => import("../../../../../apps/dashboard/src/legacy-bridge/surfaces/people.ts"),
-);
-const { saveView } = await import("../../../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+const { peopleOverride } = await quietly(() => import("../../../../../apps/dashboard/src/surfaces/people/surface.ts"));
+const { saveView } = await import("../../../../../apps/dashboard/src/surfaces/people/people-detail.ts");
+const { setSurfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
 const {
   snapshotSurface,
   hydrateSurfaceCache,
@@ -103,20 +102,20 @@ const stored = () => (flushSurfaceCache(), globalThis.sessionStorage.getItem(CAC
 
 const HIDDEN = { sortBy: "last", sortDir: "desc", columns: { came_from: false } };
 /** The People view in the tab's cache, as a reload would paint it. */
-const cachedPeopleView = () => JSON.parse(stored() ?? "null")?.surfaces?.people?.__PEOPLE?.views?.people;
+const cachedPeopleView = () => JSON.parse(stored() ?? "null")?.surfaces?.people?.$value?.views?.people;
 /** People read as the runner reads it, over an empty cache; with `cachedFor`, then cached as the runner caches a read, under that workspace. */
 const peopleRead = async ({ cachedFor = null } = {}) => {
   clearSurfaceCache();
   await peopleOverride.apply();
-  if (cachedFor) snapshotSurface(peopleOverride.key, peopleOverride.globals, cachedFor);
+  if (cachedFor) snapshotSurface(peopleOverride.key, [], cachedFor, undefined, peopleOverride.value);
 };
 
 // First in the file on purpose: each file runs in a process of its own, so People has not been read yet, as straight after F5.
 test("REGRESSION: straight after F5 a save made while the load read is out survives the read -- the page is usable from the cache before it lands, and the read brought the old view back", async () => {
   // The last session's People, in the tab's cache, painted before anything is read.
-  globalThis.window.__PEOPLE = { views: { people: server.views.people } };
-  snapshotSurface(peopleOverride.key, peopleOverride.globals, TID);
-  delete globalThis.window.__PEOPLE;
+  setSurfaceValue("people", { views: { people: server.views.people } });
+  snapshotSurface(peopleOverride.key, [], TID, undefined, peopleOverride.value);
+  setSurfaceValue("people", undefined);
   hydrateSurfaceCache();
   const reading = peopleOverride.apply();
   const saving = saveView("people", HIDDEN);
@@ -133,7 +132,7 @@ test("REGRESSION: straight after F5 a save made while the load read is out survi
     HIDDEN,
     "REGRESSION: the read landed with the server's older view, and it stood",
   );
-  snapshotSurface(peopleOverride.key, peopleOverride.globals, TID);
+  snapshotSurface(peopleOverride.key, [], TID, undefined, peopleOverride.value);
   assert.deepEqual(cachedPeopleView(), HIDDEN, "and the runner caches what the read left");
 });
 
@@ -144,7 +143,7 @@ test("REGRESSION: a reload keeps the view a member saved -- the tab's cached Peo
   assert.deepEqual(server.saved.at(-1), HIDDEN, "the save went");
   assert.deepEqual(cachedPeopleView(), HIDDEN, "REGRESSION: and the cached People holds it");
   // F5: the cache is painted before anything is read again.
-  delete globalThis.window.__PEOPLE;
+  setSurfaceValue("people", undefined);
   assert.deepEqual([...hydrateSurfaceCache()], ["people"]);
   assert.deepEqual(globalThis.window.__PEOPLE.views.people, HIDDEN, "so People mounts with the view saved");
 });
@@ -196,7 +195,7 @@ test("a save still waiting on its reply when a read of People begins is not undo
 test("with no workspace active, a save writes nothing into the cache -- not even into an entry that carries no workspace", async () => {
   await peopleRead();
   // Cached before any workspace was known, so the entry names none.
-  snapshotSurface(peopleOverride.key, peopleOverride.globals, null);
+  snapshotSurface(peopleOverride.key, [], null, undefined, peopleOverride.value);
   const before = stored();
   const active = globalThis.window.__ACTIVE_WORKSPACE;
   delete globalThis.window.__ACTIVE_WORKSPACE;

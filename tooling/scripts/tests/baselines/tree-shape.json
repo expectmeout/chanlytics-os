@@ -1,7 +1,6 @@
 {
-  "apps/dashboard/src/legacy-bridge": 56,
-  "apps/dashboard/src/legacy/components": 24,
-  "apps/dashboard/src/legacy/pages": 73,
+  "apps/dashboard/src/legacy-bridge": 46,
+  "apps/dashboard/src/legacy/pages": 38,
   "apps/dashboard/src/server/readers": 32,
   "packages/contracts/src/shared": 21
 }

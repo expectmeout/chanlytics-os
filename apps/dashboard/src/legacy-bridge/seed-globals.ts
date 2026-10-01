@@ -14,7 +14,6 @@ import {
   roleGate,
   samePhone,
   whyNotAPhone,
-  whyNotAnEmail,
   linkHost,
   normalizeLink,
   proposalMessage,
@@ -24,16 +23,16 @@ import {
   formatPhoneDisplay,
   BROKEN_CONFIG_WORDS,
   hardLimitsWords,
-  csvCell,
-  parseCsv,
-  matchColumns,
-  importRowsOf,
-  importCounts,
   LEAD_WORDS,
 } from "@chanlytics/contracts";
+import { INBOX_GLOBALS, hearPresence } from "../surfaces/inbox/legacy-globals";
+import { threadVerbs } from "../surfaces/inbox/thread/thread-verbs";
+import { KIT_GLOBALS } from "../surfaces/kit/kit-globals";
+import { CAMPAIGN_GLOBALS } from "../surfaces/campaigns/globals";
+import { PEOPLE_GLOBALS } from "../surfaces/people/people-globals";
 import { surfaceHook, type SurfaceNames } from "./surface-status";
 import { routeSurfaces } from "./surface-registry";
-import { pipelineHelpers, type PipelineHelpers } from "./pipeline-helpers";
+import { pipelineHelpers, type PipelineHelpers } from "@/surfaces/people/pipeline-helpers";
 import {
   LEAD_COUNT_CHOICES,
   planArea,
@@ -79,7 +78,6 @@ declare global {
     __FACT_WORDS: typeof SOURCE_WORDS;
     __samePhone: typeof samePhone;
     __whyNotAPhone: typeof whyNotAPhone;
-    __whyNotAnEmail: typeof whyNotAnEmail;
     __linkHost: typeof linkHost;
     __normalizeLink: typeof normalizeLink;
     __proposalMessage: typeof proposalMessage;
@@ -90,13 +88,6 @@ declare global {
     __phoneDisplay: typeof formatPhoneDisplay;
     __brokenConfigWords: typeof BROKEN_CONFIG_WORDS;
     __hardLimits: typeof hardLimitsWords;
-    __csvCell: typeof csvCell;
-    __csvImport: {
-      parseCsv: typeof parseCsv;
-      matchColumns: typeof matchColumns;
-      importRowsOf: typeof importRowsOf;
-      importCounts: typeof importCounts;
-    };
     __LEAD_WORDS: typeof LEAD_WORDS;
     __leadWays: typeof leadsFirstDayWays;
     __LEAD_VM: {
@@ -137,7 +128,111 @@ declare global {
 if (typeof window !== "undefined") {
   // React, and the one hook a page redraws on when a surface it draws moves (surface-status.ts): a key, a list, or a
   // route's, as the registry names them. Over this React, before any page loads.
-  Object.assign(window, { React, ReactDOM, useSurface: surfaceHook(React, routeSurfaces) });
+  // And the kit's components the pages that have not moved still draw, under the names they read (kit-globals.ts).
+  Object.assign(window, {
+    React,
+    ReactDOM,
+    useSurface: surfaceHook(React, routeSurfaces),
+    Icon: KIT_GLOBALS.Icon,
+    EmptyState: KIT_GLOBALS.EmptyState,
+    FailedRead: KIT_GLOBALS.FailedRead,
+    SegmentBar: KIT_GLOBALS.SegmentBar,
+    StatePill: KIT_GLOBALS.StatePill,
+    Confirm: KIT_GLOBALS.Confirm,
+    MoreMenu: KIT_GLOBALS.MoreMenu,
+    PolicyChip: KIT_GLOBALS.PolicyChip,
+    TlMedia: KIT_GLOBALS.TlMedia,
+    AttnRow: KIT_GLOBALS.AttnRow,
+    // The Inbox's and Conversations' names for the pages that have not moved (surfaces/inbox/legacy-globals.ts), and the
+    // one thread's verbs, which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx).
+    INBOX_DATA: INBOX_GLOBALS.INBOX_DATA,
+    CONVERSATIONS_DATA: INBOX_GLOBALS.CONVERSATIONS_DATA,
+    IX_STORE: INBOX_GLOBALS.IX_STORE,
+    ixWaitsOnYou: INBOX_GLOBALS.ixWaitsOnYou,
+    CV_ROUTE: INBOX_GLOBALS.CV_ROUTE,
+    CV_IN_CHANNEL: INBOX_GLOBALS.CV_IN_CHANNEL,
+    threadVerbs,
+    // Campaigns' door to a reach-out, its sheet and its receipt's time, for Leads and Today until they move (campaigns/globals.ts).
+    bcWhenWords: CAMPAIGN_GLOBALS.bcWhenWords,
+    ReachOutDoor: CAMPAIGN_GLOBALS.ReachOutDoor,
+    ReachOutSheet: CAMPAIGN_GLOBALS.ReachOutSheet,
+    FieldError: KIT_GLOBALS.FieldError,
+    RecordRow: KIT_GLOBALS.RecordRow,
+    RecordSourceChip: KIT_GLOBALS.RecordSourceChip,
+    RecordDispute: KIT_GLOBALS.RecordDispute,
+    RecordChips: KIT_GLOBALS.RecordChips,
+    recRowPress: KIT_GLOBALS.recRowPress,
+    RecordField: KIT_GLOBALS.RecordField,
+    RecordBox: KIT_GLOBALS.RecordBox,
+    RecordSwitch: KIT_GLOBALS.RecordSwitch,
+    RecordToggleGroup: KIT_GLOBALS.RecordToggleGroup,
+    RecordCombobox: KIT_GLOBALS.RecordCombobox,
+    RecordTip: KIT_GLOBALS.RecordTip,
+    RecordTipCard: KIT_GLOBALS.RecordTipCard,
+    recPhoneQuery: KIT_GLOBALS.recPhoneQuery,
+    recPortalRoot: KIT_GLOBALS.recPortalRoot,
+    RecordFold: KIT_GLOBALS.RecordFold,
+    RecordInline: KIT_GLOBALS.RecordInline,
+    RecordSays: KIT_GLOBALS.RecordSays,
+    RecordFoot: KIT_GLOBALS.RecordFoot,
+    useRecordFold: KIT_GLOBALS.useRecordFold,
+    useRecFocusHold: KIT_GLOBALS.useRecFocusHold,
+    useRecFocusOn: KIT_GLOBALS.useRecFocusOn,
+    recKeys: KIT_GLOBALS.recKeys,
+    useUnsavedWork: KIT_GLOBALS.useUnsavedWork,
+    UnsavedAsk: KIT_GLOBALS.UnsavedAsk,
+    tabDraft: KIT_GLOBALS.tabDraft,
+    RecordSheet: KIT_GLOBALS.RecordSheet,
+    __recordFolds: KIT_GLOBALS.__recordFolds,
+    __settingsUnsaved: KIT_GLOBALS.__settingsUnsaved,
+    __settingsSaving: KIT_GLOBALS.__settingsSaving,
+    AgendaItem: KIT_GLOBALS.AgendaItem,
+    AgendaItems: KIT_GLOBALS.AgendaItems,
+    AgendaOpen: KIT_GLOBALS.AgendaOpen,
+    // And People's parts the pages that have not moved still draw or call by name, and the two sheets the frame draws once (people-globals.ts).
+    plScopes: PEOPLE_GLOBALS.plScopes,
+    plScopeRoute: PEOPLE_GLOBALS.plScopeRoute,
+    PeopleScopeTabs: PEOPLE_GLOBALS.PeopleScopeTabs,
+    PeopleStanding: PEOPLE_GLOBALS.PeopleStanding,
+    PeopleRail: PEOPLE_GLOBALS.PeopleRail,
+    PeopleListsSheet: PEOPLE_GLOBALS.PeopleListsSheet,
+    PeopleBulkBar: PEOPLE_GLOBALS.PeopleBulkBar,
+    PeoplePhoneBar: PEOPLE_GLOBALS.PeoplePhoneBar,
+    PhoneSheet: PEOPLE_GLOBALS.PhoneSheet,
+    PhoneSheetRow: PEOPLE_GLOBALS.PhoneSheetRow,
+    RailSection: PEOPLE_GLOBALS.RailSection,
+    RailRow: PEOPLE_GLOBALS.RailRow,
+    RailEmpty: PEOPLE_GLOBALS.RailEmpty,
+    railQuiet: PEOPLE_GLOBALS.railQuiet,
+    railToggle: PEOPLE_GLOBALS.railToggle,
+    usePeople: PEOPLE_GLOBALS.usePeople,
+    usePlControls: PEOPLE_GLOBALS.usePlControls,
+    usePlPlace: PEOPLE_GLOBALS.usePlPlace,
+    PeopleTable: PEOPLE_GLOBALS.PeopleTable,
+    PeopleColumnsMenu: PEOPLE_GLOBALS.PeopleColumnsMenu,
+    plSortKeys: PEOPLE_GLOBALS.plSortKeys,
+    plDrawnColumns: PEOPLE_GLOBALS.plDrawnColumns,
+    plColumnOptions: PEOPLE_GLOBALS.plColumnOptions,
+    PL_NO_SEL: PEOPLE_GLOBALS.PL_NO_SEL,
+    plRowCard: PEOPLE_GLOBALS.plRowCard,
+    plNameCell: PEOPLE_GLOBALS.plNameCell,
+    plFace: PEOPLE_GLOBALS.plFace,
+    plIsNumber: PEOPLE_GLOBALS.plIsNumber,
+    plMatcher: PEOPLE_GLOBALS.plMatcher,
+    plLoadedWords: PEOPLE_GLOBALS.plLoadedWords,
+    PL_SEARCH_LABEL: PEOPLE_GLOBALS.PL_SEARCH_LABEL,
+    plAddPerson: PEOPLE_GLOBALS.plAddPerson,
+    plAddedWords: PEOPLE_GLOBALS.plAddedWords,
+    ChannelGlyph: PEOPLE_GLOBALS.ChannelGlyph,
+    __listRoute: PEOPLE_GLOBALS.__listRoute,
+    PersonDealCard: PEOPLE_GLOBALS.PersonDealCard,
+    DealSheetHost: PEOPLE_GLOBALS.DealSheetHost,
+    StepSheetHost: PEOPLE_GLOBALS.StepSheetHost,
+    openDealSheet: PEOPLE_GLOBALS.openDealSheet,
+    openStepSheet: PEOPLE_GLOBALS.openStepSheet,
+  });
+  // Countdowns freeze while the member is Away and thaw when they are back, whichever surface is on screen.
+  hearPresence();
   // Scripted demo theater (fake leads, fabricated handoffs, live-call sims,
   // veto auto-sends, canned Ask) stays OFF outside an explicit demo session.
   if (typeof window.__DEMO_MODE === "undefined") window.__DEMO_MODE = false;
@@ -164,8 +259,6 @@ if (typeof window !== "undefined") {
   // words. The published number is now optional, so the only thing standing
   // between a typo and a receptionist reading it aloud is this check.
   window.__whyNotAPhone = whyNotAPhone;
-  // The same for an address typed on a person's page: said under the field, before a round trip.
-  window.__whyNotAnEmail = whyNotAnEmail;
   // Where a stored link lives (its host), for a row or a menu hint; and the words a one-step send of the proposal
   // carries into the composer, once for the page and the thread.
   window.__linkHost = linkHost;
@@ -188,12 +281,6 @@ if (typeof window !== "undefined") {
   // hard limits in words that say a default is a default (S6).
   window.__brokenConfigWords = BROKEN_CONFIG_WORDS;
   window.__hardLimits = hardLimitsWords;
-  // One CSV cell, as the route's export spells it: the page's export of a selection quoted and nothing more, so a
-  // WhatsApp name of "=HYPERLINK(...)" ran in whoever opened that file while the whole-workspace export was safe.
-  window.__csvCell = csvCell;
-  // The People import sheet reads a spreadsheet in the browser with these: parsed into rows, matched to a name, a
-  // number and an address column, and normalised into what the import door (window.__importPeople) takes.
-  window.__csvImport = { parseCsv, matchColumns, importRowsOf, importCounts };
   // Every word the Leads scope says, from contracts. The legacy pages are
   // classic scripts and cannot import; without this each page would spell the
   // stage, the email state and the questions again, and a word spelled twice is

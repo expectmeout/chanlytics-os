@@ -22,8 +22,7 @@ const AR_FOLDED = 3;
 const AR_LIFT_MS = 400;
 
 const arRoute = () => {
-  const h = (window.location.hash || "").replace(/^#\/?/, "");
-  const [page, ...rest] = h.split("/");
+  const [page, ...rest] = window.CHANLY.address.route().split("/");
   return { page: page || "today", param: rest.length ? rest.join("/") : null };
 };
 

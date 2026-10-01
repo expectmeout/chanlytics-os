@@ -28,7 +28,7 @@ import { ROOT } from "../_source.mjs";
 import { BAND, arguedGrowth, bankBudget } from "../../checks/bundle-budget.mjs";
 
 const SCRIPT = path.join(ROOT, "tooling/scripts/checks/bundle-budget.mjs");
-const PAGE_DIR = "server/app/(os)/w/[workspace]";
+const PAGE_DIR = "server/app/(os)/w/[workspace]/[[...route]]";
 
 /** Text that compresses like code, not like a run of one letter: deterministic, so every run measures the same. */
 function noise(seed, bytes) {
@@ -65,14 +65,17 @@ function writeBuild({ loadable = { 33959: { id: 33959, files: ["static/chunks/sh
     clientModules: { "[project]/layout-router.js": { chunks: ["/_next/static/chunks/layout.js"] } },
     entryJSFiles: {
       "[project]/apps/dashboard/app/layout": ["static/chunks/layout.js"],
-      "[project]/apps/dashboard/app/(os)/w/[workspace]/page": ["static/chunks/layout.js", "static/chunks/page.js"],
+      "[project]/apps/dashboard/app/(os)/w/[workspace]/[[...route]]/page": [
+        "static/chunks/layout.js",
+        "static/chunks/page.js",
+      ],
     },
     entryCSSFiles: { "[project]/apps/dashboard/app/layout": [{ path: "static/chunks/app.css", inlined: false }] },
   };
   put(
     `${PAGE_DIR}/page_client-reference-manifest.js`,
     "globalThis.__RSC_MANIFEST = globalThis.__RSC_MANIFEST || {};\n" +
-      `globalThis.__RSC_MANIFEST["/(os)/w/[workspace]/page"] = ${JSON.stringify(client)};\n`,
+      `globalThis.__RSC_MANIFEST["/(os)/w/[workspace]/[[...route]]/page"] = ${JSON.stringify(client)};\n`,
   );
   if (loadable) put(`${PAGE_DIR}/page/react-loadable-manifest.json`, JSON.stringify(loadable));
   for (const [rel, text] of Object.entries(chunks)) put(rel, text);

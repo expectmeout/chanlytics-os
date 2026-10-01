@@ -543,11 +543,6 @@ export function rowContextOf(i: SetupInputs, nowMs: number): SetupRowContext {
   };
 }
 
-/** The hash route without "#/": "#/admin/setup" → "admin/setup"; nothing → "today". */
-export function setupRoute(hash: string): string {
-  return (hash || "#/today").replace(/^#\/?/, "");
-}
-
 /**
  * The rows a member put off, as their saved Setup view keeps them (`memberships.views.setup`, the door People's own
  * view goes through): short ids, each once, nothing else. A view somebody hand-edited is no rows, never a throw.

@@ -236,7 +236,7 @@ test("the summary counts messages and calls separately", () => {
     // hand-back resolves the escalation AND returns the thread to the
     // receptionist, so waking through it discarded the very request being
     // pulled forward.
-    const inbox = readCode("apps/dashboard/src/legacy/pages/inbox.jsx");
+    const inbox = readCode("apps/dashboard/src/surfaces/inbox/pages/inbox-acts.tsx");
     const wakeFn = inbox.slice(inbox.indexOf("const wake = "));
     const body = wakeFn.slice(0, wakeFn.indexOf("\n  };"));
     assert.ok(body.includes('realVerb(t, "wake"'), "wake must call the wake verb");

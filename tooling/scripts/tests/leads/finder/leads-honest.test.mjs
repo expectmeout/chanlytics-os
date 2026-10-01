@@ -1,8 +1,9 @@
 /**
  * The Leads scope of People: the same page, its other scope.
  *
- * Drawn the way people-honest.test.mjs draws People -- window.ClientsA on a stub React that keeps each hook's state
- * where its component sits, as React does (_hook-frames.mjs) -- with scope="leads" and the address's view. The
+ * Drawn the way people-honest.test.mjs draws People -- window.LeadsReal (People's other scope) on a stub React that keeps
+ * each hook's state where its component sits, as React does (_hook-frames.mjs) -- with scope="leads" and the address's
+ * view. People's parts (its table, rail kit, hooks and words) are TSX (surfaces/people), published from peoplePages. The
  * surface (window.__LEADS) and the courier (window.__leadX) are faked here: release B's Task 3 writes the real ones,
  * and leads-bridge.test.mjs proves them over a fake wire. What this file proves is the PAGE: its rail, its standing
  * line, its view, its one keyboard listener, its bulk bar, and the three classes' acts.
@@ -14,7 +15,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installRoleStore } from "../../_legacy-react.mjs";
+import { legacyAddress } from "../../shell/address/_address.mjs";
+import { installRoleStore, kitPages, peoplePages, useStubHooks } from "../../_legacy-react.mjs";
+import { importSrc } from "../../_source.mjs";
 import { LEAD_WORDS, ROLE_PERMS, roleGate, toPersonRowVM } from "@chanlytics/contracts";
 import {
   leadEndingLine,
@@ -41,7 +44,16 @@ import { planMinutes } from "../../../../../packages/contracts/src/leads/search/
 import { planVersionOf } from "../../../../../packages/contracts/src/leads/search/plan.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
-import { pipelineHelpers } from "../../../../../apps/dashboard/src/legacy-bridge/pipeline-helpers.ts";
+
+// People's TSX, and the seam it reads, loaded as the app's own modules are (one instance of the surface's value store and of
+// its signal, which the page's hooks and this file share): the page, how many rows a table draws first.
+const { surfaceMoved } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
+const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+const { PeopleReal } = await importSrc("apps/dashboard/src/surfaces/people/page/people-real.tsx");
+const { PL_FIRST_ROWS } = await importSrc("apps/dashboard/src/surfaces/people/table/row-window.ts");
+
+/** What a page reads the address through (data/constants.jsx), for the `CHANLY` this file makes up. */
+const address = await legacyAddress();
 
 /* ------------------------------------------------------------- the fixtures */
 
@@ -343,7 +355,7 @@ globalThis.React = {
     return node;
   },
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
-  // The setter is one function for the cell's life, as React's is: a memoised row is handed setters (people-table.jsx).
+  // The setter is one function for the cell's life, as React's is: a memoised row is handed setters (surfaces/people/table).
   useState: (init) => {
     const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
@@ -412,21 +424,42 @@ globalThis.React = {
     cells[k] = { deps, cleanup: undefined };
     cells[k].cleanup = fn();
   },
+  // An id that stays with its component across draws, as React's does.
+  useId: () => {
+    const k = frames.key();
+    if (!(k in cells)) cells[k] = `:r${k}:`;
+    return cells[k];
+  },
+  // A store outside React (the surface's, useSurface): heard while the component is drawn, its subscription made again
+  // each draw and the old one let go, as React does when `subscribe` is a new function. `redraws` counts the notices: a
+  // notice is what would make React draw the page again, so `drawsFrom` proves which surface moves the page.
+  useSyncExternalStore: (subscribe, snapshot) => {
+    const k = frames.key();
+    if (cells[k] && typeof cells[k].cleanup === "function") cells[k].cleanup();
+    cells[k] = {
+      heard: true,
+      cleanup: subscribe(() => {
+        redraws += 1;
+      }),
+    };
+    return snapshot();
+  },
+};
+useStubHooks(globalThis.React);
+let redraws = 0;
+/** Whether the surface moving (its rows landed, or its status changed: surface-status.ts) would draw what is on screen again. */
+const drawsFrom = (key) => {
+  const before = redraws;
+  surfaceMoved(key);
+  return redraws > before;
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
-// The bridge's hook (surface-status.ts), as a record of the surfaces a page names: what moves a named surface, and so
-// draws the page again, is proved in shell/surfaces.
-const namedSurfaces = new Set();
-globalThis.useSurface = (names) => {
-  for (const k of [names].flat()) namedSurfaces.add(k);
-  return 0;
-};
 globalThis.window.React = globalThis.React;
-// The tab's one store for what pages keep, as LegacyApp installs it before the pages mount.
-const { installTabMemory, clearTabMemory } =
-  await import("../../../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
-installTabMemory(globalThis.window);
+// The tab's one store for what pages keep (the place in a view: the words in the box, the cursor), which People's hooks read
+// through the bridge's own module, on this window's sessionStorage.
+const { clearTabMemory, tabMemoryFor } = await import("../../../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+Object.assign(globalThis.window, kitPages);
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "mayAtLeast"])
   globalThis[k] = globalThis.window[k];
 installRoleStore();
@@ -443,31 +476,17 @@ globalThis.Confirm = (p) => {
   confirms.push(p);
   return null;
 };
-globalThis.ChannelGlyph = () => null;
-globalThis.useHotkey = () => {};
-await import("../../../../../apps/dashboard/src/legacy/pages/people-table.jsx");
+// People's parts are TSX (surfaces/people), published from one object (people-globals.ts) before any page loads, as the
+// app does: the table and its Columns menu, the rail kit, the list page's two hooks, People's words. The Leads scope and
+// the Pipeline, still JSX, read them off the window as a browser reads a global.
+Object.assign(globalThis.window, peoplePages);
 for (const k of [
   "PeopleTable",
   "PeopleColumnsMenu",
-  "plLocked",
-  "plShows",
   "plSortKeys",
   "plDrawnColumns",
-  "plShownColumns",
-  "plColumnChoices",
   "plColumnOptions",
   "PL_NO_SEL",
-  "PL_FIRST_ROWS",
-  "PL_WINDOW_ROWS",
-  "usePlRowWindow",
-])
-  globalThis[k] = globalThis.window[k];
-// People › Pipeline, the third view over the same table, in the order both lists load it: before the page that draws it.
-await import("../../../../../apps/dashboard/src/legacy/pages/pipeline-scope.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/people.jsx");
-// People's hooks, which LeadsReal (leads-real.jsx) reads from window when it draws, as a browser reads a global.
-for (const k of [
   "PeopleRail",
   "PeopleStanding",
   "PeopleScopeTabs",
@@ -480,6 +499,9 @@ for (const k of [
   "plScopeRoute",
 ])
   globalThis[k] = globalThis.window[k];
+// People › Pipeline, the third view over the same table, in the order both lists load it: before the page that draws it.
+const { PipelineScope } = await importSrc("apps/dashboard/src/surfaces/people/pipeline/scope.tsx");
+await import("../../../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
 // The boards this task does not write: the plan panel (spec F5), the strip (Task 10) and the peek (Task 12).
 // Drawn here as their props, so what THIS task hands them is what is pinned. The first day is NOT among them: it
 // is Task 17's own component, loaded below with leads-finder.jsx, because a stub of it is what let the Leads scope
@@ -525,7 +547,31 @@ globalThis.window.navigator = {
     },
   },
 };
-globalThis.window.fetch = (u) => {
+// The wire, as the bridge's client reaches it (window.fetch): the workspace's copy of a view is the one request the page
+// makes by itself (PUT /api/v1/views/<page>, which People's saveView sends: legacy-bridge/api.ts), answered at once, or
+// held for the test to land (`viewSaves`), and every other request is recorded as one the page had no business making.
+const viewSaves = [];
+let holdViewSaves = false;
+const reply = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+globalThis.window.fetch = (u, init = {}) => {
+  const saving = new URL(String(u), "https://app.chanlytics.com").pathname.match(/^\/api\/v1\/views\/([^/]+)$/);
+  if (saving && init.method === "PUT") {
+    const { view } = JSON.parse(init.body);
+    if (!holdViewSaves) return Promise.resolve(reply(200, { ok: true, data: { views: { [saving[1]]: view } } }));
+    return new Promise((land) =>
+      viewSaves.push({
+        page: saving[1],
+        view,
+        land: (r) =>
+          land(
+            r.ok
+              ? reply(200, { ok: true, data: { views: { [saving[1]]: view } } })
+              : reply(500, { ok: false, error: { code: "internal", message: r.message } }),
+          ),
+      }),
+    );
+  }
   uploads.push(`fetch ${u}`);
   return Promise.reject(new Error("no"));
 };
@@ -750,32 +796,39 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     __ME: { role },
     ST_STORE: { myRole: () => role, can: (a) => !!(ROLE_PERMS[role] || {})[a] },
     usePPToast: () => [null, (t) => flashes.push(t)],
-    CHANLY: { nav: (to) => went.push(to), R: { thread: (id) => `inbox/${id}` } },
+    CHANLY: { nav: (to) => went.push(to), address, R: { thread: (id) => `inbox/${id}` } },
     __clock: { dateYear: () => "Sep 18, 2026", time: () => "2:14 PM" },
-    __csvCell: (s) => String(s ?? ""),
   });
   // The bridge's reading of who is acting over this window's __ME (the pages ask mayAtLeast), beside the stub's own.
   installRoleStore();
 };
 
+/**
+ * People's surface as the seam holds it (surfaces/surface-values.ts): what the TSX hooks read through useSurface, and, as
+ * the surface declares (surface.ts), the value the JSX pages still read as window.__PEOPLE. Nothing landed is undefined.
+ */
+const publishPeople = (value) => setSurfaceValue("people", value);
+const peopleWith = (views) => ({
+  rows: [],
+  lists: [],
+  saved: [],
+  groups: [],
+  aggregates: { total: 0, needsYou: 0, reachedWeek: 0 },
+  views,
+  attention: {},
+  savedRead: true,
+  page: null,
+  calendar: null,
+});
+
 /** A page with the surface landed and nothing drawn yet. */
 const fresh = ({ leads = surface(), views = {}, role = "owner", refuse = null, people = true } = {}) => {
+  // The last tree is gone: what it heard of the surfaces goes with it, as React lets go of an unmounted component's.
+  for (const c of Object.values(cells)) if (c && c.heard) c.cleanup();
+  redraws = 0;
   install({ role, refuse });
   globalThis.window.__LEADS = leads;
-  globalThis.window.__PEOPLE = people
-    ? {
-        rows: [],
-        lists: [],
-        saved: [],
-        groups: [],
-        aggregates: { total: 0, needsYou: 0, reachedWeek: 0 },
-        views,
-        attention: {},
-        savedRead: true,
-        page: null,
-        calendar: null,
-      }
-    : undefined;
+  publishPeople(people ? peopleWith(views) : undefined);
   cells = [];
   setters = [];
   flashes.length = 0;
@@ -789,7 +842,6 @@ const fresh = ({ leads = surface(), views = {}, role = "owner", refuse = null, p
   asks.length = 0;
   uploads.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
-  namedSurfaces.clear();
   globalThis.document.activeElement = null;
   overlayOpen = null;
   globalThis.__phone = false;
@@ -797,17 +849,26 @@ const fresh = ({ leads = surface(), views = {}, role = "owner", refuse = null, p
   globalThis.localStorage.removeItem("chanlytics-people-view");
   globalThis.localStorage.removeItem("chanlytics-leads-view");
   clearTabMemory(globalThis.sessionStorage);
-  delete globalThis.window.__saveView;
+  viewSaves.length = 0;
+  holdViewSaves = false;
 };
+/** The page of a scope, as the shell draws it: People's is TSX (PeopleReal), the Leads scope and the Pipeline are still JSX. */
 const draw = (props = {}) => {
   frames.begin();
-  return globalThis.window.ClientsA({
+  const page = {
     scope: "leads",
     leadsRoute: "leads",
     onNavigate: (to) => went.push(to),
     onOpenProfile: (id) => opened.push(id),
     ...props,
-  });
+  };
+  const Page =
+    page.scope === "people"
+      ? PeopleReal
+      : page.scope === "pipeline"
+        ? globalThis.window.PipelineScope
+        : globalThis.window.LeadsReal;
+  return globalThis.React.createElement(Page, page);
 };
 /** The plan panel, through a kept search's Search again, changed: the plan Claude wrote, with what was asked. */
 const openPlanFrom = (name = "Personal trainers · Austin") => {
@@ -826,7 +887,7 @@ test("a fresh mount of Leads draws its first rows and the next draw every row", 
   const rowsOf = (tree) => all(tree, (n) => n.type === "tr" && /^lead-many-/.test(String(n.props?.id || ""))).length;
   const first = draw();
   assert.ok(
-    rowsOf(first) > 0 && rowsOf(first) <= globalThis.window.PL_FIRST_ROWS,
+    rowsOf(first) > 0 && rowsOf(first) <= PL_FIRST_ROWS,
     `the first draw carries the first rows only, saw ${rowsOf(first)}`,
   );
   assert.equal(rowsOf(draw()), 40, "the next draw carries every row");
@@ -1149,10 +1210,10 @@ test("the rail counts what the lists hold, a waiting search wears a question mar
   );
 });
 
-// The rail picks the way People's does (railToggle, clients-a.jsx). On production (21 Sep) a list pressed while a
-// search was open kept the search in the address and only narrowed inside it: the rail lit neither row, and "All
-// leads" changed nothing, which read as a link that went nowhere. A search picked kept the list, so it showed fewer
-// leads than its count said.
+// The rail picks the way People's does (railToggle, surfaces/people/rail/rail-kit.tsx). On production (21 Sep) a list
+// pressed while a search was open kept the search in the address and only narrowed inside it: the rail lit neither
+// row, and "All leads" changed nothing, which read as a link that went nowhere. A search picked kept the list, so it
+// showed fewer leads than its count said.
 test("the Leads rail picks one row at a time, as People's does: a list leaves an open search, a search shows all of itself, and the picked row pressed again goes back to all leads", () => {
   fresh();
   const pressed = (route, testid) => {
@@ -1457,7 +1518,8 @@ test("People and Leads are two components: each keeps its own state, and People 
   peopleBox(draw({ scope: "people", leadsRoute: null })).props.onChange({ target: { value: "zilker" } });
   assert.equal(peopleBox(draw({ scope: "people", leadsRoute: null })).props.value, "zilker");
   assert.equal(listeners["surface:leads"]?.size ?? 0, 0, "a Leads refresh does not draw People again");
-  assert.ok(namedSurfaces.has("people") && !namedSurfaces.has("leads"), "People draws from People's surface alone");
+  assert.ok(drawsFrom("people"), "People draws from People's surface");
+  assert.ok(!drawsFrom("leads"), "and from People's surface alone: Leads' rows landing draw nothing of it");
   assert.equal(listeners.keydown?.size, 1, "one keyboard listener, People's");
   // Leads drawn over the same cells: its words are its own, and People's are where they were.
   assert.equal(leadsBox(draw()).props.value, "", "REGRESSION: one component, so one box for both scopes");
@@ -1465,15 +1527,15 @@ test("People and Leads are two components: each keeps its own state, and People 
   fresh();
   draw();
   assert.equal(listeners["surface:leads"]?.size, 1, "Leads listens for its own surface");
-  assert.ok(namedSurfaces.has("people"), "and for People's, which carries the workspace's copy of its view");
+  assert.ok(drawsFrom("people"), "and for People's, which carries the workspace's copy of its view");
   assert.equal(listeners.keydown?.size, 1, "one keyboard listener, Leads'");
 });
 
-test("the Leads view is saved with its list, sort and columns every time, through __saveView('leads', …), one save at a time", async () => {
+test("the Leads view is saved with its list, sort and columns every time, over the wire as PUT views/leads, one save at a time", async () => {
   fresh({ views: { leads: { list: "all", sortBy: "fit", sortDir: "asc", columns: { website: true } } } });
-  const held = [];
-  globalThis.window.__saveView = (page, view) =>
-    new Promise((land) => held.push({ page, view: JSON.parse(JSON.stringify(view)), land }));
+  // What the page's saves send (People's saveView, over the bridge's client), each held until the test lands it.
+  const held = viewSaves;
+  holdViewSaves = true;
   let tree = draw();
   assert.ok(headings(tree).includes("Website"), "the member's own columns");
   assert.deepEqual(held, [], "the view it already holds is not saved again");
@@ -1495,7 +1557,7 @@ test("the Leads view is saved with its list, sort and columns every time, throug
   sortByHeading(tree, "Rated");
   draw();
   assert.equal(held.length, 1, "one save at a time");
-  held[0].land({ ok: true, data: {} });
+  held[0].land({ ok: true });
   await settle();
   assert.equal(held.length, 2);
   assert.deepEqual(
@@ -1503,28 +1565,16 @@ test("the Leads view is saved with its list, sort and columns every time, throug
     { list: "all", sortBy: "rating", sortDir: "desc", columns: { website: true, source: true } },
     "the latest view, whole",
   );
-  held[1].land({ ok: true, data: {} });
+  held[1].land({ ok: true });
   await settle();
   assert.equal(held.length, 2, "and nothing after it");
 });
 
 test("REGRESSION: a cold open of Leads still takes the view the workspace remembers -- it rides with People, which lands after Leads, and the page had settled for this device's copy and never looked again", async () => {
-  const PEOPLE = (views) => ({
-    rows: [],
-    lists: [],
-    saved: [],
-    groups: [],
-    aggregates: { total: 0, needsYou: 0, reachedWeek: 0 },
-    views,
-    attention: {},
-    savedRead: true,
-    page: null,
-    calendar: null,
-  });
   const lastRead = () => calls.filter(([what]) => what === "view").at(-1)[1];
   fresh({ people: false });
-  const held = [];
-  globalThis.window.__saveView = (page, view) => new Promise((land) => held.push({ page, view, land }));
+  const held = viewSaves;
+  holdViewSaves = true;
   let tree = draw();
   assert.deepEqual(
     [lastRead().sort, lastRead().dir, headings(tree).includes("Website")],
@@ -1532,9 +1582,7 @@ test("REGRESSION: a cold open of Leads still takes the view the workspace rememb
     "nothing to go on yet: the page's own defaults",
   );
   // People lands, carrying what this member chose on another computer.
-  globalThis.window.__PEOPLE = PEOPLE({
-    leads: { list: "all", sortBy: "rating", sortDir: "desc", columns: { website: true } },
-  });
+  publishPeople(peopleWith({ leads: { list: "all", sortBy: "rating", sortDir: "desc", columns: { website: true } } }));
   draw();
   tree = draw();
   assert.deepEqual([lastRead().sort, lastRead().dir], ["rating", "desc"], "the sort they chose is the one read");
@@ -1545,7 +1593,7 @@ test("REGRESSION: a cold open of Leads still takes the view the workspace rememb
   tree = draw();
   sortByHeading(tree, "Found");
   draw();
-  globalThis.window.__PEOPLE = PEOPLE({ leads: { list: "all", sortBy: "rating", sortDir: "desc", columns: {} } });
+  publishPeople(peopleWith({ leads: { list: "all", sortBy: "rating", sortDir: "desc", columns: {} } }));
   draw();
   draw();
   assert.equal(lastRead().sort, "found", "what the owner just pressed stands");
@@ -2244,7 +2292,7 @@ test("typing in the box keeps the selection: leads the words hide are still sele
   assert.equal(byTestId(tree, "leads-bulk-hidden"), null, "with nothing hidden, nothing is said about it");
 });
 
-/** The table's rows as drawn (people-table.jsx PeopleRow, or its memo). */
+/** The table's rows as drawn (surfaces/people/table/table.tsx PeopleRow, or its memo). */
 const tableRowsOf = (tree) =>
   all(
     tree,
@@ -2315,10 +2363,12 @@ test("REGRESSION: the Pipeline's rows too -- a draw that changed nothing of a ro
     person("k2", "Ben", proposed(3)),
     person("k3", "Cy", proposed(1)),
   ].map((r) => toPersonRowVM(r, TZ, NOW));
-  Object.assign(globalThis.window.__PEOPLE, { rows, dealsOn: true, fetchedAt: NOW.getTime() });
-  // What seed-globals.ts publishes (pipeline-helpers.ts): contracts' own, the Pipeline's rail and address with its rows.
-  globalThis.window.__pipeline = pipelineHelpers();
-  const drawPipeline = () => draw({ scope: "pipeline", leadsRoute: null });
+  // What the Pipeline reads through the seam (useSurface("people")): the rows over the surface this world holds.
+  setSurfaceValue("people", { ...globalThis.window.__PEOPLE, rows, dealsOn: true, fetchedAt: NOW.getTime() });
+  const drawPipeline = () => {
+    frames.begin();
+    return PipelineScope({ onNavigate: (to) => went.push(to), onOpenProfile: (id) => opened.push(id) });
+  };
   try {
     const a = tableRowsOf(drawPipeline());
     assert.deepEqual(
@@ -2339,7 +2389,7 @@ test("REGRESSION: the Pipeline's rows too -- a draw that changed nothing of a ro
     for (const k of ROW_HELD) assert.ok(Object.is(c[1].props[k], b[1].props[k]), `${k} held through a key`);
     assert.ok(Object.is(c[1].props.p, b[1].props.p), "a row the key did not touch keeps its view model");
   } finally {
-    delete globalThis.window.__pipeline;
+    setSurfaceValue("people", undefined);
   }
 });
 
@@ -3771,21 +3821,15 @@ test("a converted lead whose person became a client reads Client, on the desktop
 
 test("a lead a link names stays open where this tab kept a cursor in that view: the address's lead takes the cursor", () => {
   const { navs, at, openPeek } = addressed();
-  // The tab's place for Leads (usePlPlace): the cursor was left on the first lead.
-  globalThis.window.__tabMemory = {
-    place: (page) => (page === "leads" ? { q: "", cursor: UA, top: 0 } : null),
-    keepPlace() {},
-    draft: () => null,
-    keepDraft() {},
-    dropDraft() {},
-  };
-  try {
-    for (let i = 0; i < 4; i += 1) at(`leads:p-${UB}`);
-    assert.equal(openPeek().vm.id, UB, "the link's lead, not the kept cursor's");
-    assert.deepEqual(navs, [], "and the address is left as the link said it");
-  } finally {
-    delete globalThis.window.__tabMemory;
-  }
+  // The tab's place for Leads (usePlPlace): the cursor was left on the first lead, in the view the link opens over.
+  tabMemoryFor(globalThis.window).keepPlace("leads", leadsRoute({ searchId: null, list: "all", cls: null }), {
+    q: "",
+    cursor: UA,
+    top: 0,
+  });
+  for (let i = 0; i < 4; i += 1) at(`leads:p-${UB}`);
+  assert.equal(openPeek().vm.id, UB, "the link's lead, not the kept cursor's");
+  assert.deepEqual(navs, [], "and the address is left as the link said it");
 });
 
 /* ------------------------------ a phone's search view, quieter (Ruben, 25 Sep) ------------------------------ */

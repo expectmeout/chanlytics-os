@@ -276,14 +276,13 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
 
   // The pane's row, as it is drawn: Auto, Ask and Never, no countdown to hold.
   assert.deepEqual(UI_ROWS.find((r) => r.id === "reviews").modes, ["Auto", "Ask", "Never"]);
-  const reports = readCode("apps/dashboard/src/legacy/pages/reports.jsx");
+  const reports = readCode("apps/dashboard/src/surfaces/reports/google.tsx");
   assert.ok(
-    reports.includes('if (r.replied || mode === "never" || !window.__google || !window.__google.draft) return;'),
+    reports.includes('if (r.replied || mode === "never") return;'),
     "a replied review and a Never workspace ask for nothing",
   );
   assert.ok(
-    reports.includes("const d = await window.__google.draft(r.id);") &&
-      reports.includes('data-testid="google-reply-drafted"'),
+    reports.includes("const d = await draftReply(r.id);") && reports.includes('data-testid="google-reply-drafted"'),
   );
   assert.ok(reports.includes("<ReviewReply r={r} mode={vm.reply.mode} />") && reports.includes("vm.reply.words"));
   assert.ok(readRaw("e2e/settings/settings-autonomy.spec.ts").includes("toHaveCount(7)"));

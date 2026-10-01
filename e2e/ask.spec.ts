@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { atRoute, routeOf } from "./address";
 import { activeWorkspace, scoped, apiGet } from "./workspace";
 import { WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, waitingSearch } from "./waiting-search";
 
@@ -103,7 +104,7 @@ test.describe("Ask on a real workspace", () => {
     await expect(item).toContainText("Leads");
     await expect(item).toContainText(WAITING_QUESTION);
     await item.click();
-    await expect.poll(() => new URL(page.url()).hash).toBe(`#/${search.route}`);
+    await expect.poll(() => routeOf(page.url())).toBe(search.route);
     await expect(page.getByTestId("lead-strip").getByTestId("strip-title")).toHaveText(WAITING_QUESTION);
     expect(attempts, "Brief me spent no turn and answered nothing").toEqual([]);
   });
@@ -193,7 +194,7 @@ test.describe("Ask on a real workspace", () => {
     await input.fill("open the transcript of the most recent call");
     await input.press("Enter");
     // The answer lands and the app goes there by itself; the palette closes.
-    await page.waitForURL(/#\/conversations\/cv-/, { timeout: 120_000 });
+    await page.waitForURL(atRoute(/^conversations\/cv-/), { timeout: 120_000 });
     await expect(page.getByTestId("ask-real")).toBeHidden();
     // A call is drawn as its card: in its thread, opened there, or alone in the thread's frame (calls-in-the-thread).
     await expect(page.getByTestId("tl-call").first()).toBeVisible({ timeout: 20_000 });
@@ -294,8 +295,8 @@ test.describe("Ask with the page it is asked on", () => {
       await page.waitForLoadState("networkidle");
       test.skip(!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask)), "no Ask client on this page");
       const context = await page.evaluate((words) => {
-        const h = (window.location.hash || "").replace(/^#\/?/, "");
-        const [p, ...rest] = h.split("/");
+        const { CHANLY } = window as unknown as { CHANLY: { address: { route: () => string } } };
+        const [p, ...rest] = CHANLY.address.route().split("/");
         const ask = (window as unknown as { __ask: { context: (r: unknown, w: string) => unknown } }).__ask;
         return ask.context({ page: p || "today", param: rest.length ? rest.join("/") : null }, words) as {
           surface: string;
@@ -345,7 +346,7 @@ test.describe("Ask on a phone", () => {
     // The takeover pushed one entry of its own as it opened (ask-real.jsx, S8): Back closes it and stays on Today.
     await page.goBack();
     await expect(ask).toHaveCount(0);
-    await expect(page).toHaveURL(/#\/today$/);
+    await expect(page).toHaveURL(atRoute(/^today$/));
     // The words are kept as typed (S9) and are back in the field on the next open.
     await page.getByTestId("phone-ask").tap();
     await expect(ask).toBeVisible();

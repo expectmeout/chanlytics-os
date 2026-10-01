@@ -32,10 +32,10 @@ function themeColorMetas(doc: Document): Element[] {
   return [made];
 }
 
-/** Paint the browser's bars in this theme's paper. */
-export function paintThemeColor(doc: Document, theme: Theme): void {
+/** Paint the browser's bars in this theme's paper, in the look the page wears. */
+export function paintThemeColor(doc: Document, theme: Theme, look: string = "classic"): void {
   try {
-    const color = themeColorOf(theme);
+    const color = themeColorOf(theme, look);
     for (const meta of themeColorMetas(doc)) meta.setAttribute("content", color);
   } catch {
     /* no head to write to: the page still paints, the bars keep what they had */

@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { dealsAreOn, startersOffered } from "../../packages/contracts/src/index";
+import { atRoute, routeOf } from "../address";
 import { apiGet } from "../workspace";
 
 /**
@@ -38,11 +40,15 @@ test.describe("Templates on a real workspace", () => {
     await expect(real.getByTestId("templates-hidden")).toHaveCount(wa.length - shown.length > 0 ? 1 : 0);
 
     const hasNumber = (await real.getByTestId("messages-no-number").count()) === 0;
-    const starterNames = await page.evaluate(
-      () =>
-        (window as unknown as { __starters?: { list: Array<{ name: string }> } }).__starters?.list.map((s) => s.name) ??
-        [],
-    );
+    // The starters offered are contracts' own (the page reads them the same way), by how this workspace says its customers buy.
+    const sellsBy = await page.evaluate(() => {
+      const w = window as unknown as {
+        __WORKSPACES?: Array<{ id: string; sells_by?: string | null }>;
+        __ACTIVE_WORKSPACE?: string;
+      };
+      return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE)?.sells_by ?? null;
+    });
+    const starterNames = startersOffered(dealsAreOn(sellsBy)).map((s) => s.name);
     // A message's languages are the row it opens: no closed row carries a language
     // control (they were a column of every row, "● EN ⌄" sixteen times), and an open
     // row carries ONE, however many languages the message has.
@@ -90,11 +96,62 @@ test.describe("Templates on a real workspace", () => {
     await expect(strip.locator(".stabs-tab")).toHaveCount(3);
     // The route is still `messages`: only what a person reads changed.
     await strip.getByRole("button", { name: "Templates" }).click();
-    await expect(page).toHaveURL(/#\/messages/);
+    await expect(page).toHaveURL(atRoute(/^messages/));
     await expect(page.getByTestId("messages-real")).toBeVisible();
     await expect(page.locator(".stabs .stabs-tab.active")).toHaveText("Templates");
     await strip.getByRole("button", { name: "Broadcasts" }).click();
-    await expect(page).toHaveURL(/#\/broadcasts/);
+    await expect(page).toHaveURL(atRoute(/^broadcasts/));
     await expect(page.locator(".stabs .stabs-tab.active")).toHaveText("Broadcasts");
+  });
+
+  /**
+   * Campaigns are three pages of their own (decision 0015, step 7): App Router pages at /w/<slug>/playbooks, /w/<slug>/broadcasts
+   * and /w/<slug>/templates, the frame around each. The path says the product's word where the shell's route says another
+   * (`outbound`, `messages`), and the old names, in a path and in a hash, move to the word for ever.
+   */
+  test("Campaigns are pages of their own on their paths: each boots there, the old names move, and the router walks them", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.waitForURL(/\/w\/[^/?#]+/, { timeout: 30_000 });
+    const slug = /\/w\/([^/?#]+)/.exec(new URL(page.url()).pathname)?.[1];
+    if (!slug) throw new Error(`the home sent this tab somewhere with no workspace in it: ${page.url()}`);
+    const pages = [
+      ["playbooks", "outbound", "playbooks-real"],
+      ["broadcasts", "broadcasts", "broadcasts-real"],
+      ["templates", "messages", "messages-real"],
+    ] as const;
+
+    // A load of each path boots the frame with Campaigns lit and the page drawn inside it.
+    for (const [word, route, testid] of pages) {
+      await page.goto("/api/version");
+      await page.goto(`/w/${slug}/${word}`);
+      await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Campaigns");
+      await expect(page.getByTestId(testid)).toBeVisible();
+      expect(routeOf(page.url())).toBe(route);
+    }
+
+    // The old names still land, and move to the word: a path, and a hash.
+    await page.goto(`/w/${slug}/outbound`);
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/w/${slug}/playbooks`);
+    await expect(page.getByTestId("playbooks-real")).toBeVisible();
+    await page.goto(`/w/${slug}#/messages`);
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/w/${slug}/templates`);
+    await expect(page.getByTestId("messages-real")).toBeVisible();
+
+    // The strip walks the router, and Back lands on the page before it.
+    const strip = page.locator(".stabs");
+    await strip.getByRole("button", { name: "Broadcasts" }).click();
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/w/${slug}/broadcasts`);
+    await expect(page.getByTestId("broadcasts-real")).toBeVisible();
+    await page.goBack();
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/w/${slug}/templates`);
+    await expect(page.getByTestId("messages-real")).toBeVisible();
+
+    // Templates has one address: an address under it is not a page of Campaigns.
+    await page.goto(`/w/${slug}/templates/anything`);
+    await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("messages-real")).toHaveCount(0);
   });
 });

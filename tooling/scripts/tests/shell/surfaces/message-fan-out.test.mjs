@@ -14,6 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { historyOf, legacyAddress } from "../address/_address.mjs";
 
 const heard = new Map();
 const win = {
@@ -32,6 +33,7 @@ const win = {
   },
 };
 globalThis.window = win;
+historyOf(win);
 globalThis.document = { visibilityState: "hidden", title: "", addEventListener() {}, removeEventListener() {} };
 globalThis.CustomEvent ??= class CustomEvent {
   constructor(type, init) {
@@ -45,6 +47,9 @@ const settle = async (n = 10) => {
   for (let i = 0; i < n; i += 1) await tick();
 };
 
+// The address the bridge gives the pages, and the pages' way to it: a route moves with popstate, as Back does.
+win.__shell = (await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts")).addressApi(win);
+win.CHANLY = { nav() {}, address: await legacyAddress() };
 const runner = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
 const status = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
 const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
@@ -52,20 +57,20 @@ const { workspaceOverride } = await importSrc("apps/dashboard/src/legacy-bridge/
 const S = "apps/dashboard/src/legacy-bridge/surfaces";
 const REAL = [
   workspaceOverride,
-  (await importSrc(`${S}/conversations.ts`)).conversationsOverride,
-  (await importSrc(`${S}/inbox.ts`)).inboxOverride,
-  (await importSrc(`${S}/today.ts`)).todayOverride,
+  (await importSrc("apps/dashboard/src/surfaces/inbox/conversations-surface.ts")).conversationsOverride,
+  (await importSrc("apps/dashboard/src/surfaces/inbox/surface.ts")).inboxOverride,
+  (await importSrc("apps/dashboard/src/surfaces/today/surface.ts")).todayOverride,
   (await importSrc(`${S}/settings.ts`)).settingsOverride,
-  (await importSrc(`${S}/people.ts`)).peopleOverride,
+  (await importSrc("apps/dashboard/src/surfaces/people/surface.ts")).peopleOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/leads.ts")).leadsOverride,
-  (await importSrc(`${S}/reports.ts`)).reportsOverride,
-  (await importSrc(`${S}/live.ts`)).liveOverride,
-  (await importSrc(`${S}/broadcasts.ts`)).broadcastsOverride,
-  (await importSrc(`${S}/playbooks.ts`)).playbooksOverride,
-  (await importSrc("apps/dashboard/src/legacy-bridge/reach-out/reach-outs.ts")).reachOutsOverride,
+  (await importSrc("apps/dashboard/src/surfaces/reports/surface.ts")).reportsOverride,
+  (await importSrc("apps/dashboard/src/surfaces/live/surface.ts")).liveOverride,
+  (await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts")).broadcastsOverride,
+  (await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts")).playbooksOverride,
+  (await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts")).reachOutsOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/reach-out/replies.ts")).repliesOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/partner.ts")).partnerOverride,
-  (await importSrc(`${S}/calendar.ts`)).calendarOverride,
+  (await importSrc("apps/dashboard/src/surfaces/calendar/surface.ts")).calendarOverride,
   (await importSrc(`${S}/notifications.ts`)).notificationsOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/setup.ts")).setupOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/google.ts")).googleOverride,
@@ -134,7 +139,7 @@ test("the page on screen hears messages too, and a surface that let one pass is 
     r.asked.length = 0;
 
     win.location.hash = "#/inbox";
-    win.dispatchEvent({ type: "hashchange" });
+    win.dispatchEvent({ type: "popstate" });
     await settle();
     assert.deepEqual(r.asked, [], "nothing was missed");
     await r.message();
@@ -143,18 +148,18 @@ test("the page on screen hears messages too, and a surface that let one pass is 
     r.asked.length = 0;
 
     win.location.hash = "#/reports";
-    win.dispatchEvent({ type: "hashchange" });
+    win.dispatchEvent({ type: "popstate" });
     await settle();
     assert.deepEqual(r.asked, ["reports"], "Reports let two messages pass, and is read once as it comes on screen");
     r.asked.length = 0;
     win.location.hash = "#/clients/pipeline";
-    win.dispatchEvent({ type: "hashchange" });
+    win.dispatchEvent({ type: "popstate" });
     await settle();
     assert.deepEqual(r.asked, ["people"], "and People, once, on its Pipeline");
     win.location.hash = "#/today";
-    win.dispatchEvent({ type: "hashchange" });
+    win.dispatchEvent({ type: "popstate" });
     win.location.hash = "#/clients";
-    win.dispatchEvent({ type: "hashchange" });
+    win.dispatchEvent({ type: "popstate" });
     await settle();
     assert.deepEqual(r.asked, ["people"], "read once: nothing passed it since");
   } finally {
@@ -355,7 +360,7 @@ test("the page is a main landmark with a way past the bars to it, and a move to 
   };
   const goTo = (hash) => {
     win.location.hash = hash;
-    win.dispatchEvent({ type: "hashchange" });
+    win.dispatchEvent({ type: "popstate" });
     return draw();
   };
   try {
@@ -441,7 +446,9 @@ test("every surface a page names to useSurface is a real one: a key that is no o
     };
     visit(sf);
   }
-  assert.ok(named.length >= 12, `the scan found ${named.length} names; it has stopped seeing the pages`);
+  // Twelve pages of the shell named a surface until Reports, the Inbox, Today and People left it: a TSX surface names its key
+  // through the typed useSurface, which the compiler holds to a real key; what the shell still draws is what this reads.
+  assert.ok(named.length >= 1, `the scan found ${named.length} names; it has stopped seeing the pages`);
   assert.deepEqual(
     named.filter(([, key]) => !real.has(key)),
     [],

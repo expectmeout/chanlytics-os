@@ -15140,12 +15140,16 @@ var LOOK_OPTIONS = [
 var isLookPref = (v) => v === "classic" || v === "glass";
 var DEFAULT_LOOK_PREF = "classic";
 var lookPrefOf = (stored) => isLookPref(stored) ? stored : DEFAULT_LOOK_PREF;
-var LOOK_OFFERED = false;
+var LOOK_OFFERED = true;
 var DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
 var THEME_COLORS = { light: "#fbfaf8", dark: "#0c0d0f" };
+var LOOK_THEME_COLORS = {
+  classic: THEME_COLORS,
+  glass: { light: "#f1f2f6", dark: "#0f1014" }
+};
 var THEME_INK = { light: "#161616", dark: "#fbfaf8" };
-function themeColorOf(theme) {
-  return THEME_COLORS[theme === "light" ? "light" : "dark"];
+function themeColorOf(theme, look = "classic") {
+  return LOOK_THEME_COLORS[look === "glass" ? "glass" : "classic"][theme === "light" ? "light" : "dark"];
 }
 var THEME_COLOR_META = 'meta[name="theme-color"]';
 function themeBootScript() {
@@ -15163,7 +15167,7 @@ function themeBootScript() {
     "document.documentElement.dataset.look=k;",
     `var l=document.querySelectorAll(${JSON.stringify(THEME_COLOR_META)});`,
     'if(!l.length){var m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m);l=[m]}',
-    `for(var i=0;i<l.length;i++)l[i].setAttribute("content",${JSON.stringify(THEME_COLORS)}[t]);`,
+    `for(var i=0;i<l.length;i++)l[i].setAttribute("content",${JSON.stringify(LOOK_THEME_COLORS)}[k][t]);`,
     "}catch(e){}"
   ].join("");
 }
@@ -15191,11 +15195,13 @@ var PREFETCH_TIMEOUT_MS = 15e3;
 function routePrefetchScript() {
   return [
     "try{",
-    'var p=/^\\/w\\/([^\\/?#]+)/.exec(location.pathname||"");',
+    'var p=/^\\/w\\/([^\\/?#]+)(?:\\/([^?#]*))?/.exec(location.pathname||"");',
     "if(p){",
     "var w=encodeURIComponent(decodeURIComponent(p[1]));",
     'var u=["/api/v1/workspaces?workspace="+w];',
-    'var h=(location.hash||"").replace(/^#\\/?/,"").split("/");',
+    // The route is the path's, else the hash's: an address the frame has not moved yet (address.ts) still opens the person.
+    'var r=p[2]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2):"");',
+    'var h=r.split("/");',
     `if(h[0]==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(h[1]||""))u.push("/api/v1/contacts/"+h[1]+"?workspace="+w);`,
     `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
     "var M=window.AbortController;",
@@ -17002,9 +17008,6 @@ function rowContextOf(i, nowMs) {
     texting,
     lineNum
   };
-}
-function setupRoute(hash) {
-  return (hash || "#/today").replace(/^#\/?/, "");
 }
 function setupLaterOf(view) {
   const later = view && typeof view === "object" ? view.later : null;
@@ -25970,6 +25973,54 @@ function roleGate(role, perm, doing) {
   };
 }
 
+// src/shell/address.ts
+var ROUTE_WORDS = {
+  clients: "people",
+  segments: "lists",
+  outbound: "playbooks",
+  messages: "templates"
+};
+var headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
+function shellRoute(route) {
+  const head = headOf(route);
+  const name = Object.keys(ROUTE_WORDS).find((n) => ROUTE_WORDS[n] === head);
+  return name === void 0 ? route : name + route.slice(head.length);
+}
+function pathRoute(route) {
+  const head = headOf(route);
+  const word = Object.hasOwn(ROUTE_WORDS, head) ? ROUTE_WORDS[head] : void 0;
+  return word === void 0 ? route : word + route.slice(head.length);
+}
+var WORKSPACE_PATH = /^\/w\/([^/?#]+)(?:\/([^?#]*))?$/;
+function routeOfPath(pathname) {
+  const m = WORKSPACE_PATH.exec(pathname ?? "");
+  return m ? shellRoute((m[2] ?? "").replace(/\/+$/, "")) : null;
+}
+function routeOfHash(hash) {
+  return typeof hash === "string" && hash.startsWith("#/") ? shellRoute(hash.slice(2)) : null;
+}
+function routeOfAddress(address) {
+  return routeOfPath(address.pathname) || routeOfHash(address.hash) || "today";
+}
+function movedAddress(address) {
+  const m = WORKSPACE_PATH.exec(address.pathname ?? "");
+  if (m?.[2] && Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
+    return `/w/${m[1] ?? ""}/${pathRoute(m[2].replace(/\/+$/, ""))}${address.search ?? ""}${address.hash ?? ""}`;
+  }
+  const route = routeOfHash(address.hash);
+  if (!m || route === null || m[2]) return null;
+  const at3 = route.indexOf("?");
+  const name = (at3 < 0 ? route : route.slice(0, at3)).replace(/\/+$/, "");
+  if (!name) return null;
+  const own = at3 < 0 ? "" : route.slice(at3 + 1);
+  const search = address.search ?? "";
+  const joined = own ? search ? `${search}&${own}` : `?${own}` : search;
+  return `/w/${m[1] ?? ""}/${pathRoute(name)}${joined}`;
+}
+function workspacePath(slug, route = "") {
+  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(route)}` : ""}`;
+}
+
 // src/shell/vitals.ts
 import { z as z20 } from "zod";
 var PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"];
@@ -30093,7 +30144,6 @@ export {
   CALL_ACTIVITY_ROLES,
   CALL_ACTIVITY_STALE_MS,
   CALL_HEARTBEAT_MS,
-  CALL_KEY_PREFIX,
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,
   CAPABILITY_KINDS,
@@ -30413,7 +30463,6 @@ export {
   MODEL_PURPOSES,
   MODEL_ROUTES,
   MOMENT_TRIGGERS,
-  NEEDS_KEY_PREFIX,
   NEEDS_TITLE,
   NEW_WINDOW_DAYS,
   NOTE_MAX,
@@ -30638,6 +30687,7 @@ export {
   ROLE_PERMS,
   ROLE_WORDS,
   ROUTE_KEYS,
+  ROUTE_WORDS,
   RULES_AT_REST_WORDS,
   RULES_WITHOUT_FIELDS_WORDS,
   RUN_FILTERS,
@@ -30731,7 +30781,6 @@ export {
   TODAY_DAY_MAX,
   TODAY_LEAK_MAX,
   TODAY_PINS_MAX,
-  TODAY_QUEUE_MAX,
   TODAY_STEPS_MAX,
   TOKENS_DAY_DEFAULT,
   TONES,
@@ -31313,6 +31362,7 @@ export {
   moneyWords,
   monthLabelOf,
   monthSpan,
+  movedAddress,
   nameKnownCustomers,
   namesMoney,
   navigateLabel,
@@ -31612,6 +31662,9 @@ export {
   rightNowLine,
   roleAtLeast,
   roleGate,
+  routeOfAddress,
+  routeOfHash,
+  routeOfPath,
   routePrefetchScript,
   ruleFacts,
   ruleLists,
@@ -31662,7 +31715,6 @@ export {
   servicesWords,
   setupCardOf,
   setupLaterOf,
-  setupRoute,
   setupSteps,
   sha256Hex,
   shadowBodies,
@@ -31887,6 +31939,7 @@ export {
   wordsIssueWords,
   wordsNeedOpening,
   workspacePartnerVM,
+  workspacePath,
   writtenChannelOf,
   writtenOutDetail,
   yesWaitWords,

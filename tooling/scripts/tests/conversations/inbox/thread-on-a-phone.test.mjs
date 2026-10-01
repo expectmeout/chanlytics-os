@@ -11,10 +11,10 @@
  *
  * Run against the page on a stub React, never read from it.
  */
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
+import { installLegacyReact, fresh, again } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -68,7 +68,8 @@ const conv = (messages, over = {}) => ({
 
 /* -------------------------------- a browser -------------------------------- */
 
-globalThis.window = {
+const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
+installLegacyReact({
   location: {
     pathname: "/w/marisas",
     hash: "",
@@ -91,89 +92,15 @@ globalThis.window = {
   __DEMO_MODE: false,
   __href: (_route, p) => `/api/v1/messages/${p.id}/media?workspace=marisas`,
   gate: () => ({}),
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent() {
-    return true;
-  },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
-};
-globalThis.document = {
-  body: { appendChild() {} },
-  addEventListener() {},
-  removeEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
-};
-
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => fn(),
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
+});
+after(() => Object.assign(globalThis, timers));
+// The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of [
-  "StatePill",
-  "MoreMenu",
-  "EmptyState",
-  "PolicyChip",
-  "TlMedia",
-  "FailedRead",
-  "Confirm",
-  "usePPToast",
-  "useHotkey",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
-globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-const { InboxThread } = globalThis.window;
+const { InboxThread } = await import("../../../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -202,21 +129,20 @@ const textOf = (n) => {
   return n.rendered !== undefined ? textOf(n.rendered) : textOf(n.props?.children);
 };
 const draw = (dto, escalation = null) => {
-  cells = [];
-  frames.begin();
+  fresh();
   return InboxThread({
     thread: toInboxThreadVM(dto, escalation, ZONE, NOW),
     channelLabels: { whatsapp: "WhatsApp", phone: "Phone", email: "Email" },
   });
 };
 // Draw again with the cells kept, so a disclosure that was toggled is drawn open.
-const redraw = (dto, escalation = null) => {
-  frames.begin();
-  return InboxThread({
-    thread: toInboxThreadVM(dto, escalation, ZONE, NOW),
-    channelLabels: { whatsapp: "WhatsApp", phone: "Phone", email: "Email" },
-  });
-};
+const redraw = (dto, escalation = null) =>
+  again(() =>
+    InboxThread({
+      thread: toInboxThreadVM(dto, escalation, ZONE, NOW),
+      channelLabels: { whatsapp: "WhatsApp", phone: "Phone", email: "Email" },
+    }),
+  );
 
 /* ---------------------------------- a link ---------------------------------- */
 

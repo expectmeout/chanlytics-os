@@ -29,6 +29,7 @@ import {
   LEAD_LEFT_OUT_WORD,
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
+import { kitHooks, kitPages } from "../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -273,7 +274,8 @@ globalThis.window = {
   clearTimeout() {},
 };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-const { StatePill } = globalThis.window;
+// The pill is the kit's (surfaces/kit/pill), which seed-globals publishes as window.StatePill: contracts' stateOf, always.
+const { StatePill } = kitPages;
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -321,10 +323,9 @@ test("the pill: the tone's class and the map's words; the accent carries the liv
 
 /* --------------------- the Inbox list, with a real thread --------------- */
 
-/* The page reads the pill as a bare global, as a browser would through window. */
-globalThis.StatePill = StatePill;
-await import("../../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
-const InboxList = globalThis.window.InboxList;
+/* The list (surfaces/inbox/pages/inbox-list.tsx) imports the kit's pill and its hooks from React: the stub's are set on it. */
+kitHooks();
+const { InboxList } = await import("../../../../apps/dashboard/src/surfaces/inbox/pages/inbox-list.tsx");
 
 test("REGRESSION: a real thread that needs a person shows the one pill and how long it has waited -- the list used to look for a state no real thread has", () => {
   const NOW = new Date("2026-09-14T14:00:00Z");
@@ -396,8 +397,8 @@ test("REGRESSION: a real thread that needs a person shows the one pill and how l
 
 /* ------------------ the attention row, the same six -------------------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
-const AttnRow = globalThis.window.AttnRow;
+/* The kit's row (surfaces/kit/attention/attn-row.tsx): it imports the tone map itself, where the shell's read it off the chrome bridge. */
+const { AttnRow } = await import("../../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
 
 test("the attention row's lead speaks the same six tones, and the receptionist's standing is said in them", () => {
   const cls = (tone) =>

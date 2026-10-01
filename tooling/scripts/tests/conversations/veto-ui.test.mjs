@@ -17,6 +17,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { toInboxThreadVM, isHeldDraft, draftSendsAtMs } from "@chanlytics/contracts";
+import { installLegacyReact, fresh, again, find } from "../_legacy-react.mjs";
+
+installLegacyReact({ __DEMO_MODE: false });
+const S = "../../../../apps/dashboard/src/surfaces/inbox";
+const { VW_STORE, VW_UTIL } = await import(`${S}/store.ts`);
+const { Composer } = await import(`${S}/thread/composer.tsx`);
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -111,32 +117,37 @@ test("the draft bubble is marked pending, not shown as sent", () => {
 
 /* -------------------------------- the engine ------------------------------ */
 
-const inbox = read("apps/dashboard/src/legacy/pages/inbox.jsx");
-const thread = read("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-const data = read("apps/dashboard/src/legacy/data/inbox-data.jsx");
+const inbox = read("apps/dashboard/src/surfaces/inbox/pages/inbox-state.tsx");
+const timeline = read("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx");
+const status = read("apps/dashboard/src/surfaces/inbox/thread/status.tsx");
 
 test("REGRESSION: a real thread never fabricates its own sent bubble", () => {
   // The mockup mutates the timeline at zero. Doing that on real data would put
   // a message in the transcript that may never have reached the customer.
-  assert.match(inbox, /if \(t\.real\) \{[\s\S]{0,400}?__refreshInbox/);
+  assert.match(inbox, /if \(t\.real\) \{[\s\S]{0,400}?refreshInbox/);
 });
 
 test("a real countdown reads the SERVER's deadline", () => {
-  assert.match(inbox, /t\.veto\.endsAtMs - Date\.now\(\)/);
+  assert.match(inbox, /t\.veto\.endsAtMs \?\? NaN\) - Date\.now\(\)/);
 });
 
 test("VW_UTIL's simulated timer is kept off real threads", () => {
   // Two clocks on one draft would disagree about when the customer hears from us.
-  assert.match(data, /if \(t\.real\) return;/);
+  VW_STORE.state = {};
+  VW_UTIL.seed([{ id: "th-real", real: true, veto: { window: 30 } }]);
+  assert.deepEqual(VW_STORE.state, {}, "a real draft's countdown belongs to its job, not to this store");
+  VW_UTIL.seed([{ id: "th-seed", veto: { window: 30 } }]);
+  assert.ok(VW_STORE.state["th-seed"], "the mockup's own thread keeps its simulated countdown");
+  VW_STORE.state = {};
 });
 
 // "Hold and first-keystroke both commit server-side" moved with the hold itself into the one thread
-// (thread-pane.jsx's threadVerbs), where it is a function a test can run instead of a string to read:
+// (surfaces/inbox/thread/thread-verbs.tsx's threadVerbs), where it is a function a test can run instead of a string to read:
 // one-thread.test.mjs proves it there.
 
 test("the draft bubble is visually distinct from a sent one", () => {
-  assert.match(thread, /const held = !!entry\.pending;/);
-  assert.match(thread, /tl-held-tag/);
+  assert.match(timeline, /const held = !!entry\.pending;/);
+  assert.match(timeline, /tl-held-tag/);
 });
 
 test("REGRESSION: the VetoBar shows on a HANDLED real thread", () => {
@@ -145,8 +156,20 @@ test("REGRESSION: the VetoBar shows on a HANDLED real thread", () => {
   // the receptionist answered and nothing escalated — which is exactly the
   // state a held draft sits in. The old gate hid the controls in the common
   // case and left the draft unstoppable from the UI.
-  assert.match(thread, /thread\.veto && !decided && \(thread\.real \|\| thread\.state !== "done"\)/);
+  assert.match(status, /hasVeto\(thread\) &&\s*!decided &&\s*\(thread\.real \|\| thread\.state !== "done"\)/);
 });
+
+/**
+ * The reply box, drawn on the stub React: its text box. A draft that arrives is a new prop; the effect that seeds the
+ * box sets its state, which React draws again, so a draw that brings a draft is followed by the one that shows it.
+ */
+const REAL = { id: "th-c1", real: true, who: "Ana", primaryChannel: "whatsapp", hasChat: true, windowOpen: true };
+const drawBox = (reply) => again(() => Composer({ thread: REAL, reply }));
+const arrives = (reply) => {
+  drawBox(reply);
+  return drawBox(reply);
+};
+const box = (tree) => find(tree, (n) => n.type === "textarea");
 
 test("REGRESSION: the composer fills when a draft ARRIVES, not only on mount", () => {
   // useState(reply) reads its argument once. In the mockup that suffices — the
@@ -154,12 +177,19 @@ test("REGRESSION: the composer fills when a draft ARRIVES, not only on mount", (
   // receptionist writes while the operator is already looking at the
   // conversation, so the draft always arrives AFTER mount and the composer
   // stayed empty: "Edit" focused a blank box.
-  assert.match(
-    thread,
-    /React\.useEffect\(\(\) => \{[\s\S]{0,200}?setText\(\(cur\) => \(cur && cur\.trim\(\) \? cur : reply\)\);/,
-  );
+  fresh();
+  assert.equal(box(drawBox("")).props.value, "", "mounted with no draft: an empty box");
+  assert.equal(box(arrives("We open at 9.")).props.value, "We open at 9.", "the draft arrives, and fills it");
 });
 
 test("an arriving draft never overwrites what the operator is typing", () => {
-  assert.match(thread, /cur && cur\.trim\(\) \? cur : reply/);
+  fresh();
+  drawBox("");
+  box(drawBox("")).props.onChange({ target: { value: "Actually, 10 on Sundays." } });
+  assert.equal(box(drawBox("")).props.value, "Actually, 10 on Sundays.", "the operator's words");
+  assert.equal(
+    box(arrives("We open at 9.")).props.value,
+    "Actually, 10 on Sundays.",
+    "a draft that arrives over their words does not replace them",
+  );
 });

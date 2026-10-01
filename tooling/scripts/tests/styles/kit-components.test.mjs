@@ -28,6 +28,7 @@ import assert from "node:assert/strict";
 import { FAMILIES } from "../../e2e-harness/kit-gallery.mjs";
 import { fresh, installLegacyReact } from "../_legacy-react.mjs";
 import { Button } from "../../../../apps/dashboard/src/surfaces/kit/button/button.tsx";
+import { EmptyState, FailedRead } from "../../../../apps/dashboard/src/surfaces/kit/empty/empty.tsx";
 import { Face } from "../../../../apps/dashboard/src/surfaces/kit/face/face.tsx";
 import { LinkButton } from "../../../../apps/dashboard/src/surfaces/kit/link-button/link-button.tsx";
 import { ListRow } from "../../../../apps/dashboard/src/surfaces/kit/list-row/list-row.tsx";
@@ -625,5 +626,62 @@ test("Meter draws the gallery's Meter family: an image of its parts, each share 
     drawn(h(Meter, { parts: [], "aria-label": "Nothing yet" })).props.children,
     [null],
     "no parts and no rest draw an empty whole",
+  );
+});
+
+/** The gallery's Empty state and failed read family, entry by entry, as a surface draws it with the kit's components. */
+const EMPTY_STATES = {
+  "empty-page": () =>
+    h(EmptyState, {
+      kind: "page",
+      glyph: "inbox",
+      title: "Nothing waiting on you",
+      body: "When a conversation needs a person, it lands here.",
+      action: { label: "See what it handled", to: "conversations" },
+      also: { label: "Open the settings", to: "admin" },
+    }),
+  "empty-card": () =>
+    h(EmptyState, {
+      kind: "card",
+      glyph: "calendar",
+      title: "No visits this week",
+      body: "Booked visits show here with who is coming.",
+      action: { label: "Share the booking link", to: "calendar" },
+    }),
+  "empty-line": () =>
+    h(EmptyState, {
+      kind: "line",
+      title: "No notes yet.",
+      body: "What the team writes about them stays here.",
+      action: { label: "Write one", onClick },
+    }),
+  "empty-center": () =>
+    h(EmptyState, { kind: "line", className: "empty-center", title: "Nobody matches.", body: "Try fewer words." }),
+  "empty-ok": () =>
+    h(EmptyState, {
+      kind: "card",
+      tone: "ok",
+      glyph: "check",
+      title: "Nothing left for today",
+      body: "Every conversation is answered.",
+    }),
+  "empty-failed": () => h(FailedRead, { what: "your team", surface: "settings" }),
+  "empty-failed-line": () => h(FailedRead, { kind: "line", what: "the calls", surface: "live" }),
+};
+
+test("EmptyState and FailedRead draw the gallery's Empty state and failed read family: a pane's, a card's, a line's, and a read that failed with its Retry", () => {
+  // A Retry is drawn only where the runner can read the surface again: published by the shell, as the app's has it.
+  globalThis.__refreshSurface = async () => undefined;
+  try {
+    assert.deepEqual(parting(FAMILIES, "Empty state and failed read", EMPTY_STATES), HELD);
+  } finally {
+    delete globalThis.__refreshSurface;
+  }
+  const failed = drawn(h(FailedRead, { what: "your team" }));
+  assert.equal(failed.props.role, "status", "a failed read is announced");
+  assert.equal(
+    failed.props.children.flat().some((child) => child?.props?.className === "empty-acts"),
+    false,
+    "with nothing to press (no runner, no retry of its own) there is no Retry: a state support repairs",
   );
 });

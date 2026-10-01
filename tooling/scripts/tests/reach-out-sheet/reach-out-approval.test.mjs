@@ -1,8 +1,8 @@
 /**
- * A reach-out run on Broadcasts (Reach out, Part 4 PR 7; F13, R20–R22), run on the stub React over the bridge's own
- * words (legacy-bridge/reach-out/reach-outs.ts `run`, contracts reachOutRunWordsOf over approvalWordsOf) and a stubbed
- * `window.__broadcasts` and `window.__reachOuts`: the block a live reach-out run opens to, waiting on its owner or not;
- * today's share and the rest, the held with their reasons and doors, the skipped by reason, how many are still being
+ * A reach-out run on Broadcasts (Reach out, Part 4 PR 7; F13, R20–R22), run on the stub React over the surface's own
+ * words (surfaces/campaigns/reach-out/surface.ts `run`, contracts reachOutRunWordsOf over approvalWordsOf) and the
+ * broadcasts and reach-outs verbs stubbed on the objects the TSX imports (`broadcasts`, `reachOuts`): the block a live
+ * reach-out run opens to, waiting on its owner or not; today's share and the rest, the held with their reasons and doors, the skipped by reason, how many are still being
  * checked, and the first ready business's email with its opening marked; Approve naming the checked sends only, from
  * now for a run from an earlier day; the doors and "Check the held again" pressing their routes and reading the run
  * again; and the run read again every fifteen seconds while the check still reads some of it, stopping when it does
@@ -26,11 +26,20 @@ Object.assign(W, {
   __roleGate: contracts.roleGate,
   __clock: { zone: () => ZONE, dayKey },
 });
+// The shell's own parts (Confirm, StatePill, PolicyChip, the role gate) are still JSX the frame loads; the run's page is TSX.
 const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
-await import(`${L}/pages/reach-out/reach-out-approval.jsx`);
-await import(`${L}/pages/broadcasts-run.jsx`);
-const bridge = await import("../../../../apps/dashboard/src/legacy-bridge/reach-out/reach-outs.ts");
+const S = "../../../../apps/dashboard/src/surfaces/campaigns";
+const { BroadcastDetail } = await import(`${S}/broadcasts/run.tsx`);
+const { broadcasts } = await import(`${S}/broadcasts/verbs.ts`);
+const bridge = await import(`${S}/reach-out/surface.ts`);
+// The verbs as the surfaces have them: a test stubs some on their objects, and `world()` puts every one back first.
+const REAL_BROADCASTS = { ...broadcasts };
+const REAL_REACH_OUTS = { ...bridge.reachOuts };
+const realVerbs = () => {
+  Object.assign(broadcasts, REAL_BROADCASTS);
+  Object.assign(bridge.reachOuts, REAL_REACH_OUTS);
+};
 
 /**
  * The run's first send, two hours on, by the zone's own clock (never a fixed UTC hour, which moves with daylight
@@ -111,20 +120,19 @@ const DETAIL = (state, run = RUN()) => ({
 /** The couriers, stubbed: the run as the test holds it, each read and press recorded. */
 const world = (state, run) => {
   const w = { detail: DETAIL(state, run), reads: 0, pressed: [], answer: { ok: true, data: {} } };
-  W.__broadcasts = {
+  realVerbs();
+  Object.assign(broadcasts, {
     detail: async () => ((w.reads += 1), { ok: true, data: w.detail }),
     peekDetail: () => null,
-  };
-  W.__reachOuts = {
-    words: bridge.reachOuts.words,
-    run: bridge.reachOuts.run,
+  });
+  Object.assign(bridge.reachOuts, {
     decide: async (id, door) => (w.pressed.push(["decide", id, door]), w.answer),
     recheck: async (id) => (w.pressed.push(["recheck", id]), w.answer),
     watchRun: (id) => {
       w.pressed.push(["watch", id]);
       return () => w.pressed.push(["unwatch", id]);
     },
-  };
+  });
   return w;
 };
 const SHEET = (over = {}) => {
@@ -140,7 +148,7 @@ const SHEET = (over = {}) => {
   });
 };
 const open = async (props = {}) => {
-  const draw = () => W.React.createElement(W.BroadcastDetail, { id: "b1", onClose: () => {}, ...props });
+  const draw = () => W.React.createElement(BroadcastDetail, { id: "b1", onClose: () => {}, ...props });
   fresh();
   again(draw);
   await settle();
@@ -329,11 +337,8 @@ test("a viewer sees the held and why, told once why they may not decide; no door
 
 test("a run no longer live, or not a reach-out's, is not this block", async () => {
   world("sent");
-  W.__broadcasts.report = () => null;
-  W.CmHead = () => null;
-  W.CmDot = () => null;
-  W.StatePill = () => null;
   const tree = (await open())();
+  assert.ok(byTestId(tree, "bc-detail"), "the run's own page is drawn, over the real report and parts");
   assert.equal(byTestId(tree, "ro-run"), null);
 });
 
@@ -364,6 +369,7 @@ test("R21: the run is read again while the check reads some of it, and not once 
 });
 
 test("the bridge's watch reads the run every fifteen seconds through the broadcasts courier, and stops by itself", async () => {
+  realVerbs();
   mock.timers.enable({ apis: ["setTimeout"] });
   const was = W.fetch;
   let checking = 2;
@@ -408,6 +414,7 @@ test("the bridge's watch reads the run every fifteen seconds through the broadca
 });
 
 test("the watch stops on a run this member may not read, or that is gone: a 4xx asks again for nothing", async () => {
+  realVerbs();
   mock.timers.enable({ apis: ["setTimeout"] });
   const was = W.fetch;
   let asked = 0;
