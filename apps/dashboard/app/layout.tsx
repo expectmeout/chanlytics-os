@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import {
   inAppBootScript,
   routePrefetchScript,
@@ -10,22 +10,25 @@ import {
 import "./globals.css";
 
 /**
- * next/font self-hosts the files at build time: one origin instead of three,
- * no render-blocking third-party stylesheet before first paint, automatic
- * preload, and a size-adjusted fallback so the swap stops reflowing every
- * label in the app. The CSS variables are what the legacy design system
- * consumes (tokens.css --font-sans/--font-mono), so the literal family name
- * "Geist" no longer has to resolve for the UI to look right.
+ * next/font self-hosts the files: one origin instead of three, no render-blocking third-party stylesheet before
+ * first paint, automatic preload, and a size-adjusted fallback so the swap stops reflowing every label in the app.
+ * The two variable files under app/fonts are Vercel's own, vendored byte for byte from the geist package (1.7.2).
+ * They were fetched from Google Fonts at build, and Google's answer sometimes carries a URL Turbopack cannot
+ * resolve ("next/font/google queries have exactly one entry", vercel/next.js#99114): the production build of
+ * #1348 died on it on 30 Sep 2026 while CI's build of the same commit passed. A build asks nothing over the
+ * network now. Each weight range is the set of weights that was loaded before, so a heavier request still renders
+ * as it did. The CSS variables are what the legacy design system consumes (tokens.css --font-sans/--font-mono), so
+ * the literal family name "Geist" never has to resolve for the UI to look right.
  */
-const geist = Geist({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
+const geist = localFont({
+  src: "./fonts/Geist-Variable.woff2",
+  weight: "300 600",
   variable: "--font-geist",
   display: "swap",
 });
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+const geistMono = localFont({
+  src: "./fonts/GeistMono-Variable.woff2",
+  weight: "400 500",
   variable: "--font-geist-mono",
   display: "swap",
 });
