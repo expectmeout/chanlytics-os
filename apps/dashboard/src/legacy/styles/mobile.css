@@ -828,19 +828,46 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
       linear-gradient(#000 0 0);
     pointer-events: none;
   }
+  /* A tab is 50px tall by its height, not a floor: the house's 44px touch floor (legacy.css) outranked the floor
+     written here, and the bar stood 56px beside Ask's 62px circle (Ruben, 1 Oct 2026: "the container around the ask
+     is bigger than the container around the menu"). The glyph at 19, the word at the scale's smallest step under it,
+     the picked one its lozenge with the specular edge alone (the canvases draw no shadow under it), in coral; the
+     count rides the tab's own corner. Reached by the bar's test id and the tab's place where their class is a
+     primitive's word (the kit-primitives ratchet). */
   :where([data-look="glass"]) .phone-tab {
-    min-height: 50px;
+    position: relative;
+    height: 50px;
+    min-height: 0;
+    justify-content: center;
+    gap: 3px;
+    padding: 0;
     border-radius: var(--radius-full);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-medium);
     color: var(--ink-muted);
   }
   :where([data-look="glass"]) .phone-tab.active {
     background: var(--selected-fill);
-    box-shadow: var(--selected-depth);
+    box-shadow: var(--surface-inset-depth);
     font-weight: var(--weight-semibold);
     color: var(--accent-ink);
   }
+  :where([data-look="glass"]) [data-testid="phone-tabs"] > button > :first-child {
+    position: static;
+  }
+  :where([data-look="glass"]) [data-testid="phone-tabs"] > button > :first-child > svg {
+    width: 19px;
+    height: 19px;
+  }
   :where([data-look="glass"]) .phone-tab-badge {
+    top: 4px;
+    right: 10px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 6px;
     box-shadow: none;
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
   }
 
   /* Room under every surface for the bar, 14px clear of it, and the toast above it. */

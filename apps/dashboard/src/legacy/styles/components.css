@@ -3287,9 +3287,13 @@ html.legacy-on .msg-use-link { position: relative; }
    and the theme round. The page's own act beside them is the kit's button. The capsules blur what is behind them on
    a desk; under 900px, where the bell stands alone over the page's still light, a blur changes nothing a person can
    see, and a phone spends one only where the page moves behind the glass (the tab bar, Ask's circle, the drawer). */
+/* The canvases open every page 28px from the top, level with the sidebar's first row (its 14px margin and 14px of
+   padding): the row of controls is 40px tall there, and the page's name stands 8px under it (E3, I1; Ruben, 1 Oct
+   2026: the greeting sat 14px under the bar and 28px over the strip, where E3 has 8 and 14). The bar keeps no room
+   under its controls; the head's slot sets the eight. */
 :where([data-look="glass"]) .topbar {
-  height: 64px;
-  padding: 12px 24px;
+  height: 68px;
+  padding: 28px var(--gutter-page) 0;
   border-bottom-color: transparent;
   background: transparent;
 }
@@ -3452,12 +3456,12 @@ html.legacy-on .msg-use-link { position: relative; }
    (the bar's height is its Glass one, above); the live island and the capsules keep the bar's right. */
 :where([data-look="glass"]) .pg-dateline-slot {
   position: absolute;
-  top: 0;
+  top: 28px;
   left: var(--gutter-page);
   z-index: 1;
   display: flex;
   align-items: center;
-  height: 64px;
+  height: 40px;
   min-width: 0;
   pointer-events: none;
 }
@@ -3466,14 +3470,39 @@ html.legacy-on .msg-use-link { position: relative; }
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: auto auto;
   column-gap: var(--space-4);
-  row-gap: 14px;
+  row-gap: 0;
   align-items: end;
-  padding: 2px var(--gutter-page) 14px;
+  padding: 8px var(--gutter-page) 14px;
+}
+/* The fourteen between the name and the row of views is drawn only where there is a row of views (the slot's second
+   child is the strip, not the act's place): Today has none, and the gap stood between its sentence and the strip. */
+:where([data-look="glass"]) .pg-slot:has(> :nth-child(2):not(.pg-act-slot)) {
+  row-gap: 14px;
 }
 :where([data-look="glass"]) .pg-head-slot {
+  position: relative;
   grid-column: 1;
   grid-row: 1;
   min-width: 0;
+}
+/* On a desk the frame names only the page whose name is a sentence of its own (Today's greeting, the stacked head):
+   the Inbox's "Inbox · 4 need you" said again what the sidebar's row and the strip's count say (Ruben, 1 Oct 2026),
+   so every other page's name is kept for a reader and the frame's focus alone, and the row of views stands fourteen
+   under the bar, where the name would have. The head is the kit's and keeps its one class when not stacked. */
+@media (width > 900px) {
+  :where([data-look="glass"]) .pg-head-slot > header[class="pg-head"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  :where([data-look="glass"]) .pg-slot:has(> .pg-head-slot > header[class="pg-head"]) {
+    padding-top: 14px;
+  }
 }
 :where([data-look="glass"]) .pg-slot > .stabs {
   grid-column: 1;
@@ -3518,16 +3547,50 @@ html.legacy-on .msg-use-link { position: relative; }
   line-height: 1;
 }
 /* A phone: the head alone over the page (the canvases' phone boards), the row of views under it as the phone's strip.
-   The head's own rule for a phone (its sentence is a desk's) is the kit's (kit.css, the head family). */
+   The head's own rule for a phone (its sentence is a desk's; its date says no hour) is the kit's (kit.css, the head
+   family). The boards stack the date and the name 2px apart with the bell beside them, so the bar is as tall as the
+   date's line alone and the bell stands down over the name's row, 20px from the top (the boards' 40px bell is
+   centred on the two lines; the house's bell is 44 under a finger); the name keeps clear of it. A bar that stands
+   under the top bar (a call, the shell's status) begins under the bell instead. The bell's wrap is what moves (the
+   bell stands relative inside it, where its sheet is anchored). */
 @media (max-width: 900px) {
+  :where([data-look="glass"]) .main > .topbar {
+    align-items: flex-start;
+    height: 31px;
+    padding: 18px var(--gutter-page) 0;
+  }
+  :where([data-look="glass"]) .pg-dateline-slot {
+    top: 18px;
+    height: auto;
+  }
+  :where([data-look="glass"]) .main > .topbar .tbn-wrap {
+    position: absolute;
+    top: 20px;
+    right: var(--gutter-page);
+  }
+  :where([data-look="glass"]) .main > .topbar + :is(.live-bar, .shell-status-slot:has(> *)) {
+    margin-top: 33px;
+  }
   :where([data-look="glass"]) .pg-slot {
     grid-template-columns: minmax(0, 1fr);
-    padding-bottom: 10px;
+    padding: 2px var(--gutter-page) 16px;
+  }
+  :where([data-look="glass"]) .pg-head-slot {
+    padding-right: 60px;
   }
   :where([data-look="glass"]) .pg-act-slot {
     grid-column: 1;
     grid-row: 3;
     justify-content: flex-start;
+  }
+  /* The Inbox's list draws no row of views on a phone (canvas I-phone-list: the buckets' capsule stands there, and
+     Conversations and Live are the swipe beside it, surface-tabs.jsx stripSwipe); the strip is the slot's second
+     child where it is drawn. */
+  :where([data-look="glass"]) .main:has(> .main-scroll > .inbox) .pg-slot > :nth-child(2):not(.pg-act-slot) {
+    display: none;
+  }
+  :where([data-look="glass"]) .main:has(> .main-scroll > .inbox) .pg-slot {
+    row-gap: 0;
   }
 }
 

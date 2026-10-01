@@ -1105,7 +1105,7 @@ value, since the light look now sets its own. The pane's blur (14px and 1.25, ab
 | Surface   | Rows                                                                  | Verdict                                   | Where                                                         |
 | --------- | --------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------- |
 | Today     | E3 · Clear (of E1 to E5)                                              | picked, 28 September ("e3 it is")         | a private artifact; `Downloads/today-liquid-glass.html`       |
-| Inbox     | I1 Needs you; I2 A draft on its way                                   | owed                                      | `Downloads/inbox-liquid-glass.html`                           |
+| Inbox     | I1 Needs you; I2 A draft on its way                                   | landed 1 October (I1 whole, desk and phone) | `Downloads/inbox-liquid-glass.html`                           |
 | People    | P1 Everyone; P2 A list open; P3 A person                              | owed                                      | `Downloads/people-liquid-glass.html`                          |
 | Leads     | L1 The panel beside the table; L2 Three states                        | owed                                      | `Downloads/leads-liquid-glass.html`                           |
 | Campaigns | C1 The page and the composer; C2 One composer, three doors (compact)  | liked, 28 September                       | a private artifact; `Downloads/campaigns-liquid-glass.html`   |

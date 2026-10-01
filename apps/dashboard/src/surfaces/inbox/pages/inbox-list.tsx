@@ -23,6 +23,7 @@ import { askOnScreenKey, demoSession, gate, setAskOnScreen, surfaceState } from 
 import { inboxData } from "../store";
 import type { InboxBucket, InboxView, Thread } from "../types";
 import { Button } from "../../kit/button/button";
+import { useLook } from "../../kit/look/look";
 
 /** How much of a row the desk draws: the phone ignores it. */
 export type Density = "compact" | "medium" | "rich";
@@ -120,6 +121,8 @@ export interface ListCtx extends ReturnType<typeof listProps> {
   inNeedsBucket: boolean;
   tabStopId: string | undefined;
   onRowKey: (e: KeyboardEvent<HTMLDivElement>, i: number) => void;
+  /** The Glass look (canvas I1): a bucket with nothing in it says no count. Classic says every count, as it did. */
+  glass: boolean;
 }
 
 /** Whether an event's target is an `<input>`: judged by its tag, as the row's key handler always judged it. */
@@ -268,6 +271,7 @@ export function InboxList(props: InboxListProps) {
 
   const tabStopId = visible.some((t) => t.id === activeThreadId) ? activeThreadId : visible[0]?.id;
   const onRowKey = rowKeys({ visible, onSelectThread, onToggleSelect });
+  const look = useLook();
   const L: ListCtx = {
     ...base,
     query,
@@ -282,6 +286,7 @@ export function InboxList(props: InboxListProps) {
     inNeedsBucket,
     tabStopId,
     onRowKey,
+    glass: look === "glass",
   };
 
   return (
@@ -313,7 +318,7 @@ export function InboxList(props: InboxListProps) {
  * with the third alone on the second, and on a phone "Needs you" wrapped to two lines.
  */
 function bucketChips(L: ListCtx) {
-  const { buckets, activeBucket, onBucketChange } = L;
+  const { buckets, activeBucket, onBucketChange, glass } = L;
   return (
     <div className={`ix-buckets ${buckets.length <= 3 ? "one-row" : ""}`}>
       {buckets.map((b) => (
@@ -326,7 +331,8 @@ function bucketChips(L: ListCtx) {
         >
           <Icon name={b.icon} size={13} />
           <span className="ix-bucket-label">{b.label}</span>
-          <span className="ix-bucket-count tabular">{b.count}</span>
+          {/* The canvases count a bucket only where there is something to count: "Snoozed" stands alone (I1). */}
+          {(!glass || (b.count ?? 0) > 0) && <span className="ix-bucket-count tabular">{b.count}</span>}
         </button>
       ))}
     </div>

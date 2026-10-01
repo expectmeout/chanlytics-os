@@ -25,7 +25,8 @@ export interface TodayBriefWords {
   text: string;
 }
 
-const say = (text: string): TodayBriefSegment => ({ text });
+// `plain`, not `say`: a helper declared in three files is a copy the build counts (copies.json), and two files said it.
+const plain = (text: string): TodayBriefSegment => ({ text });
 // `bold`, not `name`: a top-level `name` in contracts makes the bundler rename every other `name` in every dist that
 // bundles it (core, jobs, channels, db), which is churn in four committed files for one word.
 const bold = (text: string): TodayBriefSegment => ({ text, strong: true });
@@ -36,10 +37,10 @@ function names(who: readonly string[], rest: number): TodayBriefSegment[] {
   const left = who.length - said.length + rest;
   const out: TodayBriefSegment[] = [];
   said.forEach((w, i) => {
-    if (i > 0) out.push(say(i === said.length - 1 && !left ? " and " : ", "));
+    if (i > 0) out.push(plain(i === said.length - 1 && !left ? " and " : ", "));
     out.push(bold(w));
   });
-  if (left) out.push(say(` and ${left} more`));
+  if (left) out.push(plain(` and ${left} more`));
   return out;
 }
 
@@ -65,46 +66,48 @@ function needsSentences(vm: TodayVM): TodayBriefSegment[][] {
     // sentences are one: "Ana Reyes needs you, waiting since 2:20 PM."
     const lead = `${people[0]} has been `;
     if (one && detail && detail.startsWith(lead))
-      out.push([bold(people[0]), say(` needs you, ${detail.slice(lead.length)}`)]);
+      out.push([bold(people[0]), plain(` needs you, ${detail.slice(lead.length)}`)]);
     else {
-      out.push([...names(people, vm.queue.more), say(one ? " needs you." : " need you.")]);
-      if (detail) out.push([say(detail)]);
+      out.push([...names(people, vm.queue.more), plain(one ? " needs you." : " need you.")]);
+      if (detail) out.push([plain(detail)]);
     }
   }
-  if (calls) out.push([say(calls === 1 ? "One call is worth a listen." : `${calls} calls are worth a listen.`)]);
+  if (calls) out.push([plain(calls === 1 ? "One call is worth a listen." : `${calls} calls are worth a listen.`)]);
   if (searches)
     out.push([
-      say(searches === 1 ? "A search is waiting on your answer." : `${searches} searches are waiting on your answer.`),
+      plain(
+        searches === 1 ? "A search is waiting on your answer." : `${searches} searches are waiting on your answer.`,
+      ),
     ]);
   return out;
 }
 
 /** Who an appointment is with, in bold, and what for; or what it is where nobody is named. */
 const withWhom = (b: TodayDayItemVM): TodayBriefSegment[] =>
-  b.person ? [bold(b.person.name), ...(b.service ? [say(` (${b.service})`)] : [])] : [say(b.service || b.title)];
+  b.person ? [bold(b.person.name), ...(b.service ? [plain(` (${b.service})`)] : [])] : [plain(b.service || b.title)];
 
 /** The calendar's day: how many, the one under way, the next, and how many after; or that the day is closed or empty. */
 function daySentence(day: TodayDayVM | null): TodayBriefSegment[] | null {
   const today = day?.feed === "ok" ? day.frames.find((f) => f.today) : undefined;
   if (!today) return null;
-  if (today.closed.yes) return [say(`Closed today${today.closed.note ? ` (${today.closed.note})` : ""}.`)];
+  if (today.closed.yes) return [plain(`Closed today${today.closed.note ? ` (${today.closed.note})` : ""}.`)];
   const items = today.items;
   const total = items.length + today.more;
-  if (!total) return [say("Nothing on the calendar today.")];
+  if (!total) return [plain("Nothing on the calendar today.")];
   const now = items.find((b) => b.phase === "now");
   const next = items.find((b) => b.phase === "next");
   const after = items.filter((b) => b.phase === "later").length + today.more;
-  const out: TodayBriefSegment[] = [say(`${total} appointment${total === 1 ? "" : "s"} today`)];
-  if (now) out.push(say(": "), ...withWhom(now), say(` is in now${now.dur ? ` (${now.dur})` : ""}`));
+  const out: TodayBriefSegment[] = [plain(`${total} appointment${total === 1 ? "" : "s"} today`)];
+  if (now) out.push(plain(": "), ...withWhom(now), plain(` is in now${now.dur ? ` (${now.dur})` : ""}`));
   if (next)
     out.push(
-      say(now ? ", then " : ": next is "),
+      plain(now ? ", then " : ": next is "),
       ...withWhom(next),
-      say(next.allDay ? ", all day" : ` at ${next.start}`),
+      plain(next.allDay ? ", all day" : ` at ${next.start}`),
     );
-  if (!now && !next) out.push(say(items.length && items.every((b) => b.phase === "past") ? ", all done" : ""));
-  else if (after) out.push(say(`, ${after} more after`));
-  out.push(say("."));
+  if (!now && !next) out.push(plain(items.length && items.every((b) => b.phase === "past") ? ", all done" : ""));
+  else if (after) out.push(plain(`, ${after} more after`));
+  out.push(plain("."));
   return out;
 }
 
@@ -112,13 +115,13 @@ function daySentence(day: TodayDayVM | null): TodayBriefSegment[] | null {
 function cameIn(vm: TodayVM): TodayBriefSegment[][] {
   const line = vm.recap?.line;
   if (!line) return [];
-  return vm.quiet ? [[say(line)], [say(vm.proof)]] : [[say(line)]];
+  return vm.quiet ? [[plain(line)], [plain(vm.proof)]] : [[plain(line)]];
 }
 
 /** A run waiting for a word: its name in bold, then the queue's own sentence about it. */
 const runSentence = (r: TodayBriefRun): TodayBriefSegment[] => [
   bold(r.label),
-  say(` is waiting for your word: ${r.sentence}`),
+  plain(` is waiting for your word: ${r.sentence}`),
 ];
 
 /**
