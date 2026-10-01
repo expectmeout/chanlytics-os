@@ -27,8 +27,9 @@ declare global {
   }
 }
 
-/** A part that is not there draws nothing: what a JSX page drew where its store had no such row. */
-const nothing = (): null => null;
+/** A part that is not there draws nothing: what a JSX page drew where its store had no such row. The one spelling of it:
+ *  the kit's head and the lead peek's doors answer the same where a part or a standing is not. */
+export const nothing = (): null => null;
 
 /** The part the frame published under this name, or a component that draws nothing. */
 function part<P>(

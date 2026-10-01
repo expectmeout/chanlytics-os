@@ -445,7 +445,7 @@ installRoleStore();
 // Menus and questions as their props, drawn by hookless stand-ins, for the People list's scripts (the person's page draws the kit's own).
 for (const k of ["MoreMenu", "Confirm", "ChannelGlyph", "TempBar", "ClientTag"]) globalThis[k] = () => null;
 globalThis.useHotkey = () => {};
-// Leads' peek seams (leads-peek.jsx, which this file does not load), as no-ops that return their own cleanup.
+// Leads' peek seams (surfaces/leads/peek/seams.ts, which this file does not load), as no-ops that return their own cleanup.
 globalThis.leadArmOnReturn = () => () => undefined;
 globalThis.leadPeekFocus = () => () => undefined;
 Object.assign(globalThis.window, {

@@ -20,8 +20,9 @@ function watch(onChange: () => void): () => void {
   return () => observer.disconnect();
 }
 
-// A document with no root yet (a test's stand-in, a page torn down) answers Classic, as no document does.
-const lookNow = (): Look =>
+// A document with no root yet (a test's stand-in, a page torn down) answers Classic, as no document does. Exported for a
+// hookless component that draws more in Glass (the lead peek), read as it draws.
+export const lookNow = (): Look =>
   typeof document !== "undefined" && document.documentElement?.getAttribute("data-look") === "glass"
     ? "glass"
     : "classic";

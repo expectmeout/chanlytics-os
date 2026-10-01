@@ -122,7 +122,9 @@ await import("../../../../../apps/dashboard/src/legacy/pages/leads-cells.jsx");
 await import("../../../../../apps/dashboard/src/legacy/pages/leads-bench.jsx");
 await import("../../../../../apps/dashboard/src/legacy/pages/leads-map.jsx");
 await import("../../../../../apps/dashboard/src/legacy/pages/leads-scope.jsx"); // Task 2's: LeadShape is its, and this file draws it
-await import("../../../../../apps/dashboard/src/legacy/pages/leads-peek.jsx");
+// The peek is TSX since decision 0015 (surfaces/leads/peek): its names are what the legacy Leads page reads off the window.
+const { LEADS_GLOBALS } = await import("../../../../../apps/dashboard/src/surfaces/leads/globals.ts");
+Object.assign(globalThis.window, LEADS_GLOBALS);
 for (const k of [
   "LeadPeek",
   "LeadCallMenu",
@@ -599,6 +601,53 @@ test("the checks are what the verdict's evidence bar says: two groups, what was 
     "nothing read wears a plain check mark (P2)",
   );
   assert.equal(all(seen, (n) => /pk-ck-check/.test(n.props?.className || "")).length, 4, "what was seen does");
+});
+
+test("in Glass the peek says more, as its canvas draws it (L2): the checks open under the verdict, the words under each way to reach them, the listing's facts open, and how the ratings fall; Classic draws none of it", () => {
+  reset();
+  // The look is on the document (LegacyApp stamps it); the peek reads it as it draws (kit/look lookNow), hookless.
+  globalThis.document.documentElement = { getAttribute: (name) => (name === "data-look" ? "glass" : null) };
+  try {
+    const vm = vmOf({ reviews_dist: { one: 2, two: 1, three: 1, four: 4, five: 8 } });
+    const { tree } = page({ vm }).draw();
+    const open = byTestId(tree, "peek-checks-open");
+    assert.ok(open, "the checks stand open under the verdict");
+    assert.ok(
+      byTestId(open, "peek-checks-seen-open") && byTestId(open, "peek-checks-read-open"),
+      "in their two groups",
+    );
+    assert.equal(all(open, (n) => /^pk-ck /.test(n.props?.className || "")).length, CHECKS.length, "every check");
+    assert.deepEqual(
+      all(open, (n) => /^pk-ck /.test(n.props?.className || "")).map((n) =>
+        textOf(find(n, (x) => x.props?.className === "from")),
+      ),
+      vm.groups.flatMap((g) => g.checks.map((c) => c.source)),
+      "each with where it came from",
+    );
+    assert.equal(textOf(byTestId(tree, "peek-phone-words")), vm.reach.phone.tip, "the phone's words, under the number");
+    assert.equal(
+      textOf(byTestId(tree, "peek-email-words")),
+      vm.reach.email.tip,
+      "the mailbox's words, under the address",
+    );
+    assert.equal(textOf(byTestId(tree, "peek-locked-words")), vm.reach.locked.line, "and why texts wait");
+    assert.equal(byTestId(tree, "peek-found").props.open, true, "the listing's facts stand open");
+    assert.deepEqual(
+      all(byTestId(tree, "peek-spread"), (n) => n.props?.["data-testid"] === "peek-spread-row").map((r) =>
+        textOf(find(r, (x) => /pk-spread-pct/.test(x.props?.className || ""))),
+      ),
+      ["50%", "25%", "6%", "6%", "13%"],
+      "five stars first, each bar its share of the sixteen",
+    );
+  } finally {
+    delete globalThis.document.documentElement;
+  }
+  // Classic: the same draw says none of it (the recorder holds Classic to the JSX it replaced).
+  reset();
+  const { tree: classic } = page({ vm: vmOf({ reviews_dist: { one: 2, two: 1, three: 1, four: 4, five: 8 } }) }).draw();
+  for (const id of ["peek-checks-open", "peek-spread", "peek-phone-words", "peek-email-words", "peek-locked-words"])
+    assert.equal(byTestId(classic, id), null, `${id} is Glass's alone`);
+  assert.equal(byTestId(classic, "peek-found").props.open, undefined, "the facts fold, as they did");
 });
 
 test("a criterion Claude could not tell says so, in its own group, and never a check", () => {

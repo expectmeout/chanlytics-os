@@ -108,7 +108,7 @@ for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
 globalThis.useHotkey = () => {};
-// Leads' peek seams (leads-peek.jsx, which this file does not load), as no-ops that return their own cleanup.
+// Leads' peek seams (surfaces/leads/peek/seams.ts, which this file does not load), as no-ops that return their own cleanup.
 globalThis.leadArmOnReturn = () => () => undefined;
 globalThis.leadPeekFocus = () => () => undefined;
 

@@ -17002,14 +17002,6 @@ declare function leadNoteLeft(left: number, max: number): string;
 declare const LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
 /** Below this, the unhappy reviews are the ordinary few every business has, and saying so would be noise. */
 declare const LEAD_LOW_SHARE_FLOOR = 0.15;
-/**
- * The one thing five bars said that the average cannot: how much of the score is carried by people who were unhappy.
- * A 4.5 out of forty reviews and a 4.5 out of forty where a quarter gave one star are different businesses to call,
- * and the mean hides it. So the peek says it in words, and only when it changes the picture -- under a sixth at one
- * or two stars is the ordinary tail of any listing, and a line about it would be noise on every lead.
- *
- * Null when the listing published no breakdown, when it has no reviews, or when nothing is worth saying.
- */
 declare function leadLowShare(dist: {
     one: number;
     two: number;
@@ -17804,6 +17796,10 @@ interface LeadPeekVM {
         score: string;
         count: string;
         low: string | null;
+        spread?: {
+            stars: number;
+            pct: number;
+        }[];
     } | null;
     /** The two reach slots, as the row wears them. */
     slots: {

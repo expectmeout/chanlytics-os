@@ -45,7 +45,6 @@ import "@/legacy/pages/leads-bench.jsx";
 import "@/legacy/pages/leads-map.jsx";
 import "@/legacy/pages/leads-scope.jsx";
 import "@/legacy/pages/leads-finder.jsx";
-import "@/legacy/pages/leads-peek.jsx";
 // Leads while a reach-out writes (Reach out Part 6): the strip, the Stage line and the peek's block the pages above draw;
 // and a list of your own (Part 7): Import leads, Write to them, and the sheets they open.
 import "@/legacy/pages/reach-out/reach-out-leads.jsx";

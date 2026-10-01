@@ -263,6 +263,25 @@ export const LEAD_LOW_SHARE_FLOOR = 0.15;
  *
  * Null when the listing published no breakdown, when it has no reviews, or when nothing is worth saying.
  */
+/**
+ * The five counts as bars, five stars first, each as its share of all the reviews (rounded): the spread the peek draws
+ * under the score in Glass (canvas L2), so "4.1" is read beside how the ratings fall. [] when there are none.
+ */
+export function leadRatingSpread(dist: {
+  one: number;
+  two: number;
+  three: number;
+  four: number;
+  five: number;
+}): { stars: number; pct: number }[] {
+  const total = dist.one + dist.two + dist.three + dist.four + dist.five;
+  if (total <= 0) return [];
+  return [dist.five, dist.four, dist.three, dist.two, dist.one].map((n, i) => ({
+    stars: 5 - i,
+    pct: Math.round((n / total) * 100),
+  }));
+}
+
 export function leadLowShare(
   dist: { one: number; two: number; three: number; four: number; five: number } | null,
 ): string | null {

@@ -30,6 +30,7 @@ import { threadVerbs } from "../surfaces/inbox/thread/thread-verbs";
 import { KIT_GLOBALS } from "../surfaces/kit/kit-globals";
 import { CAMPAIGN_GLOBALS } from "../surfaces/campaigns/globals";
 import { PEOPLE_GLOBALS } from "../surfaces/people/people-globals";
+import { LEADS_GLOBALS } from "../surfaces/leads/globals";
 import { surfaceHook, type SurfaceNames } from "./surface-status";
 import { routeSurfaces } from "./surface-registry";
 import { pipelineHelpers, type PipelineHelpers } from "@/surfaces/people/pipeline-helpers";
@@ -189,6 +190,18 @@ if (typeof window !== "undefined") {
     AgendaItem: KIT_GLOBALS.AgendaItem,
     AgendaItems: KIT_GLOBALS.AgendaItems,
     AgendaOpen: KIT_GLOBALS.AgendaOpen,
+    // The lead peek and its acts, which the Leads page still draws by name (surfaces/leads/globals.ts).
+    LeadPeek: LEADS_GLOBALS.LeadPeek,
+    LeadPeekActions: LEADS_GLOBALS.LeadPeekActions,
+    LeadNotFitWhy: LEADS_GLOBALS.LeadNotFitWhy,
+    LeadLightbox: LEADS_GLOBALS.LeadLightbox,
+    leadPeekEscape: LEADS_GLOBALS.leadPeekEscape,
+    leadPeekFollows: LEADS_GLOBALS.leadPeekFollows,
+    leadPeekFocus: LEADS_GLOBALS.leadPeekFocus,
+    leadArmOnReturn: LEADS_GLOBALS.leadArmOnReturn,
+    pkPlaceTip: LEADS_GLOBALS.pkPlaceTip,
+    pkScrolling: LEADS_GLOBALS.pkScrolling,
+    leadPhotoWarm: LEADS_GLOBALS.leadPhotoWarm,
     // And People's parts the pages that have not moved still draw or call by name, and the two sheets the frame draws once (people-globals.ts).
     plScopes: PEOPLE_GLOBALS.plScopes,
     plScopeRoute: PEOPLE_GLOBALS.plScopeRoute,

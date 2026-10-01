@@ -29,6 +29,7 @@ import { OWNER, scenario, WORKSPACE } from "./scenarios.mjs";
 import {
   inboxGlobalsBundle,
   kitGlobalsBundle,
+  leadsGlobalsBundle,
   mascotBundle,
   peopleGlobalsHarnessBundle,
   send,
@@ -246,6 +247,10 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
       // People's shared parts, over the People the fixture boots (people-src.ts), in place of the mockup's own.
       if (p === "/data/people-globals.js") {
         send(res, 200, TYPES[".js"], await peopleGlobalsHarnessBundle());
+        return;
+      }
+      if (p === "/data/leads-globals.js") {
+        send(res, 200, TYPES[".js"], await leadsGlobalsBundle());
         return;
       }
       if (p === "/data/mascot.js") {

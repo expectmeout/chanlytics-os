@@ -446,7 +446,7 @@ const mayOnly = (can) => {
 globalThis.MoreMenu = kitPages.MoreMenu;
 globalThis.Confirm = kitPages.Confirm;
 globalThis.useHotkey = () => {};
-// Leads' peek seams (leads-peek.jsx, which this file does not load), as no-ops: People draws no peek, and the
+// Leads' peek seams (surfaces/leads/peek/seams.ts, which this file does not load), as no-ops: People draws no peek, and the
 // Leads scope a test here draws over it needs them named.
 globalThis.leadArmOnReturn = () => () => undefined;
 globalThis.leadPeekFocus = () => () => undefined;
