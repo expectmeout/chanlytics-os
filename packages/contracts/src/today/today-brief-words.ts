@@ -8,8 +8,8 @@
 import type { TodayDayItemVM, TodayDayVM } from "./today-day";
 import type { TodayVM } from "./today-vm";
 
-/** A run of words, in bold where the canvas sets a name so. */
-export interface TodayBriefSegment {
+/** A run of words, in bold where the canvas sets a name so (read through TodayBriefWords; not exported on its own). */
+interface TodayBriefSegment {
   text: string;
   strong?: true;
 }

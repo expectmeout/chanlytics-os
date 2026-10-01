@@ -24120,7 +24120,7 @@ people?: {
  * of appointments (Ruben, 1 Oct 2026): the brief is everything that needs a person now, then the day, then the rest.
  */
 
-/** A run of words, in bold where the canvas sets a name so. */
+/** A run of words, in bold where the canvas sets a name so (read through TodayBriefWords; not exported on its own). */
 interface TodayBriefSegment {
     text: string;
     strong?: true;

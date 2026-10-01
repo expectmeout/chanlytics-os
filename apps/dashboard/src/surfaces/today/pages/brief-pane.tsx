@@ -9,7 +9,7 @@
  * Glass composition alone (today-page.tsx).
  */
 import { useEffect, useState } from "react";
-import type { TodayBriefWords } from "@chanlytics/contracts";
+import type { TodayBriefRun, TodayBriefWords } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
@@ -95,7 +95,7 @@ export const TodayBriefPane = () => {
   const vm = surfaceValue("today");
   const day = useDayVm();
   // The runs the queue holds for a word, said as the queue says them (todayRunWords).
-  const runs = runsPending().waiting.map((r) => ({
+  const runs: TodayBriefRun[] = runsPending().waiting.map((r) => ({
     label: r.audience.label,
     sentence: TODAY_HELPERS.runs(r).waiting.sentence,
   }));
