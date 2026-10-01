@@ -1208,3 +1208,33 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .pl-card-ground.keep { justify-content: flex-start; background: var(--ok-soft); color: var(--ok-ink); }
   .pl-card-ground.exclude { justify-content: flex-end; background: var(--danger-soft); color: var(--danger-ink); }
 }
+
+/* ====================================================================
+   Glass: the lead's peek (the plan's step 5.4, canvas L2). Beside the table it is a pane of its own, in from the table
+   pane's edge, the photo band taking the pane's corners; inside, the rows sit on hairlines and a box is an inset. Each
+   rule names the look inside :where(); none matches in Classic.
+   ==================================================================== */
+@media (width > 900px) {
+  :where([data-look="glass"]) .leads-scope .cl-main > .pk {
+    top: 12px;
+    right: 12px;
+    bottom: 12px;
+    border-left: 0;
+    border-radius: var(--surface-pane-radius);
+    background: var(--surface-pane-solid);
+    box-shadow: var(--surface-pop-depth);
+    overflow: hidden;
+  }
+  :where([data-look="glass"]) .leads-scope .pk-top {
+    border-bottom-color: transparent;
+  }
+  :where([data-look="glass"]) .leads-scope .pk-box {
+    border-color: var(--surface-inset-edge);
+    border-radius: var(--surface-inset-radius);
+    background: var(--surface-inset-fill);
+  }
+  :where([data-look="glass"]) .leads-scope .pk-foot {
+    border-top-color: var(--line);
+    padding: 12px 18px 16px;
+  }
+}

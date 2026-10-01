@@ -330,6 +330,37 @@ function sendField({ sheet, draft, set, problem, busy }: FieldsProps) {
  * which service, the link, the value and how often, the day it stands until; why, a note, how they said yes; and last the
  * send, with its words. Each is present only where contracts' sheet names it.
  */
+/** A row of the Glass composer: the word at the left, what the row holds beside it; nothing when the mode draws none of it. */
+function dsRow(word: string, testid: string, parts: ReactNode[]) {
+  const held = parts.filter((p) => p !== null && p !== undefined && p !== false);
+  if (held.length === 0) return null;
+  return (
+    <div className="ds-grow" data-testid={testid}>
+      <span className="ds-grow-word">{word}</span>
+      <div className="ds-grow-body">{held}</div>
+    </div>
+  );
+}
+
+/**
+ * The same fields as rows, for Glass (canvas D3, one composer for every move): who and what it is for, what is sent,
+ * what it is worth and until when, when it happened and whether it goes out now, how they said yes, why it ended, and
+ * the note. A mode's fields fall into the rows they belong to, and a row a mode does not fill is not drawn.
+ */
+export function DealSheetFieldsGlass(props: FieldsProps) {
+  return (
+    <div className="deal-sheet-fields ds-rows" data-testid="deal-sheet-rows">
+      {dsRow("For", "ds-row-for", [serviceField(props)])}
+      {dsRow("Says", "ds-row-says", [linkField(props)])}
+      {dsRow("Value", "ds-row-value", [valueField(props), validField(props)])}
+      {dsRow("When", "ds-row-when", [whenField(props), sendField(props)])}
+      {dsRow("How", "ds-row-how", [howField(props)])}
+      {dsRow("Why", "ds-row-why", [reasonField(props)])}
+      {dsRow("Note", "ds-row-note", [noteField(props)])}
+    </div>
+  );
+}
+
 export function DealSheetFields(props: FieldsProps) {
   return (
     <div className="deal-sheet-fields">

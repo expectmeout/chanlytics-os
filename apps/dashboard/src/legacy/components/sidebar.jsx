@@ -326,6 +326,22 @@ const UserMenu = ({ who, themePref, onTheme, look, onLook, onNavigate, close, fl
   );
 };
 
+/**
+ * The workspace's second line. Glass says the lines, as every canvas's sidebar does ("3 lines on"), in Today's own words
+ * (contracts `standing.lines`, TODAY_DATA), and the role where Today has not landed; Classic says the role, and how many
+ * workspaces where there are more.
+ */
+const sbTeamSub = (look, who, workspaceCount) => {
+  if (window.__DEMO_MODE) return <div className="sb-team-plan">Professional</div>;
+  const lines = look === "glass" ? window.TODAY_DATA?.standing?.lines?.text : null;
+  if (lines) return <div className="sb-team-plan">{lines}</div>;
+  if (!who.role) return null;
+  return <div className="sb-team-plan">{who.role}{workspaceCount > 1 ? ` · ${workspaceCount} workspaces` : ""}</div>;
+};
+
+/** The account row's second line: the role in Glass (the canvases' sidebar), the address in Classic. */
+const sbAccountSub = (look, who) => (look === "glass" && who.role ? who.role : who.email);
+
 const Sidebar = ({
   active = "home",
   onNavigate = () => {},
@@ -440,7 +456,7 @@ const Sidebar = ({
         <div className="sb-team-mark">{sbWorkspaceMark()}</div>
         <div className="sb-team-body">
           <div className="sb-team-name">{sbWorkspaceName()}</div>
-          {window.__DEMO_MODE ? <div className="sb-team-plan">Professional</div> : who.role ? <div className="sb-team-plan">{who.role}{workspaceCount > 1 ? ` · ${workspaceCount} workspaces` : ""}</div> : null}
+          {sbTeamSub(look, who, workspaceCount)}
         </div>
         <Icon name="chevrons" size={14} style={{ color: "var(--ink-dim)" }} />
       </button>
@@ -523,7 +539,7 @@ const Sidebar = ({
           <div className="avatar">{who.initials}</div>
           <div className="who">
             <div className="name">{who.name}</div>
-            <div className="email">{who.email}</div>
+            <div className="email">{sbAccountSub(look, who)}</div>
           </div>
           {window.__DEMO_MODE && !collapsed && <div className="user-credits mono tabular">{sbCredits()}</div>}
         </button>

@@ -3,7 +3,7 @@
  * the page's name and one sentence beside it. The frame draws the head (kit/head/frame-head.tsx) with the date and time;
  * the page says the name and the sentence. The sentence is the standing line's (rail/standing.tsx,
  * pipeline/scope-screen.tsx), said in words: the same counts and the same parts, from the same rules, so no two of them
- * say different numbers. A person's page says nothing: the frame names it from the crumbs, with the way back to People.
+ * say different numbers. A person's page is its own head: the hero names them (canvas P3), so the frame draws only the date.
  */
 import { knownZone } from "@/legacy-bridge/zone";
 import { useMinute } from "../../kit/head/dateline";
@@ -35,10 +35,13 @@ function pipelineSentence(people: PeopleSurface, nowMs: number, zone: string): s
     .join(" · ");
 }
 
-type PeopleScope = "people" | "pipeline";
+type PeopleScope = "people" | "pipeline" | "person";
 
-/** People's or the Pipeline's standing, said to the frame's head as the page draws; null (a person's page) says nothing. */
-export function usePeopleStanding(scope: PeopleScope | null): void {
+/**
+ * People's or the Pipeline's standing, said to the frame's head as the page draws. A person's page draws its own head, the
+ * hero (canvas P3), so it says a null title: the frame draws no name and no way back for it, only the date.
+ */
+export function usePeopleStanding(scope: PeopleScope): void {
   const people: PeopleSurface | undefined = useSurface("people") ?? (demoSession() ? peopleSample() : undefined);
   const now = useMinute();
   const zone = knownZone() ?? "UTC";
@@ -48,5 +51,9 @@ export function usePeopleStanding(scope: PeopleScope | null): void {
       ? pipelineSentence(people, now, zone)
       : peopleSentence(people.aggregates);
   // A scope is picked in the page's own strip (People | Leads | Pipeline), so neither has a way back above its name (D1).
-  useStanding(scope ? { title: scope === "pipeline" ? "Pipeline" : "People", sentence, back: null } : null);
+  useStanding(
+    scope === "person"
+      ? { title: null, back: null }
+      : { title: scope === "pipeline" ? "Pipeline" : "People", sentence, back: null },
+  );
 }

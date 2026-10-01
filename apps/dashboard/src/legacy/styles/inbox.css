@@ -2384,3 +2384,28 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     box-shadow: var(--selected-depth);
   }
 }
+
+/* The reply box as the canvas draws it (I1): one capsule of the inset's fill holding the line that grows and, at its
+   right end, the one Send; the field itself has no edge of its own inside it. */
+:where([data-look="glass"]) .ix-composer.ix-composer-row {
+  align-items: center;
+  gap: 6px;
+  margin: 0 16px 16px;
+  padding: 4px 4px 4px 8px;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .ix-composer.ix-composer-row .ix-composer-text {
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  box-shadow: none;
+  padding: 8px 10px;
+}
+:where([data-look="glass"]) .ix-composer.ix-composer-row .ix-composer-text:focus {
+  border-color: transparent;
+}
+:where([data-look="glass"]) .ix-composer.ix-composer-row .ix-composer-send {
+  border-radius: var(--radius-full);
+}

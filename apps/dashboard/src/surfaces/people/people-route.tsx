@@ -58,9 +58,9 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
   const person = !!param && isPersonParam(param);
   // The Pipeline's address draws the Pipeline where deals are on, and People's own page where they are off (0008).
   const pipeline = /^pipeline(:|$)/.test(param) && !!live?.dealsOn;
-  // What the page says to the frame's head in Glass: People's or the Pipeline's standing; a person's page nothing (the
-  // frame names it from the crumbs, with the way back).
-  usePeopleStanding(person ? null : pipeline ? "pipeline" : "people");
+  // What the page says to the frame's head in Glass: People's or the Pipeline's standing; a person's page that its hero
+  // is the head (the frame draws only the date).
+  usePeopleStanding(person ? "person" : pipeline ? "pipeline" : "people");
   // A person's page reads the person itself (people-detail.ts) and never waits for People's rows; it is a new mount per person.
   if (person) return <ClientProfile key={param} id={param} />;
   // A workspace's People waits for its own surface (the frame's gate); a demo session draws the sample.

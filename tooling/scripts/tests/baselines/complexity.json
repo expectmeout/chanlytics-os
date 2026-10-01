@@ -61,7 +61,7 @@
   },
   "apps/dashboard/src/legacy/components/sidebar.jsx::Sidebar#1": {
     "lines": 209,
-    "branches": 35,
+    "branches": 32,
     "depth": 0
   },
   "apps/dashboard/src/legacy/components/sidebar.jsx::SidebarRow#1": {

@@ -42,5 +42,6 @@ export function inboxStanding(threads: Thread[], nowMs: number, zone: string): s
 export function useInboxStanding(): void {
   useSurface("inbox");
   const now = useMinute();
-  useStanding({ title: "Inbox", sentence: inboxStanding(inboxData().THREADS, now, clockZone()) });
+  // A thread opens beside the list, never over it, so the head has no way back above the name (canvas I1).
+  useStanding({ title: "Inbox", sentence: inboxStanding(inboxData().THREADS, now, clockZone()), back: null });
 }
