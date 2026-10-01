@@ -310,7 +310,10 @@ export const TodayCard = ({ beats = true }: { beats?: boolean } = {}) => {
   const glass = useLook() === "glass";
   const vm = surfaceValue("today");
   if (!vm) return null;
-  const { recap, quiet, figures } = vm;
+  const { recap, quiet } = vm;
+  // Glass draws the tile whole (canvas E3): on a quiet day the four figures are zeros, each with what is true under it
+  // (contracts quietFigures); Classic keeps the quiet sentence in the head instead.
+  const figures = vm.figures ?? (glass && quiet ? quiet.figures : null);
   const nav: Nav = (to) => appNavigate(to);
   const R = borrowed<ReportsLike>("__REPORTS");
   const period = R ? TODAY_HELPERS.periodLine(R) : null;

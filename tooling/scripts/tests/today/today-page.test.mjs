@@ -1794,6 +1794,60 @@ test("Glass brief: Listen reads the line aloud where the device can speak, says 
   });
 });
 
+test("Glass brief: who needs you in bold with the oldest wait, the calendar's day, what came in, the run waiting; and the voice reads the same words", () => {
+  clear();
+  set({
+    today: busy(),
+    __REPORTS: reports(),
+    __BROADCASTS: broadcasts(),
+    __CALENDAR: calendar([block("b17", 17, "Color", { id: "p1", name: "Dulce Amaro" })]),
+  });
+  // Classic draws no brief pane of its own words: the pane is Glass's, so the test only reads it in Glass.
+  inGlass(() => {
+    const tree = draw(TodayBriefPane);
+    const line = byTestId(tree, "today-brief-line");
+    const said = textOf(line);
+    const bold = all(line, (n) => n.type === "b").map(textOf);
+    // Who needs you first, in bold: Ana's handoff is the queue's one person waiting (busy()), and the headline's
+    // detail about her wait folds into the same sentence rather than naming her twice.
+    assert.ok(bold.includes("Ana Reyes"), `the name in bold: ${bold.join(" | ")}`);
+    assert.match(said, /^Ana Reyes needs you, waiting since \d/, said);
+    assert.ok(!said.includes("Ana Reyes has been waiting"), `said once: ${said}`);
+    // The call worth a listen, then the day: one appointment to come, with whom, in bold, and when.
+    assert.match(said, /One call is worth a listen\. 1 appointment today: next is Dulce Amaro at /, said);
+    assert.ok(bold.includes("Dulce Amaro"));
+    // Then what came in (the recap's line), then the run waiting for a word, its name in bold.
+    assert.ok(said.includes(busy().recap.line), said);
+    assert.match(said, /Win-back is waiting for your word: .*Nothing sends until you say so\./, said);
+    assert.ok(bold.includes("Win-back"));
+    // The same words are what the follow-up asks about.
+    press(buttons(tree, "Ask a follow-up")[0]);
+    assert.ok(asked.at(-1).prompt.startsWith(said), "the follow-up is grounded in the brief as drawn");
+  });
+});
+
+test("Glass card on a quiet day: the four figures as zeros, no quiet sentence in the head; Classic keeps the sentence", () => {
+  clear();
+  set({ today: quietDay(), __REPORTS: reports() });
+  const classic = byTestId(draw(TodayCard), "today-card");
+  assert.equal(byTestId(classic, "today-figures"), null, "Classic: no figures on a quiet day");
+  assert.ok(byTestId(classic, "today-quiet-line"), "Classic: the quiet sentence");
+  inGlass(() => {
+    const glass = byTestId(draw(TodayCard, { beats: false }), "today-card");
+    assert.equal(byTestId(glass, "today-quiet-line"), null, "Glass: the tile is the figures");
+    assert.deepEqual(
+      all(glass, (n) => classes(n).includes("tc-fig-n")).map(textOf),
+      ["0", "0", "0", "0"],
+      "the four zeros",
+    );
+    assert.equal(
+      all(glass, (n) => n.type === "button" && classes(n).includes("tc-fig-btn")).length,
+      0,
+      "no receipt to open: none of the four is a button",
+    );
+  });
+});
+
 test("Glass card: the door to Reports stands in the head as words, none in the foot; Classic keeps the foot's", () => {
   clear();
   set({ today: busy(), __REPORTS: reports() });

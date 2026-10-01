@@ -534,6 +534,28 @@ const firstRunScreen = ({ theme, look, param, navigate, askOpen, setAskOpen }) =
 );
 
 /** The app's chrome around the route view: the sidebar (a drawer on a phone), the top bar, the two bars, the strip, the page, the phone's tabs and ✦, and the sheets. */
+/**
+ * The frame's places for the kit's head in Glass (pg-head and pg-act, with the row of views between them; the kit draws
+ * into them, surfaces/kit/head/frame-head.tsx): over the page where the page is a pane that scrolls inside itself, and
+ * at the top of the page's own scroll where the page scrolls (Today), so the name and its sentence go up with the page
+ * and only the top bar stays (Ruben, 1 Oct 2026: the greeting stood still over a page that moved). Classic draws the
+ * row of views alone, over the page. Called twice, once for each place; one draws, the other draws nothing.
+ */
+const glassHead = ({ glass, pane, where, page, param, navigate, primaryAction }) => {
+  if (!glass) return where === "over" ? <SurfaceTabs page={page} param={param} onNavigate={navigate} /> : null;
+  if ((where === "over") !== pane) return null;
+  return (
+    <div className="pg-slot">
+      <div className="pg-head-slot" id="pg-head" />
+      <SurfaceTabs page={page} param={param} onNavigate={navigate} />
+      <div className="pg-act-slot">
+        <span id="pg-act" />
+        {primaryAction}
+      </div>
+    </div>
+  );
+};
+
 const appChrome = (s) => {
   const { theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace } = s;
   const { page, param, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeLoading, surfaceUnavailable } = s;
@@ -580,18 +602,7 @@ const appChrome = (s) => {
             it is the one thing on this line that stops being true by itself. */}
         <LiveCallBar />
         <ShellStatusBar />
-        {glass ? (
-          <div className="pg-slot">
-            <div className="pg-head-slot" id="pg-head" />
-            <SurfaceTabs page={page} param={param} onNavigate={navigate} />
-            <div className="pg-act-slot">
-              <span id="pg-act" />
-              {primaryAction}
-            </div>
-          </div>
-        ) : (
-          <SurfaceTabs page={page} param={param} onNavigate={navigate} />
-        )}
+        {glassHead({ glass, pane, where: "over", page, param, navigate, primaryAction })}
         {/* On a phone a swipe across the page walks the strip over it (surface-tabs.jsx stripSwipe). */}
         <main
           id="main"
@@ -600,6 +611,7 @@ const appChrome = (s) => {
           aria-busy={routeLoading ? "true" : undefined}
           {...(window.stripSwipe ? window.stripSwipe() : {})}
         >
+          {glassHead({ glass, pane, where: "inside", page, param, navigate, primaryAction })}
           <ShellErrorBoundary>
             {routeLoading
               ? <div className="route-reading" role="status">Reading…</div>

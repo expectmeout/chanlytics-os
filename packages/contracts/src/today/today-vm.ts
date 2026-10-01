@@ -160,5 +160,7 @@ export interface TodayVM {
     sub: string;
     proof: Array<{ label: string; value: string }>;
     launchpad: { label: string; to: string } | null;
+    /** The day's four figures as zeros, each with what is true under it, for a look that draws the tile whole (Glass). */
+    figures: TodayFigureVM[];
   } | null;
 }

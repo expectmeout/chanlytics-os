@@ -29,7 +29,7 @@ import {
   todayTrafficLine,
 } from "./today-bands";
 import { todayFacts } from "./today-facts";
-import { figuresOf, todayProof } from "./today-figures";
+import { figuresOf, quietFigures, todayProof } from "./today-figures";
 import type { MetricsSummaryDto } from "./today-metrics";
 import { todayQueue } from "./today-queue";
 import {
@@ -87,7 +87,7 @@ export function toTodayVM(
       calls: null,
       callsRead: f.callsRead,
       queue: { rows: [], more: 0, parts: [], empty, waiting: 0 },
-      quiet: todayQuietDay(f, proof),
+      quiet: { ...todayQuietDay(f, proof), figures: quietFigures(f.live, f.tz, now) },
     };
   }
 

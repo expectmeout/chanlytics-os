@@ -172,7 +172,8 @@ export function todayTrafficLine(f: TodayFacts): string {
 }
 
 /** The quiet day: prove we are listening, don't show a row of zeroes. `proof` is todayProof's sentence. */
-export function todayQuietDay(f: TodayFacts, proof: string): NonNullable<TodayVM["quiet"]> {
+/** The quiet day's card, less its figures, which the brief adds (today-figures.ts quietFigures). */
+export function todayQuietDay(f: TodayFacts, proof: string): Omit<NonNullable<TodayVM["quiet"]>, "figures"> {
   const { wires, conversations } = f;
   const names = andList(wires.map((w) => w.label));
   const pluralVerb = wires.length > 1 ? "are" : "is";

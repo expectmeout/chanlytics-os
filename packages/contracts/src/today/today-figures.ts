@@ -305,3 +305,29 @@ export function figuresOf(
   };
   return [messages, answered, calls, newPeople];
 }
+
+/**
+ * A quiet day's four figures, for a look that draws the day's tile whole (Glass, canvas E3; Ruben, 1 Oct 2026): the
+ * zeros, each with what is true under it, and no receipt. Classic keeps the quiet card's sentence instead (above:
+ * a row of zeros read as a product that died overnight); here the tile stands beside Worth a look, and the zeros
+ * stand as the page's other counts do.
+ */
+export function quietFigures(
+  live: { last_inbound_at: string | null; last_outbound_at: string | null },
+  tz: string,
+  now: Date,
+): TodayFigureVM[] {
+  const lastIn = tzDayAndTime(live.last_inbound_at, tz, now);
+  return [
+    {
+      id: "messages",
+      label: "customer messages",
+      value: 0,
+      meta: lastIn ? `none today, the last ${lastIn}` : "none yet",
+      receipt: null,
+    },
+    { id: "answered", label: "answered by the receptionist", value: 0, meta: "nothing to answer yet", receipt: null },
+    { id: "calls", label: "calls", value: 0, meta: "none yet", receipt: null },
+    { id: "new", label: "new people", value: 0, meta: "nobody new yet", receipt: null },
+  ];
+}

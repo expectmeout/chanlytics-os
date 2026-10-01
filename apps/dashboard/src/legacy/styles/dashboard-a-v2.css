@@ -1715,7 +1715,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 
 /* The day's card: the figures in columns with a hairline between them, the numbers at the canvas's size and weight, the
    word under each in the semibold. */
-:where([data-look="glass"]) .dash-a-v2 .tc-head { align-items: center; gap: 10px; padding: 18px 0 10px; }
+:where([data-look="glass"]) .dash-a-v2 .tc-head { flex-wrap: nowrap; align-items: center; gap: 10px; padding: 18px 0 10px; }
 /* The door to Reports stands in the head as words with its arrow (card.tsx draws it there in Glass), not in the foot. */
 :where([data-look="glass"]) .dash-a-v2 .tc-head > button {
   height: auto;

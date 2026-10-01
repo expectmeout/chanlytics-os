@@ -1,22 +1,32 @@
 /**
- * Your brief (canvas E3, Glass): what the day says in prose, beside the queue -- the day's one line, then the lines
- * that are not numbers (a reply that failed, a review that landed, what ran, the receipts), which the day's card draws
- * under its figures in Classic (card.tsx recapBeats: the same lines, drawn once, here in Glass and there in Classic).
- * Two acts under the line, as E3 draws them: Listen, the brief read aloud by the device's own voice where it has one
- * (Web Speech), with how long it takes to hear beside it; and a follow-up to Ask, grounded in the same line. Drawn by
- * the Glass composition alone (today-page.tsx).
+ * Your brief (canvas E3, Glass): what the day says in prose, beside the queue -- who needs you and how long the oldest
+ * has waited, the calendar's day, what came in, the runs waiting for a word (contracts todayBriefWords, over what the
+ * page already holds: the day's view model, the day's own, the broadcasts' runs) -- then the lines that are not
+ * numbers (a reply that failed, a review that landed, what ran, the receipts), which the day's card draws under its
+ * figures in Classic (card.tsx recapBeats: the same lines, drawn once, here in Glass and there in Classic). Two acts
+ * under the line, as E3 draws them: Listen, the brief read aloud by the device's own voice where it has one (Web
+ * Speech), with how long it takes to hear beside it; and a follow-up to Ask, grounded in the same words. Drawn by the
+ * Glass composition alone (today-page.tsx).
  */
 import { useEffect, useState } from "react";
-import type { TodayVM } from "@chanlytics/contracts";
+import type { TodayBriefWords } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
+import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, askAbout, useMoved, workspaceClock } from "../shell";
 import { recapBeats } from "./card";
+import { useDayVm } from "./day";
+import { runsPending } from "./queue-runs";
 
-/** The brief's line: the day's own, or a quiet day's headline with the proof the lines are listening. */
-function briefLine(vm: TodayVM): string | null {
-  return vm.recap ? vm.recap.line : vm.quiet ? `${vm.quiet.headline} ${vm.proof}` : null;
+/** The brief's sentences as drawn: a name in bold where the canvas sets it, a space between sentences. */
+function briefLine(words: TodayBriefWords) {
+  return words.sentences.map((sentence, i) => (
+    <span key={i}>
+      {i > 0 ? " " : ""}
+      {sentence.map((run, j) => (run.strong ? <b key={j}>{run.text}</b> : <span key={j}>{run.text}</span>))}
+    </span>
+  ));
 }
 
 /** The device can read the brief aloud: the browser's own voice, where it has one. */
@@ -81,11 +91,18 @@ function listenButton(speech: ReturnType<typeof useSpeech>, line: string, place:
 }
 
 export const TodayBriefPane = () => {
-  useMoved(["today", "reports"]);
+  useMoved(["today", "reports", "broadcasts"]);
   const vm = surfaceValue("today");
-  const line = vm ? briefLine(vm) : null;
+  const day = useDayVm();
+  // The runs the queue holds for a word, said as the queue says them (todayRunWords).
+  const runs = runsPending().waiting.map((r) => ({
+    label: r.audience.label,
+    sentence: TODAY_HELPERS.runs(r).waiting.sentence,
+  }));
+  const words = vm ? TODAY_HELPERS.briefWords(vm, day, runs) : null;
+  const line = words && words.sentences.length ? words.text : null;
   const speech = useSpeech(line);
-  if (!vm || !line) return null;
+  if (!vm || !words || !line) return null;
   const clock = workspaceClock();
   const asOf = clock ? clock.time(Date.now()) : null;
   return (
@@ -105,7 +122,7 @@ export const TodayBriefPane = () => {
       </div>
       <div className="tb-body">
         <p className="tb-line" data-testid="today-brief-line">
-          {line}
+          {briefLine(words)}
         </p>
         {recapBeats(vm, appNavigate)}
       </div>

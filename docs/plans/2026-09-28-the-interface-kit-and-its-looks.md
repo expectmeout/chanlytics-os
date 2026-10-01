@@ -785,7 +785,10 @@ whole: the queue stretched beside the brief and the bell with its foot always dr
 Listen (the device's own voice, Web Speech) beside Ask a follow-up; the bell's rows without a dismiss; the day's card
 with its door in the head; Worth a look's neutral tag; the strip on the control layer's glass with E3's live cell; no
 day pane (the strip's Next cell says the day; the Calendar has the rest); the setup card compact; the sidebar at 232
-with the three as the workspace's mark; the top bar's capsules at 40, and no key drawn anywhere but the ? sheet.
+with the three as the workspace's mark; the top bar's capsules at 40, and no key drawn anywhere but the ? sheet. Ruben's
+walk of production the same day: the brief now says everything that needs a person, the day and what came in
+(contracts `todayBriefWords`), the quiet day's tile is the four figures as zeros (`quiet.figures`), and the frame's head
+rides in the page's scroll on a page that scrolls (`app-shell.jsx` `glassHead`), so only the top bar stays.
 
 **5.7 Classic retired,** a release cycle later (decision 6): its role values and any rule only it reads are deleted,
 and `data-look` stays as the setting for the next look.

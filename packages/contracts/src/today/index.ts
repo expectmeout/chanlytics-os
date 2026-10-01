@@ -18,6 +18,8 @@ export { QUOTE_MAX } from "./today-facts";
 export { todayProof } from "./today-figures";
 export { NO_REPLY_AFTER_MS } from "./today-rows";
 export { toTodayVM } from "./today-brief";
+export { todayBriefWords } from "./today-brief-words";
+export type { TodayBriefRun, TodayBriefWords } from "./today-brief-words";
 export { durationLabel, todayDay, TODAY_DAY_MAX } from "./today-day";
 export type {
   DayFrameLike,

@@ -7,6 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   todayDay,
+  todayBriefWords,
   TODAY_DAY_MAX,
   toTodayVM,
   todayPeriodLine,
@@ -274,6 +275,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     Object.keys(TODAY_HELPERS),
     [
       "day",
+      "briefWords",
       "periodLine",
       "runs",
       "runsSub",
@@ -289,6 +291,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   // (The dashboard resolves contracts through its own path mapping, so a function is its own by name and by what it says.)
   for (const [key, own] of Object.entries({
     day: todayDay,
+    briefWords: todayBriefWords,
     periodLine: todayPeriodLine,
     runs: todayRunWords,
     runsSub: todayRunsSub,

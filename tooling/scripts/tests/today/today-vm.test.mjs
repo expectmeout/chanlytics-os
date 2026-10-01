@@ -85,6 +85,19 @@ test("a quiet morning is proven, not left implied", () => {
   // the hero strip still renders — a zero is a real measurement
   assert.equal(vm.recap.facts.length, 4);
   assert.equal(vm.recap.facts[0].value, "0");
+  // Glass draws the day's tile whole (canvas E3): the four figures as zeros, each with what is true under it, no receipt.
+  assert.equal(vm.figures, null, "Classic's card keeps the quiet sentence: no figures");
+  assert.deepEqual(
+    vm.quiet.figures.map((f) => [f.id, f.value, f.receipt]),
+    [
+      ["messages", 0, null],
+      ["answered", 0, null],
+      ["calls", 0, null],
+      ["new", 0, null],
+    ],
+  );
+  assert.equal(vm.quiet.figures[0].meta, "none yet", "no message has ever arrived: nothing to date the last by");
+  assert.equal(vm.quiet.figures[3].meta, "nobody new yet");
 });
 
 test("a disconnected channel never reads as a calm morning", () => {

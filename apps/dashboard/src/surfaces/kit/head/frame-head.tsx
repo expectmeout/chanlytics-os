@@ -119,7 +119,7 @@ export function FrameHead({ look }: { look: string }) {
     }
     // The shell draws its places in the commit that draws this (they are siblings under LegacyApp), so they exist by
     // now; a shell that has not drawn yet is asked again on the next frame, and one drawn again from nothing (the
-    // crumbs move) is asked for its new places.
+    // crumbs move, or the places left the document, below) is asked for its new places.
     let raf = 0;
     const seek = () => {
       const found = placesNow();
@@ -129,7 +129,17 @@ export function FrameHead({ look }: { look: string }) {
     setPlaces((had) => (had && stillThere(had) ? had : null));
     seek();
     return () => cancelAnimationFrame(raf);
-  }, [look, crumbs]);
+  }, [look, crumbs, places]);
+  // Where the page scrolls (Today), the head's place sits in the page's own scroller (app-shell.jsx glassHead), which
+  // the shell draws again when the route lands or moves: the place found is left behind in a detached tree, and the
+  // head drawn into it is drawn into nothing. So the document is watched, and a place that left it is forgotten,
+  // which asks for the new one (the effect above). A stand-in document without an observer is drawn once.
+  useEffect(() => {
+    if (look !== "glass" || typeof MutationObserver === "undefined") return undefined;
+    const watcher = new MutationObserver(() => setPlaces((had) => (had && stillThere(had) ? had : null)));
+    watcher.observe(document.body, { childList: true, subtree: true });
+    return () => watcher.disconnect();
+  }, [look]);
   if (!places || !places.head) return null;
   return (
     <>

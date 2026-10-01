@@ -8,6 +8,7 @@
 import {
   todayDay,
   todayAwayGrouped,
+  todayBriefWords,
   todaySteps,
   todayLeaks,
   todayPeriodLine,
@@ -25,6 +26,8 @@ const readings = () => (window as Window & { __REPLIES?: ReachOutRepliesDto | nu
 
 export const TODAY_HELPERS = {
   day: todayDay,
+  // The brief's words in Glass (canvas E3): who needs you, the day, what came in, the runs waiting.
+  briefWords: todayBriefWords,
   periodLine: todayPeriodLine,
   runs: todayRunWords,
   runsSub: todayRunsSub,
