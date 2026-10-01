@@ -349,6 +349,11 @@
   /* The page's gutter is the canvases' (28px beside the sidebar; 16px on a phone), which the head, the row of views and
      the panes all keep to. */
   --gutter-page: 28px;
+  /* The look's type: the canvases' Mona Sans (Ruben, 1 October 2026), named in app/globals.css over public/fonts and
+     in the mockup's Google Fonts link, with Geist behind it; the mono stays Geist Mono, as the canvases keep it.
+     Geist's stylistic sets (the base rules' ss01, cv11, cv02) are its own, so the look reads Mona Sans plain, as the
+     canvases do (the rule after the body's, below). */
+  --font-sans: "Mona Sans", var(--font-geist), "Geist", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   /* The ground, a step under it and over it, and what a press washes it with (derived: the canvases draw none). */
   --bg: oklch(0.962 0.005 275);
   --bg-sunken: oklch(0.945 0.006 275);
@@ -648,6 +653,11 @@ html, body {
   background-image: var(--surface-page-light);
   background-attachment: fixed;
   background-repeat: no-repeat;
+}
+/* Mona Sans plain: the stylistic sets above are Geist's. */
+html[data-look="glass"],
+[data-look="glass"] body {
+  font-feature-settings: normal;
 }
 
 button, input, select, textarea {

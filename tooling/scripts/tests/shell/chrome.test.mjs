@@ -40,7 +40,7 @@ test("the theme: a choice, or the device's; unknown values fall back; the sideba
   for (const t of THEME_OPTIONS) assert.ok(t.label && t.icon, t.id);
 });
 
-test("the look: Classic or Glass, Classic by default and for anything unknown, and not offered to members yet", () => {
+test("the look: Classic or Glass, Glass by default and for anything unknown, and offered to members", () => {
   assert.deepEqual(
     LOOK_OPTIONS.map((l) => [l.id, l.label]),
     [
@@ -49,8 +49,12 @@ test("the look: Classic or Glass, Classic by default and for anything unknown, a
     ],
   );
   assert.ok(isLookPref("classic") && isLookPref("glass") && !isLookPref("Glass") && !isLookPref(null));
-  assert.equal(DEFAULT_LOOK_PREF, "classic", "the app as it is drawn today");
-  assert.equal(lookPrefOf("glass"), "glass");
+  assert.equal(
+    DEFAULT_LOOK_PREF,
+    "glass",
+    "the canvases' look, the default since 1 October 2026 (the plan's step 5.6)",
+  );
+  assert.equal(lookPrefOf("classic"), "classic", "a member who chose Classic keeps it");
   assert.equal(lookPrefOf("neon"), DEFAULT_LOOK_PREF, "an unknown look is the default, as an unknown theme is");
   assert.equal(
     LOOK_OFFERED,

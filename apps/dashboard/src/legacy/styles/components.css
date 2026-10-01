@@ -3185,10 +3185,9 @@ html.legacy-on .msg-use-link { position: relative; }
   line-height: 1;
   color: var(--count-ink);
 }
-/* A hint on the place you are on stands on the lozenge, lighter than the page under a dark look: it takes the faint
-   ink the lozenge needs (tokens.css, --selected-ink-faint). */
-:where([data-look="glass"]) .nav-item.active .nav-hint {
-  color: var(--selected-ink-faint);
+/* The canvases' sidebar says a place's name and its count, nothing beside them: the hint ("Live brief") is Classic's. */
+:where([data-look="glass"]) .nav-hint {
+  display: none;
 }
 /* The workspace's mark and the member's face are insets of the sidebar's glass, in ink. */
 :where([data-look="glass"]) .sb-team-mark,
@@ -3270,6 +3269,25 @@ html.legacy-on .msg-use-link { position: relative; }
   border-color: var(--surface-inset-edge);
   border-radius: var(--radius-full);
   background: var(--surface-inset-fill);
+}
+/* The canvases' top bar is Ask and the bell: the theme is chosen in the account menu, under the member's name. */
+:where([data-look="glass"]) .topbar .tb-theme {
+  display: none;
+}
+/* Unread on the bell is the canvases' dot, coral, at the icon's shoulder; the count stays in the label a reader hears. */
+:where([data-look="glass"]) .topbar .tb-bell-badge {
+  top: 9px;
+  right: 10px;
+  width: 7px;
+  height: 7px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  box-shadow: none;
+  color: transparent;
+  overflow: hidden;
 }
 
 /* The live call is the island (liquid.py live_pill): always dark, as the hardware it borrows from, so it sets its own
@@ -3413,8 +3431,13 @@ html.legacy-on .msg-use-link { position: relative; }
   font-size: var(--text-lg);
   line-height: 1;
 }
-/* A phone: the head alone over the page (the canvases' phone boards), the row of views under it as the phone's strip. */
+/* A phone: the head alone over the page (the canvases' phone boards), the row of views under it as the phone's strip.
+   The phone boards name the page and say nothing beside it: the standing sentence is a desk's, and the rows under the
+   head carry what it said. */
 @media (max-width: 900px) {
+  :where([data-look="glass"]) .pg-head .pg-sentence {
+    display: none;
+  }
   :where([data-look="glass"]) .pg-slot {
     grid-template-columns: minmax(0, 1fr);
     padding-bottom: 10px;
@@ -3495,6 +3518,79 @@ html.legacy-on .msg-use-link { position: relative; }
 }
 :where([data-look="glass"]) .pb-row-open {
   padding-inline: calc(var(--space-3) + var(--space-2));
+}
+
+/* One pane for the page (canvas C1): the table of the playbooks running, the moments not set up under their own head
+   with a hairline over it, and the always-on rules as the pane's foot. The two lists inside lose the pane each was. */
+:where([data-look="glass"]) .pb-glass {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+:where([data-look="glass"]) .pb-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .pb-glass :is(.pb-list, .pb-more-list) {
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+:where([data-look="glass"]) .pb-glass :is(.pb-list, .pb-more-list)::after {
+  content: none;
+}
+:where([data-look="glass"]) .pb-glass > .pb-more {
+  gap: 0;
+}
+:where([data-look="glass"]) .pb-glass .pb-more-head {
+  padding: var(--space-4) calc(var(--space-2) + var(--space-3)) var(--space-1);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+:where([data-look="glass"]) .pb-glass > .pb-more:first-child .pb-more-head {
+  border-top: 0;
+}
+:where([data-look="glass"]) .pb-glass > .pb-rules {
+  padding: var(--space-3) calc(var(--space-2) + var(--space-3)) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+/* The press on a moment is a word with its chevron, as the canvas draws it, not a capsule. */
+:where([data-look="glass"]) .pb-slot > .pb-slot-start {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+:where([data-look="glass"]) .pb-slot > .pb-slot-start:hover {
+  background: transparent;
+  color: var(--ink-muted);
+}
+:where([data-look="glass"]) .pb-slot > .pb-slot-start > svg {
+  display: none;
+}
+:where([data-look="glass"]) .pb-slot > .pb-slot-start::before {
+  content: "›";
+  order: 1;
+  font-size: var(--text-lg);
+  line-height: 1;
+  color: var(--ink-dim);
 }
 
 /* The moments not set up: rows of a pane, the name and what it does at the left, the press at the right. */

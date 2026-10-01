@@ -4,7 +4,11 @@
  * list being shown is the bar's (PeoplePhoneBar); the line keeps the counts. Under Leads the line is leadsStanding's
  * (contracts leads.ts): "322 leads · 272 ready · 3 searches", and "1 search needs you" is the tap that opens the search
  * waiting on an answer.
+ *
+ * In Glass the frame's head says the line beside the page's name (kit/head/standing.ts), as People's and the Pipeline's
+ * are said (page/people-head.tsx); the line under the controls stays for Classic (clients.css hides it in Glass).
  */
+import { useStanding } from "../../kit/head/standing";
 
 /** Leads' standing line, as contracts' `leadsStanding` says it. */
 interface LeadsStanding {
@@ -24,8 +28,34 @@ type StandingProps =
   | { scope: "leads"; leads: LeadsStanding; onNeeds: (id: string) => void }
   | { scope?: "people" | "pipeline"; agg: StandingAgg; needsShown?: boolean; onNeeds: () => void };
 
-function leadsLine(leads: LeadsStanding, onNeeds: (id: string) => void) {
+/** The search waiting on an answer, as the tap that opens it: in the line, and in the head's sentence. */
+function leadsNeeds(needs: NonNullable<LeadsStanding["needsYou"]>, onNeeds: (id: string) => void) {
+  return (
+    <button
+      type="button"
+      className="pl-standing-needs on"
+      onClick={() => onNeeds(needs.searchId)}
+      data-testid="leads-standing-needs"
+    >
+      {needs.count} {needs.count === 1 ? "search needs" : "searches need"} you
+    </button>
+  );
+}
+
+/** Leads' line: drawn under the controls, and said to the frame's head as "People · 96 leads · 91 ready · 6 searches · 1 search needs you". */
+function LeadsStandingLine({ leads, onNeeds }: { leads: LeadsStanding; onNeeds: (id: string) => void }) {
   const needs = leads.needsYou;
+  // The page is People's Leads scope, picked in the page's own strip, so it keeps People's name and has no way back (D1).
+  useStanding({
+    title: "People",
+    sentence: (
+      <>
+        {[leads.total, ...leads.parts].filter((p) => p !== "").join(" · ")}
+        {needs && <> · {leadsNeeds(needs, onNeeds)}</>}
+      </>
+    ),
+    back: null,
+  });
   return (
     <div className="pl-standing" data-testid="leads-standing">
       <span className="pl-standing-total">{leads.total}</span>
@@ -42,14 +72,7 @@ function leadsLine(leads: LeadsStanding, onNeeds: (id: string) => void) {
           <span className="pl-standing-dot" aria-hidden="true">
             ·
           </span>
-          <button
-            type="button"
-            className="pl-standing-needs on"
-            onClick={() => onNeeds(needs.searchId)}
-            data-testid="leads-standing-needs"
-          >
-            {needs.count} {needs.count === 1 ? "search needs" : "searches need"} you
-          </button>
+          {leadsNeeds(needs, onNeeds)}
         </span>
       )}
     </div>
@@ -57,7 +80,7 @@ function leadsLine(leads: LeadsStanding, onNeeds: (id: string) => void) {
 }
 
 export function PeopleStanding(props: StandingProps) {
-  if (props.scope === "leads") return leadsLine(props.leads, props.onNeeds);
+  if (props.scope === "leads") return <LeadsStandingLine leads={props.leads} onNeeds={props.onNeeds} />;
   const { agg, needsShown = false, onNeeds } = props;
   return (
     <div className="pl-standing" data-testid="people-standing">

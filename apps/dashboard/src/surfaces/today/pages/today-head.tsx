@@ -28,14 +28,22 @@ export function todayStanding(standing: { headline: string; detail: string | nul
   return [headline, standing.detail].filter(Boolean).join(" ");
 }
 
-/** Today's standing, said to the frame's head as the page draws: the greeting over the day's sentence. */
+/** A phone's head is the page's name alone (the canvas's phone board); the greeting and the sentence are a desk's. */
+const todayOnPhone = (): boolean =>
+  typeof window !== "undefined" && !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+
+/** Today's standing, said to the frame's head as the page draws: the greeting over the day's sentence; "Today" on a phone. */
 export function useTodayStanding(): void {
   const vm = useSurface("today");
   const standing = vm?.standing;
   const zone = workspaceClock()?.zone() ?? "UTC";
-  useStanding({
-    stacked: true,
-    title: todayGreeting(Date.now(), zone, member()?.display_name),
-    sentence: standing ? todayStanding(standing) : undefined,
-  });
+  useStanding(
+    todayOnPhone()
+      ? { title: "Today" }
+      : {
+          stacked: true,
+          title: todayGreeting(Date.now(), zone, member()?.display_name),
+          sentence: standing ? todayStanding(standing) : undefined,
+        },
+  );
 }

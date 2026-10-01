@@ -20,6 +20,7 @@ import { PeopleScopeTabs } from "../rail/scope-tabs";
 import { PeopleStanding } from "../rail/standing";
 import { PeopleAddSheet, PeopleListActSheet } from "../sheets/list-sheets";
 import { AddPersonButton } from "../sheets/add-person";
+import { lookNow } from "../../kit/look/look";
 import { PeopleColumnsMenu } from "../table/columns-menu";
 import { PeopleTable } from "../table/table";
 import type { TableEmpty } from "../types";
@@ -546,6 +547,9 @@ export function peopleScreen(s: PeopleState) {
     importOpen,
     setImportOpen,
     toastNode,
+    agg,
+    setListId,
+    setSavedId,
   } = s;
   const phoneMenu: MoreMenuItem[] = peoplePhoneMenu(s);
   return (
@@ -554,6 +558,20 @@ export function peopleScreen(s: PeopleState) {
       {!phone && <PeopleScopeTabs scope="people" onScope={(to) => nav(plScopeRoute(to))} dealsOn={dealsOn} />}
       <PeopleRail
         scope="people"
+        // In Glass the rail opens with everyone, the way the canvas draws it (P1); Classic's way back to everyone on a
+        // desk is Show everyone on the list's title line, and its rail says nothing of it.
+        everyone={
+          lookNow() === "glass"
+            ? {
+                count: agg.total,
+                active: !listId && !savedId,
+                onPick: () => {
+                  setListId(null);
+                  setSavedId(null);
+                },
+              }
+            : null
+        }
         lists={lists}
         groups={people.groups || PL_DEFAULT_GROUPS}
         active={listId}

@@ -15,7 +15,7 @@
  * the one colour per theme from contracts, and theme-boot.test.mjs runs the two
  * against each other so they cannot drift apart.
  */
-import { THEME_COLOR_META, themeColorOf, type Theme } from "@chanlytics/contracts";
+import { DEFAULT_LOOK_PREF, THEME_COLOR_META, themeColorOf, type Theme } from "@chanlytics/contracts";
 
 /**
  * Every meta the bars could be read from, or one new one when the head has none.
@@ -32,8 +32,8 @@ function themeColorMetas(doc: Document): Element[] {
   return [made];
 }
 
-/** Paint the browser's bars in this theme's paper, in the look the page wears. */
-export function paintThemeColor(doc: Document, theme: Theme, look: string = "classic"): void {
+/** Paint the browser's bars in this theme's paper, in the look the page wears (the default where none is said). */
+export function paintThemeColor(doc: Document, theme: Theme, look: string = DEFAULT_LOOK_PREF): void {
   try {
     const color = themeColorOf(theme, look);
     for (const meta of themeColorMetas(doc)) meta.setAttribute("content", color);

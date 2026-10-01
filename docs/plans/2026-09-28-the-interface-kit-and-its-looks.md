@@ -776,7 +776,9 @@ surface. Classic stays as it was. _Proof:_ shots against the canvas.
 
 **5.5 Offered.** The account menu shows Look: Classic or Glass. Ruben walks production.
 
-**5.6 The default.** `DEFAULT_LOOK_PREF` becomes glass; a member's own choice stands.
+**5.6 The default.** `DEFAULT_LOOK_PREF` becomes glass; a member's own choice stands. Done 1 October 2026, with the
+canvases' type: Glass reads Mona Sans (`tokens.css`, the look's `--font-sans`; the faces in `app/globals.css` over
+`public/fonts`), Classic keeps Geist.
 
 **5.7 Classic retired,** a release cycle later (decision 6): its role values and any rule only it reads are deleted,
 and `data-look` stays as the setting for the next look.

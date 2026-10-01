@@ -40,9 +40,11 @@ const ZONE_ASK_MS = 250;
 /**
  * "Friday, October 2 · 4:02 PM" in the business's zone, in the top bar's row. The zone is the workspace's, known once
  * its read lands (legacy-bridge/zone.ts); before that the head says the time in UTC and asks again until it is known,
- * so a page that opens before the read never keeps the wrong hour.
+ * so a page that opens before the read never keeps the wrong hour. A page that draws its own head (a person's hero,
+ * canvas P3) and says a way back puts that way back here, where the date would stand.
  */
 function PageDateline() {
+  const said = useStandingSaid();
   const now = useMinute();
   const [zone, setZone] = useState<string | null>(() => knownZone());
   useEffect(() => {
@@ -53,6 +55,17 @@ function PageDateline() {
     }, ZONE_ASK_MS);
     return () => clearInterval(ask);
   }, [zone]);
+  if (said?.title === null && said.back) {
+    const { label, go } = said.back;
+    return (
+      <button type="button" className="pg-back" onClick={go}>
+        <span className="pg-back-glyph" aria-hidden="true">
+          ‹
+        </span>
+        {label}
+      </button>
+    );
+  }
   return <p className="pg-dateline">{pageDateline(now, zone ?? "UTC")}</p>;
 }
 

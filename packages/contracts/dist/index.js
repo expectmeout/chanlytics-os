@@ -15151,18 +15151,22 @@ var LOOK_OPTIONS = [
   { id: "glass", label: "Glass" }
 ];
 var isLookPref = (v) => v === "classic" || v === "glass";
-var DEFAULT_LOOK_PREF = "classic";
+var DEFAULT_LOOK_PREF = "glass";
 var lookPrefOf = (stored) => isLookPref(stored) ? stored : DEFAULT_LOOK_PREF;
 var LOOK_OFFERED = true;
 var DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
-var THEME_COLORS = { light: "#fbfaf8", dark: "#0c0d0f" };
 var LOOK_THEME_COLORS = {
-  classic: THEME_COLORS,
+  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
   glass: { light: "#f1f2f6", dark: "#0f1014" }
 };
-var THEME_INK = { light: "#161616", dark: "#fbfaf8" };
-function themeColorOf(theme, look = "classic") {
-  return LOOK_THEME_COLORS[look === "glass" ? "glass" : "classic"][theme === "light" ? "light" : "dark"];
+var THEME_COLORS = LOOK_THEME_COLORS[DEFAULT_LOOK_PREF];
+var LOOK_THEME_INK = {
+  classic: { light: "#161616", dark: "#fbfaf8" },
+  glass: { light: "#1b1c20", dark: "#f4f4f6" }
+};
+var THEME_INK = LOOK_THEME_INK[DEFAULT_LOOK_PREF];
+function themeColorOf(theme, look = DEFAULT_LOOK_PREF) {
+  return LOOK_THEME_COLORS[lookPrefOf(look)][theme === "light" ? "light" : "dark"];
 }
 var THEME_COLOR_META = 'meta[name="theme-color"]';
 function themeBootScript() {

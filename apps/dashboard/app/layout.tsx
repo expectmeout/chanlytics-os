@@ -19,6 +19,11 @@ import "./globals.css";
  * network now. Each weight range is the set of weights that was loaded before, so a heavier request still renders
  * as it did. The CSS variables are what the legacy design system consumes (tokens.css --font-sans/--font-mono), so
  * the literal family name "Geist" never has to resolve for the UI to look right.
+ *
+ * Glass's type is Mona Sans, the canvases' (tokens.css, the look's --font-sans): three @font-face rules in globals.css
+ * over public/fonts, in the subsets Google Fonts splits it into, so a name in Vietnamese or Polish takes its own glyphs
+ * rather than Geist's. next/font/local takes one file per face and no unicode-range, so those are written by hand; the
+ * latin file is preloaded below, since Glass is the default look (contracts DEFAULT_LOOK_PREF).
  */
 const geist = localFont({
   src: "./fonts/Geist-Variable.woff2",
@@ -76,6 +81,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${geist.variable} ${geistMono.variable}`}
     >
       <head>
+        <link rel="preload" href="/fonts/MonaSans-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
         {/* Inside the native shell (a User-Agent token, contracts inAppBootScript): html.in-app and window.__IN_APP, before paint. */}
         <script dangerouslySetInnerHTML={{ __html: inAppBootScript() }} />

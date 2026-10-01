@@ -73,7 +73,7 @@ test("the Pipeline's head is the line over its table: every part it draws, in it
   setSurfaceValue("people", undefined);
 });
 
-test("a person's page is its own head: a null title and no way back, so the frame draws only the date", () => {
+test("a person's page is its own head: a null title, and its way back to People where the frame draws the date", () => {
   setSurfaceValue("people", peopleSample(NOW));
   forgetStanding();
   fresh();
@@ -81,7 +81,10 @@ test("a person's page is its own head: a null title and no way back, so the fram
   const said = standingSaid();
   assert.ok(said, "a standing is said");
   assert.equal(said.title, null, "no name: the hero names them");
-  assert.equal(said.back, null, "and no way back above it");
+  // The frame puts a null-titled page's way back in the top bar's row (kit/head/frame-head.tsx PageDateline), as canvas
+  // P3 draws "‹ People" where the date stands; the move is the person page's own (person-verbs backToPeople).
+  assert.equal(said.back?.label, "People", "the way back is People's");
+  assert.equal(typeof said.back?.go, "function", "and it is the page's own move");
   setSurfaceValue("people", undefined);
 });
 

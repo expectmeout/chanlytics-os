@@ -10,6 +10,7 @@ import { useMinute } from "../../kit/head/dateline";
 import { useStanding } from "../../kit/head/standing";
 import { demoSession } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
+import { backToPeople } from "../person-verbs";
 import { P } from "../pipeline/pipe";
 import { peopleSample } from "../sample";
 import type { PeopleSurface } from "../surface";
@@ -39,7 +40,8 @@ type PeopleScope = "people" | "pipeline" | "person";
 
 /**
  * People's or the Pipeline's standing, said to the frame's head as the page draws. A person's page draws its own head, the
- * hero (canvas P3), so it says a null title: the frame draws no name and no way back for it, only the date.
+ * hero (canvas P3), so it says a null title: the frame draws no name for it, and its way back to People stands where the
+ * date does, in the top bar's row, as the canvas draws it (person-verbs backToPeople: the view it was opened from).
  */
 export function usePeopleStanding(scope: PeopleScope): void {
   const people: PeopleSurface | undefined = useSurface("people") ?? (demoSession() ? peopleSample() : undefined);
@@ -53,7 +55,7 @@ export function usePeopleStanding(scope: PeopleScope): void {
   // A scope is picked in the page's own strip (People | Leads | Pipeline), so neither has a way back above its name (D1).
   useStanding(
     scope === "person"
-      ? { title: null, back: null }
+      ? { title: null, back: { label: "People", go: backToPeople } }
       : { title: scope === "pipeline" ? "Pipeline" : "People", sentence, back: null },
   );
 }

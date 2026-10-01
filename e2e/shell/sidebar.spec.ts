@@ -3,7 +3,7 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 
 /**
  * The sidebar's chrome on a real workspace: the account menu with who you
- * are and the theme (and no look yet), the workspace menu, the rail on ⌘B
+ * are, the theme and the look, the workspace menu, the rail on ⌘B
  * that survives a reload, the shortcuts sheet on "?", and no floating pill
  * anywhere. The device's preferences are put back afterwards.
  */
@@ -33,14 +33,15 @@ test.describe("sidebar on a real workspace", () => {
       await expect(page.locator(".app-root")).toHaveAttribute("data-theme", "light");
       await me.getByTestId("sb-theme-dark").click();
       await expect(page.locator(".app-root")).toHaveAttribute("data-theme", "dark");
-      // The look travels as the theme does: Classic on a device that has chosen none, on the document and on the
-      // shell's root alike. The menu offers the Look under the theme (contracts LOOK_OFFERED, the interface kit's step
-      // 5.5): Classic checked, Glass there to press; nothing is pressed here, so this device keeps the default.
-      await expect(page.locator("html")).toHaveAttribute("data-look", "classic");
-      await expect(page.locator(".app-root")).toHaveAttribute("data-look", "classic");
+      // The look travels as the theme does: Glass, the default (contracts DEFAULT_LOOK_PREF, the interface kit's step
+      // 5.6), on a device that has chosen none, on the document and on the shell's root alike. The menu offers the Look
+      // under the theme (LOOK_OFFERED, step 5.5): Glass checked, Classic there to press; nothing is pressed here, so this
+      // device keeps the default.
+      await expect(page.locator("html")).toHaveAttribute("data-look", "glass");
+      await expect(page.locator(".app-root")).toHaveAttribute("data-look", "glass");
       await expect(me.getByRole("radiogroup", { name: "Look" })).toHaveCount(1);
-      await expect(me.getByTestId("sb-look-classic")).toHaveAttribute("aria-checked", "true");
-      await expect(me.getByTestId("sb-look-glass")).toBeVisible();
+      await expect(me.getByTestId("sb-look-glass")).toHaveAttribute("aria-checked", "true");
+      await expect(me.getByTestId("sb-look-classic")).toBeVisible();
       await page.keyboard.press("Escape");
       await expect(me).toHaveCount(0);
 

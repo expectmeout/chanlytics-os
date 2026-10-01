@@ -6,6 +6,7 @@
  */
 import type { TodayVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
+import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
 import { appNavigate, askAbout, useMoved, workspaceClock } from "../shell";
 import { recapBeats } from "./card";
@@ -25,11 +26,17 @@ export const TodayBriefPane = () => {
   const asOf = clock ? clock.time(Date.now()) : null;
   return (
     <section className="tsec tb" data-testid="today-brief" aria-labelledby="today-brief-title">
+      {/* The canvas's head: the three before the name, and the hour under it. */}
       <div className="tsec-head">
-        <span className="tsec-title" id="today-brief-title">
-          Your brief
+        <span className="tb-three" aria-hidden="true">
+          <Icon name="three" size={40} />
         </span>
-        {asOf && <span className="tb-eyebrow tabular">As of {asOf}</span>}
+        <span className="tb-words">
+          <span className="tsec-title" id="today-brief-title">
+            Your brief
+          </span>
+          {asOf && <span className="tb-eyebrow tabular">As of {asOf}</span>}
+        </span>
       </div>
       <div className="tb-body">
         <p className="tb-line" data-testid="today-brief-line">

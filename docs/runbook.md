@@ -409,9 +409,9 @@ machine, in one sitting; a new browser is a different recording, and `compare` s
 ### Add a look
 
 A look is a set of token values (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`, §3.1 and §3.2). Classic,
-what members see, is the roles block of `apps/dashboard/src/legacy/styles/tokens.css` itself. Glass, the canvases'
-finish, is drawn, and not yet offered: steps 1 to 4 below were its 5.1 to 5.3 in the plan, and steps 5 and 6 will be
-its 5.5 and 5.6. A third look also adds its name to `LookPref`, `LOOK_OPTIONS` and `isLookPref` in
+the app as it was drawn before, is the roles block of `apps/dashboard/src/legacy/styles/tokens.css` itself. Glass, the
+canvases' finish, is what members see since 1 October 2026: steps 1 to 4 below were its 5.1 to 5.3 in the plan, and
+steps 5 and 6 its 5.5 and 5.6. A third look also adds its name to `LookPref`, `LOOK_OPTIONS` and `isLookPref` in
 `packages/contracts/src/shell/chrome.ts` (the head's script reads the list), to the list's pins in
 `tooling/scripts/tests/shell/chrome.test.mjs`, to the gallery's `?look=` and `l` key
 (`tooling/scripts/e2e-harness/kit-gallery.mjs`), and to the looks `e2e/kit/kit.spec.ts` runs.
@@ -450,12 +450,16 @@ its 5.5 and 5.6. A third look also adds its name to `LookPref`, `LOOK_OPTIONS` a
 
 5. **Offered.** `LOOK_OFFERED` in `chrome.ts` is true (30 September 2026, once Glass was drawn on every canvas), and
    the account menu draws Look under Theme. The flag's pins hold it (`chrome.test.mjs`, and `e2e/shell/sidebar.spec.ts`,
-   which expects the Look offered and Classic checked), and the packages' `dist` is rebuilt and committed with a
+   which expects the Look offered and the default checked), and the packages' `dist` is rebuilt and committed with a
    change to it. Ruben walks it on production.
-6. **The default.** `DEFAULT_LOOK_PREF` becomes the look: every device that never chose one draws it from its next
-   load, since a device keeps a look only once it is chosen (`apps/dashboard/src/legacy-bridge/device-prefs.ts`), and
-   a member who chose Classic keeps it. `chrome.test.mjs` and `tooling/scripts/tests/shell/theme-boot.test.mjs` pin
-   the default, and `apps/dashboard/app/layout.tsx` stamps it on the document the server sends.
+6. **The default.** `DEFAULT_LOOK_PREF` becomes the look (Glass, 1 October 2026): every device that never chose one
+   draws it from its next load, since a device keeps a look only once it is chosen
+   (`apps/dashboard/src/legacy-bridge/device-prefs.ts`), and a member who chose the other keeps it. `chrome.test.mjs`
+   and `tooling/scripts/tests/shell/theme-boot.test.mjs` pin the default, `apps/dashboard/app/layout.tsx` stamps it on
+   the document the server sends, and the browser's bars, the manifest and the native shell's own screens take its
+   paper (`THEME_COLORS`, the default look's). A look with type of its own names its faces in `app/globals.css` over
+   `public/fonts` and in the mockup's Google Fonts link (`Chanlytics.html`), and sets `--font-sans` in its block, as
+   Glass names Mona Sans.
 
 ## What CI proves
 
