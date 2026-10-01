@@ -153,6 +153,8 @@ const sbMarkOf = (n) => {
   return ((w[0]?.[0] ?? "") + (w[1]?.[0] ?? "")).toUpperCase() || "—";
 };
 const sbWorkspaceMark = () => sbMarkOf(sbWorkspaceName());
+/** The workspace's mark: in Glass the three, as every canvas's sidebar draws it (E3); in Classic the initials. */
+const sbTeamMark = (look) => (look === "glass" ? <Icon name="three" size={20} /> : sbWorkspaceMark());
 // The person, in the words contracts/identity.ts gives: the name they gave,
 // else "Your account" — never a name invented from the email. The demo keeps
 // its persona; signed in with no identity yet, we say so.
@@ -328,12 +330,12 @@ const UserMenu = ({ who, themePref, onTheme, look, onLook, onNavigate, close, fl
 
 /**
  * The workspace's second line. Glass says the lines, as every canvas's sidebar does ("3 lines on"), in Today's own words
- * (contracts `standing.lines`, TODAY_DATA), and the role where Today has not landed; Classic says the role, and how many
- * workspaces where there are more.
+ * (contracts `standing.lines.short`, TODAY_DATA; the sentence wrapped under the name), and the role where Today has not
+ * landed; Classic says the role, and how many workspaces where there are more.
  */
 const sbTeamSub = (look, who, workspaceCount) => {
   if (window.__DEMO_MODE) return <div className="sb-team-plan">Professional</div>;
-  const lines = look === "glass" ? window.TODAY_DATA?.standing?.lines?.text : null;
+  const lines = look === "glass" ? window.TODAY_DATA?.standing?.lines?.short : null;
   if (lines) return <div className="sb-team-plan">{lines}</div>;
   if (!who.role) return null;
   return <div className="sb-team-plan">{who.role}{workspaceCount > 1 ? ` · ${workspaceCount} workspaces` : ""}</div>;
@@ -453,7 +455,7 @@ const Sidebar = ({
         data-tip-side="right"
         data-testid="sb-workspace"
       >
-        <div className="sb-team-mark">{sbWorkspaceMark()}</div>
+        <div className="sb-team-mark">{sbTeamMark(look)}</div>
         <div className="sb-team-body">
           <div className="sb-team-name">{sbWorkspaceName()}</div>
           {sbTeamSub(look, who, workspaceCount)}

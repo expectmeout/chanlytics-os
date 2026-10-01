@@ -2944,6 +2944,26 @@ a.list-row {
     display: none;
   }
 }
+/* The head as canvas E3 sets it (the review of 1 October 2026): the date a touch wider in its tracking, the name tight
+   in its tracking and its leading, eight pixels between the date's row and the name; and on a phone (the kit's one
+   breakpoint) the name alone at the boards' 30px, semibold. */
+.pg-head {
+  gap: 8px;
+}
+.pg-dateline {
+  letter-spacing: 0.06em;
+}
+.pg-title {
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+@media (max-width: 900px) {
+  .pg-title {
+    font-size: var(--text-3xl);
+    font-weight: var(--weight-semibold);
+    letter-spacing: -0.03em;
+  }
+}
 
 /* ---------- The badge rules in Glass ----------
    The canvases (the plan's Appendix B): counts are neutral text (the tally), amber is the one warning, coral the primary

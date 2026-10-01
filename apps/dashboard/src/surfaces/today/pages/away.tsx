@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import type { BellApi, BellRow } from "@/legacy-bridge/notifications";
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import { Icon } from "../../kit/icon/icon";
+import { useLook } from "../../kit/look/look";
 import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, bell, borrowed, holdStill } from "../shell";
@@ -39,6 +40,8 @@ export const TodayAway = () => {
     refresh();
     return api.onChange(refresh);
   }, [api]);
+  // E3's rows carry no dismiss of their own: a group is read when it is opened, and Mark all read clears the rest.
+  const glass = useLook() === "glass";
   if (!api) return null;
   const T = surfaceValue("today");
   // What each queue row is about: its thread, its call, or both (contracts AwayQueueRef), a waiting search by its
@@ -96,14 +99,16 @@ export const TodayAway = () => {
                   </span>
                   <span className="ta-msg">{g.count > 1 ? `newest: ${n.title}` : n.message}</span>
                 </button>
-                <button
-                  className="ta-x"
-                  onClick={(e) => holdStill(e && e.currentTarget, () => drop(g))}
-                  title={g.count > 1 ? `Dismiss all ${g.count}` : "Dismiss"}
-                  aria-label={g.count > 1 ? `Dismiss all ${g.count}` : "Dismiss"}
-                >
-                  <Icon name="x" size={12} />
-                </button>
+                {!glass && (
+                  <button
+                    className="ta-x"
+                    onClick={(e) => holdStill(e && e.currentTarget, () => drop(g))}
+                    title={g.count > 1 ? `Dismiss all ${g.count}` : "Dismiss"}
+                    aria-label={g.count > 1 ? `Dismiss all ${g.count}` : "Dismiss"}
+                  >
+                    <Icon name="x" size={12} />
+                  </button>
+                )}
               </div>
             );
           })}

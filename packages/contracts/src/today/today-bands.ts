@@ -45,13 +45,21 @@ export function todayStanding(f: TodayFacts): Pick<TodayVM["standing"], "chips" 
   const down = wires.filter((w) => !w.on);
   const on = wires.filter((w) => w.on);
   const up = on.length;
+  const noun = wires.length === 1 ? "line" : "lines";
   const lines = {
     text:
       metrics.linesRead === false
         ? "the email line could not be counted"
         : wires.length
-          ? `${up} of ${wires.length} ${wires.length === 1 ? "line" : "lines"} connected`
+          ? `${up} of ${wires.length} ${noun} connected`
           : "no lines connected yet",
+    // The same count in the sidebar's two words (the canvases' "3 lines on"), where the sentence would wrap.
+    short:
+      metrics.linesRead === false
+        ? "lines uncounted"
+        : wires.length
+          ? `${up} of ${wires.length} ${noun} on`
+          : "no lines yet",
     down: down.length > 0,
   };
   const alert =

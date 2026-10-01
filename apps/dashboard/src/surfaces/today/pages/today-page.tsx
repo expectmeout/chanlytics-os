@@ -52,6 +52,8 @@ const Classic = () => (
   </div>
 );
 
+// Canvas E3's bento: the strip, the queue's column beside the brief and the bell, the day's card beside Worth a look.
+// No day pane: E3 folds the day into the strip's Next cell (Ruben, 1 October 2026); the Calendar has the rest.
 const GlassPage = () => (
   <div className="dash-a-v2 dash-a-v2-glass">
     <HeroBrief />
@@ -63,7 +65,6 @@ const GlassPage = () => (
     <div className="dash-a-v2-side">
       <TodayBriefPane />
       <TodayAway />
-      <TodayDay />
     </div>
     <div className="dash-a-v2-bottom">
       <TodayCard beats={false} />

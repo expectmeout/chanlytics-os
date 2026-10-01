@@ -524,7 +524,7 @@ test("the count above the work sees every wire, and calls each one what the owne
     [],
     NOW,
   );
-  assert.deepEqual(all.standing.lines, { text: "3 of 3 lines connected", down: false });
+  assert.deepEqual(all.standing.lines, { text: "3 of 3 lines connected", short: "3 of 3 lines on", down: false });
   assert.deepEqual(
     all.standing.chips.map((c) => c.text),
     ["WhatsApp connected", "Texting connected", "Email connected"],
@@ -555,13 +555,13 @@ test("the count above the work sees every wire, and calls each one what the owne
     [],
     NOW,
   );
-  assert.deepEqual(smsOff.standing.lines, { text: "2 of 3 lines connected", down: true });
+  assert.deepEqual(smsOff.standing.lines, { text: "2 of 3 lines connected", short: "2 of 3 lines on", down: true });
   assert.equal(smsOff.standing.alert, "Texting is disconnected — messages coming in are not being answered.");
   assert.equal(smsOff.queue.empty.testid, "today-queue-empty-down");
 
   // REGRESSION: "2 of 2 lines connected" on a workspace whose only line is email.
   const only = toTodayVM(metrics({ channels: [EMAIL] }), [], [], [], NOW);
-  assert.deepEqual(only.standing.lines, { text: "1 of 1 line connected", down: false });
+  assert.deepEqual(only.standing.lines, { text: "1 of 1 line connected", short: "1 of 1 line on", down: false });
   assert.equal(only.quiet.sub, "Email is connected. No messages have arrived yet.");
   assert.ok(only.quiet.proof.some((p) => p.label === "Email" && p.value === "bestmovers@mail.chanlytics.com · on"));
   // and it is not congratulated: the receptionist does not answer email.
@@ -574,12 +574,16 @@ test("the count above the work sees every wire, and calls each one what the owne
   );
 
   const none = toTodayVM(metrics({ channels: [] }), [], [], [], NOW);
-  assert.deepEqual(none.standing.lines, { text: "no lines connected yet", down: false });
+  assert.deepEqual(none.standing.lines, { text: "no lines connected yet", short: "no lines yet", down: false });
   assert.equal(none.queue.empty.testid, "today-queue-empty-unconnected");
 
   // A mailbox that could not be read is a line that could not be counted: its own state, never a shorter count.
   const short = toTodayVM({ ...metrics(), linesRead: false }, [], [], [], NOW);
-  assert.deepEqual(short.standing.lines, { text: "the email line could not be counted", down: false });
+  assert.deepEqual(short.standing.lines, {
+    text: "the email line could not be counted",
+    short: "lines uncounted",
+    down: false,
+  });
   assert.deepEqual(
     short.standing.chips.map((c) => c.text),
     ["WhatsApp connected", "Phone line connected"],

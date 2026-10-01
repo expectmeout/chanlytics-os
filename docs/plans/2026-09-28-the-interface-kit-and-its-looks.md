@@ -778,7 +778,14 @@ surface. Classic stays as it was. _Proof:_ shots against the canvas.
 
 **5.6 The default.** `DEFAULT_LOOK_PREF` becomes glass; a member's own choice stands. Done 1 October 2026, with the
 canvases' type: Glass reads Mona Sans (`tokens.css`, the look's `--font-sans`; the faces in `app/globals.css` over
-`public/fonts`), Classic keeps Geist.
+`public/fonts`), Classic keeps Geist. Reviewed the same day against E3 rendered in Mona, every computed style side by
+side (Ruben: remap the scale, fix everything, drop what E3 has not): the look's type scale is the canvases' (`tokens.css`,
+the Glass block: 15.5 body, 17 titles, 30 phone title, 34 figures; the small and base steps stay), and Today took E3
+whole: the queue stretched beside the brief and the bell with its foot always drawn and one verb a row; the brief's
+Listen (the device's own voice, Web Speech) beside Ask a follow-up; the bell's rows without a dismiss; the day's card
+with its door in the head; Worth a look's neutral tag; the strip on the control layer's glass with E3's live cell; no
+day pane (the strip's Next cell says the day; the Calendar has the rest); the setup card compact; the sidebar at 232
+with the three as the workspace's mark; the top bar's capsules at 40, and no key drawn anywhere but the ? sheet.
 
 **5.7 Classic retired,** a release cycle later (decision 6): its role values and any rule only it reads are deleted,
 and `data-look` stays as the setting for the next look.

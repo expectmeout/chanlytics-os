@@ -16,6 +16,7 @@ import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface"
 import type { PageClock } from "@/legacy-bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
+import { useLook } from "../../kit/look/look";
 import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
 import {
@@ -305,6 +306,8 @@ export const TodayCard = ({ beats = true }: { beats?: boolean } = {}) => {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
+  // In Glass the door to Reports stands in the head as words with its arrow (E3); in Classic it is the foot's button.
+  const glass = useLook() === "glass";
   const vm = surfaceValue("today");
   if (!vm) return null;
   const { recap, quiet, figures } = vm;
@@ -327,6 +330,11 @@ export const TodayCard = ({ beats = true }: { beats?: boolean } = {}) => {
             {quiet ? quiet.headline : recap ? recap.line : "Nothing has come in yet today."} {vm.proof}
           </span>
         )}
+        {glass && period && (
+          <Button variant="quiet" size="sm" aria-label="Open Reports" onClick={() => nav(period.to)}>
+            Reports <Icon name={doorGlyph()} size={11} />
+          </Button>
+        )}
       </div>
       {figures && figuresRow(figures, { open, setOpen, nav })}
       {beats && recapBeats(vm, nav)}
@@ -337,9 +345,11 @@ export const TodayCard = ({ beats = true }: { beats?: boolean } = {}) => {
               <span className="tc-foot-text" data-testid="today-period">
                 {period.text}
               </span>
-              <Button variant="quiet" size="sm" onClick={() => nav(period.to)}>
-                Open Reports <Icon name={doorGlyph()} size={11} />
-              </Button>
+              {!glass && (
+                <Button variant="quiet" size="sm" onClick={() => nav(period.to)}>
+                  Open Reports <Icon name={doorGlyph()} size={11} />
+                </Button>
+              )}
             </>
           ) : (
             <FailedRead

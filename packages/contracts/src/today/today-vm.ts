@@ -119,8 +119,10 @@ export interface TodayVM {
      * connected yet". `down` is true when one of them is off, the dot beside
      * it. The PAGE counted the chips, so the count could not be told about a
      * wire that is not a tenant_channels row, and email was invisible in it.
+     * `short` is the same count in the sidebar's two words ("2 of 2 lines on"), which Glass draws under the
+     * workspace's name as the canvases do.
      */
-    lines: { text: string; down: boolean };
+    lines: { text: string; short: string; down: boolean };
     alert: string | null;
     /** Ask reads these three; the page draws none of them. */
     headline: string;
