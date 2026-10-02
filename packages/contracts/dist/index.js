@@ -27553,6 +27553,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       windowClosing: null,
       recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
       figures: null,
+      zeroFigures: null,
       proof,
       noReply,
       calls: null,
@@ -27564,6 +27565,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const needsYou = todayNeedsYou(f);
   const { headline, detail, tone } = todayHeadline(f, alert, needsYou.rows);
   const callRows = todayCallRows(f);
+  const figures = figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now);
   return {
     standing: { eyebrow, chips, lines, alert, headline, detail, tone },
     needsYou,
@@ -27575,7 +27577,9 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       facts,
       receipts: todayReceipts(f)
     },
-    figures: figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now),
+    figures,
+    // Nothing to count while someone waits (the reference workspace's own state): Glass draws the tile's four zeros.
+    zeroFigures: figures ? null : quietFigures(f.live, f.tz, now),
     proof,
     noReply,
     callsRead: f.callsRead,

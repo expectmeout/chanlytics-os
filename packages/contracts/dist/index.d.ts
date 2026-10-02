@@ -19147,6 +19147,12 @@ interface TodayVM {
     } | null;
     /** The day's own figures, in order: customer messages, answered by the receptionist, calls, new people. Null on a day with nothing at all. */
     figures: TodayFigureVM[] | null;
+    /**
+     * The day's four figures as zeros when there was nothing to count while people wait (figuresOf found no traffic), for
+     * a look that draws the tile whole (Glass, canvas E3; card.tsx); null when the figures stand, and on a quiet day, whose
+     * zeros are its own (quiet.figures).
+     */
+    zeroFigures: TodayFigureVM[] | null;
     /** When the last message arrived and how long the answer took. Always said: on a day with traffic it is the messages figure's clause, on a quiet day the card's line. */
     proof: string;
     /** Who is waiting with nothing back, oldest first, for Worth a look to name. */

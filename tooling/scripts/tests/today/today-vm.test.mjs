@@ -100,6 +100,52 @@ test("a quiet morning is proven, not left implied", () => {
   assert.equal(vm.quiet.figures[3].meta, "nobody new yet");
 });
 
+test("nothing counted while someone waits: Glass still draws the day's tile whole, as four zeros", () => {
+  // The reference workspace's own state on 2 October 2026: two conversations needing a person, no message or call in the
+  // day's window. figuresOf has nothing to count, and the card fell back to a sentence beside its name; canvas E3 draws
+  // the four figures always, so the view model carries the zeros for the look that draws them (card.tsx).
+  const m = metrics({
+    now: {
+      escalations_open: 1,
+      oldest_open_escalation_at: "2026-08-27T03:42:00Z",
+      last_inbound_at: "2026-08-20T19:06:00Z",
+    },
+  });
+  const esc = [
+    {
+      id: "e1",
+      conversation_id: "c1",
+      reason: "human_token",
+      details: null,
+      state: "open",
+      created_at: "2026-08-27T03:42:00Z",
+    },
+  ];
+  const vm = toTodayVM(m, [conv()], esc, [], NOW);
+  assert.equal(vm.quiet, null, "someone waits: not a quiet day");
+  assert.equal(vm.figures, null, "nothing to count: Classic's card keeps its line");
+  assert.deepEqual(
+    vm.zeroFigures.map((f) => [f.id, f.value, f.receipt]),
+    [
+      ["messages", 0, null],
+      ["answered", 0, null],
+      ["calls", 0, null],
+      ["new", 0, null],
+    ],
+  );
+  assert.match(vm.zeroFigures[0].meta, /the last/, "the last message's day stands under the zero");
+  // A day with traffic carries its own figures and no zeros.
+  const busy = toTodayVM(
+    metrics({ period: { messages_in: 3, answered_by_ai: 2, conversations_active: 1 } }),
+    [conv({ state: "open" })],
+    [],
+    [],
+    NOW,
+  );
+  assert.ok(busy.figures, "the day's figures stand");
+  assert.equal(busy.zeroFigures, null);
+});
+
 test("a disconnected channel never reads as a calm morning", () => {
   const m = metrics();
   m.channels[0].status = "disabled";

@@ -1104,7 +1104,7 @@ value, since the light look now sets its own. The pane's blur (14px and 1.25, ab
 
 | Surface   | Rows                                                                  | Verdict                                   | Where                                                         |
 | --------- | --------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------- |
-| Today     | E3 · Clear (of E1 to E5)                                              | picked, 28 September ("e3 it is")         | a private artifact; `Downloads/today-liquid-glass.html`       |
+| Today     | E3 · Clear (of E1 to E5)                                              | landed 1 October (#1357); reviewed against production 2 October | a private artifact; `Downloads/today-liquid-glass.html`       |
 | Inbox     | I1 Needs you; I2 A draft on its way                                   | landed 1 October (I1 whole, desk and phone) | `Downloads/inbox-liquid-glass.html`                           |
 | People    | P1 Everyone; P2 A list open; P3 A person                              | landed: P1 and P2 on 1 October (#1361), P3 on 2 October | `Downloads/people-liquid-glass.html`                          |
 | Leads     | L1 The panel beside the table; L2 Three states                        | landed: L1, L-phone-list and the panel boards on 2 October | `Downloads/leads-liquid-glass.html`                           |

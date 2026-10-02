@@ -573,8 +573,8 @@ test.describe("Phone shell on a real workspace", () => {
       });
     const shapes: [string, Awaited<ReturnType<typeof shapeOf>>][] = [];
     for (const [label, hash, strip] of [
-      // The Inbox's strip is drawn over Conversations: on its own list the Glass look draws none on a phone (canvas
-      // I-phone-list, the buckets' capsule stands there; components.css), and a swipe still walks to the tab beside.
+      // The Inbox's strip stands on every view, the list's included (Ruben, 2 Oct 2026); it is read over Conversations,
+      // where the list's buckets do not stand under it.
       ["the Inbox's views", "conversations", page.locator(".stabs.stabs-inbox")],
       ["People", "clients", page.getByTestId("people-phone-scopes")],
       ["Campaigns", "outbound", page.locator(".stabs.stabs-campaigns")],

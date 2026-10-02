@@ -3658,15 +3658,16 @@ html.legacy-on .msg-use-link { position: relative; }
   :where([data-look="glass"]) .pg-slot:has(> nav) > nav > * {
     padding-inline: 10px;
   }
-  /* The Inbox's list draws no row of views on a phone (canvas I-phone-list: the buckets' capsule stands there, and
-     Conversations and Live are the swipe beside it, surface-tabs.jsx stripSwipe); the strip is the slot's second
-     child where it is drawn. */
-  :where([data-look="glass"]) .main:has(> .main-scroll > .inbox) .pg-slot > :nth-child(2):not(.pg-act-slot) {
-    display: none;
+  /* On a phone the strip and the act stand at the boards' 12px from the screen's edges (every phone board draws its
+     row of views at 12 under a head at 16), 4 in from the slot's gutter. */
+  :where([data-look="glass"]) .pg-slot > :nth-child(2):not(.pg-act-slot) {
+    margin-left: -4px;
   }
-  :where([data-look="glass"]) .main:has(> .main-scroll > .inbox) .pg-slot {
-    row-gap: 0;
+  :where([data-look="glass"]) .pg-slot:has(> nav) > .pg-act-slot {
+    margin-right: -4px;
   }
+  /* The Inbox's row of views (Needs you, Conversations, Live) stands on a phone as on a desk (Ruben, 2 Oct 2026: the
+     canvas's swipe between them was not found); the buckets' capsule is the list's own, under it. */
 }
 
 :where([data-look="glass"]) .pb-standing > * > :first-child {
@@ -4171,7 +4172,8 @@ html.legacy-on .msg-use-link { position: relative; }
 }
 
 /* The pools of light move as the canvases' do (their glow drifts over twenty seconds): the app's root carries their
-   centres from the tokens' registered properties, on a desk, and never where less motion is asked. */
+   centres from the tokens' registered properties, on a desk and a phone alike (the phone boards drift too), and never
+   where less motion is asked. */
 @keyframes pg-drift {
   0% {
     --pool-a-x: 23%;
@@ -4190,7 +4192,7 @@ html.legacy-on .msg-use-link { position: relative; }
     --pool-c-y: 86%;
   }
 }
-@media (width > 900px) and (prefers-reduced-motion: no-preference) {
+@media (prefers-reduced-motion: no-preference) {
   :where([data-look="glass"]) .app-root {
     animation: pg-drift 20s ease-in-out infinite alternate;
   }

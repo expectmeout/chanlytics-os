@@ -1443,6 +1443,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 :where([data-look="glass"]) .dash-a-v2-glass > .dash-a-v2-work > .today-queue { flex: 1 1 auto; display: flex; flex-direction: column; }
 :where([data-look="glass"]) .dash-a-v2-glass .today-queue > .tq-foot { margin-top: auto; }
 :where([data-look="glass"]) .dash-a-v2-glass > .dash-a-v2-side { grid-column: span 4; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* The side's last pane reaches the queue's bottom edge (E3's right column fills its row): with one row in the bell the
+   column stopped 160px short and the page showed through. */
+:where([data-look="glass"]) .dash-a-v2-glass > .dash-a-v2-side > :last-child { flex: 1 1 auto; }
 /* The bottom row: the day's card beside Worth a look, halves; one alone takes the row. */
 :where([data-look="glass"]) .dash-a-v2-bottom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
 :where([data-look="glass"]) .dash-a-v2-bottom > :only-child { grid-column: 1 / -1; }
@@ -1591,11 +1594,14 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;
 }
+/* Reviewed against E3 on production, 2 October 2026: the head 18px from the pane's top as every pane's first row is,
+   the foot 18px from its bottom, the face's initials at the base step, 5px between a row's lines, the sentence's leading
+   the canvas's 1.42. */
 :where([data-look="glass"]) .dash-a-v2 .today-queue .tq-head {
   grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 10px;
-  padding: 16px 0 10px;
+  padding: 18px 0 10px;
 }
 :where([data-look="glass"]) .tq-num {
   display: inline-flex;
@@ -1639,17 +1645,18 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   background: var(--face-fill);
   box-shadow: var(--surface-inset-depth);
   color: var(--ink);
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
 :where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts { grid-column: 3; grid-row: 1; justify-self: end; gap: 7px; padding-top: 0; }
 :where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-name { font-size: var(--text-md); font-weight: var(--weight-semibold); }
 :where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-meta { font-size: var(--text-sm); }
-:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-sentence { font-size: var(--text-md); }
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-body { gap: 5px; }
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-sentence { font-size: var(--text-md); line-height: 1.42; }
 :where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-status { font-size: var(--text-sm); font-weight: var(--weight-medium); }
 /* The foot (E3): what the card could not hold in the dim ink, and See all as an inset capsule at the right; it stands
    whatever was cut (queue.tsx says so when nothing was) and sits at the pane's bottom. */
-:where([data-look="glass"]) .dash-a-v2 .tq-foot { padding: 12px 0 14px; font-size: var(--text-sm); color: var(--ink-dim); }
+:where([data-look="glass"]) .dash-a-v2 .tq-foot { padding: 12px 0 18px; font-size: var(--text-sm); color: var(--ink-dim); }
 :where([data-look="glass"]) .dash-a-v2 .tq-foot > button {
   height: 30px;
   padding: 0 13px;
@@ -1716,6 +1723,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* The day's card: the figures in columns with a hairline between them, the numbers at the canvas's size and weight, the
    word under each in the semibold. */
 :where([data-look="glass"]) .dash-a-v2 .tc-head { flex-wrap: nowrap; align-items: center; gap: 10px; padding: 18px 0 10px; }
+/* The card's name never breaks (it stood on two lines beside the quiet day's line); the line gives way instead. */
+:where([data-look="glass"]) .dash-a-v2 .tc-title { flex: none; white-space: nowrap; }
+:where([data-look="glass"]) .dash-a-v2 .tc-line { flex: 1 1 auto; min-width: 0; }
 /* The door to Reports stands in the head as words with its arrow (card.tsx draws it there in Glass), not in the foot. */
 :where([data-look="glass"]) .dash-a-v2 .tc-head > button {
   height: auto;
@@ -1778,6 +1788,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    none in Glass: a group is read when it is opened, and Mark all read clears the rest), no wash under a pointer. */
 :where([data-look="glass"]) .dash-a-v2 .ta-row { grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding: 12px 0; background: transparent; }
 :where([data-look="glass"]) .dash-a-v2 .ta-row:hover { background: transparent; }
+/* A hairline over every row, the first under the head (E3), and the pane's 18px under the last row where no foot follows. */
+:where([data-look="glass"]) .dash-a-v2 .ta-row:first-child { border-top: 1px solid var(--line); }
+:where([data-look="glass"]) .dash-a-v2 .ta > .ta-list:last-child { padding-bottom: 18px; }
 :where([data-look="glass"]) .dash-a-v2 .ta-line1 { justify-content: space-between; gap: 12px; }
 :where([data-look="glass"]) .dash-a-v2 .ta-row > .tbn-icon {
   display: inline-flex;
@@ -1894,7 +1907,20 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   :where([data-look="glass"]) .ts-open { padding-right: 14px; }
   :where([data-look="glass"]) .ts-capsule { padding: 0; background: transparent; }
   /* The queue's head is the count, the name and the door: the sentence under them is a desk's. */
-  :where([data-look="glass"]) .dash-a-v2 .today-queue .tq-head { padding: 16px 0 8px; }
+  :where([data-look="glass"]) .dash-a-v2 .today-queue .tq-head { padding: 16px 0 10px; }
+  /* The dash keeps the boards' 12px from the screen's edges (E3's phone board: the strip and the panes at 12, the head
+     at 16); the page's other phone capsules stand at 12 too. */
+  :where([data-look="glass"]) .main-scroll > .dash-a-v2 { --gutter-page: 12px; }
+  /* A phone's queue ends with its last row (E3's phone board): what the card could not hold is the Inbox tab's. */
+  :where([data-look="glass"]) .dash-a-v2 .tq-foot { display: none; }
+  /* The brief's acts are a desk's: Listen stands in its head here, and Ask is the ✦ beside the tab bar. */
+  :where([data-look="glass"]) .dash-a-v2 .tb-foot { display: none; }
+  /* The day's card: its name on its own row with the door to Reports at the right, what the day says under them. */
+  :where([data-look="glass"]) .dash-a-v2 .tc-head { flex-wrap: wrap; }
+  :where([data-look="glass"]) .dash-a-v2 .tc-line { flex: 1 1 100%; order: 2; }
+  :where([data-look="glass"]) .dash-a-v2 .tc-head > :last-child { margin-left: auto; }
+  /* Mark all read is words at the head's height, not a thumb's 44px that pushed the name down. */
+  :where([data-look="glass"]) .dash-a-v2 .ta .tsec-head > :last-child { height: 32px; min-height: 32px; }
   :where([data-look="glass"]) .dash-a-v2 .today-queue .tq-head > .tq-sub { display: none; }
   /* A phone's row (the canvas's phone board): the face, the name over the words wrapping over the state in one line,
      and the one verb at the right in the row's middle; the channel and the wait are a desk's. */
