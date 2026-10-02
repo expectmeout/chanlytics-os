@@ -312,8 +312,9 @@ export const TodayCard = ({ beats = true }: { beats?: boolean } = {}) => {
   if (!vm) return null;
   const { recap, quiet } = vm;
   // Glass draws the tile whole (canvas E3): on a quiet day the four figures are zeros, each with what is true under it
-  // (contracts quietFigures); Classic keeps the quiet sentence in the head instead.
-  const figures = vm.figures ?? (glass && quiet ? quiet.figures : null);
+  // (contracts quietFigures), and so is a day with people waiting but nothing counted (vm.zeroFigures); Classic keeps
+  // the quiet sentence in the head instead.
+  const figures = vm.figures ?? (glass ? (quiet?.figures ?? vm.zeroFigures ?? null) : null);
   const nav: Nav = (to) => appNavigate(to);
   const R = borrowed<ReportsLike>("__REPORTS");
   const period = R ? TODAY_HELPERS.periodLine(R) : null;

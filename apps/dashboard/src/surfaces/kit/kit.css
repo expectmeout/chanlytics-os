@@ -2998,6 +2998,8 @@ a.list-row {
     font-size: var(--text-3xl);
     font-weight: var(--weight-semibold);
     letter-spacing: -0.03em;
+    /* Over the pool of light, a step softer than the desk's name, as the phone boards blend the two (Ruben, 2 Oct 2026). */
+    color: var(--ink-muted);
   }
   .pg-dateline-time {
     display: none;

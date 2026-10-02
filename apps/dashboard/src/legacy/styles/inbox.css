@@ -2811,6 +2811,26 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 
 /* ---- A phone (the I-phone boards): the list straight on the page, the thread the whole screen ---- */
 @media (max-width: 900px) {
+  /* The select-all box takes no room until something is picked, as on a desk (mobile.css gives it a thumb's 44px, which
+     stood left of the search and pushed it off the buckets' edge); the search row sits at the buckets' 12px. */
+  :where([data-look="glass"]) .inbox .ix-list > :nth-child(2) > .ix-checkall {
+    width: 0;
+    min-height: 0;
+    margin: 0;
+  }
+  :where([data-look="glass"]) .inbox .ix-list.picking > :nth-child(2) > .ix-checkall,
+  :where([data-look="glass"]) .inbox .ix-list > :nth-child(2) > .ix-checkall:focus-within {
+    width: 44px;
+    margin-right: 4px;
+  }
+  :where([data-look="glass"]) .main .inbox .ix-list > :nth-child(2) {
+    padding: 6px 12px 10px;
+  }
+  /* Nobody waiting: the page says Inbox zero under the list, so the list's own small card, which had 65px to stand in and
+     showed as a sliver, leaves. */
+  :where([data-look="glass"]) .inbox:has(> [data-testid="inbox-empty"]) .ix-threads {
+    display: none;
+  }
   /* The page's head (the one header a page holds) stands over the list alone: a phone's thread is headed by its own
      person. The tab bar and Ask's circle leave with it (ask.css hides the circle), and the room kept for them. */
   :where([data-look="glass"]) .main:has(> .main-scroll > .inbox.phone-thread) .pg-slot {
