@@ -43,9 +43,9 @@ const STAND_IN_NETWORK = "./tooling/scripts/tests/calendar/_stand-in-network.mjs
 /**
  * Base UI, as the page tests stand in for it, loaded before every test file: the suite's react-server condition cannot
  * load a Base UI module, so a surface that draws one of the kit's Base UI parts gets a stand-in
- * (tests/_stand-in-base-ui.mjs says how).
+ * (tests/shared/_stand-in-base-ui.mjs says how).
  */
-const STAND_IN_BASE_UI = "./tooling/scripts/tests/_stand-in-base-ui.mjs";
+const STAND_IN_BASE_UI = "./tooling/scripts/tests/shared/_stand-in-base-ui.mjs";
 
 /** What each command runs when it is given no files. */
 export const SUITES = {

@@ -8,6 +8,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
+import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { StatePill } from "../../kit/pill/state-pill";
 import { useSurface } from "../../use-surface";
 import { ROUTES, TICK_MS } from "../constants";
@@ -329,21 +330,18 @@ function listPane(p: {
         />
       )}
       <div className="cv-filters">
-        <div className="fleet-filter">
-          {CV_CHANNELS.map((ch) => (
-            <button
-              key={ch.id}
-              type="button"
-              className={`fleet-filter-chip ${channel === ch.id ? "active" : ""}`}
-              aria-pressed={channel === ch.id}
-              data-testid={`cv-tab-${ch.id}`}
-              onClick={() => navigate(cvAddress(ch.id, null))}
-            >
-              {ch.label}
-              <span className="fleet-filter-count tally">{counts[ch.id]}</span>
-            </button>
-          ))}
-        </div>
+        <SubTabs
+          label="Conversations by channel"
+          dense
+          value={channel}
+          onSelect={(id) => navigate(cvAddress(id, null))}
+          tabs={CV_CHANNELS.map((ch) => ({
+            id: ch.id,
+            label: ch.label,
+            count: counts[ch.id],
+            testid: `cv-tab-${ch.id}`,
+          }))}
+        />
       </div>
       <div className="cv-rows">
         {rows.map((c) => (

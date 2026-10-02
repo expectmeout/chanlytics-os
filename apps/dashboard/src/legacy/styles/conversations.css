@@ -1,6 +1,6 @@
 /* ====================================================================
    Chanlytics — Conversations (calls · chats · email)
-   Two-pane: list rail + viewer. Reuses fleet-filter, cl-search-wrap,
+   Two-pane: list rail + viewer. Reuses the kit's sub-tabs, cl-search-wrap,
    tl-msg bubbles, ix-empty-state, pill primitives.
    ==================================================================== */
 
@@ -28,16 +28,14 @@
 }
 .cv-list-head { padding: 10px 12px 0; }
 .cv-list-head .cl-search-wrap { max-width: none; }
-.cv-filters {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--line);
-}
-.cv-filters .fleet-filter { width: 100%; }
-.cv-filters .fleet-filter-chip { flex: 1; justify-content: center; }
-/* Four tabs on a 320px phone: 319px of chips in a 288px strip, so "Email 1" was cut off at the edge, to be found by a
-   swipe nobody would think to make. Tighter chips fit all four; from 375px up nothing changes. */
+/* The filters are the kit's sub-tabs (SubTabs, kit.css), which bring their own line and sides. Five channels are 334px of
+   tabs and a 320px phone has 288: the strip scrolls across there, where it was a strip of chips that did. */
 @media (max-width: 360px) {
-  .cv-filters .fleet-filter-chip { padding-left: 6px; padding-right: 6px; gap: 4px; }
+  .cv-filters {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
 }
 
 .cv-rows {
@@ -249,16 +247,12 @@
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-  :where([data-look="glass"]) .cv-filters {
-    border-bottom-color: transparent;
-  }
 }
 
 /* ====================================================================
    Glass: Conversations on a phone, drawn as the Inbox's list is (inbox.css, the phone block): the strip of views is the
    page's one capsule, and what filters the list is a sub-menu of small text tabs under it, not a second capsule, then
-   the search, then the rows straight on the page. Reached by structure where a class carries a primitive's word
-   (`fleet-filter-chip`, `tally`, the search's wrapper), as the Inbox's buckets are.
+   the search, then the rows straight on the page. The sub-menu is the kit's sub-tabs, as the Inbox's buckets are.
    ==================================================================== */
 @media (max-width: 900px) {
   /* 4px under the strip, as the Inbox's tabs are (its slot has 16 of padding under the strip). */
@@ -273,68 +267,9 @@
   /* The tabs come first, as the Inbox's buckets do; the search is drawn under them. */
   :where([data-look="glass"]) .conversations .cv-filters {
     order: -1;
+  }
+  .conversations .cv-filters {
     margin: 0 16px;
-    padding: 0;
-    border-bottom: 0;
-  }
-  :where([data-look="glass"]) .conversations .cv-filters .fleet-filter {
-    display: flex;
-    gap: 20px;
-    width: auto;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-  }
-  :where([data-look="glass"]) .conversations .cv-filters .fleet-filter > button {
-    position: relative;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    height: 34px;
-    min-height: 0;
-    padding: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    font-size: var(--text-sm);
-    font-weight: var(--weight-medium);
-    color: var(--ink-dim);
-  }
-  /* A thumb's 44px, as an invisible margin round the 34px tab. */
-  :where([data-look="glass"]) .conversations .cv-filters .fleet-filter > button::before {
-    content: "";
-    position: absolute;
-    inset: -5px -6px;
-  }
-  :where([data-look="glass"]) .conversations .cv-filters .fleet-filter > button::after {
-    content: "";
-    position: absolute;
-    right: 0;
-    bottom: 5px;
-    left: 0;
-    height: 2px;
-    border-radius: var(--radius-full);
-    background: transparent;
-  }
-  :where([data-look="glass"]) .conversations .cv-filters .fleet-filter > button[aria-pressed="true"] {
-    font-weight: var(--weight-semibold);
-    color: var(--ink);
-  }
-  :where([data-look="glass"]) .conversations .cv-filters .fleet-filter > button[aria-pressed="true"]::after {
-    background: var(--ink);
-  }
-  /* A tab's count is the plain figure beside its word. */
-  :where([data-look="glass"]) .conversations .cv-filters .fleet-filter > button > span {
-    min-width: 0;
-    height: auto;
-    padding: 0;
-    background: transparent;
-    box-shadow: none;
-    font-size: var(--text-xs);
-    font-weight: var(--weight-medium);
-    color: var(--ink-dim);
   }
   /* The search under the tabs, 38px tall, at the strip's sides. */
   :where([data-look="glass"]) .conversations .cv-list-head {

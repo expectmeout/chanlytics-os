@@ -34,54 +34,7 @@
   min-width: 0;
 }
 
-/* Buckets */
-.ix-buckets {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  padding: 10px 8px 8px;
-  gap: 2px;
-  border-bottom: 1px solid var(--line);
-}
-.ix-bucket {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--ink-muted);
-  background: transparent;
-  text-align: left;
-  transition: all 120ms;
-}
-.ix-bucket:hover {
-  background: var(--bg-hover);
-  color: var(--ink);
-}
-.ix-bucket.active {
-  background: var(--bg-raised);
-  color: var(--ink);
-  box-shadow: var(--shadow-sm);
-}
-
-.ix-bucket-label { flex: 1; }
-/* Three buckets, one row of words: the icon says again what the label says, and at 12.5px "Needs you" did not fit the
-   106px a third of the rail gives it. Six seeded buckets keep their grid. */
-.ix-buckets.one-row { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 8px; }
-.ix-buckets.one-row .ix-bucket { gap: 6px; padding: 7px 8px; font-size: 11.5px; }
-.ix-buckets.one-row .ix-bucket > .icon { display: none; }
-.ix-buckets.one-row .ix-bucket-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ix-buckets.one-row .ix-bucket-count { min-width: 14px; }
-.ix-bucket-count {
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-  font-variant-numeric: tabular-nums;
-  min-width: 22px;
-  text-align: right;
-}
-/* The Needs you bucket counts people who need you: its number is amber, and the tab itself selects as every tab does. */
-.ix-bucket.accent .ix-bucket-count { color: var(--warn-ink); font-weight: 500; }
+/* The buckets are the kit's sub-tabs (SubTabs, kit.css); the page places the strip, as each look below wants it. */
 
 /* Search row. Its select-all box sits over the rows' own boxes, and the field starts where their avatars do. */
 .ix-search-row {
@@ -2239,11 +2192,6 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 }
 :where([data-look="glass"]) .ix-list > .ix-buckets {
   order: 2;
-  display: flex;
-  gap: 18px;
-  padding: 0 18px;
-  background: transparent;
-  border-bottom: 1px solid var(--line);
 }
 :where([data-look="glass"]) .ix-list-head {
   order: 3;
@@ -2252,40 +2200,6 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 :where([data-look="glass"]) .ix-threads {
   order: 4;
 }
-:where([data-look="glass"]) .ix-list > .ix-buckets > .ix-bucket {
-  flex: none;
-  align-items: baseline;
-  gap: 6px;
-  min-height: 0;
-  margin: 0 0 -1px;
-  padding: 8px 0 9px;
-  border-radius: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  font-size: var(--text-base);
-  font-weight: var(--weight-medium);
-  color: var(--ink-dim);
-}
-:where([data-look="glass"]) .ix-list > .ix-buckets > .ix-bucket:hover {
-  background: transparent;
-  color: var(--ink);
-}
-:where([data-look="glass"]) .ix-list > .ix-buckets > .ix-bucket.active {
-  background: transparent;
-  box-shadow: none;
-  font-weight: var(--weight-semibold);
-  color: var(--ink);
-  border-bottom-color: var(--ink);
-}
-/* A bucket's count is the neutral figure beside its word, the amber kept for a row's wait. */
-:where([data-look="glass"]) .ix-list > .ix-buckets .ix-bucket-count {
-  min-width: 0;
-  text-align: left;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--ink-dim);
-}
-
 /* ---- A row is one person on the pane itself; the open one is the lozenge (I1) ---- */
 :where([data-look="glass"]) .ix-thread-rows {
   display: flex;
@@ -2820,71 +2734,15 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     background: transparent;
   }
   /* The buckets are the Inbox's sub-menu, so they are not a second capsule under the strip of views (components.css draws
-     that one): small text tabs at the page's gutter, the picked one in ink with a 2px bar under it, 4px under the strip,
-     and only a bucket that needs you says its count. The label is centred in its tab (the desk's baseline alignment left
-     it 5px above the middle); a tab is 34px tall with an invisible margin to the 44px a thumb needs. */
+     that one): the kit's sub-tabs, at the page's gutter, 4px under the strip. */
   :where([data-look="glass"]) .main:has(> .main-scroll > .inbox:not([data-takeover])) .pg-slot {
     padding-bottom: 4px;
   }
   :where([data-look="glass"]) .inbox .ix-list > .ix-buckets {
     order: 0;
-    display: flex;
-    gap: 20px;
+  }
+  .inbox .ix-list > .ix-buckets {
     margin: 0 16px;
-    padding: 0;
-    border-bottom: 0;
-    background: transparent;
-    box-shadow: none;
-  }
-  :where([data-look="glass"]) .inbox .ix-list > .ix-buckets > .ix-bucket {
-    position: relative;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    height: 34px;
-    min-height: 0;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    font-size: var(--text-sm);
-    font-weight: var(--weight-medium);
-    color: var(--ink-dim);
-  }
-  :where([data-look="glass"]) .inbox .ix-list > .ix-buckets > .ix-bucket::before {
-    content: "";
-    position: absolute;
-    inset: -5px -6px;
-  }
-  :where([data-look="glass"]) .inbox .ix-list > .ix-buckets > .ix-bucket::after {
-    content: "";
-    position: absolute;
-    right: 0;
-    bottom: 5px;
-    left: 0;
-    height: 2px;
-    border-radius: var(--radius-full);
-    background: transparent;
-  }
-  :where([data-look="glass"]) .inbox .ix-list > .ix-buckets > .ix-bucket .ix-bucket-label {
-    flex: none;
-  }
-  :where([data-look="glass"]) .inbox .ix-list > .ix-buckets > .ix-bucket.active {
-    background: transparent;
-    box-shadow: none;
-    font-weight: var(--weight-semibold);
-    color: var(--ink);
-  }
-  :where([data-look="glass"]) .inbox .ix-list > .ix-buckets > .ix-bucket.active::after {
-    background: var(--ink);
-  }
-  :where([data-look="glass"]) .inbox .ix-list > .ix-buckets .ix-bucket-count {
-    font-size: var(--text-xs);
-  }
-  :where([data-look="glass"]) .inbox .ix-list > .ix-buckets > .ix-bucket:not(.accent) .ix-bucket-count {
-    display: none;
   }
   /* The search under the tabs, 38px tall, at the strip's sides. */
   :where([data-look="glass"]) .inbox .ix-list > :nth-child(2) {

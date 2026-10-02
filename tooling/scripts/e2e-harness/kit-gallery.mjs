@@ -877,6 +877,47 @@ export const FAMILIES = [
     ],
   },
   {
+    family: "Sub-tabs",
+    about:
+      "A page's own sub-menu, SubTabs: small text tabs on a line under the strip of views, the picked one in ink with a bar, a plain figure beside a word that has one; a strip that is quiet on a phone, which keeps only the warn tab's figure; and a glyph before the words.",
+    entries: [
+      {
+        id: "subtabs",
+        html:
+          `<div class="subtabs" role="group" aria-label="Conversations by status">` +
+          `<button type="button" class="subtab" aria-pressed="true">Needs you<span class="subtab-count">27</span></button>` +
+          `<button type="button" class="subtab" aria-pressed="false">Handled</button>` +
+          `<button type="button" class="subtab" aria-pressed="false">Snoozed<span class="subtab-count">3</span></button></div>`,
+      },
+      {
+        id: "subtabs-quiet",
+        html:
+          `<div class="subtabs" role="group" aria-label="Conversations by status" data-quiet="true">` +
+          `<button type="button" class="subtab" aria-pressed="true" data-tone="warn">Needs you<span class="subtab-count">27</span></button>` +
+          `<button type="button" class="subtab" aria-pressed="false">Handled<span class="subtab-count">112</span></button>` +
+          `<button type="button" class="subtab" aria-pressed="false">Snoozed<span class="subtab-count">3</span></button></div>`,
+      },
+      {
+        id: "subtabs-dense",
+        html:
+          `<div class="subtabs" role="group" aria-label="Conversations by channel" data-dense="true">` +
+          `<button type="button" class="subtab" aria-pressed="true">All<span class="subtab-count">64</span></button>` +
+          `<button type="button" class="subtab" aria-pressed="false">Calls<span class="subtab-count">13</span></button>` +
+          `<button type="button" class="subtab" aria-pressed="false">WhatsApp<span class="subtab-count">35</span></button>` +
+          `<button type="button" class="subtab" aria-pressed="false">Text<span class="subtab-count">6</span></button>` +
+          `<button type="button" class="subtab" aria-pressed="false">Email<span class="subtab-count">10</span></button></div>`,
+      },
+      {
+        id: "subtabs-glyph",
+        html:
+          `<div class="subtabs" role="group" aria-label="Conversations by channel">` +
+          `<button type="button" class="subtab" aria-pressed="true">${icon("inbox", 13)}All<span class="subtab-count">64</span></button>` +
+          `<button type="button" class="subtab" aria-pressed="false">${icon("phone", 13)}Calls<span class="subtab-count">12</span></button>` +
+          `<button type="button" class="subtab" aria-pressed="false">${icon("mail", 13)}Email</button></div>`,
+      },
+    ],
+  },
+  {
     family: "Record card and rows",
     about:
       "The record kit's card and its rows (RecordRow): a label, a value, where it came from, one act; empty, wrong, disputed, a row of chips, a value just saved.",

@@ -830,7 +830,6 @@
 .btn:active,
 .cl-tab:active,
 .fleet-filter-chip:active,
-.ix-bucket:active,
 .cl-triage-tab:active { transform: translateY(0.5px) scale(0.985); }
 
 /* --- Charts draw themselves --- */

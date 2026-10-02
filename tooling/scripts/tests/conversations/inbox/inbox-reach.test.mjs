@@ -291,7 +291,7 @@ test("the buckets say which one is open, and the select-all box says what it sel
     }),
   );
   const bucket = (label) =>
-    find(tree, (n) => n.type === "button" && hasClass("ix-bucket")(n) && textOf(n).includes(label));
+    find(tree, (n) => n.type === "button" && hasClass("subtab")(n) && textOf(n).includes(label));
   assert.deepEqual(
     [bucket("Needs you").props["aria-pressed"], bucket("Handled").props["aria-pressed"]],
     [true, false],

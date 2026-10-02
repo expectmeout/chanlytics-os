@@ -382,7 +382,6 @@
   "apps/dashboard/src/legacy/styles/conversations.css::cv-empty": 1,
   "apps/dashboard/src/legacy/styles/conversations.css::cv-head-avatar": 1,
   "apps/dashboard/src/legacy/styles/conversations.css::cv-row-avatar": 2,
-  "apps/dashboard/src/legacy/styles/conversations.css::fleet-filter-chip": 2,
   "apps/dashboard/src/legacy/styles/conversations.css::pill": 1,
   "apps/dashboard/src/legacy/styles/dashboard-a-v2.css::ask-action-chip": 2,
   "apps/dashboard/src/legacy/styles/dashboard-a-v2.css::ask-cta": 1,

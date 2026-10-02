@@ -2641,6 +2641,132 @@ a.list-row {
   }
 }
 
+/* ---------- Sub-tabs — a page's own sub-menu ----------
+   The few ways to cut the list a page shows (the Inbox's buckets, Conversations' channels), as small text tabs on a line,
+   under the strip of views the page sits in (.stabs, the frame's capsule) and apart from it: the picked one in ink at
+   600 with a 2px bar in ink, the others dim, and a figure beside a word that has one, the plain number and never a
+   pill. On a desk the line is the strip's own hairline, drawn inside it (a 1px layer at its foot) as the tab strip's
+   is, so a strip that scrolls across shows the whole of a bar that lies over it; and a `dense` strip, with more tabs than a
+   pane has room for at the desk's size, sets them as a phone does. On a phone (the kit's 900px) a tab is 34px tall with
+   its words in the middle and the bar 5px above its foot, an invisible margin round it making a thumb's 44px, and a
+   strip that is `quiet` says only the warn tab's figure. A page sets where the strip stands and the sides it keeps (a
+   margin), never what it looks like. */
+.subtabs {
+  display: flex;
+  flex: none;
+  gap: 18px;
+  padding: 0 18px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: linear-gradient(var(--line), var(--line)) bottom / 100% 1px no-repeat;
+}
+.subtabs::-webkit-scrollbar {
+  display: none;
+}
+.subtab {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 0 9px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
+}
+/* The shell's touch floor (legacy.css: a coarse pointer's buttons are 44px) would make a tab as tall as its own margin
+   is: the strip's height is the words', and a thumb's reach is the invisible margin on a phone (below). */
+.subtabs > .subtab {
+  min-height: 0;
+}
+.subtab:hover {
+  color: var(--ink);
+}
+.subtab:active {
+  transform: translateY(0.5px) scale(0.985);
+}
+.subtab[aria-pressed="true"] {
+  border-bottom-color: var(--ink);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.subtab-count {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+@media (width > 900px) {
+  .subtabs[data-dense] {
+    gap: 12px;
+    padding: 0 14px;
+  }
+  .subtabs[data-dense] .subtab {
+    font-size: var(--text-sm);
+  }
+  .subtabs[data-dense] .subtab-count {
+    font-size: var(--text-xs);
+  }
+}
+@media (max-width: 900px) {
+  .subtabs {
+    gap: 20px;
+    padding: 0;
+    overflow: visible;
+    background: none;
+  }
+  .subtab {
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 34px;
+    margin: 0;
+    padding: 0;
+    border-bottom: 0;
+    font-size: var(--text-sm);
+  }
+  /* A thumb's 44px, as an invisible margin round the 34px tab. */
+  .subtab::before {
+    content: "";
+    position: absolute;
+    inset: -5px -6px;
+  }
+  .subtab::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 5px;
+    left: 0;
+    height: 2px;
+    border-radius: var(--radius-full);
+    background: transparent;
+  }
+  .subtab[aria-pressed="true"]::after {
+    background: var(--ink);
+  }
+  .subtab-count {
+    font-size: var(--text-xs);
+  }
+  .subtabs[data-quiet] .subtab:not([data-tone="warn"]) .subtab-count {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .subtab {
+    transition: none;
+  }
+}
+
 /* ============================================================
    THE KIT IN GLASS (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, step 5.2)
    What a family's Glass form needs beyond its roles, whose values the look sets (tokens.css, GLASS), family by family,
@@ -3150,6 +3276,24 @@ a.list-row {
   }
   :where([data-look="glass"]) .pg-dateline {
     background-image: var(--surface-page-light), linear-gradient(var(--ink-dim), var(--ink-dim));
+  }
+}
+/* iOS Safari paints no text through a background-clip when one of its layers is fixed to the screen, so the title and
+   the date keep the veil's and the fill's soft ink alone there: the lettering without the page's light through it.
+   (The gallery's browser is not WebKit on a phone and never draws this: e2e/kit/kit.spec.ts, ENGINE_ONLY.) */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 900px) {
+    :where([data-look="glass"]) .pg-title {
+      background-image: linear-gradient(
+        oklch(from var(--ink) l c h / var(--title-fill)),
+        oklch(from var(--ink) l c h / var(--title-fill))
+      );
+      background-attachment: scroll;
+    }
+    :where([data-look="glass"]) .pg-dateline {
+      background-image: linear-gradient(var(--ink-dim), var(--ink-dim));
+      background-attachment: scroll;
+    }
   }
 }
 

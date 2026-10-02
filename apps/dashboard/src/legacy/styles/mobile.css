@@ -560,8 +560,6 @@
      stacked them in two rows; the search is one input tall, with the select-all box at its head; the list's head
      shows only for a search or a pick. Together they took 251px above the first thread. Each tap target keeps its
      44px: the box's is a thumb wide around it, without growing the row. */
-  .inbox .ix-buckets { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 6px 8px; }
-  .inbox .ix-bucket { justify-content: center; gap: 6px; padding: 0 6px; }
   .inbox .ix-search-row { padding: 6px 14px; }
   .inbox .ix-search-wrap { padding: 0 8px; }
   .inbox .ix-list-head { min-height: 40px; padding: 0 12px; }
@@ -774,22 +772,6 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      views it stands over is what it covers in Classic too. */
   :where([data-look="glass"]) .main:has(> .live-bar) .ix-sending-strip {
     top: 118px;
-  }
-  /* iOS Safari paints no text through a background-clip when one of its layers is fixed to the screen, so the page's
-     title and its date keep the veil and the fill alone there: the lettering without the page's light through it (the
-     kit's page head, kit.css). Written here and not in kit.css, because no browser the kit's gallery runs draws it. */
-  @supports (-webkit-touch-callout: none) {
-    :where([data-look="glass"]) .pg-title {
-      background-image: linear-gradient(
-        oklch(from var(--ink) l c h / var(--title-fill)),
-        oklch(from var(--ink) l c h / var(--title-fill))
-      );
-      background-attachment: scroll;
-    }
-    :where([data-look="glass"]) .pg-dateline {
-      background-image: linear-gradient(var(--ink-dim), var(--ink-dim));
-      background-attachment: scroll;
-    }
   }
   /* A page that takes the screen over (data-takeover on its root, above) is headed by its own person or call: the
      frame's head and strip of views, the tab bar and the room kept for it leave. */

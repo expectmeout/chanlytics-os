@@ -182,7 +182,7 @@ test.describe("Phone shell on a real workspace", () => {
     // the rows -- the list gone, a customer nobody asked for on the phone -- and a bucket with nothing in it left
     // neither on the screen.
     for (const name of ["Handled", "Snoozed"]) {
-      const chip = page.locator(".ix-bucket", { hasText: name }).first();
+      const chip = page.locator(".subtab", { hasText: name }).first();
       if ((await chip.count()) === 0) continue;
       await chip.click();
       await expect(chip, `${name} is the bucket on screen`).toHaveAttribute("aria-pressed", "true");

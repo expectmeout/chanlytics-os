@@ -84,7 +84,7 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/inbox.css": {
-    "font": 82,
+    "font": 81,
     "radius": 22,
     "shadow": 9,
     "colour": 2,
