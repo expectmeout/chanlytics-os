@@ -3597,6 +3597,45 @@ html.legacy-on .msg-use-link { position: relative; }
     grid-row: 3;
     justify-content: flex-start;
   }
+  /* Where a phone draws a strip of views and the page's act (Campaigns' New; canvas C-phone-list), the act stands
+     beside the strip at its right as a 44px circle of the primary fill, its mark alone, the words kept for a screen
+     reader. Named with the strip's element, since its class is the kit's. */
+  :where([data-look="glass"]) .pg-slot:has(> nav) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  :where([data-look="glass"]) .pg-slot:has(> nav) > .pg-head-slot {
+    grid-column: 1 / -1;
+  }
+  :where([data-look="glass"]) .pg-slot:has(> nav) > .pg-act-slot {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    justify-content: flex-end;
+  }
+  :where([data-look="glass"]) .pg-slot:has(> nav) > .pg-act-slot > span > :first-child {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-content: center;
+    border: 0;
+    border-radius: var(--radius-circle);
+    background: var(--primary-fill);
+    box-shadow: var(--primary-depth);
+    color: var(--primary-ink);
+  }
+  :where([data-look="glass"]) .pg-slot:has(> nav) > .pg-act-slot > span > :first-child > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* Beside the act the strip has 44px less: its tabs give up 4px of padding each side, and the three still fit a phone. */
+  :where([data-look="glass"]) .pg-slot:has(> nav) > nav > * {
+    padding-inline: 10px;
+  }
   /* The Inbox's list draws no row of views on a phone (canvas I-phone-list: the buckets' capsule stands there, and
      Conversations and Live are the swipe beside it, surface-tabs.jsx stripSwipe); the strip is the slot's second
      child where it is drawn. */
@@ -3882,6 +3921,16 @@ html.legacy-on .msg-use-link { position: relative; }
 :where([data-look="glass"]) .pb-guard {
   border: 1px solid var(--surface-inset-edge);
   background: var(--bg-sunken);
+}
+/* What is missing where the message would be is an inset, as the composer boards draw what a row holds, not a
+   dashed box; named by its testid, since its class is a primitive's word. */
+:where([data-look="glass"]) [data-testid="pb-message-empty"] {
+  border: 0;
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
 }
 
 /* The broadcast composer's rows (C2, the second door): one pane, the width of the canvases' composer, each question a
