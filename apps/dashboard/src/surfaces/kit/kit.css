@@ -2790,6 +2790,24 @@ a.list-row {
     border-radius: var(--surface-pane-radius) var(--surface-pane-radius) 0 0;
   }
 }
+/* The sheet's head as the composer boards draw it (C2, D2): its name a step up, Close a 34px circle of the control
+   layer's glass (44 under a finger, record.css). */
+:where([data-look="glass"]) .rec-sheet-head .rec-sheet-title {
+  font-size: var(--text-xl);
+}
+:where([data-look="glass"]) .rec-sheet-close {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-circle);
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  box-shadow: var(--surface-control-depth);
+  color: var(--ink);
+}
+:where([data-look="glass"]) .rec-sheet-close:hover {
+  background-color: var(--selected-fill);
+  color: var(--ink);
+}
 [data-look="glass"] .rec-sheet-foot {
   position: relative;
   margin: 0 14px calc(14px + env(safe-area-inset-bottom, 0px));

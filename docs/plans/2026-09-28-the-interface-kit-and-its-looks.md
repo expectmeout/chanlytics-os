@@ -1108,7 +1108,7 @@ value, since the light look now sets its own. The pane's blur (14px and 1.25, ab
 | Inbox     | I1 Needs you; I2 A draft on its way                                   | landed 1 October (I1 whole, desk and phone) | `Downloads/inbox-liquid-glass.html`                           |
 | People    | P1 Everyone; P2 A list open; P3 A person                              | landed: P1 and P2 on 1 October (#1361), P3 on 2 October | `Downloads/people-liquid-glass.html`                          |
 | Leads     | L1 The panel beside the table; L2 Three states                        | landed: L1, L-phone-list and the panel boards on 2 October | `Downloads/leads-liquid-glass.html`                           |
-| Campaigns | C1 The page and the composer; C2 One composer, three doors (compact)  | liked, 28 September                       | a private artifact; `Downloads/campaigns-liquid-glass.html`   |
+| Campaigns | C1 The page and the composer; C2 One composer, three doors (compact)  | landed: C1, C-phone-list and the composer boards on 2 October | a private artifact; `Downloads/campaigns-liquid-glass.html`   |
 | Deals     | D1 The Pipeline; D2 The deal; D3 One composer, every move             | liked, 28 September                       | a private artifact; `Downloads/deals-liquid-glass.html`       |
 
 The generator that drew them is outside the repository, in a gitignored folder of a local worktree
