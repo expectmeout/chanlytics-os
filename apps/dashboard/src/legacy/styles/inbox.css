@@ -2133,7 +2133,6 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 @media (width > 900px) {
   /* I1: the list 360 wide beside the thread, 14 between them, on the page's own light. */
   :where([data-look="glass"]) .inbox {
-    --rail-list: 360px;
     gap: 14px;
     padding: 0 var(--gutter-page) 16px;
     background: transparent;
@@ -2730,10 +2729,12 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     display: none;
   }
   /* The page's head stands over the list alone, and a phone's thread is headed by its own person: the frame lets go of
-     its chrome for a page marked data-takeover (mobile.css, "A page that takes the screen over"). */
+     its chrome for a page marked data-takeover (mobile.css, "A page that takes the screen over"). The thread is one
+     window wherever it is opened from, the Inbox or a conversation: no ground of its own, so the page's light shows
+     through it (it had one in Conversations only, with a hairline down its edge). */
   :where([data-look="glass"]) .inbox,
   :where([data-look="glass"]) .inbox .ix-list,
-  :where([data-look="glass"]) .inbox .ix-thread-pane {
+  :where([data-look="glass"]) :is(.inbox, .conversations) .ix-thread-pane {
     border: 0;
     background: transparent;
   }
