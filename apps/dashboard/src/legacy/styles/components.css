@@ -1089,11 +1089,13 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 }
 @media (max-width: 900px) { .tbn-pop { position: fixed; top: 52px; right: 12px; left: 12px; width: auto; } }
 /* On a phone the notes are a sheet from the bottom, as every other sheet there is: edge to edge, a handle, the page
-   stepped back behind a wash, pulled down to close (topbar.jsx NotifPopover, data-bits touchSwipe), rising and leaving
+   standing over the page with no wash, pulled down to close (topbar.jsx NotifPopover, data-bits touchSwipe), rising and leaving
    as People's sheets do. It was a 568px popover hung from the top bar, as far from the thumb as the screen allows. */
 .tbn-handle { display: none; }
 @media (max-width: 720px) {
-  .tbn-backdrop { background: oklch(from var(--ink) l c h / 0.35); animation: wash-in var(--duration-base) var(--ease-out); }
+  /* The page stays as it is behind the notes (Ruben, 2 Oct: no fade, no lightening): the backdrop is only the layer a tap
+     outside the sheet closes it through. */
+  .tbn-backdrop { background: transparent; }
   .tbn-pop {
     top: auto; right: 0; bottom: 0; left: 0; max-width: none; max-height: 82vh; max-height: 82dvh;
     border-width: 1px 0 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0;
@@ -3582,8 +3584,28 @@ html.legacy-on .msg-use-link { position: relative; }
   }
   :where([data-look="glass"]) .main > .topbar .tbn-wrap {
     position: absolute;
-    top: 20px;
+    top: 10px;
     right: var(--gutter-page);
+  }
+  /* The bell on a phone is a 32px circle on the date's line (centre to centre, 26px from the top), not the 44px one that
+     hung below it over the first pane; the 44px a thumb needs stays as an invisible margin round it. Unread is a 6px dot
+     at the shoulder. */
+  :where([data-look="glass"]) .main > .topbar .tbn-wrap .tb-bell {
+    width: 32px;
+    min-width: 0;
+    height: 32px;
+    min-height: 0;
+  }
+  :where([data-look="glass"]) .main > .topbar .tbn-wrap .tb-bell::before {
+    content: "";
+    position: absolute;
+    inset: -6px;
+  }
+  :where([data-look="glass"]) .main > .topbar .tbn-wrap .tb-bell > span {
+    top: 6px;
+    right: 7px;
+    width: 6px;
+    height: 6px;
   }
   :where([data-look="glass"]) .main > .topbar + :is(.live-bar, .shell-status-slot:has(> *)) {
     margin-top: 33px;
@@ -3593,7 +3615,12 @@ html.legacy-on .msg-use-link { position: relative; }
     padding: 2px var(--gutter-page) 16px;
   }
   :where([data-look="glass"]) .pg-head-slot {
-    padding-right: 60px;
+    padding-right: 56px;
+  }
+  /* Where the date's place holds the way back instead, its 36px capsule is centred on the bell's line (26px from the top)
+     like the date's text is, 8px from the top. */
+  :where([data-look="glass"]) .pg-dateline-slot:has(.pg-back) {
+    top: 8px;
   }
   /* The way back (a person's page) is a 36px capsule of the control layer's glass on a phone (P-phone-person). */
   :where([data-look="glass"]) .pg-dateline-slot .pg-back {
