@@ -3517,7 +3517,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     backdrop-filter: blur(var(--blur-md));
   }
   :where([data-look="glass"]) .main-scroll .pl-sec-head .pl-sec-label {
-    font-size: var(--text-md);
+    font-size: var(--text-base);
     font-weight: var(--weight-semibold);
     color: var(--ink);
   }
@@ -3585,5 +3585,105 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     border-radius: var(--surface-pane-radius);
     background: var(--surface-pane-fill);
     box-shadow: var(--surface-pane-depth);
+  }
+}
+
+/* The deal's pane as the pane boards draw it (canvases P-sol, P-maren, P-juno; on a phone D-phone-deal): the face 42px in
+   the face's fill, the name a step up, the service and value under it at the small step, Close a 34px glass circle, no
+   rule under the head; the body 18px in with 14 between its parts; the ways to reach them on a 64px key column, 7px over
+   and under each; what they wrote at the small step with the quote at the base. The face's class is a primitive's word,
+   so it is reached by its place; the pane's own classes carry a primitive's word too, so its parts are reached by their
+   testids. */
+:where([data-look="glass"]) .pipe-scope .pk-head {
+  gap: 12px;
+  padding: 16px 18px 14px;
+  border-bottom-color: transparent;
+}
+:where([data-look="glass"]) .pipe-scope .pk-head > :first-child {
+  width: 42px;
+  height: 42px;
+  background: var(--face-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+:where([data-look="glass"]) .pipe-scope .pk-name {
+  font-size: var(--text-xl);
+}
+:where([data-look="glass"]) .pipe-scope .pk-sub {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+:where([data-look="glass"]) .pipe-scope .pk-x {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-circle);
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  box-shadow: var(--surface-control-depth);
+  color: var(--ink);
+}
+:where([data-look="glass"]) .pipe-scope .pk-x:hover {
+  background-color: var(--selected-fill);
+  color: var(--ink);
+}
+:where([data-look="glass"]) .pipe-scope .pk-body {
+  padding: 0 18px 16px;
+  gap: 14px;
+}
+:where([data-look="glass"]) [data-testid="pipeline-peek-reach"] {
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 0 10px;
+  padding-top: 6px;
+}
+:where([data-look="glass"]) [data-testid="pipeline-peek-reach"] > * > dt,
+:where([data-look="glass"]) [data-testid="pipeline-peek-reach"] > * > dd {
+  padding: 7px 0;
+}
+:where([data-look="glass"]) [data-testid="pipeline-peek-facts"] {
+  font-size: var(--text-sm);
+}
+:where([data-look="glass"]) [data-testid="pipeline-peek-quote"] {
+  font-size: var(--text-base);
+  line-height: 1.45;
+}
+/* New proposal's sheet (canvas D-propose opens on a person): its search a 36px inset capsule, each person a row that
+   rounds as an inset under a pointer. The search's class is a primitive's word, so it is reached by its element. */
+:where([data-look="glass"]) .pipe-new > label {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .pipe-new > label:focus-within {
+  background: var(--surface-inset-fill);
+}
+:where([data-look="glass"]) .pipe-new-row {
+  border-radius: var(--surface-inset-radius);
+}
+@media (max-width: 900px) {
+  /* A phone row says where a deal stands in words (D-phone-list); the three-step track under the name goes. */
+  :where([data-look="glass"]) .pipe-scope .pipe-track {
+    display: none;
+  }
+  /* The deal's foot on a phone (D-phone-deal): one capsule of the control layer's glass clear of the screen's edges,
+     its two acts inside it. */
+  :where([data-look="glass"]) [data-testid="pipeline-peek-bar"] {
+    gap: 8px;
+    margin: 0 14px calc(14px + env(safe-area-inset-bottom, 0px));
+    padding: 6px;
+    border-top: 0;
+    border-radius: var(--radius-full);
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    backdrop-filter: var(--surface-control-blur);
+    box-shadow: var(--surface-control-depth);
   }
 }

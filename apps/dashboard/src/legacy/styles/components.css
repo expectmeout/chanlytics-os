@@ -3503,6 +3503,23 @@ html.legacy-on .msg-use-link { position: relative; }
   :where([data-look="glass"]) .pg-slot:has(> .pg-head-slot > header[class="pg-head"]) {
     padding-top: 14px;
   }
+  /* A page that draws its own strip of views under the slot (People's three scopes, clients.css) and names an act
+     (the Pipeline's New proposal, canvas D1-list): the act stands at the strip's right on the strip's row, a 36px
+     capsule, where it stood on a row of its own over the hidden name. The slot's bottom edge is the strip's top. */
+  :where([data-look="glass"]) .main:has(> .main-scroll > .clients) .pg-slot {
+    position: relative;
+  }
+  :where([data-look="glass"]) .main:has(> .main-scroll > .clients) .pg-act-slot {
+    position: absolute;
+    top: 100%;
+    right: var(--gutter-page);
+    z-index: 2;
+  }
+  :where([data-look="glass"]) .main:has(> .main-scroll > .clients) .pg-act-slot > span > :first-child {
+    height: var(--control-h-lg);
+    padding: 0 16px;
+    font-size: var(--text-base);
+  }
 }
 :where([data-look="glass"]) .pg-slot > .stabs {
   grid-column: 1;
@@ -3596,6 +3613,11 @@ html.legacy-on .msg-use-link { position: relative; }
     grid-column: 1;
     grid-row: 3;
     justify-content: flex-start;
+  }
+  /* On a phone People's three scopes draw their act in their own bar (the Pipeline's + beside its search, canvas
+     D-phone-list), so the frame's copy of it leaves. */
+  :where([data-look="glass"]) .main:has(> .main-scroll > .clients) .pg-act-slot {
+    display: none;
   }
   /* Where a phone draws a strip of views and the page's act (Campaigns' New; canvas C-phone-list), the act stands
      beside the strip at its right as a 44px circle of the primary fill, its mark alone, the words kept for a screen
