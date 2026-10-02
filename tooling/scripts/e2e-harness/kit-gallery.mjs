@@ -1264,6 +1264,11 @@ export const FAMILIES = [
         html: `<span class="face" aria-hidden="true">AR<img class="face-photo" src="${PHOTO}" alt=""></span>`,
       },
       {
+        id: "face-lg",
+        html: `<div class="gx-row"><span class="face face-lg" aria-hidden="true">AR</span><span class="face face-lg" aria-hidden="true">AR<img class="face-photo" src="${PHOTO}" alt=""></span></div>`,
+      },
+      { id: "face-priority", html: `<span class="face" data-priority="P1" aria-hidden="true">AR</span>` },
+      {
         id: "face-twin",
         width: "phone",
         html: `<span class="face" aria-hidden="true">AR</span>`,

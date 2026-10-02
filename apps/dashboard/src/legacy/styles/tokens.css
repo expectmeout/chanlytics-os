@@ -292,6 +292,8 @@
   --chip-radius: var(--radius-full);
   /* The segment that is picked. */
   --selected-fill: var(--bg-raised);
+  /* A thread of the first priority rings its face (Classic; Glass draws none). */
+  --face-ring: inset 0 0 0 1.5px var(--accent);
   /* The word and glyph of the picked place in the phone's tab bar: the accent. */
   --tab-ink: var(--accent);
 

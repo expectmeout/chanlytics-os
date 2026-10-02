@@ -8,7 +8,7 @@ import type { LiveCallVM } from "@chanlytics/contracts";
 import { navigate, routeDoor } from "../legacy-verbs";
 import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
-import { IxAvatar } from "../inbox/thread/who";
+import { Face } from "../kit/face/face";
 import { LrPill, lrClock } from "./call-parts";
 import { LrControls } from "./controls";
 import { LrWhisper } from "./whisper";
@@ -161,25 +161,25 @@ function panelHead({ c, elapsed, quietS, onBack = null }: HeadProps) {
             </span>
           </div>
         </div>
-        {/* The caller's face, the one a thread's header wears (IxAvatar): where they have a page it is the door to it, and
+        {/* The caller's face, the one a thread's header wears (the kit's Face): where they have a page it is the door to it, and
           a photo of them or their company's logo goes here once members can add one. */}
         {c.clientId ? (
           <a
-            className="lm-head-avatar"
+            className="lm-head-door"
             {...routeDoor(`clients/${c.clientId}`)}
             title={`Open ${c.who} in People`}
             aria-label={`Open ${c.who}'s profile`}
             data-testid="lm-head-avatar"
           >
-            <IxAvatar initials={c.initials} />
+            <Face initials={c.initials} size="lg" />
           </a>
         ) : (
-          <IxAvatar initials={c.initials} className="lm-head-avatar" />
+          <Face initials={c.initials} size="lg" className="lm-head-door" />
         )}
         {/* The clock a thread's header gives its standing: the live dot and the call's length, running. */}
         {c.live && (
           <span className="lm-head-clock tabular" aria-hidden="true" data-testid="lm-head-clock">
-            <span className="live-dot" />
+            <span className="live-dot lm-pulse" />
             {lrClock(elapsed)}
           </span>
         )}
@@ -187,7 +187,7 @@ function panelHead({ c, elapsed, quietS, onBack = null }: HeadProps) {
       {c.live && (
         <div className="lm-head-actions">
           <span className="lm-live-note" title="The receptionist is handling this call on its own.">
-            <span className="live-dot" aria-hidden="true" />
+            <span className="live-dot lm-pulse" aria-hidden="true" />
             {quietS >= 15 ? `Last heard ${quietS} s ago` : "Handling it"}
           </span>
           <LrControls c={c} />

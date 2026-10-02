@@ -84,9 +84,9 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/inbox.css": {
-    "font": 83,
-    "radius": 23,
-    "shadow": 10,
+    "font": 82,
+    "radius": 22,
+    "shadow": 9,
     "colour": 2,
     "blur": 2
   },
@@ -98,7 +98,7 @@
     "blur": 1
   },
   "apps/dashboard/src/legacy/styles/live.css": {
-    "font": 17,
+    "font": 16,
     "radius": 3,
     "shadow": 3,
     "colour": 0,

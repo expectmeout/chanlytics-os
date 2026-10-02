@@ -213,23 +213,23 @@
 .lm-head-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 0 24px 12px; border-bottom: 1px solid var(--line); }
 .lm-head:has(+ .lm-head-actions) { border-bottom: 0; padding-bottom: 6px; }
 .lm-live-note { display: inline-flex; align-items: center; gap: 7px; font-size: var(--text-xs); color: var(--ink-muted); }
-.lm-live-note .live-dot { width: 6px; height: 6px; }
+.live-monitor .lm-pulse { width: 6px; height: 6px; }
 /* A phone's thread draws its arrow and its clock (the phone block below); the desk's head has neither. */
 .lm-back, .lm-head-clock { display: none; }
 /* The caller's face at the title row's end: the thread header's avatar (IxAvatar), and where the caller has a page, the
    door to it, a thumb's 44px by an invisible margin. A picture over the initials is IxAvatar's own. */
-.lm-head-avatar { order: 1; }
-a.lm-head-avatar {
+.lm-head-door { order: 1; }
+a.lm-head-door {
   position: relative;
   display: inline-flex;
   flex: none;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
-a.lm-head-avatar::after { content: ""; position: absolute; inset: -4px; }
-a.lm-head-avatar:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-a.lm-head-avatar:active { opacity: 0.72; }
+a.lm-head-door::after { content: ""; position: absolute; inset: -4px; }
+a.lm-head-door:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+a.lm-head-door:active { opacity: 0.72; }
 .lm-call-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
 /* Transcription */
@@ -681,9 +681,6 @@ a.lm-head-avatar:active { opacity: 0.72; }
   :where([data-look="glass"]) .live-monitor .lm-controls-who {
     display: none;
   }
-  :where([data-look="glass"]) .live-monitor .lm-ended-chip {
-    font-size: var(--text-xs);
-  }
 
   /* ---- A call in progress, as a thread -------------------------------------------------------------------------------
      With a call on the line the phone draws the calls (the rows say who is up and for how long); a call picked is a
@@ -771,7 +768,7 @@ a.lm-head-avatar:active { opacity: 0.72; }
     font-size: var(--text-lg);
     color: var(--ink-muted);
   }
-  :where([data-look="glass"]) .live-monitor[data-detail] .lm-head-avatar {
+  :where([data-look="glass"]) .live-monitor[data-detail] .lm-head-door {
     order: -1;
   }
   :where([data-look="glass"]) .live-monitor[data-detail] .lm-head-titles {
@@ -810,10 +807,6 @@ a.lm-head-avatar:active { opacity: 0.72; }
     font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
     color: var(--tab-ink);
-  }
-  :where([data-look="glass"]) .live-monitor .lm-head-clock .live-dot {
-    width: 6px;
-    height: 6px;
   }
   /* Under the pill, on the page: who has the call, and what can be done about it. Passing it is an inset capsule;
      ending it a quiet one in the danger tint (it asks once before it cuts the caller off). */
@@ -922,16 +915,4 @@ a.lm-head-avatar:active { opacity: 0.72; }
     text-align: center;
     font-size: var(--text-xs);
   }
-}
-
-/* The caller's face wears what a thread header's does (inbox.css, .ix-th-who's first child): the face's fill, the inset
-   ring and the specular top edge, the initials at the extra-small step, semibold. */
-:where([data-look="glass"]) .live-monitor :is(.lm-head-avatar.ix-th-avatar, a.lm-head-avatar > .ix-th-avatar) {
-  border: 0;
-  background: var(--face-fill);
-  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
-  color: var(--ink);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.01em;
 }

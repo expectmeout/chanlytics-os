@@ -287,7 +287,7 @@ test("REGRESSION: who the thread is with opens their page -- the face, the name 
   assert.equal(link.type, "a");
   assert.equal(link.props.href, "#/clients/k1", "their page's address, so a long press or a new tab opens it too");
   assert.ok(
-    find(link, hasClass("ix-th-avatar")) && find(link, hasClass("ix-th-name")) && find(link, hasClass("ix-th-meta")),
+    find(link, hasClass("face")) && find(link, hasClass("ix-th-name")) && find(link, hasClass("ix-th-meta")),
     "the face, the name and the wires' line are one door, a thumb tall",
   );
   assert.equal(textOf(find(link, hasClass("ix-th-name-words"))), "Rosa Díaz");

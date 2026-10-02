@@ -1,7 +1,8 @@
 /**
  * What the kit's Face takes, proved where the compiler reads it (face.tsx): who it stands for, their initials or a
- * glyph, one or the other, written so or chosen as the page runs, and a picture over them or none. A face of nobody,
- * of both, with words of its own, one a screen reader is told of, and a size the kit does not draw stop compiling.
+ * glyph, one or the other, written so or chosen as the page runs, a picture over them or none, the header's size and a
+ * thread's priority. A face of nobody, of both, with words of its own, one a screen reader is told of, and a size the
+ * kit does not draw stop compiling.
  *
  * A type test: the positives are `Holds<Exactly<…>>` (contracts' schema-sets.ts) and calls that compile, and each line
  * under `@ts-expect-error <why>` must not compile. One that starts to compile is TS2578, an unused directive, so the
@@ -24,11 +25,16 @@ function _faceTakes(
     // A glyph is an element (the Icon), never words or nothing; a picture is its address.
     Holds<Exactly<FaceProps["glyph"], ReactElement | undefined>>,
     Holds<Exactly<FaceProps["photo"], string | undefined>>,
+    // The header's size is the one the kit draws besides the row's; a thread's priority is its word, or nothing.
+    Holds<Exactly<FaceProps["size"], "lg" | undefined>>,
+    Holds<Exactly<FaceProps["priority"], string | null | undefined>>,
   ];
   Face({ initials: "AR" });
   Face({ initials: "AR", photo: "https://example.com/aisha.jpg", ref: span, className: "pl-face" });
   Face({ glyph });
   Face({ glyph, photo: "https://example.com/logo.png" });
+  // The header's face, as a thread's header draws it: the large size, the thread's priority, a picture when there is one.
+  Face({ initials: "AR", size: "lg", priority: "P1", photo: "https://example.com/aisha.jpg" });
   // Chosen as the page runs, as People's row chooses it: a glyph for a number, else the initials, and a picture or not.
   Face({ ...(now.glyph ? { glyph: now.glyph } : { initials: "AR" }), photo: now.photo });
 
@@ -40,6 +46,6 @@ function _faceTakes(
   Face({ initials: "AR", children: "Aisha Rahman" });
   // @ts-expect-error it is decoration, always: the name beside it says who
   Face({ initials: "AR", "aria-hidden": false });
-  // @ts-expect-error the kit draws the row's one size: another comes with its first reader
-  Face({ initials: "AR", size: "lg" });
+  // @ts-expect-error the kit draws the row's size and the header's: another comes with its first reader
+  Face({ initials: "AR", size: "xl" });
 }

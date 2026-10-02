@@ -494,17 +494,6 @@
 @media (pointer: coarse) {
   html.legacy-on .ix-th-step-done { min-height: 0; padding: 10px 12px 18px; margin: -10px -12px -18px -8px; }
 }
-.ix-th-avatar {
-  /* A picture over the initials (IxAvatar's photo) fills the circle and is clipped to it. */
-  position: relative; flex: none; overflow: hidden;
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 500; color: var(--ink-muted);
-}
-.ix-th-avatar[data-priority="P1"] { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .ix-th-name {
   font-size: 14px;
   font-weight: 500;
@@ -2394,18 +2383,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   padding: 16px 20px 12px;
   border-bottom-color: var(--line);
 }
-/* Who it is: the face (the link's first child) at 36, the name at 600 with its quiet chevron, the wires under it. */
-:where([data-look="glass"]) .ix-th-who > :first-child {
-  border: 0;
-  background: var(--face-fill);
-  box-shadow:
-    var(--surface-inset-ring),
-    var(--surface-inset-depth);
-  color: var(--ink);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.01em;
-}
+/* Who it is: the face is the kit's (Face, at 36); the name at 600 with its quiet chevron, the wires under it. */
 :where([data-look="glass"]) .ix-th-name {
   gap: 4px;
   font-size: var(--text-md);

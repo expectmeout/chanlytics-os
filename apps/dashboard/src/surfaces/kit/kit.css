@@ -2334,6 +2334,16 @@ textarea.rec-input {
   letter-spacing: 0.02em;
   color: var(--ink-muted);
 }
+/* The header's size: a thread's, a call's and Live's panel (the row's is --row-face). */
+.face-lg {
+  width: 36px;
+  height: 36px;
+}
+/* A thread of the first priority rings its face in the accent (Classic; Glass draws none, as its canvases do not). */
+.face[data-priority="P1"] {
+  box-shadow: var(--face-ring);
+  color: var(--ink);
+}
 .face-glyph {
   color: var(--ink-faint);
 }
@@ -2754,11 +2764,16 @@ a.list-row {
 :where([data-look="glass"]) .rec-row::before {
   border-radius: var(--surface-inset-radius);
 }
-:where([data-look="glass"]) .face {
-  border-color: var(--surface-inset-edge);
-  background: var(--surface-inset-fill);
-  box-shadow: var(--surface-inset-depth);
+/* The canvases' avatar, which the thread's header and People's rows already wear: the face's own fill, the inset ring and
+   the specular top edge, the initials in the ink at the extra-small step, semibold, no hairline. A priority ring is
+   Classic's. */
+:where([data-look="glass"]) .face,
+:where([data-look="glass"]) .face[data-priority="P1"] {
+  border: 0;
+  background: var(--face-fill);
+  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
   font-weight: var(--weight-semibold);
+  letter-spacing: 0.01em;
   color: var(--ink);
 }
 
