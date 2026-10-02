@@ -1860,8 +1860,17 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   color: var(--ink-dim);
   line-height: 1.4;
 }
-/* The send and the chevron beside it that opens the other messages (and says which were not offered, I4): one control. */
-.ix-send-pair { display: inline-flex; align-items: center; gap: 2px; }
+/* The send and the chevron beside it that opens the other messages (and says which were not offered, I4): one control,
+   two segments of the same fill with a hair of the button's own ink between them, the chevron's a square. */
+.ix-send-pair { display: inline-flex; align-items: stretch; }
+.ix-send-pair > :first-child { border-start-end-radius: 0; border-end-end-radius: 0; }
+.ix-send-pair > :last-child {
+  min-inline-size: var(--control-h-md);
+  justify-content: center;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-inline-start-color: color-mix(in oklab, var(--primary-ink) 22%, transparent);
+}
 
 /* a deep link to a thread that is not in view: the first thread shows, with this */
 .ix-notice { padding: 8px 24px; font-size: 12px; color: var(--warn); border-bottom: 1px solid var(--line); }
@@ -1884,6 +1893,14 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 .ix-composer-actions { flex-wrap: wrap; justify-content: flex-end; }
 @container ixpane (max-width: 520px) {
   .ix-composer-actions { width: 100%; justify-content: flex-start; }
+  /* The dock has a left and a right, not one busy edge: the act to do stands on the left and the one that sets it aside
+     on the right, and the send is a row of its own, the pane's width. */
+  .ix-state-acts { align-self: stretch; }
+  .ix-state-acts > :last-child:not(:first-child) { margin-inline-start: auto; }
+  .ix-send-pair { flex: 1 1 100%; }
+  .ix-send-pair > :first-child { flex: 1; justify-content: center; }
+  /* A finger's width, as the row's height is. */
+  .ix-send-pair > :last-child { min-inline-size: 44px; }
 }
 /* A text field shows where the keys go: the composer and the search set outline:none and moved only a border (I3). */
 .ix-composer-text:focus-visible { box-shadow: var(--focus-ring); }
@@ -2844,6 +2861,10 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   }
   :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-composer {
     padding: 10px 12px 14px;
+  }
+  /* The box that offers a call or a template has no capsule of its own to inset, so it stands on the band's 16. */
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-composer:not(.ix-composer-row) {
+    padding-inline: 16px;
   }
   :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-composer.ix-composer-row {
     margin: 0 12px 14px;

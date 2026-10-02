@@ -225,7 +225,7 @@ const TemplateSendButton = ({
           label="Messages this person can be sent"
           trigger={
             <Button
-              variant="quiet"
+              variant="primary"
               size="sm"
               iconOnly
               aria-label="Choose another message"
