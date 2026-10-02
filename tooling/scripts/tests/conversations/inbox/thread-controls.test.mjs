@@ -65,6 +65,15 @@ await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx"
 const S = "../../../../../apps/dashboard/src/surfaces";
 const { InboxThread } = await import(`${S}/inbox/thread/thread.tsx`);
 const { MoreMenu } = await import(`${S}/kit/more-menu/more-menu.tsx`);
+const { Menu } = await import(`${S}/kit/menu/menu.tsx`);
+// The kit's menu as the thread reads it: its items in one list, a "|" between two groups and a group's heading in [].
+const itemsIn = (menu) => menu.props.groups.flatMap((g) => g.items);
+const menuShape = (menu) =>
+  menu.props.groups.flatMap((g, i) => [
+    ...(i ? ["|"] : []),
+    ...(g.header ? [`[${g.header}]`] : []),
+    ...g.items.map((it) => it.label),
+  ]);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 // The seam's own signal, on the module the header hears it from: a surface's rows landed.
 const { surfaceMoved: surfaceLanded } =
@@ -145,9 +154,9 @@ const draw = (vm, props = {}) => {
 
 test("the thread's menu: what to do with the conversation, then the person, then the file -- no eyebrow, nothing broken onto two lines", () => {
   const tree = draw(toInboxThreadVM(conv(), asked, ZONE, NOW));
-  const menu = find(tree, (n) => n.type === MoreMenu);
+  const menu = find(tree, (n) => n.type === Menu);
   assert.ok(menu, "the thread has its menu");
-  const shape = menu.props.items.map((it) => (it.divider ? "|" : it.header ? `[${it.header}]` : it.label));
+  const shape = menuShape(menu);
   assert.deepEqual(shape, [
     "Snooze",
     "Archive",
@@ -158,11 +167,11 @@ test("the thread's menu: what to do with the conversation, then the person, then
     "Export transcript",
   ]);
   assert.equal(
-    menu.props.items.find((it) => it.label === "Snooze").hint,
+    itemsIn(menu).find((it) => it.label === "Snooze").hint,
     "until tomorrow 10:00",
     "what Snooze will do, set to its right",
   );
-  assert.ok(menu.props.btnClass.split(" ").includes("btn-ghost"), "REGRESSION: a boxed … beside the name");
+  assert.equal(menu.props.trigger.props.variant, "quiet", "REGRESSION: a boxed … beside the name");
 });
 
 test("a group with nothing in it takes no divider with it", () => {
@@ -186,8 +195,8 @@ test("a group with nothing in it takes no divider with it", () => {
     ),
     { onArchive: null },
   );
-  const menu = find(tree, (n) => n.type === MoreMenu);
-  const shape = menu.props.items.map((it) => (it.divider ? "|" : it.label));
+  const menu = find(tree, (n) => n.type === Menu);
+  const shape = menuShape(menu);
   assert.ok(
     !shape.includes("Archive") && shape[0] !== "|" && shape.at(-1) !== "|",
     `no divider at an edge: ${shape.join(", ")}`,
@@ -306,12 +315,11 @@ test("REGRESSION: who the thread is with opens their page -- the face, the name 
 
 test("the header's menu says what it is -- Actions, with the chevron -- and stays a ghost beside the name", () => {
   // A ⋯ alone, in the dim ink, was too faint to find on a phone (Ruben, 22 Sep 2026). A word says it opens something.
-  const menu = find(draw(toInboxThreadVM(conv(), asked, ZONE, NOW)), (n) => n.type === MoreMenu);
-  assert.equal(menu.props.label, "Actions");
-  assert.equal(menu.props.title, "Actions", "and its tooltip says the same word, not More");
-  const cls = menu.props.btnClass.split(" ");
+  const trigger = find(draw(toInboxThreadVM(conv(), asked, ZONE, NOW)), (n) => n.type === Menu).props.trigger;
+  assert.ok(textOf(trigger).startsWith("Actions"), "the word, then the chevron");
+  assert.equal(trigger.props.title, "Actions", "and its tooltip says the same word, not More");
   assert.ok(
-    cls.includes("btn-ghost") && cls.includes("ix-th-more") && !cls.includes("btn-icon"),
+    trigger.props.variant === "quiet" && trigger.props.className === "ix-th-more" && !trigger.props.iconOnly,
     "a ghost button with words, not a boxed icon",
   );
 });
@@ -679,8 +687,8 @@ test("a step due under the head: what, and when it was due, with Done outside th
 
 test("Actions carry the deal's moves as a group of their own, by the stage of the deal People's row carries, each opening the one deal sheet; only where deals are on (0008)", () => {
   const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
-  const itemsOf = (tree) => find(tree, (n) => n.type === MoreMenu).props.items;
-  const shape = (tree) => itemsOf(tree).map((it) => (it.divider ? "|" : it.label));
+  const itemsOf = (tree) => itemsIn(find(tree, (n) => n.type === Menu));
+  const shape = (tree) => menuShape(find(tree, (n) => n.type === Menu));
   const was = { deal: globalThis.window.__deal, open: globalThis.window.openDealSheet };
   const opened = [];
   // What happens, in order: the Actions button taking focus, and the sheet asked for.
@@ -701,7 +709,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
   const press = (label) =>
     itemsOf(draw(vm))
       .find((it) => it.label === label)
-      .onClick();
+      .onSelect();
   try {
     // No deal: a proposal to start, in a group of its own after the person's.
     people(null);
@@ -716,7 +724,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
       "|",
       "Export transcript",
     ]);
-    assert.equal(itemsOf(draw(vm)).find((it) => it.label === "Start a proposal").icon, "deal");
+    assert.equal(itemsOf(draw(vm)).find((it) => it.label === "Start a proposal").glyph.props.name, "deal");
     press("Start a proposal");
     assert.deepEqual(
       opened.at(-1),

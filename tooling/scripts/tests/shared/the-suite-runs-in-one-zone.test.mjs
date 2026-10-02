@@ -29,6 +29,8 @@ test("with no files it runs the suite; files, globs and directories asked for re
     "tsx",
     "--import",
     "./tooling/scripts/tests/calendar/_stand-in-network.mjs",
+    "--import",
+    "./tooling/scripts/tests/_stand-in-base-ui.mjs",
     "--test",
   ];
   // a full run is measured: the coverage flags sit between the loader and the files

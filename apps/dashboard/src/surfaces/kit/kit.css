@@ -630,6 +630,65 @@ a.chip:focus-visible {
 a.more-item {
   text-decoration: none;
 }
+/* Under 900px, the kit's one phone breakpoint, the kit's Menu is the phone's action sheet, from the bottom edge as the Sheet's is: the menu opened as a
+   desktop popover pinned to the far top corner, over the conversation and as far from the thumb as the screen allows.
+   Base UI places the positioner with inline styles, so the sheet's place is held by !important; the menu stands in flow
+   on it. The handle says it is a sheet, an item is a thumb tall, and the layer behind it is only what a press outside
+   closes it through, with the ink's wash in Classic and none in Glass, where the sheet is glass over the page itself
+   (as the bell's is). The Sheet's own wash and handle are above. */
+@media (max-width: 900px) {
+  .pop-place:has(> .more-menu) {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    transform: none !important;
+  }
+  .pop-place > .more-menu {
+    max-width: none;
+    max-height: 72vh;
+    overflow-y: auto;
+    padding: 6px 10px calc(14px + env(safe-area-inset-bottom));
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    border-bottom: 0;
+    animation: more-sheet-in 220ms var(--ease-out);
+  }
+  .pop-place > .more-menu::before {
+    content: "";
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 4px auto 12px;
+    border-radius: var(--radius-full);
+    background: var(--line-strong);
+  }
+  .pop-place > .more-menu .more-item {
+    min-height: 52px;
+    padding: 0 12px;
+    gap: 14px;
+    border-radius: var(--radius-lg);
+    font-size: var(--text-md);
+  }
+  .pop-place > .more-menu .more-item .icon {
+    width: 18px;
+    height: 18px;
+  }
+  .more-backdrop[data-open] {
+    background: var(--surface-scrim-modal);
+  }
+  :where([data-look="glass"]) .more-backdrop[data-open] {
+    background: transparent;
+  }
+}
+@keyframes more-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop-place > .more-menu {
+    animation: none;
+  }
+}
 
 /* ---- Confirm — the one armed question (data-bits.jsx Confirm) ----
    A line where the control that armed it was, or a panel under the row when
@@ -3062,9 +3121,10 @@ a.list-row {
    the ink a touch soft, the date's the dim ink. iOS Safari draws no fixed backgrounds, where the light would pool
    in the letters' own box, so there the soft fill stands alone. A desk's head keeps its plain ink. */
 @media (max-width: 900px) {
+  /* The letters are painted by the background through the text fill, which is transparent; `color` stays the ink's own,
+     what a browser without a clipped background draws, and what the contrast checks read. */
   :where([data-look="glass"]) .pg-title,
   :where([data-look="glass"]) .pg-dateline {
-    color: transparent;
     -webkit-text-fill-color: transparent;
     -webkit-background-clip: text;
     background-clip: text;
@@ -3090,21 +3150,6 @@ a.list-row {
   }
   :where([data-look="glass"]) .pg-dateline {
     background-image: var(--surface-page-light), linear-gradient(var(--ink-dim), var(--ink-dim));
-  }
-}
-@supports (-webkit-touch-callout: none) {
-  @media (max-width: 900px) {
-    :where([data-look="glass"]) .pg-title {
-      background-image: linear-gradient(
-        oklch(from var(--ink) l c h / var(--title-fill)),
-        oklch(from var(--ink) l c h / var(--title-fill))
-      );
-      background-attachment: scroll;
-    }
-    :where([data-look="glass"]) .pg-dateline {
-      background-image: linear-gradient(var(--ink-dim), var(--ink-dim));
-      background-attachment: scroll;
-    }
   }
 }
 

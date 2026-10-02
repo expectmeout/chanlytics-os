@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { Menu } from "../../kit/menu/menu";
 import { StatePill } from "../../kit/pill/state-pill";
 import { useSurface } from "../../use-surface";
 import { ROUTES, TICK_MS } from "../constants";
@@ -180,11 +180,23 @@ function callHead(c: ConversationRow, onBack: (() => void) | null) {
       </div>
       {clientId && (
         <div className="ix-th-actions">
-          <MoreMenu
-            btnClass="btn btn-ghost btn-sm ix-th-more"
-            label="Actions"
-            title="Actions"
-            items={[{ label: "Open profile", icon: "users", onClick: () => navigate(ROUTES.client(clientId)) }]}
+          <Menu
+            trigger={
+              <Button variant="quiet" size="sm" className="ix-th-more" title="Actions">
+                Actions <Icon name="chevron-down" size={10} />
+              </Button>
+            }
+            groups={[
+              {
+                items: [
+                  {
+                    label: "Open profile",
+                    glyph: <Icon name="users" size={13} />,
+                    onSelect: () => navigate(ROUTES.client(clientId)),
+                  },
+                ],
+              },
+            ]}
           />
         </div>
       )}

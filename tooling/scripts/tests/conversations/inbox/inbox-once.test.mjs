@@ -119,7 +119,8 @@ Object.assign(globalThis, {
 });
 // The shell's own toast and role gate, which the pages draw through the bridge (surfaces/legacy-verbs.ts).
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-const { MoreMenu } = kitPages;
+const { Menu } = await import("../../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
+const itemsIn = (menu) => menu.props.groups.flatMap((g) => g.items);
 
 const findAll = all;
 const hasClass = (cls) => (n) => typeof n.props?.className === "string" && n.props.className.split(" ").includes(cls);
@@ -131,7 +132,7 @@ const paneOf = (thread, over = {}) => {
   );
 };
 const headOf = (pane) => find(pane, (n) => n.type === "header" && hasClass("ix-th-head")(n));
-const menuOf = (head) => find(head, (n) => n.type === MoreMenu);
+const menuOf = (head) => find(head, (n) => n.type === Menu);
 const listOf = (threads, over = {}) =>
   again(() =>
     InboxList({
@@ -173,15 +174,15 @@ test("REGRESSION: a real thread's header names its channel once and keeps Snooze
     null,
     "REGRESSION: Snooze and Open profile beside the menu",
   );
-  const items = menuOf(head)
-    .props.items.map((it) => it.label)
+  const items = itemsIn(menuOf(head))
+    .map((it) => it.label)
     .filter(Boolean);
   for (const label of ["Open profile", "Snooze"])
     assert.ok(items.includes(label), `${label} is in the menu: ${items.join(", ")}`);
 
   // Snoozed, it wakes from its status line: no Snooze in the menu, and no "Wakes …" button in the header.
   const asleep = headOf(paneOf(vmOf(chat({ state: "snoozed", snooze_until: later, paused_until: later }))));
-  assert.ok(!menuOf(asleep).props.items.some((it) => it.label === "Snooze"));
+  assert.ok(!itemsIn(menuOf(asleep)).some((it) => it.label === "Snooze"));
   assert.ok(!textOf(asleep).includes("Wakes"));
 });
 

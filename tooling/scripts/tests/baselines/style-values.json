@@ -105,11 +105,11 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/mobile.css": {
-    "font": 6,
-    "radius": 1,
+    "font": 5,
+    "radius": 0,
     "shadow": 1,
-    "colour": 2,
-    "blur": 1
+    "colour": 1,
+    "blur": 0
   },
   "apps/dashboard/src/legacy/styles/people.css": {
     "font": 32,

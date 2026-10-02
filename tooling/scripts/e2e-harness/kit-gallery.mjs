@@ -357,6 +357,7 @@ const kitItem = (glyphName, label, { tone = "", after = "" } = {}) =>
 const kitMenu = () =>
   `<button type="button" tabindex="0" aria-label="More" aria-haspopup="menu" aria-expanded="true" ` +
   `class="btn btn-icon btn-sm btn-ghost">${icon("more", 14)}</button>` +
+  `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
   `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
   `<div class="more-menu align-right" role="menu" tabindex="-1">` +
   `<div role="group"><div class="more-header" aria-hidden="true">Sam Ortega</div>` +
@@ -374,6 +375,7 @@ const kitMenu = () =>
 const kitMenuSet = () =>
   `<button type="button" tabindex="0" aria-haspopup="menu" aria-expanded="true" class="btn btn-sm">Sort ` +
   `${icon("chevron-down", 10)}</button>` +
+  `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
   `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
   `<div class="more-menu align-left" role="menu" tabindex="-1"><div role="group">` +
   [
