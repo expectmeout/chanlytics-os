@@ -90,6 +90,15 @@ export function abandonedCall(
   return dto.disconnection_reason === "user_hangup";
 }
 
+/**
+ * A dial that never connected, by who dialled: a customer's is a missed call; one the receptionist placed and
+ * nobody answered is not "missed" by anyone. The bell, the person page and the call row said "Missed call" for
+ * both, and the bell named the BUSINESS's own number under it (the 2 Oct 2026 audit).
+ */
+export function callAttemptWords(direction: "inbound" | "outbound"): string {
+  return direction === "outbound" ? "Call didn't connect" : "Missed call";
+}
+
 /** Why the call ended, in words a salon owner uses. */
 export const DISCONNECTION_LABELS: Record<string, string> = {
   user_hangup: "Customer hung up",

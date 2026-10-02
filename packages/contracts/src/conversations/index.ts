@@ -9,6 +9,7 @@ export {
   writtenChannelOf,
   threadChannelOf,
   threadChannelWords,
+  THREAD_CHANNEL_WORDS,
 } from "./thread-channel";
 export { contactName, isIdentifierName, contactMeta, initialsOf } from "./thread-contact";
 export { shortTime, formatWaited } from "./thread-clock";
@@ -19,6 +20,7 @@ export {
   messageStatusLabel,
   reachedCustomer,
   isHeldDraft,
+  isChatMessage,
   draftSendsAtMs,
   messageWords,
   messageText,
@@ -29,13 +31,20 @@ export { HANDLED_OUTCOMES } from "./handled";
 export type { Handled } from "./handled";
 export { REFERRAL_ID_MAX } from "./first-touch";
 export type { MessageAuthor } from "./message-author";
-export { ESCALATION_REASON_LABELS } from "./escalations";
+export {
+  ESCALATION_REASON_LABELS,
+  ESCALATION_REASON_SHORT,
+  ESCALATION_SUMMARIES,
+  reasonShort,
+  reasonLabelOf,
+  reasonSummaryOf,
+} from "./escalations";
 export type { EscalationDto } from "./escalations";
 export type { InboxThreadVM } from "./inbox-thread-vm";
 export { threadStanding, toInboxThreadVM } from "./inbox-thread";
 export { toConversationVM } from "./conversation-vm";
 export type { ConversationMessageVM, ConversationVM } from "./conversation-vm";
-export { ABANDONED_MS, abandonedCall, DISCONNECTION_LABELS } from "./call-dto";
+export { ABANDONED_MS, abandonedCall, callAttemptWords, DISCONNECTION_LABELS } from "./call-dto";
 export type { CallDto } from "./call-dto";
 export { spokenDuration, toCallVM } from "./call-vm";
 export type { CallVM } from "./call-vm";

@@ -549,7 +549,7 @@ const call = {
 test("a conversation row opens the one thread: the pane beside the list is the Inbox's thread, not a second viewer", () => {
   fresh();
   releasePane();
-  listed([toConversationVM(convo(), ZONE, NOW)], [toInboxThreadVM(convo(), null, ZONE, NOW)]);
+  listed([toConversationVM(convo(), null, ZONE, NOW)], [toInboxThreadVM(convo(), null, ZONE, NOW)]);
   const tree = conversations();
   const thread = find(tree, (n) => n.type === InboxThread);
   assert.ok(thread, "REGRESSION: Conversations drew its own viewer for a chat");
@@ -656,7 +656,7 @@ test("a call still going is a line that says so, its clock running from its star
 test("a link to a conversation not in view says so where it would have opened, and opens nobody else's", () => {
   fresh();
   releasePane();
-  listed([toConversationVM(convo(), ZONE, NOW)], [toInboxThreadVM(convo(), null, ZONE, NOW)]);
+  listed([toConversationVM(convo(), null, ZONE, NOW)], [toInboxThreadVM(convo(), null, ZONE, NOW)]);
   const tree = conversations({ initialId: "c-gone" });
   const missing = find(tree, byTestId("cv-missing-thread"));
   assert.ok(missing, "the reading pane says the conversation isn't here");

@@ -148,7 +148,7 @@ const call = (id, name) =>
     ZONE,
     NOW,
   );
-const rosa = toConversationVM(conv("c1", "Rosa Díaz", [msg({ id: "m1" }), ours()]), ZONE, NOW);
+const rosa = toConversationVM(conv("c1", "Rosa Díaz", [msg({ id: "m1" }), ours()]), null, ZONE, NOW);
 const emily = call("k7", "Emily Chen");
 const withRows = (list) => {
   setSurfaceValue("conversations", {

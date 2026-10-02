@@ -142,7 +142,9 @@ function snoozedBar(p: StatusProps) {
         says={
           <>
             Hidden from your queue. The receptionist still answers, and a new message brings it back.
-            {thread.escalationId ? " They asked for a person — that's still waiting for you." : ""}
+            {/* The request still standing, in its own words (the row's subject is the reason's label): it said
+                "They asked for a person" over a failed send, a call back and a deadman alike (the 2 Oct 2026 audit). */}
+            {thread.escalationId && thread.subject ? ` ${thread.subject} — that's still waiting for you.` : ""}
           </>
         }
         acts={

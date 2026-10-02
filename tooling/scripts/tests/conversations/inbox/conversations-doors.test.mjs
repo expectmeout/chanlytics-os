@@ -98,7 +98,7 @@ const call = (over = {}) => ({
 /* -------------------------------- the view model -------------------------------- */
 
 test("REGRESSION (A7, A9, A23): a chat row opens its Inbox thread, each of our messages says who sent it, and the summary says who answered last", () => {
-  const row = (...messages) => toConversationVM(conv(messages), ZONE, NOW);
+  const row = (...messages) => toConversationVM(conv(messages), null, ZONE, NOW);
 
   const ai = row(msg({ id: "m1" }), ours());
   assert.equal(ai.threadId, "th-c1", "REGRESSION: the row carried no thread id, so 'View thread in Inbox' never drew");
@@ -151,7 +151,7 @@ test("REGRESSION (A7, A9, A23): a chat row opens its Inbox thread, each of our m
     "REGRESSION: a customer waiting on a reply read 'Answered by the receptionist'",
   );
 
-  const paused = toConversationVM(conv([msg({ id: "m1" }), ours()], { state: "needs_human" }), ZONE, NOW);
+  const paused = toConversationVM(conv([msg({ id: "m1" }), ours()], { state: "needs_human" }), null, ZONE, NOW);
   assert.equal(
     paused.summary.bullets[1],
     "Receptionist paused — a human has this thread",
@@ -218,6 +218,7 @@ test("REGRESSION (A23): the Inbox says the same author as Conversations -- a per
 test("REGRESSION (A7, A9, A23): Conversations says who answered, signs our messages, and IS the Inbox's thread -- not a door to it", () => {
   const team = toConversationVM(
     conv([msg({ id: "m1" }), ours({ sender: "human", body: "See you Friday!" })]),
+    null,
     ZONE,
     NOW,
   );
@@ -278,7 +279,7 @@ test("REGRESSION (A22): a new workspace's Conversations says there are none yet 
   setup.props.onClick();
   assert.equal(went.at(-1), "start");
 
-  withRows([toConversationVM(conv([msg({ id: "m1" }), ours()]), ZONE, NOW)]);
+  withRows([toConversationVM(conv([msg({ id: "m1" }), ours()]), null, ZONE, NOW)]);
   fresh();
   find(
     page(),
@@ -290,7 +291,7 @@ test("REGRESSION (A22): a new workspace's Conversations says there are none yet 
 });
 
 test("REGRESSION (A26): a link to a conversation not in view says so inside the reading pane, not in a grid cell of its own -- and opens nobody else's", () => {
-  withRows([toConversationVM(conv([msg({ id: "m1" }), ours()]), ZONE, NOW)]);
+  withRows([toConversationVM(conv([msg({ id: "m1" }), ours()]), null, ZONE, NOW)]);
   fresh();
   const tree = page({ initialId: "c-gone" });
   const kids = tree.props.children.filter((k) => k && typeof k === "object");
@@ -328,7 +329,7 @@ test("REGRESSION: a search that stops matching the open conversation keeps it op
   // The pane's own drawing is the one thread's (one-thread.test.mjs); here only which thread it was handed.
   const handedTo = (tree) => find(tree, (n) => n.type === InboxThread)?.props.thread?.id ?? null;
   try {
-    withRows([toConversationVM(nina, ZONE, NOW), toConversationVM(rosa, ZONE, NOW)]);
+    withRows([toConversationVM(nina, null, ZONE, NOW), toConversationVM(rosa, null, ZONE, NOW)]);
     fresh();
     const row = (tree, who) => find(tree, (n) => n.props?.onSelect && n.props?.c?.who === who);
     const first = page();

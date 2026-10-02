@@ -137,6 +137,7 @@ test("a call note knows it is one, and a person known by number keeps their whol
         body: "Inbound call · 1 min — booked.",
       }),
     ]),
+    null,
     ZONE,
     NOW,
   );
@@ -157,6 +158,7 @@ test("a call note knows it is one, and a person known by number keeps their whol
         dnc: false,
       },
     }),
+    null,
     ZONE,
     NOW,
   );
@@ -205,7 +207,7 @@ test("a preview is the last thing that actually happened, never a cancelled or q
       channel_ts: null,
     }),
   ];
-  const vm = toConversationVM(conv(messages), ZONE, NOW);
+  const vm = toConversationVM(conv(messages), null, ZONE, NOW);
   assert.equal(vm.outcome, "open", "REGRESSION: a cancelled draft made the thread read 'handled'");
   assert.match(vm.snippet, /how much is a haircut/);
   const inbox = toInboxThreadVM(conv(messages), null, ZONE, NOW);

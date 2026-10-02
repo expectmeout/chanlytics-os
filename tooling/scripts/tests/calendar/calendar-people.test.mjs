@@ -1888,7 +1888,8 @@ test("asked means they reached out: the call they placed counts, a call the owne
   );
   assert.equal(weCalled.askedMs, null, "an outbound call is not them asking");
   assert.equal(weCalled.askedNotBooked, false);
-  assert.equal(weCalled.lastContact.label.startsWith("Phoned"), true, "but it is still the last contact");
+  // Still the last contact, but nobody phoned us: the row said "Phoned" over a call we placed (the 2 Oct 2026 audit).
+  assert.equal(weCalled.lastContact.label.startsWith("We called"), true, "but it is still the last contact");
   const mig = readCode("supabase/migrations/00055_people_list_inbound_call.sql");
   assert.ok(
     mig.includes("drop function if exists public.people_list(uuid, uuid);") &&

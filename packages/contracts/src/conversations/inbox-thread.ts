@@ -19,13 +19,14 @@ import {
   messageStatusLabel,
   reachedCustomer,
   isHeldDraft,
+  isChatMessage,
   draftSendsAtMs,
   messageWords,
   messageText,
   clipAtWord,
 } from "./message-words";
 import { messageVia, messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "./message-author";
-import { ESCALATION_REASON_LABELS, ESCALATION_SUMMARIES, type EscalationDto } from "./escalations";
+import { reasonLabelOf, reasonSummaryOf, type EscalationDto } from "./escalations";
 import type { InboxThreadVM } from "./inbox-thread-vm";
 
 /**
@@ -89,7 +90,7 @@ export function toInboxThreadVM(
   const heldDraft = draftMsg
     ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) }
     : null;
-  const reasonLabel = escalation ? (ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason) : null;
+  const reasonLabel = escalation ? reasonLabelOf(escalation.reason) : null;
   const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   // replyWindow(), the rule the reply route enforces, not a copy of it. This
@@ -102,22 +103,30 @@ export function toInboxThreadVM(
   // other row is WhatsApp. A caller with no thread on WhatsApp gets phone
   // verbs, not a notice about a reply window that never opened.
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
-  const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
+  const hasChat = !!dto.last_wa_inbound_at || dto.messages.some(isChatMessage);
   // The wire a reply goes out on, as the reply route picks it: where they last wrote. A text thread said WhatsApp,
   // its window read closed, and its composer offered only templates, which the route refuses on a text (I5).
   const chatChannel = writtenChannelOf(lastInbound?.channel);
   const primaryChannel: InboxThreadVM["primaryChannel"] = hasChat || !hasCalls ? chatChannel : "phone";
   // Every wire the thread's written words travelled, the one a reply goes out on first: with more than one, each
   // bubble says its own (the page names a bubble's channel only when a thread has several).
-  const written = [
-    ...new Set(dto.messages.filter((m) => m.type !== "call_summary").map((m) => writtenChannelOf(m.channel))),
-  ];
+  const written = [...new Set(dto.messages.filter(isChatMessage).map((m) => writtenChannelOf(m.channel)))];
   const channels = [
     ...(hasChat || !hasCalls ? [chatChannel, ...written.filter((c) => c !== chatChannel)] : []),
     ...(hasCalls ? ["phone"] : []),
   ];
 
   const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => {
+    // A note the platform wrote on the thread is a line between the words, not a bubble: drawn as a bubble it read
+    // "by WhatsApp Receptionist · Delivered", a reply the customer never got (the 2 Oct 2026 audit).
+    if (m.type === "note") {
+      return {
+        type: "event" as const,
+        kind: "note",
+        at: bubbleTime(messageAt(m), tz, now),
+        body: `Note: ${messageText(m)}`,
+      };
+    }
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
     const why = messageWhy(m);
@@ -263,7 +272,7 @@ export function toInboxThreadVM(
           // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
           escalation.reason === "callback" && escalation.details?.trim()
           ? escalation.details.trim()
-          : (ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`)
+          : reasonSummaryOf(escalation.reason)
         : takenOver
           ? "You're answering this one. The receptionist stays quiet until you hand it back."
           : lastWord
@@ -292,7 +301,7 @@ export function toInboxThreadVM(
  * canceled is not a failure: the customer is simply waiting.
  */
 function lastWordOf(dto: ConversationDto): NonNullable<InboxThreadVM["lastWord"]> {
-  const chat = dto.messages.filter((m) => m.type !== "call_summary");
+  const chat = dto.messages.filter(isChatMessage);
   // Back from the newest: our words that never left, down to the last thing that happened between them.
   let at = chat.length - 1;
   let failed: MessageDto | null = null;

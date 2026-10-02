@@ -551,6 +551,9 @@ function isOptedOutContact(c) {
 }
 var ASKED_TO_STOP = "asked to stop receiving messages";
 var OPT_OUT_REFUSAL = `This customer ${ASKED_TO_STOP}. They can text START to opt back in.`;
+function optOutWords(who) {
+  return `${who} ${ASKED_TO_STOP}. Nothing can be sent \u2014 they can text START to opt back in.`;
+}
 function stopRequestQuestion() {
   return { type: "noul", instructions: `Has the customer ${ASKED_TO_STOP}?` };
 }
@@ -970,6 +973,9 @@ function messageStatusLabel(status) {
     default:
       return void 0;
   }
+}
+function isChatMessage(m) {
+  return m.type !== "call_summary" && m.type !== "note";
 }
 function reachedCustomer(status) {
   return status !== "queued" && status !== "failed" && status !== "canceled";
@@ -7783,32 +7789,82 @@ function saidYesTo(r2, purpose, channel, about) {
   return mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about }).ok;
 }
 
-// src/people/person-row-facts.ts
-var REASON_SHORT = {
+// src/conversations/escalations.ts
+var ESCALATION_REASON_LABELS = {
+  human_token: "Customer asked for a person",
+  refusal: "Assistant declined to answer",
+  brain_error: "The receptionist hit an error \u2014 a holding message went out",
+  non_text: "Sent a voice note / photo",
+  send_failed: "Reply failed to deliver",
+  policy_block: "Held by your reply setting \u2014 nothing was sent",
+  policy_ask: "Set to Ask me first \u2014 a person answers this one",
+  person_hold: "You handle this person \u2014 the receptionist stays out",
+  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
+  deadman: "Nobody picked this up \u2014 flagged after silence",
+  manual: "Flagged manually",
+  opt_out: "Asked to stop receiving messages",
+  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
+  stale: "Arrived hours late \u2014 too old to answer automatically",
+  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
+  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
+  paused: "Held \u2014 the workspace is paused until billing resumes",
+  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
+  email_review: "Wrote by email \u2014 a person answers"
+};
+var ESCALATION_REASON_SHORT = {
   human_token: "asked for a person",
-  non_text: "sent something the receptionist can't read",
   refusal: "the receptionist declined to answer",
-  rate_cap: "reply limit reached",
-  policy_block: "held by your reply setting",
-  policy_ask: "a booking or a question set to Ask me first",
-  person_hold: "held for you",
-  carriers: "waiting on carriers",
-  email_review: "wrote by email",
-  send_failed: "a reply failed to send",
-  deadman: "no answer in time",
   brain_error: "the receptionist hit an error",
-  manual: "flagged by you",
+  non_text: "sent a voice note or photo",
+  send_failed: "reply failed to deliver",
+  policy_block: "held by your reply setting",
+  policy_ask: "set to Ask me first",
+  person_hold: "you handle this person",
+  rate_cap: "too many replies too fast",
+  deadman: "nobody picked this up",
+  manual: "flagged by hand",
   opt_out: "asked to stop",
-  state_unavailable: "memory was unavailable",
-  stale: "message arrived late",
+  state_unavailable: "the receptionist could not read this thread",
+  stale: "arrived hours late",
+  budget: "the day's model budget is used up",
   callback: "needs a call back",
-  budget: "the day\u2019s model budget is spent",
-  paused: "billing is paused"
+  paused: "the workspace is paused until billing resumes",
+  carriers: "the carriers have not approved this line",
+  email_review: "wrote by email"
 };
 function reasonShort(reason) {
   if (!reason) return "";
-  return REASON_SHORT[reason] ?? reason.replace(/_/g, " ");
+  return ESCALATION_REASON_SHORT[reason] ?? reason.replace(/_/g, " ");
 }
+var ESCALATION_SUMMARIES = {
+  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
+  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
+  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
+  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
+  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
+  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
+  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
+  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
+  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
+  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
+  manual: "Flagged by hand for a human.",
+  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
+  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
+  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
+  budget: "The day's model budget is used up, so the receptionist paused itself. NOTHING was sent \u2014 answer them yourself, or raise the budget under Settings \u203A Autonomy.",
+  callback: "They phoned and the receptionist couldn't finish it.",
+  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
+  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
+  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
+};
+function reasonLabelOf(reason) {
+  return ESCALATION_REASON_LABELS[reason] ?? reason;
+}
+function reasonSummaryOf(reason) {
+  return ESCALATION_SUMMARIES[reason] ?? `${reasonLabelOf(reason)}. Needs a human.`;
+}
+
+// src/people/person-row-facts.ts
 function ago(ms2, tz, nowMs) {
   return agoWords(ms2, nowMs, { dateAfterMs: WEEK_MS, date: (at3) => clockDate(at3, tz, nowMs) });
 }
@@ -7817,7 +7873,14 @@ function lastContactOf(r2, tz, nowMs) {
   const k = ts(r2.last_call_at);
   if (m === null && k === null) return { ts: null, at: null, kind: null, who: null, label: "No contact recorded" };
   if (k !== null && (m === null || k > m)) {
-    return { ts: k, at: r2.last_call_at, kind: "call", who: "they", label: `Phoned \xB7 ${ago(k, tz, nowMs)}` };
+    const theirs = ts(r2.last_inbound_call_at) === k;
+    return {
+      ts: k,
+      at: r2.last_call_at,
+      kind: "call",
+      who: theirs ? "they" : "system",
+      label: `${theirs ? "Phoned" : "We called"} \xB7 ${ago(k, tz, nowMs)}`
+    };
   }
   const who = r2.last_message_direction === "inbound" ? "they" : r2.last_message_sender === "human" ? "you" : r2.last_message_sender === "ai" ? "receptionist" : "system";
   const verb = who === "they" ? "They wrote" : who === "you" ? "You replied" : who === "receptionist" ? "Receptionist replied" : "We sent";
@@ -16947,49 +17010,6 @@ var HANDLED_OUTCOMES = ["ai", "held", "handoff", "blocked"];
 // src/conversations/first-touch.ts
 var REFERRAL_ID_MAX = 200;
 
-// src/conversations/escalations.ts
-var ESCALATION_REASON_LABELS = {
-  human_token: "Customer asked for a person",
-  refusal: "Assistant declined to answer",
-  brain_error: "The receptionist hit an error \u2014 a holding message went out",
-  non_text: "Sent a voice note / photo",
-  send_failed: "Reply failed to deliver",
-  policy_block: "Held by your reply setting \u2014 nothing was sent",
-  policy_ask: "Set to Ask me first \u2014 a person answers this one",
-  person_hold: "You handle this person \u2014 the receptionist stays out",
-  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
-  deadman: "Nobody picked this up \u2014 flagged after silence",
-  manual: "Flagged manually",
-  opt_out: "Asked to stop receiving messages",
-  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
-  stale: "Arrived hours late \u2014 too old to answer automatically",
-  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
-  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
-  paused: "Held \u2014 the workspace is paused until billing resumes",
-  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
-  email_review: "Wrote by email \u2014 a person answers"
-};
-var ESCALATION_SUMMARIES = {
-  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
-  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
-  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
-  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
-  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
-  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
-  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
-  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
-  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
-  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
-  manual: "Flagged by hand for a human.",
-  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
-  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
-  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
-  callback: "They phoned and the receptionist couldn't finish it.",
-  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
-  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
-  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
-};
-
 // src/reach-out/reach-out-reply-words.ts
 var REPLIES_PAGE = 200;
 var REPLY_UNDO_REFUSALS = {
@@ -17128,22 +17148,28 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     }
   }
   const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
-  const reasonLabel = escalation ? ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason : null;
+  const reasonLabel = escalation ? reasonLabelOf(escalation.reason) : null;
   const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const win = replyWindow(lastInbound?.channel, dto.last_wa_inbound_at, now).open;
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
-  const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
+  const hasChat = !!dto.last_wa_inbound_at || dto.messages.some(isChatMessage);
   const chatChannel = writtenChannelOf(lastInbound?.channel);
   const primaryChannel = hasChat || !hasCalls ? chatChannel : "phone";
-  const written = [
-    ...new Set(dto.messages.filter((m) => m.type !== "call_summary").map((m) => writtenChannelOf(m.channel)))
-  ];
+  const written = [...new Set(dto.messages.filter(isChatMessage).map((m) => writtenChannelOf(m.channel)))];
   const channels = [
     ...hasChat || !hasCalls ? [chatChannel, ...written.filter((c) => c !== chatChannel)] : [],
     ...hasCalls ? ["phone"] : []
   ];
   const timeline = dto.messages.map((m) => {
+    if (m.type === "note") {
+      return {
+        type: "event",
+        kind: "note",
+        at: bubbleTime(messageAt(m), tz, now),
+        body: `Note: ${messageText(m)}`
+      };
+    }
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
     const why = messageWhy(m);
@@ -17256,7 +17282,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? (
       // A call back's to-do is its one sentence: "They phoned and the receptionist couldn't finish it." sat beneath the
       // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
-      escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`
+      escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : reasonSummaryOf(escalation.reason)
     ) : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
     lastAt: shortTime(dto.last_message_at, tz, now),
     lastAtFull: shortTime(dto.last_message_at, tz, now),
@@ -17274,7 +17300,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
   };
 }
 function lastWordOf(dto) {
-  const chat = dto.messages.filter((m) => m.type !== "call_summary");
+  const chat = dto.messages.filter(isChatMessage);
   let at3 = chat.length - 1;
   let failed = null;
   for (; at3 >= 0; at3--) {
@@ -17305,7 +17331,7 @@ function lastWordOf(dto) {
 }
 
 // src/conversations/conversation-vm.ts
-function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
+function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const whoShort = isIdentifierName(who) ? who : who.split(" ")[0] || who;
   const msgs = dto.messages.map((m) => ({
@@ -17329,12 +17355,21 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     } : {}
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  const chat = dto.messages.filter((m) => m.type !== "call_summary");
+  const chat = dto.messages.filter(isChatMessage);
   const callNotes = dto.messages.length - chat.length;
   const last = [...chat].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastAuthor = last && last.direction === "outbound" ? messageAuthor(last) : null;
-  const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
-  const needsHuman = dto.state === "needs_human" || paused;
+  const v = standingOf(
+    {
+      state: dto.state,
+      paused_until: dto.paused_until,
+      assignee_user_id: dto.assignee_user_id,
+      assignee_is_me: dto.assignee_is_me,
+      open_escalation: !!escalation
+    },
+    now.getTime()
+  );
+  const needsHuman = v.flagged;
   const outcome = needsHuman ? "escalated" : last?.direction === "inbound" || dto.state === "snoozed" ? "open" : "handled";
   return {
     id: dto.id,
@@ -17353,6 +17388,7 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     // last_message_at ignored call notes, so a row read "3:22 AM" beside a
     // preview imported at 2:15 PM.
     at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
+    standing: v.standing,
     outcome,
     snippet: last ? messageWords(last).slice(0, 110) : "",
     hasChat: chat.length > 0,
@@ -17376,6 +17412,9 @@ function abandonedCall(dto) {
   const ms2 = dto.duration_ms;
   if (typeof ms2 !== "number" || ms2 <= 0 || ms2 >= ABANDONED_MS) return false;
   return dto.disconnection_reason === "user_hangup";
+}
+function callAttemptWords(direction) {
+  return direction === "outbound" ? "Call didn't connect" : "Missed call";
 }
 var DISCONNECTION_LABELS = {
   user_hangup: "Customer hung up",
@@ -17600,7 +17639,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     at: shortTime(dto.started_at, tz, now),
     ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...dur ? { duration: dur } : {},
-    outcome: live ? "live" : missed ? "missed" : abandonedCall(dto) ? "abandoned" : callOutcomeOf(dto.outcome) === "callback_needed" ? "callback" : "handled",
+    outcome: live ? "live" : missed ? "missed" : dto.status === "error" ? "failed" : abandonedCall(dto) ? "abandoned" : callOutcomeOf(dto.outcome) === "callback_needed" ? "callback" : dto.in_voicemail ? "voicemail" : "handled",
     ...live ? { live: true } : {},
     snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
     summary: { headline: wanted || firstSentence || snippetBody, bullets },
@@ -18061,7 +18100,8 @@ function proposalAction(replyVia, win, sentWords2) {
     ready: false
   };
 }
-function repliesWords(via, window) {
+function repliesWords(via, window, stop) {
+  if (stop.optedOut) return optOutWords(stop.who);
   if (via === "Email") return "Any time, by email";
   if (via === "Text") return "Any time, by text";
   if (via !== "WhatsApp" || !window) return null;
@@ -18449,6 +18489,9 @@ var TONE_OF = /* @__PURE__ */ (() => ({
   thread: {
     escalated: "warn",
     needs_you: "warn",
+    // Flagged and held: yours is in hand, a teammate's is theirs to answer -- neither is a warning to this reader.
+    yours: "info",
+    theirs: "plain",
     snoozed: "info",
     done: "plain",
     open: "plain",
@@ -18460,11 +18503,14 @@ var TONE_OF = /* @__PURE__ */ (() => ({
   call: {
     live: "accent",
     missed: "plain",
+    // The provider could not place or keep the call: a fault, not a customer's choice.
+    failed: "warn",
     handled: "plain",
     stale: "plain",
     ended: "plain",
     abandoned: "warn",
-    callback: "warn"
+    callback: "warn",
+    voicemail: "plain"
   },
   person: {
     needs_you: "warn",
@@ -18520,6 +18566,8 @@ var LABEL_OF = /* @__PURE__ */ (() => ({
   thread: {
     escalated: "Needs you",
     needs_you: "Needs you",
+    yours: "You have it",
+    theirs: "A teammate has it",
     snoozed: "Snoozed",
     done: "Done",
     open: "Customer wrote last",
@@ -18538,11 +18586,13 @@ var LABEL_OF = /* @__PURE__ */ (() => ({
   call: {
     live: "Live",
     missed: "Never connected",
+    failed: "Call failed",
     handled: "Handled",
     stale: "No word from the provider",
     ended: "Ended",
     abandoned: "Hung up early",
-    callback: "Asked for a call back"
+    callback: "Asked for a call back",
+    voicemail: "Reached voicemail"
   },
   person: PERSON_STATE_LABELS,
   consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
@@ -19858,7 +19908,7 @@ function pipelinePeekDetail(p) {
     reach.push({ id: "phone", label: W.phone, words: p.phone, call: dial ? `tel:${dial}` : null, copy: p.phone });
   }
   if (p.email) reach.push({ id: "email", label: W.email, words: p.email, call: null, copy: p.email });
-  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow) : null;
+  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name }) : null;
   if (replies) reach.push({ id: "replies", label: W.replies, words: replies, call: null, copy: null });
   const history = p.timeline.filter((t) => t.kind === "deal" && !t.ahead).sort((a, b) => b.ts - a.ts).slice(0, 3).map((t) => ({ id: t.id, words: t.text, when: t.day }));
   return { reach, history };
@@ -23851,12 +23901,13 @@ function lastExchangeOf({ profile, stamp }) {
       const t = ts(messageAt(m));
       if (t === null) continue;
       if (!customer && m.direction === "inbound" && m.body)
-        customer = { text: m.body, at: `${stamp(t).time} ${stamp(t).day}` };
+        customer = { text: messageWords(m), at: `${stamp(t).time} ${stamp(t).day}` };
       if (!reply && m.direction === "outbound" && m.status !== "canceled" && (m.sender === "ai" || m.sender === "human")) {
         reply = {
           text: messageText(m),
           at: `${stamp(t).time} ${stamp(t).day}`,
-          who: m.sender === "ai" ? "Receptionist" : "You"
+          // A person's reply is the team's (message-author.ts): the row does not say which member sent it.
+          who: m.sender === "ai" ? "Receptionist" : "Your team"
         };
       }
       if (customer && reply) break;
@@ -23880,7 +23931,9 @@ function rightNowOf({ profile, tz, now, nowMs, row: r2, base }) {
     return {
       tone: "escalated",
       title: `Escalated \xB7 ${reasonShort(r2.open_escalation_reason)}`,
-      detail: `${capitalize(reasonShort(r2.open_escalation_reason))}${since ? ` \xB7 since ${since}` : ""}. Paused until someone answers.`,
+      // The operator's first sentence for the reason (the Inbox's own): "Paused until someone answers" was appended to
+      // every reason, over a person who had asked to stop, where nothing may be answered (the 2 Oct 2026 audit).
+      detail: `${since ? `Since ${since}. ` : ""}${reasonSummaryOf(r2.open_escalation_reason)}`,
       cta: openThread
     };
   }
@@ -23946,6 +23999,7 @@ var TONE_WORD = {
 var receptionistMeta = (label) => label.includes(", ") ? label.slice(label.indexOf(", ") + 2) : label.toLowerCase();
 function personFactsOf({ profile, tz, nowMs, base, current, firstChannel }) {
   const lc = base.lastContact;
+  const attempts = profile.calls.filter((k) => k.status === "not_connected").length;
   const lastMeta = lc.who === "they" ? lc.kind === "call" ? "they phoned" : "they wrote" : lc.who === "you" ? "you replied" : lc.who === "receptionist" ? "receptionist replied" : lc.who === "system" ? "we sent" : "";
   const facts = [
     { label: "First contact", value: base.firstContact.label, meta: firstChannel },
@@ -23958,7 +24012,9 @@ function personFactsOf({ profile, tz, nowMs, base, current, firstChannel }) {
     {
       label: "Calls",
       value: base.calls,
-      meta: base.calls ? `${Math.max(1, Math.round(base.callSeconds / 60))} min total` : "no calls"
+      // A dial that never connected is not a call (people_list's rule), but it is in the history below: the strip said
+      // "0 calls" over a "Missed call" row (the 2 Oct 2026 audit). Said as what it is.
+      meta: `${base.calls ? `${Math.max(1, Math.round(base.callSeconds / 60))} min total` : "no calls"}${attempts ? `, ${attempts} didn't connect` : ""}`
     },
     // Consent is the two asks on the rail, each with how it was given. A fact, an About row and a pill said it
     // again, five times on one profile.
@@ -24001,7 +24057,7 @@ function aboutOf({
   });
   about.push({ k: "Channels", v: base.channels.map((c) => PERSON_CHANNEL_WORDS[c]).join(" \xB7 ") || "\u2014" });
   if (base.hasChat && reply) {
-    const v = repliesWords(REPLY_VIA[reply.via], reply.window);
+    const v = repliesWords(REPLY_VIA[reply.via], reply.window, { optedOut: base.stopped, who: base.name });
     if (v) about.push({ k: "Replies", v });
   }
   if (profile.visits) {
@@ -24160,7 +24216,7 @@ function callItems({ profile, stamp }) {
       ts: t,
       ...stamp(t),
       kind: "call",
-      who: missed ? "Missed call" : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""}`,
+      who: missed ? callAttemptWords(k.direction) : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""}`,
       text: sentence2,
       sub: missed ? "Never connected" : k.recording?.fetch_state === "stored" ? "Recording and transcript in Conversations" : "Transcript in Conversations",
       link: { label: "Open", to: `conversations/cv-${k.id}` }
@@ -24173,15 +24229,17 @@ function escalationItems({ profile, stamp }) {
   for (const e of profile.escalations) {
     const t = ts(e.created_at);
     if (t === null) continue;
+    const details = e.details?.trim() ? clipAtWord(e.details, 120) : null;
+    const resolvedAt = e.state === "resolved" ? ts(e.updated_at) : null;
     items.push({
       id: `e-${e.id}`,
       ts: t,
       ...stamp(t),
       kind: "escalation",
       who: "Escalated",
-      text: capitalize(reasonShort(e.reason)) || "The receptionist stopped",
+      text: e.reason === "callback" && details ? details : `${capitalize(reasonShort(e.reason)) || "The receptionist stopped"}${details ? ` \xB7 \u201C${details}\u201D` : ""}`,
       // "Open" beside a row that opens something read as the verb; the state is what it says.
-      sub: e.state === "resolved" ? "Resolved" : "Still open",
+      sub: e.state === "resolved" ? `Resolved${resolvedAt !== null ? ` \xB7 ${stamp(resolvedAt).time} ${stamp(resolvedAt).day}` : ""}${e.resolved_by_user_id ? " \xB7 by a person" : ""}` : "Still open",
       link: { label: "Open the thread", to: `inbox/th-${e.conversation_id}` }
     });
   }
@@ -29972,7 +30030,9 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     who,
     whoShort,
     initials: withheld ? "\u2013" : initialsOf(who),
-    number: withheld ? null : phone ?? dto.from_raw,
+    // The CUSTOMER's number: on a call the receptionist placed, that is the one it dialled. The bell's missed-call
+    // row named the business's own line under an outbound dial that never connected (the 2 Oct 2026 audit).
+    number: withheld ? null : dto.direction === "outbound" ? formatPhoneDisplay(dto.to_e164) : phone ?? dto.from_raw,
     from: withheld ? null : dto.from_e164,
     direction: dto.direction,
     status: dto.status,
@@ -30027,7 +30087,7 @@ function todayNeedsRows(f) {
     conversationId: r2.e.conversation_id,
     escalationId: r2.e.id,
     who: r2.who,
-    reason: ESCALATION_REASON_LABELS[r2.e.reason] ?? r2.e.reason,
+    reason: reasonLabelOf(r2.e.reason),
     waited: formatWaited(r2.waitedMs),
     warn: r2.warn,
     // The customer's words; for a call-back with none, the to-do the phone receptionist left.
@@ -30178,7 +30238,7 @@ function handoffRow2(r2) {
     initials: initialsOf(r2.who),
     channel: r2.conv ? threadChannelWords(r2.conv.messages) : "WhatsApp",
     when: `waited ${formatWaited(r2.waitedMs)}`,
-    sentence: r2.quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason),
+    sentence: r2.quote || reasonLabelOf(e.reason),
     quoted: !!r2.quote,
     status: [
       "Escalated",
@@ -30841,7 +30901,9 @@ function buildNotificationFeed(input) {
         kind: "needs_you",
         at: at3,
         title: `${t.who} needs you`,
-        message: t.preview ? `They wrote: \u201C${t.preview}\u201D` : "Flagged for a person.",
+        // The customer's own words (the thread's `ask`), never the thread's last message: that was the
+        // receptionist's holding reply on every handoff, quoted as if the customer had written it.
+        message: t.ask ? `${t.ask.label}: ${t.ask.quoted ? `\u201C${t.ask.text}\u201D` : t.ask.text}` : "Flagged for a person.",
         to: `inbox/${t.id}`,
         icon: "inbox",
         tone: "warn",
@@ -30870,7 +30932,7 @@ function buildNotificationFeed(input) {
       key: `call:${c.callId}`,
       kind: "missed_call",
       at: c.startedAtMs,
-      title: `Missed call \xB7 ${c.who}`,
+      title: `${callAttemptWords(c.direction ?? "inbound")} \xB7 ${c.who}`,
       message: c.number ? `${c.number} \u2014 the call never connected.` : "The call never connected.",
       to: `conversations/${c.cvId}`,
       icon: "phone",
@@ -33200,7 +33262,9 @@ export {
   ERROR_CODES,
   ESCALATION_REASONS,
   ESCALATION_REASON_LABELS,
+  ESCALATION_REASON_SHORT,
   ESCALATION_STATES,
+  ESCALATION_SUMMARIES,
   EVENT_EVIDENCE_KINDS,
   EVENT_KINDS,
   EVERYONE_HINT,
@@ -33766,6 +33830,7 @@ export {
   THEME_COLOR_META,
   THEME_INK,
   THEME_OPTIONS,
+  THREAD_CHANNEL_WORDS,
   TIMELINE_FILTERS,
   TIMETABLE_HORIZON_DAYS,
   TOAST_ICONS,
@@ -33891,6 +33956,7 @@ export {
   calendarPeekDeal,
   callActivityPropsOf,
   callActivityStart,
+  callAttemptWords,
   callLength,
   callMoodTone,
   callOfKey,
@@ -34209,6 +34275,7 @@ export {
   isBaselinePrompt,
   isCampaignEmail,
   isCarrier,
+  isChatMessage,
   isCheckoutReturn,
   isConsultationTitle,
   isDayKey,
@@ -34472,6 +34539,7 @@ export {
   optInConfirmation,
   optInLink,
   optInPurposeOf,
+  optOutWords,
   outcomeMove,
   outreachRefusalOf,
   overLimitRefusal,
@@ -34696,7 +34764,9 @@ export {
   readingSystemPrompt,
   readingUserContent,
   readyOrWhatsApp,
+  reasonLabelOf,
   reasonShort,
+  reasonSummaryOf,
   receiptWords,
   recencyCells,
   receptionistCardOf,
