@@ -468,7 +468,7 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
   const alsoLeads = alsoInLeads(thread);
 
   return (
-    <header className="ix-th-head">
+    <header className="ix-th-head capsule">
       {headerMain(props, facts, alsoLeads)}
       <div className="ix-th-actions">
         {/* The header says each thing once. A real thread's line under the name names its channel ("WhatsApp · +1 …"),

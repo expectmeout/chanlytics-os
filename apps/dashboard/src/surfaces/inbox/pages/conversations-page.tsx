@@ -151,7 +151,7 @@ const cvClock = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).pad
 function callHead(c: ConversationRow, onBack: (() => void) | null) {
   const clientId = c.clientId;
   return (
-    <header className="ix-th-head">
+    <header className="ix-th-head capsule">
       <div className="ix-th-head-main">
         {onBack && (
           <Button

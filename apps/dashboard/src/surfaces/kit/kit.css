@@ -2767,6 +2767,35 @@ a.list-row {
   }
 }
 
+/* ---------- Capsule — the control layer's glass, as a bar ----------
+   What a phone's thread draws at its top (the thread's header, the call's) and at its foot (the live whisper's field):
+   one bar of the control layer's glass with a round end each side, its rim a 1px ring of the rim's gradient masked to
+   the border. The material is the look's (tokens.css, --surface-control-*); where the bar stands, its padding and what it
+   holds are the page's. It is drawn only where a page takes the screen over (data-takeover on its root, mobile.css),
+   on a phone, in Glass: elsewhere the page's own bar stands. It carries no backdrop-filter: nothing scrolls under it,
+   and a filter makes a bar the containing block of a menu's sheet, which then opens off the top of the screen. */
+@media (max-width: 900px) {
+  :where([data-look="glass"]) [data-takeover] .capsule {
+    position: relative;
+    border-radius: var(--radius-full);
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    box-shadow: var(--surface-control-depth);
+  }
+  :where([data-look="glass"]) [data-takeover] .capsule::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--surface-control-rim);
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+}
+
 /* ============================================================
    THE KIT IN GLASS (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, step 5.2)
    What a family's Glass form needs beyond its roles, whose values the look sets (tokens.css, GLASS), family by family,

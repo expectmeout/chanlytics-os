@@ -135,7 +135,7 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
   const talking = listening || (!hasWords && canTalk);
   return (
     <div className="lm-whisper" data-testid="live-whisper">
-      <div className="lm-whisper-row">
+      <div className="lm-whisper-row capsule">
         <input
           className="set-input"
           value={text}

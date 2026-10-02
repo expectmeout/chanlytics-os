@@ -918,6 +918,21 @@ export const FAMILIES = [
     ],
   },
   {
+    family: "Capsule",
+    about:
+      "The control layer's glass as a bar, where a page takes a phone's screen over: a thread's header with a face, a name over its line, and a button; and a field with its round button, as the whisper has it.",
+    entries: [
+      {
+        id: "capsule",
+        html:
+          `<div data-takeover="true"><div class="capsule" style="display: flex; align-items: center; gap: 8px; padding: 8px 10px;">` +
+          `<span class="face face-lg" aria-hidden="true">AR</span>` +
+          `<span style="flex: 1">Aisha Rahman</span>` +
+          `<button type="button" class="btn btn-ghost btn-sm">Actions</button></div></div>`,
+      },
+    ],
+  },
+  {
     family: "Record card and rows",
     about:
       "The record kit's card and its rows (RecordRow): a label, a value, where it came from, one act; empty, wrong, disputed, a row of chips, a value just saved.",

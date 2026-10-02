@@ -105,7 +105,7 @@ interface HeadProps {
 function panelHead({ c, elapsed, quietS, onBack = null }: HeadProps) {
   return (
     <>
-      <header className="lm-head">
+      <header className="lm-head capsule">
         {/* A phone's thread has its arrow, as the Inbox's has (CSS draws it there alone). */}
         {onBack && (
           <button
@@ -285,7 +285,7 @@ export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null, onBack 
   if (!c) {
     // A chosen call that is gone is the panel's whole news; "nothing on the line" beside it would say less than is true.
     return (
-      <div className="lm-panel">
+      <div className="lm-panel lm-call">
         {notice ? (
           <LrMissing notice={notice} />
         ) : (
@@ -303,7 +303,7 @@ export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null, onBack 
   // A call gone quiet says when it was last heard from; the checking banner below comes minutes later.
   const quietS = c.live && c.heartbeatAtMs ? Math.floor((nowMs - c.heartbeatAtMs) / 1000) : 0;
   return (
-    <div className="lm-panel" key={c.callId}>
+    <div className="lm-panel lm-call" key={c.callId}>
       {notice && <LrMissing notice={notice} />}
       {panelHead({ c, elapsed, quietS, onBack })}
 

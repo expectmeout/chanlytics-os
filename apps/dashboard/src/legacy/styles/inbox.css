@@ -2760,36 +2760,16 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     background: transparent;
     box-shadow: none;
   }
-  /* The thread's header is one 52px pill of the control layer's glass, 8px from the sides: the arrow to go back as a
+  /* The thread's header is one 52px pill of the control layer's glass (the kit's capsule), 8px from the sides: the arrow to go back as a
      bare glyph, who it is (the face, the name and its wire in two short lines: one press to their page, the chevron
      says so), and Actions as a labelled inset capsule with its chevron, since three dots said nothing of what they
      held. It carries no backdrop-filter: nothing scrolls under it, and a filter made it the containing block of the
      menu's sheet, which then opened off the top of the screen instead of from the bottom. */
   :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-thread-pane > .ix-th-head {
-    position: relative;
     gap: 6px;
     margin: 10px 8px 0;
     padding: 8px 8px 8px 6px;
     border-bottom: 0;
-    border-radius: var(--radius-full);
-    background-color: var(--surface-control-fill);
-    background-image: var(--surface-control-sheen);
-    box-shadow: var(--surface-control-depth);
-  }
-  :where([data-look="glass"])
-    :is(.inbox, .conversations)[data-takeover]
-    .ix-thread-pane
-    > .ix-th-head::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    padding: 1px;
-    border-radius: inherit;
-    background: var(--surface-control-rim);
-    mask:
-      linear-gradient(#000 0 0) content-box exclude,
-      linear-gradient(#000 0 0);
-    pointer-events: none;
   }
   :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-thread-pane .ix-back {
     width: 34px;
