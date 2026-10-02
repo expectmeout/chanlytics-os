@@ -457,6 +457,18 @@ const kitSwitch = (on, label, readOnly = false) =>
 const kitSwitches = () =>
   kitSwitch(false, "Send it now") + kitSwitch(true, "Remind them the day before") + kitSwitch(true, "Take calls", true);
 
+/** One sub-tab of the kit's, as Base UI's Tabs draws it: its word holding the room of its bold form, its figure after. */
+const kitSubtab = (label, { on = false, count, tone, glyph = "" } = {}) =>
+  `<button type="button" role="tab" aria-selected="${on}" aria-disabled="false" tabindex="${on ? 0 : -1}" class="subtab"` +
+  `${tone ? ` data-tone="${tone}"` : ""}>${glyph}<span class="subtab-label" data-text="${label}">${label}</span>` +
+  `${count === undefined ? "" : `<span class="subtab-count">${count}</span>`}</button>`;
+
+/** A strip of the kit's sub-tabs: Base UI's tablist, its tabs, and the indicator that is the bar under the picked one. */
+const kitSubtabs = (name, tabs, { attrs = "", left = "18px", width = "78px", direction = "none" } = {}) =>
+  `<div class="subtabs-stand"><div role="tablist" aria-label="${name}" class="subtabs"${attrs}>${tabs.join("")}` +
+  `<span role="presentation" class="subtab-bar" data-activation-direction="${direction}" ` +
+  `style="--active-tab-left: ${left}; --active-tab-width: ${width};"></span></div></div>`;
+
 /** The kit's segmented control: a radio group of three, the second chosen. */
 const kitSegmented = () =>
   `<div role="radiogroup" aria-label="How often" class="rec-seg">` +
@@ -877,43 +889,55 @@ export const FAMILIES = [
     ],
   },
   {
-    family: "Sub-tabs",
+    family: "Sub-tabs, on Base UI",
     about:
-      "A page's own sub-menu, SubTabs: small text tabs on a line under the strip of views, the picked one in ink with a bar, a plain figure beside a word that has one; a strip that is quiet on a phone, which keeps only the warn tab's figure; and a glyph before the words.",
+      "A page's own sub-menu, SubTabs (surfaces/kit/sub-tabs/sub-tabs.tsx): Base UI's tabs as small text tabs on a line under the strip of views, the picked one in ink with a bar that is the Tabs' indicator, a plain figure beside a word that has one; a strip that is quiet on a phone, which keeps only the warn tab's figure; a dense one for a desk pane with more tabs than room; and a glyph before the words.",
     entries: [
       {
         id: "subtabs",
-        html:
-          `<div class="subtabs" role="group" aria-label="Conversations by status">` +
-          `<button type="button" class="subtab" aria-pressed="true">Needs you<span class="subtab-count">27</span></button>` +
-          `<button type="button" class="subtab" aria-pressed="false">Handled</button>` +
-          `<button type="button" class="subtab" aria-pressed="false">Snoozed<span class="subtab-count">3</span></button></div>`,
+        html: kitSubtabs("Conversations by status", [
+          kitSubtab("Needs you", { on: true, count: 27 }),
+          kitSubtab("Handled"),
+          kitSubtab("Snoozed", { count: 3 }),
+        ]),
       },
       {
         id: "subtabs-quiet",
-        html:
-          `<div class="subtabs" role="group" aria-label="Conversations by status" data-quiet="true">` +
-          `<button type="button" class="subtab" aria-pressed="true" data-tone="warn">Needs you<span class="subtab-count">27</span></button>` +
-          `<button type="button" class="subtab" aria-pressed="false">Handled<span class="subtab-count">112</span></button>` +
-          `<button type="button" class="subtab" aria-pressed="false">Snoozed<span class="subtab-count">3</span></button></div>`,
+        html: kitSubtabs(
+          "Conversations by status",
+          [
+            kitSubtab("Needs you", { on: true, count: 27, tone: "warn" }),
+            kitSubtab("Handled", { count: 112 }),
+            kitSubtab("Snoozed", { count: 3 }),
+          ],
+          { attrs: ' data-quiet="true"' },
+        ),
       },
       {
         id: "subtabs-dense",
-        html:
-          `<div class="subtabs" role="group" aria-label="Conversations by channel" data-dense="true">` +
-          `<button type="button" class="subtab" aria-pressed="true">All<span class="subtab-count">64</span></button>` +
-          `<button type="button" class="subtab" aria-pressed="false">Calls<span class="subtab-count">13</span></button>` +
-          `<button type="button" class="subtab" aria-pressed="false">WhatsApp<span class="subtab-count">35</span></button>` +
-          `<button type="button" class="subtab" aria-pressed="false">Text<span class="subtab-count">6</span></button>` +
-          `<button type="button" class="subtab" aria-pressed="false">Email<span class="subtab-count">10</span></button></div>`,
+        html: kitSubtabs(
+          "Conversations by channel",
+          [
+            kitSubtab("All", { on: true, count: 64 }),
+            kitSubtab("Calls", { count: 13 }),
+            kitSubtab("WhatsApp", { count: 35 }),
+            kitSubtab("Text", { count: 6 }),
+            kitSubtab("Email", { count: 10 }),
+          ],
+          { attrs: ' data-dense="true"', left: "14px", width: "38px" },
+        ),
       },
       {
         id: "subtabs-glyph",
-        html:
-          `<div class="subtabs" role="group" aria-label="Conversations by channel">` +
-          `<button type="button" class="subtab" aria-pressed="true">${icon("inbox", 13)}All<span class="subtab-count">64</span></button>` +
-          `<button type="button" class="subtab" aria-pressed="false">${icon("phone", 13)}Calls<span class="subtab-count">12</span></button>` +
-          `<button type="button" class="subtab" aria-pressed="false">${icon("mail", 13)}Email</button></div>`,
+        html: kitSubtabs(
+          "Conversations by channel",
+          [
+            kitSubtab("All", { on: true, count: 64, glyph: icon("inbox", 13) }),
+            kitSubtab("Calls", { count: 12, glyph: icon("phone", 13) }),
+            kitSubtab("Email", { glyph: icon("mail", 13) }),
+          ],
+          { left: "18px", width: "74px", direction: "right" },
+        ),
       },
     ],
   },

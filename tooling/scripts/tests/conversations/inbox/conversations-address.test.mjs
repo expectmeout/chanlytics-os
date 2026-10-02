@@ -52,6 +52,7 @@ Object.assign(globalThis, {
 });
 const S = "../../../../../apps/dashboard/src";
 const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
+const { SubTabs } = await import(`${S}/surfaces/kit/sub-tabs/sub-tabs.tsx`);
 const { cvRoute: route, cvAddress: address } = await import(`${S}/surfaces/inbox/cv-rules.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { installTabMemory, clearTabMemory } = await import(`${S}/legacy-bridge/tab-memory.ts`);
@@ -228,8 +229,14 @@ test("on a desktop a row pressed is the address's, on its tab, replaced -- and t
   // A tab pressed is a new place: pushed, by the same spelling.
   fresh();
   tree = ConversationsPage({ channel: "all", initialId: null });
-  press(byTestId(tree, "cv-tab-phone"));
-  press(byTestId(tree, "cv-tab-all"));
+  // The channels are the kit's strip (Base UI's Tabs, held in a browser): a pick is its onSelect, by the tab's id.
+  const strip = (t) => find(t, (n) => n.type === SubTabs).props;
+  assert.ok(
+    strip(tree).tabs.some((t) => t.testid === "cv-tab-phone"),
+    "the channels carry their test ids",
+  );
+  strip(tree).onSelect("phone");
+  strip(tree).onSelect("all");
   assert.deepEqual(went, [
     ["nav", "conversations/phone"],
     ["nav", "conversations"],

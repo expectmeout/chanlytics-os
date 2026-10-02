@@ -175,6 +175,10 @@
   padding: 12px 14px;
   border-bottom: 1px solid var(--line);
   cursor: pointer;
+  /* A row below the fold is not laid out or painted until it is near: a list of hundreds opens as fast as one of ten,
+     and a switch between lists draws only what is in sight. Its height is remembered once seen. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 96px;
   transition: background 100ms;
 }
 .ix-thread:hover { background: var(--bg-hover); }

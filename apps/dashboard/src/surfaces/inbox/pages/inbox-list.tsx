@@ -17,6 +17,7 @@ import { useEffect, useState, type KeyboardEvent } from "react";
 import { Confirm } from "../../kit/confirm/confirm";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
+import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { ixKeepPlace, ixPlace } from "../place";
 import { threadRow } from "./list-rows";
@@ -223,6 +224,8 @@ export function InboxList(props: InboxListProps) {
   const base = listProps(props);
   const { threads, allThreads, activeView, activeBucket, activeThreadId, selected, onSelectThread, onToggleSelect } =
     base;
+  // The rows swap in with a rise as the bucket changes (kit/motion).
+  const swap = useSwapMotion(activeBucket);
   // The words in the search come back after a refresh or a trip to another page, in this tab (the Inbox's place).
   const [query, setQueryNow] = useState(() => {
     const p = ixPlace();
@@ -299,7 +302,7 @@ export function InboxList(props: InboxListProps) {
       {listHead(L)}
       {archiveAsk(L)}
       {/* Threads */}
-      <div className="ix-threads">
+      <div className="ix-threads" ref={swap}>
         {unreadEscalated()}
         {visible.length === 0 && emptyThreads(L)}
         {visible.length > 0 && (

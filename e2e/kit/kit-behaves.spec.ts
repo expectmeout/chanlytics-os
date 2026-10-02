@@ -132,6 +132,10 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
   { entry: "switch-kit", bring: async () => undefined, ready: ".rec-switch" },
   { entry: "segmented-kit", bring: async () => undefined, ready: ".rec-seg" },
   { entry: "segmented-kit-hints", bring: async () => undefined, ready: ".rec-seg[data-hints]" },
+  { entry: "subtabs", bring: async () => undefined, ready: '[data-entry="subtabs"] .subtabs' },
+  { entry: "subtabs-quiet", bring: async () => undefined, ready: '[data-entry="subtabs-quiet"] .subtabs[data-quiet]' },
+  { entry: "subtabs-dense", bring: async () => undefined, ready: '[data-entry="subtabs-dense"] .subtabs[data-dense]' },
+  { entry: "subtabs-glyph", bring: async () => undefined, ready: '[data-entry="subtabs-glyph"] .subtabs' },
   { entry: "field-kit", bring: async () => undefined, ready: ".rec-input-group" },
   { entry: "field-kit-wrong", bring: async () => undefined, ready: ".field-error" },
 ];
@@ -510,6 +514,70 @@ const segmentedArrows: Check = async (page) => {
 };
 
 /**
+ * The sub-tabs: the arrows walk the tabs with focus, wrapping, and pick none (a pick can move the address or read a
+ * list), Enter picks the one reached, and the bar under the picked tab moves to it.
+ */
+const subTabsKeys: Check = async (page) => {
+  const out: string[] = [];
+  const here = '[data-entry="subtabs"]';
+  const state = () =>
+    page.evaluate((sel) => {
+      const list = document.querySelector(`${sel} [role="tablist"]`);
+      const picked = list?.querySelector('[aria-selected="true"]');
+      const focus = document.activeElement;
+      return {
+        picked: picked?.textContent ?? "",
+        focus: focus?.textContent ?? "",
+        inList: !!list && list.contains(focus),
+      };
+    }, here);
+  await page.locator(`${here} [aria-selected="true"]`).focus();
+  for (const [key, focus, picked] of [
+    ["ArrowRight", "Handled", "Needs you"],
+    ["ArrowRight", "Snoozed", "Needs you"],
+    ["ArrowRight", "Needs you", "Needs you"],
+    ["ArrowLeft", "Snoozed", "Needs you"],
+  ] as const) {
+    await page.keyboard.press(key);
+    const ok = await met(
+      page,
+      ([sel, f]) => {
+        const list = document.querySelector(`${sel} [role="tablist"]`);
+        return (
+          !!list && list.contains(document.activeElement) && (document.activeElement?.textContent ?? "").startsWith(f)
+        );
+      },
+      [here, focus] as [string, string],
+    );
+    const now = await state();
+    if (!ok) out.push(`the sub-tabs: ${key} left focus on ${JSON.stringify(now.focus)}, not "${focus}"`);
+    if (!now.picked.startsWith(picked))
+      out.push(`the sub-tabs: ${key} picked ${JSON.stringify(now.picked)}, and should pick nothing`);
+  }
+  await page.keyboard.press("Enter");
+  const picked = await met(
+    page,
+    (sel) => !!document.querySelector(`${sel} [aria-selected="true"]`)?.textContent?.startsWith("Snoozed"),
+    here,
+  );
+  if (!picked) out.push(`the sub-tabs: Enter did not pick the tab reached (${JSON.stringify((await state()).picked)})`);
+  // The bar slides to the picked tab on the page's ease (220 ms): it stands under it once the slide is done.
+  const under = await met(
+    page,
+    (sel) => {
+      const list = document.querySelector(`${sel} [role="tablist"]`);
+      const tab = list?.querySelector('[aria-selected="true"]');
+      const mark = list?.querySelector(".subtab-bar");
+      if (!tab || !mark) return false;
+      return Math.abs(mark.getBoundingClientRect().x - tab.getBoundingClientRect().x) <= 2;
+    },
+    here,
+  );
+  if (!under) out.push("the sub-tabs: the bar did not come to stand under the picked tab");
+  return out;
+};
+
+/**
  * The combobox narrows its list as you type, draws none where nothing matches, walks it with the arrows and chooses
  * with Enter; and a search after a choice replaces the words chosen, since focus selects them.
  */
@@ -670,6 +738,7 @@ const CHECKS: [string, Check][] = [
   ["the sheet, an option and a select are named and described", namesAreWired],
   ["a switch answers Space", switchSpace],
   ["the segmented control answers the arrows", segmentedArrows],
+  ["the sub-tabs answer the arrows and Enter, and the bar follows the pick", subTabsKeys],
   ["the combobox narrows and chooses by the keys", comboboxKeys],
   ["the tooltip shows on hover and on focus, and hides on Escape", tooltipShows],
   ["a toast is heard and goes on its ×", toastArrives],
@@ -1027,6 +1096,11 @@ test("the other checks name each fault planted: the menu's keys and acts, the po
     await show(page);
     await swallow("ArrowRight");
     expect((await segmentedArrows(page, run))[0]).toMatch(/^the segmented control: ArrowRight chose /);
+
+    // The arrows swallowed: the sub-tabs' focus goes nowhere.
+    await show(page);
+    await swallow("ArrowRight");
+    expect((await subTabsKeys(page, run))[0]).toMatch(/^the sub-tabs: ArrowRight left focus on /);
 
     // The toast's live region taken off: nothing a screen reader hears.
     await show(page);

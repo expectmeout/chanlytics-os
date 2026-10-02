@@ -8,6 +8,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
+import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { StatePill } from "../../kit/pill/state-pill";
 import { useSurface } from "../../use-surface";
@@ -305,8 +306,10 @@ function listPane(p: {
   counts: Record<string, number>;
   selected: ConversationRow | undefined;
   openRow: (id: string) => void;
+  /** The rows' ref: they swap in with a rise as the channel changes (kit/motion). */
+  swap: ReturnType<typeof useSwapMotion>;
 }) {
-  const { data, rows, query, setQuery, channel, counts, selected, openRow } = p;
+  const { data, rows, query, setQuery, channel, counts, selected, openRow, swap } = p;
   const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = data;
   return (
     <aside className="cv-list">
@@ -343,7 +346,7 @@ function listPane(p: {
           }))}
         />
       </div>
-      <div className="cv-rows">
+      <div className="cv-rows" ref={swap}>
         {rows.map((c) => (
           <CvRow key={c.id} c={c} active={selected?.id === c.id} onSelect={openRow} />
         ))}
@@ -471,6 +474,7 @@ export const ConversationsPage = ({
     cvKeepPlace(channel, { q: v });
   };
   const [selectedId, setSelectedId] = useState<string | null>(initialId);
+  const swap = useSwapMotion(channel);
   // Phone: the list and the viewer take turns (mobile.css owns the breakpoint).
   const [phoneOpen, setPhoneOpen] = useState(!!initialId);
   const [tick, setTick] = useState(0);
@@ -546,7 +550,7 @@ export const ConversationsPage = ({
 
   return (
     <div className="conversations" data-takeover={phoneOpen || undefined}>
-      {listPane({ data, rows: visible, query, setQuery, channel, counts, selected, openRow })}
+      {listPane({ data, rows: visible, query, setQuery, channel, counts, selected, openRow, swap })}
       {readingPane({ data, requestedMissing, selected, closeRow, query })}
     </div>
   );

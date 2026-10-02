@@ -2644,16 +2644,21 @@ a.list-row {
 /* ---------- Sub-tabs — a page's own sub-menu ----------
    The few ways to cut the list a page shows (the Inbox's buckets, Conversations' channels), as small text tabs on a line,
    under the strip of views the page sits in (.stabs, the frame's capsule) and apart from it: the picked one in ink at
-   600 with a 2px bar in ink, the others dim, and a figure beside a word that has one, the plain number and never a
-   pill. On a desk the line is the strip's own hairline, drawn inside it (a 1px layer at its foot) as the tab strip's
-   is, so a strip that scrolls across shows the whole of a bar that lies over it; and a `dense` strip, with more tabs than a
+   600, the others dim, and a figure beside a word that has one, the plain number and never a pill. The bar under the
+   picked tab is the Tabs' indicator (Base UI's), one element that slides to the tab picked on the page's ease, and
+   does not slide on the draw that makes it. A word holds the room of its bold form, so picking a tab moves no other.
+   On a desk the line is the strip's own hairline, drawn inside it (a 1px layer at its foot) as the tab strip's is, so a
+   strip that scrolls across shows the whole of a bar that lies over it; and a `dense` strip, with more tabs than a
    pane has room for at the desk's size, sets them as a phone does. On a phone (the kit's 900px) a tab is 34px tall with
    its words in the middle and the bar 5px above its foot, an invisible margin round it making a thumb's 44px, and a
    strip that is `quiet` says only the warn tab's figure. A page sets where the strip stands and the sides it keeps (a
-   margin), never what it looks like. */
-.subtabs {
-  display: flex;
+   margin on the wrapper), never what it looks like. */
+.subtabs-stand {
   flex: none;
+}
+.subtabs {
+  position: relative;
+  display: flex;
   gap: 18px;
   padding: 0 18px;
   overflow-x: auto;
@@ -2680,13 +2685,12 @@ a.list-row {
   color: var(--ink-dim);
   white-space: nowrap;
   cursor: pointer;
-  transition:
-    color var(--duration-base) var(--ease-out),
-    border-color var(--duration-base) var(--ease-out);
+  transition: color var(--duration-base) var(--ease-out);
 }
-/* The shell's touch floor (legacy.css: a coarse pointer's buttons are 44px) would make a tab as tall as its own margin
-   is: the strip's height is the words', and a thumb's reach is the invisible margin on a phone (below). */
-.subtabs > .subtab {
+/* The shell's touch floor (legacy.css: a coarse pointer's buttons and tabs are 44px, `[role="tab"]` too) would make a tab as
+   tall as its own margin is: the strip's height is the words', and a thumb's reach is the invisible margin on a phone
+   (below). */
+.subtabs > .subtab[role="tab"] {
   min-height: 0;
 }
 .subtab:hover {
@@ -2695,16 +2699,44 @@ a.list-row {
 .subtab:active {
   transform: translateY(0.5px) scale(0.985);
 }
-.subtab[aria-pressed="true"] {
-  border-bottom-color: var(--ink);
+.subtab[aria-selected="true"] {
   font-weight: var(--weight-semibold);
   color: var(--ink);
+}
+/* The word, and its bold form drawn unseen under it with no height: the room is the wider of the two. */
+.subtab-label {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.subtab-label::after {
+  content: attr(data-text);
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  font-weight: var(--weight-semibold);
 }
 .subtab-count {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   font-variant-numeric: tabular-nums;
   color: var(--ink-dim);
+}
+.subtab-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: var(--active-tab-width, 0px);
+  height: 2px;
+  background: var(--ink);
+  translate: var(--active-tab-left, 0px) 0;
+  pointer-events: none;
+}
+/* Only a pick moves the bar: as the strip is drawn it stands where the picked tab is. */
+.subtab-bar:not([data-activation-direction="none"]) {
+  transition:
+    translate 220ms var(--ease-out),
+    width 220ms var(--ease-out);
 }
 @media (width > 900px) {
   .subtabs[data-dense] {
@@ -2741,18 +2773,9 @@ a.list-row {
     position: absolute;
     inset: -5px -6px;
   }
-  .subtab::after {
-    content: "";
-    position: absolute;
-    right: 0;
+  .subtab-bar {
     bottom: 5px;
-    left: 0;
-    height: 2px;
     border-radius: var(--radius-full);
-    background: transparent;
-  }
-  .subtab[aria-pressed="true"]::after {
-    background: var(--ink);
   }
   .subtab-count {
     font-size: var(--text-xs);
@@ -2762,7 +2785,8 @@ a.list-row {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .subtab {
+  .subtab,
+  .subtab-bar {
     transition: none;
   }
 }

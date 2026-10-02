@@ -21,6 +21,7 @@ import {
   Menu,
   Popover,
   Segmented,
+  SubTabs,
   Select,
   Sheet,
   Switch,
@@ -327,6 +328,86 @@ function SegmentedKitHints() {
   );
 }
 
+/** The sub-tabs: three, the first picked, a figure on two. */
+function SubTabsKit() {
+  const [on, setOn] = useState("needs");
+  return (
+    <Figure id="subtabs" about="the kit's SubTabs">
+      <SubTabs
+        label="Conversations by status"
+        value={on}
+        onSelect={setOn}
+        tabs={[
+          { id: "needs", label: "Needs you", count: 27 },
+          { id: "done", label: "Handled" },
+          { id: "snoozed", label: "Snoozed", count: 3 },
+        ]}
+      />
+    </Figure>
+  );
+}
+
+/** The sub-tabs of a phone's Inbox: only the warn tab says its figure. */
+function SubTabsKitQuiet() {
+  const [on, setOn] = useState("needs");
+  return (
+    <Figure id="subtabs-quiet" about="the kit's SubTabs, quiet on a phone">
+      <SubTabs
+        label="Conversations by status"
+        quietCounts
+        value={on}
+        onSelect={setOn}
+        tabs={[
+          { id: "needs", label: "Needs you", count: 27, tone: "warn" },
+          { id: "done", label: "Handled", count: 112 },
+          { id: "snoozed", label: "Snoozed", count: 3 },
+        ]}
+      />
+    </Figure>
+  );
+}
+
+/** The sub-tabs of a desk pane with five tabs. */
+function SubTabsKitDense() {
+  const [on, setOn] = useState("all");
+  return (
+    <Figure id="subtabs-dense" about="the kit's SubTabs, dense">
+      <SubTabs
+        label="Conversations by channel"
+        dense
+        value={on}
+        onSelect={setOn}
+        tabs={[
+          { id: "all", label: "All", count: 64 },
+          { id: "calls", label: "Calls", count: 13 },
+          { id: "whatsapp", label: "WhatsApp", count: 35 },
+          { id: "text", label: "Text", count: 6 },
+          { id: "email", label: "Email", count: 10 },
+        ]}
+      />
+    </Figure>
+  );
+}
+
+/** The sub-tabs with a glyph before each word. */
+function SubTabsKitGlyph() {
+  const [on, setOn] = useState("all");
+  return (
+    <Figure id="subtabs-glyph" about="the kit's SubTabs, a glyph before each word">
+      <SubTabs
+        label="Conversations by channel"
+        value={on}
+        onSelect={setOn}
+        tabs={[
+          { id: "all", label: "All", count: 64, glyph: glyph("inbox", 13) },
+          { id: "calls", label: "Calls", count: 12, glyph: glyph("phone", 13) },
+          { id: "email", label: "Email", glyph: glyph("mail", 13) },
+        ]}
+      />
+    </Figure>
+  );
+}
+
 /** Fields: a hint, and a unit. */
 function FieldKit() {
   const [link, setLink] = useState("https://example.com/book");
@@ -371,6 +452,10 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "switch-kit", Draw: SwitchKit, closed: true },
   { id: "segmented-kit", Draw: SegmentedKit, closed: true },
   { id: "segmented-kit-hints", Draw: SegmentedKitHints, closed: true },
+  { id: "subtabs", Draw: SubTabsKit, closed: true },
+  { id: "subtabs-quiet", Draw: SubTabsKitQuiet, closed: true },
+  { id: "subtabs-dense", Draw: SubTabsKitDense, closed: true },
+  { id: "subtabs-glyph", Draw: SubTabsKitGlyph, closed: true },
   { id: "field-kit", Draw: FieldKit, closed: true },
   { id: "field-kit-wrong", Draw: FieldKitWrong, closed: true },
 ];

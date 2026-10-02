@@ -96,7 +96,7 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
       onClick={(e) => { if (item.expandable) { onToggle(item.id); } else { onNavigate(item.id); } }}
       data-tip={collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined}
       data-tip-side="right"
-      aria-current={active === item.id ? "page" : undefined}
+      aria-current={active === item.id ? "page" : undefined} data-nav={item.id}
     >
       {item.icon && <Icon name={item.icon} />}
       {!collapsed && <span>{item.label}</span>}

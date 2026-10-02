@@ -62,6 +62,9 @@
   background: transparent;
   text-align: left;
   cursor: pointer;
+  /* A row below the fold is not laid out or painted until it is near (as the Inbox's are, inbox.css .ix-thread). */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 112px;
   transition: background 100ms;
   min-width: 0;
 }

@@ -34,7 +34,6 @@ import { LinkButton } from "../../../../apps/dashboard/src/surfaces/kit/link-but
 import { ListRow } from "../../../../apps/dashboard/src/surfaces/kit/list-row/list-row.tsx";
 import { Meter } from "../../../../apps/dashboard/src/surfaces/kit/meter/meter.tsx";
 import { Panel } from "../../../../apps/dashboard/src/surfaces/kit/panel/panel.tsx";
-import { SubTabs } from "../../../../apps/dashboard/src/surfaces/kit/sub-tabs/sub-tabs.tsx";
 import { cx } from "../../../../apps/dashboard/src/surfaces/kit/variants.ts";
 
 installLegacyReact();
@@ -593,100 +592,6 @@ const METERS = {
       "aria-label": "12 will get it, 3 held back",
     }),
 };
-
-/** The gallery's Sub-tabs family, entry by entry. */
-const SUB_TABS = {
-  subtabs: () =>
-    h(SubTabs, {
-      label: "Conversations by status",
-      value: "needs",
-      onSelect: onClick,
-      tabs: [
-        { id: "needs", label: "Needs you", count: 27 },
-        { id: "done", label: "Handled" },
-        { id: "snoozed", label: "Snoozed", count: 3 },
-      ],
-    }),
-  "subtabs-quiet": () =>
-    h(SubTabs, {
-      label: "Conversations by status",
-      value: "needs",
-      quietCounts: true,
-      onSelect: onClick,
-      tabs: [
-        { id: "needs", label: "Needs you", count: 27, tone: "warn" },
-        { id: "done", label: "Handled", count: 112 },
-        { id: "snoozed", label: "Snoozed", count: 3 },
-      ],
-    }),
-  "subtabs-dense": () =>
-    h(SubTabs, {
-      label: "Conversations by channel",
-      value: "all",
-      dense: true,
-      onSelect: onClick,
-      tabs: [
-        { id: "all", label: "All", count: 64 },
-        { id: "calls", label: "Calls", count: 13 },
-        { id: "whatsapp", label: "WhatsApp", count: 35 },
-        { id: "text", label: "Text", count: 6 },
-        { id: "email", label: "Email", count: 10 },
-      ],
-    }),
-  "subtabs-glyph": () =>
-    h(SubTabs, {
-      label: "Conversations by channel",
-      value: "all",
-      onSelect: onClick,
-      tabs: [
-        { id: "all", label: "All", count: 64, glyph: glyph() },
-        { id: "calls", label: "Calls", count: 12, glyph: glyph() },
-        { id: "email", label: "Email", glyph: glyph() },
-      ],
-    }),
-};
-
-test("SubTabs draws the gallery's Sub-tabs family: a group of presses, the picked one pressed, a figure only where it has one, and a press picks", () => {
-  assert.deepEqual(parting(FAMILIES, "Sub-tabs", SUB_TABS), HELD);
-  const picked = [];
-  const strip = drawn(
-    h(SubTabs, {
-      label: "By status",
-      value: "done",
-      className: "ix-buckets",
-      quietCounts: true,
-      dense: true,
-      onSelect: (id) => picked.push(id),
-      tabs: [
-        { id: "needs", label: "Needs you", count: 0, tone: "warn", hint: "Waiting on you", testid: "t-needs" },
-        { id: "done", label: "Handled" },
-      ],
-    }),
-  );
-  assert.equal(strip.type, "div");
-  assert.equal(strip.props.className, "subtabs ix-buckets", "the page's layout comes last");
-  assert.equal(strip.props.role, "group");
-  assert.equal(strip.props["aria-label"], "By status");
-  assert.equal(strip.props["data-quiet"], "true");
-  assert.equal(strip.props["data-dense"], "true");
-  const [needs, done] = strip.props.children.map((tab) => drawn(tab));
-  assert.deepEqual([needs.props["aria-pressed"], done.props["aria-pressed"]], [false, true], "one is picked");
-  assert.equal(needs.props["data-tone"], "warn");
-  assert.equal(needs.props["data-testid"], "t-needs");
-  assert.equal(needs.props.title, "Waiting on you");
-  needs.props.onClick();
-  assert.deepEqual(picked, ["needs"], "a press picks it");
-  const figure = (tab) => tab.props.children.flat().find((c) => c?.props?.className === "subtab-count");
-  assert.deepEqual(
-    [figure(needs).props.children].flat(),
-    [0],
-    "a zero is said when the page gives it: the page's to say or not",
-  );
-  assert.equal(figure(done), undefined, "no figure, no span");
-  const loud = drawn(h(SubTabs, { label: "x", value: "a", onSelect: onClick, tabs: [{ id: "a", label: "A" }] }));
-  assert.equal(loud.props["data-quiet"], undefined, "a strip is loud unless it says it is quiet");
-  assert.equal(loud.props["data-dense"], undefined, "and as roomy as the desk gives it, unless it says it is dense");
-});
 
 test("Meter draws the gallery's Meter family: an image of its parts, each share its flex-grow, and no part of nothing", () => {
   assert.deepEqual(parting(FAMILIES, "Meter", METERS), HELD);
