@@ -2779,6 +2779,15 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     box-shadow: var(--selected-depth);
     color: var(--ink);
   }
+  /* A row with acts of its own (a search's, with its menu) is its pick and its acts side by side: the pick carries
+     the row's 10px, once, at the row's height. */
+  :where([data-look="glass"]) .main-scroll .cl-rail-row.has-acts {
+    padding: 0 4px 0 0;
+  }
+  :where([data-look="glass"]) .main-scroll .cl-rail-pick {
+    height: 30px;
+    padding: 0 4px 0 10px;
+  }
   :where([data-look="glass"]) .main-scroll .cl-rail-foot {
     padding: 10px 18px 14px;
     border-top: 0;
