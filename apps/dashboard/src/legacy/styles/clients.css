@@ -3115,13 +3115,343 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 }
 
 /* ====================================================================
-   Glass: a person (the plan's step 5.4, canvas P3)
-   One quiet record as clear panes on the page's light: what is coming and what has happened each a pane, and the card of
-   what is known its panes in a column beside them. Rows and fields inside a pane are insets, and coral is the one act
-   (the page's primary, which the kit draws). Each rule names the look inside :where() and none matches in Classic.
+   Glass: a person (the plan's step 5.4, canvas P3; reviewed against it and the phone board 2 October 2026)
+   One quiet record as clear panes on the page's light: what is coming, their deal and what has happened each a pane in
+   the column, and the card of what is known its panes in a column beside them (360 wide, 14 between). The head is the
+   page's own: the face in --face-fill, the name at the hero step with the standing's dot and word beside it, the wires
+   and the sentence of what happens next under it, the thread's button in coral and More an inset capsule. Rows and
+   fields inside a pane are insets. Each rule names the look inside :where() and none matches in Classic; a part whose
+   class is a primitive's word (the face, the pill, the mark, the input) is reached by its place.
    ==================================================================== */
 :where([data-look="glass"]) .cl-profile {
   background: transparent;
+}
+:where([data-look="glass"]) .cl-prof-page {
+  gap: 20px;
+}
+/* The head. */
+:where([data-look="glass"]) .cl-prof-hero {
+  gap: 12px 16px;
+  align-items: center;
+}
+:where([data-look="glass"]) .cl-prof-id {
+  gap: 16px;
+  align-items: center;
+}
+:where([data-look="glass"]) .cl-prof-id > :first-child {
+  border: 0;
+  background: var(--face-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+:where([data-look="glass"]) .cl-prof-titles {
+  gap: 4px;
+}
+:where([data-look="glass"]) .cl-prof-name {
+  font-size: var(--text-hero);
+  line-height: 1.1;
+}
+:where([data-look="glass"]) .cl-prof-name-line {
+  gap: 4px 12px;
+}
+:where([data-look="glass"]) .cl-prof-now > :first-child {
+  gap: 6px;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+:where([data-look="glass"]) .cl-prof-now > :first-child::before {
+  width: 7px;
+  height: 7px;
+}
+:where([data-look="glass"]) .cl-prof-meta {
+  font-size: var(--text-base);
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .cl-prof-now-why {
+  font-size: var(--text-base);
+  color: var(--ink-muted);
+}
+:where([data-look="glass"]) .cl-prof-hero > .cl-prof-queue-actions {
+  gap: 8px;
+}
+:where([data-look="glass"]) .cl-prof-hero [data-testid="person-open-thread"] {
+  height: var(--control-h-lg);
+  padding: 0 18px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+:where([data-look="glass"]) .cl-prof-hero [data-testid="person-more"] {
+  height: var(--control-h-lg);
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+/* The panes: what is coming, their deal, what has happened, and the card's each one, with the look's rim. */
+:where([data-look="glass"]) .cl-prof-body {
+  gap: 14px;
+}
+:where([data-look="glass"]) .cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up),
+:where([data-look="glass"]) .cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
+  position: relative;
+  padding: 18px;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+:where([data-look="glass"]) .cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up)::after,
+:where([data-look="glass"]) .cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .cl-prof-rail {
+  --rec-key: 96px;
+  --rec-gutter: 16px;
+  gap: 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+:where([data-look="glass"]) .cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
+  padding: 16px;
+}
+:where([data-look="glass"]) .cl-prof-rail > .cl-prof-rec {
+  padding: 8px var(--rec-gutter);
+}
+:where([data-look="glass"]) .cl-prof-section-head {
+  margin-bottom: 8px;
+}
+:where([data-look="glass"]) .cl-prof-section-title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+}
+:where([data-look="glass"]) .cl-prof-rail-label {
+  margin-bottom: 4px;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+/* What is coming: the day as an inset tile, the visit's words beside it. */
+:where([data-look="glass"]) .cl-prof-up-visit {
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+:where([data-look="glass"]) .cl-prof-up-leaf {
+  width: 46px;
+  height: 46px;
+  justify-content: center;
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .cl-prof-up-month {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-regular);
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .cl-prof-up-date {
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+:where([data-look="glass"]) .cl-prof-up-title {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+:where([data-look="glass"]) .cl-prof-up-when {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+/* The deal card is an inset of the pane. */
+:where([data-look="glass"]) .cl-prof-deal-card {
+  border: 0;
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+}
+/* What has happened: the filters as words on a hairline, the picked one underlined in ink; a day's name in the mono
+   face over its rows, with no line down the column; a row its 26px mark (the face, an inset square for a thing that
+   happened), who at 600 in the muted ink, the words at the base step, the time in the mono face at the right. */
+:where([data-look="glass"]) .cl-tl-filters {
+  display: flex;
+  gap: 16px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+:where([data-look="glass"]) .cl-tl-filters .cl-tab {
+  margin-bottom: -1px;
+  padding: 6px 0 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--text-base);
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .cl-tl-filters > :hover {
+  background: transparent;
+  color: var(--ink);
+}
+:where([data-look="glass"]) .cl-tl-filters .cl-tab.active {
+  background: transparent;
+  border-bottom-color: var(--ink);
+  box-shadow: none;
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+:where([data-look="glass"]) .cl-prof-timeline {
+  gap: 0;
+}
+:where([data-look="glass"]) .cl-prof-timeline::before {
+  display: none;
+}
+:where([data-look="glass"]) .cl-prof-history .cl-tl-day {
+  margin: 0;
+  padding: 14px 0 6px;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-regular);
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .cl-prof-history .cl-tl-row {
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 12px;
+  margin: 0;
+  padding: 8px 0;
+  align-items: start;
+}
+:where([data-look="glass"]) .cl-prof-history .cl-tl-row-door:hover,
+:where([data-look="glass"]) .cl-prof-history .cl-tl-row-door:focus-visible {
+  background: transparent;
+}
+:where([data-look="glass"]) .cl-prof-history .cl-tl-row-door:hover .cl-tl-text {
+  text-decoration: underline;
+  text-decoration-color: var(--ink-faint);
+  text-underline-offset: 3px;
+}
+:where([data-look="glass"]) .cl-prof-history .cl-tl-row > :first-child {
+  width: 26px;
+  height: 26px;
+  border: 0;
+}
+:where([data-look="glass"]) .cl-prof-history .cl-tl-row > .client {
+  background: var(--face-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+:where([data-look="glass"]) .cl-prof-history .cl-tl-row > .event {
+  border-radius: var(--radius-md);
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+  color: var(--ink-muted);
+}
+:where([data-look="glass"]) .cl-prof-history .cl-tl-body {
+  padding-bottom: 0;
+}
+:where([data-look="glass"]) .cl-prof-history .cl-tl-head {
+  margin-bottom: 2px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
+:where([data-look="glass"]) .cl-prof-history .cl-tl-who {
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
+:where([data-look="glass"]) .cl-prof-history .cl-tl-time {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .cl-prof-history .cl-tl-text {
+  font-size: var(--text-base);
+  line-height: 1.45;
+}
+/* The card of what is known: each fact a row of key, value and its door, 9px over and under, hairlines between. */
+:where([data-look="glass"]) .cl-prof-attr {
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 9px 0;
+  font-size: var(--text-base);
+}
+:where([data-look="glass"]) .cl-prof-attr-key {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .cl-prof-attr-val {
+  line-height: 1.4;
+}
+:where([data-look="glass"]) .cl-prof-attr-door {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+}
+/* Notes: the line to add one a 38px inset capsule (its class is a primitive's word: reached by its test id), a note at
+   the base step. */
+:where([data-look="glass"]) [data-testid="person-notes-input"] {
+  min-height: 38px;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+  font-size: var(--text-base);
+  line-height: 1.4;
+}
+:where([data-look="glass"]) .cl-prof-note-compose.is-open [data-testid="person-notes-input"] {
+  border-radius: var(--radius-xl);
+}
+:where([data-look="glass"]) [data-testid="person-notes-input"]:focus {
+  box-shadow:
+    var(--focus-ring),
+    var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .cl-prof-note-body {
+  font-size: var(--text-base);
 }
 @media (width > 900px) {
   /* The hero is the head (canvas P3): the frame draws no name and no way back over it, and the page's own way back goes
@@ -3129,71 +3459,37 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   :where([data-look="glass"]) .cl-prof-hero > .cl-prof-back {
     display: none;
   }
-  :where([data-look="glass"]) .cl-prof-body > :is(.cl-prof-deal, .cl-prof-history) {
-    padding: 18px;
-    border-radius: var(--surface-pane-radius);
-    background: var(--surface-pane-fill);
-    box-shadow: var(--surface-pane-depth);
+  :where([data-look="glass"]) .cl-prof-page {
+    padding: 0 var(--gutter-page) 48px;
+  }
+  :where([data-look="glass"]) .cl-prof-body {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+}
+/* A phone (P-phone-person): the page 12px from the sides with 12 between its parts, the panes 16px inside, the face
+   44, the name a step under the hero's, the thread's button filling the row beside More. */
+@media (max-width: 900px) {
+  :where([data-look="glass"]) .cl-prof-page {
+    padding: 0 12px 32px;
+    gap: 12px;
+  }
+  :where([data-look="glass"]) .cl-prof-hero {
+    gap: 12px;
+  }
+  :where([data-look="glass"]) .cl-prof-id > :first-child {
+    width: 44px;
+    height: 44px;
+    font-size: var(--text-md);
+  }
+  :where([data-look="glass"]) .cl-prof-name {
+    font-size: var(--text-2xl);
+  }
+  :where([data-look="glass"]) .cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up),
+  :where([data-look="glass"]) .cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
+    padding: 16px;
   }
   :where([data-look="glass"]) .cl-prof-rail {
-    gap: 14px;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    overflow: visible;
-  }
-  :where([data-look="glass"]) .cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
-    border: 0;
-    border-radius: var(--surface-pane-radius);
-    background: var(--surface-pane-fill);
-    box-shadow: var(--surface-pane-depth);
-  }
-  :where([data-look="glass"]) .cl-prof-rail > .cl-prof-rec {
-    padding: 8px var(--rec-gutter);
-  }
-  :where([data-look="glass"]) .cl-prof-deal-card {
-    border-color: var(--surface-inset-edge);
-    border-radius: var(--surface-inset-radius);
-    background: var(--surface-inset-fill);
-    box-shadow: var(--surface-inset-depth);
-  }
-  /* A day's label masks the timeline's line behind it with the pane's own ground, opaque: the token that lays its fill over
-     the page. */
-  :where([data-look="glass"]) .cl-prof-history .cl-tl-day {
-    background: var(--surface-pane-solid);
-  }
-  /* The history's filters are a capsule on an inset's fill, the picked one a lozenge. */
-  /* The history's filters are words on a hairline, the one picked underlined in ink (canvas P3), not a capsule. */
-  :where([data-look="glass"]) .cl-tl-filters {
     display: flex;
-    gap: 18px;
-    padding: 0;
-    border: 0;
-    border-bottom: 1px solid var(--line);
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-  }
-  :where([data-look="glass"]) .cl-tl-filters .cl-tab {
-    margin-bottom: -1px;
-    padding: 6px 0 8px;
-    border: 0;
-    border-bottom: 2px solid transparent;
-    border-radius: 0;
-    background: transparent;
-    font-size: var(--text-base);
-    color: var(--ink-dim);
-  }
-  :where([data-look="glass"]) .cl-tl-filters > :hover {
-    background: transparent;
-    color: var(--ink);
-  }
-  :where([data-look="glass"]) .cl-tl-filters .cl-tab.active {
-    background: transparent;
-    border-bottom-color: var(--ink);
-    box-shadow: none;
-    color: var(--ink);
-    font-weight: var(--weight-semibold);
   }
 }
 
