@@ -18,7 +18,6 @@ import type { PageClock } from "@/legacy-bridge/zone";
 import type { FirstRunApi, SetupApi, SetupSurface } from "@/legacy-bridge/setup";
 import { surfaceHook } from "@/legacy-bridge/surface-status";
 import type { SurfaceNames } from "@/legacy-bridge/surface-status";
-import { lookNow } from "../kit/look/look";
 import { askAbout, canDo, holdStill } from "../legacy-verbs";
 import { fn, windowValue, object, type Flash } from "../shell-doors";
 
@@ -39,8 +38,8 @@ export function refusalFlash(res: unknown, lead: string): Flash {
 /* ------------------------------- the address ------------------------------- */
 
 /** Move to a route; nothing without the frame (`appNavigate`). */
-/** The glyph on a door's words: the canvases' chevron in Glass, Classic's arrow otherwise (kit Icon's names). */
-export const doorGlyph = (): "chevron" | "arrow-right" => (lookNow() === "glass" ? "chevron" : "arrow-right");
+/** The glyph on a door's words: the canvases' chevron (kit Icon's names). */
+export const doorGlyph = (): "chevron" => "chevron";
 
 export function appNavigate(route: string): void {
   fn<[string], void>("appNavigate")?.(route);

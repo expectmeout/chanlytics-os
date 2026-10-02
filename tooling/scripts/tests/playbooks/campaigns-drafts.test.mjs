@@ -82,6 +82,12 @@ const { broadcasts } = await import(`${SRC}/surfaces/campaigns/broadcasts/verbs.
 const { playbooks } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
 const { templates } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
+// The page's acts (New broadcast, and the send screen's Cancel) are the frame's head's (CmHead says them to the
+// standing): pressed where they stand.
+const headAct = (tree, id) =>
+  byTestId(tree, id) ?? find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === id);
+const newBroadcast = (tree) => headAct(tree, "bc-new");
 
 /* ---------------------------------- walking a tree ---------------------------------- */
 
@@ -460,18 +466,18 @@ test("a playbook being changed is kept under its own id, and Save, taken, keeps 
 
 test("the send screen keeps its words -- a name, a typed value, a picked time -- and opens again on them; a list or a message chosen alone keeps nothing; Cancel asks once and Yes clears it", () => {
   let tree = page();
-  press(byTestId(tree, "bc-new"));
+  press(newBroadcast(tree));
   tree = redraw(page);
   assert.ok(byTestId(tree, "bc-composer"));
   // The list and the message are choices, not words: chosen, nothing is kept and Cancel closes at once.
   press(all(tree, (n) => n.props?.["data-testid"] === "bc-audience")[1]);
   tree = redraw(page);
   assert.deepEqual(drafts(), {}, "a choice alone is not work");
-  press(byTestId(tree, "bc-compose-close"));
+  press(headAct(tree, "bc-compose-close"));
   tree = redraw(page);
   assert.equal(byTestId(tree, "bc-composer"), null, "Cancel closes it, as it did");
 
-  press(byTestId(tree, "bc-new"));
+  press(newBroadcast(tree));
   tree = redraw(page);
   type(byTestId(byTestId(tree, "bc-vars"), "bc-var-input"), "20% off colour");
   tree = redraw(page);
@@ -488,13 +494,13 @@ test("the send screen keeps its words -- a name, a typed value, a picked time --
   assert.equal(tabClosing(), true, "the tab asks before closing over it");
 
   // Cancel with words asks, where the Cancel was; Keep writing puts it back.
-  press(byTestId(tree, "bc-compose-close"));
+  press(headAct(tree, "bc-compose-close"));
   tree = redraw(page);
   assert.ok(byTestId(tree, "bc-composer"), "not closed");
-  assert.ok(byTestId(tree, "bc-leave-confirm"), "asked");
-  press(byTestId(tree, "bc-leave-no"));
+  assert.ok(headAct(tree, "bc-leave-confirm"), "asked");
+  press(headAct(tree, "bc-leave-no"));
   tree = redraw(page);
-  assert.ok(byTestId(tree, "bc-compose-close"));
+  assert.ok(headAct(tree, "bc-compose-close"));
   assert.equal(byTestId(byTestId(tree, "bc-vars"), "bc-var-input").props.value, "20% off colour");
 
   // Left and come back to: the send screen, on the same list, with the same words.
@@ -513,13 +519,13 @@ test("the send screen keeps its words -- a name, a typed value, a picked time --
   tree = page();
 
   // Yes, throw it away: closed, cleared, and nothing kept -- New broadcast opens empty.
-  press(byTestId(tree, "bc-compose-close"));
+  press(headAct(tree, "bc-compose-close"));
   tree = redraw(page);
-  press(byTestId(tree, "bc-leave-yes"));
+  press(headAct(tree, "bc-leave-yes"));
   tree = redraw(page);
   assert.equal(byTestId(tree, "bc-composer"), null);
   assert.equal(TM.draft("broadcast"), null);
-  press(byTestId(tree, "bc-new"));
+  press(newBroadcast(tree));
   tree = redraw(page);
   assert.equal(nameBox(tree).props.value, "", "REGRESSION: the last send's words stayed in the page after a Cancel");
   assert.equal(byTestId(byTestId(tree, "bc-vars"), "bc-var-input").props.value, "");
@@ -527,7 +533,7 @@ test("the send screen keeps its words -- a name, a typed value, a picked time --
 
 test("a send the server took keeps nothing: the screen closes onto the ledger and the next New broadcast is empty", async () => {
   let tree = page();
-  press(byTestId(tree, "bc-new"));
+  press(newBroadcast(tree));
   tree = redraw(page);
   type(byTestId(byTestId(tree, "bc-vars"), "bc-var-input"), "20% off colour");
   tree = redraw(page);
@@ -538,7 +544,7 @@ test("a send the server took keeps nothing: the screen closes onto the ledger an
   tree = redraw(page);
   assert.equal(byTestId(tree, "bc-composer"), null, "sent, the screen closes");
   assert.equal(TM.draft("broadcast"), null, "and nothing is kept");
-  press(byTestId(tree, "bc-new"));
+  press(newBroadcast(tree));
   tree = redraw(page);
   assert.equal(byTestId(byTestId(tree, "bc-vars"), "bc-var-input").props.value, "", "the next one starts empty");
 });

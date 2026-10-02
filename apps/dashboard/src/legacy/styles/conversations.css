@@ -224,12 +224,12 @@
    inside :where(); none matches in Classic.
    ==================================================================== */
 @media (width > 900px) {
-  :where([data-look="glass"]) .main-scroll > .conversations {
+  .main-scroll > .conversations {
     padding: 0 var(--gutter-page) 16px;
     column-gap: 14px;
     overflow: visible;
   }
-  :where([data-look="glass"]) .cv-list {
+  .cv-list {
   position: relative;
   border: 0;
   border-radius: var(--surface-pane-radius);
@@ -237,7 +237,7 @@
   box-shadow: var(--surface-pane-depth);
   overflow: hidden;
 }
-  :where([data-look="glass"]) .cv-list::after {
+  .cv-list::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -249,7 +249,7 @@
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-  :where([data-look="glass"]) .cv-filters {
+  .cv-filters {
     border-bottom-color: transparent;
   }
 }

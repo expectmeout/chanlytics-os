@@ -104,8 +104,8 @@ function bcOptIn({ data, yesOpen, setYesOpen, flash }: Pick<BcBase, "data" | "ye
 }
 
 // The ledger: one line of the runs by state and what went, the week ahead, the runs, and the section that gets a yes.
-/** `glass`: the page's act as the canvas draws it in Glass, a capsule of the control layer; coral is the composer's. */
-export function bcLedger(v: BcV, glass = false) {
+/** The page's act as the canvas draws it, a capsule of the control layer; coral is the composer's. */
+export function bcLedger(v: BcV) {
   const { rows, band, setBand, data, origin, setOrigin, setWriting, now, runs, runCard, sentN, recent } = v;
   return (
     <>
@@ -134,7 +134,7 @@ export function bcLedger(v: BcV, glass = false) {
         }
         right={
           <button
-            className={glass ? "btn" : "btn btn-primary"}
+            className="btn"
             onClick={() => setWriting(true)}
             data-testid="bc-new"
             {...gate("approve", "send a broadcast")}

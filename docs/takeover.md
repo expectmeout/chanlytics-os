@@ -49,15 +49,15 @@ SQL functions outside packages/db   137   called by .rpc
 edge statements naming no workspace   28   in 16 files
 doors importing db or channels       54   imports in 50 files
 unnamed durations                    64   in 33 files
-literal style values               1088   in 22 stylesheets
-primitives outside the kit         2175   selectors naming 862 classes
+literal style values               1056   in 22 stylesheets
+primitives outside the kit         2168   selectors naming 860 classes
 inline style props                  219   in 55 files
 wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     306
 source-text reads in tests          788
 lint warnings                       386   in 156 files, 83 of them exhaustive-deps
 workspace route JS, KB gzipped      882   the shell included
-workspace route CSS, KB gzipped     145
+workspace route CSS, KB gzipped     143
 trees the lint's limits hold         40   15 of them with max-params waiting
 ```
 

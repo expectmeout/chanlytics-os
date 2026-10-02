@@ -8,7 +8,6 @@
  */
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
-import { useLook } from "../../kit/look/look";
 import type { gate } from "../../legacy-verbs";
 import { P } from "./pipe";
 
@@ -19,24 +18,22 @@ interface PipelineNewAct {
 }
 
 export function usePipelineStanding(line: readonly { words: string }[], newAct: PipelineNewAct | null): void {
-  const glass = useLook() === "glass";
   const sentence = line.map((part) => part.words).join(" · ");
   useStanding({
     title: "Pipeline",
     sentence: sentence || undefined,
     // The one filled button, shown to every role and said why where the role may not press it (as the controls row draws it).
-    act:
-      glass && newAct ? (
-        <button
-          type="button"
-          className="btn btn-primary btn-sm pipe-new-btn"
-          onClick={newAct.openNew}
-          data-testid="pipeline-new-open"
-          {...newAct.gate}
-        >
-          <Icon name="plus" size={12} /> {P.words.newProposal.button}
-        </button>
-      ) : undefined,
+    act: newAct ? (
+      <button
+        type="button"
+        className="btn btn-primary btn-sm pipe-new-btn"
+        onClick={newAct.openNew}
+        data-testid="pipeline-new-open"
+        {...newAct.gate}
+      >
+        <Icon name="plus" size={12} /> {P.words.newProposal.button}
+      </button>
+    ) : undefined,
     // A scope is picked in the page's own strip (People | Leads | Pipeline), so it has no way back above its name (D1).
     back: null,
   });

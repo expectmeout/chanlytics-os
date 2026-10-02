@@ -16,7 +16,7 @@
 
 /* Glass's type: GitHub's Mona Sans (SIL Open Font License 1.1, public/fonts/OFL.txt), the build Google Fonts serves
    (v4), vendored byte for byte in Google's three subsets, so a name in Vietnamese or Polish takes its own glyphs rather
-   than Geist's. The look's --font-sans reads it (tokens.css, the [data-look="glass"] block); Classic keeps Geist, which
+   than Geist's. The look's --font-sans reads it (tokens.css, the roles block, since Classic retired on 2 October 2026), and the signed-out pages keep Geist, which
    the layout names through next/font. Three rules by hand because next/font/local takes one file per face and no
    unicode-range; the layout preloads the latin one. */
 @font-face {
@@ -71,7 +71,9 @@ html {
 }
 body {
   margin: 0;
-  background: var(--bg);
+  /* The colour alone: tokens.css paints the look's pools of light on the body as a background-image, which the
+     shorthand would reset. */
+  background-color: var(--bg);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
 }

@@ -412,36 +412,37 @@ machine, in one sitting; a new browser is a different recording, and `compare` s
 
 ### Add a look
 
-A look is a set of token values (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`, §3.1 and §3.2). Classic,
-the app as it was drawn before, is the roles block of `apps/dashboard/src/legacy/styles/tokens.css` itself. Glass, the
-canvases' finish, is what members see since 1 October 2026: steps 1 to 4 below were its 5.1 to 5.3 in the plan, and
-steps 5 and 6 its 5.5 and 5.6. A third look also adds its name to `LookPref`, `LOOK_OPTIONS` and `isLookPref` in
-`packages/contracts/src/shell/chrome.ts` (the head's script reads the list), to the list's pins in
-`tooling/scripts/tests/shell/chrome.test.mjs`, to the gallery's `?look=` and `l` key
-(`tooling/scripts/e2e-harness/kit-gallery.mjs`), and to the looks `e2e/kit/kit.spec.ts` runs.
+A look is a set of token values (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`, §3.1 and §3.2). Glass,
+the canvases' finish, is the one look since Classic, the app as it was drawn before, retired on 2 October 2026 (the
+plan's step 5.7): its values are the roles block of `apps/dashboard/src/legacy/styles/tokens.css` itself and the
+`[data-theme="dark"]` block after it, and every sheet's rules are its. `data-look` stays stamped on the document as the
+setting for the next look (contracts `DEFAULT_LOOK_PREF`, `LOOK_OPTIONS`). A second look adds its name to `LookPref`,
+`LOOK_OPTIONS` and `isLookPref` in `packages/contracts/src/shell/chrome.ts` (the head's script reads the list), turns
+`LOOK_OFFERED` on so the account menu offers the two, adds the name to the list's pins in
+`tooling/scripts/tests/shell/chrome.test.mjs`, to the gallery's `?look=` (`tooling/scripts/e2e-harness/kit-gallery.mjs`)
+and to the looks `e2e/kit/kit.spec.ts` runs.
 
 1. **The blocks.** `[data-look="<name>"]` after the roles block, and `[data-look="<name>"][data-theme="dark"]` after
-   that for its dark side, as Glass's are. They set the roles: the surfaces' fills, edges, radii and depths, the
-   controls, the actions. Where the look's colours differ, they also set the theme's own (`--bg*`, `--ink*`, `--line*`,
-   the tones, the accent), which many kit rules read directly. A colour the first block sets is set again in the
-   second: both come after the themes' blocks, so otherwise the first would hold in both themes. They set no scale,
-   and no token a kit rule keeps for itself.
-2. **Classic keeps its values.** A role the look needs that nothing reads yet comes with its reader in
-   `apps/dashboard/src/surfaces/kit/kit.css`, and with Classic's value in the roles block: the one that draws what the
-   rule drew before. For a blur, that is `none`, read through `var()` in both `backdrop-filter` and
-   `-webkit-backdrop-filter`. The build drops `backdrop-filter: none` written beside its prefixed twin (#929), and
+   that for its dark side, as Glass's were before they folded in. They set the roles: the surfaces' fills, edges, radii
+   and depths, the controls, the actions. Where the look's colours differ, they also set the theme's own (`--bg*`,
+   `--ink*`, `--line*`, the tones, the accent), which many kit rules read directly. A colour the first block sets is
+   set again in the second: both come after the themes' blocks, so otherwise the first would hold in both themes.
+   They set no scale, and no token a kit rule keeps for itself.
+2. **Glass keeps its values.** A role the look needs that nothing reads yet comes with its reader in
+   `apps/dashboard/src/surfaces/kit/kit.css`, and with Glass's value in the roles block: the one that draws what the
+   rule drew before. For a blur a look does not want, that is `none`, read through `var()` in both `backdrop-filter`
+   and `-webkit-backdrop-filter`. The build drops `backdrop-filter: none` written beside its prefixed twin (#929), and
    cannot drop a `var()`. `blur(0)` is not `none`: any value but `none` makes its element a containing block for its
    fixed children, and a stacking context. A translucent fill falls back to an opaque one under
    `@supports not (backdrop-filter: blur(1px))` and under `prefers-reduced-transparency: reduce`.
-3. **It moves nothing in Classic.** The recorder draws every page in Classic, the look the harness's documents stamp
-   (`TWEAK_DEFAULTS` in `apps/dashboard/src/legacy/Chanlytics.html`, and the gallery without `?look=`), in both
-   themes. A recording from before the change and one after it are equal ("Prove a style change", above), backdrop
-   filters included.
-4. **It draws.** The gallery shows it in both themes, at a desk and on a phone: `?theme=light&look=<name>`, or `l` on
-   the page ("See the kit", above). `e2e/kit/kit.spec.ts` runs every width, theme and look, and holds each entry to
-   the tokens it reads there. It compares a twin with its source under Classic alone, since a source reads the theme's
-   colours where the kit reads the look's roles. The pull request shows the gallery in the four pairings, at both
-   widths.
+3. **It moves nothing in Glass.** The recorder draws every page the shell still holds in Glass, the look the
+   harness's documents stamp (`TWEAK_DEFAULTS` in `apps/dashboard/src/legacy/Chanlytics.html`, and the gallery), in
+   both themes. A recording from before the change and one after it are equal ("Prove a style change", above),
+   backdrop filters included. The pages that left the shell are recorded on the app itself (step 5.7 did so on the dev
+   server against the stand-in, every element's edges and computed longhands, the same comparison).
+4. **It draws.** The gallery shows it in both themes, at a desk and on a phone: `?theme=light&look=<name>` ("See the
+   kit", above). `e2e/kit/kit.spec.ts` runs every width, theme and look, and holds each entry to the tokens it reads
+   there. The pull request shows the gallery in the pairings, at both widths.
 
    Two readers of the tokens stand outside the gallery. The mascot reads the document's `--bg`, `--ink`, `--accent`
    and `--accent-fg`, and reads them again only when `data-theme` changes

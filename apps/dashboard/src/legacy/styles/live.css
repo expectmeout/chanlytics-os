@@ -505,14 +505,14 @@
    names the look inside :where(); none matches in Classic.
    ==================================================================== */
 @media (width > 900px) {
-  :where([data-look="glass"]) .main-scroll > .live-monitor {
+  .main-scroll > .live-monitor {
     padding: 0 var(--gutter-page) 16px;
   }
-  :where([data-look="glass"]) .lm-body {
+  .lm-body {
     column-gap: 14px;
     overflow: visible;
   }
-  :where([data-look="glass"]) :is(.lm-list, .lm-body > :last-child) {
+  :is(.lm-list, .lm-body > :last-child) {
   position: relative;
   border: 0;
   border-radius: var(--surface-pane-radius);
@@ -520,7 +520,7 @@
   box-shadow: var(--surface-pane-depth);
   overflow: hidden;
 }
-  :where([data-look="glass"]) :is(.lm-list, .lm-body > :last-child)::after {
+  :is(.lm-list, .lm-body > :last-child)::after {
   content: "";
   position: absolute;
   inset: 0;

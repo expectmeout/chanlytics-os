@@ -251,7 +251,7 @@
 
 /* A channel is one line (D8): its icon, its value, its mark, what to press. The row is what a hint's tip spans. */
 .pk-reach { display: flex; flex-direction: column; }
-.pk-rr { display: flex; align-items: center; gap: 8px; min-height: 40px; border-top: 1px solid var(--line); }
+.pk-rr { gap: 8px; min-height: 40px; border-top: 1px solid var(--line); }
 .pk-rr:first-child { border-top: 0; }
 .pk-rr > .icon { flex: none; color: var(--ink-dim); }
 .pk-rr > .sp { flex: 1; }
@@ -1182,7 +1182,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   /* The bar's switch of two, the rows and the places (leads-scope.jsx LeadsPhoneBar): the class tabs' segmented look,
      smaller, the one shown raised in ink. 36px drawn, each half a thumb tall to press. Named with html.legacy-on for
      the touch floor's sake. */
-  .ld-bar-view { flex: none; display: inline-flex; align-items: center; gap: 2px; height: 36px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-sunken); }
+  .ld-bar-view { flex: none; display: inline-flex; align-items: center; gap: 2px; background: var(--bg-sunken); }
   html.legacy-on .ld-bar-view-opt, .ld-bar-view-opt { position: relative; width: 34px; height: 30px; min-height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink-dim); cursor: pointer; }
   .ld-bar-view-opt::after { content: ""; position: absolute; inset: -7px -1px; }
   .ld-bar-view-opt.on { background: var(--bg-raised); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
@@ -1215,7 +1215,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
    rule names the look inside :where(); none matches in Classic.
    ==================================================================== */
 @media (width > 900px) {
-  :where([data-look="glass"]) .leads-scope .cl-main > .pk {
+  .leads-scope .cl-main > .pk {
     top: 12px;
     right: 12px;
     bottom: 12px;
@@ -1225,15 +1225,15 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
     box-shadow: var(--surface-pop-depth);
     overflow: hidden;
   }
-  :where([data-look="glass"]) .leads-scope .pk-top {
+  .leads-scope .pk-top {
     border-bottom-color: transparent;
   }
-  :where([data-look="glass"]) .leads-scope .pk-box {
+  .leads-scope .pk-box {
     border-color: var(--surface-inset-edge);
     border-radius: var(--surface-inset-radius);
     background: var(--surface-inset-fill);
   }
-  :where([data-look="glass"]) .leads-scope .pk-foot {
+  .leads-scope .pk-foot {
     border-top-color: var(--line);
     padding: 12px 14px 14px;
   }
@@ -1242,7 +1242,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 /* Glass, the peek's content as the canvas draws it (L2): the spread's bars under the score, the checks open under the
    verdict, each row's words under its value (the mark keeps its tip), the sections named in the third ink. Each rule
    names the look inside :where(); none matches in Classic. */
-:where([data-look="glass"]) .pk-spread {
+.pk-spread {
   display: grid;
   grid-template-columns: 1ch minmax(0, 1fr) 3.5ch;
   column-gap: var(--space-2);
@@ -1254,42 +1254,42 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
 }
-:where([data-look="glass"]) .pk-spread-row {
+.pk-spread-row {
   display: contents;
 }
-:where([data-look="glass"]) .pk-spread-n,
-:where([data-look="glass"]) .pk-spread-pct {
+.pk-spread-n,
+.pk-spread-pct {
   font-size: var(--text-xs);
   color: var(--ink-dim);
 }
-:where([data-look="glass"]) .pk-spread-pct {
+.pk-spread-pct {
   text-align: right;
 }
-:where([data-look="glass"]) .pk-spread-track {
+.pk-spread-track {
   width: 100%;
   height: 4px;
   border-radius: var(--radius-full);
   background: var(--line);
   overflow: hidden;
 }
-:where([data-look="glass"]) .pk-spread-bar {
+.pk-spread-bar {
   fill: var(--ink-muted);
 }
-:where([data-look="glass"]) .pk-spread-row:last-child .pk-spread-bar {
+.pk-spread-row:last-child .pk-spread-bar {
   fill: var(--warn);
 }
-:where([data-look="glass"]) .pk-checks-open {
+.pk-checks-open {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
-:where([data-look="glass"]) .pk-checks-open .pk-group {
+.pk-checks-open .pk-group {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
-:where([data-look="glass"]) .pk-checks-open .pk-ck {
+.pk-checks-open .pk-ck {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto;
   column-gap: var(--space-2);
@@ -1297,54 +1297,54 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   font-size: var(--text-sm);
   color: var(--ink);
 }
-:where([data-look="glass"]) .pk-checks-open .pk-ck .from {
+.pk-checks-open .pk-ck .from {
   font-size: var(--text-xs);
   color: var(--ink-dim);
   text-align: right;
 }
-:where([data-look="glass"]) .pk-eyebrow {
+.pk-eyebrow {
   display: block;
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   color: var(--ink-dim);
 }
-:where([data-look="glass"]) .pk-reach > .pk-eyebrow {
+.pk-reach > .pk-eyebrow {
   padding-bottom: var(--space-1);
 }
-:where([data-look="glass"]) .pk-rr {
+.pk-rr {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) auto auto;
   align-items: center;
   row-gap: 2px;
   padding: var(--space-2) 0;
 }
-:where([data-look="glass"]) .pk-rr > .icon {
+.pk-rr > .icon {
   grid-column: 1;
   grid-row: 1;
 }
-:where([data-look="glass"]) .pk-rr > .pk-rv {
+.pk-rr > .pk-rv {
   grid-column: 2;
   grid-row: 1;
 }
-:where([data-look="glass"]) .pk-rr > .pk-hint {
+.pk-rr > .pk-hint {
   grid-column: 3;
   grid-row: 1;
 }
-:where([data-look="glass"]) .pk-rr > .sp {
+.pk-rr > .sp {
   display: none;
 }
-:where([data-look="glass"]) .pk-rr > .pk-rr-acts {
+.pk-rr > .pk-rr-acts {
   grid-column: 4;
   grid-row: 1;
 }
-:where([data-look="glass"]) .pk-rr > .pk-rr-note {
+.pk-rr > .pk-rr-note {
   grid-column: 2 / -1;
   grid-row: 2;
   font-size: var(--text-xs);
   line-height: 1.45;
   color: var(--ink-dim);
 }
-:where([data-look="glass"]) .pk-box > .pk-eyebrow {
+.pk-box > .pk-eyebrow {
   padding: var(--space-2) 0 0;
 }
 
@@ -1360,21 +1360,21 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
    ==================================================================== */
 
 /* The six tints (tokens.css --tile-tint-N, from contracts leadTintOf): a row's tile and the peek's band wear the same. */
-:where([data-look="glass"]) :is(.ld-row-name > .tint-1, .pk-band.tint-1) { --tint: var(--tile-tint-1); --tint-ink: var(--tile-tint-ink); }
-:where([data-look="glass"]) :is(.ld-row-name > .tint-2, .pk-band.tint-2) { --tint: var(--tile-tint-2); --tint-ink: var(--tile-tint-ink); }
-:where([data-look="glass"]) :is(.ld-row-name > .tint-3, .pk-band.tint-3) { --tint: var(--tile-tint-3); --tint-ink: var(--tile-tint-ink); }
-:where([data-look="glass"]) :is(.ld-row-name > .tint-4, .pk-band.tint-4) { --tint: var(--tile-tint-4); --tint-ink: var(--tile-tint-ink); }
-:where([data-look="glass"]) :is(.ld-row-name > .tint-5, .pk-band.tint-5) { --tint: var(--tile-tint-5); --tint-ink: var(--tile-tint-ink); }
-:where([data-look="glass"]) :is(.ld-row-name > .tint-6, .pk-band.tint-6) { --tint: var(--tile-tint-6); --tint-ink: var(--tile-tint-ink); }
+:is(.ld-row-name > .tint-1, .pk-band.tint-1) { --tint: var(--tile-tint-1); --tint-ink: var(--tile-tint-ink); }
+:is(.ld-row-name > .tint-2, .pk-band.tint-2) { --tint: var(--tile-tint-2); --tint-ink: var(--tile-tint-ink); }
+:is(.ld-row-name > .tint-3, .pk-band.tint-3) { --tint: var(--tile-tint-3); --tint-ink: var(--tile-tint-ink); }
+:is(.ld-row-name > .tint-4, .pk-band.tint-4) { --tint: var(--tile-tint-4); --tint-ink: var(--tile-tint-ink); }
+:is(.ld-row-name > .tint-5, .pk-band.tint-5) { --tint: var(--tile-tint-5); --tint-ink: var(--tile-tint-ink); }
+:is(.ld-row-name > .tint-6, .pk-band.tint-6) { --tint: var(--tile-tint-6); --tint-ink: var(--tile-tint-ink); }
 
 @media (width > 900px) {
   /* The list's name sits where People's does (P1): close under the controls, the pane's 18px at its sides. */
-  :where([data-look="glass"]) .main-scroll .ld-list-head {
+  .main-scroll .ld-list-head {
     margin: 0;
     padding: 4px 18px 12px;
   }
   /* Find leads, the one accent on the page (L1): a 32px capsule at the base step, the kit's primary depth under it. */
-  :where([data-look="glass"]) .main-scroll .cl-controls-right > [data-testid="leads-find"] {
+  .main-scroll .cl-controls-right > [data-testid="leads-find"] {
     height: var(--control-h-md);
     padding: 0 14px;
     font-size: var(--text-base);
@@ -1382,7 +1382,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   /* The tile (L1): 40px with the inset's corners in the kind's tint (People's face rule, clients.css, would lay the
      face's fill over it), its initials at the small step; the size is the column's inline style, so the look says it
      with weight. The name at 600, the kind and the distance under it at the extra-small. */
-  :where([data-look="glass"]) .main-scroll .ld-row-name > :first-child {
+  .main-scroll .ld-row-name > :first-child {
     width: 40px !important;
     height: 40px !important;
     border-radius: var(--radius-lg);
@@ -1393,15 +1393,15 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
     letter-spacing: 0.02em;
     color: var(--tint-ink);
   }
-  :where([data-look="glass"]) .main-scroll .ld-biz-cell .cl-row-fullname .ld-biz-name {
+  .main-scroll .ld-biz-cell .cl-row-fullname .ld-biz-name {
     font-weight: var(--weight-semibold);
   }
-  :where([data-look="glass"]) .main-scroll .ld-biz-cell .ld-sub {
+  .main-scroll .ld-biz-cell .ld-sub {
     font-size: var(--text-xs);
   }
   /* Where a lead stands, as a bar down the row's left edge (L1): amber while it needs a look, ink while contacted,
      green once they are talking; a ready row and a left-out one draw none. The first cell is the row's edge. */
-  :where([data-look="glass"]) .main-scroll .pl-table tbody tr:is(.ld-row-review, .ld-row-contacted, .ld-row-talking) > td:first-child::before {
+  .main-scroll .pl-table tbody tr:is(.ld-row-review, .ld-row-contacted, .ld-row-talking) > td:first-child::before {
     content: "";
     position: absolute;
     left: 0;
@@ -1411,14 +1411,14 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
     border-radius: var(--radius-xs);
     background: var(--ink-faint);
   }
-  :where([data-look="glass"]) .main-scroll .pl-table tbody tr.ld-row-review > td:first-child::before {
+  .main-scroll .pl-table tbody tr.ld-row-review > td:first-child::before {
     background: var(--warn);
   }
-  :where([data-look="glass"]) .main-scroll .pl-table tbody tr.ld-row-talking > td:first-child::before {
+  .main-scroll .pl-table tbody tr.ld-row-talking > td:first-child::before {
     background: var(--ok);
   }
   /* The card a name or a rating opens under the pointer is the pop layer: the look's own fill, corners and depth. */
-  :where([data-look="glass"]) .main-scroll :is(.cl-row-name-block, .ld-rated-cell) > :last-child {
+  .main-scroll :is(.cl-row-name-block, .ld-rated-cell) > :last-child {
     border: 0;
     border-radius: var(--surface-pop-radius);
     background: var(--surface-pop-fill);
@@ -1427,7 +1427,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 
   /* The panel's band on a desk (the panel boards): Close a 34px circle at the top right, Expand one at the bottom
      right, its mark alone. */
-  :where([data-look="glass"]) .leads-scope .pk-band-expand {
+  .leads-scope .pk-band-expand {
     right: 12px;
     bottom: 12px;
     width: 34px;
@@ -1435,7 +1435,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
     padding: 0;
     justify-content: center;
   }
-  :where([data-look="glass"]) .leads-scope .pk-band-x {
+  .leads-scope .pk-band-x {
     right: 12px;
     top: 12px;
     width: 34px;
@@ -1445,7 +1445,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 
 /* The band's chip, its two circles and the stage capsule stand at both widths. The tile as a 44px chip at the band's
    top left, the face's fill under the initials. */
-:where([data-look="glass"]) .leads-scope .pk-band > :first-child {
+.leads-scope .pk-band > :first-child {
   position: absolute;
   left: 14px;
   top: 14px;
@@ -1461,7 +1461,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   color: var(--ink);
   opacity: 1;
 }
-:where([data-look="glass"]) .leads-scope :is(.pk-band-expand, .pk-band-x) {
+.leads-scope :is(.pk-band-expand, .pk-band-x) {
   border-radius: var(--radius-circle);
   background-color: var(--surface-control-fill);
   background-image: var(--surface-control-sheen);
@@ -1469,22 +1469,22 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   box-shadow: var(--surface-control-depth);
   color: var(--ink);
 }
-:where([data-look="glass"]) .leads-scope :is(.pk-band-expand, .pk-band-x):hover {
+.leads-scope :is(.pk-band-expand, .pk-band-x):hover {
   background-color: var(--selected-fill);
 }
-:where([data-look="glass"]) .leads-scope .pk-band-expand-words {
+.leads-scope .pk-band-expand-words {
   display: none;
 }
 /* Who they are: no rule under it; the kind at the small step, the address line too, the spread's tracks 4px. */
-:where([data-look="glass"]) .leads-scope .pk-identity {
+.leads-scope .pk-identity {
   border-bottom-color: transparent;
 }
-:where([data-look="glass"]) .leads-scope :is(.pk-identity .pk-sub, .pk-rate, .pk-where) {
+.leads-scope :is(.pk-identity .pk-sub, .pk-rate, .pk-where) {
   font-size: var(--text-sm);
 }
 /* The stage (the panel boards): one capsule of the control layer's glass, 34px with 4px inside it, the stage they are
    at the lozenge at 600, the others words in the muted ink. */
-:where([data-look="glass"]) .leads-scope [data-testid="peek-stage"] {
+.leads-scope [data-testid="peek-stage"] {
   gap: 2px;
   height: 34px;
   padding: 4px;
@@ -1494,7 +1494,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   background-image: var(--surface-control-sheen);
   box-shadow: var(--surface-control-depth);
 }
-:where([data-look="glass"]) .leads-scope [data-testid="peek-stage"] > button {
+.leads-scope [data-testid="peek-stage"] > button {
   height: 26px;
   padding: 0 14px;
   border: 0;
@@ -1505,25 +1505,25 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   font-weight: var(--weight-medium);
   color: var(--ink-muted);
 }
-:where([data-look="glass"]) .leads-scope [data-testid="peek-stage"] > button.on {
+.leads-scope [data-testid="peek-stage"] > button.on {
   background: var(--selected-fill);
   box-shadow: var(--selected-depth);
   font-weight: var(--weight-semibold);
   color: var(--ink);
 }
 /* The verdict's word at the mid step with its dot, as the canvas heads the section. */
-:where([data-look="glass"]) .leads-scope .pk-verdict-head > :first-child {
+.leads-scope .pk-verdict-head > :first-child {
   gap: 7px;
   font-size: var(--text-md);
   font-weight: var(--weight-semibold);
 }
-:where([data-look="glass"]) .leads-scope .pk-verdict-head > :first-child::before {
+.leads-scope .pk-verdict-head > :first-child::before {
   width: 7px;
   height: 7px;
 }
 /* Each check on a 16px round: green for one that held, amber for one that could not tell, the inset's fill for one
    only read; its words at the small step. */
-:where([data-look="glass"]) .leads-scope .pk-checks-open .pk-ck > :first-child {
+.leads-scope .pk-checks-open .pk-ck > :first-child {
   width: 16px;
   height: 16px;
   margin-top: 1px;
@@ -1532,36 +1532,36 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   box-shadow: var(--surface-inset-ring);
   color: var(--ink-muted);
 }
-:where([data-look="glass"]) .leads-scope .pk-checks-open .pk-ck > .pk-ck-check {
+.leads-scope .pk-checks-open .pk-ck > .pk-ck-check {
   background: var(--ok-soft);
   box-shadow: none;
   color: var(--ok-ink);
 }
-:where([data-look="glass"]) .leads-scope .pk-checks-open .pk-ck > .pk-ck-ask {
+.leads-scope .pk-checks-open .pk-ck > .pk-ck-ask {
   background: var(--warn-soft);
   box-shadow: none;
   color: var(--warn-ink);
 }
-:where([data-look="glass"]) .leads-scope .pk-checks-open .pk-ck > :first-child > svg {
+.leads-scope .pk-checks-open .pk-ck > :first-child > svg {
   width: 10px;
   height: 10px;
 }
 /* A way to reach them: its value at the base step. */
-:where([data-look="glass"]) .leads-scope .pk-rv {
+.leads-scope .pk-rv {
   font-size: var(--text-base);
 }
 /* How the lead was found: the steps numbered on 14px rounds of the inset's fill, no spine. */
-:where([data-look="glass"]) .leads-scope .pk-steps {
+.leads-scope .pk-steps {
   counter-reset: pk-step;
   padding-left: 24px;
 }
-:where([data-look="glass"]) .leads-scope .pk-steps::before {
+.leads-scope .pk-steps::before {
   display: none;
 }
-:where([data-look="glass"]) .leads-scope .pk-step {
+.leads-scope .pk-step {
   counter-increment: pk-step;
 }
-:where([data-look="glass"]) .leads-scope .pk-step::before {
+.leads-scope .pk-step::before {
   content: counter(pk-step);
   left: -24px;
   top: 2px;
@@ -1579,12 +1579,12 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   color: var(--ink-muted);
 }
 /* The links: inset capsules at the extra-small step over a hairline, words with their marks. */
-:where([data-look="glass"]) .leads-scope .pk-links {
+.leads-scope .pk-links {
   gap: 6px;
   padding-top: 10px;
   border-top: 1px solid var(--line);
 }
-:where([data-look="glass"]) .leads-scope .pk .pk-links > a[href] {
+.leads-scope .pk .pk-links > a[href] {
   height: var(--control-h-sm);
   min-height: var(--control-h-sm);
   padding: 0 10px;
@@ -1597,10 +1597,10 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   color: var(--ink-muted);
 }
 /* The foot: Call in a capsule of the control layer's glass, 6px around it, over a hairline. */
-:where([data-look="glass"]) .leads-scope .pk-act {
+.leads-scope .pk-act {
   background: transparent;
 }
-:where([data-look="glass"]) .leads-scope .pk-act > :first-child {
+.leads-scope .pk-act > :first-child {
   padding: 6px;
   border-radius: var(--radius-full);
   background-color: var(--surface-control-fill);
@@ -1608,7 +1608,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   backdrop-filter: var(--surface-control-blur);
   box-shadow: var(--surface-control-depth);
 }
-:where([data-look="glass"]) .leads-scope .pk-act-main {
+.leads-scope .pk-act-main {
   min-height: 36px;
   border-radius: var(--radius-full);
   font-size: var(--text-base);
@@ -1618,7 +1618,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   /* The bar's switch between the rows and the places (L-phone-list draws them as two circles): a 40px capsule of the
      control layer's glass, each way a 32px round, the one shown the lozenge. Named with html.legacy-on, since the touch
      floor for a button is (legacy.css). */
-  :where([data-look="glass"]) .ld-bar-view {
+  .ld-bar-view {
     height: 40px;
     padding: 4px;
     border: 0;
@@ -1627,50 +1627,50 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
     background-image: var(--surface-control-sheen);
     box-shadow: var(--surface-control-depth);
   }
-  html.legacy-on:where([data-look="glass"]) .ld-bar-view-opt {
+  html.legacy-on .ld-bar-view-opt {
     width: 32px;
     height: 32px;
     min-height: 32px;
     border-radius: var(--radius-circle);
     color: var(--ink-muted);
   }
-  html.legacy-on:where([data-look="glass"]) .ld-bar-view-opt.on {
+  html.legacy-on .ld-bar-view-opt.on {
     background: var(--selected-fill);
     box-shadow: var(--selected-depth);
     color: var(--ink);
   }
   /* The panel on a phone: Close and Expand 36px beside each other at the top of the band, the deck's pill the control
      layer's glass; the stage capsule 40px, its tabs 32 with the floor's 44 kept as an invisible press area. */
-  html.legacy-on:where([data-look="glass"]) .leads-scope .pk-band > :is(.pk-band-expand, .pk-band-x) {
+  html.legacy-on .leads-scope .pk-band > :is(.pk-band-expand, .pk-band-x) {
     top: 12px;
     width: 36px;
     height: 36px;
     min-height: 36px;
   }
-  html.legacy-on:where([data-look="glass"]) .leads-scope .pk-band > .pk-band-x {
+  html.legacy-on .leads-scope .pk-band > .pk-band-x {
     right: 12px;
   }
-  html.legacy-on:where([data-look="glass"]) .leads-scope .pk-band > .pk-band-expand {
+  html.legacy-on .leads-scope .pk-band > .pk-band-expand {
     right: 58px;
   }
-  :where([data-look="glass"]) .leads-scope .pk-deck {
+  .leads-scope .pk-deck {
     background-color: var(--surface-control-fill);
     background-image: var(--surface-control-sheen);
     backdrop-filter: var(--surface-control-blur);
     box-shadow: var(--surface-control-depth);
   }
-  :where([data-look="glass"]) .leads-scope .pk-deck > button {
+  .leads-scope .pk-deck > button {
     border-radius: var(--radius-circle);
   }
-  :where([data-look="glass"]) .leads-scope [data-testid="peek-stage"] {
+  .leads-scope [data-testid="peek-stage"] {
     height: 40px;
   }
-  html.legacy-on:where([data-look="glass"]) .leads-scope [data-testid="peek-stage"] > button {
+  html.legacy-on .leads-scope [data-testid="peek-stage"] > button {
     position: relative;
     height: 32px;
     min-height: 32px;
   }
-  html.legacy-on:where([data-look="glass"]) .leads-scope [data-testid="peek-stage"] > button::after {
+  html.legacy-on .leads-scope [data-testid="peek-stage"] > button::after {
     content: "";
     position: absolute;
     inset: -6px 0;

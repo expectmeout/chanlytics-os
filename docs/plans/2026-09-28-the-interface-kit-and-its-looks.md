@@ -791,9 +791,22 @@ walk of production the same day: the brief now says everything that needs a pers
 rides in the page's scroll on a page that scrolls (`app-shell.jsx` `glassHead`), so only the top bar stays.
 
 **5.7 Classic retired,** a release cycle later (decision 6): its role values and any rule only it reads are deleted,
-and `data-look` stays as the setting for the next look.
+and `data-look` stays as the setting for the next look. Landed 2 October 2026, a day after 5.6, on Ruben's word ("we are
+retiring classic"): Glass's two token blocks folded into the roles block and a second `[data-theme="dark"]` block after
+it, every Classic value a Glass block set again deleted (72 declarations), the 875 `:where([data-look="glass"])`
+prefixes dropped from the sheets (they weighed nothing, so the cascade stands), and in each sheet every earlier rule
+with the same selector in the same context lost the declarations the look's rule set again (319 declarations, 26 whole
+rules); the bare look selectors the kit and the frame wrote were rewritten by hand with the Classic rules they overrode
+deleted. In code every reader of the look keeps its Glass path alone (`kit/look/look.tsx` is gone), the contract names one
+look (`LookPref = "glass"`, `LOOK_OFFERED` false until a second), the harness and the gallery stamp it, and the tests
+and specs that drew Classic read the one look. Proved by style equality in Glass twice: the harness recorder over
+Settings' panes, the gallery and its scenes (64 pages), and a recorder over the app itself on the dev server for the
+pages that left the shell (Today, the Inbox, People, a person, the Pipeline, Leads, the Calendar, Campaigns' three,
+Reports, Live: 48 pages, both widths and themes), each before equal to its after.
 
-_Done when:_ every pixel comes from the tokens and the kit, in the look members see.
+_Done when:_ every pixel comes from the tokens and the kit, in the look members see. What is left of it: rules that
+only Classic drew under a selector the look's rule does not share (a page's own primitive the kit's rule now covers
+from another selector), which the recorders cannot tell from a live rule; they fall with Phase 4's layout-only sheets.
 
 ### Phase 6 · Everyone builds with the kit (the last task)
 
@@ -868,7 +881,7 @@ alternatives.
 | 5.4  | Each surface's canvas (six)           | no (not offered) | shots against the canvas        | 5.2; that surface's step 4          |
 | 5.5  | Offered in the account menu           | yes, by choice   | a walk on production            | 5.3, 5.4                            |
 | 5.6  | Glass by default                      | yes              | a walk on production            | 5.5 and Ruben's yes                 |
-| 5.7  | Classic retired                       | no               | style equality in Glass         | a release cycle after 5.6           |
+| 5.7  | Classic retired                       | yes, 2 October   | style equality in Glass         | 5.6 and Ruben's word                |
 | 6.1  | Measures at zero become rules, last   | no               | the rule tests                  | each measure's last entry (Phase 4) |
 | 6.2  | `CLAUDE.md`                           | no               | `docs-paths.test.mjs`           | Phase 2 (#1331)                     |
 | 6.3  | The shell's `CLAUDE.md`               | no               | none                            | 6.2                                 |
@@ -941,7 +954,8 @@ the road not taken beside it.
    374 button uses keep their class.
 5. **The primary action in Glass:** the accent, coral, as the canvases draw it. Classic keeps ink; the `--primary-*`
    roles let each look decide.
-6. **Classic's future:** retired a release cycle after Glass is the default. Not kept as a second look.
+6. **Classic's future:** retired a release cycle after Glass is the default. Not kept as a second look. (Retired on 2
+   October 2026, the day after 5.6, on Ruben's word: step 5.7.)
 7. **The gallery:** on the e2e harness only. Not a production route.
 8. **The CSS parser for the measures:** lightningcss, the parser the build already uses. Not postcss.
 9. **Tweaks:** later. The tiers allow an accent hue and a font as device preferences when they are wanted.

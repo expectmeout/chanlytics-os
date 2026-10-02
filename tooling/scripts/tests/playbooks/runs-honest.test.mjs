@@ -276,7 +276,8 @@ const { installPolicyStore } = await import(`${S}/legacy-bridge/policy-store.ts`
 installPolicyStore(globalThis.window);
 // Today's queue and card (TSX since decision 0015): the day comes over the seam, the rows a run needs off the window.
 const { AgentCommand } = await import(`${S}/surfaces/today/pages/queue.tsx`);
-const { TodayCard } = await import(`${S}/surfaces/today/pages/card.tsx`);
+const { TodayBriefPane } = await import(`${S}/surfaces/today/pages/brief-pane.tsx`);
+const { standingSaid } = await import(`${S}/surfaces/kit/head/standing.ts`);
 // The moved surfaces: TSX, drawn over the values the seam holds, their verbs imported.
 const { BroadcastsPage } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { PlaybooksPage } = await import(`${S}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
@@ -382,17 +383,16 @@ test("REGRESSION (C9): a link to a run opens it on Broadcasts -- its report on a
   );
   assert.equal(byTestId(tree, "bc-head"), null, "the report is its own screen: the ledger is not drawn under it");
   assert.equal(byTestId(tree, "bc-composer"), null);
-  assert.equal(
-    textOf(find(details[0], (n) => n.type === "h1")),
-    "Win-back · 2026-09-10",
-    "the run's name is the headline",
+  assert.ok(
+    textOf(standingSaid()?.title ?? null).startsWith("Win-back · 2026-09-10"),
+    "the run's name is the frame's head (CmHead says it to the standing)",
   );
   assert.ok(
-    find(details[0], (n) => n.props?.["data-state"] === "sent"),
-    "with its state beside it",
+    find(standingSaid()?.title ?? null, (n) => n.props?.["data-state"] === "sent"),
+    "with its state beside it, in the head",
   );
   assert.ok(textOf(details[0]).includes("Rosa Díaz"), "and who got it");
-  press(byTestId(details[0], "bc-detail-close"));
+  press(find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "bc-detail-close"));
   assert.deepEqual(
     went.at(-1),
     "broadcasts",
@@ -406,11 +406,11 @@ test("REGRESSION (C9): a link to a run opens it on Broadcasts -- its report on a
   tree = again(older);
   const solo = byTestId(tree, "bc-run-solo");
   assert.ok(
-    solo && textOf(solo).includes("Win-back · 2026-06-01"),
-    "a run past the newest fifty is read by its id and shown the same way",
+    solo && textOf(standingSaid()?.title ?? null).includes("Win-back · 2026-06-01"),
+    "a run past the newest fifty is read by its id and shown the same way, its name the frame's head",
   );
   assert.ok(
-    find(solo, (n) => n.props?.["data-state"] === "sent"),
+    find(standingSaid()?.title ?? null, (n) => n.props?.["data-state"] === "sent"),
     "with its state",
   );
 });
@@ -456,7 +456,10 @@ test("a run opened before opens at once from what the tab holds, and is read aga
       !textOf(seen).includes("Reading who got it"),
       "REGRESSION: a run opened a moment ago was read before anything showed",
     );
-    assert.equal(textOf(find(seen, (n) => n.type === "h1")), "Win-back · 2026-09-10", "its report, on the first paint");
+    assert.ok(
+      textOf(standingSaid()?.title ?? null).startsWith("Win-back · 2026-09-10"),
+      "its report, on the first paint",
+    );
     assert.deepEqual(asked, ["b-sent"], "and it is read again behind");
     const cold = byTestId(page({ initialSegment: null, initialRun: "b-new" }), "bc-detail");
     assert.ok(textOf(cold).includes("Reading who got it"), "a run never opened still says it is reading");
@@ -596,8 +599,9 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
       "REGRESSION: Playbooks, and the page of every broadcast",
     );
     fresh();
-    // What ran today is a line of the day's card, under the work (TodayCard); it was a beat of the hero above it.
-    const recap = TodayCard();
+    // What ran today is a line of the brief beside the queue (TodayBriefPane, canvas E3); it was a beat of the hero
+    // above it, then of the day's card.
+    const recap = TodayBriefPane();
     press(buttonsSaying(byTestId(recap, "brief-run-done"), "Open")[0]);
     assert.deepEqual(went, ["broadcasts/run:b-done"]);
   } finally {

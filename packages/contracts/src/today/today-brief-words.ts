@@ -111,11 +111,14 @@ function daySentence(day: TodayDayVM | null): TodayBriefSegment[] | null {
   return out;
 }
 
-/** What came in: the recap's line, and on a quiet day the proof the lines are listening. */
+/**
+ * What came in: the recap's line, and the proof the lines are listening on a quiet day and on a day with nothing
+ * counted while someone waits (the day's tile stands as four zeros then, zeroFigures, and the proof has no other seat).
+ */
 function cameIn(vm: TodayVM): TodayBriefSegment[][] {
   const line = vm.recap?.line;
   if (!line) return [];
-  return vm.quiet ? [[plain(line)], [plain(vm.proof)]] : [[plain(line)]];
+  return vm.quiet || vm.zeroFigures ? [[plain(line)], [plain(vm.proof)]] : [[plain(line)]];
 }
 
 /** A run waiting for a word: its name in bold, then the queue's own sentence about it. */

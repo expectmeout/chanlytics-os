@@ -12,7 +12,6 @@
 import type { MouseEvent, ReactNode } from "react";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
-import { useLook } from "../../kit/look/look";
 
 interface CmHeadProps {
   title: string;
@@ -39,44 +38,23 @@ interface CmHeadProps {
  * opened run, the send screen) opens on that name. This says the head's parts to the frame and draws nothing of its
  * own there; the strip above still says which door this is.
  */
-export function CmHead({ title, badge = null, sub = null, right = null, quiet = false, testid = null }: CmHeadProps) {
-  const glass = useLook() === "glass";
-  useStanding(
-    glass
-      ? {
-          title: badge ? (
-            <>
-              {title} {badge}
-            </>
-          ) : quiet ? (
-            "Campaigns"
-          ) : (
-            title
-          ),
-          // A tab's list is the surface's own page: no way back above its name.
-          back: quiet ? null : undefined,
-          sentence: sub,
-          act: right,
-        }
-      : null,
-  );
-  if (glass) return null;
-  return (
-    <header className={`cm-head${quiet ? " is-quiet" : ""}`} data-testid={testid || undefined}>
-      <div className="cm-head-text">
-        {badge ? (
-          <div className="cm-head-line">
-            <h1 className="cm-head-title">{title}</h1>
-            {badge}
-          </div>
-        ) : (
-          <h1 className={quiet ? "cm-head-title cm-sr" : "cm-head-title"}>{title}</h1>
-        )}
-        {sub && <div className="cm-head-sub">{sub}</div>}
-      </div>
-      {right && <div className="cm-head-right">{right}</div>}
-    </header>
-  );
+export function CmHead({ title, badge = null, sub = null, right = null, quiet = false }: CmHeadProps) {
+  useStanding({
+    title: badge ? (
+      <>
+        {title} {badge}
+      </>
+    ) : quiet ? (
+      "Campaigns"
+    ) : (
+      title
+    ),
+    // A tab's list is the surface's own page: no way back above its name.
+    back: quiet ? null : undefined,
+    sentence: sub,
+    act: right,
+  });
+  return null;
 }
 
 /** The dot between the parts of a head's line: a separator a screen reader skips. */

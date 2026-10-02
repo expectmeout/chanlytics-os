@@ -426,32 +426,10 @@ function bcSendFoot(v: BcV) {
   );
 }
 
-// The send screen: who, what and when side by side, and the send alone at the foot.
-export function bcComposer(v: BcV) {
-  return (
-    <section className="bc-composer bc-send" data-testid="bc-composer">
-      {/* The one screen in Campaigns that cannot be undone, opened on its own:
-            who, what and when at once, with the people named rather than counted,
-            and the send alone at the foot. */}
-      {/* The three columns say who, what and when; the sentence that said so over them went (23 Sep). */}
-      {bcSendHead(v)}
-      {bcNewTemplate(v)}
-      <div className="bc-cols">
-        {bcColWho(v)}
-
-        {bcColWhat(v)}
-
-        {bcColWhen(v)}
-      </div>
-
-      {bcSendFoot(v)}
-    </section>
-  );
-}
-
-// Under Glass the same three questions stand as the canvas's rows (the compact composer, C2): To, Says, When, one under
-// the other in one pane, each with its word at the left, and the foot the glass bar. The columns keep their own markup,
-// testids and words; their eyebrows (Who, What, When) go, since the row's word says it.
+// The send screen, the one screen in Campaigns that cannot be undone, opened on its own: the three questions stand as
+// the canvas's rows (the compact composer, C2): To, Says, When, one under the other in one pane, each with its word at
+// the left, with the people named rather than counted, and the send alone at the foot, the glass bar. The columns keep
+// their own markup, testids and words; the row's word says what their eyebrows said.
 function bcGlassRow(word: string, body: ReactNode) {
   return (
     <div className="bc-grow">

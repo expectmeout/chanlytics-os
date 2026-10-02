@@ -14017,29 +14017,28 @@ declare const DEFAULT_THEME_PREF: ThemePref;
 declare const themePrefOf: (stored: unknown) => ThemePref;
 /**
  * The look: the finish every page is drawn in, the interface kit's second setting beside the theme
- * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.1 and §3.2). Glass is the canvases', and the default
- * since 1 October 2026 (the plan's step 5.6); Classic is the app as it was drawn before, kept for a member who chooses
- * it. It travels as the theme does: kept on this device in the same stored object, stamped as
- * `data-look` beside `data-theme` before first paint (themeBootScript) and on every change, and chosen in the account
- * menu. It is kept only once chosen, so a device that never chose follows DEFAULT_LOOK_PREF wherever the default goes;
- * nothing resolves it from the device, so the look in force is lookPrefOf of what is kept.
+ * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.1 and §3.2). Glass, the canvases', is the one look
+ * since Classic, the app as it was drawn before, retired on 2 October 2026 (the plan's step 5.7): a device that kept
+ * Classic is a device that kept a look this build no longer knows, and wears the default. The setting stays as the
+ * theme's twin for the next look: kept on this device in the same stored object, stamped as `data-look` beside
+ * `data-theme` before first paint (themeBootScript) and on every change, and chosen in the account menu once there
+ * are two to choose from (LOOK_OFFERED). It is kept only once chosen, so a device that never chose follows
+ * DEFAULT_LOOK_PREF wherever the default goes; nothing resolves it from the device, so the look in force is lookPrefOf
+ * of what is kept.
  */
-type LookPref = "classic" | "glass";
+type LookPref = "glass";
 declare const LOOK_OPTIONS: ReadonlyArray<{
     id: LookPref;
     label: string;
 }>;
 declare const isLookPref: (v: unknown) => v is LookPref;
-/**
- * The look of a device that has chosen nothing, or holds one this build no longer knows: Glass, since 1 October 2026
- * (the plan's step 5.6). A member who chose Classic keeps it, since a device keeps a look only once it is chosen.
- */
+/** The look of a device that has chosen nothing, or holds one this build no longer knows (Classic, retired): Glass. */
 declare const DEFAULT_LOOK_PREF: LookPref;
 /** A device's stored look as the app keeps it: anything unknown is the default. */
 declare const lookPrefOf: (stored: unknown) => LookPref;
 /**
- * Whether the account menu offers the look to members: it does, since Glass was drawn on every canvas (the plan's step
- * 5.5). A device paints the look it keeps, which is the default until a member picks the other by hand.
+ * Whether the account menu offers the look to members: not while there is one look (Classic retired, the plan's step
+ * 5.7); it did from step 5.5 to then. A second look turns it on again.
  */
 declare const LOOK_OFFERED: boolean;
 /** Where this device keeps its preferences, the theme and the look among them (legacy-bridge/device-prefs.ts). */

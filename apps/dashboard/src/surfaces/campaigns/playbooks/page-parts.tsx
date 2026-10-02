@@ -134,8 +134,6 @@ interface HeadIn {
   triggers: readonly PlaybookTriggerOption[];
   unused: readonly PlaybookTriggerOption[];
   startNew: () => void;
-  /** Glass draws the page's act as the canvas does: a capsule of the control layer, coral kept for the composer's one act. */
-  glass: boolean;
 }
 
 /**
@@ -146,7 +144,7 @@ interface HeadIn {
  * list has emptied it is true of every one of them: it rides the line, in the tone of something to look at. The act is
  * at the right, where Broadcasts and Templates keep theirs; it was the top bar's.
  */
-export function pbHead({ rows, chains, triggers, unused, startNew, glass }: HeadIn) {
+export function pbHead({ rows, chains, triggers, unused, startNew }: HeadIn) {
   const { runningN, waitingN, pausedN } = pbStanding(rows, chains);
   const nobody = rows.filter(
     (p) => pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting }) === "nobody",
@@ -201,12 +199,7 @@ export function pbHead({ rows, chains, triggers, unused, startNew, glass }: Head
         </span>
       }
       right={
-        <button
-          className={glass ? "btn" : "btn btn-primary"}
-          onClick={startNew}
-          data-testid="pb-new"
-          {...gate("approve", "start a playbook")}
-        >
+        <button className="btn" onClick={startNew} data-testid="pb-new" {...gate("approve", "start a playbook")}>
           <Icon name="plus" size={12} />{" "}
           <span>
             New<span className="cm-act-noun"> playbook</span>
@@ -294,26 +287,7 @@ export function pbMore(unused: readonly PlaybookTriggerOption[], startAt: (id: s
  * The table, the moments not set up and the always-on rules, as the page lays them: in Glass one pane (canvas C1), in
  * Classic as they were, so Classic's tree is the tree it drew; nothing to hold is no pane.
  */
-export function pbPanes({
-  glass,
-  list,
-  more,
-  always,
-}: {
-  glass: boolean;
-  list: ReactNode;
-  more: ReactNode;
-  always: ReactNode;
-}) {
-  if (!glass) {
-    return (
-      <>
-        {list}
-        {more}
-        {always}
-      </>
-    );
-  }
+export function pbPanes({ list, more, always }: { list: ReactNode; more: ReactNode; always: ReactNode }) {
   return list || more || always ? (
     <div className="pb-glass">
       {list}

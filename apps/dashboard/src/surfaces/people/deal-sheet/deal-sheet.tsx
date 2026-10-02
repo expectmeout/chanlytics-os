@@ -37,8 +37,7 @@ import { peekPerson, personDetail, recordDeal } from "../people-detail";
 import type { DealBody } from "../people-detail";
 import { hasThreadVerbs, hear, saidBy, announce, threadVerbs, usePersonToast } from "../person-verbs";
 import type { FlashFn, PersonFlash } from "../person-verbs";
-import { DealSheetFields, DealSheetFieldsGlass } from "./fields";
-import { useLook } from "../../kit/look/look";
+import { DealSheetFieldsGlass } from "./fields";
 
 const DEAL_SHEET_ID = "deal-sheet";
 
@@ -286,7 +285,6 @@ function sheetBody(
   h: Host,
   atField: DealSheetProblem | null,
   set: (patch: Partial<DealSheetDraft>) => void,
-  glass: boolean,
 ): ReactNode {
   const { st, setSt, sheet } = h;
   const W = DEAL_SHEET_WORDS;
@@ -311,9 +309,8 @@ function sheetBody(
         {sheet.blocked}
       </p>
     );
-  // Glass draws the fields as its canvas's one composer, in rows (D3); Classic as the column it always had.
-  const Fields = glass ? DealSheetFieldsGlass : DealSheetFields;
-  return <Fields sheet={sheet} draft={st.draft} set={set} problem={atField} busy={st.busy} />;
+  // The fields as the canvas's one composer, in rows (D3).
+  return <DealSheetFieldsGlass sheet={sheet} draft={st.draft} set={set} problem={atField} busy={st.busy} />;
 }
 
 /** What the sheet's own presses do: leave, or ask first. */
@@ -323,7 +320,7 @@ interface Hands {
 }
 
 /** The sheet, over the record kit's: the head, the fields, and the foot's Save and Cancel. */
-function drawSheet(h: Host, { cancel, close }: Hands, toastNode: ReactNode, glass: boolean) {
+function drawSheet(h: Host, { cancel, close }: Hands, toastNode: ReactNode) {
   const { st, setSt, sheet } = h;
   const fold = h.fold.current;
   const ask = st.ask;
@@ -369,7 +366,7 @@ function drawSheet(h: Host, { cancel, close }: Hands, toastNode: ReactNode, glas
         confirm={confirm}
         foot={general ? <FieldError id="deal-sheet-problem" message={general} testid="deal-sheet-problem" /> : null}
       >
-        {sheetBody(h, atField, set, glass)}
+        {sheetBody(h, atField, set)}
       </RecordSheet>
       {toastNode}
     </>
@@ -378,7 +375,6 @@ function drawSheet(h: Host, { cancel, close }: Hands, toastNode: ReactNode, glas
 
 /** The one deal sheet, drawn once by the frame: it draws nothing until it is asked for. */
 export function DealSheetHost() {
-  const glass = useLook() === "glass";
   const [toastNode, flash] = usePersonToast();
   const [st, setSt] = useState(DS_CLOSED);
   // The sheet as it stands: the mode's words and fields over the person as read, worked out on every draw (pure).
@@ -422,5 +418,5 @@ export function DealSheetHost() {
     close();
   };
   if (!fold.open || !st.ask) return toastNode;
-  return drawSheet({ st, setSt, flash, fold: foldNow, sheet }, { cancel, close }, toastNode, glass);
+  return drawSheet({ st, setSt, flash, fold: foldNow, sheet }, { cancel, close }, toastNode);
 }

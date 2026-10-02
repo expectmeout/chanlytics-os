@@ -26,12 +26,11 @@ import type { ReactNode } from "react";
 import { recordSheetPart, tabDraft, unsavedAskPart, useLegacyUnsavedWork } from "../../legacy-parts";
 import { canDo } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
-import { useLook } from "../../kit/look/look";
 import { useSurface } from "../../use-surface";
 import { composerActs } from "./composer-acts";
 import { composerModel, composerOffered, composerOpened } from "./composer-model";
 import type { Fields } from "./composer-model";
-import { clockSection, messageSection, underLine, whenOnly, whoSection } from "./composer-sections";
+import { messageSection, underLine, whenOnly, whoSection } from "./composer-sections";
 import type { SectionCtx } from "./composer-sections";
 import type { PlaybookCardVM, PlaybooksSurface } from "./surface";
 
@@ -92,28 +91,6 @@ function glassRow(word: string, testid: string, body: ReactNode) {
   );
 }
 
-/** The sheet's body: the three sections, and what stops a run from sending from the number. */
-function sheetBodyClassic(x: SectionCtx) {
-  const { data } = x;
-  return (
-    <div className="pb-compose">
-      {whoSection(x)}
-      {messageSection(x)}
-      {clockSection(x)}
-      {data.number && data.number.present && !data.number.health.canSend && (
-        <p className="pb-warn" data-testid="pb-number">
-          {data.number.health.refusal}
-        </p>
-      )}
-      {data.number && !data.number.present && (
-        <p className="pb-warn" data-testid="pb-number">
-          No WhatsApp number connected — connect one in Settings › Connections before a run can send.
-        </p>
-      )}
-    </div>
-  );
-}
-
 /**
  * The same sections under Glass stand as the canvas's four rows (the compact composer, C2): To, Says, When, and Under,
  * which is the row of Autonomy it runs under and its guardrails, drawn apart from the sentence they follow. A row is its
@@ -142,7 +119,6 @@ function sheetBodyGlass(x: SectionCtx) {
 }
 
 export function PlaybookComposer({ data, editing, initialTrigger = null, onDone, onCancel }: ComposerProps) {
-  const glass = useLook() === "glass";
   // As on Broadcasts: a template this product cannot put on the wire is not
   // offered, rather than offered and refused by Meta for every recipient.
   const offered = useMemo(() => composerOffered(data.templates), [data.templates]);
@@ -237,18 +213,11 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
           <Icon name="pencil" size={13} />
         </span>
       }
-      sub={
-        glass
-          ? undefined
-          : editing
-            ? "A change counts from its next run."
-            : "One approved message, to the people a moment names who said yes — each on its own clock. Replies land in the Inbox."
-      }
       onClose={work.leave}
       closeLabel="Cancel"
       foot={sheetFoot({ x, work, editing, busy, error, save: acts.save })}
     >
-      {glass ? sheetBodyGlass(x) : sheetBodyClassic(x)}
+      {sheetBodyGlass(x)}
     </RecordSheet>
   );
 }

@@ -96,24 +96,9 @@ test("the head: Glass says the surface's title to the frame's head and draws non
     return again(() => PlaybooksPage({}));
   };
   const h1 = () => find(draw(), (n) => n.type === "h1");
-  // Glass only where the document says so: no look stamped, Classic, a word that is not a look, and no document to ask (a server render).
-  for (const stamp of [null, "classic", "anything else"]) {
-    lookIs(stamp);
-    assert.equal(textOf(h1()), "Playbooks", `${stamp}: Classic`);
-    assert.ok(String(h1().props.className).includes("cm-sr"), "Classic: the name is a screen reader's alone");
-    assert.equal(standingSaid(), null, `${stamp}: Classic tells the frame's head nothing`);
-  }
-  const root = globalThis.document.documentElement;
-  delete globalThis.document.documentElement;
-  assert.equal(textOf(h1()), "Playbooks", "no document to ask: Classic");
-  globalThis.document.documentElement = root;
   lookIs("glass");
   const tree = draw();
-  assert.equal(
-    find(tree, (n) => n.type === "h1"),
-    null,
-    "Glass: the page draws no head of its own; the frame's is the head",
-  );
+  assert.equal(h1(), null, "the page draws no head of its own; the frame's is the head");
   assert.equal(
     find(tree, (n) => String(n.props?.className || "").includes("cm-head")),
     null,
@@ -125,13 +110,7 @@ test("the head: Glass says the surface's title to the frame's head and draws non
   assert.ok(said?.sentence, "and the head's line beside it");
 });
 
-test("the playbook composer: Classic's sections as they were; Glass's four rows, each holding Classic's section", () => {
-  const classic = composing(null);
-  for (const id of ["pb-who", "pb-message", "pb-clock"]) assert.ok(byTestId(classic, id), `Classic: ${id}`);
-  for (const id of ["pb-row-to", "pb-row-says", "pb-row-when", "pb-row-under"])
-    assert.equal(byTestId(classic, id), null, `Classic draws no row (${id})`);
-  assert.ok(textOf(classic).includes("One approved message"), "Classic says what a playbook is under its name");
-
+test("the playbook composer: four rows, To, Says, When and Under, each holding its section", () => {
   const glass = composing("glass");
   const rows = ["pb-row-to", "pb-row-says", "pb-row-when", "pb-row-under"].map((id) => byTestId(glass, id));
   assert.ok(
@@ -148,12 +127,12 @@ test("the playbook composer: Classic's sections as they were; Glass's four rows,
     "and the row it runs under",
   );
   assert.equal(allByTestId(glass, "pb-hour").length, 1, "the hour is chosen where it was, once");
-  assert.ok(!textOf(glass).includes("One approved message"), "Glass: the explanation under the title is gone");
+  assert.ok(!textOf(glass).includes("One approved message"), "no explanation under the title");
   for (const id of ["pb-save", "pb-cancel"]) assert.ok(byTestId(glass, id), `the foot keeps ${id}`);
 });
 
-test("the broadcast composer: Classic's three columns; Glass's rows To, Says, When in one pane", () => {
-  // The page's act (New broadcast) is the head's: in the page in Classic, said to the frame's head in Glass.
+test("the broadcast composer: the rows To, Says, When in one pane", () => {
+  // The page's act (New broadcast) is the head's, said to the frame's head.
   const act = (tree, id) =>
     byTestId(tree, id) ?? find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === id);
   const open = (look) => {
@@ -164,17 +143,6 @@ test("the broadcast composer: Classic's three columns; Glass's rows To, Says, Wh
     press(act(page(), "bc-new"));
     return page();
   };
-  const classic = open(null);
-  assert.ok(byTestId(classic, "bc-composer"));
-  assert.ok(
-    find(classic, (n) => String(n.props?.className || "") === "bc-cols"),
-    "Classic: the columns",
-  );
-  assert.equal(
-    find(classic, (n) => String(n.props?.className || "") === "bc-grow"),
-    null,
-    "Classic draws no row",
-  );
   const glass = open("glass");
   const rows = all(glass, (n) => String(n.props?.className || "") === "bc-grow");
   assert.deepEqual(rows.map(wordOf), ["To", "Says", "When"]);

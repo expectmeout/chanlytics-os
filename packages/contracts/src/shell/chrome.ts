@@ -50,36 +50,32 @@ export const themePrefOf = (stored: unknown): ThemePref => (isThemePref(stored) 
 
 /**
  * The look: the finish every page is drawn in, the interface kit's second setting beside the theme
- * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.1 and §3.2). Glass is the canvases', and the default
- * since 1 October 2026 (the plan's step 5.6); Classic is the app as it was drawn before, kept for a member who chooses
- * it. It travels as the theme does: kept on this device in the same stored object, stamped as
- * `data-look` beside `data-theme` before first paint (themeBootScript) and on every change, and chosen in the account
- * menu. It is kept only once chosen, so a device that never chose follows DEFAULT_LOOK_PREF wherever the default goes;
- * nothing resolves it from the device, so the look in force is lookPrefOf of what is kept.
+ * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.1 and §3.2). Glass, the canvases', is the one look
+ * since Classic, the app as it was drawn before, retired on 2 October 2026 (the plan's step 5.7): a device that kept
+ * Classic is a device that kept a look this build no longer knows, and wears the default. The setting stays as the
+ * theme's twin for the next look: kept on this device in the same stored object, stamped as `data-look` beside
+ * `data-theme` before first paint (themeBootScript) and on every change, and chosen in the account menu once there
+ * are two to choose from (LOOK_OFFERED). It is kept only once chosen, so a device that never chose follows
+ * DEFAULT_LOOK_PREF wherever the default goes; nothing resolves it from the device, so the look in force is lookPrefOf
+ * of what is kept.
  */
-export type LookPref = "classic" | "glass";
+export type LookPref = "glass";
 
-export const LOOK_OPTIONS: ReadonlyArray<{ id: LookPref; label: string }> = [
-  { id: "classic", label: "Classic" },
-  { id: "glass", label: "Glass" },
-];
+export const LOOK_OPTIONS: ReadonlyArray<{ id: LookPref; label: string }> = [{ id: "glass", label: "Glass" }];
 
-export const isLookPref = (v: unknown): v is LookPref => v === "classic" || v === "glass";
+export const isLookPref = (v: unknown): v is LookPref => v === "glass";
 
-/**
- * The look of a device that has chosen nothing, or holds one this build no longer knows: Glass, since 1 October 2026
- * (the plan's step 5.6). A member who chose Classic keeps it, since a device keeps a look only once it is chosen.
- */
+/** The look of a device that has chosen nothing, or holds one this build no longer knows (Classic, retired): Glass. */
 export const DEFAULT_LOOK_PREF: LookPref = "glass";
 
 /** A device's stored look as the app keeps it: anything unknown is the default. */
 export const lookPrefOf = (stored: unknown): LookPref => (isLookPref(stored) ? stored : DEFAULT_LOOK_PREF);
 
 /**
- * Whether the account menu offers the look to members: it does, since Glass was drawn on every canvas (the plan's step
- * 5.5). A device paints the look it keeps, which is the default until a member picks the other by hand.
+ * Whether the account menu offers the look to members: not while there is one look (Classic retired, the plan's step
+ * 5.7); it did from step 5.5 to then. A second look turns it on again.
  */
-export const LOOK_OFFERED: boolean = true;
+export const LOOK_OFFERED: boolean = false;
 
 /** Where this device keeps its preferences, the theme and the look among them (legacy-bridge/device-prefs.ts). */
 export const DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
@@ -90,7 +86,6 @@ export const DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
  * does own, and a bar in the other theme's paper reads as a strip of somebody else's app above this one.
  */
 export const LOOK_THEME_COLORS: Readonly<Record<LookPref, Readonly<Record<Theme, string>>>> = {
-  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
   glass: { light: "#f1f2f6", dark: "#0f1014" },
 };
 /**
@@ -103,7 +98,6 @@ export const THEME_COLORS: Readonly<Record<Theme, string>> = LOOK_THEME_COLORS[D
  * tab labels with, beside the page. The two pairs are the shell's whole palette; the page's other tones stay the page's.
  */
 const LOOK_THEME_INK: Readonly<Record<LookPref, Readonly<Record<Theme, string>>>> = {
-  classic: { light: "#161616", dark: "#fbfaf8" },
   glass: { light: "#1b1c20", dark: "#f4f4f6" },
 };
 /** The default look's ink per theme. */

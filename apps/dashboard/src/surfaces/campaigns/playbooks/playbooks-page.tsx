@@ -16,7 +16,6 @@ import { useEffect, useRef, useState } from "react";
 import { tabDraft } from "../../legacy-parts";
 import { canDo, demoSession, gateTitle, useLegacyToast } from "../../legacy-verbs";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
-import { useLook } from "../../kit/look/look";
 import { useSurface } from "../../use-surface";
 import { PlaybookComposer } from "./composer";
 import type { PlaybookCardVM, PlaybooksSurface } from "./surface";
@@ -112,7 +111,6 @@ function PlaybooksReal({ initialPlaybook = null, data }: PlaybooksRealProps) {
     setSlot(null);
     setComposing(true);
   };
-  const glass = useLook() === "glass";
   const onEdit = (e: PlaybookCardVM) => {
     setComposing(false);
     setEditing(e);
@@ -121,7 +119,7 @@ function PlaybooksReal({ initialPlaybook = null, data }: PlaybooksRealProps) {
   return (
     <div className="reports pb-page" data-testid="playbooks-real">
       <div className="rp-body cm-page pb-body">
-        {pbHead({ rows, chains, triggers, unused, startNew, glass })}
+        {pbHead({ rows, chains, triggers, unused, startNew })}
         {pbGone(initialPlaybook, rows, linkedChainHere, Array.isArray(reachOuts)) && (
           <EmptyState
             kind="line"
@@ -155,7 +153,6 @@ function PlaybooksReal({ initialPlaybook = null, data }: PlaybooksRealProps) {
             the table, the moments not set up and the always-on rules are one pane (canvas C1); Classic draws them as
             they were. */}
         {pbPanes({
-          glass,
           list: pbList({ cards, chains, canAct, flash, tz: data.timezone, openId, setOpenId, initialPlaybook, onEdit }),
           more: pbMore(unused, startAt),
           always: (cards.length > 0 || unused.length > 0) && <PbAlwaysOn rows={rows} />,

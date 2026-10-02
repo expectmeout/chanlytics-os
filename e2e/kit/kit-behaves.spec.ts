@@ -49,13 +49,11 @@ const asking = async (ask: object): Promise<SkeletonAsk> => {
 
 type Width = "desk" | "phone";
 type Theme = "dark" | "light";
-type Look = "classic" | "glass";
+type Look = "glass";
 type Run = { width: Width; theme: Theme; look: Look };
 const label = (r: Run) => `${r.width} ${r.theme} ${r.look}`;
 const EVERY: Run[] = (["desk", "phone"] as const).flatMap((width) =>
-  (["dark", "light"] as const).flatMap((theme) =>
-    (["classic", "glass"] as const).map((look) => ({ width, theme, look })),
-  ),
+  (["dark", "light"] as const).flatMap((theme) => (["glass"] as const).map((look) => ({ width, theme, look }))),
 );
 
 /** How long a condition may take to come true before the check says it did not. */
@@ -75,7 +73,7 @@ async function open(browser: Browser, baseURL: string | undefined, width: Width)
 }
 
 /** The running page in a theme and a look, its components drawn. */
-async function show(page: Page, theme: Theme = "dark", look: Look = "classic") {
+async function show(page: Page, theme: Theme = "dark", look: Look = "glass") {
   await page.goto(`/behaves?theme=${theme}&look=${look}`);
   await page.waitForSelector('[data-entry="field-kit-wrong"] .rec-field');
   await page.evaluate(() => document.fonts.ready);
@@ -846,7 +844,7 @@ test("the behaviour checks name each fault planted: Escape, Tab, the scroll, the
   baseURL,
 }) => {
   const { context, page } = await open(browser, baseURL, "desk");
-  const run: Run = { width: "desk", theme: "dark", look: "classic" };
+  const run: Run = { width: "desk", theme: "dark", look: "glass" };
   try {
     // Escape swallowed before Base UI hears it.
     await show(page);
@@ -922,7 +920,7 @@ test("the other checks name each fault planted: the menu's keys and acts, the po
   baseURL,
 }) => {
   const { context, page } = await open(browser, baseURL, "desk");
-  const run: Run = { width: "desk", theme: "dark", look: "classic" };
+  const run: Run = { width: "desk", theme: "dark", look: "glass" };
   /** A key swallowed, on the window in the capture phase, before Base UI or the browser hears it. */
   const swallow = (key: string, types: string[] = ["keydown"]) =>
     page.evaluate(

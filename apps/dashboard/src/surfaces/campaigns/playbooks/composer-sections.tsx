@@ -552,17 +552,6 @@ export function underLine(x: SectionCtx) {
   );
 }
 
-/** When it runs: one sentence with its numbers chosen in place, the row of Autonomy it runs under, and the guardrails. */
-export function clockSection(x: SectionCtx) {
-  return (
-    <section className="pb-sec" data-testid="pb-clock">
-      <span className="pb-sec-k">When it runs</span>
-      {whenSentence(x)}
-      {underLine(x)}
-    </section>
-  );
-}
-
 /** Under Glass, the sentence alone: the rules line is the row under it (Under), and the word is the row's. */
 export function whenOnly(x: SectionCtx) {
   return (

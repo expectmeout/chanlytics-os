@@ -88,6 +88,12 @@ installLegacyReact({
 const SRC = "../../../../apps/dashboard/src";
 const { PlaybooksPage } = await import(`${SRC}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
+// The head's line is the frame's head's (CmHead says it to the standing), so the page tree holds none of it.
+const standingLine = () => {
+  const sentence = standingSaid()?.sentence;
+  return sentence ? byTestId({ props: { children: sentence } }, "pb-reaches-nobody") : null;
+};
 /** The playbooks surface as the bridge publishes it, with one running playbook whose moment reaches `candidates`. */
 const playbooksVM = (rows = []) => ({
   rows,
@@ -507,13 +513,10 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   // The card's reach, its next run and its one-run sentence are card.tsx's, drawn by runs-honest. The line says which
   // running playbook has nobody to send to, and says nothing where every one reaches somebody.
   const triggers = [{ id: "quiet_30", label: "Win-back", hint: "", cls: "reengage", list: "quiet", kind: "list" }];
-  const stood = drawPlaybooks({ ...playbooksVM([winback()]), triggers });
-  assert.equal(textOf(byTestId(stood, "pb-reaches-nobody")), "Win-back has nobody to send to");
-  assert.equal(
-    byTestId(drawPlaybooks({ ...playbooksVM([winback({ candidates: 4 })]), triggers }), "pb-reaches-nobody"),
-    null,
-    "a playbook that reaches somebody says nothing of the kind",
-  );
+  drawPlaybooks({ ...playbooksVM([winback()]), triggers });
+  assert.equal(textOf(standingLine()), "Win-back has nobody to send to");
+  drawPlaybooks({ ...playbooksVM([winback({ candidates: 4 })]), triggers });
+  assert.equal(standingLine(), null, "a playbook that reaches somebody says nothing of the kind");
 });
 
 test("what the next run will DO: a playbook running against an empty list is not running in the sense the owner means", () => {

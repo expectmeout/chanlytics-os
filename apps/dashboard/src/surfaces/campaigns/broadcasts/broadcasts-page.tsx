@@ -17,14 +17,13 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useLegacyUnsavedWork } from "../../legacy-parts";
 import { canDo, demoSession, navigate, useLegacyToast } from "../../legacy-verbs";
-import { useLook } from "../../kit/look/look";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { bcAgainOf, bcLedgerOf, bcRunSolo, bcSheetOf } from "./page/runs";
 import { bcRunActs, bcSendActs } from "./page/acts";
 import { bcLedger } from "./page/ledger-screen";
 import { bcPeopleOf, bcPreviewOf, bcReachOf, bcSlotChoicesOf, bcSlotWordsOf } from "./page/reach";
-import { bcComposer, bcComposerGlass } from "./page/send-screen";
+import { bcComposerGlass } from "./page/send-screen";
 import { useBcList, useBcNow, useBcOffered, useBcRunLanding, useBcWords, useBcYes } from "./page/state";
 import type { BcApproving, BcBase, BcV, Flash } from "./page/types";
 import { bcDefault, bcIsStarter } from "./page/words";
@@ -68,7 +67,6 @@ function bcWorked(base: BcBase, approving: BcApproving): BcV {
 // BroadcastsReal calls its hooks in the order it always has, each holding one concern (page/state.tsx); plain functions
 // (page/) work out what its screens say, on every draw as before, and return the elements they draw.
 function BroadcastsReal({ data, initialSegment = null, initialRun = null, initialYes = false }: BroadcastsRealProps) {
-  const glass = useLook() === "glass";
   const [toastNode, flash]: [ReactNode, Flash] = useLegacyToast();
   // Who may send, approve or stop: the role store's answer, View-as included.
   const canSend = !!canDo("approve");
@@ -183,7 +181,7 @@ function BroadcastsReal({ data, initialSegment = null, initialRun = null, initia
           the words and the send button never appeared on the same screen: an owner
           scrolled past the preview to reach Send, which is the wrong direction of
           travel for the only irreversible control on the surface. */}
-        {openId ? null : writing ? (glass ? bcComposerGlass(v) : bcComposer(v)) : bcLedger(v, glass)}
+        {openId ? null : writing ? bcComposerGlass(v) : bcLedger(v)}
       </div>
 
       {toastNode}

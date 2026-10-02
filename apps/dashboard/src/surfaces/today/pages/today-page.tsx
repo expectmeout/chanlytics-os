@@ -21,40 +21,19 @@
  * trust review, a segment pulse) are gone from this page; the seed files stay loaded for the surfaces that still use
  * them.
  */
-import { useLook } from "../../kit/look/look";
 import { AgentCommand } from "./queue";
 import { HeroBrief } from "./brief";
 import { TodayBriefPane } from "./brief-pane";
 import { TodayCard } from "./card";
-import { TodayDay } from "./day";
 import { TodayLeaks } from "./leaks";
 import { TodayAway } from "./away";
 import { TodayPins } from "./pins";
 import { TodaySetup } from "./setup-card";
 import { TodayStrip } from "./strip";
 
-const Classic = () => (
-  <div className="dash-a-v2">
-    <HeroBrief />
-    <div className="dash-a-v2-core">
-      <div className="dash-a-v2-work">
-        <TodaySetup />
-        <AgentCommand />
-      </div>
-      <TodayDay />
-    </div>
-    <TodayCard />
-    <TodayPins />
-    <div className="dash-a-v2-foot">
-      <TodayLeaks />
-      <TodayAway />
-    </div>
-  </div>
-);
-
 // Canvas E3's bento: the strip, the queue's column beside the brief and the bell, the day's card beside Worth a look.
 // No day pane: E3 folds the day into the strip's Next cell (Ruben, 1 October 2026); the Calendar has the rest.
-const GlassPage = () => (
+export const DashboardA = () => (
   <div className="dash-a-v2 dash-a-v2-glass">
     <HeroBrief />
     <TodayStrip />
@@ -67,11 +46,9 @@ const GlassPage = () => (
       <TodayAway />
     </div>
     <div className="dash-a-v2-bottom">
-      <TodayCard beats={false} />
+      <TodayCard />
       <TodayLeaks />
     </div>
     <TodayPins />
   </div>
 );
-
-export const DashboardA = () => (useLook() === "glass" ? <GlassPage /> : <Classic />);

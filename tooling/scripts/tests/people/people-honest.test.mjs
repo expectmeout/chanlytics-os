@@ -741,7 +741,11 @@ test("the rail's Saved section draws each kept list as a rail row, and the rail 
     railRows(draw())
       .filter((b) => b.props["aria-current"] === "true")
       .map((b) => textOf(b));
-  assert.deepEqual(current(), [], "nothing is picked: everyone");
+  assert.deepEqual(
+    current().map((t) => t.replace(/\d+$/, "")),
+    ["Everyone"],
+    "nothing is picked: the rail's Everyone row is current (canvas P1)",
+  );
   press(savedRows()[0]);
   assert.deepEqual(current(), ["Regulars1"], "one row picked, and a screen reader hears which");
   press(savedRows()[1]);
@@ -764,7 +768,11 @@ test("the rail's Saved section draws each kept list as a rail row, and the rail 
   press(smart);
   assert.deepEqual(current(), [textOf(smart)], "a smart list replaces a kept one, as a kept one replaces a smart one");
   press(railRows(draw()).find((b) => b.props["aria-current"] === "true"));
-  assert.deepEqual(current(), [], "the picked row pressed again: everyone");
+  assert.deepEqual(
+    current().map((t) => t.replace(/\d+$/, "")),
+    ["Everyone"],
+    "the picked row pressed again: everyone, the rail's first row current again",
+  );
 });
 
 test("a selection never outlives its view, and does outlive a search: a list picked on the rail drops it, words typed in the box do not", async () => {
@@ -2023,23 +2031,35 @@ test("export follows the list that is open, and is not offered for a list that c
     people: [person(1)],
     lists: [{ id: "s3", name: "Booked soon", ids: [], rule: { all: [{ field: "booked", op: "is", yes: true }] } }],
   });
-  // The link is the route's (the client's own url for GET contacts/export): its path, and the list it is asked for.
-  const linkOf = (n) => {
-    const u = new URL(n.props.href, "https://app.chanlytics.com");
-    return [u.pathname, u.searchParams.get("list")];
-  };
-  const everyone = byTestId(draw(), "people-export");
-  assert.deepEqual(linkOf(everyone), ["/api/v1/contacts/export", null], "no list open: everyone");
-  draw({ initialSegment: "opted_in" });
-  const one = byTestId(draw({ initialSegment: "opted_in" }), "people-export");
-  assert.deepEqual(linkOf(one), ["/api/v1/contacts/export", "seg:opted_in"]);
-  assert.equal(one.props.title, "Download the people on Said yes to messages as a CSV file");
-  // A smart list that reads visits, with no calendar read: the route would refuse it, so the button says why.
-  draw({ initialSaved: "s3" });
-  const blocked = byTestId(draw({ initialSaved: "s3" }), "people-export");
-  assert.equal(blocked.type, "button");
-  assert.equal(blocked.props.disabled, true);
-  assert.equal(blocked.props["data-tip"], globalThis.window.__PEOPLE.saved[0].unknown);
+  // Export is an item of the file menu after Columns (canvas P1; the kit's MoreMenu, read by its items): the link is
+  // the route's (the client's own url for GET contacts/export), opened in place, with its path and the list it is
+  // asked for.
+  const exportItem = (tree) =>
+    find(tree, (n) => n.props?.testid === "people-file-menu").props.items.find((i) => i.label === "Export CSV");
+  const opened = [];
+  const open = globalThis.window.open;
+  globalThis.window.open = (u) => opened.push(String(u));
+  try {
+    const linkOf = (item) => {
+      item.onClick();
+      const u = new URL(opened.at(-1), "https://app.chanlytics.com");
+      return [u.pathname, u.searchParams.get("list")];
+    };
+    assert.deepEqual(linkOf(exportItem(draw())), ["/api/v1/contacts/export", null], "no list open: everyone");
+    draw({ initialSegment: "opted_in" });
+    const one = exportItem(draw({ initialSegment: "opted_in" }));
+    assert.deepEqual(linkOf(one), ["/api/v1/contacts/export", "seg:opted_in"]);
+    assert.equal(one.title, "Download the people on Said yes to messages as a CSV file");
+    // A smart list that reads visits, with no calendar read: the route would refuse it, so the item says why and opens nothing.
+    draw({ initialSaved: "s3" });
+    const blocked = exportItem(draw({ initialSaved: "s3" }));
+    assert.equal(blocked.title, globalThis.window.__PEOPLE.saved[0].unknown);
+    const before = opened.length;
+    blocked.onClick();
+    assert.equal(opened.length, before, "held: nothing opens");
+  } finally {
+    globalThis.window.open = open;
+  }
 });
 
 test("the New list door's address stands until a list is made, then is that list's: a reload opens the list, not the box", async () => {

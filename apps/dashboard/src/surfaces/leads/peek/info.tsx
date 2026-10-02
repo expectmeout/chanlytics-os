@@ -8,7 +8,6 @@ import type { LeadPeekVM } from "@chanlytics/contracts";
 import { statePillPart } from "../../legacy-parts";
 import { gate } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
-import { lookNow } from "../../kit/look/look";
 import { LeadCallAsk, LeadPeekAsk, LeadPeekMore, LeadSentAsk } from "./asks";
 import { leadCallMenuPart, leadSlotShapePart } from "./doors";
 import { LeadEvidenceBar, PkHint, ldCheckMark, pkScrolling } from "./hint";
@@ -111,8 +110,8 @@ function peekVerdict(vm: LeadPeekVM) {
       <p className="pk-fit" data-testid="peek-fit">
         {vm.fit.sentence}
       </p>
-      {/* Glass (canvas L2): the checks stand open under the verdict, each with where it came from; the bar's card says the same. */}
-      {lookNow() === "glass" && vm.groups.length ? (
+      {/* Canvas L2: the checks stand open under the verdict, each with where it came from; the bar's card says the same. */}
+      {vm.groups.length ? (
         <div className="pk-checks-open" data-testid="peek-checks-open">
           {checkList(vm, "open")}
         </div>
@@ -141,18 +140,18 @@ function checkList(vm: LeadPeekVM, where: "card" | "open" = "card") {
   ));
 }
 
-/** In Glass a row's mark has its words under the value too (canvas L2: "words for glyphs"); Classic keeps them in the mark's tip. */
+/** A row's mark has its words under the value too (canvas L2: "words for glyphs"). */
 function rowWords(words: string, testid: string) {
-  return lookNow() === "glass" ? (
+  return (
     <span className="pk-rr-note" data-testid={testid}>
       {words}
     </span>
-  ) : null;
+  );
 }
 
-/** A section's name, in Glass alone (canvas L2): Classic's rows and folds say it by their shape. */
+/** A section's name (canvas L2). */
 function eyebrow(words: string) {
-  return lookNow() === "glass" ? <span className="pk-eyebrow">{words}</span> : null;
+  return <span className="pk-eyebrow">{words}</span>;
 }
 
 /** Keep and Exclude, for a lead that needs review. */
@@ -304,7 +303,7 @@ function peekOthers(vm: LeadPeekVM) {
 /** How it was found folds the same way: one line says it, and the three steps are behind it. */
 function peekFound(vm: LeadPeekVM) {
   return (
-    <details className="pk-box" data-testid="peek-found" open={lookNow() === "glass" || undefined}>
+    <details className="pk-box" data-testid="peek-found" open>
       {eyebrow(W.fromListing)}
       <summary className="pk-box-head" data-testid="peek-found-summary">
         <span className="pk-box-line">
@@ -327,7 +326,7 @@ function peekFound(vm: LeadPeekVM) {
 /** The week folds like everything else (D7), in its short hours (D8). */
 function peekWeek(vm: LeadPeekVM) {
   return vm.weekSummary ? (
-    <details className="pk-box" data-testid="peek-week" open={lookNow() === "glass" || undefined}>
+    <details className="pk-box" data-testid="peek-week" open>
       <summary className="pk-box-head" data-testid="peek-week-summary">
         <span className="pk-box-line">
           <Icon name="calendar" size={12} />

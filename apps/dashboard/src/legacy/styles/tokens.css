@@ -4,23 +4,15 @@
    ============================================================ */
 
 :root {
-  /* ---------- Type ---------- */
-  --font-sans: var(--font-geist), "Geist", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: var(--font-geist-mono), "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
 
   /* Type scale — airy, density 20 */
   /* Under the smallest step: the word under a phone tab bar's glyph, and the count on it (the canvases' 10 and 9). */
   --text-2xs:   10px;
-  --text-xs:    11px;
   --text-sm:    12.5px;
   --text-base:  13.5px;
-  --text-md:    14.5px;
   --text-lg:    16px;
-  --text-xl:    18px;
   --text-2xl:   22px;
-  --text-3xl:   28px;
-  /* A person's name at the head of their page (canvas P3): between the section's step and the page's. */
-  --text-hero:  24px;
   --text-4xl:   36px;
   --text-5xl:   48px;
   /* A field's words on a touch screen. Below 16px, Safari on a phone zooms the page into the field it focuses, so
@@ -34,7 +26,6 @@
   --leading-relaxed: 1.65;
 
   --tracking-tight: -0.02em;
-  --tracking-normal: -0.005em;
   --tracking-wide: 0.04em;
   --weight-regular: 400;
   --weight-medium: 500;
@@ -70,9 +61,6 @@
   --measure-prose: 720px;
   --measure-page: 1160px;
   --measure-wide: 1480px;
-  /* The horizontal gutter a measured page keeps between its content and the
-     window. Panes set their own; this is for the measured surfaces. */
-  --gutter-page: 28px;
 
   /* ---------- Rails (the left column of a pane surface) ----------
      Eight widths were in use for one structural element: 208, 220, 220, 280,
@@ -149,25 +137,9 @@
   --blur-md: 14px;
   --saturate-md: 1.25;
 
-  /* ---------- Signature Accent ---------- */
-  /* Used ONLY for live/active agent state. Never decorative. */
-  --accent: oklch(0.62 0.19 25);
-  --accent-soft: oklch(0.62 0.19 25 / 0.12);
-  /* The words on an accent fill: badges, chips and buttons filled with the accent (4.0:1 on it). */
-  --accent-fg: oklch(0.99 0 0);
-  --accent-ink: oklch(0.52 0.19 25);
-
-  /* ---------- Semantic (status) ---------- */
-  --ok: oklch(0.62 0.13 155);
-  --ok-soft: oklch(0.62 0.13 155 / 0.12);
   /* The colour as small text on the page. In light, --ok and --accent read 3.3:1 and 3.8:1 there; these read 4.5:1 or
      more, on a tint too (the Calendar's open times and today, C4). Dark keeps its own, which already do. */
   --ok-ink: oklch(0.51 0.13 155);
-  --warn-ink: oklch(0.47 0.11 75);
-  --info-ink: oklch(0.47 0.12 235);
-  --danger-ink: oklch(0.5 0.19 27);
-  --warn: oklch(0.74 0.14 75);
-  --warn-soft: oklch(0.74 0.14 75 / 0.14);
   --danger: oklch(0.6 0.2 27);
   --danger-soft: oklch(0.6 0.2 27 / 0.12);
   --danger-fg: oklch(0.99 0 0);
@@ -186,32 +158,7 @@
    LIGHT THEME — warm off-white, ink, six-step neutral
    ============================================================ */
 [data-theme="light"] {
-  --bg:        oklch(0.985 0.003 80);   /* warm paper */
-  --bg-sunken: oklch(0.97 0.004 80);    /* slightly darker, for rails */
-  --bg-raised: oklch(1 0 0);            /* cards, popovers */
   --mark-plate: oklch(1 0 0);           /* a business's logo sits on this (leads.css, clients.css) */
-  --bg-hover:  oklch(0.96 0.005 80);
-  --bg-active: oklch(0.94 0.006 80);
-
-  --line:      oklch(0.92 0.005 80);    /* hairline */
-  --line-strong: oklch(0.86 0.006 80);
-
-  /* A message bubble is a surface, not inverted ink. Theirs sits back from the page, ours stands
-     off it, and both keep --ink — so neither theme has to flip the text to stay legible. The agent
-     bubble used --ink-muted as a background and --bg as its text, which drew a light slab with
-     near-black letters on a dark page. */
-  --bubble-them-bg: oklch(0.97 0.004 80);
-  --bubble-them-line: oklch(0.92 0.005 80);
-  --bubble-us-bg: oklch(0.925 0.005 80);
-  --bubble-us-line: oklch(0.865 0.006 80);
-
-  --ink:       oklch(0.18 0.01 260);    /* primary text */
-  --ink-muted: oklch(0.42 0.01 260);    /* secondary */
-  /* tertiary, captions. 4.5:1 on every surface text sits on -- raised, bg, sunken, hover and active -- not only on
-     --bg-raised: a table's rows are --bg, its header --bg-sunken, and a hovered row --bg-hover, where 0.56 read 4.44,
-     4.25 and 4.11. 0.52 reads 4.63 at its lowest, on --bg-active. */
-  --ink-dim:   oklch(0.52 0.008 260);
-  --ink-faint: oklch(0.72 0.005 260);   /* placeholder */
 
   --shadow-sm: 0 1px 2px 0 oklch(0.2 0.01 260 / 0.04);
   --shadow-md: 0 2px 6px -2px oklch(0.2 0.01 260 / 0.06),
@@ -226,28 +173,9 @@
    DARK THEME — true ink, not navy. Quiet, with proper contrast.
    ============================================================ */
 [data-theme="dark"] {
-  --bg:        oklch(0.16 0.005 260);   /* base */
-  --bg-sunken: oklch(0.13 0.005 260);
-  --bg-raised: oklch(0.2 0.006 260);
   /* A logo is drawn for a light ground: a dark wordmark on a dark plate is not there. Light in both themes, a step
      down from white so it does not glare out of a dark list. */
   --mark-plate: oklch(0.94 0.004 260);
-  --bg-hover:  oklch(0.23 0.007 260);
-  --bg-active: oklch(0.26 0.008 260);
-
-  --line:      oklch(0.27 0.008 260);
-  --line-strong: oklch(0.34 0.009 260);
-
-  --bubble-them-bg: oklch(0.13 0.005 260);
-  --bubble-them-line: oklch(0.27 0.008 260);
-  --bubble-us-bg: oklch(0.26 0.008 260);
-  --bubble-us-line: oklch(0.36 0.009 260);
-
-  --ink:       oklch(0.96 0.004 80);
-  --ink-muted: oklch(0.74 0.008 260);
-  /* The same rule in the dark: 0.60 read 4.26 on a hovered row and 3.92 on --bg-active. 0.64 reads 4.61 there. */
-  --ink-dim:   oklch(0.64 0.008 260);
-  --ink-faint: oklch(0.45 0.008 260);
 
   --shadow-sm: 0 1px 2px 0 oklch(0 0 0 / 0.3);
   --shadow-md: 0 2px 6px -2px oklch(0 0 0 / 0.4),
@@ -257,89 +185,26 @@
 
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
 
-  /* Slightly bumped accent in dark for legibility */
-  --accent: oklch(0.7 0.18 28);
-  --accent-soft: oklch(0.7 0.18 28 / 0.18);
-  /* The dark theme's accent is lighter, so its words are dark: white on it measures 2.9:1, these 6.7:1. */
-  --accent-fg: oklch(0.16 0.005 260);
-  --accent-ink: var(--accent);
   --ok-ink: var(--ok);
-  --warn-ink: var(--warn);
-  --info-ink: oklch(0.72 0.12 235);
-  --danger-ink: oklch(0.62 0.2 27); /* --danger is 4.15:1 on --bg-raised; the ink clears 4.5 at 0.62 */
 }
 
 /* ============================================================
-   ROLES -- what a thing is for (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, 3.1)
+   ROLES -- what a thing is for (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, 3.1), set to the look's
+   values: GLASS, the look the six Liquid Glass canvases draw (§3.1 and Appendix B, its values in oklch), the one
+   look since Classic, the app as it was drawn before, retired on 2 October 2026 (step 5.7).
    A rule that draws a control, a badge, a menu or a panel reads one of these, not the scale or the colour under it,
-   so a look restyles every button, chip and menu in one place. These are Classic, the look every page wears: each is
-   made from the scales above and the theme's colours, so each equals what its readers wrote before. A look is one
-   more block that sets them (a [data-look] block, after this one).
-   They are set on every element that carries a theme, not on :root alone: a custom property is made once where it
-   is set, so a role made on the page's root would keep the root's colours inside an .app-root that stamps the other
-   theme.
-   A role arrives with its first reader. The blurs, a pane's depth and the control layer's fill have none in Classic;
-   they arrive with the look that draws them.
-   ============================================================ */
-:root, [data-theme] {
-  /* Controls: a button, a field, a segmented control. sm is a toolbar's or a picker's. */
-  --control-h-sm: 26px;
-  --control-h-md: 30px;
-  --control-radius: var(--radius-md);
-  --control-radius-sm: var(--radius-sm);
-  /* A badge's height and its round ends: a pill, a chip. */
-  --chip-h: 20px;
-  --chip-radius: var(--radius-full);
-  /* The segment that is picked. */
-  --selected-fill: var(--bg-raised);
-
-  /* Actions: the one act a view asks for, the others beside it, and the quiet ones. */
-  --primary-fill: var(--ink);
-  --primary-ink: var(--bg);
-  --primary-hover: oklch(from var(--ink) calc(l + 0.08) c h);
-  --secondary-fill: var(--bg-raised);
-  --quiet-ink: var(--ink-muted);
-
-  /* Surfaces: the page; a pane of content; an inset inside one (a segmented control's track, a note); what pops over
-     the page (a menu, a toast, a tip); the wash behind a sheet. */
-  --surface-page-fill: var(--bg);
-  --surface-pane-fill: var(--bg-raised);
-  /* Classic blurs nothing: `none`, read through var() (the build drops a bare `backdrop-filter: none`). */
-  --surface-pane-blur: none;
-  --surface-control-blur: none;
-  --surface-pane-edge: var(--line);
-  --surface-pane-radius: var(--radius-lg);
-  --surface-inset-fill: var(--bg-sunken);
-  --surface-inset-edge: var(--line);
-  /* The inset's hairline as a ring, for an inset that draws no border of its own (a face, a bubble, a capsule). */
-  --surface-inset-ring: inset 0 0 0 1px var(--surface-inset-edge);
-  --surface-inset-radius: var(--radius-md);
-  /* A row that is an inset of its own (the Inbox's rows, a bubble's round corners): the canvases' 18 in Glass. */
-  --surface-row-radius: var(--radius-md);
-  --surface-pop-fill: var(--bg-raised);
-  --surface-pop-edge: var(--line);
-  --surface-pop-radius: var(--radius-lg);
-  --surface-pop-depth: var(--shadow-lg);
-  --surface-scrim: oklch(from var(--bg) l c h / 0.6);
-  /* The ink's wash, behind what takes the screen: a sheet from a phone's bottom edge, the bell's panel on a phone, a
-     dialog. --surface-scrim fades the page behind a desk's side sheet. */
-  --surface-scrim-modal: oklch(from var(--ink) l c h / 0.35);
-}
-
-/* ============================================================
-   GLASS -- the look the six Liquid Glass canvases draw (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md,
-   §3.1 and Appendix B, its values in oklch). Not offered to members yet: a page wears it only where a stored look asks
-   for it (contracts' shell/chrome.ts, LOOK_OFFERED), and Classic, above, is untouched.
-   A material more than a palette: a cool ground lit by three soft pools of light, which the glass takes its colour
-   from; the control layer (the sidebar, the top bar's capsules, the tab bar, a segmented capsule) in deep glass with a
-   rim lit from the top left; panes clear; inside a pane everything an inset, a plain fill with a hairline and no blur
-   (never glass on glass); and what pops over the page opaque. Coral is the primary act (decision 5), the live call,
-   the Now line and the picked tab; amber the one warning; a count is neutral; green is what is open, checked or won.
-   The first block is the light side and sets everything; the dark side sets every colour again, since a [data-look]
-   rule weighs what a [data-theme] rule weighs and would otherwise lend a dark root its light colours. A value no
-   canvas gives is derived from theirs and says so. The roles Classic lacks (the page's light, a surface's blur, rim
-   and depth, the control layer's fill, the island, the count, the solid fills) are set here alone, and only rules of
-   this look read them.
+   so a look restyles every button, chip and menu in one place. They are set on every element that carries a theme,
+   not on :root alone: a custom property is made once where it is set, so a role made on the page's root would keep
+   the root's colours inside an .app-root that stamps the other theme. A role arrives with its first reader.
+   The look is a material more than a palette: a cool ground lit by three soft pools of light, which the glass takes
+   its colour from; the control layer (the sidebar, the top bar's capsules, the tab bar, a segmented capsule) in deep
+   glass with a rim lit from the top left; panes clear; inside a pane everything an inset, a plain fill with a
+   hairline and no blur (never glass on glass); and what pops over the page opaque. Coral is the primary act
+   (decision 5), the live call, the Now line and the picked tab; amber the one warning; a count is neutral; green is
+   what is open, checked or won. This block is the light side and sets everything; the [data-theme="dark"] block
+   after it sets every colour again for the dark side. A value no canvas gives is derived from theirs and says so.
+   A second look is a [data-look="<name>"] block after these two, with its dark side after that (docs/runbook.md,
+   "Add a look"); where Classic's values stood here before, a comment still says so for what they were.
    ============================================================ */
 /* Where the three pools of light stand (the canvases' glow): registered, so the app's root can move them (components.css,
    pg-drift); a browser without @property keeps them still. */
@@ -349,7 +214,21 @@
 @property --pool-b-y { syntax: "<percentage>"; inherits: true; initial-value: 40%; }
 @property --pool-c-x { syntax: "<percentage>"; inherits: true; initial-value: 39%; }
 @property --pool-c-y { syntax: "<percentage>"; inherits: true; initial-value: 91%; }
-[data-look="glass"] {
+:root, [data-theme] {
+  /* A badge's height and its round ends: a pill, a chip. */
+  --chip-h: 20px;
+  --chip-radius: var(--radius-full);
+
+  --quiet-ink: var(--ink-muted);
+
+  /* Surfaces: the page; a pane of content; an inset inside one (a segmented control's track, a note); what pops over
+     the page (a menu, a toast, a tip); the wash behind a sheet. */
+  --surface-page-fill: var(--bg);
+  /* The inset's hairline as a ring, for an inset that draws no border of its own (a face, a bubble, a capsule). */
+  --surface-inset-ring: inset 0 0 0 1px var(--surface-inset-edge);
+  /* The ink's wash, behind what takes the screen: a sheet from a phone's bottom edge, the bell's panel on a phone, a
+     dialog. --surface-scrim fades the page behind a desk's side sheet. */
+  --surface-scrim-modal: oklch(from var(--ink) l c h / 0.35);
   --pool-a-x: 23%;
   --pool-a-y: 6%;
   --pool-b-x: 89%;
@@ -532,7 +411,7 @@
   --surface-island-solid: oklch(0.202 0.008 286);
 }
 
-[data-look="glass"][data-theme="dark"] {
+[data-theme="dark"] {
   --bg: oklch(0.174 0.008 274);
   --bg-sunken: oklch(0.15 0.008 274);
   --bg-raised: oklch(0.238 0.01 277);
@@ -635,7 +514,7 @@
    fill takes its solid, and nothing blurs. Written once for both sides, which [data-theme] weighs over the dark block,
    after it. Reduced motion keeps its own rules: the glass adds no motion of its own. */
 @supports not (backdrop-filter: blur(1px)) {
-  [data-look="glass"][data-theme] {
+  [data-theme] {
     --surface-control-fill: var(--surface-control-solid);
     --surface-pane-fill: var(--surface-pane-solid);
     --surface-pane-blur: none;
@@ -648,7 +527,7 @@
   }
 }
 @media (prefers-reduced-transparency: reduce) {
-  [data-look="glass"][data-theme] {
+  [data-theme] {
     --surface-control-fill: var(--surface-control-solid);
     --surface-pane-fill: var(--surface-pane-solid);
     --surface-pane-blur: none;
@@ -678,7 +557,6 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  font-feature-settings: "ss01", "cv11", "cv02";
   transition: background var(--duration-base) var(--ease-out),
               color var(--duration-base) var(--ease-out);
 }
@@ -686,15 +564,10 @@ html, body {
 /* In Glass the page is lit: the three pools over the ground, which the glass takes its colour from. Fixed to the
    window, so a page that scrolls (the kit's gallery) keeps them behind every surface. The shell's root draws them
    for the app, over this (components.css, .app-root). */
-[data-look="glass"] body {
+body {
   background-image: var(--surface-page-light);
   background-attachment: fixed;
   background-repeat: no-repeat;
-}
-/* Mona Sans plain: the stylistic sets above are Geist's. */
-html[data-look="glass"],
-[data-look="glass"] body {
-  font-feature-settings: normal;
 }
 
 button, input, select, textarea {

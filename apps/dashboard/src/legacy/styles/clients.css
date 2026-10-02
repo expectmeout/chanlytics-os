@@ -47,8 +47,8 @@
 .clients:has(> .stabs-people) { grid-template-rows: auto minmax(0, 1fr); }
 /* In the Glass look the strip is a capsule as wide as its tabs, set in from the page's edge where the shell's own
    strip of views stands (components.css, .main > .stabs): the page's gutter on a desk, the rows' 16px on a phone. */
-:where([data-look="glass"]) .clients > .stabs-people { margin: 0 24px 8px; }
-:where([data-look="glass"]) .pp-top > .stabs-people { margin: 4px 16px 8px; }
+.clients > .stabs-people { margin: 0 24px 8px; }
+.pp-top > .stabs-people { margin: 4px 16px 8px; }
 
 .cl-rail-section {
   padding: 14px 12px 8px;
@@ -1091,7 +1091,6 @@
   min-width: 0;
   height: 100%;
   overflow-y: auto;
-  background: var(--bg);
   container: person / inline-size;
 }
 .cl-prof-page {
@@ -1101,7 +1100,6 @@
   padding: var(--gutter-page) var(--gutter-page) 48px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
 }
 /* What is coming and what has happened, and beside them the card of what is known. The card is not a pane of its own
    any more: it is as tall as what it holds, and the page scrolls. */
@@ -1110,7 +1108,6 @@
   grid-template-columns: minmax(0, 1fr) 340px;
   grid-template-areas: "up rail" "hist rail";
   grid-template-rows: auto 1fr;
-  gap: 24px 40px;
   align-items: start;
 }
 .cl-prof-body:not(:has(> .cl-prof-up)) { grid-template-areas: "hist rail"; grid-template-rows: auto; }
@@ -1134,13 +1131,6 @@
 }
 
 .cl-prof-rail {
-  /* The record kit's measures for the rows the card holds (record.css reads them from what rows sit in). */
-  --rec-gutter: 16px;
-  --rec-key: 112px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -1152,8 +1142,6 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas: "back back" "id acts";
-  gap: 12px 16px;
-  align-items: start;
   container-type: inline-size;
 }
 .cl-prof-hero > .cl-prof-back { grid-area: back; }
@@ -1181,8 +1169,6 @@
 
 .cl-prof-id {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
 }
 /* What they said reads at a prose measure on a wide window: a sentence ran 1,100px at 1440. The words are held to it,
    not the timeline, so each time stands at the column's edge, as the cards above it do. */
@@ -1198,10 +1184,9 @@
   color: var(--ink-muted);
 }
 .cl-prof-avatar[data-priority="P1"] { box-shadow: inset 0 0 0 2px var(--accent); }
-.cl-prof-titles { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.cl-prof-titles { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .cl-prof-name {
   margin: 0;
-  font-size: 20px;
   font-weight: 500;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -1220,8 +1205,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  color: var(--ink-muted);
   flex-wrap: wrap;
 }
 .cl-prof-actions { display: flex; gap: 6px; }
@@ -1305,13 +1288,10 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 10px;
 }
 .cl-prof-section-title {
   margin: 0;
-  font-size: 13px;
   color: var(--ink);
-  font-weight: 500;
   letter-spacing: -0.005em;
 }
 .cl-prof-section-sub {
@@ -1338,7 +1318,7 @@
 /* Where they stand, under their name: the standing's own word (the one their People row wears) and the sentence of
    what happens next. It was a card of its own, 188px tall on a phone for a word and a sentence. The pill is a word here,
    not a control, so it takes back the 36px touch floor legacy.css puts on every pill. */
-.cl-prof-name-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+.cl-prof-name-line { display: flex; align-items: center; flex-wrap: wrap; min-width: 0; }
 .cl-prof-now { display: inline-flex; }
 /* The standing beside the name is a dot and its word in the standing's own ink, not a filled pill: a word, not a
    control, so it also takes back the 36px touch floor legacy.css puts on every pill. */
@@ -1348,10 +1328,10 @@
 .cl-prof-now .pill-ok { color: var(--ok-ink); }
 .cl-prof-now .pill .live-dot { display: none; }
 /* Said under the line only when it asks for something (escalated, held, queued, snoozed, silent). */
-.cl-prof-now-why { font-size: var(--text-sm); line-height: 1.45; color: var(--ink-muted); }
+.cl-prof-now-why { line-height: 1.45; }
 /* The page's acts, beside who they are: the thread, what can be sent to them, and the page's ⋯. A label too long for
    its button ends in an ellipsis rather than pushing the row off the page. */
-.cl-prof-hero > .cl-prof-queue-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; min-width: 0; }
+.cl-prof-hero > .cl-prof-queue-actions { display: flex; align-items: center; justify-content: flex-end; min-width: 0; }
 .cl-prof-hero > .cl-prof-queue-actions > .btn { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-prof-danger { max-width: var(--measure-prose); }
 
@@ -1365,18 +1345,17 @@
 .cl-prof-up { display: flex; flex-direction: column; gap: 10px; }
 .cl-prof-up-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
 .cl-prof-up-visit {
-  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
-  background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md);
+  display: flex; align-items: center; 
+  border-radius: var(--radius-md);
   font: inherit; color: inherit; text-align: left; cursor: pointer;
 }
 .cl-prof-up-visit:hover { border-color: var(--line-strong); }
 .cl-prof-up-visit:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.cl-prof-up-leaf { flex: none; width: 34px; display: flex; flex-direction: column; align-items: center; line-height: 1.15; }
-.cl-prof-up-month { font-size: 10px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-dim); }
-.cl-prof-up-date { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.cl-prof-up-leaf { flex: none; display: flex; flex-direction: column; align-items: center; line-height: 1.15; }
+.cl-prof-up-month { text-transform: uppercase; }
+.cl-prof-up-date { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
 .cl-prof-up-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.cl-prof-up-title { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cl-prof-up-when { font-size: 12px; color: var(--ink-dim); }
+.cl-prof-up-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-prof-up-go { flex: none; display: flex; color: var(--ink-faint); }
 
 /* Their deal (0008, surfaces/people/deal/person-deal.tsx): a card per open deal in Coming up's family -- the raised ground, one
@@ -1387,7 +1366,7 @@
 .cl-prof-deal-card {
   box-sizing: border-box; max-width: var(--measure-prose); min-width: 0;
   display: flex; flex-direction: column; gap: 10px; padding: 12px 14px;
-  background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md);
+  
 }
 .cl-prof-deal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
 .cl-prof-deal-title { min-width: 0; font-size: 13px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1492,7 +1471,6 @@
 .cl-prof-timeline {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
   position: relative;
 }
 .cl-prof-timeline::before {
@@ -1599,12 +1577,6 @@
 /* A person's lists: the chips, then the quiet link that adds one, on its own line under them. */
 .cl-prof-lists { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .cl-prof-list-add .icon:last-child { display: none; }
-.cl-prof-rail-label {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--ink-dim);
-  margin-bottom: 8px;
-}
 
 .cl-prof-attr-list {
   display: flex;
@@ -1613,14 +1585,9 @@
 }
 .cl-prof-attr {
   display: grid;
-  grid-template-columns: var(--rec-key, 104px) minmax(0, 1fr);
-  gap: 12px;
-  padding: 8px 0;
-  font-size: var(--text-sm);
   border-bottom: 1px solid var(--line);
 }
 .cl-prof-attr:last-child { border-bottom: none; }
-.cl-prof-attr-key { color: var(--ink-dim); }
 .cl-prof-attr-val { color: var(--ink); font-variant-numeric: tabular-nums; }
 .cl-prof-attr-door { margin-left: 8px; }
 /* A run on a person's page: the row is its door to the run's report, drawn as an About row, the outcome under the
@@ -1776,7 +1743,6 @@
 }
 .cl-prof-ask-chip:hover { color: var(--ink); border-color: var(--ink-faint); }
 
-
 /* Table empty state */
 .cl-table-empty {
   display: flex;
@@ -1903,7 +1869,7 @@
 .cl-prof-note-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .cl-pnote { padding: 8px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px; }
 .cl-prof-note-list > .cl-pnote:first-child { border-top: none; padding-top: 2px; }
-.cl-prof-note-body { font-size: var(--text-sm); line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cl-prof-note-body { line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 .cl-prof-note-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; font-size: var(--text-xs); color: var(--ink-dim); min-height: 22px; }
 .cl-prof-note-meta > span + span:not(.cl-prof-note-more)::before { content: "·"; margin-right: 6px; color: var(--ink-faint); }
 .cl-prof-note-who { color: var(--ink-muted); font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
@@ -2189,7 +2155,7 @@
   .clients .cl-section-head { margin-bottom: 8px; }
 }
 /* Under the phone's bar (PeoplePhoneBar): the bar keeps its own space above, the line its own below. */
-@media (max-width: 900px) { .pl-standing { padding: 4px 16px 10px; } }
+@media (max-width: 900px) { }
 /* And one under it while more people follow, "N of M loaded" and Show more: in the table's gutter, as the line above. */
 .pl-more { padding: 8px 28px 16px; }
 @media (max-width: 900px) { .pl-more { padding: 8px 16px 16px; } }
@@ -2598,7 +2564,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pipe-new-search:focus-within { border-color: var(--ink-faint); background: var(--bg); }
 .pipe-new-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: var(--text-base); color: var(--ink); }
 .pipe-new-list { list-style: none; margin: 0 -8px; padding: 0; display: flex; flex-direction: column; }
-.pipe-new-row { width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 7px 8px; border: 0; border-radius: var(--radius-sm); background: none; font: inherit; text-align: left; color: var(--ink); cursor: pointer; }
+.pipe-new-row { width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 7px 8px; border: 0; background: none; font: inherit; text-align: left; color: var(--ink); cursor: pointer; }
 .pipe-new-row:hover { background: var(--bg-hover); }
 .pipe-new-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .pipe-new-face { grid-row: 1 / span 2; width: 28px; height: 28px; font-size: 10px; }
@@ -2690,7 +2656,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
    Classic. The head is the frame's (kit/head/frame-head.tsx), so the rules hold on the look alone.
    ==================================================================== */
 @media (width > 900px) {
-  :where([data-look="glass"]) .main-scroll > .clients {
+  .main-scroll > .clients {
     --rail-nav: 208px;
     height: auto;
     flex: 1 1 0;
@@ -2699,11 +2665,11 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     column-gap: 14px;
     background: transparent;
   }
-  :where([data-look="glass"]) .main-scroll > .clients > .stabs-people {
+  .main-scroll > .clients > .stabs-people {
     margin: 0 0 8px;
   }
   /* The head stands in the page's own gutter, where the scope strip and the panes do. */
-  :where([data-look="glass"]) .main-scroll:has(> .clients) > header:first-child {
+  .main-scroll:has(> .clients) > header:first-child {
     padding-inline: 24px;
   }
 
@@ -2711,24 +2677,24 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
      32px row at 600 (the lozenge while picked), every other list a 30px row at 500 in the muted ink with 12px corners,
      its count in the dim ink and a count of nothing in the faint (rail-kit.tsx says which); the group names in the
      mono face; New list the full-width inset capsule at the foot. */
-  :where([data-look="glass"]) .main-scroll .cl-rail {
+  .main-scroll .cl-rail {
     padding: 14px 0 0;
     border: 0;
     border-radius: var(--surface-pane-radius);
     background: var(--surface-pane-fill);
     box-shadow: var(--surface-pane-depth);
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-section {
+  .main-scroll .cl-rail-section {
     padding: 0 14px;
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-section + .cl-rail-section {
+  .main-scroll .cl-rail-section + .cl-rail-section {
     margin-top: 10px;
     border-top: 0;
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-everyone {
+  .main-scroll .cl-rail-everyone {
     padding-bottom: 6px;
   }
-  :where([data-look="glass"]) .main-scroll :is(.cl-rail-label, .cl-rail-group-label) {
+  .main-scroll :is(.cl-rail-label, .cl-rail-group-label) {
     margin: 0;
     padding: 0 10px 6px;
     font-family: var(--font-mono);
@@ -2739,10 +2705,10 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   }
   /* The canvases' rail (P1, L1) opens with its rows under their groups' names: the one label with a glyph before it
      ("Smart lists") says nothing a group's name does not. */
-  :where([data-look="glass"]) .main-scroll .cl-rail-label:has(> svg) {
+  .main-scroll .cl-rail-label:has(> svg) {
     display: none;
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-row {
+  .main-scroll .cl-rail-row {
     width: 100%;
     height: 30px;
     padding: 0 10px;
@@ -2752,47 +2718,47 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     text-align: left;
     color: var(--ink-muted);
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-everyone .cl-rail-row {
+  .main-scroll .cl-rail-everyone .cl-rail-row {
     height: 32px;
     font-weight: var(--weight-semibold);
     color: var(--ink);
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-row .count {
+  .main-scroll .cl-rail-row .count {
     font-size: var(--text-sm);
     font-weight: var(--weight-medium);
     color: var(--ink-dim);
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-row.asks .count {
+  .main-scroll .cl-rail-row.asks .count {
     font-weight: var(--weight-semibold);
     color: var(--warn-ink);
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-row .count[data-zero] {
+  .main-scroll .cl-rail-row .count[data-zero] {
     font-weight: var(--weight-regular);
     color: var(--ink-faint);
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-row:hover {
+  .main-scroll .cl-rail-row:hover {
     background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
     color: var(--ink);
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-row.active {
+  .main-scroll .cl-rail-row.active {
     background: var(--selected-fill);
     box-shadow: var(--selected-depth);
     color: var(--ink);
   }
   /* A row with acts of its own (a search's, with its menu) is its pick and its acts side by side: the pick carries
      the row's 10px, once, at the row's height. */
-  :where([data-look="glass"]) .main-scroll .cl-rail-row.has-acts {
+  .main-scroll .cl-rail-row.has-acts {
     padding: 0 4px 0 0;
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-pick {
+  .main-scroll .cl-rail-pick {
     height: 30px;
     padding: 0 4px 0 10px;
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-foot {
+  .main-scroll .cl-rail-foot {
     padding: 10px 18px 14px;
     border-top: 0;
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-newseg {
+  .main-scroll .cl-rail-newseg {
     height: 32px;
     padding: 0 14px;
     border: 0;
@@ -2807,12 +2773,12 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   }
 
   /* The list: a clear pane with the look's rim. The page's standing line is the head's sentence now. */
-  :where([data-look="glass"]) .main-scroll .cl-main {
+  .main-scroll .cl-main {
     border-radius: var(--surface-pane-radius);
     background: var(--surface-pane-fill);
     box-shadow: var(--surface-pane-depth);
   }
-  :where([data-look="glass"]) .main-scroll .cl-main::after {
+  .main-scroll .cl-main::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -2824,19 +2790,19 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
       linear-gradient(#000 0 0);
     pointer-events: none;
   }
-  :where([data-look="glass"]) .main-scroll .pl-standing {
+  .main-scroll .pl-standing {
     display: none;
   }
   /* The controls (P1): the search a 36px capsule 320 wide (its parts reached by their place: its class is a primitive's
      word), Add a person the inset capsule, Columns and the menu words at the same height; under them the list's name at
      600 with what it is beside it. */
-  :where([data-look="glass"]) .main-scroll .cl-controls {
+  .main-scroll .cl-controls {
     gap: 8px;
     padding: 14px 18px 12px;
     border-bottom: 0;
     background: transparent;
   }
-  :where([data-look="glass"]) .main-scroll .cl-search-wrap {
+  .main-scroll .cl-search-wrap {
     gap: 9px;
     height: 36px;
     max-width: 320px;
@@ -2849,15 +2815,15 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
       var(--surface-inset-depth);
     color: var(--ink-dim);
   }
-  :where([data-look="glass"]) .main-scroll .cl-controls > :first-child > .icon {
+  .main-scroll .cl-controls > :first-child > .icon {
     width: 15px;
     height: 15px;
     color: var(--ink-dim);
   }
-  :where([data-look="glass"]) .main-scroll .cl-controls > :first-child > input {
+  .main-scroll .cl-controls > :first-child > input {
     font-size: var(--text-base);
   }
-  :where([data-look="glass"]) .main-scroll .cl-controls .cl-controls-right > :not([data-testid="add-person"]) > button {
+  .main-scroll .cl-controls .cl-controls-right > :not([data-testid="add-person"]) > button {
     height: var(--control-h-md);
     padding: 0 10px;
     border: 0;
@@ -2866,98 +2832,98 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     font-weight: var(--weight-medium);
     color: var(--ink-muted);
   }
-  :where([data-look="glass"]) .main-scroll .cl-section {
+  .main-scroll .cl-section {
     padding: 4px 18px 12px;
   }
-  :where([data-look="glass"]) .main-scroll .cl-section-title {
+  .main-scroll .cl-section-title {
     font-size: var(--text-md);
     font-weight: var(--weight-semibold);
   }
-  :where([data-look="glass"]) .main-scroll .cl-section-sub {
+  .main-scroll .cl-section-sub {
     font-size: var(--text-sm);
     color: var(--ink-dim);
   }
   /* The table sits on the pane itself, as the canvases draw it (P1, L1, D1): rows told apart by hairlines, no box of
      its own. Its pinned cells and its sticky head paint their own ground over the rows that pass under (--pl-row), so
      that ground is the pane's solid: the token that lays the pane's fill over the page, opaque. */
-  :where([data-look="glass"]) .main-scroll .cl-table-wrap {
+  .main-scroll .cl-table-wrap {
     margin: 0 8px;
     border-color: transparent;
     border-radius: 0;
     background: transparent;
     box-shadow: none;
   }
-  :where([data-look="glass"]) .main-scroll .pl-table {
+  .main-scroll .pl-table {
     --pl-row: transparent;
     --pl-hover: color-mix(in oklab, var(--surface-pane-solid) 92%, var(--ink));
   }
   /* A pinned cell paints its own ground only once the rows have scrolled sideways under it. */
-  :where([data-look="glass"]) .main-scroll .pl-table-scroll.scrolled .pl-table {
+  .main-scroll .pl-table-scroll.scrolled .pl-table {
     --pl-row: var(--surface-pane-solid);
   }
-  :where([data-look="glass"]) .main-scroll .pl-table tbody tr:hover,
-  :where([data-look="glass"]) .main-scroll .pl-table tbody tr.focused {
+  .main-scroll .pl-table tbody tr:hover,
+  .main-scroll .pl-table tbody tr.focused {
     --pl-row: var(--pl-hover);
     background: var(--pl-hover);
   }
-  :where([data-look="glass"]) .main-scroll .pl-table tbody tr.selected {
+  .main-scroll .pl-table tbody tr.selected {
     --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--surface-pane-solid);
   }
   /* A row as the canvas sets it (P1): 10px over and under its cells, 18px at the pane's sides past the 8px the wrap
      keeps, no hairline between rows; the one under a pointer, the cursor's and a picked one a lozenge of the inset's
      corners, drawn on the cells so the corners round (a table row has none). The face 28px in --face-fill, the name at
      600, their words and the state's detail under them in the dim ink, every other cell at the small step. */
-  :where([data-look="glass"]) .main-scroll .cl-table tbody tr,
-  :where([data-look="glass"]) .main-scroll .pl-table tbody tr > td {
+  .main-scroll .cl-table tbody tr,
+  .main-scroll .pl-table tbody tr > td {
     border-bottom: 0;
   }
-  :where([data-look="glass"]) .main-scroll .cl-table td {
+  .main-scroll .cl-table td {
     padding: 10px 6px;
   }
-  :where([data-look="glass"]) .main-scroll .cl-table td:first-child,
-  :where([data-look="glass"]) .main-scroll .cl-table thead th:first-child {
+  .main-scroll .cl-table td:first-child,
+  .main-scroll .cl-table thead th:first-child {
     padding-left: 18px;
   }
-  :where([data-look="glass"]) .main-scroll .cl-table td:last-child,
-  :where([data-look="glass"]) .main-scroll .cl-table thead th:last-child {
+  .main-scroll .cl-table td:last-child,
+  .main-scroll .cl-table thead th:last-child {
     padding-right: 18px;
   }
-  :where([data-look="glass"]) .main-scroll .cl-table :is(th, td).cl-sel {
+  .main-scroll .cl-table :is(th, td).cl-sel {
     width: 24px;
   }
-  :where([data-look="glass"]) .main-scroll .pl-table .cl-sel + .pl-pin {
+  .main-scroll .pl-table .cl-sel + .pl-pin {
     left: 24px;
   }
-  :where([data-look="glass"]) .main-scroll .pl-table tbody tr:is(:hover, .focused) > td {
+  .main-scroll .pl-table tbody tr:is(:hover, .focused) > td {
     background: var(--pl-hover);
   }
   /* The cursor's row is the lozenge, not the accent's edge Classic draws down its first cell. */
-  :where([data-look="glass"]) .main-scroll .pl-table tbody tr.focused > td:first-child {
+  .main-scroll .pl-table tbody tr.focused > td:first-child {
     box-shadow: none;
   }
-  :where([data-look="glass"]) .main-scroll .pl-table tbody tr.selected > td {
+  .main-scroll .pl-table tbody tr.selected > td {
     background: var(--bubble-us-bg);
   }
-  :where([data-look="glass"]) .main-scroll .pl-table tbody tr:is(:hover, .focused, .selected) > td:first-child {
+  .main-scroll .pl-table tbody tr:is(:hover, .focused, .selected) > td:first-child {
     border-top-left-radius: var(--surface-inset-radius);
     border-bottom-left-radius: var(--surface-inset-radius);
   }
-  :where([data-look="glass"]) .main-scroll .pl-table tbody tr:is(:hover, .focused, .selected) > td:last-child {
+  .main-scroll .pl-table tbody tr:is(:hover, .focused, .selected) > td:last-child {
     border-top-right-radius: var(--surface-inset-radius);
     border-bottom-right-radius: var(--surface-inset-radius);
   }
-  :where([data-look="glass"]) .main-scroll .cl-table td.dim {
+  .main-scroll .cl-table td.dim {
     font-size: var(--text-sm);
     color: var(--ink-muted);
   }
-  :where([data-look="glass"]) .main-scroll .cl-row-name {
+  .main-scroll .cl-row-name {
     gap: 10px;
   }
-  :where([data-look="glass"]) .main-scroll .cl-row-fullname {
+  .main-scroll .cl-row-fullname {
     font-size: var(--text-base);
     font-weight: var(--weight-semibold);
   }
-  :where([data-look="glass"]) .main-scroll .cl-row-name > :first-child {
+  .main-scroll .cl-row-name > :first-child {
     width: 28px;
     height: 28px;
     border: 0;
@@ -2970,13 +2936,13 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     letter-spacing: 0.01em;
     color: var(--ink);
   }
-  :where([data-look="glass"]) .main-scroll :is(.cl-row-words, .cl-row-state-detail) {
+  .main-scroll :is(.cl-row-words, .cl-row-state-detail) {
     font-size: var(--text-xs);
     color: var(--ink-dim);
   }
   /* The box for a selection: a 16px square of the inset's fill, faint until a pointer reaches the row or it is picked
      (the base rule), checked in ink. */
-  :where([data-look="glass"]) .main-scroll .cl-check {
+  .main-scroll .cl-check {
     appearance: none;
     position: relative;
     width: 16px;
@@ -2987,11 +2953,11 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
       var(--surface-inset-ring),
       var(--surface-inset-depth);
   }
-  :where([data-look="glass"]) .main-scroll .cl-check:checked {
+  .main-scroll .cl-check:checked {
     background: var(--count-fill);
     box-shadow: none;
   }
-  :where([data-look="glass"]) .main-scroll .cl-check:checked::after {
+  .main-scroll .cl-check:checked::after {
     content: "";
     position: absolute;
     left: 5px;
@@ -3002,12 +2968,12 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     border-width: 0 1.5px 1.5px 0;
     transform: rotate(45deg);
   }
-  :where([data-look="glass"]) .main-scroll .cl-check:focus-visible {
+  .main-scroll .cl-check:focus-visible {
     outline: none;
     box-shadow: var(--focus-ring);
   }
   /* People's first act, Add a person, is the inset capsule the canvas draws (P1); the others stay words. */
-  :where([data-look="glass"]) .main-scroll .cl-controls-right > [data-testid="add-person"] {
+  .main-scroll .cl-controls-right > [data-testid="add-person"] {
     height: var(--control-h-md);
     padding: 0 14px;
     border: 0;
@@ -3021,7 +2987,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     color: var(--ink);
   }
   /* What a list says it can do for the people on it (the broadcast's door) is an inset too. */
-  :where([data-look="glass"]) .main-scroll .cl-list-action {
+  .main-scroll .cl-list-action {
     margin: 0 10px 12px;
     padding: 12px 16px;
     border: 0;
@@ -3031,14 +2997,14 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
       var(--surface-inset-ring),
       var(--surface-inset-depth);
   }
-  :where([data-look="glass"]) .main-scroll .cl-list-action-text {
+  .main-scroll .cl-list-action-text {
     font-size: var(--text-base);
     color: var(--ink);
   }
   /* The head is clear on the pane, as the canvases draw it; it stays sticky, so it blurs the rows that pass under it. */
-  :where([data-look="glass"]) .main-scroll .cl-table thead th,
-  :where([data-look="glass"]) .main-scroll .pl-table thead th.cl-sel,
-  :where([data-look="glass"]) .main-scroll .pl-table thead th.pl-pin {
+  .main-scroll .cl-table thead th,
+  .main-scroll .pl-table thead th.cl-sel,
+  .main-scroll .pl-table thead th.pl-pin {
     padding: 6px 6px 8px;
     font-family: var(--font-mono);
     font-size: var(--text-2xs);
@@ -3048,7 +3014,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     backdrop-filter: blur(var(--blur-md));
   }
   /* The foot (P1): how many, at the small step, over a hairline; the keys are the ? sheet's, never drawn here. */
-  :where([data-look="glass"]) .main-scroll .cl-table-foot {
+  .main-scroll .cl-table-foot {
     padding: 12px 10px 14px;
     border-top: 1px solid var(--line);
     background: transparent;
@@ -3056,7 +3022,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     color: var(--ink-dim);
   }
   /* The bar a selection becomes is the control layer: glass, a capsule, floating at the foot of the pane. */
-  :where([data-look="glass"]) .main-scroll .cl-bulk {
+  .main-scroll .cl-bulk {
     bottom: 22px;
     gap: 6px;
     height: 48px;
@@ -3067,7 +3033,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     backdrop-filter: var(--surface-control-blur);
     box-shadow: var(--surface-control-depth);
   }
-  :where([data-look="glass"]) .main-scroll .cl-bulk-count {
+  .main-scroll .cl-bulk-count {
     margin-right: 8px;
     font-size: var(--text-base);
     font-weight: var(--weight-semibold);
@@ -3077,16 +3043,16 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 
 /* On a phone the head is the date and the name; where the page stands is said once, in the line under the list's picker. */
 @media (max-width: 900px) {
-  :where([data-look="glass"]) .main-scroll:has(> .clients) > header .pg-sentence {
+  .main-scroll:has(> .clients) > header .pg-sentence {
     display: none;
   }
   /* The bar (the phone boards): the list picked as a 40px capsule of the control layer's glass with its count beside
      the name, and the search and the page's menu as 40px glass circles at its right; the standing line under them. */
-  :where([data-look="glass"]) .pp-bar {
+  .pp-bar {
     gap: 8px;
     padding: 0 12px 2px;
   }
-  :where([data-look="glass"]) .pp-bar .pp-bar-pick {
+  .pp-bar .pp-bar-pick {
     gap: 8px;
     padding: 0 10px 0 14px;
     border: 0;
@@ -3097,12 +3063,12 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     font-size: var(--text-base);
     font-weight: var(--weight-semibold);
   }
-  :where([data-look="glass"]) .pp-bar .pp-bar-pick-count {
+  .pp-bar .pp-bar-pick-count {
     font-size: var(--text-sm);
     font-weight: var(--weight-medium);
     color: var(--ink-dim);
   }
-  :where([data-look="glass"]) .pp-bar .pp-bar-icon {
+  .pp-bar .pp-bar-icon {
     width: 40px;
     height: 40px;
     min-height: 40px;
@@ -3112,12 +3078,12 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     box-shadow: var(--surface-control-depth);
     color: var(--ink);
   }
-  :where([data-look="glass"]) .pl-standing {
+  .pl-standing {
     padding: 4px 16px 10px;
     font-size: var(--text-base);
     color: var(--ink-muted);
   }
-  :where([data-look="glass"]) .pl-standing-needs {
+  .pl-standing-needs {
     font-weight: var(--weight-medium);
     color: var(--warn-ink);
   }
@@ -3132,22 +3098,22 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
    fields inside a pane are insets. Each rule names the look inside :where() and none matches in Classic; a part whose
    class is a primitive's word (the face, the pill, the mark, the input) is reached by its place.
    ==================================================================== */
-:where([data-look="glass"]) .cl-profile {
+.cl-profile {
   background: transparent;
 }
-:where([data-look="glass"]) .cl-prof-page {
+.cl-prof-page {
   gap: 20px;
 }
 /* The head. */
-:where([data-look="glass"]) .cl-prof-hero {
+.cl-prof-hero {
   gap: 12px 16px;
   align-items: center;
 }
-:where([data-look="glass"]) .cl-prof-id {
+.cl-prof-id {
   gap: 16px;
   align-items: center;
 }
-:where([data-look="glass"]) .cl-prof-id > :first-child {
+.cl-prof-id > :first-child {
   border: 0;
   background: var(--face-fill);
   box-shadow:
@@ -3158,44 +3124,44 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   letter-spacing: 0.01em;
   color: var(--ink);
 }
-:where([data-look="glass"]) .cl-prof-titles {
+.cl-prof-titles {
   gap: 4px;
 }
-:where([data-look="glass"]) .cl-prof-name {
+.cl-prof-name {
   font-size: var(--text-hero);
   line-height: 1.1;
 }
-:where([data-look="glass"]) .cl-prof-name-line {
+.cl-prof-name-line {
   gap: 4px 12px;
 }
-:where([data-look="glass"]) .cl-prof-now > :first-child {
+.cl-prof-now > :first-child {
   gap: 6px;
   font-size: var(--text-base);
   font-weight: var(--weight-medium);
 }
-:where([data-look="glass"]) .cl-prof-now > :first-child::before {
+.cl-prof-now > :first-child::before {
   width: 7px;
   height: 7px;
 }
-:where([data-look="glass"]) .cl-prof-meta {
+.cl-prof-meta {
   font-size: var(--text-base);
   color: var(--ink-dim);
 }
-:where([data-look="glass"]) .cl-prof-now-why {
+.cl-prof-now-why {
   font-size: var(--text-base);
   color: var(--ink-muted);
 }
-:where([data-look="glass"]) .cl-prof-hero > .cl-prof-queue-actions {
+.cl-prof-hero > .cl-prof-queue-actions {
   gap: 8px;
 }
-:where([data-look="glass"]) .cl-prof-hero [data-testid="person-open-thread"] {
+.cl-prof-hero [data-testid="person-open-thread"] {
   height: var(--control-h-lg);
   padding: 0 18px;
   border-radius: var(--radius-full);
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
-:where([data-look="glass"]) .cl-prof-hero [data-testid="person-more"] {
+.cl-prof-hero [data-testid="person-more"] {
   height: var(--control-h-lg);
   padding: 0 14px;
   border: 0;
@@ -3209,11 +3175,11 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   color: var(--ink);
 }
 /* The panes: what is coming, their deal, what has happened, and the card's each one, with the look's rim. */
-:where([data-look="glass"]) .cl-prof-body {
+.cl-prof-body {
   gap: 14px;
 }
-:where([data-look="glass"]) .cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up),
-:where([data-look="glass"]) .cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
+.cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up),
+.cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
   position: relative;
   padding: 18px;
   border: 0;
@@ -3221,8 +3187,8 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   background: var(--surface-pane-fill);
   box-shadow: var(--surface-pane-depth);
 }
-:where([data-look="glass"]) .cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up)::after,
-:where([data-look="glass"]) .cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec)::after {
+.cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up)::after,
+.cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec)::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -3234,7 +3200,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-:where([data-look="glass"]) .cl-prof-rail {
+.cl-prof-rail {
   --rec-key: 96px;
   --rec-gutter: 16px;
   gap: 14px;
@@ -3243,33 +3209,33 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   background: transparent;
   overflow: visible;
 }
-:where([data-look="glass"]) .cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
+.cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
   padding: 16px;
 }
-:where([data-look="glass"]) .cl-prof-rail > .cl-prof-rec {
+.cl-prof-rail > .cl-prof-rec {
   padding: 8px var(--rec-gutter);
 }
-:where([data-look="glass"]) .cl-prof-section-head {
+.cl-prof-section-head {
   margin-bottom: 8px;
 }
-:where([data-look="glass"]) .cl-prof-section-title {
+.cl-prof-section-title {
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
 }
-:where([data-look="glass"]) .cl-prof-rail-label {
+.cl-prof-rail-label {
   margin-bottom: 4px;
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
   color: var(--ink);
 }
 /* What is coming: the day as an inset tile, the visit's words beside it. */
-:where([data-look="glass"]) .cl-prof-up-visit {
+.cl-prof-up-visit {
   gap: 12px;
   padding: 0;
   border: 0;
   background: transparent;
 }
-:where([data-look="glass"]) .cl-prof-up-leaf {
+.cl-prof-up-leaf {
   width: 46px;
   height: 46px;
   justify-content: center;
@@ -3279,27 +3245,27 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     var(--surface-inset-ring),
     var(--surface-inset-depth);
 }
-:where([data-look="glass"]) .cl-prof-up-month {
+.cl-prof-up-month {
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
   font-weight: var(--weight-regular);
   letter-spacing: 0.08em;
   color: var(--ink-dim);
 }
-:where([data-look="glass"]) .cl-prof-up-date {
+.cl-prof-up-date {
   font-size: var(--text-xl);
   line-height: 1;
 }
-:where([data-look="glass"]) .cl-prof-up-title {
+.cl-prof-up-title {
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
-:where([data-look="glass"]) .cl-prof-up-when {
+.cl-prof-up-when {
   font-size: var(--text-sm);
   color: var(--ink-dim);
 }
 /* The deal card is an inset of the pane. */
-:where([data-look="glass"]) .cl-prof-deal-card {
+.cl-prof-deal-card {
   border: 0;
   border-radius: var(--surface-inset-radius);
   background: var(--surface-inset-fill);
@@ -3310,7 +3276,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 /* What has happened: the filters as words on a hairline, the picked one underlined in ink; a day's name in the mono
    face over its rows, with no line down the column; a row its 26px mark (the face, an inset square for a thing that
    happened), who at 600 in the muted ink, the words at the base step, the time in the mono face at the right. */
-:where([data-look="glass"]) .cl-tl-filters {
+.cl-tl-filters {
   display: flex;
   gap: 16px;
   padding: 0;
@@ -3320,7 +3286,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   background: transparent;
   box-shadow: none;
 }
-:where([data-look="glass"]) .cl-tl-filters .cl-tab {
+.cl-tl-filters .cl-tab {
   margin-bottom: -1px;
   padding: 6px 0 8px;
   border: 0;
@@ -3330,24 +3296,24 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   font-size: var(--text-base);
   color: var(--ink-dim);
 }
-:where([data-look="glass"]) .cl-tl-filters > :hover {
+.cl-tl-filters > :hover {
   background: transparent;
   color: var(--ink);
 }
-:where([data-look="glass"]) .cl-tl-filters .cl-tab.active {
+.cl-tl-filters .cl-tab.active {
   background: transparent;
   border-bottom-color: var(--ink);
   box-shadow: none;
   color: var(--ink);
   font-weight: var(--weight-semibold);
 }
-:where([data-look="glass"]) .cl-prof-timeline {
+.cl-prof-timeline {
   gap: 0;
 }
-:where([data-look="glass"]) .cl-prof-timeline::before {
+.cl-prof-timeline::before {
   display: none;
 }
-:where([data-look="glass"]) .cl-prof-history .cl-tl-day {
+.cl-prof-history .cl-tl-day {
   margin: 0;
   padding: 14px 0 6px;
   background: transparent;
@@ -3357,28 +3323,28 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   letter-spacing: 0.08em;
   color: var(--ink-dim);
 }
-:where([data-look="glass"]) .cl-prof-history .cl-tl-row {
+.cl-prof-history .cl-tl-row {
   grid-template-columns: 26px minmax(0, 1fr) auto;
   gap: 12px;
   margin: 0;
   padding: 8px 0;
   align-items: start;
 }
-:where([data-look="glass"]) .cl-prof-history .cl-tl-row-door:hover,
-:where([data-look="glass"]) .cl-prof-history .cl-tl-row-door:focus-visible {
+.cl-prof-history .cl-tl-row-door:hover,
+.cl-prof-history .cl-tl-row-door:focus-visible {
   background: transparent;
 }
-:where([data-look="glass"]) .cl-prof-history .cl-tl-row-door:hover .cl-tl-text {
+.cl-prof-history .cl-tl-row-door:hover .cl-tl-text {
   text-decoration: underline;
   text-decoration-color: var(--ink-faint);
   text-underline-offset: 3px;
 }
-:where([data-look="glass"]) .cl-prof-history .cl-tl-row > :first-child {
+.cl-prof-history .cl-tl-row > :first-child {
   width: 26px;
   height: 26px;
   border: 0;
 }
-:where([data-look="glass"]) .cl-prof-history .cl-tl-row > .client {
+.cl-prof-history .cl-tl-row > .client {
   background: var(--face-fill);
   box-shadow:
     var(--surface-inset-ring),
@@ -3387,7 +3353,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   font-weight: var(--weight-semibold);
   color: var(--ink);
 }
-:where([data-look="glass"]) .cl-prof-history .cl-tl-row > .event {
+.cl-prof-history .cl-tl-row > .event {
   border-radius: var(--radius-md);
   background: var(--surface-inset-fill);
   box-shadow:
@@ -3395,51 +3361,51 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     var(--surface-inset-depth);
   color: var(--ink-muted);
 }
-:where([data-look="glass"]) .cl-prof-history .cl-tl-body {
+.cl-prof-history .cl-tl-body {
   padding-bottom: 0;
 }
-:where([data-look="glass"]) .cl-prof-history .cl-tl-head {
+.cl-prof-history .cl-tl-head {
   margin-bottom: 2px;
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   color: var(--ink-muted);
 }
-:where([data-look="glass"]) .cl-prof-history .cl-tl-who {
+.cl-prof-history .cl-tl-who {
   font-weight: var(--weight-semibold);
   color: var(--ink-muted);
 }
-:where([data-look="glass"]) .cl-prof-history .cl-tl-time {
+.cl-prof-history .cl-tl-time {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: var(--weight-regular);
   color: var(--ink-dim);
 }
-:where([data-look="glass"]) .cl-prof-history .cl-tl-text {
+.cl-prof-history .cl-tl-text {
   font-size: var(--text-base);
   line-height: 1.45;
 }
 /* The card of what is known: each fact a row of key, value and its door, 9px over and under, hairlines between. */
-:where([data-look="glass"]) .cl-prof-attr {
+.cl-prof-attr {
   grid-template-columns: 96px minmax(0, 1fr) auto;
   gap: 12px;
   padding: 9px 0;
   font-size: var(--text-base);
 }
-:where([data-look="glass"]) .cl-prof-attr-key {
+.cl-prof-attr-key {
   font-size: var(--text-sm);
   color: var(--ink-dim);
 }
-:where([data-look="glass"]) .cl-prof-attr-val {
+.cl-prof-attr-val {
   line-height: 1.4;
 }
-:where([data-look="glass"]) .cl-prof-attr-door {
+.cl-prof-attr-door {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   color: var(--ink-muted);
 }
 /* Notes: the line to add one a 38px inset capsule (its class is a primitive's word: reached by its test id), a note at
    the base step. */
-:where([data-look="glass"]) [data-testid="person-notes-input"] {
+[data-testid="person-notes-input"] {
   min-height: 38px;
   padding: 9px 14px;
   border: 0;
@@ -3451,53 +3417,53 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   font-size: var(--text-base);
   line-height: 1.4;
 }
-:where([data-look="glass"]) .cl-prof-note-compose.is-open [data-testid="person-notes-input"] {
+.cl-prof-note-compose.is-open [data-testid="person-notes-input"] {
   border-radius: var(--radius-xl);
 }
-:where([data-look="glass"]) [data-testid="person-notes-input"]:focus {
+[data-testid="person-notes-input"]:focus {
   box-shadow:
     var(--focus-ring),
     var(--surface-inset-depth);
 }
-:where([data-look="glass"]) .cl-prof-note-body {
+.cl-prof-note-body {
   font-size: var(--text-base);
 }
 @media (width > 900px) {
   /* The hero is the head (canvas P3): the frame draws no name and no way back over it, and the page's own way back goes
      too, the sidebar's People being the way; a phone keeps it. */
-  :where([data-look="glass"]) .cl-prof-hero > .cl-prof-back {
+  .cl-prof-hero > .cl-prof-back {
     display: none;
   }
-  :where([data-look="glass"]) .cl-prof-page {
+  .cl-prof-page {
     padding: 0 var(--gutter-page) 48px;
   }
-  :where([data-look="glass"]) .cl-prof-body {
+  .cl-prof-body {
     grid-template-columns: minmax(0, 1fr) 360px;
   }
 }
 /* A phone (P-phone-person): the page 12px from the sides with 12 between its parts, the panes 16px inside, the face
    44, the name a step under the hero's, the thread's button filling the row beside More. */
 @media (max-width: 900px) {
-  :where([data-look="glass"]) .cl-prof-page {
+  .cl-prof-page {
     padding: 0 12px 32px;
     gap: 12px;
   }
-  :where([data-look="glass"]) .cl-prof-hero {
+  .cl-prof-hero {
     gap: 12px;
   }
-  :where([data-look="glass"]) .cl-prof-id > :first-child {
+  .cl-prof-id > :first-child {
     width: 44px;
     height: 44px;
     font-size: var(--text-md);
   }
-  :where([data-look="glass"]) .cl-prof-name {
+  .cl-prof-name {
     font-size: var(--text-2xl);
   }
-  :where([data-look="glass"]) .cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up),
-  :where([data-look="glass"]) .cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
+  .cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up),
+  .cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
     padding: 16px;
   }
-  :where([data-look="glass"]) .cl-prof-rail {
+  .cl-prof-rail {
     display: flex;
   }
 }
@@ -3510,30 +3476,30 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
    ==================================================================== */
 @media (width > 900px) {
   /* A group's head (D1): its name in the semibold at the rows' size, its count and its meta beside it in the dim ink. */
-  :where([data-look="glass"]) .main-scroll .pl-sec-head > th {
+  .main-scroll .pl-sec-head > th {
     padding-top: 16px;
     font-size: var(--text-sm);
     background: transparent;
     backdrop-filter: blur(var(--blur-md));
   }
-  :where([data-look="glass"]) .main-scroll .pl-sec-head .pl-sec-label {
+  .main-scroll .pl-sec-head .pl-sec-label {
     font-size: var(--text-base);
     font-weight: var(--weight-semibold);
     color: var(--ink);
   }
   /* Where a deal stands, in words (canvas D1, pipeline/columns.tsx pipeGlassColumns): the chip's words over how long it
      has stood there, in the dim ink. */
-  :where([data-look="glass"]) .main-scroll .pipe-stands-in {
+  .main-scroll .pipe-stands-in {
     display: inline-flex;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
   }
-  :where([data-look="glass"]) .main-scroll .pipe-stands-sub {
+  .main-scroll .pipe-stands-sub {
     font-size: var(--text-sm);
     color: var(--ink-dim);
   }
-  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main.has-peek {
+  .main-scroll .pipe-scope .cl-main.has-peek {
     flex-direction: row;
     gap: 14px;
     border-radius: 0;
@@ -3541,17 +3507,17 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     box-shadow: none;
     overflow: visible;
   }
-  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main.has-peek::after {
+  .main-scroll .pipe-scope .cl-main.has-peek::after {
     content: none;
   }
-  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main.has-peek > .cl-main-scroll {
+  .main-scroll .pipe-scope .cl-main.has-peek > .cl-main-scroll {
     flex: 1 1 0;
     min-width: 0;
     border-radius: var(--surface-pane-radius);
     background: var(--surface-pane-fill);
     box-shadow: var(--surface-pane-depth);
   }
-  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main.has-peek > .pk {
+  .main-scroll .pipe-scope .cl-main.has-peek > .pk {
     position: relative;
     inset: auto;
     flex: none;
@@ -3561,26 +3527,26 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     box-shadow: var(--surface-pane-depth);
     overflow: hidden;
   }
-  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main.has-peek .cl-table-wrap {
+  .main-scroll .pipe-scope .cl-main.has-peek .cl-table-wrap {
     margin-right: 14px;
   }
   /* The board is a column of panes, one to a stage, on the page itself: no pane round them, and so no glass on glass. */
-  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main:has(.pipe-board) {
+  .main-scroll .pipe-scope .cl-main:has(.pipe-board) {
     border-radius: 0;
     background: none;
     box-shadow: none;
   }
-  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main:has(.pipe-board)::after {
+  .main-scroll .pipe-scope .cl-main:has(.pipe-board)::after {
     content: none;
   }
-  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main:has(.pipe-board) .cl-controls {
+  .main-scroll .pipe-scope .cl-main:has(.pipe-board) .cl-controls {
     padding-inline: 0;
   }
-  :where([data-look="glass"]) .main-scroll .pipe-board {
+  .main-scroll .pipe-board {
     gap: 14px;
     padding: 14px 0 24px;
   }
-  :where([data-look="glass"]) .main-scroll .pipe-col {
+  .main-scroll .pipe-col {
     padding: 14px;
     border-radius: var(--surface-pane-radius);
     background: var(--surface-pane-fill);
@@ -3594,12 +3560,12 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
    and under each; what they wrote at the small step with the quote at the base. The face's class is a primitive's word,
    so it is reached by its place; the pane's own classes carry a primitive's word too, so its parts are reached by their
    testids. */
-:where([data-look="glass"]) .pipe-scope .pk-head {
+.pipe-scope .pk-head {
   gap: 12px;
   padding: 16px 18px 14px;
   border-bottom-color: transparent;
 }
-:where([data-look="glass"]) .pipe-scope .pk-head > :first-child {
+.pipe-scope .pk-head > :first-child {
   width: 42px;
   height: 42px;
   background: var(--face-fill);
@@ -3610,14 +3576,14 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   font-weight: var(--weight-semibold);
   color: var(--ink);
 }
-:where([data-look="glass"]) .pipe-scope .pk-name {
+.pipe-scope .pk-name {
   font-size: var(--text-xl);
 }
-:where([data-look="glass"]) .pipe-scope .pk-sub {
+.pipe-scope .pk-sub {
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }
-:where([data-look="glass"]) .pipe-scope .pk-x {
+.pipe-scope .pk-x {
   width: 34px;
   height: 34px;
   border-radius: var(--radius-circle);
@@ -3626,33 +3592,33 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   box-shadow: var(--surface-control-depth);
   color: var(--ink);
 }
-:where([data-look="glass"]) .pipe-scope .pk-x:hover {
+.pipe-scope .pk-x:hover {
   background-color: var(--selected-fill);
   color: var(--ink);
 }
-:where([data-look="glass"]) .pipe-scope .pk-body {
+.pipe-scope .pk-body {
   padding: 0 18px 16px;
   gap: 14px;
 }
-:where([data-look="glass"]) [data-testid="pipeline-peek-reach"] {
+[data-testid="pipeline-peek-reach"] {
   grid-template-columns: 64px minmax(0, 1fr);
   gap: 0 10px;
   padding-top: 6px;
 }
-:where([data-look="glass"]) [data-testid="pipeline-peek-reach"] > * > dt,
-:where([data-look="glass"]) [data-testid="pipeline-peek-reach"] > * > dd {
+[data-testid="pipeline-peek-reach"] > * > dt,
+[data-testid="pipeline-peek-reach"] > * > dd {
   padding: 7px 0;
 }
-:where([data-look="glass"]) [data-testid="pipeline-peek-facts"] {
+[data-testid="pipeline-peek-facts"] {
   font-size: var(--text-sm);
 }
-:where([data-look="glass"]) [data-testid="pipeline-peek-quote"] {
+[data-testid="pipeline-peek-quote"] {
   font-size: var(--text-base);
   line-height: 1.45;
 }
 /* New proposal's sheet (canvas D-propose opens on a person): its search a 36px inset capsule, each person a row that
    rounds as an inset under a pointer. The search's class is a primitive's word, so it is reached by its element. */
-:where([data-look="glass"]) .pipe-new > label {
+.pipe-new > label {
   min-height: 36px;
   padding: 0 12px;
   border: 0;
@@ -3662,20 +3628,20 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     var(--surface-inset-ring),
     var(--surface-inset-depth);
 }
-:where([data-look="glass"]) .pipe-new > label:focus-within {
+.pipe-new > label:focus-within {
   background: var(--surface-inset-fill);
 }
-:where([data-look="glass"]) .pipe-new-row {
+.pipe-new-row {
   border-radius: var(--surface-inset-radius);
 }
 @media (max-width: 900px) {
   /* A phone row says where a deal stands in words (D-phone-list); the three-step track under the name goes. */
-  :where([data-look="glass"]) .pipe-scope .pipe-track {
+  .pipe-scope .pipe-track {
     display: none;
   }
   /* The deal's foot on a phone (D-phone-deal): one capsule of the control layer's glass clear of the screen's edges,
      its two acts inside it. */
-  :where([data-look="glass"]) [data-testid="pipeline-peek-bar"] {
+  [data-testid="pipeline-peek-bar"] {
     gap: 8px;
     margin: 0 14px calc(14px + env(safe-area-inset-bottom, 0px));
     padding: 6px;

@@ -202,7 +202,6 @@
   flex-shrink: 0;
 }
 
-
 /* ---------- Sync bar ---------- */
 .cal-sync {
   display: flex;
@@ -286,7 +285,6 @@
 /* Cancelled blocks */
 .cal-appt.is-cancelled { opacity: 0.5; border-style: dashed; }
 .cal-appt.is-cancelled .cal-appt-who { text-decoration: line-through; color: var(--ink-dim); }
-
 
 /* ---------- Power calendar: drag, availability, agent chips ---------- */
 .cal-appt.movable { touch-action: none; }
@@ -373,7 +371,6 @@
   font-size: var(--text-xs);
   color: var(--ink-dim);
 }
-
 
 /* Per-calendar sync selection */
 .cal-pick-wrap { position: relative; }
@@ -641,16 +638,16 @@
    frame's head, at the page's gutter, its toolbar on the page above it; the sticky day heads take the pane's solid so a
    scrolled board keeps them legible. Each rule names the look inside :where(); none matches in Classic.
    ==================================================================== */
-:where([data-look="glass"]) .main-scroll > .calendar { padding: 0 var(--gutter-page) 16px; }
-:where([data-look="glass"]) .calendar > .cal-bar { padding: 2px 0 12px; }
-:where([data-look="glass"]) .calendar > .cal-body {
+.main-scroll > .calendar { padding: 0 var(--gutter-page) 16px; }
+.calendar > .cal-bar { padding: 2px 0 12px; }
+.calendar > .cal-body {
   position: relative;
   border-radius: var(--surface-pane-radius);
   background: var(--surface-pane-fill);
   box-shadow: var(--surface-pane-depth);
   overflow: hidden auto;
 }
-:where([data-look="glass"]) .calendar > .cal-body::after {
+.calendar > .cal-body::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -662,5 +659,5 @@
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-:where([data-look="glass"]) .calendar :is(.cal-corner, .cal-dayhead) { background: var(--surface-pane-solid); }
-:where([data-look="glass"]) .calendar > .cal-foot { padding-top: 12px; }
+.calendar :is(.cal-corner, .cal-dayhead) { background: var(--surface-pane-solid); }
+.calendar > .cal-foot { padding-top: 12px; }
