@@ -2679,7 +2679,20 @@ a.list-row {
   padding: 0 14px;
   border-bottom: 0;
   border-radius: var(--radius-full);
+  font-size: var(--text-base);
   color: var(--ink-muted);
+}
+/* A tab's count is the canvases' neutral figure beside the word (I1: "Needs you 4", 12.5 at 500 in the dim ink), never
+   an amber disc: the amber is the row's wait, said once there. */
+:where([data-look="glass"]) .stabs-tab .tally {
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
 }
 :where([data-look="glass"]) .stabs-tab:hover {
   color: var(--ink);
@@ -2921,7 +2934,7 @@ a.list-row {
 .pg-head-stacked .pg-line {
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 8px;
 }
 .pg-title {
   margin: 0;
@@ -2945,8 +2958,10 @@ a.list-row {
   }
 }
 /* The head as canvas E3 sets it (the review of 1 October 2026): the date a touch wider in its tracking, the name tight
-   in its tracking and its leading, eight pixels between the date's row and the name; and on a phone (the kit's one
-   breakpoint) the name alone at the boards' 30px, semibold. */
+   in its tracking and its leading, eight pixels between the date's row and the name and eight more to the sentence
+   under it, which breathes a little; and on a phone (the kit's one breakpoint) the name alone at the boards' 30px,
+   semibold, under a date that says the day and not the hour (the phone boards: "FRIDAY, OCTOBER 2"; the hour is the
+   dateline's own span, frame-head.tsx). */
 .pg-head {
   gap: 8px;
 }
@@ -2957,11 +2972,17 @@ a.list-row {
   letter-spacing: -0.025em;
   line-height: 1.1;
 }
+.pg-sentence {
+  line-height: 1.45;
+}
 @media (max-width: 900px) {
   .pg-title {
     font-size: var(--text-3xl);
     font-weight: var(--weight-semibold);
     letter-spacing: -0.03em;
+  }
+  .pg-dateline-time {
+    display: none;
   }
 }
 

@@ -255,6 +255,8 @@ globalThis.React = {
       fn();
     }
   },
+  // The look the list draws in (kit/look/look.tsx useLook): read once; this stub's document has no look, so Classic.
+  useSyncExternalStore: (subscribe, snapshot) => snapshot(),
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.document = {

@@ -6,11 +6,18 @@
 import { useEffect, useState } from "react";
 import { MIN_MS } from "@chanlytics/contracts";
 
+/** The day and the hour apart: a phone's head says the day alone (the canvases' phone boards; kit.css hides the hour). */
+export function pageDatelineParts(nowMs: number, zone: string): { day: string; time: string } {
+  const at = new Date(nowMs);
+  return {
+    day: at.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: zone }),
+    time: at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: zone }),
+  };
+}
+
 /** "Friday, October 2 · 4:02 PM", in a zone (the head says it in capitals, in the mono face). */
 export function pageDateline(nowMs: number, zone: string): string {
-  const at = new Date(nowMs);
-  const day = at.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: zone });
-  const time = at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: zone });
+  const { day, time } = pageDatelineParts(nowMs, zone);
   return `${day} · ${time}`;
 }
 

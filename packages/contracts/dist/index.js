@@ -1209,8 +1209,8 @@ function fallbackMessages(brain, known) {
     const stored = brain.fallbacks[kind];
     return !values["booking link"] && stored.trim() === EARLIER_FALLBACK_DEFAULTS[kind] ? FALLBACK_DEFAULTS[kind] : stored;
   };
-  const say3 = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
-  return { greeting: say3("greeting"), error: say3("error"), non_text: say3("non_text") };
+  const say2 = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+  return { greeting: say2("greeting"), error: say2("error"), non_text: say2("non_text") };
 }
 function unknownDetails(text) {
   return [...text.matchAll(/\{[^{}\n]{1,40}\}/g)].map((m) => m[0]).filter((name) => !namesADetail(name));
@@ -6313,8 +6313,8 @@ function leadCheckWord(search, key, answer) {
   if (ex) return said(`Not ${low(ex.text)}`, `One of the ${low(ex.text)}`);
   const fixed = LEAD_CHECK_WORDS[key];
   if (fixed) return fixed[answer];
-  const plain = cap2(key.replace(/_+/g, " ").trim()) || key;
-  return said(plain, `${plain}: no`);
+  const plain2 = cap2(key.replace(/_+/g, " ").trim()) || key;
+  return said(plain2, `${plain2}: no`);
 }
 var LEAD_SLOT_WORDS = {
   ok: "Checked",
@@ -9386,8 +9386,8 @@ function normalizeAnswer(raw, read, fallback) {
     }
   }
   const root = asObj(json);
-  const say3 = asObj(root.say);
-  const headline = words2(say3.headline, C.headline);
+  const say2 = asObj(root.say);
+  const headline = words2(say2.headline, C.headline);
   if (!headline) return { ok: false, error: "no headline" };
   const language = root.language === "en" || root.language === "es" ? root.language : fallback;
   let dropped = 0;
@@ -9433,7 +9433,7 @@ function normalizeAnswer(raw, read, fallback) {
     answer: {
       v: 2,
       form: "structured",
-      say: { headline, detail: words2(say3.detail, C.detail) },
+      say: { headline, detail: words2(say2.detail, C.detail) },
       show: { figures, items, breakdown },
       do: { open, next },
       language
@@ -13342,14 +13342,14 @@ function bookingRuleRefusal(key) {
     max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
     party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`
   };
-  const say3 = Object.prototype.hasOwnProperty.call(words3, key) ? words3[key] : null;
-  const bound = say3 ? shape[key]?.unwrap?.() : null;
-  if (!say3 || !bound || bound.minValue == null || bound.maxValue == null) {
+  const say2 = Object.prototype.hasOwnProperty.call(words3, key) ? words3[key] : null;
+  const bound = say2 ? shape[key]?.unwrap?.() : null;
+  if (!say2 || !bound || bound.minValue == null || bound.maxValue == null) {
     throw new TypeError(
       `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words3).join(", ")}), not ${JSON.stringify(key)}.`
     );
   }
-  return say3(bound.minValue, bound.maxValue);
+  return say2(bound.minValue, bound.maxValue);
 }
 var BOOKING_RULE_HINTS = /* @__PURE__ */ (() => ({
   lead_hours: `Empty uses ${pluralGrouped(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
@@ -13440,13 +13440,13 @@ function profileRefusal(key, seen, of) {
     instructions: () => chars(L2.instructions),
     message: () => chars(L2.message)
   };
-  const say3 = Object.prototype.hasOwnProperty.call(words3, key) ? words3[key] : null;
-  if (!say3) {
+  const say2 = Object.prototype.hasOwnProperty.call(words3, key) ? words3[key] : null;
+  if (!say2) {
     throw new TypeError(
       `profileRefusal knows the tab's own caps (${Object.keys(words3).join(", ")}), not ${JSON.stringify(key)}.`
     );
   }
-  return say3();
+  return say2();
 }
 var WRITTEN_OUT_NUMBER = /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
 function writtenOutDetail(text, bookingLink) {
@@ -21701,10 +21701,10 @@ var REACH_OUT_RUN_LABELS = {
 var REACH_OUT_RUN_REREAD_MS = 15e3;
 function heldNoticeWords(p) {
   const doors = [...new Set(p.reasons.flatMap(holdDoors))].map((d) => HOLD_DOOR_WORDS[d].toLowerCase());
-  const say3 = doors.length > 1 ? `${doors.slice(0, -1).join(", ")} or ${doors[doors.length - 1]}` : doors[0] ?? "";
+  const say2 = doors.length > 1 ? `${doors.slice(0, -1).join(", ")} or ${doors[doors.length - 1]}` : doors[0] ?? "";
   return {
     subject: `The check held ${plural(p.held, "email", "emails")} in ${p.name}`,
-    body: `${p.held === 1 ? "It waits" : "They wait"} for your say on the run in Broadcasts${say3 ? `: ${say3}` : ""}. The rest of the run goes as planned.`
+    body: `${p.held === 1 ? "It waits" : "They wait"} for your say on the run in Broadcasts${say2 ? `: ${say2}` : ""}. The rest of the run goes as planned.`
   };
 }
 
@@ -27586,17 +27586,17 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
 }
 
 // src/today/today-brief-words.ts
-var say2 = (text) => ({ text });
+var plain = (text) => ({ text });
 var bold = (text) => ({ text, strong: true });
 function names2(who, rest) {
   const said = who.slice(0, 3);
   const left = who.length - said.length + rest;
   const out = [];
   said.forEach((w, i) => {
-    if (i > 0) out.push(say2(i === said.length - 1 && !left ? " and " : ", "));
+    if (i > 0) out.push(plain(i === said.length - 1 && !left ? " and " : ", "));
     out.push(bold(w));
   });
-  if (left) out.push(say2(` and ${left} more`));
+  if (left) out.push(plain(` and ${left} more`));
   return out;
 }
 var PEOPLE_KINDS = /* @__PURE__ */ new Set([
@@ -27616,51 +27616,53 @@ function needsSentences(vm) {
     const detail = vm.standing.detail;
     const lead = `${people[0]} has been `;
     if (one && detail && detail.startsWith(lead))
-      out.push([bold(people[0]), say2(` needs you, ${detail.slice(lead.length)}`)]);
+      out.push([bold(people[0]), plain(` needs you, ${detail.slice(lead.length)}`)]);
     else {
-      out.push([...names2(people, vm.queue.more), say2(one ? " needs you." : " need you.")]);
-      if (detail) out.push([say2(detail)]);
+      out.push([...names2(people, vm.queue.more), plain(one ? " needs you." : " need you.")]);
+      if (detail) out.push([plain(detail)]);
     }
   }
-  if (calls) out.push([say2(calls === 1 ? "One call is worth a listen." : `${calls} calls are worth a listen.`)]);
+  if (calls) out.push([plain(calls === 1 ? "One call is worth a listen." : `${calls} calls are worth a listen.`)]);
   if (searches)
     out.push([
-      say2(searches === 1 ? "A search is waiting on your answer." : `${searches} searches are waiting on your answer.`)
+      plain(
+        searches === 1 ? "A search is waiting on your answer." : `${searches} searches are waiting on your answer.`
+      )
     ]);
   return out;
 }
-var withWhom = (b) => b.person ? [bold(b.person.name), ...b.service ? [say2(` (${b.service})`)] : []] : [say2(b.service || b.title)];
+var withWhom = (b) => b.person ? [bold(b.person.name), ...b.service ? [plain(` (${b.service})`)] : []] : [plain(b.service || b.title)];
 function daySentence(day) {
   const today = day?.feed === "ok" ? day.frames.find((f) => f.today) : void 0;
   if (!today) return null;
-  if (today.closed.yes) return [say2(`Closed today${today.closed.note ? ` (${today.closed.note})` : ""}.`)];
+  if (today.closed.yes) return [plain(`Closed today${today.closed.note ? ` (${today.closed.note})` : ""}.`)];
   const items = today.items;
   const total = items.length + today.more;
-  if (!total) return [say2("Nothing on the calendar today.")];
+  if (!total) return [plain("Nothing on the calendar today.")];
   const now = items.find((b) => b.phase === "now");
   const next = items.find((b) => b.phase === "next");
   const after = items.filter((b) => b.phase === "later").length + today.more;
-  const out = [say2(`${total} appointment${total === 1 ? "" : "s"} today`)];
-  if (now) out.push(say2(": "), ...withWhom(now), say2(` is in now${now.dur ? ` (${now.dur})` : ""}`));
+  const out = [plain(`${total} appointment${total === 1 ? "" : "s"} today`)];
+  if (now) out.push(plain(": "), ...withWhom(now), plain(` is in now${now.dur ? ` (${now.dur})` : ""}`));
   if (next)
     out.push(
-      say2(now ? ", then " : ": next is "),
+      plain(now ? ", then " : ": next is "),
       ...withWhom(next),
-      say2(next.allDay ? ", all day" : ` at ${next.start}`)
+      plain(next.allDay ? ", all day" : ` at ${next.start}`)
     );
-  if (!now && !next) out.push(say2(items.length && items.every((b) => b.phase === "past") ? ", all done" : ""));
-  else if (after) out.push(say2(`, ${after} more after`));
-  out.push(say2("."));
+  if (!now && !next) out.push(plain(items.length && items.every((b) => b.phase === "past") ? ", all done" : ""));
+  else if (after) out.push(plain(`, ${after} more after`));
+  out.push(plain("."));
   return out;
 }
 function cameIn(vm) {
   const line = vm.recap?.line;
   if (!line) return [];
-  return vm.quiet ? [[say2(line)], [say2(vm.proof)]] : [[say2(line)]];
+  return vm.quiet ? [[plain(line)], [plain(vm.proof)]] : [[plain(line)]];
 }
 var runSentence = (r2) => [
   bold(r2.label),
-  say2(` is waiting for your word: ${r2.sentence}`)
+  plain(` is waiting for your word: ${r2.sentence}`)
 ];
 function todayBriefWords(vm, day, runs) {
   const dayWords3 = daySentence(day);
@@ -29588,11 +29590,11 @@ var PARTNER_STANDING_WORDS = {
 var NEEDS_THE_PARTNER = ["broken", "stalled", "waiting_owner", "billing", "rehearsal"];
 function moneyLine(lines) {
   if (!lines.length) return "Nothing earned from it yet.";
-  const say3 = (pick) => lines.map((l) => moneyWords(pick(l), l.currency)).join(" and ");
+  const say2 = (pick) => lines.map((l) => moneyWords(pick(l), l.currency)).join(" and ");
   const toDate = lines.reduce((n, l) => n + l.held_cents + l.payable_cents + l.paid_cents, 0);
   const month = lines.reduce((n, l) => n + l.month_cents, 0);
   if (toDate === 0 && month === 0) return "Nothing earned from it yet.";
-  return `${say3((l) => l.month_cents)} from this month's payments \xB7 ${say3((l) => l.held_cents + l.payable_cents + l.paid_cents)} to date`;
+  return `${say2((l) => l.month_cents)} from this month's payments \xB7 ${say2((l) => l.held_cents + l.payable_cents + l.paid_cents)} to date`;
 }
 function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "active") {
   const judged = platformRows(overview, nowMs);

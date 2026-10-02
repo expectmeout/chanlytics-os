@@ -4392,8 +4392,8 @@ function fallbackMessages(brain, known) {
     const stored = brain.fallbacks[kind];
     return !values["booking link"] && stored.trim() === EARLIER_FALLBACK_DEFAULTS[kind] ? FALLBACK_DEFAULTS[kind] : stored;
   };
-  const say3 = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
-  return { greeting: say3("greeting"), error: say3("error"), non_text: say3("non_text") };
+  const say2 = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+  return { greeting: say2("greeting"), error: say2("error"), non_text: say2("non_text") };
 }
 var BrainConfigSchema2 = z52.object({
   business_name: z52.string().min(1).max(120),

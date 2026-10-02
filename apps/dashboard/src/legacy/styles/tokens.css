@@ -9,6 +9,8 @@
   --font-mono: var(--font-geist-mono), "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
 
   /* Type scale — airy, density 20 */
+  /* Under the smallest step: the word under a phone tab bar's glyph, and the count on it (the canvases' 10 and 9). */
+  --text-2xs:   10px;
   --text-xs:    11px;
   --text-sm:    12.5px;
   --text-base:  13.5px;
@@ -118,6 +120,8 @@
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-2xl: 20px;
+  /* A capsule around a 36px control with 6px of room (the Inbox's reply box, I1): 18 + 6. */
+  --radius-3xl: 24px;
   --radius-full: 999px;
   /* A circle, whatever the box's size: a face, a dot. --radius-full rounds a wide box into a capsule, this into an
      ellipse; on a square box the two are one circle. The stylesheets still write 50% by hand for it (step 2.2). */
@@ -305,7 +309,11 @@
   --surface-pane-radius: var(--radius-lg);
   --surface-inset-fill: var(--bg-sunken);
   --surface-inset-edge: var(--line);
+  /* The inset's hairline as a ring, for an inset that draws no border of its own (a face, a bubble, a capsule). */
+  --surface-inset-ring: inset 0 0 0 1px var(--surface-inset-edge);
   --surface-inset-radius: var(--radius-md);
+  /* A row that is an inset of its own (the Inbox's rows, a bubble's round corners): the canvases' 18 in Glass. */
+  --surface-row-radius: var(--radius-md);
   --surface-pop-fill: var(--bg-raised);
   --surface-pop-edge: var(--line);
   --surface-pop-radius: var(--radius-lg);
@@ -459,6 +467,7 @@
   --surface-inset-edge: oklch(0.304 0.046 275 / 0.1);
   --surface-inset-depth: inset 0 1px 0 oklch(1 0 0 / 0.95);
   --surface-inset-radius: 14px;
+  --surface-row-radius: 18px;
 
   /* What pops over the page: opaque, and a soft shadow (derived from the canvases' popover). */
   --surface-pop-fill: oklch(1 0 0 / 0.98);
