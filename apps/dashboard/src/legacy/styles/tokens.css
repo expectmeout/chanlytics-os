@@ -380,6 +380,15 @@
   --tracking-normal: -0.003em;
   /* A person's face on a row: the canvases' avatar, a step whiter than an inset. */
   --face-fill: oklch(1 0 0 / 0.72);
+  /* A lead's tile and its peek's band: six tints, one per kind of business (contracts leadTintOf), the gradients
+     the canvas paints (L1), the initials in white on them. Classic keeps its one quiet ground. */
+  --tile-tint-1: linear-gradient(135deg, oklch(0.738 0.071 67), oklch(0.551 0.063 64));
+  --tile-tint-2: linear-gradient(135deg, oklch(0.722 0.098 2), oklch(0.473 0.074 348));
+  --tile-tint-3: linear-gradient(135deg, oklch(0.686 0.076 257), oklch(0.463 0.071 256));
+  --tile-tint-4: linear-gradient(135deg, oklch(0.672 0.094 5), oklch(0.42 0.074 2));
+  --tile-tint-5: linear-gradient(135deg, oklch(0.714 0.037 242), oklch(0.455 0.038 246));
+  --tile-tint-6: linear-gradient(135deg, oklch(0.706 0.016 145), oklch(0.455 0.021 148));
+  --tile-tint-ink: oklch(1 0 0 / 0.92);
   /* The ground, a step under it and over it, and what a press washes it with (derived: the canvases draw none). */
   --bg: oklch(0.962 0.005 275);
   --bg-sunken: oklch(0.945 0.006 275);
