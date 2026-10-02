@@ -109,6 +109,9 @@ export function RailGroup({
   );
 }
 
+/** The attribute a count of nothing wears (Glass draws it in the faint ink): "" for zero, nothing otherwise. */
+const railZero = (count: number | string): "" | undefined => (count === 0 || count === "0" ? "" : undefined);
+
 /**
  * One row. Its mark, label and count are the pick. A row with acts of its own (a search's menu) keeps them beside the
  * pick, never a button inside a button, and the pick fills the row, so a press anywhere on it but the acts picks it.
@@ -152,7 +155,12 @@ export function RailRow({
     <>
       {mark}
       <span className="label">{label}</span>
-      {count === null || count === undefined ? null : <span className="count">{count}</span>}
+      {/* A count of nothing is said in the faint ink in Glass (canvas P1): the row says so, the look reads it. */}
+      {count === null || count === undefined ? null : (
+        <span className="count" data-zero={railZero(count)}>
+          {count}
+        </span>
+      )}
     </>
   );
   // What the pick carries: its press, the warm-up under a pointer or Tab, and what a screen reader and a tip say of it.
