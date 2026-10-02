@@ -3,42 +3,13 @@
  * decision 0015). The listen-in stayed in the demo: the provider streams the transcript, never the audio, so the words
  * in the panel are what you follow.
  */
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { SyntheticEvent } from "react";
 import type { LiveCallVM } from "@chanlytics/contracts";
 import { whisperCall } from "@/legacy-bridge/inbox-verbs";
 import { gate, useLegacyToast } from "../legacy-verbs";
 import { Icon } from "../kit/icon/icon";
-
-/** One phrase the browser's recogniser heard: whether it is settled, and its best guess (the Web Speech API's result). */
-interface Heard {
-  readonly isFinal: boolean;
-  readonly 0: { readonly transcript: string };
-}
-
-/** The browser's recogniser, as far as the whisper uses it (lib.dom has the events, not the recogniser itself). */
-interface Recognition {
-  lang: string;
-  interimResults: boolean;
-  continuous: boolean;
-  onresult: ((ev: { results: ArrayLike<Heard> }) => void) | null;
-  onerror: ((ev?: { error?: string }) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-}
-
-type Recognizer = new () => Recognition;
-
-// Speech recognition in the browser, where it exists (Chrome, Edge, Safari;
-// not Firefox). The owner is usually listening to the call, not typing:
-// hold the button, say the whisper, let go — the words are transcribed on
-// the device and sent as text like any other whisper. Nothing is recorded
-// or uploaded; the browser's own recogniser does the work.
-const lrRecognizer = (): Recognizer | null => {
-  const w: Window & { SpeechRecognition?: Recognizer; webkitSpeechRecognition?: Recognizer } = window;
-  return w.SpeechRecognition || w.webkitSpeechRecognition || null;
-};
+import { useHoldToTalk } from "../kit/talk/use-hold-to-talk";
 
 interface TalkProps {
   listening: boolean;
@@ -121,13 +92,9 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [last, setLast] = useState<string | null>(null);
-  const [listening, setListening] = useState(false);
   // The one-line note says who hears it; a press opens what the receptionist does with it.
   const [explain, setExplain] = useState(false);
-  const recRef = useRef<Recognition | null>(null);
-  const heardRef = useRef("");
   const [toastNode, flash] = useLegacyToast();
-  const canTalk = !!lrRecognizer();
 
   const send = async (words?: string) => {
     const t = String(words ?? text).trim();
@@ -147,65 +114,20 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
     }
   };
 
-  // Hold to talk. Press starts the recogniser; release stops it; what was
-  // heard is sent on its own once the recogniser has finished, so a whisper
-  // said aloud never waits for a click. Interim words show in the box as
-  // they come, so the owner sees what will be sent.
-  const startTalking = (e?: SyntheticEvent) => {
-    if (e && e.preventDefault) e.preventDefault();
-    const SR = lrRecognizer();
-    if (!SR || listening || busy) return;
-    const rec = new SR();
-    rec.lang = navigator.language || "en-US";
-    rec.interimResults = true;
-    rec.continuous = true;
-    heardRef.current = "";
-    rec.onresult = (ev) => {
-      let finals = "";
-      let interim = "";
-      for (let i = 0; i < ev.results.length; i++) {
-        const r = ev.results[i];
-        if (!r) continue;
-        if (r.isFinal) finals += r[0].transcript;
-        else interim += r[0].transcript;
-      }
-      heardRef.current = finals.trim();
-      setText((finals + interim).trim());
-    };
-    rec.onerror = (ev) => {
-      setListening(false);
-      recRef.current = null;
-      if (ev && ev.error === "not-allowed")
+  // Hold to talk (the kit's one recogniser): what was heard is sent on its own once it has finished, so a whisper said
+  // aloud never waits for a click, and the words show in the box as they come, so the owner sees what will be sent.
+  const talk = useHoldToTalk({
+    onWords: setText,
+    onHeard: (words, problem) => {
+      if (words) void send(words);
+      else if (problem === "not-allowed" || problem === "blocked")
         flash({ tone: "warn", msg: <>The browser needs microphone permission to whisper by voice.</> });
-      else if (ev && ev.error !== "aborted" && ev.error !== "no-speech")
+      else if (problem && problem !== "aborted" && problem !== "no-speech")
         flash({ tone: "warn", msg: <>Couldn&rsquo;t hear you — try again or type it.</> });
-    };
-    rec.onend = () => {
-      setListening(false);
-      recRef.current = null;
-      const heard = heardRef.current;
-      heardRef.current = "";
-      if (heard) void send(heard);
-    };
-    recRef.current = rec;
-    setListening(true);
-    try {
-      rec.start();
-    } catch {
-      setListening(false);
-      recRef.current = null;
-    }
-  };
-  const stopTalking = () => {
-    const rec = recRef.current;
-    if (rec) {
-      try {
-        rec.stop();
-      } catch {
-        /* already stopped */
-      }
-    }
-  };
+    },
+    disabled: busy,
+  });
+  const { listening, canTalk } = talk;
 
   // One button at the field's end, as Ask's is: the microphone, held to talk, while nothing is typed; the arrow that sends
   // once there are words; where the browser cannot listen, the arrow alone, faint until there are words.
@@ -230,7 +152,7 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
           disabled={busy}
         />
         {talking ? (
-          talkButton({ listening, busy, startTalking, stopTalking })
+          talkButton({ listening, busy, startTalking: talk.start, stopTalking: talk.stop })
         ) : (
           <button
             type="button"

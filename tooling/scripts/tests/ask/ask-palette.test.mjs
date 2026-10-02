@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../shell/address/_address.mjs";
-import { kitPages } from "../_legacy-react.mjs";
+import { kitPages, useStubHooks } from "../_legacy-react.mjs";
 import {
   PROPOSAL_GATE,
   ROLE_PERMS,
@@ -200,8 +200,11 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-// Confirm is the kit's (surfaces/kit/confirm), which seed-globals publishes as window.Confirm.
+// Confirm is the kit's (surfaces/kit/confirm), which seed-globals publishes as window.Confirm, and so is the one
+// recogniser (surfaces/kit/talk), as window.useHoldToTalk, over this file's own React.
+useStubHooks(globalThis.React);
 globalThis.Confirm = globalThis.window.Confirm = kitPages.Confirm;
+globalThis.window.useHoldToTalk = kitPages.useHoldToTalk;
 /** What the palette flashed, in order. */
 const flashed = [];
 Object.assign(globalThis.window, {
@@ -2094,6 +2097,31 @@ test("the thread's arithmetic: the newest question stands a breath under the thr
   assert.equal(H.latestShown({ qTop: 900, scrollTop: 0, clientHeight: 600 }), true, "scrolled up: below");
   assert.equal(H.latestShown({ qTop: 900, scrollTop: 600, clientHeight: 600 }), false, "in sight");
   assert.equal(H.latestShown({ qTop: 560, scrollTop: 0, clientHeight: 600 }), false, "its first line in sight");
+});
+
+test("the Line's recogniser listens in the Line's language: Spanish where the Line speaks it, the browser's own elsewhere", () => {
+  const H = globalThis.window.AskHooks;
+  const langs = [];
+  globalThis.window.SpeechRecognition = class {
+    start() {
+      langs.push(this.lang);
+    }
+    stop() {}
+  };
+  try {
+    for (const lang of ["es", "en"]) {
+      let talk;
+      const Probe = () => {
+        talk = H.useAskTalk({ lang, onWords() {}, onHeard() {}, disabled: false });
+        return null;
+      };
+      render(Probe, {});
+      talk.start();
+    }
+    assert.deepEqual(langs, ["es-ES", navigator.language || "en-US"]);
+  } finally {
+    delete globalThis.window.SpeechRecognition;
+  }
 });
 
 test("on a phone the mic keeps the finger: the lift asks what was heard, and Type instead leaves it in the field", async () => {
