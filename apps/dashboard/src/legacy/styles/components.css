@@ -3578,6 +3578,20 @@ html.legacy-on .msg-use-link { position: relative; }
   :where([data-look="glass"]) .pg-head-slot {
     padding-right: 60px;
   }
+  /* The way back (a person's page) is a 36px capsule of the control layer's glass on a phone (P-phone-person). */
+  :where([data-look="glass"]) .pg-dateline-slot .pg-back {
+    position: relative;
+    height: 36px;
+    margin: 0;
+    padding: 0 14px 0 10px;
+    border-radius: var(--radius-full);
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    box-shadow: var(--surface-control-depth);
+    font-size: var(--text-base);
+    color: var(--ink);
+    pointer-events: auto;
+  }
   :where([data-look="glass"]) .pg-act-slot {
     grid-column: 1;
     grid-row: 3;

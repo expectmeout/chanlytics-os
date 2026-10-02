@@ -19,6 +19,8 @@
   --text-xl:    18px;
   --text-2xl:   22px;
   --text-3xl:   28px;
+  /* A person's name at the head of their page (canvas P3): between the section's step and the page's. */
+  --text-hero:  24px;
   --text-4xl:   36px;
   --text-5xl:   48px;
   /* A field's words on a touch screen. Below 16px, Safari on a phone zooms the page into the field it focuses, so
@@ -371,6 +373,7 @@
   --text-md: 15.5px;
   --text-xl: 17px;
   --text-3xl: 30px;
+  --text-hero: 26px;
   /* The day's figures (E3): a step under the page's name, which keeps the scale's 36. Read by Today's card alone. */
   --text-figure: 34px;
   /* The canvases track sans text a touch tighter than nothing; Classic tighter still. */
