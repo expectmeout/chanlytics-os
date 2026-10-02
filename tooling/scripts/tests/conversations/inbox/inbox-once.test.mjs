@@ -14,7 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
-import { installLegacyReact, kitPages, fresh, again, all, find, textOf, walk } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, find, textOf, walk } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");

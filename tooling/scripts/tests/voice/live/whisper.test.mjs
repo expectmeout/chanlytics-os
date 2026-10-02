@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { DECISION_VERBS, DECISION_SUBJECTS, toLiveVM } from "@chanlytics/contracts";
 import { updateLiveCall } from "@chanlytics/channels";
 import { readCode, readRaw } from "../../_source.mjs";
-import { installLegacyReact, fresh, again, find, byTestId, textOf } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, find, byTestId } from "../../_legacy-react.mjs";
 
 test("the ledger knows a whisper on a call, and the database agrees", () => {
   assert.ok(DECISION_VERBS.includes("whisper"));
