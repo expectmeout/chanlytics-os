@@ -360,9 +360,14 @@ test("the composer names the channel and the number the way the header does", ()
   );
 });
 
-test("the template send is one button naming what it sends, with a menu for the other messages that also says why the rest are not offered", () => {
+test("the template send is the reply box's capsule: the message it will send where the words go, a menu on it for the others that also says why the rest are not offered, and Send", () => {
   const closed = toInboxThreadVM(conv(), asked(), ZONE, NOW);
   const menuIn = (tree) => find(tree, (n) => n.type === Menu);
+  // The message it will send: the menu's own button where there are others, else the words alone.
+  const nameOf = (tree) => {
+    const menu = menuIn(tree);
+    return textOf(menu ? menu.props.trigger : find(tree, hasClass("ix-tpl-name"))).trim();
+  };
   // The menu as the composer reads it: a "|" between two groups, a heading in [], the options of a set in ().
   const shape = (menu) =>
     menu.props.groups.flatMap((g, i) => [
@@ -378,10 +383,9 @@ test("the template send is one button naming what it sends, with a menu for the 
     undefined,
     "REGRESSION: a select over the button, and its own row, for one message to send",
   );
-  assert.ok(
-    buttonsOf(tree).includes("Send “Booking link”"),
-    "REGRESSION: 'Send booking link', whichever template was picked",
-  );
+  assert.equal(nameOf(tree), "Booking link", "REGRESSION: 'Send booking link', whichever template was picked");
+  assert.ok(buttonsOf(tree).includes("Send"), "the reply box's own Send, at the capsule's end");
+  assert.ok(find(tree, hasClass("ix-composer-row")), "the same capsule the reply box is, not a box of its own");
   // Why the rest are not offered is one tap away, in the menu beside the send, never a sentence under the reply box or a link.
   assert.equal(find(tree, byTestId("ix-tpl-hidden")), undefined);
   assert.ok(!buttonsOf(tree).includes("Why?"), "the menu says it: no second control for it");
@@ -403,13 +407,10 @@ test("the template send is one button naming what it sends, with a menu for the 
     "REGRESSION: booking_link · en_US; the menu lists messages, not languages",
   );
   assert.deepEqual(menuIn(tree).props.groups[0].choose.value, "0");
-  assert.ok(
-    buttonsOf(tree).includes("Send “Booking link”"),
-    "REGRESSION: 'Send template', which said nothing of what it sends",
-  );
+  assert.equal(nameOf(tree), "Booking link", "REGRESSION: 'Send template', which said nothing of what it sends");
   menuIn(tree).props.groups[0].choose.onChoose("1");
   tree = again(() => InboxComposer({ thread: closed, reply: "", onSend() {} }));
-  assert.ok(buttonsOf(tree).includes("Send “Save our number”"), "the chosen message is the one the button sends");
+  assert.equal(nameOf(tree), "Save our number", "the chosen message is the one the capsule names, and Send sends");
   assert.equal(menuIn(tree).props.groups[0].choose.value, "1");
 
   setTemplates([tpl("welcome_new", { category: "marketing", variables: welcome.variables }), note]);
@@ -483,7 +484,12 @@ test("the composer offers templates by contracts' rule, which it imports: there 
     .sendable.map((s) => s.title);
   assert.deepEqual(offered, ["Booking link"]);
   const tree = composerOf(closed);
-  assert.ok(buttonsOf(tree).includes(`Send “${offered[0]}”`), "REGRESSION: the page had no rule to offer templates by");
+  assert.equal(
+    // the promotion it cannot send is said in the menu, so the name is that menu's button
+    textOf(find(tree, (n) => n.type === Menu).props.trigger).trim(),
+    offered[0],
+    "REGRESSION: the page had no rule to offer templates by",
+  );
   assert.equal(
     find(tree, (n) => n.type === "select"),
     undefined,

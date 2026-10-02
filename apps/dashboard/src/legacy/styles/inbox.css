@@ -1860,17 +1860,30 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   color: var(--ink-dim);
   line-height: 1.4;
 }
-/* The send and the chevron beside it that opens the other messages (and says which were not offered, I4): one control,
-   two segments of the same fill with a hair of the button's own ink between them, the chevron's a square. */
-.ix-send-pair { display: inline-flex; align-items: stretch; }
-.ix-send-pair > :first-child { border-start-end-radius: 0; border-end-end-radius: 0; }
-.ix-send-pair > :last-child {
-  min-inline-size: var(--control-h-md);
-  justify-content: center;
-  border-start-start-radius: 0;
-  border-end-start-radius: 0;
-  border-inline-start-color: color-mix(in oklab, var(--primary-ink) 22%, transparent);
+/* The template send is the reply box's capsule with the message where the words go: its title (a button that opens the
+   others, and says which were not offered, I4, where there are others) and Send at the right end. */
+.ix-composer-row .ix-tpl-name {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: 0;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
 }
+.ix-composer-row .ix-tpl-name:hover { background: transparent; }
+.ix-composer-row .ix-tpl-name .icon { flex: none; color: var(--ink-dim); }
+.ix-composer-row .ix-tpl-name:hover .icon { color: var(--ink); }
+.ix-tpl-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A call offered over the capsule: the two read as one dock, not two boxes. */
+.ix-composer-lead { padding-bottom: 0; }
 
 /* a deep link to a thread that is not in view: the first thread shows, with this */
 .ix-notice { padding: 8px 24px; font-size: 12px; color: var(--warn); border-bottom: 1px solid var(--line); }
@@ -1894,13 +1907,9 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 @container ixpane (max-width: 520px) {
   .ix-composer-actions { width: 100%; justify-content: flex-start; }
   /* The dock has a left and a right, not one busy edge: the act to do stands on the left and the one that sets it aside
-     on the right, and the send is a row of its own, the pane's width. */
+     on the right. */
   .ix-state-acts { align-self: stretch; }
   .ix-state-acts > :last-child:not(:first-child) { margin-inline-start: auto; }
-  .ix-send-pair { flex: 1 1 100%; }
-  .ix-send-pair > :first-child { flex: 1; justify-content: center; }
-  /* A finger's width, as the row's height is. */
-  .ix-send-pair > :last-child { min-inline-size: 44px; }
 }
 /* A text field shows where the keys go: the composer and the search set outline:none and moved only a border (I3). */
 .ix-composer-text:focus-visible { box-shadow: var(--focus-ring); }
@@ -2019,7 +2028,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 .ix-composer-row .ix-composer-text { flex: 1; min-width: 0; min-height: 36px; max-height: 160px; overflow-y: auto; padding: 8px 12px; }
 .ix-composer-send { flex: none; height: 36px; }
 @media (pointer: coarse) {
-  .ix-composer-row .ix-composer-text, .ix-composer-send { min-height: 44px; }
+  .ix-composer-row .ix-composer-text, .ix-composer-row .ix-tpl-name, .ix-composer-send { min-height: 44px; }
   /* A hint for a keyboard, not a thumb. */
   .ix-composer .kbd { display: none; }
 }
