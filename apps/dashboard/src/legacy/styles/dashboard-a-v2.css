@@ -1913,8 +1913,15 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   :where([data-look="glass"]) .main-scroll > .dash-a-v2 { --gutter-page: 12px; }
   /* A phone's queue ends with its last row (E3's phone board): what the card could not hold is the Inbox tab's. */
   :where([data-look="glass"]) .dash-a-v2 .tq-foot { display: none; }
-  /* The brief's acts are a desk's: Listen stands in its head here, and Ask is the ✦ beside the tab bar. */
-  :where([data-look="glass"]) .dash-a-v2 .tb-foot { display: none; }
+  /* The brief's foot on a phone holds the follow-up alone (Listen stands in its head), its words on the line's left edge
+     and the touch floor's height split evenly between the line above and the pane's edge below; without it the last
+     line sat on the pane's edge. */
+  .dash-a-v2 .tb-foot { padding: 6px 0 8px; }
+  .dash-a-v2 .tb-foot > .tb-follow { margin-left: -10px; }
+  /* The brief draws its lines without the mark (above), so a door under the words lines up with the words themselves,
+     not with the day card's 34px past a mark (mobile.css); the door's own padding is 6px. */
+  .dash-a-v2 .tb-body .brief-beat-text { flex-basis: 100%; }
+  .dash-a-v2 .tb-body .brief-beat-text ~ .brief-chip { margin-left: -6px; }
   /* The day's card: its name on its own row with the door to Reports at the right, what the day says under them. */
   :where([data-look="glass"]) .dash-a-v2 .tc-head { flex-wrap: wrap; }
   :where([data-look="glass"]) .dash-a-v2 .tc-line { flex: 1 1 100%; order: 2; }
