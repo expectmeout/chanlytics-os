@@ -2691,6 +2691,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
    ==================================================================== */
 @media (width > 900px) {
   :where([data-look="glass"]) .main-scroll > .clients {
+    --rail-nav: 208px;
     height: auto;
     flex: 1 1 0;
     min-height: 0;
@@ -2706,51 +2707,94 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     padding-inline: 24px;
   }
 
-  /* The rail: a pane of its own, its groups on the pane without rules between them, the picked list an inset. */
+  /* The rail (P1): a pane of its own with 14px inside it, its groups on the pane with no rules between them; Everyone a
+     32px row at 600 (the lozenge while picked), every other list a 30px row at 500 in the muted ink with 12px corners,
+     its count in the dim ink and a count of nothing in the faint (rail-kit.tsx says which); the group names in the
+     mono face; New list the full-width inset capsule at the foot. */
   :where([data-look="glass"]) .main-scroll .cl-rail {
+    padding: 14px 0 0;
     border: 0;
     border-radius: var(--surface-pane-radius);
     background: var(--surface-pane-fill);
     box-shadow: var(--surface-pane-depth);
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-section + .cl-rail-section,
-  :where([data-look="glass"]) .main-scroll .cl-rail-foot {
+  :where([data-look="glass"]) .main-scroll .cl-rail-section {
+    padding: 0 14px;
+  }
+  :where([data-look="glass"]) .main-scroll .cl-rail-section + .cl-rail-section {
+    margin-top: 10px;
     border-top: 0;
   }
-  :where([data-look="glass"]) .main-scroll .cl-rail-label {
+  :where([data-look="glass"]) .main-scroll .cl-rail-everyone {
+    padding-bottom: 6px;
+  }
+  :where([data-look="glass"]) .main-scroll :is(.cl-rail-label, .cl-rail-group-label) {
+    margin: 0;
+    padding: 0 10px 6px;
     font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-regular);
+    letter-spacing: 0.08em;
+    color: var(--ink-dim);
   }
   /* The canvases' rail (P1, L1) opens with its rows under their groups' names: the one label with a glyph before it
      ("Smart lists") says nothing a group's name does not. */
   :where([data-look="glass"]) .main-scroll .cl-rail-label:has(> svg) {
     display: none;
   }
-  /* A row spans the rail (a button sizes to its words unless told), its count at the far end in the dim ink, its words
-     in the page's; the one picked is the lozenge. */
   :where([data-look="glass"]) .main-scroll .cl-rail-row {
     width: 100%;
-    border-radius: var(--surface-inset-radius);
-    padding: 6px 10px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: var(--radius-lg);
     font-size: var(--text-base);
+    font-weight: var(--weight-medium);
     text-align: left;
+    color: var(--ink-muted);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-rail-everyone .cl-rail-row {
+    height: 32px;
+    font-weight: var(--weight-semibold);
     color: var(--ink);
   }
   :where([data-look="glass"]) .main-scroll .cl-rail-row .count {
     font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--ink-dim);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-rail-row.asks .count {
+    font-weight: var(--weight-semibold);
+    color: var(--warn-ink);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-rail-row .count[data-zero] {
+    font-weight: var(--weight-regular);
+    color: var(--ink-faint);
   }
   :where([data-look="glass"]) .main-scroll .cl-rail-row:hover {
     background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
+    color: var(--ink);
   }
   :where([data-look="glass"]) .main-scroll .cl-rail-row.active {
     background: var(--selected-fill);
     box-shadow: var(--selected-depth);
+    color: var(--ink);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-rail-foot {
+    padding: 10px 18px 14px;
+    border-top: 0;
   }
   :where([data-look="glass"]) .main-scroll .cl-rail-newseg {
-    border-style: solid;
-    border-color: var(--surface-inset-edge);
+    height: 32px;
+    padding: 0 14px;
+    border: 0;
     border-radius: var(--radius-full);
     background: var(--surface-inset-fill);
-    box-shadow: var(--surface-inset-depth);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--ink);
   }
 
   /* The list: a clear pane with the look's rim. The page's standing line is the head's sentence now. */
@@ -2774,26 +2818,61 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   :where([data-look="glass"]) .main-scroll .pl-standing {
     display: none;
   }
+  /* The controls (P1): the search a 36px capsule 320 wide (its parts reached by their place: its class is a primitive's
+     word), Add a person the inset capsule, Columns and the menu words at the same height; under them the list's name at
+     600 with what it is beside it. */
   :where([data-look="glass"]) .main-scroll .cl-controls {
+    gap: 8px;
+    padding: 14px 18px 12px;
     border-bottom: 0;
     background: transparent;
-    padding: 14px 16px 6px;
   }
   :where([data-look="glass"]) .main-scroll .cl-search-wrap {
+    gap: 9px;
+    height: 36px;
+    max-width: 320px;
+    padding: 0 12px;
+    border: 0;
     border-radius: var(--radius-full);
-    border-color: var(--surface-inset-edge);
     background: var(--surface-inset-fill);
-    box-shadow: var(--surface-inset-depth);
-    padding: 7px 14px;
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+    color: var(--ink-dim);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-controls > :first-child > .icon {
+    width: 15px;
+    height: 15px;
+    color: var(--ink-dim);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-controls > :first-child > input {
+    font-size: var(--text-base);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-controls .cl-controls-right > :not([data-testid="add-person"]) > button {
+    height: var(--control-h-md);
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--radius-full);
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+    color: var(--ink-muted);
   }
   :where([data-look="glass"]) .main-scroll .cl-section {
-    padding: 10px 16px 6px;
+    padding: 4px 18px 12px;
+  }
+  :where([data-look="glass"]) .main-scroll .cl-section-title {
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-section-sub {
+    font-size: var(--text-sm);
+    color: var(--ink-dim);
   }
   /* The table sits on the pane itself, as the canvases draw it (P1, L1, D1): rows told apart by hairlines, no box of
      its own. Its pinned cells and its sticky head paint their own ground over the rows that pass under (--pl-row), so
      that ground is the pane's solid: the token that lays the pane's fill over the page, opaque. */
   :where([data-look="glass"]) .main-scroll .cl-table-wrap {
-    margin: 0 18px;
+    margin: 0 8px;
     border-color: transparent;
     border-radius: 0;
     background: transparent;
@@ -2815,55 +2894,175 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   :where([data-look="glass"]) .main-scroll .pl-table tbody tr.selected {
     --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--surface-pane-solid);
   }
-  /* A row at the canvases' height, the name in the semibold at the canvases' size over its line, the face 32px. */
+  /* A row as the canvas sets it (P1): 10px over and under its cells, 18px at the pane's sides past the 8px the wrap
+     keeps, no hairline between rows; the one under a pointer, the cursor's and a picked one a lozenge of the inset's
+     corners, drawn on the cells so the corners round (a table row has none). The face 28px in --face-fill, the name at
+     600, their words and the state's detail under them in the dim ink, every other cell at the small step. */
+  :where([data-look="glass"]) .main-scroll .cl-table tbody tr,
+  :where([data-look="glass"]) .main-scroll .pl-table tbody tr > td {
+    border-bottom: 0;
+  }
   :where([data-look="glass"]) .main-scroll .cl-table td {
-    padding-top: 12px;
-    padding-bottom: 12px;
+    padding: 10px 6px;
+  }
+  :where([data-look="glass"]) .main-scroll .cl-table td:first-child,
+  :where([data-look="glass"]) .main-scroll .cl-table thead th:first-child {
+    padding-left: 18px;
+  }
+  :where([data-look="glass"]) .main-scroll .cl-table td:last-child,
+  :where([data-look="glass"]) .main-scroll .cl-table thead th:last-child {
+    padding-right: 18px;
+  }
+  :where([data-look="glass"]) .main-scroll .cl-table :is(th, td).cl-sel {
+    width: 24px;
+  }
+  :where([data-look="glass"]) .main-scroll .pl-table .cl-sel + .pl-pin {
+    left: 24px;
+  }
+  :where([data-look="glass"]) .main-scroll .pl-table tbody tr:is(:hover, .focused) > td {
+    background: var(--pl-hover);
+  }
+  /* The cursor's row is the lozenge, not the accent's edge Classic draws down its first cell. */
+  :where([data-look="glass"]) .main-scroll .pl-table tbody tr.focused > td:first-child {
+    box-shadow: none;
+  }
+  :where([data-look="glass"]) .main-scroll .pl-table tbody tr.selected > td {
+    background: var(--bubble-us-bg);
+  }
+  :where([data-look="glass"]) .main-scroll .pl-table tbody tr:is(:hover, .focused, .selected) > td:first-child {
+    border-top-left-radius: var(--surface-inset-radius);
+    border-bottom-left-radius: var(--surface-inset-radius);
+  }
+  :where([data-look="glass"]) .main-scroll .pl-table tbody tr:is(:hover, .focused, .selected) > td:last-child {
+    border-top-right-radius: var(--surface-inset-radius);
+    border-bottom-right-radius: var(--surface-inset-radius);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-table td.dim {
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-row-name {
+    gap: 10px;
   }
   :where([data-look="glass"]) .main-scroll .cl-row-fullname {
-    font-size: var(--text-md);
+    font-size: var(--text-base);
     font-weight: var(--weight-semibold);
   }
   :where([data-look="glass"]) .main-scroll .cl-row-name > :first-child {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    background: var(--face-fill);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: 0.01em;
+    color: var(--ink);
+  }
+  :where([data-look="glass"]) .main-scroll :is(.cl-row-words, .cl-row-state-detail) {
     font-size: var(--text-xs);
+    color: var(--ink-dim);
+  }
+  /* The box for a selection: a 16px square of the inset's fill, faint until a pointer reaches the row or it is picked
+     (the base rule), checked in ink. */
+  :where([data-look="glass"]) .main-scroll .cl-check {
+    appearance: none;
+    position: relative;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--radius-xs);
+    background: var(--surface-inset-fill);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-check:checked {
+    background: var(--count-fill);
+    box-shadow: none;
+  }
+  :where([data-look="glass"]) .main-scroll .cl-check:checked::after {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 2px;
+    width: 4px;
+    height: 8px;
+    border: solid var(--count-ink);
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(45deg);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-check:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
   }
   /* People's first act, Add a person, is the inset capsule the canvas draws (P1); the others stay words. */
   :where([data-look="glass"]) .main-scroll .cl-controls-right > [data-testid="add-person"] {
     height: var(--control-h-md);
     padding: 0 14px;
-    border: 1px solid var(--surface-inset-edge);
+    border: 0;
     border-radius: var(--radius-full);
     background: var(--surface-inset-fill);
-    box-shadow: var(--surface-inset-depth);
-    color: var(--ink);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+    font-size: var(--text-base);
     font-weight: var(--weight-medium);
+    color: var(--ink);
   }
   /* What a list says it can do for the people on it (the broadcast's door) is an inset too. */
   :where([data-look="glass"]) .main-scroll .cl-list-action {
-    border-color: var(--surface-inset-edge);
-    border-radius: var(--surface-inset-radius);
+    margin: 0 10px 12px;
+    padding: 12px 16px;
+    border: 0;
+    border-radius: var(--radius-xl);
     background: var(--surface-inset-fill);
-    box-shadow: var(--surface-inset-depth);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-list-action-text {
+    font-size: var(--text-base);
+    color: var(--ink);
   }
   /* The head is clear on the pane, as the canvases draw it; it stays sticky, so it blurs the rows that pass under it. */
   :where([data-look="glass"]) .main-scroll .cl-table thead th,
   :where([data-look="glass"]) .main-scroll .pl-table thead th.cl-sel,
   :where([data-look="glass"]) .main-scroll .pl-table thead th.pl-pin {
+    padding: 6px 6px 8px;
     font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    letter-spacing: 0.08em;
+    color: var(--ink-dim);
     background: transparent;
     backdrop-filter: blur(var(--blur-md));
   }
+  /* The foot (P1): how many, at the small step, over a hairline; the keys are the ? sheet's, never drawn here. */
   :where([data-look="glass"]) .main-scroll .cl-table-foot {
+    padding: 12px 10px 14px;
+    border-top: 1px solid var(--line);
     background: transparent;
+    font-size: var(--text-sm);
+    color: var(--ink-dim);
   }
   /* The bar a selection becomes is the control layer: glass, a capsule, floating at the foot of the pane. */
   :where([data-look="glass"]) .main-scroll .cl-bulk {
+    bottom: 22px;
+    gap: 6px;
+    height: 48px;
+    padding: 0 8px 0 18px;
     border: 0;
-    background: var(--surface-control-fill);
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
     backdrop-filter: var(--surface-control-blur);
     box-shadow: var(--surface-control-depth);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-bulk-count {
+    margin-right: 8px;
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+    color: var(--ink);
   }
 }
 
@@ -2871,6 +3070,47 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 @media (max-width: 900px) {
   :where([data-look="glass"]) .main-scroll:has(> .clients) > header .pg-sentence {
     display: none;
+  }
+  /* The bar (the phone boards): the list picked as a 40px capsule of the control layer's glass with its count beside
+     the name, and the search and the page's menu as 40px glass circles at its right; the standing line under them. */
+  :where([data-look="glass"]) .pp-bar {
+    gap: 8px;
+    padding: 0 12px 2px;
+  }
+  :where([data-look="glass"]) .pp-bar .pp-bar-pick {
+    gap: 8px;
+    padding: 0 10px 0 14px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    box-shadow: var(--surface-control-depth);
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+  }
+  :where([data-look="glass"]) .pp-bar .pp-bar-pick-count {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--ink-dim);
+  }
+  :where([data-look="glass"]) .pp-bar .pp-bar-icon {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    border-radius: var(--radius-circle);
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    box-shadow: var(--surface-control-depth);
+    color: var(--ink);
+  }
+  :where([data-look="glass"]) .pl-standing {
+    padding: 4px 16px 10px;
+    font-size: var(--text-base);
+    color: var(--ink-muted);
+  }
+  :where([data-look="glass"]) .pl-standing-needs {
+    font-weight: var(--weight-medium);
+    color: var(--warn-ink);
   }
 }
 
