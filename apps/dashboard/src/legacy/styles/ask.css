@@ -270,10 +270,9 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   @keyframes ask-dot-breathe { 50% { transform: scale(0.78); } }
   /* Inside the native shell the native tab bar stands under it: the ✦ lifts by the shell's inset (mobile.css, html.in-app). */
   html.in-app .phone-ask { bottom: calc(10px + var(--app-inset-bottom, 0px)); }
-  /* Inside an open thread the reply box IS the action, and Send sits a thumb from here. Ask comes back with the list. */
-  body:has(.inbox.phone-thread) .phone-ask,
-  body:has(.conversations.phone-detail) .phone-ask,
-  body:has(.live-monitor[data-detail]) .phone-ask { display: none; }
+  /* Inside a page that takes the screen over (data-takeover on its root: a thread, a call) the reply box IS the action,
+     and Send sits a thumb from here. Ask comes back with the list. */
+  body:has([data-takeover]) .phone-ask { display: none; }
 
   /* Every dialog on the ask overlay sits on the bottom edge on a phone: the Calendar's event panel (calendar-real.jsx)
      shares .ask-overlay and was docked here by this rule before the Line. The Line itself is the whole screen. */

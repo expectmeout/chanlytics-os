@@ -174,7 +174,7 @@ test("on a phone a thread opens by coming in from the right, over where the list
   const mobile = MOBILE;
   assert.match(
     mobile,
-    /\.inbox\.phone-thread \.ix-thread-pane, \.conversations\.phone-detail \.ix-thread-pane \{ animation: thread-in \d+ms var\(--ease-out\); \}/,
+    /\.inbox\[data-takeover\] \.ix-thread-pane, \.conversations\[data-takeover\] \.ix-thread-pane \{ animation: thread-in \d+ms var\(--ease-out\); \}/,
     "both pages' threads, the one motion",
   );
   const frames = mobile.match(/@keyframes thread-in \{([^}]*)\}/);
@@ -185,7 +185,7 @@ test("on a phone a thread opens by coming in from the right, over where the list
   assert.ok(!/(width|height|top|left):/.test(frames[1]), "never a layout property");
   assert.match(
     mobile,
-    /prefers-reduced-motion: reduce\) \{ \.inbox\.phone-thread \.ix-thread-pane, \.conversations\.phone-detail \.ix-thread-pane \{ animation: none; \} \}/,
+    /prefers-reduced-motion: reduce\) \{ \.inbox\[data-takeover\] \.ix-thread-pane, \.conversations\[data-takeover\] \.ix-thread-pane \{ animation: none; \} \}/,
     "and none under reduced motion",
   );
 });

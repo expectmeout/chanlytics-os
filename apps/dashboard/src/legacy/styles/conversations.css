@@ -262,7 +262,7 @@
    ==================================================================== */
 @media (max-width: 900px) {
   /* 4px under the strip, as the Inbox's tabs are (its slot has 16 of padding under the strip). */
-  :where([data-look="glass"]) .main:has(> .main-scroll > .conversations:not(.phone-detail)) .pg-slot {
+  :where([data-look="glass"]) .main:has(> .main-scroll > .conversations:not([data-takeover])) .pg-slot {
     padding-bottom: 4px;
   }
   /* The list is the page itself: the pools show through, no ground of its own. */

@@ -3098,10 +3098,10 @@ html.legacy-on .msg-use-link { position: relative; }
 /* An open thread going back to its list on a phone, under the thumb (inbox-thread.jsx, data-going): the list is
    drawn under the thread as it moves, so what is behind it is what it goes back to. */
 @media (max-width: 720px) {
-  .inbox.phone-thread[data-going] > .ix-list,
-  .conversations.phone-detail[data-going] > .cv-list { display: flex; grid-area: 1 / 1; }
-  .inbox.phone-thread[data-going] > .ix-thread-pane,
-  .conversations.phone-detail[data-going] > .ix-thread-pane { grid-area: 1 / 1; z-index: 1; box-shadow: -12px 0 32px oklch(0 0 0 / 0.18); }
+  .inbox[data-takeover][data-going] > .ix-list,
+  .conversations[data-takeover][data-going] > .cv-list { display: flex; grid-area: 1 / 1; }
+  .inbox[data-takeover][data-going] > .ix-thread-pane,
+  .conversations[data-takeover][data-going] > .ix-thread-pane { grid-area: 1 / 1; z-index: 1; box-shadow: -12px 0 32px oklch(0 0 0 / 0.18); }
 }
 
 /* The phone's tab bar answers a press and eases into its state, as the section tabs do (kit.css). */

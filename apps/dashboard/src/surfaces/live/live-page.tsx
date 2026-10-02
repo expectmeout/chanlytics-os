@@ -109,7 +109,7 @@ const LiveMonitorReal = ({ initialCallId = null, sample = null }: LiveMonitorPro
   // are on the line (the list's head), whether the line is on (the list, when nobody is), and the last
   // call (the panel, which opens on it when nobody is on the line).
   return (
-    <div className="live-monitor" data-testid="live-real" data-detail={detail || undefined}>
+    <div className="live-monitor" data-testid="live-real" data-takeover={detail || undefined}>
       <div
         className="lm-body lm-body-rows"
         data-live={live.length ? "true" : undefined}

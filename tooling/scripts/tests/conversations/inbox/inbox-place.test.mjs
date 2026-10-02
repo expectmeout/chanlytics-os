@@ -487,7 +487,7 @@ test("on a phone a thread a tap opens is an entry of its own: Back closes it to 
     const param = /^#\/inbox\/(.+)$/.exec(w.location.hash);
     for (let i = 0; i < 2; i++)
       tree = again(() => Inbox({ initialThreadId: param ? param[1] : null, showAgentRail: false }));
-    return String(tree.props.className).includes("phone-thread");
+    return !!tree.props["data-takeover"];
   };
   const back = () => paneOf(tree).onBack();
   try {

@@ -535,7 +535,7 @@ export const ConversationsPage = ({
   );
 
   return (
-    <div className={`conversations ${phoneOpen ? "phone-detail" : ""}`}>
+    <div className="conversations" data-takeover={phoneOpen || undefined}>
       {listPane({ data, rows: visible, query, setQuery, channel, counts, selected, openRow })}
       {readingPane({ data, requestedMissing, selected, closeRow, query })}
     </div>

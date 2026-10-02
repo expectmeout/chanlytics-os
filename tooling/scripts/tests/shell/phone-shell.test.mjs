@@ -26,7 +26,7 @@ test("the Inbox and Conversations take turns on a phone, with a Back that only a
   assert.ok(thread.includes('data-testid="ix-back"'));
   assert.ok(thread.includes("{onBack && ("), "no Back on desktop's markup path when nobody asked for one");
   const cv = readRaw("apps/dashboard/src/surfaces/inbox/pages/conversations-page.tsx");
-  assert.ok(cv.includes('${phoneOpen ? "phone-detail" : ""}'));
+  assert.ok(cv.includes("data-takeover={phoneOpen || undefined}"));
   // A row pressed opens the pane (openRow: the row, the phone's turn, and the address).
   assert.ok(
     cv.includes("const openRow = (id: string) => {") &&
@@ -35,8 +35,8 @@ test("the Inbox and Conversations take turns on a phone, with a Back that only a
   );
   const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
   assert.ok(css.includes(".ix-back { display: none; }"), "hidden by default");
-  assert.ok(css.includes(".inbox.phone-thread .ix-list { display: none; }"));
-  assert.ok(css.includes(".inbox.phone-thread .ix-thread-pane { display: flex; }"));
+  assert.ok(css.includes(".inbox[data-takeover] .ix-list { display: none; }"));
+  assert.ok(css.includes(".inbox[data-takeover] .ix-thread-pane { display: flex; }"));
   assert.ok(
     css.includes(".lm-whisper .btn { min-height: 44px; }"),
     "the whisper's buttons take a thumb on Live, on the class the page draws",

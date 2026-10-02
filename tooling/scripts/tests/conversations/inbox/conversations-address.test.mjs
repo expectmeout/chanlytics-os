@@ -215,9 +215,7 @@ test("on a desktop a row pressed is the address's, on its tab, replaced -- and t
   tree = redraw({ channel: "phone", initialId: "cv-k7" });
   assert.ok(String(rows(tree)[0].props.className).includes("active"), "and it is the one open");
   assert.ok(
-    String(find(tree, (n) => String(n.props?.className || "").startsWith("conversations")).props.className).includes(
-      "phone-detail",
-    ),
+    find(tree, (n) => String(n.props?.className || "").startsWith("conversations")).props["data-takeover"],
     "the phone's turn for the pane",
   );
 
@@ -240,7 +238,7 @@ test("on a desktop a row pressed is the address's, on its tab, replaced -- and t
 
 test("on a phone a row pressed is an entry of its own: the viewer's Back steps back through it, and the list returns", () => {
   const phone = (tree) =>
-    String(find(tree, (n) => String(n.props?.className || "").startsWith("conversations")).props.className);
+    !!find(tree, (n) => String(n.props?.className || "").startsWith("conversations")).props["data-takeover"];
   const viewerBack = (tree) => find(tree, (n) => typeof n.props?.onBack === "function").props.onBack;
   const wasMedia = globalThis.matchMedia;
   globalThis.matchMedia = (q) => ({ matches: q === "(max-width: 720px)" });
@@ -254,14 +252,14 @@ test("on a phone a row pressed is an entry of its own: the viewer's Back steps b
     );
     globalThis.window.location.hash = "#/conversations/phone:cv-k7";
     tree = redraw({ channel: "phone", initialId: "cv-k7" });
-    assert.ok(phone(tree).includes("phone-detail"), "the row is the screen");
+    assert.ok(phone(tree), "the row is the screen");
     viewerBack(tree)();
     assert.deepEqual(went.at(-1), ["back"], "the viewer's own Back is the same step as the system's");
     // Back lands on the list's address: the viewer closes.
     globalThis.window.location.hash = "#/conversations/phone";
     redraw({ channel: "phone", initialId: null });
     tree = redraw({ channel: "phone", initialId: null });
-    assert.ok(!phone(tree).includes("phone-detail"), "the list, not the row");
+    assert.ok(!phone(tree), "the list, not the row");
 
     // A row the address brought (a link, a cold boot) has no entry of its own: it closes to its list in place.
     fresh();
@@ -271,7 +269,7 @@ test("on a phone a row pressed is an entry of its own: the viewer's Back steps b
     viewerBack(tree)();
     assert.ok(!went.some((w) => w[0] === "back"), "never a step back out of the page");
     tree = redraw({ channel: "phone", initialId: "cv-k7" });
-    assert.ok(!phone(tree).includes("phone-detail"));
+    assert.ok(!phone(tree));
   } finally {
     globalThis.matchMedia = wasMedia;
     globalThis.window.location.hash = "#/conversations";

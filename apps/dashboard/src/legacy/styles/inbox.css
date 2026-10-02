@@ -2811,21 +2811,8 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   :where([data-look="glass"]) .inbox:has(> [data-testid="inbox-empty"]) .ix-threads {
     display: none;
   }
-  /* The page's head (the one header a page holds) stands over the list alone: a phone's thread is headed by its own
-     person. The tab bar and Ask's circle leave with it (ask.css hides the circle), and the room kept for them. */
-  :where([data-look="glass"])
-    .main:has(> .main-scroll > :is(.inbox.phone-thread, .conversations.phone-detail))
-    .pg-slot {
-    display: none;
-  }
-  :where([data-look="glass"])
-    .app-root:has(:is(.inbox.phone-thread, .conversations.phone-detail))
-    [data-testid="phone-tabs"] {
-    display: none;
-  }
-  :where([data-look="glass"]) .main-scroll:has(> :is(.inbox.phone-thread, .conversations.phone-detail)) {
-    padding-bottom: 0;
-  }
+  /* The page's head stands over the list alone, and a phone's thread is headed by its own person: the frame lets go of
+     its chrome for a page marked data-takeover (mobile.css, "A page that takes the screen over"). */
   :where([data-look="glass"]) .inbox,
   :where([data-look="glass"]) .inbox .ix-list,
   :where([data-look="glass"]) .inbox .ix-thread-pane {
@@ -2836,7 +2823,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
      that one): small text tabs at the page's gutter, the picked one in ink with a 2px bar under it, 4px under the strip,
      and only a bucket that needs you says its count. The label is centred in its tab (the desk's baseline alignment left
      it 5px above the middle); a tab is 34px tall with an invisible margin to the 44px a thumb needs. */
-  :where([data-look="glass"]) .main:has(> .main-scroll > .inbox:not(.phone-thread)) .pg-slot {
+  :where([data-look="glass"]) .main:has(> .main-scroll > .inbox:not([data-takeover])) .pg-slot {
     padding-bottom: 4px;
   }
   :where([data-look="glass"]) .inbox .ix-list > .ix-buckets {
@@ -2920,7 +2907,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
      says so), and Actions as a labelled inset capsule with its chevron, since three dots said nothing of what they
      held. It carries no backdrop-filter: nothing scrolls under it, and a filter made it the containing block of the
      menu's sheet, which then opened off the top of the screen instead of from the bottom. */
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .ix-thread-pane > .ix-th-head {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-thread-pane > .ix-th-head {
     position: relative;
     gap: 6px;
     margin: 10px 8px 0;
@@ -2932,7 +2919,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     box-shadow: var(--surface-control-depth);
   }
   :where([data-look="glass"])
-    :is(.inbox.phone-thread, .conversations.phone-detail)
+    :is(.inbox, .conversations)[data-takeover]
     .ix-thread-pane
     > .ix-th-head::after {
     content: "";
@@ -2946,7 +2933,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
       linear-gradient(#000 0 0);
     pointer-events: none;
   }
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .ix-thread-pane .ix-back {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-thread-pane .ix-back {
     width: 34px;
     min-width: 34px;
     height: 36px;
@@ -2961,17 +2948,17 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     color: var(--ink-muted);
   }
   /* Who it is: the face at 36 and two lines at its height, the name over its wire. */
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .ix-th-who {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-who {
     gap: 10px;
   }
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .ix-th-name {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-name {
     line-height: 1.2;
   }
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .ix-th-meta {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-meta {
     margin-top: 0;
     line-height: 1.2;
   }
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .ix-th-actions .ix-th-more {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-actions .ix-th-more {
     position: relative;
     gap: 5px;
     width: auto;
@@ -2989,53 +2976,53 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     color: var(--ink);
   }
   /* A thumb's 44px, as an invisible margin round the 34px capsule. */
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .ix-th-actions .ix-th-more::before {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-actions .ix-th-more::before {
     content: "";
     position: absolute;
     inset: -5px -4px;
   }
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .ix-th-actions .ix-th-more > .icon {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-actions .ix-th-more > .icon {
     color: var(--ink-dim);
   }
   /* Under the capsule the standing on the page itself, no hairline; the conversation at the phone's sides, the
      bubbles at the phone's 88%; the band and the reply box at the phone's padding. */
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .ix-th-bar {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-bar {
     padding: 10px 16px;
     border-bottom: 0;
   }
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .ix-th-scroll {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-scroll {
     gap: 10px;
     padding: 4px 14px 12px;
   }
   :where([data-look="glass"])
-    :is(.inbox.phone-thread, .conversations.phone-detail)
+    :is(.inbox, .conversations)[data-takeover]
     .ix-thread-pane
     .tl-msg-bubble
     > :not(.tl-msg-meta, .tl-msg-by) {
     max-width: 88%;
   }
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .ix-th-status {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-status {
     padding: 14px 16px 0;
   }
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .ix-composer {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-composer {
     padding: 10px 12px 14px;
   }
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .ix-composer.ix-composer-row {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-composer.ix-composer-row {
     margin: 0 12px 14px;
   }
   :where([data-look="glass"])
-    :is(.inbox.phone-thread, .conversations.phone-detail)
+    :is(.inbox, .conversations)[data-takeover]
     .ix-th-status
     + .ix-composer.ix-composer-row {
     margin-top: 10px;
   }
   /* A message that never reached them: the bubble itself is the dashed, dimmed one, not a dashed box round the bubble
      and its two lines of meta (conversations.css draws that one, for a desk). */
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .tl-msg.undelivered .tl-msg-bubble {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .tl-msg.undelivered .tl-msg-bubble {
     border: 0;
     opacity: 1;
   }
-  :where([data-look="glass"]) :is(.inbox.phone-thread, .conversations.phone-detail) .tl-msg.undelivered .tl-msg-body {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .tl-msg.undelivered .tl-msg-body {
     border: 1px dashed var(--line-strong);
     background: transparent;
     opacity: 0.7;

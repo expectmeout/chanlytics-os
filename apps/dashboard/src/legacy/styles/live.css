@@ -689,33 +689,21 @@ a.lm-head-door:active { opacity: 0.72; }
      under it a bar with who has the call and what can be done (pass it, end it); the transcript anchored at the foot
      like a conversation; the whisper as a capsule composer, the mic when nothing is typed and the arrow once there are
      words, as Ask's field has it. */
-  :where([data-look="glass"]) .live-monitor:not([data-detail]) > .lm-body[data-live] > .lm-panel,
+  :where([data-look="glass"]) .live-monitor:not([data-takeover]) > .lm-body[data-live] > .lm-panel,
   :where([data-look="glass"]) .live-monitor > .lm-body[data-idle] > .lm-panel {
     display: none;
   }
-  :where([data-look="glass"]) .main:has(> .main-scroll > .live-monitor[data-detail]) .pg-slot {
-    display: none;
-  }
-  :where([data-look="glass"]) .app-root:has(.live-monitor[data-detail]) [data-testid="phone-tabs"] {
-    display: none;
-  }
-  :where([data-look="glass"]) .main:has(.live-monitor[data-detail]) .stabs {
-    display: none;
-  }
-  :where([data-look="glass"]) .main-scroll:has(> .live-monitor[data-detail]) {
-    padding-bottom: 0;
-  }
-  :where([data-look="glass"]) .main-scroll > .live-monitor[data-detail] {
+  :where([data-look="glass"]) .main-scroll > .live-monitor[data-takeover] {
     padding: 0;
   }
-  :where([data-look="glass"]) .live-monitor[data-detail] > .lm-body {
+  :where([data-look="glass"]) .live-monitor[data-takeover] > .lm-body {
     grid-template-rows: minmax(0, 1fr);
     gap: 0;
   }
-  :where([data-look="glass"]) .live-monitor[data-detail] > .lm-body > .lm-list {
+  :where([data-look="glass"]) .live-monitor[data-takeover] > .lm-body > .lm-list {
     display: none;
   }
-  :where([data-look="glass"]) .live-monitor[data-detail] > .lm-body > .lm-panel {
+  :where([data-look="glass"]) .live-monitor[data-takeover] > .lm-body > .lm-panel {
     align-self: stretch;
     max-height: none;
     border-radius: 0;
@@ -728,7 +716,7 @@ a.lm-head-door:active { opacity: 0.72; }
   /* The head is one 52px pill of the control layer's glass, 8px from the sides, as the thread's is: the arrow, the face,
      the name over the number, and the call's clock. The state pill and the start time leave: the clock's dot says it is
      live, and the clock says how long. */
-  :where([data-look="glass"]) .live-monitor[data-detail] .lm-head {
+  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head {
     position: relative;
     flex-wrap: nowrap;
     align-items: center;
@@ -740,7 +728,7 @@ a.lm-head-door:active { opacity: 0.72; }
     background-image: var(--surface-control-sheen);
     box-shadow: var(--surface-control-depth);
   }
-  :where([data-look="glass"]) .live-monitor[data-detail] .lm-head::after {
+  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -752,7 +740,7 @@ a.lm-head-door:active { opacity: 0.72; }
       linear-gradient(#000 0 0);
     pointer-events: none;
   }
-  :where([data-look="glass"]) .live-monitor[data-detail] .lm-back {
+  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-back {
     order: -2;
     display: inline-flex;
     flex: none;
@@ -768,33 +756,33 @@ a.lm-head-door:active { opacity: 0.72; }
     font-size: var(--text-lg);
     color: var(--ink-muted);
   }
-  :where([data-look="glass"]) .live-monitor[data-detail] .lm-head-door {
+  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head-door {
     order: -1;
   }
-  :where([data-look="glass"]) .live-monitor[data-detail] .lm-head-titles {
+  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head-titles {
     order: 0;
     flex: 1 1 0;
     min-width: 0;
   }
-  :where([data-look="glass"]) .live-monitor[data-detail] .lm-head-name {
+  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head-name {
     flex-wrap: nowrap;
     font-size: var(--text-md);
     font-weight: var(--weight-semibold);
     line-height: 1.2;
   }
-  :where([data-look="glass"]) .live-monitor[data-detail] .lm-head-name > :last-child:not(:first-child) {
+  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head-name > :last-child:not(:first-child) {
     display: none;
   }
-  :where([data-look="glass"]) .live-monitor[data-detail] .lm-head-meta {
+  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head-meta {
     flex-wrap: nowrap;
     margin-top: 0;
     font-size: var(--text-sm);
     line-height: 1.2;
   }
-  :where([data-look="glass"]) .live-monitor[data-detail] .lm-head-meta > :is(:nth-child(-n + 2), :nth-last-child(-n + 2)) {
+  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head-meta > :is(:nth-child(-n + 2), :nth-last-child(-n + 2)) {
     display: none;
   }
-  :where([data-look="glass"]) .live-monitor[data-detail] .lm-head-clock {
+  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head-clock {
     order: 1;
     display: inline-flex;
     flex: none;
