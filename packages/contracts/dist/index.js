@@ -26473,8 +26473,17 @@ function templateUntranslatable(t) {
 }
 
 // src/templates/inbox-templates.ts
+function titleWithoutLanguage(title, code2) {
+  for (const words3 of [languageLabel(code2), languageWords(code2)]) {
+    const tail = ` (${words3})`;
+    if (title.length > tail.length && title.toLowerCase().endsWith(tail.toLowerCase())) {
+      return title.slice(0, title.length - tail.length).trimEnd();
+    }
+  }
+  return title;
+}
 function inboxTemplates(templates, to) {
-  const sendable = [];
+  const rows = [];
   let promotions = 0;
   let unfillable = 0;
   for (const t of templates) {
@@ -26486,9 +26495,22 @@ function inboxTemplates(templates, to) {
       promotions += 1;
       continue;
     }
-    const title = templateTitle(t.name, t.title);
-    sendable.push({ template: t, title, label: `${title} \xB7 ${languageWords(t.language)}` });
+    rows.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language) });
   }
+  const isDefault = (r2) => languageBase(r2.template.language) === "en";
+  const named = [...new Set(rows.map((r2) => r2.template.name))];
+  const inDefault = (name) => rows.some((r2) => r2.template.name === name && isDefault(r2));
+  const names3 = [...named.filter(inDefault), ...named.filter((name) => !inDefault(name))];
+  const ordered = names3.flatMap((name) => {
+    const own = rows.filter((r2) => r2.template.name === name);
+    return [...own.filter(isDefault), ...own.filter((r2) => !isDefault(r2))];
+  });
+  const reads = (title) => ordered.filter((r2) => r2.title === title).length;
+  const sendable = ordered.map((r2) => ({
+    template: r2.template,
+    title: r2.title,
+    label: reads(r2.title) > 1 ? `${r2.title} \xB7 ${languageWords(r2.template.language)}` : r2.title
+  }));
   const held = [
     promotions ? `${promotions} promotion${promotions === 1 ? "" : "s"} (${to.who} hasn't said yes to offers)` : "",
     unfillable ? `${unfillable} that ${unfillable === 1 ? "needs" : "need"} words the Inbox doesn't ask for` : ""

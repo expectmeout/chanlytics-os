@@ -23669,6 +23669,13 @@ interface InboxTemplateLike {
  * The reply route fills a template's own slots and turns away one with words to write (slotToWrite, I6), and sends
  * a promotion only to someone who said yes to offers (core reply.ts), so the composer offered templates it would
  * refuse: a button whose only outcome was a refusal (I4). The same two judgements, asked before anything is pressed.
+ *
+ * A message is offered once, by its title: one in several languages is several rows (Meta files a name and a language),
+ * and a person choosing what to send does not choose a language -- the first of its rows is the default, the product's
+ * own (English) where it has one, a message with one comes before a message without, and the words say a language
+ * only where two entries would otherwise read alike. A
+ * title that already ends with its language ("Bienvenida (Spanish)") loses it: the row says what language it is.
+ * `hidden` is the sentence that says what was kept back, and why.
  */
 declare function inboxTemplates<T extends InboxTemplateLike>(templates: readonly T[], to: {
     who: string;

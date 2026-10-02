@@ -9,6 +9,7 @@ import { inboxTemplates } from "@chanlytics/contracts";
 import { useEffect, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
+import { Menu, type MenuGroup } from "../../kit/menu/menu";
 import { FOCUS_COMPOSER_MS, SAVED_NOTICE_MS } from "../constants";
 import { canDo, gate, tabMemory } from "../shell";
 import { inboxData } from "../store";
@@ -59,6 +60,7 @@ interface TemplateChoice {
   choice: ReturnType<typeof inboxTemplates<ApprovedTemplate>> | null;
   list: ApprovedTemplate[] | null;
   chosen: ApprovedTemplate | null;
+  chosenAt: number;
   chosenTitle: string | null;
 }
 
@@ -79,7 +81,7 @@ function templateChoice(
   const chosenAt = list && list.length ? Math.min(picked, list.length - 1) : -1;
   const chosen = list && chosenAt >= 0 ? list[chosenAt] : null;
   const chosenTitle = choice && chosenAt >= 0 ? choice.sendable[chosenAt].title : null;
-  return { choice, list, chosen, chosenTitle };
+  return { choice, list, chosen, chosenAt, chosenTitle };
 }
 
 /**
@@ -130,10 +132,32 @@ function templateGap(p: {
   return undefined;
 }
 
-/** The templates the picker lists: the ones this person can be sent, else every one approved. */
+/** The templates the menu lists: the ones this person can be sent, else every one approved. */
 function templateOptions(have: TemplateChoice): Array<{ template: ApprovedTemplate; label: string }> {
   const { choice, list } = have;
   return choice ? choice.sendable : (list || []).map((t) => ({ template: t, label: `${t.name} · ${t.language}` }));
+}
+
+/**
+ * What the chevron beside the send opens: the other messages this person can be sent, the chosen one ticked, and under
+ * them, in the menu's quiet heading, which were not offered and why -- it was a select over the button and a "Why?"
+ * after it. A person who can be sent one message is offered no menu unless something was kept back.
+ */
+function templateMenu(have: TemplateChoice, choose: (at: number) => void): MenuGroup[] {
+  const options = templateOptions(have);
+  const groups: MenuGroup[] = [];
+  if (options.length > 1) {
+    groups.push({
+      choose: {
+        value: String(have.chosenAt),
+        onChoose: (v) => choose(Number(v)),
+        tick: <Icon name="check" size={13} />,
+        options: options.map((o, at) => ({ value: String(at), label: o.label })),
+      },
+    });
+  }
+  if (have.choice && have.choice.hidden) groups.push({ header: have.choice.hidden, items: [] });
+  return groups;
 }
 
 const TemplateSendButton = ({
@@ -160,7 +184,7 @@ const TemplateSendButton = ({
   // On a seeded thread there is nothing to look up and nothing to send; keep
   // the mockup's own affordance.
   const have = templateChoice(real, templates, thread, picked);
-  const { choice, list, chosen, chosenTitle } = have;
+  const { chosen, chosenTitle } = have;
 
   const fire = () => {
     if (sending || !canDo("approve")) return;
@@ -178,22 +202,9 @@ const TemplateSendButton = ({
   const gap = templateGap({ real, quiet, thread, readTemplates, templates, have });
   if (gap !== undefined) return gap;
 
+  const more = templateMenu(have, setPicked);
   return (
-    <>
-      {list && list.length > 1 && (
-        <select
-          className="sd-input ix-tpl-pick"
-          value={picked}
-          onChange={(e) => setPicked(Number(e.target.value))}
-          aria-label="Which approved template to send"
-        >
-          {templateOptions(have).map((s, i) => (
-            <option key={s.template.id} value={i}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-      )}
+    <span className="ix-send-pair">
       <Button
         variant="primary"
         size="sm"
@@ -207,16 +218,26 @@ const TemplateSendButton = ({
         {...gate("approve")}
       >
         <Icon name="send" size={12} />{" "}
-        {sending
-          ? "Sending…"
-          : chosen && list && list.length > 1
-            ? "Send template"
-            : chosenTitle
-              ? `Send “${chosenTitle}”`
-              : "Send booking link"}
+        {sending ? "Sending…" : chosenTitle ? `Send “${chosenTitle}”` : "Send booking link"}
       </Button>
-      {choice && choice.hidden ? <IxWhy said={choice.hidden} testid="ix-tpl-hidden" /> : null}
-    </>
+      {more.length > 0 && (
+        <Menu
+          label="Messages this person can be sent"
+          trigger={
+            <Button
+              variant="quiet"
+              size="sm"
+              iconOnly
+              aria-label="Choose another message"
+              title="Choose another message"
+            >
+              <Icon name="chevron-down" size={12} />
+            </Button>
+          }
+          groups={more}
+        />
+      )}
+    </span>
   );
 };
 
