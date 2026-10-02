@@ -2763,9 +2763,44 @@ a.list-row {
 }
 
 /* ---- What pops over the page (every canvas's popover) ----
-   Opaque, as the roles say, with the look's soft shadow in place of the menu's own. */
+   An action menu is glass, as the control layer's capsules are (Ruben, 2 Oct 2026: "glassy"): its fill and sheen, its
+   blur, and its specular edge and depth in place of the menu's own shadow, so the page's light shows through it. The
+   roles fall back to a solid fill and no blur where the reader asks for less transparency. */
 :where([data-look="glass"]) .more-menu {
-  box-shadow: var(--surface-pop-depth);
+  border: 0;
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  backdrop-filter: var(--surface-control-blur);
+  box-shadow: var(--surface-control-depth);
+}
+/* An item lifts as a lozenge in the accent's soft tint, its glyph turning to the accent, under a pointer, a key or a
+   finger. A phone's hover sticks to what the finger last touched, but the menu closes on the press, so it is never
+   seen. A destructive item keeps its own tint. */
+:where([data-look="glass"]) .more-item {
+  border-radius: var(--radius-lg);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+:where([data-look="glass"]) .more-item:hover,
+:where([data-look="glass"]) .more-item:active,
+:where([data-look="glass"]) .more-item:focus-visible {
+  background: var(--accent-soft);
+}
+:where([data-look="glass"]) .more-item:hover .icon,
+:where([data-look="glass"]) .more-item:active .icon,
+:where([data-look="glass"]) .more-item:focus-visible .icon {
+  color: var(--accent);
+}
+:where([data-look="glass"]) .more-item.danger:hover,
+:where([data-look="glass"]) .more-item.danger:active,
+:where([data-look="glass"]) .more-item.danger:focus-visible {
+  background: var(--danger-soft);
+}
+:where([data-look="glass"]) .more-item.danger:hover .icon,
+:where([data-look="glass"]) .more-item.danger:active .icon,
+:where([data-look="glass"]) .more-item.danger:focus-visible .icon {
+  color: var(--danger-ink);
 }
 
 /* ---- A sheet, and the glass foot bar (campaigns3.py foot and composer, C2; deals3.py, the deal's pane, D2) ----
@@ -3003,6 +3038,58 @@ a.list-row {
   }
   .pg-dateline-time {
     display: none;
+  }
+}
+/* The name and the date as the phone boards draw them: the aurora flows through the letters. On the canvas the pools of
+   light are layers above the header's text, so they tint it (Ruben, 2 Oct 2026: "glassy"). Here the page's own light
+   (--surface-page-light, the three pools, drifting) is painted over an ink fill and clipped to the letters, fixed to the
+   screen so it lines up with the light behind them and moves through the letters as the page scrolls. The name's fill is
+   the ink a touch soft, the date's the dim ink. iOS Safari draws no fixed backgrounds, where the light would pool
+   in the letters' own box, so there the soft fill stands alone. A desk's head keeps its plain ink. */
+@media (max-width: 900px) {
+  :where([data-look="glass"]) .pg-title,
+  :where([data-look="glass"]) .pg-dateline {
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    background-attachment: fixed, scroll;
+  }
+  /* The name is the large one, so its tint is held back: a veil of its own ink over the light holds it back
+     (--title-veil: lighter in the light look, where the canvases fade the name into a slate; the date, small and dim, takes all of it). */
+  :where([data-look="glass"]) .pg-title {
+    background-image:
+      linear-gradient(
+        oklch(from var(--ink) l c h / var(--title-veil)),
+        oklch(from var(--ink) l c h / var(--title-veil))
+      ),
+      var(--surface-page-light),
+      linear-gradient(
+        oklch(from var(--ink) l c h / var(--title-fill)),
+        oklch(from var(--ink) l c h / var(--title-fill))
+      );
+    /* One entry per layer: the veil, the page light's three pools, and the fill. The first and third pools are fixed to
+       the screen, so they stand where the light behind the letters stands; the second (the near-white one) is sized to
+       the letters' own box, which is what lightens them softly across: the look Ruben chose, kept as it was. */
+    background-attachment: scroll, fixed, scroll, fixed, scroll;
+  }
+  :where([data-look="glass"]) .pg-dateline {
+    background-image: var(--surface-page-light), linear-gradient(var(--ink-dim), var(--ink-dim));
+  }
+}
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 900px) {
+    :where([data-look="glass"]) .pg-title {
+      background-image: linear-gradient(
+        oklch(from var(--ink) l c h / var(--title-fill)),
+        oklch(from var(--ink) l c h / var(--title-fill))
+      );
+      background-attachment: scroll;
+    }
+    :where([data-look="glass"]) .pg-dateline {
+      background-image: linear-gradient(var(--ink-dim), var(--ink-dim));
+      background-attachment: scroll;
+    }
   }
 }
 

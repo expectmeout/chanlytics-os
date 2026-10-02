@@ -610,6 +610,10 @@
   /* A sheet says it is one: the handle, and the thread behind it stepped back. */
   .ix-thread-pane .more-menu::before { content: ""; display: block; width: 36px; height: 4px; margin: 4px auto 12px; border-radius: var(--radius-full); background: var(--line-strong); }
   .ix-thread-pane .more-backdrop { background: rgb(0 0 0 / 0.45); backdrop-filter: blur(2px); }
+  /* In Glass the sheet is glass over the thread itself, so there is no wash and no blur behind it: the backdrop is only
+     the layer a tap outside closes it through (as the bell's sheet is). It is childless, so blur(0) is no containing
+     block here, and keeps a see-through viewport-sized fixed box a backdrop-filter, as the note above asks. */
+  :where([data-look="glass"]) .ix-thread-pane .more-backdrop { background: transparent; backdrop-filter: blur(0); }
   .ix-thread-pane .more-item { min-height: 52px; padding: 0 12px; gap: 14px; border-radius: var(--radius-lg); font-size: 15px; }
   .ix-thread-pane .more-item .icon { width: 18px; height: 18px; }
   @keyframes more-sheet-in { from { opacity: 0; transform: translateY(28px); } }
@@ -850,7 +854,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     background: var(--selected-fill);
     box-shadow: var(--surface-inset-depth);
     font-weight: var(--weight-semibold);
-    color: var(--accent-ink);
+    color: var(--tab-ink);
   }
   :where([data-look="glass"]) [data-testid="phone-tabs"] > button > :first-child {
     position: static;

@@ -253,3 +253,129 @@
     border-bottom-color: transparent;
   }
 }
+
+/* ====================================================================
+   Glass: Conversations on a phone, drawn as the Inbox's list is (inbox.css, the phone block): the strip of views is the
+   page's one capsule, and what filters the list is a sub-menu of small text tabs under it, not a second capsule, then
+   the search, then the rows straight on the page. Reached by structure where a class carries a primitive's word
+   (`fleet-filter-chip`, `tally`, the search's wrapper), as the Inbox's buckets are.
+   ==================================================================== */
+@media (max-width: 900px) {
+  /* 4px under the strip, as the Inbox's tabs are (its slot has 16 of padding under the strip). */
+  :where([data-look="glass"]) .main:has(> .main-scroll > .conversations:not(.phone-detail)) .pg-slot {
+    padding-bottom: 4px;
+  }
+  /* The list is the page itself: the pools show through, no ground of its own. */
+  :where([data-look="glass"]) .conversations .cv-list {
+    border: 0;
+    background: transparent;
+  }
+  /* The tabs come first, as the Inbox's buckets do; the search is drawn under them. */
+  :where([data-look="glass"]) .conversations .cv-filters {
+    order: -1;
+    margin: 0 16px;
+    padding: 0;
+    border-bottom: 0;
+  }
+  :where([data-look="glass"]) .conversations .cv-filters .fleet-filter {
+    display: flex;
+    gap: 20px;
+    width: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  :where([data-look="glass"]) .conversations .cv-filters .fleet-filter > button {
+    position: relative;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 34px;
+    min-height: 0;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--ink-dim);
+  }
+  /* A thumb's 44px, as an invisible margin round the 34px tab. */
+  :where([data-look="glass"]) .conversations .cv-filters .fleet-filter > button::before {
+    content: "";
+    position: absolute;
+    inset: -5px -6px;
+  }
+  :where([data-look="glass"]) .conversations .cv-filters .fleet-filter > button::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 5px;
+    left: 0;
+    height: 2px;
+    border-radius: var(--radius-full);
+    background: transparent;
+  }
+  :where([data-look="glass"]) .conversations .cv-filters .fleet-filter > button[aria-pressed="true"] {
+    font-weight: var(--weight-semibold);
+    color: var(--ink);
+  }
+  :where([data-look="glass"]) .conversations .cv-filters .fleet-filter > button[aria-pressed="true"]::after {
+    background: var(--ink);
+  }
+  /* A tab's count is the plain figure beside its word. */
+  :where([data-look="glass"]) .conversations .cv-filters .fleet-filter > button > span {
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    color: var(--ink-dim);
+  }
+  /* The search under the tabs, 38px tall, at the strip's sides. */
+  :where([data-look="glass"]) .conversations .cv-list-head {
+    padding: 6px 12px 8px;
+  }
+  :where([data-look="glass"]) .conversations .cv-list-head > div {
+    gap: 9px;
+    height: 38px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--surface-inset-fill);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+    color: var(--ink-dim);
+  }
+  :where([data-look="glass"]) .conversations .cv-list-head > div:focus-within {
+    box-shadow:
+      var(--focus-ring),
+      var(--surface-inset-depth);
+  }
+  :where([data-look="glass"]) .conversations .cv-list-head > div > .icon {
+    width: 15px;
+    height: 15px;
+    color: var(--ink-dim);
+  }
+  :where([data-look="glass"]) .conversations .cv-list-head > div > input {
+    font-size: var(--text-base);
+  }
+  /* The rows straight on the page, no hairline between them and none marked: the open one takes the screen. */
+  :where([data-look="glass"]) .conversations .cv-rows {
+    padding: 2px 4px;
+  }
+  :where([data-look="glass"]) .conversations .cv-row {
+    border-bottom-color: transparent;
+    border-radius: var(--surface-row-radius);
+  }
+  :where([data-look="glass"]) .conversations .cv-row.active,
+  :where([data-look="glass"]) .conversations .cv-row.is-live.active {
+    background: transparent;
+    box-shadow: none;
+  }
+}

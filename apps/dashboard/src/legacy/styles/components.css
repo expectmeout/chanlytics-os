@@ -3575,21 +3575,23 @@ html.legacy-on .msg-use-link { position: relative; }
 @media (max-width: 900px) {
   :where([data-look="glass"]) .main > .topbar {
     align-items: flex-start;
-    height: 31px;
+    height: 44px;
     padding: 18px var(--gutter-page) 0;
   }
   :where([data-look="glass"]) .pg-dateline-slot {
-    top: 18px;
-    height: auto;
+    top: 10px;
+    height: 32px;
   }
   :where([data-look="glass"]) .main > .topbar .tbn-wrap {
     position: absolute;
     top: 10px;
     right: var(--gutter-page);
   }
-  /* The bell on a phone is a 32px circle on the date's line (centre to centre, 26px from the top), not the 44px one that
-     hung below it over the first pane; the 44px a thumb needs stays as an invisible margin round it. Unread is a 6px dot
-     at the shoulder. */
+  /* The bell on a phone is a 32px circle on the date's line (centre to centre, 26px from the top), inside the 44px bar
+     with 2px under it, not the 44px one that hung below the bar over the first pane; the 44px a thumb needs stays as an
+     invisible margin round it. Unread is a 6px dot at the shoulder. The name is drawn 7px up into the bar (a margin on the
+     head's slot, below): only the line box's empty top is under the scroller's edge, so it stands about ten pixels under
+     the date's letters, as the phone boards set it (date box 18px from the top, name box 2px under it). */
   :where([data-look="glass"]) .main > .topbar .tbn-wrap .tb-bell {
     width: 32px;
     min-width: 0;
@@ -3608,11 +3610,12 @@ html.legacy-on .msg-use-link { position: relative; }
     height: 6px;
   }
   :where([data-look="glass"]) .main > .topbar + :is(.live-bar, .shell-status-slot:has(> *)) {
-    margin-top: 33px;
+    margin-top: 0;
   }
   :where([data-look="glass"]) .pg-slot {
     grid-template-columns: minmax(0, 1fr);
-    padding: 2px var(--gutter-page) 16px;
+    margin-top: -7px;
+    padding: 0 var(--gutter-page) 16px;
   }
   :where([data-look="glass"]) .pg-head-slot {
     padding-right: 56px;
@@ -3621,6 +3624,7 @@ html.legacy-on .msg-use-link { position: relative; }
      like the date's text is, 8px from the top. */
   :where([data-look="glass"]) .pg-dateline-slot:has(.pg-back) {
     top: 8px;
+    height: 36px;
   }
   /* The way back (a person's page) is a 36px capsule of the control layer's glass on a phone (P-phone-person). */
   :where([data-look="glass"]) .pg-dateline-slot .pg-back {

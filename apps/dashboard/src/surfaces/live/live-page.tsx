@@ -81,12 +81,21 @@ const LiveMonitorReal = ({ initialCallId = null, sample = null }: LiveMonitorPro
   const recent = L.recent;
   const elapsedOf = (c: LiveCallVM) => Math.max(0, Math.floor((nowMs - (c.startedAtMs || nowMs)) / 1000));
   const all = [...live, ...recent];
-  // The call chosen -- by a click or a link -- or, when none was, the one on the line, else the last. A chosen call Live
-  // no longer holds is said to be gone: the panel fell to whoever was on the line, End and Pass to me with it, and
-  // nothing said the call on screen was not the one chosen.
+  // The call chosen -- by a click or a link -- or, when none was, the one on the line, else none: a call that has ended
+  // is Conversations' (the list's door opens them all), and opens here only when a link names it. A chosen call Live no
+  // longer holds is said to be gone: the panel fell to whoever was on the line, End and Pass to me with it, and nothing
+  // said the call on screen was not the one chosen.
   const chosen = activeId ? all.find((c) => c.callId === activeId) || null : null;
-  const active = activeId ? chosen : live[0] || recent[0] || null;
+  const active = activeId ? chosen : live[0] || null;
   const line = L.line;
+  // A call in progress that was picked (a row pressed, or a door that names it) is a thread of its own on a phone, as the
+  // Inbox's is: it takes the screen over the tab bar, and the arrow goes back to the calls. Nothing picked, the phone
+  // draws the calls; a desk draws both panes whatever is open (CSS, live.css).
+  const detail = !!activeId && !!active && active.live;
+  const goBack = () => {
+    setPicked(null);
+    replaceRoute("live");
+  };
   const notice =
     activeId && !chosen
       ? {
@@ -100,8 +109,12 @@ const LiveMonitorReal = ({ initialCallId = null, sample = null }: LiveMonitorPro
   // are on the line (the list's head), whether the line is on (the list, when nobody is), and the last
   // call (the panel, which opens on it when nobody is on the line).
   return (
-    <div className="live-monitor" data-testid="live-real">
-      <div className="lm-body lm-body-rows">
+    <div className="live-monitor" data-testid="live-real" data-detail={detail || undefined}>
+      <div
+        className="lm-body lm-body-rows"
+        data-live={live.length ? "true" : undefined}
+        data-idle={active ? undefined : "true"}
+      >
         <LrList
           live={live}
           line={line}
@@ -110,7 +123,13 @@ const LiveMonitorReal = ({ initialCallId = null, sample = null }: LiveMonitorPro
           elapsedOf={elapsedOf}
           onSelect={setActiveId}
         />
-        <LrPanel c={active} elapsed={active ? elapsedOf(active) : 0} nowMs={nowMs} notice={notice} />
+        <LrPanel
+          c={active}
+          elapsed={active ? elapsedOf(active) : 0}
+          nowMs={nowMs}
+          notice={notice}
+          onBack={detail ? goBack : null}
+        />
       </div>
     </div>
   );

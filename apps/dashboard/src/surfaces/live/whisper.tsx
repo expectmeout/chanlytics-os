@@ -47,15 +47,20 @@ interface TalkProps {
   stopTalking: () => void;
 }
 
-/** Hold to talk: a press starts the recogniser, letting go (or leaving the button) stops it. */
+/**
+ * Hold to talk, as Ask's field has it (S12): the microphone while nothing is typed. A press starts the recogniser,
+ * letting go (or leaving the button) stops it, and what was heard is sent. Its words are the label and the tooltip: the
+ * button is the glyph alone, coral while it listens.
+ */
 function talkButton({ listening, busy, startTalking, stopTalking }: TalkProps) {
   return (
     <button
       type="button"
-      className={`btn btn-sm lm-talk ${listening ? "on" : ""}`}
+      className={`ask-send talk lm-talk ${listening ? "on" : ""}`}
       data-testid="live-whisper-talk"
       data-own-drag
       aria-pressed={listening}
+      aria-label={listening ? "Listening… let go to send" : "Hold to talk"}
       title="Hold and say the whisper; it is sent when you let go"
       onPointerDown={startTalking}
       onPointerUp={stopTalking}
@@ -71,8 +76,44 @@ function talkButton({ listening, busy, startTalking, stopTalking }: TalkProps) {
       disabled={busy}
       {...gate("approve")}
     >
-      <Icon name="wave" size={12} /> {listening ? "Listening… let go to send" : "Hold to talk"}
+      <Icon key="mic" name="mic" size={15} />
     </button>
+  );
+}
+
+interface NoteProps {
+  last: string | null;
+  explain: boolean;
+  toggle: () => void;
+}
+
+/**
+ * Who hears the whisper, in a line; a press says what the receptionist does with it. What was last whispered stands here
+ * until the next one, as the transcript's own line says it landed.
+ */
+function whisperNote({ last, explain, toggle }: NoteProps) {
+  return (
+    <>
+      <button
+        type="button"
+        className="lm-whisper-note"
+        data-testid="live-whisper-note"
+        aria-expanded={explain}
+        onClick={toggle}
+      >
+        <Icon name="lock" size={11} />
+        <span className="lm-whisper-note-text">
+          {last ? <>Whispered: &ldquo;{last}&rdquo;</> : "Only the receptionist hears this"}
+        </span>
+        <Icon name="info" size={11} />
+      </button>
+      {explain && (
+        <div className="lm-whisper-more" data-testid="live-whisper-more">
+          It keeps your whisper in mind and works it into its answers in its own words, when it fits. It will not quote
+          a price or confirm a booking because of one, and the caller never hears you.
+        </div>
+      )}
+    </>
   );
 }
 
@@ -81,6 +122,8 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
   const [busy, setBusy] = useState(false);
   const [last, setLast] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
+  // The one-line note says who hears it; a press opens what the receptionist does with it.
+  const [explain, setExplain] = useState(false);
   const recRef = useRef<Recognition | null>(null);
   const heardRef = useRef("");
   const [toastNode, flash] = useLegacyToast();
@@ -164,15 +207,18 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
     }
   };
 
+  // One button at the field's end, as Ask's is: the microphone, held to talk, while nothing is typed; the arrow that sends
+  // once there are words; where the browser cannot listen, the arrow alone, faint until there are words.
+  const hasWords = !!text.trim();
+  const talking = listening || (!hasWords && canTalk);
   return (
     <div className="lm-whisper" data-testid="live-whisper">
-      <div className="lm-whisper-label">Whisper to the receptionist</div>
       <div className="lm-whisper-row">
         <input
           className="set-input"
           value={text}
           maxLength={500}
-          placeholder={listening ? "Listening…" : "Tell them the owner can see them at 4:30 today"}
+          placeholder={listening ? "Listening…" : "Whisper to the receptionist…"}
           aria-label="Whisper to the receptionist"
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -183,27 +229,24 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
           }}
           disabled={busy}
         />
-        {canTalk && talkButton({ listening, busy, startTalking, stopTalking })}
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={() => send()}
-          disabled={busy || listening || !text.trim()}
-          {...gate("approve")}
-        >
-          {busy ? "Sending…" : "Whisper"}
-        </button>
-      </div>
-      <div className="lm-whisper-hint">
-        {last ? (
-          <>Last whispered: &ldquo;{last}&rdquo;</>
+        {talking ? (
+          talkButton({ listening, busy, startTalking, stopTalking })
         ) : (
-          <>
-            Only the receptionist hears it. It keeps it in mind and uses it in its own words when it fits — never word
-            for word, and never against its rules: it will not quote a price or confirm a booking because you whispered
-            one. The caller never hears your words.{canTalk ? " Hold the button and say it, or type it." : ""}
-          </>
+          <button
+            type="button"
+            className="ask-send"
+            data-testid="live-whisper-send"
+            aria-label="Send whisper"
+            title="Send whisper"
+            onClick={() => send()}
+            disabled={busy || !hasWords}
+            {...gate("approve")}
+          >
+            <Icon key="arrow-up" name="arrow-up" size={15} />
+          </button>
         )}
       </div>
+      {whisperNote({ last, explain, toggle: () => setExplain((v) => !v) })}
       {toastNode}
     </div>
   );

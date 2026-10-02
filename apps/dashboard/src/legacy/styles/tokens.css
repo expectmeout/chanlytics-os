@@ -292,6 +292,8 @@
   --chip-radius: var(--radius-full);
   /* The segment that is picked. */
   --selected-fill: var(--bg-raised);
+  /* The word and glyph of the picked place in the phone's tab bar: the accent. */
+  --tab-ink: var(--accent);
 
   /* Actions: the one act a view asks for, the others beside it, and the quiet ones. */
   --primary-fill: var(--ink);
@@ -437,6 +439,11 @@
     radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), oklch(0.821 0.089 265 / 0.68), transparent),
     radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), oklch(0.98 0.013 64 / 0.95), transparent),
     radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), oklch(0.841 0.088 295 / 0.46), transparent);
+  /* How much of its own ink a phone's page name lays over the page light, which tints its letters (kit.css, the page head):
+     the light side is strong, and the canvases' name is faded by it into a slate (the pool is 68% blue there), so this
+     lets most of the tint through; the dark side's pools are faint, so it keeps more. */
+  --title-veil: 0.04;
+  --title-fill: 0.72;
 
   /* The control layer: its glass, the sheen over its top, how far it blurs, its rim, its specular edge and contour
      with the depth under it, and the sidebar's corner (a capsule's is half its height, --radius-full). */
@@ -504,6 +511,9 @@
   --control-radius-sm: var(--radius-full);
   --selected-fill: oklch(1 0 0 / 0.82);
   --selected-depth: inset 0 1px 0 oklch(1 0 0 / 0.95), 0 2px 6px -3px oklch(0 0 0 / 0.22);
+  /* The canvases' accent text on the lozenge (#B93A26): a step brighter than the accent's ink (0.45), which read as a dark
+     brown on the white lozenge. */
+  --tab-ink: oklch(0.532 0.167 31.7);
   /* The dim and faint inks on the picked segment, which is lighter than the ground it stands on: the page's own on the
      light side, where the lozenge only lifts them. */
   --selected-ink-dim: var(--ink-dim);
@@ -568,6 +578,8 @@
     radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), oklch(0.737 0.103 267 / 0.17), transparent),
     radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), oklch(0.955 0.026 55 / 0.05), transparent),
     radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), oklch(0.76 0.135 293 / 0.1), transparent);
+  --title-veil: 0.4;
+  --title-fill: 0.9;
 
   --surface-control-fill: oklch(1 0 0 / 0.085);
   --surface-control-sheen: linear-gradient(180deg, oklch(1 0 0 / 0.042), transparent 42%);
@@ -611,6 +623,9 @@
 
   --selected-fill: oklch(1 0 0 / 0.13);
   --selected-depth: inset 0 1px 0 oklch(1 0 0 / 0.2), 0 2px 6px -3px oklch(0 0 0 / 0.22);
+  /* The canvases' accent text on the lozenge (#FF8A7C): coral, a step deeper than the accent's ink (0.82), which read as a
+     pale salmon on the dark lozenge. */
+  --tab-ink: oklch(0.759 0.144 28.1);
   --selected-ink-dim: oklch(0.946 0.012 286 / 0.8);
   --selected-ink-faint: oklch(0.946 0.012 286 / 0.5);
 

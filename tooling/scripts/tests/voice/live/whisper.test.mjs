@@ -143,8 +143,8 @@ test("the page offers it only on a live call, behind the gate the server enforce
     setSurfaceValue("live", toLiveVM(calls, [], ZONE, new Date(NOW)));
     fresh();
   };
-  const sendButton = (tree) =>
-    find(byTestId(tree, "live-whisper"), (n) => n.type === "button" && textOf(n).trim() === "Whisper");
+  // The one round button at the field's end: the arrow that sends, once there are words (the mic while there are none).
+  const sendButton = (tree) => byTestId(tree, "live-whisper-send");
   const type = (tree, words) =>
     find(byTestId(tree, "live-whisper"), (n) => n.type === "input").props.onChange({ target: { value: words } });
   try {

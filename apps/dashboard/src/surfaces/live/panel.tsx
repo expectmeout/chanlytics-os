@@ -8,6 +8,7 @@ import type { LiveCallVM } from "@chanlytics/contracts";
 import { navigate, routeDoor } from "../legacy-verbs";
 import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
+import { IxAvatar } from "../inbox/thread/who";
 import { LrPill, lrClock } from "./call-parts";
 import { LrControls } from "./controls";
 import { LrWhisper } from "./whisper";
@@ -19,7 +20,9 @@ const LrTranscript = ({ c }: { c: LiveCallVM }) => {
   }, [c.callId, c.transcript.length]);
   return (
     <>
-      <div className="lm-transcript-label">Transcript · as the phone provider sends it</div>
+      <div className="lm-transcript-label" title="As the phone provider sends it">
+        Live transcript
+      </div>
       <div className="lm-scroll" ref={scrollRef}>
         <div className="ix-timeline lm-thread">
           {c.transcript.map((m, i) =>
@@ -91,64 +94,106 @@ interface HeadProps {
   c: LiveCallVM;
   elapsed: number;
   quietS: number;
+  /** A phone's way back to the calls, where a call in progress takes the screen as a thread does; none on a desk. */
+  onBack?: (() => void) | null;
 }
 
-/** Who is calling and how the call stands, with the controls of a call in progress and the door to the person. */
-function panelHead({ c, elapsed, quietS }: HeadProps) {
+/**
+ * Who is calling and how the call stands, with the door to the person; a call in progress adds its clock, and its
+ * controls stand in a bar of their own under the head, with one short line on who has the call.
+ */
+function panelHead({ c, elapsed, quietS, onBack = null }: HeadProps) {
   return (
-    <header className="lm-head">
-      <div className="lm-head-titles">
-        {/* Who is calling opens their page, and their number rings them from a phone: the words were plain text beside
-              an Open profile button, and a number read off the screen to be typed again. */}
-        <div className="lm-head-name">
-          {c.clientId ? (
-            <a
-              className="lm-head-who"
-              {...routeDoor(`clients/${c.clientId}`)}
-              title={`Open ${c.who} in People`}
-              data-testid="lm-head-person"
-            >
-              {c.who}
-            </a>
-          ) : (
-            c.who
-          )}
-          <LrPill c={c} />
-        </div>
-        <div className="lm-head-meta">
-          <span>Phone receptionist</span>
-          <span className="cv-dot" />
-          {c.number ? (
-            <a
-              className="tabular lm-head-tel"
-              href={`tel:${String(c.number).replace(/[^\d+]/g, "")}`}
-              title={`Call ${c.number}`}
-            >
-              {c.number}
-            </a>
-          ) : (
-            <span className="tabular">Caller ID withheld</span>
-          )}
-          <span className="cv-dot" />
-          <span className="tabular">
-            {c.live
-              ? `Started ${c.startedLabel} · ${lrClock(elapsed)}${quietS >= 15 ? ` · last heard ${quietS} s ago` : ""}`
-              : c.missed
-                ? `${c.startedLabel} · never connected`
-                : // The length in words: "Sep 6 · 3:10" read as a date and a time.
-                  `${c.startedLabel}${c.lengthWords ? ` · ${c.lengthWords}` : ""}`}
-          </span>
-        </div>
-      </div>
-      <div className="lm-head-actions">
-        {c.live && <LrControls c={c} />}
-        {c.clientId && (
-          <button className="btn btn-ghost btn-sm" onClick={() => navigate(`clients/${c.clientId}`)}>
-            <Icon name="users" size={12} /> Open profile
+    <>
+      <header className="lm-head">
+        {/* A phone's thread has its arrow, as the Inbox's has (CSS draws it there alone). */}
+        {onBack && (
+          <button
+            type="button"
+            className="lm-back"
+            aria-label="Back to the calls"
+            data-testid="lm-back"
+            onClick={onBack}
+          >
+            <span aria-hidden="true">&larr;</span>
           </button>
         )}
-      </div>
-    </header>
+        <div className="lm-head-titles">
+          {/* Who is calling opens their page, and their number rings them from a phone: the words were plain text beside
+              an Open profile button, and a number read off the screen to be typed again. */}
+          <div className="lm-head-name">
+            {c.clientId ? (
+              <a
+                className="lm-head-who"
+                {...routeDoor(`clients/${c.clientId}`)}
+                title={`Open ${c.who} in People`}
+                data-testid="lm-head-person"
+              >
+                {c.who}
+              </a>
+            ) : (
+              c.who
+            )}
+            <LrPill c={c} />
+          </div>
+          <div className="lm-head-meta">
+            <span>Phone receptionist</span>
+            <span className="cv-dot" />
+            {c.number ? (
+              <a
+                className="tabular lm-head-tel"
+                href={`tel:${String(c.number).replace(/[^\d+]/g, "")}`}
+                title={`Call ${c.number}`}
+              >
+                {c.number}
+              </a>
+            ) : (
+              <span className="tabular">Caller ID withheld</span>
+            )}
+            <span className="cv-dot" />
+            <span className="tabular">
+              {c.live
+                ? `Started ${c.startedLabel} · ${lrClock(elapsed)}${quietS >= 15 ? ` · last heard ${quietS} s ago` : ""}`
+                : c.missed
+                  ? `${c.startedLabel} · never connected`
+                  : // The length in words: "Sep 6 · 3:10" read as a date and a time.
+                    `${c.startedLabel}${c.lengthWords ? ` · ${c.lengthWords}` : ""}`}
+            </span>
+          </div>
+        </div>
+        {/* The caller's face, the one a thread's header wears (IxAvatar): where they have a page it is the door to it, and
+          a photo of them or their company's logo goes here once members can add one. */}
+        {c.clientId ? (
+          <a
+            className="lm-head-avatar"
+            {...routeDoor(`clients/${c.clientId}`)}
+            title={`Open ${c.who} in People`}
+            aria-label={`Open ${c.who}'s profile`}
+            data-testid="lm-head-avatar"
+          >
+            <IxAvatar initials={c.initials} />
+          </a>
+        ) : (
+          <IxAvatar initials={c.initials} className="lm-head-avatar" />
+        )}
+        {/* The clock a thread's header gives its standing: the live dot and the call's length, running. */}
+        {c.live && (
+          <span className="lm-head-clock tabular" aria-hidden="true" data-testid="lm-head-clock">
+            <span className="live-dot" />
+            {lrClock(elapsed)}
+          </span>
+        )}
+      </header>
+      {c.live && (
+        <div className="lm-head-actions">
+          <span className="lm-live-note" title="The receptionist is handling this call on its own.">
+            <span className="live-dot" aria-hidden="true" />
+            {quietS >= 15 ? `Last heard ${quietS} s ago` : "Handling it"}
+          </span>
+          <LrControls c={c} />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -202,15 +247,15 @@ function panelSummary({ c, open }: SummaryProps) {
 
 /** The panel's foot: who is on the call, and what is being done about it. */
 function panelFoot({ c, open }: SummaryProps) {
+  // A call in progress says who has it in the bar under the head; the foot is for the one that is over.
+  if (c.live) return null;
   return (
-    <footer className="lm-controls">
+    <footer className={`lm-controls${c.stale ? "" : " is-over"}`}>
       <span className="lm-controls-who tabular">
         {c.number || "Caller ID withheld"} &nbsp;&amp;&nbsp; Phone receptionist
       </span>
       <span className="lm-ended-chip">
-        {c.live ? (
-          "The receptionist is handling this call on its own."
-        ) : c.missed ? (
+        {c.missed ? (
           "Nothing to review."
         ) : c.stale ? (
           "Marked live by the phone provider, but silent — it is checked within five minutes."
@@ -232,11 +277,13 @@ interface LrPanelProps {
   elapsed: number;
   nowMs?: number;
   notice?: Notice | null;
+  /** The way back to the calls on a phone, where a live call is a thread of its own. */
+  onBack?: (() => void) | null;
 }
 
-export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null }: LrPanelProps) => {
+export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null, onBack = null }: LrPanelProps) => {
   if (!c) {
-    // A chosen call that is gone is the panel's whole news; "no calls on this line yet" beside it would be false.
+    // A chosen call that is gone is the panel's whole news; "nothing on the line" beside it would say less than is true.
     return (
       <div className="lm-panel">
         {notice ? (
@@ -245,8 +292,8 @@ export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null }: LrPan
           <EmptyState
             kind="card"
             glyph="phone"
-            title="No calls on this line yet"
-            body="When a customer calls, the call appears here while it is happening."
+            title="Nothing on the line"
+            body="When a customer calls, you can follow the call here while it is happening."
           />
         )}
       </div>
@@ -258,7 +305,7 @@ export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null }: LrPan
   return (
     <div className="lm-panel" key={c.callId}>
       {notice && <LrMissing notice={notice} />}
-      {panelHead({ c, elapsed, quietS })}
+      {panelHead({ c, elapsed, quietS, onBack })}
 
       {c.live && c.checking && (
         <div className="lm-banner" data-testid="live-checking">
@@ -274,8 +321,8 @@ export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null }: LrPan
           <div className="lm-waiting">
             <Icon name="phone" size={16} />
             <div>
-              The receptionist is on the line with {c.whoShort}. It opens with the greeting; the phone provider sends
-              the words after the first exchange, and they appear here turn by turn.
+              On the line with {c.whoShort}, opening with the greeting. The words appear here turn by turn after the
+              first exchange.
             </div>
           </div>
         )

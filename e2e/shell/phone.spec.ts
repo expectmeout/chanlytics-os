@@ -260,15 +260,15 @@ test.describe("Phone shell on a real workspace", () => {
   /**
    * Live's call panel head wraps before it squeezes. Its titles were `flex: 1` beside controls that would
    * not shrink, so on a phone the name had ~90px and the meta line's number and start time fell into
-   * columns one word wide. With nobody on the line the panel still opens on the last call, so the head is
-   * there whenever the workspace has had a call at all. Read-only: nothing here is pressed.
+   * columns one word wide. The head is there only with a call open (one on the line, or one a link names), so a
+   * workspace with nobody on the line skips it. Read-only: nothing here is pressed.
    */
   test("Live: the call panel's head gives the name the width, and each fact stays on one line", async ({ page }) => {
     await page.goto("/#/live");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("live-real")).toBeVisible();
     const head = page.locator(".lm-head").first();
-    test.skip((await head.count()) === 0, "no call on this workspace yet: no panel head to measure");
+    test.skip((await head.count()) === 0, "nobody is on the line: no panel head to measure");
     const width = page.viewportSize()?.width ?? 390;
     const titles = await page.locator(".lm-head-titles").first().boundingBox();
     expect(titles && titles.width >= Math.min(260, width - 40), `the name and its facts had ${titles?.width}px`).toBe(
@@ -632,7 +632,8 @@ test.describe("Phone shell on a real workspace", () => {
       await page.goto(`/#/${hash}`);
       await page.waitForLoadState("networkidle");
       const box = page.locator(sel).first();
-      if ((await box.count()) === 0) continue; // a surface this workspace (or the local harness) does not draw
+      // A surface this workspace (or the local harness) does not draw, or a pane a phone leaves out while nothing is open.
+      if ((await box.count()) === 0 || !(await box.isVisible())) continue;
       pulls[`${hash} ${sel}`] = await box.evaluate((el) => {
         const oy = getComputedStyle(el).overflowY;
         return (oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight;
