@@ -53,6 +53,17 @@ export type { VoiceAction };
 
 const agentLanguage = (language: AskLanguage): "en" | "es" => (language === "es" ? "es" : "en");
 
+/**
+ * The client's audio worklets, served from this origin (apps/dashboard/public/voice, written by
+ * tooling/scripts/voice/vendor-worklets.mjs from the installed client): without these paths the client loads them from
+ * a blob: URL, which the dashboard's script-src refuses, its audio setup fails and the connection goes down a second
+ * after it is up (Chrome, 3 Oct 2026). The vendored files are held equal to the client's by voice-worklets.test.mjs.
+ */
+const WORKLET_PATHS = {
+  rawAudioProcessor: "/voice/raw-audio-processor.js",
+  audioConcatProcessor: "/voice/audio-concat-processor.js",
+};
+
 export function installVoice(win: Window, deps: VoiceDeps) {
   const load = deps.load ?? (() => import("@elevenlabs/client"));
   let conv: Conversation | null = null;
@@ -159,6 +170,7 @@ export function installVoice(win: Window, deps: VoiceDeps) {
           connectionType: "webrtc",
           customLlmExtraBody: { chanlytics_session: started.session },
           userId: started.session,
+          workletPaths: WORKLET_PATHS,
           overrides: { agent: { language, ...(input.first ? { firstMessage: input.first } : {}) } },
           ...callbacks,
         });

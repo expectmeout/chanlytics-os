@@ -96,6 +96,8 @@ const VOICE_LINES = {
   },
   /** The door's first words when the model is slow, spoken as a read's label is, so the chat draws them as a trace. */
   moment: { en: "One moment", es: "Un momento" },
+  /** The vendor's silence prompt (a transcript of "..." after turn_timeout): the agent says it is here, and no turn runs. */
+  silence: { en: "I'm here.", es: "Aquí estoy." },
 } as const;
 type Line = keyof typeof VOICE_LINES;
 const lineOf = (line: Line, language: AskLanguage): string => VOICE_LINES[line][language === "es" ? "es" : "en"];
@@ -442,6 +444,9 @@ async function answerAgent(req: Request, deps: VoiceDoorDeps): Promise<Response>
   }
   const text = lastUserText(body?.messages);
   if (!text) return spoken(lineOf("missed", knock.language));
+  // Silence: after turn_timeout the vendor asks the model with "..." (seen 3 Oct, Chrome), and a transcript with no
+  // word in it is the same. The agent says it is here; no turn is run and nothing is stored.
+  if (!/[\p{L}\p{N}]/u.test(text)) return spoken(lineOf("silence", knock.language));
   // More than a turn takes: the typed route's 400 (ASK_MAX_CHARS), spoken; the vendor retries an empty stream.
   if (text.length > ASK_MAX_CHARS) {
     log.warn("ask_voice_door_refused", { tenant_id: knock.row.tenant_id, why: "long" });

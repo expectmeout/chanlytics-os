@@ -219,6 +219,18 @@ test("no user message speaks a refusal, never a 400, and nothing is stored; a sp
   assert.equal(w.tables.ask_messages.length, 0);
 });
 
+test("silence (the vendor's \"...\" after turn_timeout, or a transcript with no word in it) hears that the agent is here, in the person's language; no turn runs and nothing is stored", async () => {
+  const w = await world({ session: { language: "es" } });
+  const asked = model();
+  for (const content of ["...", "…", " . , ! "]) {
+    assert.deepEqual(spoken(await frames(await knock(w, body(w.S, { messages: [{ role: "user", content }] })))), [
+      "Aquí estoy.",
+    ]);
+  }
+  assert.deepEqual(asked, [], "the model was not asked");
+  assert.equal(w.tables.ask_messages.length, 0);
+});
+
 test("a good request: the vendor's body as the sources quote it is accepted, the turn runs as the member, the Say streams as chat-completion chunks then a stop then [DONE], the thread holds the question and the answer with the spoken shape, and the voice thread takes the question as its title", async () => {
   const w = await world();
   const asked = model();

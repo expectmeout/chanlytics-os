@@ -281,6 +281,14 @@ as `speech` does:
 | `onModeChange`, `onStatusChange` | `useArMood` gains the SDK's `mode` beside `speech.speakingId`. |
 | `onError`, `onDisconnect`, a failed `startSession` | Back to the typed Line, in silence; the toast only where the person did something (`flash`, once); `ask_voice_refused` logged with the reason, whether it came at the mint or at the connection (sources §9 leave that unstated). As built (3 Oct): where the person asked for words read, Today's Listen and an answer's Read aloud, an agent that could not start hands the same words to the device's own voice instead, quietly; only a device with no voice of its own sees the refusal's words. |
 
+**The client's worklets (as built, 3 Oct).** In WebRTC mode the client still loads an AudioWorklet for its output
+analysis, from a blob: URL and then a data: URL, which the dashboard's script-src refuses; the audio setup then fails
+and the connection goes down a second after it is up (seen in Chrome). The two worklet sources are served from the
+dashboard's own origin (`apps/dashboard/public/voice/`, written from the installed client by
+`tooling/scripts/voice/vendor-worklets.mjs`, held equal by `voice-worklets.test.mjs`) and the voice module hands the
+client their paths (`workletPaths`), so script-src stays as it is. Silence: after `turn_timeout` the vendor asks the
+model with "..."; the door answers "I'm here." and runs no turn.
+
 **Entering and leaving.** The mic's tap starts a voice conversation (a hold stays today's push-to-talk where the SDK
 cannot run; as built, where Ask can talk a press waits the tap's beat, 300 ms, before it dictates, so a tap never
 touches the recogniser and a finger still down when the beat ends is the hold); Today's Listen starts one and sends "Brief me on today" through `sendUserMessage` once connected, which
