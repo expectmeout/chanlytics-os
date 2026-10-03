@@ -29,9 +29,11 @@ import "server-only";
 import {
   getPlatformPartners,
   markPartnerPaid,
+  markWaitlistInvited,
   setPartnerStanding,
   recordPartnerSecondFactorReset,
   setPartnerStatus,
+  waitlistWaiting,
   type PartnerPayoutAnswer,
 } from "@chanlytics/db";
 import { recordEvent, type Database } from "@chanlytics/db";
@@ -162,12 +164,7 @@ export async function platformHealth(office: BackOffice, now = new Date()): Prom
  * queue must never give by accident.
  */
 export async function platformWaitlist(office: BackOffice, limit = QUEUE_SHOWN): Promise<PlatformQueue> {
-  const { data, error, count } = await office.db
-    .from("waitlist")
-    .select("id, email, business, source, created_at", { count: "exact" })
-    .is("invited_at", null)
-    .order("created_at", { ascending: true })
-    .limit(limit);
+  const { data, error, count } = await waitlistWaiting(office.db, limit);
   if (error) {
     log.error("platform_waitlist_unreadable", { error: error.message });
     return { waiting: null, total: null };
@@ -188,12 +185,7 @@ export async function platformWaitlistInvited(
   ctx: RouteContext,
   id: string,
 ): Promise<"marked" | "already"> {
-  const { data, error } = await office.db
-    .from("waitlist")
-    .update({ invited_at: new Date().toISOString(), invited_by: ctx.userId })
-    .eq("id", id)
-    .is("invited_at", null)
-    .select("id");
+  const { data, error } = await markWaitlistInvited(office.db, id, ctx.userId, new Date().toISOString());
   if (error)
     throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
   return data && data.length > 0 ? "marked" : "already";
