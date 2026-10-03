@@ -1,6 +1,6 @@
 import "server-only";
 import { timingSafeEqual } from "node:crypto";
-import { createClient } from "@supabase/supabase-js";
+import { addToWaitlist, refreshWaitlistRow, signUpOnPublicKey } from "@chanlytics/db";
 import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type SignupInput } from "@chanlytics/contracts";
 
 /**
@@ -12,6 +12,11 @@ import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type Sig
  * caller says the same sentence either way. The service role serves two other things here: `joinWaitlist` (the
  * waitlist table, which has no workspace), and `notifyPlatformSignup`, which tells the platform's mailbox, through
  * the edge, that a workspace was made.
+ *
+ * WHAT IS DECIDED HERE, AND WHAT IS NOT. This file holds the rules: what rides on the new user, the sentence that
+ * goes back for an address we already have, the invite code, what a repeat on the waitlist is. The calls themselves
+ * are packages/db's: Supabase is this platform's own identity store and database, so its auth API (auth.ts) and the
+ * waitlist table (waitlist.ts) are spoken from there, and no table name or Supabase client is built in this file.
  *
  * THE WORKSPACE WAITS FOR ITS OWNER. This used to make it here, with the
  * service role, for an address nobody had proved: a stranger typing someone
@@ -83,18 +88,16 @@ export function inviteCodeMatches(given: string | undefined | null): boolean {
  * cheerfully reports a code on its way.
  */
 export async function signUp(input: SignupInput & { password: string }): Promise<SignupOutcome> {
-  const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  });
-  const { data, error } = await anon.auth.signUp({
-    email: input.email,
-    password: input.password,
-    // user_metadata, the same key the create screen reads. A prefilled form,
-    // never a permission: nothing downstream treats it as one. With the
-    // invite code the route checked, so the first workspace needs nothing
-    // typed twice -- the create route checks it again (pendingCodeOf).
-    options: {
-      data: {
+  const { data, error } = await signUpOnPublicKey(
+    { url: env.NEXT_PUBLIC_SUPABASE_URL, anonKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY },
+    {
+      email: input.email,
+      password: input.password,
+      // user_metadata, the same key the create screen reads. A prefilled form,
+      // never a permission: nothing downstream treats it as one. With the
+      // invite code the route checked, so the first workspace needs nothing
+      // typed twice -- the create route checks it again (pendingCodeOf).
+      userData: {
         [PENDING_WORKSPACE_KEY]: {
           name: input.name,
           timezone: input.timezone ?? null,
@@ -102,7 +105,7 @@ export async function signUp(input: SignupInput & { password: string }): Promise
         },
       },
     },
-  });
+  );
   if (error) {
     // AN ADDRESS WE ALREADY HAVE, answered exactly as a new one is: nothing
     // created, nothing sent, and the same sentence back. The platform will
@@ -153,13 +156,13 @@ export async function joinWaitlist(input: { email: string; name?: string; source
   // repeat below to find itself with an ordinary equality.
   const email = input.email.trim().toLowerCase();
   const said = { business: input.name ?? null, source: input.source ?? null };
-  const { error } = await db.from("waitlist").insert({ email, ...said });
+  const { error } = await addToWaitlist(db, { email, ...said });
   if (!error) return;
   if (error.code !== "23505") throw new Error(`waitlist: ${error.message}`);
   // They asked twice, which is not a failure they should ever see. Their place
   // in the queue is left alone and only what they told us moves; a row already
   // invited is left entirely alone, because a repeat is not a re-join.
-  const { error: again } = await db.from("waitlist").update(said).eq("email", email).is("invited_at", null);
+  const { error: again } = await refreshWaitlistRow(db, email, said);
   // Best effort, and deliberately not fatal: the durable half -- that they are
   // on the list -- is already true, and telling them otherwise would be the
   // second lie this function has told.

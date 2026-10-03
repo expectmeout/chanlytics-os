@@ -3499,8 +3499,34 @@ async function migrationHead(db) {
   return { head: row?.head ?? null, applied: row?.applied ?? 0 };
 }
 
-// src/service-client.ts
+// src/auth.ts
 import { createClient } from "@supabase/supabase-js";
+async function signUpOnPublicKey(cfg, args) {
+  if (!cfg.url || !cfg.anonKey) {
+    throw new Error("public_client_unconfigured: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  }
+  const anon = createClient(cfg.url, cfg.anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  });
+  return anon.auth.signUp({ email: args.email, password: args.password, options: { data: args.userData } });
+}
+
+// src/waitlist.ts
+async function addToWaitlist(db, row) {
+  return db.from("waitlist").insert(row);
+}
+async function refreshWaitlistRow(db, email, said) {
+  return db.from("waitlist").update(said).eq("email", email).is("invited_at", null);
+}
+async function waitlistWaiting(db, limit) {
+  return db.from("waitlist").select("id, email, business, source, created_at", { count: "exact" }).is("invited_at", null).order("created_at", { ascending: true }).limit(limit);
+}
+async function markWaitlistInvited(db, id, by, at) {
+  return db.from("waitlist").update({ invited_at: at, invited_by: by }).eq("id", id).is("invited_at", null).select("id");
+}
+
+// src/service-client.ts
+import { createClient as createClient2 } from "@supabase/supabase-js";
 var SERVICE_FETCH_TIMEOUT_MS = 4e4;
 function boundedFetch(ms, base) {
   return async (input, init) => {
@@ -3518,7 +3544,7 @@ function boundedFetch(ms, base) {
   };
 }
 function createServiceClient(cfg) {
-  return createClient(cfg.url, cfg.serviceRoleKey, {
+  return createClient2(cfg.url, cfg.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { fetch: boundedFetch(cfg.fetchTimeoutMs ?? SERVICE_FETCH_TIMEOUT_MS, namedFetch(cfg.fetch)) }
   });
@@ -6143,6 +6169,7 @@ export {
   acceptPartnerInvite,
   activityTokensOf,
   addToList,
+  addToWaitlist,
   addressesSuppressed,
   aiFailuresHour,
   answeredReachOutEmail,
@@ -6236,6 +6263,7 @@ export {
   markProcessed,
   markReplyDraft,
   markReplyTold,
+  markWaitlistInvited,
   membershipCountOf,
   messageSenders,
   migrationHead,
@@ -6289,6 +6317,7 @@ export {
   recordPartnerSecondFactorReset,
   recordProviderDomain,
   recordStatusByExternalId,
+  refreshWaitlistRow,
   releaseControl,
   releaseIdempotencyKey,
   releaseUnavailableHolds,
@@ -6328,6 +6357,7 @@ export {
   setPersonReplyMode,
   setPlaybookState,
   setPolicyMode,
+  signUpOnPublicKey,
   staleSends,
   stampEmailComplaint,
   stampEmailLeftAs,
@@ -6356,6 +6386,7 @@ export {
   undoReplyReading,
   updatePlaybook,
   usageMonth,
+  waitlistWaiting,
   watchedEvents,
   watchedTables,
   withdrawEmail,
