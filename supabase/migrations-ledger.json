@@ -29,7 +29,9 @@
     "00252": "a page says how fast it was landed as 00255 (#1227)",
     "00266": "held by open PR #1337 on 29 Sep 2026; recorded when it lands",
     "00267": "the reply lanes and fairness (#1340) landed as 00281, above production's head then (00275)",
-    "00268": "a page of People reads its own people landed as 00276 (#1343), above production's head then (00275)"
+    "00268": "a page of People reads its own people landed as 00276 (#1343), above production's head then (00275)",
+    "00285": "a message has a version per channel: on branch kit/phone-threads, not yet on main (3 Oct 2026)",
+    "00286": "a yes covers the channels it was given for: on branch kit/phone-threads, not yet on main (3 Oct 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -286,6 +288,9 @@
     "00281_a_reply_goes_first_and_each_workspace_takes_its_turn.sql": "45e9a8fefeb76be5da1d9546815d86dfbf844d44dc850d198cc02ca5f6eb2966",
     "00282_a_broadcast_is_assembled_whole.sql": "26b4f5ea713483f3c502b04dc8fc88719854f25ae82fbaf49962edf32a38b300",
     "00283_the_service_role_s_statements_have_a_bound.sql": "1faddcc8898b6efdef12d3cffab38200638aae5fb35c060750d8396261fba443",
-    "00284_a_thread_is_answered_one_turn_at_a_time.sql": "566085bccfb1629b0f5607a181251e62c9dde7e05e717061b4211014740f2ff8"
+    "00284_a_thread_is_answered_one_turn_at_a_time.sql": "566085bccfb1629b0f5607a181251e62c9dde7e05e717061b4211014740f2ff8",
+    "00287_a_voice_conversation_keeps_its_member.sql": "4e1bc1919051c933d5e2c3213c5c4eb2f5b88cb523746a2ce8f543ded7c3eb72",
+    "00288_expired_voice_sessions_are_swept.sql": "9ed5f3c6c8c3afde975cdba6e750f117f1c42fa6300c8309e8063a3c494d870f",
+    "00289_a_voice_session_names_its_own_workspace_s_thread.sql": "c6469702ad200b5f884cc04e77ee5a123d40a3229ad578c51fb90b1e36daf638"
   }
 }

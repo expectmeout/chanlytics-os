@@ -338,7 +338,20 @@ export interface TurnFacts {
    * or named without a read. A page's rows can be cut by its caps, or its build fail, and the words can point past them.
    */
   focusRead?: boolean;
+  /**
+   * The person is listening, not reading (the voice door, spec 2026-10-03 §3.4): SPOKEN_LINE is said last, after the
+   * language, so the say is written for the ear and the figures still go to show.
+   */
+  spoken?: boolean;
 }
+
+/**
+ * The spoken register, one line in the turn's words (spec 2026-10-03 §3.4, verbatim): the agent starts speaking at
+ * the first comma, so the opening clause is short and punctuated; the normaliser reads digits, so a time or a count
+ * stays as the page shows it; an id, a route, a symbol or a tag would be read aloud as nonsense.
+ */
+const SPOKEN_LINE =
+  "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol or a bracketed tag. Every figure and row goes in show, where the screen draws it.";
 
 /**
  * This turn's words, in the user's message after the page's data and before
@@ -396,6 +409,7 @@ export function turnWords(t: TurnFacts): string {
     lines.push(`Their words point at ${f.label} (${f.kind} ${f.id}): ${then}.`);
   if (t.language === "es") lines.push("They wrote in Spanish; answer in Spanish.");
   else if (t.language === "en") lines.push("They wrote in English; answer in English.");
+  if (t.spoken) lines.push(SPOKEN_LINE);
   return lines.join("\n");
 }
 

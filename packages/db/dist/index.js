@@ -1294,6 +1294,7 @@ var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
 function isDealStage(s) {
   return typeof s === "string" && DEAL_STAGES.includes(s);
 }
+var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var AskProposalOutcomeSchema = z11.object({
   state: z11.enum(["done", "dismissed", "failed", "undone"]),
@@ -2610,6 +2611,8 @@ var RETENTION_DAYS = {
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
@@ -5241,6 +5244,39 @@ async function messageSenders(db, tenantId, ids) {
   return out;
 }
 
+// src/ask-voice-session.ts
+var VOICE_SESSION_COLUMNS = "id, tenant_id, user_id, thread_id, conversation_id, token_cipher, token_expires_at, surface, scope, context, language, turn_key, turn_started_at, duration_s, created_at, ended_at";
+async function insertVoiceSession(db, row) {
+  const { error } = await db.from("ask_voice_sessions").insert(row);
+  if (error) throw new Error(`ask voice session: ${error.message}`);
+}
+async function readVoiceSession(db, id) {
+  const { data, error } = await db.from("ask_voice_sessions").select(VOICE_SESSION_COLUMNS).eq("id", id).maybeSingle();
+  if (error) throw new Error(`ask voice session: ${error.message}`);
+  return data ?? null;
+}
+async function readVoiceSessionByConversation(db, conversationId) {
+  const { data, error } = await db.from("ask_voice_sessions").select(VOICE_SESSION_COLUMNS).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`ask voice session by conversation: ${error.message}`);
+  return data ?? null;
+}
+async function claimVoiceTurn(db, id, turnKey, now, staleMs) {
+  const stale = new Date(now.getTime() - staleMs).toISOString();
+  const { data, error } = await db.from("ask_voice_sessions").update({ turn_key: turnKey, turn_started_at: now.toISOString() }).eq("id", id).or(`turn_key.is.null,turn_key.neq.${turnKey},turn_started_at.lt.${stale}`).select("id");
+  if (error) throw new Error(`ask voice session claim: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function endVoiceSession(db, id, fields) {
+  const { data, error } = await db.from("ask_voice_sessions").update({ ended_at: fields.endedAt, ...fields.durationS === void 0 ? {} : { duration_s: fields.durationS } }).eq("id", id).select("id");
+  if (error) throw new Error(`ask voice session end: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function moveVoiceSessionContext(db, id, fields) {
+  const { data, error } = await db.from("ask_voice_sessions").update({ context: fields.context, surface: fields.surface }).eq("id", id).select("id");
+  if (error) throw new Error(`ask voice session context: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
 // src/repositories/idempotency.ts
 var HOLD_COLUMNS = "response, created_at, request_hash";
 async function claimIdempotencyKey(db, p) {
@@ -6188,6 +6224,7 @@ export {
   claimReplyTell,
   claimReplyTurn,
   claimSends,
+  claimVoiceTurn,
   closedRunSends,
   coldReceiptsOwed,
   contactEmailOf,
@@ -6214,6 +6251,7 @@ export {
   emailWordsFrom,
   emailWordsOf,
   emitEvent,
+  endVoiceSession,
   erasureDigests,
   everyoneIn,
   finishableRuns,
@@ -6242,6 +6280,7 @@ export {
   ingestInbound,
   ingestInboundEmail,
   insertQueuedEmail,
+  insertVoiceSession,
   invitePartner,
   isWorkspaceCall,
   keepIdempotencyReceipt,
@@ -6269,6 +6308,7 @@ export {
   migrationHead,
   monthSent,
   moveSend,
+  moveVoiceSessionContext,
   namedFetch,
   namesOfPeople,
   notesForReceptionist,
@@ -6303,6 +6343,8 @@ export {
   readLeadContext,
   readLeadOne,
   readThreadState,
+  readVoiceSession,
+  readVoiceSessionByConversation,
   recheckSends,
   recordActivation,
   recordCallNote,

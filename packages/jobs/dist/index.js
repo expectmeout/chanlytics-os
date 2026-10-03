@@ -1228,6 +1228,7 @@ var LeadSuggestAnswerSchema = z10.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var AskProposalOutcomeSchema = z11.object({
   state: z11.enum(["done", "dismissed", "failed", "undone"]),
@@ -2511,6 +2512,8 @@ var RETENTION_DAYS = {
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
@@ -4671,6 +4674,7 @@ var LeadSuggestAnswerSchema2 = z102.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS2 = 35 * MIN_MS2;
 var ASK_UNDO_MS2 = 10 * 6e4;
 var AskProposalOutcomeSchema2 = z112.object({
   state: z112.enum(["done", "dismissed", "failed", "undone"]),
@@ -6004,6 +6008,8 @@ var RETENTION_DAYS2 = {
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
@@ -8025,6 +8031,7 @@ var LeadSuggestAnswerSchema3 = z103.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS3 = 35 * MIN_MS3;
 var ASK_UNDO_MS3 = 10 * 6e4;
 var AskProposalOutcomeSchema3 = z113.object({
   state: z113.enum(["done", "dismissed", "failed", "undone"]),
@@ -9316,6 +9323,8 @@ var RETENTION_DAYS3 = {
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
@@ -9963,6 +9972,7 @@ var VOICE_AGENT_DEFAULTS = {
   post_call_analysis_model: RETELL_MODELS.analysis,
   allow_user_dtmf: true
 };
+var ELEVENLABS_WEBHOOK_TOLERANCE_S = 30 * 60;
 var API2 = "https://api.twilio.com/2010-04-01";
 var TRUNKING = "https://trunking.twilio.com/v1";
 var MESSAGING = "https://messaging.twilio.com/v1";
@@ -11479,6 +11489,7 @@ var LeadSuggestAnswerSchema4 = z104.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS4 = 35 * MIN_MS4;
 var ASK_UNDO_MS4 = 10 * 6e4;
 var AskProposalOutcomeSchema4 = z114.object({
   state: z114.enum(["done", "dismissed", "failed", "undone"]),
@@ -12770,6 +12781,8 @@ var RETENTION_DAYS4 = {
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
@@ -13422,6 +13435,7 @@ var VOICE_AGENT_DEFAULTS2 = {
   post_call_analysis_model: RETELL_MODELS2.analysis,
   allow_user_dtmf: true
 };
+var ELEVENLABS_WEBHOOK_TOLERANCE_S2 = 30 * 60;
 var API22 = "https://api.twilio.com/2010-04-01";
 var TRUNKING2 = "https://trunking.twilio.com/v1";
 var MESSAGING2 = "https://messaging.twilio.com/v1";
@@ -15226,6 +15240,7 @@ var LeadSuggestAnswerSchema22 = z1022.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS22 = 35 * MIN_MS22;
 var ASK_UNDO_MS22 = 10 * 6e4;
 var AskProposalOutcomeSchema22 = z1122.object({
   state: z1122.enum(["done", "dismissed", "failed", "undone"]),
@@ -16562,6 +16577,8 @@ var RETENTION_DAYS22 = {
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
@@ -18396,6 +18413,7 @@ var LeadSuggestAnswerSchema32 = z1032.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS32 = 35 * MIN_MS32;
 var ASK_UNDO_MS32 = 10 * 6e4;
 var AskProposalOutcomeSchema32 = z1132.object({
   state: z1132.enum(["done", "dismissed", "failed", "undone"]),
@@ -19680,6 +19698,8 @@ var RETENTION_DAYS32 = {
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */

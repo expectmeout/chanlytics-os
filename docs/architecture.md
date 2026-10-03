@@ -100,7 +100,7 @@ the URL trees, where a folder is a path (`apps/edge/api`, `apps/dashboard/app`,
 `apps/mobile/src/app`); `tooling/scripts/tests/repo/contracts-barrels.test.mjs`
 holds it.
 
-## The four doors
+## The five doors
 
 Every request proves who is knocking before anything is read.
 
@@ -108,6 +108,7 @@ Every request proves who is knocking before anything is read.
 2. **Browser to dashboard.** A Supabase session cookie verified with `getUser()` on every request; same origin required for every write.
 3. **Dashboard to edge.** A token minted for one door, one workspace, one person, one minute (`x-edge-token`). The dashboard proves who the person is; the edge spends the provider key. The platform's shared key (`x-diag-key`) opens only the diagnostic and the sending-domains lift of a domain held twice on an edge that holds the secret, and every key-only knock there is logged (`admin_door_key_only`).
 4. **Database to edge.** `x-cron-key` on `/api/cron/*` and `/api/jobs/tick`, read from Vault on both sides.
+5. **Provider to dashboard.** The ElevenLabs agent's custom-LLM requests to `/api/ask/voice/llm`, one per spoken turn of a voice conversation with Ask (`docs/decisions/0026-a-provider-calls-the-dashboard.md`). Two credentials, neither enough alone: the agent's static secret in its own header, compared in constant time, and the session's id the browser gave the agent at the start, found as a row the member wrote (`ask_voice_sessions`). The row carries the member's access token sealed with a secret the database does not hold; opened and verified as a bearer request is, it runs the turn as the member under RLS. The proxy exempts the door's three exact paths and nothing else under `/api/ask`.
 
 And one door with no key: `GET /api/health` answers 200 or 503 so a pinger outside the failure domain can page a person.
 
