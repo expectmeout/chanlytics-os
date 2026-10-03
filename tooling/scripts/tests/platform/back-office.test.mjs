@@ -549,7 +549,10 @@ test("support sees the customer's own Setup, from the customer's own function", 
 });
 
 test("the nav's one bit rides on the payload the seam already fetches", () => {
-  const route = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
+  const route = readCode(
+    "apps/dashboard/app/api/v1/workspaces/route.ts",
+    "apps/dashboard/src/server/workspace/workspace-list.ts",
+  );
   assert.match(route, /const platformAdmin = await isPlatformAdmin\(ctx\);/);
   assert.match(route, /platform_admin: platformAdmin/);
   // Both exits carry it: the one with workspaces and the one for somebody who
@@ -560,7 +563,7 @@ test("the nav's one bit rides on the payload the seam already fetches", () => {
   assert.match(bridge, /platform_admin\?: boolean;/);
   // It is not the authorization, and the comment says so where somebody would
   // otherwise be tempted to trust it.
-  assert.match(readRaw("apps/dashboard/app/api/v1/workspaces/route.ts"), /NOT the authorization/);
+  assert.match(readRaw("apps/dashboard/src/server/workspace/workspace-list.ts"), /NOT the authorization/);
 });
 
 /* ----------------------------- the boundary, executed ---------------------- *

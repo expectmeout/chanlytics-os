@@ -1,18 +1,5 @@
-import {
-  AppError,
-  dealsAreOn,
-  startersOffered,
-  starterDraft,
-  starterText,
-  templateComponents,
-  validateTemplateDraft,
-  type StarterTemplate,
-} from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { jsonBody } from "@/server/request-guards";
-import { createTemplate, syncTemplates } from "@/server/campaigns/meta-templates";
-import { fileStarterVersions, startersFiled, type StarterVersionResult } from "@/server/campaigns/template-versions";
-import { sellsByOf } from "@/server/people/deals";
+import { addStarterTemplates } from "@/server/campaigns/starter-templates";
 
 /**
  * POST /api/v1/templates/starter — the starter set, added to this workspace.
@@ -25,153 +12,15 @@ import { sellsByOf } from "@/server/people/deals";
  * submitted to Meta for review, exactly as a template written by hand is.
  * Owner or operator. The answer says what happened to each.
  *
- * Each starter is one message with a version per channel (One message, every
- * channel): once its WhatsApp version is on file in a language -- submitted,
- * already there or synced in -- its email and text versions in that language
- * are filed too, through the same door a member's own are (saveVersion), for the
- * channels the starter writes for (a call's text has no email, an offer no text).
- * A version already on file is left alone, so a second click never replaces a
- * person's own words; one that cannot be filed is said in its `versions` entry
- * and stops nothing else.
+ * The handle is addStarterTemplates in src/server/campaigns/starter-templates.ts: the route is its declaration (who
+ * may, how often), the verb is what it does.
  */
-type Outcome = "submitted" | "exists" | "synced" | "failed";
-
-interface StarterResult {
-  key: string;
-  title: string;
-  language: string;
-  status: Outcome;
-  meta_status: string | null;
-  detail?: string;
-  /** The email and text versions of this starter in this language, one entry for each channel it has; none when its WhatsApp version is not on file. */
-  versions: StarterVersionResult[];
-}
-
-const SAID: Record<string, string> = {
-  preview: "Adding templates only works on the production dashboard.",
-  no_channel: "Connect a WhatsApp number first — templates belong to a number's account.",
-  no_waba: "This number's WhatsApp Business Account is not on file. Reconnect the number and try again.",
-  no_token: "Chanlytics has no access token for this number yet.",
-};
-
-const ALREADY_AT_META = /already exist|already in use|duplicate|name.*exists/i;
 
 export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "settings",
-  handle: async ({ ctx, req, member }) => {
-    const body = (await jsonBody(req)) as { keys?: unknown; languages?: unknown } | null;
-    // The set this workspace is offered: a starter it is not offered is not filed, asked for or not.
-    const offered = startersOffered(dealsAreOn(await sellsByOf(ctx, member.tenantId)));
-    const keys = Array.isArray(body?.keys)
-      ? body.keys.filter((k): k is string => typeof k === "string")
-      : offered.map((s) => s.key);
-    const languages = Array.isArray(body?.languages)
-      ? body.languages.filter((l): l is string => typeof l === "string")
-      : ["en_US"];
-    const wanted = offered
-      .filter((s) => keys.includes(s.key))
-      .flatMap((s) => languages.filter((l) => !!s.texts[l]).map((l) => ({ s, l })));
-    if (wanted.length === 0)
-      throw new AppError("validation", "Pick at least one starter template, in English or Spanish.");
-
-    const { data: rows, error } = await ctx.supabase
-      .from("templates")
-      .select("name, language, meta_status")
-      .eq("tenant_id", member.tenantId)
-      .eq("channel", "whatsapp")
-      .in("name", [...new Set(wanted.map((w) => w.s.name))]);
-    if (error) throw new Error(error.message);
-    const onFile = (name: string, language: string) =>
-      (rows ?? []).find((r) => r.name === name && r.language === language) ?? null;
-    // The email and text versions already here: a second click leaves each as it is.
-    const filed = await startersFiled(ctx, member.tenantId, [...new Set(wanted.map((w) => w.s.name))]);
-    // The versions beside a WhatsApp version that is on file: its message exists, which is what the door needs.
-    const versionsOf = (s: StarterTemplate, l: string) => fileStarterVersions(ctx, member.tenantId, s, l, filed);
-
-    const results: StarterResult[] = [];
-    let synced = false;
-    for (const { s, l } of wanted) {
-      const base = { key: s.key, title: s.title, language: l };
-      const have = onFile(s.name, l);
-      if (have) {
-        results.push({ ...base, status: "exists", meta_status: have.meta_status, versions: await versionsOf(s, l) });
-        continue;
-      }
-      const check = validateTemplateDraft(starterDraft(s, l));
-      if (!check.ok) {
-        results.push({ ...base, status: "failed", meta_status: null, detail: check.error, versions: [] });
-        continue;
-      }
-      const v = check.value;
-      const r = await createTemplate(member.tenantId, ctx.userId, {
-        name: v.name,
-        language: v.language,
-        category: v.category,
-        components: templateComponents(v),
-        body: v.body,
-        examples: v.examples,
-        labels: starterText(s, l).slots.map((x) => x.label),
-      });
-      if (r.ok) {
-        results.push({ ...base, status: "submitted", meta_status: r.metaStatus, versions: await versionsOf(s, l) });
-        continue;
-      }
-      if (r.reason === "meta_refused" && ALREADY_AT_META.test(r.detail ?? "")) {
-        // The number's account already holds it: bring it here instead of refusing.
-        if (!synced) {
-          await syncTemplates(member.tenantId, ctx.userId);
-          synced = true;
-        }
-        const { data: now } = await ctx.supabase
-          .from("templates")
-          .select("meta_status")
-          .eq("tenant_id", member.tenantId)
-          .eq("channel", "whatsapp")
-          .eq("name", s.name)
-          .eq("language", l)
-          .maybeSingle();
-        results.push(
-          now
-            ? { ...base, status: "synced", meta_status: now.meta_status, versions: await versionsOf(s, l) }
-            : { ...base, status: "failed", meta_status: null, detail: r.detail, versions: [] },
-        );
-        continue;
-      }
-      if (r.reason in SAID) {
-        // Nothing can be added at all: say so once, as the submit route does --
-        // but only while nothing HAS been added. Past the first submission the
-        // templates already at Meta are real and in review, and throwing here
-        // discarded `results` entirely, so the owner was told nothing was added
-        // while several sat waiting for Meta under their account.
-        const done = results.some((x) => x.status === "submitted" || x.status === "synced");
-        if (!done) {
-          throw new AppError(
-            r.reason === "preview" || r.reason === "no_token" ? "upstream_meta" : "conflict",
-            SAID[r.reason],
-            r.reason === "preview" || r.reason === "no_token" ? 502 : 409,
-          );
-        }
-        results.push({ ...base, status: "failed", meta_status: null, detail: SAID[r.reason], versions: [] });
-        break;
-      }
-      results.push({ ...base, status: "failed", meta_status: null, detail: r.detail ?? r.reason, versions: [] });
-    }
-    const count = (o: Outcome) => results.filter((x) => x.status === o).length;
-    const versions = results.flatMap((x) => x.versions);
-    const countVersions = (o: StarterVersionResult["status"]) => versions.filter((v) => v.status === o).length;
-    return {
-      results,
-      submitted: count("submitted"),
-      existing: count("exists"),
-      synced: count("synced"),
-      failed: count("failed"),
-      versions_saved: countVersions("saved"),
-      versions_existing: countVersions("exists"),
-      versions_failed: countVersions("failed"),
-    };
-  },
+  handle: ({ ctx, req, member }) => addStarterTemplates(ctx, req, member),
 });
 
 /**
@@ -180,7 +29,6 @@ export const POST = write({
  * because Meta rate-limits template creation per account. Serial is the right
  * shape; what it needs is room, which the platform default (well under a
  * minute) does not give it -- and a run killed at the ceiling loses the reply
- * describing the templates it really did submit. The email and text versions
- * filed beside each are database calls of a few milliseconds, next to Meta's.
+ * describing the templates it really did submit.
  */
 export const maxDuration = 60;

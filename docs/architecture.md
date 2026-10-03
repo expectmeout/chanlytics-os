@@ -82,8 +82,12 @@ follow pnpm workspace symlinks. Rebuild `dist` whenever a package changes; CI
 fails on drift.
 
 **Where a module lives on the edge.** `apps/edge/api` is the doors, one file
-per URL, grouped as the URLs are (`admin/`, `cron/`). `apps/edge/lib` is
-everything the doors call, grouped by domain: `receptionist/` (what it decides
+per URL, grouped as the URLs are (`admin/`, `cron/`). A door authenticates,
+reads its body and calls one verb, and answers what the verb answers; the
+dashboard's routes do the same with a verb in `apps/dashboard/src/server`
+(`baselines/route-doors.json` holds it at none: no route file imports a
+repository or a provider client). `apps/edge/lib` is everything the doors
+call, grouped by domain: `receptionist/` (what it decides
 and says), `whatsapp/`, `sms/`, `email/`, `voice/`, `lines/`, `leads/`,
 `calendar/`, `google/`, `ops/` (who gets told). A domain earns a directory at
 its second module; a domain that is one module sits at the root (`notes.ts`,
@@ -135,9 +139,9 @@ What the browser hits is told to the same log: each error boundary sends its rep
 
 ## A message in
 
-Each channel has a door on the edge that verifies the wire, and a plan
-function that decides what to do with what arrived, run over a database in
-memory by a test.
+Each channel has a door on the edge whose verb (in `lib/<domain>/`) verifies
+the wire, and a plan function that decides what to do with what arrived, run
+over a database in memory by a test.
 
 | Channel  | Door                                                                                             | Decides                                | Then                                                                                                                                                                   |
 | -------- | ------------------------------------------------------------------------------------------------ | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

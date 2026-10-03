@@ -460,12 +460,12 @@ test("the WhatsApp token's permanence is asked of Meta as the app this deploymen
 
 test("the app a deployment that names none introspects its token as: the one live app, the same default Embedded Signup hands the browser -- so the sign-up and the introspection can never be two different apps", async () => {
   use();
-  // The id is read ONCE, at import. This is a second copy of the door,
-  // imported with the variable unset: the only way to run the fallback a
-  // deployment that never set META_APP_ID actually runs on.
-  const { GET: defaulted } = await withEnv(
+  // The id is read ONCE, at import, by the module that holds the report (lib/ops/diagnostic.ts). This is a second copy
+  // of it, imported with the variable unset: the only way to run the fallback a deployment that never set
+  // META_APP_ID actually runs on. The knock is the door's, and every other case here goes through it.
+  const { diagnosticReport: defaulted } = await withEnv(
     { META_APP_ID: undefined },
-    () => import(`${at("apps/edge/api/diag.ts")}?no-meta-app-id`),
+    () => import(`${at("apps/edge/lib/ops/diagnostic.ts")}?no-meta-app-id`),
   );
   assert.notEqual(
     DEFAULT_META_APP_ID,
@@ -480,9 +480,7 @@ test("the app a deployment that names none introspects its token as: the one liv
     body: { data: { is_valid: true, expires_at: 0, type: "SYSTEM_USER", app_id: DEFAULT_META_APP_ID } },
   }));
   try {
-    const body = await withEnv(pair, async () =>
-      (await defaulted(new Request(`http://edge${AUD}`, { headers: { "x-diag-key": process.env.DIAG_KEY } }))).json(),
-    );
+    const body = await withEnv(pair, async () => (await defaulted()).json());
     assert.equal(meta.seen.length, 1);
     assert.equal(
       new URL(meta.seen[0].url).searchParams.get("access_token"),

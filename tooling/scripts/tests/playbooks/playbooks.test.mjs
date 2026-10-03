@@ -490,7 +490,10 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
       routes.includes('rate: "playbook",') &&
       routes.includes('"start_playbook", {'),
   );
-  const one = readCode("apps/dashboard/app/api/v1/playbooks/[id]/route.ts");
+  const one = readCode(
+    "apps/dashboard/app/api/v1/playbooks/[id]/route.ts",
+    "apps/dashboard/src/server/campaigns/playbook-row.ts",
+  );
   assert.ok(
     one.includes('state === "running" ? "start_playbook" : "pause_playbook"') &&
       /"pause_playbook", \{\s*name: p\.name,\s*deleted: true,?\s*\}/.test(one),

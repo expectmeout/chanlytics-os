@@ -351,6 +351,8 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/public",
   "apps/dashboard/src/server/receptionist",
   "apps/dashboard/src/server/workspace",
+  "apps/edge/api/admin",
+  "apps/edge/api/cron",
   "apps/edge/api/jobs",
   "apps/edge/lib/billing",
   "apps/edge/lib/calendar",

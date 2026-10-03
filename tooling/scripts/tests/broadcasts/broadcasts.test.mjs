@@ -893,7 +893,7 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
     ),
     "the receptionist thanks them and asks nothing else",
   );
-  const q = readCode("apps/dashboard/app/api/v1/consent/qr/route.ts");
+  const q = readCode("apps/dashboard/app/api/v1/consent/qr/route.ts", "apps/dashboard/src/server/people/consent-qr.ts");
   assert.ok(
     q.includes("const link = optInLink(ch?.number_e164);") &&
       q.includes('"content-type": "image/svg+xml; charset=utf-8"'),

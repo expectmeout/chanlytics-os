@@ -1,6 +1,9 @@
 /**
  * The plan facts a search is judged by: the month used, when it renews, the niche's prior. Moved whole from leads.ts (Reach out Part 2.5), which
- * re-exports it.
+ * re-exports it. Every read runs on the member's own session and names the workspace it asks about.
+ *
+ * Cross-workspace: the niche's prior is platform-wide by design: counts per kind of business, aggregates only, which
+ * name no workspace and no place (lead_niche_priors, 00140). Nothing else here reads past the workspace.
  */
 import {
   LEAD_MONTHLY_ALLOWANCE,

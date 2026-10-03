@@ -108,8 +108,10 @@ jobs:
       # lifted by overrides in pnpm-workspace.yaml), and none under a licence the product may not ship: GPL, AGPL or
       # one nobody has read (tooling/scripts/checks/licences.mjs). The audit reads the lockfile against the
       # registry's advisories, so a registry outage fails it too: re-run. An advisory with no patched version
-      # anywhere (node-forge under Expo's CLI, GHSA-86w9-cpqp-85rv, 2 Oct 2026) is ignored by its GHSA in the root
-      # package.json (`pnpm.auditConfig.ignoreGhsas`), each with the commit that says why; drop it once a fix ships.
+      # anywhere (node-forge under Expo's CLI, GHSA-86w9-cpqp-85rv, 2 Oct 2026; braces under the same CLI's file map,
+      # GHSA-vfj7-8cjw-p6xm, a stack-exhaustion denial of service on deeply nested glob patterns, 3 Oct 2026, build
+      # time only, never in the app or a server) is ignored by its GHSA in the root package.json
+      # (`pnpm.auditConfig.ignoreGhsas`), each with the commit that says why; drop it once a fix ships.
       - run: pnpm audit --prod --audit-level high
       - name: Production licences are ones we may ship
         shell: bash

@@ -497,7 +497,10 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
       server,
     ),
   );
-  const route = readCode("apps/dashboard/app/api/v1/google/route.ts");
+  const route = readCode(
+    "apps/dashboard/app/api/v1/google/route.ts",
+    "apps/dashboard/src/server/connections/google-actions.ts",
+  );
   assert.ok(route.includes("ready: { places: ready.places, profile: ready.profile, audience: ready.audience }"));
   const env = readRaw("apps/edge/.env.example");
   assert.ok(env.includes("GOOGLE_OAUTH_AUDIENCE="), "the manifest names the switch");

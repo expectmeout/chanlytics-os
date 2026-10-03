@@ -3749,8 +3749,34 @@ async function migrationHead(db) {
   return { head: row?.head ?? null, applied: row?.applied ?? 0 };
 }
 
-// src/service-client.ts
+// src/auth.ts
 import { createClient } from "@supabase/supabase-js";
+async function signUpOnPublicKey(cfg, args) {
+  if (!cfg.url || !cfg.anonKey) {
+    throw new Error("public_client_unconfigured: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  }
+  const anon = createClient(cfg.url, cfg.anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  });
+  return anon.auth.signUp({ email: args.email, password: args.password, options: { data: args.userData } });
+}
+
+// src/waitlist.ts
+async function addToWaitlist(db, row) {
+  return db.from("waitlist").insert(row);
+}
+async function refreshWaitlistRow(db, email, said) {
+  return db.from("waitlist").update(said).eq("email", email).is("invited_at", null);
+}
+async function waitlistWaiting(db, limit) {
+  return db.from("waitlist").select("id, email, business, source, created_at", { count: "exact" }).is("invited_at", null).order("created_at", { ascending: true }).limit(limit);
+}
+async function markWaitlistInvited(db, id, by, at) {
+  return db.from("waitlist").update({ invited_at: at, invited_by: by }).eq("id", id).is("invited_at", null).select("id");
+}
+
+// src/service-client.ts
+import { createClient as createClient2 } from "@supabase/supabase-js";
 var SERVICE_FETCH_TIMEOUT_MS = 4e4;
 function boundedFetch(ms, base) {
   return async (input, init) => {
@@ -3768,7 +3794,7 @@ function boundedFetch(ms, base) {
   };
 }
 function createServiceClient(cfg) {
-  return createClient(cfg.url, cfg.serviceRoleKey, {
+  return createClient2(cfg.url, cfg.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { fetch: boundedFetch(cfg.fetchTimeoutMs ?? SERVICE_FETCH_TIMEOUT_MS, namedFetch(cfg.fetch)) }
   });
@@ -5831,6 +5857,20 @@ async function removeTemplateVersion(db, templateId) {
   if (!version) throw new Error("removeTemplateVersion: the door answered without the version it removed");
   return { ok: true, version };
 }
+async function templateIdOf(db, tenantId, name, language) {
+  const { data, error } = await db.from("templates").select("id").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.id ?? null;
+}
+async function templatesNamed(db, tenantId, names) {
+  const { data, error } = await db.from("templates").select("name, language, meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").in("name", names);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+async function templateStatusOf(db, tenantId, name, language) {
+  const { data } = await db.from("templates").select("meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+  return data;
+}
 
 // src/repositories/control-plane.ts
 async function getTenantConfig(db, tenantId) {
@@ -5886,6 +5926,29 @@ async function workspaceAnswersOnItsOwn(db, tenantId) {
   if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
   if (tenant.data?.status === "paused" || tenant.data?.left_empty_at) return false;
   return !(billing.data?.mode === "stripe" && !receptionistOn(billing.data.status));
+}
+async function membershipCountOf(db, userId) {
+  const { count, error } = await db.from("memberships").select("id", { count: "exact", head: true }).eq("user_id", userId);
+  if (error) throw new Error(`memberships_count: ${error.message}`);
+  return count ?? 0;
+}
+async function createWorkspaceFn(db, args) {
+  return db.rpc("create_workspace", args).single();
+}
+async function lineForwardingSet(db, args) {
+  return db.rpc("line_forwarding_set", args);
+}
+async function setPlaybookState(db, id, state) {
+  const { error } = await db.from("playbooks").update({ state }).eq("id", id);
+  return { error };
+}
+async function updatePlaybook(db, id, patch) {
+  const { error } = await db.from("playbooks").update(patch).eq("id", id);
+  return { error };
+}
+async function removePlaybook(db, id) {
+  const { error, count } = await db.from("playbooks").delete({ count: "exact" }).eq("id", id);
+  return { error, count };
 }
 
 // src/paged.ts
@@ -6633,6 +6696,7 @@ export {
   acceptPartnerInvite,
   activityTokensOf,
   addToList,
+  addToWaitlist,
   addressesSuppressed,
   aiFailuresHour,
   answeredReachOutEmail,
@@ -6659,6 +6723,7 @@ export {
   countSentToday,
   createList,
   createServiceClient,
+  createWorkspaceFn,
   createWorkspaceForBusiness,
   declineHandover,
   declinePartnerInvite,
@@ -6716,6 +6781,7 @@ export {
   leadNamesByIds,
   leadSlotsOf,
   leadWritten,
+  lineForwardingSet,
   linkCallMessage,
   listMemberIds,
   listPolicies,
@@ -6728,6 +6794,8 @@ export {
   markProcessed,
   markReplyDraft,
   markReplyTold,
+  markWaitlistInvited,
+  membershipCountOf,
   messageSenders,
   messageSlots,
   migrationHead,
@@ -6786,9 +6854,11 @@ export {
   recordPartnerSecondFactorReset,
   recordProviderDomain,
   recordStatusByExternalId,
+  refreshWaitlistRow,
   releaseControl,
   releaseIdempotencyKey,
   releaseUnavailableHolds,
+  removePlaybook,
   removeTemplateVersion,
   renameList,
   repliesFor,
@@ -6828,7 +6898,9 @@ export {
   setPartnerStanding,
   setPartnerStatus,
   setPersonReplyMode,
+  setPlaybookState,
   setPolicyMode,
+  signUpOnPublicKey,
   staleSends,
   stampEmailComplaint,
   stampEmailLeftAs,
@@ -6844,7 +6916,10 @@ export {
   takeCheckAttempt,
   takeIdempotencyKey,
   takeReplyRead,
+  templateIdOf,
+  templateStatusOf,
   templatesFor,
+  templatesNamed,
   tenantDb,
   tenantZoneOf,
   textLineFacts,
@@ -6854,7 +6929,9 @@ export {
   uncheckedSends,
   uncheckedWaiting,
   undoReplyReading,
+  updatePlaybook,
   usageMonth,
+  waitlistWaiting,
   watchedEvents,
   watchedTables,
   whatsappChannelConfig,

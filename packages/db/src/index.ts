@@ -9,6 +9,8 @@ export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, 
 export type { AiFailures, UsageMonthRow } from "./ai-usage";
 export { migrationHead } from "./ops";
 export type { MigrationHead } from "./ops";
+export { signUpOnPublicKey } from "./auth";
+export { addToWaitlist, refreshWaitlistRow, waitlistWaiting, markWaitlistInvited } from "./waitlist";
 export { createServiceClient } from "./service-client";
 export { observeDb, namedFetch, DB_REQUEST_HEADER } from "./observe";
 export type { DbLog, DbObserver } from "./observe";
@@ -231,6 +233,9 @@ export { claimControl, releaseControl, CALL_CONTROL_S } from "./repositories/con
 export type { ControlHolder, ControlOutcome } from "./repositories/control";
 export {
   templatesFor,
+  templateIdOf,
+  templatesNamed,
+  templateStatusOf,
   messageSlots,
   ownVersionsFiled,
   saveTemplateVersion,
@@ -245,8 +250,21 @@ export {
   personReplyMode,
   setPersonReplyMode,
   workspaceAnswersOnItsOwn,
+  membershipCountOf,
+  createWorkspaceFn,
+  lineForwardingSet,
+  setPlaybookState,
+  updatePlaybook,
+  removePlaybook,
 } from "./repositories/control-plane";
-export type { TenantConfigRow, PutTenantConfigResult, PolicyRecord } from "./repositories/control-plane";
+export type {
+  TenantConfigRow,
+  PutTenantConfigResult,
+  PolicyRecord,
+  CreateWorkspaceArgs,
+  LineForwardingArgs,
+  PlaybookPatch,
+} from "./repositories/control-plane";
 export {
   PEOPLE_PAGE,
   IDS_PER_READ,

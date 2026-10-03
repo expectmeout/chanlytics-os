@@ -721,7 +721,10 @@ test("the edge: the secret alone on the edge, a read before a row, the grant giv
 });
 
 test("the dashboard: the way there is signed, the way back is proven before anything is trusted, and a reply is a ledger entry", () => {
-  const connect = readCode("apps/dashboard/app/api/v1/google/connect/route.ts");
+  const connect = readCode(
+    "apps/dashboard/app/api/v1/google/connect/route.ts",
+    "apps/dashboard/src/server/connections/google-actions.ts",
+  );
   assert.ok(
     connect.includes('role: "partner",') &&
       /signState\(secret, \{\s*t: member\.tenantId,\s*u: ctx\.userId,\s*n: newNonce\(\),\s*exp: Date\.now\(\) \+ STATE_TTL_MS,?\s*\}\)/.test(
@@ -729,7 +732,10 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
       ),
   );
   assert.ok(connect.includes("new Response(null, { status: 302, headers: { location: url } })"));
-  const cb = readCode("apps/dashboard/app/api/v1/google/callback/route.ts");
+  const cb = readCode(
+    "apps/dashboard/app/api/v1/google/callback/route.ts",
+    "apps/dashboard/src/server/connections/google-actions.ts",
+  );
   assert.ok(
     cb.indexOf('verifyState(secret, url.searchParams.get("state"), Date.now())') < cb.indexOf('op: "connect"'),
     "the state before the code",
@@ -747,7 +753,10 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
     ),
     "never credentials_ref",
   );
-  const reply = readCode("apps/dashboard/app/api/v1/google/reviews/[id]/reply/route.ts");
+  const reply = readCode(
+    "apps/dashboard/app/api/v1/google/reviews/[id]/reply/route.ts",
+    "apps/dashboard/src/server/connections/google-actions.ts",
+  );
   assert.ok(reply.includes('role: "operator",') && reply.includes('rate: "google_reply",'));
   assert.ok(
     /recordDecision\(ctx, member\.tenantId, "review", id, "reply_review", \{\s*comment,\s*replied_at: repliedAt,?\s*\}\)/.test(

@@ -369,7 +369,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   assert.ok(ESCALATION_REASONS.includes("paused") && SERVER_NOTIFICATION_KINDS.includes("billing"));
   for (const k of ["billing.updated", "billing.paused", "billing.resumed"]) assert.ok(EVENT_KINDS.includes(k), k);
 
-  const hook = readCode("apps/edge/api/stripe-webhook.ts");
+  const hook = readCode("apps/edge/lib/billing/stripe-event.ts");
   assert.ok(hook.includes("s.webhooks.constructEvent(raw, sig, secret)"), "the signature, on the raw body");
   assert.ok(
     hook.indexOf("constructEvent(") < hook.indexOf("keepEvent(") &&
