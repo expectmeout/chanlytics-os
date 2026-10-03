@@ -111,6 +111,15 @@ export {
   VOICE_AGENT_DEFAULTS,
   VOICE_NUMBER_DEFAULTS,
 } from "./voice/voice-provision";
+export {
+  mintConversationToken,
+  deleteConversation,
+  elevenLabsWebhookSignature,
+  verifyElevenLabsWebhook,
+  ELEVENLABS_WEBHOOK_TOLERANCE_S,
+  ELEVENLABS_SIGNATURE_HEADER,
+} from "./voice/elevenlabs";
+export type { ElevenLabsConfig, ConversationMint } from "./voice/elevenlabs";
 export type {
   ProvisionSecrets,
   VoiceProvisionRequest,

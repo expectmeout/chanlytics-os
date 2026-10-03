@@ -5408,6 +5408,7 @@ function pipelineRail(vm, nowMs) {
 var ASK_MAX_CHARS = 1e3;
 var ASK_MAX_ROUNDS = 3;
 var ASK_TURN_BUDGET_MS = 45e3;
+var ASK_VOICE_PULSE_MS = 1e4;
 var ASK_MAX_TOKENS = 4e3;
 var ASK_TOKENS_DAY = 15e5;
 var ASK_CAPS = {
@@ -25099,6 +25100,8 @@ var ERROR_CODES = [
   "upstream_email",
   /** Supabase Auth could not be reached — distinct from "not signed in". */
   "upstream_auth",
+  /** The voice agent's provider (ElevenLabs) could not be reached, refused, or is not set up on this deployment. */
+  "upstream_voice",
   "internal"
 ];
 var APP_ERROR = /* @__PURE__ */ Symbol.for("@chanlytics/contracts:AppError");
@@ -25135,6 +25138,7 @@ var DEFAULT_STATUS = {
   upstream_anthropic: 502,
   upstream_email: 502,
   upstream_auth: 503,
+  upstream_voice: 503,
   internal: 500
 };
 
@@ -25255,6 +25259,7 @@ var EDGE_ERROR_CODES = [
   "provider",
   "provider_refused",
   "provider_unauthorized",
+  "provider_unreachable",
   "purge_failed",
   "query_failed",
   "reach_out_step",
@@ -25713,6 +25718,9 @@ var ROUTE_KEYS = [
   "PATCH workspaces",
   "POST ask",
   "POST ask/messages/[id]/proposals/[pid]",
+  "POST ask/voice",
+  "POST ask/voice/end",
+  "POST ask/voice/page",
   "POST ask/warm",
   "POST billing/checkout",
   "POST billing/portal",
@@ -30227,6 +30235,7 @@ export {
   ASK_TOKENS_DAY,
   ASK_TURN_BUDGET_MS,
   ASK_UNDO_MS,
+  ASK_VOICE_PULSE_MS,
   AUDIENCE_KINDS,
   AppError,
   AskProposalOutcomeSchema,

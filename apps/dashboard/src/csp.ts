@@ -28,7 +28,8 @@
  *                whole operator UI down. Inline STYLE is not the vector inline
  *                SCRIPT is.
  *   connect-src  the app plane is same-origin; Supabase for auth, storage and
- *                Realtime (its websocket); Meta's SDK talks to facebook.com.
+ *                Realtime (its websocket); Meta's SDK talks to facebook.com;
+ *                the voice agent's socket and its WebRTC signalling (0026).
  *   img / media  signed URLs from the private media bucket (inbound photos,
  *                call recordings) live on the Supabase origin; a listing photo
  *                Google hands back lives on googleusercontent.com.
@@ -66,6 +67,17 @@ const META = [
   "https://graph.facebook.com",
 ];
 const GOOGLE_PHOTOS = "https://*.googleusercontent.com";
+/**
+ * The voice agent (docs/decisions/0026): the browser's WebSocket to ElevenLabs for a conversation's events, and the
+ * WebRTC signalling the vendor's client opens on LiveKit's cloud. Named once here; the agent's API key never reaches
+ * the browser (the edge mints a conversation token good for minutes).
+ */
+const VOICE_AGENT = [
+  "https://api.elevenlabs.io",
+  "wss://api.elevenlabs.io",
+  "https://*.livekit.cloud",
+  "wss://*.livekit.cloud",
+];
 
 function originOf(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -90,7 +102,10 @@ export function contentSecurityPolicy(o: CspInputs): string {
       ["'self'", "data:", "blob:", ...(supabase ? [supabase] : []), GOOGLE_PHOTOS, ...(leadMap ? [leadMap] : [])],
     ],
     ["media-src", ["'self'", "blob:", ...(supabase ? [supabase] : [])]],
-    ["connect-src", ["'self'", ...(supabase ? [supabase, supabaseWs!] : []), ...META, ...(leadMap ? [leadMap] : [])]],
+    [
+      "connect-src",
+      ["'self'", ...(supabase ? [supabase, supabaseWs!] : []), ...META, ...VOICE_AGENT, ...(leadMap ? [leadMap] : [])],
+    ],
     ["frame-src", [META[1], META[2]]],
     ["worker-src", ["'self'", "blob:"]],
     ["manifest-src", ["'self'"]],

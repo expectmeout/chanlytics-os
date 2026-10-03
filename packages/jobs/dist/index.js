@@ -9962,6 +9962,7 @@ var VOICE_AGENT_DEFAULTS = {
   post_call_analysis_model: RETELL_MODELS.analysis,
   allow_user_dtmf: true
 };
+var ELEVENLABS_WEBHOOK_TOLERANCE_S = 30 * 60;
 var API2 = "https://api.twilio.com/2010-04-01";
 var TRUNKING = "https://trunking.twilio.com/v1";
 var MESSAGING = "https://messaging.twilio.com/v1";
@@ -13420,6 +13421,7 @@ var VOICE_AGENT_DEFAULTS2 = {
   post_call_analysis_model: RETELL_MODELS2.analysis,
   allow_user_dtmf: true
 };
+var ELEVENLABS_WEBHOOK_TOLERANCE_S2 = 30 * 60;
 var API22 = "https://api.twilio.com/2010-04-01";
 var TRUNKING2 = "https://trunking.twilio.com/v1";
 var MESSAGING2 = "https://messaging.twilio.com/v1";

@@ -39,6 +39,13 @@ const PUBLIC_PATHS = new Set([
   "/auth/callback",
   "/auth/native",
   "/api/version",
+  // The brain door ElevenLabs calls for a voice conversation with Ask (docs/decisions/0026): no cookie, so no gate
+  // here; the door itself checks the agent's secret and the session's id before it reads a byte, and runs the turn
+  // as the member under RLS with the token the session row keeps. Three exact paths, since the vendor appends
+  // /chat/completions to the address it is given.
+  "/api/ask/voice/llm",
+  "/api/ask/voice/llm/chat/completions",
+  "/api/ask/voice/llm/v1/chat/completions",
   "/manifest.webmanifest",
   "/signup",
   "/api/v1/signup",

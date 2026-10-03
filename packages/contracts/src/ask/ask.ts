@@ -34,6 +34,12 @@ export const ASK_MAX_ROUNDS = 3;
 /** End to end, under the route's sixty-second ceiling. */
 export const ASK_TURN_BUDGET_MS = 45_000;
 /**
+ * The longest the voice door lets pass with nothing speakable sent: ElevenLabs cuts a custom LLM whose stream goes
+ * quiet for 15 s (its ceiling) and asks again, so while the model is quiet the door sends the vendor's own buffer words
+ * every ten (docs/superpowers/specs/2026-10-03-ask-spoken-spike.md, runs B5 to B9).
+ */
+export const ASK_VOICE_PULSE_MS = 10_000;
+/**
  * The most one round may write: its thinking, its tool calls and its answer
  * together. One number, read by the loop's request and by the edge's clamp on
  * Ask, so the two cannot drift again: the loop asked for 2400 while the edge

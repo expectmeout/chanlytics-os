@@ -30,7 +30,7 @@ import { appendMessage, touchThread } from "./store";
  */
 
 /** What a turn is asked with: the route's body as it reads it, or the voice door's transcript. */
-export interface AskTurnAsk {
+interface AskTurnAsk {
   text: string;
   threadId: string | null;
   /** This turn's scope: one, `null` to clear the thread's, `undefined` to keep it (the Phase 5 plan, D9). */
@@ -46,7 +46,7 @@ export interface AskTurnAsk {
 /** A line the turn's door sends: the thread first, then the turn's own events. */
 export type AskTurnLine = TurnEvent | { t: "thread"; id: string; title: string };
 
-export interface AskTurnDone {
+interface AskTurnDone {
   thread: { id: string; title: string };
   result: TurnResult;
   /** The answer as the Line draws it, beside the v1 fields it gives (spec 5.8). */
@@ -54,7 +54,7 @@ export interface AskTurnDone {
 }
 
 /** The first half's yield: everything the turn is run with, once the thread is kept and the facts are read. */
-export interface PreparedTurn {
+interface PreparedTurn {
   ctx: RouteContext;
   member: Member;
   tenantId: string;

@@ -350,7 +350,7 @@ export interface TurnFacts {
  * the first comma, so the opening clause is short and punctuated; the normaliser reads digits, so a time or a count
  * stays as the page shows it; an id, a route, a symbol or a tag would be read aloud as nonsense.
  */
-export const SPOKEN_LINE =
+const SPOKEN_LINE =
   "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol or a bracketed tag. Every figure and row goes in show, where the screen draws it.";
 
 /**

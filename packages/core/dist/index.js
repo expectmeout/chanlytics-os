@@ -3522,6 +3522,7 @@ var VOICE_AGENT_DEFAULTS = {
   post_call_analysis_model: RETELL_MODELS.analysis,
   allow_user_dtmf: true
 };
+var ELEVENLABS_WEBHOOK_TOLERANCE_S = 30 * 60;
 var API2 = "https://api.twilio.com/2010-04-01";
 var TRUNKING = "https://trunking.twilio.com/v1";
 var MESSAGING = "https://messaging.twilio.com/v1";
@@ -9175,6 +9176,7 @@ var DEFAULT_STATUS = {
   upstream_anthropic: 502,
   upstream_email: 502,
   upstream_auth: 503,
+  upstream_voice: 503,
   internal: 500
 };
 var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;

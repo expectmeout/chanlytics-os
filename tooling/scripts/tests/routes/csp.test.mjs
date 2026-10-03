@@ -53,7 +53,7 @@ test("script-src is the app's own origin, Meta's SDK host and inline by name (th
   assert.deepEqual(p["default-src"], ["'self'"]);
 });
 
-test("the workspace's Supabase origin is allowed over https and wss, and for the signed media it serves; Meta's origins for the sign-up SDK; nothing else", () => {
+test("the workspace's Supabase origin is allowed over https and wss, and for the signed media it serves; Meta's origins for the sign-up SDK; the voice agent's socket and its WebRTC signalling (0026); nothing else", () => {
   const p = directives(contentSecurityPolicy({ supabaseUrl: "https://mwwy.supabase.co/" }));
   assert.deepEqual(p["connect-src"], [
     "'self'",
@@ -63,6 +63,10 @@ test("the workspace's Supabase origin is allowed over https and wss, and for the
     "https://www.facebook.com",
     "https://web.facebook.com",
     "https://graph.facebook.com",
+    "https://api.elevenlabs.io",
+    "wss://api.elevenlabs.io",
+    "https://*.livekit.cloud",
+    "wss://*.livekit.cloud",
   ]);
   assert.deepEqual(p["img-src"], [
     "'self'",

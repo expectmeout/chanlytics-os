@@ -198,6 +198,14 @@ export {
 } from "./repositories/thread";
 export type { ThreadTurn, PgThreadState, LeadContext, MessageHit, MessageSender } from "./repositories/thread";
 export {
+  insertVoiceSession,
+  readVoiceSession,
+  claimVoiceTurn,
+  endVoiceSession,
+  moveVoiceSessionContext,
+} from "./ask-voice-session";
+export type { VoiceSessionRow, NewVoiceSession } from "./ask-voice-session";
+export {
   claimIdempotencyKey,
   takeIdempotencyKey,
   releaseIdempotencyKey,

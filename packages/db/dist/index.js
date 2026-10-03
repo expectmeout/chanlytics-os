@@ -5215,6 +5215,34 @@ async function messageSenders(db, tenantId, ids) {
   return out;
 }
 
+// src/ask-voice-session.ts
+var VOICE_SESSION_COLUMNS = "id, tenant_id, user_id, thread_id, conversation_id, token_cipher, token_expires_at, surface, scope, context, language, turn_key, turn_started_at, duration_s, created_at, ended_at";
+async function insertVoiceSession(db, row) {
+  const { error } = await db.from("ask_voice_sessions").insert(row);
+  if (error) throw new Error(`ask voice session: ${error.message}`);
+}
+async function readVoiceSession(db, id) {
+  const { data, error } = await db.from("ask_voice_sessions").select(VOICE_SESSION_COLUMNS).eq("id", id).maybeSingle();
+  if (error) throw new Error(`ask voice session: ${error.message}`);
+  return data ?? null;
+}
+async function claimVoiceTurn(db, id, turnKey, now, staleMs) {
+  const stale = new Date(now.getTime() - staleMs).toISOString();
+  const { data, error } = await db.from("ask_voice_sessions").update({ turn_key: turnKey, turn_started_at: now.toISOString() }).eq("id", id).or(`turn_key.is.null,turn_key.neq.${turnKey},turn_started_at.lt.${stale}`).select("id");
+  if (error) throw new Error(`ask voice session claim: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function endVoiceSession(db, id, fields) {
+  const { data, error } = await db.from("ask_voice_sessions").update({ ended_at: fields.endedAt, ...fields.durationS === void 0 ? {} : { duration_s: fields.durationS } }).eq("id", id).select("id");
+  if (error) throw new Error(`ask voice session end: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function moveVoiceSessionContext(db, id, fields) {
+  const { data, error } = await db.from("ask_voice_sessions").update({ context: fields.context, surface: fields.surface }).eq("id", id).select("id");
+  if (error) throw new Error(`ask voice session context: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
 // src/repositories/idempotency.ts
 var HOLD_COLUMNS = "response, created_at, request_hash";
 async function claimIdempotencyKey(db, p) {
@@ -6124,6 +6152,7 @@ export {
   claimReplyTell,
   claimReplyTurn,
   claimSends,
+  claimVoiceTurn,
   closedRunSends,
   coldReceiptsOwed,
   contactEmailOf,
@@ -6149,6 +6178,7 @@ export {
   emailWordsFrom,
   emailWordsOf,
   emitEvent,
+  endVoiceSession,
   erasureDigests,
   everyoneIn,
   finishableRuns,
@@ -6177,6 +6207,7 @@ export {
   ingestInbound,
   ingestInboundEmail,
   insertQueuedEmail,
+  insertVoiceSession,
   invitePartner,
   isWorkspaceCall,
   keepIdempotencyReceipt,
@@ -6201,6 +6232,7 @@ export {
   migrationHead,
   monthSent,
   moveSend,
+  moveVoiceSessionContext,
   namedFetch,
   namesOfPeople,
   notesForReceptionist,
@@ -6235,6 +6267,7 @@ export {
   readLeadContext,
   readLeadOne,
   readThreadState,
+  readVoiceSession,
   recheckSends,
   recordActivation,
   recordCallNote,

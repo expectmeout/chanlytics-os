@@ -3526,7 +3526,8 @@ var PROVIDER_NAMES = [
   "apify",
   "expo",
   "anthropic",
-  "typesafe"
+  "typesafe",
+  "elevenlabs"
 ];
 var BREAKER_FAILURES = 5;
 var BREAKER_OPEN_MS = 3e4;
@@ -4917,6 +4918,78 @@ function planVoiceProvision(st) {
   return { ok: true, errors, nothing: false, reason: null, steps, names };
 }
 
+// src/voice/elevenlabs.ts
+var ELEVENLABS_API = "https://api.elevenlabs.io";
+var ELEVENLABS_TIMEOUT_MS = 1e4;
+var ELEVENLABS_WEBHOOK_TOLERANCE_S = 30 * 60;
+var ELEVENLABS_SIGNATURE_HEADER = "elevenlabs-signature";
+function vendorWords(a) {
+  if (a.error) return a.error;
+  const j = answerObject(a);
+  const detail = j?.detail;
+  if (typeof detail === "string") return detail.slice(0, 200);
+  const message = detail && typeof detail === "object" ? detail.message : null;
+  return typeof message === "string" ? message.slice(0, 200) : `status ${a.status}`;
+}
+var notOk = (a) => ({
+  outcome: a.outcome === "refused" ? "rejected" : "unreachable",
+  status: a.status,
+  error: vendorWords(a)
+});
+async function mintConversationToken(cfg, deps) {
+  const url = `${ELEVENLABS_API}/v1/convai/conversation/token?agent_id=${encodeURIComponent(cfg.agentId)}`;
+  const a = await providerFetch(
+    "elevenlabs",
+    url,
+    { method: "GET", headers: { "xi-api-key": cfg.apiKey }, timeoutMs: ELEVENLABS_TIMEOUT_MS },
+    deps
+  );
+  if (a.outcome !== "ok") return notOk(a);
+  const j = answerObject(a);
+  const token = typeof j?.token === "string" ? j.token : "";
+  const conversationId = typeof j?.conversation_id === "string" ? j.conversation_id : "";
+  if (!token || !conversationId) return { outcome: "rejected", status: a.status, error: "no token in the answer" };
+  return { outcome: "ok", token, conversationId };
+}
+async function deleteConversation(cfg, conversationId, deps) {
+  const a = await providerFetch(
+    "elevenlabs",
+    `${ELEVENLABS_API}/v1/convai/conversations/${encodeURIComponent(conversationId)}`,
+    { method: "DELETE", headers: { "xi-api-key": cfg.apiKey }, timeoutMs: ELEVENLABS_TIMEOUT_MS, idempotent: true, tries: 2 },
+    deps
+  );
+  return { outcome: a.outcome === "ok" ? "ok" : a.outcome === "refused" ? "rejected" : "unreachable", status: a.status };
+}
+var hexOf = (b) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
+function sameBytes(a, b) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+async function elevenLabsWebhookSignature(secret, timestamp, rawBody) {
+  const enc = new TextEncoder();
+  const key = await globalThis.crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign"
+  ]);
+  const sig = await globalThis.crypto.subtle.sign("HMAC", key, enc.encode(`${timestamp}.${rawBody}`));
+  return `v0=${hexOf(sig)}`;
+}
+async function verifyElevenLabsWebhook(secret, signatureHeader, rawBody, nowMs) {
+  if (!secret || !signatureHeader) return false;
+  const fields = /* @__PURE__ */ new Map();
+  for (const part of signatureHeader.split(",")) {
+    const i = part.indexOf("=");
+    if (i > 0) fields.set(part.slice(0, i).trim(), part.slice(i + 1).trim());
+  }
+  const t = fields.get("t") ?? "";
+  const ts = Number(t);
+  if (!/^\d+$/.test(t) || !Number.isFinite(ts) || Math.abs(nowMs / 1e3 - ts) > ELEVENLABS_WEBHOOK_TOLERANCE_S) return false;
+  const v0 = fields.get("v0");
+  if (!v0) return false;
+  return sameBytes(`v0=${v0}`, await elevenLabsWebhookSignature(secret, t, rawBody));
+}
+
 // src/lines/lines.ts
 import { randomInt } from "crypto";
 var RETELL_ORIGINATION = "sip:sip.retellai.com";
@@ -5967,7 +6040,7 @@ var bytesOfBase64 = (s) => {
   return out.buffer;
 };
 var base64OfBytes = (b) => btoa(String.fromCharCode(...new Uint8Array(b)));
-function sameBytes(a, b) {
+function sameBytes2(a, b) {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
@@ -5996,7 +6069,7 @@ async function verifyResendWebhook(secret, h, rawBody, nowMs) {
   if (!expected) return false;
   return h.signature.split(" ").some((entry) => {
     const [version, sig] = entry.split(",");
-    return version === "v1" && !!sig && sameBytes(sig, expected);
+    return version === "v1" && !!sig && sameBytes2(sig, expected);
   });
 }
 
@@ -7949,6 +8022,8 @@ export {
   CALLER_UNKNOWN,
   CALL_ANALYSIS_FIELDS,
   EDGE_TOKEN_TTL_MS,
+  ELEVENLABS_SIGNATURE_HEADER,
+  ELEVENLABS_WEBHOOK_TOLERANCE_S,
   EMPTY_A2P_STATE,
   FACTS_UNAVAILABLE,
   FRESH_SLACK_MS,
@@ -8038,12 +8113,14 @@ export {
   createRetellLlm,
   customerProfileRequest,
   deleteCampaignRequest,
+  deleteConversation,
   deletePhoneNumber,
   deleteReplyRequest,
   desiredVoiceShell,
   dmarcOf,
   dryProvider,
   edgeBodyMatches,
+  elevenLabsWebhookSignature,
   emailHtml,
   emailPlainText,
   emailReceiptEffect,
@@ -8093,6 +8170,7 @@ export {
   mergeConsent,
   messageIdHeader,
   messageIdsIn,
+  mintConversationToken,
   newNonce,
   nextA2PStep,
   nextLineStep,
@@ -8203,6 +8281,7 @@ export {
   updateLiveCall,
   updatePhoneNumber,
   verifyEdgeToken,
+  verifyElevenLabsWebhook,
   verifyMailDomain,
   verifyResendWebhook,
   verifyRetellSignature,

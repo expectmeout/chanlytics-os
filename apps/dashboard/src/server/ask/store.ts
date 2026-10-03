@@ -204,12 +204,23 @@ export async function appendMessage(
 
 /**
  * A turn saved: its thread moves up the list and keeps the scope the turn ran with (the Phase 5 plan, D9), none
- * included, so the next question sent without one is asked with it. The column grant allows both (00121).
+ * included, so the next question sent without one is asked with it; `undefined` leaves the scope as it is. A voice
+ * thread, made before its first question (the voice route), takes that question as its title here (`title`). The
+ * column grant allows all three (00121).
  */
-export async function touchThread(ctx: RouteContext, threadId: string, scope: AskScope | null): Promise<void> {
+export async function touchThread(
+  ctx: RouteContext,
+  threadId: string,
+  scope: AskScope | null | undefined,
+  title?: string,
+): Promise<void> {
   const { error } = await ctx.supabase
     .from("ask_threads")
-    .update({ last_at: new Date().toISOString(), scope: scopeColumn(scope) })
+    .update({
+      last_at: new Date().toISOString(),
+      ...(scope === undefined ? {} : { scope: scopeColumn(scope) }),
+      ...(title ? { title } : {}),
+    })
     .eq("id", threadId);
   if (error) log.error("ask_thread_touch_failed", { error: error.message });
 }

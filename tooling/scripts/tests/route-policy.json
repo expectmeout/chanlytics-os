@@ -51,6 +51,27 @@
       "rate": null,
       "spend": false
     },
+    "POST ask/voice/end": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": null,
+      "spend": false
+    },
+    "POST ask/voice/page": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "aggregate",
+      "spend": false
+    },
+    "POST ask/voice": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "voice",
+      "spend": false
+    },
     "POST ask/warm": {
       "kind": "write",
       "scope": "workspace",

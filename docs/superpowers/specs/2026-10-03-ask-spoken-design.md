@@ -143,7 +143,7 @@ row. The `voice` rate bucket is new (`rate-limit.ts RATE`): 30 sessions an hour 
 
 ### 3.2 B. The voice-session door (edge, signed)
 
-`POST /api/admin/voice-session`, an admin door like `llm`, `steer` and `whisper` (`adminDoor`, `authorizeAdmin`):
+`POST /api/admin/voice/session`, an admin door like `llm`, `steer` and `whisper` (`adminDoor`, `authorizeAdmin`):
 the dashboard's token names the workspace and the person. It holds the provider's keys, as the edge holds every
 provider's: `ELEVENLABS_API_KEY` and `ELEVENLABS_AGENT_ID` (`apps/edge/lib/env.ts`, rows of the flag registry with
 Ruben as owner, `contracts/ai/flags.ts`). It:
@@ -475,7 +475,10 @@ first conversations. Starter's 75 minutes prove the design; Pro is the step befo
 New: `apps/dashboard/app/api/v1/ask/voice/route.ts`, `…/voice/page/route.ts` and `…/voice/end/route.ts` (A);
 `apps/dashboard/app/api/ask/voice/llm/[[...rest]]/route.ts` (C); `apps/dashboard/src/server/ask/turn.ts` (the shared
 turn); `apps/dashboard/src/server/ask/voice-session.ts` (the row, the cipher, the claim);
-`apps/edge/api/admin/voice-session.ts` (B); `apps/edge/api/elevenlabs-webhook.ts` (D);
+`apps/edge/api/admin/voice/session.ts` over `apps/edge/lib/voice/ask-voice.ts` (B; the admin folder holds its
+twenty, so the door lives under `admin/voice/` as the WhatsApp doors live under `admin/whatsapp/`);
+`packages/db/src/ask-voice-session.ts` (the row, at the package's root: `repositories/` holds its twenty too);
+`apps/edge/api/elevenlabs-webhook.ts` (D);
 `packages/channels/src/voice/elevenlabs.ts` (the port: mint, delete, the webhook's verification);
 `supabase/migrations/00287_a_voice_conversation_keeps_its_member.sql` (00285 and 00286 are the kit branch's);
 `apps/dashboard/src/legacy-bridge/ask/voice.ts`;
