@@ -1,10 +1,10 @@
 # 0026 · A provider calls the dashboard
 
-**Status:** Decided, built in part, on 3 October 2026 by the Ask-spoken lane
-(`docs/superpowers/specs/2026-10-03-ask-spoken-design.md`); Ruben's verification owed before anything is pushed (his
-rule of 2 October). Written against `8f49c1269` (`ask-voice/1-ground`, 3 October 2026, the spike's answers recorded)
-and verified against the code at it; where this note and the code disagree, the code wins. The fifth door of
-`docs/architecture.md`.
+**Status:** Decided and built, on 3 October 2026 by the Ask-spoken lane
+(`docs/superpowers/specs/2026-10-03-ask-spoken-design.md`), local to its branch; Ruben's verification owed before
+anything is pushed (his rule of 2 October), and a microphone run owed to the spike's last questions. Written against
+`8f49c1269` (`ask-voice/1-ground`, 3 October 2026, the spike's answers recorded) and verified against the code at
+it; where this note and the code disagree, the code wins. The fifth door of `docs/architecture.md`.
 
 ## Context
 
@@ -85,20 +85,33 @@ or duplicate requests hurt.
 
 1. PR 1 (`ask-voice/1-ground`): the shared turn, the spoken register, the table, the variables. Built.
 2. PR 2 (this note): the port, the mint door, the row's cipher and claim, the three member routes, the brain door,
-   the agent as code, the CSP. Built; proven by the tests below; not yet pushed.
-3. PR 3: the Line listens (`legacy-bridge/ask/voice.ts` over `@elevenlabs/client`, Today's Listen as the spoken
-   brief). To build.
-4. PR 4: the post-call webhook on the edge (door D, the minutes and the erase), the sweep (00288), the spoken evals.
-   To build.
+   the agent as code, the CSP. Built; proven by the tests below.
+3. PR 3: the Line listens (`legacy-bridge/ask/voice.ts` over `@elevenlabs/client`, with the pure reader of the
+   agent's events beside it; the mic's tap and an answer's Read aloud begin a conversation, typing, Esc and closing
+   end it; Today's Listen is the brief spoken by Ask where the device can talk with it; the three move to the
+   agent's voice). Built; the vendor's client is an on-demand chunk.
+4. PR 4: the post-call webhook on the edge (door D: the minutes, the turns' timings, the erase), the sweep (00288,
+   a nightly function on pg_cron as the purges are, judged on its runs), the spoken evals (`eval-ask.mjs --spoken`
+   over `eval-ask-spoken.mjs`) and the runbook ("Turn on Ask, spoken"). Built. The gate (`REPS=3 --spoken` on both
+   profiles, the numbers into the spec's §4) runs once a deployment holds the five variables: Ruben's.
+
+All four on one branch, pushed together once verified; nothing pushed as of 3 October.
 
 ## Tests
 
-`tooling/scripts/tests/voice/voice-door.test.mjs` (the two credentials, the spoken refusals, one turn as the member
-in the vendor's shape, the buffer words, one turn however many requests), `tooling/scripts/tests/voice/voice-routes.test.mjs`
-(the row written as the member with the token sealed and read once; the edge asked with a signed token; the
-refusals in the gateway's words), `tooling/scripts/tests/voice/voice-session-door.test.mjs` (the mint on the edge),
-`tooling/scripts/tests/voice/elevenlabs-port.test.mjs` (the port and the webhook's signature),
-`tooling/scripts/tests/voice/elevenlabs-agent.test.mjs` (the agent as code), `tooling/scripts/tests/auth/auth-gate.test.mjs`
+`tooling/scripts/tests/ask-voice/voice-door.test.mjs` (the two credentials, the spoken refusals, one turn as the
+member in the vendor's shape, the buffer words, one turn however many requests),
+`tooling/scripts/tests/ask-voice/voice-routes.test.mjs` (the row written as the member with the token sealed and read
+once; the edge asked with a signed token; the refusals in the gateway's words),
+`tooling/scripts/tests/ask-voice/voice-session-door.test.mjs` (the mint on the edge),
+`tooling/scripts/tests/ask-voice/elevenlabs-port.test.mjs` (the port and the webhook's signature),
+`tooling/scripts/tests/ask-voice/elevenlabs-agent.test.mjs` (the agent as code),
+`tooling/scripts/tests/ask-voice/voice-events.test.mjs` (the Line's reading of the agent's events),
+`tooling/scripts/tests/ask-voice/elevenlabs-webhook.test.mjs` (door D: the signature, the minutes written once, the erase, a
+delivery it cannot use answered without a retry), `tooling/scripts/tests/ask-voice/eval-ask-spoken.test.mjs` (the spoken
+eval's reading of the stream and the judge's spoken rules), `tooling/scripts/tests/today/today-page.test.mjs` (Listen as the
+brief spoken by Ask), `tooling/scripts/tests/ops/sweep-registry.db.test.mjs` and `tooling/scripts/tests/ops/retention-words.test.mjs`
+(the sweep registered and its number said), `tooling/scripts/tests/auth/auth-gate.test.mjs`
 (the three exact public paths and no other under `/api/ask`), `tooling/scripts/tests/routes/csp.test.mjs` (the
 origins).
 

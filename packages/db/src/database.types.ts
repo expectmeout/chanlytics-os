@@ -7267,6 +7267,7 @@ export type Database = {
           schedule: string
         }[]
       }
+      sweep_voice_sessions: { Args: { p_after?: string }; Returns: number }
       take_rate: {
         Args: {
           p_actor: string

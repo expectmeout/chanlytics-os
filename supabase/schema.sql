@@ -15149,6 +15149,41 @@ COMMENT ON FUNCTION public.sweep_status_registered() IS 'A sweep name that has n
 
 
 --
+-- Name: sweep_voice_sessions(interval); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sweep_voice_sessions(p_after interval DEFAULT '1 day'::interval) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET lock_timeout TO '3s'
+    AS $$
+declare
+  v_total integer := 0;
+  v_n     integer;
+begin
+  loop
+    delete from public.ask_voice_sessions s
+     where s.id in (
+       select c.id from public.ask_voice_sessions c
+        where c.token_expires_at < now() - p_after
+        limit 1000
+     );
+    get diagnostics v_n = row_count;
+    v_total := v_total + v_n;
+    exit when v_n < 1000;
+  end loop;
+  return v_total;
+end $$;
+
+
+--
+-- Name: FUNCTION sweep_voice_sessions(p_after interval); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sweep_voice_sessions(p_after interval) IS 'Nightly. Deletes voice sessions a day after their token expired, a thousand at a time (00288). Numbers: contracts'' RETENTION_DAYS (ask_voice_sessions).';
+
+
+--
 -- Name: take_rate(text, text, integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -27119,6 +27154,14 @@ GRANT ALL ON FUNCTION public.sweep_schedules() TO service_role;
 REVOKE ALL ON FUNCTION public.sweep_status_registered() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sweep_status_registered() TO authenticated;
 GRANT ALL ON FUNCTION public.sweep_status_registered() TO service_role;
+
+
+--
+-- Name: FUNCTION sweep_voice_sessions(p_after interval); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sweep_voice_sessions(p_after interval) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sweep_voice_sessions(p_after interval) TO service_role;
 
 
 --

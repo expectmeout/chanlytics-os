@@ -19,7 +19,7 @@ what the script writes.
 | [`ai_usage`](#ai_usage) | `packages/db/src/ai-usage.ts` | on, 1 policy |
 | [`ask_messages`](#ask_messages) | none | on, 4 policies |
 | [`ask_threads`](#ask_threads) | none | on, 4 policies |
-| [`ask_voice_sessions`](#ask_voice_sessions) | none | on, 4 policies |
+| [`ask_voice_sessions`](#ask_voice_sessions) | `packages/db/src/ask-voice-session.ts` | on, 4 policies |
 | [`billing_accounts`](#billing_accounts) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`billing_card_marks`](#billing_card_marks) | none | on, no policy, so only the service role reaches it |
 | [`billing_events`](#billing_events) | none | on, no policy, so only the service role reaches it |
@@ -203,7 +203,7 @@ Foreign keys:
 
 One row per voice conversation of Ask: whose it is, its thread, the member's access token sealed under the dashboard's key, and the turn the brain door claims. The member's own under RLS; the brain door reads it on the service role (apps/dashboard/src/server/ask/voice-session.ts).
 
-- Owned by: none
+- Owned by: `packages/db/src/ask-voice-session.ts`
 - Primary key: `id`
 - Row-level security: on, 4 policies
 

@@ -200,6 +200,7 @@ export type { ThreadTurn, PgThreadState, LeadContext, MessageHit, MessageSender 
 export {
   insertVoiceSession,
   readVoiceSession,
+  readVoiceSessionByConversation,
   claimVoiceTurn,
   endVoiceSession,
   moveVoiceSessionContext,

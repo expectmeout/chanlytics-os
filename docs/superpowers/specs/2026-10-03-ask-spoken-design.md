@@ -481,8 +481,9 @@ twenty, so the door lives under `admin/voice/` as the WhatsApp doors live under 
 `apps/edge/api/elevenlabs-webhook.ts` (D);
 `packages/channels/src/voice/elevenlabs.ts` (the port: mint, delete, the webhook's verification);
 `supabase/migrations/00287_a_voice_conversation_keeps_its_member.sql` (00285 and 00286 are the kit branch's);
-`apps/dashboard/src/legacy-bridge/ask/voice.ts`;
-`tooling/scripts/voice/elevenlabs-agent.mjs`; `docs/decisions/0026-a-provider-calls-the-dashboard.md`.
+`apps/dashboard/src/legacy-bridge/ask/voice.ts` with `voice-events.ts` (the pure reader of the agent's events);
+`tooling/scripts/voice/elevenlabs-agent.mjs` with `elevenlabs-agent-config.mjs`; `tooling/scripts/eval-ask-spoken.mjs`;
+`docs/decisions/0026-a-provider-calls-the-dashboard.md`.
 
 Changed: `apps/dashboard/app/api/v1/ask/route.ts` (calls `askTurn`); `server/ask/loop.ts` and `prompt.ts` (the
 spoken line, `AskTurnShape.spoken`); `legacy-bridge/ask.ts` (installs voice); `legacy/pages/ask-real.jsx`,

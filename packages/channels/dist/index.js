@@ -2851,6 +2851,8 @@ var RETENTION_DAYS = {
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
@@ -4955,10 +4957,19 @@ async function deleteConversation(cfg, conversationId, deps) {
   const a = await providerFetch(
     "elevenlabs",
     `${ELEVENLABS_API}/v1/convai/conversations/${encodeURIComponent(conversationId)}`,
-    { method: "DELETE", headers: { "xi-api-key": cfg.apiKey }, timeoutMs: ELEVENLABS_TIMEOUT_MS, idempotent: true, tries: 2 },
+    {
+      method: "DELETE",
+      headers: { "xi-api-key": cfg.apiKey },
+      timeoutMs: ELEVENLABS_TIMEOUT_MS,
+      idempotent: true,
+      tries: 2
+    },
     deps
   );
-  return { outcome: a.outcome === "ok" ? "ok" : a.outcome === "refused" ? "rejected" : "unreachable", status: a.status };
+  return {
+    outcome: a.outcome === "ok" ? "ok" : a.outcome === "refused" ? "rejected" : "unreachable",
+    status: a.status
+  };
 }
 var hexOf = (b) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
 function sameBytes(a, b) {
@@ -4969,9 +4980,13 @@ function sameBytes(a, b) {
 }
 async function elevenLabsWebhookSignature(secret, timestamp, rawBody) {
   const enc = new TextEncoder();
-  const key = await globalThis.crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
-    "sign"
-  ]);
+  const key = await globalThis.crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
   const sig = await globalThis.crypto.subtle.sign("HMAC", key, enc.encode(`${timestamp}.${rawBody}`));
   return `v0=${hexOf(sig)}`;
 }
@@ -4984,7 +4999,8 @@ async function verifyElevenLabsWebhook(secret, signatureHeader, rawBody, nowMs) 
   }
   const t = fields.get("t") ?? "";
   const ts = Number(t);
-  if (!/^\d+$/.test(t) || !Number.isFinite(ts) || Math.abs(nowMs / 1e3 - ts) > ELEVENLABS_WEBHOOK_TOLERANCE_S) return false;
+  if (!/^\d+$/.test(t) || !Number.isFinite(ts) || Math.abs(nowMs / 1e3 - ts) > ELEVENLABS_WEBHOOK_TOLERANCE_S)
+    return false;
   const v0 = fields.get("v0");
   if (!v0) return false;
   return sameBytes(`v0=${v0}`, await elevenLabsWebhookSignature(secret, t, rawBody));

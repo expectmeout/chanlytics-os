@@ -21,6 +21,7 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
     call_recordings: 90,
     events_evidence: 30,
     ask_threads: 90,
+    ask_voice_sessions: 1,
     notifications: 90,
     cron_history: 14,
     leads_untouched: 90,
@@ -49,6 +50,10 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
   assert.match(
     words,
     /How fast each page loaded, with no person or workspace attached, is kept for 30 days, and what each model call cost for 400 days\./,
+  );
+  assert.match(
+    words,
+    /A voice conversation's session, which holds nothing of what was said, is removed the day after it expires\./,
   );
   assert.match(words, /Everything else stays while the workspace exists\.$/);
 });

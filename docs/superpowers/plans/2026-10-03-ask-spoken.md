@@ -317,6 +317,11 @@ Nothing from PR 0 is kept. Its output is `docs/superpowers/specs/2026-10-03-ask-
 
 ### Task 4.2: The sweep, the evals and the runbook
 
+> As built (3 Oct): the sweep is a nightly function on pg_cron as the purges are (00215's shape), registered in
+> `sweep_status` and judged on its runs, so there is no edge cron door and no `vercel.json` line; the spoken turn
+> lives in `tooling/scripts/eval-ask-spoken.mjs` (eval-ask.mjs holds its 800 lines) and its pure parts are tested in
+> `tooling/scripts/tests/ask-voice/`, where every test of this lane went once `tests/ask` and `tests/voice` held their twenty.
+
 **Files:**
 - Create: `supabase/migrations/00288_expired_voice_sessions_are_swept.sql` (a function `sweep_voice_sessions()` deleting rows with `token_expires_at < now() - interval '1 day'`), `apps/edge/api/cron/voice.ts`
 - Modify: `apps/edge/vercel.json` (the cron line), `tooling/scripts/eval-ask.mjs` (`--spoken`: the cases run through the brain door with a session minted as the eval member; the judge adds "reads aloud": no digits-only ids, no routes, an early comma), `docs/runbook.md`

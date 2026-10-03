@@ -66,6 +66,19 @@ export async function readVoiceSession(db: Db, id: string): Promise<VoiceSession
   return data ?? null;
 }
 
+/** The row the vendor's post-call webhook names, by the conversation's id, or null (the service role: a provider's call). */
+export async function readVoiceSessionByConversation(db: Db, conversationId: string): Promise<VoiceSessionRow | null> {
+  const { data, error } = await db
+    .from("ask_voice_sessions")
+    .select(VOICE_SESSION_COLUMNS)
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`ask voice session by conversation: ${error.message}`);
+  return data ?? null;
+}
+
 /**
  * One turn, however many requests (the design, §3.3): the request that moves the row's key to this turn's owns the
  * turn and runs it; one that finds the key already there follows the thread instead. A key left by a turn that began
