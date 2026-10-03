@@ -276,6 +276,12 @@ Nothing from PR 0 is kept. Its output is `docs/superpowers/specs/2026-10-03-ask-
 
 ### Task 3.2: The Line listens
 
+> As built (3 Oct, after the real-app walk on a dev server): a press on the mic where Ask can talk waits the tap's beat
+> (`AR_TAP_MS`, 300 ms) before it dictates, so a tap never starts the recogniser (it flashed "the microphone is blocked"
+> beside the mint's refusal); and an answer's Read aloud whose agent could not start reads with the device's own voice,
+> quietly (`arVoiceBegin(ln, first, quiet)` resolves to why it did not start; `AskActs` falls back on it). Tests in
+> `tooling/scripts/tests/ask/ask-palette.test.mjs`.
+
 **Files:**
 - Modify: `apps/dashboard/src/legacy/pages/ask-real.jsx` (`useArVoice`: the mic's tap starts voice where `A.canVoice()`, a hold stays push-to-talk; `submit` by typing calls `A.stopVoice()` first; Esc and close stop it; `arTurnHeard` gains the voice actions: `question` → the user message and `setLive`, `say` → `live.say`, `landed` → `GET threads/:id` then `arTurnLanded`), `ask-hooks.jsx` (`useAskVoice`), `ask-turn.jsx` (`AskActs` Read aloud → `A.startVoice({ first: words })` where `canVoice`, else `speech.toggle` as today), `apps/dashboard/src/legacy/styles/ask.css` (the mic's `on` state while a session runs: the kit's existing `.ask-line-btn.on`, no new class)
 - Test: `tooling/scripts/tests/ask/ask.test.mjs` (`useArMood` pure part: `mode speaking says speaking`, `mode listening says listening`), the legacy page harness render (`docs/runbook.md`, "See a real page": the Line mounts with `__ask.canVoice` true and false)
@@ -284,6 +290,10 @@ Nothing from PR 0 is kept. Its output is `docs/superpowers/specs/2026-10-03-ask-
 - [ ] **Step 5: Commit** `feat(ask): the Line listens: speak and it speaks, type and it writes`.
 
 ### Task 3.3: Today's Listen is the brief, spoken
+
+> As built (3 Oct): an agent that could not start (the mint refused, the connection lost) hands the brief to the
+> device's own voice, so a tap on Listen always reads; `useSpeech` keeps who is reading (`reader`), so Stop stops the
+> right one. Case in `tooling/scripts/tests/today/today-page.test.mjs`.
 
 **Files:**
 - Modify: `apps/dashboard/src/surfaces/today/pages/brief-pane.tsx:43-91` (`useSpeech` → `useVoiceBrief`: where `window.__ask?.canVoice()` the tap calls `startVoice({ language, first: undefined })` then, on `connected`, the module's `sendUserMessage("Brief me on today")` — exposed as `startVoice`'s `ask?: string` option; else today's Web Speech), `apps/dashboard/src/legacy-bridge/ask/voice.ts` (`ask?: string` sent after connect)

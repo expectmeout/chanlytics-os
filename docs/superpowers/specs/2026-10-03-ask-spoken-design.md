@@ -279,10 +279,11 @@ as `speech` does:
 | `onInterruption` (keyed on the event, never its payload, which two pages give differently) | The live say is cut where it stopped; the stored turn stays whole; the three listen. |
 | `onAgentResponseCorrection` | The words actually spoken, kept on the drawn turn as "stopped after …" (V2 draws it; V1 keeps it). |
 | `onModeChange`, `onStatusChange` | `useArMood` gains the SDK's `mode` beside `speech.speakingId`. |
-| `onError`, `onDisconnect`, a failed `startSession` | Back to the typed Line, in silence; the toast only where the person did something (`flash`, once); `ask_voice_refused` logged with the reason, whether it came at the mint or at the connection (sources §9 leave that unstated). |
+| `onError`, `onDisconnect`, a failed `startSession` | Back to the typed Line, in silence; the toast only where the person did something (`flash`, once); `ask_voice_refused` logged with the reason, whether it came at the mint or at the connection (sources §9 leave that unstated). As built (3 Oct): where the person asked for words read, Today's Listen and an answer's Read aloud, an agent that could not start hands the same words to the device's own voice instead, quietly; only a device with no voice of its own sees the refusal's words. |
 
 **Entering and leaving.** The mic's tap starts a voice conversation (a hold stays today's push-to-talk where the SDK
-cannot run); Today's Listen starts one and sends "Brief me on today" through `sendUserMessage` once connected, which
+cannot run; as built, where Ask can talk a press waits the tap's beat, 300 ms, before it dictates, so a tap never
+touches the recogniser and a finger still down when the beat ends is the hold); Today's Listen starts one and sends "Brief me on today" through `sendUserMessage` once connected, which
 the events page says triggers the same response flow as spoken input (sources §7), so the brief is Ask's answer
 spoken; Read aloud starts one with the answer as the first message. The agent's own `first_message` is empty, so it
 waits (sources §7). Typing ends it. Esc ends it. Closing the Line ends it.

@@ -535,9 +535,22 @@ const AskActs = ({ words, lang, speech, voice, flash, t }) => {
     }
   };
   const talking = !!(voice && voice.can);
-  const reading = talking ? !!voice.on : speech.speakingId === "line";
+  // Reading: the agent in its conversation, or the device's own voice (where there is no agent, or it could not start).
+  const reading = !!(voice && voice.on) || speech.speakingId === "line";
   const read = () => {
-    if (talking) { if (reading) voice.stop(); else voice.read(words); return; }
+    if (reading) {
+      if (voice && voice.on) voice.stop();
+      else speech.toggle("line", words, lang);
+      return;
+    }
+    if (talking) {
+      // The agent reads where it can start; where it cannot (the mint refused, the connection lost), the device's own
+      // voice reads the same words, and a device without one says why the agent did not.
+      voice.read(words).then((why) => {
+        if (why && !speech.toggle("line", words, lang)) flash({ tone: "danger", msg: <>{why}</> });
+      });
+      return;
+    }
     if (!speech.toggle("line", words, lang)) flash({ msg: <>{t.noSpeech}</> });
   };
   return (

@@ -9,7 +9,7 @@
  * the device's own voice where it has one (Web Speech), with how long it takes to hear beside it; and a follow-up to
  * Ask, grounded in the same words. Drawn by the Glass composition alone (today-page.tsx).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { askQuestionWords, type TodayBriefRun, type TodayBriefWords } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -43,56 +43,71 @@ function spokenLength(text: string): string {
 
 /**
  * Listen and Stop: the brief spoken by Ask where the device can talk with it (one voice conversation, opened on the
- * brief's question), else read aloud by the device's own voice while the page is up; a page left mid-sentence falls
- * silent either way.
+ * brief's question), else read aloud by the device's own voice while the page is up. An agent that could not start
+ * (the mint refused, the connection lost) hands the brief to the device's voice too, so a tap on Listen always
+ * reads; a page left mid-sentence falls silent either way.
  */
 function useSpeech(text: string | null): { can: boolean; speaking: boolean; toggle: () => void } {
   const [speaking, setSpeaking] = useState(false);
+  /** Who is reading: the agent, or the device's own voice; nobody between. */
+  const reader = useRef<"agent" | "device" | null>(null);
   useEffect(
     () => () => {
-      const voice = askVoice();
-      if (voice) void voice.stopVoice();
-      else if (canSpeak()) window.speechSynthesis.cancel();
+      if (reader.current === "agent") void askVoice()?.stopVoice();
+      else if (reader.current === "device") window.speechSynthesis.cancel();
     },
     [],
   );
   const voice = askVoice();
   const can = !!voice || canSpeak();
-  const toggle = () => {
-    if (!can || !text) return;
-    if (speaking) {
-      if (voice) void voice.stopVoice();
-      else window.speechSynthesis.cancel();
-      setSpeaking(false);
-      return;
-    }
-    if (voice) {
-      const language = voice.language();
-      setSpeaking(true);
-      voice
-        .startVoice(
-          {
-            threadId: null,
-            scope: null,
-            surface: "today",
-            context: null,
-            language,
-            ask: askQuestionWords("brief", language),
-          },
-          (a) => {
-            if (a.t === "gone") setSpeaking(false);
-          },
-        )
-        .catch(() => setSpeaking(false));
-      return;
-    }
+  const quiet = () => {
+    reader.current = null;
+    setSpeaking(false);
+  };
+  const device = (words: string) => {
     const synth = window.speechSynthesis;
-    const said = new SpeechSynthesisUtterance(text);
-    said.onend = () => setSpeaking(false);
-    said.onerror = () => setSpeaking(false);
+    const said = new SpeechSynthesisUtterance(words);
+    said.onend = quiet;
+    said.onerror = quiet;
     synth.cancel();
     synth.speak(said);
+    reader.current = "device";
     setSpeaking(true);
+  };
+  const toggle = () => {
+    if (!can || !text) return;
+    const words = text;
+    if (speaking) {
+      if (reader.current === "agent") void voice?.stopVoice();
+      else if (reader.current === "device") window.speechSynthesis.cancel();
+      quiet();
+      return;
+    }
+    if (!voice) {
+      device(words);
+      return;
+    }
+    const language = voice.language();
+    reader.current = "agent";
+    setSpeaking(true);
+    voice
+      .startVoice(
+        {
+          threadId: null,
+          scope: null,
+          surface: "today",
+          context: null,
+          language,
+          ask: askQuestionWords("brief", language),
+        },
+        (a) => {
+          if (a.t === "gone" && reader.current === "agent") quiet();
+        },
+      )
+      .catch(() => {
+        if (canSpeak()) device(words);
+        else quiet();
+      });
   };
   return { can, speaking, toggle };
 }
