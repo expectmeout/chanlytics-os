@@ -182,15 +182,22 @@ to dashboard**, and its credential is two things at once:
   `write()` makes for the workspace scope. `user_id` in the request is a label, never identity. Then
   `takeRate(userId, "ask")`: a voice turn is a turn.
 
-**One turn, however many requests.** ElevenLabs retries a failing custom LLM at least three times on the same
-endpoint, never falls back to its own models, and may send several requests with the same context inside one turn
-(sources §1). So the door claims the turn before running it: one `UPDATE ask_voice_sessions SET turn_key = $key,
+**One turn, however many requests.** The spike measured the vendor's clock (the spike note, runs B1 to B9):
+`cascade_timeout_seconds` is the longest gap it allows between two chunks with speakable text, 15 s at most (a
+higher value is refused). A request that goes quiet for longer is aborted and sent again, three times in all, each
+attempt's partial text stitched into one transcript, and after the third the socket closes with 1002
+`custom_llm_error: LLM Cascade Error: TimeoutError` and the conversation is over. A chunk with no content, or a
+space, does not restart the clock; the vendor's own buffer words, `"... "`, do, and in voice they are a pause. So
+the door never lets 10 s pass without speakable text: the first trace leaves at once, every later trace as it
+happens, and when nothing has gone out for 10 s the door sends `"... "` (the pulse), which the Line's chat drops.
+ElevenLabs may still send several requests with the same context inside one turn (sources §1), and a retry carries
+the earlier attempt's partial text as an `assistant` message, so the door claims the turn before running it: one
+`UPDATE ask_voice_sessions SET turn_key = $key,
 turn_started_at = now() WHERE id = $session AND (turn_key IS DISTINCT FROM $key OR turn_started_at < now() -
 interval '45 seconds') RETURNING id` on the service client, where `$key` is the sha256 of the last user message's
 text. The request that gets a row owns the turn and runs it. Any other request with the same key follows the thread
 instead: it polls `ask_messages` for the assistant turn stored after the claim (every 300 ms, inside the turn's
-budget), streams that turn's `say` when it lands, and until then sends nothing but the platform's own filler speaks
-(section 3.7). No stream is ever ended empty: an empty answer is a documented failure that triggers a retry, so a
+budget), streams that turn's `say` when it lands, and until then sends the pulse. No stream is ever ended empty: an empty answer is a documented failure that triggers a retry, so a
 refusal still speaks its words. `speculative_turn` stays false on the agent.
 
 **The turn.** The request's `messages` are the agent's own history; the door takes **only the last user message**
@@ -200,7 +207,8 @@ refusal still speaks its words. `speculative_turn` stays false on the agent.
 
 | Turn event (`TurnEvent`) | What the door sends |
 |---|---|
-| `trace` (a read runs, with its label) | The label as a short spoken chunk, once per turn ("Reading today… "), ending with an ellipsis and exactly one space as the custom LLM page's buffer-words technique has it (sources §1), so the first word lands within about a second even when a read runs, with words that are true. |
+| `trace` (a read runs, with its label) | The label as a short spoken chunk, each time a read starts ("Reading today… ", "Checking the calendar… "), ending with an ellipsis and exactly one space as the custom LLM page's buffer-words technique has it (sources §1), so the first word lands within about a second even when a read runs, with words that are true. |
+| quiet (10 s with nothing speakable sent) | `"... "`, the vendor's buffer words: a pause in voice, nothing in the chat; it keeps the vendor's 15 s clock from cutting the request (the spike note, runs B5 to B9). |
 | `say` previews (every 50 ms, growing) | The new suffix of `headline`, then of `detail`, as `chat.completion.chunk` deltas; a preview taken back (empty) sends nothing. |
 | `final` | Whatever suffix the final `say` holds that the previews did not; then a chunk with `finish_reason: "stop"` and `data: [DONE]`. The turn is stored first (the same `content` the route writes), so the Line's read of the thread finds it. |
 | `error`, a gateway refusal | The refusal's words in the person's language (`refusalText`), spoken; the turn stored as the route stores a failed one. |
@@ -308,9 +316,9 @@ create-agent reference's, sources §1, §2, §5, §6, §8, §9):
 - `platform_settings.auth.enable_auth: true` and **no allowlist**: a conversation starts only with a token the edge
   minted, and the authentication page says not to combine the two (sources §2).
 - `conversation_config.agent.prompt.custom_llm`: `url` (`https://<CANONICAL_HOST>/api/ask/voice/llm`), `api_type:
-  chat_completions`, `request_headers: { x-chanlytics-agent: <secret> }`; `cascade_timeout_seconds: 15` (the maximum:
-  there is no backup model to cascade to, and whether the timer measures the first byte is unstated; the spike reads
-  it). The agent's `temperature`, `max_tokens` and reasoning fields are irrelevant to the door and left at their
+  chat_completions`, `request_headers: { x-chanlytics-agent: <secret> }`; `cascade_timeout_seconds: 15` (the ceiling
+  the vendor allows; it is the longest gap between two speakable chunks, and the door's pulse keeps every gap under
+  10 s, section 3.3). The agent's `temperature`, `max_tokens` and reasoning fields are irrelevant to the door and left at their
   defaults. `prompt.prompt` is one line: it is Ask's mouth; every word it says comes from the model it is wired to.
   `first_message` empty. `language: en`.
 - No tools, no knowledge base, no MCP server, no workflow, no agent transfer (sources §12). `end_call` is not added.
@@ -323,7 +331,8 @@ create-agent reference's, sources §1, §2, §5, §6, §8, §9):
 - `conversation_config.turn`: `turn_eagerness: normal`, `turn_timeout: 7`, `speculative_turn: false`, `turn_model:
   turn_v3`, `soft_timeout_config: { timeout_seconds: 3.0, message: "One moment." }` (the platform's own filler when
   the model is slower than three seconds; it speaks at most once per generation and the full answer follows; it is
-  the twin of the door's spoken trace, and the two do not stack because the trace's words reset it).
+  the twin of the door's spoken trace, and the two do not stack because the trace's words reset it: the spike's run
+  B1, a trace at 0.3 s and the answer at 9.3 s, heard no filler).
   `conversation.max_duration_seconds: 1800` with a `max_conversation_duration_message`, since the default of 600
   ends a conversation without a word (sources §5).
 - `conversation_config.tts`: `voice_id` (Ruben's pick, section 9), `model_id: eleven_flash_v2_5` (about 75 ms, 32
