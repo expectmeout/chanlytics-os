@@ -93,7 +93,7 @@ what the script writes.
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/routing.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 2 policies |
 | [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
-| [`waitlist`](#waitlist) | none | on, no policy, so only the service role reaches it |
+| [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
 
@@ -2511,7 +2511,7 @@ Foreign keys:
 
 People who asked for a workspace while sign-up was closed. Service-role only: deny-all RLS, no policies, because nobody here has a workspace to be scoped to yet. Drained oldest-first; invited_at is the stamp that takes a row out of the queue.
 
-- Owned by: none
+- Owned by: `packages/db/src/waitlist.ts`
 - Primary key: `id`
 - Row-level security: on, no policy, so only the service role reaches it
 

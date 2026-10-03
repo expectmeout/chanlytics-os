@@ -139,7 +139,8 @@ test("the wiring: two public paths, the guards on the route, a service role that
     !route.includes("@chanlytics/db") && !route.includes("SUPABASE_SERVICE_ROLE_KEY"),
     "the route holds no key",
   );
-  const server = readCode("apps/dashboard/src/server/platform/signup.ts");
+  // The rules are the dashboard's, the call on the public key is packages/db's: read together, as one path.
+  const server = readCode("apps/dashboard/src/server/platform/signup.ts", "packages/db/src/auth.ts");
   assert.ok(server.includes('import "server-only";'));
   // THE SERVICE ROLE HAS LEFT THIS PATH. It used to create the user with the
   // admin API and mark the address confirmed with no proof at all, because
@@ -151,7 +152,7 @@ test("the wiring: two public paths, the guards on the route, a service role that
     !server.includes("admin.createUser") && !server.includes("email_confirm"),
     "REGRESSION: an address marked proved by the thing that has not proved it",
   );
-  assert.ok(server.includes("await anon.auth.signUp({"), "the ordinary sign-up call, on the public key");
+  assert.ok(server.includes("anon.auth.signUp({ email: args.email"), "the ordinary sign-up call, on the public key");
   assert.ok(
     server.includes("[PENDING_WORKSPACE_KEY]: {") &&
       server.includes("timezone: input.timezone ?? null,") &&

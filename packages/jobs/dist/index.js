@@ -27,6 +27,7 @@ import { z as z25 } from "zod";
 import { z as z26 } from "zod";
 import { z as z27 } from "zod";
 import { createClient } from "@supabase/supabase-js";
+import { createClient as createClient2 } from "@supabase/supabase-js";
 z.config({ jitless: true });
 var MODELS = {
   OPUS_5_5: "claude-opus-5-5",
@@ -10141,7 +10142,8 @@ import { z as z2432 } from "zod";
 import { z as z2532 } from "zod";
 import { z as z2632 } from "zod";
 import { z as z2732 } from "zod";
-import { createClient as createClient2 } from "@supabase/supabase-js";
+import { createClient as createClient3 } from "@supabase/supabase-js";
+import { createClient as createClient22 } from "@supabase/supabase-js";
 var CONTACT2 = /* @__PURE__ */ new Set(["phone", "to", "from", "email", "e164"]);
 var CONTACT_SUFFIX2 = /_(phone|email|e164)$/;
 var WORDS_KEYS2 = /* @__PURE__ */ new Set(["body", "text"]);
