@@ -202,6 +202,78 @@ type Database = {
                     }
                 ];
             };
+            ask_voice_sessions: {
+                Row: {
+                    context: Json | null;
+                    conversation_id: string | null;
+                    created_at: string;
+                    duration_s: number | null;
+                    ended_at: string | null;
+                    id: string;
+                    language: string;
+                    scope: Json | null;
+                    surface: string | null;
+                    tenant_id: string;
+                    thread_id: string;
+                    token_cipher: string;
+                    token_expires_at: string;
+                    turn_key: string | null;
+                    turn_started_at: string | null;
+                    user_id: string;
+                };
+                Insert: {
+                    context?: Json | null;
+                    conversation_id?: string | null;
+                    created_at?: string;
+                    duration_s?: number | null;
+                    ended_at?: string | null;
+                    id: string;
+                    language?: string;
+                    scope?: Json | null;
+                    surface?: string | null;
+                    tenant_id: string;
+                    thread_id: string;
+                    token_cipher: string;
+                    token_expires_at: string;
+                    turn_key?: string | null;
+                    turn_started_at?: string | null;
+                    user_id: string;
+                };
+                Update: {
+                    context?: Json | null;
+                    conversation_id?: string | null;
+                    created_at?: string;
+                    duration_s?: number | null;
+                    ended_at?: string | null;
+                    id?: string;
+                    language?: string;
+                    scope?: Json | null;
+                    surface?: string | null;
+                    tenant_id?: string;
+                    thread_id?: string;
+                    token_cipher?: string;
+                    token_expires_at?: string;
+                    turn_key?: string | null;
+                    turn_started_at?: string | null;
+                    user_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "ask_voice_sessions_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "ask_voice_sessions_thread_id_fkey";
+                        columns: ["thread_id"];
+                        isOneToOne: false;
+                        referencedRelation: "ask_threads";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             billing_accounts: {
                 Row: {
                     cancel_at: string | null;
@@ -1296,45 +1368,6 @@ type Database = {
                 };
                 Relationships: [];
             };
-            events_y2026m09: {
-                Row: {
-                    category: string;
-                    created_at: string;
-                    data: Json;
-                    id: string;
-                    kind: string;
-                    request_id: string | null;
-                    subject_id: string | null;
-                    subject_type: string | null;
-                    tenant_id: string;
-                    version: number;
-                };
-                Insert: {
-                    category?: string;
-                    created_at?: string;
-                    data?: Json;
-                    id?: string;
-                    kind: string;
-                    request_id?: string | null;
-                    subject_id?: string | null;
-                    subject_type?: string | null;
-                    tenant_id: string;
-                    version?: number;
-                };
-                Update: {
-                    category?: string;
-                    created_at?: string;
-                    data?: Json;
-                    id?: string;
-                    kind?: string;
-                    request_id?: string | null;
-                    subject_id?: string | null;
-                    subject_type?: string | null;
-                    tenant_id?: string;
-                    version?: number;
-                };
-                Relationships: [];
-            };
             events_y2026m10: {
                 Row: {
                     category: string;
@@ -1804,6 +1837,45 @@ type Database = {
                 Relationships: [];
             };
             events_y2027m10: {
+                Row: {
+                    category: string;
+                    created_at: string;
+                    data: Json;
+                    id: string;
+                    kind: string;
+                    request_id: string | null;
+                    subject_id: string | null;
+                    subject_type: string | null;
+                    tenant_id: string;
+                    version: number;
+                };
+                Insert: {
+                    category?: string;
+                    created_at?: string;
+                    data?: Json;
+                    id?: string;
+                    kind: string;
+                    request_id?: string | null;
+                    subject_id?: string | null;
+                    subject_type?: string | null;
+                    tenant_id: string;
+                    version?: number;
+                };
+                Update: {
+                    category?: string;
+                    created_at?: string;
+                    data?: Json;
+                    id?: string;
+                    kind?: string;
+                    request_id?: string | null;
+                    subject_id?: string | null;
+                    subject_type?: string | null;
+                    tenant_id?: string;
+                    version?: number;
+                };
+                Relationships: [];
+            };
+            events_y2027m11: {
                 Row: {
                     category: string;
                     created_at: string;
@@ -8564,6 +8636,75 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
                 referencedColumns: ["id"];
             }];
         };
+        ask_voice_sessions: {
+            Row: {
+                context: Json | null;
+                conversation_id: string | null;
+                created_at: string;
+                duration_s: number | null;
+                ended_at: string | null;
+                id: string;
+                language: string;
+                scope: Json | null;
+                surface: string | null;
+                tenant_id: string;
+                thread_id: string;
+                token_cipher: string;
+                token_expires_at: string;
+                turn_key: string | null;
+                turn_started_at: string | null;
+                user_id: string;
+            };
+            Insert: {
+                context?: Json | null;
+                conversation_id?: string | null;
+                created_at?: string;
+                duration_s?: number | null;
+                ended_at?: string | null;
+                id: string;
+                language?: string;
+                scope?: Json | null;
+                surface?: string | null;
+                tenant_id: string;
+                thread_id: string;
+                token_cipher: string;
+                token_expires_at: string;
+                turn_key?: string | null;
+                turn_started_at?: string | null;
+                user_id: string;
+            };
+            Update: {
+                context?: Json | null;
+                conversation_id?: string | null;
+                created_at?: string;
+                duration_s?: number | null;
+                ended_at?: string | null;
+                id?: string;
+                language?: string;
+                scope?: Json | null;
+                surface?: string | null;
+                tenant_id?: string;
+                thread_id?: string;
+                token_cipher?: string;
+                token_expires_at?: string;
+                turn_key?: string | null;
+                turn_started_at?: string | null;
+                user_id?: string;
+            };
+            Relationships: [{
+                foreignKeyName: "ask_voice_sessions_tenant_id_fkey";
+                columns: ["tenant_id"];
+                isOneToOne: false;
+                referencedRelation: "tenants";
+                referencedColumns: ["id"];
+            }, {
+                foreignKeyName: "ask_voice_sessions_thread_id_fkey";
+                columns: ["thread_id"];
+                isOneToOne: false;
+                referencedRelation: "ask_threads";
+                referencedColumns: ["id"];
+            }];
+        };
         billing_accounts: {
             Row: {
                 cancel_at: string | null;
@@ -9614,45 +9755,6 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
             };
             Relationships: [];
         };
-        events_y2026m09: {
-            Row: {
-                category: string;
-                created_at: string;
-                data: Json;
-                id: string;
-                kind: string;
-                request_id: string | null;
-                subject_id: string | null;
-                subject_type: string | null;
-                tenant_id: string;
-                version: number;
-            };
-            Insert: {
-                category?: string;
-                created_at?: string;
-                data?: Json;
-                id?: string;
-                kind: string;
-                request_id?: string | null;
-                subject_id?: string | null;
-                subject_type?: string | null;
-                tenant_id: string;
-                version?: number;
-            };
-            Update: {
-                category?: string;
-                created_at?: string;
-                data?: Json;
-                id?: string;
-                kind?: string;
-                request_id?: string | null;
-                subject_id?: string | null;
-                subject_type?: string | null;
-                tenant_id?: string;
-                version?: number;
-            };
-            Relationships: [];
-        };
         events_y2026m10: {
             Row: {
                 category: string;
@@ -10122,6 +10224,45 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
             Relationships: [];
         };
         events_y2027m10: {
+            Row: {
+                category: string;
+                created_at: string;
+                data: Json;
+                id: string;
+                kind: string;
+                request_id: string | null;
+                subject_id: string | null;
+                subject_type: string | null;
+                tenant_id: string;
+                version: number;
+            };
+            Insert: {
+                category?: string;
+                created_at?: string;
+                data?: Json;
+                id?: string;
+                kind: string;
+                request_id?: string | null;
+                subject_id?: string | null;
+                subject_type?: string | null;
+                tenant_id: string;
+                version?: number;
+            };
+            Update: {
+                category?: string;
+                created_at?: string;
+                data?: Json;
+                id?: string;
+                kind?: string;
+                request_id?: string | null;
+                subject_id?: string | null;
+                subject_type?: string | null;
+                tenant_id?: string;
+                version?: number;
+            };
+            Relationships: [];
+        };
+        events_y2027m11: {
             Row: {
                 category: string;
                 created_at: string;
@@ -16374,6 +16515,75 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
             referencedColumns: ["id"];
         }];
     };
+    ask_voice_sessions: {
+        Row: {
+            context: Json | null;
+            conversation_id: string | null;
+            created_at: string;
+            duration_s: number | null;
+            ended_at: string | null;
+            id: string;
+            language: string;
+            scope: Json | null;
+            surface: string | null;
+            tenant_id: string;
+            thread_id: string;
+            token_cipher: string;
+            token_expires_at: string;
+            turn_key: string | null;
+            turn_started_at: string | null;
+            user_id: string;
+        };
+        Insert: {
+            context?: Json | null;
+            conversation_id?: string | null;
+            created_at?: string;
+            duration_s?: number | null;
+            ended_at?: string | null;
+            id: string;
+            language?: string;
+            scope?: Json | null;
+            surface?: string | null;
+            tenant_id: string;
+            thread_id: string;
+            token_cipher: string;
+            token_expires_at: string;
+            turn_key?: string | null;
+            turn_started_at?: string | null;
+            user_id: string;
+        };
+        Update: {
+            context?: Json | null;
+            conversation_id?: string | null;
+            created_at?: string;
+            duration_s?: number | null;
+            ended_at?: string | null;
+            id?: string;
+            language?: string;
+            scope?: Json | null;
+            surface?: string | null;
+            tenant_id?: string;
+            thread_id?: string;
+            token_cipher?: string;
+            token_expires_at?: string;
+            turn_key?: string | null;
+            turn_started_at?: string | null;
+            user_id?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "ask_voice_sessions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }, {
+            foreignKeyName: "ask_voice_sessions_thread_id_fkey";
+            columns: ["thread_id"];
+            isOneToOne: false;
+            referencedRelation: "ask_threads";
+            referencedColumns: ["id"];
+        }];
+    };
     billing_accounts: {
         Row: {
             cancel_at: string | null;
@@ -17424,45 +17634,6 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
         };
         Relationships: [];
     };
-    events_y2026m09: {
-        Row: {
-            category: string;
-            created_at: string;
-            data: Json;
-            id: string;
-            kind: string;
-            request_id: string | null;
-            subject_id: string | null;
-            subject_type: string | null;
-            tenant_id: string;
-            version: number;
-        };
-        Insert: {
-            category?: string;
-            created_at?: string;
-            data?: Json;
-            id?: string;
-            kind: string;
-            request_id?: string | null;
-            subject_id?: string | null;
-            subject_type?: string | null;
-            tenant_id: string;
-            version?: number;
-        };
-        Update: {
-            category?: string;
-            created_at?: string;
-            data?: Json;
-            id?: string;
-            kind?: string;
-            request_id?: string | null;
-            subject_id?: string | null;
-            subject_type?: string | null;
-            tenant_id?: string;
-            version?: number;
-        };
-        Relationships: [];
-    };
     events_y2026m10: {
         Row: {
             category: string;
@@ -17932,6 +18103,45 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
         Relationships: [];
     };
     events_y2027m10: {
+        Row: {
+            category: string;
+            created_at: string;
+            data: Json;
+            id: string;
+            kind: string;
+            request_id: string | null;
+            subject_id: string | null;
+            subject_type: string | null;
+            tenant_id: string;
+            version: number;
+        };
+        Insert: {
+            category?: string;
+            created_at?: string;
+            data?: Json;
+            id?: string;
+            kind: string;
+            request_id?: string | null;
+            subject_id?: string | null;
+            subject_type?: string | null;
+            tenant_id: string;
+            version?: number;
+        };
+        Update: {
+            category?: string;
+            created_at?: string;
+            data?: Json;
+            id?: string;
+            kind?: string;
+            request_id?: string | null;
+            subject_id?: string | null;
+            subject_type?: string | null;
+            tenant_id?: string;
+            version?: number;
+        };
+        Relationships: [];
+    };
+    events_y2027m11: {
         Row: {
             category: string;
             created_at: string;
@@ -21322,6 +21532,75 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
             referencedColumns: ["id"];
         }];
     };
+    ask_voice_sessions: {
+        Row: {
+            context: Json | null;
+            conversation_id: string | null;
+            created_at: string;
+            duration_s: number | null;
+            ended_at: string | null;
+            id: string;
+            language: string;
+            scope: Json | null;
+            surface: string | null;
+            tenant_id: string;
+            thread_id: string;
+            token_cipher: string;
+            token_expires_at: string;
+            turn_key: string | null;
+            turn_started_at: string | null;
+            user_id: string;
+        };
+        Insert: {
+            context?: Json | null;
+            conversation_id?: string | null;
+            created_at?: string;
+            duration_s?: number | null;
+            ended_at?: string | null;
+            id: string;
+            language?: string;
+            scope?: Json | null;
+            surface?: string | null;
+            tenant_id: string;
+            thread_id: string;
+            token_cipher: string;
+            token_expires_at: string;
+            turn_key?: string | null;
+            turn_started_at?: string | null;
+            user_id: string;
+        };
+        Update: {
+            context?: Json | null;
+            conversation_id?: string | null;
+            created_at?: string;
+            duration_s?: number | null;
+            ended_at?: string | null;
+            id?: string;
+            language?: string;
+            scope?: Json | null;
+            surface?: string | null;
+            tenant_id?: string;
+            thread_id?: string;
+            token_cipher?: string;
+            token_expires_at?: string;
+            turn_key?: string | null;
+            turn_started_at?: string | null;
+            user_id?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "ask_voice_sessions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }, {
+            foreignKeyName: "ask_voice_sessions_thread_id_fkey";
+            columns: ["thread_id"];
+            isOneToOne: false;
+            referencedRelation: "ask_threads";
+            referencedColumns: ["id"];
+        }];
+    };
     billing_accounts: {
         Row: {
             cancel_at: string | null;
@@ -22372,45 +22651,6 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
         };
         Relationships: [];
     };
-    events_y2026m09: {
-        Row: {
-            category: string;
-            created_at: string;
-            data: Json;
-            id: string;
-            kind: string;
-            request_id: string | null;
-            subject_id: string | null;
-            subject_type: string | null;
-            tenant_id: string;
-            version: number;
-        };
-        Insert: {
-            category?: string;
-            created_at?: string;
-            data?: Json;
-            id?: string;
-            kind: string;
-            request_id?: string | null;
-            subject_id?: string | null;
-            subject_type?: string | null;
-            tenant_id: string;
-            version?: number;
-        };
-        Update: {
-            category?: string;
-            created_at?: string;
-            data?: Json;
-            id?: string;
-            kind?: string;
-            request_id?: string | null;
-            subject_id?: string | null;
-            subject_type?: string | null;
-            tenant_id?: string;
-            version?: number;
-        };
-        Relationships: [];
-    };
     events_y2026m10: {
         Row: {
             category: string;
@@ -22880,6 +23120,45 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
         Relationships: [];
     };
     events_y2027m10: {
+        Row: {
+            category: string;
+            created_at: string;
+            data: Json;
+            id: string;
+            kind: string;
+            request_id: string | null;
+            subject_id: string | null;
+            subject_type: string | null;
+            tenant_id: string;
+            version: number;
+        };
+        Insert: {
+            category?: string;
+            created_at?: string;
+            data?: Json;
+            id?: string;
+            kind: string;
+            request_id?: string | null;
+            subject_id?: string | null;
+            subject_type?: string | null;
+            tenant_id: string;
+            version?: number;
+        };
+        Update: {
+            category?: string;
+            created_at?: string;
+            data?: Json;
+            id?: string;
+            kind?: string;
+            request_id?: string | null;
+            subject_id?: string | null;
+            subject_type?: string | null;
+            tenant_id?: string;
+            version?: number;
+        };
+        Relationships: [];
+    };
+    events_y2027m11: {
         Row: {
             category: string;
             created_at: string;
@@ -26270,6 +26549,75 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
             referencedColumns: ["id"];
         }];
     };
+    ask_voice_sessions: {
+        Row: {
+            context: Json | null;
+            conversation_id: string | null;
+            created_at: string;
+            duration_s: number | null;
+            ended_at: string | null;
+            id: string;
+            language: string;
+            scope: Json | null;
+            surface: string | null;
+            tenant_id: string;
+            thread_id: string;
+            token_cipher: string;
+            token_expires_at: string;
+            turn_key: string | null;
+            turn_started_at: string | null;
+            user_id: string;
+        };
+        Insert: {
+            context?: Json | null;
+            conversation_id?: string | null;
+            created_at?: string;
+            duration_s?: number | null;
+            ended_at?: string | null;
+            id: string;
+            language?: string;
+            scope?: Json | null;
+            surface?: string | null;
+            tenant_id: string;
+            thread_id: string;
+            token_cipher: string;
+            token_expires_at: string;
+            turn_key?: string | null;
+            turn_started_at?: string | null;
+            user_id: string;
+        };
+        Update: {
+            context?: Json | null;
+            conversation_id?: string | null;
+            created_at?: string;
+            duration_s?: number | null;
+            ended_at?: string | null;
+            id?: string;
+            language?: string;
+            scope?: Json | null;
+            surface?: string | null;
+            tenant_id?: string;
+            thread_id?: string;
+            token_cipher?: string;
+            token_expires_at?: string;
+            turn_key?: string | null;
+            turn_started_at?: string | null;
+            user_id?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "ask_voice_sessions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }, {
+            foreignKeyName: "ask_voice_sessions_thread_id_fkey";
+            columns: ["thread_id"];
+            isOneToOne: false;
+            referencedRelation: "ask_threads";
+            referencedColumns: ["id"];
+        }];
+    };
     billing_accounts: {
         Row: {
             cancel_at: string | null;
@@ -27320,45 +27668,6 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
         };
         Relationships: [];
     };
-    events_y2026m09: {
-        Row: {
-            category: string;
-            created_at: string;
-            data: Json;
-            id: string;
-            kind: string;
-            request_id: string | null;
-            subject_id: string | null;
-            subject_type: string | null;
-            tenant_id: string;
-            version: number;
-        };
-        Insert: {
-            category?: string;
-            created_at?: string;
-            data?: Json;
-            id?: string;
-            kind: string;
-            request_id?: string | null;
-            subject_id?: string | null;
-            subject_type?: string | null;
-            tenant_id: string;
-            version?: number;
-        };
-        Update: {
-            category?: string;
-            created_at?: string;
-            data?: Json;
-            id?: string;
-            kind?: string;
-            request_id?: string | null;
-            subject_id?: string | null;
-            subject_type?: string | null;
-            tenant_id?: string;
-            version?: number;
-        };
-        Relationships: [];
-    };
     events_y2026m10: {
         Row: {
             category: string;
@@ -27828,6 +28137,45 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
         Relationships: [];
     };
     events_y2027m10: {
+        Row: {
+            category: string;
+            created_at: string;
+            data: Json;
+            id: string;
+            kind: string;
+            request_id: string | null;
+            subject_id: string | null;
+            subject_type: string | null;
+            tenant_id: string;
+            version: number;
+        };
+        Insert: {
+            category?: string;
+            created_at?: string;
+            data?: Json;
+            id?: string;
+            kind: string;
+            request_id?: string | null;
+            subject_id?: string | null;
+            subject_type?: string | null;
+            tenant_id: string;
+            version?: number;
+        };
+        Update: {
+            category?: string;
+            created_at?: string;
+            data?: Json;
+            id?: string;
+            kind?: string;
+            request_id?: string | null;
+            subject_id?: string | null;
+            subject_type?: string | null;
+            tenant_id?: string;
+            version?: number;
+        };
+        Relationships: [];
+    };
+    events_y2027m11: {
         Row: {
             category: string;
             created_at: string;

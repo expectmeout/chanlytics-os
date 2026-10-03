@@ -16186,6 +16186,39 @@ CREATE TABLE public.ask_threads (
 
 
 --
+-- Name: ask_voice_sessions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ask_voice_sessions (
+    id text NOT NULL,
+    tenant_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    thread_id uuid NOT NULL,
+    conversation_id text,
+    token_cipher text NOT NULL,
+    token_expires_at timestamp with time zone NOT NULL,
+    surface text,
+    scope jsonb,
+    context jsonb,
+    language text DEFAULT 'en'::text NOT NULL,
+    turn_key text,
+    turn_started_at timestamp with time zone,
+    duration_s integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    ended_at timestamp with time zone,
+    CONSTRAINT ask_voice_sessions_id_is_sha256 CHECK ((id ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ask_voice_sessions_language_check CHECK ((language = ANY (ARRAY['en'::text, 'es'::text, 'other'::text])))
+);
+
+
+--
+-- Name: TABLE ask_voice_sessions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ask_voice_sessions IS 'One row per voice conversation of Ask: whose it is, its thread, the member''s access token sealed under the dashboard''s key, and the turn the brain door claims. The member''s own under RLS; the brain door reads it on the service role (apps/dashboard/src/server/ask/voice-session.ts).';
+
+
+--
 -- Name: billing_accounts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -19026,6 +19059,14 @@ ALTER TABLE ONLY public.ask_threads
 
 
 --
+-- Name: ask_voice_sessions ask_voice_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_voice_sessions
+    ADD CONSTRAINT ask_voice_sessions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: billing_accounts billing_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -19953,6 +19994,20 @@ CREATE INDEX ask_messages_thread ON public.ask_messages USING btree (thread_id, 
 --
 
 CREATE INDEX ask_threads_user_recent ON public.ask_threads USING btree (user_id, tenant_id, last_at DESC);
+
+
+--
+-- Name: ask_voice_sessions_expiry_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_voice_sessions_expiry_idx ON public.ask_voice_sessions USING btree (token_expires_at);
+
+
+--
+-- Name: ask_voice_sessions_thread_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_voice_sessions_thread_idx ON public.ask_voice_sessions USING btree (thread_id);
 
 
 --
@@ -22014,6 +22069,22 @@ ALTER TABLE ONLY public.ask_threads
 
 
 --
+-- Name: ask_voice_sessions ask_voice_sessions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_voice_sessions
+    ADD CONSTRAINT ask_voice_sessions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ask_voice_sessions ask_voice_sessions_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_voice_sessions
+    ADD CONSTRAINT ask_voice_sessions_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.ask_threads(id) ON DELETE CASCADE;
+
+
+--
 -- Name: billing_accounts billing_accounts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -23310,6 +23381,44 @@ CREATE POLICY ask_threads_own_select ON public.ask_threads FOR SELECT TO authent
 --
 
 CREATE POLICY ask_threads_own_update ON public.ask_threads FOR UPDATE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: ask_voice_sessions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ask_voice_sessions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ask_voice_sessions ask_voice_sessions_own_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_voice_sessions_own_delete ON public.ask_voice_sessions FOR DELETE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: ask_voice_sessions ask_voice_sessions_own_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_voice_sessions_own_insert ON public.ask_voice_sessions FOR INSERT TO authenticated WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
+   FROM public.ask_threads t
+  WHERE ((t.id = ask_voice_sessions.thread_id) AND (t.user_id = ( SELECT auth.uid() AS uid)) AND (t.tenant_id = ask_voice_sessions.tenant_id))))));
+
+
+--
+-- Name: ask_voice_sessions ask_voice_sessions_own_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_voice_sessions_own_select ON public.ask_voice_sessions FOR SELECT TO authenticated USING (((user_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
+   FROM public.memberships m
+  WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.tenant_id = ask_voice_sessions.tenant_id))))));
+
+
+--
+-- Name: ask_voice_sessions ask_voice_sessions_own_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_voice_sessions_own_update ON public.ask_voice_sessions FOR UPDATE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
 
 
 --
@@ -27338,6 +27447,98 @@ GRANT INSERT(scope),UPDATE(scope) ON TABLE public.ask_threads TO authenticated;
 --
 
 GRANT UPDATE(last_at) ON TABLE public.ask_threads TO authenticated;
+
+
+--
+-- Name: TABLE ask_voice_sessions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.ask_voice_sessions TO service_role;
+GRANT SELECT,DELETE ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(id) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.user_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(user_id) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.thread_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(thread_id) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.conversation_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(conversation_id) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.token_cipher; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(token_cipher) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.token_expires_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(token_expires_at) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.surface; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(surface),UPDATE(surface) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.scope; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(scope),UPDATE(scope) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.context; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(context),UPDATE(context) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.language; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(language) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.ended_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(ended_at) ON TABLE public.ask_voice_sessions TO authenticated;
 
 
 --

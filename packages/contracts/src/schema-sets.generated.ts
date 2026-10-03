@@ -14,6 +14,7 @@ export const SCHEMA_SETS = {
     "note_suggest", "reach_out_check", "reply_read",
   ],
   "ask_messages.role": ["user", "assistant"],
+  "ask_voice_sessions.language": ["en", "es", "other"],
   "billing_accounts.mode": ["stripe", "direct"],
   "billing_accounts.status": [
     "none", "incomplete", "incomplete_expired", "trialing", "active", "past_due", "canceled", "unpaid",

@@ -19,6 +19,7 @@ what the script writes.
 | [`ai_usage`](#ai_usage) | `packages/db/src/ai-usage.ts` | on, 1 policy |
 | [`ask_messages`](#ask_messages) | none | on, 4 policies |
 | [`ask_threads`](#ask_threads) | none | on, 4 policies |
+| [`ask_voice_sessions`](#ask_voice_sessions) | none | on, 4 policies |
 | [`billing_accounts`](#billing_accounts) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`billing_card_marks`](#billing_card_marks) | none | on, no policy, so only the service role reaches it |
 | [`billing_events`](#billing_events) | none | on, no policy, so only the service role reaches it |
@@ -197,6 +198,45 @@ Foreign keys:
 | `ask_threads_own_insert` | insert | authenticated |  | `((user_id = auth.uid()) AND (EXISTS ( SELECT 1 FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.tenant_id = ask_threads.tenant_id)))))` |
 | `ask_threads_own_select` | select | authenticated | `((user_id = auth.uid()) AND (EXISTS ( SELECT 1 FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.tenant_id = ask_threads.tenant_id)))))` |  |
 | `ask_threads_own_update` | update | authenticated | `(user_id = auth.uid())` | `(user_id = auth.uid())` |
+
+### ask_voice_sessions
+
+One row per voice conversation of Ask: whose it is, its thread, the member's access token sealed under the dashboard's key, and the turn the brain door claims. The member's own under RLS; the brain door reads it on the service role (apps/dashboard/src/server/ask/voice-session.ts).
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 4 policies
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | text | no |  |  |
+| `tenant_id` | uuid | no |  |  |
+| `user_id` | uuid | no |  |  |
+| `thread_id` | uuid | no |  |  |
+| `conversation_id` | text | yes |  |  |
+| `token_cipher` | text | no |  |  |
+| `token_expires_at` | timestamp with time zone | no |  |  |
+| `surface` | text | yes |  |  |
+| `scope` | jsonb | yes |  |  |
+| `context` | jsonb | yes |  |  |
+| `language` | text | no | `'en'::text` |  |
+| `turn_key` | text | yes |  |  |
+| `turn_started_at` | timestamp with time zone | yes |  |  |
+| `duration_s` | integer | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `ended_at` | timestamp with time zone | yes |  |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+- `thread_id` → [`ask_threads`](#ask_threads) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `ask_voice_sessions_own_delete` | delete | authenticated | `(user_id = auth.uid())` |  |
+| `ask_voice_sessions_own_insert` | insert | authenticated |  | `((user_id = auth.uid()) AND (EXISTS ( SELECT 1 FROM ask_threads t WHERE ((t.id = ask_voice_sessions.thread_id) AND (t.user_id = auth.uid()) AND (t.tenant_id =…` |
+| `ask_voice_sessions_own_select` | select | authenticated | `((user_id = auth.uid()) AND (EXISTS ( SELECT 1 FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.tenant_id = ask_voice_sessions.tenant_id)))))` |  |
+| `ask_voice_sessions_own_update` | update | authenticated | `(user_id = auth.uid())` | `(user_id = auth.uid())` |
 
 ### billing_accounts
 

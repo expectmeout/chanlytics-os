@@ -724,6 +724,7 @@ declare const SCHEMA_SETS: {
     readonly "ai_usage.port": readonly ["anthropic", "typesafe"];
     readonly "ai_usage.purpose": readonly ["receptionist", "reply_draft", "ask", "lead_json", "template_draft", "review_reply", "lead_judge", "note_suggest", "reach_out_check", "reply_read"];
     readonly "ask_messages.role": readonly ["user", "assistant"];
+    readonly "ask_voice_sessions.language": readonly ["en", "es", "other"];
     readonly "billing_accounts.mode": readonly ["stripe", "direct"];
     readonly "billing_accounts.status": readonly ["none", "incomplete", "incomplete_expired", "trialing", "active", "past_due", "canceled", "unpaid", "paused"];
     readonly "billing_events.state": readonly ["claimed", "applied"];
@@ -13790,9 +13791,9 @@ declare const BrainOutputSchema: z.ZodObject<{
     confidence: z.ZodPipe<z.ZodCatch<z.ZodNumber>, z.ZodTransform<number, number>>;
     facts_used: z.ZodPipe<z.ZodCatch<z.ZodArray<z.ZodString>>, z.ZodTransform<string[], string[]>>;
     language: z.ZodCatch<z.ZodEnum<{
-        other: "other";
         en: "en";
         es: "es";
+        other: "other";
     }>>;
 }, z.core.$strip>;
 type BrainOutput = z.infer<typeof BrainOutputSchema>;

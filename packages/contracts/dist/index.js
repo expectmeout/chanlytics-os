@@ -25326,6 +25326,7 @@ var SCHEMA_SETS = {
     "reply_read"
   ],
   "ask_messages.role": ["user", "assistant"],
+  "ask_voice_sessions.language": ["en", "es", "other"],
   "billing_accounts.mode": ["stripe", "direct"],
   "billing_accounts.status": [
     "none",
