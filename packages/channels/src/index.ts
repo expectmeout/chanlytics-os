@@ -178,6 +178,8 @@ export {
   hostedIdentity,
   sendsAs,
   sendsAsOwnDomain,
+  sendsAsCampaigns,
+  campaignsIdentity,
   ownDomainIdentity,
   requestLeavesAs,
 } from "./email/identity";
@@ -190,6 +192,7 @@ export {
   receivedEmailFrom,
   messageIdsIn,
   classifyReceived,
+  senderAuthenticated,
 } from "./email/intake";
 export type { PlatformRecipient, EmailReceivedEvent, ReceivedEmail, EmailClaim } from "./email/intake";
 export { emailReceiptFrom, emailReceiptEffect } from "./email/receipts";

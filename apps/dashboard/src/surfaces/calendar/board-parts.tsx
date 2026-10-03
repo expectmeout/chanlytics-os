@@ -14,11 +14,14 @@
 import type { CalendarServiceVM, CalendarVM, CalendarView } from "@chanlytics/contracts";
 import type { RefObject } from "react";
 import { Button } from "../kit/button/button";
+import { DatePicker } from "../kit/datepicker/datepicker";
 import { FailedRead } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
 import { LinkButton } from "../kit/link-button/link-button";
+import { Menu, type MenuGroup } from "../kit/menu/menu";
+import { Segmented } from "../kit/segmented/segmented";
+import { Select } from "../kit/select/select";
 import { holdStill, navigate } from "../legacy-verbs";
-import { crOpenPicker } from "./board-dom";
 import { routeTo, statePill } from "./shell-verbs";
 import { CR_FEED_WORDS, CR_VIEWS } from "./words";
 
@@ -34,6 +37,72 @@ interface BarProps {
   setAnchorKey: (key: string | null) => void;
   setServiceName: (name: string) => void;
   setView: (view: CalendarView) => void;
+  refreshing: boolean;
+  refreshNow: () => void | Promise<void>;
+  aboutOpen: boolean;
+  toggleAbout: () => void;
+  copyLink: () => void | Promise<void>;
+}
+
+/** The service picker's first option, which is no service: the page keeps that as an empty name. */
+const ANY_SERVICE = "*";
+
+/** The views as the segmented control reads them: the id a test finds each button by is the page's. */
+const VIEW_OPTIONS = CR_VIEWS.map(([id, words]) => ({ value: id, label: words, testid: `cal-view-${id}` }));
+
+/** An item's glyph, at the size the menu draws it. */
+const crGlyph = (name: string) => <Icon name={name} size={13} />;
+
+/**
+ * What the calendar offers its owner, in one menu at the bar's end: the booking link (open it, copy it), the calendar read
+ * again now, the hours and rules, and the place they are kept. Each is the page's own act, moved up here from where it
+ * stood (the frame's Booking link button was the first); the foot's toggle and the rules sheet's Refresh stay as they were.
+ */
+function optionsGroups(p: BarProps): MenuGroup[] {
+  const { vm, refreshing, refreshNow, aboutOpen, toggleAbout, copyLink } = p;
+  const link = vm.bookingLink;
+  const groups: MenuGroup[] = [];
+  if (link) {
+    groups.push({
+      header: "Booking link",
+      items: [
+        {
+          label: "Open the booking page",
+          glyph: crGlyph("external"),
+          onSelect: () => window.open(link, "_blank", "noopener,noreferrer"),
+        },
+        { label: "Copy the link", glyph: crGlyph("copy"), onSelect: () => void copyLink() },
+      ],
+    });
+  }
+  groups.push({
+    header: "Calendar",
+    items: [
+      ...(vm.feed.present
+        ? [
+            {
+              label: "Read it again now",
+              hint: refreshing ? "Reading…" : undefined,
+              glyph: crGlyph("refresh"),
+              disabled: refreshing,
+              onSelect: () => void refreshNow(),
+            },
+          ]
+        : []),
+      {
+        label: aboutOpen ? "Hide hours and rules" : "Hours and rules",
+        glyph: crGlyph("clock"),
+        onSelect: toggleAbout,
+      },
+      {
+        label: "Calendar settings",
+        hint: "Settings › Business",
+        glyph: crGlyph("settings"),
+        onSelect: () => navigate(routeTo.admin("workspace")),
+      },
+    ],
+  });
+  return groups;
 }
 
 /**
@@ -82,60 +151,65 @@ export function calendarHead(p: BarProps) {
               <Icon name="chevron" size={14} />
             </Button>
           </div>
-          {/* The range says which days are on screen, and opens a date picker: the date field was a control of its own. */}
-          <label className="cal-title" title="Go to a date">
-            <span className="cal-title-range" aria-live="polite" data-testid="cal-range">
-              {label}
-            </span>
-            <Icon name="chevron-down" size={12} />
-            <input
-              className="cal-jump"
-              type="date"
-              aria-label="Go to a date"
-              value={anchor}
-              onChange={(e) => {
-                if (e.target.value) setAnchorKey(e.target.value);
-              }}
-              onClick={crOpenPicker}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") crOpenPicker(e);
-              }}
-              data-testid="cal-jump"
-            />
-          </label>
+          {/* The range says which days are on screen, and opens the kit's date picker: the date field was a control of its own,
+              and the browser's own picker drew in the system's colours. */}
+          <DatePicker
+            value={anchor}
+            onValueChange={setAnchorKey}
+            today={vm.today}
+            label="Go to a date"
+            glyphs={{ previous: <Icon name="chevron" size={14} />, next: <Icon name="chevron" size={14} /> }}
+            trigger={
+              <Button variant="quiet" size="sm" className="cal-title" title="Go to a date" data-testid="cal-jump">
+                <span className="cal-title-range" aria-live="polite" data-testid="cal-range">
+                  {label}
+                </span>
+                <Icon name="chevron-down" size={12} />
+              </Button>
+            }
+          />
         </div>
         <div className="cal-tools">
           {vm.services.length > 0 && (
-            <select
-              className="tpl-select cal-service"
-              value={serviceName}
-              onChange={(e) => setServiceName(e.target.value)}
-              aria-label="Open times that fit a service"
-              title="Show only the open times long enough for a service"
+            <Select
+              value={serviceName || ANY_SERVICE}
+              onValueChange={(next) => setServiceName(next === ANY_SERVICE ? "" : next)}
+              options={[
+                { value: ANY_SERVICE, label: "Any service" },
+                ...vm.services.map((s) => ({ value: s.name, label: s.label })),
+              ]}
+              chevron={<Icon name="chevron-down" size={12} />}
+              label="Open times that fit a service"
+              className="cal-service"
               data-testid="cal-service"
-            >
-              <option value="">Any service</option>
-              {vm.services.map((s) => (
-                <option key={s.name} value={s.name}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
+            />
           )}
-          <div className="cl-tabs cal-views" role="group" aria-label="View">
-            {/* A view is a different height under the tabs (fourteen cards, six weeks, a day): they hold still. */}
-            {CR_VIEWS.map(([id, l]) => (
-              <button
-                key={id}
-                className={`cl-tab ${view === id ? "active" : ""}`}
-                aria-pressed={view === id}
-                onClick={(e) => holdStill(e && e.currentTarget, () => setView(id))}
-                data-testid={`cal-view-${id}`}
+          {/* A view is a different height under the tabs (fourteen cards, six weeks, a day): they hold still, from the
+              button that was pressed, which has the focus. */}
+          <Segmented
+            label="View"
+            value={view}
+            onValueChange={(next) => holdStill(document.activeElement, () => setView(next))}
+            options={VIEW_OPTIONS}
+            className="cal-views"
+          />
+          <Menu
+            align="end"
+            label="Calendar options"
+            groups={optionsGroups(p)}
+            trigger={
+              <Button
+                variant="quiet"
+                iconOnly
+                className="cal-options"
+                title="Calendar options"
+                aria-label="Calendar options"
+                data-testid="cal-options"
               >
-                {l}
-              </button>
-            ))}
-          </div>
+                <Icon name="cog" size={16} />
+              </Button>
+            }
+          />
         </div>
       </div>
     </div>

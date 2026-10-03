@@ -72,8 +72,16 @@ export interface SetupDto {
    * or a walk-in recorded with a yes and no number, said it and cannot be sent
    * an offer. Read from `offers` alone, the row told that owner nobody had said
    * yes, and sent them to the QR for an answer they had (#663's rule).
+   *
+   * Counted from the columns, not by reachFor: an offer goes by WhatsApp whatever else the workspace can send on (texts
+   * carry none: reach-for.ts channelNeverCarries), so a number is the way to reach them, and the WhatsApp row above says
+   * whether the number can send. Offers by email have their own arm, `offers_by_email`: the people an offer by email reaches
+   * (an address that has not stopped, no unsubscribe, and their own yes to offers by email or a relationship on record:
+   * the rule, consent.ts mayMessageFor), counted by the database (offers_email_reach) only while this workspace can send
+   * them (email-offers.ts: the campaigns domain verified, the business's address on file, no pause). Absent while it
+   * cannot, or where the count could not be read, and never a zero standing in for either.
    */
-  consent: { yes: number; offers: number; offersSaidYes: number };
+  consent: { yes: number; offers: number; offersSaidYes: number; offers_by_email?: number };
   /**
    * Facts that disagree with what the platform knows (contracts/facts.ts).
    *

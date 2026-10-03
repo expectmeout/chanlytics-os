@@ -651,10 +651,10 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
   });
   assert.equal(
     mount("#/broadcasts/lapsed").title,
-    "Lapsed · Broadcasts · Campaigns · Chanlytics",
+    "Lapsed · Sent · Campaigns · Chanlytics",
     "a real audience by its own name",
   );
-  assert.equal(mount("#/broadcasts/lapsed-60").title, "Broadcasts · Campaigns · Chanlytics");
+  assert.equal(mount("#/broadcasts/lapsed-60").title, "Sent · Campaigns · Chanlytics");
 
   setPeople({ rows: [], lists: [{ id: "opted_in", label: "Opted in" }], saved: [] });
   assert.equal(mount("#/clients/seg:opted_in").title, "Opted in · People · Chanlytics");
@@ -1054,17 +1054,23 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
   }
 });
 
-test("REGRESSION (C13): a link to a playbook opens Playbooks on its card, named in the crumbs -- the route dropped the id", () => {
+test("REGRESSION (C13): a link to a playbook opens Campaigns' home on it, named in the crumbs -- the route dropped the id", () => {
   shell.installShell(win);
   const keepGate = win.gate;
   win.gate = win.gate || (() => ({}));
   setSurfaceValue("playbooks", { rows: [{ id: "pb-1", name: "Win-back" }] });
   try {
     const crumbs = (hash) => find(mount(hash).tree, (n) => n.type === "Topbar").props.crumbs;
-    assert.equal(crumbs("#/outbound/pb-1").at(-1), "Win-back", "REGRESSION: the route dropped the playbook's id");
-    assert.deepEqual(crumbs("#/outbound"), ["Campaigns", "Playbooks"]);
+    // The old Playbooks list is a door (contracts doorOf): `outbound/<id>` is `campaigns/moment:<id>`, which the frame names.
     assert.equal(
-      crumbs("#/outbound/pb-gone").at(-1),
+      crumbs("#/campaigns/moment:pb-1").at(-1),
+      "Win-back",
+      "REGRESSION: the route dropped the playbook's id",
+    );
+    assert.deepEqual(crumbs("#/campaigns/moment:pb-1")[0], { label: "Campaigns", to: "campaigns" }, "back to the home");
+    assert.deepEqual(crumbs("#/campaigns"), ["Campaigns"]);
+    assert.equal(
+      crumbs("#/campaigns/moment:pb-gone").at(-1),
       "Playbook",
       "a playbook since deleted is still named for what it was",
     );
@@ -1076,7 +1082,7 @@ test("REGRESSION (C13): a link to a playbook opens Playbooks on its card, named 
 
 /* ------------------------------ the shell's own doors (B6a-2) ------------------------------ */
 
-test("REGRESSION (N10): a real workspace's Calendar and Playbooks offer no primary act until the page is ready -- Book and New campaign opened Ask over the skeleton or the failure pane", () => {
+test("REGRESSION (N10): a real workspace's Calendar and Campaigns offer no primary act in the top bar until the page is ready -- Book and New campaign opened Ask over the skeleton or the failure pane", () => {
   shell.installShell(win);
   const keepGate = win.gate;
   win.gate = () => ({});
@@ -1088,24 +1094,21 @@ test("REGRESSION (N10): a real workspace's Calendar and Playbooks offer no prima
       "REGRESSION: a Calendar still loading, or failed, offered Book, which opened Ask",
     );
     assert.equal(
-      right("#/outbound"),
+      right("#/campaigns"),
       null,
-      "REGRESSION: Playbooks still loading, or failed, offered New campaign, which opened Ask",
+      "REGRESSION: Campaigns still loading, or failed, offered New campaign, which opened Ask",
     );
     win.__DEMO_MODE = true;
     assert.equal(textOf(right("#/calendar")).trim(), "Book", "the demo keeps its detour");
-    assert.equal(textOf(right("#/outbound")).trim(), "New campaign");
+    assert.equal(right("#/campaigns"), null, "the demo's Campaigns draws its New message in the page's own head");
     delete win.__DEMO_MODE;
     setSurfaceValue("calendar", { vm: { bookingLink: "https://book.example/luna" }, fetchedAt: 1 });
-    assert.equal(
-      right("#/calendar").props.href,
-      "https://book.example/luna",
-      "a ready Calendar books through its own link",
-    );
-    // Ready, New playbook is the page's own, at the right of its one line beside Broadcasts' and Templates' acts
-    // (outbound-real.jsx pb-new), and the top bar carries none: the page draws only once the playbooks are read.
+    // A ready Calendar has none either: its booking link is in the page's own options menu (calendar/chrome.ts).
+    assert.equal(right("#/calendar"), null, "a ready Calendar keeps its link in the page's menu, not the top bar");
+    // Ready, New message is the page's own, in the head of Campaigns' home (surfaces/campaigns/home), and the top bar
+    // carries none: the page draws only once the playbooks are read.
     setSurfaceValue("playbooks", { rows: [] });
-    assert.equal(right("#/outbound"), null, "ready Playbooks keep their act on the page, not in the top bar");
+    assert.equal(right("#/campaigns"), null, "a ready Campaigns keeps its act on the page, not in the top bar");
   } finally {
     setSurfaceValue("calendar", undefined);
     setSurfaceValue("playbooks", undefined);
@@ -1517,11 +1520,11 @@ test("Conversations and Live are views of the Inbox: the strip is drawn over all
   delete globalThis.LiveMonitorPage;
 });
 
-test("Campaigns' third door is Templates, on the route that is still `messages` -- the word `message` meant three things across one nav", () => {
+test("Campaigns' Library is the room on the route that is still `messages` -- the word `message` meant three things across one nav", () => {
   const { tree, title } = mount("#/messages");
   assert.equal(
     title,
-    "Templates · Campaigns · Chanlytics",
+    "Library · Campaigns · Chanlytics",
     "REGRESSION: the trail said Messages, beside an Inbox full of them",
   );
   const strip = find(tree, (n) => n.type === "SurfaceTabs");

@@ -168,6 +168,7 @@ test("the real set is exactly the converted surfaces", () => {
     "admin/workspace",
     "broadcasts",
     "calendar",
+    "campaigns",
     "clients",
     "conversations",
     "inbox",
@@ -427,7 +428,8 @@ test("the tab bar offers what the registry says is real, and only that", () => {
   const rows = [...tabsSrc.matchAll(/\{ id: "([a-z-]+)", label: "[^"]+", to: "([a-z-]+)"([^}]*)\}/g)].map(
     ([, id, to, rest]) => ({ id, to, demoOnly: /demoOnly: true/.test(rest) }),
   );
-  assert.ok(rows.length >= 12, `parsed ${rows.length} tabs — the shape of the file changed`);
+  // Campaigns' three tabs went with its strip (3 Oct 2026): the home is one page, and Sent and the Library are rooms reached from it.
+  assert.ok(rows.length >= 9, `parsed ${rows.length} tabs — the shape of the file changed`);
 
   for (const t of rows) {
     const state = SURFACE_STATES[t.to];

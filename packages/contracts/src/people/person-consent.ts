@@ -4,6 +4,7 @@
  * people.ts (Reach out Part 2.5); people/index.ts names it.
  */
 import { type AskedPurpose, mayMessageFor } from "../consent/consent";
+import type { ConsentChannel } from "../consent/consent-channels";
 import type { PersonRowVM } from "./person-row";
 
 export interface PersonConsent {
@@ -29,6 +30,26 @@ export interface PersonConsent {
   marketingSub: string;
   /** The offers answer in a word, as People's Offers column says it: Yes, No or Not asked. */
   marketingLabel: string;
+  /**
+   * The channels each yes covers, as the row keeps them (consent-channels.ts): null where none are kept, a yes recorded
+   * before the channels were, which covers WhatsApp alone.
+   */
+  channels: readonly string[] | null;
+  marketingChannels: readonly string[] | null;
+  /**
+   * Email's own answer about offers (00174): unknown until they ask for offers by email or unsubscribe. Null where the row
+   * carries none (a database 00288 has not reached does not return it): then nothing is said, and an offer by email
+   * fails closed (consent.ts mayMessageFor).
+   */
+  emailMarketing: "unknown" | "opted_in" | "opted_out" | null;
+  /** How that answer was given, raw: customer_message | form | unsubscribe | complaint | reply, or null. */
+  emailMarketingSource: string | null;
+  /** The offers-by-email answer in a word, as the person's page says it: Yes, Unsubscribed or Not asked; null where unread. */
+  emailOffersLabel: "Yes" | "Unsubscribed" | "Not asked" | null;
+  /** One line under it: how and when, or what they said. */
+  emailOffersSub: string;
+  /** Whether they wrote, called or have a deal (consent.ts relationshipOnRecord): the other way into an offer by email. */
+  relationship: boolean;
 }
 
 /**
@@ -155,8 +176,29 @@ export function consentSourceLabel(source: string | null | undefined): string | 
  * by the compiler at every call site, the way `businessRecordProblems` requires
  * its registration path.
  */
-export function mayReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: AskedPurpose): boolean {
-  return whyNotReceive(r, purpose) === null;
+export function mayReceive(r: ReceiveRow, purpose: AskedPurpose, channel: ConsentChannel): boolean {
+  return whyNotReceive(r, purpose, channel) === null;
+}
+
+/** What the receive predicates read of a person: their answers, and where to send. */
+export type ReceiveRow = Pick<PersonRowVM, "consent" | "phone"> & {
+  email?: string | null;
+  /** The address has bounced or complained: by email there is nobody to send to (whyNotReceive). */
+  emailSuppressed?: boolean;
+};
+
+/** A person's answers in the shape the one predicate reads (consent.ts mayMessageFor). */
+function bearingOf(c: PersonConsent) {
+  return {
+    consent: c.state,
+    dnc: c.dnc,
+    marketing_consent: c.marketing,
+    consent_channels: c.channels,
+    marketing_channels: c.marketingChannels,
+    // Email's own answer and the relationship an offer by email may rest on; absent reads as nothing, and fails closed.
+    email_marketing: c.emailMarketing,
+    has_relationship: c.relationship,
+  };
 }
 
 /**
@@ -166,20 +208,22 @@ export function mayReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: A
  * to, or on the do-not-contact list), or never having said yes -- instead of
  * one count that hides the one an owner can do something about.
  */
-export type NotReceived = "no_number" | "stopped" | "no_yes";
+export type NotReceived = "no_number" | "no_address" | "stopped" | "unsubscribed" | "no_yes";
 
-export function whyNotReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: AskedPurpose): NotReceived | null {
-  // Every audience today leaves by WhatsApp or text, and both need a number. A
-  // person with an address and none is reached when the email wire carries
-  // reminders (docs/plans/2026-09-17-email-channel.md, §11), not before.
-  if (!r.phone) return "no_number";
-  const said = mayMessageFor(
-    { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
-    purpose,
-    { proactive: true },
-  );
+/**
+ * THE CHANNEL IS REQUIRED (One message, every channel, step 2): a yes covers the channels it was given for, and a
+ * channel needs its own way to reach them, a number for WhatsApp or a text, an address for an email. An address that
+ * has bounced or complained is no address: the door would refuse it (email_suppressed), so the pick must fall back to
+ * another channel rather than choose email and hold the person. The pick asks it of each channel a campaign ticks
+ * (broadcasts/reach-for.ts reachFor), and a page that has no campaign in view, of all three (broadcasts/reach-any.ts).
+ */
+export function whyNotReceive(r: ReceiveRow, purpose: AskedPurpose, channel: ConsentChannel): NotReceived | null {
+  if (channel === "email" ? !r.email || r.emailSuppressed : !r.phone)
+    return channel === "email" ? "no_address" : "no_number";
+  const said = mayMessageFor(bearingOf(r.consent), purpose, { proactive: true, channel });
   if (said.ok) return null;
-  return said.reason === "opted_out" ? "stopped" : "no_yes";
+  // Their own no to email (a press of Unsubscribe) is its own reason: it ends offers by email and leaves everything else.
+  return said.reason === "opted_out" ? "stopped" : said.reason === "unsubscribed" ? "unsubscribed" : "no_yes";
 }
 
 /**
@@ -187,10 +231,6 @@ export function whyNotReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose
  * `mayReceive` that is an answer they gave. When nobody on a list can be sent a thing and somebody on it said yes,
  * what is missing is a number, not an answer -- and asking them for their yes asks for one they already gave.
  */
-export function saidYesTo(r: Pick<PersonRowVM, "consent">, purpose: AskedPurpose): boolean {
-  return mayMessageFor(
-    { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
-    purpose,
-    { proactive: true },
-  ).ok;
+export function saidYesTo(r: Pick<PersonRowVM, "consent">, purpose: AskedPurpose, channel: ConsentChannel): boolean {
+  return mayMessageFor(bearingOf(r.consent), purpose, { proactive: true, channel }).ok;
 }

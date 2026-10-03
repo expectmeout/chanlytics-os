@@ -9,8 +9,10 @@
  * union of what the writers write, told apart by their own field; what this holds:
  *   - contact.added <- create_person (manual, calendar with a title, lead), import_person, lead_set_stage (a lead
  *     converted, with a phone and without), the lead-insert trigger lead_link_contact, reach_out_person;
- *   - contact.consent_changed <- ingest_inbound (a STOP and a START), set_contact_consent, set_marketing_consent,
- *     set_email_marketing (a no, and a reply's no taken back);
+ *   - contact.consent_changed <- ingest_inbound (a STOP and a START), note_yes_on_channel (a START by text from
+ *     someone already opted in), set_contact_consent, set_marketing_consent, set_email_marketing (a no, and a reply's
+ *     no taken back), set_email_offers_yes (a yes to offers by email, 00288) and stop_all_messages (the unsubscribe page's
+ *     second act: a STOP, and the email unsubscribe with it);
  *   - platform.acted <- partner_status_set, partner_standing_set, partner_second_factor_reset (a platform admin's).
  * And the list of writers is not this file's word for it: the catalog is asked which functions insert into events with
  * one of the three kinds named in them, and the answer must be the list above, so a new SQL writer fails here until it
@@ -54,7 +56,15 @@ const skip =
 /** Every SQL writer of each shared kind, by function name: what the catalog must answer, and what the tests run. */
 const WRITERS = {
   "contact.added": ["create_person", "import_person", "lead_link_contact", "lead_set_stage", "reach_out_person"],
-  "contact.consent_changed": ["ingest_inbound", "set_contact_consent", "set_email_marketing", "set_marketing_consent"],
+  "contact.consent_changed": [
+    "ingest_inbound",
+    "note_yes_on_channel",
+    "set_contact_consent",
+    "set_email_marketing",
+    "set_email_offers_yes",
+    "set_marketing_consent",
+    "stop_all_messages",
+  ],
   "platform.acted": ["partner_second_factor_reset", "partner_standing_set", "partner_status_set"],
 };
 /** Where each kind files in the ledger (packages/db events.ts WRITES). */
@@ -312,6 +322,43 @@ test("ingest_inbound: a STOP and a START texted by a customer", { skip }, async 
   assert.deepEqual([start.consent, start.source], ["opted_in", "customer_message"]);
 });
 
+test("note_yes_on_channel: a START by text from someone already opted in on WhatsApp (00286)", { skip }, async () => {
+  const number = phone();
+  const opted = ok(
+    await db.rpc("ingest_inbound", {
+      p_tenant_id: w.t,
+      p_channel: "whatsapp",
+      p_identity_external_id: number,
+      p_phone_e164: number,
+      p_wa_profile_name: null,
+      p_message_external_id: `shapes-note-wa-${RUN}`,
+      p_type: "text",
+      p_body: "START",
+      p_channel_ts: new Date().toISOString(),
+      p_opt_in: true,
+    }),
+    "ingest_inbound START",
+  );
+  const noted = await wrote(w.t, "contact.consent_changed", async () =>
+    ok(
+      await db.rpc("note_yes_on_channel", {
+        p_tenant_id: w.t,
+        p_contact_id: opted.contact_id,
+        p_channel: "sms",
+        p_message_external_id: `shapes-note-${RUN}`,
+        p_words: "START",
+      }),
+      "note_yes_on_channel",
+    ),
+  );
+  assert.equal(noted.answered, true, "it wrote the yes ingest_inbound had no event for");
+  const [row] = holds("contact.consent_changed", "note_yes_on_channel", noted.rows, 1);
+  assert.deepEqual(
+    [row.consent, row.source, row.channel, row.words, row.covers_another_channel],
+    ["opted_in", "customer_message", "sms", "START", true],
+  );
+});
+
 test(
   "set_contact_consent: a member records an answer, with a note and with the customer's own message",
   { skip },
@@ -494,6 +541,55 @@ test(
     const undone = await say(replier, "unknown", "reply_undone");
     const [back] = holds("contact.consent_changed", "set_email_marketing", undone.rows, 1);
     assert.deepEqual([back.consent, back.source, back.purpose], ["unknown", "reply_undone", "email_marketing"]);
+  },
+);
+
+test(
+  "set_email_offers_yes and stop_all_messages (00288): a yes to offers by email, and the page's STOP for everything with the email unsubscribe",
+  { skip },
+  async () => {
+    const asked = await contact(w.t, { email: `yes-${RUN}@example.com` });
+    const yes = await wrote(w.t, "contact.consent_changed", async () =>
+      ok(
+        await db.rpc("set_email_offers_yes", {
+          p_tenant_id: w.t,
+          p_contact_id: asked,
+          p_source: "customer_message",
+          p_message_id: crypto.randomUUID(),
+          p_evidence: { channel: "email", words: "YES OFFERS" },
+        }),
+        "set_email_offers_yes",
+      ),
+    );
+    assert.deepEqual(yes.answered, { changed: true, found: true });
+    const [said] = holds("contact.consent_changed", "set_email_offers_yes", yes.rows, 1);
+    assert.deepEqual(
+      [said.purpose, said.consent, said.source, said.channel, said.previous],
+      ["email_marketing", "opted_in", "customer_message", "email", "unknown"],
+    );
+
+    const stopper = await contact(w.t, { email: `stop-${RUN}@example.com`, consent: "opted_in" });
+    const stopped = await wrote(w.t, "contact.consent_changed", async () =>
+      ok(
+        await db.rpc("stop_all_messages", {
+          p_tenant_id: w.t,
+          p_contact_id: stopper,
+          p_message_id: crypto.randomUUID(),
+        }),
+        "stop_all_messages",
+      ),
+    );
+    assert.equal(stopped.answered.changed, true);
+    const rows = holds("contact.consent_changed", "stop_all_messages", stopped.rows, 2);
+    const stop = rows.find((r) => r.purpose === undefined);
+    assert.deepEqual(
+      [stop.consent, stop.source, stop.channel, stop.via],
+      ["opted_out", "customer_message", "email", "unsubscribe_page"],
+    );
+    assert.ok(
+      rows.some((r) => r.purpose === "email_marketing" && r.consent === "opted_out"),
+      "and the email unsubscribe",
+    );
   },
 );
 

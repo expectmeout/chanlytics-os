@@ -25,7 +25,9 @@ function _segmentedTakes(
   const choose = (_often: Often) => undefined;
   type _Its = [
     Holds<Exactly<ComponentProps<typeof Segmented>, SegmentedProps<string>>>,
-    Holds<Exactly<SegmentedOption<Often>, { value: Often; label: string; hint?: string }>>,
+    Holds<
+      Exactly<SegmentedOption<Often>, { value: Often; label: string; hint?: string; testid?: string; title?: string }>
+    >,
     Holds<Exactly<SegmentedProps<Often>["onValueChange"], (value: Often) => void>>,
   ];
   Segmented({ label: "How often", value: now.often, onValueChange: choose, options });

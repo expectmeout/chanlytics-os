@@ -2730,7 +2730,8 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
   for (const [words, to] of [
     ["calendar", "calendar"],
     ["lists", "clients"],
-    ["playbooks", "outbound"],
+    ["playbooks", "campaigns"], // the Playbooks list is Campaigns' home (contracts doorOf); the old name still finds it
+    ["campaigns", "campaigns"],
     ["broadcasts", "broadcasts"],
     ["messages", "messages"],
     ["setup", "start"],
@@ -3099,10 +3100,15 @@ test("the disc's dot is the usage's standing alone: nothing with no usage surfac
 
 /* ------------------------------ the name a page went by ------------------------------ */
 
-test("a page is found by the name it goes by AND by the one it used to: 'templates' and 'messages' both land there", () => {
-  const byLabel = askJump("templates", ASK_PAGES);
+test("a page is found by the name it goes by AND by the one it used to: 'library', 'templates' and 'messages' all land there", () => {
+  const byLabel = askJump("library", ASK_PAGES);
   assert.equal(byLabel[0]?.to, "messages", "the label first");
-  assert.equal(byLabel[0]?.label, "Templates");
+  assert.equal(byLabel[0]?.label, "Library");
+  // The Library was Templates, and before that Messages; Sent was Broadcasts: each name still finds its room (campaign rooms, 3 Oct).
+  assert.equal(askJump("templates", ASK_PAGES)[0]?.to, "messages", "the name it went by");
+  const sent = askJump("sent", ASK_PAGES);
+  assert.deepEqual([sent[0]?.label, sent[0]?.to], ["Sent", "broadcasts"], "the label first");
+  assert.equal(askJump("broadcasts", ASK_PAGES)[0]?.to, "broadcasts", "the name it went by");
   const byOldName = askJump("messages", ASK_PAGES);
   assert.ok(
     byOldName.some((j) => j.to === "messages"),

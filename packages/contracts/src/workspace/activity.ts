@@ -157,6 +157,8 @@ const WORDS: Record<string, string> = {
   "google.replied": "A Google review was answered",
   "mailbox.created": "The workspace's email address was set up",
   "mailbox.renamed": "The name on the workspace's email changed",
+  "mailbox.offers_paused": "Offers by email were paused",
+  "mailbox.offers_resumed": "Offers by email were turned back on",
   "sending_domain.added": "A domain to send from was added",
   "sending_domain.verified": "A domain to send from was verified",
   "sending_domain.held": "A domain to send from was held",
@@ -233,11 +235,24 @@ function readingWords(kind: string, p: Record<string, unknown>, base: string): s
     : `${who} wrote back`;
 }
 
+/** The gates that pause a workspace's offers by email (00288), in the owner's words: which one tripped. */
+const OFFERS_PAUSED_WHY: Record<string, string> = {
+  complaints: "too many offers were marked as spam",
+  bounces: "too many offers bounced",
+};
+
+/** A workspace's offers by email were paused by a gate: the kind's words, then why where the row says. */
+function offersPausedWords(p: Record<string, unknown>, base: string): string {
+  const why = OFFERS_PAUSED_WHY[textAt(p, "reason") ?? ""];
+  return why ? `${base} · ${why}` : base;
+}
+
 /** The kinds whose sentence is written whole, by its own function. */
 const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string) => string>([
   ["import", (p) => importWords(p)],
   ["lead.converted", (p, base) => readingWords("lead.converted", p, base)],
   ["reach_out.replied", (p, base) => readingWords("reach_out.replied", p, base)],
+  ["mailbox.offers_paused", offersPausedWords],
 ]);
 
 /**
@@ -432,6 +447,7 @@ const TONES: Record<string, Tone> = {
   "broadcast.sent": "ok",
   "billing.resumed": "ok",
   "mailbox.created": "ok",
+  "mailbox.offers_resumed": "ok",
   "sending_domain.verified": "ok",
   "sending_domain.released": "ok",
   "sending_domain.resumed": "ok",
@@ -447,6 +463,7 @@ const TONES: Record<string, Tone> = {
   "google.unlinked": "warn",
   "google.disconnected": "warn",
   "sending_domain.held": "warn",
+  "mailbox.offers_paused": "warn",
   "message.send_raced_cancel": "warn",
   "ingest.allowlist_skip": "warn",
   pause_agent: "warn",

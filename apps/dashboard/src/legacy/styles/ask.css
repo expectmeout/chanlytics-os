@@ -271,8 +271,9 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   /* Inside the native shell the native tab bar stands under it: the ✦ lifts by the shell's inset (mobile.css, html.in-app). */
   html.in-app .phone-ask { bottom: calc(10px + var(--app-inset-bottom, 0px)); }
   /* Inside a page that takes the screen over (data-takeover on its root: a thread, a call) the reply box IS the action,
-     and Send sits a thumb from here. Ask comes back with the list. */
-  body:has([data-takeover]) .phone-ask { display: none; }
+     and Send sits a thumb from here. Ask comes back with the list. A bar docked at the foot (data-dock, mobile.css) takes
+     the same room. */
+  body:has([data-takeover], [data-dock]) .phone-ask { display: none; }
 
   /* Every dialog on the ask overlay sits on the bottom edge on a phone: the Calendar's event panel (calendar-real.jsx)
      shares .ask-overlay and was docked here by this rule before the Line. The Line itself is the whole screen. */
@@ -518,4 +519,36 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 }
 :where([data-look="glass"]) .ask-suggestion:hover {
   background: var(--surface-control-fill);
+}
+
+/* ---- Ask's takeover on a phone, in Glass (Ruben, 2 Oct 2026: "it seems to have a background; remove it so it follows the
+   transparent styling") ----
+   The phone's Line is the whole screen, and it drew one: a window of the page's own ground (`background: var(--bg)`, nearly
+   opaque once the pop's fill and blur sat on it) over a scrim of the sunken ground at 64%, so the page behind was gone
+   and the three stood on a flat black screen. Here the scrim is the glass: the control layer's blur over a soft veil, so
+   the page's own light and colour come through softened; the window over it keeps nothing of its own; and the field at
+   the foot is the inset's capsule, not a dark pill. The window is reached as the overlay's child, since a class named
+   modal is a primitive's word to the ratchet. */
+@media (max-width: 720px) {
+  :where([data-look="glass"]) .ask-overlay.ask-line-scrim {
+    background: color-mix(in oklab, var(--surface-scrim) 55%, transparent);
+    backdrop-filter: var(--surface-control-blur);
+  }
+  :where([data-look="glass"]) .ask-overlay > .ask-line {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  :where([data-look="glass"]) .ask-line .ask-stage {
+    border: 0;
+    background: var(--surface-inset-fill);
+    box-shadow: var(--surface-inset-depth);
+  }
+  /* What Ask says of right now stands on the glass itself, with no panel of its own behind the three. */
+  :where([data-look="glass"]) .ask-line .ask-now {
+    background: transparent;
+    box-shadow: none;
+  }
 }

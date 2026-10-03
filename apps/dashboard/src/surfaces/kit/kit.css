@@ -2029,6 +2029,49 @@ textarea.rec-input {
   font-size: var(--text-sm);
   color: var(--ink-dim);
 }
+/* A title said in place (a pane's head, where its name is written where it is read): the words are the page's own
+   and a box only as it is hovered or touched. It takes its width from its words where the browser can size a box by
+   them, and the whole line where it cannot. The page's pencil beside it, and where it stands, are the page's. */
+.rec-input-title {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 4ch;
+  max-width: 100%;
+  height: auto;
+  field-sizing: content;
+  margin: -2px -6px;
+  padding: 1px 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  text-overflow: ellipsis;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+@supports not (field-sizing: content) {
+  .rec-input-title {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}
+.rec-input-title:hover {
+  border-color: var(--line);
+}
+/* After the hover, so a box that is touched keeps its ring's edge while the pointer is over it. */
+.rec-input-title:focus-visible {
+  border-color: var(--accent);
+  background: var(--bg);
+}
+.rec-input-title::placeholder {
+  color: var(--ink-dim);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rec-input-title {
+    transition: none;
+  }
+}
 
 /* ---------- A box in a row of a list ---------- */
 /* Its sentence sits under it, in its own column of the row. The small variant is the box at the width of a time or a
@@ -2080,6 +2123,13 @@ textarea.rec-input {
 .rec-switch[aria-checked="true"] .rec-knob {
   transform: translateX(12px);
   background: var(--bg-raised);
+}
+/* A switch that takes no press (readOnly: a channel that cannot be used, the one channel that is on, a save that is out)
+   is dimmed as a button that cannot be pressed is, and its pointer is the default's: it must not look like one waiting
+   for a press. It keeps its focus and its state, and the page says why in words. */
+.rec-switch[aria-readonly="true"] {
+  opacity: 0.6;
+  cursor: default;
 }
 
 /* ---------- A choice of a few: a radiogroup drawn as a segmented control ---------- */
@@ -2133,6 +2183,99 @@ textarea.rec-input {
   line-height: var(--leading-snug);
   font-weight: var(--weight-regular);
   color: var(--ink-dim);
+}
+
+/* ---------- A date picker: one day of a month, over the page ---------- */
+/* The popup is the panel's pop at the width seven days need. A day is a button the size of its cell and a round inside it
+   (.date-pick-num, 36px): a touch screen's 44px floor grows the button's height and leaves the round a circle. The day
+   chosen is the lozenge a picked tab wears, today is the accent's ink, a day of the month before or after the faint
+   ink; the weekdays over the grid are the mono face at the smallest step, as the canvases name their columns. */
+.date-pick {
+  width: 296px;
+  max-width: calc(100vw - 24px);
+}
+.date-pick-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 2px 2px 8px 6px;
+}
+.date-pick-title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.date-pick-nav {
+  display: inline-flex;
+  gap: 2px;
+}
+.date-pick-back {
+  display: inline-flex;
+  transform: scaleX(-1);
+}
+.date-pick-grid {
+  display: flex;
+  flex-direction: column;
+}
+.date-pick-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  justify-items: center;
+}
+.date-pick-dow {
+  padding: 6px 0 4px;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.date-pick-day {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: none;
+  cursor: pointer;
+}
+.date-pick-num {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.date-pick-day:hover .date-pick-num {
+  background: var(--surface-inset-fill);
+}
+.date-pick-day[data-outside="true"] .date-pick-num {
+  color: var(--ink-dim);
+}
+.date-pick-day[aria-current="date"] .date-pick-num {
+  color: var(--accent-ink);
+  font-weight: var(--weight-semibold);
+}
+[aria-selected="true"] > .date-pick-day .date-pick-num {
+  background: var(--selected-fill);
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+/* The house's ring is on the button, round as the day is; the lozenge's depth is Glass's alone. */
+:where([data-look="glass"]) [aria-selected="true"] > .date-pick-day .date-pick-num {
+  box-shadow: var(--selected-depth);
+}
+.date-pick-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 6px;
 }
 
 /* ---------- A combobox: a box over a list that narrows as you type ---------- */
@@ -2234,6 +2377,109 @@ textarea.rec-input {
   gap: var(--space-2);
   text-align: start;
   cursor: pointer;
+}
+/* The kit's picker (surfaces/kit/picker/): the same list, richer. Its options in groups under a heading in the small
+   capitals' ink; an option's glyph before its words and a line under them; a search at the list's top over a hairline;
+   what is said when nothing matches; and a line under the list for what is not offered. */
+.rec-combo-pop > .rec-combo-field {
+  height: var(--control-h-md);
+}
+.rec-combo-pop > .rec-combo-field + .rec-combo-empty + .rec-combo-list,
+.rec-combo-pop > .rec-combo-field + .rec-combo-list {
+  border-top: 1px solid var(--line);
+}
+.rec-combo-pop > .rec-combo-list {
+  max-height: min(320px, var(--available-height, 320px));
+}
+.rec-combo-group + .rec-combo-group {
+  border-top: 1px solid var(--line);
+}
+.rec-combo-group-label {
+  padding: 8px 10px 4px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.rec-combo-opt:has(> .rec-combo-words) {
+  align-items: center;
+}
+.rec-combo-glyph {
+  flex: none;
+  display: inline-flex;
+  color: var(--ink-dim);
+}
+.rec-combo-words {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.rec-combo-sub {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.rec-combo-empty:not(:empty) {
+  padding: 10px;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.rec-combo-note {
+  margin: 0;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+
+/* ---------- Token: a choice inside a sentence ----------
+   The picker's control, closed (surfaces/kit/picker/): a word of the sentence it stands in, the one chosen at the
+   sentence's own size in its weight, with its chevron after it, on a capsule of a raised ground so it reads as a thing
+   to press ("Every day at [10:00 ▾]"). It never grows the line it stands on past a control's small height. */
+.token {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  /* As wide as its words wherever it stands: a column of a pane's rows would stretch it across the row. */
+  width: fit-content;
+  max-width: 100%;
+  height: var(--control-h-sm);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-full);
+  background: var(--bg-raised);
+  font: inherit;
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+  vertical-align: middle;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.token:hover,
+.token[data-popup-open] {
+  background: var(--bg-hover);
+}
+.token:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.token[data-readonly] {
+  cursor: default;
+}
+.token-face {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.token-caret {
+  flex: none;
+  display: inline-flex;
+  color: var(--ink-dim);
+}
+.token[data-popup-open] .token-caret {
+  rotate: 180deg;
 }
 
 /* ---------- Two tiers of tip ---------- */
@@ -2393,10 +2639,21 @@ textarea.rec-input {
   letter-spacing: 0.02em;
   color: var(--ink-muted);
 }
-/* The header's size: a thread's, a call's and Live's panel (the row's is --row-face). */
+/* The sizes beside the phone row's (--row-face): a desk row's, a header's (a thread's, a call's and Live's panel) and a
+   page's head (a person's). The initials take the step that sits in the circle. */
+.face-sm {
+  width: 28px;
+  height: 28px;
+  font-size: var(--text-2xs);
+}
 .face-lg {
   width: 36px;
   height: 36px;
+}
+.face-xl {
+  width: 48px;
+  height: 48px;
+  font-size: var(--text-lg);
 }
 /* A thread of the first priority rings its face in the accent (Classic; Glass draws none, as its canvases do not). */
 .face[data-priority="P1"] {
@@ -2413,6 +2670,41 @@ textarea.rec-input {
   height: 100%;
   object-fit: cover;
   border-radius: inherit;
+}
+/* A lead's own mark is contained on its plate, never cropped to the circle: 16% keeps a square logo's corners inside it. */
+.face-mark {
+  object-fit: contain;
+  padding: 16%;
+  box-sizing: border-box;
+  background: var(--mark-plate);
+  box-shadow: var(--surface-inset-ring);
+}
+/* A face that is its row's checkbox (People's phone row, a tap there selects): a selection under way, the face a ring
+   with nothing in it; this one in it, the ink with a tick. The press is the page's, a box over the face. */
+.face[data-pick] {
+  background: transparent;
+  border: 1.5px solid var(--line-strong);
+  box-shadow: none;
+}
+.face[data-pick] > * {
+  visibility: hidden;
+}
+.face[data-pick="chosen"] {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.face[data-pick="chosen"]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 10px;
+  border-style: solid;
+  border-color: var(--bg);
+  border-width: 0 2px 2px 0;
+  translate: -50% -62%;
+  rotate: 45deg;
 }
 
 /* ---------- List row: a face, the lines, what trails ----------
@@ -2660,7 +2952,8 @@ a.list-row {
   position: relative;
   display: flex;
   gap: 18px;
-  padding: 0 18px;
+  /* The sides it keeps are the page's, on the strip's stand: --subtabs-side, where a pane's own padding is the margin. */
+  padding: 0 var(--subtabs-side, 18px);
   overflow-x: auto;
   scrollbar-width: none;
   background: linear-gradient(var(--line), var(--line)) bottom / 100% 1px no-repeat;
@@ -2796,17 +3089,25 @@ a.list-row {
    one bar of the control layer's glass with a round end each side, its rim a 1px ring of the rim's gradient masked to
    the border. The material is the look's (tokens.css, --surface-control-*); where the bar stands, its padding and what it
    holds are the page's. It is drawn only where a page takes the screen over (data-takeover on its root, mobile.css),
-   on a phone, in Glass: elsewhere the page's own bar stands. It carries no backdrop-filter: nothing scrolls under it,
-   and a filter makes a bar the containing block of a menu's sheet, which then opens off the top of the screen. */
+   on a phone, in Glass: elsewhere the page's own bar stands. A bar docked at the foot (data-dock on the bar itself:
+   People's selection) is a capsule too, and keeps the position the page gave it. It carries no backdrop-filter: nothing
+   scrolls under it, and a filter makes a bar the containing block of a menu inside it, whose sheet then opens off the top
+   of the screen (a docked bar over rows that scroll adds its own, with its menu drawn on the body). */
 @media (max-width: 900px) {
   :where([data-look="glass"]) [data-takeover] .capsule {
     position: relative;
+  }
+  :where([data-look="glass"]) [data-takeover] .capsule,
+  [data-look="glass"] .capsule[data-dock] {
     border-radius: var(--radius-full);
     background-color: var(--surface-control-fill);
     background-image: var(--surface-control-sheen);
     box-shadow: var(--surface-control-depth);
   }
-  :where([data-look="glass"]) [data-takeover] .capsule::after {
+  /* A docked bar names the look outright: Classic's dock (a flat row on the screen's edge, clients.css) is a page rule
+     of equal weight, and its position is the page's own (absolute at the foot), which the rim below stands on. */
+  :where([data-look="glass"]) [data-takeover] .capsule::after,
+  [data-look="glass"] .capsule[data-dock]::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -2840,9 +3141,19 @@ a.list-row {
    The capsule, the height and the colours are the roles': a control's radius is a capsule's, the primary is the accent
    (decision 5), the secondary an inset's fill with the hairline. What the roles cannot say: the secondary's specular
    top edge; the primary's words at 600, the glow of the accent under it and its own specular edge; and a quiet or a
-   destructive act with no edge of glass at all. */
+   destructive act with no edge of glass at all. The large one is the canvases' head act, a person's thread and More: the
+   control layer's tall height and a roomier capsule (Classic reads no large height, so there it is the default's). */
 :where([data-look="glass"]) .btn {
   box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .btn-lg {
+  height: var(--control-h-lg);
+  padding: 0 18px;
+  font-size: var(--text-base);
+}
+:where([data-look="glass"]) .btn-icon.btn-lg {
+  width: var(--control-h-lg);
+  padding: 0;
 }
 :where([data-look="glass"]) .btn-primary {
   font-weight: var(--weight-semibold);
@@ -3133,6 +3444,25 @@ a.list-row {
   border-color: var(--surface-inset-edge);
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
+}
+/* A row's mark in Glass is an inset, as a face is (above): every row and thing inside a pane is an inset's fill with
+   its ring and specular edge, never the sunken ground, which drew a black tile on the dark pane. */
+:where([data-look="glass"]) .mark {
+  background: var(--face-fill);
+  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
+  color: var(--ink);
+}
+:where([data-look="glass"]) .token {
+  border-color: var(--surface-inset-edge);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .token:hover,
+:where([data-look="glass"]) .token[data-popup-open] {
+  background: var(--selected-fill);
+}
+:where([data-look="glass"]) .token:focus-visible {
+  box-shadow: var(--focus-ring), var(--surface-inset-depth);
 }
 :where([data-look="glass"]) textarea.rec-input,
 :where([data-look="glass"]) .rec-combo[data-open="true"] {

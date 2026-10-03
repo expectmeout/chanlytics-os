@@ -17,8 +17,10 @@ import type { ReactElement, ReactNode } from "react";
 import {
   Button,
   Combobox,
+  DatePicker,
   Field,
   Menu,
+  Picker,
   Popover,
   Segmented,
   SubTabs,
@@ -232,6 +234,110 @@ function PopoverKit() {
   );
 }
 
+/** A date picker on a control, on the month of the day it holds. */
+function DatePickerKit() {
+  const [day, setDay] = useState("2026-10-02");
+  return (
+    <Figure id="datepicker-kit" about="the kit's DatePicker">
+      <DatePicker
+        label="Go to a date"
+        value={day}
+        onValueChange={setDay}
+        today="2026-10-02"
+        glyphs={{ previous: glyph("chevron", 14), next: glyph("chevron", 14) }}
+        trigger={
+          <Button size="sm" data-testid="datepicker-open">
+            Go to a date
+          </Button>
+        }
+      />
+      <span className="gx-pop-words" data-testid="datepicker-day">
+        {day}
+      </span>
+    </Figure>
+  );
+}
+
+/** The hours a playbook may run at, as the composer's sentence offers them: a short list, the Select under the token. */
+const HOURS = [
+  {
+    label: "Morning",
+    options: [
+      { value: "9", label: "09:00" },
+      { value: "10", label: "10:00", sub: "When most of them write back" },
+    ],
+  },
+  { label: "Afternoon", options: [{ value: "14", label: "14:00" }] },
+] as const;
+
+/** The moments a playbook runs on, as the composer offers them: a list to search, the Combobox under the token. */
+const MOMENTS = [
+  {
+    label: "Set up",
+    options: [{ value: "quiet_30", label: "Win-back", sub: "Nothing heard in 30 days", glyph: glyph("refresh", 13) }],
+  },
+  {
+    label: "Not set up",
+    options: [
+      {
+        value: "phoned_only",
+        label: "Save our number",
+        sub: "Only ever phoned, never texted",
+        glyph: glyph("phone", 13),
+      },
+      {
+        value: "new_week",
+        label: "Welcome",
+        sub: "First contact in the last 7 days",
+        meta: "3 today",
+        glyph: glyph("user", 13),
+      },
+    ],
+  },
+] as const;
+
+/** A picker in its sentence, on a short list. */
+function PickerKit() {
+  const [hour, setHour] = useState<"9" | "10" | "14">("10");
+  return (
+    <Figure id="picker-kit" about={`the kit's Picker on a short list; chosen: ${hour}`}>
+      <span className="gx-pop-words">
+        Every day at{" "}
+        <Picker
+          label="The hour it runs"
+          value={hour}
+          onValueChange={setHour}
+          groups={HOURS}
+          chevron={glyph("chevron-down", 11)}
+          note="Hours outside 9 to 21 are not offered."
+          data-testid="picker-open"
+        />
+      </span>
+    </Figure>
+  );
+}
+
+/** A picker in its sentence, on a list to search. */
+function PickerKitFind() {
+  const [moment, setMoment] = useState<"quiet_30" | "phoned_only" | "new_week">("quiet_30");
+  return (
+    <Figure id="picker-kit-find" about={`the kit's Picker on a list to search; chosen: ${moment}`}>
+      <span className="gx-pop-words">
+        Send it to{" "}
+        <Picker
+          label="The moment it runs on"
+          value={moment}
+          onValueChange={setMoment}
+          groups={MOMENTS}
+          chevron={glyph("chevron-down", 11)}
+          search={{ glass: glyph("search", 12), placeholder: "Find a moment", empty: "No moment has those words." }}
+          data-testid="picker-find-open"
+        />
+      </span>
+    </Figure>
+  );
+}
+
 /** A tooltip on a control. */
 function TooltipKit() {
   return (
@@ -437,6 +543,22 @@ function FieldKitWrong() {
   );
 }
 
+/** A title said in place: no label drawn, named by its own words. */
+function FieldKitTitle() {
+  const [name, setName] = useState("Win-back, for people who have not been in");
+  return (
+    <Figure id="field-kit-title" about="the kit's Field as a title said in place">
+      <Field
+        aria-label="The playbook's name"
+        shape="title"
+        placeholder="Win-back"
+        value={name}
+        onValueChange={setName}
+      />
+    </Figure>
+  );
+}
+
 /**
  * The entries, in the page's order, each by the gallery id it draws. `closed` is what the entry draws before anyone
  * touches it, with nothing portaled: a server draws that too, and the node suite holds it there.
@@ -458,4 +580,8 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "subtabs-glyph", Draw: SubTabsKitGlyph, closed: true },
   { id: "field-kit", Draw: FieldKit, closed: true },
   { id: "field-kit-wrong", Draw: FieldKitWrong, closed: true },
+  { id: "field-kit-title", Draw: FieldKitTitle, closed: true },
+  { id: "datepicker-kit", Draw: DatePickerKit, closed: false },
+  { id: "picker-kit", Draw: PickerKit, closed: false },
+  { id: "picker-kit-find", Draw: PickerKitFind, closed: false },
 ];

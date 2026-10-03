@@ -113,14 +113,16 @@ test.describe("Calendar on a real workspace", () => {
     await expect(board.getByTestId("cal-today")).toBeDisabled();
     expect(reads, "no read for a view switch, a week, or Today inside the window").toEqual([]);
 
-    // Three months out is outside the window: one read, for a window around that day.
-    const far = new Date();
-    far.setDate(far.getDate() + 95);
-    const key = `${far.getFullYear()}-${String(far.getMonth() + 1).padStart(2, "0")}-${String(far.getDate()).padStart(2, "0")}`;
+    // Three months out is outside the window: one read, for a window around that day. The range opens the kit's date
+    // picker (a month of days over the page); Page Down walks it a month at a time and Enter chooses the day it stands on.
     const req = page.waitForRequest(
       (r) => r.url().includes("/api/v1/calendar?") && r.url().includes("days=63") && r.method() === "GET",
     );
-    await board.getByTestId("cal-jump").fill(key);
+    await board.getByTestId("cal-jump").click();
+    await expect(page.getByRole("dialog", { name: "Go to a date" })).toBeVisible();
+    for (let month = 0; month < 3; month++) await page.keyboard.press("PageDown");
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("dialog", { name: "Go to a date" })).toBeHidden();
     const seen = await req;
     expect(seen.url()).toContain("from=");
     await expect(board.getByTestId("cal-col")).toHaveCount(7);
@@ -175,7 +177,7 @@ test.describe("Calendar on a real workspace", () => {
       await expect(board).toBeVisible();
       for (const view of ["week", "month", "agenda"]) {
         await board.getByTestId(`cal-view-${view}`).click();
-        await expect(board.getByTestId(`cal-view-${view}`)).toHaveAttribute("aria-pressed", "true");
+        await expect(board.getByTestId(`cal-view-${view}`)).toHaveAttribute("aria-checked", "true");
         // Scroll whatever scrolls to its end, then ask whether the last day and the legend are on screen. toBeVisible
         // cannot say it: a box cut off by an overflow is still "visible".
         const reached = await board.evaluate((cal) => {
@@ -225,7 +227,7 @@ test.describe("Calendar on a real workspace", () => {
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     const board = page.getByTestId("calendar-real");
     await expect(board).toBeVisible();
-    await expect(board.getByTestId("cal-view-day")).toHaveAttribute("aria-pressed", "true");
+    await expect(board.getByTestId("cal-view-day")).toHaveAttribute("aria-checked", "true");
     await expect(board.getByTestId("cal-col")).toHaveCount(1);
     expect(routeOf(page.url())).toBe(`calendar/${key}`);
     await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Calendar");
@@ -244,7 +246,7 @@ test.describe("Calendar on a real workspace", () => {
     await page.locator(".nav-item", { hasText: "Calendar" }).click();
     await expect.poll(() => routeOf(page.url())).toBe("calendar");
     await expect(page.getByTestId("calendar-real")).toBeVisible();
-    await expect(board.getByTestId("cal-view-week")).toHaveAttribute("aria-pressed", "true");
+    await expect(board.getByTestId("cal-view-week")).toHaveAttribute("aria-checked", "true");
 
     // The hash address the emails and the phone app say lands on the path.
     await page.goto("/api/version");

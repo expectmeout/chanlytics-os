@@ -100,8 +100,6 @@
   .fleet-filter { overflow-x: auto; max-width: 100%; scrollbar-width: none; }
   .fleet-filter::-webkit-scrollbar { display: none; }
   .rp-body, .st-body { padding-left: 16px; padding-right: 16px; }
-  /* And the line above them, which is a child of the same full-bleed pane. */
-  .reports > .cm-standing { padding: 16px 16px 12px; }
   .cal-scroll { padding-bottom: 24px; }
   .cal-sync { padding: 8px 16px; flex-wrap: wrap; row-gap: 6px; }
   /* The Calendar on a narrow screen: one 16px gutter for the whole page (--cal-gutter, calendar.css), and the
@@ -381,7 +379,7 @@
   .cal-when .cal-steps { order: 2; }
   .cal-tools { flex: 1 1 100%; }
   .cal-views { flex: 1 1 auto; }
-  .cal-views .cl-tab { flex: 1 1 0; padding-left: 4px; padding-right: 4px; }
+  .cal-views > * { flex: 1 1 0; padding-left: 4px; padding-right: 4px; }
   .cal-tools .cal-service { display: none; }
   /* A notice over the board on a phone: its words take the width and its buttons go under them, where they read as
      a column a few words wide beside the buttons. */
@@ -399,13 +397,11 @@
   .cl-prof-hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "id" "acts"; gap: 14px; }
   .cl-prof-hero > .cl-prof-back { display: none; }
   .cl-prof-id { align-items: flex-start; gap: 10px; }
-  .cl-prof-avatar { width: 40px; height: 40px; font-size: 14px; }
   .cl-prof-name { font-size: var(--text-xl); }
   /* The acts take the row under who they are, the page's full width, a thumb's height each: the thread and a send
      share it, and the ⋯ keeps a thumb's width at its end. */
   .cl-prof-hero > .cl-prof-queue-actions { justify-content: stretch; }
-  .cl-prof-hero > .cl-prof-queue-actions > .btn { flex: 1 1 auto; }
-  .cl-prof-hero > .cl-prof-queue-actions > .more-wrap { flex: none; }
+  .cl-prof-hero > .cl-prof-queue-actions > [data-testid="person-open-thread"] { flex: 1 1 auto; }
   /* The crumb names the person, and the name is the first thing under it: the crumb says People, once, with the
      back's chevron before it (drawn, not a glyph, so it sits on the word's middle in every font). */
   .main:has(.cl-profile) .crumbs > :not(:first-child) { display: none; }
@@ -448,15 +444,12 @@
      office reaches this rule: under 640px the matrix is a list, not a table. */
   .pol-table { min-width: 640px; }
   .tb-presence { padding-left: 8px; padding-right: 8px; }
-  .bc-comp { white-space: normal; }
   .fl-escalate-route { white-space: normal; }
 }
 
 @media (max-width: 900px) {
   /* Wide data surfaces scroll sideways instead of clipping */
   table.tbl { display: block; overflow-x: auto; }
-  .bc-hist { overflow-x: auto; }
-  .bc-hist-row { min-width: 560px; }
 }
 
 /* ====================================================================
@@ -627,53 +620,6 @@
   .cl-prof-rail-note { grid-column: 1 / -1; }
 }
 
-/* ====================================================================
-   Campaigns on a phone (Playbooks, Broadcasts, Messages).
-
-   This surface had three declarations in this file -- .bc-comp, and the
-   history table's sideways scroll -- and nothing else, while the Calendar
-   has forty and the Inbox thirty. What that cost, measured at a 375px
-   viewport with this stylesheet loaded:
-
-     .bc-actions   display:flex, no flex-wrap
-     children      491px of minimum width (the name field cannot go under
-                   160px; the datetime box is flex: 0 0 auto)
-     container     283px
-     .main-scroll  overflow-x: hidden
-
-   -- so "Send now", the last child and the page's whole purpose, sat 208px
-   past the right edge with no scrollbar to reach it. The primary action of
-   Broadcasts could not be pressed on a phone.
-
-   .bc-page also kept the 28px --gutter-page at every width while .rp-body
-   drops to 16, so two tabs of one nav item had different page edges.
-   ==================================================================== */
-@media (max-width: 720px) {
-  .bc-page { --gutter-page: 16px; }
-
-  /* The top bar says Campaigns, once, as it says Inbox once: the tab under it says which of the three this is, and
-     the crumb said it again over the tab ("Campaigns / Playbooks" over "Playbooks"). */
-  .main:has(.cm-page, .bc-page) .crumbs > :not(:first-child) { display: none; }
-  .main:has(.cm-page, .bc-page) .crumbs > :first-child { color: var(--ink); font-weight: 500; }
-
-  /* The send row wraps: the name on its own line, the time on its own line,
-     then the two buttons sharing the last one. */
-  .bc-actions { flex-wrap: wrap; }
-  .bc-actions .bc-subject { flex: 1 1 100%; width: 100%; min-width: 0; }
-  .bc-foot .bc-subject { flex: 1 1 100%; }
-  .bc-actions .btn { flex: 1 1 auto; justify-content: center; }
-  .bc-actions .confirm { flex: 1 1 100%; }
-
-  /* A 26px uppercase label column is 8% of the page and the words overflow it
-     anyway ("SEND", "CLOCK"): the label goes above its row. */
-  .bc-row { flex-direction: column; gap: 6px; }
-  .bc-row-label { width: auto; padding-top: 0; }
-  .tpl-row { flex-direction: column; gap: 6px; }
-  .tpl-row .bc-row-label { padding-top: 0; }
-
-  /* The QR and the wording it explains stopped being side by side. */
-  .bc-optin-body { flex-wrap: wrap; }
-}
 /* ---- Every list pulls under a thumb (25 Sep) ---------------------------------------------------------------------
    A list rubber-bands on a touch screen only when it holds more than its box: Needs you with two threads and Live
    with no calls could not be pulled at all, where Conversations, People and a long Templates could. A pixel more
@@ -682,8 +628,8 @@
    lists holds anything placed against a box outside it (measured on each, 25 Sep). e2e/shell/phone.spec.ts holds every
    list to it. */
 @media (pointer: coarse) {
-  .ix-threads, .cv-rows, .lm-list, .lm-panel, .cl-main-scroll, .rp-body, .route-view:has(> .bc-page) { position: relative; }
-  .ix-threads::after, .cv-rows::after, .lm-list::after, .lm-panel::after, .cl-main-scroll::after, .rp-body::after,
+  .ix-threads, .cv-rows, .lm-list, .lm-panel, .cl-main-scroll, .tpl-page > .cm-list, .route-view:has(> .bc-page) { position: relative; }
+  .ix-threads::after, .cv-rows::after, .lm-list::after, .lm-panel::after, .cl-main-scroll::after, .tpl-page > .cm-list::after,
   .route-view:has(> .bc-page)::after {
     content: ""; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); visibility: hidden; pointer-events: none;
   }
@@ -696,26 +642,19 @@
 
 /* ---- A thumb's press area where the look is smaller (25 Sep) --------------------------------------------------------
    These keep the size they are drawn at and gain an invisible press area toward 44px, only as far as the controls
-   around each leave room (measured on each at 375px): a playbook's name (20px free under it), a broadcast run's name
+   around each leave room (measured on each at 375px): a broadcast run's name
    (2px under it, 100 over), a template's row (3px apart) and its ··· (drawn 6px wide), Reports' Ask, the top bar's
    crumb, a call's recording, the lead peek's steps, its address (5px over it, 15 under: 34px, the most it has), its
    phone note, its expand and its close, and the composer's language and its steps through the people. The composer's
    variable picker is a native select laid over its label, which takes no press area. */
 @media (pointer: coarse) {
-  .pb-row-what, .bc-run-name, .msg-row-what, .msg-row-more, .rpt-ask, .crumbs .crumb-link, .tl-call-file, .pk-deck-btn,
-  .pk-where-link, .pk-hint-mark, .bc-chips .lp-trigger.lp-sm, .mp-step .mp-step-btn { position: relative; }
-  .pb-row-what::after, .msg-row-what::after, .msg-row-more::after, .rpt-ask::after,
+  .bc-run-name, .msg-row-what, .rpt-ask, .crumbs .crumb-link, .tl-call-file, .pk-deck-btn,
+  .pk-where-link, .pk-hint-mark, .mp-step .mp-step-btn { position: relative; }
+  .msg-row-what::after, .rpt-ask::after,
   .crumbs .crumb-link::after, .tl-call-file::after, .pk-deck-btn::after, .pk-where-link::after, .pk-hint-mark::after,
-  .pk-band-expand::after, .pk-x.pk-band-x::after, .bc-chips .lp-trigger.lp-sm::after, .mp-step .mp-step-btn::after {
+  .pk-band-expand::after, .pk-x.pk-band-x::after, .mp-step .mp-step-btn::after {
     content: ""; position: absolute;
   }
-  .pb-row-what::after { inset: -10px 0; }
-  /* A run's name clips its own overflow for its ellipsis, which would clip a box hung on it too: it bleeds its padding
-     instead, and gives the same room back as margin, so its words stay where they are drawn. */
-  .bc-run-name { padding-block: 22px 2px; margin-block: -22px -2px; }
-  .msg-row-what::after { inset: -2px 0; }
-  /* Its row's spacer is free to the left, and its card cuts it off past its right edge. */
-  .msg-row-more::after { inset: 0 -8px 0 -30px; }
   .rpt-ask::after { inset: 0 -5px; }
   .crumbs .crumb-link::after { inset: 0 -6px; }
   .tl-call-file::after { inset: -11px; }
@@ -724,8 +663,6 @@
   .pk-hint-mark::after { inset: 0 -1px 0 -21px; }
   .pk-band-expand::after { inset: 0 0 0 -4px; }
   .pk-x.pk-band-x::after { inset: 0 -14px 0 0; }
-  .bc-chips .lp-trigger.lp-sm::after { inset: 0 -4px 0 0; }
-  .mp-step .mp-step-btn::after { inset: 0 -7px; }
 }
 
 /* ====================================================================
@@ -767,6 +704,13 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     backdrop-filter: var(--surface-control-blur);
     pointer-events: none;
   }
+  /* The wash behind the open drawer is a veil, not a curtain: black at 45% left the drawer's glass nothing to show (Ruben,
+     2 Oct 2026: "darkens the background too much"). About a third of the look's scrim lets the page's own light through the
+     drawer; the base rule's filter stays, and no blur is added, since a blurred page left the glass nothing lit to show. The wash is
+     reached by its role: a class named nav-backdrop is counted by the primitives ratchet each time a rule names it. */
+  :where([data-look="glass"]) .side-wrap > [role="presentation"] {
+    background: color-mix(in oklab, var(--surface-scrim) 36%, transparent);
+  }
   /* The Inbox's sending strip (fixed under the top bar, full width here) stands under the island while a call is up:
      over it, it hid the island whole (66 to 110px), the one door to Live, for as long as drafts waited. The strip of
      views it stands over is what it covers in Classic too. */
@@ -780,6 +724,15 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     display: none;
   }
   :where([data-look="glass"]) .main-scroll:has(> [data-takeover]) {
+    padding-bottom: 0;
+  }
+  /* A bar docked at the foot says so with data-dock on the bar (People's selection: ✕, the count, an act): the page keeps
+     its head and its strip, and the tab bar, Ask's circle (ask.css) and the room kept for them stand down, as an open
+     thread's do. The bar is a capsule of the control layer's glass (kit.css), placed by the page. */
+  :where([data-look="glass"]) .app-root:has([data-dock]) [data-testid="phone-tabs"] {
+    display: none;
+  }
+  :where([data-look="glass"]) .main-scroll:has([data-dock]) {
     padding-bottom: 0;
   }
 }

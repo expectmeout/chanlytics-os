@@ -417,7 +417,7 @@ JSX files (1,023 lines) deleted. Live is never kept by the tab's cache: a reload
 (`whisperCall`, `endCall`, `handOverCall`, `refreshLive`) stay in the Inbox's bridge until that file moves.
 
 Proved equal by value (docs/decisions, "Tests"): 53,673 steps over 798 worlds for Campaigns, 0 differences, 205 planted faults caught but one argued; Live 0 differences
-over 870 steps. What a demo draws is the contracts' sample, not the twin. The kit step (Phase 4) and the Base UI parts wait: `campaigns` and `live` stand in `KIT_PENDING`.
+over 870 steps. What a demo draws is the contracts' sample, not the twin. Campaigns' kit step (Phase 4) was taken on 3 October 2026: its raw buttons, inputs, textareas and select are the kit's, and `campaigns` has left `KIT_PENDING`. Live's kit step waits: `live` stands there.
 
 ## Built: the People family and the Calendar (30 September 2026, branch `kit/k2-people-calendar`)
 

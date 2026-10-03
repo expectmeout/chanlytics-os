@@ -23,6 +23,8 @@ import {
   PEOPLE_LISTS,
   peopleListAction,
   GET_YES_ROUTE,
+  NO_CHANNEL_REACH,
+  channelsReady,
   consultationsWithoutProposal,
   consultsHeldWords,
   pipelineOf,
@@ -60,8 +62,11 @@ const reports = (over = {}) => ({
 
 const NOW = new Date("2026-09-21T16:00:00Z");
 const at = (days) => new Date(NOW.getTime() - days * 86_400_000).toISOString();
-/** A person as the People surface holds them: the database's row through contracts' toPersonRowVM. A yes to messages. */
-const personRow = (id, name, over = {}) =>
+/**
+ * A person as the People surface holds them: the database's row through contracts' toPersonRowVM. A yes to messages.
+ * `ready` is what the workspace can send on (channelsReady); none read, as a page that could not read it counts.
+ */
+const personRow = (id, name, over = {}, ready = null) =>
   toPersonRowVM(
     {
       id,
@@ -105,6 +110,8 @@ const personRow = (id, name, over = {}) =>
     },
     "America/New_York",
     NOW,
+    null,
+    ready,
   );
 /** The seven under the salon's reach numbers below: a number each, a yes to messages, nothing to offers. */
 const saidYesToMessages = Array.from({ length: 7 }, (_, i) =>
@@ -335,6 +342,60 @@ test("REGRESSION: a yes to offers with no number to send one to is not 'nobody h
   );
 });
 
+test("the reach row says no channel when that is what is missing: they said yes to offers and have a number, and the workspace cannot send an offer now", () => {
+  const surface = (rows) => ({
+    rows,
+    lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar).map((l) => {
+      const members = rows.filter(l.test);
+      return {
+        id: l.id,
+        label: l.label,
+        group: l.group,
+        count: members.length,
+        ids: members.map((r) => r.id),
+        action: peopleListAction(l.id, members),
+      };
+    }),
+    aggregates: { total: rows.length },
+  });
+  const bookedWell = reports({
+    vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } },
+    booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 },
+  });
+  const reach = (rows) => todayLeaksV2(bookedWell, surface(rows)).rows.find((l) => l.id === "unreachable");
+  // The workspace's texting line is on and its WhatsApp number is not connected: a text carries no offers.
+  const textOnly = channelsReady({
+    whatsapp: null,
+    textLine: { sms_state: "active", reg_mock: false },
+    email: { mailbox: false, domain: false },
+  });
+  const form = {
+    marketing_consent: "opted_in",
+    marketing_consent_source: "form",
+    marketing_consent_updated_at: at(5),
+  };
+  const rows = [
+    personRow("p1", "Rosa Diaz", { phone_e164: "+13055550101", ...form }, textOnly),
+    personRow("p2", "Mia Chen", { phone_e164: "+13055550102" }, textOnly),
+    personRow("p3", "Ivy Park", { phone_e164: "+13055550103" }, textOnly),
+  ];
+  const noChannel = reach(rows);
+  assert.equal(
+    noChannel.text,
+    "3 people have said yes to messages, but nobody can be sent an offer yet.",
+    "Rosa said yes to offers: it is not 'nobody has said yes'",
+  );
+  assert.equal(
+    noChannel.math,
+    `${NO_CHANNEL_REACH} · 0 can receive one`,
+    "and it is not for want of a number: she has one",
+  );
+  assert.equal(noChannel.also, null, "no door to the yes she gave");
+  // The same people on a workspace that can send by WhatsApp: the list of who can receive an offer is not empty.
+  const sendable = rows.map((r) => personRow(r.id, r.name, { phone_e164: "+13055550101", ...form }, null));
+  assert.equal(reach(sendable), undefined, "nobody is left out of the offers: no leak");
+});
+
 /* --------------------------- while you were away ------------------------- */
 
 const bell = (id, kind, title, tone = "", about = null) => ({
@@ -473,8 +534,8 @@ test("a template that can be sent does not wear a warning's colour, and neither 
   assert.deepEqual(
     rows.map((r) => [r.kind, r.tone, r.icon, r.to, r.action]),
     [
-      ["template_ready", "ok", "check", "messages", "Open Templates"],
-      ["template_blocked", "warn", "alert", "messages", "Open Templates"],
+      ["template_ready", "ok", "check", "messages", "Open Library"],
+      ["template_blocked", "warn", "alert", "messages", "Open Library"],
       ["number", "warn", "shield", "admin/integrations", "Open Connections"],
     ],
   );

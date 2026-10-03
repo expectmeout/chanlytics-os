@@ -1,8 +1,9 @@
 /**
  * What the frame draws around the Calendar's page (decision 0015; the row of legacy/pages/app-routes.jsx drawCalendar,
- * which left with it): the top bar's one act. A real workspace books through its own link, whichever tool is behind it, and
- * offers nothing until the Calendar has loaded: the demo's Ask detour opened Ask over the skeleton or the failure pane (N10).
- * A demo session, which has read nothing, keeps the Ask door.
+ * which left with it): the top bar's one act. A real workspace has none: its booking link, and the other things the Calendar
+ * offers its owner, are the page's own options menu at the end of the bar (board-parts.tsx), where a lone coral button
+ * for one link read as the page's main act (Ruben, 2 Oct 2026). A demo session, which has read nothing, keeps the Ask door:
+ * the demo's detour opened Ask over the skeleton or the failure pane when it was offered before the Calendar loaded (N10).
  *
  * The crumbs are "Calendar" at every address, `calendar/<YYYY-MM-DD>` too, because the page moves on from the day it opened
  * on. The JSX also named an appointment (`calendar/a-lin`) after the seeded week's; nothing names one now, since the sample
@@ -15,21 +16,12 @@ interface CalendarAct {
   label: string;
   glyph: string;
   primary: boolean;
-  href?: string;
   ask?: boolean;
-  testid?: string;
 }
 
 /** The crumbs and the act of an address under the Calendar; what it holds is read through the seam, never the window. */
 export function calendarChrome(): { crumbs: readonly string[]; act: CalendarAct | null } {
-  const live = surfaceValue("calendar");
-  const link = live?.vm.bookingLink;
-  const act: CalendarAct | null = live
-    ? link
-      ? { href: link, label: "Booking link", glyph: "calendar", primary: true, testid: "cal-booking-link" }
-      : null
-    : demoSession()
-      ? { ask: true, label: "Book", glyph: "plus", primary: true }
-      : null;
+  const act: CalendarAct | null =
+    !surfaceValue("calendar") && demoSession() ? { ask: true, label: "Book", glyph: "plus", primary: true } : null;
   return { crumbs: ["Calendar"], act };
 }

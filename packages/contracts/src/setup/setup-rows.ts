@@ -256,7 +256,7 @@ function whatsappRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
         : t.pending
           ? `${plural(t.pending, "message")} with Meta for approval`
           : "No approved messages yet",
-      t.startersApproved < 5 ? "Add the starter messages: welcome, win-back, the month's offer" : "",
+      t.startersApproved < 5 ? "Add the starter messages: the visit reminder, how did it go, the win-back" : "",
       wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : "",
     ].filter(Boolean);
     if (!metaWaits) details.push(activationWords(cap, nowMs));
@@ -433,18 +433,24 @@ function yesRow(i: SetupInputs): SetupRowDraft {
   const offers = i.consent.offers;
   const said = i.consent.offersSaidYes;
   const talk = i.consent.yes;
+  // Offers by email, where this workspace can send them: the people the rule lets one reach, which is not a yes they gave.
+  const byEmail = i.consent.offers_by_email ?? 0;
   const alsoTalk =
     talk > said ? [`${plural(talk, "person", "people")} said yes to messages about their own visit`] : [];
-  return offers > 0
+  const alsoEmail = byEmail > 0 ? [`${plural(byEmail, "person", "people")} can be sent an offer by email`] : [];
+  return offers > 0 || byEmail > 0
     ? {
         id: "yes",
         icon: "tag",
         title: "The first yes",
         state: "ready",
         required: false,
-        sentence: `${plural(offers, "person", "people")} said yes to offers.`,
-        details: alsoTalk,
-        verb: { label: "Open Broadcasts", to: "broadcasts" },
+        sentence:
+          offers > 0
+            ? `${plural(offers, "person", "people")} said yes to offers.`
+            : `${plural(byEmail, "person", "people")} can be sent an offer by email.`,
+        details: [...(offers > 0 ? alsoEmail : []), ...alsoTalk],
+        verb: { label: "Get their yes", to: GET_YES_ROUTE },
       }
     : said > 0
       ? {
@@ -463,7 +469,7 @@ function yesRow(i: SetupInputs): SetupRowDraft {
           title: "The first yes",
           state: "not_started",
           required: false,
-          sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.",
+          sentence: "Nobody has said yes to offers yet. The keyword and the QR are under Get their yes in Sent.",
           details: alsoTalk,
           verb: { label: "Get their yes", to: GET_YES_ROUTE },
         };

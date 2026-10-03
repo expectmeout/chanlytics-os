@@ -193,7 +193,7 @@ function dealGroup(thread: Thread, facts: HeaderFacts): MenuItem[] {
       ? {
           label: kit.actWords.send,
           hint: linkHost(proposalUrl),
-          glyph: ixGlyph(DEAL_ICON.send),
+          glyph: ixGlyph(DEAL_ICON.send ?? "send"),
           onSelect: () =>
             window.dispatchEvent(
               new CustomEvent("inbox:compose", { detail: { text: proposalMessage(proposalUrl), link: proposalUrl } }),

@@ -213,13 +213,15 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
   assert.ok(h.includes('const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";'));
   // The specs and the booking-link refusal are run: core-campaigns.test.mjs.
   const p = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/page/send-screen.tsx");
-  assert.ok(p.includes('data-testid="bc-var-source"') && p.includes('data-testid="bc-new-template"'));
+  // A slot's source choice is the bubble's control now (parts/slot.tsx), where the table's select was.
+  assert.ok(p.includes("<CmSlot") && p.includes('data-testid="bc-new-template"'));
   assert.ok(p.includes("<TemplateComposer"), "one composer, mounted where a template is needed");
   const head = readCode("apps/dashboard/src/surfaces/campaigns/templates/page-parts.tsx");
   const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
   assert.ok(
     head.includes('data-testid="template-new"') &&
-      s.includes('data-testid="template-delete"') &&
+      // Delete is an item of the pane's kit Menu: its test id rides the item's `gate` (the question it asks is `testid=`).
+      s.includes('"data-testid": "template-delete"') &&
       s.includes('" · made here"'),
   );
   const tc = readCode("apps/dashboard/src/surfaces/campaigns/templates/composer-forms.tsx");

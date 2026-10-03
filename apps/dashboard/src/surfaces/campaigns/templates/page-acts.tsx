@@ -5,13 +5,16 @@
  * drawn the state. What each says when it is done is the toast's.
  */
 import type { RefObject, ReactNode } from "react";
+import { VERSION_CHANNEL_WORDS, reachOutEditedWords } from "@chanlytics/contracts";
+import type { OwnVersionChannel } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { useLegacyToast } from "../../legacy-verbs";
 import { starterWords } from "./composer";
 import type { TemplateGroup, TplLang } from "./group";
 import { syncTemplates, templates as templateVerbs } from "./verbs";
-import { tplTitle } from "./words";
+import type { VersionDraft } from "./verbs";
+import { TPL_VERSION_WORDS, tplTitle } from "./words";
 
 interface ActsProps {
   doingRef: RefObject<string | null>;
@@ -89,6 +92,33 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
         );
       },
     );
+  // An email or a text version written: the answer goes back to the editor, which says a refusal where it was typed (the
+  // server's own words), so only a save that landed is a toast here, saying what it did. One act at a time, as every other.
+  const writeVersion = async (draft: VersionDraft, said: (saved: { rechecked?: number }) => ReactNode) => {
+    if (doingRef.current) return null;
+    const what = `version:${draft.name}:${draft.language}:${draft.channel}`;
+    doingRef.current = what;
+    setDoing(what);
+    try {
+      const r = await templateVerbs.saveVersion(draft);
+      if (r.ok) flash({ tone: "ok", msg: said(r.data) });
+      return r;
+    } finally {
+      // Whatever the save did, the page is free to act again.
+      doingRef.current = null;
+      setDoing(null);
+    }
+  };
+  const saveVersion = (g: TemplateGroup, lang: TplLang, draft: VersionDraft) =>
+    writeVersion(draft, () => TPL_VERSION_WORDS.saved(g.title, VERSION_CHANNEL_WORDS[draft.channel], lang.label));
+  // A reach-out's email, written where it is read: its save sends what waits for the step back to the check, and says so.
+  const saveEmail = (draft: VersionDraft) => writeVersion(draft, (saved) => reachOutEditedWords(saved.rechecked ?? 0));
+  const removeVersion = (g: TemplateGroup, lang: TplLang, row: TemplateDto) =>
+    run(
+      `version-remove:${row.id}`,
+      () => templateVerbs.removeVersion(row.id),
+      () => TPL_VERSION_WORDS.removed(g.title, VERSION_CHANNEL_WORDS[row.channel as OwnVersionChannel], lang.label),
+    );
   // A message written in a new language, from the row that opened it: said once it is on its way.
   const written = (g: TemplateGroup, lang: TplLang) =>
     flash({
@@ -99,5 +129,5 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
         </>
       ),
     });
-  return { rename, toggleHidden, remove, addStarters, sync, written };
+  return { rename, toggleHidden, remove, addStarters, sync, written, saveVersion, saveEmail, removeVersion };
 }

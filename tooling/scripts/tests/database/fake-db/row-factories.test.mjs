@@ -27,7 +27,9 @@ test("each factory makes a row with every column its table has, and the double t
   assert.deepEqual(Object.keys(rows).sort(), Object.keys(TABLES).sort());
   for (const [make, table] of Object.entries(TABLES)) {
     const row = rows[make]();
-    assert.deepEqual(Object.keys(row).sort(), Object.keys(SCHEMA.relations[table].columns).sort(), table);
+    // Every column a write may name: a computed column (a function of the row, has_relationship of 00288) is read only.
+    const written = Object.entries(SCHEMA.relations[table].columns).flatMap(([col, c]) => (c.computed ? [] : [col]));
+    assert.deepEqual(Object.keys(row).sort(), written.sort(), table);
     const tables = {};
     const { error } = await fakeDb(tables).from(table).insert(row);
     assert.equal(error, null, `${table}: ${error?.message}`);

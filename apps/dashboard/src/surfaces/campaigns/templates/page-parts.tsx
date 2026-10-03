@@ -1,15 +1,20 @@
 /**
  * What the Templates page draws around its list (moved from MessagesReal in legacy/pages/messages.jsx, decision 0015):
- * the head's line and tools, the notice about the WhatsApp number, the starter set's offer, the list with its column
- * names, and the foot. Each is a function that returns its element (TplFoot is the JSX's own component), called by the
- * page and not drawn as a component of its own, so the page's tree is the tree it was.
+ * the head's line and act, the search with WhatsApp's sync beside it, the notice about the WhatsApp number, the
+ * composer's pane, the starter set's offer, the list with its column names, and the foot. Each is a function that
+ * returns its element, called by the page and not drawn as a component of its own, so the page's tree is the tree it was.
  */
 import type { Dispatch, ReactNode, SetStateAction } from "react";
+import { LIBRARY_WORDS } from "@chanlytics/contracts";
+import { libraryCount } from "@chanlytics/contracts";
 import type { ChannelVM } from "@chanlytics/contracts";
 import { gate } from "../../legacy-verbs";
 import type { useLegacyToast } from "../../legacy-verbs";
+import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
+import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { CmBanner, CmDot } from "../parts/head";
 import { TemplateComposer } from "./composer";
 import type { TemplateGroup, TemplateListing, TplLang } from "./group";
@@ -22,29 +27,26 @@ type Emails = Parameters<typeof tplHeadTip>[0];
 interface HeadSubProps {
   listing: TemplateListing;
   emails: Emails;
-  hasWhatsApp: boolean;
-  doing: string | null;
-  busy: boolean;
-  sync: () => Promise<void>;
 }
 
 /**
  * The line under the head: the page's numbers -- how many, how many approved, how many WhatsApp is still reading --
- * and when it last synced with WhatsApp, which is a STATE the page is in, not a chore the owner remembers: it says
- * when it last looked and presses to look again, and while it looks it is the only control that says it is working
- * (C20). Templates, never "messages": that word is a thread in the Inbox and a send in a broadcast's numbers.
+ * in plain words and nothing to press: the frame's head draws it as a sentence, and under Glass it is hidden where the
+ * list is narrow. When it last synced with WhatsApp is the list's own (listBar), beside the search. Templates, never
+ * "messages": that word is a thread in the Inbox and a send in a broadcast's numbers. The count is the one Campaigns' home
+ * carries on its Library act (contracts libraryCount).
  */
-export function headSub({ listing, emails, hasWhatsApp, doing, busy, sync }: HeadSubProps) {
-  const { shown, approved, pending, lastSync } = listing;
+export function headSub({ listing, emails }: HeadSubProps) {
+  const { shown, approved, pending } = listing;
+  const total = libraryCount(listing.list, emails.length);
   return (
     <>
       <span className="tabular" data-tip={tplHeadTip(emails)} data-testid="messages-count">
-        {shown.length + emails.length === 0 ? (
+        {total === 0 ? (
           "No template on file yet"
         ) : (
           <>
-            <b className="cm-head-n">{shown.length + emails.length}</b>{" "}
-            {shown.length + emails.length === 1 ? "template" : "templates"}
+            <b className="cm-head-n">{total}</b> {total === 1 ? "template" : "templates"}
           </>
         )}
       </span>
@@ -64,82 +66,88 @@ export function headSub({ listing, emails, hasWhatsApp, doing, busy, sync }: Hea
           </span>
         </>
       )}
-      {hasWhatsApp && (
-        <>
-          <CmDot />
-          {/* eslint-disable-next-line jsx-a11y-x/role-supports-aria-props -- as the JSX drew it (decision 0015) */}
-          <button
-            className={`tpl-fresh${doing === "sync" ? " is-busy" : ""}`}
-            onClick={sync}
-            disabled={busy}
-            data-testid="sync-templates"
-            aria-description="Check WhatsApp for changes"
-            {...gate("approve", "sync from WhatsApp")}
-          >
-            <span className={`tpl-fresh-dot${lastSync ? "" : " never"}`} aria-hidden="true" />
-            {/* "Synced 16d ago", the words every tool says it in; "In step with WhatsApp" took the line's room. */}
-            {doing === "sync" ? (
-              "Checking WhatsApp…"
-            ) : lastSync ? (
-              <>
-                Synced <span className="tpl-fresh-age">{tplAgo(lastSync)}</span>
-              </>
-            ) : (
-              "Never synced"
-            )}
-            <span className="tpl-fresh-again" aria-hidden="true">
-              <Icon name="refresh" size={12} />
-            </span>
-          </button>
-        </>
-      )}
     </>
   );
 }
 
 interface HeadRightProps {
+  hasWhatsApp: boolean;
+  onNew: () => void;
+}
+
+/** The head's act: the page's one, drawn as the kit's button, as Playbooks' and Broadcasts' are. */
+export function headRight({ hasWhatsApp, onNew }: HeadRightProps) {
+  return hasWhatsApp ? (
+    <Button onClick={onNew} data-testid="template-new" {...gate("approve", "write a template")}>
+      <Icon name="plus" size={12} />{" "}
+      <span>
+        New<span className="cm-act-noun"> template</span>
+      </span>
+    </Button>
+  ) : null;
+}
+
+interface BarProps {
   q: string;
   setQ: (q: string) => void;
   hasWhatsApp: boolean;
-  setComposing: Dispatch<SetStateAction<boolean>>;
+  lastSync: string | null;
+  doing: string | null;
+  busy: boolean;
+  sync: () => Promise<void>;
 }
 
-interface ComposerSheetProps {
+/**
+ * The top of the list, as the Inbox's list opens on its search: the box that finds a template by its words, across the
+ * list's width, and beside it when the list last synced with WhatsApp -- a STATE the page is in, not a chore the owner
+ * remembers: it says when it last looked and presses to look again, and while it looks it is the only control that says
+ * it is working (C20). Both were the frame head's (the search in its act, the state in its sentence), which a phone turns
+ * into one coral circle and Glass leaves out of the list's reach.
+ */
+export function listBar({ q, setQ, hasWhatsApp, lastSync, doing, busy, sync }: BarProps) {
+  return (
+    <div className="tpl-bar">
+      <Field
+        type="search"
+        aria-label="Search the templates' words"
+        value={q}
+        onValueChange={setQ}
+        placeholder="Search the words"
+        data-testid="templates-search"
+      />
+      {hasWhatsApp && (
+        <LinkButton
+          className={`tpl-fresh${doing === "sync" ? " is-busy" : ""}`}
+          onClick={sync}
+          disabled={busy}
+          data-testid="sync-templates"
+          aria-description="Check WhatsApp for changes"
+          {...gate("approve", "sync from WhatsApp")}
+        >
+          <span className={`tpl-fresh-dot${lastSync ? "" : " never"}`} aria-hidden="true" />
+          {/* "Synced 16d ago", the words every tool says it in; "In step with WhatsApp" took the line's room. */}
+          {doing === "sync" ? (
+            "Checking WhatsApp…"
+          ) : lastSync ? (
+            <>
+              Synced <span className="tpl-fresh-age">{tplAgo(lastSync)}</span>
+            </>
+          ) : (
+            "Never synced"
+          )}
+          <span className="tpl-fresh-again" aria-hidden="true">
+            <Icon name="refresh" size={12} />
+          </span>
+        </LinkButton>
+      )}
+    </div>
+  );
+}
+
+interface ComposerPaneProps {
   bizName: string | null;
   setComposing: Dispatch<SetStateAction<boolean>>;
   flash: ReturnType<typeof useLegacyToast>[1];
-}
-
-/** The head's tools: the search over the words, and the page's one act. */
-export function headRight({ q, setQ, hasWhatsApp, setComposing }: HeadRightProps) {
-  return (
-    <>
-      <label className="cm-search">
-        <Icon name="search" size={13} />
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search the words"
-          aria-label="Search the templates' words"
-          data-testid="templates-search"
-        />
-      </label>
-      {hasWhatsApp && (
-        <button
-          className="btn btn-primary"
-          onClick={() => setComposing((c) => !c)}
-          data-testid="template-new"
-          {...gate("approve", "write a template")}
-        >
-          <Icon name="plus" size={12} />{" "}
-          <span>
-            New<span className="cm-act-noun"> template</span>
-          </span>
-        </button>
-      )}
-    </>
-  );
 }
 
 /** A failed read of the numbers is not "no number": say what could not be read. */
@@ -158,7 +166,7 @@ export function numberNotice(p: { channels: ChannelVM[] | null | undefined; hasW
         kind="card"
         glyph="phone"
         title="Connect a WhatsApp number first"
-        body="Templates belong to a number's account."
+        body={LIBRARY_WORDS.noNumber}
         action={{ label: "Open Connections", to: "admin/integrations" }}
         testid="messages-no-number"
       />
@@ -190,25 +198,24 @@ export const matchesOf = (needle: string, langs: readonly TplLang[], S: StarterL
     )
   );
 
-/** A new message, written here: the composer in a card over the list, and what is said once it is submitted. */
-export function composerSheet({ bizName, setComposing, flash }: ComposerSheetProps) {
+/** A new message, written here: the composer in the pane beside the list, and what is said once it is submitted. */
+export function composerPane({ bizName, setComposing, flash }: ComposerPaneProps) {
   return (
-    <section className="fl-card rp2-card" data-testid="messages-composer">
-      <TemplateComposer
-        businessName={bizName || ""}
-        onCancel={() => setComposing(false)}
-        onDone={(made) => {
-          setComposing(false);
-          flash({
-            msg: (
-              <>
-                <b>{made.name}</b> submitted — WhatsApp reviews it; its status shows here
-              </>
-            ),
-          });
-        }}
-      />
-    </section>
+    <TemplateComposer
+      pane
+      businessName={bizName || ""}
+      onCancel={() => setComposing(false)}
+      onDone={(made) => {
+        setComposing(false);
+        flash({
+          msg: (
+            <>
+              <b>{made.name}</b> submitted — WhatsApp reviews it; its status shows here
+            </>
+          ),
+        });
+      }}
+    />
   );
 }
 
@@ -225,7 +232,7 @@ interface StartersProps {
  * act. A workspace part-way through (the set in English, Spanish never added) hears no notice: a run sends one language
  * to everyone on it, so a language never added holds nobody back -- the notice that said "your Spanish-speaking
  * customers get nothing from Win-back" said what the product does not do. What is left to add is a quiet line at the
- * list's foot, and each message's own languages are in its open row.
+ * list's foot, and each message's own languages are in its pane.
  */
 export function startersOffer({ S, langs, busy, addingAll, addStarters }: StartersProps) {
   return (
@@ -234,8 +241,8 @@ export function startersOffer({ S, langs, busy, addingAll, addStarters }: Starte
         tone="plain"
         lead={`The starter set is ${tplSpell(S.list.length)} messages for the moments Chanlytics acts on.`}
         act={
-          <button
-            className="btn btn-primary"
+          <Button
+            variant="primary"
             disabled={busy}
             onClick={() =>
               addStarters(
@@ -247,7 +254,7 @@ export function startersOffer({ S, langs, busy, addingAll, addStarters }: Starte
             {...gate("approve", "add a starter template")}
           >
             {addingAll ? "Adding…" : "Add the starter set"}
-          </button>
+          </Button>
         }
       >
         In {tplAnd(langs.map((l) => l.label))} — WhatsApp reviews each, usually within minutes.
@@ -263,7 +270,7 @@ interface ListProps {
   listEmails: Emails;
   emails: Emails;
   openKey: string | null;
-  setOpenKey: Dispatch<SetStateAction<string | null>>;
+  onOpenKey: (key: string) => void;
   card: (g: TemplateGroup) => ReactNode;
   needle: string;
   q: string;
@@ -273,7 +280,7 @@ interface ListProps {
 
 /** The list: what each column of a row is, once, above them, then the messages, the emails and what is said of none. */
 export function templateList(p: ListProps) {
-  const { listed, listStarters, listCustom, listEmails, emails, openKey, setOpenKey, card } = p;
+  const { listed, listStarters, listCustom, listEmails, emails, openKey, onOpenKey, card } = p;
   const { needle, q, hasWhatsApp, customN } = p;
   return (
     <section className="msg-section" data-testid="templates">
@@ -292,7 +299,7 @@ export function templateList(p: ListProps) {
         )}
         {listStarters.map(card)}
         {listCustom.map(card)}
-        <TplEmailRows emails={listEmails} openKey={openKey} setOpenKey={setOpenKey} />
+        <TplEmailRows emails={listEmails} openKey={openKey} onOpenKey={onOpenKey} />
       </div>
       {needle && listed === 0 && (
         <EmptyState kind="line" title={`No template’s words have “${q.trim()}” in them.`} testid="templates-no-match" />
@@ -316,7 +323,7 @@ interface TplFootProps {
 // The foot of the list: the starter set's languages not yet added, as one quiet act, and what the workspace kept out
 // of the composers, folded and still on file. How long WhatsApp takes to read a new one is the head's hover and the
 // composer's line; said here too, it was the page's third time. Moved whole out of MessagesReal.
-export const TplFoot = ({
+const TplFoot = ({
   partialSet,
   busy,
   onAddRest,
@@ -328,9 +335,7 @@ export const TplFoot = ({
 }: TplFootProps) => (
   <footer className="msg-foot">
     {partialSet && (
-      // eslint-disable-next-line jsx-a11y-x/role-supports-aria-props -- as the JSX drew it (decision 0015)
-      <button
-        className="msg-fold-toggle"
+      <LinkButton
         disabled={busy}
         onClick={onAddRest}
         data-tip={leftToAdd}
@@ -340,20 +345,56 @@ export const TplFoot = ({
       >
         <Icon name="plus" size={12} />
         {addingAll ? "Adding…" : "Add the rest of the starter set"}
-      </button>
+      </LinkButton>
     )}
     {hidden > 0 && (
       <span className="msg-foot-fold" data-testid="templates-fold">
-        <button
-          className="msg-fold-toggle"
-          onClick={() => setShowHidden((v) => !v)}
-          aria-expanded={showHidden}
-          data-testid="templates-hidden"
-        >
+        <LinkButton onClick={() => setShowHidden((v) => !v)} aria-expanded={showHidden} data-testid="templates-hidden">
           <Icon name={showHidden ? "chevron-up" : "chevron-down"} size={12} />
           Not in the composers · <span className="tabular">{hidden}</span> · still on file
-        </button>
+        </LinkButton>
       </span>
     )}
   </footer>
 );
+
+interface ListFootProps {
+  listing: TemplateListing;
+  partialSet: boolean;
+  busy: boolean;
+  addingAll: boolean;
+  addStarters: (keys: string[] | null, languages: string[]) => Promise<void>;
+  showHidden: boolean;
+  setShowHidden: Dispatch<SetStateAction<boolean>>;
+  card: (g: TemplateGroup) => ReactNode;
+}
+
+/** Under the list: its foot, and what the workspace kept out of the composers while the fold is open. */
+export function listFoot(p: ListFootProps) {
+  const { listing, partialSet, busy, addingAll, addStarters, showHidden, setShowHidden, card } = p;
+  const { hiddenRows, hiddenGroups, langs, leftToAdd } = listing;
+  return (
+    <>
+      {(partialSet || hiddenRows.length > 0) && (
+        <TplFoot
+          partialSet={partialSet}
+          busy={busy}
+          onAddRest={() =>
+            addStarters(
+              null,
+              langs.map((l) => l.id),
+            )
+          }
+          leftToAdd={leftToAdd}
+          addingAll={addingAll}
+          hidden={hiddenRows.length}
+          showHidden={showHidden}
+          setShowHidden={setShowHidden}
+        />
+      )}
+      {showHidden && hiddenGroups.length > 0 && (
+        <div className="msg-list msg-list-hidden">{hiddenGroups.map(card)}</div>
+      )}
+    </>
+  );
+}

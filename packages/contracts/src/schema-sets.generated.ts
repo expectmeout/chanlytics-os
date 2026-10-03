@@ -20,6 +20,7 @@ export const SCHEMA_SETS = {
     "paused",
   ],
   "billing_events.state": ["claimed", "applied"],
+  "broadcast_recipients.channel": ["whatsapp", "sms", "email"],
   "broadcast_recipients.state": ["queued", "sent", "skipped", "failed"],
   "broadcasts.state": ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"],
   "business_records.business_type": [
@@ -107,6 +108,7 @@ export const SCHEMA_SETS = {
   "lines.step": ["subaccount", "number", "trunk", "agent", "import", "messaging", "channel"],
   "lines.voice_state": ["none", "provisioning", "answering", "failed"],
   "lines.whatsapp_state": ["none", "connecting", "connected", "coexistence", "failed"],
+  "mailboxes.offers_paused_reason": ["complaints", "bounces"],
   "mailboxes.reply_mode": ["draft", "veto", "auto"],
   "memberships.role": ["owner", "operator", "partner", "viewer"],
   "messages.channel": ["whatsapp", "voice", "sms", "email", "system"],

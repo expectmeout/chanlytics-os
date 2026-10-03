@@ -1,5 +1,15 @@
-import { normalizeEmail } from "@chanlytics/contracts";
+import {
+  EMAIL_STOP_PATTERN,
+  EMAIL_UNSUBSCRIBE_PATTERN,
+  MARKETING_OPT_IN_PATTERN,
+  normalizeEmail,
+  replyTextOf,
+} from "@chanlytics/contracts";
+import { logger } from "@chanlytics/channels";
 import type { Json } from "@chanlytics/db";
+
+/** The intake's own lines, by name: a yes the sender's proof does not stand behind. */
+const emailLog = logger();
 
 /**
  * email_ingest: one received email, taken in (00127).
@@ -43,6 +53,13 @@ export interface IncomingEmail {
   receivedAt: string | null;
   claim: EmailClaim;
   attachments: Array<{ filename: string | null; contentType: string | null; size: number | null }>;
+  /**
+   * The receiving side PROVES the sender is who the From line says (channels senderAuthenticated: an aligned DMARC pass, or
+   * a DKIM pass signed by the From domain). A From anyone can forge is not one: a yes (YES OFFERS) is taken only from an
+   * email that has it, and is refused, and logged, from one that does not or whose header says nothing. A no (STOP,
+   * UNSUBSCRIBE) is always taken, since a no only narrows. Required: no caller may leave a proof out and have a yes taken.
+   */
+  senderAuthenticated: boolean;
 }
 
 export interface EmailIngestPorts {
@@ -65,6 +82,14 @@ export interface EmailIngestPorts {
     body: string | null;
     channelTs: string | null;
     meta: Json;
+    /** The email's own words are the opt-out (asksToStop): ingest_inbound then records the STOP, as it does for a text. */
+    optOut: boolean;
+    /** The email's own words are UNSUBSCRIBE (asksToUnsubscribe): offers by email end, through the unsubscribe link's door. */
+    unsubscribe: boolean;
+    /** The email's own words are YES OFFERS, from a sender the receiving side proved (asksForOffers): the yes to offers by email. */
+    optInOffers: boolean;
+    /** What they wrote, as the ledger quotes it: the words of the reply, never the history their client quoted. */
+    words: string | null;
   }): Promise<{ message_id: string; conversation_id: string; is_new: boolean; processed: boolean }>;
   /**
    * Flag the thread for a person: a new hold, one that now means something else,
@@ -153,6 +178,11 @@ export async function ingestEmail(
   // sends to an address is the provider's signed receipt, never this.
   if (claim === "report") return "not_a_conversation";
 
+  const stops = asksToStop(email);
+  // A yes is taken only from a sender the receiving side proved. One whose words say yes and whose proof is missing or
+  // says no is not recorded, and is said in the log: it is either a forgery or a header this does not yet read.
+  const yes = !stops && saysYesToOffers(email);
+  const optInOffers = yes && email.senderAuthenticated === true;
   const kept = await ports.record({
     tenantId: mailbox.tenant_id,
     address,
@@ -160,8 +190,16 @@ export async function ingestEmail(
     body: bodyOf(email),
     channelTs: email.receivedAt ?? at,
     meta: metaOf(email),
+    optOut: stops,
+    // One word, one answer: a STOP stops everything and says nothing of offers; an unsubscribe and a yes are about offers.
+    unsubscribe: !stops && asksToUnsubscribe(email),
+    optInOffers,
+    words: replyTextOf(email.text).slice(0, 80) || null,
   });
   if (!kept.is_new && kept.processed) return "already_handled";
+  // Said once the email is known to be new work, so a delivery the provider repeats says it once.
+  if (yes && !optInOffers)
+    emailLog.warn("email_yes_unauthenticated", { tenant_id: mailbox.tenant_id, message_id: kept.message_id });
 
   // A reply to a reach-out is read for what it means (reply_read), whatever it claims: an automatic reply may still
   // say no (B1). The reading tells the owner, so the intake does not tell them twice. Asked before anything is marked,
@@ -220,6 +258,37 @@ async function flagForAPerson(
     preview: bodyOf(email)?.slice(0, 280) ?? null,
     claim,
   });
+}
+
+/**
+ * Is the email's own reply the opt-out? The words a WhatsApp message is read by, except UNSUBSCRIBE (contracts
+ * EMAIL_STOP_PATTERN: STOP, BAJA or ALTO and nothing else), over the words the sender wrote, never the history their client
+ * quoted under them (replyTextOf): "STOP" above "On Tue ... wrote: > Your appointment is tomorrow" is a STOP, and a quote
+ * of an earlier STOP under "Thanks!" is not. The carriers' extra words (CANCEL, END) are a text line's alone: in an email
+ * they are a booking. An unsubscribe is not a STOP (the spec's decision 12): it is asksToUnsubscribe's.
+ */
+function asksToStop(e: IncomingEmail): boolean {
+  return EMAIL_STOP_PATTERN.test(replyTextOf(e.text));
+}
+
+/**
+ * Is the email's own reply an unsubscribe? "Unsubscribe" and nothing else, in the words they wrote
+ * (EMAIL_UNSUBSCRIBE_PATTERN): offers by email end, through the same door the link's page writes through, and their visit
+ * messages and replies go on. A no only narrows, so whoever the sender claims to be, it is taken.
+ */
+function asksToUnsubscribe(e: IncomingEmail): boolean {
+  return EMAIL_UNSUBSCRIBE_PATTERN.test(replyTextOf(e.text));
+}
+
+/**
+ * Does the email's own reply SAY yes to offers by email? YES OFFERS or SÍ OFERTAS and nothing else (contracts
+ * MARKETING_OPT_IN_PATTERN, the words a WhatsApp message says it by), in the words they wrote, from a person (not a list or a
+ * program). Whether the sender is who they say is the caller's to ask next (`senderAuthenticated`): a yes widens what may
+ * be sent, so it is the one thing an email header anyone can write cannot give. A START is never read here for the same
+ * reason.
+ */
+function saysYesToOffers(e: IncomingEmail): boolean {
+  return e.claim === "person" && MARKETING_OPT_IN_PATTERN.test(replyTextOf(e.text));
 }
 
 /** The words, bounded. */

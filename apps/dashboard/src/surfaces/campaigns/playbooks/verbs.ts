@@ -8,6 +8,7 @@
  * a broadcast, so the cards and the runs must move together — never a row
  * the page invented while it waited.
  */
+import type { ConsentChannel } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
 import type { Output } from "@/client/api";
 import { playbooksOverride } from "./surface";
@@ -19,6 +20,8 @@ interface PlaybookBody {
   template_id: string;
   /** Typed text, or a source the wire fills per person: { kind: "first_name" | "business_name" | "booking_link" }. */
   params: Array<string | { kind: string }>;
+  /** The channels it goes by (step 3): WhatsApp alone where it names none. */
+  channels?: ConsentChannel[];
   run_hour?: number;
   cap_per_run?: number;
   gap_days?: number;

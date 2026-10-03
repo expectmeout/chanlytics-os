@@ -200,7 +200,7 @@ test("over 30 days a weekday is its own average, so the weekdays the window hold
   assert.equal(weekOf(span(28, "2026-09-18", (w) => ({ messages_in: w === 0 ? [1, 2, 0, 0][monday++] : 0 })))[0], 0.8);
 });
 
-test("the hours: summed over the period, the busiest two-hour window, and what came in before 8am or from 8pm", () => {
+test("the hours: summed over the period and the busiest two-hour window", () => {
   const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
   grid[0][10] = 3;
   grid[0][11] = 2;
@@ -211,12 +211,11 @@ test("the hours: summed over the period, the busiest two-hour window, and what c
   assert.equal(h.values[10], 3);
   assert.equal(h.values[18], 4);
   assert.equal(h.peak, 10, "10 to 12 holds five, more than 18 to 20 with four");
-  assert.equal(h.outside, 3, "one at 7am and two at 9pm");
+  assert.equal(h.closed, null, "no profile: nothing said");
   assert.deepEqual([h.labels[0], h.labels[13], h.labels.length], ["12am", "1pm", 24]);
   assert.equal(hoursOf(undefined), null);
   const none = hoursOf(Array.from({ length: 7 }, () => Array(24).fill(0)));
   assert.equal(none.peak, null);
-  assert.equal(none.outside, 0);
   assert.equal(reportHourWords(0), "12am");
   assert.equal(reportHourWords(9), "9am");
   assert.equal(reportHourWords(12), "12pm");
@@ -228,7 +227,7 @@ test("the hours: summed over the period, the busiest two-hour window, and what c
 test("the channels keep their order and their colour's place, and a channel that fell to nothing stays for the comparison", () => {
   assert.deepEqual(
     REPORT_CHANNELS.map((c) => c.key),
-    ["whatsapp", "voice", "email", "sms", "instagram"],
+    ["whatsapp", "voice", "email", "sms"],
   );
   const ch = channelsOf({
     current: { whatsapp: 5, voice: 2, email: 0, sms: 1, instagram: 0 },
@@ -238,9 +237,30 @@ test("the channels keep their order and their colour's place, and a channel that
     { key: "whatsapp", label: "WhatsApp", value: 5, prior: 3 },
     { key: "voice", label: "Calls", value: 2, prior: 0 },
     { key: "email", label: "Email", value: 0, prior: 2 },
-    { key: "sms", label: "SMS", value: 1, prior: 0 },
+    { key: "sms", label: "Text", value: 1, prior: 0 },
   ]);
   assert.equal(channelsOf(undefined), null);
+});
+
+test("texts are said as texts, and a channel no message can arrive on is never listed", () => {
+  const ch = channelsOf({
+    current: { whatsapp: 0, voice: 0, email: 0, sms: 6, instagram: 0 },
+    previous: { whatsapp: 0, voice: 0, email: 0, sms: 1, instagram: 3 },
+  });
+  assert.deepEqual(
+    ch.map((c) => c.key),
+    ["sms"],
+    "an instagram count from an older report is ignored: the messages CHECK admits no Instagram",
+  );
+  const vm = toReportVM(
+    dto({
+      channels: {
+        current: { whatsapp: 0, voice: 0, email: 0, sms: 6 },
+        previous: { whatsapp: 0, voice: 0, email: 0, sms: 0 },
+      },
+    }),
+  );
+  assert.equal(vm.lines.channels, "Mostly texts.");
 });
 
 test("a caller's mood reads in its own order, good then neither then bad, each with its status", () => {

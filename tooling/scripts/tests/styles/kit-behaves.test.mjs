@@ -203,6 +203,7 @@ test("a server draws each entry the page draws closed as its gallery entry draws
       "subtabs-glyph",
       "field-kit",
       "field-kit-wrong",
+      "field-kit-title",
     ],
     "the entries a server can draw",
   );

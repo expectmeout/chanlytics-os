@@ -231,7 +231,7 @@ export async function reachOutRunContext(
           route: "broadcasts",
           about: { type: "broadcast", id: runId },
           subject: `A reach-out waits for you: ${row.name}`,
-          body: `${planned} ${planned === 1 ? "email" : "emails"} to businesses your search found, from ${firstWords(tz, firstAt)}. Approve them on Broadcasts, or skip the run.`,
+          body: `${planned} ${planned === 1 ? "email" : "emails"} to businesses your search found, from ${firstWords(tz, firstAt)}. Approve them in Sent, or skip the run.`,
         },
       );
     },

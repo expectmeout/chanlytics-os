@@ -43,6 +43,8 @@ const NEVER_ASKED = { consent: "unknown", dnc: false, marketing_consent: "unknow
 const base = {
   contact: NEVER_ASKED,
   purpose: "conversational",
+  // A yes covers the channels it was given for (step 2): the booking link goes by WhatsApp.
+  channel: "whatsapp",
   proactive: false,
   pausedUntilMs: null,
   replyMode: "auto",

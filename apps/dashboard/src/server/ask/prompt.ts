@@ -55,7 +55,7 @@ export const ASK_DEFINITIONS: Record<string, string> = {
   "veto window": "The reply policy mode where every draft waits a short while before sending, so a person can stop it.",
   "missed call": "A phone call the receptionist did not answer, or that ended before anyone spoke.",
   "median reply time":
-    "The middle value of how long the receptionist took to answer, over the period; half the replies were faster.",
+    "The middle value of how long a customer waited for the receptionist's answer over the period; half the replies were faster. Where the reply policy holds each reply (the hold window the owner set), that wait is part of it: the hold is the owner's setting, not the receptionist's speed, so say it, and use the report's reply_time.hold for how many went out as the hold ended and how many took longer.",
   "said yes":
     "A recorded answer that the person wants offers and news by WhatsApp: the desk recorded it on their profile, or they sent YES OFFERS or START themselves. Only these people can be on a broadcast.",
   broadcast:
@@ -64,7 +64,7 @@ export const ASK_DEFINITIONS: Record<string, string> = {
     "A person on a broadcast the send skipped at the wire: no recorded yes, asked to stop, no number, or a person had their thread.",
   calendar:
     "The owner's calendar as the receptionist reads it: an iCal feed of what is taken, the business's hours and closures, and the booking rules. The receptionist offers only the open windows, then sends the booking link, or takes their details where there is none; it never books, moves or cancels anything itself.",
-  playbook: `A standing rule that sends one approved WhatsApp template to newly eligible people who said yes: win-back (quiet 30 days), welcome (new this week), save our number (only ever phoned), the month's offer (everyone who said yes, on a cadence), and, where deals are on, the proposal follow-up (one nudge per proposal waiting past the workspace's pace, with its link, once). It runs at its hour by the business's clock, reaches a person once within its gap, one playbook message per person per week, under its class's autonomy mode — auto sends the run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless stopped, ask leaves it waiting for a person on Today, never runs nothing.`,
+  playbook: `A standing rule that sends one approved WhatsApp template to newly eligible people who said yes: win-back (by visits where a calendar is connected, by 30 days of silence where not), the month's offer (everyone who said yes, on a cadence), a reminder before a visit and a check after one, and, where deals are on, the proposal follow-up (one nudge per proposal waiting past the workspace's pace, with its link, once). It runs at its hour by the business's clock, reaches a person once within its gap, one playbook message per person per week, under its class's autonomy mode — auto sends the run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless stopped, ask leaves it waiting for a person on Today, never runs nothing.`,
 };
 
 export const ASK_RULES = [

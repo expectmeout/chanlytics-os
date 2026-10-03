@@ -5,7 +5,7 @@
  */
 import { canDo, gate, navigate } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { Menu } from "../../kit/menu/menu";
 import { PeopleBulkBar } from "../bulk/bulk-bar";
 import { plCardRowClass } from "../cells/columns";
 import { PeopleImportSheet } from "../import/import-sheet";
@@ -24,10 +24,19 @@ import { lookNow } from "../../kit/look/look";
 import { PeopleColumnsMenu } from "../table/columns-menu";
 import { PeopleTable } from "../table/table";
 import type { TableEmpty } from "../types";
-import { PL_DEFAULT_GROUPS, PL_NO_LISTS, PL_SEARCH_LABEL, PL_TAB_LABEL, plLoadedWords, plScopeRoute } from "../words";
+import {
+  PL_DEFAULT_GROUPS,
+  PL_NO_LISTS,
+  PL_SEARCH_LABEL,
+  PL_TAB_LABEL,
+  plLoadedWords,
+  plScopeRoute,
+  plSortedBy,
+} from "../words";
 import type { PeopleState } from "./state";
 import { peoplePhoneMenu } from "./phone-menu";
-import type { MoreMenuItem } from "../../kit/more-menu/more-menu";
+import { menuGroups, moreButton } from "../menu-groups";
+import type { PeopleMenuItem } from "../menu-groups";
 
 /** Nobody to show: a list that isn't here, or one of the member's own with nobody on it. */
 function peopleTableEmpty(s: PeopleState): TableEmpty | null {
@@ -90,7 +99,10 @@ function peopleListHead(s: PeopleState) {
     viewRule,
     shownIds,
     openMade,
+    sortBy,
   } = s;
+  // Glass says how the list is ordered at the head's right, where Classic's table heading arrow already does.
+  const sortedBy = lookNow() === "glass" ? plSortedBy(sortBy) : "";
   return (
     <div className="cl-section-head">
       <div className="cl-section-lead">
@@ -188,7 +200,7 @@ function peopleListHead(s: PeopleState) {
         ) : filtered ? (
           "Filtered"
         ) : (
-          ""
+          sortedBy
         )}
       </span>
     </div>
@@ -295,9 +307,10 @@ function peopleDeskControls(s: PeopleState) {
         {lookNow() === "glass" && (
           // The canvas (P1) folds the file acts under one ⋯ after Columns: Import, and Export CSV with its gate or the
           // reason it is held, the same doors as the buttons Classic draws above.
-          <MoreMenu
-            testid="people-more"
-            items={[
+          <Menu
+            label="More"
+            trigger={moreButton({ title: "More", testid: "people-more" })}
+            groups={menuGroups([
               ...(canExport ? [{ label: "Import", icon: "download", onClick: () => setImportOpen(true) }] : []),
               !canDo("export")
                 ? { label: "Export CSV", icon: "external", gate: gate("export") }
@@ -312,7 +325,7 @@ function peopleDeskControls(s: PeopleState) {
                       // The route answers as an attachment, so the page stays where it is (as Leads' export does).
                       onClick: () => window.open(exportHref, "_self"),
                     },
-            ]}
+            ])}
           />
         )}
       </div>
@@ -468,7 +481,13 @@ function phoneBar(s: PeopleState, phoneMenu: ReturnType<typeof peoplePhoneMenu>)
       onSearchOpen={setSearchOpen}
       searchLabel={PL_SEARCH_LABEL}
       testid="people"
-      trailing={<MoreMenu items={phoneMenu} title="More" size={18} btnClass="pp-bar-icon" escape />}
+      trailing={
+        <Menu
+          label="More"
+          groups={menuGroups(phoneMenu)}
+          trigger={moreButton({ title: "More", className: "pp-bar-icon", size: 18, big: true })}
+        />
+      }
     />
   );
 }
@@ -578,7 +597,7 @@ export function peopleScreen(s: PeopleState) {
     setListId,
     setSavedId,
   } = s;
-  const phoneMenu: MoreMenuItem[] = peoplePhoneMenu(s);
+  const phoneMenu: PeopleMenuItem[] = peoplePhoneMenu(s);
   return (
     <div className="clients">
       {/* The switch between the scopes, over the rail and the rows; a phone's is the bar's first row (PeoplePhoneBar). */}

@@ -7,6 +7,7 @@ import "server-only";
  */
 import {
   AppError,
+  REACH_OUT_LANGUAGE,
   REACH_OUT_REFUSALS,
   chainIssueWords,
   isReachOutHold,
@@ -15,8 +16,11 @@ import {
   isReachOutRun,
   localDate,
   parseTenantConfig,
+  reachOutChainBodyOf,
+  reachOutDraftOf,
+  reachOutEmailOf,
   reachOutSendsFrom,
-  reachOutSlots,
+  reachOutStepOf,
   validateReachOutChain,
   type ReachOutChainDto,
   type ReachOutChainInput,
@@ -229,6 +233,41 @@ export async function saveChain(
   return { root_id: saved.root_id, step_ids: saved.step_ids, rechecked: 0, start };
 }
 
+/**
+ * One reach-out step's email written where it is read, on Templates (One message, every channel, step 5). The row's name
+ * says which step (contracts reachOutStepOf), and its chain is saved whole with that step's words changed, through the
+ * chain's own save (saveChain), so everything the sheet's save guarantees holds: every word checked by the one email
+ * check, the member's right to approve judged again by the door, and new words sending what waits for the step back to
+ * the check. A step with no email of its own (a call or a note), or none at all, is not found.
+ */
+export async function saveReachOutEmail(
+  ctx: RouteContext,
+  member: Member,
+  email: { name: string; subject?: string | null; body: string },
+): Promise<{ template: { id: string; channel: "email"; name: string; language: string }; rechecked: number }> {
+  const stepId = reachOutStepOf(email.name);
+  const chain = stepId
+    ? (await chainsOf(ctx, member.tenantId)).find((c) => c.steps.some((s) => s.id === stepId))
+    : null;
+  const step = chain?.steps.find((s) => s.id === stepId);
+  if (!chain || !step || !step.template_id) throw new AppError("not_found", REACH_OUT_REFUSALS.notFound, 404);
+  const draft = reachOutDraftOf({ chain, searchName: chain.search?.name ?? "", signedBy: null });
+  const steps = draft.steps.map((s) =>
+    s.id === step.id ? { ...s, subject: step.n === 0 ? (email.subject ?? "") : null, body: email.body } : s,
+  );
+  // An edit never reads the search (the door keeps the chain's own): the root's id stands where a gone search has none.
+  const saved = await saveChain(
+    ctx,
+    member,
+    reachOutChainBodyOf({ ...draft, steps }, chain.search?.id ?? chain.root_id),
+    chain.root_id,
+  );
+  return {
+    template: { id: step.template_id, channel: "email", name: email.name, language: REACH_OUT_LANGUAGE },
+    rechecked: saved.rechecked,
+  };
+}
+
 /** A chain that never wrote, removed whole (R16); one that did is refused, in words, to be paused instead. */
 export async function removeChain(
   ctx: RouteContext,
@@ -281,13 +320,19 @@ async function firstEmailOf(
   if (!words) return null;
   const slots = { businessName: facts.name, yourName: p.signedBy, bookingLink: link };
   const leadSlots = { business_name: lead.lead?.business_name ?? null, city: lead.lead?.city ?? null };
-  const body = reachOutSlots(words.body, leadSlots, slots, lead.opening);
-  const subject = p.first && words.subject ? reachOutSlots(words.subject, leadSlots, slots, lead.opening) : null;
-  if (!body.ok) return null;
+  // The one fill the sender and every preview take (contracts reachOutEmailOf): a first email's subject and its body, or
+  // a later step's body alone.
+  const email = reachOutEmailOf(
+    { subject: p.first ? (words.subject ?? "") : null, body: words.body },
+    leadSlots,
+    slots,
+    lead.opening,
+  );
+  if (!email.ok) return null;
   return {
     business_name: lead.lead?.business_name ?? "",
-    subject: subject?.ok ? subject.text : null,
-    body: body.text,
+    subject: email.subject,
+    body: email.body,
     opening: lead.opening,
     angle: lead.angle,
   };

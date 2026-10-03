@@ -295,11 +295,11 @@ export const POST = door(async function POST(request: Request): Promise<Response
     // the booking link on almost every first call, and texting the person who asked
     // for it, at the number they are calling from, is a reply rather than outreach.
     const gate = outboundGate({
-      // The row whole: `OutboundTarget` is a `PurposeBearing`, checked by the compiler,
-      // so there is no hand re-mapping here to get one field's name wrong.
+      // The row whole (an `OutboundTarget` is a `PurposeBearing`): no field's name re-mapped by hand to get wrong.
       contact,
       purpose,
       proactive: !isCaller,
+      channel: "whatsapp", // the delivery below: the yes it needs is a WhatsApp one
       paused: rt.paused,
       pausedUntilMs: contact.pausedUntil ? new Date(contact.pausedUntil).getTime() : null,
       replyMode,

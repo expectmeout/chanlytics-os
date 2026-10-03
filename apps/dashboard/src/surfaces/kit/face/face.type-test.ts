@@ -25,9 +25,13 @@ function _faceTakes(
     // A glyph is an element (the Icon), never words or nothing; a picture is its address.
     Holds<Exactly<FaceProps["glyph"], ReactElement | undefined>>,
     Holds<Exactly<FaceProps["photo"], string | undefined>>,
-    // The header's size is the one the kit draws besides the row's; a thread's priority is its word, or nothing.
-    Holds<Exactly<FaceProps["size"], "lg" | undefined>>,
+    // The sizes are the ones the kit draws besides the phone row's: a desk row's, a header's and a page's head; a
+    // thread's priority is its word, or nothing.
+    Holds<Exactly<FaceProps["size"], "sm" | "lg" | "xl" | undefined>>,
     Holds<Exactly<FaceProps["priority"], string | null | undefined>>,
+    // A lead's own mark is an address; a row's checkbox is the two words, or nothing.
+    Holds<Exactly<FaceProps["mark"], string | undefined>>,
+    Holds<Exactly<FaceProps["pick"], "choose" | "chosen" | undefined>>,
   ];
   Face({ initials: "AR" });
   Face({ initials: "AR", photo: "https://example.com/aisha.jpg", ref: span, className: "pl-face" });
@@ -46,6 +50,17 @@ function _faceTakes(
   Face({ initials: "AR", children: "Aisha Rahman" });
   // @ts-expect-error it is decoration, always: the name beside it says who
   Face({ initials: "AR", "aria-hidden": false });
-  // @ts-expect-error the kit draws the row's size and the header's: another comes with its first reader
-  Face({ initials: "AR", size: "xl" });
+  // A lead's row: its photo, its mark over it, and a selection under way with this one in it.
+  Face({
+    initials: "ZS",
+    photo: "https://example.com/place.jpg",
+    mark: "https://example.com/mark.png",
+    pick: "chosen",
+  });
+  // The desk row's, and a page's head, as People draws them.
+  Face({ initials: "AR", size: "sm" });
+  Face({ initials: "AR", size: "xl", photo: "https://example.com/aisha.jpg" });
+
+  // @ts-expect-error the kit draws the sizes it names: another comes with its first reader
+  Face({ initials: "AR", size: "md" });
 }

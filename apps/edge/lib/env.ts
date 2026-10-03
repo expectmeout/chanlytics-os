@@ -123,6 +123,14 @@ export const env = {
   get EMAIL_DOMAIN() {
     return trimmedEnv(process.env.EMAIL_DOMAIN);
   },
+  /**
+   * The domain OFFERS by email leave from (One message, every channel, step 4): a sending subdomain on the platform's
+   * Resend account (campaigns.chanlytics.com), verified there, so a complaint about an offer never touches the domain
+   * replies and visit messages leave from. Blank, or not yet verified: offers by email stay refused, as they were.
+   */
+  get EMAIL_CAMPAIGNS_DOMAIN() {
+    return trimmedEnv(process.env.EMAIL_CAMPAIGNS_DOMAIN);
+  },
   get RESEND_WEBHOOK_SECRET() {
     return trimmedEnv(process.env.RESEND_WEBHOOK_SECRET);
   },

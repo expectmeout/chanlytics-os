@@ -6,14 +6,21 @@
 
 import { read } from "@/legacy-bridge/api";
 import {
+  DEFAULT_CAMPAIGN_CHANNELS,
   PEOPLE_LISTS,
   REPLY_WINDOW_WORDS,
   numberHealth,
   purposeOfTemplate,
+  type ChannelsReady,
+  type ConsentChannel,
+  type MonthSent,
   type NumberHealth,
+  type PreviewVersions,
   FOLLOW_UP_NEEDS_DEALS,
   PLAYBOOK_TRIGGERS,
+  momentOffered,
   nextRunLabel,
+  playbookPoolKey,
   scheduleLine,
   triggerOf,
   triggerOffered,
@@ -22,8 +29,10 @@ import {
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
 import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
+import { sameChannels } from "@/lib/campaign-channels";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
+import { cmAddressOf, cmChannelsOf, cmVersionsOf } from "../parts/channels";
 
 // The frame (its tab counts and the route table's crumbs) and Today read this under its old name until they move.
 declareSurfaceValue("playbooks", "__PLAYBOOKS");
@@ -54,6 +63,8 @@ export interface PlaybookTotalsVM {
 }
 
 export interface PlaybookCardVM extends PlaybookDto {
+  /** The key of the count this playbook's reach is read from (`pools`): its moment's, its list's, or its own where its message is stricter. */
+  poolKey: string;
   totals: PlaybookTotalsVM;
   /** The trigger's words: "Win-back", "Nothing heard in 30 days". */
   triggerLabel: string;
@@ -90,6 +101,77 @@ export interface PlaybookNamed {
   noNumber: number;
   /** How many of them said the yes the playbook needs, a number or not: a yes with no number is not no yes. */
   saidYes: number;
+  /** No email address, where email was the only channel left; no channel the playbook ticks could carry its message (step 3). */
+  noAddress?: number;
+  noChannel?: number;
+  /** Who a run reaches on each channel, adding up to who it reaches now. Absent from a count made before channels. */
+  byChannel?: Record<ConsentChannel, number>;
+}
+
+/**
+ * One moment's count as the route makes it (server/campaigns/playbooks.ts TriggerPool): the figures for WhatsApp alone,
+ * as every playbook went before, and, beside them, the same figures for each other set of channels a playbook on it may
+ * tick, so the composer reads the count for the set in front of it as the owner ticks and unticks.
+ */
+export interface PoolRead {
+  candidates: number;
+  held: number;
+  pool: number;
+  noYes: number;
+  stopped: number;
+  noNumber: number;
+  saidYes: number;
+  no_address?: number;
+  no_channel?: number;
+  by_channel?: Record<ConsentChannel, number>;
+  by?: Array<Omit<PoolRead, "by"> & { channels: readonly string[] }>;
+}
+
+/** What a count says of who it names and who it leaves out: null where the moment could not be counted. */
+export function namedOf(x: Omit<PoolRead, "by"> | null | undefined): PlaybookNamed | null {
+  return x && typeof x.pool === "number"
+    ? {
+        pool: x.pool,
+        noYes: x.noYes ?? 0,
+        stopped: x.stopped ?? 0,
+        noNumber: x.noNumber ?? 0,
+        saidYes: x.saidYes ?? 0,
+        ...(x.no_address === undefined ? {} : { noAddress: x.no_address }),
+        ...(x.no_channel === undefined ? {} : { noChannel: x.no_channel }),
+        ...(x.by_channel ? { byChannel: x.by_channel } : {}),
+      }
+    : null;
+}
+
+/**
+ * A count for the channels a playbook goes by: the figures for WhatsApp alone where it ticks that, the widest set the
+ * count kept that lies within what it ticks, and, where none can carry it (a channel it ticks is not open to its
+ * message), everyone the moment names left out with no channel to go by. Null where the moment was not counted.
+ */
+export function readingFor(
+  pool: PoolRead | null | undefined,
+  channels: readonly string[] | null | undefined,
+): Omit<PoolRead, "by"> | null {
+  if (!pool) return null;
+  // None named is a playbook made before channels: WhatsApp alone. An empty set is none: no channel can carry it.
+  const want = channels ?? DEFAULT_CAMPAIGN_CHANNELS;
+  if (sameChannels(want, DEFAULT_CAMPAIGN_CHANNELS)) return pool;
+  const within = (pool.by ?? []).filter((b) => b.channels.every((c) => want.includes(c)));
+  const widest = within.sort((a, b) => b.channels.length - a.channels.length)[0];
+  if (widest) return widest;
+  if (want.includes("whatsapp")) return pool;
+  return {
+    candidates: 0,
+    held: 0,
+    pool: pool.pool,
+    noYes: 0,
+    stopped: 0,
+    noNumber: 0,
+    saidYes: 0,
+    no_address: 0,
+    no_channel: pool.pool,
+    by_channel: { whatsapp: 0, sms: 0, email: 0 },
+  };
 }
 
 export interface PlaybookTriggerOption {
@@ -100,14 +182,40 @@ export interface PlaybookTriggerOption {
   list: string | null;
   /** list, cadence, visit, saved or deal — a visit trigger needs the calendar and has no gap; a deal's, once per proposal. */
   kind: string;
+  /**
+   * Whether a NEW playbook may start from it (contracts momentOffered): not a retired moment, and of the two win-backs
+   * the one this workspace can read. The cards of playbooks already made on one still read their moment from here.
+   */
+  offered: boolean;
   /** Null, with `held` and `named`: the server could not count this moment -- never a zero it did not count. */
   candidates: number | null;
   held: number | null;
   named: PlaybookNamed | null;
 }
 
+/**
+ * A template a playbook may send, with the channels its message has a version on, in this row's language (contracts
+ * versionsOf), and those versions' words, for the preview to draw a person on an email or a text as they read it
+ * (parts/preview-by.ts; absent on a template stamped before they were kept).
+ */
+export type PlaybookTemplate = TemplateDto & { channels: ConsentChannel[]; versions?: PreviewVersions };
+
 export interface PlaybooksSurface {
   rows: PlaybookCardVM[];
+  /**
+   * Each moment's count by the key a card, a moment or a list names it by (`poolKey`, a trigger's id, a list's token), for
+   * every set of channels a playbook may tick; null where it was not counted. The cards and the moments read the figures
+   * for what they go by; the composer reads the set in front of it.
+   */
+  pools: Record<string, PoolRead | null>;
+  /** Whether the workspace can send on each channel now; null where that could not be read (parts/channels.ts cmReadyOf). */
+  ready: ChannelsReady | null;
+  /**
+   * What the workspace's campaigns have sent by email and by text this calendar month, in its zone (server/campaigns/
+   * month-sent.ts); null where that could not be read, and the page then says nothing of the month. The head says it from half
+   * used (contracts allowanceLine) and a composer before a send (contracts allowanceBeforeSend).
+   */
+  month_sent: MonthSent | null;
   timezone: string;
   /** False when the server could not count some moment: the page says so once, over the cards. */
   countsRead: boolean;
@@ -129,11 +237,13 @@ export interface PlaybooksSurface {
     held: number | null;
     named: PlaybookNamed | null;
   }[];
-  /** The approved WhatsApp templates, with their variables. */
+  /** The approved WhatsApp templates, with their variables and the channels each has a version on. */
   /** Null: the templates read failed -- its own state, never "no template yet". */
-  templates: TemplateDto[] | null;
+  templates: PlaybookTemplate[] | null;
   number: { present: boolean; health: NumberHealth };
   businessName: string;
+  /** Its postal address where the Business record holds one: the foot of an email names it (contracts emailFoot). */
+  businessAddress?: string | null;
   bookingLink: boolean;
   /** The reply window in words, for the tips that say what a reply is (contracts REPLY_WINDOW_WORDS). */
   replyWindow: string;
@@ -168,21 +278,12 @@ export const playbooksOverride: SurfaceOverride = {
     // The pools are the route's: who a run would pick NOW, and who waits for
     // the week's breath, over everyone in People with their visits. A moment
     // the route could not count is null here too, never a zero it did not count.
-    const pool = (trigger: string) => pb.pools?.[trigger]?.candidates ?? null;
-    const held = (trigger: string) => pb.pools?.[trigger]?.held ?? null;
+    // They are read for WhatsApp alone (every playbook went by it), and a playbook that ticks more reads its own set.
+    const pools: Record<string, PoolRead | null> = pb.pools ?? {};
+    const pool = (trigger: string) => pools[trigger]?.candidates ?? null;
+    const held = (trigger: string) => pools[trigger]?.held ?? null;
     // And everyone each moment names, with who of them no run reaches whatever the week.
-    const named = (trigger: string): PlaybookNamed | null => {
-      const x = pb.pools?.[trigger];
-      return x && typeof x.pool === "number"
-        ? {
-            pool: x.pool,
-            noYes: x.noYes ?? 0,
-            stopped: x.stopped ?? 0,
-            noNumber: x.noNumber ?? 0,
-            saidYes: x.saidYes ?? 0,
-          }
-        : null;
-    };
+    const named = (trigger: string): PlaybookNamed | null => namedOf(pools[trigger]);
     const wa =
       ch instanceof Error
         ? null
@@ -194,8 +295,12 @@ export const playbooksOverride: SurfaceOverride = {
     // A playbook on a list is counted by its list's token (`seg:<id>` or `list:<id>`, decision 0009), and named for it.
     const listsKept = pb.lists ?? [];
     const peopleLists = pb.people_lists ?? [];
-    const keyOf = (p: { trigger: string; list_id?: string | null; list_key?: string | null }) =>
+    const momentKey = (p: { trigger: string; list_id?: string | null; list_key?: string | null }) =>
       p.trigger !== "saved_list" ? p.trigger : p.list_key ? `seg:${p.list_key}` : `list:${p.list_id ?? ""}`;
+    // A playbook whose message is stricter than its moment's class (an After-the-visit one still sending its offer) is
+    // counted on its own: its run enrols by the message's yes (the route's strictMessagePools).
+    const keyOf = (p: { id: string; trigger: string; list_id?: string | null; list_key?: string | null }) =>
+      playbookPoolKey(p.id) in (pb.pools ?? {}) ? playbookPoolKey(p.id) : momentKey(p);
     // A built-in is named by contracts when the route's People read failed: it is never deleted. One of the
     // workspace's own is named by the lists read; unread, it is a list that could not be read, never a deleted one.
     const listNameOf = (p: { list_id?: string | null; list_key?: string | null }) =>
@@ -205,29 +310,38 @@ export const playbooksOverride: SurfaceOverride = {
           null)
         : (listsKept.find((l) => l.id === p.list_id)?.name ?? null);
     const unnamed = pb.lists === null ? "A list that could not be read" : "A list that was deleted";
-    // The moments offered here (0006): a proposal's only where deals are on, as the route counts them.
-    const offered = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, !!pb.deals_on));
+    // The moments that may run here (0006): a proposal's only where deals are on, as the route counts them. The cards read
+    // their moment from them, a retired one's too; which a NEW playbook may start from is each one's `offered` below.
+    const moments = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, !!pb.deals_on));
+    // A connected calendar counts whether or not its feed can be read just now: the win-back by visits is offered on it.
+    const calendarOn = (pb.calendar ?? "none") !== "none";
     setSurfaceValue("playbooks", {
+      pools,
+      ready: pb.ready ?? null,
+      month_sent: pb.month_sent ?? null,
       rows: pb.playbooks.map((p) => {
         const t = triggerOf(p.trigger);
         const onArchived = p.trigger === "saved_list" && !!listsKept.find((l) => l.id === p.list_id)?.archived;
+        // Its reach is the count for the channels it goes by.
+        const reading = readingFor(pools[keyOf(p)], p.channels);
         return {
           ...p,
+          poolKey: keyOf(p),
           // Its list was archived (00169): paused until the list is restored or the playbook moved to another.
           listArchived: onArchived,
           triggerLabel: p.trigger === "saved_list" ? (listNameOf(p) ?? unnamed) : (t?.label ?? p.trigger),
           triggerHint: t?.hint ?? "",
           schedule: scheduleLine(p),
           next: nextRunLabel(p, tz, now),
-          candidates: pool(keyOf(p)),
-          held: held(keyOf(p)),
-          named: named(keyOf(p)),
+          candidates: reading ? reading.candidates : null,
+          held: reading ? reading.held : null,
+          named: namedOf(reading),
           // A follow-up made while deals were on runs nothing once they are off: the card says why (0006).
           off: t && !triggerOffered(t, !!pb.deals_on) ? FOLLOW_UP_NEEDS_DEALS : null,
         };
       }),
       timezone: tz,
-      countsRead: offered.every((t) => t.kind === "saved" || !!pb.pools?.[t.id]),
+      countsRead: moments.every((t) => t.kind === "saved" || !!pb.pools?.[t.id]),
       lists: [
         ...peopleLists.map((l) => ({ id: `seg:${l.key}`, name: l.label, smart: true, builtin: true })),
         // An archived list is offered to no new playbook (00169); the ones on it say so on their card.
@@ -236,23 +350,30 @@ export const playbooksOverride: SurfaceOverride = {
           .map((l) => ({ id: `list:${l.id}`, name: l.name, smart: l.smart, builtin: false })),
       ].map((l) => ({ ...l, candidates: pool(l.id), held: held(l.id), named: named(l.id) })),
       calendar: pb.calendar ?? "none",
-      triggers: offered.map((t) => ({
+      triggers: moments.map((t) => ({
         id: t.id,
         label: t.label,
         hint: t.hint,
         cls: t.cls,
         list: t.list,
         kind: t.kind,
+        offered: momentOffered(t, { dealsOn: !!pb.deals_on, calendarOn }),
         candidates: pool(t.id),
         held: held(t.id),
         named: named(t.id),
       })),
+      // Every channel's rows are read: an email or a text of a message's name and language is a version of it.
       templates:
         tpl instanceof Error
           ? null
           : (tpl.templates ?? [])
               .filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")
-              .map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) })),
+              .map((t) => ({
+                ...t,
+                purpose: purposeOfTemplate(t.category),
+                channels: cmChannelsOf(tpl.templates ?? [], t.name, t.language),
+                versions: cmVersionsOf(tpl.templates ?? [], t.name, t.language),
+              })),
       number: {
         present: !!wa,
         health: numberHealth({
@@ -262,6 +383,7 @@ export const playbooksOverride: SurfaceOverride = {
         }),
       },
       businessName: brain?.business_name || "the business",
+      businessAddress: cmAddressOf(brain),
       bookingLink: !!brain?.booking_link,
       replyWindow: REPLY_WINDOW_WORDS,
       fetchedAt: now.getTime(),

@@ -1,8 +1,8 @@
 /**
- * Reach out's words that more than one layer says: the foot every campaign email carries, and the unsubscribe
- * page. Pure (docs/superpowers/specs/2026-09-25-reach-out-design.md §4.3, §4.8).
+ * Reach out's words that more than one layer says: where a lead was found, the tag a campaign's email carries, and the
+ * unsubscribe page. The foot every campaign email carries is templates/email-foot.ts, one builder for every kind. Pure
+ * (docs/superpowers/specs/2026-09-25-reach-out-design.md §4.3, §4.8).
  */
-import { escapeHtml } from "../shared/html";
 
 /** Why a business the finder found is hearing from this one: the first line of the foot. */
 export const WHY_FROM_MAPS = "I found your business on Google Maps.";
@@ -13,64 +13,28 @@ export function whyFrom(source: string | null | undefined): string {
 }
 
 /**
- * What the email is, said plainly: CAN-SPAM asks a commercial email to identify itself as one. True of every step of a
- * reach-out, the first email and its nudge alike.
+ * The tag a campaign's email carries when it carries no way to unsubscribe (One message, every channel, step 3): a
+ * broadcast's or a playbook run's appointment email, which is not an offer and so has no List-Unsubscribe, is still a
+ * campaign's, not a reply.
  */
-export const MARKETING_LINE = "This is a marketing email.";
+export const CAMPAIGN_EMAIL_TAG = "cl_campaign";
 
 /**
- * The foot, as the law asks (CAN-SPAM): why they are hearing from you, that the email is marketing, who you are and
- * where, and the two ways to say no. The sender adds it; a template never stores it (the spec's §4.3). It throws on a
- * blank part rather than let an email go whose foot says less than the law needs; the sheet (Part 4) refuses to start
- * without an address.
- */
-export function campaignFooter(f: { why: string; business: string; address: string; unsubscribeUrl: string }): string {
-  const why = f.why.trim();
-  const business = f.business.trim();
-  const address = f.address.trim();
-  const url = f.unsubscribeUrl.trim();
-  if (!why || !business || !address || !url)
-    throw new Error("campaignFooter: a campaign's foot names why, who, where and how to stop");
-  return [
-    why,
-    MARKETING_LINE,
-    `${business} · ${address}`,
-    `Not interested? Reply "no thanks" and I won't write again.`,
-    `Unsubscribe: ${url}`,
-  ].join("\n");
-}
-
-/**
- * The foot in HTML, as the canvas draws it: why, that it is marketing, who and where, and one line to say no with the link reading
- * "Unsubscribe". The plain text keeps the address (campaignFooter), which a text-only reader needs to follow it.
- * Everything is escaped; the sender freezes both into the request.
- */
-export function campaignFooterHtml(f: {
-  why: string;
-  business: string;
-  address: string;
-  unsubscribeUrl: string;
-}): string {
-  campaignFooter(f); // the same parts, the same refusal when one is blank
-  return (
-    `<p>${escapeHtml(f.why.trim())}<br>${escapeHtml(MARKETING_LINE)}<br>` +
-    `${escapeHtml(f.business.trim())} · ${escapeHtml(f.address.trim())}<br>` +
-    `${escapeHtml(`Not interested? Reply "no thanks" and I won't write again`)} · ` +
-    `<a href="${escapeHtml(f.unsubscribeUrl.trim())}">Unsubscribe</a></p>`
-  );
-}
-
-/**
- * Whether an email, as its request was frozen, was a campaign's (a broadcast or a reach-out, which carries the way to
- * stop it) rather than a reply to someone who wrote. What its failure may say hangs on it: a reply that never arrived
- * is a customer with no answer, and flags the thread for a person; a campaign's email that failed is the campaign's
- * to count, and flags nothing (Reach out D4). Read from the one header only a campaign's request is built with
- * (channels buildEmailRequest). The one predicate: the send verb, the receipt and the job that died all ask it.
+ * Whether an email, as its request was frozen, was a campaign's (a broadcast, a playbook's run or a reach-out) rather
+ * than a reply to someone who wrote. What its failure may say hangs on it: a reply that never arrived is a customer
+ * with no answer, and flags the thread for a person; a campaign's email that failed is the campaign's to count, and
+ * flags nothing (Reach out D4). Read from the request alone: the header only an offer's request is built with (channels
+ * buildEmailRequest), or the campaign tag an appointment email is given (CAMPAIGN_EMAIL_TAG). The one predicate: the
+ * send verb, the receipt and the job that died all ask it.
  */
 export function isCampaignEmail(request: unknown): boolean {
-  const headers = (request as { headers?: Record<string, unknown> } | null | undefined)?.headers;
-  const v = headers?.["List-Unsubscribe"];
-  return typeof v === "string" && v.trim() !== "";
+  const r = request as { headers?: Record<string, unknown>; tags?: unknown } | null | undefined;
+  const v = r?.headers?.["List-Unsubscribe"];
+  if (typeof v === "string" && v.trim() !== "") return true;
+  return (
+    Array.isArray(r?.tags) &&
+    r.tags.some((t) => !!t && typeof t === "object" && (t as { name?: unknown }).name === CAMPAIGN_EMAIL_TAG)
+  );
 }
 
 /** What the unsubscribe page is showing. */
@@ -79,6 +43,12 @@ export type UnsubscribeView =
   | { kind: "ask"; business: string | null; sender?: string | null }
   | { kind: "done"; business: string | null; sender?: string | null }
   | { kind: "bad_link" }
+  /**
+   * A sound link whose email could not be read just now, so which kind it came in (an offer to a customer, or a reach-out's
+   * email to a business) is not known: words that are true of both, never the one kind's by default.
+   */
+  | { kind: "ask_either"; business: string | null }
+  | { kind: "done_either"; business: string | null }
   /** `retry`: the link is sound and a press did not go through, so the page offers the press again. */
   | { kind: "unavailable"; retry?: boolean };
 
@@ -96,6 +66,30 @@ export interface UnsubscribePageWords {
   /** The one button, on the page that asks; null everywhere else. */
   button: string | null;
   foot: string | null;
+}
+
+/**
+ * The words for a link whose email could not be read just now, so not known to be an offer's or a reach-out's: true of both
+ * (what stops is "emails like this one", and an answer to something they wrote still reaches them), with no second act.
+ */
+function eitherPageWords(v: Extract<UnsubscribeView, { kind: "ask_either" | "done_either" }>): UnsubscribePageWords {
+  const b = v.business?.trim() || null;
+  const foot = `${b ?? "This business"} sends its email with Chanlytics.`;
+  return v.kind === "ask_either"
+    ? {
+        title: "Unsubscribe",
+        lead: "Stop these emails?",
+        body: `Press the button and ${b ?? "this business"} won't send you emails like this one again. If you write to them, they can still answer you.`,
+        button: "Unsubscribe",
+        foot,
+      }
+    : {
+        title: "Unsubscribed",
+        lead: "You're unsubscribed from these emails.",
+        body: `${b ?? "This business"} won't send you emails like this one again.`,
+        button: null,
+        foot,
+      };
 }
 
 /**
@@ -127,6 +121,9 @@ export function unsubscribePageWords(v: UnsubscribeView): UnsubscribePageWords {
         foot: `${b ?? "This business"} sends its email with Chanlytics.`,
       };
     }
+    case "ask_either":
+    case "done_either":
+      return eitherPageWords(v);
     case "bad_link":
       return {
         title: "Unsubscribe",

@@ -43,6 +43,8 @@ interface RowProps<R extends TableRow, X extends TableCtx> {
   words: { one: string; many: string; all: string };
   selectable: boolean;
   selected: boolean;
+  /** A selection is under way (somebody is picked, or the page began one): a card's face is then its checkbox. */
+  selecting: boolean;
   focused: boolean;
   tabStop: boolean;
   onToggle: (id: string) => void;
@@ -62,6 +64,7 @@ function PeopleRow<R extends TableRow, X extends TableCtx>({
   words,
   selectable,
   selected,
+  selecting,
   focused,
   tabStop,
   onToggle,
@@ -69,6 +72,8 @@ function PeopleRow<R extends TableRow, X extends TableCtx>({
   onOpen,
   rowClass,
 }: RowProps<R, X>) {
+  // What a card's face says of the selection: a ring while one is under way, the ink with its tick for this one in it.
+  const pick = selected ? "chosen" : selecting ? "choose" : undefined;
   return (
     <tr
       id={`${words.one}-${p.id}`}
@@ -95,7 +100,7 @@ function PeopleRow<R extends TableRow, X extends TableCtx>({
         </td>
       )}
       {columns.map((c) => {
-        const td = c.cell(p, ctx as X);
+        const td = c.cell(p, ctx as X, pick);
         return c.off ? cloneElement(td, { className: `${td.props.className || ""} pl-col-off` }) : td;
       })}
     </tr>
@@ -303,6 +308,7 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
       words={words}
       selectable={selectable}
       selected={sel.has(p.id)}
+      selecting={selecting}
       focused={cursor === p.id}
       tabStop={cursor === p.id || (!cursor && i === 0)}
       onToggle={onToggle}

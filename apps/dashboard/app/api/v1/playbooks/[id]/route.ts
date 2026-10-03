@@ -10,6 +10,7 @@ import { write } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { playbookScope, recordDecision } from "@/server/verbs";
 import { checkPlaybookInput, playbookWriteError, refuseOnArchivedList } from "@/server/campaigns/playbooks";
+import { channelsChanged, keptChannels } from "@/server/campaigns/playbook-channels";
 
 /**
  * One playbook.
@@ -57,7 +58,10 @@ export const PUT = write({
 
     // A reach-out step is edited on its own sheet (Part 4); here it may only be paused or resumed, above.
     if (triggerOf(p.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
-    const v = await checkPlaybookInput(ctx, p.tenant_id, body);
+    // An edit that names no channels keeps the ones it has: the check reads them, and the column is written only when
+    // they change (a database 00287 has not reached has none to read or write).
+    const kept = await keptChannels(ctx, id);
+    const v = await checkPlaybookInput(ctx, p.tenant_id, body, { ...p, channels: kept });
     const { error } = await ctx.supabase
       .from("playbooks")
       .update({
@@ -75,6 +79,7 @@ export const PUT = write({
         cap_per_run: v.cap_per_run,
         gap_days: v.gap_days,
         cadence_days: v.cadence_days,
+        ...(channelsChanged(v.channels, kept) ? { channels: v.channels } : {}),
       })
       .eq("id", id);
     if (error) throw playbookWriteError(error);

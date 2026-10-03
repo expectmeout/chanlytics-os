@@ -115,6 +115,17 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
   { entry: "menu-kit", bring: (p) => p.getByTestId("menu-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-set", bring: (p) => p.getByTestId("menu-set-open").click(), ready: ".more-menu" },
   { entry: "popover-kit", bring: (p) => p.getByTestId("popover-open").click(), ready: ".panel-pop" },
+  { entry: "datepicker-kit", bring: (p) => p.getByTestId("datepicker-open").click(), ready: ".date-pick" },
+  {
+    entry: "picker-kit",
+    bring: (p) => p.getByTestId("picker-open").click(),
+    ready: ".rec-combo-pop .rec-combo-note",
+  },
+  {
+    entry: "picker-kit-find",
+    bring: (p) => p.getByTestId("picker-find-open").click(),
+    ready: ".rec-combo-pop .rec-combo-input",
+  },
   { entry: "tooltip-kit", bring: (p) => p.getByTestId("tooltip-trigger").hover(), ready: ".ui-tip.show" },
   {
     entry: "select-kit",
@@ -138,6 +149,7 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
   { entry: "subtabs-glyph", bring: async () => undefined, ready: '[data-entry="subtabs-glyph"] .subtabs' },
   { entry: "field-kit", bring: async () => undefined, ready: ".rec-input-group" },
   { entry: "field-kit-wrong", bring: async () => undefined, ready: ".field-error" },
+  { entry: "field-kit-title", bring: async () => undefined, ready: ".rec-input-title" },
 ];
 
 /** The entry's static HTML, from the gallery's families. */
@@ -216,6 +228,14 @@ const escapeGivesFocusBack =
 const sheetEscape = escapeGivesFocusBack("the sheet", "sheet-open", "section.sheet");
 const menuEscape = escapeGivesFocusBack("the menu", "menu-open", ".more-menu");
 const popoverEscape = escapeGivesFocusBack("the popover", "popover-open", ".panel-pop");
+const datePickerEscape = escapeGivesFocusBack("the date picker", "datepicker-open", ".date-pick");
+// The Select keeps its list mounted once opened, closed and hidden: the open one is the one with data-open.
+const pickerEscape = escapeGivesFocusBack("the picker", "picker-open", ".rec-combo-pop[data-open] .rec-combo-note");
+const pickerFindEscape = escapeGivesFocusBack(
+  "the picker to search",
+  "picker-find-open",
+  ".rec-combo-pop .rec-combo-input",
+);
 
 /** Tab and Shift+Tab walk the sheet's own controls and never leave it. */
 const tabStaysInSheet: Check = async (page) => {
@@ -371,6 +391,52 @@ const popoverPresses: Check = async (page) => {
   await page.mouse.click(2, 2);
   if (!(await met(page, () => !document.querySelector(".panel-pop"), null)))
     out.push("the popover: a press outside left it open");
+  return out;
+};
+
+/**
+ * The date picker opens on the day it holds, one tab stop on it; the arrows walk the days, a week for up and down, Page
+ * Down the months and its title follows; Enter chooses the day it stands on, closes it and gives focus back to its
+ * control; and Today chooses today.
+ */
+const datePickerKeys: Check = async (page) => {
+  const out: string[] = [];
+  const day = (id: string) => page.getByTestId(id).innerText();
+  await page.getByTestId("datepicker-open").click();
+  if (!(await met(page, () => !!document.querySelector(".date-pick"), null)))
+    return ["the date picker: a press did not open it"];
+  const stops = await page.evaluate(() =>
+    Array.from(document.querySelectorAll(".date-pick-day"))
+      .filter((b) => (b as HTMLElement).tabIndex === 0)
+      .map((b) => b.getAttribute("aria-label")),
+  );
+  if (stops.length !== 1 || !String(stops[0]).includes("October 2, 2026"))
+    out.push(`the date picker: its tab stop is on ${JSON.stringify(stops)}, not the day it holds (October 2, 2026)`);
+  if (!(await met(page, () => !!document.activeElement?.closest(".date-pick-grid"), null)))
+    out.push("the date picker: focus did not go to the day it holds as it opened");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowDown");
+  const walked = await focused(page);
+  if (!walked.includes("October 10, 2026"))
+    out.push(`the date picker: a right and a down arrow from October 2 reached ${walked}, not October 10`);
+  await page.keyboard.press("PageDown");
+  const title = await page.locator(".date-pick-title").innerText();
+  const month = await focused(page);
+  if (title !== "November 2026" || !month.includes("November 10, 2026"))
+    out.push(`the date picker: Page Down showed "${title}" with focus on ${month}, not November 2026 on the 10th`);
+  await page.keyboard.press("Enter");
+  if (!(await met(page, () => !document.querySelector(".date-pick"), null))) {
+    out.push("the date picker: Enter on a day left it open");
+    await page.keyboard.press("Escape");
+    return out;
+  }
+  if ((await day("datepicker-day")) !== "2026-11-10")
+    out.push("the date picker: Enter did not choose the day it stood on");
+  const back = await focused(page);
+  if (back !== "datepicker-open") out.push(`the date picker: focus went to ${back}, not back to its control`);
+  await page.getByTestId("datepicker-open").click();
+  await page.getByRole("button", { name: "Today" }).click();
+  if ((await day("datepicker-day")) !== "2026-10-02") out.push("the date picker: Today did not choose today");
   return out;
 };
 
@@ -728,11 +794,15 @@ const CHECKS: [string, Check][] = [
   ["Escape closes the sheet, and focus goes back", sheetEscape],
   ["Escape closes the menu, and focus goes back", menuEscape],
   ["Escape closes the popover, and focus goes back", popoverEscape],
+  ["Escape closes the date picker, and focus goes back", datePickerEscape],
+  ["Escape closes the picker, and focus goes back to its token", pickerEscape],
+  ["Escape closes the picker to search, and focus goes back to its token", pickerFindEscape],
   ["Tab stays inside the sheet", tabStaysInSheet],
   ["the page behind the sheet holds still", pageHoldsStill],
   ["the menu's arrows and typing", menuKeys],
   ["the menu acts, opens a page as a link, and closes for a press outside", menuActs],
   ["the popover stays for a press inside and closes for one outside", popoverPresses],
+  ["the date picker's keys walk its days and choose", datePickerKeys],
   ["the select opens, is walked, and chooses", selectChooses],
   ["the sheet closes for its Close and its wash", sheetCloses],
   ["the sheet, an option and a select are named and described", namesAreWired],
@@ -794,6 +864,12 @@ const POPS: { name: string; bring: (page: Page) => Promise<void>; root: string; 
     bring: (p) => p.getByTestId("popover-open").click(),
     root: ".pop-place",
     control: '[data-testid="popover-open"]',
+  },
+  {
+    name: "the date picker",
+    bring: (p) => p.getByTestId("datepicker-open").click(),
+    root: ".pop-place",
+    control: '[data-testid="datepicker-open"]',
   },
   {
     name: "the select's list",
@@ -989,7 +1065,7 @@ test("the behaviour checks name each fault planted: Escape, Tab, the scroll, the
   }
 });
 
-test("the other checks name each fault planted: the menu's keys and acts, the popover's press and focus, the select, the sheet's Close, the names, Space, the arrows, the toast", async ({
+test("the other checks name each fault planted: the menu's keys and acts, the popover's press and focus, the date picker's keys, the select, the sheet's Close, the names, Space, the arrows, the toast", async ({
   browser,
   baseURL,
 }) => {
@@ -1033,6 +1109,16 @@ test("the other checks name each fault planted: the menu's keys and acts, the po
     await show(page);
     await swallow("Enter");
     expect(await menuActs(page, run)).toContain("the menu: Enter on the first item did not choose it");
+
+    // Page Down swallowed: the date picker's month stays where it opened, and the key moves nothing.
+    await show(page);
+    await swallow("PageDown");
+    expect((await datePickerKeys(page, run))[0]).toMatch(/^the date picker: Page Down showed "October 2026"/);
+
+    // Enter swallowed: the day it stands on is never chosen.
+    await show(page);
+    await swallow("Enter");
+    expect(await datePickerKeys(page, run)).toContain("the date picker: Enter on a day left it open");
 
     // A press outside swallowed before the popover hears it: it stays open.
     await show(page);

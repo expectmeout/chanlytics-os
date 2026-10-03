@@ -168,7 +168,7 @@
     "nonNull": 4
   },
   "apps/dashboard/src/server/campaigns/playbooks.ts": {
-    "unknownAs": 5
+    "unknownAs": 2
   },
   "apps/dashboard/src/server/connections/email.ts": {
     "unknownAs": 1
@@ -394,9 +394,6 @@
   },
   "packages/core/src/campaigns/check-playbook.ts": {
     "nonNull": 1
-  },
-  "packages/core/src/campaigns/create-broadcast.ts": {
-    "nonNull": 3
   },
   "packages/core/src/campaigns/run-reach-out.ts": {
     "nonNull": 2

@@ -3,7 +3,14 @@
  * saved, the chain the sheet saves, and the code half of the check before each send. Pure. The sheet, the save route,
  * the check on the edge and its preview ask the same rules, so none of them passes what another refuses.
  *
+ * A reach-out's email is an email like any other (One message, every channel, step 5): its slots are a slot set
+ * (templates/slot-sets.ts), checked by the one `emailIssues` over its own rules, and filled by the one fill; what is
+ * this module's own is what a cold email adds to those rules, and its words.
+ *
  *   REACH_OUT_SLOTS          the six a step may name; any other {{…}} is refused at the save, never met at a send
+ *   REACH_OUT_SLOT_SET       the six as a slot set, which every reader and the fill take
+ *   reachOutRules            what a step's email keeps to, as an email's rules: the shared checks over this set, and the
+ *                            cold email's own
  *   validateReachOutWords    one step's words: its subject (the first step's only), its body, its slots, its length,
  *                            one link at most, no line in capitals
  *   ReachOutChainSchema,     a chain as the sheet saves it: its name, its search, its steps and their days, its pace,
@@ -19,6 +26,10 @@ import { languageName } from "../templates/template-languages";
 import { siteHost } from "../leads/search/clean";
 import { violatesNoPrices } from "../config/policy";
 import { normalizeEmail } from "../shared/email-address";
+import { emailIssues } from "../templates/message-versions";
+import type { EmailIssue, EmailProblem, EmailRules } from "../templates/message-versions";
+import { namedSlots, slotCountIn, slotFault, slotMentions, slotsOut } from "../templates/slot-sets";
+import type { SlotSet } from "../templates/slot-sets";
 import { HAND_KINDS, HAND_WORDS_MAX } from "./reach-out-hand";
 
 export const REACH_OUT_SLOTS = ["opening", "business", "city", "your name", "your business", "booking link"] as const;
@@ -33,6 +44,22 @@ export const REACH_OUT_SLOT_WORDS: Record<ReachOutSlot, string> = {
   "your business": "your business's name",
   "booking link": "your booking link",
 };
+
+/** What the editor calls each slot, in its chips and its menu. */
+const REACH_OUT_SLOT_LABELS: Record<ReachOutSlot, string> = {
+  opening: "Opening",
+  business: "Their business",
+  city: "Their city",
+  "your name": "Your name",
+  "your business": "Your business",
+  "booking link": "Booking link",
+};
+
+/** The six as a slot set: named, in the sheet's order. Every reader of a step's words and the fill take this one. */
+export const REACH_OUT_SLOT_SET: SlotSet = namedSlots(
+  REACH_OUT_SLOTS,
+  REACH_OUT_SLOTS.map((s) => REACH_OUT_SLOT_LABELS[s]),
+);
 
 export const REACH_OUT_SUBJECT_MAX = 80;
 export const REACH_OUT_BODY_MAX = 1200;
@@ -52,53 +79,17 @@ export const REACH_OUT_GAP_MINUTES = [5, 8, 12, 20, 30, 60] as const;
 /** A step after the first waits this long after the one before (00183 holds 2–30); a new one starts at four. */
 export const REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 } as const;
 
-const SLOT = /\{\{([^{}]*)\}\}/g;
-
-export function slotKey(name: string): string {
-  return name.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-export function isReachOutSlot(name: string): name is ReachOutSlot {
-  return (REACH_OUT_SLOTS as readonly string[]).includes(name);
+/** How many times the words name one slot. */
+export function slotCount(text: string, slot: ReachOutSlot): number {
+  return slotCountIn(REACH_OUT_SLOT_SET, text, slot);
 }
 
 /**
- * Every slot the words name, in order, once each, and whether a brace is left once the slots are out: "{{business"
- * with no end, "{business}" with one brace a side, "{{{business}}}" with one too many. A business never reads a brace.
+ * Whether a step's words are written wrongly for the six: a {{…}} that is none of them, or a brace with no pair. The save
+ * refuses such words (validateReachOutWords), and the sender holds a send whose words were saved before the rule.
  */
-export function slotsNamed(text: string): { names: string[]; stray: boolean } {
-  const names: string[] = [];
-  for (const m of text.matchAll(SLOT)) {
-    const key = slotKey(m[1] ?? "");
-    if (!names.includes(key)) names.push(key);
-  }
-  return { names, stray: /[{}]/.test(text.replace(SLOT, "")) };
-}
-
-/** The words with each slot replaced by what `fill` gives for its key; a slot it has nothing for stays as written. */
-export function replaceSlots(text: string, fill: (key: string) => string | null): string {
-  return text.replace(SLOT, (whole, name: string) => fill(slotKey(name)) ?? whole);
-}
-
-/** The words as runs of text and slots, in order, for a page that draws each slot as a chip (the one slot rule). */
-export function slotParts(text: string): Array<{ text: string; slot: boolean }> {
-  const out: Array<{ text: string; slot: boolean }> = [];
-  let at = 0;
-  for (const m of text.matchAll(SLOT)) {
-    const i = m.index ?? 0;
-    if (i > at) out.push({ text: text.slice(at, i), slot: false });
-    out.push({ text: slotKey(m[1] ?? ""), slot: true });
-    at = i + m[0].length;
-  }
-  if (at < text.length) out.push({ text: text.slice(at), slot: false });
-  return out;
-}
-
-/** How many times the words name one slot. */
-export function slotCount(text: string, slot: ReachOutSlot): number {
-  let n = 0;
-  for (const m of text.matchAll(SLOT)) if (slotKey(m[1] ?? "") === slot) n += 1;
-  return n;
+export function reachOutSlotFault(text: string): boolean {
+  return slotFault(REACH_OUT_SLOT_SET, text);
 }
 
 /**
@@ -116,12 +107,11 @@ export function wordCount(text: string): number {
 
 /** The words a business reads, counted as a reader counts them: a slot is one word, the opening its most. */
 export function emailWordCount(text: string): number {
-  let slots = 0;
-  const rest = text.replace(SLOT, (_whole, name: string) => {
-    slots += slotKey(name) === "opening" ? OPENING_WORDS_MAX : 1;
-    return " ";
-  });
-  return slots + wordCount(rest);
+  const slots = slotMentions(REACH_OUT_SLOT_SET, text).reduce(
+    (n, m) => n + (m.key === "opening" ? OPENING_WORDS_MAX : 1),
+    0,
+  );
+  return slots + wordCount(slotsOut(REACH_OUT_SLOT_SET, text));
 }
 
 const ADDRESS = /[^\s@<>]+@[^\s@<>]+/g;
@@ -136,8 +126,7 @@ const BARE_HOST = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,24}\b(?:\/[^\s<>]*)?/g
  */
 export function linksIn(text: string): string[] {
   const out: string[] = [];
-  const rest = text
-    .replace(SLOT, " ")
+  const rest = slotsOut(REACH_OUT_SLOT_SET, text)
     .replace(ADDRESS, " ")
     .replace(SCHEME_OR_WWW, (m) => {
       out.push(m);
@@ -158,7 +147,7 @@ export function linkCount(text: string): number {
  */
 export function shoutingLine(text: string): boolean {
   let run = 0;
-  for (const line of text.replace(SLOT, " ").split(/\r\n|\r|\n/)) {
+  for (const line of slotsOut(REACH_OUT_SLOT_SET, text).split(/\r\n|\r|\n/)) {
     const letters = line.replace(/[^\p{L}]/gu, "");
     const capitals = letters !== "" && letters === letters.toUpperCase() && letters !== letters.toLowerCase();
     run = capitals ? run + letters.length : 0;
@@ -167,27 +156,62 @@ export function shoutingLine(text: string): boolean {
   return false;
 }
 
-export type WordsProblem =
-  | "subject_missing"
-  | "subject_too_long"
+/** What a cold email asks of its words beyond what every email's are asked (a reach-out's own rules). */
+type ColdProblem =
   | "subject_poses_as_reply"
   | "opening_in_subject"
   | "link_in_subject"
-  | "body_missing"
-  | "body_too_long"
-  | "unknown_slot"
-  | "stray_brace"
   | "opening_twice"
   | "too_many_words"
   | "too_many_links"
   | "shouting";
 
-export interface WordsIssue {
-  field: "subject" | "body";
-  problem: WordsProblem;
-  /** The slot as it was written, for unknown_slot. */
-  slot?: string;
+export type WordsProblem = EmailProblem | ColdProblem;
+
+/** One thing wrong with a step's words: the shared email problems and the cold email's. */
+export type WordsIssue = EmailIssue<ColdProblem>;
+
+/** What a cold email's subject may not be: a reply it is not, the opening, a link, or a shout. */
+function coldSubjectProblems(subject: string): ColdProblem[] {
+  const out: ColdProblem[] = [];
+  if (posesAsReply(subject)) out.push("subject_poses_as_reply");
+  if (slotCount(subject, "opening") > 0) out.push("opening_in_subject");
+  if (linkCount(subject) > 0) out.push("link_in_subject");
+  if (shoutingLine(subject)) out.push("shouting");
+  return out;
 }
+
+/** What a cold email's body may not be: the opening twice, over the hundred and twenty words, a second link, a shout. */
+function coldBodyProblems(body: string): ColdProblem[] {
+  const out: ColdProblem[] = [];
+  if (slotCount(body, "opening") > 1) out.push("opening_twice");
+  if (emailWordCount(body) > REACH_OUT_WORDS_MAX) out.push("too_many_words");
+  if (linkCount(body) > 1) out.push("too_many_links");
+  if (shoutingLine(body)) out.push("shouting");
+  return out;
+}
+
+/**
+ * What a reach-out step's email keeps to, as an email's rules (templates/message-versions.ts): its six slots, a subject
+ * up to 80 characters (the first step's: a step after it answers the one before, "Re:", D19, and has none) and a body
+ * up to 1,200, then the cold email's own. The one check, the Templates editor and the sheet all read these.
+ */
+export function reachOutRules(first: boolean): EmailRules<ColdProblem> {
+  return {
+    slots: REACH_OUT_SLOT_SET,
+    subject: first,
+    subjectMax: REACH_OUT_SUBJECT_MAX,
+    bodyMax: REACH_OUT_BODY_MAX,
+    subjectAlso: coldSubjectProblems,
+    bodyAlso: coldBodyProblems,
+    say: wordsIssueWords,
+    foot: REACH_OUT_FOOT_NOTE,
+  };
+}
+
+/** What the sender adds under a cold email that a preview does not draw. */
+const REACH_OUT_FOOT_NOTE =
+  "The footer is added when it goes: why they are hearing from you, who you are and where, and how to say no.";
 
 /**
  * One step's words, as the sheet saves them. The first step names its subject; a step after it answers the one before
@@ -195,35 +219,7 @@ export interface WordsIssue {
  * The whole email, the opening counted at its most, is under 120 words, with one link at most and no line in capitals.
  */
 export function validateReachOutWords(w: { subject: string | null; body: string }, first: boolean): WordsIssue[] {
-  const out: WordsIssue[] = [];
-  const subject = first ? (w.subject ?? "").trim() : null;
-  const body = w.body.trim();
-  if (subject !== null) {
-    if (!subject) out.push({ field: "subject", problem: "subject_missing" });
-    else if (subject.length > REACH_OUT_SUBJECT_MAX) out.push({ field: "subject", problem: "subject_too_long" });
-    if (subject && posesAsReply(subject)) out.push({ field: "subject", problem: "subject_poses_as_reply" });
-    if (slotCount(subject, "opening") > 0) out.push({ field: "subject", problem: "opening_in_subject" });
-    if (linkCount(subject) > 0) out.push({ field: "subject", problem: "link_in_subject" });
-    if (shoutingLine(subject)) out.push({ field: "subject", problem: "shouting" });
-  }
-  if (!body) out.push({ field: "body", problem: "body_missing" });
-  else if (body.length > REACH_OUT_BODY_MAX) out.push({ field: "body", problem: "body_too_long" });
-  for (const [field, text] of [
-    ["subject", subject],
-    ["body", body],
-  ] as const) {
-    if (!text) continue;
-    const named = slotsNamed(text);
-    for (const name of named.names) if (!isReachOutSlot(name)) out.push({ field, problem: "unknown_slot", slot: name });
-    if (named.stray) out.push({ field, problem: "stray_brace" });
-  }
-  if (body) {
-    if (slotCount(body, "opening") > 1) out.push({ field: "body", problem: "opening_twice" });
-    if (emailWordCount(body) > REACH_OUT_WORDS_MAX) out.push({ field: "body", problem: "too_many_words" });
-    if (linkCount(body) > 1) out.push({ field: "body", problem: "too_many_links" });
-    if (shoutingLine(body)) out.push({ field: "body", problem: "shouting" });
-  }
-  return out;
+  return emailIssues({ subject: (w.subject ?? "").trim(), body: w.body.trim() }, reachOutRules(first));
 }
 
 export function wordsIssueWords(i: WordsIssue): string {
@@ -243,7 +239,7 @@ export function wordsIssueWords(i: WordsIssue): string {
     case "body_too_long":
       return `Keep it under ${REACH_OUT_BODY_MAX.toLocaleString("en-US")} characters.`;
     case "unknown_slot":
-      return `{{${i.slot ?? ""}}} isn't one of the slots. Use the chips below.`;
+      return `{{${i.slot ?? ""}}} isn't one of the slots. Use one of the six.`;
     case "stray_brace":
       return "Braces are for slots only, two on each side: {{business}}.";
     case "opening_twice":

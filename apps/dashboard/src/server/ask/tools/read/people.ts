@@ -27,6 +27,7 @@ import {
 import { poolList, type AudiencePool } from "../../../people/audience";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
+import * as facts from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
 import { dealBoard, people } from "../../../readers/people";
 import { person } from "../../../readers/person";
@@ -125,8 +126,10 @@ async function searchPeople(t: ToolContext, input: { query: string; list?: strin
     hits = on ? page.people.filter((r) => on.has(r.id)) : page.people;
     matches = on ? hits.length : page.page.total;
     // Each person said, as the People page builds their row (legacy-bridge/surface-data.ts personRowOf): for the member
-    // asking, with no deal where deals are off -- built for the rows said alone, never the whole page.
-    rowOf = (r) => poolRowOf(r, { tz: t.timezone, now: t.now, viewer, dealsOn: page.deals_on });
+    // asking, with no deal where deals are off, and their reach judged against what the workspace sends on (the turn's
+    // own read: a search page carries none) -- built for the rows said alone, never the whole page.
+    const ready = (await load(t.rc, facts.channelsReady, undefined)).data;
+    rowOf = (r) => poolRowOf(r, { tz: t.timezone, now: t.now, viewer, dealsOn: page.deals_on, ready });
   }
   const picked = hits.slice(0, ASK_CAPS.people);
   for (const r of picked) {

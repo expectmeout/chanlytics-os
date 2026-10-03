@@ -151,7 +151,7 @@ export const POST = adminDoor(async function POST(request: Request, brain?: Brai
 
   let leadNote: string | undefined;
   try {
-    leadNote = describeLead(await readLeadContext(db, m.tenant_id, phone, 1), new Date(), rt.timezone ?? "UTC");
+    leadNote = describeLead(await readLeadContext(db, m.tenant_id, phone, 1), undefined, rt.timezone ?? "UTC", channel);
   } catch (e) {
     L.warn("steer_lead_context_unavailable", { error: errField(e) });
   }

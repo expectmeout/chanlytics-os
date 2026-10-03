@@ -205,6 +205,43 @@ test(
 );
 
 test(
+  "a STOP by email is recorded as a text's is: opted out and on the do-not-contact list, with the proof on the ledger; a later email does not undo it",
+  { skip },
+  async () => {
+    const stop = await ingestInboundEmail(db, {
+      ...email("rcv-30", "stopper@example.com", { body: "STOP" }),
+      optOut: true,
+    });
+    const { data: person } = await db.from("contacts").select("consent, dnc").eq("id", stop.contact_id).single();
+    assert.deepEqual(
+      person,
+      { consent: "opted_out", dnc: true },
+      "REGRESSION guard: an email's STOP was never recorded",
+    );
+    assert.deepEqual([stop.consent, stop.dnc], ["opted_out", true], "the ingest says so to its caller too");
+    const { data: events } = await db
+      .from("events")
+      .select("data")
+      .eq("tenant_id", tenantId)
+      .eq("subject_id", stop.contact_id)
+      .eq("kind", "contact.consent_changed");
+    assert.deepEqual(
+      events.map((e) => [e.data.consent, e.data.source, e.data.channel, e.data.message_external_id]),
+      [["opted_out", "customer_message", "email", "rcv-30"]],
+    );
+
+    const later = await ingestInboundEmail(db, email("rcv-31", "stopper@example.com", { body: "Why did you stop?" }));
+    assert.deepEqual([later.consent, later.dnc], ["opted_out", true], "an email that is not a STOP is not a START");
+    const { data: other } = await db
+      .from("contacts")
+      .select("consent, dnc")
+      .eq("id", (await ingestInboundEmail(db, email("rcv-32", "kept-going@example.com"))).contact_id)
+      .single();
+    assert.notDeepEqual(other, { consent: "opted_out", dnc: true }, "an email without the opt-out opts nobody out");
+  },
+);
+
+test(
   "a person the owner already gave this address to is joined, not doubled; what an owner typed is never overwritten",
   { skip },
   async () => {

@@ -19,6 +19,7 @@
  * forgot a column in a SELECT.
  */
 import type { SystemOneQuestion } from "../ai/system-one";
+import { yesCovers } from "./consent-channels";
 
 export interface ConsentBearing {
   consent?: string | null;
@@ -74,8 +75,42 @@ export type AskedPurpose = Exclude<SendPurpose, "outreach">;
 
 export interface PurposeBearing extends ConsentBearing {
   marketing_consent?: string | null;
-  /** Email's own answer (00174): opted_out once the person pressed Unsubscribe. */
+  /**
+   * The channels each yes covers (consent-channels.ts, step 2 of One message, every channel). Null or absent: a yes
+   * recorded before the channels were, which covers WhatsApp alone, the reach it always had (yesCovers).
+   */
+  consent_channels?: readonly string[] | null;
+  marketing_channels?: readonly string[] | null;
+  /**
+   * Email's own answer (00174): unknown until they say, opted_in once they asked for offers in writing, opted_out once
+   * they pressed Unsubscribe. Marketing FAILS CLOSED on it like the other two answers: a row read without the column
+   * must not send an offer to someone who unsubscribed.
+   */
   email_marketing?: string | null;
+  /**
+   * Whether the person has dealt with the business, read from what the row already holds (relationshipOnRecord, spec 4.1):
+   * they wrote or called, or have a deal. Absent or null is no relationship on record, so an offer by email asks for the
+   * person's own yes. The database keeps the same fact as `has_relationship` (00288), which a test holds to that function.
+   */
+  has_relationship?: boolean | null;
+}
+
+/**
+ * Whether a person has a relationship with the business on record (spec 4.1: "a fact the row already holds"): they wrote
+ * to it in their own words, they called it, or they have a deal. THE one reading of those three facts: People's rows ask
+ * it of the columns `people_list` returns, and the database's `has_relationship` (00288) keeps the same rule for the rows
+ * the send door reads, which a test holds equal case by case. `lastWroteAt` is when they last wrote words that were a
+ * person's, not an out-of-office, a list's mail or a form's notification from their address (an email the intake read as
+ * automated, an automatic reply or a delivery report: meta.email.claim; the database's message_is_a_persons_words says it
+ * of the claim, and people_list's last_wrote_at leaves them out): a program writing from their address is not them dealing
+ * with the business. A lead the finder found is nobody's customer yet and has none.
+ */
+export function relationshipOnRecord(f: {
+  lastWroteAt?: string | null;
+  lastInboundCallAt?: string | null;
+  hasDeal?: boolean | null;
+}): boolean {
+  return !!f.lastWroteAt || !!f.lastInboundCallAt || f.hasDeal === true;
 }
 
 /**
@@ -98,7 +133,7 @@ export type PurposeRefusal = "opted_out" | "no_marketing_consent" | "not_opted_i
 export function mayMessageFor(
   c: PurposeBearing,
   purpose: SendPurpose,
-  opts: { proactive?: boolean } = {},
+  opts: { proactive?: boolean; channel: string },
 ): { ok: true; reason: null } | { ok: false; reason: PurposeRefusal } {
   if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
   // Cold email to a business: US law lets a business write until it is told to stop (CAN-SPAM), so no recorded yes
@@ -106,12 +141,36 @@ export function mayMessageFor(
   // email. The wire's own rules (email only, a lead, an own domain, the unsubscribe) are the door's.
   if (purpose === "outreach")
     return c.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
-  if (purpose === "marketing") {
-    return c.marketing_consent === "opted_in"
+  // THE CHANNEL IS REQUIRED: a yes covers the channels it was given for (consent-channels.ts). A yes to offers covers
+  // the channels in marketing_channels; a yes to hear about a visit, the ones in consent_channels, which only a message
+  // that starts a conversation asks about: a reply answers someone who wrote, on whatever channel they wrote on.
+  if (opts.channel === "email") {
+    // Email is its own (the spec's decisions 2, 11 and 12): a message about their visit needs no yes, only an address the
+    // door finds unsuppressed. An offer (spec 4.1) goes to someone who has not unsubscribed and either asked for offers
+    // by email, or has a relationship with the business on record (they wrote, called, or have a deal): an address alone
+    // is not enough. An unsubscribe ends it, and a row read without the answer cannot tell whether they pressed it, so
+    // it sends nothing. Whether the deployment may send an offer by email at all is the door's (deliver.ts: a verified
+    // campaigns domain, the workspace's offers not paused) and the pick's (reach-for.ts channelRefuses).
+    if (purpose !== "marketing") return { ok: true, reason: null };
+    const answer = c.email_marketing;
+    if (answer === "opted_out") return { ok: false, reason: "unsubscribed" };
+    // DECISION (3 Oct 2026, the conservative reading): a recorded no to offers elsewhere bars an offer by email too. Someone
+    // who declined offers on WhatsApp ("no more offers") must not hear about them by email because email keeps its own answer
+    // and they never pressed Unsubscribe. It holds even over a yes to offers by email: with one answer older than the other
+    // and no way to tell which, the no wins until a person resets the offers answer (a reset is "unknown").
+    if (c.marketing_consent === "opted_out") return { ok: false, reason: "no_marketing_consent" };
+    if (answer === "opted_in") return { ok: true, reason: null };
+    return answer === "unknown" && c.has_relationship === true
       ? { ok: true, reason: null }
       : { ok: false, reason: "no_marketing_consent" };
   }
-  if (opts.proactive && c.consent !== "opted_in") return { ok: false, reason: "not_opted_in" };
+  if (purpose === "marketing") {
+    return c.marketing_consent === "opted_in" && yesCovers(c.marketing_channels, opts.channel)
+      ? { ok: true, reason: null }
+      : { ok: false, reason: "no_marketing_consent" };
+  }
+  if (opts.proactive && (c.consent !== "opted_in" || !yesCovers(c.consent_channels, opts.channel)))
+    return { ok: false, reason: "not_opted_in" };
   return { ok: true, reason: null };
 }
 
@@ -129,7 +188,11 @@ export const DELIVERY_REFUSALS = [
   "human_has_it",
   "superseded_by_human",
   "sms_carries_no_promotions",
+  // A text needs its line active with the carriers and not a test filing (step 3): the inbound door holds the same.
+  "sms_line_not_active",
   "email_marketing_disabled",
+  // Offers by email are paused for the workspace while its complaints or bounces settle (broadcasts/email-offers.ts).
+  "email_offers_paused",
   "email_suppressed",
   "recipient_changed",
   // Reach out's (a cold email to a business the finder found): the person's own no, then the rules the lane is built on.
@@ -159,10 +222,14 @@ export const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, 
   // go out under a consent the carriers were never told about.
   sms_carries_no_promotions:
     "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there.",
-  // Email's three, at the wire (deliver.ts). Replies only until promotions by
-  // email are a release of their own; a suppression is a fact about the address.
+  sms_line_not_active:
+    "The texting line is not approved by the carriers yet, or is a test filing, so nothing goes out by text until it is.",
+  // Email's, at the wire (deliver.ts). An offer by email leaves only once the deployment has its campaigns domain
+  // verified and the workspace's offers are not paused; a suppression is a fact about the address.
   email_marketing_disabled:
-    "Offers and news do not go by email yet. This customer hears about offers on WhatsApp, once they have said yes to them there.",
+    "Offers by email start once the campaigns domain is set up. This customer hears about offers on WhatsApp, once they have said yes to them there.",
+  email_offers_paused:
+    "Offers by email are paused for your workspace while complaints and bounces settle. Appointment messages and replies keep going, and offers on WhatsApp are not affected.",
   email_suppressed:
     "Email to this address has stopped: it bounced for good, or the person marked a message as spam. Correct the address on their page, or reach them another way.",
   recipient_changed:
@@ -173,7 +240,8 @@ export const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, 
   human_has_it: "Someone on your team has this conversation, so nothing automatic was sent.",
   superseded_by_human: "Someone on your team answered first, so this was not sent.",
   // Reach out's, at the wire (deliver.ts): a cold email goes only as the rules it was built under allow.
-  unsubscribed: "This person unsubscribed from your emails. Nothing goes to them by email unless they write first.",
+  unsubscribed:
+    "This person unsubscribed from your marketing emails. No offers or first emails go to them by email; replies and messages about their visits still can.",
   outreach_is_email_only: "Cold messages go only by email: never by text or WhatsApp.",
   outreach_not_a_lead: "Cold email goes only to a business your searches found.",
   outreach_lead_closed: "This business is no longer being written to: it said no, became a customer, or was set aside.",

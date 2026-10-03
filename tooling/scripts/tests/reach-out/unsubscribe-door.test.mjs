@@ -34,7 +34,12 @@ const TOKEN = signUnsubscribeToken(SECRET, { tenantId: A, contactId: P, messageI
 function world({ name = "Best Movers", fails = false } = {}) {
   const pressed = [];
   const db = fakeDb(
-    { tenants: [{ id: A, name }] },
+    // The cold email the link came in (its row is what tells a reach-out's link from an offer's; 3 Oct 2026: a link whose
+    // email is not there draws the words true of both kinds, unsubscribe-offers.test.mjs).
+    {
+      tenants: [{ id: A, name }],
+      messages: [{ id: M, tenant_id: A, channel: "email", direction: "outbound", meta: {} }],
+    },
     {},
     {
       set_email_marketing: (args) => {
@@ -326,7 +331,8 @@ test("a link names only its own workspace's email: a message of another workspac
   );
   const html = await (await get()).text();
   assert.doesNotMatch(html, /other\.example/);
-  assert.match(html, /emails like that one again/);
+  // Its own workspace holds no such email, so the page cannot say which kind it was: the words true of both.
+  assert.match(html, /emails like this one again/);
 });
 
 test("a rotation breaks no link: one sealed under UNSUBSCRIBE_SECRET_PREVIOUS still asks, and records", async () => {

@@ -383,7 +383,23 @@ test("a person's run sends now under `ask` -- the sweep would have held it -- an
     kind: "playbook",
     id: P,
     label: "Win-back",
-    reach: { pool: 3, will: 2, noNumber: 0, stopped: 0, noYes: 1, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 },
+    // The moment it was made for, which the month's allowance asks at the wire (a visit's message is never held by it).
+    trigger: "quiet_30",
+    // Step 3: and who it reaches on each channel, WhatsApp alone for a playbook that ticks no other.
+    reach: {
+      pool: 3,
+      will: 2,
+      noNumber: 0,
+      stopped: 0,
+      noYes: 1,
+      heardThis: 0,
+      heardAny: 0,
+      overCap: 0,
+      overLimit: 0,
+      no_address: 0,
+      no_channel: 0,
+      by_channel: { whatsapp: 2, sms: 0, email: 0 },
+    },
   });
   assert.deepEqual(run.params, [{ kind: "first_name" }]);
   assert.equal(run.recipient_count, 2);
@@ -414,6 +430,7 @@ test("a person's run sends now under `ask` -- the sweep would have held it -- an
       playbook: "Win-back",
       mode: "ask",
       recipients: 2,
+      channels: ["whatsapp"],
       scheduled_for: run.scheduled_for,
       run_now: true,
     },
@@ -443,6 +460,9 @@ test("a person's run sends now under `ask` -- the sweep would have held it -- an
             heardAny: 0,
             overCap: 0,
             overLimit: 0,
+            no_address: 0,
+            no_channel: 0,
+            by_channel: { whatsapp: 2, sms: 0, email: 0 },
           },
           broadcast_id: run.id,
           state: "scheduled",

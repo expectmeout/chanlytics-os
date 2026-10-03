@@ -41,20 +41,12 @@ const ST_GROUPS = {
         : !!window.__DEMO_MODE && !(window.LM_STORE && window.LM_STORE.isEnded("lc-selena"))), tip: "Calls on your line, as they happen" },
     ],
   },
+  // Campaigns is one page, its home (surfaces/campaigns/home, canvas A), and Sent (broadcasts) and the Library (messages) are its
+  // rooms, reached from it: the three-tab strip (Playbooks · Broadcasts · Templates) is gone (3 Oct 2026). Content is seed-only,
+  // a real workspace has no such surface, and a strip of one draws nothing.
   campaigns: {
-    match: ["outbound", "broadcasts", "messages", "content"],
-    tabs: [
-      { id: "outbound", label: "Playbooks", to: "outbound" },
-      { id: "broadcasts", label: "Broadcasts", to: "broadcasts" },
-      // "Templates" is Meta's word and WhatsApp Manager's, which is where an
-      // owner meets these and where this page syncs them from. It was
-      // "Messages", which made the word mean three things across one nav —
-      // a thread in the Inbox, a send in "15 messages, 87% delivered", and
-      // the wording on file here — and needed this tip to say which.
-      { id: "messages", label: "Templates", to: "messages", tip: "The wording your playbooks and broadcasts send, as the customer sees it" },
-      // Content is seed-only: a real workspace has no such surface yet.
-      { id: "content", label: "Content", to: "content", demoOnly: true },
-    ],
+    match: ["content"],
+    tabs: [{ id: "content", label: "Content", to: "content", demoOnly: true }],
   },
   agents: {
     match: ["fleet", "store", "studio", "tasks"],
@@ -68,17 +60,6 @@ const ST_GROUPS = {
       { id: "tasks", label: "Tasks", to: "tasks", demoOnly: true, tip: "The work ledger — receipts for everything agents did" },
     ],
   },
-};
-
-// What each Campaigns tab says is behind it, from the surface that page reads:
-// the playbooks running, the runs waiting on the owner, the templates on file.
-// A surface not read yet says nothing, never a 0 -- a tab visited first reads its
-// own, and the others fill in as they are read. Only the runs waiting on you are
-// a warning; the other two are counts.
-const ST_COUNTS = {
-  outbound: { tone: "plain", n: () => (window.__PLAYBOOKS && window.__PLAYBOOKS.rows ? window.__PLAYBOOKS.rows.filter((p) => p.state === "running").length : 0) },
-  broadcasts: { tone: "warn", n: () => (window.__BROADCASTS && window.__BROADCASTS.rows ? window.__BROADCASTS.rows.filter((r) => r.state === "pending_approval").length : 0) },
-  messages: { tone: "plain", n: () => (Array.isArray(window.__TEMPLATES_ALL) ? window.__TEMPLATES_ALL.filter((t) => !t.hidden_at && t.name !== "hello_world").length : 0) },
 };
 
 // What the address says of itself, for the routes a press will move to: warmed once the page is idle and when a pointer
@@ -100,8 +81,7 @@ const SurfaceTabs = ({ page, param, onNavigate }) => {
   React.useEffect(() => {
     // inbox:counts too: the Needs-you tab carries the badge, and the count moves
     // when Today publishes the real one or a decision lands.
-    // The Campaigns surfaces too: each tab's count is read off them.
-    const evs = ["live:ended", "surface:live", "inbox:counts", "inbox:decisions", "leads:verdict", "surface:playbooks", "surface:broadcasts", "surface:settings"];
+    const evs = ["live:ended", "surface:live", "inbox:counts", "inbox:decisions", "leads:verdict"];
     evs.forEach(e => window.addEventListener(e, stBump));
     return () => evs.forEach(e => window.removeEventListener(e, stBump));
   }, []);
@@ -120,14 +100,13 @@ const SurfaceTabs = ({ page, param, onNavigate }) => {
   return (
     <nav className={`stabs stabs-${groupKey}`} aria-label="Section views">
       {tabs.map(t => {
-        const count = groupKey === "campaigns" ? ST_COUNTS[t.id] : null;
-        const badge = t.badge ? t.badge() : count ? count.n() || null : null;
+        const badge = t.badge ? t.badge() : null;
         const pulse = t.pulse ? t.pulse() : false;
         return (
           <button key={t.id} className={`stabs-tab ${(pending || page) === t.id ? "active" : ""}`} data-tip={t.tip || null} data-tip-side="bottom" onPointerEnter={() => stWarm(t.to)} onTouchStart={() => stWarm(t.to)} onFocus={() => stWarm(t.to)} onClick={(e) => { if (page !== t.id) { stripTap(e.currentTarget.parentElement, e.currentTarget); setPending(t.id); } onNavigate(t.to); }}>
             {t.label}
             {pulse && <span className="live-dot" style={{ width: 5, height: 5 }} />}
-            {badge ? <span className={`stabs-badge tally${(count ? count.tone : t.tone) === "warn" ? " tally-warn" : ""}`} data-tone={(count ? count.tone : t.tone) || "plain"}>{badge}</span> : null}
+            {badge ? <span className={`stabs-badge tally${t.tone === "warn" ? " tally-warn" : ""}`} data-tone={t.tone || "plain"}>{badge}</span> : null}
           </button>
         );
       })}

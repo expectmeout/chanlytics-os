@@ -294,7 +294,23 @@ test("a due playbook runs: a scheduled broadcast for the people who said yes, it
     kind: "playbook",
     id: "pb-a",
     label: "Win-back",
-    reach: { pool: 3, will: 2, noNumber: 0, stopped: 0, noYes: 1, heardThis: 0, heardAny: 0, overCap: 0, overLimit: 0 },
+    // The moment it was made for, which the month's allowance asks at the wire (a visit's message is never held by it).
+    trigger: "quiet_30",
+    // Step 3: and who it reaches on each channel, WhatsApp alone for a playbook that ticks no other.
+    reach: {
+      pool: 3,
+      will: 2,
+      noNumber: 0,
+      stopped: 0,
+      noYes: 1,
+      heardThis: 0,
+      heardAny: 0,
+      overCap: 0,
+      overLimit: 0,
+      no_address: 0,
+      no_channel: 0,
+      by_channel: { whatsapp: 2, sms: 0, email: 0 },
+    },
   });
   assert.equal(run.recipient_count, 2);
   assert.equal(run.created_by, "owner-1", "the sweep's run is the playbook's owner's");

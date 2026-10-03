@@ -2,7 +2,9 @@ import "server-only";
 import { z } from "zod";
 import {
   AUDIENCE_KINDS,
+  AppError,
   BUILTIN_LISTS,
+  CONSENT_CHANNELS,
   EVERYONE_LABEL,
   broadcastName,
   cleanParam,
@@ -11,11 +13,19 @@ import {
   emptyAudienceRefusal,
   exampleParams,
   parseParamSpec,
+  proposalChannelsWords,
   purposeOfTemplate,
+  reachSplit,
   renderTemplate,
+  type AskedPurpose,
+  type CampaignHow,
+  type ConsentChannel,
   type ParamSpec,
+  type PersonRowVM,
 } from "@chanlytics/contracts";
+import { campaignHowOf } from "@chanlytics/core";
 import { archivedListWords, poolList } from "../../../people/audience";
+import { createBroadcastPorts } from "../../../ports/campaign-ports";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
 import { lists as listsReader } from "../../../readers/lists";
@@ -23,24 +33,97 @@ import {
   AUDIENCES_CALL,
   UUID,
   actAction,
+  namedChannels,
   propose,
+  proposedChannels,
   refuse,
   str,
+  whatsappHow,
   type ProposalOutcome,
   type ToolContext,
 } from "../context";
 
-async function proposeBroadcast(
+/** The values a proposal fills the template's slots with: typed text once, or one the job fills per person; or the refusal. */
+function proposedValues(params: unknown): { specs: ParamSpec[] } | { refusal: string } {
+  const specs: ParamSpec[] = [];
+  for (const p of Array.isArray(params) ? (params as unknown[]) : []) {
+    const spec = parseParamSpec(p);
+    if (!spec) return { refusal: "each value is text, or @first_name, @business_name or @booking_link" };
+    if (spec.kind !== "text") {
+      specs.push(spec);
+      continue;
+    }
+    const v = cleanParam(spec.value);
+    if (v === null)
+      return { refusal: "every typed value must be plain text under 1024 characters, without line breaks" };
+    specs.push({ kind: "text", value: v });
+  }
+  return { specs };
+}
+
+/**
+ * The channels a broadcast proposal goes by, and how the workspace can carry it by them, or the refusal. By WhatsApp when
+ * it names no channel, and the workspace ready on it or not: with no number the route refuses, in these words, and a card
+ * the route then refuses has wasted the operator's approval. By the channels it names, the route's own rule (core
+ * campaignHowOf): a tick the workspace cannot send on, whose message has no version, or that the purpose never carries
+ * (texts carry no offers) is refused in the composers' words, before any count.
+ */
+async function broadcastBy(
   t: ToolContext,
-  input: {
-    template_id: string;
-    audience_kind: string;
-    audience_id?: string;
-    params?: string[];
-    scheduled_for?: string;
-    name?: string;
-  },
-): Promise<ProposalOutcome> {
+  tpl: { name: string; language: string },
+  asked: unknown,
+  purpose: AskedPurpose,
+): Promise<{ how: CampaignHow; channels: ConsentChannel[]; named: boolean } | { refusal: string }> {
+  const given = proposedChannels(asked);
+  if ("refusal" in given) return given;
+  const { channels, named } = given;
+  if (!named) {
+    const how = await whatsappHow(t);
+    return how.ready.whatsapp.ready
+      ? { how, channels, named }
+      : { refusal: `${how.ready.whatsapp.why ?? "WhatsApp is not ready"}` };
+  }
+  try {
+    const ports = createBroadcastPorts(t.ctx, t.tenantId, { fresh: false });
+    return { how: (await campaignHowOf(ports, tpl, channels, purpose)).how, channels, named };
+  } catch (e) {
+    if (e instanceof AppError) return { refusal: e.message };
+    throw e;
+  }
+}
+
+/**
+ * Who a broadcast proposal reaches and what its card says of the channels: the count, the words after it ("on WhatsApp and
+ * by email (52 on WhatsApp, 32 by email)", none for a proposal that named no channel) and the channels the card keeps
+ * for its commit. Each person is reached once, on the first channel that reaches them (contracts reachSplit).
+ */
+function broadcastReach(
+  rows: PersonRowVM[],
+  purpose: AskedPurpose,
+  by: { how: CampaignHow; channels: ConsentChannel[]; named: boolean },
+): { count: number; says: string; kept: { channels?: ConsentChannel[] } } {
+  if (!by.named)
+    return { count: eligibleFor(rows, "everyone", null, null, purpose, by.how).length, says: "", kept: {} };
+  const split = reachSplit(rows, purpose, by.how);
+  return {
+    count: split.reached,
+    says: ` · ${proposalChannelsWords(by.channels, split.byChannel)}`,
+    kept: namedChannels(by),
+  };
+}
+
+/** What a broadcast proposal takes (broadcastAction's input): the template and the audience, its values, when, and the channels it goes by. */
+interface BroadcastProposed {
+  template_id: string;
+  audience_kind: string;
+  audience_id?: string;
+  params?: string[];
+  scheduled_for?: string;
+  name?: string;
+  channels?: ConsentChannel[];
+}
+
+async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promise<ProposalOutcome> {
   const templateId = str(input.template_id, 40);
   const kind = str(input.audience_kind, 10);
   const audienceId = str(input.audience_id, 60) || null;
@@ -51,19 +134,9 @@ async function proposeBroadcast(
     return refuse(`audience_id must be a People list id, as ${AUDIENCES_CALL} names them`);
   if (kind === "saved" && !(audienceId && UUID.test(audienceId)))
     return refuse(`audience_id must be a saved list id from ${AUDIENCES_CALL}`);
-  const specs: ParamSpec[] = [];
-  for (const p of Array.isArray(input.params) ? (input.params as unknown[]) : []) {
-    const spec = parseParamSpec(p);
-    if (!spec) return refuse("each value is text, or @first_name, @business_name or @booking_link");
-    if (spec.kind === "text") {
-      const v = cleanParam(spec.value);
-      if (v === null) return refuse("every typed value must be plain text under 1024 characters, without line breaks");
-      specs.push({ kind: "text", value: v });
-    } else {
-      specs.push(spec);
-    }
-  }
-  const params = specs;
+  const given = proposedValues(input.params);
+  if ("refusal" in given) return refuse(given.refusal);
+  const params = given.specs;
   const { data: tpl } = await t.ctx.supabase
     .from("templates")
     .select("id, name, language, meta_status, category, variables, body_preview")
@@ -109,7 +182,9 @@ async function proposeBroadcast(
   // template row this function already read. An assistant that proposes a
   // broadcast the route then refuses has wasted the operator's approval.
   const purpose = purposeOfTemplate(tpl.category);
-  const count = eligibleFor(rows, "everyone", null, null, purpose).length;
+  const by = await broadcastBy(t, tpl, input.channels, purpose);
+  if ("refusal" in by) return refuse(by.refusal);
+  const { count, says, kept } = broadcastReach(rows, purpose, by);
   // In the route's words, which say which cause it is -- nobody said this yes, or the ones who did have no number.
   if (count === 0)
     return refuse(
@@ -128,7 +203,7 @@ async function proposeBroadcast(
   return propose({
     kind: "broadcast",
     title: `Broadcast to ${label}`,
-    summary: `${count} ${count === 1 ? "person" : "people"} who said yes · “${tpl.name}” · ${whenWords}: ${words.slice(0, 160)}${words.length > 160 ? "…" : ""}`,
+    summary: `${count} ${count === 1 ? "person" : "people"} who said yes${says} · “${tpl.name}” · ${whenWords}: ${words.slice(0, 160)}${words.length > 160 ? "…" : ""}`,
     payload: {
       template_id: tpl.id,
       template_name: tpl.name,
@@ -139,6 +214,7 @@ async function proposeBroadcast(
       scheduled_for: when,
       name,
       count,
+      ...kept,
     },
   });
 }
@@ -153,6 +229,7 @@ export const broadcastAction = actAction({
     params: z.array(z.string()).optional(),
     scheduled_for: z.string().optional(),
     name: z.string().optional(),
+    channels: z.array(z.enum(CONSENT_CHANNELS)).optional(),
   }),
   examples: [
     {
@@ -172,6 +249,6 @@ export const broadcastAction = actAction({
   ],
   label: "Preparing a broadcast",
   words:
-    "Action broadcast takes template_id, one approved WhatsApp template, and proposes sending it to an audience, everyone who said yes or any list campaigns with action audiences names (audience_kind everyone; list for a People list, with its id as audience_id; saved for one of the workspace's own, with its audience_id), with params as the template's values in order (typed text, or @first_name, @business_name or @booking_link to fill per person), an optional scheduled_for as an ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date), and an optional name.",
+    "Action broadcast takes template_id, one approved WhatsApp template, and proposes sending it to an audience, everyone who said yes or any list campaigns with action audiences names (audience_kind everyone; list for a People list, with its id as audience_id; saved for one of the workspace's own, with its audience_id), with params as the template's values in order (typed text, or @first_name, @business_name or @booking_link to fill per person), an optional scheduled_for as an ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date), an optional name, and optional channels (whatsapp, sms, email; whatsapp when none is named): each person is reached once, on the first it can, and a channel the workspace cannot send on, or the message has no version for, is refused.",
   build: proposeBroadcast,
 });

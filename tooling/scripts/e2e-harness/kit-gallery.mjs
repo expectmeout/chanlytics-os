@@ -208,13 +208,6 @@ const PANE_ROWS = ["Consultation", "Follow-up visit", "Full treatment"]
   .map((name) => `<div class="gx-panel-row">${name}</div>`)
   .join("");
 
-/**
- * What a bare face's twin does not compare: where the row places its face (a grid row and column, and its alignment),
- * which is .list-row-face's and is compared in the row's twin; and its tag, a div in plRowCard, whose text direction a
- * block isolates, where the kit draws a span beside words. That it never shrinks is the face's own, as its source's.
- */
-const FACE_APART = ["grid-column-start", "grid-row-start", "grid-row-end", "align-self", "unicode-bidi"];
-
 /** A face's picture: a made-up one, drawn inline, so the page asks for nothing. */
 const PHOTO =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' " +
@@ -227,20 +220,12 @@ const PHOTO =
  */
 const listRow = ({ said = true, note = false, door = false } = {}) =>
   (door ? `<a class="list-row" href="#kit">` : `<div class="list-row">`) +
-  `<span class="face list-row-face" aria-hidden="true">AR</span>` +
+  `<span class="face list-row-face" aria-hidden="true"><span>AR</span></span>` +
   `<div class="list-row-name">Aisha Rahman</div><span class="pill pill-warn list-row-end">Needs you</span>` +
   (said ? `<div class="list-row-said">asked about Saturday</div>` : "") +
   `<div class="list-row-facts"><span>Sat · 10:00</span><span>2 h ago</span></div>` +
   (note ? `<div class="list-row-note">Next step: call back on Monday</div>` : "") +
   (door ? `</a>` : `</div>`);
-/** The same row as People's plRowCard draws it (surfaces/people/cells/row-card.tsx), the classes it draws with and the same words. */
-const plCard = ({ said = true, note = false } = {}) =>
-  `<div class="pl-card"><div class="ix-thread-avatar pl-card-face" aria-hidden="true">AR</div>` +
-  `<div class="pl-card-name">Aisha Rahman</div><span class="pill pill-warn">Needs you</span>` +
-  (said ? `<div class="pl-card-lead">asked about Saturday</div>` : "") +
-  `<div class="pl-card-facts"><span>Sat · 10:00</span><span>2 h ago</span></div>` +
-  (note ? `<div class="pl-card-tail">Next step: call back on Monday</div>` : "") +
-  `</div>`;
 
 /** A chart's parts, as SegmentBar is given its rows: a name, a share and a series colour. */
 const SERIES = [
@@ -399,6 +384,50 @@ const kitPopover = () =>
   `<p class="gx-pop-words">Open today until six.</p>` +
   `<button type="button" class="btn btn-sm">Change the hours</button></div></div>`;
 
+/**
+ * The kit's DatePicker, open under its control on October 2026 with the second chosen and today: Base UI's popover on
+ * the panel's pop, the month's title over two arrows, the weekdays over six weeks of days (the grid's ARIA, one tab
+ * stop on the chosen day) and Today at the foot.
+ */
+const kitDatePicker = () => {
+  const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const full = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const week = (w) =>
+    `<div role="row" class="date-pick-row">` +
+    Array.from({ length: 7 }, (_, d) => {
+      const day = new Date(Date.UTC(2026, 8, 28 + w * 7 + d));
+      const inMonth = day.getUTCMonth() === 9;
+      const chosen = inMonth && day.getUTCDate() === 2;
+      return (
+        `<div role="gridcell" aria-selected="${chosen}"><button type="button" class="date-pick-day" ` +
+        `tabindex="${chosen ? 0 : -1}" aria-label="${full[d]}, ${day.getUTCDate()}"` +
+        `${chosen ? ' aria-current="date"' : ""}${inMonth ? "" : ' data-outside="true"'}>` +
+        `<span class="date-pick-num">${day.getUTCDate()}</span></button></div>`
+      );
+    }).join("") +
+    `</div>`;
+  return (
+    `<button type="button" tabindex="0" aria-haspopup="dialog" aria-expanded="true" class="btn btn-sm">Go to a date</button>` +
+    `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
+    `<div class="panel panel-pop panel-sm date-pick" role="dialog" tabindex="-1" aria-label="Go to a date">` +
+    `<div class="date-pick-head"><span class="date-pick-title" aria-live="polite">October 2026</span>` +
+    `<span class="date-pick-nav">` +
+    `<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Previous month"><span class="date-pick-back">${icon("chevron", 14)}</span></button>` +
+    `<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Next month">${icon("chevron", 14)}</button>` +
+    `</span></div>` +
+    `<div role="grid" tabindex="-1" aria-label="October 2026" class="date-pick-grid">` +
+    `<div role="row" class="date-pick-row">` +
+    weekdays
+      .map((w, d) => `<span role="columnheader" aria-label="${full[d]}" class="date-pick-dow">${w}</span>`)
+      .join("") +
+    `</div>` +
+    Array.from({ length: 6 }, (_, w) => week(w)).join("") +
+    `</div>` +
+    `<div class="date-pick-foot"><button type="button" class="btn btn-ghost btn-sm">Today</button></div>` +
+    `</div></div>`
+  );
+};
+
 /** The kit's Tooltip, shown over its control. */
 const kitTooltip = () =>
   `<button type="button" class="btn btn-sm">Export</button>` +
@@ -437,6 +466,77 @@ const kitCombobox = () =>
   `<div class="rec-combo-list" role="listbox" tabindex="-1" aria-label="Languages">` +
   kitOption("Spanish", "es", { walked: true }) +
   kitOption("Spanish, Mexico", "es-MX") +
+  `</div></div></div>`;
+
+/** An option of the kit's Picker: its glyph, its words and the line under them, and a word at its end, as picker.tsx draws it. */
+const pickOption = (label, { sub = null, meta = null, glyph = null, chosen = false, walked = false, id = null } = {}) =>
+  `<div${chosen ? ' data-selected=""' : ""} role="option"${id ? ` id="${id}"` : ` tabindex="${walked ? 0 : -1}"`} ` +
+  `aria-selected="${chosen}" ` +
+  `class="rec-combo-opt"${chosen ? ' data-chosen="true"' : ""}${walked ? ' data-highlighted=""' : ""}>` +
+  (glyph ? `<span class="rec-combo-glyph" aria-hidden="true">${icon(glyph, 13)}</span>` : "") +
+  `<span class="rec-combo-words"><span class="rec-combo-label">${label}</span>` +
+  (sub ? `<span class="rec-combo-sub">${sub}</span>` : "") +
+  `</span>` +
+  (meta ? `<span class="rec-combo-meta">${meta}</span>` : "") +
+  `</div>`;
+
+/** A group of the kit's Picker under its heading. */
+const pickGroup = (label, options) =>
+  `<div role="group" class="rec-combo-group"><div aria-hidden="true" class="rec-combo-group-label">${label}</div>` +
+  options.join("") +
+  `</div>`;
+
+/**
+ * The kit's Picker on a short list (Base UI's Select), open: its token in its sentence, pressed, and its list over the
+ * page on the panel's pop -- two groups under their headings, the one chosen with a line under it, walked to, and the
+ * note at the list's foot.
+ */
+const kitPicker = () =>
+  `<span class="gx-pop-words">Every day at <button type="button" tabindex="0" role="combobox" aria-expanded="true" ` +
+  `aria-haspopup="listbox" aria-label="The hour it runs: 10:00" class="token" data-popup-open="" data-pressed="">` +
+  `<span class="token-face">10:00</span><span aria-hidden="true" class="token-caret" data-popup-open="">` +
+  `${icon("chevron-down", 11)}</span></button></span>` +
+  `<div class="pop-place" role="presentation" data-open="" ${placed("top: 60px; left: 16px;")}>` +
+  `<div class="panel panel-pop panel-flush rec-combo-pop" role="presentation" tabindex="-1" data-open="">` +
+  `<div role="listbox" class="rec-combo-list">` +
+  pickGroup("Morning", [
+    pickOption("09:00"),
+    pickOption("10:00", { sub: "When most of them write back", chosen: true, walked: true }),
+  ]) +
+  pickGroup("Afternoon", [pickOption("14:00")]) +
+  `</div><p class="rec-combo-note">Hours outside 9 to 21 are not offered.</p></div></div>`;
+
+/**
+ * The kit's Picker on a list to search (Base UI's Combobox, its input inside the popup), open: its token in its
+ * sentence, and over the page the search at the list's top, what none matching says (nothing yet), and the moments in
+ * their groups, each with its glyph and the line under its words, one with a count at its end.
+ */
+const kitPickerFind = () =>
+  `<span class="gx-pop-words">Send it to <button type="button" tabindex="0" role="combobox" aria-expanded="true" ` +
+  `aria-haspopup="dialog" aria-label="The moment it runs on: Win-back" class="token" data-popup-open="" ` +
+  `data-pressed=""><span class="token-face">Win-back</span><span aria-hidden="true" class="token-caret">` +
+  `${icon("chevron-down", 11)}</span></button></span>` +
+  `<div class="pop-place" role="presentation" data-open="" ${placed("top: 60px; left: 16px;")}>` +
+  `<div class="panel panel-pop panel-flush rec-combo-pop" role="dialog" aria-label="The moment it runs on" ` +
+  `tabindex="-1" data-open=""><span class="rec-combo-field"><span class="rec-combo-glass" aria-hidden="true">` +
+  `${icon("search", 12)}</span><input class="rec-combo-input" role="combobox" aria-expanded="true" ` +
+  `aria-haspopup="listbox" aria-autocomplete="list" autocomplete="off" spellcheck="false" ` +
+  `placeholder="Find a moment" aria-label="The moment it runs on" value=""></span>` +
+  `<div role="status" aria-live="polite" aria-atomic="true" class="rec-combo-empty"></div>` +
+  `<div role="listbox" tabindex="-1" class="rec-combo-list">` +
+  pickGroup("Set up", [
+    pickOption("Win-back", {
+      sub: "Nothing heard in 30 days",
+      glyph: "refresh",
+      chosen: true,
+      walked: true,
+      id: "pk-0",
+    }),
+  ]) +
+  pickGroup("Not set up", [
+    pickOption("Save our number", { sub: "Only ever phoned, never texted", glyph: "phone", id: "pk-1" }),
+    pickOption("Welcome", { sub: "First contact in the last 7 days", meta: "3 today", glyph: "user", id: "pk-2" }),
+  ]) +
   `</div></div></div>`;
 
 /** The kit's toast, raised: Base UI's region wearing the house's stack, a confirmation with its Undo and its ×. */
@@ -516,6 +616,11 @@ const kitFieldsWrong = () =>
   `<div class="rec-field"><label><span class="rec-field-label">What fits no field</span></label>` +
   `<textarea class="rec-input" rows="3">Parking is behind the building, through the gate.</textarea></div>`;
 
+/** The kit's field as a title said in place: no label drawn, the box named by its own words, a box only as it is touched. */
+const kitFieldTitle = () =>
+  `<div class="rec-field"><input class="rec-input rec-input-title" type="text" ` +
+  `aria-label="The playbook's name" placeholder="Win-back" value="Win-back, for people who have not been in"></div>`;
+
 /* ---- the families ---- */
 
 /** The kit's families and their entries. Every class in classes.json is drawn by at least one entry. */
@@ -539,6 +644,13 @@ export const FAMILIES = [
           `<button type="button" class="btn btn-sm">Retry</button> ` +
           `<button type="button" class="btn btn-sm btn-primary">Save</button> ` +
           `<button type="button" class="btn btn-sm btn-ghost">Cancel</button>`,
+      },
+      {
+        id: "btn-lg",
+        html:
+          `<button type="button" class="btn btn-lg btn-primary">Open the thread</button> ` +
+          `<button type="button" class="btn btn-lg">More ${icon("chevron-down", 10)}</button> ` +
+          `<button type="button" class="btn btn-icon btn-lg" aria-label="Clear the selection">${icon("x", 14)}</button>`,
       },
       {
         id: "btn-icon",
@@ -944,15 +1056,24 @@ export const FAMILIES = [
   {
     family: "Capsule",
     about:
-      "The control layer's glass as a bar, where a page takes a phone's screen over: a thread's header with a face, a name over its line, and a button; and a field with its round button, as the whisper has it.",
+      "The control layer's glass as a bar, where a page takes a phone's screen over: a thread's header with a face, a name over its line, and a button; a field with its round button, as the whisper has it; and a bar docked at the foot (data-dock), as a selection's is.",
     entries: [
       {
         id: "capsule",
         html:
           `<div data-takeover="true"><div class="capsule" style="display: flex; align-items: center; gap: 8px; padding: 8px 10px;">` +
-          `<span class="face face-lg" aria-hidden="true">AR</span>` +
+          `<span class="face face-lg" aria-hidden="true"><span>AR</span></span>` +
           `<span style="flex: 1">Aisha Rahman</span>` +
           `<button type="button" class="btn btn-ghost btn-sm">Actions</button></div></div>`,
+      },
+      {
+        id: "capsule-dock",
+        html:
+          `<div class="capsule" data-dock="true" style="position: relative; display: flex; align-items: center; gap: 6px; height: 52px; padding: 0 8px;">` +
+          `<button type="button" class="btn btn-icon btn-lg" aria-label="Clear the selection">${icon("x", 16)}</button>` +
+          `<span style="flex: 1"><b>2</b> selected</span>` +
+          `<button type="button" class="btn btn-lg">Add to list ${icon("chevron-down", 10)}</button>` +
+          `<button type="button" class="btn btn-icon btn-lg" aria-label="More for the 2 selected">${icon("more", 16)}</button></div>`,
       },
     ],
   },
@@ -1331,64 +1452,45 @@ export const FAMILIES = [
     family: "Face",
     about:
       "kit.css's face (step 2.2): a person, a lead or a conversation as initials in a circle, a glyph for someone " +
-      "known by a number or an address, and a picture over the initials. At a phone's width each beside the phone " +
-      "row's face, which the spec holds it equal to.",
+      "known by a number or an address, a picture over the initials, a lead's own mark over that, the four sizes " +
+      "(the phone row's, a desk row's, a header's and a page's head), a thread's priority and a row's checkbox: a " +
+      "selection under way and this one in it.",
     entries: [
       {
         id: "face",
         html:
-          `<div class="gx-row"><span class="face" aria-hidden="true">AR</span>` +
-          `<span class="face" aria-hidden="true">SO</span></div>`,
+          `<div class="gx-row"><span class="face" aria-hidden="true"><span>AR</span></span>` +
+          `<span class="face" aria-hidden="true"><span>SO</span></span></div>`,
       },
       { id: "face-glyph", html: `<span class="face face-glyph" aria-hidden="true">${icon("phone", 12)}</span>` },
       {
         id: "face-photo",
-        html: `<span class="face" aria-hidden="true">AR<img class="face-photo" src="${PHOTO}" alt=""></span>`,
+        html: `<span class="face" aria-hidden="true"><span>AR</span><img class="face-photo" src="${PHOTO}" alt=""></span>`,
       },
       {
         id: "face-lg",
-        html: `<div class="gx-row"><span class="face face-lg" aria-hidden="true">AR</span><span class="face face-lg" aria-hidden="true">AR<img class="face-photo" src="${PHOTO}" alt=""></span></div>`,
-      },
-      { id: "face-priority", html: `<span class="face" data-priority="P1" aria-hidden="true">AR</span>` },
-      {
-        id: "face-twin",
-        width: "phone",
-        html: `<span class="face" aria-hidden="true">AR</span>`,
-        twin: "src-face",
-        except: FACE_APART,
+        html: `<div class="gx-row"><span class="face face-lg" aria-hidden="true"><span>AR</span></span><span class="face face-lg" aria-hidden="true"><span>AR</span><img class="face-photo" src="${PHOTO}" alt=""></span></div>`,
       },
       {
-        id: "src-face",
-        width: "phone",
-        source: "styles/inbox.css:276, styles/clients.css:2466",
-        html: `<div class="ix-thread-avatar pl-card-face" aria-hidden="true">AR</div>`,
+        id: "face-sm",
+        html: `<div class="gx-row"><span class="face face-sm" aria-hidden="true"><span>AR</span></span><span class="face face-sm" aria-hidden="true"><span>AR</span><img class="face-photo" src="${PHOTO}" alt=""></span></div>`,
       },
       {
-        id: "face-glyph-twin",
-        width: "phone",
-        html: `<span class="face face-glyph" aria-hidden="true">${icon("phone", 12)}</span>`,
-        twin: "src-face-glyph",
-        except: FACE_APART,
+        id: "face-xl",
+        html: `<div class="gx-row"><span class="face face-xl" aria-hidden="true"><span>AR</span></span><span class="face face-xl" aria-hidden="true"><span>AR</span><img class="face-photo" src="${PHOTO}" alt=""></span></div>`,
       },
       {
-        id: "src-face-glyph",
-        width: "phone",
-        source: "styles/inbox.css:276, styles/clients.css:2051",
-        html: `<div class="ix-thread-avatar pl-card-face cl-row-avatar-glyph" aria-hidden="true">${icon("phone", 12)}</div>`,
+        id: "face-mark",
+        html: `<span class="face" aria-hidden="true"><span>ZS</span><img class="face-photo" src="${PHOTO}" alt=""><img class="face-photo face-mark" src="${PHOTO}" alt=""></span>`,
       },
       {
-        id: "face-photo-twin",
-        width: "phone",
-        html: `<span class="face" aria-hidden="true">AR<img class="face-photo" src="${PHOTO}" alt=""></span>`,
-        twin: "src-face-photo",
-        except: FACE_APART,
+        id: "face-pick",
+        html:
+          `<div class="gx-row"><span class="face" data-pick="choose" aria-hidden="true"><span>AR</span></span>` +
+          `<span class="face" data-pick="chosen" aria-hidden="true"><span>AR</span></span>` +
+          `<span class="face" data-pick="choose" aria-hidden="true"><span>AR</span><img class="face-photo" src="${PHOTO}" alt=""></span></div>`,
       },
-      {
-        id: "src-face-photo",
-        width: "phone",
-        source: "styles/inbox.css:276, styles/clients.css:2481",
-        html: `<div class="ix-thread-avatar pl-card-face" aria-hidden="true">AR<img class="pl-card-photo" src="${PHOTO}" alt=""></div>`,
-      },
+      { id: "face-priority", html: `<span class="face" data-priority="P1" aria-hidden="true"><span>AR</span></span>` },
     ],
   },
   {
@@ -1396,39 +1498,13 @@ export const FAMILIES = [
     about:
       "kit.css's list row (step 2.2): a face, the lines beside it and what trails, on the row tokens every list on a " +
       "phone shares: three lines, two (nothing said, so the face spans two), a line of its own under the facts, and " +
-      "a row with a page of its own, a link that keeps the row's colours with no underline. At a phone's width a row " +
-      "of each shape beside People's phone row, which the spec holds it equal to.",
+      "a row with a page of its own, a link that keeps the row's colours with no underline. People's and Leads' phone " +
+      "rows draw it (surfaces/people/cells/row-card.tsx).",
     entries: [
       { id: "list-row", html: listRow() },
       { id: "list-row-two", html: listRow({ said: false }) },
       { id: "list-row-note", html: listRow({ note: true }) },
       { id: "list-row-door", html: listRow({ note: true, door: true }) },
-      {
-        id: "list-row-twin",
-        width: "phone",
-        html: listRow({ note: true }),
-        twin: "src-pl-card",
-        except: ["unicode-bidi"],
-      },
-      {
-        id: "src-pl-card",
-        width: "phone",
-        source: "styles/clients.css:2465, styles/inbox.css:276",
-        html: plCard({ note: true }),
-      },
-      {
-        id: "list-row-two-twin",
-        width: "phone",
-        html: listRow({ said: false }),
-        twin: "src-pl-card-two",
-        except: ["unicode-bidi"],
-      },
-      {
-        id: "src-pl-card-two",
-        width: "phone",
-        source: "styles/clients.css:2467, styles/inbox.css:276",
-        html: plCard({ said: false }),
-      },
     ],
   },
   {
@@ -1553,6 +1629,13 @@ export const FAMILIES = [
     entries: [{ id: "popover-kit", stage: "pop", html: kitPopover() }],
   },
   {
+    family: "Date picker, on Base UI",
+    about:
+      "The kit's DatePicker (surfaces/kit/datepicker/datepicker.tsx), open: Base UI's popover on the panel's pop, a month " +
+      "of days in the ARIA grid with the day chosen and its arrows over it, and Today at the foot.",
+    entries: [{ id: "datepicker-kit", stage: "pop", html: kitDatePicker() }],
+  },
+  {
     family: "Tooltip, on Base UI",
     about:
       "The kit's Tooltip (surfaces/kit/tooltip/tooltip.tsx), shown: the house's tip on Base UI's positioner (.tip-place).",
@@ -1571,6 +1654,18 @@ export const FAMILIES = [
       "The kit's Combobox (surfaces/kit/combobox/combobox.tsx), typed into: the record kit's box, and its matches over " +
       "the page on the panel's pop (.rec-combo-pop), the first walked to.",
     entries: [{ id: "combobox-kit", stage: "pop", html: kitCombobox() }],
+  },
+  {
+    family: "Picker, on Base UI",
+    about:
+      "The kit's Picker (surfaces/kit/picker/picker.tsx): a choice inside a sentence. Its token, pressed, opens the " +
+      "options over the page on the panel's pop (.rec-combo-pop): in groups under their headings, each with its glyph, " +
+      "the line under its words and a word at its end, the note under them; a short list is Base UI's Select, a list to " +
+      "search its Combobox with the search at the list's top.",
+    entries: [
+      { id: "picker-kit", stage: "pop", html: kitPicker() },
+      { id: "picker-kit-find", stage: "pop", html: kitPickerFind() },
+    ],
   },
   {
     family: "Toast, on Base UI",
@@ -1598,10 +1693,11 @@ export const FAMILIES = [
     family: "Field, on Base UI",
     about:
       "The kit's Field (surfaces/kit/field/field.tsx): Base UI's field wearing the record kit's, a hint and a unit; what " +
-      "is wrong, in the one red a field wears; and a box of sentences.",
+      "is wrong, in the one red a field wears; a box of sentences; and a title said in place.",
     entries: [
       { id: "field-kit", html: kitFields() },
       { id: "field-kit-wrong", html: kitFieldsWrong() },
+      { id: "field-kit-title", html: kitFieldTitle() },
     ],
   },
   {

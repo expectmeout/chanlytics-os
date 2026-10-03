@@ -45,15 +45,74 @@ export type {
   TemplateSentWords,
 } from "./templates";
 export { STARTER_LANGUAGES, STARTER_TEMPLATES } from "./starter-templates";
-export type { StarterSlotKind, StarterSlot, StarterText, StarterTemplate } from "./starter-templates";
+export type {
+  StarterSlotKind,
+  StarterSlot,
+  StarterText,
+  StarterEmailText,
+  StarterSmsText,
+  StarterTemplate,
+} from "./starter-templates";
 export {
   starterByName,
   starterByKey,
   startersOffered,
   starterForTrigger,
+  startersForTrigger,
   starterText,
   starterDraft,
+  starterEmailText,
+  starterSmsText,
 } from "./starter-lookup";
+export {
+  VERSION_CHANNELS,
+  OWN_VERSION_CHANNELS,
+  VERSION_CHANNEL_WORDS,
+  EMAIL_SUBJECT_MAX,
+  EMAIL_BODY_MAX,
+  SMS_SEGMENTS_MAX,
+  smsStopLine,
+  smsSegments,
+  smsVersionSegments,
+  versionSlotsRefusal,
+  validateEmailVersion,
+  validateSmsVersion,
+  validateOwnVersion,
+  campaignEmailRules,
+  emailIssues,
+  versionComponents,
+  versionWords,
+  renderOwnVersion,
+  isReachOutRow,
+  reachOutRowName,
+  reachOutStepOf,
+  versionsOf,
+} from "./message-versions";
+export type {
+  VersionChannel,
+  OwnVersionChannel,
+  VersionWords,
+  VersionCheck,
+  EmailProblem,
+  EmailIssue,
+  EmailRules,
+} from "./message-versions";
+export { fillSlots, numberedSlots, slotValueOf, slotWritten } from "./slot-sets";
+export type { SlotKey, SlotSet, SlotValue } from "./slot-sets";
+export {
+  toSlotParts,
+  fromSlotParts,
+  partWritten,
+  insertSlot,
+  eraseSlot,
+  clampWords,
+  slotLabel,
+  slotKnown,
+  namedProblem,
+} from "./message-version-slots";
+export type { SlotPart, SlotEdit } from "./message-version-slots";
+export { emailFoot, emailFootHtml, MARKETING_LINE } from "./email-foot";
+export type { EmailFoot, LinkedFoot } from "./email-foot";
 export { starterPreviewValues, starterPreview, templatePreviewValues, templatePreview } from "./template-preview";
 export type { OwnFacts } from "./template-preview";
 export {
@@ -86,6 +145,7 @@ export {
 } from "./template-slots";
 export { starterIndex, compareTemplates, defaultTemplate, groupTemplates, bookingTemplate } from "./template-order";
 export type { TemplateGroup } from "./template-order";
+export { libraryCount, isLibrarySample } from "./library-count";
 export {
   templateLanguage,
   languageName,

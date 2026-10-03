@@ -118,7 +118,7 @@ function personPage(c: PageCtx, toastNode: ReactNode) {
   const phoneOnly = /^[+\d(]/.test(p.name);
   const compose = openWith(c);
   return (
-    <div className="cl-profile">
+    <div className="cl-profile" data-takeover>
       <div className="cl-prof-page">
         {hero(c, compose, phoneOnly)}
 

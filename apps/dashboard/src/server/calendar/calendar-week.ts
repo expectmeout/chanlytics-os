@@ -143,6 +143,20 @@ export type CalendarSources = {
   | { week: null; feed: ParsedRead; parsed: ParsedFeed }
 );
 
+/** The week for a calendar that was fetched and could not be read: the empty week, with the reason the board says. */
+function unreadWeek(base: CalendarWeekDto, feed: ParsedRead): CalendarWeekDto {
+  return {
+    ...base,
+    feed: {
+      ...base.feed,
+      checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(),
+      reason: feed.reason,
+      status: feed.status,
+      problem: feedProblemWords(feed.reason, feed.status),
+    },
+  };
+}
+
 /**
  * The calendar's one read for a span, and nothing written (D7): calendarWeek's reads, in its order, up to the point an
  * owner's read would put the feed's people in People. The zone and the settings are read here unless a caller that
@@ -224,6 +238,11 @@ export async function calendarSources(
   };
   if (!url) return { ...read, feed: null, parsed: null, serviceNames: [], people: [], week: base };
 
+  // Everyone in People is read beside the feed, not after it: the two are independent, and a board whose feed is in the
+  // few minutes' cache waited on this read alone. Begun only once there is a calendar to match against (a workspace
+  // with none reads nobody), and its failure is an empty list, as it was, so a read nobody awaits settles quietly.
+  const everyoneRead = everyone(ctx, tenantId).catch(() => []);
+
   // One parse per fetch, shared with the profile, the People list and the
   // report. Its horizon — ninety days either side — covers any span the page
   // asks for and the openings' reach from now, so the windows are the
@@ -236,29 +255,12 @@ export async function calendarSources(
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   // Nothing readable, ever: the board says why, in the words the preview uses.
-  if (!feed.parsed)
-    return {
-      ...read,
-      feed,
-      parsed: null,
-      serviceNames: [],
-      people: [],
-      week: {
-        ...base,
-        feed: {
-          ...base.feed,
-          checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(),
-          reason: feed.reason,
-          status: feed.status,
-          problem: feedProblemWords(feed.reason, feed.status),
-        },
-      },
-    };
+  if (!feed.parsed) return { ...read, feed, parsed: null, serviceNames: [], people: [], week: unreadWeek(base, feed) };
   const parsed = feed.parsed;
   const serviceNames = (profile?.services ?? []).map((s) => s.name);
   // Everyone, not the first thousand: past it, an appointment of a known person linked to nobody on the board, and
   // an owner's read asked the door for them again.
-  const people = (await everyone(ctx, tenantId).catch(() => [])).map(personLike);
+  const people = (await everyoneRead).map(personLike);
   return { ...read, feed, parsed, serviceNames, people, week: null };
 }
 

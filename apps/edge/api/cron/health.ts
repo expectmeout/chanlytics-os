@@ -32,9 +32,11 @@ import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "..
 import { whatsappWithoutReceipts, describeSilentReceipts } from "../../lib/whatsapp/receipts-watch.js";
 import {
   checkMailDomain,
+  describeCampaignsDomainTrouble,
   describeColdReplyDomainTrouble,
   describeMailDomainTrouble,
 } from "../../lib/email/mail-domain.js";
+import { campaignsDomain } from "../../lib/email/campaigns-domain.js";
 import { coldReplyDomains, emailDomain } from "../../lib/email/email.js";
 import { watchAnswerSilence } from "../../lib/ops/answer-silence.js";
 import { watchModels } from "../../lib/ops/model-watch.js";
@@ -144,6 +146,18 @@ export const POST = door(async function POST(request: Request): Promise<Response
       coldTrouble.push(cold);
       const page = describeColdReplyDomainTrouble(c.trouble, cold);
       await pageOperator({ db }, `cold_reply_domain:${cold}`, page.subject, page.body);
+    }
+  }
+
+  // The campaigns domain offers by email leave from (EMAIL_CAMPAIGNS_DOMAIN), when this deployment names one: it must stay
+  // verified for SENDING, or every offer is refused until it is. Receiving there is nobody's business.
+  const campaigns = campaignsDomain();
+  if (campaigns) {
+    const c = await checkMailDomain({ domain: campaigns, apiKey: env.RESEND_API_KEY, sendOnly: true });
+    if (c.error) L.error("mail_domain_unreadable", { domain: campaigns, error: c.error });
+    if (c.trouble) {
+      const page = describeCampaignsDomainTrouble(c.trouble, campaigns);
+      await pageOperator({ db }, `campaigns_domain:${campaigns}`, page.subject, page.body);
     }
   }
 

@@ -16,7 +16,7 @@ import { gatedProps } from "../../legacy-verbs";
 import { Icon } from "../icon/icon";
 
 /** One item of the menu: a row that acts, a line between two groups, or a heading over the group under it. */
-export interface MoreMenuItem {
+interface MoreMenuItem {
   label?: ReactNode;
   /** A glyph before the words (Icon's names). */
   icon?: string;

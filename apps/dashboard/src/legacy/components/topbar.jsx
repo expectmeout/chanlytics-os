@@ -344,7 +344,7 @@ const Topbar = ({
         id: "n-bc-" + Date.now(), icon: "chat", tone: "ok", unread: true, time: "now",
         title: `Broadcast queued — ${d.name}`,
         message: `${d.count} recipients over ${d.channel} — replies land in Conversations.`,
-        actions: [{ label: d.segId ? "Open segment" : "Broadcasts", to: d.segId ? "segments/" + d.segId : "broadcasts", primary: true }, { label: "Conversations", to: "conversations" }],
+        actions: [{ label: d.segId ? "Open segment" : "Sent", to: d.segId ? "segments/" + d.segId : "broadcasts", primary: true }, { label: "Conversations", to: "conversations" }],
       }, ...list]);
     };
     const onObApproved = (e) => {

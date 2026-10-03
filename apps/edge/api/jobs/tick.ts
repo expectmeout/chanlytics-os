@@ -20,6 +20,7 @@ import { alertFor } from "../../lib/ops/job-alert.js";
 import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
 import { smsSenderForTenant } from "../../lib/sms/sms.js";
 import { emailWireFor, emailIntake } from "../../lib/email/email.js";
+import { campaignsLane } from "../../lib/email/campaigns-domain.js";
 import { isWireUnavailable, whatsappWire, wireUnavailable } from "../../lib/packages/core.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
 import { provisionLineJob } from "../../lib/lines/line-provision-job.js";
@@ -97,12 +98,15 @@ export const POST = door(async function POST(request: Request): Promise<Response
           const line = await smsSenderForTenant(db, job.tenant_id);
           // Each wire is bound on its own: a mailbox that could not be read is email's wire unbound (core
           // WireUnavailable), never a throw that fails a WhatsApp or SMS reply that needed no email at all.
-          const email = await emailWireFor(db, job.tenant_id).catch((e: unknown) => {
+          // A broadcast's batch may send OFFERS by email: only for that job is the campaigns domain asked about (it is
+          // kept five minutes) and bound, as the wire's route and the intake's lane; every other job never sees it.
+          const campaigns = job.kind === "broadcast_send" ? await campaignsLane() : null;
+          const email = await emailWireFor(db, job.tenant_id, campaigns).catch((e: unknown) => {
             L.error("email_wire_unavailable", { tenant_id: job.tenant_id, error: errField(e) });
             return wireUnavailable(errField(e));
           });
           // Email's intake: the provider fetch and the mail domain live here. Absent where email is off.
-          const intake = emailIntake(db);
+          const intake = emailIntake(db, campaigns);
           // The lead finder's pipeline: absent without APIFY_TOKEN, and a lead job then fails by name.
           const leads = leadPipeline();
           const wire = {

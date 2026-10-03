@@ -2,8 +2,8 @@
  * The kit (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4): where a surface takes its primitives
  * from, each component with the type of its props, which a surface that wraps one names. Each export is named here,
  * never `export *`, so a new one is a line in a review. A family is a folder of its own, its component and its type
- * test. Those with behaviour of their own (the sheet, the menu and the popover, the select and the combobox, the
- * tooltip, the toast, the switch, the segmented control and the field) are built on Base UI's parts, each imported
+ * test. Those with behaviour of their own (the sheet, the menu, the popover and the date picker, the select, the combobox and the picker,
+ * the tooltip, the toast, the switch, the segmented control and the field) are built on Base UI's parts, each imported
  * alone (the plan's decision 15 and step 2.5).
  */
 export { cx, variants } from "./variants";
@@ -11,6 +11,8 @@ export { Button } from "./button/button";
 export type { ButtonProps } from "./button/button";
 export { Combobox } from "./combobox/combobox";
 export type { ComboboxProps } from "./combobox/combobox";
+export { DatePicker } from "./datepicker/datepicker";
+export type { DatePickerProps } from "./datepicker/datepicker";
 export { Face } from "./face/face";
 export type { FaceProps } from "./face/face";
 export { Field } from "./field/field";
@@ -25,6 +27,8 @@ export { Meter } from "./meter/meter";
 export type { MeterProps } from "./meter/meter";
 export { Panel } from "./panel/panel";
 export type { PanelProps } from "./panel/panel";
+export { Picker } from "./picker/picker";
+export type { PickerGroup, PickerOption, PickerProps, PickerSearch } from "./picker/picker";
 export { Popover } from "./popover/popover";
 export type { PopoverProps } from "./popover/popover";
 export { Segmented } from "./segmented/segmented";

@@ -293,6 +293,38 @@ test("in sections the first row drawn is the tab stop, and a first draw's budget
   assert.equal(drawn(folded), 20);
 });
 
+test("Came from shows by default in Classic and waits in the Columns menu in Glass (canvas P1: with it the table outgrew the pane at 1440)", async () => {
+  const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
+  const { plShows } = await importSrc("apps/dashboard/src/surfaces/people/table/columns.ts");
+  const came = PL_COLUMNS.find((c) => c.key === "came_from");
+  const x = { withCalendar: false };
+  assert.equal(plShows(came, {}, x), true, "Classic draws it");
+  const was = globalThis.document;
+  globalThis.document = { documentElement: { getAttribute: (n) => (n === "data-look" ? "glass" : null) } };
+  try {
+    assert.equal(plShows(came, {}, x), false, "Glass: off until asked for");
+    assert.equal(plShows(came, { came_from: true }, x), true, "and the member's own choice stands");
+  } finally {
+    if (was === undefined) delete globalThis.document;
+    else globalThis.document = was;
+  }
+});
+
+test("the list's head says how it is ordered: the sortable column's own words, and nothing for a key it has none for", async () => {
+  const { plSortedBy } = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
+  assert.equal(plSortedBy("last"), "Sorted by last contact");
+  assert.equal(plSortedBy("name"), "Sorted by name");
+  assert.equal(plSortedBy("bogus"), "");
+});
+
+test("a visit's hours say their start alone in the Visits cell, with the meridiem the range gave it", async () => {
+  const { plVisitStart } = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
+  assert.equal(plVisitStart("2:00 – 3:00 PM"), "2:00 PM");
+  assert.equal(plVisitStart("11:00 AM – 12:00 PM"), "11:00 AM");
+  assert.equal(plVisitStart("10:30 AM"), "10:30 AM", "one time is said as it came");
+  assert.equal(plVisitStart(""), "");
+});
+
 test("sections with nobody in them are the one body with the page's empty words", () => {
   const t = table({
     rows: [],

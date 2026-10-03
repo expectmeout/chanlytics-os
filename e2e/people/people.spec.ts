@@ -77,7 +77,8 @@ test.describe("People on a real workspace", () => {
     // With a calendar connected the outcome takes the receptionist's column; the checkbox and the actions columns have no words.
     // How to reach them is Reach, the column after State (it was a line of five facts under every name); First contact is
     // a column a member may choose, off by default.
-    // The first column is Person: a page called People (B19); "Customer" was the mockup's word. Came from ends the default columns.
+    // The first column is Person: a page called People (B19); "Customer" was the mockup's word. Came from is the Columns
+    // menu's to show (canvas P1 keeps it there: with it the table was wider than the pane at 1440).
     expect(headers).toEqual([
       "person",
       "state",
@@ -85,7 +86,6 @@ test.describe("People on a real workspace", () => {
       "last contact",
       cal?.state === "ok" ? "visits" : "receptionist",
       "offers",
-      "came from",
     ]);
     // Every Offers cell is one of the three answers.
     for (const t of await page.getByTestId("row-offers").allInnerTexts())
@@ -149,8 +149,9 @@ test.describe("People on a real workspace", () => {
     const column = (await page.locator(".cl-prof-titles").boundingBox())!;
     expect(column.width, "the name's column keeps its width at 1000px").toBeGreaterThan(200);
 
-    // Back returns to the list, not to a "client not found" page.
-    await page.locator(".cl-prof-back").click();
+    // Back returns to the list, not to a "client not found" page. In Glass the page draws no way back of its own (the
+    // sidebar's People and the top bar's crumb are it), so the crumb is pressed.
+    await page.locator(".crumbs .crumb-link").first().click();
     await expect(page.getByTestId("people-standing")).toBeVisible();
   });
 
@@ -582,17 +583,17 @@ test.describe("People on a real workspace", () => {
       (await page.locator(".cl-table thead th:not(.pl-col-off)").allInnerTexts())
         .map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase())
         .filter(Boolean);
-    expect(await headers()).toContain("came from");
+    expect(await headers()).not.toContain("came from");
     await page.getByTestId("people-columns").click();
     const menu = page.getByTestId("people-columns-menu");
     await expect(menu).toBeVisible();
     await expect(page.getByTestId("column-name")).toHaveAttribute("aria-disabled", "true");
     await page.getByTestId("column-came_from").click();
     await expect(menu).toBeVisible();
-    await expect.poll(headers).not.toContain("came from");
+    await expect.poll(headers).toContain("came from");
     // A write the catch-all stopped is the answer the poll shows, so a save that moved fails saying where it went.
     await expect
-      .poll(() => (stopped.length ? stopped : saved.some((s) => s.view?.columns?.came_from === false)), {
+      .poll(() => (stopped.length ? stopped : saved.some((s) => s.view?.columns?.came_from === true)), {
         message: "the column's save reached the one address answered here",
       })
       .toBe(true);

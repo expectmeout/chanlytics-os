@@ -20,24 +20,35 @@ import {
   OFFERS_BY_WHATSAPP_NOTE,
   REPLY_WINDOW_WORDS,
   OFFERS_OPT_IN_PHRASES,
+  DEFAULT_CAMPAIGN_CHANNELS,
   audiencePreview,
   formatPhoneDisplay,
   numberHealth,
   optInLink,
+  reachCountsOf,
   toBroadcastVM,
+  toCampaignReportVM,
   purposeOfTemplate,
   type AudienceKind,
   type AudiencePreview,
   type BroadcastVM,
+  type ChannelsReady,
+  type ConsentChannel,
+  type LifecycleReport,
+  type MonthSent,
   type NumberHealth,
   type AskedPurpose,
+  type PreviewVersions,
+  type ReachCounts,
 } from "@chanlytics/contracts";
+import { otherChannelSets } from "@/lib/campaign-channels";
 import { type SurfaceOverride, workspaceOverride } from "@/legacy-bridge/surface-data";
 import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
 import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { everyPerson, viewerId } from "@/surfaces/people/surface";
 import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
+import { cmAddressOf, cmChannelsOf, cmReadyOf, cmVersionsOf } from "../parts/channels";
 
 // The frame (its tab counts and the route table's crumbs) reads this under its old name until it moves.
 declareSurfaceValue("broadcasts", "__BROADCASTS");
@@ -75,6 +86,13 @@ export interface AudienceOption {
    * count of 0 is "nobody said yes" only when that is 0 as well.
    */
   preview: Record<AskedPurpose, AudiencePreview>;
+  /**
+   * Both of the above are for WhatsApp alone, as every broadcast went before. A broadcast may tick more channels, and who
+   * it reaches then depends on the set ticked (each person is reached once, on one of them: contracts reachFor), so the
+   * same preview is kept for each other set the workspace could tick for each purpose, which the composer reads as the
+   * owner ticks and unticks. Absent where there is no other set to tick.
+   */
+  by?: Record<AskedPurpose, Array<{ channels: ConsentChannel[]; preview: AudiencePreview }>>;
   hint: string;
 }
 
@@ -86,16 +104,50 @@ export interface AudienceOption {
  * route and the send job all read `purposeOfTemplate` of the same column and no
  * third rule can appear in a `.jsx` file where the compiler cannot see it.
  */
-export type BroadcastTemplate = TemplateDto & { purpose: AskedPurpose };
+export type BroadcastTemplate = TemplateDto & {
+  purpose: AskedPurpose;
+  /**
+   * The channels the message has a version on, in this row's language (contracts versionsOf): WhatsApp, which it is a row
+   * of, and an email or a text beside it where one was written. A broadcast may go only by these.
+   */
+  channels: ConsentChannel[];
+  /**
+   * The words of that email and text version, in this row's language, for the preview to draw a person on those channels
+   * as they read it (parts/preview-by.ts). Absent on a template stamped before they were kept: the preview then says
+   * so rather than draw WhatsApp's words for an email.
+   */
+  versions?: PreviewVersions;
+};
 
 export interface BroadcastsSurface {
   rows: BroadcastVM[];
   /** The approved WhatsApp templates, with their variables and their purpose. */
   /** Null: the templates read failed -- its own state, never "no template yet". */
   templates: BroadcastTemplate[] | null;
+  /**
+   * Whether the workspace can send on each channel now (server/campaigns/channels-ready.ts); null where that could not be
+   * read. The Send by row is drawn from it (parts/channels.ts cmReadyOf), as are the audiences' previews.
+   */
+  ready: ChannelsReady | null;
+  /**
+   * What the workspace's campaigns have sent by email and by text this calendar month, in its zone (server/campaigns/
+   * month-sent.ts); null where that could not be read, and the page then says nothing of the month. The head says it from half
+   * used (contracts allowanceLine) and the composer before a send (contracts allowanceBeforeSend).
+   */
+  month_sent: MonthSent | null;
   /** Whether the saved lists were read; false leaves the audiences without them, and the page says so. */
   listsRead: boolean;
   audiences: AudienceOption[];
+  /**
+   * Who can hear the workspace, counted once over everyone read from the one rule every page asks (contracts
+   * reachCountsOf over each row's personReachOf): Campaigns' home draws it as its ladder.
+   */
+  reach: ReachCounts;
+  /**
+   * What the campaigns sent over the last thirty days and what came back (the campaign report, as Reports reads it); null where
+   * that read failed, which the home says, and never a number it did not count.
+   */
+  report: LifecycleReport | null;
   /** The WhatsApp number a broadcast goes out on, and what WhatsApp has said about it. */
   number: { present: boolean; display: string | null; health: NumberHealth };
   /** The words for a held-back reason, for the detail view. */
@@ -113,6 +165,8 @@ export interface BroadcastsSurface {
   getYes: string;
   /** The business's own words for the slots that name it, and whether a booking link is on file. */
   businessName: string;
+  /** Its postal address where the Business record holds one: the foot of an email names it (contracts emailFoot). */
+  businessAddress?: string | null;
   bookingLink: boolean;
   /** Why offers go by WhatsApp only, said once on the page (contracts OFFERS_BY_WHATSAPP_NOTE). */
   offersNote: string;
@@ -122,6 +176,12 @@ export interface BroadcastsSurface {
   scheduleMaxDays: number;
   fetchedAt: number;
 }
+
+/** The period Campaigns' home reports over: one of the campaign report's three presets (the route refuses any other). */
+const HOME_REPORT_DAYS = 30;
+
+/** The month's emails and texts the read carries; null where it could not be counted, and on a server from before it was. */
+const monthSentOf = (read: { month_sent?: MonthSent | null }): MonthSent | null => read.month_sent ?? null;
 
 /**
  * Whether a People list is an audience a broadcast offers: not the three consent lists, each a restatement of the
@@ -141,12 +201,22 @@ function listIsAnAudience(
   );
 }
 
-/** The approved WhatsApp templates with the consent each needs; null where the templates read failed. */
+/**
+ * The approved WhatsApp templates with the consent each needs and the channels each has a version on; null where the
+ * templates read failed. The read holds every channel's rows, so an email or a text of the same name and language is a
+ * version of the message.
+ */
 function approvedTemplates(tpl: { templates?: TemplateDto[] } | Error): BroadcastTemplate[] | null {
   if (tpl instanceof Error) return null;
-  return (tpl.templates ?? [])
+  const all = tpl.templates ?? [];
+  return all
     .filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")
-    .map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) }));
+    .map((t) => ({
+      ...t,
+      purpose: purposeOfTemplate(t.category),
+      channels: cmChannelsOf(all, t.name, t.language),
+      versions: cmVersionsOf(all, t.name, t.language),
+    }));
 }
 
 /** What a saved list's chip says under its name: kept by hand, or keeping itself current. */
@@ -154,6 +224,45 @@ function savedHint(byHand: boolean): string {
   return byHand
     ? "A list kept by hand — of those whose yes covers this message"
     : "A list that keeps itself current — of those whose yes covers this message";
+}
+
+/** The campaign report's totals for the home's funnel; null where the report could not be read. */
+function reportOf(read: { report: Parameters<typeof toCampaignReportVM>[0] } | Error): LifecycleReport | null {
+  if (read instanceof Error) {
+    console.error("broadcasts_report_fetch_failed", read.message);
+    return null;
+  }
+  const vm = toCampaignReportVM(read.report);
+  return { days: vm.days, totals: vm.totals };
+}
+
+/**
+ * What an audience carries of who it reaches: both purposes for WhatsApp alone, as every broadcast went (`counts`, with
+ * the preview each is the length of), and the same preview for each other set of channels the workspace could tick for
+ * each purpose (`by`), since who is reached on which channel depends on the set (contracts reachFor). One pass over the
+ * people already in hand for each; `by` is absent where there is no other set to tick.
+ */
+function optionReadings(
+  rows: Parameters<typeof audiencePreview>[0],
+  of: { kind: AudienceKind; id: string | null; ids: Set<string> | null },
+  how: { ready: ChannelsReady; touched: ReadonlySet<string> },
+): Pick<AudienceOption, "counts" | "preview" | "by"> {
+  const { kind, id, ids } = of;
+  const { ready, touched } = how;
+  const reading = (purpose: AskedPurpose, channels: readonly ConsentChannel[]) =>
+    audiencePreview(rows, kind, id, ids, purpose, { channels, ready }, 5, touched);
+  const preview = {
+    conversational: reading("conversational", DEFAULT_CAMPAIGN_CHANNELS),
+    marketing: reading("marketing", DEFAULT_CAMPAIGN_CHANNELS),
+  };
+  const sets = (purpose: AskedPurpose) =>
+    otherChannelSets(ready, purpose).map((channels) => ({ channels, preview: reading(purpose, channels) }));
+  const by = { conversational: sets("conversational"), marketing: sets("marketing") };
+  return {
+    counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending },
+    preview,
+    ...(by.conversational.length > 0 || by.marketing.length > 0 ? { by } : {}),
+  };
 }
 
 /**
@@ -171,7 +280,7 @@ export const broadcastsOverride: SurfaceOverride = {
   // (surface-registry.ts).
   refreshWhen: onlyOnItsPage("broadcasts", DEFAULT_REFRESH_TABLES),
   apply: async () => {
-    const [bc, people, saved, tpl, ch, cfg, tz] = await Promise.all([
+    const [bc, people, saved, tpl, ch, cfg, tz, campaigns] = await Promise.all([
       read("GET broadcasts"),
       read("GET contacts"),
       read("GET segments").catch((e: unknown) => e as Error),
@@ -181,6 +290,9 @@ export const broadcastsOverride: SurfaceOverride = {
       read("GET settings").catch((e: unknown) => e as Error),
       // When a broadcast went or goes, by the business's clock (zone.ts).
       workspaceZone(),
+      // What the last thirty days sent and what came back: Campaigns' home draws it. Its own read, as Reports' is, so a
+      // failure there leaves the runs and the audiences standing and the home says it could not read the numbers.
+      read("GET reports/campaigns", { query: { days: String(HOME_REPORT_DAYS) } }).catch((e: unknown) => e as Error),
     ]);
     const wa =
       ch instanceof Error
@@ -193,26 +305,33 @@ export const broadcastsOverride: SurfaceOverride = {
     // audience counted over one page promised fewer people than the send reaches.
     const { people: everyone } = await everyPerson(people);
     // The pool's one reading (contracts audience-pool.ts), as the send reads it.
-    const rows = poolRowsOf(everyone, { tz, now, viewer: viewerId(), dealsOn: !!people.deals_on });
-    // Both purposes, for every audience, so picking a template re-reads a number
-    // rather than recomputing a list. Two passes over the people already in hand.
-    // Who a run reached within the week, for the note on how many of an audience heard from one.
-    const touched = new Set(bc.touched ?? []);
-    const previewFor = (
-      kind: AudienceKind,
-      id: string | null,
-      ids: Set<string> | null,
-    ): Record<AskedPurpose, AudiencePreview> => ({
-      conversational: audiencePreview(rows, kind, id, ids, "conversational", 5, touched),
-      marketing: audiencePreview(rows, kind, id, ids, "marketing", 5, touched),
+    const rows = poolRowsOf(everyone, {
+      tz,
+      now,
+      viewer: viewerId(),
+      dealsOn: !!people.deals_on,
+      ready: bc.ready,
     });
-    const optionFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => {
-      const preview = previewFor(kind, id, ids);
-      return {
-        counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending },
-        preview,
-      };
+    // The number's health as WhatsApp last said it, and whether each channel can send now (the read's own; where it could
+    // not be read, WhatsApp as before, which the number's banner judges): who an audience reaches is judged against it.
+    const number = {
+      present: !!wa,
+      display: wa?.number_e164 ? formatPhoneDisplay(wa.number_e164) : null,
+      health: numberHealth({
+        quality: wa?.quality ?? null,
+        event: wa?.quality_event ?? null,
+        limit: wa?.messaging_limit ?? null,
+      }),
     };
+    const ready = cmReadyOf(bc.ready);
+    // Both purposes, for every audience, so picking a template re-reads a number
+    // rather than recomputing a list. Two passes over the people already in hand, for WhatsApp alone, as every broadcast
+    // went; and one more for each other set of channels the owner could tick for the purpose, since who is reached on
+    // which channel depends on the set (reachFor). Who a run reached within the week, for the note on how many of an
+    // audience heard from one.
+    const touched = new Set(bc.touched ?? []);
+    const optionFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null) =>
+      optionReadings(rows, { kind, id, ids }, { ready, touched });
     const audiences: AudienceOption[] = [
       {
         kind: "everyone",
@@ -278,19 +397,16 @@ export const broadcastsOverride: SurfaceOverride = {
       listsRead: !(saved instanceof Error),
       templates: approvedTemplates(tpl),
       audiences,
-      number: {
-        present: !!wa,
-        display: wa?.number_e164 ? formatPhoneDisplay(wa.number_e164) : null,
-        health: numberHealth({
-          quality: wa?.quality ?? null,
-          event: wa?.quality_event ?? null,
-          limit: wa?.messaging_limit ?? null,
-        }),
-      },
+      reach: reachCountsOf(rows),
+      report: reportOf(campaigns),
+      number,
+      ready: bc.ready ?? null,
+      month_sent: monthSentOf(bc),
       heldReasons: HELD_REASONS,
       chunk: BROADCAST_CHUNK,
       replyWindow: REPLY_WINDOW_WORDS,
       businessName: brain?.business_name || "the business",
+      businessAddress: cmAddressOf(brain),
       bookingLink: !!brain?.booking_link,
       offersNote: OFFERS_BY_WHATSAPP_NOTE,
       optIn: {

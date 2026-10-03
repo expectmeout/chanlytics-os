@@ -204,9 +204,12 @@ const REACHED = {
   // People › Lists is People's rail; `segments/<id>` still lands there.
   segments: ["Lists", "clients"],
   calendar: ["Calendar", "calendar"],
-  outbound: ["Playbooks", "outbound"],
-  broadcasts: ["Broadcasts", "broadcasts"],
-  messages: ["Templates", "messages"],
+  // Campaigns' home; the old Playbooks list, `outbound`, is a door to it (contracts doorOf), so its jump is the home's.
+  campaigns: ["Campaigns", "campaigns"],
+  outbound: ["Campaigns", "campaigns"],
+  // Campaigns' rooms: Sent and the Library, each still found by the name it went by (ask-palette.test.mjs).
+  broadcasts: ["Sent", "broadcasts"],
+  messages: ["Library", "messages"],
   start: ["Setting up", "start"],
   "admin/profile": ["Profile", "admin/profile"],
   "admin/workspace": ["Settings", "admin/workspace"],

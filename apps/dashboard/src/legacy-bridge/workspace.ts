@@ -16,7 +16,7 @@
  * Its own module, importing only those pure words, so the client and the surfaces can both read it without either
  * importing the other.
  */
-import { movedAddress, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "@chanlytics/contracts";
+import { doorOf, movedAddress, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "@chanlytics/contracts";
 import type { AddressParts } from "@chanlytics/contracts";
 import { onOnePage, routeHasPage } from "../surfaces/routes";
 
@@ -202,7 +202,9 @@ export function setAppRouter(router: AppRouter | null): void {
  * replaces the address it stands at): the router's page for the route draws every address it takes and already stands
  * there, so that is a pushed or replaced entry like any other, with no request for a page that is drawn.
  */
-export function goToRoute(route: string, opts: GoOptions = {}, win: AddressWindow = window): void {
+export function goToRoute(asked: string, opts: GoOptions = {}, win: AddressWindow = window): void {
+  // A route that retired lands on the one that replaced it (`outbound/pb-1` on `campaigns/moment:pb-1`) in one move.
+  const route = doorOf(asked) ?? asked;
   const to = hrefOfRoute(route, win);
   const here = to.startsWith("#") ? win.location.hash : win.location.pathname;
   // A move within one route's page (`inbox/th-1` to `inbox/th-2`) stays on the patched history: the page follows the
@@ -226,7 +228,8 @@ const warmed = new Set<string>();
  * on a phone, with the swiped page already gone off the screen). Warmed in full, the same move asks for nothing.
  * Nothing for the page already on screen, a route the frame draws itself, or one warmed already.
  */
-export function warmRoute(route: string, win: AddressWindow = window): void {
+export function warmRoute(asked: string, win: AddressWindow = window): void {
+  const route = doorOf(asked) ?? asked;
   if (!appRouter?.prefetch || !routeHasPage(route)) return;
   const to = hrefOfRoute(route, win);
   if (to.startsWith("#") || warmed.has(to) || onOnePage(routeOnScreen(win), route)) return;

@@ -1400,6 +1400,20 @@
       "rate": "settings",
       "spend": false
     },
+    "DELETE templates/versions/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST templates/versions": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
     "GET today": {
       "kind": "read",
       "scope": "workspace",

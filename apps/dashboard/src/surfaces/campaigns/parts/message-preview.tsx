@@ -24,16 +24,24 @@
  * Nothing here is WhatsApp's colour or WhatsApp's furniture: the frame is this
  * product's own tokens, in both themes. It is a truthful drawing of a message,
  * not a costume.
+ *
+ * A campaign that goes by more than WhatsApp reaches each person on one channel, and the preview is that channel's
+ * version of the message (parts/preview-by.ts): a text is the same bubble with its own words and the STOP line under
+ * them, an email is a mail (`mail`: its subject, its words and the foot the sender adds), each named in a quiet label
+ * (`via`). The slots are the same numbered ones on every channel, so they stay the composer's controls in each.
  */
 import { Fragment, useMemo } from "react";
 import type { ReactNode } from "react";
-import { personInitials } from "@chanlytics/contracts";
+import { PREVIEW_WORDS, personInitials } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
+import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 
 interface MpPart {
   kind: "text" | "slot";
   text: string;
+  /** A slot's place among the message's values, from 0 ({{1}} is 0). */
+  at?: number;
 }
 
 // A body's numbered slots, split into parts. bcRender, pbRender and tcRender
@@ -50,7 +58,7 @@ export const mpParts = (body: string | null | undefined, values?: readonly unkno
     const v = values && values[at];
     // A slot nobody has filled keeps its own marker: the composer's job is to
     // show a hole as a hole, not to quietly render "{{2}}" as words.
-    out.push({ kind: "slot", text: typeof v === "string" && v !== "" ? v : m[0] });
+    out.push({ kind: "slot", text: typeof v === "string" && v !== "" ? v : m[0], at });
     last = m.index + m[0].length;
   }
   if (last < src.length) out.push({ kind: "text", text: src.slice(last) });
@@ -106,7 +114,13 @@ interface MpButton {
   kind: string;
 }
 
-interface MessagePreviewProps {
+/** An email's own furniture: its subject, and the foot the sender adds under the words (contracts emailFoot). */
+interface MpMail {
+  subject: string | null;
+  foot: string;
+}
+
+export interface MessagePreviewProps {
   from?: string | null;
   body?: string | null;
   values?: readonly unknown[] | null;
@@ -116,6 +130,21 @@ interface MessagePreviewProps {
   at?: number | null;
   held?: string | null;
   compact?: boolean;
+  /** Where the person reads it, as a quiet label over the preview ("By email"); none draws none (parts/preview-by.ts). */
+  via?: string | null;
+  /** The line under the business's name in the frame: WhatsApp's "Business account" unless the channel says otherwise. */
+  kind?: string;
+  /** An email: drawn as a mail, its subject over the words and its foot under them, not as a bubble. */
+  mail?: MpMail | null;
+  /** Under the preview: why the person's own channel could not be drawn, where it could not. */
+  note?: string | null;
+  /**
+   * Each slot drawn by the composer that fills it (its place among the values, and the words it shows now): a slot
+   * the owner can change is a control in the bubble, where the message reads (the compact composer, C2's round 2:
+   * "the bubble IS the fields"); its words come plain, since a link inside a control is none. Without it a slot is
+   * its tinted words, as a customer reads them.
+   */
+  slot?: ((at: number, text: string) => ReactNode) | null;
   children?: ReactNode;
   testid?: string | null;
 }
@@ -132,6 +161,164 @@ function bubbleLabel(m: {
   return `Preview — ${from || "your business"} sends: ${header ? `${header}. ` : ""}${words}${footer ? `. ${footer}` : ""}${rows.length ? `. Buttons: ${rows.map((b) => b.text).join(", ")}` : ""}`;
 }
 
+/** The body's parts as the preview draws them: a slot the composer fills is its control, else tinted words, links lifted out. */
+function mpBody(parts: readonly MpPart[], slot: MessagePreviewProps["slot"], key: () => string): ReactNode[] {
+  return parts.map((p, i) =>
+    p.kind === "slot" && slot && p.at !== undefined ? (
+      <Fragment key={i}>{slot(p.at, p.text)}</Fragment>
+    ) : p.kind === "slot" ? (
+      <span key={i} className="mp-slot">
+        {mpLinked(p.text, key)}
+      </span>
+    ) : (
+      <Fragment key={i}>{mpLinked(p.text, key)}</Fragment>
+    ),
+  );
+}
+
+interface MailFrameProps {
+  from: string | null | undefined;
+  kind: string;
+  mail: MpMail;
+  parts: readonly MpPart[];
+  values: readonly unknown[] | null;
+  words: string;
+  slot: MessagePreviewProps["slot"];
+  when: string | null;
+  keyer: () => string;
+}
+
+/** An email as its person reads it: who from, when, the subject, the words, and the foot the sender adds. */
+function MailFrame({ from, kind, mail, parts, values, words, slot, when, keyer }: MailFrameProps) {
+  const subject = mail.subject ? mpFill(mail.subject, values) : null;
+  const label = `Preview — ${from || "your business"} emails${subject ? `: ${subject}` : ""}. ${words}. ${mail.foot.replace(/\n/g, " ")}`;
+  return (
+    <figure className="mp-frame mp-mail-frame">
+      <figcaption className="mp-head">
+        <span className="mp-avatar" aria-hidden="true">
+          {mpInitials(from)}
+        </span>
+        <span className="mp-who">
+          <span className="mp-name">{from || "Your business"}</span>
+          <span className="mp-kind">{kind}</span>
+        </span>
+      </figcaption>
+      <div className="mp-mail" role={slot ? "group" : "img"} aria-label={label}>
+        {when && (
+          <span className="mp-mail-when" aria-hidden="true">
+            {when}
+          </span>
+        )}
+        {subject && (
+          <span className="mp-subject" aria-hidden={slot ? undefined : "true"}>
+            {subject}
+          </span>
+        )}
+        <span className="mp-body" aria-hidden={slot ? undefined : "true"}>
+          {mpBody(parts, slot, keyer)}
+        </span>
+        <span className="mp-mail-foot" aria-hidden="true" data-testid="mp-mail-foot">
+          {mail.foot}
+        </span>
+      </div>
+    </figure>
+  );
+}
+
+interface BubbleFrameProps {
+  from: string | null | undefined;
+  kind: string;
+  header: string | null;
+  footer: string | null;
+  rows: readonly MpButton[];
+  parts: readonly MpPart[];
+  words: string;
+  slot: MessagePreviewProps["slot"];
+  stamp: string | null;
+  day: string | null;
+  held: string | null;
+  keyer: () => string;
+}
+
+/** A message as its person reads it in a chat: the business's name in the header, the bubble, its buttons, and Not sent where it is not. */
+function BubbleFrame({
+  from,
+  kind,
+  header,
+  footer,
+  rows,
+  parts,
+  words,
+  slot,
+  stamp,
+  day,
+  held,
+  keyer,
+}: BubbleFrameProps) {
+  return (
+    <figure className="mp-frame">
+      <figcaption className="mp-head">
+        <span className="mp-avatar" aria-hidden="true">
+          {mpInitials(from)}
+        </span>
+        <span className="mp-who">
+          <span className="mp-name">{from || "Your business"}</span>
+          <span className="mp-kind">{kind}</span>
+        </span>
+      </figcaption>
+      <div className="mp-thread">
+        {day && <span className="mp-day">{day}</span>}
+        {/* One label for a screen reader, so the preview is heard as a preview
+            and not as the page telling the operator something; where its slots are the composer's controls, it is
+            a group of them, read as it is. */}
+        <div
+          className="mp-bubble"
+          role={slot ? "group" : "img"}
+          aria-label={bubbleLabel({ from, header, footer, words, rows })}
+        >
+          {/* WhatsApp draws a text heading in bold at the top of the bubble. */}
+          {header && (
+            <span className="mp-header" aria-hidden="true">
+              {header}
+            </span>
+          )}
+          <span className="mp-body" aria-hidden={slot ? undefined : "true"}>
+            {mpBody(parts, slot, keyer)}
+          </span>
+          {footer && (
+            <span className="mp-foot" aria-hidden="true">
+              {footer}
+            </span>
+          )}
+          {stamp && (
+            <span className="mp-stamp" aria-hidden="true">
+              {stamp}
+            </span>
+          )}
+        </div>
+        {/* Under the bubble, divided, the way WhatsApp draws them. For an
+            appointment business the "Book now" button IS the message, and it
+            was the one part of it the operator could not see. */}
+        {rows.length > 0 && (
+          <div className="mp-buttons" aria-hidden="true" data-testid="mp-buttons">
+            {rows.map((b, i) => (
+              <span key={i} className="mp-button">
+                <Icon name={MP_BUTTON_ICON[b.kind] || "external"} size={11} />
+                {b.text}
+              </span>
+            ))}
+          </div>
+        )}
+        {held && (
+          <span className="mp-mark" data-testid="mp-held">
+            <Icon name="x" size={11} /> Not sent
+          </span>
+        )}
+      </div>
+    </figure>
+  );
+}
+
 /**
  * One message, as the customer receives it.
  *
@@ -144,6 +331,9 @@ function bubbleLabel(m: {
  *   at       when it really goes, in ms; null draws no time
  *   held     why this person is not sent to, or null
  *   compact  a narrower frame, for a card or a row
+ *   via      where the person reads it, a quiet label over it (a campaign that goes by more than WhatsApp)
+ *   kind     the line under the business's name: WhatsApp's "Business account" unless the channel says otherwise
+ *   mail     an email: its subject and foot, drawn as a mail and not a bubble
  */
 export function MessagePreview({
   from,
@@ -155,6 +345,11 @@ export function MessagePreview({
   at = null,
   held = null,
   compact = false,
+  via = null,
+  kind = PREVIEW_WORDS.kind.whatsapp,
+  mail = null,
+  note = null,
+  slot = null,
   children = null,
   testid = null,
 }: MessagePreviewProps) {
@@ -164,75 +359,51 @@ export function MessagePreview({
   const words = mpFill(body, values);
   const rows: MpButton[] = Array.isArray(buttons) ? buttons : [];
   let seq = 0;
-  const key = () => `l${seq++}`;
+  const keyer = () => `l${seq++}`;
   return (
     <div
       className={`mp${compact ? " mp-compact" : ""}${held ? " mp-held" : ""}`}
       data-testid={testid || "message-preview"}
     >
-      <figure className="mp-frame">
-        <figcaption className="mp-head">
-          <span className="mp-avatar" aria-hidden="true">
-            {mpInitials(from)}
-          </span>
-          <span className="mp-who">
-            <span className="mp-name">{from || "Your business"}</span>
-            <span className="mp-kind">Business account</span>
-          </span>
-        </figcaption>
-        <div className="mp-thread">
-          {day && <span className="mp-day">{day}</span>}
-          {/* One label for a screen reader, so the preview is heard as a preview
-              and not as the page telling the operator something. */}
-          <div className="mp-bubble" role="img" aria-label={bubbleLabel({ from, header, footer, words, rows })}>
-            {/* WhatsApp draws a text heading in bold at the top of the bubble. */}
-            {header && (
-              <span className="mp-header" aria-hidden="true">
-                {header}
-              </span>
-            )}
-            <span className="mp-body" aria-hidden="true">
-              {parts.map((p, i) =>
-                p.kind === "slot" ? (
-                  <span key={i} className="mp-slot">
-                    {mpLinked(p.text, key)}
-                  </span>
-                ) : (
-                  <Fragment key={i}>{mpLinked(p.text, key)}</Fragment>
-                ),
-              )}
-            </span>
-            {footer && (
-              <span className="mp-foot" aria-hidden="true">
-                {footer}
-              </span>
-            )}
-            {stamp && (
-              <span className="mp-stamp" aria-hidden="true">
-                {stamp}
-              </span>
-            )}
-          </div>
-          {/* Under the bubble, divided, the way WhatsApp draws them. For an
-              appointment business the "Book now" button IS the message, and it
-              was the one part of it the operator could not see. */}
-          {rows.length > 0 && (
-            <div className="mp-buttons" aria-hidden="true" data-testid="mp-buttons">
-              {rows.map((b, i) => (
-                <span key={i} className="mp-button">
-                  <Icon name={MP_BUTTON_ICON[b.kind] || "external"} size={11} />
-                  {b.text}
-                </span>
-              ))}
-            </div>
-          )}
-          {held && (
-            <span className="mp-mark" data-testid="mp-held">
-              <Icon name="x" size={11} /> Not sent
-            </span>
-          )}
-        </div>
-      </figure>
+      {via && (
+        <span className="mp-via" data-testid="mp-via">
+          {via}
+        </span>
+      )}
+      {mail ? (
+        <MailFrame
+          from={from}
+          kind={kind}
+          mail={mail}
+          parts={parts}
+          values={values}
+          words={words}
+          slot={slot}
+          when={day && stamp ? `${day} · ${stamp}` : (day ?? stamp)}
+          keyer={keyer}
+        />
+      ) : (
+        <BubbleFrame
+          from={from}
+          kind={kind}
+          header={header}
+          footer={footer}
+          rows={rows}
+          parts={parts}
+          words={words}
+          slot={slot}
+          stamp={stamp}
+          day={day}
+          held={held}
+          keyer={keyer}
+        />
+      )}
+      {/* Why the channel's own version is not drawn: the page holds none for it, so WhatsApp's words stand (preview-by.ts). */}
+      {note && (
+        <p className="mp-note warn" data-testid="mp-version-note">
+          {note}
+        </p>
+      )}
       {children}
     </div>
   );
@@ -249,16 +420,26 @@ interface PreviewStepperProps {
   onStep: (index: number) => void;
   note?: ReactNode;
   tone?: string | null;
+  /** What the two presses are called to a screen reader: people by default, the channels a playbook's walk steps through. */
+  words?: { before: string; next: string };
 }
 
 /**
- * Who is looking at it: one person at a time, out of the ones this send reaches.
+ * Who is looking at it: one person at a time, out of the ones this send reaches (a playbook, which names no one, steps
+ * through the channels it reaches instead): "‹ Ana Reyes · 1 of 7 ›".
  *
  * An audience chip showed a count and never a person, so the last thing an owner
  * saw before pressing Send was a number. These are rows the page already holds --
  * the same rows the count is a length of.
  */
-export function PreviewStepper({ people, index, onStep, note = null, tone = null }: PreviewStepperProps) {
+export function PreviewStepper({
+  people,
+  index,
+  onStep,
+  note = null,
+  tone = null,
+  words = PREVIEW_WORDS.walk.people,
+}: PreviewStepperProps) {
   if (!people || people.length < 2) return null;
   const p = people[index] || people[0];
   if (!p) return null;
@@ -268,21 +449,23 @@ export function PreviewStepper({ people, index, onStep, note = null, tone = null
       <div className="mp-step" data-testid="mp-step">
         {/* The icon set has one chevron and it points right; the back button
             mirrors it rather than adding a second glyph for one arrow. */}
-        <button
-          type="button"
+        <Button
+          iconOnly
+          variant="quiet"
+          size="sm"
           className="mp-step-btn mp-step-back"
           onClick={go(-1)}
-          aria-label="The person before this one"
+          aria-label={words.before}
         >
           <Icon name="chevron" size={13} />
-        </button>
+        </Button>
         <span className="mp-step-who">
           <span className="mp-step-name">{p.label}</span>
           <span className="mp-step-pos tabular">{p.position}</span>
         </span>
-        <button type="button" className="mp-step-btn" onClick={go(1)} aria-label="The next person">
+        <Button iconOnly variant="quiet" size="sm" className="mp-step-btn" onClick={go(1)} aria-label={words.next}>
           <Icon name="chevron" size={13} />
-        </button>
+        </Button>
       </div>
       {note && (
         <p className={`mp-note${tone ? ` ${tone}` : ""}`} data-testid="mp-note">

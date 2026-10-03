@@ -17,8 +17,13 @@ import { everyone } from "./everyone";
 export const audiencePool: Reader<undefined, AudiencePool> = {
   name: "audiencePool",
   async read(rc) {
-    const [zone, sellsBy] = await Promise.all([load(rc, facts.facts, undefined), load(rc, facts.sellsBy, undefined)]);
-    const data = await audiencePoolFrom(rc.ctx, rc.tenantId, zone.data.timezone, rc.now, {
+    const [zone, sellsBy, ready] = await Promise.all([
+      load(rc, facts.facts, undefined),
+      load(rc, facts.sellsBy, undefined),
+      // What the workspace can send on now: each row's reach is judged against it (readers/facts.ts, the turn's own read).
+      load(rc, facts.channelsReady, undefined),
+    ]);
+    const data = await audiencePoolFrom(rc.ctx, rc.tenantId, zone.data.timezone, rc.now, ready.data, {
       sellsBy: sellsBy.data,
       people: () => load(rc, everyone, undefined).then((r) => r.data),
       known: facts.zoneAndSettings(rc),

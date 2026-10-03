@@ -26,12 +26,32 @@ export interface PersonRowDto {
   phone_e164: string | null;
   /** As normalizeEmail stores it (00125). A person may have this and no number. */
   email: string | null;
+  /**
+   * When that address stopped being sent to (a permanent bounce, a complaint, the provider's own suppression; 00287),
+   * or null: a campaign does not pick email for a person who has it (whyNotReceive). Absent on a row read before it.
+   */
+  email_suppressed_at?: string | null;
   consent: string | null;
   consent_source: string | null;
   marketing_consent?: string | null;
   marketing_consent_source?: string | null;
   marketing_consent_updated_at?: string | null;
   consent_updated_at: string | null;
+  /**
+   * The channels each yes covers (consent-channels.ts; the database keeps them from each consent event). Absent or null:
+   * a yes recorded before the channels were, which covers WhatsApp alone.
+   */
+  consent_channels?: string[] | null;
+  marketing_channels?: string[] | null;
+  /** When the receptionist last asked them for the yes to offers (it asks once), or null if never. */
+  offers_asked_at?: string | null;
+  /**
+   * Email's own answer about offers (00174): unknown | opted_in | opted_out, how it was given and when. Absent on a row read
+   * from a database 00288 has not reached, whose rows are then read as having no answer (an offer by email fails closed).
+   */
+  email_marketing?: string | null;
+  email_marketing_source?: string | null;
+  email_marketing_updated_at?: string | null;
   dnc: boolean | null;
   channels: string[] | null;
   conversation_count: number | null;
@@ -50,6 +70,14 @@ export interface PersonRowDto {
   last_message_sender: string | null;
   last_inbound_text: string | null;
   last_inbound_at: string | null;
+  /** The channel of their last written message to the business (whatsapp | sms | email), or null: reachFor's first pick. */
+  last_inbound_channel?: string | null;
+  /**
+   * When they last wrote words that were a person's own (00288): last_inbound_at less an automatic reply, a list's mail and a
+   * delivery report. The "they wrote" of a relationship on record (consent.ts relationshipOnRecord). Absent on a row read
+   * before the column existed, which is none.
+   */
+  last_wrote_at?: string | null;
   last_call_at: string | null;
   /** The last call THEY placed — the one that means they reached out. */
   last_inbound_call_at?: string | null;

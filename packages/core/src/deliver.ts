@@ -47,15 +47,20 @@ import {
   type SendPurpose,
 } from "@chanlytics/contracts";
 import {
+  emailOffersPause,
   emitEvent,
   outreachFactsOf,
   stampEmailLeftAs,
   recordCarrierOptOut,
   recordOutbound,
+  textLineFacts,
+  wireRowOf,
   type Database,
   type EventData,
   type Json,
 } from "@chanlytics/db";
+import { isOfferByEmail, offerFacts, offerRefusal, type OfferFacts } from "./deliver-email";
+import { textRefusal } from "./deliver-text";
 import { putOnWire, type WireUnavailable } from "./wire-senders";
 
 export type { DeliveryRefusal };
@@ -176,8 +181,6 @@ function kindOf(d: Delivery): SendKind {
   return d.messageId ? "draft" : "answer";
 }
 
-/** Why the door stayed shut: contracts' closed list (consent.ts DELIVERY_REFUSALS), re-exported above. */
-
 export type Delivered =
   | { outcome: "sent"; messageId: string | null; externalId: string | null }
   | { outcome: "refused"; reason: DeliveryRefusal; messageId: string | null }
@@ -202,6 +205,8 @@ export type Delivered =
 export interface DeliverPorts {
   db: Db;
   wire: Wire;
+  /** Whether this deployment can send an OFFER by email now (its campaigns domain is verified: the edge says it). Absent: no. */
+  emailOffers?: boolean;
   /** Epoch ms; injected so the pause is testable. */
   now?: () => number;
 }
@@ -224,8 +229,15 @@ interface WireFacts {
     consent: string | null;
     dnc: boolean | null;
     marketing_consent: string | null;
+    /**
+     * The channels each yes covers (consent-channels.ts; the database keeps them by each consent event). Null, or absent
+     * from the answer of a database 00286 has not reached (wireRowOf): WhatsApp alone.
+     */
+    consent_channels?: string[] | null;
+    marketing_channels?: string[] | null;
     /** Email's own answer (00174): opted_out once they pressed Unsubscribe. */
     email_marketing: string | null;
+    has_relationship?: boolean | null; // wrote, called or has a deal (00288): the way into an offer by email; absent: none
     erased_at: string | null;
     erasing_since: string | null;
     /** The address on file now, and whether it has stopped being sent to (00125, 00126). */
@@ -233,6 +245,9 @@ interface WireFacts {
     email_suppressed_at: string | null;
   };
   tenantStatus: string | null;
+  /** The texting line a text leaves on (db textLineFacts); read for a text alone, null for every other send. */
+  smsLine: Awaited<ReturnType<typeof textLineFacts>>;
+  offers: OfferFacts; // what an offer by email asks of the deployment and the workspace (deliver-email.ts)
 }
 
 /**
@@ -241,15 +256,10 @@ interface WireFacts {
  * "we could not check" is not "yes" -- the outbox retries, the broadcast
  * leaves the person queued, and the voice agent says it could not send.
  */
-async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
-  const { data, error } = await db
-    .from("conversations")
-    .select(
-      "paused_until, control_kind, control_until, contact_id, contacts (consent, dnc, marketing_consent, email_marketing, erased_at, erasing_since, email, email_suppressed_at), tenants (status)",
-    )
-    .eq("id", d.conversationId)
-    .eq("tenant_id", d.tenantId)
-    .maybeSingle();
+async function wireFacts({ db, emailOffers }: DeliverPorts, d: Delivery): Promise<WireFacts> {
+  // Read again without the channel arrays on a database 00286 has not reached (wireRowOf): a yes then covers WhatsApp alone.
+  const relationship = isOfferByEmail(d); // the one send that asks whether they have a relationship with the business
+  const { data, error } = await wireRowOf(db, { tenantId: d.tenantId, conversationId: d.conversationId, relationship });
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data as unknown as {
@@ -268,6 +278,8 @@ async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
       consent: null,
       dnc: null,
       marketing_consent: null,
+      consent_channels: null,
+      marketing_channels: null,
       email_marketing: null,
       erased_at: null,
       erasing_since: null,
@@ -275,6 +287,8 @@ async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
       email_suppressed_at: null,
     },
     tenantStatus: row.tenants?.status ?? null,
+    smsLine: d.channel === "sms" ? await textLineFacts(db, d.tenantId) : null,
+    offers: await offerFacts(d, emailOffers, () => emailOffersPause(db, d.tenantId)),
   };
 }
 
@@ -374,20 +388,16 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   // that survived says -- from the moment they asked (erasing_since, written
   // before anything is destroyed), not only once the erasure finished.
   if (f.contact.erased_at || f.contact.erasing_since) return "erased";
-  // The texting line is registered with the carriers for replies and
-  // appointment messages, and nothing else: an informational campaign, filed
-  // that way after the fourth refusal (30896). A promotion by text would go out
-  // under a consent the carriers were never told about, whatever the person
-  // said to us -- so it does not, whoever asks. Offers and news go by WhatsApp.
-  if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
   // A cold message goes by email and nothing else: a phone's lines are registered, and consented, for people who
   // wrote to the business, never for businesses it found.
   if (d.purpose === "outreach" && d.channel !== "email") return "outreach_is_email_only";
+  // What a text carries and leaves on: no promotion, and only a line the carriers approved (deliver-text.ts).
+  const text = d.channel === "sms" ? textRefusal(d.purpose, f.smsLine) : null;
+  if (text) return text;
   if (d.channel === "email") {
-    // Email carries replies and nothing promotional until a release of its own
-    // brings the unsubscribe a promotion owes (the plan's §11): refused here,
-    // at the door, rather than hidden in a menu.
-    if (d.purpose === "marketing") return "email_marketing_disabled";
+    // An offer by email goes only where the deployment, the workspace and the email allow it (deliver-email.ts).
+    const offer = offerRefusal(d, f.offers);
+    if (offer) return offer;
     // A permanent bounce, a complaint or the provider's own list: a fact about
     // the address, kept apart from any one message's delivery (00126).
     if (f.contact.email_suppressed_at) return "email_suppressed";
@@ -397,7 +407,8 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
     if (f.contact.email !== d.to) return "recipient_changed";
   }
   // Consent outranks everything, asked with this message's own purpose.
-  const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
+  // A yes covers the channels it was given for: asked on the channel this message goes out on (consent-channels.ts).
+  const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive, channel: d.channel });
   if (!may.ok) return may.reason;
   // Outreach's own rules, after the person's no and before any pause: only to a business the finder found, only with
   // the one-click unsubscribe the large mailbox providers require, only from a domain the workspace owns and has
@@ -488,6 +499,7 @@ async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
   // A campaign's email is no person speaking on this thread, whatever its row says wrote the words: a broadcast's, and
   // a reach-out's (written queued, and perhaps refused at this door, in a thread the receptionist is drafting in).
+  // public.automated_send (00285) lists the same sources in SQL, so the two change together.
   const spoke = (newer ?? []).find((m) => {
     const source = (m.meta as { source?: unknown } | null)?.source;
     return source !== "broadcast" && source !== "reach_out";
@@ -576,7 +588,7 @@ function assertFrozenFor(d: Delivery): void {
 export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Delivered> {
   assertFrozenFor(d);
   const nowMs = (ports.now ?? Date.now)();
-  const facts = await wireFacts(ports.db, d);
+  const facts = await wireFacts(ports, d);
   const outreach =
     d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts, nowMs) : null;
 
@@ -602,7 +614,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
         consent: contact.consent,
         dnc: contact.dnc,
         marketing_consent: contact.marketing_consent,
-        ...(d.purpose === "outreach" ? { email_marketing: contact.email_marketing } : {}),
+        ...(d.purpose === "outreach" || d.purpose === "marketing" ? { email_marketing: contact.email_marketing } : {}),
         ...(overtakenBy ? { after: overtakenBy } : {}),
         ...said,
       });

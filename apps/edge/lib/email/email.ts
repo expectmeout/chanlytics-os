@@ -15,12 +15,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mailboxOfTenant, sendingDomainsOf, type Database } from "../packages/db.js";
 import { emailSender, wireUnavailable, type EmailRoute, type Sender, type WireUnavailable } from "../packages/core.js";
-import { fetchReceivedEmail, sendsAs, sendsAsOwnDomain } from "../packages/channels.js";
+import { fetchReceivedEmail, sendsAs, sendsAsCampaigns, sendsAsOwnDomain } from "../packages/channels.js";
 import { emailDomainOf } from "../packages/contracts.js";
 import type { JobContext } from "../packages/jobs.js";
 import { erasedBeforeEmail } from "../erased.js";
 import { notify, type NotifyMessage } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
+import type { CampaignsLane } from "./campaigns-domain.js";
 import { logger, errField } from "../log.js";
 import { env } from "../env.js";
 
@@ -29,6 +30,15 @@ type Db = SupabaseClient<Database>;
 /** The deployment's mail domain, lower-cased; null when email is off here (contracts emailDomainOf, as the dashboard reads it). */
 export function emailDomain(): string | null {
   return emailDomainOf(env.EMAIL_DOMAIN);
+}
+
+/**
+ * Whether this deployment's email wire can send at all: it has a mail domain AND the provider's key (emailWireFor,
+ * emailIntake: the job runner's email context exists under the same two, and a broadcast's email request port needs
+ * it). A run that counted email ready on the domain alone would enrol people the send then holds, `no_channel`.
+ */
+export function emailCanSend(): boolean {
+  return !!emailDomain() && !!env.RESEND_API_KEY;
 }
 
 /** A switch's value that was set and could not be read is said once per instance: it falls back, and must not do so unseen. */
@@ -77,9 +87,15 @@ export function coldReplyDomains(): string[] {
  * credentials. The hosted mailbox leaves on the platform's account; each own
  * domain the workspace has verified leaves on the cold account (Reach out),
  * when this deployment holds its key. Replies to either come back to the
- * mailbox, so a workspace with no mailbox has no email line at all.
+ * mailbox, so a workspace with no mailbox has no email line at all. With `campaigns` (the job sends offers and the
+ * deployment's campaigns domain is verified: campaigns-domain.ts) the same mailbox may also send OFFERS, from the campaigns
+ * domain, on the platform's account; it is the only route an offer may take, and no other send may take it.
  */
-export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | null | undefined | WireUnavailable> {
+export async function emailWireFor(
+  db: Db,
+  tenantId: string,
+  campaigns: CampaignsLane | null = null,
+): Promise<Sender | null | undefined | WireUnavailable> {
   const domain = emailDomain();
   if (!domain) return undefined;
   const apiKey = env.RESEND_API_KEY;
@@ -87,6 +103,8 @@ export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | n
   const mailbox = await mailboxOfTenant(db, tenantId);
   if (!mailbox) return null;
   const routes: EmailRoute[] = [{ lane: "hosted", cfg: { apiKey }, as: sendsAs(mailbox, domain) }];
+  if (campaigns)
+    routes.push({ lane: "campaigns", cfg: { apiKey }, as: sendsAsCampaigns(mailbox, campaigns.domain, domain) });
   // A held domain has no route, but a person's reply frozen with it says so when it goes as the mailbox (left_as_why).
   const held: string[] = [];
   const coldKey = env.RESEND_COLD_API_KEY;
@@ -138,13 +156,17 @@ export function emailWaitingMessage(n: EmailWaiting): NotifyMessage {
   };
 }
 
-/** Email's intake as the job runner is handed it; undefined when email is off here or there is no provider key to fetch with. */
-export function emailIntake(db: Db): JobContext["email"] | undefined {
+/**
+ * Email's intake as the job runner is handed it; undefined when email is off here or there is no provider key to fetch
+ * with. `campaigns` is bound for a job that sends offers, while the campaigns domain is verified (campaigns-domain.ts).
+ */
+export function emailIntake(db: Db, campaigns: CampaignsLane | null = null): JobContext["email"] | undefined {
   const domain = emailDomain();
   const apiKey = env.RESEND_API_KEY;
   if (!domain || !apiKey) return undefined;
   return {
     domain,
+    ...(campaigns ? { campaigns } : {}),
     fetch: (receivedId) => fetchReceivedEmail({ apiKey }, receivedId),
     erasedBefore: (tenantId, address, receivedAtIso) => erasedBeforeEmail(db, tenantId, address, receivedAtIso),
     // Best-effort by contract: the thread is already flagged, which is the

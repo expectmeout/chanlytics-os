@@ -1,36 +1,51 @@
 /**
- * What the frame says around Campaigns' three pages (moved from the rows `drawPlaybooks`, `drawTemplates` and
- * `drawBroadcasts` of legacy/pages/app-routes.jsx, decision 0015, step 7): the crumbs each address wears, by the address's
- * own word (`outbound/<playbook>`, `broadcasts/run:<run>`, `broadcasts/get-yes`, `broadcasts/<list>`) and by what the surface
- * holds, so a crumb names a playbook or a run only once it has been read. The frame asks these as it draws
- * (src/surfaces/routes.ts). The path says `playbooks` and `templates` (contracts ROUTE_WORDS); the shell's routes here are
- * still `outbound` and `messages`, which is what every link, bell row and hash address says.
+ * What the frame says around Campaigns' pages (moved from the rows `drawPlaybooks`, `drawTemplates` and `drawBroadcasts` of
+ * legacy/pages/app-routes.jsx, decision 0015, step 7; then Campaigns' home, 3 Oct 2026): the crumbs each address wears, by the
+ * address's own word (`campaigns/moment:<playbook>`, `campaigns/new`, `broadcasts/run:<run>`, `broadcasts/get-yes`,
+ * `broadcasts/<list>`, which lands on `campaigns/new:to:<list>`) and by what the surface holds, so a crumb names a playbook or a run only once it has been read. The
+ * frame asks these as it draws (src/surfaces/routes.ts). Campaigns is one page, its home (`campaigns`), and the other two are
+ * its rooms, Sent (the shell's `broadcasts`) and the Library (`messages`, the path's `templates`); the old Playbooks list,
+ * `outbound`, lands on the home (contracts doorOf). Every crumb's first word, Campaigns, goes back to the home.
  */
+import { CAMPAIGN_ROOMS } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
+import { parseHome } from "./home/address";
 
 /** A crumb: its words, and where it goes. */
 type Crumb = string | { label: string; to: string };
 
-/** The top bar's one act of a route, as the frame draws it (src/surfaces/routes.ts SurfaceAct). */
-interface Act {
-  label: string;
-  glyph: string;
-  primary?: boolean;
-  ask?: boolean;
-}
+/** Campaigns, the first crumb of every address: the way back to the home. */
+const CAMPAIGNS: Crumb = { label: CAMPAIGN_ROOMS.home, to: "campaigns" };
 
 /**
- * Playbooks' crumbs: `outbound/<id>` opens one playbook's card, named once the playbooks hold it. A real workspace's New
- * playbook is the page's own, at the right of its one line; only the page's demo has the top bar's, which opens Ask.
+ * The home's crumbs: `campaigns/moment:<id>` opens one playbook (or reach-out) in its drawer, named once the surfaces hold it,
+ * and `campaigns/new` the composer. Every address is one mount, the page's own: a moment opening is no new page. A real
+ * workspace's New message is the page's own, in its head; the top bar has no act.
  */
-export function playbooksChrome({ param }: { param: string | null }): { crumbs: Crumb[]; act: Act | null } {
-  const data = surfaceValue("playbooks");
-  const open = param && data ? (data.rows || []).find((p) => p.id === param) : null;
+export function campaignsChrome({ param }: { param: string | null }): { crumbs: Crumb[]; mount: string; act: null } {
+  const at = parseHome(param);
+  const playbooks = surfaceValue("playbooks");
+  const chains = surfaceValue("reach_outs");
+  const rows = playbooks ? playbooks.rows : [];
+  // A playbook's name, or a reach-out's, once the surfaces hold it: an address names either by its id.
+  const nameOf = (id: string): string =>
+    rows.find((p) => p.id === id)?.name ??
+    (Array.isArray(chains) ? chains : []).find((c) => c.root_id === id)?.name ??
+    "Playbook";
+  const open = at.moment;
+  const named = open ? nameOf(open) : null;
+  const editing = at.compose && at.compose.mode === "every" ? at.compose.edit : null;
+  const edited = editing ? nameOf(editing) : null;
   return {
-    crumbs: param
-      ? ["Campaigns", { label: "Playbooks", to: "outbound" }, open ? open.name : "Playbook"]
-      : ["Campaigns", "Playbooks"],
-    act: data ? null : { label: "New campaign", glyph: "plus", primary: true, ask: true },
+    crumbs: named
+      ? [CAMPAIGNS, named]
+      : edited
+        ? [CAMPAIGNS, edited]
+        : at.compose
+          ? [CAMPAIGNS, CAMPAIGN_ROOMS.newMessage]
+          : [CAMPAIGN_ROOMS.home],
+    mount: "campaigns",
+    act: null,
   };
 }
 
@@ -63,15 +78,15 @@ export function broadcastsChrome({ param }: { param: string | null }): { crumbs:
     audience && data
       ? (data.audiences || []).find((a) => (a.kind === "saved" || a.kind === "list") && a.id === audience)
       : null;
-  const broadcasts = { label: "Broadcasts", to: "broadcasts" };
+  const sent = { label: CAMPAIGN_ROOMS.sent, to: "broadcasts" };
   return {
     mount: "broadcasts",
     crumbs: runId
-      ? ["Campaigns", broadcasts, run ? run.name : "Broadcast"]
+      ? [CAMPAIGNS, sent, run ? run.name : "Broadcast"]
       : getYes
-        ? ["Campaigns", broadcasts, "Get their yes"]
+        ? [CAMPAIGNS, sent, "Get their yes"]
         : list
-          ? ["Campaigns", broadcasts, list.label]
-          : ["Campaigns", "Broadcasts"],
+          ? [CAMPAIGNS, sent, list.label]
+          : [CAMPAIGNS, CAMPAIGN_ROOMS.sent],
   };
 }

@@ -477,7 +477,6 @@
     "@typescript-eslint/unbound-method": 3
   },
   "packages/core/src/messages/broadcast.ts": {
-    "@typescript-eslint/no-base-to-string": 1,
     "@typescript-eslint/only-throw-error": 1
   },
   "packages/db/src/repositories/email.ts": {
@@ -485,9 +484,6 @@
   },
   "packages/db/src/repositories/partner.ts": {
     "@typescript-eslint/no-base-to-string": 13
-  },
-  "packages/db/src/repositories/reach-out-sheet.ts": {
-    "@typescript-eslint/no-base-to-string": 1
   },
   "packages/db/src/repositories/reach-out.ts": {
     "@typescript-eslint/no-base-to-string": 2

@@ -3,13 +3,15 @@
  * along the foot of the pane -- ✕, the count, Add to list and ⋯ -- and a sheet with the rest, where an act that asks
  * something first asks it as a step. The step is the page's (`sheet`), so its one keyboard listener shuts the sheet on
  * Esc; the drafts are this bar's, as on a desktop. The row stacked seven controls into a 312px pill over the rows, and
- * each of its three forms ran off the screen's edge.
+ * each of its three forms ran off the screen's edge. The row is the kit's capsule, docked (data-dock: the tab bar and
+ * Ask's circle stand down for it, mobile.css), its parts the kit's Button and Menu.
  */
 import type { ReactNode } from "react";
+import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { PhoneSheet, PhoneSheetRow } from "../sheets/phone-sheet";
 import { PL_MODES, PL_SOURCE_GLYPH, plModeWord } from "../words";
+import { addToListMenu } from "./bar-menu";
 import type { BulkActs } from "./bulk-acts";
 import type { BulkCtx } from "./bulk-state";
 
@@ -289,35 +291,6 @@ function askSteps(b: BulkCtx, a: BulkActs, back: () => void) {
   };
 }
 
-/** The bar's Add to list: the lists kept by hand, or, where the saved lists could not be read, a new one alone. */
-function addToListMenu(b: BulkCtx, a: BulkActs, newList: () => void) {
-  const { st, saved, savedRead } = b;
-  return (
-    <MoreMenu
-      btnClass="btn btn-sm"
-      escape
-      label="Add to list"
-      title="Add to a list"
-      gated={st.busy ? "One moment — the last change is still saving" : null}
-      items={
-        savedRead
-          ? [
-              { header: "Add to" },
-              ...saved
-                .filter((s) => s.byHand)
-                .map((s) => ({ label: s.name, icon: "filter", onClick: () => void a.addTo(s) })),
-              { label: "New list…", icon: "plus", onClick: newList },
-            ]
-          : [
-              // Lists that could not be read are not offered; a new one can still be made.
-              { header: "Your saved lists couldn't be read" },
-              { label: "New list…", icon: "plus", onClick: newList },
-            ]
-      }
-    />
-  );
-}
-
 export function phoneBulk(b: BulkCtx, a: BulkActs) {
   const { st, sheet, onSheet, onClear, canEdit, ids } = b;
   const { setName, setSlips, setSlipsNote } = st;
@@ -346,16 +319,16 @@ export function phoneBulk(b: BulkCtx, a: BulkActs) {
   const step = n > 0 && sheet ? steps[sheet] : null;
   return (
     <>
-      <div className="cl-bulk pp-bulk" role="toolbar" aria-label="Selected people" data-testid="bulk-bar">
-        <button
-          type="button"
-          className="pp-bar-icon"
-          aria-label="Clear the selection"
-          onClick={onClear}
-          data-testid="bulk-clear"
-        >
-          <Icon name="x" size={18} />
-        </button>
+      <div
+        className="cl-bulk pp-bulk capsule"
+        data-dock
+        role="toolbar"
+        aria-label="Selected people"
+        data-testid="bulk-bar"
+      >
+        <Button iconOnly size="lg" aria-label="Clear the selection" onClick={onClear} data-testid="bulk-clear">
+          <Icon name="x" size={16} />
+        </Button>
         <span className="cl-bulk-count">
           {n ? (
             <>
@@ -365,18 +338,18 @@ export function phoneBulk(b: BulkCtx, a: BulkActs) {
             "Tap people to select them"
           )}
         </span>
-        {canEdit && n > 0 && addToListMenu(b, a, newList)}
+        {canEdit && n > 0 && addToListMenu(b, a, newList, "lg")}
         {n > 0 && (
-          <button
-            type="button"
-            className="pp-bar-icon"
+          <Button
+            iconOnly
+            size="lg"
             aria-label={`More for the ${n} selected`}
             aria-haspopup="dialog"
             onClick={() => onSheet("more")}
             data-testid="bulk-more"
           >
-            <Icon name="more" size={18} />
-          </button>
+            <Icon name="more" size={16} />
+          </Button>
         )}
       </div>
       {step && (
