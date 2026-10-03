@@ -138,7 +138,7 @@ test("the message path's event names are unchanged by the conversion", () => {
   // atomic is_new claim — `wa_skip_pg_dupe`, still here — is the dedupe. With
   // the store gone there is no second gate left for it to name.
   // The message path and the webhook: the names span both files now.
-  const src = pathSrc() + fs.readFileSync(path.join(EDGE, "api/whatsapp.ts"), "utf8");
+  const src = pathSrc() + fs.readFileSync(path.join(EDGE, "lib/whatsapp/webhook.ts"), "utf8");
   const required = [
     "wa_replied",
     "wa_skip_pg_dupe",

@@ -40,3 +40,51 @@ export async function templatesFor(db: Db, tenantId: string, channel = "whatsapp
   if (error) throw new Error(`templatesFor: ${error.message}`);
   return data ?? [];
 }
+
+/** The id of the WhatsApp template this workspace already holds under a name and a language, or null when none. */
+export async function templateIdOf(db: Db, tenantId: string, name: string, language: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("templates")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("channel", "whatsapp")
+    .eq("name", name)
+    .eq("language", language)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.id ?? null;
+}
+
+/** The WhatsApp templates this workspace holds under any of these names, with where each stands at Meta. */
+export async function templatesNamed(
+  db: Db,
+  tenantId: string,
+  names: string[],
+): Promise<{ name: string; language: string; meta_status: string | null }[]> {
+  const { data, error } = await db
+    .from("templates")
+    .select("name, language, meta_status")
+    .eq("tenant_id", tenantId)
+    .eq("channel", "whatsapp")
+    .in("name", names);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/** Where one WhatsApp template stands at Meta, by name and language; null when the workspace holds none. */
+export async function templateStatusOf(
+  db: Db,
+  tenantId: string,
+  name: string,
+  language: string,
+): Promise<{ meta_status: string | null } | null> {
+  const { data } = await db
+    .from("templates")
+    .select("meta_status")
+    .eq("tenant_id", tenantId)
+    .eq("channel", "whatsapp")
+    .eq("name", name)
+    .eq("language", language)
+    .maybeSingle();
+  return data;
+}

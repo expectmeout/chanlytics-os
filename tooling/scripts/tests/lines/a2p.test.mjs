@@ -819,7 +819,10 @@ test("the owner's form: every field the carriers ask, checked in the owner's wor
   assert.ok(businessRecordLine(null).includes("two minutes"));
   assert.ok(businessRecordLine(filled).startsWith("Harbor Moving LLC"));
 
-  const route = readCode("apps/dashboard/app/api/v1/business-record/route.ts");
+  const route = readCode(
+    "apps/dashboard/app/api/v1/business-record/route.ts",
+    "apps/dashboard/src/server/connections/business-record.ts",
+  );
   assert.ok(
     route.includes('role: "partner",') && route.includes("businessRecordProblems(record, path, { ourNumbers:"),
     "checked here, in the owner's words, before anything leaves for a provider",

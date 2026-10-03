@@ -269,7 +269,10 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
     "a draft is not a decision; sending is",
   );
   assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes("google_draft: {"));
-  const get = readCode("apps/dashboard/app/api/v1/google/route.ts");
+  const get = readCode(
+    "apps/dashboard/app/api/v1/google/route.ts",
+    "apps/dashboard/src/server/connections/google-actions.ts",
+  );
   assert.ok(get.includes("reply_mode: reviewReplyModeOf(policies)"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
   assert.ok(bridge.includes('"POST google/reviews/[id]/draft", { params: { id }, body: {} }'));
