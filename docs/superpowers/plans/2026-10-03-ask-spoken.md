@@ -18,7 +18,7 @@
 - A route under `app/api/v1` goes through `write()`/`read()` (`server/route.ts`) and `auth-gate.test.mjs` holds it there; the one exception this plan adds (the brain door) lives under `app/api/ask/` and is named in that test.
 - Wire fields are snake_case (decision 0022); TypeScript names camelCase.
 - Every new environment switch is a row of `packages/contracts/src/ai/flags.ts` (`flag-registry.test.mjs` goes red otherwise) with `owner: "Ruben"` and `sunset: null`.
-- A new migration is numbered above the ledger's head (00285 → `00286_…`) and recorded with `node tooling/scripts/checks/migration-ledger.mjs --record`; after it, with the local stack up: `corepack pnpm gen:db-types`, `gen:schema-snapshot`, `gen:schema-sets`.
+- A new migration is numbered above every number a branch holds (main's head is 00284; the kit branch holds 00285 and 00286, argued as gaps, so this lane's table is `00287_…` and its sweep `00288_…`) and recorded with `node tooling/scripts/checks/migration-ledger.mjs --record`; after it, with a stack of this worktree's own up (`docs/runbook.md`, "Replay it locally": `project_id` and ports moved), `corepack pnpm gen:db-types`, `gen:schema-snapshot`, `gen:schema-sets`, and the generated files committed.
 - No customer name, number or link in code or fixtures (`no-customer-in-the-code.test.mjs`); fixtures use 555-01xx numbers and example.com.
 - Anything that draws or restyles in `apps/dashboard` follows the `chanlytics-interface` skill (the kit, `kit.css`, `classes.json`, the gallery entry).
 - The spoken register line, the agent configuration values and the chunk shape are the spec's exact values (spec §3.4, §3.7, §3.3); copy them, never paraphrase.
@@ -129,7 +129,7 @@ Nothing from PR 0 is kept. Its output is `docs/superpowers/specs/2026-10-03-ask-
 ### Task 1.3: The voice session's row
 
 **Files:**
-- Create: `supabase/migrations/00286_a_voice_conversation_keeps_its_member.sql`
+- Create: `supabase/migrations/00287_a_voice_conversation_keeps_its_member.sql`
 - Modify: `supabase/migrations-ledger.json` (via `--record`), `packages/db/src/database.types.ts`, `supabase/schema.sql` (generated)
 - Test: `tooling/scripts/tests/database/migrations.test.mjs` (the ledger)
 
@@ -318,7 +318,7 @@ Nothing from PR 0 is kept. Its output is `docs/superpowers/specs/2026-10-03-ask-
 ### Task 4.2: The sweep, the evals and the runbook
 
 **Files:**
-- Create: `supabase/migrations/00287_expired_voice_sessions_are_swept.sql` (a function `sweep_voice_sessions()` deleting rows with `token_expires_at < now() - interval '1 day'`), `apps/edge/api/cron/voice.ts`
+- Create: `supabase/migrations/00288_expired_voice_sessions_are_swept.sql` (a function `sweep_voice_sessions()` deleting rows with `token_expires_at < now() - interval '1 day'`), `apps/edge/api/cron/voice.ts`
 - Modify: `apps/edge/vercel.json` (the cron line), `tooling/scripts/eval-ask.mjs` (`--spoken`: the cases run through the brain door with a session minted as the eval member; the judge adds "reads aloud": no digits-only ids, no routes, an early comma), `docs/runbook.md`
 - Test: `tooling/scripts/tests/database/migrations.test.mjs`, `tooling/scripts/tests/ask/eval-ask-context.test.mjs` (the judge's new rule, pure)
 

@@ -115,7 +115,7 @@ What it does, in order:
    verified with (the one place in the codebase that reads `ctx.supabase.auth.getSession()` after `getClaims` has
    verified the same token, named in the route's header and pinned by a test), encrypts it with `ASK_VOICE_SECRET`
    (AES-256-GCM; the secret is required in production, `env.ts REQUIRED_IN_PRODUCTION`), and writes one row of
-   `ask_voice_sessions` on the session client (own rows under RLS, migration 00286): the session's id as the sha256 of
+   `ask_voice_sessions` on the session client (own rows under RLS, migration 00287): the session's id as the sha256 of
    a 32-byte random value, `tenant_id`, `user_id`, `thread_id`, the encrypted token, `token_expires_at` (the JWT's
    `exp`, an hour at most), `surface`, `scope`, the page's context as sent, `language`, `created_at`, `ended_at` null,
    and two columns the brain door claims a turn with (`turn_key`, `turn_started_at`, section 3.3). The plain id goes
@@ -468,7 +468,8 @@ New: `apps/dashboard/app/api/v1/ask/voice/route.ts`, `…/voice/page/route.ts` a
 turn); `apps/dashboard/src/server/ask/voice-session.ts` (the row, the cipher, the claim);
 `apps/edge/api/admin/voice-session.ts` (B); `apps/edge/api/elevenlabs-webhook.ts` (D);
 `packages/channels/src/voice/elevenlabs.ts` (the port: mint, delete, the webhook's verification);
-`supabase/migrations/00286_a_voice_conversation_keeps_its_member.sql`; `apps/dashboard/src/legacy-bridge/ask/voice.ts`;
+`supabase/migrations/00287_a_voice_conversation_keeps_its_member.sql` (00285 and 00286 are the kit branch's);
+`apps/dashboard/src/legacy-bridge/ask/voice.ts`;
 `tooling/scripts/voice/elevenlabs-agent.mjs`; `docs/decisions/0026-a-provider-calls-the-dashboard.md`.
 
 Changed: `apps/dashboard/app/api/v1/ask/route.ts` (calls `askTurn`); `server/ask/loop.ts` and `prompt.ts` (the
