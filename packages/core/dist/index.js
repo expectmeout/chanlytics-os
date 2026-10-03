@@ -9535,6 +9535,7 @@ import { z as z253 } from "zod";
 import { z as z263 } from "zod";
 import { z as z273 } from "zod";
 import { createClient } from "@supabase/supabase-js";
+import { createClient as createClient2 } from "@supabase/supabase-js";
 z30.config({ jitless: true });
 var MODELS3 = {
   OPUS_5_5: "claude-opus-5-5",
