@@ -229,7 +229,7 @@ One row per voice conversation of Ask: whose it is, its thread, the member's acc
 Foreign keys:
 
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-- `thread_id` → [`ask_threads`](#ask_threads) (`id`), on delete cascade
+- `tenant_id`, `thread_id` → [`ask_threads`](#ask_threads) (`tenant_id`, `id`), on delete cascade not valid
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |

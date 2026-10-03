@@ -290,6 +290,7 @@
     "00283_the_service_role_s_statements_have_a_bound.sql": "1faddcc8898b6efdef12d3cffab38200638aae5fb35c060750d8396261fba443",
     "00284_a_thread_is_answered_one_turn_at_a_time.sql": "566085bccfb1629b0f5607a181251e62c9dde7e05e717061b4211014740f2ff8",
     "00287_a_voice_conversation_keeps_its_member.sql": "4e1bc1919051c933d5e2c3213c5c4eb2f5b88cb523746a2ce8f543ded7c3eb72",
-    "00288_expired_voice_sessions_are_swept.sql": "9ed5f3c6c8c3afde975cdba6e750f117f1c42fa6300c8309e8063a3c494d870f"
+    "00288_expired_voice_sessions_are_swept.sql": "9ed5f3c6c8c3afde975cdba6e750f117f1c42fa6300c8309e8063a3c494d870f",
+    "00289_a_voice_session_names_its_own_workspace_s_thread.sql": "c6469702ad200b5f884cc04e77ee5a123d40a3229ad578c51fb90b1e36daf638"
   }
 }

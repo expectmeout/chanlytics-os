@@ -22112,11 +22112,11 @@ ALTER TABLE ONLY public.ask_voice_sessions
 
 
 --
--- Name: ask_voice_sessions ask_voice_sessions_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: ask_voice_sessions ask_voice_sessions_thread_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.ask_voice_sessions
-    ADD CONSTRAINT ask_voice_sessions_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.ask_threads(id) ON DELETE CASCADE;
+    ADD CONSTRAINT ask_voice_sessions_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
