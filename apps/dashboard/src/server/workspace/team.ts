@@ -5,11 +5,16 @@ import { AppError } from "@chanlytics/contracts";
 import { serviceDb } from "../service-db";
 import { log } from "@/server/log";
 
-/* ---- E1 team operations (Session A) --------------------------------------
-   The ONLY file that touches auth.admin. Every function takes a tenantId the
-   route has already proven the caller belongs to (memberContext), then scopes
-   every query to it by hand — the service role bypasses RLS, so the scoping
-   discipline lives here instead. */
+/**
+ * Team operations: the roster, an invitation, a role change, a removal, and the sign-in that completes an invitation.
+ * The only file that touches auth.admin. A function takes the workspace the route has already proven the caller belongs
+ * to (memberContext) and hands it to the database's team_* functions with the session's verified user as the actor;
+ * each checks that the actor owns the workspace before it changes anything. The service role bypasses RLS, so that
+ * scoping lives in those functions and in the tenant each call names.
+ *
+ * Cross-workspace: acceptOpenInvites completes the invitations addressed to the signed-in email in every workspace that
+ * invited it; the email, proved by the session, is the scope, and each membership it makes is the invitation's own.
+ */
 
 /** The one sentence for a change that would leave the workspace with no owner: team_change_role's and team_remove's refusal (last_owner), and 00271's trigger's behind it. */
 const ONLY_OWNER = "This is the only owner. Promote someone else first.";
@@ -32,20 +37,6 @@ interface OpenInvite {
   expires_at: string;
 }
 
-/**
- * The roster, in one round trip, on the CALLER's own client.
- *
- * This used to run on the service role and loop `auth.admin.getUserById` once
- * per member, sequentially — twenty people meant twenty round trips on every
- * Settings load. It did that because `memberships_self_select` is
- * `user_id = auth.uid()`, so a session client can see its own membership row
- * and nobody else's, and emails live in auth.users which PostgREST does not
- * expose at all.
- *
- * `team_roster` (00022) checks the caller's membership itself, which is what
- * lets this drop the service role rather than merely parallelise it. Fewer
- * privileged paths is the point; the speed is a side effect.
- */
 /**
  * A team change and its row on the ledger, in one transaction (00277: team_change_role, team_remove, team_join,
  * team_invite).
@@ -84,6 +75,20 @@ async function teamCall(
   return answer;
 }
 
+/**
+ * The roster, in one round trip, on the CALLER's own client.
+ *
+ * This used to run on the service role and loop `auth.admin.getUserById` once
+ * per member, sequentially — twenty people meant twenty round trips on every
+ * Settings load. It did that because `memberships_self_select` is
+ * `user_id = auth.uid()`, so a session client can see its own membership row
+ * and nobody else's, and emails live in auth.users which PostgREST does not
+ * expose at all.
+ *
+ * `team_roster` (00022) checks the caller's membership itself, which is what
+ * lets this drop the service role rather than merely parallelise it. Fewer
+ * privileged paths is the point; the speed is a side effect.
+ */
 export async function teamRoster(db: SupabaseClient<Database>, tenantId: string) {
   const [members, invites] = await Promise.all([
     db.rpc("team_roster", { p_tenant_id: tenantId }),

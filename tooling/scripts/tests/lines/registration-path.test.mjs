@@ -646,7 +646,10 @@ test("one validator, three writers", () => {
   // The form checks so the owner is not left guessing; the route checks because
   // the form is not the only caller; the filing checks because a fee is about
   // to be spent. Three moments, one list of what each registration needs.
-  const route = readCode("apps/dashboard/app/api/v1/business-record/route.ts");
+  const route = readCode(
+    "apps/dashboard/app/api/v1/business-record/route.ts",
+    "apps/dashboard/src/server/connections/business-record.ts",
+  );
   // ...with the same facts the door is given. The one check a record cannot
   // make about itself is whether its contact_phone is a number WE gave the
   // workspace -- which the carriers refuse as a sole proprietor's handset, and

@@ -2,8 +2,9 @@
  * Keep the number you have and forward its calls to the receptionist's line (POST /api/v1/lines/forwarding): the body's
  * number, carrier, mode and the phone to test from are judged in the person's words, the loop from this side is refused
  * (the number the receptionist puts callers through to cannot become a number that forwards to the receptionist), and
- * the database function keeps one forwarded row per workspace, instructed until a test call proves it. The route
- * declares who may and how often.
+ * the database function keeps one forwarded row per workspace, instructed until a test call proves it, and refuses a
+ * workspace with no receptionist line to forward to and the receptionist's own number. It answers the line's id. The
+ * route declares who may and how often.
  */
 import {
   AppError,
@@ -13,7 +14,7 @@ import {
   parseTenantConfig,
   whyNotForward,
 } from "@chanlytics/contracts";
-import { getTenantConfig } from "@chanlytics/db";
+import { getTenantConfig, lineForwardingSet } from "@chanlytics/db";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
 import type { Member } from "@/server/route";
 
@@ -36,7 +37,7 @@ export async function setLineForwarding(ctx: RouteContext, req: Request, member:
   const cfg = await getTenantConfig(ctx.supabase, member.tenantId);
   const loop = whyNotForward(number, parseTenantConfig(cfg?.config ?? null)?.brain?.profile?.handoff_number);
   if (loop) throw new AppError("conflict", loop, 409);
-  const { data, error } = await ctx.supabase.rpc("line_forwarding_set", {
+  const { data, error } = await lineForwardingSet(ctx.supabase, {
     p_tenant_id: member.tenantId,
     p_number: number,
     p_carrier: body.carrier,

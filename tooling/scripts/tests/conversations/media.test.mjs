@@ -123,10 +123,7 @@ test("a browser sees the attachment's facts and never its storage path", () => {
   );
   // The one-thread route is run, not read: readers.test.mjs, "the one thread's messages carry an attachment's
   // public facts".
-  for (const rel of [
-    "apps/dashboard/src/server/dto.ts",
-    "apps/dashboard/app/api/v1/conversations/[id]/export/route.ts",
-  ]) {
+  for (const rel of ["apps/dashboard/src/server/dto.ts", "apps/dashboard/src/server/export/conversation-export.ts"]) {
     const src = readCode(rel);
     assert.ok(src.includes("media: mediaPublic(m.media),"), `${rel} maps through the filter`);
     assert.ok(!src.includes('media: m.media as MessageDto["media"]'), `${rel} no longer ships the raw JSON`);

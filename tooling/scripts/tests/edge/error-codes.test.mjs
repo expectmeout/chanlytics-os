@@ -49,7 +49,7 @@ const FORWARDED = {
   "apps/edge/lib/receptionist/eval.ts": ["String(e instanceof Error ? e.message : e).slice(0, 200)"],
   "apps/edge/lib/ops/ask-turn.ts": ["v.error"], // validateGatewayRequest's (ask-gateway.ts)
   "apps/edge/lib/admin-auth.ts": ["`token_${v.reason}`"], // the token family (TOKEN, below)
-  "apps/edge/lib/email/sending-domains.ts": ["error"], // say()'s code
+  "apps/edge/lib/email/sending-domain-ports.ts": ["error"], // say()'s code
   // connectAnswer's, chosenLocation's and bindFailedAnswer's, from profile-connection.ts
   "apps/edge/lib/google/google-ops.ts": ["r.error", "r.error", "bound.error"],
   "apps/edge/lib/google/listing-check.ts": ["error"], // a listing's read (CheckResult): Google's words

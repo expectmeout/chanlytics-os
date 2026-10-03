@@ -208,7 +208,7 @@ export { readJobToRequeue, hasNewerCopy, assembleBroadcast } from "./jobs";
 export type { JobToRequeue } from "./jobs";
 export { claimControl, releaseControl, CALL_CONTROL_S } from "./repositories/control";
 export type { ControlHolder, ControlOutcome } from "./repositories/control";
-export { templatesFor } from "./repositories/templates";
+export { templatesFor, templateIdOf, templatesNamed, templateStatusOf } from "./repositories/templates";
 export type { TemplateRow } from "./repositories/templates";
 export {
   getTenantConfig,
@@ -218,8 +218,21 @@ export {
   personReplyMode,
   setPersonReplyMode,
   workspaceAnswersOnItsOwn,
+  membershipCountOf,
+  createWorkspaceFn,
+  lineForwardingSet,
+  setPlaybookState,
+  updatePlaybook,
+  removePlaybook,
 } from "./repositories/control-plane";
-export type { TenantConfigRow, PutTenantConfigResult, PolicyRecord } from "./repositories/control-plane";
+export type {
+  TenantConfigRow,
+  PutTenantConfigResult,
+  PolicyRecord,
+  CreateWorkspaceArgs,
+  LineForwardingArgs,
+  PlaybookPatch,
+} from "./repositories/control-plane";
 export {
   PEOPLE_PAGE,
   IDS_PER_READ,

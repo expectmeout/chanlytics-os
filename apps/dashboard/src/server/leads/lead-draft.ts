@@ -1,6 +1,7 @@
 /**
  * The first email to a lead: the facts it is drafted from, and the draft. Moved whole from leads.ts (Reach out Part 2.5), which
- * re-exports it.
+ * re-exports it. The lead is a row the member's RLS showed them, its facts are read again on the member's own session,
+ * and the model call is billed to the lead's own workspace.
  */
 import {
   AppError,

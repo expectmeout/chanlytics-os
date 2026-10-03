@@ -285,8 +285,8 @@
     "depth": 2
   },
   "apps/dashboard/src/server/campaigns/template-submit.ts::submitTemplate#1": {
-    "lines": 82,
-    "branches": 32,
+    "lines": 74,
+    "branches": 31,
     "depth": 2
   },
   "apps/dashboard/src/server/people/list-write.ts::changeSavedList#1": {

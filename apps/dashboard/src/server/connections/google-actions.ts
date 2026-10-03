@@ -99,7 +99,7 @@ export async function startGoogleConnect(ctx: RouteContext, member: Member) {
   return new Response(null, { status: 302, headers: { location: url } });
 }
 
-export async function replyToReview(ctx: RouteContext & { params: Params }, req: Request, member: Member) {
+export async function replyToGoogleReview(ctx: RouteContext & { params: Params }, req: Request, member: Member) {
   const SAID: Record<string, string> = {
     not_connected: "Connect your Business Profile first — replies go through it.",
     not_from_profile: "This review was read from the public listing; replies need the Business Profile connected.",

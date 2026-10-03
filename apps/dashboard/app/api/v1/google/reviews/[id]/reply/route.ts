@@ -1,5 +1,5 @@
 import { write, workspace } from "@/server/route";
-import { replyToReview } from "@/server/connections/google-actions";
+import { replyToGoogleReview } from "@/server/connections/google-actions";
 
 /**
  * POST /api/v1/google/reviews/:id/reply — {comment}: the business answers a
@@ -9,7 +9,7 @@ import { replyToReview } from "@/server/connections/google-actions";
  * happened. A reply replaces the previous one: Google keeps one per review.
  * The body is the route's own to read: cleanReply decides what a reply is.
  *
- * The handle is replyToReview in src/server/connections/google-actions.ts: the route is its declaration (who may, how
+ * The handle is replyToGoogleReview in src/server/connections/google-actions.ts: the route is its declaration (who may, how
  * often), the verb is what it does.
  */
 
@@ -17,5 +17,5 @@ export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "google_reply",
-  handle: ({ ctx, req, member }) => replyToReview(ctx, req, member),
+  handle: ({ ctx, req, member }) => replyToGoogleReview(ctx, req, member),
 });

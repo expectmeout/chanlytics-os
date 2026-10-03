@@ -3,8 +3,10 @@
  * workspace is offered by default (contracts startersOffered: the proposal follow-up's only where deals are on, 0006),
  * in English by default. Idempotent: a starter already on file is left as it is; one the number's account already holds
  * (a shared account, or written in WhatsApp Manager) is synced in rather than refused; the rest are submitted to Meta
- * for review, exactly as a template written by hand is. The answer says what happened to each. The route declares who
- * may and how often.
+ * for review, exactly as a template written by hand is. The answer says what happened to each. When nothing can be
+ * added at all (no number, no account on file, no token, a preview) that is said once as a refusal, but only while
+ * nothing has been added: past the first submission the rest are marked failed with the same words, so the owner is
+ * never told nothing was added while templates sit in review. The route declares who may and how often.
  */
 import {
   AppError,
@@ -15,6 +17,7 @@ import {
   templateComponents,
   validateTemplateDraft,
 } from "@chanlytics/contracts";
+import { templateStatusOf, templatesNamed } from "@chanlytics/db";
 import { jsonBody } from "@/server/request-guards";
 import { createTemplate, syncTemplates } from "@/server/campaigns/meta-templates";
 import { sellsByOf } from "@/server/people/deals";
@@ -56,15 +59,9 @@ export async function addStarterTemplates(ctx: RouteContext, req: Request, membe
   if (wanted.length === 0)
     throw new AppError("validation", "Pick at least one starter template, in English or Spanish.");
 
-  const { data: rows, error } = await ctx.supabase
-    .from("templates")
-    .select("name, language, meta_status")
-    .eq("tenant_id", member.tenantId)
-    .eq("channel", "whatsapp")
-    .in("name", [...new Set(wanted.map((w) => w.s.name))]);
-  if (error) throw new Error(error.message);
+  const rows = await templatesNamed(ctx.supabase, member.tenantId, [...new Set(wanted.map((w) => w.s.name))]);
   const onFile = (name: string, language: string) =>
-    (rows ?? []).find((r) => r.name === name && r.language === language) ?? null;
+    rows.find((r) => r.name === name && r.language === language) ?? null;
 
   const results: StarterResult[] = [];
   let synced = false;
@@ -100,14 +97,7 @@ export async function addStarterTemplates(ctx: RouteContext, req: Request, membe
         await syncTemplates(member.tenantId, ctx.userId);
         synced = true;
       }
-      const { data: now } = await ctx.supabase
-        .from("templates")
-        .select("meta_status")
-        .eq("tenant_id", member.tenantId)
-        .eq("channel", "whatsapp")
-        .eq("name", s.name)
-        .eq("language", l)
-        .maybeSingle();
+      const now = await templateStatusOf(ctx.supabase, member.tenantId, s.name, l);
       results.push(
         now
           ? { ...base, status: "synced", meta_status: now.meta_status }

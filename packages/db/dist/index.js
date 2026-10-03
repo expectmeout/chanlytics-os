@@ -5304,6 +5304,20 @@ async function templatesFor(db, tenantId, channel = "whatsapp") {
   if (error) throw new Error(`templatesFor: ${error.message}`);
   return data ?? [];
 }
+async function templateIdOf(db, tenantId, name, language) {
+  const { data, error } = await db.from("templates").select("id").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.id ?? null;
+}
+async function templatesNamed(db, tenantId, names) {
+  const { data, error } = await db.from("templates").select("name, language, meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").in("name", names);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+async function templateStatusOf(db, tenantId, name, language) {
+  const { data } = await db.from("templates").select("meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+  return data;
+}
 
 // src/repositories/control-plane.ts
 async function getTenantConfig(db, tenantId) {
@@ -5359,6 +5373,29 @@ async function workspaceAnswersOnItsOwn(db, tenantId) {
   if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
   if (tenant.data?.status === "paused" || tenant.data?.left_empty_at) return false;
   return !(billing.data?.mode === "stripe" && !receptionistOn(billing.data.status));
+}
+async function membershipCountOf(db, userId) {
+  const { count, error } = await db.from("memberships").select("id", { count: "exact", head: true }).eq("user_id", userId);
+  if (error) throw new Error(`memberships_count: ${error.message}`);
+  return count ?? 0;
+}
+async function createWorkspaceFn(db, args) {
+  return db.rpc("create_workspace", args).single();
+}
+async function lineForwardingSet(db, args) {
+  return db.rpc("line_forwarding_set", args);
+}
+async function setPlaybookState(db, id, state) {
+  const { error } = await db.from("playbooks").update({ state }).eq("id", id);
+  return { error };
+}
+async function updatePlaybook(db, id, patch) {
+  const { error } = await db.from("playbooks").update(patch).eq("id", id);
+  return { error };
+}
+async function removePlaybook(db, id) {
+  const { error, count } = await db.from("playbooks").delete({ count: "exact" }).eq("id", id);
+  return { error, count };
 }
 
 // src/paged.ts
@@ -6131,6 +6168,7 @@ export {
   countSentToday,
   createList,
   createServiceClient,
+  createWorkspaceFn,
   createWorkspaceForBusiness,
   declineHandover,
   declinePartnerInvite,
@@ -6185,6 +6223,7 @@ export {
   leadNamesByIds,
   leadSlotsOf,
   leadWritten,
+  lineForwardingSet,
   linkCallMessage,
   listMemberIds,
   listPolicies,
@@ -6197,6 +6236,7 @@ export {
   markProcessed,
   markReplyDraft,
   markReplyTold,
+  membershipCountOf,
   messageSenders,
   migrationHead,
   monthSent,
@@ -6252,6 +6292,7 @@ export {
   releaseControl,
   releaseIdempotencyKey,
   releaseUnavailableHolds,
+  removePlaybook,
   renameList,
   repliesFor,
   replyReadingOf,
@@ -6285,6 +6326,7 @@ export {
   setPartnerStanding,
   setPartnerStatus,
   setPersonReplyMode,
+  setPlaybookState,
   setPolicyMode,
   staleSends,
   stampEmailComplaint,
@@ -6300,7 +6342,10 @@ export {
   takeCheckAttempt,
   takeIdempotencyKey,
   takeReplyRead,
+  templateIdOf,
+  templateStatusOf,
   templatesFor,
+  templatesNamed,
   tenantDb,
   tenantZoneOf,
   touchIndex,
@@ -6309,6 +6354,7 @@ export {
   uncheckedSends,
   uncheckedWaiting,
   undoReplyReading,
+  updatePlaybook,
   usageMonth,
   watchedEvents,
   watchedTables,

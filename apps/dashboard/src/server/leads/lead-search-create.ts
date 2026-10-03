@@ -3,7 +3,9 @@
  * workspace that may spend, counted against lead_search; this computes what the round is expected to cost from the
  * card's brief prices and hands it to the database function, which reserves the month's leads and budget in the same
  * transaction as the round row and refuses in a word said here as a sentence. Beside the plan an Ask card sends the
- * thread it was planned in, which the function keeps only when it is the caller's own.
+ * thread it was planned in, which the function keeps only when it is the caller's own. The workspace's first search
+ * also writes the funnel's third milestone (first_lead_search) as the service role; an analytics row never costs a
+ * search. CreateSchema is the body the route declares.
  */
 import { z } from "zod";
 import { isUuid, LeadSearchPlanSchema } from "@chanlytics/contracts";

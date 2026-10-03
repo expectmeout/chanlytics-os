@@ -3,7 +3,11 @@
  * stale version is a 409, never a silent clobber of another owner's edit; the write schema is the same one the edge
  * parses, so an option that saves here exists in the runtime by construction. The body is this verb's own to read: the
  * write schema's refusals name the field their own way (the last two path segments), so the form can point at a day.
- * What a write says when it cannot land, and what it records when it does, is settings-write.ts's. The route declares
+ * What a write says when it cannot land, and what it records when it does, is settings-write.ts's. Around the write:
+ * the masked feed address a non-owner was shown comes back as the stored one before the schema reads it
+ * (withHiddenFeed); a transfer number is judged again when it changes, so a number that would ring the receptionist
+ * straight back cannot be saved from anywhere; what the read left out of the stored row is put back first
+ * (withStoredKeysKept); and the answer hides the feed from whoever may not see it (feedVisibleTo). The route declares
  * who may and how often.
  */
 import {

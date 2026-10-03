@@ -4,8 +4,8 @@
  * RESEND_COLD_API_KEY) and in DNS (its DMARC record), and judged (contracts sending-domains.ts judgeDomain).
  * A domain still waiting on its records is its owner's to finish and is not read here; neither is one held for a
  * complaint, which only a Resume lifts. What the judge decides is written by checkSendingDomain
- * (lib/email/sending-domains.ts) onto the row it read, and said: an event per change (sending_domain.verified, .held,
- * .released) and a notice to whoever must act.
+ * (lib/email/sending-domain-check.ts) onto the row it read, and said: an event per change (sending_domain.verified,
+ * .held, .released) and a notice to whoever must act.
  *   - A domain that stops verifying, or loses its DMARC record on two reads in a row, is held for its records and its
  *     owner told; one held for its records, or for the provider no longer knowing it, is sent again once both read good.
  *   - A verified or held domain's own bounces, complaints and unsubscribes are counted from our rows and hold it for

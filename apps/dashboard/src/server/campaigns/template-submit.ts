@@ -6,6 +6,7 @@
  * (meta-templates.ts createTemplate), as every write that leaves for a provider is.
  */
 import { AppError, templateComponents, validateTemplateDraft } from "@chanlytics/contracts";
+import { templateIdOf } from "@chanlytics/db";
 import { jsonBody } from "@/server/request-guards";
 import { createTemplate } from "@/server/campaigns/meta-templates";
 import type { RouteContext } from "@/server/with-route";
@@ -51,15 +52,7 @@ export async function submitTemplate(ctx: RouteContext, req: Request, member: Me
   if (!check.ok) throw new AppError("validation", check.error);
   const v = check.value;
 
-  const { data: dup, error: dErr } = await ctx.supabase
-    .from("templates")
-    .select("id")
-    .eq("tenant_id", member.tenantId)
-    .eq("channel", "whatsapp")
-    .eq("name", v.name)
-    .eq("language", v.language)
-    .maybeSingle();
-  if (dErr) throw new Error(dErr.message);
+  const dup = await templateIdOf(ctx.supabase, member.tenantId, v.name, v.language);
   if (dup)
     throw new AppError("conflict", "A template with that name and language already exists. Pick another name.", 409);
 

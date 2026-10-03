@@ -4,7 +4,11 @@
  * sign-up posture for an account in no workspace yet), and the active workspace chosen by memberContext's one rule with
  * the one degradation that keeps a stale preference from bricking the app; and the two fields of the tenant row a
  * business owns, its zone and how its customers buy (0008). On a database 00160 has not reached, the read is asked
- * again without sells_by: either deploy order works. The routes declare who may and how often.
+ * again without sells_by: either deploy order works. On the app's own reads only (the same origin: a cross-site GET
+ * changes nothing) a read also accepts any open invitation for the caller's address and reads again
+ * (acceptOpenInvites, which is why it is not only for an account with no membership), and a partner account must have
+ * shown its second factor before it gets the list. The PATCH is its owner's: a forbidden UPDATE answers success with no
+ * rows in this stack, so the row count is the permission check. The routes declare who may and how often.
  */
 import { memberContext, requireSecondFactor, type RouteContext } from "@/server/with-route";
 import {

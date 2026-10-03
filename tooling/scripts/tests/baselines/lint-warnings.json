@@ -8,9 +8,6 @@
   "apps/dashboard/app/api/v1/calendar/preview/route.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
-  "apps/dashboard/app/api/v1/capabilities/[kind]/route.ts": {
-    "@typescript-eslint/no-base-to-string": 1
-  },
   "apps/dashboard/app/api/v1/contacts/[id]/consent/route.ts": {
     "@typescript-eslint/no-deprecated": 1
   },
@@ -280,6 +277,9 @@
   "apps/dashboard/src/server/with-route.ts": {
     "@typescript-eslint/no-misused-promises": 1
   },
+  "apps/dashboard/src/server/workspace/capabilities.ts": {
+    "@typescript-eslint/no-base-to-string": 1
+  },
   "apps/dashboard/src/surfaces/people/bulk/desk-bulk.tsx": {
     "jsx-a11y-x/no-autofocus": 3
   },
@@ -328,7 +328,7 @@
     "@typescript-eslint/no-base-to-string": 1,
     "@typescript-eslint/unbound-method": 1
   },
-  "apps/edge/lib/reach-out/check.ts": {
+  "apps/edge/lib/reach-out/check-one.ts": {
     "@typescript-eslint/no-base-to-string": 2
   },
   "apps/edge/lib/reach-out/clock.ts": {
