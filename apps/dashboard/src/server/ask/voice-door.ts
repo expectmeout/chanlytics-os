@@ -169,7 +169,7 @@ interface Admitted {
 }
 type Knock = { kind: "answered"; response: Response } | ({ kind: "admitted" } & Admitted);
 
-const answered = (response: Response): Knock => ({ kind: "answered", response });
+const knockAnswered = (response: Response): Knock => ({ kind: "answered", response });
 
 /** The row, the member and the client the turn runs with, or the response that ends the knock. */
 async function admit(body: Record<string, unknown> | null, deps: VoiceDoorDeps): Promise<Knock> {
@@ -179,24 +179,24 @@ async function admit(body: Record<string, unknown> | null, deps: VoiceDoorDeps):
     extra && typeof extra === "object" ? (extra as { chanlytics_session?: unknown }).chanlytics_session : null;
   if (typeof plain !== "string" || !SESSION_ID.test(plain)) {
     log.warn("ask_voice_door_refused", { why: "session" });
-    return answered(new Response("forbidden", { status: 403 }));
+    return knockAnswered(new Response("forbidden", { status: 403 }));
   }
   const service = deps.service ?? serviceDb();
   const row = await readVoiceSession(service, sessionHashOf(plain));
   if (!row) {
     log.warn("ask_voice_door_refused", { why: "no_session" });
-    return answered(new Response("forbidden", { status: 403 }));
+    return knockAnswered(new Response("forbidden", { status: 403 }));
   }
   const language: AskLanguage = row.language === "es" ? "es" : "en";
   // A row that cannot open the member any more is ended, and the person hears to start again.
   const over = async (why: string): Promise<Knock> => {
     log.warn("ask_voice_door_refused", { tenant_id: row.tenant_id, why });
     if (!row.ended_at) await endVoiceSession(service, row.id, { endedAt: new Date(now()).toISOString() });
-    return answered(spoken(lineOf("reconnect", language)));
+    return knockAnswered(spoken(lineOf("reconnect", language)));
   };
   if (row.ended_at) {
     log.warn("ask_voice_door_refused", { tenant_id: row.tenant_id, why: "ended" });
-    return answered(spoken(lineOf("gone", language)));
+    return knockAnswered(spoken(lineOf("gone", language)));
   }
   const secret = env.ASK_VOICE_SECRET;
   if (!secret || Date.parse(row.token_expires_at) <= now()) return over("expired");
@@ -208,14 +208,14 @@ async function admit(body: Record<string, unknown> | null, deps: VoiceDoorDeps):
     // never "start again" for a token that may be good (with-route.ts draws the same line for a typed request).
     if (isRetryableAuthError(v.error)) {
       log.warn("ask_voice_door_refused", { tenant_id: row.tenant_id, why: "auth_unavailable" });
-      return answered(spoken(lineOf("busy", language)));
+      return knockAnswered(spoken(lineOf("busy", language)));
     }
     return over("token");
   }
   const userId = typeof v.claims.sub === "string" ? v.claims.sub : "";
   if (!userId || userId !== row.user_id) {
     log.warn("ask_voice_door_refused", { tenant_id: row.tenant_id, why: "member" });
-    return answered(new Response("forbidden", { status: 403 }));
+    return knockAnswered(new Response("forbidden", { status: 403 }));
   }
   const ctx: RouteContext = {
     supabase: v.supabase,
@@ -232,7 +232,7 @@ async function admit(body: Record<string, unknown> | null, deps: VoiceDoorDeps):
     // The database could not be asked: the row is kept and the person hears to try again, never a status, which the
     // vendor would retry three times and then close the conversation on.
     log.error("ask_voice_door_failed", { tenant_id: row.tenant_id, error: e });
-    return answered(spoken(lineOf("failed", language)));
+    return knockAnswered(spoken(lineOf("failed", language)));
   }
 }
 
@@ -300,7 +300,7 @@ async function runOwn(a: Admitted, text: string, speak: (s: string) => void): Pr
     await touchThread(a.ctx, done.thread.id, undefined, titleFromQuestion(text));
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const pollPause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 type ThreadMessages = NonNullable<Awaited<ReturnType<typeof readThread>>>["messages"];
 const sameWords = (s: string): string => s.replace(/\s+/g, " ").trim();
@@ -343,7 +343,7 @@ async function follow(
       speak(say ? [say.headline, say.detail].filter(Boolean).join(" ") : answer.text);
       return;
     }
-    await sleep(deps.pollMs ?? POLL_MS);
+    await pollPause(deps.pollMs ?? POLL_MS);
   }
   speak(lineOf("failed", a.language));
 }

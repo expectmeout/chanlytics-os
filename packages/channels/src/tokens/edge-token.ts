@@ -17,7 +17,8 @@
  * lines are named by what the dashboard said and cannot be relabelled in transit, and a header alone never renames a
  * call whose token verified (the edge's adminDoor, apps/edge/lib/log.ts). A token minted outside a request has none.
  *
- * Pure: no environment, no clock of its own. The dashboard signs
+ * No environment: the secret, the claims and the time (`nowMs`, Date.now() unless a test gives one) are arguments, and
+ * the nonce is the one thing it draws at random (randomBytes). The dashboard signs
  * (src/server/edge.ts); the edge verifies (lib/admin-auth.ts); one test signs
  * with one and verifies with the other.
  */

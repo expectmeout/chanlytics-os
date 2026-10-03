@@ -29,7 +29,7 @@ const NO_RECORD = new Set(["ENODATA", "ENOTFOUND"]);
 /**
  * Whether a domain's DKIM record, as the provider gave it to its holder, is published in DNS: true when a TXT at its
  * name carries its key, false when none does, null when DNS could not be read. A published key is the holder's own
- * work at their registrar, and is never taken from them (sending-domains.ts takeOver); "could not read" is never
+ * work at their registrar, and is never taken from them (sending-domain-provider.ts takeOver); "could not read" is never
  * read as "not published".
  */
 export async function dkimPublished(

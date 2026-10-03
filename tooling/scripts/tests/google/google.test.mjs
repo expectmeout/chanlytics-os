@@ -819,7 +819,10 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
 });
 
 test("the dashboard: owners and the partner link and search, operators read, members look; the pages read one surface", async () => {
-  const search = readCode("apps/dashboard/app/api/v1/google/search/route.ts");
+  const search = readCode(
+    "apps/dashboard/app/api/v1/google/search/route.ts",
+    "apps/dashboard/src/server/connections/google-actions.ts",
+  );
   assert.ok(search.includes('role: "partner",') && search.includes('rate: "google_search",'));
   assert.ok(
     search.includes("cfg?.brain?.business_name") && search.includes("cfg?.brain?.profile?.address"),
@@ -831,7 +834,10 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   assert.ok(link.includes('op: "link", tenant_id: member.tenantId, user_id: ctx.userId, place_id: placeId'));
   const refresh = readCode("apps/dashboard/app/api/v1/google/refresh/route.ts");
   assert.ok(refresh.includes('role: "operator",') && refresh.includes('rate: "google_refresh",'));
-  const get = readCode("apps/dashboard/app/api/v1/google/route.ts");
+  const get = readCode(
+    "apps/dashboard/app/api/v1/google/route.ts",
+    "apps/dashboard/src/server/connections/google-actions.ts",
+  );
   assert.ok(/googleFor\(ctx\.supabase, member\.tenantId\),\s*googleReadiness\(\)/.test(get));
   const server = readCode("apps/dashboard/src/server/connections/google.ts");
   assert.ok(
@@ -875,8 +881,11 @@ test("the dashboard: owners and the partner link and search, operators read, mem
     settings.includes('"verb:google-check": "google-check"') && settings.includes('data-testid="google-remove"'),
     "the listing row keeps its verbs' names",
   );
+  // The search verb is the last of google-actions.ts's: its own text, not the callback's or the reply's.
+  const searchVerb = search.slice(search.indexOf("function searchGoogleFor"));
   assert.ok(
-    /log\.error\(\s*"google_search_failed"/.test(search) && !/typeof b\.error === "string" \? b\.error :/.test(search),
+    /log\.error\(\s*"google_search_failed"/.test(searchVerb) &&
+      !/typeof b\.error === "string" \? b\.error :/.test(searchVerb),
     "Google's words go to the log, not the owner",
   );
   assert.ok(

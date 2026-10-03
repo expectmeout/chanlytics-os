@@ -1,64 +1,16 @@
 /**
- * POST /api/admin/signup-notify — somebody made a workspace, and the
- * platform mailbox hears about it.
+ * POST /api/admin/signup-notify: tells the platform mailbox somebody made a workspace.
  *
- * The workspace is the dashboard's, made by its signed-in owner through
- * create_workspace; the one thing the dashboard cannot do is send the
- * email. A failure here is a shrug: the workspace exists and its owner is
- * in it. What travels is the workspace's name, slug and id and the owner's
- * address; no customer content exists yet. Signed admin token only.
+ * The door is the knock (authorizeAdmin: a signed admin token for this door) and the body (readBody); notifySignup in
+ * lib/ops/signup-notify.ts is everything after.
  */
-import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
-import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
-import { pg } from "../../lib/pg.js";
-import { notify } from "../../lib/ops/notify.js";
-import { env } from "../../lib/env.js";
-import { logger, adminDoor } from "../../lib/log.js";
-
-const L = logger();
-
-interface Body {
-  tenant_id?: string;
-  email?: string;
-}
+import { authorizeAdmin } from "../../lib/admin-auth.js";
+import { adminDoor } from "../../lib/log.js";
+import { notifySignup } from "../../lib/ops/signup-notify.js";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/signup-notify");
   if (!auth.ok) return auth.response;
-  if (!env.LEAD_TO || !env.LEAD_FROM) return refuse(503, "no_platform_mailbox");
-  const db = pg();
-  if (!db) return refuse(503, "no_database");
-  const body = await readBody<Body>(request);
-  const ws = workspaceFor(auth, body.tenant_id);
-  if (!ws.ok) return ws.response;
-  body.tenant_id = ws.tenantId ?? undefined;
-  const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
-  const email = typeof body.email === "string" ? body.email.trim().slice(0, 254) : "";
-  if (!/^[0-9a-f-]{36}$/i.test(tenantId) || !email)
-    return refuse(400, "bad_request", "tenant_id and email are required");
-  const tenant = await db
-    .from("tenants")
-    .select("id, name, slug, timezone, created_at")
-    .eq("id", tenantId)
-    .maybeSingle();
-  if (tenant.error) return refuse(503, "read_failed", tenant.error.message);
-  if (!tenant.data) return refuse(404, "not_found", "no such workspace");
-  const sent = await notify(
-    // The platform's own mailbox: this is about a workspace, not addressed to one.
-    { tenantId: null, notifications: null, isEnvDefault: true },
-    {
-      kind: "alert",
-      subject: `New workspace: ${tenant.data.name}`,
-      body:
-        `${tenant.data.name} (${tenant.data.slug}) signed up.\n` +
-        `Owner: ${email}\n` +
-        `Time zone: ${tenant.data.timezone}\n` +
-        `Workspace id: ${tenant.data.id}\n` +
-        `Created: ${tenant.data.created_at}\n\n` +
-        "Their Setup page tells them what to do next; nothing is provisioned until they ask.\n",
-    },
-  );
-  L.info("signup_told", { tenant_id: tenantId, sent });
-  return json(sent ? 200 : 502, { ok: sent, tenant: tenant.data.slug });
+  return notifySignup(auth, await readBody(request));
 });

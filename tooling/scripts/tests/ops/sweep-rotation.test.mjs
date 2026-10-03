@@ -287,11 +287,12 @@ test("bookkeeping that fails never fails the sweep", async () => {
 });
 
 test("both sweeps are wired to it, and answer 503 on the alarm", () => {
-  for (const [file, sweep, cap] of [
-    ["calendar", "calendar", "CALENDAR_PER_TICK"],
-    ["playbooks", "playbooks", "PLAYBOOKS_PER_TICK"],
+  // The sweeps live in their domains' folders; api/cron/<name>.ts is the door that hands each its tick.
+  for (const [file, sweep, cap, module] of [
+    ["calendar", "calendar", "CALENDAR_PER_TICK", "apps/edge/lib/calendar/calendar-sweep.ts"],
+    ["playbooks", "playbooks", "PLAYBOOKS_PER_TICK", "apps/edge/lib/reach-out/playbooks-sweep.ts"],
   ]) {
-    const src = readCode(`apps/edge/api/cron/${file}.ts`);
+    const src = readCode(module);
     assert.ok(src.includes(`${cap}`), `${file}: capped`);
     assert.ok(src.includes(`noteBacklog(db, "${sweep}",`), `${file}: records the backlog`);
     assert.ok(src.includes("if (backlog.alarm) {") && src.includes("json(503"), `${file}: 503 on the alarm`);

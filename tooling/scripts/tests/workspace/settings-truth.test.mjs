@@ -150,7 +150,10 @@ test("F50: gates match doors — the business form is owner-only like PUT /setti
     !pane.includes("reply.mode.toLowerCase()"),
     "REGRESSION: a stale page changing the hold window resent its remembered mode",
   );
-  const policies = readCode("apps/dashboard/app/api/v1/policies/route.ts");
+  const policies = readCode(
+    "apps/dashboard/app/api/v1/policies/route.ts",
+    "apps/dashboard/src/server/campaigns/policy-write.ts",
+  );
   assert.ok(policies.includes("mode = current.mode;"), "the row keeps the mode it has");
   assert.ok(
     verbsBridge.includes(
@@ -222,7 +225,10 @@ test("the workspace timezone is visible and an owner can change it", () => {
     "a slug is a URL and a status is a billing state; neither is a settings toggle",
   );
 
-  const route = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
+  const route = readCode(
+    "apps/dashboard/app/api/v1/workspaces/route.ts",
+    "apps/dashboard/src/server/workspace/workspace-list.ts",
+  );
   assert.ok(route.includes('role: "partner",'), "the owner's, or the partner's who set it up (0012)");
   assert.ok(
     route.includes("if (!data?.length) throw new AppError"),

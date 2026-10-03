@@ -37,14 +37,15 @@ const LEVELS = new Set(["info", "warn", "error"]);
  * a value typed `LogEvent` and named here.
  */
 const FORWARDED = {
-  "apps/edge/api/admin/billing.ts": ["log.event"], // billingLogOf (billing-ops.ts)
-  "apps/edge/api/admin/google.ts": ["log.event", "log.event"], // connectAnswer, draftAnswer (google-ops.ts)
-  "apps/edge/api/apify-webhook.ts": ["verdict.log", "verdict.log", "verdict.log"], // planApifyIngress
-  "apps/edge/api/inbound-sms.ts": ["verdict.log", "verdict.log"], // planSmsIngress
-  "apps/edge/api/resend-webhook.ts": ["verdict.log", "verdict.log"], // planResendEvent
-  "apps/edge/api/retell-webhook.ts": ["s.event"], // planCallEvent's log step (call-event.ts)
+  "apps/edge/lib/billing/billing-admin.ts": ["log.event"], // billingLogOf (billing-ops.ts)
+  "apps/edge/lib/email/resend-event.ts": ["verdict.log", "verdict.log"], // planResendEvent
+  "apps/edge/lib/google/google-admin.ts": ["log.event", "log.event"], // connectAnswer, draftAnswer (google-ops.ts)
+  "apps/edge/lib/leads/apify-delivery.ts": ["verdict.log", "verdict.log", "verdict.log"], // planApifyIngress
+  "apps/edge/lib/ops/sweep-door.ts": ["noDbEvent"], // sweepDoor: the line a sweep says when it has no database
   "apps/edge/lib/reach-out/check.ts": ["event"], // the check sweep's error(...)
   "apps/edge/lib/reach-out/sender.ts": ["event"], // the claim's failed(...)
+  "apps/edge/lib/sms/inbound-text.ts": ["verdict.log", "verdict.log"], // planSmsIngress
+  "apps/edge/lib/voice/call-webhook.ts": ["s.event"], // planCallEvent's log step (call-event.ts)
   // The one computed name: pgSafe's step is a PgStep, so the family is a union tsc checks against the set.
   "apps/edge/lib/whatsapp/persist.ts": ["`pg_${label}_failed`"],
 };

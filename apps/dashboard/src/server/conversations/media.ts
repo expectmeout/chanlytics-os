@@ -6,6 +6,13 @@ import { serviceDb } from "../service-db";
 import { log } from "@/server/log";
 
 /**
+ * Stored media, signed for a member (the attachments of a thread, the recordings of a call). The bucket is private and
+ * the signer holds the service role, so nothing in the platform's storage is scoped by RLS here: a path is signed only
+ * when it sits under the asking workspace's own id (inWorkspace), and the recording's audit row is written on the
+ * member's own session.
+ */
+
+/**
  * Whether a stored object's path is this workspace's own: `<workspace id>/…`, as the edge writes every one (a message's
  * attachment `<tenant>/<conversation>/<message>.<ext>`, a call's recording `<tenant>/calls/<call>.<ext>`), with no
  * empty, `.` or `..` segment. The bucket is private and the signer holds the service role, so the path on the row is

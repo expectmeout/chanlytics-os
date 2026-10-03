@@ -5,9 +5,6 @@
   "apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts": {
     "unknownAs": 1
   },
-  "apps/dashboard/app/api/v1/contacts/[id]/route.ts": {
-    "unknownAs": 2
-  },
   "apps/dashboard/app/api/v1/contacts/consent/route.ts": {
     "unknownAs": 1
   },
@@ -20,29 +17,13 @@
   "apps/dashboard/app/api/v1/lead-searches/[id]/more/route.ts": {
     "unknownAs": 1
   },
-  "apps/dashboard/app/api/v1/lead-searches/route.ts": {
-    "unknownAs": 1
-  },
-  "apps/dashboard/app/api/v1/playbooks/[id]/route.ts": {
-    "unknownAs": 1,
-    "nonNull": 1
-  },
   "apps/dashboard/app/api/v1/playbooks/route.ts": {
     "unknownAs": 1
   },
   "apps/dashboard/app/api/v1/reach-outs/leads/route.ts": {
     "nonNull": 1
   },
-  "apps/dashboard/app/api/v1/segments/[id]/route.ts": {
-    "unknownAs": 1
-  },
-  "apps/dashboard/app/api/v1/segments/route.ts": {
-    "unknownAs": 1
-  },
   "apps/dashboard/app/api/v1/team/[id]/route.ts": {
-    "unknownAs": 1
-  },
-  "apps/dashboard/app/api/v1/workspaces/route.ts": {
     "unknownAs": 1
   },
   "apps/dashboard/proxy.ts": {
@@ -167,6 +148,10 @@
     "unknownAs": 4,
     "nonNull": 4
   },
+  "apps/dashboard/src/server/campaigns/playbook-row.ts": {
+    "unknownAs": 1,
+    "nonNull": 1
+  },
   "apps/dashboard/src/server/campaigns/playbooks.ts": {
     "unknownAs": 5
   },
@@ -174,6 +159,9 @@
     "unknownAs": 1
   },
   "apps/dashboard/src/server/leads/lead-page.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/server/leads/lead-search-create.ts": {
     "unknownAs": 1
   },
   "apps/dashboard/src/server/leads/lead-searches.ts": {
@@ -187,6 +175,12 @@
   },
   "apps/dashboard/src/server/people/deals.ts": {
     "unknownAs": 1
+  },
+  "apps/dashboard/src/server/people/erase-contact.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/src/server/people/list-write.ts": {
+    "unknownAs": 2
   },
   "apps/dashboard/src/server/people/lists.ts": {
     "nonNull": 1
@@ -209,6 +203,9 @@
   "apps/dashboard/src/server/route.ts": {
     "unknownAs": 1
   },
+  "apps/dashboard/src/server/workspace/workspace-list.ts": {
+    "unknownAs": 1
+  },
   "apps/dashboard/src/surfaces/people/people-detail.ts": {
     "unknownAs": 1
   },
@@ -218,57 +215,19 @@
   "apps/dashboard/src/surfaces/people/surface.ts": {
     "unknownAs": 2
   },
-  "apps/edge/api/admin/voice-converge.ts": {
-    "unknownAs": 2
-  },
-  "apps/edge/api/admin/voice-provision.ts": {
-    "unknownAs": 1
-  },
-  "apps/edge/api/admin/whatsapp/connect.ts": {
-    "unknownAs": 2
-  },
-  "apps/edge/api/admin/whatsapp/templates-create.ts": {
-    "unknownAs": 2
-  },
-  "apps/edge/api/admin/whatsapp/templates-sync.ts": {
-    "unknownAs": 4
-  },
-  "apps/edge/api/cron/deadman.ts": {
-    "unknownAs": 1,
-    "nonNull": 1
-  },
-  "apps/edge/api/cron/health.ts": {
-    "unknownAs": 1
-  },
-  "apps/edge/api/cron/leads.ts": {
-    "unknownAs": 1
-  },
-  "apps/edge/api/cron/partners.ts": {
-    "unknownAs": 1
-  },
-  "apps/edge/api/cron/playbooks.ts": {
-    "unknownAs": 2
-  },
-  "apps/edge/api/diag.ts": {
-    "unknownAs": 2
-  },
-  "apps/edge/api/retell-fn.ts": {
-    "nonNull": 1
-  },
-  "apps/edge/api/retell-webhook.ts": {
-    "unknownAs": 2,
-    "nonNull": 1
-  },
-  "apps/edge/api/whatsapp.ts": {
-    "unknownAs": 2,
-    "nonNull": 1
-  },
   "apps/edge/lib/email/dmarc.ts": {
     "nonNull": 2
   },
+  "apps/edge/lib/email/sending-domain-check.ts": {
+    "unknownAs": 2,
+    "nonNull": 1
+  },
+  "apps/edge/lib/email/sending-domain-provider.ts": {
+    "unknownAs": 1
+  },
   "apps/edge/lib/email/sending-domains.ts": {
-    "unknownAs": 4,
-    "nonNull": 2
+    "unknownAs": 1,
+    "nonNull": 1
   },
   "apps/edge/lib/google/profile-connection.ts": {
     "nonNull": 1
@@ -279,10 +238,22 @@
   "apps/edge/lib/leads/lead-db.ts": {
     "unknownAs": 3
   },
+  "apps/edge/lib/leads/leads-sweep.ts": {
+    "unknownAs": 1
+  },
   "apps/edge/lib/lines/line-release.ts": {
     "unknownAs": 2
   },
   "apps/edge/lib/lines/lines.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/lib/ops/diagnostic.ts": {
+    "unknownAs": 2
+  },
+  "apps/edge/lib/ops/health-sweep.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/lib/partners/partners-sweep.ts": {
     "unknownAs": 1
   },
   "apps/edge/lib/pg.ts": {
@@ -294,6 +265,9 @@
   "apps/edge/lib/reach-out/clock.ts": {
     "nonNull": 1
   },
+  "apps/edge/lib/reach-out/playbooks-sweep.ts": {
+    "unknownAs": 2
+  },
   "apps/edge/lib/reach-out/replan.ts": {
     "nonNull": 1
   },
@@ -303,6 +277,10 @@
   "apps/edge/lib/reach-out/sender.ts": {
     "unknownAs": 1
   },
+  "apps/edge/lib/receptionist/deadman-sweep.ts": {
+    "unknownAs": 1,
+    "nonNull": 1
+  },
   "apps/edge/lib/receptionist/unfinished.ts": {
     "unknownAs": 3,
     "nonNull": 1
@@ -310,12 +288,35 @@
   "apps/edge/lib/sms/sms.ts": {
     "unknownAs": 1
   },
+  "apps/edge/lib/voice/call-booking-link.ts": {
+    "nonNull": 1
+  },
+  "apps/edge/lib/voice/call-webhook.ts": {
+    "unknownAs": 2,
+    "nonNull": 1
+  },
+  "apps/edge/lib/voice/voice-converge.ts": {
+    "unknownAs": 2
+  },
+  "apps/edge/lib/voice/voice-provision.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/lib/whatsapp/connect-number.ts": {
+    "unknownAs": 2
+  },
   "apps/edge/lib/whatsapp/persist.ts": {
     "unknownAs": 1,
     "nonNull": 1
   },
+  "apps/edge/lib/whatsapp/template-admin.ts": {
+    "unknownAs": 6
+  },
   "apps/edge/lib/whatsapp/waba-events.ts": {
     "unknownAs": 1
+  },
+  "apps/edge/lib/whatsapp/webhook.ts": {
+    "unknownAs": 2,
+    "nonNull": 1
   },
   "apps/mobile/src/shell/Surface.tsx": {
     "nonNull": 1

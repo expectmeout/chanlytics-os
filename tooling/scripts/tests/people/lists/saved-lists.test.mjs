@@ -59,11 +59,17 @@ test("the tables: the workspace's, members read, acting members write, a person 
 test("the routes: one workspace's lists with their ids, owner or operator to change them, the same refusals in the same words", () => {
   // Scoped by tenant, not by RLS alone, and every member read: people-routes.test.mjs runs the GET over two
   // workspaces and over a list past PostgREST's max_rows.
-  const list = readCode("apps/dashboard/app/api/v1/segments/route.ts");
+  const list = readCode(
+    "apps/dashboard/app/api/v1/segments/route.ts",
+    "apps/dashboard/src/server/people/list-write.ts",
+  );
   assert.ok(list.includes('role: "operator",') && list.includes('rate: "lists",'));
   // A taken name is the route's 409 in one sentence, which Ask's list card refuses in too (server/people/lists.ts).
   assert.ok(list.includes('if (error?.code === "23505") throw new AppError("conflict", LIST_NAME_TAKEN, 409);'));
-  const one = readCode("apps/dashboard/app/api/v1/segments/[id]/route.ts");
+  const one = readCode(
+    "apps/dashboard/app/api/v1/segments/[id]/route.ts",
+    "apps/dashboard/src/server/people/list-write.ts",
+  );
   assert.ok(
     one.includes('const add = cleanIdList(body?.add, "add");') &&
       one.includes('const remove = cleanIdList(body?.remove, "remove");'),

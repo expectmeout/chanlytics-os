@@ -59,7 +59,7 @@ what the script writes.
 | [`leads`](#leads) | `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`lines`](#lines) | `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`mailboxes`](#mailboxes) | `packages/db/src/repositories/email.ts` | on, 1 policy |
-| [`memberships`](#memberships) | `packages/db/src/repositories/notifications.ts` | on, 2 policies |
+| [`memberships`](#memberships) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notifications.ts` | on, 2 policies |
 | [`messages`](#messages) | `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
 | [`notification_marks`](#notification_marks) | none | on, 1 policy |
 | [`notification_reads`](#notification_reads) | none | on, 1 policy |
@@ -76,7 +76,7 @@ what the script writes.
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
 | [`platform_metrics`](#platform_metrics) | none | on, no policy, so only the service role reaches it |
-| [`playbooks`](#playbooks) | `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
+| [`playbooks`](#playbooks) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
 | [`policies`](#policies) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts` | on, 5 policies |
 | [`profiles`](#profiles) | none | on, 1 policy |
 | [`push_devices`](#push_devices) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
@@ -1498,7 +1498,7 @@ Foreign keys:
 
 ### memberships
 
-- Owned by: `packages/db/src/repositories/notifications.ts`
+- Owned by: `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notifications.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -1979,7 +1979,7 @@ Foreign keys:
 
 ### playbooks
 
-- Owned by: `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/sweeps.ts`
+- Owned by: `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/sweeps.ts`
 - Primary key: `id`
 - Row-level security: on, 4 policies
 

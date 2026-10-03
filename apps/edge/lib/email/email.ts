@@ -11,6 +11,13 @@
  *
  * A workspace's own switch is its mailbox row (00126): without one it has no
  * address to be written to, so nothing arrives and nothing is answered.
+ *
+ * The cold reply domains (D17) are the domain cold emails' replies come back on and the one before it while it winds
+ * down; a switch set to something that is not a domain is ignored and said once. A workspace's wire (emailWireFor)
+ * sends as its mailbox on the platform's account and as each verified own domain on the cold account, never as another
+ * workspace's address; a held domain has no route, and a domains read that fails is a wire not bound, so a send waits.
+ * The intake (emailIntake) hands the job runner the fetch, the erasure check and the owner's note, and
+ * emailWaitingMessage is that note's words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mailboxOfTenant, sendingDomainsOf, type Database } from "../packages/db.js";

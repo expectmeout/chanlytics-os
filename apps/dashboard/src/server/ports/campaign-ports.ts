@@ -5,6 +5,11 @@
  * these. The session role writes here: it updates a broadcast's `state`
  * (00046) and `scheduled_for` (00119). A broadcast, its people and its job are
  * assembled through one door (00282) that is the service role's alone.
+ *
+ * Beside the writes, the reads a send is judged by: the template and the booking link, the audience pool (every person,
+ * and a built-in or saved list over it) read once, in the workspace's own zone, and the WhatsApp number's health. A
+ * release or a cancel puts the broadcast_send job on the ledger, or takes it off (schedule, cancelKindFor), and every
+ * act is recorded as a decision.
  */
 import { AppError, numberHealth, parseTenantConfig } from "@chanlytics/contracts";
 import { assembleBroadcast } from "@chanlytics/db";

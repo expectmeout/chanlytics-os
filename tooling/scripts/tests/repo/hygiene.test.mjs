@@ -90,7 +90,10 @@ test("F48: one person's profile reads one person's rows; the metrics CTEs are no
 });
 
 test("F51: a cross-site GET of the workspaces reads and writes nothing", () => {
-  const route = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
+  const route = readCode(
+    "apps/dashboard/app/api/v1/workspaces/route.ts",
+    "apps/dashboard/src/server/workspace/workspace-list.ts",
+  );
   assert.ok(route.includes("isSameOrigin(_req) && (await acceptOpenInvites(userId, email ?? null)) > 0"));
   assert.ok(route.includes('from "@/server/request-guards"'));
 });
@@ -169,7 +172,12 @@ test("every route pg_cron calls stands behind the one door", () => {
   assert.ok(routes.length >= 9, `found ${routes.length} scheduled routes`);
   for (const r of routes) {
     const src = readCode(r);
-    assert.ok(src.includes("await authorizeCron(request, db, L)"), `${r} stands behind authorizeCron`);
+    // A sweep's route is sweepDoor (lib/ops/sweep-door.ts, which cron-auth.test.mjs runs: the sweep is reached only with
+    // the key); the jobs tick, which is no sweep, asks for the key itself.
+    assert.ok(
+      src.includes("sweepDoor(") || src.includes("await authorizeCron(request, db, L)"),
+      `${r} stands behind authorizeCron`,
+    );
     assert.ok(
       !src.includes("timingSafeEqual") && !src.includes('rpc("get_cron_sweep_key")'),
       `${r} keeps no door of its own`,

@@ -4,6 +4,13 @@
  * among are read, the chosen one is bound as the listing and synced at once
  * (`bindLocation`, through profile-sync.ts), and the grant is given back
  * (`disconnectProfile`).
+ *
+ * A connect that cannot finish gives the grant back and says why as an EdgeRefusal: a scope or a refresh token missing,
+ * accounts that cannot be read, no location, none on Maps. A connect is also a RE-connect, so a vault write that fails
+ * puts the previous row back rather than deleting a working connection, and gives the new grant back only when it is
+ * another Google account's. Only one location on Maps is bound at once; several wait for the owner's choice
+ * (`locationsFor` reads them again). A connect and a disconnect each write their event (google.connected,
+ * google.disconnected).
  */
 import { emitEvent } from "../packages/db.js";
 import {

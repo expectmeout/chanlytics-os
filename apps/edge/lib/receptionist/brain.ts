@@ -18,6 +18,13 @@
  * ledger with its four kinds of tokens and its dollars, and every record is stamped with the prompt's hash and the
  * settings' version it was composed from (scorecard move 10). A call that gets no answer at all throws, and the turn's
  * catch sends the holding reply and hands the thread to a person, as it always has.
+ *
+ * The prompt goes out as one cached block, with the clock (nowNote), who the customer is (leadNote, fenced) and an
+ * owner's steer after it as separate uncached blocks, so a minute or a new contact never evicts the business profile
+ * from the cache; a photo goes before the words when the workspace lets the receptionist look. A refusal, a capped
+ * answer or a record out of its shape is the holding reply and a handoff. generateReply is the door: while the second
+ * model is on (TYPESAFE_SHADOW, decision 0023) it also puts the customer's words to it in shadow, compares its answer
+ * with the record's intent and keeps it, and never lets it change the reply.
  */
 import type { ThreadTurn } from "../packages/core.js";
 import {

@@ -206,9 +206,9 @@ test("a log line on the message path carries a phone tail, never the number or t
   // Every log call is read to its closing paren, so a field on the next line
   // counts; a value already reduced to a tail does not.
   const files = [
-    "apps/edge/api/whatsapp.ts",
-    "apps/edge/api/inbound-sms.ts",
-    "apps/edge/api/retell-inbound.ts",
+    "apps/edge/lib/whatsapp/webhook.ts",
+    "apps/edge/lib/sms/inbound-text.ts",
+    "apps/edge/lib/voice/inbound-call.ts",
     "apps/edge/lib/voice/call-start.ts",
     "apps/edge/lib/whatsapp/inbound.ts",
     // The message path itself: a verb over ports, logging through the
@@ -243,13 +243,13 @@ test("a log line on the message path carries a phone tail, never the number or t
   }
   assert.deepEqual(offences, [], "a whole number or a customer's words on a log line");
   assert.ok(
-    readRaw("apps/edge/api/whatsapp.ts").includes(
+    readRaw("apps/edge/lib/whatsapp/webhook.ts").includes(
       'L.info("wa_inbound", { from_tail: phoneTail(m.from), type: m.type, id: m.id });',
     ),
     "the WhatsApp inbound line: a tail, a type, an id",
   );
   assert.ok(
-    readRaw("apps/edge/api/inbound-sms.ts").includes(
+    readRaw("apps/edge/lib/sms/inbound-text.ts").includes(
       "from_tail: phoneTail(inbound.from), to_tail: phoneTail(inbound.to)",
     ),
     "the SMS logger's context: tails",

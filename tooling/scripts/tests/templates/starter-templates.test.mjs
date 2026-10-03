@@ -241,7 +241,10 @@ test("a slot's source: a starter's own, or a guess from the label and the exampl
 });
 
 test("the door: idempotent, one language at a time, synced in when the number's account already holds it, Meta's own words when it refuses", async () => {
-  const r = readCode("apps/dashboard/app/api/v1/templates/starter/route.ts");
+  const r = readCode(
+    "apps/dashboard/app/api/v1/templates/starter/route.ts",
+    "apps/dashboard/src/server/campaigns/starter-templates.ts",
+  );
   assert.ok(r.includes('role: "operator",') && r.includes('rate: "settings",'));
   assert.ok(
     r.includes('results.push({ ...base, status: "exists", meta_status: have.meta_status });'),
@@ -429,7 +432,10 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   assert.ok(m.includes("grant execute on function public.set_template_hidden(uuid, boolean) to authenticated;"));
   // The composers never see a hidden template and Settings sees everything: RUN through the route in
   // outbound-routes.test.mjs ("templates: the composers see the approved and unhidden") and its reader in readers.test.mjs.
-  const one = readCode("apps/dashboard/app/api/v1/templates/[id]/route.ts");
+  const one = readCode(
+    "apps/dashboard/app/api/v1/templates/[id]/route.ts",
+    "apps/dashboard/src/server/campaigns/template-row.ts",
+  );
   assert.ok(
     /ctx\.supabase\.rpc\("set_template_hidden", \{\s*p_template_id: id,\s*p_hidden: input\.hidden === true,?\s*\}\)/.test(
       one,
@@ -469,7 +475,10 @@ test("a template's title: the workspace's own words, set through its door, shown
     "owner or operator, never a viewer",
   );
   assert.ok(m.includes("grant execute on function public.set_template_title(uuid, text) to authenticated;"));
-  const one = readCode("apps/dashboard/app/api/v1/templates/[id]/route.ts");
+  const one = readCode(
+    "apps/dashboard/app/api/v1/templates/[id]/route.ts",
+    "apps/dashboard/src/server/campaigns/template-row.ts",
+  );
   assert.ok(
     one.includes('ctx.supabase.rpc("set_template_title", { p_template_id: id, p_title: title || "" })'),
     "empty is no title — the door clears it",
