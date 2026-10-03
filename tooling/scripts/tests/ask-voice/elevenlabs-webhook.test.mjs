@@ -175,7 +175,7 @@ test("the conversation over: the row is ended with its minutes (an end the brows
     headers: { "xi-api-key": "xi-key-for-this-file" },
   });
   assert.deepEqual(await answer(await deliver(event())), [200, { ok: true }], "delivered again");
-  assert.equal(net.calls.length, 1, "erased once");
+  assert.equal(net.calls.length, 2, "the minutes written once, the erase asked for again (in case it was what failed)");
   assert.equal(row.duration_s, 48);
 });
 

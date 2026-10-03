@@ -342,9 +342,12 @@ const useAskVoice = ({ A, M, hear }) => {
   hearRef.current = hear;
   const can = !!(A && A.canVoice && A.canVoice());
   const rest = () => { setOn(false); setMode("listening"); threadRef.current = null; };
+  // The end: the Line is told first (the conversation's end comes back as "gone" through the same hearing, with the
+  // thread still known, so the stored turn is read), and the thread forgotten after.
   const stop = async () => {
-    rest();
+    setOn(false); setMode("listening");
     if (A && A.stopVoice) await A.stopVoice();
+    threadRef.current = null;
   };
   const start = async (input) => {
     if (!can) return null;
@@ -352,9 +355,12 @@ const useAskVoice = ({ A, M, hear }) => {
     try {
       const got = await A.startVoice(input, (a) => {
         if (a.t === "mode") setMode(a.mode);
-        else if (a.t === "gone") rest();
+        // Heard before the rest: "gone" reads the thread off threadRef, which the rest clears.
         hearRef.current(a);
+        if (a.t === "gone") rest();
       });
+      // Ended before it was up (null): nothing runs, and the Line was told so.
+      if (!got) { rest(); return null; }
       threadRef.current = got.threadId;
       return got;
     } catch (e) {

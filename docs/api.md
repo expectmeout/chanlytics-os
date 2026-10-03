@@ -77,6 +77,7 @@ Writes; for a member of the workspace the request names, viewer or above; no rat
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `session` | string | yes | matches `^[0-9a-f]{64}$` |
+| `reason` | string | no | at most 80 characters |
 
 ### `POST /api/v1/ask/voice/page`
 

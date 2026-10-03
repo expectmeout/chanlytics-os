@@ -18,9 +18,12 @@ import {
   type AskProposal,
   type AskProposalOutcome,
   type PageContext,
+  ASK_VOICE_TOKEN_MIN_MS,
 } from "@chanlytics/contracts";
 import { askApi, type AskApiCalls, type SendEvent } from "./ask/api";
 import { apiFor } from "./api";
+import { createClient } from "../lib/supabase/client";
+import { hearAddress, routeOnScreen } from "./workspace";
 import { commitProposal, editReply, undoProposal, type CommitResult } from "./ask/commit";
 import { askPalette, quickAnswer } from "./ask/palette";
 import { askSpeech } from "./ask/speech";
@@ -60,12 +63,35 @@ export type AskApi = ReturnType<typeof askPalette> &
     ): PageContext;
   };
 
+/**
+ * The member's session made fresh before a voice conversation: the brain door opens the member with the access token
+ * the voice route seals, for as long as the conversation runs (the agent's thirty minutes), so a token with less life
+ * than that is refreshed first, by the browser's own client with its own refresh token (never the server's: a refresh
+ * there would race the browser's and sign the member out).
+ */
+async function freshSession(): Promise<void> {
+  const client = createClient();
+  const { data } = await client.auth.getSession();
+  const exp = data.session?.expires_at;
+  if (typeof exp === "number" && exp * 1000 - Date.now() < ASK_VOICE_TOKEN_MIN_MS) await client.auth.refreshSession();
+}
+
 export function installAsk(win: Window = window, storage: Storage | null = safeStorage()): AskApi {
   const palette = askPalette(win, storage);
   const api = askApi(apiFor(win));
   const speech = askSpeech(win);
   // A voice conversation on the agent (ask/voice.ts): the vendor's client is loaded on the first tap, not here.
-  const voice = installVoice(win, { api });
+  const voice = installVoice(win, { api, freshen: freshSession });
+  // The page under a running conversation follows the member: the next spoken turn reads the page they moved to
+  // (a window that cannot be listened to, a test's stand-in, has no page to follow). The address is read as the
+  // Line reads its own (ask-real.jsx arRoute): the page, then the rest as its param.
+  if (typeof win.addEventListener === "function") {
+    hearAddress(() => {
+      if (!voice.voiceOn()) return;
+      const [page, ...rest] = routeOnScreen(win).split("/");
+      voice.pageMoved(pageContext(win, { page: page || "today", param: rest.length ? rest.join("/") : null }));
+    }, win);
+  }
   const send: AskApiCalls["send"] = (input, on) => {
     palette.rememberLanguage(palette.language(input.text));
     return api.send(input, on);

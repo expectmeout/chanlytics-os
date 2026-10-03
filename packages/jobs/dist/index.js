@@ -1227,6 +1227,7 @@ var LeadSuggestAnswerSchema = z10.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var AskProposalOutcomeSchema = z11.object({
   state: z11.enum(["done", "dismissed", "failed", "undone"]),
@@ -4672,6 +4673,7 @@ var LeadSuggestAnswerSchema2 = z102.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS2 = 35 * MIN_MS2;
 var ASK_UNDO_MS2 = 10 * 6e4;
 var AskProposalOutcomeSchema2 = z112.object({
   state: z112.enum(["done", "dismissed", "failed", "undone"]),
@@ -8028,6 +8030,7 @@ var LeadSuggestAnswerSchema3 = z103.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS3 = 35 * MIN_MS3;
 var ASK_UNDO_MS3 = 10 * 6e4;
 var AskProposalOutcomeSchema3 = z113.object({
   state: z113.enum(["done", "dismissed", "failed", "undone"]),
@@ -11484,6 +11487,7 @@ var LeadSuggestAnswerSchema4 = z104.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS4 = 35 * MIN_MS4;
 var ASK_UNDO_MS4 = 10 * 6e4;
 var AskProposalOutcomeSchema4 = z114.object({
   state: z114.enum(["done", "dismissed", "failed", "undone"]),
@@ -15234,6 +15238,7 @@ var LeadSuggestAnswerSchema22 = z1022.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS22 = 35 * MIN_MS22;
 var ASK_UNDO_MS22 = 10 * 6e4;
 var AskProposalOutcomeSchema22 = z1122.object({
   state: z1122.enum(["done", "dismissed", "failed", "undone"]),
@@ -18406,6 +18411,7 @@ var LeadSuggestAnswerSchema32 = z1032.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS32 = 35 * MIN_MS32;
 var ASK_UNDO_MS32 = 10 * 6e4;
 var AskProposalOutcomeSchema32 = z1132.object({
   state: z1132.enum(["done", "dismissed", "failed", "undone"]),

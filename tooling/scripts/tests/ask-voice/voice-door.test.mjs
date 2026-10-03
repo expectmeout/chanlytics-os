@@ -188,7 +188,11 @@ test("a row whose token has expired, or that the Auth server refuses, speaks a r
   assert.ok(expired.tables.ask_voice_sessions[0].ended_at, "the row is ended");
 
   const refused = await world();
-  refused.deps.verify = async () => ({ supabase: refused.db, claims: null, error: { message: "revoked" } });
+  refused.deps.verify = async () => ({
+    supabase: refused.db,
+    claims: null,
+    error: { status: 401, message: "revoked" },
+  });
   assert.deepEqual(spoken(await frames(await knock(refused))), ["Let me reconnect."]);
   assert.ok(refused.tables.ask_voice_sessions[0].ended_at);
 
@@ -296,4 +300,128 @@ test("the same words at another place in the conversation are a new turn", async
   await frames(await knock(w, again));
   assert.deepEqual(asked, [QUESTION, QUESTION], "asked twice, answered twice");
   assert.equal(w.tables.ask_messages.length, 4);
+});
+
+/* ------------------------------ the review's cases ------------------------------ */
+
+test("an Auth server that cannot be asked keeps the row: a retryable error speaks a wait, never a reconnect, and nothing is ended", async () => {
+  model();
+  const w = await world();
+  w.deps.verify = async () => ({
+    supabase: w.db,
+    claims: null,
+    error: { status: 503, name: "AuthRetryableFetchError", message: "fetch failed" },
+  });
+  assert.deepEqual(spoken(await frames(await knock(w))), ["Give me a moment before the next question."]);
+  assert.ok(!w.tables.ask_voice_sessions[0].ended_at, "the row stands");
+  assert.equal(w.tables.ask_messages.length, 0);
+});
+
+test("a database that cannot be asked for the member speaks a failure and keeps the row: never a status once the row is known", async () => {
+  model();
+  const w = await world();
+  const down = {
+    from() {
+      throw new Error("database down");
+    },
+    rpc() {
+      throw new Error("database down");
+    },
+  };
+  w.deps.verify = async () => ({ supabase: down, claims: { sub: USER, email: "ada@example.com" }, error: null });
+  assert.deepEqual(spoken(await frames(await knock(w))), ["Something went wrong on my side. Try again in a moment."]);
+  assert.ok(!w.tables.ask_voice_sessions[0].ended_at, "the row stands");
+});
+
+test("the second question, asked twice at once, speaks the second answer in both streams, never the first's", async () => {
+  const w = await world();
+  model(0, "Ana needs you, since noon.");
+  await frames(await knock(w));
+  assert.equal(w.tables.ask_messages.length, 2, "the first turn stored");
+  const asked = model(40, "Luis needs you at two.");
+  const second = body(w.S, {
+    messages: [
+      { role: "system", content: "x" },
+      { role: "user", content: QUESTION },
+      { role: "assistant", content: "Ana needs you, since noon." },
+      { role: "user", content: "And now?" },
+    ],
+  });
+  const [a, b] = await Promise.all([knock(w, second), knock(w, second)]);
+  // The turn runs as the stream is read: both are read before anything is judged.
+  const [wa, wb] = [spoken(await frames(a)), spoken(await frames(b))];
+  const said = (ws) => ws.filter((x) => x !== "... ").join("");
+  assert.deepEqual(asked, ["And now?"], "the second turn ran once");
+  assert.equal(said(wa), "Luis needs you at two.");
+  assert.equal(said(wb), "Luis needs you at two.", "the follower waits for this turn's answer, never the first's");
+  assert.equal(w.tables.ask_messages.length, 4);
+});
+
+test("a model slow to its first words hears the door's own, One moment… as a read's label, once, before the answer", async () => {
+  const w = await world();
+  model(60);
+  w.deps.firstWordsMs = 15;
+  const words = spoken(await frames(await knock(w)));
+  assert.equal(words[0], "One moment… ", `the door's first words, saw ${JSON.stringify(words)}`);
+  assert.equal(words.filter((x) => x === "One moment… ").length, 1, "once");
+  assert.equal(words.at(-1), HEADLINE);
+});
+
+test("more words than a turn takes speak the Line's own line, in the person's language, and nothing is stored", async () => {
+  const w = await world({ session: { language: "es" } });
+  model();
+  const long = "palabra ".repeat(200);
+  assert.deepEqual(spoken(await frames(await knock(w, body(w.S, { messages: [{ role: "user", content: long }] })))), [
+    "Eso es más de lo que puedo tomar de una vez. Pregúntalo en dos.",
+  ]);
+  assert.equal(w.tables.ask_messages.length, 0);
+});
+
+test("a Say the turn takes back (an answer written beside a read) cannot be unspoken: the real answer is spoken whole after a breath, and it is what is stored", async () => {
+  const w = await world();
+  Object.assign(w.tables, { conversations: [], messages: [], contacts: [], calls: [] });
+  const none = { kind: "none", id: "", label: "" };
+  const written = (headline) =>
+    JSON.stringify({
+      say: { headline, detail: "" },
+      show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: none } },
+      do: { open: null, next: [] },
+      language: "en",
+    });
+  const first = written("It is probably Ana.");
+  const final = written(HEADLINE);
+  let round = 0;
+  setAskPorts({
+    round: async (_call, onText) => {
+      round += 1;
+      if (round === 1) {
+        onText(first);
+        return {
+          blocks: [
+            { type: "text", id: "", name: "", text: first, json: "" },
+            { type: "tool_use", id: "t-inbox.list", name: "inbox", input: { action: "list", filter: "recent" } },
+          ],
+          stopReason: "tool_use",
+          streamError: null,
+        };
+      }
+      onText(final);
+      return {
+        blocks: [{ type: "text", id: "", name: "", text: final, json: "" }],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
+    shape: async () => "",
+  });
+  const words = spoken(await frames(await knock(w))).filter((x) => x !== "... ");
+  assert.equal(
+    words[0],
+    "It is probably Ana.",
+    `the first Say, spoken before it was taken back; saw ${JSON.stringify(words)}`,
+  );
+  const at = words.indexOf(HEADLINE);
+  assert.ok(at > 0, `the real answer spoken whole, saw ${JSON.stringify(words)}`);
+  assert.equal(words[at - 1], " ", "after a breath");
+  assert.equal(w.tables.ask_messages.at(-1).content.answer.say.headline, HEADLINE, "the stored answer is the real one");
 });

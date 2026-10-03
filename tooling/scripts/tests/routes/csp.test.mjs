@@ -65,8 +65,8 @@ test("the workspace's Supabase origin is allowed over https and wss, and for the
     "https://graph.facebook.com",
     "https://api.elevenlabs.io",
     "wss://api.elevenlabs.io",
-    "https://*.livekit.cloud",
-    "wss://*.livekit.cloud",
+    "https://*.elevenlabs.io",
+    "wss://*.elevenlabs.io",
   ]);
   assert.deepEqual(p["img-src"], [
     "'self'",

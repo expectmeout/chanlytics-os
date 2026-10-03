@@ -17,6 +17,7 @@
  * without a model (ask-fast-paths.ts) and the settings a card may change (ask-settings-change.ts).
  */
 import type { SchemaSet } from "../shared/schema-sets";
+import { MIN_MS } from "../shared/time";
 import { z } from "zod";
 import type { AskAnswer } from "./ask-answer";
 import type { AskCitation } from "./citations";
@@ -39,6 +40,21 @@ export const ASK_TURN_BUDGET_MS = 45_000;
  * every ten (docs/superpowers/specs/2026-10-03-ask-spoken-spike.md, runs B5 to B9).
  */
 export const ASK_VOICE_PULSE_MS = 10_000;
+/**
+ * The longest the voice door waits for the model's first speakable words before it says "One moment… " itself (the
+ * platform's own filler is off: its words reached the chat as the answer's head).
+ */
+export const ASK_VOICE_FIRST_WORDS_MS = 2_500;
+/**
+ * A spoken turn's claim may be taken again this long after it was made: the turn's budget and a margin, so a request
+ * repeated just as the owner's budget ends is not run a second time.
+ */
+export const ASK_VOICE_CLAIM_STALE_MS = MIN_MS;
+/**
+ * The least life the member's token must have when a conversation starts (the agent's conversation may run thirty
+ * minutes): the browser refreshes a shorter one first, so the brain door opens the member to the end.
+ */
+export const ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
 /**
  * The most one round may write: its thinking, its tool calls and its answer
  * together. One number, read by the loop's request and by the edge's clamp on

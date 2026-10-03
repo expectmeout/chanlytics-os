@@ -69,14 +69,16 @@ const META = [
 const GOOGLE_PHOTOS = "https://*.googleusercontent.com";
 /**
  * The voice agent (docs/decisions/0026): the browser's WebSocket to ElevenLabs for a conversation's events, and the
- * WebRTC signalling the vendor's client opens on LiveKit's cloud. Named once here; the agent's API key never reaches
- * the browser (the edge mints a conversation token good for minutes).
+ * WebRTC signalling the vendor's client opens on the vendor's own LiveKit hosts (@elevenlabs/client 1.26.0:
+ * `wss://livekit.rtc.elevenlabs.io`, and `livekit.rtc.<region>.residency.elevenlabs.io` for a residency; the API's
+ * regional twins likewise), so the vendor's domain as a whole, over both schemes. Named once here; the agent's API key
+ * never reaches the browser (the edge mints a conversation token good for minutes).
  */
 const VOICE_AGENT = [
   "https://api.elevenlabs.io",
   "wss://api.elevenlabs.io",
-  "https://*.livekit.cloud",
-  "wss://*.livekit.cloud",
+  "https://*.elevenlabs.io",
+  "wss://*.elevenlabs.io",
 ];
 
 function originOf(url: string | null | undefined): string | null {

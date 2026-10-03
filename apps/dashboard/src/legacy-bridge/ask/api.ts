@@ -104,9 +104,12 @@ function voiceCalls(client: Api) {
         /* the next turn reads its page itself */
       }
     },
-    voiceEnd: async (session: string): Promise<void> => {
+    /** The conversation over, and why (the person, the agent, a start that failed): the row is ended with the reason on its log line. */
+    voiceEnd: async (session: string, reason?: string): Promise<void> => {
       try {
-        await client.raw("POST ask/voice/end", { body: { session } });
+        await client.raw("POST ask/voice/end", {
+          body: { session, ...(reason ? { reason: reason.slice(0, 80) } : {}) },
+        });
       } catch {
         /* the row expires on its own */
       }

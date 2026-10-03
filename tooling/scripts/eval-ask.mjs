@@ -96,6 +96,12 @@ const LIST = process.argv.includes("--list");
 /** Every turn through the brain door, as the agent asks it, judged by the spoken rules too (eval-ask-spoken.mjs). */
 const SPOKEN = process.argv.includes("--spoken");
 const AGENT_SECRET = process.env.ELEVENLABS_LLM_SECRET;
+if (SPOKEN && !AGENT_SECRET) {
+  console.error(
+    "--spoken knocks on the brain door as the agent does: set ELEVENLABS_LLM_SECRET to the agent's secret.",
+  );
+  process.exit(2);
+}
 const file = process.argv.slice(2).find((a) => !a.startsWith("--")) || "tooling/evals/ask-cases.json";
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
 const REPS = Math.max(1, Math.round(Number(process.env.REPS) || 1));

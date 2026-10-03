@@ -55,7 +55,12 @@ export function spokenFails(final) {
   const text = `${say.headline} ${say.detail}`.trim();
   if (/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(text)) fails.push("SPOKEN: an id is spoken");
   if (/\b(?:conv|call|th|cv|ld|c)_[A-Za-z0-9]{6,}\b/.test(text)) fails.push("SPOKEN: a provider's id is spoken");
-  if (/(?:^|\s)\/?(?:w\/|inbox\/|clients\/|calendar\/|reports\b|admin\/|people\/)/.test(text))
+  // A route has a path's shape: a page's word with a slash after it ("inbox/th-12"), or a slash or the shell's
+  // hash-slash before it ("/reports"); the plain word, "two reports need a look", is speech.
+  if (
+    /(?:^|\s)(?:#\/|\/)?(?:w\/|inbox\/|clients\/|calendar\/|reports\/|admin\/|people\/)/.test(text) ||
+    /(?:^|\s)(?:#\/|\/)(?:inbox|clients|calendar|reports|admin|people)\b/.test(text)
+  )
     fails.push("SPOKEN: a route is spoken");
   if (/\[[^\]]{1,40}\]/.test(text)) fails.push("SPOKEN: a bracketed tag is spoken");
   const words = say.headline.trim().split(/\s+/).filter(Boolean);

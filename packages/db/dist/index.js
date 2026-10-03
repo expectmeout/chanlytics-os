@@ -1294,6 +1294,7 @@ var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
 function isDealStage(s) {
   return typeof s === "string" && DEAL_STAGES.includes(s);
 }
+var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var AskProposalOutcomeSchema = z11.object({
   state: z11.enum(["done", "dismissed", "failed", "undone"]),

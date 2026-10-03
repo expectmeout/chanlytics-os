@@ -49,7 +49,7 @@ test("agentConfig carries every value of spec §3.7: the custom LLM named as suc
         turn_timeout: 7,
         speculative_turn: false,
         turn_model: "turn_v3",
-        soft_timeout_config: { timeout_seconds: 3.0, message: "One moment." },
+        soft_timeout_config: { timeout_seconds: -1 },
       },
       tts: {
         voice_id: "voice_1",

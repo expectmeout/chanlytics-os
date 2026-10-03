@@ -72,7 +72,9 @@ export function agentConfig({
         turn_timeout: 7,
         speculative_turn: false,
         turn_model: "turn_v3",
-        soft_timeout_config: { timeout_seconds: 3.0, message: "One moment." },
+        // The platform's own filler is off: the brain door speaks its first words itself when the model is slow
+        // (ASK_VOICE_FIRST_WORDS_MS, a trace the chat draws as one), so no filler lands in the chat as the answer's head.
+        soft_timeout_config: { timeout_seconds: -1 },
       },
       tts: {
         voice_id: voiceId,

@@ -1529,6 +1529,7 @@ var LeadSuggestAnswerSchema = z10.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var AskProposalOutcomeSchema = z11.object({
   state: z11.enum(["done", "dismissed", "failed", "undone"]),

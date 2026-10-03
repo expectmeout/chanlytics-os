@@ -1,6 +1,12 @@
 import "server-only";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
-import { ASK_TURN_BUDGET_MS, type AskLanguage, type AskScope, type PageContext } from "@chanlytics/contracts";
+import {
+  ASK_VOICE_CLAIM_STALE_MS,
+  PageContextSchema,
+  type AskLanguage,
+  type AskScope,
+  type PageContext,
+} from "@chanlytics/contracts";
 import {
   claimVoiceTurn,
   endVoiceSession as endRow,
@@ -144,12 +150,16 @@ export const readVoiceSession = (service: Db, hash: string): Promise<VoiceSessio
 
 /** The scope the row holds, as the turn takes it. */
 export const scopeOf = (row: VoiceSessionRow): AskScope | null => (row.scope as AskScope | null) ?? null;
-/** The page the row holds, as the turn takes it. */
-export const contextOf = (row: VoiceSessionRow): PageContext | null => (row.context as PageContext | null) ?? null;
+/** The page the row holds, as the turn takes it: read as the page route reads one, since the member writes the column. */
+export const contextOf = (row: VoiceSessionRow): PageContext | null => {
+  if (row.context === null) return null;
+  const parsed = PageContextSchema.safeParse(row.context);
+  return parsed.success ? parsed.data : null;
+};
 
-/** One turn per request key (the design, §3.3): true for the request that owns the turn; a key left longer than the turn's budget may be taken again. */
+/** One turn per request key (the design, §3.3): true for the request that owns the turn; a key left longer than the turn's budget and a margin may be taken again. */
 export const claimTurn = (service: Db, hash: string, turnKey: string, now = new Date()): Promise<boolean> =>
-  claimVoiceTurn(service, hash, turnKey, now, ASK_TURN_BUDGET_MS);
+  claimVoiceTurn(service, hash, turnKey, now, ASK_VOICE_CLAIM_STALE_MS);
 
 /** The conversation over, as the member (the browser's end) or as the service (the webhook's, with its minutes). */
 export const endVoiceSession = (

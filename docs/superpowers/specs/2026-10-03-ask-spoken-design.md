@@ -298,8 +298,9 @@ quick path is the typed field's).
 (`docs/architecture.md`). It takes `post_call_transcription`, verified by the `elevenlabs-signature` header with the
 vendor SDK's `constructEvent` or the algorithm the spike proves (the pages do not spell it out, sources §8), answers
 200 first and works after, and is idempotent on `data.conversation_id` plus `event_timestamp` (retries come up to
-five times with the same payload). It matches the session by `data.conversation_id` (written at mint) and, failing
-that, by `conversation_initiation_client_data.custom_llm_extra_body.chanlytics_session`; it writes `ended_at` and
+five times with the same payload). It matches the session by `data.conversation_id` alone (written at mint: the
+token endpoint answers the conversation's id with the token, so every row has it; as built, the fallback by
+`chanlytics_session` the draft named is not needed and is not read); it writes `ended_at` and
 `duration_s` from `metadata.call_duration_secs`, logs `ask_voice_session_ended` with the minutes and the per-turn
 `conversation_turn_metrics` (`convai_llm_service_ttfb`, `convai_llm_service_ttf_sentence`: the door's own first-byte
 and first-sentence times, measured by the vendor for free), and then calls `DELETE /v1/convai/conversations/{id}`
@@ -330,10 +331,10 @@ create-agent reference's, sources §1, §2, §5, §6, §8, §9):
   `agent_response_correction`, `agent_chat_response_part`, `agent_response_complete`, `vad_score`, `ping`,
   `conversation_initiation_metadata` (no page states the default set, sources §3).
 - `conversation_config.turn`: `turn_eagerness: normal`, `turn_timeout: 7`, `speculative_turn: false`, `turn_model:
-  turn_v3`, `soft_timeout_config: { timeout_seconds: 3.0, message: "One moment." }` (the platform's own filler when
-  the model is slower than three seconds; it speaks at most once per generation and the full answer follows; it is
-  the twin of the door's spoken trace, and the two do not stack because the trace's words reset it: the spike's run
-  B1, a trace at 0.3 s and the answer at 9.3 s, heard no filler).
+  turn_v3`, `soft_timeout_config: { timeout_seconds: -1 }` (the platform's own filler is off, as built 3 Oct: the
+  review found its words reaching the chat as the answer's headline, since the vendor streams the filler as a response
+  part; instead the brain door speaks its own first words, "One moment… ", when nothing speakable has gone out
+  ASK_VOICE_FIRST_WORDS_MS after the turn began, which the chat draws as a trace, as it draws a read's label).
   `conversation.max_duration_seconds: 1800` with a `max_conversation_duration_message`, since the default of 600
   ends a conversation without a word (sources §5).
 - `conversation_config.tts`: `voice_id` (Ruben's pick, section 9), `model_id: eleven_flash_v2_5` (about 75 ms, 32
@@ -391,9 +392,11 @@ first conversations. Starter's 75 minutes prove the design; Pro is the step befo
 ## 6. Security and privacy
 
 1. **The member's token at rest.** A live access token in a table is a new kind of secret in the database. It is
-   encrypted with a server secret the database does not hold, lives at most an hour (`token_expires_at`), is deleted
-   when the session ends (door D or the browser's end), and is swept nightly with the other sweeps
-   (`reference_new_cron_sweep_checklist`). A read of the table alone yields nothing usable; a read of the table and
+   encrypted with a server secret the database does not hold, lives at most an hour (`token_expires_at`), opens
+   nothing once the session ends (door D or the browser's end: the brain door refuses an ended row before it opens
+   the cipher), and the row, cipher included, is swept the day after the token expires with the other sweeps
+   (`reference_new_cron_sweep_checklist`; as built, the end marks the row and the sweep deletes it, so a cipher of
+   an expired token can sit for a day, which opens nothing). A read of the table alone yields nothing usable; a read of the table and
    the dashboard's environment is the dashboard itself.
 2. **Two credentials at the brain door.** The agent's static secret proves the caller is our agent; the session's id
    proves which member. Neither alone opens it. The id is 256 bits from `crypto.randomBytes`, stored hashed. It is a
@@ -516,7 +519,7 @@ All local, uncommitted, until Ruben says the whole thing is verified (his rule o
 | The first spoken word comes at 3 s and feels dead | The spike measures before anything is kept; the trace spoken; the filler at 3 s; the warm; Speech Engine in reserve (§8.2) |
 | Several requests per turn, and retries | The claim on the session row; one turn stored; the follower fed from the thread; no stream ended empty |
 | Grounding: Opus 5.5 cited an unread row on the Line's gate | Unchanged by voice; the thread shows the sources; the gate re-runs with spoken cases; Sonnet 5 stays a profile |
-| An access token at rest | Encrypted, an hour, deleted at end, swept nightly; two credentials at the door |
+| An access token at rest | Encrypted, an hour, refused once ended, swept the day after expiry; two credentials at the door |
 | The vendor keeps what the browser sends | Only an opaque id and a language go; audio off; seven days; a delete after each conversation |
 | The vendor's contract moves | One contract test with the quoted shape; the port's outcome rules; `unreachable` falls back to the typed Line |
 | A ten-minute token, a 600-second default | Minted at the tap and started at once; `max_duration_seconds` set with its message |

@@ -1,11 +1,19 @@
 import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { requestIdOf, withRequestId } from "@chanlytics/channels";
-import { AppError, ASK_TURN_BUDGET_MS, ASK_VOICE_PULSE_MS, type AskLanguage } from "@chanlytics/contracts";
+import {
+  AppError,
+  ASK_MAX_CHARS,
+  ASK_TURN_BUDGET_MS,
+  ASK_VOICE_FIRST_WORDS_MS,
+  ASK_VOICE_PULSE_MS,
+  type AskLanguage,
+} from "@chanlytics/contracts";
 import type { Database, VoiceSessionRow } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "@/server/env";
 import { log } from "@/server/log";
+import { isRetryableAuthError } from "../auth-errors";
 import { verifyBearer } from "../bearer";
 import { takeRate } from "../rate-limit";
 import type { Member } from "../route";
@@ -58,6 +66,8 @@ interface VoiceDoorDeps {
   pulseMs?: number;
   /** How often a follower reads the thread for the owner's answer. */
   pollMs?: number;
+  /** How long the door waits for the model's first speakable words before it says "One moment… " itself. */
+  firstWordsMs?: number;
 }
 
 /** The vendor's own buffer words: a pause in the voice, nothing in the chat, and what restarts its clock (runs B8, B9). */
@@ -79,6 +89,13 @@ const VOICE_LINES = {
     en: "Something went wrong on my side. Try again in a moment.",
     es: "Algo falló de mi lado. Inténtalo de nuevo en un momento.",
   },
+  /** More words than a turn takes (ASK_MAX_CHARS): the typed Line's 400, spoken. */
+  long: {
+    en: "That is more than I can take in one go. Ask it in two.",
+    es: "Eso es más de lo que puedo tomar de una vez. Pregúntalo en dos.",
+  },
+  /** The door's first words when the model is slow, spoken as a read's label is, so the chat draws them as a trace. */
+  moment: { en: "One moment", es: "Un momento" },
 } as const;
 type Line = keyof typeof VOICE_LINES;
 const lineOf = (line: Line, language: AskLanguage): string => VOICE_LINES[line][language === "es" ? "es" : "en"];
@@ -184,7 +201,15 @@ async function admit(body: Record<string, unknown> | null, deps: VoiceDoorDeps):
   const token = openToken(row.token_cipher, secret);
   if (!token) return over("cipher");
   const v = await (deps.verify ?? verifyBearer)(token);
-  if (!v.claims) return over("token");
+  if (!v.claims) {
+    // The Auth server could not be asked (no answer, a 429, a 5xx): the row is kept and the person hears to wait,
+    // never "start again" for a token that may be good (with-route.ts draws the same line for a typed request).
+    if (isRetryableAuthError(v.error)) {
+      log.warn("ask_voice_door_refused", { tenant_id: row.tenant_id, why: "auth_unavailable" });
+      return answered(spoken(lineOf("busy", language)));
+    }
+    return over("token");
+  }
   const userId = typeof v.claims.sub === "string" ? v.claims.sub : "";
   if (!userId || userId !== row.user_id) {
     log.warn("ask_voice_door_refused", { tenant_id: row.tenant_id, why: "member" });
@@ -202,16 +227,35 @@ async function admit(body: Record<string, unknown> | null, deps: VoiceDoorDeps):
     return { kind: "admitted", row, ctx, member: { tenantId: m.tenantId, role: m.role } as Member, language, service };
   } catch (e) {
     if (e instanceof AppError) return over(`member_${e.code}`);
-    throw e;
+    // The database could not be asked: the row is kept and the person hears to try again, never a status, which the
+    // vendor would retry three times and then close the conversation on.
+    log.error("ask_voice_door_failed", { tenant_id: row.tenant_id, error: e });
+    return answered(spoken(lineOf("failed", language)));
   }
 }
 
-/** What the person has heard of the Say so far: a preview's new suffix goes out, one taken back sends nothing. */
+/**
+ * What the person has heard of the Say so far: a preview's new suffix goes out, and a Say taken back (the turn's
+ * empty `say`, when the model answered and then went to read instead) cannot be unspoken, so it is remembered: the
+ * next headline is spoken whole, after a breath, unless it carries the retracted words on, when only the growth is.
+ */
 interface Said {
   headline: string;
   detail: string;
+  retracted: string;
 }
 function grow(said: Said, headline: string, detail: string, speak: (s: string) => void): void {
+  if (!headline && !detail) {
+    if (said.headline) said.retracted = said.headline;
+    said.headline = "";
+    said.detail = "";
+    return;
+  }
+  if (said.retracted) {
+    if (headline.startsWith(said.retracted)) said.headline = said.retracted;
+    else if (headline) speak(" ");
+    said.retracted = "";
+  }
   if (headline.startsWith(said.headline) && headline.length > said.headline.length) {
     speak(headline.slice(said.headline.length));
     said.headline = headline;
@@ -224,7 +268,7 @@ function grow(said: Said, headline: string, detail: string, speak: (s: string) =
 
 /** The turn, run as the member and spoken as it is written: each read's label, then the Say, then what the final holds that the previews did not. */
 async function runOwn(a: Admitted, text: string, speak: (s: string) => void): Promise<void> {
-  const said: Said = { headline: "", detail: "" };
+  const said: Said = { headline: "", detail: "", retracted: "" };
   const emit = (ev: AskTurnLine) => {
     if (ev.t === "trace" && ev.text) speak(`${ev.text}… `);
     else if (ev.t === "say") grow(said, ev.headline ?? "", ev.detail ?? "", speak);
@@ -256,17 +300,45 @@ async function runOwn(a: Admitted, text: string, speak: (s: string) => void): Pr
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+type ThreadMessages = NonNullable<Awaited<ReturnType<typeof readThread>>>["messages"];
+const sameWords = (s: string): string => s.replace(/\s+/g, " ").trim();
+
+/**
+ * The answer to these words in this turn: the assistant message right after the newest user message with the same
+ * words, stored since the owner claimed the turn. An earlier turn's answer, however recent, is never this one's (the
+ * review's case: the second question asked twice at once spoke the first question's answer).
+ */
+function answerTo(messages: ThreadMessages, asked: string, since: number): ThreadMessages[number] | null {
+  for (let i = messages.length - 1; i > 0; i--) {
+    const m = messages[i];
+    const q = messages[i - 1];
+    if (m.role !== "assistant" || q.role !== "user") continue;
+    if (q.atMs < since) return null;
+    if (sameWords(q.text) === asked) return m;
+  }
+  return null;
+}
+
 /** The same turn asked again (the vendor's duplicate): the owner's answer, read off the thread when it lands. */
-async function follow(a: Admitted, claimedAt: number, speak: (s: string) => void, deps: VoiceDoorDeps): Promise<void> {
+async function follow(
+  a: Admitted,
+  text: string,
+  claimedAt: number,
+  speak: (s: string) => void,
+  deps: VoiceDoorDeps,
+): Promise<void> {
   const now = deps.now ?? Date.now;
-  const since = (Date.parse(a.row.turn_started_at ?? "") || claimedAt) - CLAIM_SKEW_MS;
+  // The owner's clock is on the row as the owner left it, not on the row the door read before the claim.
+  const owner = await readVoiceSession(a.service, a.row.id);
+  const since = (Date.parse(owner?.turn_started_at ?? "") || claimedAt) - CLAIM_SKEW_MS;
   const until = claimedAt + ASK_TURN_BUDGET_MS;
+  const asked = sameWords(text);
   while (now() < until) {
     const thread = await readThread(a.ctx, a.row.thread_id);
-    const last = thread?.messages.at(-1);
-    if (last && last.role === "assistant" && last.atMs >= since) {
-      const say = last.answer?.say;
-      speak(say ? [say.headline, say.detail].filter(Boolean).join(" ") : last.text);
+    const answer = answerTo(thread?.messages ?? [], asked, since);
+    if (answer) {
+      const say = answer.answer?.say;
+      speak(say ? [say.headline, say.detail].filter(Boolean).join(" ") : answer.text);
       return;
     }
     await sleep(deps.pollMs ?? POLL_MS);
@@ -288,7 +360,8 @@ function speakTurn(a: Admitted, text: string, position: number, deps: VoiceDoorD
           /* the reader went away */
         }
       };
-      let lastSpeakableAt = now();
+      const startedAt = now();
+      let lastSpeakableAt = startedAt;
       let pulses = 0;
       let chars = 0;
       const speak = (s: string) => {
@@ -297,8 +370,11 @@ function speakTurn(a: Admitted, text: string, position: number, deps: VoiceDoorD
         lastSpeakableAt = now();
         chars += s.length;
       };
-      const tick = Math.max(5, Math.min(1_000, Math.floor(pulseMs / 4)));
+      const firstWordsMs = deps.firstWordsMs ?? ASK_VOICE_FIRST_WORDS_MS;
+      const tick = Math.max(5, Math.min(1_000, Math.floor(Math.min(pulseMs, firstWordsMs) / 4)));
       const pulse = setInterval(() => {
+        // The model slow to its first words: the door says "One moment… " itself, once, as a read's label is said.
+        if (!chars && now() - startedAt >= firstWordsMs) speak(`${lineOf("moment", a.language)}… `);
         if (now() - lastSpeakableAt >= pulseMs) {
           send(chunk(BUFFER_WORDS));
           lastSpeakableAt = now();
@@ -313,7 +389,7 @@ function speakTurn(a: Admitted, text: string, position: number, deps: VoiceDoorD
         if (owner) await runOwn(a, text, speak);
         else {
           followed = true;
-          await follow(a, claimedAt, speak, deps);
+          await follow(a, text, claimedAt, speak, deps);
         }
       } catch (e) {
         failed = true;
@@ -366,6 +442,11 @@ async function answerAgent(req: Request, deps: VoiceDoorDeps): Promise<Response>
   }
   const text = lastUserText(body?.messages);
   if (!text) return spoken(lineOf("missed", knock.language));
+  // More than a turn takes: the typed route's 400 (ASK_MAX_CHARS), spoken; the vendor retries an empty stream.
+  if (text.length > ASK_MAX_CHARS) {
+    log.warn("ask_voice_door_refused", { tenant_id: knock.row.tenant_id, why: "long" });
+    return spoken(lineOf("long", knock.language));
+  }
   return speakTurn(knock, text, userTurns(body?.messages), deps, t0);
 }
 

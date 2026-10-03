@@ -39,6 +39,8 @@ test("the spoken rules: an id, a provider's id, a route or a bracketed tag in th
   ]);
   assert.deepEqual(spokenFails(final("The call conv_2201m40t9syq is over.")), ["SPOKEN: a provider's id is spoken"]);
   assert.deepEqual(spokenFails(final("Open inbox/th-12 to reply.")), ["SPOKEN: a route is spoken"]);
+  assert.deepEqual(spokenFails(final("Open /reports for the week.")), ["SPOKEN: a route is spoken"]);
+  assert.deepEqual(spokenFails(final("Two reports need a look, since noon.")), [], "the plain word is speech");
   assert.deepEqual(spokenFails(final("Ana needs you.", "See [the thread] for more.")), [
     "SPOKEN: a bracketed tag is spoken",
   ]);

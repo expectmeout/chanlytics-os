@@ -1388,6 +1388,7 @@ var LeadSuggestAnswerSchema = z10.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var AskProposalOutcomeSchema = z11.object({
   state: z11.enum(["done", "dismissed", "failed", "undone"]),
@@ -6208,6 +6209,7 @@ function waitingOnProposal(r22, nowMs, pace) {
   if (nowMs - d.sinceMs < wait * DAY_MS2) return false;
   return !heardSinceProposal(r22);
 }
+var ASK_VOICE_TOKEN_MIN_MS2 = 35 * MIN_MS2;
 var ASK_UNDO_MS2 = 10 * 6e4;
 var AskProposalOutcomeSchema2 = z112.object({
   state: z112.enum(["done", "dismissed", "failed", "undone"]),
@@ -10733,6 +10735,7 @@ var LeadSuggestAnswerSchema3 = z103.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS3 = 35 * MIN_MS3;
 var ASK_UNDO_MS3 = 10 * 6e4;
 var AskProposalOutcomeSchema3 = z113.object({
   state: z113.enum(["done", "dismissed", "failed", "undone"]),
