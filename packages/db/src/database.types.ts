@@ -267,11 +267,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "ask_voice_sessions_thread_id_fkey"
-            columns: ["thread_id"]
+            foreignKeyName: "ask_voice_sessions_thread_id_same_workspace"
+            columns: ["tenant_id", "thread_id"]
             isOneToOne: false
             referencedRelation: "ask_threads"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
