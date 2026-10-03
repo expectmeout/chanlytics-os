@@ -1794,6 +1794,78 @@ test("Glass brief: Listen reads the line aloud where the device can speak, says 
   });
 });
 
+test('Glass brief: where the device can talk with Ask, Listen is the brief spoken by Ask (one voice conversation, asked "Brief me on today"), Stop ends it, and the agent going lets go', () => {
+  clear();
+  set({ today: busy(), __REPORTS: reports() });
+  const started = [];
+  const stopped = [];
+  let heard = null;
+  const voice = {
+    canVoice: () => true,
+    language: () => "en",
+    startVoice: async (input, on) => {
+      started.push(input);
+      heard = on;
+      return { threadId: "t-voice", title: "Voice" };
+    },
+    stopVoice: async () => {
+      stopped.push(1);
+    },
+  };
+  W.__ask = voice;
+  globalThis.__ask = voice;
+  try {
+    inGlass(() => {
+      fresh();
+      const tree = again(() => TodayBriefPane());
+      const listen = byTestId(tree, "today-brief-listen");
+      assert.ok(listen, "Ask's own voice: Listen, without the device's");
+      assert.equal(listen.props["aria-pressed"], false);
+      press(listen);
+      assert.equal(started.length, 1, "one conversation");
+      assert.deepEqual(
+        [started[0].ask, started[0].surface, started[0].threadId, started[0].language],
+        ["Brief me on today", "today", null, "en"],
+        "asked the brief's question, on Today, on a thread of its own",
+      );
+      const speaking = byTestId(
+        again(() => TodayBriefPane()),
+        "today-brief-listen",
+      );
+      assert.equal(speaking.props["aria-pressed"], true);
+      assert.match(textOf(speaking), /Stop/, "Stop while Ask speaks");
+      press(speaking);
+      assert.equal(stopped.length, 1, "Stop ends the conversation");
+      assert.equal(
+        byTestId(
+          again(() => TodayBriefPane()),
+          "today-brief-listen",
+        ).props["aria-pressed"],
+        false,
+      );
+      press(
+        byTestId(
+          again(() => TodayBriefPane()),
+          "today-brief-listen",
+        ),
+      );
+      assert.equal(started.length, 2);
+      heard({ t: "gone", reason: "agent" });
+      assert.equal(
+        byTestId(
+          again(() => TodayBriefPane()),
+          "today-brief-listen",
+        ).props["aria-pressed"],
+        false,
+        "the agent going lets go of Stop",
+      );
+    });
+  } finally {
+    delete W.__ask;
+    delete globalThis.__ask;
+  }
+});
+
 test("Glass brief: who needs you in bold with the oldest wait, the calendar's day, what came in, the run waiting; and the voice reads the same words", () => {
   clear();
   set({

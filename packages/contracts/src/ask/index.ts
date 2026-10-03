@@ -29,7 +29,7 @@ export type { AskLanguage } from "./ask-language";
 export { cleanAnswer, isUngrounded, sameQuestion, navigateLabel, FOLLOWUP_ECHO } from "./answer-text";
 export { askJump, askPages, ASK_PAGES } from "./ask-jump";
 export type { JumpEntry } from "./ask-jump";
-export { buildAskSuggestions } from "./ask-suggestions";
+export { buildAskSuggestions, askQuestionWords } from "./ask-suggestions";
 export type { AskSuggestion, SuggestionInput } from "./ask-suggestions";
 export { dayFromQuestion, askIntent, callsToday } from "./ask-fast-paths";
 export type { FastCall, AskIntent } from "./ask-fast-paths";

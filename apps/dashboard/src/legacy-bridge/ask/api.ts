@@ -71,6 +71,49 @@ export async function readLines(body: ReadableStream<Uint8Array>, on: (line: str
 /** The stream lasts as long as the turn: the server's own ceiling ends it, not the client's write timeout. */
 const TURN_MS = 300_000;
 
+/**
+ * The voice conversation's three calls (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.1), spread into
+ * the Ask calls: a conversation begins (the thread it runs on, the agent's token, the session the browser hands the
+ * agent; a refusal is thrown in the server's words, unwrap, for the Line to say), the page under the Line moves (the
+ * next spoken turn reads it), and the person ends it (the row is ended, so the brain door opens it no more).
+ */
+function voiceCalls(client: Api) {
+  return {
+    voiceStart: async (input: {
+      threadId: string | null;
+      scope: AskScope | null;
+      surface: AskSurface | null;
+      context: PageContext | null;
+      language: "en" | "es";
+    }): Promise<{ session: string; token: string; conversation_id: string | null; thread_id: string; title: string }> =>
+      unwrap(
+        await client("POST ask/voice", {
+          body: {
+            thread_id: input.threadId,
+            scope: input.scope,
+            surface: input.surface,
+            context: input.context,
+            language: input.language,
+          },
+        }),
+      ),
+    voicePage: async (session: string, context: PageContext): Promise<void> => {
+      try {
+        await client.raw("POST ask/voice/page", { body: { session, context } });
+      } catch {
+        /* the next turn reads its page itself */
+      }
+    },
+    voiceEnd: async (session: string): Promise<void> => {
+      try {
+        await client.raw("POST ask/voice/end", { body: { session } });
+      } catch {
+        /* the row expires on its own */
+      }
+    },
+  };
+}
+
 /** The Ask calls, on the client for their window: the tab's own, or a test's stand-in (`apiFor`). */
 export function askApi(client: Api = api()) {
   return {
@@ -125,6 +168,7 @@ export function askApi(client: Api = api()) {
         /* the question still goes, and reads its page itself */
       }
     },
+    ...voiceCalls(client),
     send: async (
       input: {
         text: string;

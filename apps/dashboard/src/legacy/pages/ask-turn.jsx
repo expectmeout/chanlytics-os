@@ -521,8 +521,11 @@ const AskReads = ({ traces, t }) => {
 
 // An answer's two acts (D14): Copy its words and Read them aloud. A desktop draws them at the field's end beside Clear;
 // a phone under the newest answer, never under an earlier one and never while one is written. `words` are the
-// answer's plain words (contracts answerText); `speech` is the Line's (AskHooks.useAskSpeech).
-const AskActs = ({ words, lang, speech, flash, t }) => {
+// answer's plain words (contracts answerText); `speech` is the Line's (AskHooks.useAskSpeech). Where the device can
+// talk with Ask (`voice.can`, AskHooks.useAskVoice), Read aloud is Ask's own voice: the answer as the agent's first
+// words, and a follow-up by voice after it (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5); the
+// device's voice reads where it cannot.
+const AskActs = ({ words, lang, speech, voice, flash, t }) => {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(words);
@@ -531,17 +534,22 @@ const AskActs = ({ words, lang, speech, flash, t }) => {
       flash({ tone: "danger", msg: <>{t.copyFailed}</> });
     }
   };
-  const reading = speech.speakingId === "line";
+  const talking = !!(voice && voice.can);
+  const reading = talking ? !!voice.on : speech.speakingId === "line";
+  const read = () => {
+    if (talking) { if (reading) voice.stop(); else voice.read(words); return; }
+    if (!speech.toggle("line", words, lang)) flash({ msg: <>{t.noSpeech}</> });
+  };
   return (
     <span className="ask-acts" data-testid="ask-acts">
       <button type="button" className="ask-line-btn quiet" onClick={copy} aria-label={t.copy} title={t.copy} data-testid="ask-copy">
         <Icon name="content" size={14} />
       </button>
-      {speech.canSpeak ? (
+      {talking || speech.canSpeak ? (
         <button
           type="button"
           className={`ask-line-btn quiet${reading ? " on" : ""}`}
-          onClick={() => { if (!speech.toggle("line", words, lang)) flash({ msg: <>{t.noSpeech}</> }); }}
+          onClick={read}
           aria-label={reading ? t.stop : t.read}
           aria-pressed={reading}
           title={reading ? t.stop : t.read}

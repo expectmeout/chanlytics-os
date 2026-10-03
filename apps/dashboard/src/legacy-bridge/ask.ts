@@ -1,10 +1,11 @@
 /**
  * Ask, wired to the workspace: window.__ask.
  *
- * Four small modules, composed here: what the palette shows before a model
+ * Five small modules, composed here: what the palette shows before a model
  * is asked (ask/palette.ts), the Ask routes and the streamed turn
  * (ask/api.ts), a card's commit and undo through the verbs' own routes
- * (ask/commit.ts), and reading aloud (ask/speech.ts). The mockup's palette
+ * (ask/commit.ts), reading aloud (ask/speech.ts), and a voice conversation
+ * with Ask on the agent (ask/voice.ts). The mockup's palette
  * reaches all of it through this one object and nothing else, so what a
  * palette may do is the list below.
  */
@@ -23,6 +24,7 @@ import { apiFor } from "./api";
 import { commitProposal, editReply, undoProposal, type CommitResult } from "./ask/commit";
 import { askPalette, quickAnswer } from "./ask/palette";
 import { askSpeech } from "./ask/speech";
+import { installVoice } from "./ask/voice";
 import { pageContext, type ThreadMessage } from "./ask/context";
 
 export type { SendEvent, CommitResult };
@@ -31,7 +33,8 @@ export { readLines } from "./ask/api";
 
 export type AskApi = ReturnType<typeof askPalette> &
   AskApiCalls &
-  ReturnType<typeof askSpeech> & {
+  ReturnType<typeof askSpeech> &
+  ReturnType<typeof installVoice> & {
     /** Approve a card: the verb's own route, then the surfaces refresh. */
     commit(p: AskProposal): Promise<CommitResult>;
     /** Undo a committed card, where the verb has one. */
@@ -61,6 +64,8 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
   const palette = askPalette(win, storage);
   const api = askApi(apiFor(win));
   const speech = askSpeech(win);
+  // A voice conversation on the agent (ask/voice.ts): the vendor's client is loaded on the first tap, not here.
+  const voice = installVoice(win, { api });
   const send: AskApiCalls["send"] = (input, on) => {
     palette.rememberLanguage(palette.language(input.text));
     return api.send(input, on);
@@ -69,6 +74,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     ...palette,
     ...api,
     ...speech,
+    ...voice,
     send,
     commit: (p) => commitProposal(win, p),
     undo: (p, o) => undoProposal(win, p, o),
