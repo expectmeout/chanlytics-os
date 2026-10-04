@@ -23,7 +23,9 @@ import { z as z20 } from "zod";
 import { z as z21 } from "zod";
 import { z as z22 } from "zod";
 import { z as z23 } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import {
+  createClient
+} from "@supabase/supabase-js";
 import { createClient as createClient2 } from "@supabase/supabase-js";
 config({ jitless: true });
 var MODELS = {
@@ -11193,7 +11195,9 @@ import { z as z2032 } from "zod";
 import { z as z2132 } from "zod";
 import { z as z2232 } from "zod";
 import { z as z2332 } from "zod";
-import { createClient as createClient3 } from "@supabase/supabase-js";
+import {
+  createClient as createClient3
+} from "@supabase/supabase-js";
 import { createClient as createClient22 } from "@supabase/supabase-js";
 var CONTACT2 = /* @__PURE__ */ new Set(["phone", "to", "from", "email", "e164"]);
 var CONTACT_SUFFIX2 = /_(phone|email|e164)$/;

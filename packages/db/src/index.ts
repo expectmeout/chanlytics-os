@@ -9,7 +9,7 @@ export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, 
 export type { AiFailures, UsageMonthRow } from "./ai-usage";
 export { migrationHead } from "./ops";
 export type { MigrationHead } from "./ops";
-export { signUpOnPublicKey } from "./auth";
+export { signUpOnPublicKey, inviteUserByEmail, listSecondFactors, deleteSecondFactor } from "./auth";
 export { addToWaitlist, refreshWaitlistRow, waitlistWaiting, markWaitlistInvited } from "./waitlist";
 export { createServiceClient } from "./service-client";
 export { observeDb, namedFetch, DB_REQUEST_HEADER } from "./observe";

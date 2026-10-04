@@ -3801,7 +3801,9 @@ async function migrationHead(db) {
 }
 
 // src/auth.ts
-import { createClient } from "@supabase/supabase-js";
+import {
+  createClient
+} from "@supabase/supabase-js";
 async function signUpOnPublicKey(cfg, args) {
   if (!cfg.url || !cfg.anonKey) {
     throw new Error("public_client_unconfigured: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY");
@@ -3810,6 +3812,15 @@ async function signUpOnPublicKey(cfg, args) {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
   });
   return anon.auth.signUp({ email: args.email, password: args.password, options: { data: args.userData } });
+}
+async function inviteUserByEmail(db, email) {
+  return db.auth.admin.inviteUserByEmail(email);
+}
+async function listSecondFactors(db, userId) {
+  return db.auth.admin.mfa.listFactors({ userId });
+}
+async function deleteSecondFactor(db, userId, factorId) {
+  return db.auth.admin.mfa.deleteFactor({ id: factorId, userId });
 }
 
 // src/waitlist.ts
@@ -6813,6 +6824,7 @@ export {
   declineHandover,
   declinePartnerInvite,
   deleteList,
+  deleteSecondFactor,
   deleteSendingDomain,
   deleteSendingDomainAsRead,
   describeLead,
@@ -6861,6 +6873,7 @@ export {
   insertQueuedEmail,
   insertVoiceSession,
   invitePartner,
+  inviteUserByEmail,
   isWorkspaceCall,
   keepIdempotencyReceipt,
   lastInboundEmail,
@@ -6873,6 +6886,7 @@ export {
   listMemberIds,
   listPolicies,
   listRow,
+  listSecondFactors,
   mailboxById,
   mailboxFor,
   mailboxOfTenant,

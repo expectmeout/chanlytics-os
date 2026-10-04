@@ -10482,7 +10482,9 @@ import { z as z203 } from "zod";
 import { z as z213 } from "zod";
 import { z as z223 } from "zod";
 import { z as z233 } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import {
+  createClient
+} from "@supabase/supabase-js";
 import { createClient as createClient2 } from "@supabase/supabase-js";
 config3({ jitless: true });
 var MODELS3 = {
