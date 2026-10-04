@@ -4,7 +4,7 @@
  * and the Setup row. No Stripe client, no network: the edge applies what
  * planBilling decides, and the tests read the same functions.
  */
-import { agoWords, DAY_MS } from "../shared/time";
+import { agoWords, DAY_MS, formatterOnUse } from "../shared/time";
 
 export const BILLING_MODES = ["stripe", "direct"] as const;
 export type BillingMode = (typeof BILLING_MODES)[number];
@@ -308,7 +308,7 @@ export function planBilling(
   return { row, tenantStatus, switched, bell };
 }
 
-const DATE_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+const DATE_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
 export function dayWords(iso: string | null | undefined): string {
   if (!iso) return "";
   const ms = Date.parse(iso);
