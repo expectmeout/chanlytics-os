@@ -1805,6 +1805,13 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   background-image: var(--surface-page-light);
   background-repeat: no-repeat;
 }
+/* On a phone its top is plain paper under the phone's bar, the light coming in under it (tokens.css,
+   --surface-page-top). */
+@media (max-width: 900px) {
+  .app-root[data-look="glass"] {
+    background-image: var(--surface-page-top), var(--surface-page-light);
+  }
+}
 
 /* The sidebar floats: the control layer's glass clear of the window's edges, at its own corner, with its sheen, its
    rim and its depth, as tall as what it holds and never past the window (liquid.py sidebar). It does not blur: nothing
