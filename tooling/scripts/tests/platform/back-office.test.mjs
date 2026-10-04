@@ -112,7 +112,7 @@ import { readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { setupDtoFor } from "../../../../apps/dashboard/src/server/workspace/setup.ts";
 import { platformWaitlist, platformWaitlistInvited } from "../../../../apps/dashboard/src/server/platform/platform.ts";
-import { kitPages } from "../_legacy-react.mjs";
+import { kitPages, useStubHooks } from "../_legacy-react.mjs";
 
 const NOW = Date.parse("2026-09-09T18:00:00Z");
 const DAY = 86_400_000;
@@ -1006,8 +1006,15 @@ test("no cross-tenant action happens that nobody can be held to", () => {
   assert.ok(EVENT_KINDS.includes("platform.acted"), "the kind is in the closed set the rest of the product uses");
 });
 
+/** The back office's source (surfaces/settings/platform), its four files as one, whitespace folded. */
+const PANE_FILES = ["pane", "detail", "partners", "cards"];
+const paneSource = () =>
+  PANE_FILES.map((f) => readCode(`apps/dashboard/src/surfaces/settings/platform/${f}.tsx`))
+    .join("\n")
+    .replace(/\s+/g, " ");
+
 test("the page reads the cost out; it does not decide it", () => {
-  const page = readCode("apps/dashboard/src/legacy/pages/platform.jsx");
+  const page = paneSource();
   assert.ok(page.includes("const actions = P.actions(line);"), "which actions, from the contract");
   assert.ok(page.includes("{P.warning(arm)}"), "and what each costs, from the contract");
   assert.ok(!/\$\d/.test(page), "no money figure lives in the page");
@@ -1021,7 +1028,7 @@ test("the page reads the cost out; it does not decide it", () => {
   );
   assert.ok(page.includes("P.act(a.action, tenantId, line.id)"), "the action is a name, not a request body");
   // After one lands, both reads are stale.
-  assert.ok(page.includes("onChanged={() => { setDetail(null); load(); setReload((n) => n + 1); }}"));
+  assert.ok(page.includes("onChanged={() => { setDetail(null); void load(); setReload((n) => n + 1); }}"));
   assert.ok(page.includes("}, [P, openId, reload]);"), "so the detail re-reads on a change, not only on a new id");
 });
 
@@ -1068,7 +1075,9 @@ globalThis.window = {
 };
 globalThis.Icon = () => null;
 // The shared attention row, and the pane that draws it.
-const ATTN = () => null;
+// The kit's attention row, which the pane imports: the walker below reads the props each row was handed and does not
+// expand it.
+const { AttnRow: ATTN } = await import("../../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
 globalThis.window.AttnRow = ATTN;
 // A line's act is confirmed through the shared Confirm (data-bits.jsx): pure,
 // so the walker below expands it like any other nested component.
@@ -1086,8 +1095,23 @@ Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPage
 globalThis.window.AttnRow = ATTN;
 // data-bits also publishes the shell's toast hook; this harness keeps its own flash.
 globalThis.window.usePPToast = () => [null, () => {}];
-await import("../../../../apps/dashboard/src/legacy/pages/platform.jsx");
-const Pane = globalThis.window.PanePlatform;
+// The back office is TSX (surfaces/settings/platform): its hooks come from "react", which under this runner has none,
+// so each one is the stub's of the moment -- mount() below gives the stub new hooks for every mount.
+useStubHooks(
+  Object.fromEntries([
+    ["Fragment", "Fragment"],
+    ...["useState", "useMemo", "useCallback", "useEffect"].map((h) => [h, (...a) => globalThis.React[h](...a)]),
+  ]),
+);
+const S = "../../../../apps/dashboard/src/surfaces/settings/platform";
+const { PanePlatform: Pane } = await import(`${S}/pane.tsx`);
+const { PlatformLine } = await import(`${S}/detail.tsx`);
+const { WaitingRow: PlatformWaitingRow } = await import(`${S}/cards.tsx`);
+const { PartnerRow: PlatformPartnerRow, PartnerStandingRow: PlatformPartnerStandingRow } = await import(
+  `${S}/partners.tsx`
+);
+// The verbs the pane reads, which a test stands in whole, as it once replaced window.__platform.
+const { backOffice } = await import("../../../../apps/dashboard/src/legacy-bridge/platform.ts");
 
 /** Whether a dependency array differs from the one an effect or memo last saw. Undefined deps mean "every render", as in React. */
 const changed = (before, after) =>
@@ -1290,7 +1314,7 @@ function api(tenants, detail = null, calls = []) {
 }
 
 test("the list is the contract's judgement, in the row grammar the rest of the app uses", async () => {
-  globalThis.window.__platform = api([
+  backOffice.verbs = api([
     live({ tenant_id: "a", slug: "all-good", name: "All Good" }),
     live({
       tenant_id: "b",
@@ -1334,7 +1358,7 @@ test("the list is the contract's judgement, in the row grammar the rest of the a
 });
 
 test("a refusal is the ordinary answer, and it does not look like an empty platform", async () => {
-  globalThis.window.__platform = {
+  backOffice.verbs = {
     ...api([]),
     list: async () => ({ ok: false, tenants: [], message: "No such page." }),
   };
@@ -1348,7 +1372,7 @@ test("REGRESSION (S10): a list that cannot be read says so with a Retry, and nev
   const calls = [];
   let fail = true;
   const harbor = live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" });
-  globalThis.window.__platform = {
+  backOffice.verbs = {
     ...api([harbor], null, calls),
     list: async () => {
       calls.push("list");
@@ -1372,11 +1396,7 @@ test("REGRESSION (S10): a list that cannot be read says so with a Retry, and nev
 
 test("REGRESSION (S10): a workspace that cannot be read says so with its Retry, instead of reading for ever", async () => {
   const calls = [];
-  globalThis.window.__platform = api(
-    [live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" })],
-    null,
-    calls,
-  );
+  backOffice.verbs = api([live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" })], null, calls);
   const page = mount(Pane);
   await page.settle();
   await page.press(attnRows(page.tree)[0].props.cta.onClick);
@@ -1388,7 +1408,7 @@ test("REGRESSION (S10): a workspace that cannot be read says so with its Retry, 
 });
 
 test("REGRESSION (S10): a read that throws is a failed read, not a page reading for ever", async () => {
-  globalThis.window.__platform = {
+  backOffice.verbs = {
     ...api([]),
     list: async () => {
       throw new Error("socket hang up");
@@ -1401,7 +1421,7 @@ test("REGRESSION (S10): a read that throws is a failed read, not a page reading 
 });
 
 test("finding a workspace by name or slug, because that is what a support call starts with", async () => {
-  globalThis.window.__platform = api([
+  backOffice.verbs = api([
     live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" }),
     live({ tenant_id: "b", slug: "marisas-beauty-salon", name: "Marisa's Beauty Salon" }),
   ]);
@@ -1441,11 +1461,7 @@ test("opening one shows the customer's own Setup rows, and no buttons that would
       { kind: "business.recorded", category: "setup", subject_type: "tenant", created_at: ago(1), data: {} },
     ],
   };
-  globalThis.window.__platform = api(
-    [live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" })],
-    detail,
-    calls,
-  );
+  backOffice.verbs = api([live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" })], detail, calls);
   const page = mount(Pane);
   await page.settle();
   await page.press(attnRows(page.tree)[0].props.cta.onClick);
@@ -1488,12 +1504,12 @@ test("acting on a line is never one click, and says the cost before it is", asyn
   // edit -- and the confirmation has to say so rather than quoting the
   // rehearsal's $19.50.
   const calls = [];
-  globalThis.window.__platform = api([], null, calls);
+  backOffice.verbs = api([], null, calls);
   const rejected = { ...SETUP_FIXTURE.lines.rows[0] };
   assert.equal(rejected.sms_state, "rejected", "the fixture is the case this is about");
 
   let reloaded = 0;
-  const row = mount(globalThis.window.PlatformLine, {
+  const row = mount(PlatformLine, {
     line: rejected,
     tenantId: "a",
     onDone: () => {
@@ -1524,9 +1540,9 @@ test("acting on a line is never one click, and says the cost before it is", asyn
 
 test("a rehearsal offers a different action, at a price, and says it cannot be undone", async () => {
   const calls = [];
-  globalThis.window.__platform = api([], null, calls);
+  backOffice.verbs = api([], null, calls);
   const mock = { ...SETUP_FIXTURE.lines.rows[0], sms_state: "approved", reg_mock: true };
-  const row = mount(globalThis.window.PlatformLine, { line: mock, tenantId: "a", onDone: () => {}, flash: () => {} });
+  const row = mount(PlatformLine, { line: mock, tenantId: "a", onDone: () => {}, flash: () => {} });
   await row.press(byId(row.tree, "platform-act-refile").props.onClick);
   const said = textOf(byId(row.tree, "platform-refile-confirm"));
   assert.match(said, /\$19\.50/, "a real filing spends, and says how much");
@@ -1535,7 +1551,7 @@ test("a rehearsal offers a different action, at a price, and says it cannot be u
 });
 
 test("the pane decides nothing: every verdict, word and row comes from the contract", () => {
-  const src = readCode("apps/dashboard/src/legacy/pages/platform.jsx");
+  const src = paneSource();
   for (const call of [
     "P.rows(tenants)",
     "P.summary(rows)",
@@ -1552,27 +1568,34 @@ test("the pane decides nothing: every verdict, word and row comes from the contr
   assert.ok(!/86_?400_?000|14 \* DAY|\bDAY\b/.test(src), "no clocks of its own");
   assert.ok(!/needs_record|past_due|reg_mock === true/.test(src), "no state judgements of its own");
   // It borrows the row grammar rather than inventing one.
-  assert.ok(src.includes("<window.AttnRow"), "the same row People, Today and Setup draw");
+  assert.ok(src.includes("<AttnRow"), "the same row People, Today and Setup draw");
   assert.ok(!/className="pf-row/.test(src));
 });
 
 test("the tab exists for the people it is for, and for nobody else", () => {
-  const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  // The rail's tabs (frame/tabs.ts) and the page that draws them (frame/page.tsx), TSX since decision 0015 step 11.
+  const settings = readCode(
+    "apps/dashboard/src/surfaces/settings/frame/tabs.ts",
+    "apps/dashboard/src/surfaces/settings/frame/page.tsx",
+  );
   // Not in SET_TABS: a customer who types the route lands on Profile rather
   // than on a locked door they now know about.
   assert.ok(!/id: "platform".*group: "Workspace"/.test(settings));
-  assert.match(settings, /const SET_TABS_PLATFORM = \[\{ id: "platform"/);
-  assert.match(settings, /const isPlatformAdmin = \(\) => !!\(window\.__ME && window\.__ME\.platform_admin\);/);
+  assert.match(settings, /export const SET_TABS_PLATFORM: readonly SetTab\[\] = \[\s*\{ id: "platform"/);
+  assert.match(
+    settings,
+    /export const isPlatformAdmin = \(\): boolean =>\s*!!\(Reflect\.get\(window, "__ME"\) as \{ platform_admin\?: boolean \} \| null \| undefined\)\?\.platform_admin;/,
+  );
   // The rail derives from the list, so the tab cannot appear where it may not.
   assert.match(settings, /\[\.\.\.SET_TABS, \.\.\.\(isPlatformAdmin\(\) \? SET_TABS_PLATFORM : \[\]\)\]/);
   // And the route resolves to it only for an admin -- otherwise SET_TAB falls
   // through to the default, which is what makes the route a dead end.
-  assert.match(settings, /\|\| \(isPlatformAdmin\(\) \? SET_TABS_PLATFORM\.find\(\(t\) => t\.id === id\) : null\)/);
-  assert.match(settings, /\{active\.id === "platform" && window\.PanePlatform && <window\.PanePlatform \/>\}/);
+  assert.match(settings, /\(isPlatformAdmin\(\) \? SET_TABS_PLATFORM\.find\(\(t\) => t\.id === id\) : null\) \|\|/);
+  assert.match(settings, /\{id === "platform" && <PanePlatform \/>\}/);
   // The crumb asks SET_TAB itself, so one route cannot be described two ways:
   // run in shell-status.test.mjs, for a customer and for an admin.
-  // In both lists, in file order, like every other legacy page.
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/platform.jsx";'));
+  // The page imports the pane it draws (no name is published on the window any more: decision 0015 step 11).
+  assert.ok(settings.includes('import { PanePlatform } from "../platform/pane";'));
 });
 
 test("the ops routes have their own ceilings, sized for a support shift and named for what they do", async () => {
@@ -1610,11 +1633,11 @@ test("the ops routes have their own ceilings, sized for a support shift and name
   assert.ok(RATE.platform_line_release.limit < RATE.platform_line_refile.limit, "the irreversible one is the tightest");
 });
 
-test("the back office does not tell the reader it changes nothing, in the file that changes things", () => {
+test("the back office does not tell the reader it changes nothing, in the files that change things", () => {
   // Gate 6 added Retry / Refile / Release to this page. Two claims in it were not
   // updated, and one of them is user-visible copy sitting directly above rows
   // whose Open reveals a button that permanently releases a customer's number.
-  const page = readCode("apps/dashboard/src/legacy/pages/platform.jsx");
+  const page = paneSource();
   assert.ok(!/Read-only — nothing here changes a workspace/.test(page), "REGRESSION: the page claims to be read-only");
   assert.ok(!/Read-only: actions come later/.test(page), "REGRESSION: a comment describing the opposite of the file");
   assert.match(
@@ -1625,7 +1648,7 @@ test("the back office does not tell the reader it changes nothing, in the file t
   assert.match(page, /each one asks twice, and each is recorded against you/);
   // And those two claims are true: arm-then-confirm, and the ledger row goes in
   // before the action runs.
-  assert.match(page, /const \[arm, setArm\] = React\.useState\(null\);/);
+  assert.match(page, /const \[arm, setArm\] = useState<PlatformLineActionVM \| null>\(null\);/);
   const server = readCode("apps/dashboard/src/server/platform/platform.ts");
   const audit = server.search(/recordEvent\(\s*office\.db,\s*tenantId,\s*"platform\.acted"/);
   const edge = server.indexOf("await edgeLines(EDGE_OP[action]");
@@ -1764,7 +1787,7 @@ test("marking somebody invited is conditional on them still waiting, and records
 
 test("the page draws who is waiting, and says the product sends nothing", async () => {
   const calls = [];
-  globalThis.window.__platform = {
+  backOffice.verbs = {
     ...api([live({ tenant_id: "a", slug: "all-good", name: "All Good" })], null, calls),
     list: async () => ({
       ok: true,
@@ -1805,13 +1828,13 @@ test("marking somebody invited is never one click, and says what it does not do"
   // state, and a harness that re-invokes nested components cannot drive one
   // from outside.
   const calls = [];
-  globalThis.window.__platform = api([], null, calls);
+  backOffice.verbs = api([], null, calls);
   let reloaded = 0;
   const said = [];
   const [row] = platformQueue({ waiting: [waiting()], total: 1 }, NOW).rows;
-  const view = mount(globalThis.window.PlatformWaitingRow, {
+  const view = mount(PlatformWaitingRow, {
     row,
-    P: globalThis.window.__platform,
+    P: backOffice.verbs,
     onDone: () => {
       reloaded += 1;
     },
@@ -1844,7 +1867,7 @@ test("a mark that did not go through is said, and changes nothing on the page", 
   let reloaded = 0;
   const said = [];
   const [row] = platformQueue({ waiting: [waiting()], total: 1 }, NOW).rows;
-  const view = mount(globalThis.window.PlatformWaitingRow, {
+  const view = mount(PlatformWaitingRow, {
     row,
     P: { markInvited: async () => ({ ok: false, message: "That could not be recorded, so it was not done." }) },
     onDone: () => {
@@ -1860,7 +1883,7 @@ test("a mark that did not go through is said, and changes nothing on the page", 
 });
 
 test("a queue that could not be read says so on the page, and never draws an empty list", async () => {
-  globalThis.window.__platform = {
+  backOffice.verbs = {
     ...api([live({ tenant_id: "a", slug: "all-good", name: "All Good" })]),
     list: async () => ({
       ok: true,
@@ -1880,7 +1903,7 @@ test("a queue that could not be read says so on the page, and never draws an emp
 test("a deployment whose overview predates the queue draws no card at all", async () => {
   // The page and the API ship separately. A payload without `queue` is a client
   // reading an older server, and an absent queue is not an empty one.
-  globalThis.window.__platform = api([live({ tenant_id: "a", slug: "all-good", name: "All Good" })]);
+  backOffice.verbs = api([live({ tenant_id: "a", slug: "all-good", name: "All Good" })]);
   const page = mount(Pane);
   await page.settle();
   assert.equal(byId(page.tree, "platform-queue"), null);
@@ -1894,7 +1917,7 @@ const p75 = (metric, page, samples, value) => ({ metric, page, samples, p75: val
 
 test("the timings card: the 75th percentile in words, a line for each metric, and the slowest pages by name", async () => {
   const harbor = live({ tenant_id: "a", slug: "all-good", name: "All Good" });
-  globalThis.window.__platform = {
+  backOffice.verbs = {
     ...api([harbor]),
     list: async () => ({
       ok: true,
@@ -1930,7 +1953,7 @@ test("the timings card: the 75th percentile in words, a line for each metric, an
 
 test("timings that could not be read say so, and an overview that predates them draws no card", async () => {
   const harbor = live({ tenant_id: "a", slug: "all-good", name: "All Good" });
-  globalThis.window.__platform = {
+  backOffice.verbs = {
     ...api([harbor]),
     list: async () => ({
       ok: true,
@@ -1946,7 +1969,7 @@ test("timings that could not be read say so, and an overview that predates them 
   await unread.settle();
   assert.equal(textOf(byId(unread.tree, "platform-vitals-words")), "Page timings could not be read just now.");
   assert.equal(byId(unread.tree, "platform-vitals-lines"), null, "nothing is drawn, because nothing is known");
-  globalThis.window.__platform = api([harbor]);
+  backOffice.verbs = api([harbor]);
   const older = mount(Pane);
   await older.settle();
   assert.equal(byId(older.tree, "platform-vitals"), null);
@@ -2010,7 +2033,7 @@ function partnerApi(tenants, partners, calls = []) {
 }
 
 test("the partner card: what each partner is owed, the workspaces held for a person, and who brought each workspace on its row", async () => {
-  globalThis.window.__platform = partnerApi(
+  backOffice.verbs = partnerApi(
     [
       live({ tenant_id: "a", slug: "harbor", name: "Harbor Moving" }),
       live({ tenant_id: "b", slug: "bayside", name: "Bayside Salon" }),
@@ -2077,7 +2100,7 @@ test("who brought it and who decided, in the back office's words: a link, a hand
 });
 
 test("a deployment whose overview predates the partners draws no partner card, and the workspaces are still there", async () => {
-  globalThis.window.__platform = partnerApi([live({ tenant_id: "a", slug: "harbor", name: "Harbor Moving" })], null);
+  backOffice.verbs = partnerApi([live({ tenant_id: "a", slug: "harbor", name: "Harbor Moving" })], null);
   const page = mount(Pane);
   await page.settle();
   assert.equal(byId(page.tree, "platform-partners"), null);
@@ -2090,7 +2113,7 @@ test("recording a payout is never one click, sends nothing, and waits for the pa
   let reloaded = 0;
   const said = [];
   const [row] = platformPartnerRows([balance()]);
-  const view = mount(globalThis.window.PlatformPartnerRow, {
+  const view = mount(PlatformPartnerRow, {
     row,
     P,
     onDone: () => {
@@ -2120,7 +2143,7 @@ test("a partner owed nothing, or owed less than refunds took, has no payout butt
     balance({ payable_cents: -3000 }),
   ]);
   for (const row of [none, under]) {
-    const view = mount(globalThis.window.PlatformPartnerRow, { row, P: partnerApi([], null), onDone() {}, flash() {} });
+    const view = mount(PlatformPartnerRow, { row, P: partnerApi([], null), onDone() {}, flash() {} });
     assert.equal(byId(view.tree, "platform-partner-mark-ada-co"), null);
   }
   assert.equal(none.money, "Nothing earned yet.");
@@ -2131,7 +2154,7 @@ test("a person's decision on a brought workspace asks why, and disqualifying is 
   const calls = [];
   const P = partnerApi([], null, calls);
   let reloaded = 0;
-  const view = mount(globalThis.window.PlatformPartnerStandingRow, {
+  const view = mount(PlatformPartnerStandingRow, {
     ws: brought(),
     name: "Bayside Salon",
     P,
@@ -2158,10 +2181,10 @@ test("pausing a partner asks why, is the red one, and is offered once per partne
   const calls = [];
   const P = partnerApi([], null, calls);
   const [usd, eur] = platformPartnerRows([balance(), balance({ currency: "eur" })]);
-  const second = mount(globalThis.window.PlatformPartnerRow, { row: eur, P, onDone() {}, flash() {} });
+  const second = mount(PlatformPartnerRow, { row: eur, P, onDone() {}, flash() {} });
   assert.equal(byId(second.tree, "platform-partner-arm-paused-ada-co"), null);
   let reloaded = 0;
-  const view = mount(globalThis.window.PlatformPartnerRow, {
+  const view = mount(PlatformPartnerRow, {
     row: usd,
     P,
     onDone: () => {

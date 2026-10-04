@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ROLE_PERMS, frameWhisper, roleGate, toCallVM } from "@chanlytics/contracts";
 import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
-import { kitPages } from "../_legacy-react.mjs";
+import "../_legacy-react.mjs";
 
 // Modules that build a service client on first use read these; nothing here dials it.
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -871,7 +871,7 @@ test("GET /export: owners only, the workspace named, one JSON file that parses a
 });
 
 test("Settings offers the door the privacy page promises: one link, owners only, and deletion as a request", async () => {
-  // The card is rendered, not read: a legacy page's body runs only in a browser,
+  // The card is rendered, not read: a page's body runs only in a browser,
   // and a component that throws at render takes the whole Settings page with it.
   const HOOKS = {
     useState: (init) => [typeof init === "function" ? init() : init, () => {}],
@@ -901,12 +901,9 @@ test("Settings offers the door the privacy page promises: one link, owners only,
     removeEventListener: () => {},
   };
   globalThis.Icon = "Icon";
-  // The record kit's row, published as the app publishes it.
-  const { RecordRow, RecordSourceChip, RecordDispute, RecordChips, recRowPress } = kitPages;
-  Object.assign(globalThis.window, { RecordRow, RecordSourceChip, RecordDispute, RecordChips, recRowPress });
-  await import("../../../../apps/dashboard/src/legacy/pages/settings.jsx");
-  const Card = globalThis.window.WorkspaceData;
-  assert.equal(typeof Card, "function", "published, or nothing below tests anything");
+  // The card is the TSX module's (settings/frame/workspace.tsx), which imports the record kit's row.
+  const { WorkspaceData: Card } = await import("../../../../apps/dashboard/src/surfaces/settings/frame/workspace.tsx");
+  assert.equal(typeof Card, "function", "exported, or nothing below tests anything");
   const walk = (n, f) => {
     if (!n || typeof n !== "object") return;
     f(n);

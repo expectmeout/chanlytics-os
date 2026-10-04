@@ -438,8 +438,15 @@ export function meNow(): {
   role?: string | null;
   display_name?: string | null;
   email?: string | null;
+  platform_admin?: boolean;
 } | null {
-  type Me = { id?: string | null; role?: string | null; display_name?: string | null; email?: string | null };
+  type Me = {
+    id?: string | null;
+    role?: string | null;
+    display_name?: string | null;
+    email?: string | null;
+    platform_admin?: boolean;
+  };
   return (window as Window & { __ME?: Me | null }).__ME ?? null;
 }
 

@@ -35,6 +35,7 @@ export const ROUTE_WORDS: Readonly<Record<string, string>> = {
   segments: "lists",
   outbound: "playbooks",
   messages: "templates",
+  admin: "settings",
 };
 
 const headOf = (route: string): string => (route.includes("/") ? route.slice(0, route.indexOf("/")) : route);

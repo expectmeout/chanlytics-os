@@ -154,21 +154,8 @@
   "apps/dashboard/src/legacy/pages/ask-real.jsx": {
     "react-hooks/exhaustive-deps": 19
   },
-  "apps/dashboard/src/legacy/pages/business-tab-gestures.jsx": {
-    "react-hooks/exhaustive-deps": 2
-  },
-  "apps/dashboard/src/legacy/pages/business-tab-open.jsx": {
-    "jsx-a11y-x/no-static-element-interactions": 1,
-    "react-hooks/exhaustive-deps": 5
-  },
-  "apps/dashboard/src/legacy/pages/business-tab.jsx": {
-    "react-hooks/exhaustive-deps": 1
-  },
   "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx": {
     "jsx-a11y-x/click-events-have-key-events": 1
-  },
-  "apps/dashboard/src/legacy/pages/settings.jsx": {
-    "react-hooks/exhaustive-deps": 1
   },
   "apps/dashboard/src/server/ask/context/pages.ts": {
     "@typescript-eslint/require-await": 1
@@ -299,6 +286,18 @@
   "apps/dashboard/src/surfaces/people/table/columns-menu.tsx": {
     "jsx-a11y-x/click-events-have-key-events": 1,
     "jsx-a11y-x/interactive-supports-focus": 1
+  },
+  "apps/dashboard/src/surfaces/settings/business/gestures/editor.tsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/surfaces/settings/business/gestures/row.tsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/surfaces/settings/business/open-calendar.tsx": {
+    "react-hooks/exhaustive-deps": 3
+  },
+  "apps/dashboard/src/surfaces/settings/business/open-week.tsx": {
+    "jsx-a11y-x/no-static-element-interactions": 1
   },
   "apps/dashboard/src/surfaces/settings/connections/row.tsx": {
     "jsx-a11y-x/click-events-have-key-events": 1

@@ -262,13 +262,13 @@ test("REGRESSION: an unconfigured workspace is not shown somebody else's busines
   //
   // A config the parser refuses lands in the same branch: GET collapses it
   // to {} and the owner sees an invented salon instead of a broken one.
-  const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
+  const settings = fs.readFileSync(path.join(DASH, "surfaces/settings/frame/workspace.tsx"), "utf8");
   assert.ok(
     settings.includes("const unconfigured = connected && !real;"),
     "'no configuration' and 'this is the demo' must not be the same branch",
   );
   assert.ok(
-    settings.includes("if (unconfigured) return window.BtCreateCard ? <window.BtCreateCard"),
+    settings.includes("if (unconfigured) return <BtCreateCard flash={flash} />;"),
     "and the card must take the honest one",
   );
   // Task 3.7: the empty state, and the fold that sets a receptionist up from it, are the page's own card. Drawn,

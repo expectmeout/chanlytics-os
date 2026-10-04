@@ -2141,7 +2141,7 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
 });
 
 test("the page publishes how long it keeps a read and its words for a read that gives no reason, and says those words itself", () => {
-  // Settings › Business states the same calendar's last read in a row of its own (business-tab-open.jsx), for as long
+  // Settings › Business states the same calendar's last read in a row of its own (surfaces/settings/business/open.tsx), for as long
   // as this board keeps one, and in these words: one number and one spelling, this page's.
   const keeps = CALENDAR_PAGE;
   assert.equal(keeps.refreshMs, 5 * 60 * 1000, "the five minutes after which the board reads itself again");

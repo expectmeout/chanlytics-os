@@ -2568,7 +2568,8 @@ var ROUTE_WORDS = {
   clients: "people",
   segments: "lists",
   outbound: "playbooks",
-  messages: "templates"
+  messages: "templates",
+  admin: "settings"
 };
 var DEFAULT_LOOK_PREF = "glass";
 var LOOK_THEME_COLORS = {

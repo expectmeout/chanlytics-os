@@ -28,6 +28,7 @@ import type { CalendarSurface } from "./calendar/surface";
 import type { LeadsSurface } from "./leads/surface";
 import type { SetupSurface } from "./setup/surface";
 import type { BillingSurface } from "./settings/billing/surface";
+import type { PartnerSurface } from "./settings/partner/surface";
 
 /** Every surface a TSX surface can read, by the key its override is registered under. */
 export interface SurfaceValues {
@@ -48,6 +49,8 @@ export interface SurfaceValues {
   setup: SetupSurface | null;
   /** Undefined until read; null when the read failed, so the pane shows a retry rather than "Reading…" for ever. */
   billing: BillingSurface | null;
+  /** Undefined until read; null when the read failed. `dto` is null for a person who is not a partner. */
+  partner: PartnerSurface | null;
 }
 
 export type SurfaceKey = keyof SurfaceValues;
@@ -108,4 +111,5 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   leads: true,
   setup: true,
   billing: true,
+  partner: true,
 };

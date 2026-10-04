@@ -1,7 +1,7 @@
 /**
  * Settings › Team: who has access to this workspace, and as what (moved from legacy/pages/settings.jsx, decision 0015
- * step 11). Settings' page draws it by its old name, `TeamSection`, which seed-globals publishes (settings/globals.ts),
- * and so does the Partner pane's Team (partner-real.jsx), under its partner card.
+ * step 11). Settings' page draws it as the Partner pane's Team (partner/team-card.tsx), above the workspace's partner
+ * card.
  *
  * The real roster and its open invitations, from the settings read (the seam's `team` and `invites`). It rendered four
  * invented colleagues once -- and put YOU beside one of them, on a real owner's own settings page -- and a failed read

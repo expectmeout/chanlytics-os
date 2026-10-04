@@ -6,7 +6,7 @@
  * workspace lost a 5,000-character prompt. Every fold is held to the opposite, here, before any fold can save (plan
  * Task 3.6): each fold of the Business tab opens a draft from the stored config (draftOf), is stopped by the old form's
  * own sentences (problemsOf), and writes its own paths onto the config and nothing else (saveFold). All three are
- * pages/business-tab-folds.jsx's, run on the stub React as the page tests load it; they are pure, so nothing is drawn.
+ * surfaces/settings/business/folds.ts's (with fold-shapes.ts and fold-says.ts), run on the stub React as the page tests load it; they are pure, so nothing is drawn.
  *
  * EXECUTED, never read: every claim is something a helper returned for a config it was handed.
  */
@@ -44,8 +44,7 @@ installLegacyReact({
   // THE web-address normalizer, as seed-globals.ts publishes it: a link is stored and checked by it.
   __normalizeLink: normalizeLink,
 });
-await import("../../../../../apps/dashboard/src/legacy/pages/business-tab-save.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/business-tab-folds.jsx");
+await import("./_business-parts.mjs");
 const W = globalThis.window;
 const S = W.__businessTabSave;
 // What each fold's "It will say" is asked of: every fold here must be one consequenceOf knows by name.
@@ -1533,14 +1532,7 @@ test("a refusal that is not this fold's to fix is said once, as elsewhere, namin
   const found = S.schemaProblems("tone", bad, "Bright.");
   assert.deepEqual(Object.keys(found), ["elsewhere"]);
   assert.match(found.elsewhere, /Monday/);
-  // Without the bridge (the standalone mockup before it loads, a test that never installed it) there is nothing to ask.
-  const tab = W.__businessTab;
-  W.__businessTab = undefined;
-  try {
-    assert.deepEqual(S.schemaProblems("tone", bad, "Bright."), {});
-  } finally {
-    W.__businessTab = tab;
-  }
+  // (The branch for no bridge went with the move to TSX: the folds import the bridge's helpers, so there always is one.)
 });
 
 /* ------------------------------------ the re-review's refinements ------------------------------------ */
@@ -2016,17 +2008,8 @@ test("a booking rule's refusal is contracts' bookingRuleRefusal, and the page's 
     S.RULES.every((rule) => rule.length === 3 && rule.every((x) => typeof x !== "function")),
     "a plain [key, least, most]",
   );
-  // Without the bridge the page states no number of its own: it says only that the box is refused.
-  const tab = W.__businessTab;
-  try {
-    delete W.__businessTab;
-    assert.equal(
-      S.problemsOf("booking_rules", { ...rules, lead_hours: "500" }).lead_hours,
-      "That is not a number this rule takes.",
-    );
-  } finally {
-    W.__businessTab = tab;
-  }
+  // (The branch for no bridge, which said only that the box is refused, went with the move to TSX: the folds import the
+  // bridge's helpers, so the range is always the save's own.)
 });
 
 test("the guardrails fold writes the four keys the save's own schema has, in its order", () => {

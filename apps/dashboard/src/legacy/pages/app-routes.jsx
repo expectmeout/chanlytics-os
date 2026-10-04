@@ -1,4 +1,4 @@
-/* global React, Icon, SettingsPage */
+/* global React, Icon */
 // Chanlytics — The route table
 // One row per route the shell draws (SHELL_ROUTES, at the foot), in the order the shell's router matched them, each
 // naming what it draws (its page component and props), which addresses of its page it takes (`when`: the param's
@@ -118,22 +118,6 @@ const drawSegments = ({ param }) => {
   };
 };
 
-const drawSettings = ({ param, retiredTo, navigate }) => {
-  // The crumb names the pane Settings opens, by the rule Settings itself
-  // uses (SET_TAB), so the two cannot say different things about one route:
-  // the bare route opens Business, a retired route answers under its own
-  // name, and the back office is found only for the people it exists for --
-  // anyone else lands on Profile, and so does the crumb.
-  const tabMeta = window.SET_TAB ? window.SET_TAB(param || "workspace") : null;
-  return {
-    activeNav: "admin",
-    crumbs: tabMeta ? [{ label: "Settings", to: "admin" }, tabMeta.label] : ["Settings"],
-    pane: true,
-    // A pane that moved (surface-registry ROUTES_MOVED) draws nothing for the frame before the redirect.
-    content: retiredTo ? null : <SettingsPage tab={param || "workspace"} onTab={(t) => navigate(`admin/${t}`)} />,
-  };
-};
-
 const drawTasks = () => ({
   activeNav: "tasks",
   crumbs: ["Agents", "Tasks"],
@@ -243,7 +227,6 @@ const routeGated = (drawn, { page, navigate }) => ({
 const SHELL_ROUTES = [
   // The mockup's seeded Lists page, where there is no workspace to read (a demo session); a real workspace's Lists is the App Router page (surfaces/routes.ts).
   { page: "segments", when: () => !window.__PEOPLE && !realWorkspace(), draw: drawSegments },
-  { page: "admin", mount: "admin", draw: drawSettings },
   { page: "tasks", draw: drawTasks },
 
   { page: "pipeline", draw: drawDealBoard },

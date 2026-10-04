@@ -1,5 +1,7 @@
 /**
- * The standalone mockup as a signed-in workspace's Settings › Business.
+ * The standalone mockup as a signed-in workspace: its shell's globals, the settings read the People pages and Ask read,
+ * and People, real, where the record has them. (Settings › Business no longer draws here: Settings left the mockup in
+ * step 11 of decision 0015, and its globals below are what the bridge publishes for the pages that remain.)
  *
  * The shell's globals and the tab's, as the bridge publishes them (legacy-bridge/business-tab.ts installBusinessTab,
  * zone.ts installClock, identity.ts, seed-globals.ts and inbox-verbs.ts' own), and window.__SETTINGS / window.__FACTS
@@ -25,7 +27,7 @@
  */
 import * as C from "@chanlytics/contracts";
 import { installClock } from "@/legacy-bridge/zone";
-import { installRoles } from "@/legacy-bridge/identity";
+import { installRoleStore, installRoles } from "@/legacy-bridge/identity";
 import { installBusinessTab } from "@/legacy-bridge/business-tab";
 import { startSurfaces } from "@/legacy-bridge/surface-runner";
 import { peopleOverride } from "@/surfaces/people/surface";
@@ -84,23 +86,14 @@ w.__ME = {
 };
 installClock();
 
-/* ---- the role store: the shell's own reading of who is acting (legacy-bridge/identity.ts installRoles) ---- */
-// Every gate asks the role store (`ST_STORE.myRole()`, `.mayAtLeast()`), which the mockup makes when settings.jsx runs
-// (`window.ST_STORE = window.ST_STORE || {…}`) -- after this script -- and the app completes right after its manifest
-// makes it. The page's owner-only items (the person page's "Delete person", the receptionist row's act) ask
-// `mayAtLeast`, which the mockup's store never defines, so a store the harness leaves as the mockup made it shows
-// none of them. So the store is completed by the module the app completes it with, the moment it is assigned:
-// the same two functions over this window's `__ME` and the store's own View-as, and no second copy of the ladder.
-let roleStore: unknown;
-Object.defineProperty(w, "ST_STORE", {
-  configurable: true,
-  enumerable: true,
-  get: () => roleStore,
-  set: (store) => {
-    roleStore = store;
-    installRoles(window);
-  },
-});
+/* ---- the role store: the shell's own reading of who is acting (legacy-bridge/identity.ts installRoleStore, installRoles) ---- */
+// Every gate asks the role store (`ST_STORE.myRole()`, `.mayAtLeast()`). The mockup used to make it when settings.jsx ran;
+// Settings has left the mockup, so the fixture makes it as the app's seed-globals does and gives it the app's reading
+// right after: the same two functions over this window's `__ME` and the store's own View-as, and no second copy of the
+// ladder. The page's owner-only items (the person page's "Delete person", the receptionist row's act) ask `mayAtLeast`,
+// which the store alone never defines, so a store left without the reading shows none of them.
+installRoleStore(window);
+installRoles(window);
 w.__chrome = {
   themes: C.THEME_OPTIONS,
   looks: C.LOOK_OPTIONS,
@@ -239,7 +232,7 @@ w.__POLICIES = {
 };
 w.__TEMPLATES_ALL = S.templates ?? [];
 // No __CHANNELS. The bridge publishes `toChannelVM(c, now)` (surface-data.ts), and defining the global at all flips
-// settings.jsx to PaneIntegrationsReal -- so a hand-built row would draw a pane no spec here opens, out of a shape
+// Settings' Connections pane -- so a hand-built row would draw a pane no spec here opens, out of a shape
 // the product does not use. The channels reach the page where the page reads them: in the facts, resolved above.
 
 /* ---- In a browser, at the workspace's own address ----

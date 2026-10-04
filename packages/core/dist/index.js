@@ -2582,7 +2582,8 @@ var ROUTE_WORDS = {
   clients: "people",
   segments: "lists",
   outbound: "playbooks",
-  messages: "templates"
+  messages: "templates",
+  admin: "settings"
 };
 var DEFAULT_LOOK_PREF = "glass";
 var LOOK_THEME_COLORS = {
@@ -8857,7 +8858,8 @@ var ROUTE_WORDS2 = {
   clients: "people",
   segments: "lists",
   outbound: "playbooks",
-  messages: "templates"
+  messages: "templates",
+  admin: "settings"
 };
 var DEFAULT_LOOK_PREF2 = "glass";
 var LOOK_THEME_COLORS2 = {
@@ -12882,7 +12884,8 @@ var ROUTE_WORDS3 = {
   clients: "people",
   segments: "lists",
   outbound: "playbooks",
-  messages: "templates"
+  messages: "templates",
+  admin: "settings"
 };
 var DEFAULT_LOOK_PREF3 = "glass";
 var LOOK_THEME_COLORS3 = {

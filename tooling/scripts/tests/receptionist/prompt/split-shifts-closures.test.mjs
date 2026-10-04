@@ -193,7 +193,7 @@ test("closures do NOT decide whether a workspace has a profile", () => {
 /* ---------------------------- the editor --------------------------------- */
 
 // The form is gone (Task 3.7). The week, its shifts, the closed days and their caps are the Business page's *When
-// you're open* card (pages/business-tab-open.jsx) over the fold helpers (pages/business-tab-folds.jsx), and
+// you're open* card (surfaces/settings/business/open.tsx) over the fold helpers (surfaces/settings/business/folds.ts), and
 // business-tab-open.test.mjs EXECUTES every one of the behaviours the pins below described: the undo of a removed
 // shift, closure and copy, the cap, a closed day keeping its shifts until Save, and the closures counted on the
 // business's own day. What is left here is what only the source can say.
@@ -209,9 +209,9 @@ test("one shift is still stored as open/close, never as a one-item array", () =>
   // Writing a single stretch the new way would rewrite every existing config
   // into a new shape the first time anybody pressed Save — a migration nobody
   // asked for, on rows that already said this correctly.
-  const folds = readCode("apps/dashboard/src/legacy/pages/business-tab-folds.jsx");
-  assert.ok(folds.includes("shifts.length === 1 ? { open: shifts[0].open, close: shifts[0].close }"));
-  assert.ok(folds.includes(": { intervals: shifts.map((s) => ({ open: s.open, close: s.close })) };"));
+  const folds = readCode("apps/dashboard/src/surfaces/settings/business/folds.ts");
+  assert.ok(/shifts\.length === 1\s*\?\s*\{ open: first\.open, close: first\.close \}/.test(folds));
+  assert.ok(/:\s*\{ intervals: shifts\.map\(\(s\) => \(\{ open: s\.open, close: s\.close \}\)\) \};/.test(folds));
   // The cap the fold offers is the write schema's, and it is no longer written twice: the page reads contracts'
   // PROFILE_LIMITS, which is read off the schemas (business-tab-vm.test.mjs holds every one of them to its schema,
   // and business-tab-bridge.test.mjs holds the page's copy to contracts'). business-tab-open.test.mjs fills a day to

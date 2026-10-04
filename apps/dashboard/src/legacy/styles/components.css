@@ -1186,23 +1186,6 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 @media (max-width: 900px) { .sd-body { grid-template-columns: 1fr; padding: 16px; } .sd-preview { position: static; } }
 
 
-/* AI memory impact (from memory-impact scoring) */
-.set-mem-impact {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 4px;
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  font-size: 10.5px;
-  font-weight: 500;
-  color: var(--ok);
-  background: var(--ok-soft);
-  align-self: flex-start;
-}
-.set-mem-impact.low { color: var(--ink-dim); background: var(--bg-sunken); border: 1px solid var(--line); }
-
-
 /* ---------- Shareable views ---------- */
 .rp-share-link {
   display: flex;

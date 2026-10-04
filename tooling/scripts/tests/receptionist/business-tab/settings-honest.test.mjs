@@ -11,7 +11,7 @@
  *   and a closure had one (S18).
  * - A card titled "This device" held a sign-out that ends every session, and the alerts pane said push alerts were
  *   not built beside the bell's own device alerts (S20).
- * Run against settings.jsx on a stub React.
+ * Run against the Settings page (surfaces/settings/frame/page.tsx) on a stub React.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -231,23 +231,16 @@ Object.assign(globalThis.window, {
   __fallbackDefaults: FALLBACK_DEFAULTS,
   __unknownDetails: unknownDetails,
 });
-await import("../../../../../apps/dashboard/src/legacy/pages/business-tab-save.jsx");
-// How it answers owns the languages the old form offers and its three messages' labels, which settings.jsx reads as
-// it loads (business-tab-answers.jsx, before it in both load lists).
-await import("../../../../../apps/dashboard/src/legacy/pages/business-tab-answers.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/settings.jsx");
-// Settings › Notifications is TSX (surfaces/settings/notifications), which the page draws by its old name, as the app
-// publishes it; it reads the settings read over the seam.
+await import("./_business-parts.mjs");
+// The page is the TSX module (decision 0015 step 11); it imports every pane it draws, and the panes read the settings
+// read over the seam.
+const { SettingsPage } = await import("../../../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
 const { setSurfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
 const { hearSurfaces } = await import("../../../../../apps/dashboard/src/legacy-bridge/surface-status.ts");
-const { PaneNotificationsReal } =
-  await import("../../../../../apps/dashboard/src/surfaces/settings/notifications/pane.tsx");
-globalThis.window.PaneNotificationsReal = PaneNotificationsReal;
-// Settings › Profile and Team are TSX (surfaces/settings/profile, team), which the page draws by their old names, as the
-// app publishes them; Team's roster is the seam's settings value.
-const { PaneProfile } = await import("../../../../../apps/dashboard/src/surfaces/settings/profile/pane.tsx");
-const { TeamSection } = await import("../../../../../apps/dashboard/src/surfaces/settings/team/team.tsx");
-Object.assign(globalThis.window, { PaneProfile, TeamSection });
+// The Team tab is the Partner pane's Team (settings/partner/team-card.tsx): the roster, then the workspace's partner
+// card, an owner's read answered here as refused, so the card stays out of what these tests look at.
+const { partnerVerbs } = await import("../../../../../apps/dashboard/src/surfaces/settings/partner/surface.ts");
+partnerVerbs.team.read = async () => ({ ok: false, code: "forbidden", message: "Only an owner can do this." });
 /** The seam's settings value, beside the globals it copies (legacy-bridge/surfaces/settings.ts). */
 const seam = () =>
   setSurfaceValue("settings", {
@@ -305,7 +298,7 @@ const fresh = () => {
 const draw = (tab) => {
   frames = [{ key: "root", hook: 0, kids: {} }];
   dirty = false;
-  lastTree = globalThis.window.SettingsPage({ tab, onTab() {} });
+  lastTree = SettingsPage({ tab, onTab() {} });
   return lastTree;
 };
 const settings = (tab) => {

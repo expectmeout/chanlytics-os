@@ -42,7 +42,7 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/components.css": {
-    "font": 59,
+    "font": 58,
     "radius": 15,
     "shadow": 5,
     "colour": 7,
@@ -133,7 +133,7 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/settings.css": {
-    "font": 25,
+    "font": 24,
     "radius": 9,
     "shadow": 5,
     "colour": 1,

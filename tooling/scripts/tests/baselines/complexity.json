@@ -114,51 +114,6 @@
     "branches": 20,
     "depth": 0
   },
-  "apps/dashboard/src/legacy/pages/activity.jsx::PaneActivity#1": {
-    "lines": 177,
-    "branches": 25,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/business-can.jsx::BtCanCard#1": {
-    "lines": 142,
-    "branches": 34,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/business-tab-answers.jsx::BtAnswersCard#1": {
-    "lines": 125,
-    "branches": 31,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/business-tab-gestures.jsx::BtFold#1": {
-    "lines": 65,
-    "branches": 41,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/business-tab-gestures.jsx::BtRow#1": {
-    "lines": 147,
-    "branches": 52,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/business-tab-gestures.jsx::useBtEditor#1": {
-    "lines": 221,
-    "branches": 33,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/business-tab-open.jsx::BtoFeedRead#1": {
-    "lines": 87,
-    "branches": 43,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/business-tab-open.jsx::BtoWeek#1": {
-    "lines": 166,
-    "branches": 6,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/business-tab-services.jsx::BtsServicesSheet#1": {
-    "lines": 165,
-    "branches": 6,
-    "depth": 1
-  },
   "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx::AskBarSeed#1": {
     "lines": 264,
     "branches": 28,
@@ -168,16 +123,6 @@
     "lines": 268,
     "branches": 94,
     "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/platform.jsx::PanePlatform#1": {
-    "lines": 204,
-    "branches": 38,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/settings.jsx::SettingsPage#1": {
-    "lines": 107,
-    "branches": 31,
-    "depth": 1
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
     "lines": 472,

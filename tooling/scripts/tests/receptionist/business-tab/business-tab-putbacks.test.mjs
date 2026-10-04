@@ -1,5 +1,5 @@
 /**
- * The put-backs a list's rows() keeps (business-tab-gestures.jsx BtPutBacks), as the pure helper they are: every row
+ * The put-backs a list's rows() keeps (surfaces/settings/business/gestures/ BtPutBacks), as the pure helper they are: every row
  * taken out of a list that an Undo may still put back, each with its place among the list's rows. No page is drawn:
  * every claim here is what the helper answers for a sequence of removals and restores.
  */

@@ -2422,7 +2422,8 @@ var ROUTE_WORDS = {
   clients: "people",
   segments: "lists",
   outbound: "playbooks",
-  messages: "templates"
+  messages: "templates",
+  admin: "settings"
 };
 var DEFAULT_LOOK_PREF = "glass";
 var LOOK_THEME_COLORS = {
@@ -6315,7 +6316,8 @@ var ROUTE_WORDS2 = {
   clients: "people",
   segments: "lists",
   outbound: "playbooks",
-  messages: "templates"
+  messages: "templates",
+  admin: "settings"
 };
 var DEFAULT_LOOK_PREF2 = "glass";
 var LOOK_THEME_COLORS2 = {
@@ -9883,7 +9885,8 @@ var ROUTE_WORDS3 = {
   clients: "people",
   segments: "lists",
   outbound: "playbooks",
-  messages: "templates"
+  messages: "templates",
+  admin: "settings"
 };
 var DEFAULT_LOOK_PREF3 = "glass";
 var LOOK_THEME_COLORS3 = {
@@ -13737,7 +13740,8 @@ var ROUTE_WORDS4 = {
   clients: "people",
   segments: "lists",
   outbound: "playbooks",
-  messages: "templates"
+  messages: "templates",
+  admin: "settings"
 };
 var DEFAULT_LOOK_PREF4 = "glass";
 var LOOK_THEME_COLORS4 = {
@@ -17918,7 +17922,8 @@ var ROUTE_WORDS22 = {
   clients: "people",
   segments: "lists",
   outbound: "playbooks",
-  messages: "templates"
+  messages: "templates",
+  admin: "settings"
 };
 var DEFAULT_LOOK_PREF22 = "glass";
 var LOOK_THEME_COLORS22 = {
@@ -21306,7 +21311,8 @@ var ROUTE_WORDS32 = {
   clients: "people",
   segments: "lists",
   outbound: "playbooks",
-  messages: "templates"
+  messages: "templates",
+  admin: "settings"
 };
 var DEFAULT_LOOK_PREF32 = "glass";
 var LOOK_THEME_COLORS32 = {
