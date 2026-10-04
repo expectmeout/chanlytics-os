@@ -1,2 +1,11 @@
 # MapLibre's worker, vendored byte for byte (maplibre-worker-vendored.test.mjs compares it with the package): no line-ending conversion.
 apps/dashboard/public/maplibre/* -text
+
+# Built or generated files, rewritten by their commands and never edited by hand: GitHub folds them in a pull request's
+# diff (one click opens them), so a review reads the change and not the bundles it rebuilt.
+packages/*/dist/** linguist-generated=true
+**/*.generated.* linguist-generated=true
+packages/db/src/database.types.ts linguist-generated=true
+supabase/schema.sql linguist-generated=true
+docs/data-model.md linguist-generated=true
+docs/api.md linguist-generated=true

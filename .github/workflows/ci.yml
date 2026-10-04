@@ -1,8 +1,10 @@
 name: CI
 
 on:
+  # Not on `labeled`: any label started (and cancelled) the whole of CI again, required checks included, and a
+  # Dependabot pull request opens with two. The `suite` label starts the suite alone, in suite.yml.
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened]
   push:
     branches: [main]
   # A merge queue runs the required checks on the queue's own commit. Nothing here
@@ -86,7 +88,11 @@ jobs:
     name: Typecheck
     runs-on: ubuntu-latest
     steps:
+      # Two commits deep: on a pull request the checkout is the merge commit GitHub tests, whose first parent is the
+      # base, so HEAD^1..HEAD is what the pull request changes (the changed tests, below).
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -138,14 +144,20 @@ jobs:
       # duplicated invocation here silently ran without them — passing only
       # because this runner's Node happens to strip types by default.
       #
-      # The suite runs only when asked for (Ruben, 1 Oct 2026: it took 27 minutes
-      # of every push, here and in the Auckland leg): on a pull request with the
-      # `suite` label (adding it starts a run), or by hand (workflow_dispatch).
-      # The rest of this job, the typecheck, the lint, the dead-export and
-      # format checks, the build and the bundle, runs on every push; the files a
-      # change touches and the ratchets are run before the push (CLAUDE.md).
+      # The whole suite runs only when asked for (Ruben, 1 Oct 2026: it took 27
+      # minutes of every push, here and in the Auckland leg): on a pull request
+      # with the `suite` label (adding it starts suite.yml; a later push runs it
+      # here), or by hand (workflow_dispatch). Every other pull request runs the
+      # tests of what it changed: the folders its paths name, the rules and the
+      # ratchets always, the whole suite when the runner or a helper every test
+      # loads changed (tooling/scripts/checks/changed-tests.mjs). Without it a
+      # pull request ran no test, and five ratchets went red on main unseen
+      # between 29 Sep and 3 Oct. The nightly runs the whole suite.
       - if: contains(github.event.pull_request.labels.*.name, 'suite') || github.event_name == 'workflow_dispatch'
         run: pnpm test
+      - name: The tests of what the pull request changed
+        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'suite')
+        run: node tooling/scripts/checks/changed-tests.mjs HEAD^1 HEAD
       # database.types.ts freshness is proved in database.yml, where a database exists to regenerate from.
       # The production build, the way Vercel runs it for the dashboard (Root
       # Directory apps/dashboard, `next build`, on Node 24 like this job). Nothing
