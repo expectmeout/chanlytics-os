@@ -46,6 +46,7 @@ test("agentConfig carries every value of spec §3.7 as amended: the custom LLM n
         max_duration_seconds: 600,
         max_duration_seconds_after_last_agent_message: 60,
         client_events: [
+          "audio",
           "interruption",
           "user_transcript",
           "agent_response",

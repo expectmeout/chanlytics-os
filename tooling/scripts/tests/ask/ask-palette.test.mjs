@@ -2191,6 +2191,77 @@ test("the thread's arithmetic: the newest question stands a breath under the thr
   assert.equal(H.latestShown({ qTop: 560, scrollTop: 0, clientHeight: 600 }), false, "its first line in sight");
 });
 
+test("a question spoken is answered aloud by itself: the hold's words asked, the answer's say goes to Ask's voice as it lands, with Read showing it is getting the voice then Stop; a typed question stays quiet (the spec's §3.5 as amended 4 Oct)", async () => {
+  const ph = phoneWindow();
+  const props = { open: true, onClose() {} };
+  const s = speechStub();
+  const recs = [];
+  globalThis.window.SpeechRecognition = class {
+    constructor() {
+      recs.push(this);
+    }
+    start() {}
+    stop() {
+      this.onend();
+    }
+  };
+  const hears = (rec, words) => {
+    const r = [{ transcript: words }];
+    r.isFinal = true;
+    rec.onresult({ results: [r] });
+  };
+  const down = () => ({ ...pressOf(), pointerId: 7, currentTarget: { setPointerCapture: () => {} } });
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    const calls = ask([]);
+    Object.assign(globalThis.window.__ask, {
+      ...s.stub,
+      canVoice: () => true,
+      startVoice: async () => ({ threadId: "t-voice", title: "Voice" }),
+      stopVoice: async () => {},
+      send: async (input, on) => {
+        calls.sent.push(input.text);
+        const n = calls.sent.length;
+        on({ t: "thread", id: TH(5).id, title: input.text });
+        on({ t: "final", message: said(`m-${n}`, `Answer ${n}.`) });
+      },
+    });
+    render(Palette, props);
+    let tree = await later(Palette, props);
+    // A hold past the beat dictates; the recogniser hears the question and the lift asks it.
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    await wait(340);
+    assert.equal(recs.length, 1, "the hold dictates");
+    hears(recs[0], "how did the week go");
+    tree = await later(Palette, props);
+    byTestId(tree, "ask-talk").props.onPointerUp();
+    for (let i = 0; i < 4; i++) tree = await later(Palette, props);
+    assert.deepEqual(calls.sent, ["how did the week go"], "the words heard are asked");
+    assert.deepEqual(
+      s.spoken,
+      [{ text: "Answer 1.", purpose: "answer" }],
+      "and the answer's say is read aloud by itself, nobody pressing Read",
+    );
+    let read = byTestId(nowOf(tree), "ask-read");
+    assert.equal(read.props["aria-busy"], true, "Read says it is getting the voice");
+    s.land();
+    tree = await later(Palette, props);
+    read = byTestId(nowOf(tree), "ask-read");
+    assert.equal(read.props["aria-pressed"], true, "then Stop while it plays");
+    // A typed question: the clip stops with the asking (one voice at a time) and the new answer is not read aloud.
+    const stops = s.stops;
+    tree = await asks(tree, props, "and the month?");
+    assert.ok(s.stops > stops, "the typed question stops the clip");
+    assert.deepEqual(calls.sent, ["how did the week go", "and the month?"]);
+    assert.equal(s.spoken.length, 1, "a typed question's answer stays quiet");
+    assert.equal(byTestId(nowOf(tree), "ask-read").props["aria-pressed"], false, "Read at rest, there to press");
+  } finally {
+    await closes();
+    delete globalThis.window.SpeechRecognition;
+    ph.restore();
+  }
+});
+
 test("the Line's recogniser listens in the Line's language: Spanish where the Line speaks it, the browser's own elsewhere", () => {
   const H = globalThis.window.AskHooks;
   const langs = [];

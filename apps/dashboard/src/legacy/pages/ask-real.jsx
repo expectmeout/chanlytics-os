@@ -142,7 +142,7 @@ const useArVoice = (ln) => {
     disabled: !!live,
     onWords: (words) => { setQuery(words); if (M) M.mood.hear(0.8); },
     onHeard: (heard, error) => {
-      if (heard) { if (!typing.current) submit(heard); return; }
+      if (heard) { if (!typing.current) submit(heard, undefined, { spoken: true }); return; }
       // Each said once: a second press refreshes the toast that says it (`once`), never a second beneath it.
       if (error === "blocked") flash({ once: "ask-mic", msg: <>{t.micBlocked}</> });
       else if (error === "not-allowed") flash({ once: "ask-mic", msg: <>{t.micDenied}</> });
@@ -470,8 +470,8 @@ const arLetGo = (el) => { if (arPhone() && el && typeof el.blur === "function") 
 // opening another conversation does) stops an answer read aloud, which went on over the next one (D14).
 const arSubmitter = (ln) => {
   const { A, M, query, live, active, threads, threadsReady, turnSeq, scope, surface, openedAt, inputRef, speech, setQuery, setView, setUnfolded, setLang, setQuick, setActive, setLive, setScope, openThread } = ln;
-  const submit = async (qArg, chipArg) => {
-    const q = (typeof qArg === "string" ? qArg : query).trim(), chip = chipArg !== undefined ? chipArg : scope; // a seed names its opening's chip
+  const submit = async (qArg, chipArg, how) => {
+    const q = (typeof qArg === "string" ? qArg : query).trim(), chip = chipArg !== undefined ? chipArg : scope; // a seed names its opening's chip; `how.spoken` marks a question the recogniser heard
     if (!q || live) return;
     arLetGo(inputRef.current); speech.stop();
     if (ln.voice && ln.voice.on) ln.voice.stop("typed"); // typing ends the spoken conversation: one voice at a time
@@ -504,9 +504,8 @@ const arSubmitter = (ln) => {
     setActive(thread);
     const mine = ++turnSeq.current;
     setLive({ q, text: "", say: null, traces: [] });
-    const turn = { mine, threadId: thread.id, final: null, spoke: false, said: 0 };
-    // The page, as it is now: the rows on screen and the row the words name, if they name one -- in the thread it joins, by its last answer's items first (legacy-bridge/ask/context.ts).
-    // A page that cannot say what it holds sends none: the question still goes.
+    const turn = { mine, threadId: thread.id, final: null, spoke: false, said: 0, spoken: !!(how && how.spoken) };
+    // The page, as it is now: the rows on screen and the row the words name, if they name one -- in the thread it joins, by its last answer's items first (legacy-bridge/ask/context.ts). A page that cannot say what it holds sends none: the question still goes.
     let context = null;
     try { context = A.context ? A.context(arRoute(), q, base && base.messages) : null; } catch (e) { context = null; }
     await A.send({ text: q, threadId: turn.threadId, scope: thread.scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null, context }, (ev) => arTurnHeard(ln, turn, ev));
@@ -526,8 +525,7 @@ const arTurnHeard = ({ M, turnSeq, setActive, setLive }, turn, ev) => {
     return;
   }
   if (ev.t === "say") {
-    // The answer's Say as written so far: it replaces what was drawn; the final message is the answer. An empty one
-    // takes back an answer the server set aside, and the reads show again.
+    // The answer's Say as written so far: it replaces what was drawn; the final message is the answer. An empty one takes back an answer the server set aside, and the reads show again.
     const back = !ev.headline && !ev.detail;
     setLive((prev) => (prev ? { ...prev, say: back ? null : { headline: ev.headline, detail: ev.detail } } : prev));
     if (!back) turn.spoke = true;
@@ -547,7 +545,7 @@ const arTurnHeard = ({ M, turnSeq, setActive, setLive }, turn, ev) => {
 };
 
 /** The turn done, if still the current one: the answer on the line, the thread's title read again, and the answer's `now` place gone to. */
-const arTurnLanded = ({ A, M, t, turnSeq, setLive, setActive, setThreads, buzz, nav }, turn) => {
+const arTurnLanded = ({ A, M, t, turnSeq, setLive, setActive, setThreads, buzz, nav, speech, flash }, turn) => {
   if (turn.mine !== turnSeq.current) return;
   if (!turn.final) turn.final = arFailed("e-" + Date.now(), t.cutOff);
   setLive(null);
@@ -559,6 +557,8 @@ const arTurnLanded = ({ A, M, t, turnSeq, setLive, setActive, setThreads, buzz, 
     else if (!turn.spoke) M.mood.react("nod");
   }
   setActive((prev) => (prev ? { ...prev, id: turn.threadId || prev.id, messages: [...prev.messages, turn.final] } : prev));
+  // A question spoken is answered aloud by itself (the spec's §3.5 as amended 4 Oct): the words Read aloud would read, in Ask's voice; a typed one stays quiet.
+  if (turn.spoken && !turn.final.failed && speech.canSpeak) { const say = A.answerText(A.answer(turn.final).answer); if (say) speech.toggle(say, "answer").then((why) => { if (why !== null) flash({ tone: "danger", msg: <>{why || t.readFailed}</> }); }); }
   if (turn.threadId) A.threads().then((list) => {
     setThreads(list);
     const now = list.find((x) => x.id === turn.threadId);

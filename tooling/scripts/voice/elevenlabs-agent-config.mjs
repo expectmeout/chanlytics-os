@@ -100,7 +100,10 @@ export function agentConfig({
       conversation: {
         max_duration_seconds: 600,
         max_duration_seconds_after_last_agent_message: 60,
+        // `audio` gates the agent's SPEECH, over WebRTC too: without it the agent sends its words as text and silence on
+        // the wire (measured 4 Oct 2026: energy 1e-8 on the inbound track, no `speaking`; with it, speaking in 1.6 s).
         client_events: [
+          "audio",
           "interruption",
           "user_transcript",
           "agent_response",
