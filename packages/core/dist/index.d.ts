@@ -2556,8 +2556,8 @@ declare function identityOf(p: CleanPlace, held: Map<string, string>, suppressed
  * spread. Distance is haversine, in metres, deterministic. No other gazetteer
  * is bundled.
  *
- * zcta-centroids.json is written by tooling/scripts/gen/zcta-centroids.mjs
- * from the Census 2020 gazetteer: [zip, lat, lng] triples sorted by zip.
+ * zcta-centroids.generated.ts is written by tooling/scripts/gen/zcta-centroids.mjs
+ * from the Census 2020 gazetteer: one zip,lat,lng row a line, sorted by zip.
  */
 
 interface LatLng {
