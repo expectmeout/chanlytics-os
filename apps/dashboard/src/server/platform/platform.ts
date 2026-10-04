@@ -27,7 +27,9 @@ import "server-only";
  * Cross-workspace: the back office; its service-role client exists only behind backOffice(ctx)'s admin check.
  */
 import {
+  deleteSecondFactor,
   getPlatformPartners,
+  listSecondFactors,
   markPartnerPaid,
   markWaitlistInvited,
   setPartnerStanding,
@@ -400,11 +402,11 @@ export async function platformPartnerSecondFactorReset(
     throw partnerVerbError(r);
   }
   const userId = r.value;
-  const { data, error } = await svc.auth.admin.mfa.listFactors({ userId });
+  const { data, error } = await listSecondFactors(svc, userId);
   if (error) throw new AppError("upstream_auth", "Could not reach sign-in just now. Try again in a moment.", 503);
   let removed = 0;
   for (const f of data?.factors ?? []) {
-    const gone = await svc.auth.admin.mfa.deleteFactor({ id: f.id, userId });
+    const gone = await deleteSecondFactor(svc, userId, f.id);
     if (gone.error)
       throw new AppError("upstream_auth", "Could not remove the authenticator. Try again in a moment.", 503);
     removed += 1;
