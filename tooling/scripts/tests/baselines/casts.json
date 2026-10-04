@@ -57,8 +57,7 @@
     "unknownAs": 3
   },
   "apps/dashboard/src/legacy-bridge/ask/speech.ts": {
-    "unknownAs": 1,
-    "nonNull": 3
+    "unknownAs": 1
   },
   "apps/dashboard/src/legacy-bridge/business-tab.ts": {
     "unknownAs": 1

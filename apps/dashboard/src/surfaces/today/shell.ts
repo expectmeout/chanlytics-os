@@ -12,7 +12,6 @@
  */
 import { useCallback, useSyncExternalStore } from "react";
 import type { ComponentType } from "react";
-import type { VoiceAction, VoiceStart } from "@/legacy-bridge/ask/voice";
 import type { BellApi } from "@/legacy-bridge/notifications";
 import type { PageClock } from "@/legacy-bridge/zone";
 import { surfaceHook } from "@/legacy-bridge/surface-status";
@@ -48,25 +47,36 @@ export function appNavigate(route: string): void {
 
 /* -------------------------------- the voice -------------------------------- */
 
-/** Ask's voice, as far as the brief draws it (`window.__ask`, legacy-bridge/ask/voice.ts): a conversation with Ask on the agent. */
-interface AskVoice {
-  canVoice(): boolean;
-  /** The language the person last asked in (the palette's). */
-  language(): "en" | "es";
-  startVoice(input: VoiceStart, on: (a: VoiceAction) => void): Promise<{ threadId: string; title: string } | null>;
-  stopVoice(): Promise<void>;
-  /** Whether a conversation runs now. */
-  voiceOn(): boolean;
-  /** Follow the running conversation from a pane that did not start it; answers the stop. */
-  watchVoice(on: (a: VoiceAction) => void): () => void;
+/**
+ * Ask's one voice, reading aloud (`window.__ask`, legacy-bridge/ask/speech.ts): the brief's words, spoken as the vendor
+ * makes them, through one player the bridge owns (never the pane's, so a pane drawn again mid-sentence changes nothing
+ * of the clip). Nobody speaks back: Today's Listen is not a conversation (the spec's §3.5 as amended 4 Oct 2026).
+ */
+interface AskSpeech {
+  canSpeak(): boolean;
+  /** What is happening now: the bridge holds it, so every pane says the same. */
+  state(): "idle" | "loading" | "speaking";
+  /** Hear every change of state; answers the stop. */
+  watchSpeech(on: () => void): () => void;
+  /** Read these words; resolves once the clip plays (or was stopped first); rejects, in the server's words, when it could not be made. */
+  speak(text: string, purpose: "brief" | "answer"): Promise<void>;
+  /** Stop reading, or stop waiting for the clip. */
+  stopSpeaking(): void;
 }
 
-/** Ask's voice where the shell has wired it and the device can talk with it; nothing in a stand-in window. */
-export function askVoice(): AskVoice | undefined {
-  const a = object<Partial<AskVoice>>("__ask");
-  return a && typeof a.canVoice === "function" && typeof a.startVoice === "function" && a.canVoice()
-    ? (a as AskVoice)
-    : undefined;
+/** Ask's voice where the shell has wired it and the device can play it; nothing in a stand-in window. */
+export function askSpeech(): AskSpeech | undefined {
+  const a = object<Partial<AskSpeech>>("__ask");
+  if (
+    !a ||
+    typeof a.canSpeak !== "function" ||
+    typeof a.speak !== "function" ||
+    typeof a.state !== "function" ||
+    typeof a.watchSpeech !== "function" ||
+    typeof a.stopSpeaking !== "function"
+  )
+    return undefined;
+  return a.canSpeak() ? (a as AskSpeech) : undefined;
 }
 
 /* ------------------------------ the surfaces ------------------------------ */

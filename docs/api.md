@@ -8,7 +8,7 @@ the workspace's money, and the fields it takes. A workspace-scoped route names i
 reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a
 stale copy.
 
-210 handlers in 46 domains.
+211 handlers in 46 domains.
 
 ## activity
 
@@ -46,6 +46,15 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | `day` | string | no |  |
 | `service` | string | no |  |
 
+### `POST /api/v1/ask/speech`
+
+Writes; for a member of the workspace the request names, viewer or above; counts against the `speech` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `text` | string | yes | at least 1 characters; at most 1500 characters |
+| `purpose` | one of `"brief"`, `"answer"` | yes |  |
+
 ### `GET /api/v1/ask/threads`
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
@@ -78,6 +87,8 @@ Writes; for a member of the workspace the request names, viewer or above; no rat
 | --- | --- | --- | --- |
 | `session` | string | yes | matches `^[0-9a-f]{64}$` |
 | `reason` | string | no | at most 80 characters |
+| `connect_ms` | integer or null | no |  |
+| `first_audio_ms` | integer or null | no |  |
 
 ### `POST /api/v1/ask/voice/page`
 

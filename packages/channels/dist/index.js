@@ -1145,6 +1145,7 @@ function leadNoteLeft(left, max) {
 }
 var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
 var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
+var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
 var ASK_SURFACES = [
@@ -5175,6 +5176,7 @@ function planVoiceProvision(st) {
 // src/voice/elevenlabs.ts
 var ELEVENLABS_API = "https://api.elevenlabs.io";
 var ELEVENLABS_TIMEOUT_MS = 1e4;
+var ELEVENLABS_SPEECH_TIMEOUT_MS = 25e3;
 var ELEVENLABS_WEBHOOK_TOLERANCE_S = 30 * 60;
 var ELEVENLABS_SIGNATURE_HEADER = "elevenlabs-signature";
 function vendorWords(a) {
@@ -5204,6 +5206,23 @@ async function mintConversationToken(cfg, deps) {
   const conversationId = typeof j?.conversation_id === "string" ? j.conversation_id : "";
   if (!token || !conversationId) return { outcome: "rejected", status: a.status, error: "no token in the answer" };
   return { outcome: "ok", token, conversationId };
+}
+async function speakText(cfg, input, deps) {
+  const url = `${ELEVENLABS_API}/v1/text-to-speech/${encodeURIComponent(input.voiceId)}/stream?output_format=mp3_44100_128`;
+  const a = await providerFetch(
+    "elevenlabs",
+    url,
+    {
+      method: "POST",
+      headers: { "xi-api-key": cfg.apiKey, "content-type": "application/json", accept: "audio/mpeg" },
+      body: JSON.stringify({ text: input.text, model_id: input.modelId, apply_text_normalization: "on" }),
+      timeoutMs: ELEVENLABS_SPEECH_TIMEOUT_MS,
+      stream: true
+    },
+    deps
+  );
+  if (a.outcome !== "ok" || !a.body) return notOk(a);
+  return { outcome: "ok", body: a.body, contentType: a.headers?.get("content-type") || "audio/mpeg" };
 }
 async function deleteConversation(cfg, conversationId, deps) {
   const a = await providerFetch(
@@ -8571,6 +8590,7 @@ export {
   smsStatusUrl,
   soleProprietorEndUserRequest,
   soleProprietorProfileRequest,
+  speakText,
   starRatingNumber,
   starterAttributes,
   starterEndUserRequest,

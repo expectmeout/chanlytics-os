@@ -4,8 +4,9 @@
  * Five small modules, composed here: what the palette shows before a model
  * is asked (ask/palette.ts), the Ask routes and the streamed turn
  * (ask/api.ts), a card's commit and undo through the verbs' own routes
- * (ask/commit.ts), reading aloud (ask/speech.ts), and a voice conversation
- * with Ask on the agent (ask/voice.ts). The mockup's palette
+ * (ask/commit.ts), reading aloud in Ask's voice (ask/speech.ts: the brief, an
+ * answer's say, through the speech route), and a voice conversation with Ask
+ * on the agent (ask/voice.ts). The mockup's palette
  * reaches all of it through this one object and nothing else, so what a
  * palette may do is the list below.
  */
@@ -26,7 +27,7 @@ import { createClient } from "../lib/supabase/client";
 import { hearAddress, routeOnScreen } from "./workspace";
 import { commitProposal, editReply, undoProposal, type CommitResult } from "./ask/commit";
 import { askPalette, quickAnswer } from "./ask/palette";
-import { askSpeech } from "./ask/speech";
+import { askSpeech, type SpeechPurpose } from "./ask/speech";
 import { installVoice } from "./ask/voice";
 import { pageContext, type ThreadMessage } from "./ask/context";
 
@@ -79,9 +80,26 @@ async function freshSession(): Promise<void> {
 export function installAsk(win: Window = window, storage: Storage | null = safeStorage()): AskApi {
   const palette = askPalette(win, storage);
   const api = askApi(apiFor(win));
-  const speech = askSpeech(win);
-  // A voice conversation on the agent (ask/voice.ts): the vendor's client is loaded on the first tap, not here.
-  const voice = installVoice(win, { api, freshen: freshSession });
+  // Reading aloud in Ask's voice (ask/speech.ts: the clip from the speech route, played by one element of the module's)
+  // and a voice conversation on the agent (ask/voice.ts: the vendor's client is loaded on the first tap, not here).
+  // One voice at a time, held here where the two are composed: a clip ends the conversation it would talk over (an
+  // open microphone would hear the brief and the agent would answer it), and a conversation ends the clip.
+  const clip = askSpeech(win, { api });
+  const conversation = installVoice(win, { api, freshen: freshSession });
+  const speech = {
+    ...clip,
+    speak: async (text: string, purpose: SpeechPurpose): Promise<void> => {
+      if (conversation.voiceOn() || conversation.voiceConnecting()) await conversation.stopVoice("superseded");
+      return clip.speak(text, purpose);
+    },
+  };
+  const voice = {
+    ...conversation,
+    startVoice: (...args: Parameters<typeof conversation.startVoice>) => {
+      clip.stopSpeaking();
+      return conversation.startVoice(...args);
+    },
+  };
   // The page under a running conversation follows the member: the next spoken turn reads the page they moved to
   // (a window that cannot be listened to, a test's stand-in, has no page to follow). The address is read as the
   // Line reads its own (ask-real.jsx arRoute): the page, then the rest as its param.

@@ -114,12 +114,13 @@ export {
 export {
   mintConversationToken,
   deleteConversation,
+  speakText,
   elevenLabsWebhookSignature,
   verifyElevenLabsWebhook,
   ELEVENLABS_WEBHOOK_TOLERANCE_S,
   ELEVENLABS_SIGNATURE_HEADER,
 } from "./voice/elevenlabs";
-export type { ElevenLabsConfig, ConversationMint } from "./voice/elevenlabs";
+export type { ElevenLabsConfig, ConversationMint, SpeechStream } from "./voice/elevenlabs";
 export type {
   ProvisionSecrets,
   VoiceProvisionRequest,

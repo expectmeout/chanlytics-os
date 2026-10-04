@@ -42,7 +42,7 @@ window publishers                   202   sites in 69 files
 copies                               73   of 21 names
 as unknown as                       146
 as never                             13
-non-null assertions, x!             121
+non-null assertions, x!             120
 index reads the compiler lets pass  484   in 128 files
 table names outside packages/db     487
 SQL functions outside packages/db   133   called by .rpc
@@ -50,7 +50,7 @@ edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
 literal style values               1030   in 23 stylesheets
-primitives outside the kit         1993   selectors naming 804 classes
+primitives outside the kit         1988   selectors naming 803 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     298
