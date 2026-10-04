@@ -186,8 +186,10 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
 - A type, a schema, an enum, a view model: `packages/contracts`, in its domain's folder, named in the folder's
   barrel, `packages/contracts/src/<domain>/index.ts` (never `export *`; a module imports another by its path, never
   through a barrel).
-- A read or write of a table, and a call to Supabase's own auth API (the platform's identity store, as the database is
-  its store): `packages/db`. A third party's sign-in (Google) is a provider's wire: `packages/channels`.
+- A read or write of a table, and a server's call to Supabase's own auth API (the platform's identity store, as the
+  database is its store: sign-up, an invite, a factor reset): `packages/db`. A page's call as the person signed in
+  (the login screen, enrolling a second factor) stays in the browser; a third party's sign-in (Google) is a provider's
+  wire: `packages/channels`.
 - An HTTP door for a provider, a sweep, or the job runner: `apps/edge/api`.
 - What such a door calls: `apps/edge/lib/<domain>/`, and `apps/edge/lib` itself for the
   plumbing every domain uses.
