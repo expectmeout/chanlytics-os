@@ -82,8 +82,8 @@ declare function whatsappWire(read: CredentialsRead<WaConfig>): Sender | null | 
 /**
  * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
  * on the platform's account, for replies, visit messages and everything but the two below; "campaigns" is the same mailbox
- * on the deployment's campaigns domain (the platform's account too), for offers and nothing else, so a complaint about an
- * offer never touches the domain replies leave from; "own" is one of the workspace's own verified domains on the cold
+ * on the deployment's campaigns domain (the platform's account too), for offers (and the business's own news, which is one at
+ * the door: decision D2) and nothing else, so a complaint about an offer never touches the domain replies leave from; "own" is one of the workspace's own verified domains on the cold
  * account, for outreach and nothing else.
  */
 interface EmailRoute {
@@ -212,6 +212,11 @@ interface Delivery {
      * covering email or a relationship on record; theirs asks no yes. Required: a sender says which.
      */
     about: MessageAbout;
+    /**
+     * The playbook moment a broadcast's run was made for (contracts audienceTrigger), absent for any other send. Only the
+     * day-before reminder passes the thread's 24-hour pause (contracts passesHandoverPause, decision D4).
+     */
+    trigger?: string | null;
     body: string;
     template?: TemplateSend;
     /** The frozen request, on the email wire (WirePayload.email). */
@@ -1398,11 +1403,14 @@ interface AssemblePorts {
      */
     assemble(row: NewBroadcast, recipients: NewRecipient[], sendAt: Date | null): Promise<string>;
     /**
-     * How many campaign emails or texts the workspace sent on this channel this calendar month, in its zone, that left, may
-     * have left or wait to go (packages/db campaignMonthSent): what its month's allowance has spent (contracts
-     * CAMPAIGN_MONTH_ALLOWANCE). Throws when it cannot be counted.
+     * How many campaign emails or texts the workspace sent on this channel in the calendar month `at` falls in, in its zone,
+     * that left, may have left or wait to go (packages/db campaignMonthSent): what that month's allowance has spent (contracts
+     * CAMPAIGN_MONTH_ALLOWANCE). `at` is the moment the run opens, which is when its people are counted against the month: a
+     * broadcast made on the 28th for the 1st counts against the new month, not the one it was made in, and a playbook's run
+     * against the month of the moment it goes. Required, so no caller counts the month it was made in by leaving it out.
+     * Throws when it cannot be counted.
      */
-    monthSent(channel: "email" | "sms"): Promise<number>;
+    monthSent(channel: "email" | "sms", at: Date): Promise<number>;
     /**
      * People of a run just assembled, held at once: each still queued is skipped, with `reason`, as the send would have
      * held them (allowance.ts). A person already settled is left as it is. Throws when it cannot be written, and then the
@@ -1711,7 +1719,8 @@ declare function versionsHeld(own: readonly string[], whatsapp: boolean): Record
 /**
  * The workspace's channels now, with the message in them: a channel that is ready but has no version of the message
  * is not ready, and says so in a sentence ("This message has no email version yet."). A channel the workspace is not
- * ready on keeps its own reason.
+ * ready on keeps its own reason. What else the channel carries stays (email's `offers`, which the news by email and an
+ * offer are judged by: closing the channel for a missing version must not make it say the campaigns domain is missing).
  */
 declare function readyForMessage(ready: ChannelsReady, has: Record<ConsentChannel, boolean>): ChannelsReady;
 /**

@@ -2,9 +2,10 @@ import "server-only";
 import type { BroadcastDetailDto, BroadcastDto, ChannelsReady, MonthSent } from "@chanlytics/contracts";
 import { getBroadcast, listBroadcasts } from "../campaigns/broadcasts";
 import { channelsReadyOrNull } from "../campaigns/channels-ready";
-import { monthSentOrNull } from "../campaigns/month-sent";
+import { monthSentNext, monthSentOrNull } from "../campaigns/month-sent";
 import { recentTouches } from "../campaigns/playbooks";
-import { stamp, type Reader, type RowRef } from "./index";
+import { load, stamp, type Reader, type RowRef } from "./index";
+import * as readers from "./facts";
 import { log } from "@/server/log";
 
 /** A broadcast as a citation names it: a Broadcasts row, opened where its address spells it, a run. */
@@ -23,7 +24,9 @@ const runRef = (b: BroadcastDto): RowRef => ({
  * the composer's Send by ticks and its reach line are drawn from; null where that could not be read, which the composer
  * says. And what the workspace's campaigns have sent by email and by text this calendar month (`month_sent`,
  * month-sent.ts), which the Campaigns head says from half used and the composer says before a send; null where that could not
- * be read. The route's body, moved here whole. Each broadcast is a row a citation names.
+ * be read. With the month after it (`month_sent_next`, and the instant it begins), because a broadcast may be set to go in it
+ * and the composer reads the month at the time it is set for (contracts monthSentAt). The route's body, moved here whole. Each
+ * broadcast is a row a citation names.
  */
 export const broadcasts: Reader<
   undefined,
@@ -33,11 +36,12 @@ export const broadcasts: Reader<
     touched: string[] | null;
     ready: ChannelsReady | null;
     month_sent: MonthSent | null;
+    month_sent_next: { from: number; sent: MonthSent | null } | null;
   }
 > = {
   name: "broadcasts",
   async read(rc) {
-    const [list, touched, ready, month_sent] = await Promise.all([
+    const [list, touched, ready, month_sent, month_sent_next] = await Promise.all([
       listBroadcasts(rc.ctx, rc.tenantId),
       recentTouches(rc.ctx, rc.tenantId, rc.now).catch((e: unknown) => {
         log.error("broadcast_touches_failed", {
@@ -46,11 +50,16 @@ export const broadcasts: Reader<
         });
         return null;
       }),
-      channelsReadyOrNull(rc.ctx, rc.tenantId),
+      channelsReadyOrNull(rc.ctx, rc.tenantId, { withPause: true }),
       monthSentOrNull(rc.tenantId, rc.now),
+      // The workspace's clock says where the month ends; a zone that could not be read leaves the composer on this month.
+      load(rc, readers.facts, undefined).then(
+        (r) => monthSentNext(rc.tenantId, rc.now, r.data.timezone),
+        () => null,
+      ),
     ]);
     return {
-      data: { ...list, touched: touched ? Object.keys(touched) : null, ready, month_sent },
+      data: { ...list, touched: touched ? Object.keys(touched) : null, ready, month_sent, month_sent_next },
       rows: list.broadcasts.map(runRef),
       stamp: stamp(),
     };

@@ -23,6 +23,20 @@ export function messageAboutOfTrigger(trigger: string | null | undefined): Messa
 }
 
 /**
+ * Whether a moment's send passes the 24-hour handover pause (a thread's `paused_until`, which any owner reply sets 24 hours
+ * ahead; the door is core deliver.ts), decision D4 of the Campaigns wiring review: only the day-before reminder does. It is
+ * about the customer's own booking, and booking systems send it whatever the chat is doing: a customer who writes the evening
+ * before and is answered by the team would otherwise lose it to a pause that runs past the visit. Every other moment keeps
+ * the pause: the after-visit message most often follows a complaint, where "how was your visit?" does harm, and an offer, the
+ * business's news, a win-back or a proposal's follow-up has no business in the middle of a conversation. THE one reading of
+ * it, asked by the batch of the run's moment and by the door of what the batch hands it. A LIVE hold (a call in progress, a
+ * teammate holding the thread right now) holds the reminder too, but for a while: the batch waits for it, never skips for it.
+ */
+export function passesHandoverPause(trigger: string | null | undefined): boolean {
+  return trigger === "visit_tomorrow";
+}
+
+/**
  * The message a run is counted for: its template's category, as Meta filed it. Null where no message is in view (a
  * moment counted before any playbook sends one), which says nothing; a category of null is a message nobody filed, and
  * fails closed (purposeOfTemplate).

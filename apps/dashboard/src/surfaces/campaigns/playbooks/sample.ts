@@ -64,7 +64,7 @@ function card(
     triggerLabel: t?.label ?? dto.trigger,
     triggerHint: t?.hint ?? "",
     schedule: scheduleLine(dto),
-    next: nextRunLabel(dto, DEMO_ZONE, now),
+    next: nextRunLabel(dto, DEMO_ZONE, now, false),
     named: null,
     off: null,
   };

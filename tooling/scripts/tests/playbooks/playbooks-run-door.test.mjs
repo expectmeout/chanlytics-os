@@ -25,7 +25,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { signEdgeToken } from "@chanlytics/channels";
-import { WORKSPACE_PAUSED_SENDS, localDate } from "@chanlytics/contracts";
+import { CAMPAIGNS_PAUSED_WORDS, localDate } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { withoutRequestId } from "../_log-lines.mjs";
 
@@ -564,7 +564,7 @@ test("what else makes a person's run off, each recorded with its reason: a templ
   w.tables.playbooks.push(playbook(A, P));
   assert.deepEqual(
     await answer(await knock(press)),
-    [402, { ok: false, error: "payment_required", detail: WORKSPACE_PAUSED_SENDS }],
+    [402, { ok: false, error: "payment_required", detail: CAMPAIGNS_PAUSED_WORDS }],
     "billing paused the workspace: a refusal in its own words (payment_required, as Ask and the voice doors answer a paused workspace), before the run",
   );
   nothingMade(w.tables);

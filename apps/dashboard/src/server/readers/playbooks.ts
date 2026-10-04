@@ -51,7 +51,7 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
       // The pace the edge's sweep reads (packages/db yesesSince): the follow-up's pool is the run's own.
       dealPaceRead(ctx, tenantId, now),
       // Whether each channel can send now: the pools are counted against it, and the composer draws its ticks from it.
-      channelsReadyOrNull(ctx, tenantId),
+      channelsReadyOrNull(ctx, tenantId, { withPause: true }),
       // The month's emails and texts already sent, which the composer says before a send and the head from half used.
       monthSentOrNull(tenantId, now),
     ]);

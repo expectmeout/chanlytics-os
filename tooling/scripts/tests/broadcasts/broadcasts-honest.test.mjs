@@ -999,7 +999,16 @@ test("REGRESSION: a run waiting on you says the words on the channel its reader 
       audience: { kind: "playbook", id: "pb-visit", label: "Visit reminders", ...(by ? { reach: by } : {}) },
     });
     setSurfaceValue("broadcasts", broadcastsSurface({ templates: [tpl], rows: [toBroadcastVM(run, ZONE)] }));
-    setSurfaceValue("playbooks", playbooksSurface({ rows: [playbook({ id: "pb-visit", name: "Visit reminders" })] }));
+    // A visit's moment: its message is about their own visit, which by email carries the visit foot (no postal address owed).
+    // The business's news by email carries an offer's, which does (decision D2).
+    setSurfaceValue(
+      "playbooks",
+      playbooksSurface({
+        rows: [
+          playbook({ id: "pb-visit", name: "Visit reminders", trigger: "visit_tomorrow", policy_class: "booking" }),
+        ],
+      }),
+    );
     const queued = { state: "queued", sent_at: null, message_status: null, delivered_at: null };
     answers.set("b-ch", [
       { ok: true, data: detailOf(run, [person({ ...queued, channel }), person({ ...queued, contact_id: "k2" })]) },
@@ -4189,16 +4198,26 @@ const { Tooltip } = await import(`${SRC}/surfaces/kit/tooltip/tooltip.tsx`);
 const { otherChannelSets } = await import(`${SRC}/lib/campaign-channels.ts`);
 const { bcPersonRow } = await import(`${SRC}/surfaces/campaigns/broadcasts/run-sheet.tsx`);
 
-/** The workspace's channels as the page reads them (server/campaigns/channels-ready.ts). */
+/**
+ * The workspace's channels as the page reads them (server/campaigns/channels-ready.ts): every channel ready, and offers by email
+ * open (the campaigns domain verified, the address on file, no pause), which the business's own news by email waits for as an
+ * offer does (decision D2): a broadcast is that news, so its email is open only here.
+ */
 const ALL_READY = contracts.channelsReady({
   whatsapp: { canSend: true, refusal: null },
   textLine: { sms_state: "active", reg_mock: false },
-  email: { mailbox: true, domain: true },
+  email: { mailbox: true, domain: true, offers: { campaigns: true, address: true, paused: null } },
+});
+/** The same workspace before its campaigns domain is set up: offers, and the news with them, are closed by email. */
+const OFFERS_CLOSED = contracts.channelsReady({
+  whatsapp: { canSend: true, refusal: null },
+  textLine: { sms_state: "active", reg_mock: false },
+  email: { mailbox: true, domain: true, offers: { campaigns: false, address: true, paused: null } },
 });
 const NO_TEXT_NO_MAIL = contracts.channelsReady({
   whatsapp: { canSend: true, refusal: null },
   textLine: null,
-  email: { mailbox: false, domain: true },
+  email: { mailbox: false, domain: true, offers: { campaigns: true, address: true, paused: null } },
 });
 /**
  * Four people: one on WhatsApp only, one with an email address only, one with both, one with neither -- so each set of
@@ -4221,7 +4240,7 @@ const viaAudience = (rows, ready) => {
     marketing: reading("marketing", ["whatsapp"]),
   };
   const sets = (purpose) =>
-    otherChannelSets(ready, purpose).map((channels) => ({ channels, preview: reading(purpose, channels) }));
+    otherChannelSets(ready, purpose, "ours").map((channels) => ({ channels, preview: reading(purpose, channels) }));
   return {
     kind: "everyone",
     id: null,
@@ -4293,7 +4312,7 @@ test("Send by: a switch for each channel between Says and When, WhatsApp alone o
   ).map((n) => n.props["data-testid"]);
   assert.deepEqual(cols, ["bc-col-who", "bc-col-what", "bc-col-via", "bc-col-when"]);
   // An offer: texts carry no offers, and offers by email wait for their release.
-  setSurfaceValue("broadcasts", viaSurface({ templates: [offerRow()] }));
+  setSurfaceValue("broadcasts", viaSurface({ templates: [offerRow()], ready: OFFERS_CLOSED }));
   tree = writing({ initialSegment: null, initialRun: null });
   assert.equal(reasonsOf(tree).sms, "Texts carry no offers.");
   assert.equal(reasonsOf(tree).email, "Offers by email start once the campaigns domain is set up.");
@@ -4319,8 +4338,33 @@ test("Send by: no texting line or mailbox says what is missing, a message with n
   // Unread: WhatsApp as before, which the number's banner judges; the others are not offered, and it says it could not tell.
   tree = openVia({ ready: null });
   assert.equal(viaOf(tree).whatsapp.props.checked, true);
-  assert.equal(reasonsOf(tree).email, "This could not be checked just now.");
+  // A broadcast is the business's news, an offer by email at the door (decision D2): a page that read no facts about offers says
+  // what an offer says of them, closed, in the campaigns domain's words (the edge that could not be asked says "could not be
+  // checked" through the facts themselves, contracts channelsReady).
+  assert.equal(reasonsOf(tree).email, contracts.CHANNEL_WORDS.noOffersByEmailYet);
   assert.equal(byTestId(tree, "bc-send").props.disabled, false, "and a send by WhatsApp is the send it was");
+});
+
+test("a paused workspace is said where Send would be, and Send is not offered: the foot says it before anything else, whatever is filled in, and the channels are as they were", () => {
+  const live = openVia();
+  assert.equal(byTestId(live, "bc-send").props.disabled, false, "a workspace that is not paused: Send as it was");
+  assert.equal(byTestId(live, "bc-foot-say"), null, "and nothing under the foot");
+  const paused = { ...ALL_READY, paused: true };
+  let tree = openVia({ ready: paused });
+  assert.equal(textOf(byTestId(tree, "bc-foot-say")), contracts.CAMPAIGNS_PAUSED_WORDS, "the foot says the pause");
+  assert.equal(byTestId(tree, "bc-send").props.disabled, true, "and Send is not offered");
+  // The Send by row keeps saying what each channel can do: the pause is the workspace's, not a channel's.
+  assert.deepEqual(
+    ["whatsapp", "sms", "email"].map((c) => viaOf(tree)[c].props.readOnly),
+    ["whatsapp", "sms", "email"].map((c) => viaOf(live)[c].props.readOnly),
+  );
+  // Whatever else is wrong, the pause is first: with no message picked it is not "Pick the message to send".
+  setSurfaceValue("broadcasts", viaSurface({ templates: [], ready: paused }));
+  tree = writing({ initialSegment: null, initialRun: null });
+  assert.equal(textOf(byTestId(tree, "bc-foot-say")), contracts.CAMPAIGNS_PAUSED_WORDS);
+  // A page cached before the readiness carried the pause, or one that could not read it, says nothing of one.
+  tree = openVia({ ready: null });
+  assert.equal(byTestId(tree, "bc-foot-say"), null);
 });
 
 test("the reach splits by channel as the owner ticks: who is reached on which, who is held and why, and the same numbers on the list's token", () => {
@@ -4448,7 +4492,7 @@ test("the number matters to a send only where it goes by WhatsApp: a paused numb
   const readyPaused = contracts.channelsReady({
     whatsapp: { canSend: false, refusal: paused.refusal },
     textLine: null,
-    email: { mailbox: true, domain: true },
+    email: { mailbox: true, domain: true, offers: { campaigns: true, address: true, paused: null } },
   });
   const sent = [];
   broadcasts.send = async (body) => {
@@ -4642,11 +4686,14 @@ const openWalk = (over = {}) => {
       audiences: [viaAudience(walkRows(), ALL_READY)],
       number: healthyNumber,
       ready: ALL_READY,
+      // The business's postal address: an email of a broadcast is the business's news, an offer at the door, whose foot names it.
+      businessAddress: WALK_ADDRESS,
       ...over,
     }),
   );
   return writing({ initialSegment: null, initialRun: null });
 };
+const WALK_ADDRESS = "12 Main St, Springfield";
 /** What the preview and its stepper say now: who, their place, the channel's label, and the words as that channel draws them. */
 const walkNow = (tree) => {
   const step = byTestId(tree, "mp-step");
@@ -4712,12 +4759,40 @@ test("the preview steps through the people the send reaches, each as the version
     [mia.who, mia.place, mia.via, mia.kind, mia.mail, mia.subject, mia.words],
     ["Mia Mail", "3 of 3", "By email", "Email", true, "A note, Mia", "Hi Mia,\nwe are open late on Thursdays."],
   );
+  // A broadcast is the business's own news, an offer at the door (decision D2): its foot is the offer's, the one the send puts on
+  // the wire (contracts emailFoot), with the business's address and the way out.
   assert.equal(
     mia.foot,
-    contracts.emailFoot("Northside Studio", null, { kind: "visit", facts: {} }, "en_US"),
+    contracts.emailFoot(
+      "Northside Studio",
+      WALK_ADDRESS,
+      { kind: "offer", why: "customer", unsubscribeUrl: contracts.PREVIEW_WORDS.unsubscribeLink },
+      "en_US",
+    ),
     "the foot is the one the send puts on the wire (contracts emailFoot)",
   );
-  assert.ok(mia.foot.includes("Reply STOP to stop these emails."));
+  assert.ok(mia.foot.includes("Unsubscribe") && mia.foot.includes(WALK_ADDRESS));
+  assert.ok(!mia.foot.includes("Reply STOP"), "the visit foot's way out is not this one's");
+  // With no postal address on file the preview says so, as the send would hold everyone for it, and draws no foot it would not carry.
+  setSurfaceValue(
+    "broadcasts",
+    broadcastsSurface({
+      templates: [wordedNote()],
+      audiences: [viaAudience(walkRows(), ALL_READY)],
+      number: healthyNumber,
+      ready: ALL_READY,
+      businessAddress: null,
+    }),
+  );
+  const bare = writing({ initialSegment: null, initialRun: null });
+  viaOf(bare).email.props.onCheckedChange(true);
+  nextPerson();
+  nextPerson();
+  assert.equal(
+    textOf(byTestId(viaAgain(), "mp-version-note")),
+    contracts.OFFERS_BY_EMAIL_WORDS.noAddress,
+    "no address, no foot to draw: the page says what the send would hold everyone for",
+  );
   // Nia is in the list and held back: WhatsApp's bubble, marked Not sent, with no channel named.
   nextPerson();
   const nia = walkNow(viaAgain());
@@ -4766,12 +4841,14 @@ test("The To row is one line -- the list, how many can hear it, on which channel
     channels: ["whatsapp"],
     body_preview: "Our fall offer is here.",
   });
-  const audience = viaAudience(viaRows(), ALL_READY);
+  // An offer's workspace before its campaigns domain is set up: offers by email are closed (and the news with them).
+  const audience = viaAudience(viaRows(), OFFERS_CLOSED);
   const line = (t) => find(t, byClass("bc-to-line"));
   let tree = openVia({
     templates: [offer],
     audiences: [audience],
     optIn,
+    ready: OFFERS_CLOSED,
   });
   // One line: the list as a token, how many can hear it, and the quiet link; WhatsApp alone says nothing of channels.
   assert.ok(pickerOf(line(tree), "bc-audience"), "the list is a token on the line");
@@ -4796,7 +4873,7 @@ test("The To row is one line -- the list, how many can hear it, on which channel
   // The rule is the workspace's, not a constant: WhatsApp alone while offers by email cannot go (no campaigns domain here),
   // and email's too once they can (contracts offersNote, the ticks' own question).
   const noteOf = (t) => textOf(find(t, byId("bc-offers-note")));
-  assert.equal(noteOf(tree), contracts.offersNote(ALL_READY));
+  assert.equal(noteOf(tree), contracts.offersNote(OFFERS_CLOSED));
   assert.match(noteOf(tree), /^Offers and news go by WhatsApp only\./);
   const OFFERS_OPEN = contracts.channelsReady({
     whatsapp: { canSend: true, refusal: null },
@@ -4816,7 +4893,7 @@ test("The To row is one line -- the list, how many can hear it, on which channel
   assert.equal(inFold(tree, byId("bc-held-yes")).total, 0, "nobody is held for want of a yes here: no door to it");
 
   // More than WhatsApp: the clause after the count, and the reasons by count in the fold.
-  tree = openVia({ audiences: [audience], optIn });
+  tree = openVia({ audiences: [viaAudience(viaRows(), ALL_READY)], optIn });
   viaOf(tree).email.props.onCheckedChange(true);
   tree = viaAgain();
   assert.equal(textOf(byTestId(line(tree), "bc-reach-by")), "2 on WhatsApp, 1 by email");

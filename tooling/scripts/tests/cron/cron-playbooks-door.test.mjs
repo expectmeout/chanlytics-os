@@ -1200,6 +1200,37 @@ test("a playbook that cannot run is told: the platform is paged once per workspa
   }
 });
 
+test("a calendar that could not be read all day tells the owner what failed and where to look, and pages nobody: the link is the owner's to mend", async () => {
+  const LAST = zoneWhere((h) => h === 20);
+  const line = wire((u) =>
+    u.includes("api.resend.com") ? new Response("{}", { status: 200 }) : new Response("gone", { status: 404 }),
+  );
+  try {
+    forgetFeeds();
+    await withEnv(MAIL_ENV, async () => {
+      const w = world({ people: { [A]: [person("c1")] } });
+      workspace(w.tables, A, LAST, "auto");
+      withCalendar(w, A, "https://cal.example/dead.ics");
+      // The owner's address beside the calendar (tellOwner and withCalendar each write the whole config).
+      const cfg = w.tables.tenant_config.find((r) => r.tenant_id === A);
+      cfg.config = { ...cfg.config, notifications: { escalation_emails: [OWNER] } };
+      w.tables.playbooks.push(reminder(A, "pb-v", { last_run_at: iso(D) }));
+      const [, body] = await answer(await w.tick());
+      assert.deepEqual(body, counts({ tenants: 1, due: 1, failed: 1 }));
+      assert.deepEqual(w.tables.operator_pages ?? [], [], "no page: a dead link would page the platform for good");
+      assert.equal(mailTo(line, PLATFORM).length, 0);
+      const [notice] = bellOf(w, A);
+      const name = w.tables.playbooks[0].name;
+      assert.equal(notice.title, `“${name}” could not read your calendar today`);
+      assert.ok(notice.body.includes("Settings › Business"), `it says where the link is: ${notice.body}`);
+      assert.equal(mailTo(line, OWNER).length, 1, "and the owner has it by mail too");
+    });
+  } finally {
+    line.restore();
+    forgetFeeds();
+  }
+});
+
 test("a workspace whose context cannot be read pages once and tells each due playbook's owner once, at the last chance: one key per workspace, one notice per playbook", async () => {
   const LAST = zoneWhere((h) => h === 20);
   const today = localDate(LAST, new Date());

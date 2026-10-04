@@ -717,6 +717,26 @@ test("Send by: a switch for each channel after what it says, WhatsApp alone on f
   assert.equal(viaOf(page()).sms.props.checked, false);
 });
 
+test("a paused workspace is said in the playbook's foot as a note, never a refusal: it can still be saved and runs once billing resumes", () => {
+  // The visit reminder is about their own visit: its email goes whatever the workspace's offers are doing, and the pause does not
+  // change what each channel can do.
+  const paused = { ...ALL_READY, paused: true };
+  const live = composingVia();
+  assert.equal(textOf(byTestId(live, "pb-foot-say")), "", "nothing under the foot while it is not paused");
+  const tree = composingVia({ ready: paused });
+  assert.equal(textOf(byTestId(tree, "pb-foot-say")), contracts.CAMPAIGNS_PAUSED_WORDS);
+  assert.equal(byTestId(tree, "pb-foot-say").props["data-tone"], "plain", "a note, not an error");
+  assert.equal(byTestId(tree, "pb-save").props.disabled, false, "Save is not held by it");
+  assert.deepEqual(
+    ["whatsapp", "sms", "email"].map((c) => viaOf(tree)[c].props.readOnly),
+    ["whatsapp", "sms", "email"].map((c) => viaOf(live)[c].props.readOnly),
+    "and each channel says what it can do",
+  );
+  // What else is missing is said first: the pause is the last thing the foot says.
+  const noMessage = composing(viaSurface({ ready: paused, templates: [] }), "everyone_monthly");
+  assert.notEqual(textOf(byTestId(noMessage, "pb-foot-say")), contracts.CAMPAIGNS_PAUSED_WORDS);
+});
+
 test("Send by: a workspace with no texting line or mailbox says what is missing, a message with no version on a channel says so, and an unread workspace offers WhatsApp alone", () => {
   let tree = composingVia({ ready: NO_TEXT_NO_MAIL });
   assert.equal(reasonsOf(tree).sms, "No texting line yet.");

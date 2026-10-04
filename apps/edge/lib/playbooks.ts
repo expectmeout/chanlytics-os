@@ -366,7 +366,7 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
         }),
       // The month's allowance, counted before anyone is enrolled, and those past it held the moment the run exists (core
       // campaigns/allowance.ts): the send's own check at the wire stays as the backstop.
-      monthSent: (channel) => campaignMonthSent(db, tenantId, channel),
+      monthSent: (channel, at) => campaignMonthSent(db, tenantId, channel, at),
       holdRecipients: (broadcastId, contactIds, reason) =>
         holdRecipients(db, { tenantId, broadcastId, contactIds, reason }),
       // The ledger: a run the sweep sends is the system's decision under the

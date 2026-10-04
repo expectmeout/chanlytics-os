@@ -261,7 +261,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       policy_class: p.policy_class,
       mode: modeOf(p.policy_class),
       schedule: scheduleLine(p),
-      next_run: nextRunLabel(p, pb.timezone, t.now),
+      next_run: nextRunLabel(p, pb.timezone, t.now, pb.ready?.paused === true),
       // On a list (decision 0009): its token, and who a run on it reaches now, as the page counts that list.
       ...(() => {
         const ref = playbookListRef(p);

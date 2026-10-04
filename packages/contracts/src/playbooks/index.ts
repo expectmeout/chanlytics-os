@@ -61,8 +61,14 @@ export {
   runApprovalRefusal,
   toApprovalVM,
 } from "./playbooks";
-export { MESSAGE_MOMENT_WORDS, messageFitsMoment, enrolPurpose, messageAboutOfTrigger } from "./playbook-purpose";
-export { playbookFailedAbout, playbookFailedWords } from "./playbook-failed";
+export {
+  MESSAGE_MOMENT_WORDS,
+  messageFitsMoment,
+  enrolPurpose,
+  messageAboutOfTrigger,
+  passesHandoverPause,
+} from "./playbook-purpose";
+export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbook-failed";
 export { campaignsHomeOf, lifecycleKicker } from "./lifecycle";
 export { reachCountsOf } from "./lifecycle-tiles";
 export { LIFECYCLE_WORDS, LIFECYCLE_TOAST } from "./lifecycle-words";

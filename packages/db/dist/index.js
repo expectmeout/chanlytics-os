@@ -1948,6 +1948,7 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   15 * MIN_MS,
   30 * MIN_MS
 ];
+var BROADCAST_HOLD_WAIT_MS = 10 * MIN_MS;
 var capitalised2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var PREVIEW_CHANNEL_WORDS = {
   whatsapp: capitalised2(CONSENT_CHANNEL_WORDS.whatsapp),
@@ -3294,7 +3295,14 @@ var LIFECYCLE_WORDS = {
     rules: `Sends wait for ${SENDING_HOURS_WORDS.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
-    waiting: "Waiting on you"
+    waiting: "Waiting on you",
+    // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
+    // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
+    paused: {
+      when: { day: "Paused", at: "for billing" },
+      why: "The workspace is paused, so nothing goes until billing resumes",
+      pill: "Workspace paused"
+    }
   },
   results: {
     title: "What came back",
@@ -4044,6 +4052,11 @@ async function textLineFacts(db, tenantId) {
   const { data, error } = await db.from("lines").select("sms_state, reg_mock").eq("tenant_id", tenantId).not("messaging_service_sid", "is", null).neq("voice_state", "failed").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(`text_line_facts: ${error.message}`);
   return data ?? null;
+}
+async function workspaceIsPaused(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`workspace_is_paused: ${error.message}`);
+  return data?.status === "paused";
 }
 async function playbookChannels(db, playbookId) {
   const { data, error } = await db.from("playbooks").select("channels").eq("id", playbookId).maybeSingle();
@@ -7131,6 +7144,7 @@ export {
   withdrawPartnerInvite,
   workspaceAbout,
   workspaceAnswersOnItsOwn,
+  workspaceIsPaused,
   workspaceMaySpend,
   workspaceMayUseModels,
   workspaceNameAndConfig,

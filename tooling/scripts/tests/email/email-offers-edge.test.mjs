@@ -517,6 +517,67 @@ test("a complaint or a bounce on an offer is judged against the gates: over a li
   assert.equal(fine.tables.mailboxes[0].offers_paused_at, null);
 });
 
+test("the owner is told once when a gate pauses their offers by email: a row on the bell that opens Campaigns, and a mail to the address on file, in contracts' words, naming the news held with the offers", async () => {
+  setEnv(WIRED);
+  const OWNER = "owner@example.com";
+  const w = gateWorld({ counts: { complaint_sample: 1000, complaints: 2, bounce_sample: 400, bounces: 1 } });
+  w.tables.tenant_config = [
+    {
+      tenant_id: T,
+      config: { notifications: { escalation_emails: [OWNER], from: "Chanlytics <notify@mail.example.com>" } },
+    },
+  ];
+  w.tables.tenant_channels = [];
+  setPg(w.db);
+  const mailed = [];
+  globalThis.fetch = async (url, init) => {
+    mailed.push({ url: String(url), body: JSON.parse(init.body) });
+    return new Response(JSON.stringify({ id: "re_notice" }), { status: 200 });
+  };
+  resetBreakers();
+  const { OFFERS_NOTICE_WORDS } = await import("@chanlytics/contracts");
+  const words = OFFERS_NOTICE_WORDS.paused("complaints");
+  assert.equal(await judgeOfferGates(w.db, T, FROM), "complaints");
+  // The bell: one row of the owner's own words, which opens Campaigns' home.
+  assert.equal(w.tables.notifications.length, 1);
+  const [row] = w.tables.notifications;
+  assert.deepEqual(
+    [row.tenant_id, row.kind, row.route, row.title, row.body],
+    [T, "sweep", "outbound", words.title, words.body],
+    "a warning on Campaigns' home (the route Campaigns' old name opens), in contracts' words",
+  );
+  assert.match(row.body, /too many people marked offers as spam/);
+  assert.match(row.body, /Offers and news by email wait until it is fixed/, "the news is held with the offers (D2)");
+  assert.match(row.body, /everything on WhatsApp go on/);
+  // The mail: to the address the workspace keeps for its notices, the same subject and words.
+  const sent = mailed.filter((m) => m.url.includes("api.resend.com/emails"));
+  assert.equal(sent.length, 1, "one mail");
+  assert.deepEqual(sent[0].body.to, [OWNER]);
+  assert.equal(sent[0].body.subject, words.title);
+  assert.equal(sent[0].body.text, words.body);
+  // Once: a second judgement finds the pause in force and says nothing more, to the bell or the inbox.
+  await judgeOfferGates(w.db, T, FROM);
+  assert.equal(w.tables.notifications.length, 1);
+  assert.equal(mailed.filter((m) => m.url.includes("api.resend.com/emails")).length, 1);
+  // Nothing under the limits is said either.
+  const fine = gateWorld({ counts: { complaint_sample: 1000, complaints: 1, bounce_sample: 500, bounces: 10 } });
+  setPg(fine.db);
+  assert.equal(await judgeOfferGates(fine.db, T, FROM), null);
+  assert.equal(fine.tables.notifications.length, 0);
+  // A notice that cannot be sent never undoes the pause or refuses the receipt: it is said in the log.
+  const failing = gateWorld({ counts: { complaint_sample: 1000, complaints: 2 } });
+  failing.tables.tenant_config = w.tables.tenant_config;
+  failing.tables.tenant_channels = [];
+  setPg(failing.db);
+  globalThis.fetch = async () => {
+    throw new Error("mail down");
+  };
+  resetBreakers();
+  assert.equal(await judgeOfferGates(failing.db, T, FROM), "complaints");
+  assert.ok(failing.tables.mailboxes[0].offers_paused_at, "the pause stands");
+  setPg(null);
+});
+
 test("a gate judges only over its minimum sample, and a resumed workspace is judged afresh: too few offers pause nothing, and a gate tripped again after a resume pauses again, for its own reason", async () => {
   setEnv(WIRED);
   // The first offers of a workspace: one complaint among thirty is 3%, and no gate (it paused the workspace at once).

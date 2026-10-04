@@ -1132,6 +1132,28 @@ test("a run counts the month before it enrolls: whoever is past the room is enro
   assert.equal("hold_unwritten" in f.of("record")[0][4], false);
 });
 
+test("a run is counted against the month it goes in: asked for at eleven on the last night of the month, it goes at nine on the first, and the new month's room is read", async () => {
+  const lastNight = new Date("2026-10-01T03:00:00Z"); // 23:00 on 30 September in New York
+  const nine = new Date("2026-10-01T13:00:00Z"); // 09:00 on 1 October
+  const at = [];
+  const f = fakes({ template: UTILITY, versions: ["email"], monthSent: (_channel, when) => (at.push(when), 0) });
+  const r = await runPlaybook(
+    f.ports,
+    cmd({
+      playbook: followUp(),
+      ctx: context({ ...followUpCtx(proposals(FOLLOW_UPS)), now: lastNight }),
+      by: { kind: "user", userId: "u1" },
+    }),
+  );
+  assert.equal(r.outcome, "sent");
+  assert.deepEqual(f.of("assemble")[0][3], nine, "the run goes at nine on the first");
+  assert.deepEqual(
+    at,
+    [nine],
+    "and the month it is counted against is the one it goes in, never the night it was asked for",
+  );
+});
+
 test("a proposal's follow-up touches its people as one had, and not those the month's allowance holds: the next run against the same read neither follows the proposal up twice nor breathes on them", async () => {
   const ctx = context(followUpCtx(proposals(FOLLOW_UPS)));
   const f = fakes({ template: UTILITY, versions: ["email"], monthSent: 1999 });

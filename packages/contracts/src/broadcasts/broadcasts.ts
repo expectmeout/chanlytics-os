@@ -66,11 +66,13 @@ export {
   heldByAllowance,
   allowanceRoom,
   pastAllowance,
+  nextMonthStart,
+  monthSentAt,
   allowanceBeforeSend,
   allowanceLine,
   allowanceLines,
 } from "./reach-for";
-export type { ChannelReady, ChannelsReady, HeldOn, MonthSent, ReachRow, ReachSplit } from "./reach-for";
+export type { ChannelReady, ChannelsReady, HeldOn, MonthSent, MonthSentRead, ReachRow, ReachSplit } from "./reach-for";
 export {
   BROADCAST_FAILURES,
   BROADCAST_FAILURE_WORDS,
@@ -78,8 +80,9 @@ export {
   broadcastFailureFix,
   broadcastFailureWords,
   wireFailure,
+  workspaceRefusalFailure,
 } from "./broadcast-failures";
-export type { BroadcastFailure, WireFailure } from "./broadcast-failures";
+export type { BroadcastFailure, WireFailure, WorkspaceFailure } from "./broadcast-failures";
 export { LIMIT_TIERS, dailyLimit, numberHealth, overLimitRefusal } from "./broadcast-number";
 export type { NumberHealthInput, NumberHealth } from "./broadcast-number";
 export { RUN_REPORT_STEPS, RUN_FILTERS, consentAnswerWords, receiptWords, toRunReportVM } from "./run-report";
@@ -135,6 +138,13 @@ export const BROADCAST_THROTTLE_WAITS_MS: readonly number[] = [
   15 * MIN_MS,
   30 * MIN_MS,
 ];
+/**
+ * How long a run waits before it tries again a person it gave back because somebody holds their thread right now (a call in
+ * progress, a teammate speaking: the door's `human_has_it` on a day-before reminder, which passes the 24-hour pause but not
+ * a live hold, decision D4). Drawn a little longer at random. Only inside the day's sending hours: past them the person is
+ * skipped, as before (core messages/broadcast.ts).
+ */
+export const BROADCAST_HOLD_WAIT_MS = 10 * MIN_MS;
 /** More than this is not a salon's list; it is a mistake. */
 export const BROADCAST_MAX_RECIPIENTS = 2000;
 /** Meta's ceiling for one body parameter. */

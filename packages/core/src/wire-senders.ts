@@ -20,6 +20,7 @@ import {
   type EmailSendsAs,
   type ResendConfig,
 } from "@chanlytics/channels";
+import { isOfferByEmail } from "@chanlytics/contracts";
 import type { Channel, Delivery, Sender, Wire } from "./deliver";
 
 /**
@@ -115,8 +116,8 @@ export function whatsappWire(read: CredentialsRead<WaConfig>): Sender | null | W
 /**
  * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
  * on the platform's account, for replies, visit messages and everything but the two below; "campaigns" is the same mailbox
- * on the deployment's campaigns domain (the platform's account too), for offers and nothing else, so a complaint about an
- * offer never touches the domain replies leave from; "own" is one of the workspace's own verified domains on the cold
+ * on the deployment's campaigns domain (the platform's account too), for offers (and the business's own news, which is one at
+ * the door: decision D2) and nothing else, so a complaint about an offer never touches the domain replies leave from; "own" is one of the workspace's own verified domains on the cold
  * account, for outreach and nothing else.
  */
 export interface EmailRoute {
@@ -230,7 +231,10 @@ export async function putOnWire(
   const sent = await send(d.to, {
     body: d.body,
     template: d.template,
-    ...(d.email ? { email: d.email, purpose: d.purpose } : {}),
+    // The lane an email takes is chosen by the purpose it is handed (emailSender): an offer by email leaves by the campaigns
+    // domain, and the business's own news is one at the door (decision D2, contracts isOfferByEmail), so the wire is told it
+    // is, whatever its template's category says. Anything else keeps the purpose it asked with.
+    ...(d.email ? { email: d.email, purpose: isOfferByEmail(d) ? "marketing" : d.purpose } : {}),
     ...reply,
     ...bound,
   });

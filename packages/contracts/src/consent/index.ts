@@ -1,6 +1,7 @@
 /** May we contact this person: the one predicate, and the public page where a yes is said. */
 export {
   isOptedOutContact,
+  isOfferByEmail,
   mayMessageFor,
   relationshipOnRecord,
   consentChangeOf,

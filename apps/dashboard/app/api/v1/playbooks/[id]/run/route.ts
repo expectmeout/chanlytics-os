@@ -2,7 +2,7 @@ import {
   AppError,
   FOLLOW_UP_NEEDS_DEALS,
   REACH_OUT_IS_NOT_A_MOMENT,
-  WORKSPACE_PAUSED_SENDS,
+  CAMPAIGNS_PAUSED_WORDS,
   triggerOf,
 } from "@chanlytics/contracts";
 import { write } from "@/server/route";
@@ -29,7 +29,7 @@ const SAID: Record<string, string> = {
   already_ran_today: "It already ran today. It runs again tomorrow at its hour.",
   deals_off: FOLLOW_UP_NEEDS_DEALS,
   // A paused workspace sends nothing (the edge's 402 payment_required): the pause's own words, the ones approving a run says.
-  payment_required: WORKSPACE_PAUSED_SENDS,
+  payment_required: CAMPAIGNS_PAUSED_WORDS,
   // The run could not be made this once -- a read it needs (the template, the calendar) did not answer -- and the hourly run tries again.
   run_failed: "The run could not be made just now: something it reads did not answer. Try again in a minute.",
 };

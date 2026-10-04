@@ -397,34 +397,48 @@ test("offers by email go only where the campaigns domain is verified, the busine
   );
   assert.deepEqual(verdict({ ...OPEN, paused }).paused, paused);
 
-  // What a tick and a route read: channelRefuses says why, for offers only, and never for a message about a visit.
-  assert.equal(channelRefuses("email", "marketing", ready(OPEN)), null);
+  // What a tick and a route read: channelRefuses says why, for an offer and the business's own news (decision D2), and never
+  // for a message about a visit, a proposal or a reply (`about` theirs).
+  assert.equal(channelRefuses("email", "marketing", "ours", ready(OPEN)), null);
   assert.equal(
-    channelRefuses("email", "marketing", ready({ ...OPEN, campaigns: false })),
+    channelRefuses("email", "marketing", "ours", ready({ ...OPEN, campaigns: false })),
     OFFERS_BY_EMAIL_WORDS.noCampaignsDomain,
   );
   assert.equal(
-    channelRefuses("email", "marketing", ready({ ...OPEN, address: false })),
+    channelRefuses("email", "marketing", "ours", ready({ ...OPEN, address: false })),
     OFFERS_BY_EMAIL_WORDS.noAddress,
   );
   assert.equal(
-    channelRefuses("email", "marketing", ready()),
+    channelRefuses("email", "marketing", "ours", ready()),
     CHANNEL_WORDS.noOffersByEmailYet,
     "no facts: closed, as a deployment without the domain",
   );
   assert.equal(
-    channelRefuses("email", "conversational", ready({ ...OPEN, campaigns: false })),
+    channelRefuses("email", "conversational", "theirs", ready({ ...OPEN, campaigns: false })),
     null,
     "reminders and replies are never held by it",
   );
+  for (const [what, offers, why] of [
+    ["no campaigns domain", { ...OPEN, campaigns: false }, OFFERS_BY_EMAIL_WORDS.noCampaignsDomain],
+    ["no postal address", { ...OPEN, address: false }, OFFERS_BY_EMAIL_WORDS.noAddress],
+    ["a pause", { ...OPEN, paused }, OFFERS_BY_EMAIL_WORDS.paused],
+    ["a domain that could not be asked", { ...OPEN, campaigns: null }, CHANNEL_WORDS.unchecked],
+  ])
+    assert.equal(
+      channelRefuses("email", "conversational", "ours", ready(offers)),
+      why,
+      `the business's own news says what an offer says: ${what}`,
+    );
+  assert.equal(channelRefuses("email", "conversational", "ours", ready(OPEN)), null, "and goes once they are open");
   assert.equal(
-    channelRefuses("sms", "marketing", ready(OPEN)),
+    channelRefuses("sms", "marketing", "ours", ready(OPEN)),
     CHANNEL_WORDS.noOffersByText,
     "texts carry no offers, whatever else is true",
   );
+  assert.equal(channelRefuses("sms", "conversational", "ours", ready()), null, "but they carry news");
   assert.equal(channelNeverCarries("email", "marketing"), null);
   assert.deepEqual(
-    channelChoices(ready(OPEN), "marketing").map((c) => [c.channel, c.ok]),
+    channelChoices(ready(OPEN), "marketing", "ours").map((c) => [c.channel, c.ok]),
     [
       ["whatsapp", true],
       ["sms", false],
@@ -432,8 +446,18 @@ test("offers by email go only where the campaigns domain is verified, the busine
     ],
   );
   assert.deepEqual(
-    channelChoices(ready({ ...OPEN, paused }), "marketing").find((c) => c.channel === "email"),
+    channelChoices(ready({ ...OPEN, paused }), "marketing", "ours").find((c) => c.channel === "email"),
     { channel: "email", ok: false, why: OFFERS_BY_EMAIL_WORDS.paused },
+  );
+  assert.deepEqual(
+    channelChoices(ready({ ...OPEN, paused }), "conversational", "ours").find((c) => c.channel === "email"),
+    { channel: "email", ok: false, why: OFFERS_BY_EMAIL_WORDS.paused },
+    "the pause holds the news with the offers",
+  );
+  assert.equal(
+    channelChoices(ready({ ...OPEN, paused }), "conversational", "theirs").find((c) => c.channel === "email").ok,
+    true,
+    "and leaves their visit's message alone",
   );
   // Email itself not ready (no mailbox): the offer's reason is the first the page says only while the deployment cannot send.
   const noMailbox = channelsReady({
@@ -441,9 +465,9 @@ test("offers by email go only where the campaigns domain is verified, the busine
     textLine: null,
     email: { mailbox: false, domain: true, offers: OPEN },
   });
-  assert.equal(channelRefuses("email", "marketing", noMailbox), null, "the offer's own rule is open");
+  assert.equal(channelRefuses("email", "marketing", "ours", noMailbox), null, "the offer's own rule is open");
   assert.equal(
-    channelChoices(noMailbox, "marketing").find((c) => c.channel === "email").ok,
+    channelChoices(noMailbox, "marketing", "ours").find((c) => c.channel === "email").ok,
     false,
     "but the mailbox is not there",
   );

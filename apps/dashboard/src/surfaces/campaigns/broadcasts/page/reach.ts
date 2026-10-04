@@ -4,10 +4,10 @@
  * one person the preview is drawn for. Plain functions, each taking what it reads and answering what it works out.
  */
 import {
+  CAMPAIGNS_PAUSED_WORDS,
   DEFAULT_CAMPAIGN_CHANNELS,
   emptyAudienceRefusal,
   overLimitRefusal,
-  purposeOfTemplate,
 } from "@chanlytics/contracts";
 import type { AskedPurpose, AudiencePreview, ConsentChannel, ParamSourceKind } from "@chanlytics/contracts";
 import { sameChannels } from "@/lib/campaign-channels";
@@ -22,7 +22,7 @@ import {
   cmSplitWords,
   cmViaTicks,
 } from "../../parts/channels";
-import { cmChannelOfPerson, cmPreviewBy } from "../../parts/preview-by";
+import { cmChannelOfPerson, cmOfferFoot, cmPreviewBy } from "../../parts/preview-by";
 import { starters } from "../../templates/verbs";
 import type { AudienceOption } from "../surface";
 import { broadcasts } from "../verbs";
@@ -90,7 +90,9 @@ export function bcReachOf({
   const number = data.number || null;
   // The channels it goes by: the ones ticked that the workspace can send on and the message has a version for.
   const channelReady = cmReadyForMessage(cmReadyOf(data.ready), (tpl && tpl.channels) || DEFAULT_CAMPAIGN_CHANNELS);
-  const on = cmChannelsOn(channels, channelReady, purpose);
+  // A broadcast is the business's news, whatever its template's category: by email it waits for the workspace's offers as an
+  // offer does (contracts isOfferByEmail, decision D2), so a channel is open to it by what an offer's is.
+  const on = cmChannelsOn(channels, channelReady, purpose, "ours");
   const sizeOf = (a: BcReach["active"]) => bcReadingOf(a, purpose, on).sending;
   const reading = bcReadingOf(active, purpose, on);
   const activeCount = reading.sending;
@@ -113,7 +115,7 @@ export function bcReachOf({
     channelReady,
     on,
     // A broadcast goes now: a channel closed now cannot be ticked.
-    ticks: cmViaTicks(channels, channelReady, purpose, false),
+    ticks: cmViaTicks(channels, channelReady, { purpose, about: "ours" }, false),
     reading: reading.preview,
   };
 }
@@ -156,16 +158,21 @@ export function bcSlotChoicesOf({
 }
 
 /**
- * The first thing that keeps the send from going, in the foot's words, or null when nothing does. In the order a person fills
- * the screen in: the message, who it goes to, each value, and then what is wrong with sending it -- nobody it reaches, a
- * number that cannot carry it, the day's limit. `ready` is this being null (bcSlotWordsOf), so the sentence under the foot
- * and the Send it disables are one rule, never two that can disagree.
+ * The first thing that keeps the send from going, in the foot's words, or null when nothing does. A paused workspace first:
+ * nothing it sends leaves, whatever else is filled in, so the foot says so instead of offering Send. Then, in the order a
+ * person fills the screen in: the message, who it goes to, each value, and what is wrong with sending it -- nobody it
+ * reaches, a number that cannot carry it, the day's limit. `ready` is this being null (bcSlotWordsOf), so the sentence under
+ * the foot and the Send it disables are one rule, never two that can disagree.
  */
 function bcStopOf(
-  f: Pick<BcReach, "tpl" | "active" | "activeCount" | "on" | "purpose" | "number" | "numberOk" | "overLimitWords"> &
+  f: Pick<
+    BcReach,
+    "tpl" | "active" | "activeCount" | "on" | "purpose" | "number" | "numberOk" | "overLimitWords" | "channelReady"
+  > &
     Pick<BcSlotChoices, "labels"> & { filled: readonly unknown[] },
 ): BcSay | null {
-  const { tpl, active, activeCount, on, purpose, number, numberOk, overLimitWords, labels, filled } = f;
+  const { tpl, active, activeCount, on, purpose, number, numberOk, overLimitWords, channelReady, labels, filled } = f;
+  if (channelReady.paused) return { tone: "warn", words: CAMPAIGNS_PAUSED_WORDS };
   if (!tpl) return { tone: "plain", words: BC_SAYS.pickMessage };
   if (!active) return { tone: "plain", words: BC_SAYS.pickList };
   const blank = filled.findIndex((v) => !String(v).trim());
@@ -203,11 +210,12 @@ export function bcSlotWordsOf({
   on,
   purpose,
   number,
+  channelReady,
 }: Pick<BcBase, "params" | "tplId" | "setParams" | "setSources" | "data" | "busy"> &
   Pick<BcSlotChoices, "vars" | "srcOf" | "exampleOf" | "labels"> &
   Pick<
     BcReach,
-    "tpl" | "active" | "activeCount" | "numberOk" | "overLimitWords" | "on" | "purpose" | "number"
+    "tpl" | "active" | "activeCount" | "numberOk" | "overLimitWords" | "on" | "purpose" | "number" | "channelReady"
   >): BcSlotWords {
   const typed = vars.map((v, i) => (params[tplId] || [])[i] || "");
   const setTyped = (i: number, words: string) =>
@@ -234,7 +242,19 @@ export function bcSlotWordsOf({
   );
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? typed[i].trim() : { kind: srcOf(i) }));
   // Nothing stops it, and it is not already on its way. What is said while something does is the same call's answer.
-  const say = bcStopOf({ tpl, active, activeCount, on, purpose, number, numberOk, overLimitWords, labels, filled });
+  const say = bcStopOf({
+    tpl,
+    active,
+    activeCount,
+    on,
+    purpose,
+    number,
+    numberOk,
+    overLimitWords,
+    channelReady,
+    labels,
+    filled,
+  });
   const ready = say === null && !busy;
   const shown = previewValues.map((v) => String(v).trim());
   return { typed, setTyped, chooseSource, filled, previewValues, specs, ready, say, shown };
@@ -326,8 +346,9 @@ export function bcPreviewOf({
           business: data.businessName,
           address: data.businessAddress,
           labelled: reachBy !== null,
-          // An offer's email reads with the offer's foot: why they get it, and the way out (step 4).
-          ...(purposeOfTemplate(tpl.category) === "marketing" ? { offer: "customer" as const } : {}),
+          // An offer's email reads with the offer's foot: why they get it, and the way out (step 4). A broadcast is the
+          // business's news, which is an offer by email whatever its template's category (decision D2).
+          ...cmOfferFoot(tpl.category, "ours"),
         },
       )
     : null;

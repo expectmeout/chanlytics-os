@@ -191,6 +191,7 @@ export { resolveChannelDetailed, resolveChannel } from "./repositories/routing";
 export {
   whatsappChannelConfig,
   textLineFacts,
+  workspaceIsPaused,
   playbookChannels,
   queuedRecipients,
   runGoesByOthers,

@@ -35,7 +35,10 @@ export interface LifecyclePlaybook {
   run_hour: number;
   cadence_days: number;
   last_run_for: string | null;
-  /** "today 10:00", "tomorrow 10:00", "today, within the hour" or "paused", by the business's clock. */
+  /**
+   * "today 10:00", "tomorrow 10:00", "today, within the hour" or "paused", by the business's clock; "after billing resumes"
+   * while the workspace is paused (contracts nextRunLabel).
+   */
   next: string;
   /** The trigger's words, or its list's name for a playbook on a list. */
   triggerLabel: string;
@@ -65,6 +68,11 @@ export interface LifecyclePlaybooks {
   timezone: string;
   /** False where the server could not count some moment: the rail says so once, over the people it shows as "—". */
   countsRead: boolean;
+  /**
+   * Whether the workspace can send on each channel now (null where that could not be read), and whether it is paused
+   * (`paused`): the Coming-up rows say so instead of a time. The broadcasts surface carries the same readiness.
+   */
+  ready?: ChannelsReady | null;
 }
 
 /** A run as the broadcasts surface lists it. */

@@ -1,7 +1,7 @@
 import { errField, logger } from "@chanlytics/channels";
 import {
   AppError,
-  WORKSPACE_PAUSED_SENDS,
+  CAMPAIGNS_PAUSED_WORDS,
   isReachOutRun,
   localDate,
   nextOpenMoment,
@@ -38,7 +38,7 @@ export async function approveRun(
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
   // A paused workspace sends nothing (the wire holds every person of a run, each for good): refused before anything
   // moves, in the words Run now answers in. A read that fails throws: "could not check" is not "may".
-  if (await ports.paused()) throw new AppError("payment_required", WORKSPACE_PAUSED_SENDS, 402);
+  if (await ports.paused()) throw new AppError("payment_required", CAMPAIGNS_PAUSED_WORDS, 402);
   // A reach-out's run (Part 3) is its planned sends, each at its own time in its lead's hours: the reach-out clock
   // claims them, and plans again any that went stale while the run waited. Approved on a later day it still goes, and
   // it is released with no broadcast job, which would find no recipients and end the run as sent.

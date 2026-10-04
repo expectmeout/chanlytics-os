@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { REACH_OUT_IS_NOT_A_MOMENT, WORKSPACE_PAUSED_SENDS } from "@chanlytics/contracts";
+import { REACH_OUT_IS_NOT_A_MOMENT, CAMPAIGNS_PAUSED_WORDS } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -121,11 +121,11 @@ test("REGRESSION (C7): the route hands back when a run really goes, as the edge 
 
 test("a paused workspace's Run now is refused in the pause's words, a payment_required, never \"The run did not happen (context_failed)\"; a run that could not be made says to try again", async () => {
   edge.status = 402;
-  edge.answer = { ok: false, error: "payment_required", detail: WORKSPACE_PAUSED_SENDS };
+  edge.answer = { ok: false, error: "payment_required", detail: CAMPAIGNS_PAUSED_WORDS };
   try {
     await assert.rejects(
       press(),
-      (e) => e.code === "payment_required" && e.status === 402 && e.message === WORKSPACE_PAUSED_SENDS,
+      (e) => e.code === "payment_required" && e.status === 402 && e.message === CAMPAIGNS_PAUSED_WORDS,
     );
     edge.status = 500;
     edge.answer = { ok: false, error: "run_failed", detail: "calendar: could not be read" };

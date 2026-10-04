@@ -7,7 +7,9 @@
  * its card read "today, within the hour". Now:
  *
  *   - The platform is paged (ops/page-operator.ts), one key per workspace, `playbook_failed:<tenant_id>`: the pager keeps
- *     its own six-hour memory of a key, so a workspace that fails all day pages a few times, not once an hour.
+ *     its own six-hour memory of a key, so a workspace that fails all day pages a few times, not once an hour. Not for a
+ *     calendar that could not be read (contracts PLAYBOOK_CALENDAR_UNREAD): that link is the owner's, and their notice
+ *     says where to check it.
  *   - The owner is told once per playbook per day, in the last hour a run is asked for (contracts inLastSendingHour):
  *     that the playbook could not run today, and that tomorrow's run will try again. Through the notification door
  *     (ops/notify.ts: the bell's row and the mail), about the playbook and the day (contracts playbookFailedAbout), which
@@ -17,7 +19,12 @@
  * Never throws: a notice that could not go is a log line (`playbook_failed_notice_failed`), and the sweep goes on.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { inLastSendingHour, playbookFailedAbout, playbookFailedWords } from "../packages/contracts.js";
+import {
+  inLastSendingHour,
+  PLAYBOOK_CALENDAR_UNREAD,
+  playbookFailedAbout,
+  playbookFailedWords,
+} from "../packages/contracts.js";
 import { noticeKept, type Database } from "../packages/db.js";
 import { errField, type Logger } from "../log.js";
 import { notify } from "../ops/notify.js";
@@ -66,12 +73,15 @@ async function pageThePlatform(f: Failure): Promise<void> {
   );
 }
 
+/** Whether what failed was the calendar's feed: the owner's link to fix, which the platform is not paged about. */
+const calendarUnread = (f: Failure): boolean => f.error === PLAYBOOK_CALENDAR_UNREAD;
+
 /** One playbook's owner, told once for the day. */
 async function tellTheOwner(f: Failure, p: FailedPlaybook): Promise<void> {
   const about = playbookFailedAbout(p.id, f.runFor);
   if (await noticeKept(f.db, { tenantId: f.tenantId, kind: "playbook", subjectType: about.type, subjectId: about.id }))
     return;
-  const words = playbookFailedWords(p.name);
+  const words = playbookFailedWords(p.name, calendarUnread(f) ? "calendar" : "other");
   const target = await loadTenantNotifications(f.db, f.tenantId);
   await notify(
     { tenantId: f.tenantId, notifications: target.notifications, isEnvDefault: target.isEnvDefault },
@@ -90,14 +100,17 @@ async function tellTheOwner(f: Failure, p: FailedPlaybook): Promise<void> {
 }
 
 /**
- * Tells of playbooks that could not run at this tick: the platform always, each playbook's owner only when this is the
- * last hour the day's run is asked for.
+ * Tells of playbooks that could not run at this tick: the platform, unless what failed was the calendar's feed (a link
+ * the owner gave, which the platform cannot mend: a dead one would page it every six hours, for good); each playbook's
+ * owner only when this is the last hour the day's run is asked for, told what failed.
  */
 export async function tellPlaybookFailed(f: Failure): Promise<void> {
-  try {
-    await pageThePlatform(f);
-  } catch (e) {
-    f.L.error("playbook_failed_notice_failed", { tenant_id: f.tenantId, who: "platform", error: errField(e) });
+  if (!calendarUnread(f)) {
+    try {
+      await pageThePlatform(f);
+    } catch (e) {
+      f.L.error("playbook_failed_notice_failed", { tenant_id: f.tenantId, who: "platform", error: errField(e) });
+    }
   }
   if (!inLastSendingHour(f.tz, f.now)) return;
   for (const p of f.playbooks) {

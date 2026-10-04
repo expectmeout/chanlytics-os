@@ -40,7 +40,7 @@ export const GET = read({
         member.tenantId,
         timezone,
         now,
-        await channelsReadyOrNull(ctx, member.tenantId),
+        await channelsReadyOrNull(ctx, member.tenantId, { withPause: false }),
       );
       const found = await poolList(ctx, member.tenantId, pool, ref);
       if (!found) throw new AppError("not_found", "That list isn't here.", 404);

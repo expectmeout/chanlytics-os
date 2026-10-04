@@ -28,7 +28,7 @@ import { logger } from "../log.js";
 import { runReachOutStep } from "./run-step.js";
 import { tenantZoneOf } from "../packages/db.js";
 import type { ReachOutRow } from "./run-context.js";
-import { UUID, WORKSPACE_PAUSED_SENDS } from "../packages/contracts.js";
+import { UUID, CAMPAIGNS_PAUSED_WORDS } from "../packages/contracts.js";
 
 export async function runPlaybookNow(
   auth: Admitted,
@@ -88,7 +88,7 @@ export async function runPlaybookNow(
   const ctx = await loadTenantRunContext(db, tenantId, new Date());
   // A paused workspace is a refusal a person can act on (Billing), not a failure to read the workspace: 402, as Ask and
   // the voice doors answer a paused one.
-  if ("error" in ctx && ctx.error === CONTEXT_PAUSED) return refuse(402, "payment_required", WORKSPACE_PAUSED_SENDS);
+  if ("error" in ctx && ctx.error === CONTEXT_PAUSED) return refuse(402, "payment_required", CAMPAIGNS_PAUSED_WORDS);
   if ("error" in ctx) return refuse(500, "context_failed", ctx.error);
   const r = await runPlaybook(ctx, p as PlaybookRow, { by: { kind: "user", userId } });
   if (r.outcome === "failed") return refuse(500, "run_failed", r.error);

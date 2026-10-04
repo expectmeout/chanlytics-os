@@ -4,6 +4,7 @@ import {
   parseParamSpecs,
   listToken,
   planRun,
+  PLAYBOOK_CALENDAR_UNREAD,
   playbookListRef,
   playbookRunReach,
   playbookStopBy,
@@ -85,7 +86,7 @@ const templateHolds = (r: Run, m: Message, drawn: number): boolean =>
  */
 async function withoutCalendar(r: Run): Promise<RunOutcome> {
   return r.ctx.calendar === "unavailable"
-    ? { outcome: "failed", error: "calendar: could not be read" }
+    ? { outcome: "failed", error: PLAYBOOK_CALENDAR_UNREAD }
     : r.off("no_calendar");
 }
 
@@ -198,13 +199,18 @@ function draw(
 async function pastTheRoom(
   r: Run,
   message: Message["row"],
-  eligible: readonly PersonRowVM[],
-  channelOf: Record<string, ConsentChannel>,
+  drawn: { eligible: readonly PersonRowVM[]; channelOf: Record<string, ConsentChannel> },
+  goesAt: Date,
 ): Promise<{ held: string[] } | { error: string }> {
   try {
-    const people = eligible.map((person) => ({ id: person.id, channel: channelOf[person.id] ?? "whatsapp" }));
+    const people = drawn.eligible.map((person) => ({
+      id: person.id,
+      channel: drawn.channelOf[person.id] ?? "whatsapp",
+    }));
     const purpose = enrolPurpose(triggerOf(r.p.trigger)?.cls, message);
-    return { held: (await pastTheMonth(r.ports, people, r.p.trigger, purpose)).map((person) => person.id) };
+    // Counted against the month the run goes in: a run approved past midnight on the 1st is the new month's.
+    const month = { monthSent: (channel: "email" | "sms") => r.ports.monthSent(channel, goesAt) };
+    return { held: (await pastTheMonth(month, people, r.p.trigger, purpose)).map((person) => person.id) };
   } catch (e) {
     return { error: `month: ${e instanceof Error ? e.message : String(e)}` };
   }
@@ -326,7 +332,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     return { outcome: "empty", eligible: 0, mode };
   }
 
-  const past = await pastTheRoom(run, message.row, eligible, channelOf);
+  const past = await pastTheRoom(run, message.row, { eligible, channelOf }, goesAt);
   if ("error" in past) return { outcome: "failed", error: past.error };
   const specs = parseParamSpecs(p.params);
   const facts = recipientFacts(run, goesAt);

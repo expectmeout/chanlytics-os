@@ -135,6 +135,12 @@ export interface BroadcastsSurface {
    * used (contracts allowanceLine) and the composer before a send (contracts allowanceBeforeSend).
    */
   month_sent: MonthSent | null;
+  /**
+   * The month after it and the instant it begins (server/campaigns/month-sent.ts monthSentNext), which a send scheduled
+   * past the month's end counts against: the composer reads the month at the time it is set to go (contracts monthSentAt).
+   * Null where the workspace's clock could not be read, and on a server from before it was carried.
+   */
+  month_sent_next: { from: number; sent: MonthSent | null } | null;
   /** Whether the saved lists were read; false leaves the audiences without them, and the page says so. */
   listsRead: boolean;
   audiences: AudienceOption[];
@@ -180,6 +186,11 @@ const HOME_REPORT_DAYS = 30;
 
 /** The month's emails and texts the read carries; null where it could not be counted, and on a server from before it was. */
 const monthSentOf = (read: { month_sent?: MonthSent | null }): MonthSent | null => read.month_sent ?? null;
+
+/** The next month's count and where it begins, as the read carries them; null on a server from before they were. */
+const monthSentNextOf = (read: {
+  month_sent_next?: { from: number; sent: MonthSent | null } | null;
+}): { from: number; sent: MonthSent | null } | null => read.month_sent_next ?? null;
 
 /**
  * Whether a People list is an audience a broadcast offers: not the three consent lists, each a restatement of the
@@ -255,7 +266,7 @@ function optionReadings(
     marketing: reading("marketing", DEFAULT_CAMPAIGN_CHANNELS),
   };
   const sets = (purpose: AskedPurpose) =>
-    otherChannelSets(ready, purpose).map((channels) => ({ channels, preview: reading(purpose, channels) }));
+    otherChannelSets(ready, purpose, "ours").map((channels) => ({ channels, preview: reading(purpose, channels) }));
   const by = { conversational: sets("conversational"), marketing: sets("marketing") };
   return {
     counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending },
@@ -401,6 +412,7 @@ export const broadcastsOverride: SurfaceOverride = {
       number,
       ready: bc.ready ?? null,
       month_sent: monthSentOf(bc),
+      month_sent_next: monthSentNextOf(bc),
       heldReasons: HELD_REASONS,
       chunk: BROADCAST_CHUNK,
       replyWindow: REPLY_WINDOW_WORDS,

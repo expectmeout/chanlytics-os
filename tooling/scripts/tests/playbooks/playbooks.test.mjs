@@ -371,18 +371,32 @@ test("when a run is due: the hour the owner picked, by the business's clock, onc
     "Every 30 days at 09:00 · up to 50 a day",
   );
   assert.equal(
-    nextRunLabel({ state: "running", run_hour: 11, last_run_for: null }, "America/New_York", now),
+    nextRunLabel({ state: "running", run_hour: 11, last_run_for: null }, "America/New_York", now, false),
     "today 11:00",
   );
   assert.equal(
-    nextRunLabel({ state: "running", run_hour: 10, last_run_for: null }, "America/New_York", now),
+    nextRunLabel({ state: "running", run_hour: 10, last_run_for: null }, "America/New_York", now, false),
     "today, within the hour",
   );
   assert.equal(
-    nextRunLabel({ state: "running", run_hour: 10, last_run_for: "2026-09-06" }, "America/New_York", now),
+    nextRunLabel({ state: "running", run_hour: 10, last_run_for: "2026-09-06" }, "America/New_York", now, false),
     "tomorrow 10:00",
   );
-  assert.equal(nextRunLabel({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now), "paused");
+  assert.equal(
+    nextRunLabel({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now, false),
+    "paused",
+  );
+  // A paused workspace promises no time: nothing a run sends leaves until billing resumes. A paused playbook is still paused.
+  for (const last_run_for of [null, "2026-09-06"])
+    assert.equal(
+      nextRunLabel({ state: "running", run_hour: 10, last_run_for }, "America/New_York", now, true),
+      "after billing resumes",
+      String(last_run_for),
+    );
+  assert.equal(
+    nextRunLabel({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now, true),
+    "paused",
+  );
 });
 
 test("a run that waits for a person is open, never sent by the job, approved through its own door, skipped through cancel", () => {

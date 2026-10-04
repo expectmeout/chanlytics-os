@@ -52,10 +52,12 @@ const { Tooltip } = await import(`${SRC}/surfaces/kit/tooltip/tooltip.tsx`);
 
 const h = (type, props, ...kids) => globalThis.React.createElement(type, props, ...kids);
 
+// A workspace whose offers by email can go: the business's own news by email waits for them as an offer does (decision D2).
+const OFFERS_OPEN = { campaigns: true, address: true, paused: null };
 const READY = contracts.channelsReady({
   whatsapp: { canSend: true, refusal: null },
   textLine: { sms_state: "active", reg_mock: false },
-  email: { mailbox: true, domain: true },
+  email: { mailbox: true, domain: true, offers: OFFERS_OPEN },
 });
 const ALL = ["whatsapp", "sms", "email"];
 
@@ -417,7 +419,7 @@ test("why a channel is closed is a line under the Send by row where there is no 
     textLine: null,
     email: { mailbox: false, domain: false },
   });
-  const ticks = cmViaTicks(["whatsapp"], ready, "conversational", false);
+  const ticks = cmViaTicks(["whatsapp"], ready, { purpose: "conversational", about: "ours" }, false);
   const tree = h(CmVia, { ticks, onTick() {}, testid: "bc-via" });
   const whys = byTestId(tree, "bc-via-whys");
   assert.deepEqual(
@@ -442,10 +444,10 @@ test("why a channel is closed is a line under the Send by row where there is no 
   const open = contracts.channelsReady({
     whatsapp: { canSend: true, refusal: null },
     textLine: { sms_state: "active", reg_mock: false },
-    email: { mailbox: true, domain: true },
+    email: { mailbox: true, domain: true, offers: OFFERS_OPEN },
   });
   const quiet = h(CmVia, {
-    ticks: cmViaTicks(["whatsapp", "sms"], open, "conversational", false),
+    ticks: cmViaTicks(["whatsapp", "sms"], open, { purpose: "conversational", about: "ours" }, false),
     onTick() {},
     testid: "bc-via",
   });

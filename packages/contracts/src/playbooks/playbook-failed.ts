@@ -16,9 +16,28 @@ export function playbookFailedAbout(playbookId: string, runFor: string): { type:
   return { type: "playbook_day", id: `${playbookId}:${runFor}` };
 }
 
-/** The bell's title and body for a playbook that could not run today; the first line of the body is what the bell and a phone show. */
-export function playbookFailedWords(name: string): { title: string; body: string } {
+/**
+ * Why a moment that reads the calendar could not run: the feed could not be read (core run-playbook.ts). Said once, so
+ * the run's failure and the notice that tells of it read the same words: a calendar the owner's link no longer opens is
+ * theirs to fix, not the platform's to be paged about.
+ */
+export const PLAYBOOK_CALENDAR_UNREAD = "calendar: could not be read";
+
+/**
+ * The bell's title and body for a playbook that could not run today; the first line of the body is what the bell and a
+ * phone show. `why` is what failed: the calendar, which the owner can fix (Settings › Business holds its link), or
+ * anything else, which the platform was paged about.
+ */
+export function playbookFailedWords(name: string, why: "calendar" | "other"): { title: string; body: string } {
   const label = name.trim() || "A playbook";
+  if (why === "calendar")
+    return {
+      title: `“${label}” could not read your calendar today`,
+      body:
+        `“${label}” could not read your calendar today, so nobody was sent it. Tomorrow's run will try again.\n\n` +
+        "It kept trying through the day. Check that the calendar link under Settings › Business still opens; if today's " +
+        "message matters, you can send it yourself from Campaigns.",
+    };
   return {
     title: `“${label}” could not run today`,
     body:

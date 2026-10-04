@@ -119,7 +119,7 @@ export function saidYesOnAny(r: PersonRowVM, purpose: AskedPurpose, how: Campaig
     (c) =>
       how.channels.includes(c) &&
       how.ready[c].ready &&
-      channelRefuses(c, purpose, how.ready) === null &&
+      channelRefuses(c, purpose, how.about, how.ready) === null &&
       saidYesTo(r, purpose, c, how.about),
   );
 }
