@@ -217,6 +217,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   // Ask keeps its own thread and its cards; a card's own call goes through its verb's route, and that route's refresh.
   "POST ask": "a question: Ask draws its answer from the turn it streams",
   "POST ask/warm": "a warm read of the page before a question; it changes nothing",
+  "POST ask/speech": "a clip of the words the page already shows, read aloud in Ask's voice; nothing on screen moves",
   "POST ask/messages/[id]/proposals/[pid]": "a card's outcome, kept on Ask's own message; the card's call refreshed",
   "DELETE ask/threads/[id]": "one of Ask's own threads, which Ask's list drops itself",
   // A draft, a preview, a search: nothing stored that a surface shows.
