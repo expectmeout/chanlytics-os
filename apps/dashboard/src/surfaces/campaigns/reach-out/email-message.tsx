@@ -142,7 +142,7 @@ export function ReachOutEmailPane({ t, busy, onSave, onClose }: PaneProps) {
           slots={REACH_OUT_SLOT_SET}
           values={values}
           rules={reachOutRules(t.step_n === 0)}
-          offer={false}
+          neverCarried={null}
           starterHas={false}
           filed
           canWrite={canDo("approve")}

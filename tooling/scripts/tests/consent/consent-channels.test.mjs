@@ -74,45 +74,87 @@ test("a yes recorded before the channels were covers WhatsApp alone, the reach i
 test("the one predicate asks on the channel the message goes out on", () => {
   const yes = { consent: "opted_in", dnc: false, marketing_consent: "opted_in" };
   // A yes kept as WhatsApp's: a WhatsApp reminder and offer go; a text that starts a conversation does not.
+  // What a message is about decides only email's rule (decision D1): a reminder here is about their visit (theirs), an offer
+  // is the business's own (ours), and on WhatsApp and text neither changes what is asked.
   const wa = { ...yes, consent_channels: ["whatsapp"], marketing_channels: ["whatsapp"] };
-  assert.equal(mayMessageFor(wa, "conversational", { proactive: true, channel: "whatsapp" }).ok, true);
-  assert.equal(mayMessageFor(wa, "marketing", { proactive: true, channel: "whatsapp" }).ok, true);
-  assert.deepEqual(mayMessageFor(wa, "conversational", { proactive: true, channel: "sms" }), {
+  const theirs = { about: "theirs" };
+  const ours = { about: "ours" };
+  assert.equal(mayMessageFor(wa, "conversational", { proactive: true, channel: "whatsapp", ...theirs }).ok, true);
+  assert.equal(mayMessageFor(wa, "marketing", { proactive: true, channel: "whatsapp", ...ours }).ok, true);
+  assert.deepEqual(mayMessageFor(wa, "conversational", { proactive: true, channel: "sms", ...theirs }), {
     ok: false,
     reason: "not_opted_in",
   });
+  assert.deepEqual(
+    mayMessageFor(wa, "conversational", { proactive: true, channel: "sms", ...ours }),
+    { ok: false, reason: "not_opted_in" },
+    "the same by text whichever it is about: only email asks it",
+  );
   // A reply answers whoever wrote, on the channel they wrote on: no yes is asked of it.
-  assert.equal(mayMessageFor(wa, "conversational", { proactive: false, channel: "sms" }).ok, true);
+  assert.equal(mayMessageFor(wa, "conversational", { proactive: false, channel: "sms", ...theirs }).ok, true);
   // A START by text, kept as the text's: a text reminder goes, a WhatsApp one does not.
   const text = { ...yes, consent_channels: ["sms"], marketing_channels: [] };
-  assert.equal(mayMessageFor(text, "conversational", { proactive: true, channel: "sms" }).ok, true);
-  assert.equal(mayMessageFor(text, "conversational", { proactive: true, channel: "whatsapp" }).ok, false);
-  assert.deepEqual(mayMessageFor(text, "marketing", { channel: "whatsapp" }), {
+  assert.equal(mayMessageFor(text, "conversational", { proactive: true, channel: "sms", ...theirs }).ok, true);
+  assert.equal(mayMessageFor(text, "conversational", { proactive: true, channel: "whatsapp", ...theirs }).ok, false);
+  assert.deepEqual(mayMessageFor(text, "marketing", { channel: "whatsapp", ...ours }), {
     ok: false,
     reason: "no_marketing_consent",
   });
   // A yes recorded before the channels were: as before, WhatsApp.
-  assert.equal(mayMessageFor(yes, "conversational", { proactive: true, channel: "whatsapp" }).ok, true);
-  assert.equal(mayMessageFor(yes, "marketing", { channel: "whatsapp" }).ok, true);
-  assert.equal(mayMessageFor(yes, "conversational", { proactive: true, channel: "sms" }).ok, false);
+  assert.equal(mayMessageFor(yes, "conversational", { proactive: true, channel: "whatsapp", ...theirs }).ok, true);
+  assert.equal(mayMessageFor(yes, "marketing", { channel: "whatsapp", ...ours }).ok, true);
+  assert.equal(mayMessageFor(yes, "conversational", { proactive: true, channel: "sms", ...theirs }).ok, false);
   // A STOP stops every channel, whatever the channels kept.
   const stopped = { ...wa, consent: "opted_out" };
-  assert.deepEqual(mayMessageFor(stopped, "conversational", { channel: "email" }), { ok: false, reason: "opted_out" });
+  assert.deepEqual(mayMessageFor(stopped, "conversational", { channel: "email", ...theirs }), {
+    ok: false,
+    reason: "opted_out",
+  });
 });
 
-test("email is its own: a message about a visit needs no yes, an offer needs the email yes, an unsubscribe ends it", () => {
+test("email is its own: a message about their visit needs no yes, the business's news and an offer need the email yes or a relationship, an unsubscribe ends both", () => {
   const none = { consent: "unknown", dnc: false, marketing_consent: "unknown" };
-  assert.equal(mayMessageFor(none, "conversational", { proactive: true, channel: "email" }).ok, true);
-  assert.deepEqual(mayMessageFor(none, "marketing", { channel: "email" }), {
+  // About their own visit or proposal (theirs): an address is all it asks, as decision 11 says (decision D1 keeps it).
+  assert.equal(mayMessageFor(none, "conversational", { proactive: true, channel: "email", about: "theirs" }).ok, true);
+  // The business's own news (ours) is no visit reminder, whatever its WhatsApp template's category: it asks what an offer asks.
+  assert.deepEqual(mayMessageFor(none, "conversational", { proactive: true, channel: "email", about: "ours" }), {
+    ok: false,
+    reason: "not_opted_in",
+  });
+  assert.deepEqual(mayMessageFor(none, "marketing", { channel: "email", about: "ours" }), {
     ok: false,
     reason: "no_marketing_consent",
   });
-  assert.equal(mayMessageFor({ ...none, email_marketing: "opted_in" }, "marketing", { channel: "email" }).ok, true);
-  assert.deepEqual(mayMessageFor({ ...none, email_marketing: "opted_out" }, "marketing", { channel: "email" }), {
-    ok: false,
-    reason: "unsubscribed",
-  });
-  assert.deepEqual(mayMessageFor({ ...none, dnc: true }, "conversational", { channel: "email" }), {
+  assert.equal(
+    mayMessageFor({ ...none, email_marketing: "opted_in" }, "marketing", { channel: "email", about: "ours" }).ok,
+    true,
+  );
+  assert.deepEqual(
+    mayMessageFor({ ...none, email_marketing: "opted_out" }, "marketing", { channel: "email", about: "ours" }),
+    {
+      ok: false,
+      reason: "unsubscribed",
+    },
+  );
+  assert.deepEqual(
+    mayMessageFor({ ...none, email_marketing: "opted_out" }, "conversational", {
+      proactive: true,
+      channel: "email",
+      about: "ours",
+    }),
+    { ok: false, reason: "unsubscribed" },
+    "an unsubscribe ends the news by email too",
+  );
+  assert.equal(
+    mayMessageFor({ ...none, email_marketing: "opted_out" }, "conversational", {
+      proactive: true,
+      channel: "email",
+      about: "theirs",
+    }).ok,
+    true,
+    "and leaves their visit's messages alone",
+  );
+  assert.deepEqual(mayMessageFor({ ...none, dnc: true }, "conversational", { channel: "email", about: "theirs" }), {
     ok: false,
     reason: "opted_out",
   });
@@ -125,10 +167,20 @@ test("whether a person can be reached on a channel: its own way to reach them, t
     consent: { state: "opted_in", dnc: false, marketing: "opted_in", channels: ["sms"], marketingChannels: null },
     ...over,
   });
-  assert.equal(whyNotReceive(row(), "conversational", "sms"), null);
-  assert.equal(whyNotReceive(row(), "conversational", "whatsapp"), "no_yes", "their yes was by text");
-  assert.equal(whyNotReceive(row(), "marketing", "whatsapp"), null, "the offers yes kept none: WhatsApp's");
-  assert.equal(whyNotReceive(row({ phone: null }), "conversational", "sms"), "no_number");
-  assert.equal(whyNotReceive(row(), "conversational", "email"), "no_address", "an email needs an address");
-  assert.equal(whyNotReceive(row({ email: "dani@example.com" }), "conversational", "email"), null);
+  // The people here are reached about their visit (theirs); what the business sends of its own choosing (ours) differs by
+  // email alone (decision D1), asked below.
+  assert.equal(whyNotReceive(row(), "conversational", "sms", "theirs"), null);
+  assert.equal(whyNotReceive(row(), "conversational", "whatsapp", "theirs"), "no_yes", "their yes was by text");
+  assert.equal(whyNotReceive(row(), "marketing", "whatsapp", "ours"), null, "the offers yes kept none: WhatsApp's");
+  assert.equal(whyNotReceive(row({ phone: null }), "conversational", "sms", "theirs"), "no_number");
+  assert.equal(whyNotReceive(row(), "conversational", "email", "theirs"), "no_address", "an email needs an address");
+  assert.equal(whyNotReceive(row({ email: "dani@example.com" }), "conversational", "email", "theirs"), null);
+  // The business's news by email asks for a yes covering email (theirs was by text) or a relationship: not an address alone.
+  const withAddress = (consent) => row({ email: "dani@example.com", consent: { ...row().consent, ...consent } });
+  assert.equal(whyNotReceive(withAddress({}), "conversational", "email", "ours"), "no_yes", "their yes was by text");
+  assert.equal(whyNotReceive(withAddress({ channels: ["sms", "email"] }), "conversational", "email", "ours"), null);
+  assert.equal(whyNotReceive(withAddress({ relationship: true }), "conversational", "email", "ours"), null);
+  // On the other channels the same question is not asked: their own way to reach them, then the yes it covers.
+  assert.equal(whyNotReceive(row(), "conversational", "sms", "ours"), null);
+  assert.equal(whyNotReceive(row(), "conversational", "whatsapp", "ours"), "no_yes");
 });

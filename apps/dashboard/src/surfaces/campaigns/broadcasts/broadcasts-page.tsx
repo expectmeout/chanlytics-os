@@ -3,8 +3,8 @@
  * legacy/pages/broadcasts.jsx, decision 0015). Every number is a row's. Nothing here scores, estimates or invents: no
  * credits, no revenue, no "booked from broadcasts" — the schema has no column for it.
  *
- * The audience chips carry the count of people who may receive an offer (a
- * recorded yes and a number), computed by the same contracts predicate the
+ * The audience chips carry the count of people who may receive an offer (what
+ * the channels it goes by ask of them), computed by the same contracts predicate the
  * route enrols with. The template is one WhatsApp approved; its values are
  * typed here and the words a person will read are shown before anything is
  * sent. Sends and cancels go through the broadcasts verbs and the surface is
@@ -16,9 +16,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ConsentChannel } from "@chanlytics/contracts";
-import { useLegacyUnsavedWork } from "../../legacy-parts";
 import { canDo, demoSession, replaceRoute, useLegacyToast } from "../../legacy-verbs";
 import { useLook } from "../../kit/look/look";
+import { useUnsavedWork } from "../../kit/record/work";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { cmDefaultChannels } from "../parts/channels";
@@ -119,7 +119,7 @@ function useBroadcastsPage({
   );
   const words = useBcWords(kept);
   const { params, sources, name, whenAt, wrote, clearWords } = words;
-  const work = useLegacyUnsavedWork("broadcast", null, {
+  const work = useUnsavedWork("broadcast", null, {
     value: { aud, tplId, channels, params, sources, name, whenAt },
     dirty: wrote,
     onLeave: () => {

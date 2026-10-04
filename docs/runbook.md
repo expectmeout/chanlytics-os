@@ -1096,9 +1096,20 @@ waiting who is not a customer, then bulk, each workspace taking its turn at bulk
 - **A kind the runner does not know** is kept, not failed: a newer deploy wrote it. It is looked at again every five minutes
   and fails as never run after a day, which is longer than any deploy takes.
 - **A broadcast that says it stopped.** "WhatsApp could not be reached" is a connection that never opened: nobody was
-  written to, the run waited through its waits and stopped. "Its people or its number's credentials could not be read" is
-  thirty minutes of failed reads. "The day's sending hours ran out" is a run that waited past the evening. Each says how
-  many got it, and sending it again reaches the whole list.
+  written to, the run waited through its waits and stopped. A run by email or text says its own provider
+  (`wire_unavailable:email`, `throttled:sms`, `stalled:email` in `broadcasts.failure`; a code with no channel is WhatsApp's,
+  as every run before 00298 was). "Its people or its number's credentials could not be read" is thirty minutes of failed
+  reads. "The day's sending hours ran out" is a run that had waited (a throttle, a stall) and woke past the last hour, or
+  a visit's run, whose words name the day; any other run still going at 21:00 is not stopped, it waits for nine the next
+  morning by the business's clock and goes on from there. "The domain offers by email leave from is not verified"
+  (`campaigns_domain_unverified`) is a run of offers that met a campaigns domain Resend does not verify: nobody was held
+  for it, and the platform was paged. A campaigns domain Resend could not be asked about is not a stop: a run of offers
+  waits a minute and asks again (paged as `campaigns_domain_unread`), and a visit's email, which leaves from the mail
+  domain, goes. Each says how many got it, and sending it again reaches the whole list.
+- **A yes by email is recorded only from a header the provider wrote.** Set `EMAIL_AUTHSERV_ID` on the edge to the name
+  Resend's receiving side puts at the start of the `Authentication-Results` header (the word before the first
+  semicolon), read off one real email received on `EMAIL_DOMAIN`. Blank, no yes by email is recorded (a STOP or an
+  UNSUBSCRIBE by email never needs it); a header that names anything else, or two that name it, is no proof.
 - **A statement that hangs.** The service role's statements end at 30 seconds (00283) and the client gives up on a request
   at 40, so a hung statement no longer holds a function until it is killed.
 

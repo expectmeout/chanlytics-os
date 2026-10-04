@@ -61,7 +61,7 @@ interface BcCountProps {
 }
 
 // How many can hear it, out of how many the list holds: "24 of 29 can hear it". The count is the one the Send button
-// and its question use (a yes and a number); the pool is those plus the ones held back, where the preview counted them.
+// and its question use (a yes and a way to reach them); the pool is those plus the ones held back, where the preview counted them.
 export function BcCount({ sending, held }: BcCountProps) {
   return (
     <span className="bc-to-count" data-testid="bc-who-count">

@@ -6,7 +6,21 @@
  * changed, in these words: before, a moment for texts could carry an offer, enrol everyone who said yes to texts, and
  * see the send refuse each of them at the door.
  */
-import { type AskedPurpose, purposeOfPlaybook, purposeOfTemplate } from "../consent/consent";
+import { type AskedPurpose, type MessageAbout, purposeOfPlaybook, purposeOfTemplate } from "../consent/consent";
+import { triggerOf } from "./playbook-triggers";
+
+/**
+ * What a moment's message is about (consent.ts MessageAbout, decision D1): a visit's and a follow-up's are theirs, the
+ * visit they booked and the proposal their deal waits on; every other moment's, and a broadcast's (no moment at all), is news
+ * the business chose to send. THE one reading of it: the enrolment asks it of the playbook's moment, and the send asks it of
+ * the run's (the trigger its audience keeps), so the two cannot disagree about anyone.
+ * Kept here, beside the yes a moment's message needs, so the run's reach and the playbooks' words both import it without
+ * importing each other.
+ */
+export function messageAboutOfTrigger(trigger: string | null | undefined): MessageAbout {
+  const kind = triggerOf(trigger ?? "")?.kind;
+  return kind === "visit" || kind === "deal" ? "theirs" : "ours";
+}
 
 /**
  * The message a run is counted for: its template's category, as Meta filed it. Null where no message is in view (a

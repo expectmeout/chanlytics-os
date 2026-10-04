@@ -58,7 +58,7 @@ export {
   runDayPassed,
   toApprovalVM,
 } from "./playbooks";
-export { MESSAGE_MOMENT_WORDS, messageFitsMoment, enrolPurpose } from "./playbook-purpose";
+export { MESSAGE_MOMENT_WORDS, messageFitsMoment, enrolPurpose, messageAboutOfTrigger } from "./playbook-purpose";
 export { campaignsHomeOf, lifecycleKicker } from "./lifecycle";
 export { reachCountsOf } from "./lifecycle-tiles";
 export { LIFECYCLE_WORDS, LIFECYCLE_TOAST } from "./lifecycle-words";

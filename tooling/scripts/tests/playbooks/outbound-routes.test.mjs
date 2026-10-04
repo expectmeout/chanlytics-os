@@ -1182,7 +1182,13 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
       "This message has no email version yet.",
     );
     const mail = tablesFor({ mailboxes: [channelRows.mailbox], templates: [tpl(T1, B), channelRows.emailVersion()] });
-    await refused(post(mail, { channels: ["email"] }).run, "conflict", 409, "Nobody there has said yes");
+    // By email the business's news asks a yes covering email or a relationship on record (decision D1): said as that.
+    await refused(
+      post(mail, { channels: ["email"] }).run,
+      "conflict",
+      409,
+      "a yes to hearing from you by email or a relationship with you on record",
+    );
     // An offer by email goes only once the workspace can send them (the campaigns domain, the business's address, no
     // pause: a state of the workspace, so a conflict); never by text (the purpose never carries it: a wrong request).
     const offer = {

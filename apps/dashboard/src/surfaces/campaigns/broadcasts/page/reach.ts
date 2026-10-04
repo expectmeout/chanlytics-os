@@ -3,11 +3,17 @@
  * 0015): who the send reaches, what each slot of the message may take and holds, the people behind the count, and the
  * one person the preview is drawn for. Plain functions, each taking what it reads and answering what it works out.
  */
-import { DEFAULT_CAMPAIGN_CHANNELS, purposeOfTemplate } from "@chanlytics/contracts";
+import {
+  DEFAULT_CAMPAIGN_CHANNELS,
+  emptyAudienceRefusal,
+  overLimitRefusal,
+  purposeOfTemplate,
+} from "@chanlytics/contracts";
 import type { AskedPurpose, AudiencePreview, ConsentChannel, ParamSourceKind } from "@chanlytics/contracts";
 import { sameChannels } from "@/lib/campaign-channels";
 import { pageClock } from "@/legacy-bridge/zone";
 import {
+  CM_VIA_WORDS,
   cmChannelsOn,
   cmHeldLines,
   cmReachBy,
@@ -22,8 +28,8 @@ import type { AudienceOption } from "../surface";
 import { broadcasts } from "../verbs";
 import { BC_NONE } from "../run";
 import { bcWhenNote } from "../when";
-import type { BcBase, BcPeople, BcPreview, BcReach, BcSlotChoices, BcSlotVar, BcSlotWords } from "./types";
-import { BC_TEXT, bcFooter, bcKey, bcSlots } from "./words";
+import type { BcBase, BcPeople, BcPreview, BcReach, BcSay, BcSlotChoices, BcSlotVar, BcSlotWords } from "./types";
+import { BC_SAYS, BC_TEXT, bcFooter, bcKey, bcSlots } from "./words";
 
 /**
  * Nobody on the list is reached: no channel the send ticks can carry this message, so the whole list is held on that. The
@@ -93,13 +99,7 @@ export function bcReachOf({
   const numberOk = !viaWhatsApp || !!(number && number.present && number.health.canSend);
   // The number's daily limit is WhatsApp's: only who the send reaches on it counts against it.
   const onWhatsApp = reading.preview && reading.preview.split ? reading.preview.split.byChannel.whatsapp : activeCount;
-  const overLimit = !!(
-    active &&
-    viaWhatsApp &&
-    number &&
-    number.health.limitPerDay !== null &&
-    onWhatsApp > number.health.limitPerDay
-  );
+  const overLimitWords = active && viaWhatsApp && number ? overLimitRefusal(number.health, onWhatsApp) : null;
   return {
     active,
     tpl,
@@ -108,7 +108,8 @@ export function bcReachOf({
     activeCount,
     number,
     numberOk,
-    overLimit,
+    overLimit: overLimitWords !== null,
+    overLimitWords,
     channelReady,
     on,
     // A broadcast goes now: a channel closed now cannot be ticked.
@@ -154,7 +155,35 @@ export function bcSlotChoicesOf({
   return { vars, SRC, HINTS, choices, srcOf, exampleOf, labels };
 }
 
-// The words each slot holds, what the preview shows for them, what goes out, and whether it can go.
+/**
+ * The first thing that keeps the send from going, in the foot's words, or null when nothing does. In the order a person fills
+ * the screen in: the message, who it goes to, each value, and then what is wrong with sending it -- nobody it reaches, a
+ * number that cannot carry it, the day's limit. `ready` is this being null (bcSlotWordsOf), so the sentence under the foot
+ * and the Send it disables are one rule, never two that can disagree.
+ */
+function bcStopOf(
+  f: Pick<BcReach, "tpl" | "active" | "activeCount" | "on" | "purpose" | "number" | "numberOk" | "overLimitWords"> &
+    Pick<BcSlotChoices, "labels"> & { filled: readonly unknown[] },
+): BcSay | null {
+  const { tpl, active, activeCount, on, purpose, number, numberOk, overLimitWords, labels, filled } = f;
+  if (!tpl) return { tone: "plain", words: BC_SAYS.pickMessage };
+  if (!active) return { tone: "plain", words: BC_SAYS.pickList };
+  const blank = filled.findIndex((v) => !String(v).trim());
+  if (blank >= 0) return { tone: "plain", words: BC_SAYS.fill(labels[blank] || `Value ${blank + 1}`) };
+  // Nobody on the list: no channel is on to reach them by, or none of them can be sent this.
+  if (!(activeCount > 0))
+    return { tone: "warn", words: on.length === 0 ? CM_VIA_WORDS.nowhere : BC_SAYS.nobody(active.label, purpose) };
+  if (!numberOk)
+    return {
+      tone: "warn",
+      words: number && number.present ? (number.health.refusal ?? number.health.label) : BC_SAYS.noNumber,
+    };
+  if (overLimitWords) return { tone: "warn", words: overLimitWords };
+  return null;
+}
+
+// The words each slot holds, what the preview shows for them, what goes out, and whether it can go -- and, if not, the first
+// thing that stops it (bcStopOf), which the foot says.
 export function bcSlotWordsOf({
   vars,
   params,
@@ -170,10 +199,16 @@ export function bcSlotWordsOf({
   activeCount,
   busy,
   numberOk,
-  overLimit,
+  overLimitWords,
+  on,
+  purpose,
+  number,
 }: Pick<BcBase, "params" | "tplId" | "setParams" | "setSources" | "data" | "busy"> &
   Pick<BcSlotChoices, "vars" | "srcOf" | "exampleOf" | "labels"> &
-  Pick<BcReach, "tpl" | "active" | "activeCount" | "numberOk" | "overLimit">): BcSlotWords {
+  Pick<
+    BcReach,
+    "tpl" | "active" | "activeCount" | "numberOk" | "overLimitWords" | "on" | "purpose" | "number"
+  >): BcSlotWords {
   const typed = vars.map((v, i) => (params[tplId] || [])[i] || "");
   const setTyped = (i: number, words: string) =>
     setParams((p) => {
@@ -198,10 +233,11 @@ export function bcSlotWordsOf({
     srcOf(i) === "text" ? typed[i].trim() || `[${labels[i]}]` : exampleOf(srcOf(i)),
   );
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? typed[i].trim() : { kind: srcOf(i) }));
-  const ready =
-    !!tpl && !!active && activeCount > 0 && filled.every((v) => String(v).trim()) && !busy && numberOk && !overLimit;
+  // Nothing stops it, and it is not already on its way. What is said while something does is the same call's answer.
+  const say = bcStopOf({ tpl, active, activeCount, on, purpose, number, numberOk, overLimitWords, labels, filled });
+  const ready = say === null && !busy;
   const shown = previewValues.map((v) => String(v).trim());
-  return { typed, setTyped, chooseSource, filled, previewValues, specs, ready, shown };
+  return { typed, setTyped, chooseSource, filled, previewValues, specs, ready, say, shown };
 }
 
 // The people behind the count, and what the line under the list says about them.
@@ -218,10 +254,13 @@ export function bcPeopleOf({
   const sample = reading;
   const people = sample ? sample.people : BC_NONE;
   // Nobody on it can be sent this, and somebody on it said yes: the ones who did have no number to send to. Said in
-  // People's words (#663), with no door -- asking for their yes would ask for an answer they gave.
+  // People's words (#663), with no door -- asking for their yes would ask for an answer they gave. A send that ticks email
+  // is said as the route refuses it (contracts emptyAudienceRefusal): what each ticked channel asks, never "a number".
   const noNumber =
     active && activeCount === 0 && sample && sample.saidYes > 0
-      ? broadcasts.noNumberWords(`“${active.label}”`, purpose)
+      ? on.includes("email")
+        ? emptyAudienceRefusal(purpose, active.label, [], { channels: on, about: "ours" })
+        : broadcasts.noNumberWords(`“${active.label}”`, purpose)
       : null;
   // How many on it said yes, for the line under the audience (contracts saidYesWords): who it reaches, and who said
   // yes when nobody can be sent it -- "0 people … said yes" stood right over the no-number line, and was false.

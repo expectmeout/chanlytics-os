@@ -101,8 +101,12 @@ export interface PlaybookNamed {
   noNumber: number;
   /** How many of them said the yes the playbook needs, a number or not: a yes with no number is not no yes. */
   saidYes: number;
-  /** No email address, where email was the only channel left; no channel the playbook ticks could carry its message (step 3). */
+  /**
+   * No email address, where email was the only channel left; an address on file mail no longer goes to; no channel the
+   * playbook ticks could carry its message (step 3).
+   */
   noAddress?: number;
+  addressStopped?: number;
   noChannel?: number;
   /** Who a run reaches on each channel, adding up to who it reaches now. Absent from a count made before channels. */
   byChannel?: Record<ConsentChannel, number>;
@@ -122,6 +126,7 @@ export interface PoolRead {
   noNumber: number;
   saidYes: number;
   no_address?: number;
+  address_stopped?: number;
   no_channel?: number;
   by_channel?: Record<ConsentChannel, number>;
   by?: Array<Omit<PoolRead, "by"> & { channels: readonly string[] }>;
@@ -137,6 +142,7 @@ export function namedOf(x: Omit<PoolRead, "by"> | null | undefined): PlaybookNam
         noNumber: x.noNumber ?? 0,
         saidYes: x.saidYes ?? 0,
         ...(x.no_address === undefined ? {} : { noAddress: x.no_address }),
+        ...(x.address_stopped === undefined ? {} : { addressStopped: x.address_stopped }),
         ...(x.no_channel === undefined ? {} : { noChannel: x.no_channel }),
         ...(x.by_channel ? { byChannel: x.by_channel } : {}),
       }
@@ -169,6 +175,7 @@ export function readingFor(
     noNumber: 0,
     saidYes: 0,
     no_address: 0,
+    address_stopped: 0,
     no_channel: pool.pool,
     by_channel: { whatsapp: 0, sms: 0, email: 0 },
   };

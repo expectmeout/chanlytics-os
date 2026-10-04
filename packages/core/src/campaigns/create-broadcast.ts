@@ -17,6 +17,7 @@ import {
   type Audience,
   type AudienceKind,
   type AskedPurpose,
+  type MessageAbout,
   type CampaignHow,
   type ConsentChannel,
   type NumberHealth,
@@ -25,6 +26,7 @@ import {
   type ListRef,
   DAY_MS,
 } from "@chanlytics/contracts";
+import { errField, logger } from "@chanlytics/channels";
 import { assembleRun } from "./assemble";
 import { allowanceRecord, pastTheMonth } from "./allowance";
 import { parseChannels, readyForMessage, refuseTicks, versionsHeld } from "./message-channels";
@@ -33,6 +35,12 @@ import type { CreateBroadcastCommand, CreateBroadcastPorts, TemplateRow } from "
 
 /** An instant names its offset: "Z" or "±hh:mm". A date alone, or a wall-clock time without one, is read on the server's clock. */
 const OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+
+/**
+ * A broadcast's own lines, by name: the step that failed, with the cause. The cause is the log's and never the answer's: a
+ * database's own text is not a person's to read, and the route sends an error's details to the browser as they stand.
+ */
+const createLog = logger();
 
 export interface BroadcastReceipt {
   id: string;
@@ -128,13 +136,15 @@ export async function campaignHow(
   ports: Pick<CreateBroadcastPorts, "channels" | "versions">,
   tpl: Pick<TemplateRow, "name" | "language">,
   channels: ConsentChannel[],
+  /** What the message is about: a broadcast's is ours, a visit or proposal moment's theirs (contracts MessageAbout). */
+  about: MessageAbout,
 ): Promise<{ how: CampaignHow; health: NumberHealth | null }> {
   const [{ ready, health }, own] = await Promise.all([
     ports.channels(),
     // WhatsApp's row is the template itself, read above; the other two are looked for only when ticked.
     channels.some((c) => c !== "whatsapp") ? ports.versions(tpl.name, tpl.language) : Promise.resolve([]),
   ]);
-  return { how: { channels, ready: readyForMessage(ready, versionsHeld(own, true)) }, health };
+  return { how: { channels, ready: readyForMessage(ready, versionsHeld(own, true)), about }, health };
 }
 
 /**
@@ -152,7 +162,8 @@ export async function campaignHowOf(
   channels: ConsentChannel[],
   purpose: AskedPurpose,
 ): Promise<{ how: CampaignHow; health: NumberHealth | null }> {
-  const made = await campaignHow(ports, tpl, channels);
+  // A broadcast is news the business chose to send, whatever its template's category (decision D1).
+  const made = await campaignHow(ports, tpl, channels, "ours");
   refuseTicks(made.how, purpose);
   return made;
 }
@@ -225,7 +236,7 @@ export async function createBroadcast(
   const enrolled = enrolFor(pool, "everyone", null, null, purpose, how);
   // Nobody to send to says which of its two causes it is: nobody on it said this yes, or the ones who did have no
   // number. So the refusal is handed everyone on the audience, before anyone is left out.
-  if (enrolled.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose, label, pool), 409);
+  if (enrolled.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
   if (enrolled.length > BROADCAST_MAX_RECIPIENTS)
     throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   // An audience past the day's limit is split, not silently cut: WhatsApp's limit is Meta's, so it counts the people
@@ -241,11 +252,11 @@ export async function createBroadcast(
     null,
     purpose,
   ).catch((e: unknown) => {
+    createLog.error("campaign_step_failed", { step: "month_count", error: errField(e) });
     throw new AppError(
       "internal",
       "This month's emails and texts could not be counted just now. Nothing was sent; try again.",
       500,
-      e instanceof Error ? e.message : String(e),
     );
   });
 
@@ -290,9 +301,12 @@ export async function createBroadcast(
     sendAt: when,
     held: past.map((p) => p.id),
   });
-  if (!made.ok)
-    // A sentence for the person: nothing was written, and a bare error reached them as "Something went wrong".
-    throw new AppError("internal", "The broadcast could not be created. Nothing was sent; try again.", 500, made.error);
+  if (!made.ok) {
+    // A sentence for the person: nothing was written, and a bare error reached them as "Something went wrong". What the
+    // database said is the log's.
+    createLog.error("campaign_step_failed", { step: "assemble", error: made.error });
+    throw new AppError("internal", "The broadcast could not be created. Nothing was sent; try again.", 500);
+  }
   const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
     name,
     template: `${tpl.name}/${tpl.language}`,

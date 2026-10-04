@@ -53,12 +53,12 @@ literal style values               1030   in 23 stylesheets
 primitives outside the kit         1988   selectors naming 803 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
-dead exports, types and modules     298
+dead exports, types and modules     297
 source-text reads in tests          775
 lint warnings                       362   in 155 files, 63 of them exhaustive-deps
 workspace route JS, KB gzipped      733   the shell included
 workspace route CSS, KB gzipped     147
-workspace pages' own JS, KB         471   gzipped, each page's chunks once, beside the route
+workspace pages' own JS, KB         483   gzipped, each page's chunks once, beside the route
 trees the lint's limits hold         44   15 of them with max-params waiting
 ```
 

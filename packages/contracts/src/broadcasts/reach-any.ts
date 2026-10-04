@@ -64,7 +64,9 @@ export interface PersonReach {
  * read (readyOrWhatsApp). One call answers all three facts, so they cannot disagree.
  */
 export function personReachOf(r: ReachRow, ready: ChannelsReady | null): PersonReach {
-  const how = { channels: CONSENT_CHANNELS, ready: readyOrWhatsApp(ready) };
+  // A row's "can get your messages" is the visit and proposal moments' (the home's "Opens: visit reminder, how did it
+  // go"): their own, which by email asks no yes. A broadcast asks its own question of its own people (decision D1).
+  const how = { channels: CONSENT_CHANNELS, ready: readyOrWhatsApp(ready), about: "theirs" as const };
   const offers = reachFor(r, "marketing", how).held;
   const messages = reachFor(r, "conversational", how).held;
   return {

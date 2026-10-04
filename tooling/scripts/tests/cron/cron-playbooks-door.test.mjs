@@ -308,6 +308,7 @@ test("a due playbook runs: a scheduled broadcast for the people who said yes, it
       overCap: 0,
       overLimit: 0,
       no_address: 0,
+      address_stopped: 0,
       no_channel: 0,
       by_channel: { whatsapp: 2, sms: 0, email: 0 },
     },

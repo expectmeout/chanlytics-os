@@ -30,7 +30,8 @@ test("F4: a save re-reads the settings surface, so the next save carries the new
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
   assert.deepEqual(
     AFTER["PUT settings"]().map((o) => o.key),
-    ["settings", "today", "calendar", "setup"],
+    // The postal address saved here is one of the channels' readiness, which the composers and People's reach read too.
+    ["settings", "today", "calendar", "setup", "broadcasts", "playbooks", "people"],
     "REGRESSION: the second save in a row was a 409 — settings first, for the version",
   );
   assert.ok(!fn.includes("await refresh();"), "the generic refresh never re-read this pane");

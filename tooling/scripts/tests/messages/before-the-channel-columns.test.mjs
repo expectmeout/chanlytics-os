@@ -12,9 +12,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { resolveOutboundTarget, resolveOutboundTargetForContact } from "@chanlytics/db";
+import { queuedRecipients, resolveOutboundTarget, resolveOutboundTargetForContact } from "@chanlytics/db";
 import { fakeDb } from "../_fake-db.mjs";
 import { withoutColumns } from "../_schema.mjs";
+import { middayZone } from "../shared/_midday-zone.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const dist = (pkg) => pathToFileURL(path.join(ROOT, `packages/${pkg}/dist/index.js`)).href;
@@ -147,7 +148,8 @@ const world = (over = {}) => ({
       failure: null,
     },
   ],
-  tenants: [{ id: T, name: "Marisa's Salon", status: "active", timezone: "UTC" }],
+  // The batch asks the day's sending hours on the machine's clock: this workspace's noon is now, whenever the suite runs.
+  tenants: [{ id: T, name: "Marisa's Salon", status: "active", timezone: middayZone() }],
   tenant_config: [
     {
       tenant_id: T,
@@ -217,8 +219,79 @@ test("a WhatsApp broadcast, on a database 00298 has not reached, still goes: the
       [["k1", "sent", null]],
     );
     assert.equal(t.broadcasts[0].state, "sent");
-    assert.ok(/\bchannel\b/.test(seen[0]) && !/\bchannel\b/.test(seen[1]), "asked for the channel, then without it");
+    // The newest column first (00301's attempt), then without it, then without the channel too: each step is made on the
+    // database's own 42703, whichever column it was.
+    assert.ok(
+      /\bchannel\b/.test(seen[0]) && !/\bchannel\b/.test(seen.at(-1)),
+      "asked for the channel, then without it",
+    );
   });
+});
+
+test("a run's queued people, on a database 00301 has not reached, are read again without their attempt, keeping their channel: an email is then named as it was, by the run's waits", async () => {
+  const run = (over = {}) => ({
+    tenant_id: T,
+    broadcast_id: "b1",
+    state: "queued",
+    facts: null,
+    ...over,
+  });
+  const rows = () => [
+    run({ contact_id: "k2", channel: "email", attempt: 2 }),
+    run({ contact_id: "k1", channel: "sms", attempt: 0 }),
+    run({ contact_id: "k3", channel: "whatsapp", attempt: 1 }),
+    run({ contact_id: "k4", state: "sent" }),
+  ];
+  const ask = (db) => queuedRecipients(db, { tenantId: T, broadcastId: "b1", limit: 25 });
+  // As the database is now: every column, and the people in the order of their ids (a batch is the same few every read).
+  const now = fakeDb({ broadcast_recipients: rows() });
+  const reads = watch(now, "broadcast_recipients");
+  assert.deepEqual(await ask(now), [
+    { contact_id: "k1", facts: null, channel: "sms", attempt: 0 },
+    { contact_id: "k2", facts: null, channel: "email", attempt: 2 },
+    { contact_id: "k3", facts: null, channel: "whatsapp", attempt: 1 },
+  ]);
+  assert.equal(reads.length, 1);
+  // Before 00301: the second read, without the attempt only.
+  await withoutColumns({ broadcast_recipients: ["attempt"] }, async () => {
+    const db = fakeDb({ broadcast_recipients: rows().map(({ attempt: _attempt, ...r }) => r) });
+    const seen = watch(db, "broadcast_recipients");
+    const people = await ask(db);
+    assert.deepEqual(
+      people.map((p) => [p.contact_id, p.channel, "attempt" in p]),
+      [
+        ["k1", "sms", false],
+        ["k2", "email", false],
+        ["k3", "whatsapp", false],
+      ],
+      "the channel kept, no attempt to read: absent, not zero",
+    );
+    assert.equal(seen.length, 2);
+    assert.ok(/\battempt\b/.test(seen[0]) && !/\battempt\b/.test(seen[1]) && /\bchannel\b/.test(seen[1]));
+  });
+  // Before 00298 too: the third, bare.
+  await withoutColumns({ broadcast_recipients: ["attempt", "channel"] }, async () => {
+    const db = fakeDb({ broadcast_recipients: rows().map(({ attempt: _a, channel: _c, ...r }) => r) });
+    const seen = watch(db, "broadcast_recipients");
+    assert.deepEqual(
+      (await ask(db)).map((p) => Object.keys(p).sort()),
+      [
+        ["contact_id", "facts"],
+        ["contact_id", "facts"],
+        ["contact_id", "facts"],
+      ],
+    );
+    assert.equal(seen.length, 3);
+  });
+  // Any other failed read is a failure, never a read made again: not every error is a missing column.
+  const timeout = { code: "57014", message: "canceling statement due to statement timeout" };
+  const chain = {
+    select: () => chain,
+    eq: () => chain,
+    order: () => chain,
+    limit: async () => ({ data: null, error: timeout }),
+  };
+  await assert.rejects(ask({ from: () => chain }), /queued_recipients: canceling statement due to statement timeout/);
 });
 
 test("a run whose WhatsApp template is not approved, on a database 00298 has not reached, fails as it always did: nobody on it goes by email or text there", async () => {

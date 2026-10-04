@@ -68,6 +68,10 @@ function fakes(over = {}) {
     state: "sending",
     tally: { sent: 2, held: 0 },
     wireUnavailable: null,
+    // Offers by email are not closed on this runtime unless a case says why they are (the campaigns domain unverified).
+    offersClosed: null,
+    // Nor unknown: the campaigns domain was asked about, unless a case says it could not be (offersUnread).
+    offersUnread: null,
     now: () => NOW,
     // No jitter unless a case asks for it: a wait reads as the table's own.
     random: () => 0,
@@ -155,6 +159,8 @@ test("each person goes through the door with the template's purpose, proactive, 
     kind: "broadcast",
     purpose: "marketing",
     proactive: true,
+    // A person with no visit or proposal kept for them is sent the business's own news (decision D1).
+    about: "ours",
     body: "Hi Ada, a spring offer from Marisa's.",
     template: { name: "month_offer", language: "en_US", params: ["Ada", "Marisa's"] },
     meta: { source: "broadcast", broadcast_id: "b1", broadcast_name: "Spring offer" },
@@ -598,9 +604,14 @@ test("each wait follows the last, a clean batch starts the count again, and past
 });
 
 test("a wait that would end outside the day's sending hours stops the run rather than send tomorrow what was written for today", async () => {
-  // 12:00Z is 21:00 in Tokyo: the next try would fall after 20:59.
-  const { ports, log, ops } = fakes({ facts: facts("Asia/Tokyo"), deliver: throttled, tally: { sent: 0, held: 0 } });
-  await sendBroadcastBatch(ports, cmd());
+  // 20:58 in UTC, inside the hours: the third wait (five minutes) would end at 21:03, after 20:59.
+  const { ports, log, ops } = fakes({
+    facts: facts("UTC"),
+    now: () => Date.parse("2026-09-11T20:58:00Z"),
+    deliver: throttled,
+    tally: { sent: 0, held: 0 },
+  });
+  await sendBroadcastBatch(ports, cmd({ waits: 2 }));
   assert.ok(!ops().includes("scheduleNext"));
   assert.deepEqual(call(log, "fail").slice(1), ["b1", "throttled"]);
   assert.match(
@@ -750,11 +761,24 @@ test("a run that keeps stalling carries the count, and past the cap it stops and
     tally: new Error("PostgREST down"),
   });
   await sendBroadcastBatch(people.ports, cmd({ stalls: BROADCAST_STALLS_MAX }));
-  assert.deepEqual(call(people.log, "fail").slice(1), ["b1", "stalled"]);
+  assert.deepEqual(
+    call(people.log, "fail").slice(1),
+    ["b1", "people_unreadable"],
+    "its own code: unreadable people are no channel's credentials",
+  );
   assert.match(
     call(people.log, "alert")[1].body,
-    /^The people on it could not be read for about half an hour, so the rest was not sent\. Nothing is wrong/,
+    /^The people on it could not be read for about half an hour, so the rest was not sent\. Nothing is wrong with your channels; send it again later\.$/,
   );
+  // A wire's credentials say which wire, in the stored code and in the owner's words, as a failure that names it does.
+  const mailbox = fakes({
+    batch: [{ contact_id: "k1", facts: null, channel: "email" }],
+    wireUnavailable: (c) => (c === "email" ? "mailbox unreadable" : null),
+    remaining: 1,
+    tally: { sent: 0, held: 0 },
+  });
+  await sendBroadcastBatch(mailbox.ports, cmd({ stalls: BROADCAST_STALLS_MAX }));
+  assert.deepEqual(call(mailbox.log, "fail").slice(1), ["b1", "stalled:email"]);
 });
 
 test("a run that waited and wakes outside the day's sending hours stops there, rather than send tonight what was written for today", async () => {
@@ -769,10 +793,77 @@ test("a run that waited and wakes outside the day's sending hours stops there, r
       /day's sending hours ran out.*2 people got it\. Send it again tomorrow\.$/,
     );
   }
-  // A run that never waited goes on as it always did: the hours are the approval's to keep.
-  const fresh = fakes({ facts: facts("Asia/Tokyo"), remaining: 0 });
-  await sendBroadcastBatch(fresh.ports, cmd());
-  assert.ok(fresh.ops().includes("deliver"));
+});
+
+/** A run on its way, at the moment the last of the day's sending hours has just ended (20:59 is the last minute). */
+const AFTER_NINE = Date.parse("2026-09-11T21:05:00Z");
+const BEFORE_NINE = Date.parse("2026-09-11T20:58:00Z");
+
+test("the day's sending hours are asked at the head of every batch: a run still going at 21:00 waits for nine the next morning, and nobody it reached is reached again; a visit's run, whose words name the day, ends; one inside them goes on", async () => {
+  // A clean run (no wait, no stall) that has begun, a second batch of a long one, found at 21:05: the rest waits for the
+  // open moment, as the pages say sends do. Ending it told the owner to send it again, which reaches the whole list.
+  const crossed = fakes({
+    broadcast: broadcast({ state: "sending" }),
+    facts: facts("UTC"),
+    now: () => AFTER_NINE,
+    remaining: 40,
+    tally: { sent: 25, held: 0 },
+  });
+  await sendBroadcastBatch(crossed.ports, cmd());
+  assert.deepEqual(crossed.ops(), ["scheduleNext"], "nobody sent to, nothing failed, nobody told");
+  assert.deepEqual(call(crossed.log, "scheduleNext").slice(1), ["b1", new Date("2026-09-12T09:00:00Z")]);
+  // A visit's run ends instead, begun or not: at nine its words ("tomorrow at 2:00 PM") would be a day wrong, which is why a
+  // late approval of one is refused (contracts runDayPassed). The owner is told.
+  for (const state of ["sending", "scheduled"]) {
+    const visit = fakes({
+      broadcast: broadcast({ state, audience: { kind: "everyone", trigger: "visit_tomorrow" } }),
+      facts: facts("UTC"),
+      now: () => AFTER_NINE,
+      tally: { sent: state === "sending" ? 25 : 0, held: 0 },
+    });
+    await sendBroadcastBatch(visit.ports, cmd());
+    assert.ok(!visit.ops().includes("deliver") && !visit.ops().includes("scheduleNext"), `${state}: nobody is sent to`);
+    assert.deepEqual(call(visit.log, "fail").slice(1), ["b1", "after_hours"], state);
+    assert.match(call(visit.log, "alert")[1].body, /^The day's sending hours ran out before it was done/, state);
+  }
+  // The same run a minute and a half earlier is inside the hours, and goes on as it always did.
+  const inside = fakes({
+    broadcast: broadcast({ state: "sending" }),
+    facts: facts("UTC"),
+    now: () => BEFORE_NINE,
+    remaining: 40,
+  });
+  await sendBroadcastBatch(inside.ports, cmd({ deadline: BEFORE_NINE + 60_000 }));
+  assert.equal(inside.ops().filter((o) => o === "deliver").length, 2);
+  assert.ok(!inside.ops().includes("fail"));
+  assert.deepEqual(call(inside.log, "scheduleNext").slice(1), ["b1"], "and the next batch is scheduled as ever");
+  // The zone is the business's: 21:05 in UTC is 17:05 in New York, inside the hours there.
+  const newYork = fakes({
+    broadcast: broadcast({ state: "sending" }),
+    facts: facts("America/New_York"),
+    now: () => AFTER_NINE,
+  });
+  await sendBroadcastBatch(newYork.ports, cmd({ deadline: AFTER_NINE + 60_000 }));
+  assert.ok(newYork.ops().includes("deliver") && !newYork.ops().includes("fail"));
+  // A run that has sent nothing yet (still scheduled) waits the same way, as a send asked for at night is placed at nine
+  // when it is made. It is not failed, and nobody is claimed.
+  const unstarted = fakes({ broadcast: broadcast({ state: "scheduled" }), facts: facts("UTC"), now: () => AFTER_NINE });
+  await sendBroadcastBatch(unstarted.ports, cmd());
+  assert.deepEqual(
+    unstarted.ops(),
+    ["scheduleNext"],
+    "nothing else is written: not started, not failed, nobody claimed",
+  );
+  assert.deepEqual(call(unstarted.log, "scheduleNext").slice(1), ["b1", new Date("2026-09-12T09:00:00Z")]);
+  // A run that waited and wakes outside the hours ends even before it has sent (the existing rule, above), whatever its state.
+  const waitedAndLate = fakes({
+    broadcast: broadcast({ state: "scheduled" }),
+    facts: facts("UTC"),
+    now: () => AFTER_NINE,
+    tally: { sent: 0, held: 0 },
+  });
+  await sendBroadcastBatch(waitedAndLate.ports, cmd({ waits: 1 }));
+  assert.deepEqual(call(waitedAndLate.log, "fail").slice(1), ["b1", "after_hours"]);
 });
 
 test("a wait is drawn a little longer at random, so the runs one outage held do not all wake in the same heartbeat", async () => {
@@ -839,7 +930,8 @@ const reminder = (over = {}) =>
     template_name: "visit_reminder",
     params: [{ kind: "first_name" }, { kind: "visit_when" }],
     playbook_id: "p1",
-    audience: { label: "Visit reminder" },
+    // A playbook run's audience as run-playbook writes it: the playbook, its moment, its name.
+    audience: { kind: "playbook", id: "p1", label: "Visit reminder", trigger: "visit_tomorrow" },
     ...over,
   });
 const on = (channel, contact_id = "k1", facts = VISIT) => ({ contact_id, facts, channel });
@@ -892,6 +984,8 @@ test("a text goes on the text version's words, the slots filled, with the STOP l
     kind: "broadcast",
     purpose: "conversational",
     proactive: true,
+    // The run kept their visit (facts.visit_when): the message is about something of theirs (decision D1).
+    about: "theirs",
     body: "Hi Ada, your visit is tomorrow at 2:00 PM.\nReply STOP to opt out",
     holdIfNotTaken: true,
     meta: {
@@ -974,6 +1068,7 @@ test("an email is written queued first, frozen from the version's subject and bo
     kind: "broadcast",
     purpose: "conversational",
     proactive: true,
+    about: "theirs",
     body: "Hi Ada, your visit is tomorrow at 2:00 PM.",
     messageId: request.messageId,
     email: frozen(request),
@@ -1023,6 +1118,29 @@ test("an email's foot says why they hear from the business and from whom: the vi
   ]);
 });
 
+test("the door is told what each message is about, from the run's moment as its enrolment read it (decision D1): a visit's or a follow-up's run is theirs, a broadcast and any other moment the business's own news", async () => {
+  const aboutOf = async (audience, batch) => {
+    // Their first name alone fills the slots: the run's moment is what is looked at, not what the person's row kept.
+    const { f } = world({ batch, broadcast: reminder({ params: [{ kind: "first_name" }], audience }) });
+    await sendBroadcastBatch(f.ports, cmd());
+    return sendsOf(f).map((d) => [d.contactId, d.channel, d.about]);
+  };
+  const run = (trigger) => ({ kind: "playbook", id: "p1", label: "A moment", trigger });
+  // A visit's run: everyone on it, whatever their row kept, on every channel.
+  assert.deepEqual(await aboutOf(run("visit_tomorrow"), [on("email", "k1"), on("whatsapp", "k2", null)]), [
+    ["k1", "email", "theirs"],
+    ["k2", "whatsapp", "theirs"],
+  ]);
+  assert.deepEqual(await aboutOf(run("visited"), [on("email", "k1", null)]), [["k1", "email", "theirs"]]);
+  // A follow-up's run is about the proposal their deal waits on, a link kept or not (a deal is theirs either way).
+  assert.deepEqual(await aboutOf(run("proposal_waiting"), [on("email", "k1", null)]), [["k1", "email", "theirs"]]);
+  // Any other moment, and a broadcast (no moment at all), is the business's news, though the row kept a visit.
+  assert.deepEqual(await aboutOf(run("everyone_monthly"), [on("email", "k1")]), [["k1", "email", "ours"]]);
+  assert.deepEqual(await aboutOf({ kind: "everyone", id: null, label: "Everyone" }, [on("email", "k1")]), [
+    ["k1", "email", "ours"],
+  ]);
+});
+
 test("nowhere to send is held with its reason, on the person's own channel: a text with no number, an email with no address; none of them reach the door or the row", async () => {
   const { f } = world({
     batch: [on("sms", "k3"), on("email", "k2"), on("whatsapp", "k3"), on("email")],
@@ -1044,7 +1162,9 @@ test("nowhere to send is held with its reason, on the person's own channel: a te
 });
 
 test("the month's allowance is read once a batch per channel, counted as the batch sends, and a person past it is held on their channel -- never moved", async () => {
-  const text = world({ batch: [on("sms"), on("sms", "k2"), on("whatsapp")], monthSent: 499 });
+  // A broadcast, which the month counts (a visit's message that offers nothing is not held by it: heldByAllowance).
+  const counted = reminder({ playbook_id: null, audience: { kind: "everyone", id: null, label: "Everyone" } });
+  const text = world({ batch: [on("sms"), on("sms", "k2"), on("whatsapp")], monthSent: 499, broadcast: counted });
   const asked = [];
   const monthSent = text.f.ports.monthSent;
   text.f.ports.monthSent = async (channel) => (asked.push(channel), monthSent(channel));
@@ -1064,11 +1184,11 @@ test("the month's allowance is read once a batch per channel, counted as the bat
     ["sms", "whatsapp"],
     "nobody is rerouted to WhatsApp",
   );
-  const email = world({ batch: [on("email")], monthSent: 2000 });
+  const email = world({ batch: [on("email")], monthSent: 2000, broadcast: counted });
   await sendBroadcastBatch(email.f.ports, cmd());
   assert.deepEqual(email.f.marks(), [["k1", "skipped", "month_allowance"]]);
   assert.equal(email.f.of("queueEmail").length, 0, "no row is written for a send that will not go");
-  const wa = world({ batch: [on("whatsapp")], monthSent: new Error("never asked of WhatsApp") });
+  const wa = world({ batch: [on("whatsapp")], monthSent: new Error("never asked of WhatsApp"), broadcast: counted });
   await sendBroadcastBatch(wa.f.ports, cmd());
   assert.deepEqual(wa.f.marks().at(-1), ["k1", "sent", null]);
 });
@@ -1206,7 +1326,8 @@ test("a wire that is down stops the run and says which: the mailbox, the texting
   };
   const email = world({ batch: [on("email"), on("email", "k3")], deliver: down, remaining: 2 });
   await sendBroadcastBatch(email.f.ports, cmd());
-  assert.deepEqual(call(email.f.log, "fail").slice(1), ["b1", "wire_unavailable"]);
+  // The failure says which wire (an email's own code), so the run's page says "the mail provider", never "WhatsApp".
+  assert.deepEqual(call(email.f.log, "fail").slice(1), ["b1", "wire_unavailable:email"]);
   assert.match(
     call(email.f.log, "alert")[1].body,
     /^Email could not be sent from this workspace's mailbox \(the mailbox is not set up\), so the rest was not sent\. Check the mailbox in Settings › Connections and send it again\.$/,
@@ -1218,6 +1339,69 @@ test("a wire that is down stops the run and says which: the mailbox, the texting
     call(text.f.log, "alert")[1].body,
     /^Texts could not be sent on this workspace's line \(the texting provider answered HTTP 401\)/,
   );
+  assert.deepEqual(call(text.f.log, "fail").slice(1), ["b1", "wire_unavailable:sms"]);
+  const whatsapp = world({ batch: [on("whatsapp")], deliver: { ...down, reason: "provider", status: 401 } });
+  await sendBroadcastBatch(whatsapp.f.ports, cmd());
+  assert.deepEqual(
+    call(whatsapp.f.log, "fail").slice(1),
+    ["b1", "wire_unavailable"],
+    "WhatsApp's is the bare code, which is what every run before runs had a channel stored",
+  );
+});
+
+test("a provider's 401 or 403 on a broadcast's email pages the platform, as a reply's does, and the owner is not told to fix a mailbox that was never at fault", async () => {
+  for (const status of [401, 403]) {
+    const pages = [];
+    const refused = {
+      outcome: "failed",
+      reason: "provider",
+      status,
+      errorBody: '{"name":"restricted_api_key"}',
+      messageId: "m-k1",
+    };
+    const { f } = world({ batch: [on("email"), on("email", "k3")], deliver: refused, remaining: 2 });
+    f.ports.page = async (key, subject, body) => pages.push([key, subject, body]);
+    await sendBroadcastBatch(f.ports, cmd());
+    assert.deepEqual(
+      pages.map((p) => p.slice(0, 2)),
+      [["provider_auth:email", `email rejected a send with ${status}`]],
+      `${status}: the same key and subject a reply's refusal is paged under (core send.ts)`,
+    );
+    assert.match(
+      pages[0][2],
+      /^Tenant t1, broadcast b1, everyone not yet sent still queued\. Credentials, not content\.$/,
+    );
+    const said = call(f.log, "alert")[1].body;
+    assert.equal(
+      said,
+      `Email could not be sent: the mail provider refused the platform's key (HTTP ${status}), so the rest was not sent. The platform has been told, and nothing in your mailbox needs changing. Send it again later.`,
+    );
+    assert.doesNotMatch(said, /Check the mailbox/);
+    assert.deepEqual(call(f.log, "fail").slice(1), ["b1", "wire_unavailable:email"]);
+    assert.equal(f.ops().filter((o) => o === "deliver").length, 1, "the run stopped at the first person");
+  }
+  // WhatsApp's and a text's credentials are the owner's own: they page too (a refused key is paged on any wire), and the
+  // owner is told to reconnect, as before.
+  const pages = [];
+  const { f } = world({
+    batch: [on("sms")],
+    deliver: { outcome: "failed", reason: "provider", status: 401, errorBody: "", messageId: "m-k1" },
+  });
+  f.ports.page = async (key) => pages.push(key);
+  await sendBroadcastBatch(f.ports, cmd());
+  assert.deepEqual(pages, ["provider_auth:sms"]);
+  assert.match(call(f.log, "alert")[1].body, /Check the line in Settings › Channels and send it again\.$/);
+  // A pager that throws does not turn a run that stopped for it into one that failed to say so.
+  const broken = world({
+    batch: [on("email")],
+    deliver: { outcome: "failed", reason: "provider", status: 401, errorBody: "", messageId: "m-k1" },
+  });
+  broken.f.ports.page = async () => {
+    throw new Error("pager down");
+  };
+  await sendBroadcastBatch(broken.f.ports, cmd());
+  assert.deepEqual(call(broken.f.log, "fail").slice(1), ["b1", "wire_unavailable:email"]);
+  assert.ok(broken.f.ops().includes("alert"), "the owner is still told");
 });
 
 test("each wire is asked about only when someone in the batch goes by it: a mailbox that could not be read holds the emails, and never a WhatsApp-only batch", async () => {
@@ -1290,7 +1474,7 @@ test("the mail provider's day or month used up gives the claim back and stops th
       remaining: 3,
       tally: { sent: 4, held: 0 },
     });
-    f.ports.page = async (key, subject) => pages.push([key, subject]);
+    f.ports.page = async (key, subject, body) => pages.push([key, subject, body]);
     await sendBroadcastBatch(f.ports, cmd());
     assert.deepEqual(
       f.marks(),
@@ -1304,8 +1488,13 @@ test("the mail provider's day or month used up gives the claim back and stops th
     assert.deepEqual(call(f.log, "fail").slice(1), ["b1", "provider_limit"]);
     assert.match(call(f.log, "alert")[1].body, said);
     assert.ok(!f.ops().includes("scheduleNext"), `${limit}: stopped, not waiting: the limit outlasts any wait`);
+    // The one page a reply's limit gives (core provider-page.ts): the same key and subject, the run named in its body.
     assert.deepEqual(pages, [
-      ["provider_quota:email", `email: the ${limit === "daily" ? "day" : "month"}'s sending limit is used up`],
+      [
+        "provider_quota:email",
+        `email: the ${limit} sending limit is used up`,
+        "Tenant t1, broadcast b1, everyone not yet sent still queued. Every workspace's email is refused until it resets or the plan grows.",
+      ],
     ]);
   }
   const { BROADCAST_FAILURE_WORDS } = await import("@chanlytics/contracts");
@@ -1459,4 +1648,181 @@ test("the claim is a compare-and-set: a person another run took first is not sen
     ["k2", "failed", OUTCOME_UNKNOWN],
     ["k2", "sent", null],
   ]);
+});
+
+/* ---------- The review of 4 Oct: offers by email with no verified campaigns domain; a released person's new id -- */
+
+/** Meta's row and the email version of a message that is an OFFER: marketing, so it needs the campaigns domain. */
+const offerRows = {
+  whatsapp: { ...visitRows.whatsapp, category: "marketing" },
+  email: { ...visitRows.email, category: "marketing" },
+};
+
+test("offers by email, where the deployment names a campaigns domain the provider does not verify, stop the run before anyone is claimed, saying so: nobody is held as having no channel, a skip that is final", async () => {
+  const pages = [];
+  const asked = [];
+  const { f } = world({
+    batch: [on("email"), on("email", "k3")],
+    template: versionsOf([], offerRows),
+    offersClosed: () => (asked.push("asked"), "the campaigns domain campaigns.example.com is not verified for sending"),
+    remaining: 2,
+    tally: { sent: 3, held: 0 },
+  });
+  f.ports.page = async (key, subject, body) => pages.push([key, subject, body]);
+  await sendBroadcastBatch(f.ports, cmd());
+  assert.deepEqual(f.ops(), ["startSending", "fail", "alert"], "nobody claimed, nothing held, nothing scheduled");
+  assert.deepEqual(call(f.log, "fail").slice(1), ["b1", "campaigns_domain_unverified"]);
+  assert.equal(
+    call(f.log, "alert")[1].body,
+    "The domain offers by email go out from is not verified with the mail provider right now, so the rest was not sent. 3 people got it. Nothing is wrong with your mailbox, and the platform has been told; send it again once the domain is verified.",
+  );
+  assert.deepEqual(pages, [
+    [
+      "campaigns_domain_unverified",
+      "email: a broadcast's offers could not leave, the campaigns domain is not verified",
+      "Tenant t1, broadcast b1 stopped, everyone not yet sent still queued: the campaigns domain campaigns.example.com is not verified for sending.",
+    ],
+  ]);
+  // The page has words for it, and they say what is wrong: not WhatsApp, not the mailbox.
+  const { broadcastFailureWords, broadcastFailureFix } = await import("@chanlytics/contracts");
+  assert.match(broadcastFailureWords("campaigns_domain_unverified"), /not verified with the mail provider/);
+  assert.match(broadcastFailureFix("campaigns_domain_unverified"), /Nothing is wrong with your mailbox/);
+
+  // Asked only when it matters: an offer, and somebody in the batch going by email. A visit message leaves from the mail
+  // domain, which is not in question; a WhatsApp-only batch has no email in it.
+  const counted = (rows, batch) => {
+    const asks = [];
+    const w = world({
+      batch,
+      template: versionsOf([], rows),
+      offersClosed: () => (asks.push(1), "closed"),
+    });
+    return sendBroadcastBatch(w.f.ports, cmd()).then(() => ({ asks: asks.length, ops: w.f.ops() }));
+  };
+  assert.equal((await counted(visitRows, [on("email")])).asks, 0, "a visit message is not an offer");
+  assert.ok((await counted(visitRows, [on("email")])).ops.includes("deliver"), "and it goes");
+  assert.equal((await counted(offerRows, [on("whatsapp")])).asks, 0, "an offer by WhatsApp has no email in it");
+  assert.equal((await counted(offerRows, [on("email")])).asks, 1);
+  // Open (null): the offers are sent as ever, from the lane the adapter holds.
+  const open = world({ batch: [on("email")], template: versionsOf([], offerRows), offersClosed: null });
+  await sendBroadcastBatch(open.f.ports, cmd());
+  assert.ok(open.f.ops().includes("deliver"));
+});
+
+test("offers by email whose campaigns domain could not be asked about wait a minute and ask again, nobody claimed; a visit's email in the same state goes", async () => {
+  const pages = [];
+  const unread = "the campaigns domain campaigns.example.com could not be checked";
+  const { f } = world({
+    batch: [on("email"), on("email", "k3")],
+    template: versionsOf([], offerRows),
+    offersUnread: unread,
+    offersClosed: new Error("not asked: an unread domain is no answer"),
+    remaining: 2,
+  });
+  f.ports.page = async (key, subject, body) => pages.push([key, subject, body]);
+  await sendBroadcastBatch(f.ports, cmd());
+  assert.deepEqual(f.ops(), ["startSending", "scheduleNext"], "nobody claimed, nothing held, nothing failed");
+  assert.deepEqual(call(f.log, "scheduleNext").slice(-1), [{ stalls: 1 }], "a stall, carrying the count");
+  assert.deepEqual(pages, [
+    [
+      "campaigns_domain_unread",
+      "email: a broadcast's offers wait, the campaigns domain could not be checked",
+      `Tenant t1, broadcast b1 waits, everyone still queued: ${unread}.`,
+    ],
+  ]);
+  // A visit's email is not an offer, and leaves from the mail domain: it is not held for the campaigns domain.
+  const visit = world({ batch: [on("email")], template: versionsOf([], visitRows), offersUnread: unread });
+  await sendBroadcastBatch(visit.f.ports, cmd());
+  assert.ok(visit.f.ops().includes("deliver"), "and it goes");
+});
+
+test("a person released and re-batched is sent under a new email id, whatever the run's own counters say: not skipped as send_failed having never been sent; a run resumed with no release keeps its id", async () => {
+  // The database's guard, as the fakes stand in for it: every release of a claim (queued again) adds one to the person's
+  // attempt, which the batch reads with the queued people (00301).
+  const attempts = new Map();
+  const rows = new Map();
+  const ids = [];
+  let door = "not taken";
+  const { f } = world({
+    batch: () => [{ ...on("email"), attempt: attempts.get("k1") ?? 0 }],
+    mark: (_id, contactId, patch) => {
+      if (patch.state === "queued") attempts.set(contactId, (attempts.get(contactId) ?? 0) + 1);
+      return true;
+    },
+    queueEmail: (row) => {
+      ids.push(row.id);
+      if (rows.has(row.id)) return { status: rows.get(row.id) };
+      rows.set(row.id, "queued");
+      return { status: "queued" };
+    },
+    withdrawEmail: (id) => rows.set(id, "canceled"),
+    deliver: (d) => {
+      if (door === "not taken") throw Object.assign(new Error("did not take it"), { name: "NotTakenError", status: 0 });
+      rows.set(d.messageId, "sent");
+      return { outcome: "sent", messageId: d.messageId, externalId: "re_1" };
+    },
+    remaining: 1,
+  });
+  // Batch 1, at wait 0: the provider does not take it. The email's row is withdrawn, the person released: attempt 1.
+  await sendBroadcastBatch(f.ports, cmd());
+  assert.equal(rows.get(ids[0]), "canceled");
+  assert.equal(attempts.get("k1"), 1);
+  // Batch 2: a clean batch between had the run's waits start again, so it is read at wait 0 as batch 1 was. Under the id
+  // derived from the waits it was the id of the withdrawn row: found canceled, skipped as send_failed, never sent.
+  door = "takes it";
+  await sendBroadcastBatch(f.ports, cmd());
+  assert.notEqual(ids[1], ids[0], "a new id for the new attempt");
+  assert.deepEqual(
+    f.marks().filter((m) => m[1] === "skipped"),
+    [],
+    "nobody is skipped as send_failed",
+  );
+  assert.equal(f.marks().at(-1)?.[1], "sent");
+  assert.equal(rows.get(ids[1]), "sent");
+  // A run resumed after a kill releases nobody: the same attempt, so the same id, whatever the run carried. It is how a
+  // resumed batch finds the email it was sending.
+  const resumed = [];
+  const again = world({
+    batch: [{ ...on("email"), attempt: 2 }],
+    emailRequest: (i) => (resumed.push(i.messageId), frozen(i)),
+  });
+  await sendBroadcastBatch(again.f.ports, cmd());
+  await sendBroadcastBatch(again.f.ports, cmd({ waits: 3, stalls: 1 }));
+  assert.equal(new Set(resumed).size, 1, "no release, no new id");
+  // And each attempt is its own: attempt 3 is not attempt 2.
+  const third = world({
+    batch: [{ ...on("email"), attempt: 3 }],
+    emailRequest: (i) => (resumed.push(i.messageId), frozen(i)),
+  });
+  await sendBroadcastBatch(third.f.ports, cmd());
+  assert.equal(new Set(resumed).size, 2);
+  // A database that has not reached 00301 has no attempt to read: the id is named as it was, by the waits and the stalls.
+  const old = [];
+  const before = world({ batch: [on("email")], emailRequest: (i) => (old.push(i.messageId), frozen(i)) });
+  await sendBroadcastBatch(before.f.ports, cmd());
+  await sendBroadcastBatch(before.f.ports, cmd());
+  await sendBroadcastBatch(before.f.ports, cmd({ waits: 1 }));
+  assert.equal(old[0], old[1], "the same wait, the same row");
+  assert.notEqual(old[2], old[0], "a wait is a fresh row, as before the column");
+});
+
+test("a broadcast's email id is named by the person's attempt, as reach-out's sends are; a database with no attempt to read keeps the id it always had", async () => {
+  const { broadcastEmailId } = await importSrc("packages/core/src/campaigns/reach-out-ids.ts");
+  const { uuidV5 } = await importSrc("packages/core/src/uuid-v5.ts");
+  const of = (over = {}) =>
+    broadcastEmailId({ broadcastId: "b1", contactId: "k1", attempt: 0, waits: 0, stalls: 0, ...over });
+  // The run and the person and the attempt: the same three, the same id; any one different, a different one.
+  assert.equal(await of(), await of());
+  assert.notEqual(await of({ attempt: 1 }), await of());
+  assert.notEqual(await of({ contactId: "k2" }), await of());
+  assert.notEqual(await of({ broadcastId: "b2" }), await of());
+  // What the run carried is not in it: a clean batch starts its waits at nothing and a resumed run keeps its attempt.
+  assert.equal(await of({ attempt: 2, waits: 3, stalls: 1 }), await of({ attempt: 2 }));
+  // No attempt to read (a database before 00301): the waits and the stalls, as before the column.
+  assert.equal(
+    await of({ attempt: undefined, waits: 2, stalls: 1 }),
+    await uuidV5("broadcast_email:b1:k1:2:1"),
+    "the id every run before the column was written under",
+  );
+  assert.notEqual(await of({ attempt: undefined }), await of({ attempt: 0 }), "the two names never meet");
 });

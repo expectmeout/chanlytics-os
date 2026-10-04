@@ -15,11 +15,12 @@ import type { ReactNode } from "react";
 import type { ReachOutChainDto, ReachOutChainReportDto, ReachOutReachDto } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
 import { canDo, gate, gateTitle, navigate, refusalToast } from "../../legacy-verbs";
-import { confirmPart, statePillPart } from "../../legacy-parts";
 import { Button } from "../../kit/button/button";
+import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { StatePill } from "../../kit/pill/state-pill";
 import { CmPane } from "../parts/split";
 import { reachOuts } from "./surface";
 import { ReachOutSheet } from "./sheet";
@@ -167,7 +168,6 @@ interface ActsProps {
 /** Edit, Pause or Resume, and Remove only while the report says it may go (R16), asking first. */
 function ReachOutActs({ chain, said, W, flash, onEdit }: ActsProps) {
   const V = reachOuts;
-  const Confirm = confirmPart();
   const RW = W.REACH_OUT_ROW_WORDS;
   const [busy, setBusy] = useState(false);
   const [sure, setSure] = useState(false);
@@ -296,7 +296,6 @@ interface PaneProps {
 
 /** The reach-out open, in the pane beside the list (parts/split.tsx): its name and state over its path, report and acts. */
 export function ReachOutPane({ chain, canAct, flash, onClose, onEdit }: PaneProps) {
-  const StatePill = statePillPart();
   const W = reachOuts.words;
   const pace = W.chainPaceOf(chain);
   const state = chain.state !== "running" ? "paused" : chain.next.waiting_run_id ? "approval" : "running";

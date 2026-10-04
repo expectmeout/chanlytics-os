@@ -14,10 +14,10 @@ import {
   poolRowsOf,
   BROADCAST_CHUNK,
   BROADCAST_SCHEDULE_MAX_DAYS,
+  EVERYONE_HINT,
   EVERYONE_LABEL,
   GET_YES_ROUTE,
   HELD_REASONS,
-  OFFERS_BY_WHATSAPP_NOTE,
   REPLY_WINDOW_WORDS,
   OFFERS_OPT_IN_PHRASES,
   DEFAULT_CAMPAIGN_CHANNELS,
@@ -168,8 +168,6 @@ export interface BroadcastsSurface {
   /** Its postal address where the Business record holds one: the foot of an email names it (contracts emailFoot). */
   businessAddress?: string | null;
   bookingLink: boolean;
-  /** Why offers go by WhatsApp only, said once on the page (contracts OFFERS_BY_WHATSAPP_NOTE). */
-  offersNote: string;
   /** Older broadcasts exist beyond the rows: the history's numbers are the latest fifty, and the page says so. */
   more: boolean;
   /** How far ahead a send may be scheduled, in days: the schedule box stops where the route does. */
@@ -249,8 +247,9 @@ function optionReadings(
 ): Pick<AudienceOption, "counts" | "preview" | "by"> {
   const { kind, id, ids } = of;
   const { ready, touched } = how;
+  // A broadcast is the business's news: by email it asks for a yes covering email or a relationship (decision D1).
   const reading = (purpose: AskedPurpose, channels: readonly ConsentChannel[]) =>
-    audiencePreview(rows, kind, id, ids, purpose, { channels, ready }, 5, touched);
+    audiencePreview(rows, kind, id, ids, purpose, { channels, ready, about: "ours" }, 5, touched);
   const preview = {
     conversational: reading("conversational", DEFAULT_CAMPAIGN_CHANNELS),
     marketing: reading("marketing", DEFAULT_CAMPAIGN_CHANNELS),
@@ -338,7 +337,7 @@ export const broadcastsOverride: SurfaceOverride = {
         id: null,
         label: EVERYONE_LABEL,
         ...optionFor("everyone", null, null),
-        hint: "Everyone with a number whose yes covers the message you pick",
+        hint: EVERYONE_HINT,
       },
       // The calendar lists are audiences only when there is a calendar to read them
       // from. The three consent lists are never audiences: each is a restatement of
@@ -408,7 +407,6 @@ export const broadcastsOverride: SurfaceOverride = {
       businessName: brain?.business_name || "the business",
       businessAddress: cmAddressOf(brain),
       bookingLink: !!brain?.booking_link,
-      offersNote: OFFERS_BY_WHATSAPP_NOTE,
       optIn: {
         phrase: OFFERS_OPT_IN_PHRASES.en,
         phraseEs: OFFERS_OPT_IN_PHRASES.es,

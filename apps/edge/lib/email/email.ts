@@ -28,8 +28,8 @@ import type { JobContext } from "../packages/jobs.js";
 import { erasedBeforeEmail } from "../erased.js";
 import { notify, type NotifyMessage } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
-import type { CampaignsLane } from "./campaigns-domain.js";
-import { logger, errField } from "../log.js";
+import type { CampaignsBinding, CampaignsLane } from "./campaigns-domain.js";
+import { logger, errField, type Logger } from "../log.js";
 import { env } from "../env.js";
 
 type Db = SupabaseClient<Database>;
@@ -165,15 +165,25 @@ export function emailWaitingMessage(n: EmailWaiting): NotifyMessage {
 
 /**
  * Email's intake as the job runner is handed it; undefined when email is off here or there is no provider key to fetch
- * with. `campaigns` is bound for a job that sends offers, while the campaigns domain is verified (campaigns-domain.ts).
+ * with. `campaigns` is bound for a job that sends offers, while the campaigns domain is verified (campaigns-domain.ts); `closed`
+ * is why offers cannot leave when the deployment names a campaigns domain the provider does not verify. `authservId` is the
+ * name the provider's receiving side writes into the header that proves a sender (EMAIL_AUTHSERV_ID): none, no yes by email.
  */
-export function emailIntake(db: Db, campaigns: CampaignsLane | null = null): JobContext["email"] | undefined {
+export function emailIntake(
+  db: Db,
+  campaigns: CampaignsLane | null = null,
+  closed: string | null = null,
+  unread: string | null = null,
+): JobContext["email"] | undefined {
   const domain = emailDomain();
   const apiKey = env.RESEND_API_KEY;
   if (!domain || !apiKey) return undefined;
   return {
     domain,
     ...(campaigns ? { campaigns } : {}),
+    ...(closed ? { campaignsClosed: closed } : {}),
+    ...(unread ? { campaignsUnread: unread } : {}),
+    authservId: env.EMAIL_AUTHSERV_ID ?? null,
     fetch: (receivedId) => fetchReceivedEmail({ apiKey }, receivedId),
     erasedBefore: (tenantId, address, receivedAtIso) => erasedBeforeEmail(db, tenantId, address, receivedAtIso),
     // Best-effort by contract: the thread is already flagged, which is the
@@ -187,5 +197,39 @@ export function emailIntake(db: Db, campaigns: CampaignsLane | null = null): Job
         logger({ tenant_id: tenantId }).error("email_tell_failed", { error: errField(e) });
       }
     },
+  };
+}
+
+/**
+ * The email wire one job is bound with, and what its intake is told of the campaigns domain (`campaigns`, `closed`: the
+ * arguments of emailIntake), from what the domain came to for the job (campaigns-domain.ts campaignsBinding; `none` for
+ * every job that sends no offer). Open: the wire gains the campaigns route and the intake the lane. Closed: the deployment
+ * names a domain the provider does not verify, so the intake says why and the run stops (core offersClosed). Unread: the
+ * provider could not be asked about it, so the email wire is bound as ever (without the campaigns route) and the intake says
+ * so: a run of offers WAITS and asks again (core offersUnread), and a visit's email, which leaves from the mail domain, goes.
+ * Without a lane the batch held each of its offers as having no channel, a skip that is final; binding the whole wire
+ * unavailable held every email of the batch, a visit reminder's too.
+ */
+export async function emailBoundFor(
+  db: Db,
+  tenantId: string,
+  offers: CampaignsBinding,
+  L: Logger,
+): Promise<{
+  email: Awaited<ReturnType<typeof emailWireFor>>;
+  campaigns: CampaignsLane | null;
+  closed: string | null;
+  unread: string | null;
+}> {
+  const campaigns = offers.state === "open" ? offers.lane : null;
+  const email = await emailWireFor(db, tenantId, campaigns).catch((e: unknown) => {
+    L.error("email_wire_unavailable", { tenant_id: tenantId, error: errField(e) });
+    return wireUnavailable(errField(e));
+  });
+  return {
+    email,
+    campaigns,
+    closed: offers.state === "closed" ? offers.why : null,
+    unread: offers.state === "unread" ? offers.why : null,
   };
 }

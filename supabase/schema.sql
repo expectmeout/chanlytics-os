@@ -290,9 +290,10 @@ begin
       return NEW;
     end if;
     -- Or released, when WhatsApp did not take the send -- too many, too fast, or never reached at all: nothing was
-    -- taken, and the release says which.
+    -- taken, and the release says which. Its next try is a new attempt (00301).
     if OLD.state = 'failed' and OLD.reason = 'outcome_unknown' and NEW.state = 'queued'
        and NEW.reason in ('throttled', 'not_taken') then
+      NEW.attempt := OLD.attempt + 1;
       return NEW;
     end if;
     if OLD.state in ('sent', 'skipped', 'failed') then
@@ -308,7 +309,7 @@ end $$;
 -- Name: FUNCTION broadcast_recipients_guard(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.broadcast_recipients_guard() IS 'queued -> sent|skipped|failed, once; a claim (failed, outcome_unknown) -> sent|skipped, or back to queued as throttled or not_taken when WhatsApp did not take it; sent, skipped and other failures are final. A same-state update is not a move.';
+COMMENT ON FUNCTION public.broadcast_recipients_guard() IS 'queued -> sent|skipped|failed, once; a claim (failed, outcome_unknown) -> sent|skipped, or back to queued as throttled or not_taken when WhatsApp did not take it, which counts a new attempt (00301); sent, skipped and other failures are final. A same-state update is not a move.';
 
 
 --
@@ -421,7 +422,7 @@ CREATE FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text, p_a
     SET search_path TO 'public'
     AS $$
   with zone as (
-    select coalesce(nullif(btrim(t.timezone), ''), 'America/New_York') as tz
+    select public.safe_zone(coalesce(nullif(btrim(t.timezone), ''), 'America/New_York')) as tz
       from public.tenants t where t.id = p_tenant_id
   ), month as (
     select date_trunc('month', p_at at time zone zone.tz) at time zone zone.tz as since,
@@ -1769,7 +1770,9 @@ CREATE FUNCTION public.email_offer_counts(p_tenant_id uuid, p_host text) RETURNS
     'complaint_sample', (select count(*) from complaint_window),
     'complaints', (select count(*) from complaint_window where meta->'email' ? 'complained_at'),
     'bounce_sample', (select count(*) from bounce_window),
-    'bounces', (select count(*) from bounce_window where status = 'failed' and error->>'provider' = 'bounced'))
+    -- A permanent bounce only: a full mailbox or a greylisting server says nothing about the list (00179).
+    'bounces', (select count(*) from bounce_window where status = 'failed' and error->>'provider' = 'bounced'
+                  and lower(coalesce(error->>'kind', '')) = 'permanent'))
 $$;
 
 
@@ -1777,7 +1780,7 @@ $$;
 -- Name: FUNCTION email_offer_counts(p_tenant_id uuid, p_host text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.email_offer_counts(p_tenant_id uuid, p_host text) IS 'What the gates on offers by email are judged by (contracts'' OFFER_GATES): of the emails that left from this host in the last 90 days and since the workspace''s last resume (mailboxes.offers_resumed_at), the last 1,000 (complaint_sample) and the complaints among them, and the last 500 (bounce_sample) and the hard bounces among them. Service role only.';
+COMMENT ON FUNCTION public.email_offer_counts(p_tenant_id uuid, p_host text) IS 'What the gates on offers by email are judged by (contracts'' OFFER_GATES): of the emails that left from this host in the last 90 days and since the workspace''s last resume (mailboxes.offers_resumed_at), the last 1,000 (complaint_sample) and the complaints among them, and the last 500 (bounce_sample) and the hard (permanent) bounces among them (00301). Service role only.';
 
 
 --
@@ -2914,10 +2917,11 @@ CREATE FUNCTION public.has_relationship(c public.contacts) RETURNS boolean
             where m.tenant_id = c.tenant_id and m.contact_id = c.id
               and m.direction = 'inbound' and e.spoken and e.at is not null and m.body is not null
               and public.message_is_a_persons_words(m.meta))
-      -- They called: a call they placed that connected (last_inbound_call_at).
+      -- They called: a call they placed that connected, with a start (last_inbound_call_at, max(started_at), 00301).
       or exists (
            select 1 from public.calls k
-            where k.contact_id = c.id and k.direction = 'inbound' and k.status <> 'not_connected')
+            where k.contact_id = c.id and k.direction = 'inbound' and k.status <> 'not_connected'
+              and k.started_at is not null)
       -- They have a deal, in any stage (deal_id).
       or exists (select 1 from public.deals d where d.contact_id = c.id)
 $$;
@@ -12267,7 +12271,7 @@ CREATE FUNCTION public.reach_out_month_sent(p_tenant_id uuid, p_at timestamp wit
     SET search_path TO 'public'
     AS $$
   with zone as (
-    select coalesce(nullif(btrim(t.timezone), ''), 'America/New_York') as tz
+    select public.safe_zone(coalesce(nullif(btrim(t.timezone), ''), 'America/New_York')) as tz
       from public.tenants t where t.id = p_tenant_id
   ), month as (
     select date_trunc('month', p_at at time zone zone.tz) at time zone zone.tz as since,
@@ -17221,6 +17225,7 @@ CREATE TABLE public.broadcast_recipients (
     sent_at timestamp with time zone,
     facts jsonb,
     channel text,
+    attempt integer DEFAULT 0 NOT NULL,
     CONSTRAINT broadcast_recipients_channel_check CHECK (((channel IS NULL) OR (channel = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text])))),
     CONSTRAINT broadcast_recipients_state_check CHECK ((state = ANY (ARRAY['queued'::text, 'sent'::text, 'skipped'::text, 'failed'::text])))
 );
@@ -17238,6 +17243,13 @@ COMMENT ON COLUMN public.broadcast_recipients.facts IS 'Per-person words a run r
 --
 
 COMMENT ON COLUMN public.broadcast_recipients.channel IS 'The channel this person is reached on, picked once at enrolment (contracts'' reachFor) from the run''s channels. NULL: a recipient written before the channels, which is WhatsApp (00298).';
+
+
+--
+-- Name: COLUMN broadcast_recipients.attempt; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.broadcast_recipients.attempt IS 'How many times this person was claimed and given back (throttled, not_taken): the guard adds one on every release. A broadcast''s email to them is named by it (core broadcast-channels.ts), so a person tried again is sent under a new id and a resumed run, which releases nobody, finds the email it was sending (00301).';
 
 
 --

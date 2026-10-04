@@ -10,6 +10,7 @@ import {
   type AskProposal,
   type AskReadSet,
   type CampaignHow,
+  type MessageAbout,
   type ConsentChannel,
   type MembershipRole,
   type NumberHealth,
@@ -203,7 +204,7 @@ export const unread =
  * and undefined where it could not be read, which counts as the pages count then: WhatsApp can send, which their number
  * banner judges.
  */
-export function whatsappHowOf(health: NumberHealth | null | undefined): CampaignHow {
+export function whatsappHowOf(health: NumberHealth | null | undefined, about: MessageAbout): CampaignHow {
   return {
     channels: ["whatsapp"],
     ready: channelsReady({
@@ -211,6 +212,7 @@ export function whatsappHowOf(health: NumberHealth | null | undefined): Campaign
       textLine: null,
       email: { mailbox: false, domain: false },
     }),
+    about,
   };
 }
 
@@ -235,12 +237,12 @@ export const namedChannels = (c: { channels: ConsentChannel[]; named: boolean })
   c.named ? { channels: c.channels } : {};
 
 /** The same, reading the number (channels-ready.ts): one read of its config, said in the log when it fails. */
-export async function whatsappHow(t: ToolContext): Promise<CampaignHow> {
+export async function whatsappHow(t: ToolContext, about: MessageAbout): Promise<CampaignHow> {
   const health = await whatsappHealthOf(t.ctx, t.tenantId).catch((e: unknown) => {
     log.error("ask_tool_read_failed", { tool: "campaigns", read: "number", tenant_id: t.tenantId, error: e });
     return undefined;
   });
-  return whatsappHowOf(health);
+  return whatsappHowOf(health, about);
 }
 
 /**

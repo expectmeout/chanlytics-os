@@ -280,6 +280,50 @@ test("a reminder's yes with no number to send to is a yes: who said it is counte
   assert.equal(drawn.saidYes, 1, "the yes it needs is theirs; what is missing is a number (#663's rule)");
 });
 
+test("by email a visit's message is about their own visit (decision D1): it asks an address and no yes, and only a STOP or a dead address holds it; an unsubscribe from offers does not", () => {
+  const byEmail = {
+    channels: ["email"],
+    ready: channelsReady({ whatsapp: null, textLine: null, email: { mailbox: true, domain: true } }),
+  };
+  const run = (trigger, rows) =>
+    playbookRunReach(
+      rows,
+      { trigger, cap_per_run: 25, gap_days: 90, cadence_days: 30, message: null, ...byEmail },
+      untouched,
+      nowMs,
+      null,
+    );
+  // An address and nothing else on record: no yes of any kind, no number, no relationship, nobody they have dealt with.
+  const nothing = { consent: "unknown", marketing_consent: "unknown", phone_e164: null, email: "ana@example.com" };
+  const tomorrow = (id, over) => withVisits(id, visit("2026-09-07T15:00:00Z", "Cut"), null, { ...nothing, ...over });
+  const yesterday = (id, over) =>
+    withVisits(id, null, visit("2026-09-06T00:00:00Z", "Balayage"), { ...nothing, ...over });
+  assert.equal(tomorrow("a").consent.relationship, false, "the fixture is nobody the business has dealt with");
+  const reminder = run("visit_tomorrow", [tomorrow("a")]);
+  assert.deepEqual(
+    [reminder.reach.pool, reminder.reach.will, reminder.reach.noYes, reminder.reach.by_channel.email],
+    [1, 1, 0, 1],
+    "the reminder reaches them by email with no yes",
+  );
+  assert.deepEqual(reminder.channelOf, { a: "email" });
+  assert.equal(run("visited", [yesterday("b")]).reach.will, 1, "so does the check after the visit");
+  // Their unsubscribe from offers by email is no request to stop hearing about their own visit; a STOP is.
+  assert.equal(run("visit_tomorrow", [tomorrow("c", { email_marketing: "opted_out" })]).reach.will, 1);
+  const stopped = run("visit_tomorrow", [tomorrow("d", { consent: "opted_out" }), tomorrow("e", { dnc: true })]);
+  assert.deepEqual([stopped.reach.will, stopped.reach.stopped], [0, 2]);
+  // A bounced address is no address.
+  const bounced = run("visit_tomorrow", [tomorrow("f", { email_suppressed_at: iso(3 * D) })]);
+  assert.deepEqual([bounced.reach.will, bounced.reach.address_stopped], [0, 1]);
+  // Any other moment is the business's own news, and these run on lists and cadences as offers: by email they wait for the
+  // workspace's offers to open (a read with no facts about offers is closed), so the same person is held, not reached.
+  const month = run("everyone_monthly", [tomorrow("g", { marketing_consent: "opted_in" })]);
+  assert.deepEqual(
+    [month.reach.pool, month.reach.will, month.reach.no_channel],
+    [1, 0, 1],
+    "no visit of theirs is behind it",
+  );
+});
+
 test("after the visit: yesterday's visit with nothing booked next; the gap and the week's breath do not apply to either", () => {
   const yesterday = withVisits("a", null, visit("2026-09-06T00:00:00Z", "Balayage")); // Sat 5 Sep, 8:00 PM New York
   const yesterdayRebooked = withVisits(

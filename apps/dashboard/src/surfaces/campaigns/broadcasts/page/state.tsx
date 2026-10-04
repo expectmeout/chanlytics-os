@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { HOUR_MS } from "@chanlytics/contracts";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { navigate } from "../../../legacy-verbs";
-import { tabDraft } from "../../../legacy-parts";
+import { tabDraft } from "../../../kit/record/work";
 import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "../surface";
 import { starters } from "../../templates/verbs";
 import { BC_NONE } from "../run";

@@ -12,11 +12,11 @@ import type {
   LifecycleStage,
   LifecycleStrip,
 } from "@chanlytics/contracts";
-import { statePillPart } from "../../legacy-parts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Panel } from "../../kit/panel/panel";
+import { StatePill } from "../../kit/pill/state-pill";
 import { cmRowPress } from "../parts/head";
 import { HomeFailed } from "./failed";
 
@@ -29,7 +29,6 @@ export interface RailActs {
 
 /** A state as a pill, in the tone the view model gave it. */
 function StateWords({ tone, words, testid }: { tone: "ok" | "warn" | "plain"; words: string; testid?: string }) {
-  const StatePill = statePillPart();
   return <StatePill kind="tone" value={tone} label={words} testid={testid} />;
 }
 

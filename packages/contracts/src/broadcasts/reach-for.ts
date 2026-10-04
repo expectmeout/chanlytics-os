@@ -14,7 +14,7 @@
  * deployment's campaigns domain verified, the business's address on file, no pause). Over a channel's limit a person is
  * held on that channel, never moved to another: nobody gets an email because WhatsApp ran out for the day (decision 9).
  */
-import type { AskedPurpose, SendPurpose } from "../consent/consent";
+import type { AskedPurpose, MessageAbout, SendPurpose } from "../consent/consent";
 import { CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channels";
 import { type NotReceived, type ReceiveRow, whyNotReceive } from "../people/person-consent";
 import { triggerOf } from "../playbooks/playbook-triggers";
@@ -81,6 +81,24 @@ export function channelRefuses(channel: ConsentChannel, purpose: AskedPurpose, r
 }
 
 /**
+ * Said once on the Broadcasts page, where an owner picks an offer to send: which channels carry offers, so a customer who
+ * is absent from an offer's count reads as the rule it is and not as a bug. The refusal per customer is the wire's
+ * (consent.ts PURPOSE_REFUSALS); this is the rule, for the page, and it follows the workspace, since it is the same
+ * question the ticks ask (channelRefuses): WhatsApp always, email once the workspace can send offers by it
+ * (`ready.email.offers`: the campaigns domain, the business's address, no pause), a text never. A workspace whose offers by
+ * email are closed, for whatever reason, is told WhatsApp alone, so the note is never false on the day the domain verifies.
+ * The workspace's channels are required, as the ticks' are.
+ */
+export function offersNote(ready: ChannelsReady): string {
+  const byEmail = channelRefuses("email", "marketing", ready) === null;
+  const noText =
+    "The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text";
+  return byEmail
+    ? `Offers and news go by WhatsApp and by email. ${noText}; someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`
+    : `Offers and news go by WhatsApp only. ${noText}; someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
+}
+
+/**
  * Whether the workspace can send on each channel, from the facts each one is judged by: WhatsApp by its number's health
  * (broadcast-number.ts numberHealth; null without a number), a text by its line (active and not a test filing, as the
  * inbound door reads it), an email by the workspace's mailbox and whether the deployment's email wire can send (the
@@ -138,17 +156,35 @@ export type HeldOn = NotReceived | "no_channel";
 /** A person as the pick reads them: their answers, where to send, and the channel they last wrote on. */
 export type ReachRow = ReceiveRow & { lastChannel?: ConsentChannel | null };
 
-/** How far a refusal is from being the owner's to fix, first the one that ends everything, then the person's own no to email. */
-const STRICTEST: readonly NotReceived[] = ["stopped", "unsubscribed", "no_yes", "no_number", "no_address"];
+/**
+ * How far each reason is from being the owner's to fix: first the one that ends everything, then the person's own no to
+ * email, their missing yes, and last what the owner can mend on the person's page (a number, an address, one that stopped)
+ * or in the workspace (no channel). A Record, so a reason added to HeldOn cannot be left out of the order.
+ */
+const HELD_ORDER: Record<HeldOn, number> = {
+  stopped: 0,
+  unsubscribed: 1,
+  no_yes: 2,
+  no_number: 3,
+  no_address: 4,
+  address_stopped: 5,
+  no_channel: 6,
+};
+
+/** Every reason a person is held, in that order: the strictest of several is the one reachFor keeps, and a page lists them so. */
+export const HELD_ON: readonly HeldOn[] = (Object.keys(HELD_ORDER) as HeldOn[]).sort(
+  (a, b) => HELD_ORDER[a] - HELD_ORDER[b],
+);
 
 /**
  * The channel a campaign reaches this person on, or why it reaches them on none (the rules at the head of this file).
- * `channels` are the campaign's ticks; `ready` the workspace's channels now.
+ * `channels` are the campaign's ticks; `ready` the workspace's channels now; `about` what its message is about, which
+ * by email decides whether a yes is asked (consent.ts MessageAbout).
  */
 export function reachFor(
   r: ReachRow,
   purpose: AskedPurpose,
-  o: { channels: readonly string[]; ready: ChannelsReady },
+  o: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout },
 ): { channel: ConsentChannel; held: null } | { channel: null; held: HeldOn } {
   const usable = CONSENT_CHANNELS.filter(
     (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.ready) === null,
@@ -156,13 +192,13 @@ export function reachFor(
   if (usable.length === 0) return { channel: null, held: "no_channel" };
   const last = r.lastChannel ?? null;
   const order = last && usable.includes(last) ? [last, ...usable.filter((c) => c !== last)] : usable;
-  const why: NotReceived[] = [];
+  const why: HeldOn[] = [];
   for (const c of order) {
-    const w = whyNotReceive(r, purpose, c);
+    const w = whyNotReceive(r, purpose, c, o.about);
     if (w === null) return { channel: c, held: null };
     why.push(w);
   }
-  return { channel: null, held: STRICTEST.find((w) => why.includes(w)) ?? why[0] ?? "no_channel" };
+  return { channel: null, held: HELD_ON.find((w) => why.includes(w)) ?? "no_channel" };
 }
 
 /** How a campaign's people split: how many on each channel, and how many held, by why. */
@@ -177,7 +213,7 @@ export interface ReachSplit {
 export function reachSplit(
   rows: readonly ReachRow[],
   purpose: AskedPurpose,
-  o: { channels: readonly string[]; ready: ChannelsReady },
+  o: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout },
 ): ReachSplit {
   const out: ReachSplit = { reached: 0, byChannel: { whatsapp: 0, sms: 0, email: 0 }, held: 0, heldBy: {} };
   for (const r of rows) {

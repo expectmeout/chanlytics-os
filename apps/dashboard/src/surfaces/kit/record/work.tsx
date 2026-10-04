@@ -28,13 +28,20 @@ export const tabDraft = (kind: string, key?: string | null) => {
 };
 
 /** What a composer says of its words: what to keep, whether there are any, and where Cancel goes. */
-interface UnsavedWork {
+interface UnsavedWorkOptions {
   value: unknown;
   dirty: boolean;
   onLeave: () => void;
 }
 
-export function useUnsavedWork(kind: string, key: string | null | undefined, { value, dirty, onLeave }: UnsavedWork) {
+/** What the rule answers a composer: whether words are held, whether Cancel is asking, and the ways to answer it. */
+export type UnsavedWork = ReturnType<typeof useUnsavedWork>;
+
+export function useUnsavedWork(
+  kind: string,
+  key: string | null | undefined,
+  { value, dirty, onLeave }: UnsavedWorkOptions,
+) {
   const [asking, setAsking] = useState(false);
   const dirtyNow = useRef(dirty);
   dirtyNow.current = dirty;

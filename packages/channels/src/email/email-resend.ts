@@ -37,10 +37,17 @@ export const RESEND_API = "https://api.resend.com";
 /** The longest one request to the provider waits: a send's try, a domain's read. The domains sweep's budget counts it. */
 export const SEND_TIMEOUT_MS = 15_000;
 /**
- * The most one send may take, both tries and a short wait included: a worker's run is bounded (the jobs tick yields
- * at 45 s of 60), and Part 1 measured the worst case at 32 s.
+ * The most one send may take, both tries and a short wait included, when its caller has no ceiling of its own: Part 1
+ * measured the worst case at 32 s. A caller that runs inside a function's ceiling (the jobs tick yields at 45 s of 60,
+ * and a send may start at the yield) passes what is left of it (`deadlineMs`), which is less: this is only the cap, and
+ * ops-hygiene.test.mjs holds the room a send is given at the yield point, plus the yield, under the ceiling.
  */
 export const SEND_DEADLINE_MS = 32_000;
+/**
+ * The least a caller's ceiling may leave one send (the email wire raises a smaller one to it): a request cannot be made in
+ * no time, and a send that starts when a function has none left to give would only time out, with the email possibly taken.
+ */
+export const SEND_MIN_MS = 3_000;
 /** A second try after a timeout needs at least this much of the deadline left, or it would only time out again. */
 const RETRY_NEEDS_MS = 5_000;
 /** The longest a send waits for the provider's "in a moment" before handing the answer back: a worker's run is bounded. */
@@ -173,7 +180,10 @@ async function postEmail(
 export interface SendEmailOptions {
   /** How a short wait is waited (a test hands its own). */
   wait?: (ms: number) => Promise<void>;
-  /** The most this send may take, every try included (SEND_DEADLINE_MS). */
+  /**
+   * The most this send may take, every try included: never more than SEND_DEADLINE_MS, which is what it takes when none is
+   * given. A caller inside a function's ceiling gives what is left of it (the email wire, SEND_MIN_MS at the least).
+   */
   deadlineMs?: number;
   /** Epoch ms, injected so the deadline is testable. */
   now?: () => number;
@@ -193,7 +203,7 @@ export async function sendEmail(
 ): Promise<SendResult> {
   const wait = opts.wait ?? sleep;
   const now = opts.now ?? Date.now;
-  const deadline = now() + (opts.deadlineMs ?? SEND_DEADLINE_MS);
+  const deadline = now() + Math.min(opts.deadlineMs ?? SEND_DEADLINE_MS, SEND_DEADLINE_MS);
   const left = (): number => Math.max(0, deadline - now());
   // C14: an email taken as the last of its second waits out the reset here, briefly and within the deadline, so the
   // next email this instance sends does not meet a 429.

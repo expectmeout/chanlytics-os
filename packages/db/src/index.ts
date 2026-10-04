@@ -58,6 +58,7 @@ export {
   setEmailOffersYes,
   setEmailUnsubscribed,
   stopAllMessages,
+  offerLanguageOf,
   offersEmailReach,
 } from "./repositories/campaigns/email-offers";
 export type { Unsubscribed } from "./repositories/campaigns/email-offers";

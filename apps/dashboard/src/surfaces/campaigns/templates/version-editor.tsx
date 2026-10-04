@@ -19,9 +19,9 @@ import { campaignEmailRules, namedProblem, validateEmailVersion, validateSmsVers
 import type { EmailRules, OwnVersionChannel, SlotSet, SlotValue, VersionWords } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import { gate } from "../../legacy-verbs";
-import { tabDraft, unsavedAskPart, useLegacyUnsavedWork } from "../../legacy-parts";
 import { Button } from "../../kit/button/button";
 import { FieldError } from "../../kit/field-error/field-error";
+import { UnsavedAsk, tabDraft, useUnsavedWork } from "../../kit/record/work";
 import { useSlotSeats } from "./slots/slot-seats";
 import { ValuesMenu, WordsField } from "./slots/words-field";
 import { VersionPreview } from "./version-preview";
@@ -81,7 +81,7 @@ export function VersionEditor(p: VersionEditorProps) {
     channel === "email"
       ? validateEmailVersion({ subject, body }, kind)
       : validateSmsVersion({ body }, slots.keys.length, language);
-  const work = useLegacyUnsavedWork(DRAFT_KIND, draftKey(name, language, channel), {
+  const work = useUnsavedWork(DRAFT_KIND, draftKey(name, language, channel), {
     value: { subject, body },
     dirty: subject !== (start.subject ?? "") || body !== start.body,
     onLeave: onClose,
@@ -103,7 +103,6 @@ export function VersionEditor(p: VersionEditorProps) {
     setSaving(false);
     setProblem(r ? r.message : null);
   };
-  const UnsavedAsk = unsavedAskPart();
   const box = { slots, readOnly: saving, seats };
   return (
     <div className="tpl-ver-edit" data-testid="template-version-editor" data-channel={channel}>

@@ -131,6 +131,15 @@ export const env = {
   get EMAIL_CAMPAIGNS_DOMAIN() {
     return trimmedEnv(process.env.EMAIL_CAMPAIGNS_DOMAIN);
   },
+  /**
+   * The name Resend's receiving side writes at the start of the Authentication-Results header it adds to every email it
+   * hands over (RFC 8601's authserv-id), read off a real received email. A yes by email is recorded only when the header
+   * that proves the sender carries this name, so a header a sender wrote into its own mail proves nothing. Blank: no yes
+   * by email is recorded at all (the check fails closed); a no (STOP, UNSUBSCRIBE) never asks it.
+   */
+  get EMAIL_AUTHSERV_ID() {
+    return trimmedEnv(process.env.EMAIL_AUTHSERV_ID);
+  },
   get RESEND_WEBHOOK_SECRET() {
     return trimmedEnv(process.env.RESEND_WEBHOOK_SECRET);
   },

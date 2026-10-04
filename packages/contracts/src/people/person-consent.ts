@@ -3,7 +3,7 @@
  * predicates a broadcast, a playbook and a list read (mayReceive, whyNotReceive, saidYesTo). Moved whole from
  * people.ts (Reach out Part 2.5); people/index.ts names it.
  */
-import { type AskedPurpose, mayMessageFor } from "../consent/consent";
+import { type AskedPurpose, type MessageAbout, mayMessageFor } from "../consent/consent";
 import type { ConsentChannel } from "../consent/consent-channels";
 import type { PersonRowVM } from "./person-row";
 
@@ -176,8 +176,13 @@ export function consentSourceLabel(source: string | null | undefined): string | 
  * by the compiler at every call site, the way `businessRecordProblems` requires
  * its registration path.
  */
-export function mayReceive(r: ReceiveRow, purpose: AskedPurpose, channel: ConsentChannel): boolean {
-  return whyNotReceive(r, purpose, channel) === null;
+export function mayReceive(
+  r: ReceiveRow,
+  purpose: AskedPurpose,
+  channel: ConsentChannel,
+  about: MessageAbout,
+): boolean {
+  return whyNotReceive(r, purpose, channel, about) === null;
 }
 
 /** What the receive predicates read of a person: their answers, and where to send. */
@@ -206,24 +211,48 @@ function bearingOf(c: PersonConsent) {
  * rule as `mayReceive`, with its answer kept. A run that leaves someone out can
  * then say which of three things it was -- no number to send to, a stop (asked
  * to, or on the do-not-contact list), or never having said yes -- instead of
- * one count that hides the one an owner can do something about.
+ * one count that hides the one an owner can do something about. An address on file that mail no longer goes to (it
+ * bounced for good, or the person marked a message as spam) is its own reason, `address_stopped`, apart from no address
+ * at all: the fix is another one, to correct it on their page, and the words must not say there is none on file.
  */
-export type NotReceived = "no_number" | "no_address" | "stopped" | "unsubscribed" | "no_yes";
+export type NotReceived = "no_number" | "no_address" | "address_stopped" | "stopped" | "unsubscribed" | "no_yes";
 
 /**
  * THE CHANNEL IS REQUIRED (One message, every channel, step 2): a yes covers the channels it was given for, and a
  * channel needs its own way to reach them, a number for WhatsApp or a text, an address for an email. An address that
- * has bounced or complained is no address: the door would refuse it (email_suppressed), so the pick must fall back to
- * another channel rather than choose email and hold the person. The pick asks it of each channel a campaign ticks
- * (broadcasts/reach-for.ts reachFor), and a page that has no campaign in view, of all three (broadcasts/reach-any.ts).
+ * has bounced or complained is no way to reach them: the door would refuse it (email_suppressed), so the pick must fall
+ * back to another channel rather than choose email and hold the person. The pick asks it of each channel a campaign
+ * ticks (broadcasts/reach-for.ts reachFor), and a page that has no campaign in view, of all three (broadcasts/reach-any.ts).
+ * `about` is what the message is about (consent.ts MessageAbout): a visit or proposal moment's message is theirs, a
+ * broadcast is ours, which by email asks for a yes covering email or a relationship (decision D1).
  */
-export function whyNotReceive(r: ReceiveRow, purpose: AskedPurpose, channel: ConsentChannel): NotReceived | null {
-  if (channel === "email" ? !r.email || r.emailSuppressed : !r.phone)
-    return channel === "email" ? "no_address" : "no_number";
-  const said = mayMessageFor(bearingOf(r.consent), purpose, { proactive: true, channel });
+export function whyNotReceive(
+  r: ReceiveRow,
+  purpose: AskedPurpose,
+  channel: ConsentChannel,
+  about: MessageAbout,
+): NotReceived | null {
+  if (channel === "email") {
+    if (!r.email) return "no_address";
+    if (r.emailSuppressed) return "address_stopped";
+  } else if (!r.phone) return "no_number";
+  const said = mayMessageFor(bearingOf(r.consent), purpose, { proactive: true, channel, about });
   if (said.ok) return null;
   // Their own no to email (a press of Unsubscribe) is its own reason: it ends offers by email and leaves everything else.
-  return said.reason === "opted_out" ? "stopped" : said.reason === "unsubscribed" ? "unsubscribed" : "no_yes";
+  const { reason } = said;
+  switch (reason) {
+    case "opted_out":
+      return "stopped";
+    case "unsubscribed":
+      return "unsubscribed";
+    case "no_marketing_consent":
+    case "not_opted_in":
+      return "no_yes";
+    default: {
+      const unreachable: never = reason;
+      return unreachable;
+    }
+  }
 }
 
 /**
@@ -231,6 +260,11 @@ export function whyNotReceive(r: ReceiveRow, purpose: AskedPurpose, channel: Con
  * `mayReceive` that is an answer they gave. When nobody on a list can be sent a thing and somebody on it said yes,
  * what is missing is a number, not an answer -- and asking them for their yes asks for one they already gave.
  */
-export function saidYesTo(r: Pick<PersonRowVM, "consent">, purpose: AskedPurpose, channel: ConsentChannel): boolean {
-  return mayMessageFor(bearingOf(r.consent), purpose, { proactive: true, channel }).ok;
+export function saidYesTo(
+  r: Pick<PersonRowVM, "consent">,
+  purpose: AskedPurpose,
+  channel: ConsentChannel,
+  about: MessageAbout,
+): boolean {
+  return mayMessageFor(bearingOf(r.consent), purpose, { proactive: true, channel, about }).ok;
 }

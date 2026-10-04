@@ -11,7 +11,7 @@ import { GET_YES_ROUTE, saidYesWords } from "../people/people-lists";
 import type { PersonRowVM } from "../people/person-row";
 
 import { breathHolds, followUpIsFor, followUpNames } from "./playbook-follow-ups";
-import { enrolPurpose, type RunMessage } from "./playbook-purpose";
+import { enrolPurpose, messageAboutOfTrigger, type RunMessage } from "./playbook-purpose";
 import { localDate } from "./playbook-schedule";
 import { DAY_MS } from "./playbook-time";
 import { type PlaybookPolicyClass, triggerOf } from "./playbook-triggers";
@@ -67,8 +67,8 @@ export function eligibleForPlaybook(
 /**
  * Who a run reaches, out of everyone its moment names, and why each of the
  * rest was left out -- each counted once, under the first rule that left them
- * out, in the order the run applies the rules. So `will` and the eight counts
- * add up to `pool`, and a bar of them is the whole list.
+ * out, in the order the run applies the rules. So `will` and every count
+ * below add up to `pool`, and a bar of them is the whole list.
  *
  * A run recorded how many it enrolled and nothing about the rest, so the sheet
  * an owner approves it from could only list the rules that made the list:
@@ -96,6 +96,11 @@ export interface RunReach {
   overLimit: number;
   /** No email address, where email was the only channel left (step 3). Absent on a run counted before runs kept it. */
   no_address?: number;
+  /**
+   * An email address on file that mail no longer goes to (it bounced, or they marked a message as spam), where email was
+   * the only channel left. Absent on a run counted before.
+   */
+  address_stopped?: number;
   /** No channel the playbook ticks can carry its message here (step 3). Absent on a run counted before. */
   no_channel?: number;
   /** Who it reaches on each channel (step 3), adding up to `will`. Absent on a run counted before: all WhatsApp. */
@@ -105,11 +110,12 @@ export interface RunReach {
 /**
  * A playbook as its run reads it: its moment and limits, its message (null for a moment counted with no message in
  * view), and how it may go: the channels it ticks and the workspace's channels now (reach-for.ts). Required, as the
- * message is: no caller may count a run without saying how it would go.
+ * message is: no caller may count a run without saying how it would go. What its message is about is the moment's own
+ * (messageAboutOfTrigger), never a caller's to say.
  */
 export type RunPlaybook = Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> & {
   message: RunMessage;
-} & CampaignHow;
+} & Omit<CampaignHow, "about">;
 
 /**
  * The run as drawn: who it reaches, its reach, and `saidYes` -- how many the
@@ -146,6 +152,7 @@ export function playbookRunReach(
     overCap: 0,
     overLimit: 0,
     no_address: 0,
+    address_stopped: 0,
     no_channel: 0,
   };
   const byChannel: Record<ConsentChannel, number> = { whatsapp: 0, sms: 0, email: 0 };
@@ -157,6 +164,9 @@ export function playbookRunReach(
   // steps must not fall through to the moments' "everyone" below.
   if (t.kind === "reach_out") return none;
   const purpose = enrolPurpose(t.cls, p.message);
+  // How it goes: the ticks and the channels now, and what the moment's message is about (a visit's or a follow-up's is
+  // theirs, which by email asks no yes; any other moment's is the business's news: decision D1).
+  const how: CampaignHow = { channels: p.channels, ready: p.ready, about: messageAboutOfTrigger(p.trigger) };
   // Who the moment names, before anyone is left out.
   const named =
     t.kind === "visit"
@@ -177,7 +187,7 @@ export function playbookRunReach(
           ? rows.filter((r) => followUpNames(r, nowMs, pace))
           : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
-  const saidYes = named.filter((r) => saidYesOnAny(r, purpose, p)).length;
+  const saidYes = named.filter((r) => saidYesOnAny(r, purpose, how)).length;
   // Who the run reaches, each on their channel, and the reach counted by channel.
   const done = (eligible: PersonRowVM[]) => {
     const kept: Record<string, ConsentChannel> = {};
@@ -194,7 +204,7 @@ export function playbookRunReach(
   const allowed: PersonRowVM[] = [];
   // Each person on the one channel the run reaches them on (reachFor), or counted under why it reaches them on none.
   for (const r of named) {
-    const pick = reachFor(r, purpose, p);
+    const pick = reachFor(r, purpose, how);
     if (pick.channel) {
       channelOf[r.id] = pick.channel;
       allowed.push(r);
@@ -203,6 +213,7 @@ export function playbookRunReach(
     else if (pick.held === "stopped" || pick.held === "unsubscribed") reach.stopped += 1;
     else if (pick.held === "no_yes") reach.noYes += 1;
     else if (pick.held === "no_address") reach.no_address = (reach.no_address ?? 0) + 1;
+    else if (pick.held === "address_stopped") reach.address_stopped = (reach.address_stopped ?? 0) + 1;
     else reach.no_channel = (reach.no_channel ?? 0) + 1;
   }
   if (t.kind === "visit") {

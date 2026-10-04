@@ -11,15 +11,32 @@
  * the database.
  */
 import type { EmailRequest } from "@chanlytics/channels";
-import type { DeliveryRefusal, SendPurpose } from "@chanlytics/contracts";
+import type { DeliveryRefusal, MessageAbout, SendPurpose } from "@chanlytics/contracts";
 
 /**
  * Whether a send is an OFFER by email: the one kind the door asks the offer rules of (the deployment, the pause, the
  * one-click unsubscribe) and the person's relationship with the business. One statement, so what the door reads for it and
  * what it refuses for it never disagree.
  */
-export function isOfferByEmail(d: { channel: string; purpose: SendPurpose }): boolean {
+function isOfferByEmail(d: { channel: string; purpose: SendPurpose }): boolean {
   return d.channel === "email" && d.purpose === "marketing";
+}
+
+/**
+ * Whether the door must read the person's relationship with the business (has_relationship): the sends whose rule may
+ * rest on it (contracts mayMessageFor). An offer by email, and since decision D1 an email of the business's own news that
+ * starts a conversation: it goes to someone whose yes covers email or who has dealt with the business. Unread, the
+ * relationship is none, and the second would be refused to everyone the enrolment let in on theirs.
+ */
+export function asksRelationship(d: {
+  channel: string;
+  purpose: SendPurpose;
+  proactive: boolean;
+  about: MessageAbout;
+}): boolean {
+  return (
+    isOfferByEmail(d) || (d.channel === "email" && d.purpose === "conversational" && d.proactive && d.about === "ours")
+  );
 }
 
 /** What an offer by email asks of the deployment and the workspace, as the door has read it. */
@@ -56,4 +73,24 @@ export function offerRefusal(
   const headers = d.email?.headers ?? {};
   const oneClick = !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
   return oneClick ? null : "outreach_without_unsubscribe";
+}
+
+/**
+ * An email is written before it is sent, under the id its request was frozen with: every receipt names that row by the
+ * request's tag, so a row written after the send (recordOutbound's) is one no receipt can find, and its bounce
+ * suppresses nothing. A delivery that breaks this is a caller's mistake, said as one before anything is read.
+ */
+export function assertFrozenFor(d: {
+  channel: string;
+  conversationId: string;
+  messageId?: string | null;
+  email?: EmailRequest;
+  ownEmail?: EmailRequest;
+}): void {
+  if (d.channel !== "email") return;
+  const keys = [d.email, d.ownEmail].map((r) => r?.idempotency_key ?? d.messageId);
+  if (d.messageId && keys.every((k) => k === d.messageId)) return;
+  throw new Error(
+    `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`,
+  );
 }

@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReachOutChainDto, ReachOutDraft, ReachOutDraftStep, ReachOutReachDto } from "@chanlytics/contracts";
 import { meNow } from "../../legacy-verbs";
-import { tabDraft, useLegacyUnsavedWork } from "../../legacy-parts";
+import { tabDraft, useUnsavedWork } from "../../kit/record/work";
 import { reachOuts } from "./surface";
 
 type Words = typeof reachOuts.words;
@@ -38,7 +38,7 @@ export function useReachOutDraft(W: Words, { search, chain, includeUnconfirmed, 
     const kept = tabDraft("reach-out", key) as ReachOutDraft | null;
     return kept ? (chain ? kept : { ...kept, include_unconfirmed: opened.include_unconfirmed }) : opened;
   });
-  const work = useLegacyUnsavedWork("reach-out", key, {
+  const work = useUnsavedWork("reach-out", key, {
     value: draft,
     dirty: JSON.stringify(draft) !== JSON.stringify(opened),
     onLeave: onClose,

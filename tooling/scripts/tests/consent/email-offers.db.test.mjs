@@ -329,7 +329,8 @@ test(
         "a dead address",
         { email_suppressed_at: ago(1), email_suppressed_reason: "hard_bounce" },
         { wrote: true },
-        "no_address",
+        // On file, and mail to it has stopped: said as itself, not as no address (heldWords words a correction).
+        "address_stopped",
       ],
     ];
     for (const [what, over, did, why] of cases) {
@@ -342,6 +343,7 @@ test(
         { consent, phone: null, email: row.email, emailSuppressed: !!row.email_suppressed_at },
         "marketing",
         "email",
+        "ours",
       );
       assert.equal(judged, why, what);
       // The one predicate, asked straight: the same person, the same answer.
@@ -354,9 +356,9 @@ test(
             has_relationship: consent.relationship,
           },
           "marketing",
-          { proactive: true, channel: "email" },
+          { proactive: true, channel: "email", about: "ours" },
         ).ok,
-        why === null || why === "no_address",
+        why === null || why === "address_stopped",
         what,
       );
     }
@@ -649,9 +651,11 @@ test(
     const kept = ok(await db.from("contacts").select("consent, dnc, email_marketing").eq("id", only.id).single());
     assert.deepEqual([kept.consent, kept.dnc, kept.email_marketing], ["opted_in", false, "opted_out"]);
     assert.equal(
+      // A message about their own visit (decision D1's "theirs"): an unsubscribe ends offers, never these (spec 12).
       mayMessageFor({ consent: kept.consent, dnc: kept.dnc, email_marketing: kept.email_marketing }, "conversational", {
         proactive: true,
         channel: "email",
+        about: "theirs",
       }).ok,
       true,
     );
@@ -692,7 +696,9 @@ test(
     for (let i = 0; i < 1010; i += 1) {
       let m = row(i);
       if (i < 10) m = complained(m);
-      if (i >= 990) m = { ...m, status: "failed", error: { provider: "bounced" } };
+      if (i >= 990) m = { ...m, status: "failed", error: { provider: "bounced", kind: "permanent" } };
+      // Five full mailboxes among the newest: the provider's transient bounces say nothing of the list (00301).
+      else if (i >= 985) m = { ...m, status: "failed", error: { provider: "bounced", kind: "transient" } };
       offers.push(m);
     }
     // Rows that are not the gates' business: another domain's (a reply), one that never left, one that failed another way.
@@ -708,7 +714,11 @@ test(
     assert.equal(counts.complaint_sample, 1000, "the last 1,000 that left");
     assert.equal(counts.complaints, 0, "the ten that complained are older than the window: they no longer count");
     assert.equal(counts.bounce_sample, 500, "the last 500");
-    assert.equal(counts.bounces, 20, "the twenty hard bounces are the newest");
+    assert.equal(
+      counts.bounces,
+      20,
+      "the twenty hard bounces are the newest; the five full mailboxes beside them are not counted",
+    );
     // The host is compared in lower case, and another host is another count (here, none).
     assert.equal(
       ok(await db.rpc("email_offer_counts", { p_tenant_id: tenantId, p_host: HOST.toUpperCase() })).bounces,
@@ -759,7 +769,7 @@ test(
         type: "text",
         body: "offer",
         status: i >= complained && i < complained + bounced ? "failed" : status,
-        ...(i >= complained && i < complained + bounced ? { error: { provider: "bounced" } } : {}),
+        ...(i >= complained && i < complained + bounced ? { error: { provider: "bounced", kind: "permanent" } } : {}),
         created_at: at,
         meta: {
           source: "broadcast",

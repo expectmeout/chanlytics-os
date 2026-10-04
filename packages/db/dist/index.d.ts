@@ -415,6 +415,7 @@ type Database = {
             };
             broadcast_recipients: {
                 Row: {
+                    attempt: number;
                     broadcast_id: string;
                     channel: string | null;
                     contact_id: string;
@@ -426,6 +427,7 @@ type Database = {
                     tenant_id: string;
                 };
                 Insert: {
+                    attempt?: number;
                     broadcast_id: string;
                     channel?: string | null;
                     contact_id: string;
@@ -437,6 +439,7 @@ type Database = {
                     tenant_id: string;
                 };
                 Update: {
+                    attempt?: number;
                     broadcast_id?: string;
                     channel?: string | null;
                     contact_id?: string;
@@ -9056,6 +9059,7 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
         };
         broadcast_recipients: {
             Row: {
+                attempt: number;
                 broadcast_id: string;
                 channel: string | null;
                 contact_id: string;
@@ -9067,6 +9071,7 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
                 tenant_id: string;
             };
             Insert: {
+                attempt?: number;
                 broadcast_id: string;
                 channel?: string | null;
                 contact_id: string;
@@ -9078,6 +9083,7 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
                 tenant_id: string;
             };
             Update: {
+                attempt?: number;
                 broadcast_id?: string;
                 channel?: string | null;
                 contact_id?: string;
@@ -17093,6 +17099,7 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
     };
     broadcast_recipients: {
         Row: {
+            attempt: number;
             broadcast_id: string;
             channel: string | null;
             contact_id: string;
@@ -17104,6 +17111,7 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
             tenant_id: string;
         };
         Insert: {
+            attempt?: number;
             broadcast_id: string;
             channel?: string | null;
             contact_id: string;
@@ -17115,6 +17123,7 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
             tenant_id: string;
         };
         Update: {
+            attempt?: number;
             broadcast_id?: string;
             channel?: string | null;
             contact_id?: string;
@@ -22146,6 +22155,7 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
     };
     broadcast_recipients: {
         Row: {
+            attempt: number;
             broadcast_id: string;
             channel: string | null;
             contact_id: string;
@@ -22157,6 +22167,7 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
             tenant_id: string;
         };
         Insert: {
+            attempt?: number;
             broadcast_id: string;
             channel?: string | null;
             contact_id: string;
@@ -22168,6 +22179,7 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
             tenant_id: string;
         };
         Update: {
+            attempt?: number;
             broadcast_id?: string;
             channel?: string | null;
             contact_id?: string;
@@ -27199,6 +27211,7 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
     };
     broadcast_recipients: {
         Row: {
+            attempt: number;
             broadcast_id: string;
             channel: string | null;
             contact_id: string;
@@ -27210,6 +27223,7 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
             tenant_id: string;
         };
         Insert: {
+            attempt?: number;
             broadcast_id: string;
             channel?: string | null;
             contact_id: string;
@@ -27221,6 +27235,7 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
             tenant_id: string;
         };
         Update: {
+            attempt?: number;
             broadcast_id?: string;
             channel?: string | null;
             contact_id?: string;
@@ -32364,6 +32379,15 @@ declare function setEmailOffersYes(db: Db$l, p: {
     messageId: string | null;
     evidence: Json;
 }): Promise<OffersYesOutcome>;
+/**
+ * The language an offer by email was sent in: its broadcast's message (broadcasts.template_language), so the unsubscribe
+ * page a customer lands on from it speaks the language they read the offer in. Null when the broadcast is not there or
+ * kept none. A failed read throws, and the page then says its words in English rather than fail the press.
+ */
+declare function offerLanguageOf(db: Db$l, p: {
+    tenantId: string;
+    broadcastId: string;
+}): Promise<string | null>;
 /** What a person's no to email, by link or by reply, came to. */
 interface Unsubscribed {
     /** The workspace's name, for the page's words; null when it could not be read. */
@@ -33358,9 +33382,15 @@ declare function textLineFacts(db: Db$f, tenantId: string): Promise<{
  */
 declare function playbookChannels(db: Db$f, playbookId: string): Promise<string[] | null>;
 /**
- * Up to `limit` people of a run still queued, each with their own words and the channel the run picked for them (00298):
- * what the batch sends from. A database 00298 has not reached keeps no channel on a recipient, so it is read again
- * without it and everyone goes by WhatsApp, as every run did. Any other failed read throws.
+ * Up to `limit` people of a run still queued, in the order of their ids, each with their own words, the channel the run
+ * picked for them (00298) and how many times they were claimed and given back (`attempt`, 00301): what the batch sends
+ * from. The order is part of the read: without one the database may hand back a different few of a long run's queued
+ * people on every read, and a person released and read again must come back the same way each time.
+ *
+ * A database that has not reached a migration lacks its column, and Postgres says so by its code (42703), whichever
+ * column it was: the read is made again without the newest one first (`attempt`: the batch then names its emails as it
+ * did before, by the run's waits), and without the channel too (everyone goes by WhatsApp, as every run did). Any other
+ * failed read throws.
  */
 declare function queuedRecipients(db: Db$f, p: {
     tenantId: string;
@@ -33370,6 +33400,7 @@ declare function queuedRecipients(db: Db$f, p: {
     contact_id: string;
     facts: unknown;
     channel?: string | null;
+    attempt?: number;
 }>>;
 /**
  * Whether anyone on a run, in any state, goes by email or text (a recipient's channel, 00298): the question WhatsApp's
@@ -34895,4 +34926,4 @@ declare function dueCalendars(db: Db, p: {
     tenantId?: string;
 }): Promise<DuePage<DueCalendar>>;
 
-export { type AiFailures, type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, type CreateWorkspaceArgs, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, type EmittedKind, type EventData, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type JobToRequeue, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type LineForwardingArgs, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type MigrationHead, type NewVoiceSession, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PlaybookPatch, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type TenantDb, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type Unsubscribed, type UsageMonthRow, type VersionRef, type VoiceSessionRow, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addToWaitlist, addressesSuppressed, aiFailuresHour, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveList, assembleBroadcast, assembleHistory, becomePartner, callerNameOf, callersOf, campaignMonthSent, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimReplyTurn, claimSends, claimVoiceTurn, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceFn, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSecondFactor, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailOfferCounts, emailOffersPause, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, endVoiceSession, erasureDigests, everyoneIn, finishableRuns, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, hasNewerCopy, heldNoticeDue, heldStale, holdRecipients, holdsReplyTurn, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, insertVoiceSession, invitePartner, inviteUserByEmail, isWorkspaceCall, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, lineForwardingSet, linkCallMessage, listMemberIds, listPolicies, listRow, listSecondFactors, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, markWaitlistInvited, membershipCountOf, messageSenders, messageSlots, migrationHead, monthSent, moveSend, moveVoiceSessionContext, namedFetch, namesOfPeople, notesForReceptionist, observeDb, offersEmailReach, outreachFactsOf, outreachModeOf, ownVersionsFiled, parentEmailOf, pauseConversation, pauseEmailOffers, peopleCursorOf, peoplePage, personReplyMode, platformHoldStands, platformWide, playbookChannels, playbooksOnList, purgeAiUsage, putTenantConfig, queuedOutcomes, queuedRecipients, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readJobToRequeue, readLeadContext, readLeadOne, readThreadState, readVoiceSession, readVoiceSessionByConversation, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordModelUsage, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, refreshWaitlistRow, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, removePlaybook, removeTemplateVersion, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, resolveOutboundTargetForContact, runGoesByOthers, runSending, runsWaitingOf, saveTemplateVersion, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailWithMessageId, sessionHoldsPartnerSeat, setCallRecording, setEmailOffersYes, setEmailUnsubscribed, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPlaybookState, setPolicyMode, signUpOnPublicKey, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, stopAllMessages, stuckClaims, subjectsWith, subscribeWorkspaceChanges, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templateIdOf, templateStatusOf, templatesFor, templatesNamed, tenantDb, tenantZoneOf, textLineFacts, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, updatePlaybook, usageMonth, waitlistWaiting, watchedEvents, watchedTables, whatsappChannelConfig, wireRowOf, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceAnswersOnItsOwn, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };
+export { type AiFailures, type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, type CreateWorkspaceArgs, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, type EmittedKind, type EventData, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type JobToRequeue, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type LineForwardingArgs, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type MigrationHead, type NewVoiceSession, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PlaybookPatch, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type TenantDb, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type Unsubscribed, type UsageMonthRow, type VersionRef, type VoiceSessionRow, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addToWaitlist, addressesSuppressed, aiFailuresHour, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveList, assembleBroadcast, assembleHistory, becomePartner, callerNameOf, callersOf, campaignMonthSent, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimReplyTurn, claimSends, claimVoiceTurn, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceFn, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSecondFactor, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailOfferCounts, emailOffersPause, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, endVoiceSession, erasureDigests, everyoneIn, finishableRuns, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, hasNewerCopy, heldNoticeDue, heldStale, holdRecipients, holdsReplyTurn, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, insertVoiceSession, invitePartner, inviteUserByEmail, isWorkspaceCall, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, lineForwardingSet, linkCallMessage, listMemberIds, listPolicies, listRow, listSecondFactors, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, markWaitlistInvited, membershipCountOf, messageSenders, messageSlots, migrationHead, monthSent, moveSend, moveVoiceSessionContext, namedFetch, namesOfPeople, notesForReceptionist, observeDb, offerLanguageOf, offersEmailReach, outreachFactsOf, outreachModeOf, ownVersionsFiled, parentEmailOf, pauseConversation, pauseEmailOffers, peopleCursorOf, peoplePage, personReplyMode, platformHoldStands, platformWide, playbookChannels, playbooksOnList, purgeAiUsage, putTenantConfig, queuedOutcomes, queuedRecipients, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readJobToRequeue, readLeadContext, readLeadOne, readThreadState, readVoiceSession, readVoiceSessionByConversation, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordModelUsage, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, refreshWaitlistRow, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, removePlaybook, removeTemplateVersion, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, resolveOutboundTargetForContact, runGoesByOthers, runSending, runsWaitingOf, saveTemplateVersion, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailWithMessageId, sessionHoldsPartnerSeat, setCallRecording, setEmailOffersYes, setEmailUnsubscribed, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPlaybookState, setPolicyMode, signUpOnPublicKey, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, stopAllMessages, stuckClaims, subjectsWith, subscribeWorkspaceChanges, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templateIdOf, templateStatusOf, templatesFor, templatesNamed, tenantDb, tenantZoneOf, textLineFacts, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, updatePlaybook, usageMonth, waitlistWaiting, watchedEvents, watchedTables, whatsappChannelConfig, wireRowOf, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceAnswersOnItsOwn, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };

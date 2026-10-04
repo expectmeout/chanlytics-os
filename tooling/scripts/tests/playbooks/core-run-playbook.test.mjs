@@ -147,8 +147,9 @@ const NOBODY_LEFT = {
   heardAny: 0,
   overCap: 0,
   overLimit: 0,
-  // Step 3: who it could not reach for want of an address or a channel, and who it reaches on each.
+  // Step 3: who it could not reach for want of an address, an address mail no longer goes to, or a channel, and who it reaches on each.
   no_address: 0,
+  address_stopped: 0,
   no_channel: 0,
   by_channel: { whatsapp: 0, sms: 0, email: 0 },
 };
@@ -383,6 +384,7 @@ test("a run counts everyone its moment named, each once, under the first rule th
     overCap: 1,
     overLimit: 0,
     no_address: 0,
+    address_stopped: 0,
     no_channel: 0,
     by_channel: onWhatsApp(2),
   });
@@ -705,6 +707,34 @@ test("the number's daily limit is Meta's: it holds WhatsApp's people alone, and 
     { ...NOBODY_LEFT, pool: 4, will: 3, overLimit: 1, by_channel: { whatsapp: 1, sms: 0, email: 2 } },
     "named, never dropped in silence, and the split still adds up to who it reaches",
   );
+});
+
+test("an address that bounced is counted as itself, not as no address and not as no channel: the run's reach says which, so the sheet can word each", async () => {
+  const f = fakes({ template: UTILITY, versions: ["email"] });
+  const r = await runPlaybook(
+    f.ports,
+    cmd({
+      playbook: reminder({ channels: ["email"] }),
+      ctx: context(
+        reminderCtx([
+          ["a", {}], // an address that works: email
+          ["b", { email_suppressed_at: "2026-09-01T10:00:00Z" }], // on file, and mail to it has stopped
+          ["c", { email: null }], // no address on file at all
+        ]),
+      ),
+    }),
+  );
+  assert.equal(r.outcome, "sent");
+  assert.equal(r.eligible, 1);
+  const [, row] = f.of("assemble")[0];
+  assert.deepEqual(row.audience.reach, {
+    ...NOBODY_LEFT,
+    pool: 3,
+    will: 1,
+    no_address: 1,
+    address_stopped: 1,
+    by_channel: { whatsapp: 0, sms: 0, email: 1 },
+  });
 });
 
 test("a channel the workspace is not ready on, or the message has no version on, holds those people and never fails the playbook: nobody is rerouted", async () => {
