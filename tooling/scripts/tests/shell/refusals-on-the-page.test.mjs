@@ -199,7 +199,12 @@ test("a refusal as a toast: the danger tone, the page's words for what did not h
 
 /* ------------------------------- forms ------------------------------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/business-record.jsx");
+// The business record's form is TSX (surfaces/settings/connections, decision 0015 step 11): it draws the kit's field error,
+// asks the role gate over the window's doors, and takes its verbs from `businessRecord` (record.ts), a module object this
+// test stubs by assignment.
+const { BusinessRecordForm } =
+  await import("../../../../apps/dashboard/src/surfaces/settings/connections/record-form.tsx");
+const { businessRecord } = await import("../../../../apps/dashboard/src/surfaces/settings/connections/record.ts");
 
 const bizApi = (over = {}) => ({
   read: async () => ({
@@ -238,11 +243,12 @@ const bizApi = (over = {}) => ({
 });
 const mountBiz = async (api) => {
   const flashes = [];
-  Object.assign(globalThis.window, { __businessRecord: api, __ME: { role: "owner", email: "owner@example.com" } });
+  Object.assign(businessRecord, api);
+  globalThis.window.__ME = { role: "owner", email: "owner@example.com" };
   cells = [];
   const render = () => {
     frames.begin();
-    return globalThis.window.BusinessRecordForm({ line: null, flash: (p) => flashes.push(p) });
+    return BusinessRecordForm({ line: null, flash: (p) => flashes.push(p) });
   };
   render();
   await settle();

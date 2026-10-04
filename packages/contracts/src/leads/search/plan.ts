@@ -11,13 +11,11 @@
  * to cost. No word here names the vendor that runs the searches: the owner
  * sees Claude finding businesses, and where each fact came from.
  *
- * This module holds the plan itself: its shape, the schema the route and the door check it with, the states an
- * area may name, and a changed plan's version. The rest is beside it: sets.ts, caps.ts, sentence.ts (the plan in
- * words), cards.ts (the card, and what a round asks for, costs and takes), endings.ts, class.ts, question.ts (the
+ * This module holds the plan itself: its shape, the states an area may name, and a changed plan's version. The rest
+ * is beside it: plan-schema.ts (the schema the route and the door check it with), sets.ts, caps.ts, sentence.ts (the
+ * plan in words), cards.ts (the card, and what a round asks for, costs and takes), endings.ts, class.ts, question.ts (the
  * question after the probe) and clean.ts (what code keeps of a listing).
  */
-import { z } from "zod";
-import { LEAD_MAX_PLACES } from "./caps";
 
 /* ------------------------------------------------------------ the plan -- */
 
@@ -121,81 +119,10 @@ export const US_STATES: Record<string, string> = {
 };
 export const US_CODES = new Set(Object.values(US_STATES));
 
-const KEY = /^[a-z][a-z0-9_]{0,39}$/;
+export const KEY = /^[a-z][a-z0-9_]{0,39}$/;
 // Control/format characters (bidi overrides, tag characters) and newlines are stripped from every
 // plan-authored text field before it can reach the judge's rubric (26; security review, item 9).
-const stripUnsafe = (s: string) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-const words = (min: number, max: number) =>
-  z
-    .string()
-    .transform((s) => stripUnsafe(s).trim())
-    .pipe(z.string().min(min).max(max));
-
-/** The route's input and the door's: the same shape, checked twice on purpose. */
-export const LeadSearchPlanSchema: z.ZodType<LeadSearchPlan> = z
-  .object({
-    version: z.number().int().min(1),
-    card: z.literal("local_businesses"),
-    name: words(2, 80),
-    asked: words(1, 400),
-    terms: z.array(words(2, 60)).min(1).max(5),
-    area: z.object({
-      kind: z.enum(["zip", "city", "radius"]),
-      label: words(2, 80),
-      state: z.string().regex(/^[A-Z]{2}$/),
-      center: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).nullable(),
-      radius_m: z.number().int().min(500).max(200_000),
-      zip: z
-        .string()
-        .regex(/^\d{5}$/)
-        .optional(),
-      query: words(2, 120),
-    }),
-    count: z.number().int().min(1).max(LEAD_MAX_PLACES),
-    contact: z.enum(["phone", "email"]),
-    criteria: z
-      .array(
-        z.object({
-          key: z.string().regex(KEY),
-          text: words(2, 120),
-          standard: z.enum(["likely", "seen"]),
-          required: z.boolean(),
-        }),
-      )
-      .max(8),
-    exclusions: z
-      .array(
-        z.object({
-          key: z.string().regex(KEY),
-          text: words(2, 80),
-          origin: z.enum(["claude", "you_said"]),
-          category_key: z.string().regex(KEY).optional(),
-        }),
-      )
-      .max(8),
-  })
-  .superRefine((p, ctx) => {
-    const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
-    if (new Set(keys).size !== keys.length)
-      ctx.addIssue({
-        code: "custom",
-        message: "every criterion and exclusion has a key of its own",
-        path: ["criteria"],
-      });
-    const lowerTerms = p.terms.map((t) => t.toLowerCase());
-    if (new Set(lowerTerms).size !== lowerTerms.length)
-      ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-    if (p.area.kind === "radius" && p.area.center === null)
-      ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-    if (p.area.kind === "zip" && !p.area.zip)
-      ctx.addIssue({
-        code: "custom",
-        message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
-        path: ["area", "zip"],
-      });
-    if (!US_CODES.has(p.area.state))
-      ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
-  });
+export const stripUnsafe = (s: string) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
 
 /** JSON.stringify with every object's keys sorted first, so the same value written in another key order compares equal. Array element order still matters. */
 function stableStringify(v: unknown): string {

@@ -1,8 +1,7 @@
 /**
- * Google on the classic pages: the listing and the connection as the edge
- * last read them (/api/v1/google → window.__GOOGLE, repainted as the tables
- * change), the view model the Reports section and Today's line derive from
- * it (contracts/google.ts), and the verbs — find, link, unlink, refresh,
+ * Google: the listing and the connection as the edge last read them (/api/v1/google, the seam's `google` value,
+ * repainted as the tables change), the view model the Reports section and Today's line derive from it
+ * (contracts/google.ts), and the verbs (`googleVerbs`, which Settings › Connections and the first run's Find import) — find, link, unlink, refresh,
  * connect, locations, choose, disconnect, reply, draft — each through the
  * typed client. After a write lands the refresh map re-reads this surface
  * and Setup's, since the Setup row reads the same facts; a draft touches
@@ -23,7 +22,7 @@ import {
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
-import { declareSurfaceValue, setSurfaceValue } from "../surfaces/surface-values";
+import { setSurfaceValue } from "../surfaces/surface-values";
 
 export interface GoogleSurface {
   dto: GoogleDto;
@@ -68,15 +67,6 @@ export interface GoogleApi {
     snippet: typeof reviewSnippet;
   };
 }
-
-declare global {
-  interface Window {
-    __google?: GoogleApi;
-  }
-}
-
-// The pages still on the shell (Today's line, Setup, the first run) read the surface under its old name.
-declareSurfaceValue("google", "__GOOGLE");
 
 export const googleOverride: SurfaceOverride = {
   key: "google",
@@ -129,76 +119,79 @@ export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
   not_available: "Connecting a Business Profile is not available here yet.",
 };
 
-export function installGoogle(win: Window = window): void {
-  win.__google = {
-    vm: (dto, periodDays, nowMs) => toGoogleVM(dto, periodDays, nowMs),
-    async find(query) {
-      const r = await api()("POST google/search", { body: query ? { query } : {} });
-      if (!r.ok) return { ok: false, candidates: [], query: query ?? "", fromFacts: false, message: r.message };
-      return {
-        ok: true,
-        candidates: r.data.candidates,
-        query: r.data.query,
-        fromFacts: r.data.from_facts === true,
-        message: "",
-      };
-    },
-    async link(placeId) {
-      const r = await api()("POST google/link", { body: { place_id: placeId } });
-      return { ok: r.ok, read: r.ok && r.data.read?.ok === true, message: r.ok ? "" : r.message };
-    },
-    async unlink() {
-      const r = await api()("DELETE google/link");
-      return { ok: r.ok, message: r.ok ? "" : r.message };
-    },
-    async refresh() {
-      const r = await api()("POST google/refresh", { body: {} });
-      if (!r.ok) return { ok: false, fresh: 0, counted: 0, message: r.message };
-      return { ok: true, fresh: r.data.fresh, counted: r.data.counted, message: "" };
-    },
-    connect() {
-      win.location.assign(api().url("GET google/connect"));
-    },
-    async locations() {
-      const r = await api()("GET google/locations");
-      if (!r.ok) return { ok: false, locations: [], message: r.message };
-      return { ok: true, locations: r.data.locations, message: "" };
-    },
-    async choose(accountName, locationName) {
-      const r = await api()("POST google/locations", {
-        body: { account_name: accountName, location_name: locationName },
-      });
-      return { ok: r.ok, read: r.ok && r.data.read?.ok === true, message: r.ok ? "" : r.message };
-    },
-    async disconnect() {
-      const r = await api()("DELETE google/connection");
-      return { ok: r.ok, message: r.ok ? "" : r.message };
-    },
-    reply: replyToReview,
-    draft: draftReply,
-    outcome() {
-      try {
-        const q = new URLSearchParams(win.location.search);
-        const outcome = q.get("google");
-        if (!outcome) return null;
-        const why = q.get("why");
-        q.delete("google");
-        q.delete("why");
-        const rest = q.toString();
-        win.history.replaceState(null, "", `${win.location.pathname}${rest ? `?${rest}` : ""}${win.location.hash}`);
-        return { outcome, why };
-      } catch {
-        return null;
-      }
-    },
-    outcomeWords: CONNECT_OUTCOME_WORDS,
-    words: {
-      rating: ratingWords,
-      stars: starsOf,
-      listing: listingLine,
-      checked: checkedWords,
-      connection: connectionWords,
-      snippet: reviewSnippet,
-    },
-  };
-}
+/** Google's verbs, each through its door. */
+export const googleVerbs: GoogleApi = {
+  vm: (dto, periodDays, nowMs) => toGoogleVM(dto, periodDays, nowMs),
+  async find(query) {
+    const r = await api()("POST google/search", { body: query ? { query } : {} });
+    if (!r.ok) return { ok: false, candidates: [], query: query ?? "", fromFacts: false, message: r.message };
+    return {
+      ok: true,
+      candidates: r.data.candidates,
+      query: r.data.query,
+      fromFacts: r.data.from_facts === true,
+      message: "",
+    };
+  },
+  async link(placeId) {
+    const r = await api()("POST google/link", { body: { place_id: placeId } });
+    return { ok: r.ok, read: r.ok && r.data.read?.ok === true, message: r.ok ? "" : r.message };
+  },
+  async unlink() {
+    const r = await api()("DELETE google/link");
+    return { ok: r.ok, message: r.ok ? "" : r.message };
+  },
+  async refresh() {
+    const r = await api()("POST google/refresh", { body: {} });
+    if (!r.ok) return { ok: false, fresh: 0, counted: 0, message: r.message };
+    return { ok: true, fresh: r.data.fresh, counted: r.data.counted, message: "" };
+  },
+  connect() {
+    window.location.assign(api().url("GET google/connect"));
+  },
+  async locations() {
+    const r = await api()("GET google/locations");
+    if (!r.ok) return { ok: false, locations: [], message: r.message };
+    return { ok: true, locations: r.data.locations, message: "" };
+  },
+  async choose(accountName, locationName) {
+    const r = await api()("POST google/locations", {
+      body: { account_name: accountName, location_name: locationName },
+    });
+    return { ok: r.ok, read: r.ok && r.data.read?.ok === true, message: r.ok ? "" : r.message };
+  },
+  async disconnect() {
+    const r = await api()("DELETE google/connection");
+    return { ok: r.ok, message: r.ok ? "" : r.message };
+  },
+  reply: replyToReview,
+  draft: draftReply,
+  outcome() {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const outcome = q.get("google");
+      if (!outcome) return null;
+      const why = q.get("why");
+      q.delete("google");
+      q.delete("why");
+      const rest = q.toString();
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`,
+      );
+      return { outcome, why };
+    } catch {
+      return null;
+    }
+  },
+  outcomeWords: CONNECT_OUTCOME_WORDS,
+  words: {
+    rating: ratingWords,
+    stars: starsOf,
+    listing: listingLine,
+    checked: checkedWords,
+    connection: connectionWords,
+    snippet: reviewSnippet,
+  },
+};

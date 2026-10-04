@@ -950,10 +950,13 @@ Object.assign(globalThis.window, {
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,
 });
-// People's TSX, which the Pipeline draws by import (decision 0015): its table, columns menu and rail kit are the names
-// the tree is found by below, and the page is the module itself.
+// People's TSX, which the Pipeline draws by import (decision 0015): its table and columns menu are the types the tree is
+// found by below, and the page is the module itself; the parts the shell still draws by name are published as it does.
 const { PEOPLE_GLOBALS } = await import("../../../../apps/dashboard/src/surfaces/people/people-globals.ts");
 Object.assign(globalThis.window, PEOPLE_GLOBALS);
+const { PeopleTable } = await import("../../../../apps/dashboard/src/surfaces/people/table/table.tsx");
+const { PeopleColumnsMenu } = await import("../../../../apps/dashboard/src/surfaces/people/table/columns-menu.tsx");
+const { plLoadedWords } = await import("../../../../apps/dashboard/src/surfaces/people/words.ts");
 const { PipelineScope } = await import("../../../../apps/dashboard/src/surfaces/people/pipeline/scope.tsx");
 // The kit's Menu, which a row and a card draw their acts with.
 const { Menu } = await import("../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
@@ -1345,7 +1348,7 @@ test("past the people People has loaded, the line says it counts only them, in P
   assert.equal(people.page.has_more, true, "the surface stopped with more to follow");
   const tree = draw();
   const parts = lineParts(tree);
-  assert.equal(parts.at(-1), globalThis.window.plLoadedWords(people.rows.length, 1400));
+  assert.equal(parts.at(-1), plLoadedWords(people.rows.length, 1400));
   assert.equal(parts.at(-1), `${people.rows.length} of 1,400 loaded`, "People's words: N of M loaded");
   assert.deepEqual(parts.slice(0, -1), pipelineOf(people.rows, people.fetchedAt, ZONE, null).summary);
 });
@@ -2613,7 +2616,7 @@ test("Columns shows where they came from and the day a proposal stands until, as
     ],
   });
   let tree = draw();
-  const menu = find(tree, (n) => n.type === globalThis.window.PeopleColumnsMenu);
+  const menu = find(tree, (n) => n.type === PeopleColumnsMenu);
   assert.deepEqual(
     menu.props.options.map((o) => [o.key, o.on]),
     [
@@ -2728,7 +2731,7 @@ test("a selection: People's bar leads with Mark as passed · N; why is asked onc
   };
   try {
     let tree = draw();
-    const table = find(tree, (n) => n.type === globalThis.window.PeopleTable);
+    const table = find(tree, (n) => n.type === PeopleTable);
     assert.equal(table.props.selectable, true);
     for (const id of ["wes", "nia", "cat"]) table.props.onToggle(id);
     tree = draw();
@@ -2778,7 +2781,7 @@ test("a selection: People's bar leads with Mark as passed · N; why is asked onc
     });
     tree = draw();
     assert.deepEqual(
-      [...find(tree, (n) => n.type === globalThis.window.PeopleTable).props.sel].sort(),
+      [...find(tree, (n) => n.type === PeopleTable).props.sel].sort(),
       ["cat", "nia"],
       "only Wes, who passed, leaves the selection: the one that had changed, and the client, stay picked",
     );

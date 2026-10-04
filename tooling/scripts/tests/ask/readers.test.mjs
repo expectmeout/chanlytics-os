@@ -1999,7 +1999,7 @@ test("the calendar's reader never writes (D7): an owner's Ask reads the board of
  * with their reply modes, then the person the feed names put in People.
  */
 const CALENDAR_ASKED_AT_MAIN = [
-  ["memberships.select", "tenant_id, role, tenants (slug)"],
+  ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
   ["tenants.select", "name, timezone"],
   ["tenant_config.select", "config"],
   ["rpc:people_list", null],
@@ -2036,6 +2036,36 @@ test("GET calendar through its reader asks what it asked at origin/main, in the 
       assert.equal(page.calendar.days.length, 7);
       assert.ok(!JSON.stringify(page).includes("cal.example"), "the address never reaches the browser");
     }
+  });
+});
+
+test("a route's turn takes the workspace's name and zone from its membership: GET calendar no longer asks for them, and says the membership row's zone; a turn handed none reads them as it did", async () => {
+  await withFeed({ body: ONE_ICS }, async () => {
+    // The membership's row as the real select embeds it (with-route.ts memberContext): its slug, name and zone. The
+    // tenants table says another zone, so an answer in it would show the zone was read again.
+    const t = calTables("https://cal.example/route.ics");
+    t.memberships[0].tenants = { slug: "harbor", name: "Harbor", timezone: "Asia/Tokyo" };
+    t.tenants[0].timezone = "UTC";
+    const ctx = calCtx(t);
+    const page = await calendarRoute.GET.run(req(`?workspace=${A}&from=2026-09-07&days=7`), ctx);
+    const seen = ctx.supabase.seen.map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}:${q.columns}`));
+    assert.ok(
+      !seen.includes("tenants.select:name, timezone"),
+      `the zone came with the membership: ${seen.join(" | ")}`,
+    );
+    assert.equal(seen[0], "memberships.select:tenant_id, role, tenants (slug, name, timezone)");
+    assert.equal(page.calendar.timezone, "Asia/Tokyo", "the board's days are the membership row's");
+    // Handed the facts, the turn answers them without asking; handed none, it asks as it always did.
+    const held = kernel.readerContext(worldCtx({ tables: {} }), {
+      tenantId: A,
+      role: "owner",
+      facts: { name: "Harbor", timezone: "Asia/Tokyo" },
+    });
+    assert.deepEqual((await kernel.load(held, facts, undefined)).data, { name: "Harbor", timezone: "Asia/Tokyo" });
+    assert.deepEqual(held.ctx.supabase.seen, [], "nothing asked");
+    const bare = turnIn(worldCtx({ tables: { tenants: [{ id: A, name: "Harbor", timezone: "UTC" }] } }));
+    assert.equal((await kernel.load(bare, facts, undefined)).data.timezone, "UTC");
+    assert.equal(bare.ctx.supabase.seen.length, 1);
   });
 });
 
@@ -2100,7 +2130,7 @@ test("GET ask/openings through its reader asks what it asked at origin/main, in 
   assert.deepEqual(
     ctx.supabase.seen.map((q) => [`${q.table}.${q.op}`, q.columns]),
     [
-      ["memberships.select", "tenant_id, role, tenants (slug)"],
+      ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
       ["tenants.select", "name, timezone"],
       // At origin/main (c39ce689), the one column: config.
       ["tenant_config.select", "tenant_id, config, version, updated_at, updated_by"],
@@ -2339,7 +2369,7 @@ const peopleWorld = () => {
  * runs that touched them.
  */
 const PEOPLE_ASKED_AT_MAIN = [
-  ["memberships.select", "tenant_id, role, tenants (slug)"],
+  ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
   ["rpc:people_list", null],
   ["contacts.select", "id"],
   ["policies.select", "subject_type, subject_id, mode"],
@@ -2368,18 +2398,52 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
   ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
 ];
+/**
+ * The same queries in the order they reach the database since 2 Oct 2026: what is read of the workspace -- how its
+ * customers buy, the calendar's zone and settings, the pace -- and the page's reply modes no longer wait for the page's
+ * rows, a round trip each time; they leave with the page and its count. Then, once sells_by says deals are on, the
+ * follow-up's facts; and once the rows are in, who each step is for.
+ */
+const PEOPLE_ASKED_NOW = [
+  ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
+  ["rpc:people_list", null],
+  ["tenants.select", "sells_by"],
+  ["tenant_channels.select", "config"],
+  ["lines.select", "sms_state, reg_mock"],
+  ["tenants.select", "name, timezone"],
+  ["tenant_config.select", "config"],
+  ["deals.select", "id, stage, proposed_at, decided_at"],
+  ["policies.select", "subject_type, subject_id, mode"],
+  ["contacts.select", "id"],
+  ["playbooks.select", "id, state, run_hour, last_run_for, template_name, template_language"],
+  ["policies.select", "mode"],
+  ["tenants.select", "status"],
+  ["tenant_channels.select", "config"],
+  ["deals.select", "id, contact_id, proposed_at"],
+  ["rpc:team_roster", null],
+  ["playbooks.select", "channels"],
+  ["templates.select", "meta_status, category"],
+  ["tenants.select", "timezone"],
+  ["tenants.select", "timezone"],
+  ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
+  ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
+  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+];
+/** A list of queries as a bag: the same reads, whatever their order. */
+const bagOf = (asked) => asked.map((q) => JSON.stringify(q)).sort();
 /** Every query in the order it reached the database, with the columns a select asked for. */
 const askedWith = (ctx) =>
   ctx.supabase.seen.map((q) => (q.rpc ? [`rpc:${q.rpc}`, null] : [`${q.table}.${q.op}`, q.columns]));
 /** The config reader's columns (getTenantConfig), where the calendar's own lookup asked for the one, config. */
 const CONFIG_READER_COLUMNS = "tenant_id, config, version, updated_at, updated_by";
 
-test("GET contacts through its reader asks what it asked at origin/main, in its two stages -- the page and its count at once; then how the customers buy, the calendar's zone and settings, who each step is for, the pace and the follow-up's facts at once -- the settings now through the config reader's columns and sells_by through its reader; a turn that holds the zone, the settings and sells_by reads none of them again", async () => {
+test("GET contacts through its reader asks what it asked at origin/main -- the page, its count and everything read of the workspace at once, then the follow-up's facts and who each step is for -- the settings now through the config reader's columns and sells_by through its reader; a turn that holds the zone, the settings and sells_by reads none of them again", async () => {
   await withFeed({ body: ONE_ICS }, async () => {
-    const want = PEOPLE_ASKED_AT_MAIN.map(([k, cols]) => [
-      k,
-      k === "tenant_config.select" ? CONFIG_READER_COLUMNS : cols,
-    ]);
+    const asConfigReader = (list) =>
+      list.map(([k, cols]) => [k, k === "tenant_config.select" ? CONFIG_READER_COLUMNS : cols]);
+    const want = asConfigReader(PEOPLE_ASKED_NOW);
+    assert.deepEqual(bagOf(want), bagOf(asConfigReader(PEOPLE_ASKED_AT_MAIN)), "no read added and none lost");
     // One world for every request below: its times are read from the clock once.
     const w = peopleWorld();
     const routed = worldCtx(w);
@@ -2405,7 +2469,19 @@ test("GET contacts through its reader asks what it asked at origin/main, in its 
     const searched = worldCtx(w);
     const s = await kernel.load(turnIn(searched), peopleReader, { q: "luis", offset: 0 });
     assert.deepEqual([s.data.deal_pace, s.data.follow_up], [null, null]);
-    assert.deepEqual(askedWith(searched), want.slice(1, 8), "the two stages, less the pace and the follow-up");
+    assert.deepEqual(
+      askedWith(searched),
+      want
+        .slice(1)
+        .filter(
+          ([k, cols]) =>
+            !/^(playbooks|tenant_channels|lines|templates|broadcasts|broadcast_recipients)\./.test(k) &&
+            !(k === "deals.select") &&
+            !(k === "policies.select" && cols === "mode") &&
+            !(k === "tenants.select" && /^(status|timezone)$/.test(cols)),
+        ),
+      "the same, less the pace and the follow-up",
+    );
     // A turn that already holds the zone, the settings and how the customers buy is asked for none of them again.
     const turn = turnIn(worldCtx(w));
     await Promise.all([facts, config, sellsBy].map((x) => kernel.load(turn, x, undefined)));
@@ -2980,7 +3056,7 @@ test("the playbooks, for Ask and for the page: GET playbooks answers its reader'
  * proposal's follow-up; and the lists.
  */
 const PLAYBOOKS_ASKED_AT_MAIN = [
-  ["memberships.select", "tenant_id, role, tenants (slug)"],
+  ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
   ["tenants.select", "name, timezone"],
   ["tenants.select", "timezone"],
   ["tenants.select", "sells_by"],

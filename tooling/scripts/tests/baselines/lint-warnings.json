@@ -108,9 +108,6 @@
   "apps/dashboard/src/legacy-bridge/tab-memory.ts": {
     "@typescript-eslint/no-unsafe-assignment": 1
   },
-  "apps/dashboard/src/legacy-bridge/whatsapp-connect.ts": {
-    "@typescript-eslint/prefer-promise-reject-errors": 1
-  },
   "apps/dashboard/src/legacy/components/ask-face.jsx": {
     "react-hooks/exhaustive-deps": 2
   },
@@ -170,37 +167,8 @@
   "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx": {
     "jsx-a11y-x/click-events-have-key-events": 1
   },
-  "apps/dashboard/src/legacy/pages/first-run.jsx": {
-    "jsx-a11y-x/label-has-associated-control": 1,
-    "react-hooks/exhaustive-deps": 5
-  },
-  "apps/dashboard/src/legacy/pages/integrations-real.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1
-  },
-  "apps/dashboard/src/legacy/pages/leads-bench.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1,
-    "react-hooks/exhaustive-deps": 2
-  },
-  "apps/dashboard/src/legacy/pages/leads-cells.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-noninteractive-element-interactions": 1,
-    "jsx-a11y-x/no-noninteractive-tabindex": 2
-  },
-  "apps/dashboard/src/legacy/pages/leads-map.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1,
-    "react-hooks/exhaustive-deps": 10
-  },
-  "apps/dashboard/src/legacy/pages/leads-real.jsx": {
-    "react-hooks/exhaustive-deps": 5
-  },
-  "apps/dashboard/src/legacy/pages/leads-scope.jsx": {
-    "jsx-a11y-x/no-autofocus": 1
-  },
   "apps/dashboard/src/legacy/pages/settings.jsx": {
-    "jsx-a11y-x/no-autofocus": 1,
-    "react-hooks/exhaustive-deps": 4
+    "react-hooks/exhaustive-deps": 1
   },
   "apps/dashboard/src/server/ask/context/pages.ts": {
     "@typescript-eslint/require-await": 1
@@ -280,6 +248,27 @@
   "apps/dashboard/src/server/workspace/capabilities.ts": {
     "@typescript-eslint/no-base-to-string": 1
   },
+  "apps/dashboard/src/surfaces/leads/bench/bench.tsx": {
+    "jsx-a11y-x/click-events-have-key-events": 1,
+    "jsx-a11y-x/no-static-element-interactions": 1
+  },
+  "apps/dashboard/src/surfaces/leads/cells/columns.tsx": {
+    "jsx-a11y-x/no-noninteractive-tabindex": 1
+  },
+  "apps/dashboard/src/surfaces/leads/cells/hover.tsx": {
+    "jsx-a11y-x/click-events-have-key-events": 1,
+    "jsx-a11y-x/no-noninteractive-element-interactions": 1
+  },
+  "apps/dashboard/src/surfaces/leads/cells/shapes.tsx": {
+    "jsx-a11y-x/no-noninteractive-tabindex": 1
+  },
+  "apps/dashboard/src/surfaces/leads/map/map.tsx": {
+    "jsx-a11y-x/click-events-have-key-events": 1,
+    "jsx-a11y-x/no-static-element-interactions": 1
+  },
+  "apps/dashboard/src/surfaces/leads/scope/rail.tsx": {
+    "jsx-a11y-x/no-autofocus": 1
+  },
   "apps/dashboard/src/surfaces/people/bulk/desk-bulk.tsx": {
     "jsx-a11y-x/no-autofocus": 3
   },
@@ -310,6 +299,22 @@
   "apps/dashboard/src/surfaces/people/table/columns-menu.tsx": {
     "jsx-a11y-x/click-events-have-key-events": 1,
     "jsx-a11y-x/interactive-supports-focus": 1
+  },
+  "apps/dashboard/src/surfaces/settings/connections/row.tsx": {
+    "jsx-a11y-x/click-events-have-key-events": 1
+  },
+  "apps/dashboard/src/surfaces/settings/team/team.tsx": {
+    "jsx-a11y-x/no-autofocus": 1
+  },
+  "apps/dashboard/src/surfaces/setup/first-run/hooks.tsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/surfaces/setup/first-run/phone.tsx": {
+    "jsx-a11y-x/label-has-associated-control": 1,
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/surfaces/setup/first-run/try.tsx": {
+    "react-hooks/exhaustive-deps": 3
   },
   "apps/edge/api/whatsapp.ts": {
     "@typescript-eslint/require-await": 1
@@ -398,7 +403,7 @@
     "@typescript-eslint/no-unsafe-call": 1,
     "@typescript-eslint/no-unsafe-member-access": 2
   },
-  "packages/contracts/src/config/workspace-config/brain-config.ts": {
+  "packages/contracts/src/config/workspace-config/brain-config-schema.ts": {
     "@typescript-eslint/no-deprecated": 1
   },
   "packages/contracts/src/config/workspace-config/business-profile.ts": {
@@ -413,29 +418,20 @@
   "packages/contracts/src/conversations/message-author.ts": {
     "@typescript-eslint/no-base-to-string": 2
   },
-  "packages/contracts/src/leads/lead-import.ts": {
+  "packages/contracts/src/leads/lead-import-schema.ts": {
     "@typescript-eslint/no-deprecated": 1
   },
-  "packages/contracts/src/leads/lead-plan.ts": {
+  "packages/contracts/src/leads/lead-plan-schema.ts": {
     "@typescript-eslint/no-deprecated": 6
   },
   "packages/contracts/src/leads/search/cards.ts": {
     "@typescript-eslint/no-unsafe-assignment": 1
   },
-  "packages/contracts/src/people/list-rules.ts": {
-    "@typescript-eslint/no-deprecated": 1
-  },
   "packages/contracts/src/reach-out/lead-hours.ts": {
     "@typescript-eslint/no-base-to-string": 1
   },
-  "packages/contracts/src/reach-out/reach-out-dtos.ts": {
-    "@typescript-eslint/no-deprecated": 1
-  },
-  "packages/contracts/src/reach-out/reach-out-reply-words.ts": {
-    "@typescript-eslint/no-deprecated": 2
-  },
-  "packages/contracts/src/reach-out/reach-out-words.ts": {
-    "@typescript-eslint/no-deprecated": 3
+  "packages/contracts/src/reach-out/reach-out-schemas.ts": {
+    "@typescript-eslint/no-deprecated": 6
   },
   "packages/contracts/src/setup/check-chips.ts": {
     "@typescript-eslint/no-unsafe-call": 1,
@@ -451,11 +447,13 @@
   "packages/contracts/src/templates/template-parts.ts": {
     "@typescript-eslint/no-base-to-string": 9
   },
-  "packages/contracts/src/workspace/second-factor.ts": {
-    "@typescript-eslint/no-base-to-string": 1,
+  "packages/contracts/src/workspace/second-factor-schema.ts": {
     "@typescript-eslint/no-deprecated": 1
   },
-  "packages/contracts/src/workspace/signup.ts": {
+  "packages/contracts/src/workspace/second-factor.ts": {
+    "@typescript-eslint/no-base-to-string": 1
+  },
+  "packages/contracts/src/workspace/signup-schema.ts": {
     "@typescript-eslint/no-deprecated": 1
   },
   "packages/contracts/src/workspace/workspace.ts": {

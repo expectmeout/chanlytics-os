@@ -160,7 +160,8 @@ function headerFacts(thread: Thread): HeaderFacts {
   return { person, deal, proposalUrl, visit };
 }
 
-const DEAL_ICON: Record<string, string> = {
+// Any act's glyph by its id, and the send's always: the menu's send is drawn whether or not the kit lists it.
+const DEAL_ICON: Readonly<Record<string, string> & { send: string }> = {
   propose: "deal",
   send: "send",
   won: "check",

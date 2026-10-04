@@ -2,7 +2,7 @@
  * How it answers: the languages and the voices offered, and the owner's own words at rest (the notes, the
  * instructions and the three messages sent in the business's name). The hand-off's words are handoff-words.ts.
  */
-import { INSTRUCTIONS_MAX } from "../workspace-config/business-profile";
+import { INSTRUCTIONS_MAX } from "../workspace-config/config-rules";
 import { FALLBACK_DEFAULTS, isProductFallback } from "../workspace-config/fallbacks";
 import { CHIPS_SHOWN, chipsMoreWords, count } from "./counts";
 

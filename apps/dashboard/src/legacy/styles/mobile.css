@@ -123,9 +123,10 @@
   .tq-live-text { white-space: normal; }
   /* The day card's lines on a phone: the words take the row and the door goes under them, its words lined up with
      theirs (the mark is 24px and the gap 10px; the door's own padding is 6px). Beside the words, a door that never
-     wraps left them a column one word wide, and they ran under it (24 Sep). */
+     wraps left them a column one word wide, and they ran under it (24 Sep). A list that draws no mark says its own
+     indent (--beat-door-indent: the brief's, dashboard-a-v2.css) instead of a second rule over the door. */
   :where(.dash-a-v2) .tc-beats .brief-beat-text { flex-basis: calc(100% - 34px); }
-  :where(.dash-a-v2) .tc-beats .brief-beat-text ~ .brief-chip { margin-left: 28px; }
+  :where(.dash-a-v2) .tc-beats .brief-beat-text ~ .brief-chip { margin-left: var(--beat-door-indent, 28px); }
   /* What is left to set up, on a phone (canvas P9): the card is one row, the next thing -- its dot, its name over one
      line of its words with how many are left, and its button beside them. The head, the other rows, Skip and Hide
      wait for a wider screen. */

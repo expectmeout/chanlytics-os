@@ -2,7 +2,8 @@
  * When you're open: the line under the card's title, whose clock the hours being edited are on, and the closed
  * days still ahead, each counted on the business's own day.
  */
-import { DAYS, type Closure, type Hours } from "../workspace-config/business-profile";
+import type { Closure, Hours } from "../workspace-config/business-profile";
+import { DAYS } from "../workspace-config/config-rules";
 import { dayIntervals } from "../../calendar/availability";
 import { closureDatesLabel, closuresFrom } from "../../calendar/calendar-words";
 import { zoneDayKey } from "../../shared/clock";

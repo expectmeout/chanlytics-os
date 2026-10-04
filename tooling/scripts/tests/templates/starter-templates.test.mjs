@@ -453,9 +453,12 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
     // The route is an App Router page since decision 0015 (its row left app-routes.jsx), on the route `messages`.
     readCode("apps/dashboard/app/(os)/w/[workspace]/templates/page.tsx").includes("TemplatesPage"),
   );
+  // Integrations is Settings › Connections' TSX now (moved from integrations-real.jsx): the pane and its row.
+  const integrations = ["pane", "row"]
+    .map((f) => readCode(`apps/dashboard/src/surfaces/settings/connections/${f}.tsx`))
+    .join(" ");
   assert.ok(
-    readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx").includes('messages: "channel-messages"') &&
-      !readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx").includes("TemplatesCard"),
+    integrations.includes('messages: "channel-messages"') && !integrations.includes("TemplatesCard"),
     "Integrations points at Messages (the WhatsApp row's verb) and lists no template",
   );
   assert.ok(s.includes("tplTitle(") && s.includes('" · made here"'), "a title, with the raw name beside it");

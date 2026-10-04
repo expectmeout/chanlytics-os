@@ -7,7 +7,6 @@
  */
 
 import { MIN_MS, HOUR_MS } from "../shared/time";
-import { PolicyLimitsSchema } from "./workspace-config/policy-classes";
 
 /** A currency by its code, before or after a figure: USD 45, 45 EUR, 450 MXN. */
 const CODES = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
@@ -353,18 +352,26 @@ export const REPLY_DELAY_MAX_MS = 10 * MIN_MS;
  */
 export const REPLY_CAP_DEFAULT = 20;
 export const PAUSE_HOURS_DEFAULT = 24;
+/** The pause a reply policy may keep, in whole hours: the range PolicyLimitsSchema's `pause_hours` is built from. */
+export const PAUSE_HOURS_MIN = 1;
+export const PAUSE_HOURS_MAX = 168;
 
 /**
  * How long a person's touch keeps the receptionist off a thread, in hours, from
  * the reply policy's limits. A stored `pause_hours` counts when it is one the
  * reply policy's schema allows, which is all `PUT policies` and the Autonomy
- * dial write (a whole number from 1 to 168); anything else, or nothing, is the
- * default day. The pause, the handoff email and the pane's words all read this,
- * so none of them can say one number and apply another.
+ * dial write (a whole number from PAUSE_HOURS_MIN to PAUSE_HOURS_MAX); anything
+ * else, or nothing, is the default day. The pause, the handoff email and the
+ * pane's words all read this, so none of them can say one number and apply another.
  */
 export function pauseHoursOf(limits: { pause_hours?: unknown } | null | undefined): number {
-  const stored = PolicyLimitsSchema.shape.pause_hours.safeParse(limits?.pause_hours);
-  return stored.success && stored.data !== undefined ? stored.data : PAUSE_HOURS_DEFAULT;
+  const stored = limits?.pause_hours;
+  return typeof stored === "number" &&
+    Number.isInteger(stored) &&
+    stored >= PAUSE_HOURS_MIN &&
+    stored <= PAUSE_HOURS_MAX
+    ? stored
+    : PAUSE_HOURS_DEFAULT;
 }
 
 /** The same pause in ms, for a `paused_until`. */

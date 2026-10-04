@@ -110,3 +110,20 @@ wire changes.
 
 - Whether contracts should ship its view models and its schemas as separate entry points, so a page that needs a
   schema does not load every view model. Not needed for this note's steps; the bundle budget would say when.
+
+  **Answered on 2 October 2026, the other way round.** The budget said it: what a page could not cut was not the view
+  models but zod's classic API, one object a bundler keeps whole once any schema written in it is imported, 89 KB of
+  the workspace route's 848 KB gzipped. Contracts now builds three entries (`packages/contracts/tsup.config.ts`):
+  - the index, which the server, the edge, the packages and the tests read as before;
+  - the browser's, `src/browser.generated.ts`: every value whose module reaches no classic zod, written from the
+    barrels by `tooling/scripts/gen/contracts-browser-entry.mjs` and handed to a page's bundle by `package.json`'s
+    `browser` condition, which only a client chunk resolves. A schema sits in a module of its own beside its words
+    (`*-schema.ts`), so a page that says the words loads none of it;
+  - `write-rules`, the two classic schemas a page does need (the Business tab's save rules, the waitlist's), which the
+    page asks for by `import()` when it will judge a draft.
+
+  A schema every page parses with is zod/mini, which shares the classic API's core and which the bundler cuts: a
+  list's rule, a page load's report. The numbers a schema and a page both say are written once, schema-free
+  (`config/workspace-config/config-rules.ts`), and the schemas are built from them. The route's JS fell from 847.6 to
+  778.6 KB gzipped. `shipping/browser-entry.test.mjs` holds the entry current, every value a page imports from
+  contracts to a name the entry exports, and the built entry free of the classic API.

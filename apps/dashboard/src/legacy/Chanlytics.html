@@ -51,10 +51,10 @@
   <script src="data/kit-globals.js?v=3"></script>
   <!-- The Inbox's and Conversations' names the pages below still read (INBOX_DATA, CONVERSATIONS_DATA, IX_STORE, ixWaitsOnYou, CV_ROUTE, CV_IN_CHANNEL): surfaces/inbox/legacy-globals.ts, built by the same server, the object the app publishes from seed-globals; the two pages themselves are App Router pages only the app draws -->
   <script src="data/inbox-globals.js?v=1"></script>
-  <!-- People's shared parts the Leads scope, the Pipeline and the person page still draw by name (the table, the rail kit, the list page's two hooks): surfaces/people/people-globals.ts, built by the same server, the object the app publishes from seed-globals -->
+  <!-- People's parts the shell still draws by name (the strip's scopes, the deal and step sheets, the demo's Lists marks): surfaces/people/people-globals.ts, built by the same server, the object the app publishes from seed-globals -->
   <script src="data/people-globals.js?v=1"></script>
-  <!-- The lead peek and its acts, which the Leads pages below draw by name (TSX since decision 0015: surfaces/leads/peek). -->
-  <script src="data/leads-globals.js?v=1"></script>
+  <!-- Leads' plan card, which Ask's palette draws for a lead_search card (TSX since decision 0015: surfaces/leads/globals.ts), until Ask moves -->
+  <script src="data/leads-globals.js?v=2"></script>
   <!-- The Business tab's helpers: legacy-bridge/business-tab.ts through contracts, built by the same server, the object the app publishes as __businessTab -->
   <script src="data/business-tab.js?v=27"></script>
   <!-- The three: legacy-bridge/mascot built by the same server, the object the app publishes as __mascot, so the mockup's Ask has its face -->
@@ -83,18 +83,9 @@
 
   <!-- People (Triage-first portfolio) -->
   <script type="text/babel" src="pages/clients-bits.jsx?v=2"></script>
-  <script type="text/babel" src="pages/leads-real.jsx?v=12"></script>
-  <script type="text/babel" src="pages/leads-cells.jsx?v=4"></script>
-  <script type="text/babel" src="pages/leads-bench.jsx?v=2"></script>
-  <script type="text/babel" src="pages/leads-map.jsx?v=3"></script>
-  <script type="text/babel" src="pages/leads-scope.jsx?v=54"></script>
-  <script type="text/babel" src="pages/leads-finder.jsx?v=13"></script>
-  <script type="text/babel" src="pages/reach-out/reach-out-leads.jsx?v=3"></script>
 
   <!-- Campaigns, Settings -->
 
-  <script type="text/babel" src="pages/setup.jsx?v=10"></script>
-  <script type="text/babel" src="pages/first-run.jsx?v=13"></script>
   <script type="text/babel" src="pages/business-tab-save.jsx?v=20"></script>
   <script type="text/babel" src="pages/business-tab-folds.jsx?v=23"></script>
   <script type="text/babel" src="pages/business-tab-gestures.jsx?v=21"></script>
@@ -107,12 +98,8 @@
   <script type="text/babel" src="pages/business-tab-prompt.jsx?v=7"></script>
   <script type="text/babel" src="pages/business-tab-create.jsx?v=6"></script>
   <script type="text/babel" src="pages/business-tab.jsx?v=42"></script>
-  <script type="text/babel" src="pages/settings.jsx?v=68"></script>
-  <script type="text/babel" src="pages/billing-real.jsx?v=8"></script>
+  <script type="text/babel" src="pages/settings.jsx?v=73"></script>
   <script type="text/babel" src="pages/partner-real.jsx?v=4"></script>
-  <script type="text/babel" src="pages/sending-domains.jsx?v=6"></script>
-  <script type="text/babel" src="pages/integrations-real.jsx?v=12"></script>
-  <script type="text/babel" src="pages/business-record.jsx?v=3"></script>
   <script type="text/babel" src="pages/platform.jsx?v=6"></script>
 
   <!-- Shell -->
@@ -136,7 +123,7 @@
   <script type="text/babel" src="demo/pages/content-cal.jsx?v=8"></script>
   <script type="text/babel" src="demo/pages/pipeline.jsx?v=12"></script>
 
-  <script type="text/babel" src="demo/pages/tasks.jsx?v=21"></script>
+  <script type="text/babel" src="demo/pages/tasks.jsx?v=22"></script>
 
   <script type="text/babel" data-presets="env,react">
     const { useEffect, useCallback } = React;

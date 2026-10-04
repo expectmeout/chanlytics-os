@@ -96,15 +96,15 @@ test("a person's page is its own head: a null title, and its way back to People 
   setSurfaceValue("people", undefined);
 });
 
-test("the route says the standing once, from its address: a person's page its own head, the Pipeline's page its own, else People's", async () => {
+test("the route says the standing once, from its address: a person's page its own head, the Pipeline's and Leads' pages their own, else People's", async () => {
   const route = (await import("node:fs")).readFileSync(
     new URL("../../../../../apps/dashboard/src/surfaces/people/people-route.tsx", import.meta.url),
     "utf8",
   );
   assert.match(
     route,
-    /usePeopleStanding\(person \? "person" : pipeline \? null : "people"\)/,
-    "one call, keyed by the address; the Pipeline's page says its own (pipeline/standing.tsx)",
+    /usePeopleStanding\(person \? "person" : pipeline \|\| leads \? null : "people"\)/,
+    "one call, keyed by the address; the Pipeline's page and Leads say their own (pipeline/standing.tsx, rail/standing.tsx)",
   );
   assert.equal(route.match(/usePeopleStanding\(/g).length, 1, "and only the one");
   assert.ok(!/<PeopleHead|<Glass>/.test(route), "the page draws no head of its own; the frame's is the head");

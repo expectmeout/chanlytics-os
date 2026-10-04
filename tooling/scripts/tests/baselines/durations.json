@@ -26,7 +26,6 @@
   "packages/contracts/src/calendar/feed.ts": 6,
   "packages/contracts/src/calendar/zone-math.ts": 2,
   "packages/contracts/src/config/workspace-config/compose.ts": 1,
-  "packages/contracts/src/config/workspace-config/policy-classes.ts": 1,
   "packages/contracts/src/email/sending-domains.ts": 1,
   "packages/core/src/deliver.ts": 1,
   "packages/core/src/inbound/reply-gates.ts": 1,

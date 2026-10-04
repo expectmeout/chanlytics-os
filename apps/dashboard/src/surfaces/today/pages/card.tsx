@@ -11,24 +11,23 @@
  */
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import type { BroadcastVM, ReportsLike, TodayFigureId, TodayFigureVM, TodayVM } from "@chanlytics/contracts";
+import {
+  toGoogleVM,
+  type BroadcastVM,
+  type ReportsLike,
+  type TodayFigureId,
+  type TodayFigureVM,
+  type TodayVM,
+} from "@chanlytics/contracts";
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import type { PageClock } from "@/legacy-bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { useLook } from "../../kit/look/look";
 import { surfaceValue } from "../../surface-values";
+import { useSurface } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
-import {
-  appNavigate,
-  doorGlyph,
-  borrowed,
-  workspaceClock,
-  googleRead,
-  googleVm,
-  surfaceFailed,
-  useMoved,
-} from "../shell";
+import { appNavigate, doorGlyph, borrowed, workspaceClock, surfaceFailed, useMoved } from "../shell";
 import { Button } from "../../kit/button/button";
 
 /** A door to a route: the frame's move. */
@@ -85,11 +84,9 @@ const RunsDone = ({ nav }: { nav: Nav }) => {
 // first read (contracts/google.ts reviewIsNew). From the Google surface, which boots with the rest. Gone once it is
 // old news.
 const ReviewLine = ({ nav }: { nav: Nav }) => {
-  useMoved("google");
-  const G = googleRead();
-  const google = googleVm();
-  if (!G || !G.dto.listing || !google) return null;
-  const line = google.vm(G.dto, 30).todayLine;
+  const G = useSurface("google");
+  if (!G || !G.dto.listing) return null;
+  const line = toGoogleVM(G.dto, 30).todayLine;
   if (!line) return null;
   return (
     <div className="brief-beat" data-testid="brief-review">

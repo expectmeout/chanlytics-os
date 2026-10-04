@@ -78,6 +78,7 @@
   "GET workspaces answers tenantId": 1,
   "PATCH team/[id] answers membershipId": 1,
   "POST ask/messages/[id]/proposals/[pid] answers atMs": 1,
+  "POST ask/voice/page takes askedAt": 1,
   "POST ask/warm takes askedAt": 1,
   "POST partner/workspaces/[id]/resend answers expiresAt": 1,
   "POST team/invite answers alreadyInvited": 1,

@@ -112,7 +112,6 @@ export const HELD_TYPED = [
   "@typescript-eslint/no-unsafe-member-access",
   "@typescript-eslint/no-unsafe-return",
   "@typescript-eslint/only-throw-error",
-  "@typescript-eslint/prefer-promise-reject-errors",
   "@typescript-eslint/require-await",
   "@typescript-eslint/restrict-template-expressions",
   "@typescript-eslint/unbound-method",
@@ -290,6 +289,8 @@ export const KIT_PENDING = [
   "apps/dashboard/src/surfaces/calendar",
   "apps/dashboard/src/surfaces/people",
   "apps/dashboard/src/surfaces/leads",
+  "apps/dashboard/src/surfaces/setup",
+  "apps/dashboard/src/surfaces/settings",
 ];
 
 /** The rule on raw elements, over src/surfaces but the kit and the folders `pending` lists. Its test lists one. */

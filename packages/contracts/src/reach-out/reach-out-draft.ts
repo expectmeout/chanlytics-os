@@ -23,8 +23,8 @@ import {
   isReachOutHold,
   validateReachOutChain,
   type ChainIssue,
-  type ReachOutChainInput,
 } from "./reach-out-words";
+import type { ReachOutChainInput } from "./reach-out-schemas";
 
 export interface ReachOutDraftStep {
   /** The step's row when the chain is being changed; null for a step not saved yet. */

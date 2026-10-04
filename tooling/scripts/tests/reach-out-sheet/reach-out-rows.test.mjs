@@ -634,7 +634,7 @@ test("Edit opens the reach-out sheet over the chain as read, saves through its o
     templateUse: null,
     templateSent: null,
   });
-  W.__SETUP = {
+  setSurfaceValue("setup", {
     dto: {
       email: {
         mailbox: null,
@@ -652,7 +652,7 @@ test("Edit opens the reach-out sheet over the chain as read, saves through its o
         },
       },
     },
-  };
+  });
   fresh();
   const state = { open: true };
   const r = openPane(chainOf(), state);

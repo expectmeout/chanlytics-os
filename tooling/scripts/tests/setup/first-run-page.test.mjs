@@ -1,14 +1,22 @@
 /**
- * The first run's page (#/start), drawn without a browser: Setup's rows one step at a time, the rail, the phone's step
+ * The first run's page (/start), drawn without a browser: Setup's rows one step at a time, the rail, the phone's step
  * line, the receptionist card, Finish later, a step already reached opened in place, a failed read and its retry.
- * The steps and every word are contracts' (first-run.ts); the page runs for real under a stub React, with the Setup
- * rows it draws (setup.jsx) loaded beside it.
+ * The steps and every word are contracts' (first-run.ts); the page runs for real under a stub React -- the TSX page
+ * (surfaces/setup/first-run/page.tsx, decision 0015 step 10) with the Setup rows it draws (surfaces/setup/rows) imported
+ * beside it, as the app imports them.
+ *
+ * What the page reads is the seam's, typed: Setup, the settings read and Live through `useSurface` (so a test sets them
+ * with `setSurfaceValue`, never by assigning a window global, which is only the seam's mirror), and Setup's verbs through
+ * the module object `setupVerbs` (surfaces/setup/surface.ts), which a test stubs by assigning onto it. The tab's drafts are
+ * `tabMemoryFor(window)` over the window's sessionStorage, keyed by the workspace in the address. What still comes off the
+ * window is the shell's: Google and Stripe's doors, the Business tab's saver, the role gate and the toast.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setupSteps, FIRST_RUN_HELPERS, FIRST_RUN_LANDED_KEY } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitPages, useStubHooks } from "../_legacy-react.mjs";
+import { useStubHooks } from "../_legacy-react.mjs";
+import { importSrc } from "../_source.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const blank = {
@@ -69,26 +77,28 @@ let refreshed = 0;
 /** The first receptionist's asks, and what the route answers next (made, unless a test says). */
 const receptionistAsked = [];
 let receptionistSays = null;
-globalThis.Icon = "Icon";
-globalThis.React = { Fragment: "Fragment" };
+// The stub React's element: a TSX module draws elements as it loads (a constant sentence is a fragment), so it is in place
+// before any of them is imported; mount() adds the hooks.
+const frames = hookFrames();
+globalThis.React = {
+  Fragment: "Fragment",
+  createElement: (type, p, ...kids) => {
+    const props = { ...(p || {}), children: kids.flat(Infinity) };
+    const node = { type, props };
+    if (typeof type === "function") node.rendered = frames.render(type, props);
+    return node;
+  },
+};
 globalThis.window = {
-  location: { hash: "#/start" },
+  // The address names the workspace the tab's drafts are kept for (tab-memory.ts: /w/<slug>/...).
+  location: { hash: "#/start", pathname: "/w/harbor/start" },
   sessionStorage: {
     getItem: (k) => store[k] ?? null,
     setItem: (k, v) => {
       store[k] = String(v);
     },
-  },
-  __SETUP: surface(blank),
-  __firstRun: FIRST_RUN_HELPERS,
-  __setup: {
-    refresh: async () => {
-      refreshed += 1;
-    },
-    later: async () => ({ ok: true, message: "" }),
-    receptionist: async () => {
-      receptionistAsked.push(1);
-      return receptionistSays ?? { ok: true, wrote: true, message: "" };
+    removeItem: (k) => {
+      delete store[k];
     },
   },
   __WORKSPACES: [{ id: "w1", name: "Harbor Moving", timezone: "America/New_York" }],
@@ -106,35 +116,66 @@ globalThis.document ??= {
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.ReactDOM ??= { createPortal: (node) => node };
+// The shell's role gate, refusal toast and the rest of what a surface still asks of it by name (legacy-verbs.ts).
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-// The kit's components the page draws by name (the record kit's fields among them), as the app publishes them.
-Object.assign(globalThis.window, kitPages);
-globalThis.FailedRead = kitPages.FailedRead;
-globalThis.StatePill = globalThis.window.StatePill = kitPages.StatePill;
 // data-bits publishes the shell's toast hook; this harness keeps its own, which remembers what was said.
 const flashes = [];
 globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
-await import("../../../../apps/dashboard/src/legacy/pages/setup.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/first-run.jsx");
+
+// The page, the seam's store, Setup's verbs and the tab's memory: one instance of each, the one the page itself imports.
+const { FirstRun } = await importSrc("apps/dashboard/src/surfaces/setup/first-run/page.tsx");
+const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
+const { tabMemoryFor, clearTabMemory } = await importSrc("apps/dashboard/src/legacy-bridge/tab-memory.ts");
+
+/** Setup's read as the page draws it: a value, undefined while it is read, null where it failed. */
+const setSetup = (value) => setSurfaceValue("setup", value);
+/** The settings read as the page draws it (`settings` is what the Business tab holds, `facts` the resolved numbers), or none. */
+const setSettings = (settings, facts = null) =>
+  setSurfaceValue(
+    "settings",
+    settings
+      ? { settings, facts, channels: null, templatesAll: null, templateUse: null, templateSent: null }
+      : undefined,
+  );
+/** The Live page's calls as the page draws them, or none. */
+const setLive = (live) => setSurfaceValue("live", live);
+
+// Setup's verbs are the module's own object, stubbed by assigning onto it (the `lines`, `request` and `forwarding` a test
+// needs are set by its world, and `window.__setup` is the same object, so a test reads and sets them there). Finish on
+// Live switches calls on by `activate`: a stub that is always ready, which the tests that prove it replace and put back.
+const readyActivate = async () => ({ ok: true, message: "" });
+Object.assign(setupVerbs, {
+  refresh: async () => {
+    refreshed += 1;
+  },
+  later: async () => ({ ok: true, message: "" }),
+  receptionist: async () => {
+    receptionistAsked.push(1);
+    return receptionistSays ?? { ok: true, wrote: true, message: "" };
+  },
+  activate: readyActivate,
+});
+globalThis.window.__setup = setupVerbs;
+// The billing verbs are the module's object too (surfaces/settings/billing/surface.ts), which `__billing` is: a world
+// stubs Stripe by assigning onto it.
+const { billingVerbs, installBilling } = await importSrc("apps/dashboard/src/surfaces/settings/billing/surface.ts");
+installBilling(globalThis.window);
+// And Google's (legacy-bridge/google.ts `googleVerbs`), which Find imports: a world stubs Google by assigning onto it.
+const { googleVerbs } = await importSrc("apps/dashboard/src/legacy-bridge/google.ts");
+// The tab's drafts, read and written through the window's sessionStorage, where the page reads them.
+globalThis.window.__tabMemory = tabMemoryFor(globalThis.window);
 
 /* ---- a stub React: the Setup page test's, with this page as the one drawn ---- */
 let param = null;
 // A step move replaces the address (the shell's navigate with { replace: true }); a way out is a new entry.
-const Page = () =>
-  globalThis.window.FirstRun({ param, onNavigate: (to, opts) => (opts && opts.replace ? replaced : went).push(to) });
+const Page = () => FirstRun({ param, onNavigate: (to, opts) => (opts && opts.replace ? replaced : went).push(to) });
 let cells = [];
-const frames = hookFrames();
 const fresh = () => {
   cells = [];
 };
 function mount() {
   Object.assign(globalThis.React, {
-    createElement: (type, p, ...kids) => {
-      const props = { ...(p || {}), children: kids.flat(Infinity) };
-      const node = { type, props };
-      if (typeof type === "function") node.rendered = frames.render(type, props);
-      return node;
-    },
     useMemo: (fn) => {
       const k = frames.key();
       if (!(k in cells)) cells[k] = fn();
@@ -149,6 +190,14 @@ function mount() {
           cells[k] = typeof v === "function" ? v(cells[k]) : v;
         },
       ];
+    },
+    useCallback: (fn) => fn,
+    // The seam's hook (use-surface.ts) reads the store as it stands: this stub draws when a test asks, not on a notice.
+    useSyncExternalStore: (subscribe, snapshot) => snapshot(),
+    useId: () => {
+      const k = frames.key();
+      if (!(k in cells)) cells[k] = `:r${k}:`;
+      return cells[k];
     },
     useRef: (init) => {
       const k = frames.key();
@@ -198,7 +247,7 @@ const textOf = (n) => {
 };
 
 test("a new workspace opens on its business: the rail says where it is, the step is Check, whose one press sets the receptionist up, and nothing answers yet", () => {
-  globalThis.window.__SETUP = surface(blank);
+  setSetup(surface(blank));
   param = null;
   fresh();
   const tree = mount();
@@ -221,7 +270,7 @@ test("a new workspace opens on its business: the rail says where it is, the step
 });
 
 test("a step already reached opens in place from the rail, and its onward goes on to where the workspace is", () => {
-  globalThis.window.__SETUP = surface(withFacts);
+  setSetup(surface(withFacts));
   param = "business";
   fresh();
   const tree = mount();
@@ -245,8 +294,8 @@ test("a step already reached opens in place from the rail, and its onward goes o
   assert.equal(replaced.at(-1), "start/business", "Back opens the step before, replaced so the browser's Back leaves");
 });
 
-test("answering: Live, with what is left, and Finish goes to Today", () => {
-  globalThis.window.__SETUP = surface(answering);
+test("answering: Live, with what is left, and Finish goes to Today", async () => {
+  setSetup(surface(answering));
   param = null;
   fresh();
   const tree = mount();
@@ -254,12 +303,14 @@ test("answering: Live, with what is left, and Finish goes to Today", () => {
   const onward = byTestId(tree, "fr-onward");
   assert.equal(textOf(onward), "Finish");
   onward.props.onClick();
+  // Finish switches calls on first (the page awaits Setup's `activate`, here always ready), then goes to Today.
+  await tick();
   assert.equal(went.at(-1), "today");
   assert.equal(textOf(byTestId(tree, "fr-card-status")), "Answering", "Live comes after a call came in");
 });
 
 test("Finish later leaves for Today", () => {
-  globalThis.window.__SETUP = surface(blank);
+  setSetup(surface(blank));
   param = null;
   fresh();
   byTestId(mount(), "fr-later").props.onClick();
@@ -267,13 +318,11 @@ test("Finish later leaves for Today", () => {
 });
 
 test("the card fills in from the settings read once it lands", () => {
-  globalThis.window.__SETUP = surface(withFacts);
-  globalThis.window.__SETTINGS = {
-    config: { brain: { business_name: "Harbor Moving", booking_link: "https://harbor.example/book" } },
-  };
-  globalThis.window.__FACTS = {
-    facts: { voice_line: { value: null }, kept_line: { value: null }, handoff_number: { value: "+13055550100" } },
-  };
+  setSetup(surface(withFacts));
+  setSettings(
+    { config: { brain: { business_name: "Harbor Moving", booking_link: "https://harbor.example/book" } } },
+    { facts: { voice_line: { value: null }, kept_line: { value: null }, handoff_number: { value: "+13055550100" } } },
+  );
   try {
     param = null;
     fresh();
@@ -282,19 +331,18 @@ test("the card fills in from the settings read once it lands", () => {
     assert.equal(textOf(byTestId(tree, "fr-card-through")), "Puts through to+1 (305) 555-0100");
     assert.equal(textOf(byTestId(tree, "fr-card-open")), "Open—", "hours set but not read yet: a dash, not a guess");
   } finally {
-    delete globalThis.window.__SETTINGS;
-    delete globalThis.window.__FACTS;
+    setSettings(null);
   }
 });
 
 test("a failed read says so, and the retry reads again; before the read, Reading your workspace…", () => {
-  globalThis.window.__SETUP = null;
+  setSetup(null);
   fresh();
   const failed = mount();
   assert.ok(byTestId(failed, "fr-failed"));
   byTestId(failed, "fr-retry").props.onClick();
   assert.equal(refreshed, 1);
-  globalThis.window.__SETUP = undefined;
+  setSetup(undefined);
   fresh();
   assert.equal(textOf(byTestId(mount(), "fr-reading")), "Reading your workspace…");
 });
@@ -319,7 +367,7 @@ const WAREHOUSE = {
 /** A Google that answers from a script and remembers what it was asked. */
 const googleSays = (answers) => {
   const asked = { find: [], link: [] };
-  globalThis.window.__google = {
+  Object.assign(googleVerbs, {
     find: async (q) => {
       asked.find.push(q ?? null);
       return answers.shift();
@@ -328,12 +376,12 @@ const googleSays = (answers) => {
       asked.link.push(id);
       return { ok: true, read: true, message: "" };
     },
-  };
+  });
   return asked;
 };
 const found = (candidates, query = "Harbor Moving") => ({ ok: true, candidates, query, fromFacts: true, message: "" });
 const findOn = async () => {
-  globalThis.window.__SETUP = surface(findable);
+  setSetup(surface(findable));
   param = null;
   fresh();
   const first = mount();
@@ -393,7 +441,7 @@ test("Find: Yes links it, then asks for the receptionist to be set up from what 
 
 test("Find: a link refused asks for nothing more", async () => {
   googleSays([found([HARBOR])]);
-  globalThis.window.__google.link = async () => ({
+  googleVerbs.link = async () => ({
     ok: false,
     read: false,
     message: "Google could not read that listing.",
@@ -406,7 +454,7 @@ test("Find: a link refused asks for nothing more", async () => {
 });
 
 test("Check with no receptionist: the owner's press asks for it, once while it is out, and a refusal is said in its words", async () => {
-  globalThis.window.__SETUP = surface(blank);
+  setSetup(surface(blank));
   param = null;
   fresh();
   const tree = mount();
@@ -416,14 +464,15 @@ test("Check with no receptionist: the owner's press asks for it, once while it i
     answer = r;
   });
   const press = byTestId(tree, "fr-check-make-press");
-  const going = press.props.onClick();
+  press.props.onClick();
   const busy = byTestId(mount(), "fr-check-make-press");
   assert.equal(busy.props["aria-busy"], true);
   assert.equal(textOf(busy), "Setting up…");
   busy.props.onClick();
   assert.equal(receptionistAsked.length, before + 1, "a second press while it is out asks for nothing");
   answer({ ok: false, wrote: false, message: "Only an owner can do this." });
-  await going;
+  // The press does not hand its promise on (the page lends Check `() => void make()`), so wait for the answer to be taken.
+  await tick();
   receptionistSays = null;
   assert.equal(textOf(flashes.at(-1).msg), "Not set up — Only an owner can do this.");
   assert.equal(
@@ -434,7 +483,7 @@ test("Check with no receptionist: the owner's press asks for it, once while it i
 });
 
 test("Check's rows wait for the settings read, and a read that failed offers its retry", () => {
-  globalThis.window.__SETUP = surface(withFacts);
+  setSetup(surface(withFacts));
   param = "business";
   const again = [];
   globalThis.window.__refreshSurface = (s) => again.push(s);
@@ -517,7 +566,7 @@ test("Find is for whoever may set the workspace up (an owner, or the partner who
   const was = globalThis.window.canDo;
   globalThis.window.canDo = (a) => a === "approve" || a === "autonomy"; // an operator, exactly (contracts ROLE_PERMS)
   try {
-    globalThis.window.__SETUP = surface(findable);
+    setSetup(surface(findable));
     param = null;
     fresh();
     const tree = mount();
@@ -534,7 +583,7 @@ test("Find is for whoever may set the workspace up (an owner, or the partner who
 test("Find it asks for Find by name, even after not on Google; not on Google again goes to the step's own address", async () => {
   googleSays([found([HARBOR])]);
   const putOff = { ...surface(findable), later: ["google"], vm: setupSteps({ ...findable, later: ["google"] }, NOW) };
-  globalThis.window.__SETUP = putOff;
+  setSetup(putOff);
   param = null;
   fresh();
   assert.equal(byTestId(mount(), "fr-find"), null, "the plain address: put off, so the step's rows");
@@ -565,19 +614,8 @@ test("Find on a phone: the best match alone until the owner asks for more, and t
   assert.deepEqual(links, ["Terms of service", "Privacy policy"]);
 });
 
-test("without the bridge the page says nothing of its own: every word is contracts'", () => {
-  const F = globalThis.window.__firstRun;
-  delete globalThis.window.__firstRun;
-  try {
-    globalThis.window.__SETUP = surface(blank);
-    fresh();
-    const tree = mount();
-    assert.ok(byTestId(tree, "first-run"));
-    assert.equal(textOf(tree), "");
-  } finally {
-    globalThis.window.__firstRun = F;
-  }
-});
+// (Removed with the move to TSX: "without the bridge the page says nothing of its own" took `window.__firstRun` away to show
+// that every word was contracts'. The page now imports contracts' FIRST_RUN_HELPERS and there is no bridge to take away.)
 
 /* ---- Your phone (PR 4a): the three ways, the trial, and the buy once the trial lets it ---- */
 // The page looks again when a buy's mark goes stale (minutes away); this stub never clears an effect, so a wait that
@@ -607,24 +645,19 @@ const phoneReady = (billing = {}) => ({
     ...billing,
   },
 });
-/** The tab's drafts, Stripe and the line doors, each remembering what it was asked. */
+/** What the tab has kept under a draft's name, read where the page keeps it (the window's sessionStorage). */
+const draftOf = (kind) => globalThis.window.__tabMemory.draft(kind);
+/** A tab with nothing kept in it: the drafts the last world left are gone, as a new world's own were. */
+const emptyTab = () => clearTabMemory(globalThis.window.sessionStorage);
+/** The tab's drafts (empty), Stripe and the line doors, each remembering what it was asked. */
 const phoneWorld = ({
   outcome = null,
   numbers = [{ e164: "+13055550142", friendly: "(305) 555-0142" }],
   startNow = { ok: true, message: "" },
 } = {}) => {
-  const drafts = {};
   const asked = { checkout: [], search: [], buy: [], request: [], startNow: 0 };
-  globalThis.window.__tabMemory = {
-    draft: (k) => drafts[k] ?? null,
-    keepDraft: (k, v) => {
-      drafts[k] = v;
-    },
-    dropDraft: (k) => {
-      delete drafts[k];
-    },
-  };
-  globalThis.window.__billing = {
+  emptyTab();
+  Object.assign(billingVerbs, {
     outcome: () => outcome,
     checkout: async (back) => {
       asked.checkout.push(back);
@@ -634,7 +667,7 @@ const phoneWorld = ({
       asked.startNow += 1;
       return startNow;
     },
-  };
+  });
   globalThis.window.__setup.lines = {
     search: async (area) => {
       asked.search.push(area);
@@ -649,13 +682,13 @@ const phoneWorld = ({
     asked.request.push(what);
     return { ok: true, already: false, message: "" };
   };
-  return { drafts, asked };
+  return { asked };
 };
 const radioIn = (label) => label.props.children.find((k) => k && k.type === "input");
 
 test("your phone (canvas R3): keeping the listing's number first, the plan the number starts at Stripe's price, and the button goes to Stripe and back to this step", async () => {
-  const { drafts, asked } = phoneWorld();
-  globalThis.window.__SETUP = surface(phoneReady());
+  const { asked } = phoneWorld();
+  setSetup(surface(phoneReady()));
   param = null;
   fresh();
   const tree = mount();
@@ -675,13 +708,13 @@ test("your phone (canvas R3): keeping the listing's number first, the plan the n
   await go.props.onClick();
   assert.deepEqual(asked.checkout, ["start"], "Stripe comes back to the first run");
   assert.equal(replaced.at(-1), "start/phone", "the step's own address, so it stays once its line answers");
-  assert.equal(drafts["first-run-phone"].pending, true, "the choice waits in the tab for Stripe's round trip");
+  assert.equal(draftOf("first-run-phone").pending, true, "the choice waits in the tab for Stripe's round trip");
   assert.deepEqual(asked.buy, [], "nothing is bought before the plan");
 });
 
 test("(D) your phone: what is wrong is said on the field it is about -- the area code once Find is pressed, the number once the box is left -- not in a toast", async () => {
   phoneWorld();
-  globalThis.window.__SETUP = surface(phoneReady({ status: "active" }));
+  setSetup(surface(phoneReady({ status: "active" })));
   param = "phone";
   fresh();
   flashes.length = 0;
@@ -725,8 +758,8 @@ test("(D) your phone: what is wrong is said on the field it is about -- the area
 });
 
 test("your phone on a free trial: the trial covers no number, so the button starts the plan now -- then the buy; a start Stripe refuses is said, and nothing is bought", async () => {
-  const { asked, drafts } = phoneWorld();
-  globalThis.window.__SETUP = surface(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" }));
+  const { asked } = phoneWorld();
+  setSetup(surface(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" })));
   param = "phone";
   fresh();
   let tree = mount();
@@ -739,10 +772,10 @@ test("your phone on a free trial: the trial covers no number, so the button star
   await go.props.onClick();
   assert.equal(asked.startNow, 1, "the plan started from here, not Stripe's checkout");
   assert.deepEqual(asked.checkout, []);
-  assert.equal(drafts["first-run-phone"].pending, true, "the choice waits for the plan");
+  assert.equal(draftOf("first-run-phone").pending, true, "the choice waits for the plan");
   assert.deepEqual(asked.buy, [], "nothing bought on the trial");
   // The start taken: Setup reads the plan, and the page buys.
-  globalThis.window.__SETUP = surface(phoneReady({ status: "active" }));
+  setSetup(surface(phoneReady({ status: "active" })));
   fresh();
   mount();
   await tick();
@@ -753,12 +786,12 @@ test("your phone on a free trial: the trial covers no number, so the button star
   const refused = phoneWorld({
     startNow: { ok: false, message: "Your plan started, but the charge did not go through." },
   });
-  globalThis.window.__SETUP = surface(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" }));
+  setSetup(surface(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" })));
   flashes.length = 0;
   fresh();
   tree = mount();
   await byTestId(tree, "fr-phone-go").props.onClick();
-  assert.equal(refused.drafts["first-run-phone"].pending, false);
+  assert.equal(draftOf("first-run-phone").pending, false);
   assert.equal(textOf(flashes.at(-1).msg), "Your plan started, but the charge did not go through.");
   assert.deepEqual(refused.asked.buy, []);
 });
@@ -766,7 +799,7 @@ test("your phone on a free trial: the trial covers no number, so the button star
 test("your phone: back from Stripe before the trial lands, then the buy in the kept number's area code, once", async () => {
   const { asked } = phoneWorld({ outcome: "success" });
   globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: true });
-  globalThis.window.__SETUP = surface(phoneReady());
+  setSetup(surface(phoneReady()));
   param = null;
   fresh();
   mount();
@@ -788,7 +821,7 @@ test("your phone: back from Stripe before the trial lands, then the buy in the k
   assert.deepEqual(asked.buy, []);
   // The webhook lands: the trial is on, and the page buys. (This stub runs an effect on a component's first draw only,
   // where React runs it again when the stage it depends on moves: a fresh draw stands in for that.)
-  globalThis.window.__SETUP = surface(phoneReady({ status: "active" }));
+  setSetup(surface(phoneReady({ status: "active" })));
   fresh();
   const buying = mount();
   await tick();
@@ -807,7 +840,7 @@ test("your phone: back from Stripe before the trial lands, then the buy in the k
 
 test("your phone: a new number is picked from its area code; moving one buys a line too, and asks a person", async () => {
   const { asked } = phoneWorld();
-  globalThis.window.__SETUP = surface(phoneReady({ status: "active" }));
+  setSetup(surface(phoneReady({ status: "active" })));
   param = "phone";
   fresh();
   let tree = mount();
@@ -844,22 +877,22 @@ test("your phone: a new number is picked from its area code; moving one buys a l
 });
 
 test("your phone: Stripe closed before finishing says so, and the choice waits for another press", () => {
-  const { drafts } = phoneWorld({ outcome: "cancel" });
+  phoneWorld({ outcome: "cancel" });
   globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: true });
   flashes.length = 0;
-  globalThis.window.__SETUP = surface(phoneReady());
+  setSetup(surface(phoneReady()));
   param = "phone";
   fresh();
   mount();
   const tree = mount();
-  assert.equal(drafts["first-run-phone"].pending, false);
+  assert.equal(draftOf("first-run-phone").pending, false);
   assert.equal(textOf(flashes.at(-1).msg), "Checkout was closed before finishing; nothing was charged.");
   assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "choose");
 });
 
 test("your phone: what the step does not draw is Setup's rows, under the page's own foot", () => {
   phoneWorld();
-  globalThis.window.__SETUP = surface({ ...phoneReady(), lines: { ...phoneReady().lines, ready: false } });
+  setSetup(surface({ ...phoneReady(), lines: { ...phoneReady().lines, ready: false } }));
   param = null;
   fresh();
   const tree = mount();
@@ -873,7 +906,7 @@ test("your phone: a buy marked sent long ago never landed (its tab closed on it)
   const choice = { way: "keep", number: null, pick: null, pending: true };
   heldWaits.length = 0;
   globalThis.window.__tabMemory.keepDraft("first-run-phone", { ...choice, sent: Date.now() - 10_000 });
-  globalThis.window.__SETUP = surface(phoneReady({ status: "active" }));
+  setSetup(surface(phoneReady({ status: "active" })));
   param = "phone";
   fresh();
   mount();
@@ -902,7 +935,7 @@ test("your phone: a buy refused (the number was taken) says so, and the next pre
   };
   flashes.length = 0;
   globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: true });
-  globalThis.window.__SETUP = surface(phoneReady({ status: "active" }));
+  setSetup(surface(phoneReady({ status: "active" })));
   param = "phone";
   fresh();
   mount();
@@ -1006,7 +1039,7 @@ const forwardingSays = () => {
 };
 
 test("your phone (canvas R4): while the number gets ready, the two questions, kept as they are answered, the buy still on", async () => {
-  const { drafts } = phoneWorld();
+  phoneWorld();
   globalThis.window.__tabMemory.keepDraft("first-run-phone", {
     way: "keep",
     number: null,
@@ -1014,7 +1047,7 @@ test("your phone (canvas R4): while the number gets ready, the two questions, ke
     pending: true,
     sent: Date.now(),
   });
-  globalThis.window.__SETUP = surface(phoneReady({ status: "active" }));
+  setSetup(surface(phoneReady({ status: "active" })));
   param = "phone";
   fresh();
   let tree = mount();
@@ -1029,7 +1062,7 @@ test("your phone (canvas R4): while the number gets ready, the two questions, ke
   choose(tree, "company", "T-Mobile");
   tree = mount();
   assert.equal(chosen(tree, "company"), "T-Mobile");
-  const kept = drafts["first-run-phone"];
+  const kept = draftOf("first-run-phone");
   assert.deepEqual(
     [kept.rings, kept.company, kept.pending],
     ["mobile", "tmobile", true],
@@ -1048,7 +1081,7 @@ test("your phone: the line answers, and Show me what to dial saves the forwardin
     pending: false,
     rings: "landline",
   });
-  globalThis.window.__SETUP = surface(answeringLine());
+  setSetup(surface(answeringLine()));
   param = "phone";
   fresh();
   const tree = mount();
@@ -1074,7 +1107,7 @@ test("your phone (canvas R5, P5): the code from the forwarding saved, its help, 
     rings: "mobile",
     company: "tmobile",
   });
-  globalThis.window.__SETUP = surface(answeringLine([forwardedRow("tmobile")]));
+  setSetup(surface(answeringLine([forwardedRow("tmobile")])));
   param = "phone";
   fresh();
   let tree = mount();
@@ -1127,7 +1160,7 @@ test("your phone: asked again with the answers lost, the questions are about the
   const saved = forwardingSays();
   globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: false });
   const row = { ...forwardedRow("other"), e164: "+13055550177" };
-  globalThis.window.__SETUP = surface(answeringLine([row]));
+  setSetup(surface(answeringLine([row])));
   param = "phone";
   fresh();
   let tree = mount();
@@ -1161,7 +1194,7 @@ test("your phone: asked again with the answers lost, the questions are about the
 test("your phone: a role that may not save the forwarding sees the questions with the page's own foot, and goes on", () => {
   phoneWorld();
   globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: false });
-  globalThis.window.__SETUP = surface(answeringLine());
+  setSetup(surface(answeringLine()));
   // The line's presses are the channel permission (contracts ROLE_PERMS `disconnect`), which an operator lacks.
   globalThis.window.canDo = (what) => what === "approve" || what === "autonomy";
   try {
@@ -1187,7 +1220,7 @@ test("your phone (canvas V6): an office phone system is shown the number, and Do
     pending: false,
     rings: "office",
   });
-  globalThis.window.__SETUP = surface(answeringLine([forwardedRow("office")]));
+  setSetup(surface(answeringLine([forwardedRow("office")])));
   param = "phone";
   fresh();
   const tree = mount();
@@ -1200,7 +1233,7 @@ test("your phone (canvas V6): an office phone system is shown the number, and Do
     ...answeringLine([forwardedRow("office")]),
     requests: { line: null, forwarding: new Date(Date.now() - 3_600_000).toISOString() },
   });
-  globalThis.window.__SETUP = later;
+  setSetup(later);
   fresh();
   const asked2 = mount();
   assert.equal(byTestId(asked2, "fr-phone-with-me-go"), null);
@@ -1234,16 +1267,7 @@ const liveCall = (over = {}) => ({
 });
 const tryWorld = () => {
   const asked = { later: [], saves: [], request: [] };
-  const drafts = {};
-  globalThis.window.__tabMemory = {
-    draft: (k) => drafts[k] ?? null,
-    keepDraft: (k, v) => {
-      drafts[k] = v;
-    },
-    dropDraft: (k) => {
-      delete drafts[k];
-    },
-  };
+  emptyTab();
   globalThis.window.__setup.later = async (id, on) => {
     asked.later.push([id, on]);
     return { ok: true, message: "" };
@@ -1268,8 +1292,8 @@ const tryWorld = () => {
 
 test("Try it (canvas R6): calls answered and none yet, the step listens for the test call, and skipping asks once first", async () => {
   const asked = tryWorld();
-  globalThis.window.__LIVE = { now: [], recent: [] };
-  globalThis.window.__SETUP = surface(untried);
+  setLive({ now: [], recent: [] });
+  setSetup(surface(untried));
   param = null;
   fresh();
   let tree = mount();
@@ -1287,8 +1311,8 @@ test("Try it (canvas R6): calls answered and none yet, the step listens for the 
 
 test("Try it (canvas R7, R8): it picked up with the words, then the call and the transfer saved through the Business tab's saver", async () => {
   const asked = tryWorld();
-  globalThis.window.__SETUP = surface(untried);
-  globalThis.window.__LIVE = { now: [liveCall()], recent: [] };
+  setSetup(surface(untried));
+  setLive({ now: [liveCall()], recent: [] });
   param = "try";
   fresh();
   let tree = mount();
@@ -1298,7 +1322,7 @@ test("Try it (canvas R7, R8): it picked up with the words, then the call and the
     textOf(byTestId(tree, "fr-try-turns")),
     "ReceptionistThank you for calling Harbor Moving!YouAre you open on Sunday?",
   );
-  globalThis.window.__LIVE = { now: [], recent: [liveCall({ live: false, status: "ended", duration: "0:48" })] };
+  setLive({ now: [], recent: [liveCall({ live: false, status: "ended", duration: "0:48" })] });
   tree = mount();
   assert.equal(textOf(byTestId(tree, "fr-heading")), "That's your receptionist.");
   assert.equal(textOf(byTestId(tree, "fr-try-meta")), "0:48 · from +1 (786) 555-0199 · 2:59 PM");
@@ -1335,26 +1359,28 @@ test("Try it (canvas R7, R8): it picked up with the words, then the call and the
     .props.onChange();
   assert.equal(asked.saves.length, 1, "nothing sent");
   assert.equal(textOf(flashes.at(-1).msg), "Your settings are still being read. Try again in a moment.");
-  delete globalThis.window.__LIVE;
+  setLive(undefined);
 });
 
 test("Try it stays on screen at the bare address when Setup learns of the call mid-call: the words and the transfer are still to come", () => {
   tryWorld();
-  globalThis.window.__SETUP = surface(untried);
-  globalThis.window.__LIVE = { now: [liveCall()], recent: [] };
+  setSetup(surface(untried));
+  setLive({ now: [liveCall()], recent: [] });
   param = null;
   fresh();
   assert.equal(textOf(byTestId(mount(), "fr-heading")), "It picked up.");
   // The call reached the receptionist: Setup reads it, and the step is done (Live is where #/start now opens).
-  globalThis.window.__SETUP = surface({
-    ...untried,
-    channels: { ...untried.channels, voice: { ...untried.channels.voice, lastInboundAt: new Date().toISOString() } },
-  });
-  globalThis.window.__LIVE = { now: [], recent: [liveCall({ live: false, status: "ended", duration: "0:48" })] };
+  setSetup(
+    surface({
+      ...untried,
+      channels: { ...untried.channels, voice: { ...untried.channels.voice, lastInboundAt: new Date().toISOString() } },
+    }),
+  );
+  setLive({ now: [], recent: [liveCall({ live: false, status: "ended", duration: "0:48" })] });
   const after = mount();
   assert.equal(textOf(byTestId(after, "fr-heading")), "That's your receptionist.", "not jumped on to Live");
   assert.ok(byTestId(after, "fr-try-transfer"), "where transfers go is asked");
-  delete globalThis.window.__LIVE;
+  setLive(undefined);
 });
 
 test("Live (canvas R9): the four lines and the greeting, and Finish switches calls on before Today", async () => {
@@ -1363,10 +1389,10 @@ test("Live (canvas R9): the four lines and the greeting, and Finish switches cal
     activated.push(kind);
     return { ok: true, message: "" };
   };
-  globalThis.window.__SETUP = surface(answering);
-  globalThis.window.__SETTINGS = {
+  setSetup(surface(answering));
+  setSettings({
     config: { brain: { business_name: "Harbor Moving" }, notifications: { escalation_emails: ["owner@example.com"] } },
-  };
+  });
   try {
     param = null;
     fresh();
@@ -1385,8 +1411,8 @@ test("Live (canvas R9): the four lines and the greeting, and Finish switches cal
     assert.deepEqual(activated, ["voice"], "the owner's own act, recorded");
     assert.equal(went.at(-1), "today");
   } finally {
-    delete globalThis.window.__SETTINGS;
-    delete globalThis.window.__setup.activate;
+    setSettings(null);
+    setupVerbs.activate = readyActivate;
   }
 });
 
@@ -1397,10 +1423,10 @@ test("Live: a refused Finish stays and says why, and Finish again goes on; a tea
     asked.push([kind, opts]);
     return answer;
   };
-  globalThis.window.__SETUP = surface(answering);
-  globalThis.window.__SETTINGS = {
+  setSetup(surface(answering));
+  setSettings({
     config: { brain: { business_name: "Harbor Moving" }, notifications: { escalation_emails: ["owner@example.com"] } },
-  };
+  });
   try {
     param = null;
     fresh();
@@ -1421,8 +1447,8 @@ test("Live: a refused Finish stays and says why, and Finish again goes on; a tea
     assert.equal(byTestId(mount(), "fr-live-note"), null);
   } finally {
     globalThis.window.canDo = () => true;
-    delete globalThis.window.__SETTINGS;
-    delete globalThis.window.__setup.activate;
+    setSettings(null);
+    setupVerbs.activate = readyActivate;
     answer = null;
   }
 });

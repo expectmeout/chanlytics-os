@@ -3,6 +3,7 @@
  * drawNewList and drawPipeline, decision 0015): which addresses under `clients` the page takes, and the crumbs, the mount
  * and the one act of each. The frame stays mounted around it (surfaces/routes.ts).
  */
+import { parseLeadsRoute } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { demoSession } from "../legacy-verbs";
 import { P } from "./pipeline/pipe";
@@ -22,11 +23,14 @@ export const isPersonParam = (param: string): boolean =>
 
 /**
  * Which params of `clients` the page draws: a person, the New list door, a view of People (a smart list, a list kept by
- * hand, a state) and the Pipeline's address, which draws the Pipeline where deals are on and People where they are off.
- * Not Leads: the frame's table draws that.
+ * hand, a state), the Pipeline's address, which draws the Pipeline where deals are on and People where they are off, and
+ * Leads (`leads` and every view of it).
  */
 export const peopleTakes = (param: string): boolean =>
-  isPersonParam(param) || param === "new-list" || /^(seg|list|state):/.test(param) || /^pipeline(:|$)/.test(param);
+  isPersonParam(param) ||
+  param === "new-list" ||
+  /^(seg|list|state):/.test(param) ||
+  /^(pipeline|leads)(:|$)/.test(param);
 
 /** What People is, for a crumb: the surface once it has landed, else, in a demo, the sample the page draws. */
 const peopleFor = (): PeopleSurface | undefined =>
@@ -60,6 +64,17 @@ function pipelineCrumbs(param: string) {
 }
 
 /**
+ * The crumbs of a Leads address: People, then Leads, and under it the search the view is of, by its name, once the Leads
+ * surface holds it.
+ */
+function leadsCrumbs(param: string) {
+  const leads = surfaceValue("leads");
+  const at = parseLeadsRoute(param);
+  const search = leads && at && at.searchId ? leads.searches.find((s) => s.id === at.searchId) : null;
+  return search ? [PEOPLE_CRUMB, { label: "Leads", to: "clients/leads" }, search.name] : [PEOPLE_CRUMB, "Leads"];
+}
+
+/**
  * A person's crumb: their name in People, else the copy this tab holds of them, else "Profile". The frame draws its crumbs
  * again when People lands (it reads the surface's value), so a profile opened cold names them once their row is here.
  */
@@ -71,9 +86,9 @@ function personName(id: string): string {
 }
 
 /**
- * The crumbs, the mount and the act of an address. The mount is one for every view of People and one for the Pipeline's
- * address, drawn as the Pipeline or, where deals are off, as People, because the page follows its own address
- * (people-route.tsx): a list picked is said in the path by the page, and a page mounted afresh for each would lose its
+ * The crumbs, the mount and the act of an address. The mount is one for every view of People, one for the Pipeline's
+ * address, drawn as the Pipeline or, where deals are off, as People, and one for Leads, because the page follows its own
+ * address (people-route.tsx): a list picked is said in the path by the page, and a page mounted afresh for each would lose its
  * toast and its selection with every pick.
  */
 export function peopleChrome({ param, backToPeople }: { param: string | null; backToPeople: unknown }) {
@@ -86,5 +101,7 @@ export function peopleChrome({ param, backToPeople }: { param: string | null; ba
   if (isPersonParam(param)) return { crumbs: [{ ...PEOPLE_CRUMB, go: backToPeople }, personName(param)] };
   if (param === "new-list") return { crumbs: [PEOPLE_CRUMB, "New list"], mount: "clients" };
   if (/^pipeline(:|$)/.test(param)) return { crumbs: pipelineCrumbs(param), mount: "clients/pipeline" };
+  // Every view of Leads is one mount: the page follows its address (`p-<lead>` is the lead open over the view).
+  if (/^leads(:|$)/.test(param)) return { crumbs: leadsCrumbs(param), mount: "clients/leads" };
   return { crumbs: [PEOPLE_CRUMB, viewLabel(param)], mount: "clients" };
 }

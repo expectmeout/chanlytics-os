@@ -36,13 +36,6 @@ installLegacyReact({
         .slice(0, 2)
         .toUpperCase(),
   },
-  __inviteState: () => ({ expired: false, words: "invite pending" }),
-  __teamRemove: async (id) => {
-    calls.remove.push(id);
-    return { ok: true, data: { revokedInvite: id.startsWith("i-") } };
-  },
-  __teamSetRole: async () => ({ ok: true }),
-  __teamInvite: async () => ({ ok: true }),
   CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
   gate: () => ({}),
 });
@@ -204,8 +197,28 @@ test("a typed name gates the Yes -- erasure only -- and the page may know a bett
 
 /* -------------------- Settings › Team: the D13 door ---------------------- */
 
-await import(`${S}/legacy/pages/settings.jsx`);
-const TeamSection = globalThis.TeamSection;
+// The card is TSX (surfaces/settings/team, decision 0015 step 11): its roster is the seam's settings value, and its three
+// doors the bridge's teamVerbs, which a test stands a door in on.
+const { TeamSection } = await import(`${S}/surfaces/settings/team/team.tsx`);
+const { teamVerbs } = await import(`${S}/legacy-bridge/inbox-verbs.ts`);
+Object.assign(teamVerbs, {
+  remove: async (id) => {
+    calls.remove.push(id);
+    return { ok: true, data: { revokedInvite: id.startsWith("i-") } };
+  },
+  setRole: async () => ({ ok: true }),
+  invite: async () => ({ ok: true }),
+});
+setSurfaceValue("settings", {
+  settings: globalThis.window.__SETTINGS,
+  facts: null,
+  channels: null,
+  templatesAll: null,
+  templateUse: null,
+  templateSent: null,
+  team: globalThis.window.__TEAM,
+  invites: globalThis.window.__TEAM_INVITES,
+});
 const drawTeam = () => again(() => TeamSection({ flash }));
 /** The row menu that offers `label`, as the props the card handed the shared MoreMenu. */
 const menuFor = (tree, label) =>

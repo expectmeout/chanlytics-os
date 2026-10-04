@@ -121,6 +121,11 @@ export const readerCache = new ReaderCache();
 export class TurnCache {
   private readonly hits = new Map<string, Promise<Read<unknown>>>();
 
+  /** A reader's answer the turn already holds, without arguments: answered from the start, never asked. */
+  seed<T>(name: string, data: T): void {
+    this.hits.set(`${name}:${stableJson(undefined)}`, Promise.resolve({ data, rows: [], stamp: stamp() }));
+  }
+
   get<A, T>(rc: ReaderContext, r: Reader<A, T>, args: A): Promise<Read<T>> {
     const key = `${r.name}:${stableJson(args)}`;
     const had = this.hits.get(key) as Promise<Read<T>> | undefined;
@@ -147,20 +152,27 @@ export function load<A, T>(rc: ReaderContext, r: Reader<A, T>, args: A): Promise
  */
 export function readerContext(
   ctx: RouteContext,
-  member: Pick<Member, "tenantId" | "role">,
+  member: Pick<Member, "tenantId" | "role" | "facts">,
   now: Date = new Date(),
   opts: { keep?: boolean } = {},
 ): ReaderContext {
+  const turn = new TurnCache();
+  // The workspace's name and clock came with the membership (with-route.ts memberContext): the facts reader's answer
+  // is the turn's from its start, so a read that said "today" first no longer waits a round trip to learn the zone.
+  if (member.facts) turn.seed(FACTS_READER, member.facts);
   return {
     ctx,
     tenantId: member.tenantId,
     userId: ctx.userId,
     role: member.role,
     now,
-    turn: new TurnCache(),
+    turn,
     keep: opts.keep === true,
   };
 }
+
+/** The workspace's name and zone, as a reader names them (readers/facts.ts `facts`), and as a turn is seeded with. */
+export const FACTS_READER = "facts";
 
 /** A stamp for a read made now. */
 export const stamp = (): number => Date.now();

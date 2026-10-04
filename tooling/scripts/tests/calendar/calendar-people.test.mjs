@@ -1826,7 +1826,7 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
   for (const param of ["seg:needs_you", "list:sample-regulars", "state:quiet"])
     assert.equal(peopleTakes(param), true, param);
   assert.equal(peopleTakes("c-1"), true, "a person is the page's too, but not a view of People: it draws their page");
-  assert.equal(peopleTakes("leads:s-1"), false, "Leads stays with the frame");
+  assert.equal(peopleTakes("leads:s-1"), true, "Leads is the page's too: its other scope (decision 0015, step 9)");
   assert.match(textOf(byTestId(routed("/w/studio/people/list:sample-regulars"), "saved-filter")), /Regulars/);
   assert.ok(byTestId(routed("/w/studio/people/seg:needs_you"), "smart-filter"));
   assert.ok(byTestId(routed("/w/studio/people/state:quiet"), "state-filter"));
