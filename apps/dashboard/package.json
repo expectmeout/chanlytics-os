@@ -15,6 +15,7 @@
     "@chanlytics/core": "workspace:*",
     "@chanlytics/db": "workspace:*",
     "@chanlytics/jobs": "workspace:*",
+    "@elevenlabs/client": "1.26.0",
     "@protomaps/basemaps": "5.7.2",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",

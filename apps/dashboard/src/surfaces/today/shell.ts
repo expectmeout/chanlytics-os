@@ -12,6 +12,7 @@
  */
 import { useCallback, useSyncExternalStore } from "react";
 import type { ComponentType } from "react";
+import type { VoiceAction, VoiceStart } from "@/legacy-bridge/ask/voice";
 import type { GoogleSurface } from "@/legacy-bridge/google";
 import type { BellApi } from "@/legacy-bridge/notifications";
 import type { PageClock } from "@/legacy-bridge/zone";
@@ -44,6 +45,25 @@ export const doorGlyph = (): "chevron" | "arrow-right" => (lookNow() === "glass"
 
 export function appNavigate(route: string): void {
   fn<[string], void>("appNavigate")?.(route);
+}
+
+/* -------------------------------- the voice -------------------------------- */
+
+/** Ask's voice, as far as the brief draws it (`window.__ask`, legacy-bridge/ask/voice.ts): a conversation with Ask on the agent. */
+interface AskVoice {
+  canVoice(): boolean;
+  /** The language the person last asked in (the palette's). */
+  language(): "en" | "es";
+  startVoice(input: VoiceStart, on: (a: VoiceAction) => void): Promise<{ threadId: string; title: string }>;
+  stopVoice(): Promise<void>;
+}
+
+/** Ask's voice where the shell has wired it and the device can talk with it; nothing in a stand-in window. */
+export function askVoice(): AskVoice | undefined {
+  const a = object<Partial<AskVoice>>("__ask");
+  return a && typeof a.canVoice === "function" && typeof a.startVoice === "function" && a.canVoice()
+    ? (a as AskVoice)
+    : undefined;
 }
 
 /* ------------------------------ the surfaces ------------------------------ */

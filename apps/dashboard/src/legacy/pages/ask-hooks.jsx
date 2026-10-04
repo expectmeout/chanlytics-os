@@ -243,7 +243,56 @@ const ahSlide = (from, stage, hero) => {
   }
 };
 
+// A voice conversation with Ask on the agent (legacy-bridge/ask/voice.ts; docs/superpowers/specs/2026-10-03-ask-spoken-design.md,
+// §3.5): one at a time, begun from the mic's tap or an answer's Read aloud, ended by the person, by typing, by Esc, by
+// closing, or by the agent going. `hear` is given the Line's actions (the question, a read, the Say, the landing, a
+// cut, the mode, how loud the person is, gone); the hook keeps whether it runs, the agent's mode and the thread it runs
+// on, and while the agent speaks feeds the three its voice (mascot mood.ts `voice`), read off the client twenty times a
+// second. Where the device cannot (no microphone, or no secure page) `can` is false and nothing starts.
+const AH_VOICE_LEVEL_MS = 50;
+const useAskVoice = ({ A, M, hear }) => {
+  const [on, setOn] = useAhState(false);
+  const [mode, setMode] = useAhState("listening");
+  const threadRef = useAhRef(null);
+  const hearRef = useAhRef(hear);
+  hearRef.current = hear;
+  const can = !!(A && A.canVoice && A.canVoice());
+  const rest = () => { setOn(false); setMode("listening"); threadRef.current = null; };
+  // The end: the Line is told first (the conversation's end comes back as "gone" through the same hearing, with the
+  // thread still known, so the stored turn is read), and the thread forgotten after.
+  const stop = async () => {
+    setOn(false); setMode("listening");
+    if (A && A.stopVoice) await A.stopVoice();
+    threadRef.current = null;
+  };
+  const start = async (input) => {
+    if (!can) return null;
+    setOn(true); setMode("listening");
+    try {
+      const got = await A.startVoice(input, (a) => {
+        if (a.t === "mode") setMode(a.mode);
+        // Heard before the rest: "gone" reads the thread off threadRef, which the rest clears.
+        hearRef.current(a);
+        if (a.t === "gone") rest();
+      });
+      // Ended before it was up (null): nothing runs, and the Line was told so.
+      if (!got) { rest(); return null; }
+      threadRef.current = got.threadId;
+      return got;
+    } catch (e) {
+      rest();
+      throw e;
+    }
+  };
+  useAhEffect(() => {
+    if (!on || mode !== "speaking" || !M || !M.mood.voice) return undefined;
+    const id = setInterval(() => M.mood.voice(A.level ? A.level() : 0, true), AH_VOICE_LEVEL_MS);
+    return () => { clearInterval(id); M.mood.voice(0, false); };
+  }, [on, mode, A, M]);
+  return { can, on, mode, start, stop, threadId: () => threadRef.current };
+};
+
 window.AskHooks = {
-  useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech, useAskPin, useAskLatest,
+  useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech, useAskVoice, useAskPin, useAskLatest,
   pinNow: ahPinNow, pinTop: ahPinTop, latestShown: ahLatestShown, slide: ahSlide, slideFrom: ahSlideFrom,
 };

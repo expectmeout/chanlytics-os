@@ -76,6 +76,11 @@ const SCHEMA = {
   EDGE_PROVIDERS: oneOf(["live"]),
   ASK_MODEL: optionalText,
 
+  // Ask spoken (docs/superpowers/specs/2026-10-03-ask-spoken-design.md): the key a voice session's access token is
+  // sealed under at rest, and the secret the voice agent sends the brain door with every custom LLM request.
+  ASK_VOICE_SECRET: optionalText,
+  ELEVENLABS_LLM_SECRET: optionalText,
+
   // The product's one address.
   CANONICAL_HOST: host,
 
@@ -110,6 +115,8 @@ const READ: { readonly [K in Name]: () => string | undefined } = {
   GOOGLE_OAUTH_STATE_SECRET: () => process.env.GOOGLE_OAUTH_STATE_SECRET,
   EDGE_PROVIDERS: () => process.env.EDGE_PROVIDERS,
   ASK_MODEL: () => process.env.ASK_MODEL,
+  ASK_VOICE_SECRET: () => process.env.ASK_VOICE_SECRET,
+  ELEVENLABS_LLM_SECRET: () => process.env.ELEVENLABS_LLM_SECRET,
   CANONICAL_HOST: () => process.env.CANONICAL_HOST,
   SIGNUP_CODE: () => process.env.SIGNUP_CODE,
   APP_LINKS_APPLE: () => process.env.APP_LINKS_APPLE,
@@ -149,6 +156,10 @@ export const REQUIRED_IN_PRODUCTION = [
   "EDGE_URL",
   "EDGE_CALL_SECRET",
   "CANONICAL_HOST",
+  // A voice session's token at rest, and the voice agent's door: a production that lost either must not start with a
+  // door that opens on nothing or a token it cannot seal (spec 2026-10-03-ask-spoken-design.md, §6).
+  "ASK_VOICE_SECRET",
+  "ELEVENLABS_LLM_SECRET",
 ] as const satisfies readonly Name[];
 
 /** What is wrong with an environment, by name only (a value is never repeated): unset where required, or unreadable. */

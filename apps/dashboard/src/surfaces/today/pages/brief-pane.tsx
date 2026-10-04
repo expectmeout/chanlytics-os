@@ -4,17 +4,18 @@
  * page already holds: the day's view model, the day's own, the broadcasts' runs) -- then the lines that are not
  * numbers (a reply that failed, a review that landed, what ran, the receipts), which the day's card draws under its
  * figures in Classic (card.tsx recapBeats: the same lines, drawn once, here in Glass and there in Classic). Two acts
- * under the line, as E3 draws them: Listen, the brief read aloud by the device's own voice where it has one (Web
- * Speech), with how long it takes to hear beside it; and a follow-up to Ask, grounded in the same words. Drawn by the
- * Glass composition alone (today-page.tsx).
+ * under the line, as E3 draws them: Listen, the brief spoken by Ask where the device can talk with it (the agent's
+ * voice, asked "Brief me on today"; docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5), else read aloud by
+ * the device's own voice where it has one (Web Speech), with how long it takes to hear beside it; and a follow-up to
+ * Ask, grounded in the same words. Drawn by the Glass composition alone (today-page.tsx).
  */
-import { useEffect, useState } from "react";
-import type { TodayBriefRun, TodayBriefWords } from "@chanlytics/contracts";
+import { useEffect, useRef, useState } from "react";
+import { askQuestionWords, type TodayBriefRun, type TodayBriefWords } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
-import { appNavigate, askAbout, useMoved, workspaceClock } from "../shell";
+import { appNavigate, askAbout, askVoice, useMoved, workspaceClock } from "../shell";
 import { recapBeats } from "./card";
 import { useDayVm } from "./day";
 import { runsPending } from "./queue-runs";
@@ -40,30 +41,73 @@ function spokenLength(text: string): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/** Listen and Stop: the brief read aloud while the page is up; a page left mid-sentence falls silent. */
+/**
+ * Listen and Stop: the brief spoken by Ask where the device can talk with it (one voice conversation, opened on the
+ * brief's question), else read aloud by the device's own voice while the page is up. An agent that could not start
+ * (the mint refused, the connection lost) hands the brief to the device's voice too, so a tap on Listen always
+ * reads; a page left mid-sentence falls silent either way.
+ */
 function useSpeech(text: string | null): { can: boolean; speaking: boolean; toggle: () => void } {
   const [speaking, setSpeaking] = useState(false);
+  /** Who is reading: the agent, or the device's own voice; nobody between. */
+  const reader = useRef<"agent" | "device" | null>(null);
   useEffect(
     () => () => {
-      if (canSpeak()) window.speechSynthesis.cancel();
+      if (reader.current === "agent") void askVoice()?.stopVoice();
+      else if (reader.current === "device") window.speechSynthesis.cancel();
     },
     [],
   );
-  const can = canSpeak();
-  const toggle = () => {
-    if (!can || !text) return;
+  const voice = askVoice();
+  const can = !!voice || canSpeak();
+  const quiet = () => {
+    reader.current = null;
+    setSpeaking(false);
+  };
+  const device = (words: string) => {
     const synth = window.speechSynthesis;
-    if (speaking) {
-      synth.cancel();
-      setSpeaking(false);
-      return;
-    }
-    const said = new SpeechSynthesisUtterance(text);
-    said.onend = () => setSpeaking(false);
-    said.onerror = () => setSpeaking(false);
+    const said = new SpeechSynthesisUtterance(words);
+    said.onend = quiet;
+    said.onerror = quiet;
     synth.cancel();
     synth.speak(said);
+    reader.current = "device";
     setSpeaking(true);
+  };
+  const toggle = () => {
+    if (!can || !text) return;
+    const words = text;
+    if (speaking) {
+      if (reader.current === "agent") void voice?.stopVoice();
+      else if (reader.current === "device") window.speechSynthesis.cancel();
+      quiet();
+      return;
+    }
+    if (!voice) {
+      device(words);
+      return;
+    }
+    const language = voice.language();
+    reader.current = "agent";
+    setSpeaking(true);
+    voice
+      .startVoice(
+        {
+          threadId: null,
+          scope: null,
+          surface: "today",
+          context: null,
+          language,
+          ask: askQuestionWords("brief", language),
+        },
+        (a) => {
+          if (a.t === "gone" && reader.current === "agent") quiet();
+        },
+      )
+      .catch(() => {
+        if (canSpeak()) device(words);
+        else quiet();
+      });
   };
   return { can, speaking, toggle };
 }

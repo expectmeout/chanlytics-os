@@ -62,6 +62,8 @@ export const RATE = {
   whisper: { limit: 20, windowMs: MIN_MS, noun: "whispers" },
   /** Ending a call, or passing it to the business. */
   call_control: { limit: 20, windowMs: MIN_MS, noun: "call controls" },
+  /** A voice conversation started on the agent (spec 2026-10-03-ask-spoken-design.md, §3.1): each one mints a token. */
+  voice: { limit: 30, windowMs: HOUR_MS, noun: "voice conversations" },
   /**
    * metrics_summary, report_series, the campaign series and the calendar
    * feed: the plpgsql aggregates and the one outside read. One load of Today

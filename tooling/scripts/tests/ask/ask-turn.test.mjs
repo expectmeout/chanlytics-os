@@ -69,6 +69,9 @@ const { scopedRead } = await import(at("apps/dashboard/src/server/ask/cross-page
 const { workspaceFacts, stableSystem, turnWords, answerLine, askTurnText, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
 );
+/** The listening line, as prompt.ts writes it (the voice door, spec 2026-10-03 §3.4): pinned here, word for word. */
+const SPOKEN_LINE =
+  "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol or a bracketed tag. Every figure and row goes in show, where the screen draws it.";
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
 const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const workspaceReads = await import(at("apps/dashboard/src/server/readers/facts.ts"));
@@ -7339,4 +7342,36 @@ test("a broadcast or a playbook proposed on a workspace with no WhatsApp number 
   const held = await buildProposal(toolContext([]), "propose_campaign", playbook);
   assert.equal(held.isError, false, held.result);
   assert.match(held.proposal.summary, /Connect a WhatsApp number first\. Its runs hold everyone until it is\./);
+});
+
+test("a spoken turn (the voice door, spec 2026-10-03 §3.4): the listening line rides last in the turn's words, a typed turn says nothing of it, the model reads it, and the stored shape says which", async () => {
+  // Pure: the line, once, after the language's own.
+  const facts = {
+    role: "operator",
+    personLabel: "ada",
+    scope: null,
+    surface: null,
+    language: "en",
+    timezone: TZ,
+    closures: [],
+    now: NOW,
+  };
+  const spokenLines = turnWords({ ...facts, spoken: true }).split("\n");
+  assert.equal(spokenLines.at(-1), SPOKEN_LINE, "the listening line is the last, after the language");
+  assert.equal(spokenLines.at(-2), "They wrote in English; answer in English.");
+  assert.ok(!turnWords(facts).includes(SPOKEN_LINE), "a typed turn carries no such line");
+  assert.ok(SPOKEN_LINE.startsWith("They are listening, not reading. Open with a short clause and a comma,"));
+
+  // Through the loop: the words reach the model, and the shape says the turn was spoken.
+  const spoken = scripted([ROUND([answer("Nobody is waiting.")])]);
+  const r = await runAskTurn(turn(ctxFor(), { spoken: true }).input, ports(spoken.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.ok(JSON.stringify(spoken.requests[0].messages).includes(SPOKEN_LINE), "the model read the line");
+  assert.equal(r.shape.spoken, true);
+
+  const typed = scripted([ROUND([answer("Nobody is waiting.")])]);
+  const r2 = await runAskTurn(turn(ctxFor()).input, ports(typed.round));
+  assert.equal(r2.failed, false, r2.failure ?? "");
+  assert.ok(!JSON.stringify(typed.requests[0].messages).includes(SPOKEN_LINE), "a typed turn: no line");
+  assert.equal(r2.shape.spoken, false);
 });

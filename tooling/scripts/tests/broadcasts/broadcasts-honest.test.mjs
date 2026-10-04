@@ -1757,7 +1757,7 @@ test("REGRESSION (C15): the sending hours and the pace are the published ones --
   }
 });
 
-test("When the send goes is a sentence -- Now, or a day and a time of the sending hours, within the days the route keeps: the browser's own datetime box took any minute of any day, in the device's colours", async () => {
+test("When the send goes is a sentence -- Now, or a day and a time of the sending hours, within the days the route keeps: the browser's own datetime box took any minute of any day, in the device's colours", async (t) => {
   const plain = templateRow({ id: "tpl-plain", name: "fall_offer", purpose: "marketing" });
   setSurfaceValue("broadcasts", broadcastsSurface({ templates: [plain], number: healthyNumber }));
   const sent = [];
@@ -1858,8 +1858,12 @@ test("When the send goes is a sentence -- Now, or a day and a time of the sendin
   assert.equal(dayOf(tree), null);
   assert.equal(mode(tree).props.value, "now");
 
-  // The sending hours are the published ones, not nine to twenty typed into the page.
+  // The sending hours are the published ones, not nine to twenty typed into the page. Only the words move here; the
+  // next opening keeps the contracts' own hours, so the first time ahead is read at the business's noon, inside both:
+  // read in the evening it fell at 20:30, outside the hours this world publishes, and the test failed by the time of
+  // day it ran at.
   const published = { ...C.hours };
+  t.mock.timers.enable({ apis: ["Date"], now: C.fromInput(`${C.dayKey(Date.now())}T12:00`) });
   Object.assign(C.hours, { min: 8, max: 19, first: "8:00", range: "8:00–19:59", between: "between 8:00 and 19:59" });
   try {
     tree = writing(props);
@@ -1870,6 +1874,7 @@ test("When the send goes is a sentence -- Now, or a day and a time of the sendin
     assert.equal(C.nextOpen(picked).moved, false, "and the first one ahead is inside them");
   } finally {
     Object.assign(C.hours, published);
+    t.mock.timers.reset();
   }
 });
 

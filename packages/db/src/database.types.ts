@@ -203,6 +203,78 @@ export type Database = {
           },
         ]
       }
+      ask_voice_sessions: {
+        Row: {
+          context: Json | null
+          conversation_id: string | null
+          created_at: string
+          duration_s: number | null
+          ended_at: string | null
+          id: string
+          language: string
+          scope: Json | null
+          surface: string | null
+          tenant_id: string
+          thread_id: string
+          token_cipher: string
+          token_expires_at: string
+          turn_key: string | null
+          turn_started_at: string | null
+          user_id: string
+        }
+        Insert: {
+          context?: Json | null
+          conversation_id?: string | null
+          created_at?: string
+          duration_s?: number | null
+          ended_at?: string | null
+          id: string
+          language?: string
+          scope?: Json | null
+          surface?: string | null
+          tenant_id: string
+          thread_id: string
+          token_cipher: string
+          token_expires_at: string
+          turn_key?: string | null
+          turn_started_at?: string | null
+          user_id: string
+        }
+        Update: {
+          context?: Json | null
+          conversation_id?: string | null
+          created_at?: string
+          duration_s?: number | null
+          ended_at?: string | null
+          id?: string
+          language?: string
+          scope?: Json | null
+          surface?: string | null
+          tenant_id?: string
+          thread_id?: string
+          token_cipher?: string
+          token_expires_at?: string
+          turn_key?: string | null
+          turn_started_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ask_voice_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ask_voice_sessions_thread_id_same_workspace"
+            columns: ["tenant_id", "thread_id"]
+            isOneToOne: false
+            referencedRelation: "ask_threads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
       billing_accounts: {
         Row: {
           cancel_at: string | null
@@ -7301,6 +7373,7 @@ export type Database = {
           schedule: string
         }[]
       }
+      sweep_voice_sessions: { Args: { p_after?: string }; Returns: number }
       take_rate: {
         Args: {
           p_actor: string

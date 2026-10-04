@@ -8,7 +8,7 @@ the workspace's money, and the fields it takes. A workspace-scoped route names i
 reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a
 stale copy.
 
-207 handlers in 46 domains.
+210 handlers in 46 domains.
 
 ## activity
 
@@ -63,6 +63,30 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 Writes; for any signed-in person, for themselves; no rate bucket; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/threads/[id]/route.ts`).
+
+### `POST /api/v1/ask/voice`
+
+Writes; for a member of the workspace the request names, viewer or above; counts against the `voice` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/voice/route.ts`).
+
+### `POST /api/v1/ask/voice/end`
+
+Writes; for a member of the workspace the request names, viewer or above; no rate bucket; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `session` | string | yes | matches `^[0-9a-f]{64}$` |
+| `reason` | string | no | at most 80 characters |
+
+### `POST /api/v1/ask/voice/page`
+
+Writes; for a member of the workspace the request names, viewer or above; counts against the `aggregate` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `session` | string | yes | matches `^[0-9a-f]{64}$` |
+| `context` | object | yes |  |
 
 ### `POST /api/v1/ask/warm`
 
