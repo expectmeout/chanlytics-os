@@ -93,7 +93,9 @@ test("the wiring: the runtime reads the switch, every path honours it, the shell
     "before the policy, which may still read auto",
   );
   const pb = readCode("apps/edge/lib/playbooks.ts");
-  assert.ok(pb.includes('if (tenant?.status === "paused") return { error: "paused" };'));
+  // The context answers CONTEXT_PAUSED; the sweep counts it off and Run now refuses it in words
+  // (cron-playbooks-door.test.mjs and playbooks-run-door.test.mjs run both).
+  assert.ok(pb.includes('if (tenant?.status === "paused") return { error: CONTEXT_PAUSED };'));
   // The batch's head, and the door's `paused` for a pause that lands mid-batch, stop the run in one place
   // (broadcast-stops.ts stopForTheWorkspace): the run fails with its reason and the owner is told, in the words said once
   // in broadcast-words.ts. core-broadcast.test.mjs runs both and asserts the words.

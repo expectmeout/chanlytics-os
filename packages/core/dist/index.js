@@ -16281,7 +16281,10 @@ function draw(r4, message, how, listIds) {
 }
 async function pastTheRoom(r4, message, drawn, goesAt) {
   try {
-    const people = drawn.eligible.map((person) => ({ id: person.id, channel: drawn.channelOf[person.id] ?? "whatsapp" }));
+    const people = drawn.eligible.map((person) => ({
+      id: person.id,
+      channel: drawn.channelOf[person.id] ?? "whatsapp"
+    }));
     const purpose = enrolPurpose(triggerOf2(r4.p.trigger)?.cls, message);
     const month = { monthSent: (channel) => r4.ports.monthSent(channel, goesAt) };
     return { held: (await pastTheMonth(month, people, r4.p.trigger, purpose)).map((person) => person.id) };
