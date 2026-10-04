@@ -925,7 +925,8 @@ token and the spend check) for the vendor's text-to-speech stream in the same vo
 No agent, no microphone, no row. Logged as `ask_speech` (`purpose`, `chars`, `ttfb_ms`) and `ask_speech_refused`
 on the dashboard, `voice_speech_spoken` and `voice_speech_refused` on the edge; counted as `speech`, sixty an hour a
 person. The browser's own synthesis is gone: a clip that cannot be made says why beside the button, and nothing
-else speaks. One voice at a time: a clip ends a conversation that is running, and a conversation ends a clip. The
+else speaks. A question the recogniser heard is answered aloud by itself when its answer lands; a typed one is not.
+One voice at a time: a clip ends a conversation that is running, and a conversation ends a clip. The
 words of each clip go into the vendor's text-to-speech history under the account's retention (zero retention is an
 Enterprise switch); deleting each after it plays is the spec's §8 follow-up.
 

@@ -286,8 +286,15 @@ deployment's profile (Opus 5.5 by default, low effort); the gate re-runs with sp
 > - **One voice at a time**, held where the two pipes are composed (`legacy-bridge/ask.ts`): a clip ends the
 >   conversation it would talk over (an open microphone would hear the brief and the agent answer it), and a
 >   conversation ends the clip.
-> - **The mic says what it is doing:** Connecting (a tap cancels), then End; the Line's Read aloud says it is getting
->   the voice, then Stop. Typing ends the conversation as before, and now says so (`typed`).
+> - **The mic says what it is doing:** Connecting (a tap cancels), then up: a ring breathes out of the coral button
+>   while the agent listens and quicker while it speaks, and its words say "Listening — tap to end" or "Ask is
+>   speaking — tap to end" (Ruben, 4 Oct: a still coral button read as switched off, and a second tap ended the
+>   call); the Line's Read aloud says it is getting the voice, then Stop. Typing ends the conversation as before, and
+>   now says so (`typed`).
+> - **A question spoken is answered aloud** (Ruben, 4 Oct, the vision's (b)): a question the recogniser heard (the mic
+>   held, a Space held, a phone's three held) marks its turn, and when that turn's answer lands the Line reads the
+>   answer's words through the one-way speech by itself, as a press on Read aloud would; a typed question stays quiet,
+>   and Read aloud is still there for it. Stop, typing and Clear end the clip as they end any.
 > - **What the vendor keeps of the speech:** the words of each clip go into the vendor's text-to-speech history (every
 >   answer carries a `history-item-id`; measured 4 Oct), under the account's retention; zero retention is an Enterprise
 >   switch. A brief names customers. Deleting each history item after the clip is §8's follow-up, and until then this is
@@ -398,9 +405,13 @@ create-agent reference's, sources §1, §2, §5, §6, §8, §9):
 - `platform_settings.overrides`: `custom_llm_extra_body: true`, `conversation_config_override.agent.language: true`,
   `conversation_config_override.agent.first_message: true`; every other override `false`, so a tampered browser can
   change neither the prompt nor the model nor the tools (sources §2).
-- `conversation_config.conversation.client_events`, explicitly: `interruption`, `user_transcript`, `agent_response`,
-  `agent_response_correction`, `agent_chat_response_part`, `agent_response_complete`, `vad_score`, `ping`,
-  `conversation_initiation_metadata` (no page states the default set, sources §3).
+- `conversation_config.conversation.client_events`, explicitly: `audio`, `interruption`, `user_transcript`,
+  `agent_response`, `agent_response_correction`, `agent_chat_response_part`, `agent_response_complete`, `vad_score`,
+  `ping`, `conversation_initiation_metadata` (no page states the default set, sources §3). **`audio` gates the agent's
+  speech, over WebRTC too** (amended 4 Oct 2026): without it the agent sent its words as text and silence on the
+  wire (inbound energy 1e-8, no `speaking`, measured on a bare page with the SDK's own stats), and seven production
+  taps that day heard nothing; with it the same voice and model spoke in 1.6 s. The sources' "audio only where the
+  transport is WebSocket" was wrong.
 - `conversation_config.turn`: `turn_eagerness: normal`, `turn_timeout: 7`, `speculative_turn: false`, `turn_model:
   turn_v3`, `soft_timeout_config: { timeout_seconds: -1 }` (the platform's own filler is off, as built 3 Oct: the
   review found its words reaching the chat as the answer's headline, since the vendor streams the filler as a response
