@@ -13,14 +13,12 @@
 import { DealSheetHost, openDealSheet } from "./deal-sheet/deal-sheet";
 import { StepSheetHost, openStepSheet } from "./step-sheet/step-sheet";
 import { ChannelGlyph } from "./cells/channel-glyph";
-import { PeopleScopeTabs } from "./rail/scope-tabs";
 import { plListRoute, plScopeRoute, plScopes } from "./words";
 
 export const PEOPLE_GLOBALS = {
   // the shell's strip of People's scopes
   plScopes,
   plScopeRoute,
-  PeopleScopeTabs,
   // the demo's seeded Lists page: a list's channel mark, and where a list's own route lands
   ChannelGlyph,
   __listRoute: plListRoute,

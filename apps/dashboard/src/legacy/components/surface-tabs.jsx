@@ -9,9 +9,9 @@ const ST_GROUPS = {
     match: ["clients", "leads", "pipeline", "segments"],
     tabs: [
       { id: "clients", label: "People", to: "clients" },
-      // No Leads tab: Leads is a SCOPE of People (clients/leads), and its switch is the page's own strip,
-      // People | Leads (PeopleScopeTabs, PRD §6.1). A tab here would point at the retired `leads` route and bounce
-      // through the redirect to reach the scope the page is already showing.
+      // No Leads tab here: Leads is a SCOPE of People (clients/leads), and People | Leads (| Pipeline) is the page's own
+      // views (PRD §6.1), said by its chrome (surfaces/people/chrome.ts `views`) and drawn by this strip below, not by this
+      // group: a tab here would point at the retired `leads` route and bounce through the redirect.
       { id: "pipeline", label: "Deal board", to: "pipeline", demoOnly: true, tip: "Deals are leads with money attached — same people, board view" },
       // No Lists tab: on a real workspace the lists are the People rail (and a sheet on a phone), and `segments/<id>`
       // lands on People with that list picked. A real workspace has one People tab, so the bar draws nothing there;
@@ -67,12 +67,17 @@ const ST_GROUPS = {
 const stAddress = () => (window.CHANLY && window.CHANLY.address) || null;
 const stWarm = (route) => { const a = stAddress(); if (a && a.warm) a.warm(route); };
 
-const SurfaceTabs = ({ page, param, onNavigate }) => {
+// `views` is a page that says its own views (surfaces/routes.ts SurfaceViews: People's scopes, from its chrome): the same strip,
+// drawn here once for every page, whether the views are a group's below or the page's own. A page's views are its tabs,
+// the one picked is its own to name, and a view is a move to a route like any tab here.
+const SurfaceTabs = ({ page, param, views, onNavigate }) => {
   const [, stBump] = React.useReducer(n => n + 1, 0);
+  const own = views && views.tabs.length > 1 ? views : null;
+  const pickedId = own ? own.picked : page;
   // The tab pressed answers at once: the address moves when the router lands, which on a slow connection is a beat
   // after the press. It is the page's own again as soon as the address says it is, and never kept past a few seconds.
   const [pending, setPending] = React.useState(null);
-  React.useEffect(() => { setPending(null); }, [page]);
+  React.useEffect(() => { setPending(null); }, [page, pickedId]);
   React.useEffect(() => {
     if (!pending) return undefined;
     const t = setTimeout(() => setPending(null), 3000);
@@ -85,25 +90,24 @@ const SurfaceTabs = ({ page, param, onNavigate }) => {
     evs.forEach(e => window.addEventListener(e, stBump));
     return () => evs.forEach(e => window.removeEventListener(e, stBump));
   }, []);
-  const [groupKey, group] = Object.entries(ST_GROUPS).find(([, g]) => g.match.includes(page)) || [null, null];
+  const [groupKey, group] = own ? [own.name, null] : Object.entries(ST_GROUPS).find(([, g]) => g.match.includes(page)) || [null, null];
+  const tabs = own ? own.tabs : group ? group.tabs.filter(t => !t.demoOnly || window.__DEMO_MODE) : [];
+  const warmRoutes = tabs.map((t) => t.to).join(" ");
   React.useEffect(() => {
     const a = stAddress();
-    const g = groupKey ? ST_GROUPS[groupKey] : null;
-    if (g && a && a.warmSoon) a.warmSoon(g.tabs.filter((t) => !t.demoOnly || window.__DEMO_MODE).map((t) => t.to));
-  }, [groupKey, page]);
-  if (!group) return null;
-  const tabs = group.tabs.filter(t => !t.demoOnly || window.__DEMO_MODE);
+    if (warmRoutes && a && a.warmSoon) a.warmSoon(warmRoutes.split(" "));
+  }, [groupKey, page, warmRoutes]);
   if (tabs.length < 2) return null;
   // Detail views keep their focus: hide on a person's profile. A list (seg:, list:) and a state (state:) are views of
-  // People, and the tabs vanished on the last two (the wiring audit's N24).
-  if (page === "clients" && param && !/^(seg|list|state):/.test(param)) return null;
+  // People, and the tabs vanished on the last two (the wiring audit's N24). A page that says its own views says none for one.
+  if (!own && page === "clients" && param && !/^(seg|list|state):/.test(param)) return null;
   return (
-    <nav className={`stabs stabs-${groupKey}`} aria-label="Section views">
+    <nav className={`stabs stabs-${groupKey}`} aria-label={own ? own.label : "Section views"} data-testid={own ? own.testid : undefined}>
       {tabs.map(t => {
         const badge = t.badge ? t.badge() : null;
         const pulse = t.pulse ? t.pulse() : false;
         return (
-          <button key={t.id} className={`stabs-tab ${(pending || page) === t.id ? "active" : ""}`} data-tip={t.tip || null} data-tip-side="bottom" onPointerEnter={() => stWarm(t.to)} onTouchStart={() => stWarm(t.to)} onFocus={() => stWarm(t.to)} onClick={(e) => { if (page !== t.id) { stripTap(e.currentTarget.parentElement, e.currentTarget); setPending(t.id); } onNavigate(t.to); }}>
+          <button key={t.id} className={`stabs-tab ${(pending || pickedId) === t.id ? "active" : ""}`} aria-current={pickedId === t.id ? "page" : undefined} data-testid={t.testid} data-tip={t.tip || null} data-tip-side="bottom" onPointerEnter={() => stWarm(t.to)} onTouchStart={() => stWarm(t.to)} onFocus={() => stWarm(t.to)} onClick={(e) => { if (pickedId !== t.id) { stripTap(e.currentTarget.parentElement, e.currentTarget); setPending(t.id); } onNavigate(t.to); }}>
             {t.label}
             {pulse && <span className="live-dot" style={{ width: 5, height: 5 }} />}
             {badge ? <span className={`stabs-badge tally${t.tone === "warn" ? " tally-warn" : ""}`} data-tone={t.tone || "plain"}>{badge}</span> : null}
@@ -115,7 +119,7 @@ const SurfaceTabs = ({ page, param, onNavigate }) => {
 };
 
 // ---- Where a route stands on a strip, and which way a view comes in -----------------------------------------------
-// People's scopes are People's own strip (PeopleScopeTabs), in plScopes' order; every other strip is a group's here. A
+// People's scopes are People's own views (its chrome's, drawn by SurfaceTabs above), in plScopes' order; every other strip is a group's here. A
 // person's page, and a route no strip carries, stand nowhere, and a view arriving there comes in as any other does.
 const stripPlace = (page, param) => {
   if (page === "clients") {

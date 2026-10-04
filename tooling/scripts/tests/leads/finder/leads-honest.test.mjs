@@ -1522,56 +1522,22 @@ test("leads a refresh found but did not sort in are offered on all leads too, in
   assert.equal(byTestId(tree, "leads-offered"), null, "an open search says it in its strip, once");
 });
 
-test("the People | Leads switch is a tablist in both scopes, and picking the other one navigates to it", async () => {
-  await fresh();
-  let tree = draw();
-  const tabs = byTestId(tree, "people-scope");
-  assert.equal(tabs.props.role, "tablist");
-  assert.deepEqual(
-    all(tabs, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props["aria-selected"]]),
-    [
-      ["People", false],
-      ["Leads", true],
-    ],
-  );
-  click(byTestId(tree, "scope-people"));
-  assert.deepEqual(went, ["clients"]);
-  went.length = 0;
-  cells = [];
-  tree = draw({ scope: "people", leadsRoute: null });
-  assert.deepEqual(
-    all(byTestId(tree, "people-scope"), (n) => n.props?.role === "tab").map((n) => n.props["aria-selected"]),
-    [true, false],
-    "and People's rail carries the same switch",
-  );
-  click(byTestId(tree, "scope-leads"));
-  assert.deepEqual(went, ["clients/leads"]);
-});
+/** Whether anything in the tree is a strip of views: the frame's (SurfaceTabs) draws it from the page's chrome, no page does. */
+const drawsAStrip = (tree) =>
+  !!byTestId(tree, "people-scope") ||
+  all(tree, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes("stabs"),
+  ).length > 0;
 
-test("where deals are on, the switch has the Pipeline in both scopes, and it goes to clients/pipeline", async () => {
-  // People's surface says so (dealsAreOn, 0008); on a cold load of Leads it lands after Leads', and the switch gains its
-  // third tab then. The two-tab pins above stay: where deals are off, nothing changes.
+test("the People | Leads switch is the frame's strip of views, not the page's: neither scope draws one, deals on or off", async () => {
+  // What the strip holds, which is picked and where a press goes are the chrome's (people/moments/people-views.test.mjs).
   await fresh();
+  assert.equal(drawsAStrip(draw()), false, "Leads draws none of its own");
+  assert.equal(drawsAStrip(draw({ scope: "people", leadsRoute: null })), false, "nor does the rail's page");
   surfaceValue("people").dealsOn = true;
-  let tree = draw();
-  assert.deepEqual(
-    all(byTestId(tree, "people-scope"), (n) => n.props?.role === "tab").map((n) => [
-      textOf(n),
-      n.props["aria-selected"],
-    ]),
-    [
-      ["People", false],
-      ["Leads", true],
-      ["Pipeline", false],
-    ],
-  );
-  click(byTestId(tree, "scope-pipeline"));
-  assert.deepEqual(went, ["clients/pipeline"]);
-  went.length = 0;
-  cells = [];
-  tree = draw({ scope: "people", leadsRoute: null });
-  click(byTestId(tree, "scope-pipeline"));
-  assert.deepEqual(went, ["clients/pipeline"], "and People's rail carries the same switch");
+  assert.equal(drawsAStrip(draw()), false, "and a third tab is the frame's to add, not the page's");
 });
 
 test("People and Leads are two components: each keeps its own state, and People listens for nothing of Leads'", async () => {
@@ -2989,17 +2955,14 @@ const bar = (over = {}) => {
   });
 };
 
-test("on a phone the switch, the list and search are one bar; Find leads is its last control, the three's mark, a door to Ask; search is a button that opens the bar into the field", async () => {
+test("on a phone the list and search are one bar under the frame's strip; Find leads is its last control, the three's mark, a door to Ask; search is a button that opens the bar into the field", async () => {
   await fresh();
   const opened = [];
   const t = bar({ onFind: () => opened.push("find"), canFind: true });
-  const tabs = all(t, (n) => n.props?.role === "tab");
-  assert.deepEqual(
-    tabs.map((n) => [textOf(n), n.props["aria-selected"]]),
-    [
-      ["People", false],
-      ["Leads", true],
-    ],
+  assert.equal(
+    all(t, (n) => n.props?.role === "tab").length,
+    0,
+    "the switch is the frame's strip over the bar, not in it",
   );
   assert.equal(byTestId(t, "leads-phone-search-open").props["aria-label"], "Search leads");
   assert.equal(byTestId(t, "leads-phone-search"), null, "REGRESSION: the box was 64px wide on a phone and said 'Sear'");
@@ -3053,17 +3016,10 @@ test("on a phone the switch, the list and search are one bar; Find leads is its 
   assert.notEqual(kept.props.autoFocus, true, "without taking focus: a view coming back must not pull up the keyboard");
 });
 
-test("where deals are on, a phone's bar has the Pipeline beside People and Leads, and Leads keeps its list and its count", async () => {
+test("where deals are on, a phone's bar still holds no switch (the frame's strip adds the Pipeline), and Leads keeps its list and its count", async () => {
   await fresh();
   const t = bar({ dealsOn: true });
-  assert.deepEqual(
-    all(t, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props["aria-selected"]]),
-    [
-      ["People", false],
-      ["Leads", true],
-      ["Pipeline", false],
-    ],
-  );
+  assert.equal(all(t, (n) => n.props?.role === "tab").length, 0);
   assert.equal(textOf(byTestId(byTestId(t, "leads-phone-lists"), "leads-phone-lists-count")), "322");
   assert.ok(byTestId(t, "leads-bar-find"), "and the door to Ask is still the bar's last control");
 });

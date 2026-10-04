@@ -1112,18 +1112,23 @@ const lineParts = (tree) =>
     /^pl-standing-(total|reached|needs)( on)?$/.test(n.props?.className || ""),
   ).map(textOf);
 
-test("the Pipeline has its own rail with People's switch at its head, the line, and the table in sections -- every word contracts'", async () => {
+/** Whether anything in the tree is a strip of views: the frame's (SurfaceTabs) draws it from the page's chrome, no page does. */
+const drawsAStrip = (tree) =>
+  !!byTestId(tree, "people-scope") ||
+  all(tree, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes("stabs"),
+  ).length > 0;
+
+test("the Pipeline has its own rail under People's switch (the frame's strip), the line, and the table in sections -- every word contracts'", async () => {
   await fresh();
   const tree = draw();
   assert.ok(byTestId(tree, "pipeline"), "the Pipeline, not People");
-  const tabs = byTestId(tree, "people-scope");
-  assert.deepEqual(
-    all(tabs, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props["aria-selected"]]),
-    [
-      ["People", false],
-      ["Leads", false],
-      ["Pipeline", true],
-    ],
+  assert.equal(
+    drawsAStrip(tree),
+    false,
+    "the switch is the frame's strip over the page (people/moments/people-views.test.mjs)",
   );
   const vm = pipelineOf(globalThis.window.__PEOPLE.rows, Date.now(), ZONE, null);
   assert.deepEqual(lineParts(tree), vm.summary);
@@ -1362,7 +1367,7 @@ test("with nobody to follow, the table says so in contracts' words", async () =>
   assert.match(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")), /^0 people/);
 });
 
-test("where deals are off the address draws People, and its switch has no Pipeline", async () => {
+test("where deals are off the address draws People", async () => {
   await fresh({ dealsOn: false });
   globalThis.window.location.hash = "#/clients/pipeline";
   // The route draws People's own page for this address (surfaces/people/chrome.ts peopleTakes), which says its own.
@@ -1374,27 +1379,16 @@ test("where deals are off the address draws People, and its switch has no Pipeli
   );
   assert.equal(byTestId(tree, "pipeline"), null);
   assert.ok(byTestId(tree, "people-standing"), "People");
-  assert.deepEqual(
-    all(byTestId(tree, "people-scope"), (n) => n.props?.role === "tab").map((n) => [
-      textOf(n),
-      n.props["aria-selected"],
-    ]),
-    [
-      ["People", true],
-      ["Leads", false],
-    ],
-  );
+  assert.equal(drawsAStrip(tree), false, "and its switch, without the Pipeline, is the frame's");
 });
 
-test("the switch goes to each scope's own address, and the rail's rows to the Pipeline's own views", async () => {
+test("the rail's rows go to the Pipeline's own views (the switch to each scope is the frame's)", async () => {
   await fresh();
   const tree = draw();
-  for (const id of ["scope-people", "scope-leads", "scope-pipeline"]) click(byTestId(tree, id));
-  assert.deepEqual(went, ["clients", "clients/leads", "clients/pipeline"]);
   // Its rail picks a view of the Pipeline, a new entry each; People's lists open on People, from People.
   for (const id of ["proposals", "waiting", "svc:Color correction", "all"])
     click(byTestId(tree, `pipeline-rail-row-${id}`));
-  assert.deepEqual(went.slice(3), [
+  assert.deepEqual(went, [
     "clients/pipeline:v-proposals",
     "clients/pipeline:v-waiting",
     "clients/pipeline:v-s.Color%20correction",
@@ -1588,7 +1582,7 @@ test("on a phone: one bar with the switch, the view's list button, search and Ne
   onPhone(async () => {
     await fresh();
     const tree = draw();
-    assert.equal(byClass(tree, "cl-rail"), null, "no rail: the switch is the bar's");
+    assert.equal(byClass(tree, "cl-rail"), null, "no rail: the view is the bar's list button");
     assert.equal(byClass(tree, "cl-controls"), null, "no controls row");
     const bar = byTestId(tree, "pipeline-phone-bar");
     const scroller = byClass(tree, "cl-main-scroll");
@@ -1598,14 +1592,7 @@ test("on a phone: one bar with the switch, the view's list button, search and Ne
       null,
       "the bar stands over what scrolls, as the Inbox's strip does",
     );
-    assert.deepEqual(
-      all(bar, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props["aria-selected"]]),
-      [
-        ["People", false],
-        ["Leads", false],
-        ["Pipeline", true],
-      ],
-    );
+    assert.equal(all(bar, (n) => n.props?.role === "tab").length, 0, "the switch is the frame's strip over the bar");
     // The view is the bar's list button, its rows the rail's, in a sheet: no row of chips above the work.
     const lists = byTestId(bar, "pipeline-phone-lists");
     assert.deepEqual(

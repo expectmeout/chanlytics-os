@@ -556,13 +556,13 @@ const firstRunScreen = ({ theme, look, routePage, askOpen, setAskOpen }) => (
  * and only the top bar stays (Ruben, 1 Oct 2026: the greeting stood still over a page that moved). Classic draws the
  * row of views alone, over the page. Called twice, once for each place; one draws, the other draws nothing.
  */
-const glassHead = ({ glass, pane, where, page, param, navigate, primaryAction }) => {
-  if (!glass) return where === "over" ? <SurfaceTabs page={page} param={param} onNavigate={navigate} /> : null;
+const glassHead = ({ glass, pane, where, page, param, views, navigate, primaryAction }) => {
+  if (!glass) return where === "over" ? <SurfaceTabs page={page} param={param} views={views} onNavigate={navigate} /> : null;
   if ((where === "over") !== pane) return null;
   return (
     <div className="pg-slot">
       <div className="pg-head-slot" id="pg-head" />
-      <SurfaceTabs page={page} param={param} onNavigate={navigate} />
+      <SurfaceTabs page={page} param={param} views={views} onNavigate={navigate} />
       <div className="pg-act-slot">
         <span id="pg-act" />
         {primaryAction}
@@ -573,7 +573,7 @@ const glassHead = ({ glass, pane, where, page, param, navigate, primaryAction })
 
 const appChrome = (s) => {
   const { theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace } = s;
-  const { page, param, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeLoading, surfaceUnavailable } = s;
+  const { page, param, views, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeLoading, surfaceUnavailable } = s;
   const glass = look === "glass";
   return (
     <div className="app-root" data-theme={theme} data-look={look}>
@@ -617,7 +617,7 @@ const appChrome = (s) => {
             it is the one thing on this line that stops being true by itself. */}
         <LiveCallBar />
         <ShellStatusBar />
-        {glassHead({ glass, pane, where: "over", page, param, navigate, primaryAction })}
+        {glassHead({ glass, pane, where: "over", page, param, views, navigate, primaryAction })}
         {/* On a phone a swipe across the page walks the strip over it (surface-tabs.jsx stripSwipe). */}
         <main
           id="main"
@@ -626,7 +626,7 @@ const appChrome = (s) => {
           aria-busy={routeLoading ? "true" : undefined}
           {...(window.stripSwipe ? window.stripSwipe() : {})}
         >
-          {glassHead({ glass, pane, where: "inside", page, param, navigate, primaryAction })}
+          {glassHead({ glass, pane, where: "inside", page, param, views, navigate, primaryAction })}
           <ShellErrorBoundary>
             {routeLoading
               ? <div className="route-reading" role="status">Reading…</div>

@@ -16,7 +16,6 @@ import { SaveShownAsList } from "../lists/save-shown";
 import { PeopleRail } from "../rail/people-rail";
 import { PeopleListsSheet } from "../rail/lists-sheet";
 import { PeoplePhoneBar } from "../rail/phone-bar";
-import { PeopleScopeTabs } from "../rail/scope-tabs";
 import { PeopleStanding } from "../rail/standing";
 import { PeopleAddSheet, PeopleListActSheet } from "../sheets/list-sheets";
 import { AddPersonButton } from "../sheets/add-person";
@@ -24,15 +23,7 @@ import { lookNow } from "../../kit/look/look";
 import { PeopleColumnsMenu } from "../table/columns-menu";
 import { PeopleTable } from "../table/table";
 import type { TableEmpty } from "../types";
-import {
-  PL_DEFAULT_GROUPS,
-  PL_NO_LISTS,
-  PL_SEARCH_LABEL,
-  PL_TAB_LABEL,
-  plLoadedWords,
-  plScopeRoute,
-  plSortedBy,
-} from "../words";
+import { PL_DEFAULT_GROUPS, PL_NO_LISTS, PL_SEARCH_LABEL, PL_TAB_LABEL, plLoadedWords, plSortedBy } from "../words";
 import type { PeopleState } from "./state";
 import { peoplePhoneMenu } from "./phone-menu";
 import { menuGroups, moreButton } from "../menu-groups";
@@ -373,6 +364,7 @@ function peopleScroll(s: PeopleState) {
     searchMore,
     loadingMore,
     loadMore,
+    swap,
   } = s;
   return (
     <div className="cl-main-scroll pl-main" ref={scrollRef}>
@@ -394,6 +386,7 @@ function peopleScroll(s: PeopleState) {
       {(!phone || listStep) && peopleListSection(s)}
 
       <PeopleTable
+        swapRef={swap}
         budget={rowBudget}
         noun="person"
         columns={columns}
@@ -448,27 +441,12 @@ function peopleScroll(s: PeopleState) {
   );
 }
 
-/** A phone's one bar: the switch, the list, search and the more-menu (PeoplePhoneBar). */
+/** A phone's one bar: the list, search and the more-menu (PeoplePhoneBar). */
 function phoneBar(s: PeopleState, phoneMenu: ReturnType<typeof peoplePhoneMenu>) {
-  const {
-    nav,
-    dealsOn,
-    activeSaved,
-    activeList,
-    listGone,
-    setListsOpen,
-    listsOpen,
-    q,
-    setQ,
-    searchRef,
-    searchOpen,
-    setSearchOpen,
-  } = s;
+  const { activeSaved, activeList, listGone, setListsOpen, listsOpen, q, setQ, searchRef, searchOpen, setSearchOpen } =
+    s;
   return (
     <PeoplePhoneBar
-      scope="people"
-      onScope={(to) => nav(plScopeRoute(to))}
-      dealsOn={dealsOn}
       listLabel={
         activeSaved ? activeSaved.name : activeList ? activeList.label : listGone ? listGone.title : "Everyone"
       }
@@ -495,7 +473,6 @@ function phoneBar(s: PeopleState, phoneMenu: ReturnType<typeof peoplePhoneMenu>)
 /** The phone's rail, as a sheet: its first row is Everyone, and a press opens the list and closes the sheet. */
 function listsSheet(s: PeopleState) {
   const {
-    nav,
     lists,
     people,
     listId,
@@ -524,7 +501,6 @@ function listsSheet(s: PeopleState) {
             setListsOpen(false);
           },
         }}
-        onScope={(to: string) => nav(plScopeRoute(to))}
         lists={lists}
         groups={people.groups || PL_DEFAULT_GROUPS}
         active={listId}
@@ -555,8 +531,6 @@ function listsSheet(s: PeopleState) {
 export function peopleScreen(s: PeopleState) {
   const {
     phone,
-    nav,
-    dealsOn,
     lists,
     people,
     listId,
@@ -600,8 +574,7 @@ export function peopleScreen(s: PeopleState) {
   const phoneMenu: PeopleMenuItem[] = peoplePhoneMenu(s);
   return (
     <div className="clients">
-      {/* The switch between the scopes, over the rail and the rows; a phone's is the bar's first row (PeoplePhoneBar). */}
-      {!phone && <PeopleScopeTabs scope="people" onScope={(to) => nav(plScopeRoute(to))} dealsOn={dealsOn} />}
+      {/* The switch between the scopes is the frame's strip of views, over this page (surfaces/people/chrome.ts). */}
       <PeopleRail
         scope="people"
         // In Glass the rail opens with everyone, the way the canvas draws it (P1); Classic's way back to everyone on a

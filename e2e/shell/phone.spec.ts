@@ -607,7 +607,7 @@ test.describe("Phone shell on a real workspace", () => {
       // The Inbox's strip stands on every view, the list's included (Ruben, 2 Oct 2026); it is read over Conversations,
       // where the list's buckets do not stand under it.
       ["the Inbox's views", "conversations", page.locator(".stabs.stabs-inbox")],
-      ["People", "clients", page.getByTestId("people-phone-scopes")],
+      ["People", "clients", page.getByTestId("people-scope")],
       ["Settings", "admin/workspace", page.locator(".stabs.stabs-settings")],
     ] as const) {
       await page.goto(`/#/${hash}`);
@@ -949,7 +949,7 @@ test.describe("Phone shell on a real workspace", () => {
 
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("people-phone-scopes")).toBeVisible();
+    await expect(page.getByTestId("people-scope")).toBeVisible();
     await swipe(300, 90);
     // The address is the tab's own route: the Leads view draws its strip once Leads is read.
     await expect(page).toHaveURL(atRoute(/^clients\/leads/));

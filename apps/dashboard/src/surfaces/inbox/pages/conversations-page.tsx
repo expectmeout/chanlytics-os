@@ -307,7 +307,7 @@ function listPane(p: {
   selected: ConversationRow | undefined;
   openRow: (id: string) => void;
   /** The rows' ref: they swap in with a rise as the channel changes (kit/motion). */
-  swap: ReturnType<typeof useSwapMotion>;
+  swap: ReturnType<typeof useSwapMotion<HTMLDivElement>>;
 }) {
   const { data, rows, query, setQuery, channel, counts, selected, openRow, swap } = p;
   const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = data;

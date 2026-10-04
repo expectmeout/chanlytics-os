@@ -5,6 +5,7 @@
  */
 import { useMemo } from "react";
 import { mayAtLeast, navigate } from "../../legacy-verbs";
+import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { PL_COLUMNS, PL_PHONE_COLUMNS } from "../cells/columns";
 import { usePlControls } from "../hooks/use-controls";
 import { usePeople } from "../hooks/use-people";
@@ -86,6 +87,8 @@ export function usePeopleState({
     dropFromList: acts.dropFromList,
   });
   const place = usePeoplePlace({ controls, shown, tab, listId, savedId, q });
+  // The rows rise as the list under the view changes (the Inbox's buckets do): a pick in the rail answers, never a hard cut.
+  const swap = useSwapMotion<HTMLTableSectionElement>(`${listId ?? ""}|${savedId ?? ""}|${tab}`);
   const phoneActs = peoplePhoneSheetActs({
     ...sheets,
     activeSaved: open.activeSaved,
@@ -132,6 +135,7 @@ export function usePeopleState({
     canEditLists,
     shown,
     selecting,
+    swap,
   };
 }
 export type PeopleState = ReturnType<typeof usePeopleState>;
