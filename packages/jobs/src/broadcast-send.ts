@@ -207,7 +207,7 @@ function peoplePorts(
 > {
   const db = ctx.db;
   return {
-    // On a database 00287 has not reached, a recipient has no channel and everyone goes by WhatsApp, as every run did
+    // On a database 00298 has not reached, a recipient has no channel and everyone goes by WhatsApp, as every run did
     // (packages/db queuedRecipients): code that ships before its migration must keep its broadcasts going.
     batch: (id, limit) => queuedRecipients(db, { tenantId, broadcastId: id, limit }),
     // The batch's people in one read, not one read per person.

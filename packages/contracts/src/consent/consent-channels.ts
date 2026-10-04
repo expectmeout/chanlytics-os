@@ -21,10 +21,10 @@
  * customer is sent says so. (Listed first, in the house order: WhatsApp, text, email.)
  *
  * A YES OFFERS by EMAIL is not this table's. It is the person's own answer about offers by email (`contacts.email_marketing`,
- * 00174 and 00288's set_email_offers_yes): a ledger event of purpose `email_marketing`, which keeps no channel list, and it
+ * 00174 and 00299's set_email_offers_yes): a ledger event of purpose `email_marketing`, which keeps no channel list, and it
  * covers email alone, never WhatsApp. No door writes a `marketing` event on the email channel, so the (offers, their own
  * message, email) case below is reached by nothing: the function answers it as the database's `consent_channels_of`
- * (00286) does, because a test holds the two equal case by case, and says no more of an input nobody sends.
+ * (00297) does, because a test holds the two equal case by case, and says no more of an input nobody sends.
  *
  * The last row is every yes recorded before the channels were (and any row a write reaches without its event): it
  * keeps exactly the reach it had, which was WhatsApp, since no message that starts a conversation has ever gone out by

@@ -295,7 +295,7 @@ test("a person who only ever wrote by email is not on WhatsApp: the list says wh
   );
 });
 
-test("a bounced address (00287) rides the row as emailSuppressed, and by email there is then nobody to send to; a good or unread one is not suppressed", () => {
+test("a bounced address (00298) rides the row as emailSuppressed, and by email there is then nobody to send to; a good or unread one is not suppressed", () => {
   const withAddress = (over) =>
     toPersonRowVM(row({ email: "ana@example.com", consent: "opted_in", ...over }), ZONE, NOW);
   const dead = withAddress({ email_suppressed_at: iso(3 * D) });

@@ -1,4 +1,4 @@
--- 00285 · A message has a version per channel.
+-- 00296 · A message has a version per channel.
 --
 -- A message is a name; a VERSION of it is a templates row of that name on a channel and in a language (One message,
 -- every channel, step 1; docs/superpowers/specs/2026-09-24-campaigns-on-every-channel-design.md, 4.3). WhatsApp's

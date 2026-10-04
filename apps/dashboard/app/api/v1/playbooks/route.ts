@@ -61,7 +61,7 @@ export const POST = write({
         cap_per_run: v.cap_per_run,
         gap_days: v.gap_days,
         cadence_days: v.cadence_days,
-        // Named only when it is more than WhatsApp: a database 00287 has not reached takes every other playbook as before.
+        // Named only when it is more than WhatsApp: a database 00298 has not reached takes every other playbook as before.
         ...(channelsChanged(v.channels, null) ? { channels: v.channels } : {}),
         created_by: ctx.userId,
       })

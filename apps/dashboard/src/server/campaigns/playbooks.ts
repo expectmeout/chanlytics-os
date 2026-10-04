@@ -158,7 +158,7 @@ export async function proposalFollowUps(ctx: RouteContext, tenantId: string, now
 
 /**
  * Whether the number or Meta's approval stops a follow-up before it draws anyone: the run's own stop (contracts
- * playbookStopBy, the one core's run-playbook asks) over the channels it ticks (null, a database before 00287, is WhatsApp
+ * playbookStopBy, the one core's run-playbook asks) over the channels it ticks (null, a database before 00298, is WhatsApp
  * alone) and the number as the send screen reads it (none cannot send). So a follow-up that also goes by email or text is
  * not stopped by Meta not approving its WhatsApp template, as its run is not, and one that does not tick WhatsApp is not
  * stopped by the number at all.
@@ -214,7 +214,7 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
   if (!p || p.state !== "running" || mode === "never" || tenant.data?.status === "paused" || !out) return null;
   // A moment always has its template (00228's CHECK); only a reach-out's hand step has none.
   if (!p.template_name || !p.template_language) return null;
-  // The channels it ticks (step 3; null on a database before 00287, WhatsApp alone): the number and Meta's approval stop
+  // The channels it ticks (step 3; null on a database before 00298, WhatsApp alone): the number and Meta's approval stop
   // only a follow-up that goes by WhatsApp, as the run's own stop does (core run-playbook).
   const [channels, tpl] = await Promise.all([
     playbookChannels(ctx.supabase, p.id),
@@ -560,7 +560,7 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
   let { data: rows, error } = first;
   const missing = (col: string) =>
     !!error && new RegExp(col).test(error.message) && /does not exist|could not find/i.test(error.message);
-  // A database 00287 has not reached has no channels, and every playbook there goes by WhatsApp: read again without it,
+  // A database 00298 has not reached has no channels, and every playbook there goes by WhatsApp: read again without it,
   // and each of the reads below keeps that.
   let columns = COLUMNS;
   if (missing("channels")) {

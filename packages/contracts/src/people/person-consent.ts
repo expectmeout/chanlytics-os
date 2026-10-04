@@ -38,7 +38,7 @@ export interface PersonConsent {
   marketingChannels: readonly string[] | null;
   /**
    * Email's own answer about offers (00174): unknown until they ask for offers by email or unsubscribe. Null where the row
-   * carries none (a database 00288 has not reached does not return it): then nothing is said, and an offer by email
+   * carries none (a database 00299 has not reached does not return it): then nothing is said, and an offer by email
    * fails closed (consent.ts mayMessageFor).
    */
   emailMarketing: "unknown" | "opted_in" | "opted_out" | null;

@@ -442,7 +442,7 @@ $$;
 -- Name: FUNCTION campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone) IS 'The campaign messages (a broadcast''s or a playbook run''s: meta.source broadcast) a workspace sent on a channel this calendar month in its own zone that left, may have left, or wait to go: what its month''s allowance on that channel has spent (00287; reach_out_month_sent counts the cold emails the same way). Service role only.';
+COMMENT ON FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone) IS 'The campaign messages (a broadcast''s or a playbook run''s: meta.source broadcast) a workspace sent on a channel this calendar month in its own zone that left, may have left, or wait to go: what its month''s allowance on that channel has spent (00298; reach_out_month_sent counts the cold emails the same way). Service role only.';
 
 
 --
@@ -9501,7 +9501,7 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
   ev as not materialized (
     select m.contact_id, m.direction, m.sender, m.type, m.channel, m.body, m.status, m.created_at,
            e.at, e.moved_in as backfill, e.spoken,
-           -- Whether the words are a person's own, not an automatic reply or a list's mail (00288).
+           -- Whether the words are a person's own, not an automatic reply or a list's mail (00299).
            public.message_is_a_persons_words(m.meta) as persons_words
       from messages m
       -- When it happened, whether the customer saw or said it, and whether it came with a history moved in: the one
@@ -9555,7 +9555,7 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     c.in_touch_at, c.added_at
   from page c
   left join lateral (
-    -- What each yes covers, when offers were asked for (00286), and when their address stopped being sent to (00126):
+    -- What each yes covers, when offers were asked for (00297), and when their address stopped being sent to (00126):
     -- read for the page's people alone, by their key.
     select k.consent_channels, k.marketing_channels, k.offers_asked_at, k.email_suppressed_at,
            k.email_marketing, k.email_marketing_source, k.email_marketing_updated_at
@@ -9624,7 +9624,7 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
            -- Which wires those words travelled: a person who only ever wrote by email has not used WhatsApp.
            array_agg(distinct e.channel order by e.channel) filter (where e.type in ('text', 'template', 'media')) as channels,
            max(e.created_at) filter (where e.direction = 'outbound' and e.status = 'queued') as queued_at,
-           -- When they last wrote words of their own (00288), the statement has_relationship makes of "they wrote".
+           -- When they last wrote words of their own (00299), the statement has_relationship makes of "they wrote".
            max(e.at) filter (where e.direction = 'inbound' and e.spoken and e.at is not null and e.body is not null
                                and e.persons_words) as last_wrote_at,
            -- The wire of their first spoken message, for came_from.
@@ -9688,7 +9688,7 @@ $$;
 -- Name: FUNCTION people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00286; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent (whatsapp, sms or email; null when they have sent none): the channel a campaign reaches them on first (00287, contracts'' reachFor). `last_wrote_at` is when they last wrote words that were a person''s own, an automatic reply, a list''s mail or a delivery report left out (00288, message_is_a_persons_words): the fact of "they wrote" that contracts'' relationshipOnRecord reads. `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it. `email_marketing`, `email_marketing_source` and `email_marketing_updated_at` are the person''s own answer about offers by email (00174, 00288): an offer by email goes to someone who has not unsubscribed and who asked for offers by email or has a relationship with the business on record (contracts'' mayMessageFor).';
+COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00297; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent (whatsapp, sms or email; null when they have sent none): the channel a campaign reaches them on first (00298, contracts'' reachFor). `last_wrote_at` is when they last wrote words that were a person''s own, an automatic reply, a list''s mail or a delivery report left out (00299, message_is_a_persons_words): the fact of "they wrote" that contracts'' relationshipOnRecord reads. `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it. `email_marketing`, `email_marketing_source` and `email_marketing_updated_at` are the person''s own answer about offers by email (00174, 00299): an offer by email goes to someone who has not unsubscribed and who asked for offers by email or has a relationship with the business on record (contracts'' mayMessageFor).';
 
 
 --
@@ -17144,7 +17144,7 @@ COMMENT ON COLUMN public.broadcast_recipients.facts IS 'Per-person words a run r
 -- Name: COLUMN broadcast_recipients.channel; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.broadcast_recipients.channel IS 'The channel this person is reached on, picked once at enrolment (contracts'' reachFor) from the run''s channels. NULL: a recipient written before the channels, which is WhatsApp (00287).';
+COMMENT ON COLUMN public.broadcast_recipients.channel IS 'The channel this person is reached on, picked once at enrolment (contracts'' reachFor) from the run''s channels. NULL: a recipient written before the channels, which is WhatsApp (00298).';
 
 
 --
@@ -17183,7 +17183,7 @@ CREATE TABLE public.broadcasts (
 -- Name: COLUMN broadcasts.channels; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.broadcasts.channels IS 'The channels this run ticked (whatsapp, sms, email, each once, at least one), written whole with its people by assemble_broadcast. WhatsApp alone by default, as every run was before (00287).';
+COMMENT ON COLUMN public.broadcasts.channels IS 'The channels this run ticked (whatsapp, sms, email, each once, at least one), written whole with its people by assemble_broadcast. WhatsApp alone by default, as every run was before (00298).';
 
 
 --
@@ -19162,7 +19162,7 @@ COMMENT ON COLUMN public.playbooks.hand IS 'A reach-out''s last step that hands 
 -- Name: COLUMN playbooks.channels; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.playbooks.channels IS 'The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer''s ticks. Each person is reached once, on one of them (contracts'' reachFor). WhatsApp alone by default, as every campaign was before (00287).';
+COMMENT ON COLUMN public.playbooks.channels IS 'The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer''s ticks. Each person is reached once, on one of them (contracts'' reachFor). WhatsApp alone by default, as every campaign was before (00298).';
 
 
 --

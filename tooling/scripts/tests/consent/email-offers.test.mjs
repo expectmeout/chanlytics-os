@@ -150,7 +150,7 @@ test("a relationship on record is what the row holds: they wrote in their own wo
   assert.equal(
     of({ last_inbound_at: daysAgo(3) }),
     false,
-    "a row read before 00288 has no last_wrote_at: none on record",
+    "a row read before 00299 has no last_wrote_at: none on record",
   );
 });
 

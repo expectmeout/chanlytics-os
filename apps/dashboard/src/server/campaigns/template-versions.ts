@@ -26,7 +26,7 @@ import { dbRefusal, type RouteContext } from "@/server/with-route";
 
 /**
  * A message's email and text versions (One message, every channel, step 1): written by a member through one door
- * (save_template_version, 00285), which holds who may, that the message exists and the lengths, and removed through
+ * (save_template_version, 00296), which holds who may, that the message exists and the lengths, and removed through
  * another. What a version may SAY is contracts' validateOwnVersion, run here first, in the person's words: its message's
  * slots and no others, a subject, a text's segments. WhatsApp's versions are Meta's and stay the edge's. A reach-out's
  * email (step 5) is a version too, filed under the name of its step: it is written through its chain's own save, which

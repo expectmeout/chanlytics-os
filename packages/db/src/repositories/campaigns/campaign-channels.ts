@@ -49,7 +49,7 @@ export async function textLineFacts(
 
 /**
  * The channels a playbook ticks (`playbooks.channels`), for an edit that names none: the row's own, and null when the
- * row has none or the column is not there yet (a database 00287 has not reached), which the check reads as WhatsApp
+ * row has none or the column is not there yet (a database 00298 has not reached), which the check reads as WhatsApp
  * alone. Any other failed read throws.
  */
 export async function playbookChannels(db: Db, playbookId: string): Promise<string[] | null> {
@@ -63,7 +63,7 @@ export async function playbookChannels(db: Db, playbookId: string): Promise<stri
 
 /**
  * Whether a read failed because the database has not reached the migration that adds a channel column it named: a
- * person's `consent_channels` and `marketing_channels` (00286), or a recipient's `channel` (00287). Postgres's 42703,
+ * person's `consent_channels` and `marketing_channels` (00297), or a recipient's `channel` (00298). Postgres's 42703,
  * "column ... does not exist", read by its words as readLeadContext reads it. The caller reads again without the
  * columns: the arrays then read as null (WhatsApp alone) and the recipient's channel as null (WhatsApp), so every reply,
  * booking link and WhatsApp broadcast of code that shipped before its migration goes on. Either deploy order works.
@@ -77,7 +77,7 @@ export function noChannelColumns(error: { message: string } | null | undefined):
 }
 
 /**
- * Whether a read failed because the database has not reached 00288, which gives a person `has_relationship` (whether they
+ * Whether a read failed because the database has not reached 00299, which gives a person `has_relationship` (whether they
  * wrote, called or have a deal, the other way into an offer by email), as a column PostgREST serves. The caller reads again
  * without it: the relationship then reads as absent, which fails closed (contracts mayMessageFor): no offer by email goes
  * to someone on that fact alone, and every reply, booking link, reminder and WhatsApp offer of code that shipped before
@@ -88,8 +88,8 @@ export function noRelationshipColumn(error: { message: string } | null | undefin
 }
 
 /**
- * Up to `limit` people of a run still queued, each with their own words and the channel the run picked for them (00287):
- * what the batch sends from. A database 00287 has not reached keeps no channel on a recipient, so it is read again
+ * Up to `limit` people of a run still queued, each with their own words and the channel the run picked for them (00298):
+ * what the batch sends from. A database 00298 has not reached keeps no channel on a recipient, so it is read again
  * without it and everyone goes by WhatsApp, as every run did. Any other failed read throws.
  */
 export async function queuedRecipients(
@@ -117,8 +117,8 @@ export async function queuedRecipients(
 }
 
 /**
- * Whether anyone on a run, in any state, goes by email or text (a recipient's channel, 00287): the question WhatsApp's
- * template not being approved asks of it, because that holds the run's WhatsApp people alone. False on a database 00287
+ * Whether anyone on a run, in any state, goes by email or text (a recipient's channel, 00298): the question WhatsApp's
+ * template not being approved asks of it, because that holds the run's WhatsApp people alone. False on a database 00298
  * has not reached, where everyone goes by WhatsApp. Any other failed read throws.
  */
 export async function runGoesByOthers(db: Db, tenantId: string, broadcastId: string): Promise<boolean> {
@@ -135,7 +135,7 @@ export async function runGoesByOthers(db: Db, tenantId: string, broadcastId: str
 
 /**
  * The campaign messages (a broadcast's or a playbook run's) a workspace sent on a channel this calendar month, in its
- * zone, that left or may still leave (00287): what its month's allowance on that channel has spent, as `monthSent` counts
+ * zone, that left or may still leave (00298): what its month's allowance on that channel has spent, as `monthSent` counts
  * the cold emails. `at` is the instant the month is read at (now when none).
  */
 export async function campaignMonthSent(db: Db, tenantId: string, channel: ConsentChannel, at?: Date): Promise<number> {

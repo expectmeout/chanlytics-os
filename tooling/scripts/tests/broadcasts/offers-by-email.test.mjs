@@ -395,7 +395,7 @@ test("a visit's message in the same workspace keeps the reply domain, its own fo
   assert.match(body.text, /Reply STOP to stop these emails\.$|Reply STOP to stop these emails\.\n/);
 });
 
-test("a database that has not been given 00288 sends no offer on a relationship alone, and the person who asked still gets theirs", async () => {
+test("a database that has not been given 00299 sends no offer on a relationship alone, and the person who asked still gets theirs", async () => {
   // No has_relationship column on the contacts, no pause columns on the mailbox: code that shipped before its migration.
   const strip = (c) => {
     const { has_relationship: _relationship, ...rest } = c;

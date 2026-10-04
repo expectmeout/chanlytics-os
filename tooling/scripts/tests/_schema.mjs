@@ -115,7 +115,7 @@ async function parseTypes(src) {
 }
 
 /**
- * A function of one table's row is a column PostgREST serves with it (a computed column: has_relationship, 00288, which the
+ * A function of one table's row is a column PostgREST serves with it (a computed column: has_relationship, 00299, which the
  * send door reads beside the person's consent). The types list it as a function whose one argument is that table's Row;
  * here it joins the relation's columns, nullable, never written, so a select may name it and a write may not.
  */

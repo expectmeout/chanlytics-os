@@ -62,7 +62,7 @@ export interface IngestResult {
 /**
  * A START is a yes on the channel it came on, and ingest_inbound writes its consent event only when the answer
  * changes: a START by text from someone already opted in on WhatsApp left no event and covered no text. This door
- * (00286) writes the event when their list lacks the channel, and the database adds it to the list. Best-effort, for the
+ * (00297) writes the event when their list lacks the channel, and the database adds it to the list. Best-effort, for the
  * reason the offers write in ingestInbound is: the customer has been received, and a channel that has to be repaired is
  * logged, never a reason to fail their message.
  */
@@ -77,7 +77,7 @@ async function noteYesOnChannel(db: Db, p: IngestInboundParams, contactId: strin
       p_message_external_id: p.messageExternalId,
       p_words: (p.body ?? "").slice(0, 80),
     });
-    // A database that has not been given 00286 has no such function, and PostgREST refuses the call by naming it:
+    // A database that has not been given 00297 has no such function, and PostgREST refuses the call by naming it:
     // nothing is kept per channel there yet, so there is nothing to repair.
     const missing =
       error?.code === "PGRST202" ||
@@ -361,7 +361,7 @@ export async function resolveOutboundTarget(
     .eq("tenant_id", p.tenantId)
     .eq("phone_e164", phone)
     .maybeSingle();
-  // A database 00286 has not reached has no channel arrays: read again without them, and WhatsApp alone is what a yes covers.
+  // A database 00297 has not reached has no channel arrays: read again without them, and WhatsApp alone is what a yes covers.
   const { data: existing, error: selErr } = noChannelColumns(first.error)
     ? await db
         .from("contacts")
@@ -450,7 +450,7 @@ export async function resolveOutboundTargetForContact(
     .eq("tenant_id", p.tenantId)
     .eq("id", p.contactId)
     .maybeSingle();
-  // The same answer on a database 00286 has not reached: without the channel arrays, a yes covers WhatsApp alone.
+  // The same answer on a database 00297 has not reached: without the channel arrays, a yes covers WhatsApp alone.
   const { data, error } = noChannelColumns(first.error)
     ? await db
         .from("contacts")
@@ -470,8 +470,8 @@ export async function resolveOutboundTargetForContact(
  * whether they have a relationship with the business (`has_relationship`, the other way into an offer by email). The
  * relationship is asked only by a send that needs it, an email OFFER: it is a function of the person's row that reads their
  * messages, calls and deals, so a WhatsApp reply or a reminder never pays for it. The answer as the database gives it,
- * `{ data, error }`: the door words a failed read itself, because "we could not check" is not "yes". A database 00288
- * has not reached has no `has_relationship`, and one 00286 has not reached has no channel arrays either: it is read
+ * `{ data, error }`: the door words a failed read itself, because "we could not check" is not "yes". A database 00299
+ * has not reached has no `has_relationship`, and one 00297 has not reached has no channel arrays either: it is read
  * again without them, a yes then covers WhatsApp alone and no relationship is on record, as before them: code that ships
  * before its migration must keep every reply, answer and booking link going.
  */

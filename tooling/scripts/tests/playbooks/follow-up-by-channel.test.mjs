@@ -28,7 +28,7 @@ const DAY = 86_400_000;
 
 /**
  * A workspace whose proposal follow-up runs (its class asks, a proposal is out), going by `channels` (none named: the
- * column the database before 00287 has not got, WhatsApp alone), its WhatsApp template at `status` with Meta, and a number
+ * column the database before 00298 has not got, WhatsApp alone), its WhatsApp template at `status` with Meta, and a number
  * connected or not.
  */
 const world = ({ channels, status = "approved", number = true } = {}) => ({
@@ -73,7 +73,7 @@ test("a follow-up that goes by WhatsApp alone is stopped by a template Meta has 
   assert.equal(
     await factsOf({ status: "pending" }),
     null,
-    "no channels kept (a database before 00287): WhatsApp alone",
+    "no channels kept (a database before 00298): WhatsApp alone",
   );
   assert.equal(await factsOf({ channels: ["whatsapp"], status: "rejected" }), null);
   // The same follow-up with its template approved has its facts: who had a follow-up, who waits.

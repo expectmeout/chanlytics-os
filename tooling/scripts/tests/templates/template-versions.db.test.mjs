@@ -1,7 +1,7 @@
 /**
  * A message's email and text versions, saved and removed through their doors -- on a real database.
  *
- * 00285 gives a member two definer doors over `templates`, which members may only read: save_template_version writes
+ * 00296 gives a member two definer doors over `templates`, which members may only read: save_template_version writes
  * (or rewrites) the email or text version of a message, remove_template_version deletes one. What reading the SQL
  * cannot prove is who may call them, what they refuse and what they leave alone, so these sign real people in and
  * call them. Runs the way tenancy.db.test.mjs does, against the local stack only; skipped without one.

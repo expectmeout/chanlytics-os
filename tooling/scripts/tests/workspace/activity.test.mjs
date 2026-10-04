@@ -143,7 +143,7 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   );
 });
 
-// 49: the two kinds of a gate pausing and the back office resuming a workspace's offers by email (00288) are toned.
+// 49: the two kinds of a gate pausing and the back office resuming a workspace's offers by email (00299) are toned.
 const TONED_KINDS = 49;
 test("the tone: said only where the product knows one, and never for a kind that does not exist", () => {
   // A log where every line is the same grey is read rather than scanned, and
@@ -166,7 +166,7 @@ test("the tone: said only where the product knows one, and never for a kind that
   // failure in "message.send_raced_cancel" and none in "line.texting_on".
   assert.equal(activityTone("message.send_raced_cancel"), "warn");
   assert.equal(activityTone("line.texting_on"), "info");
-  // A gate paused the workspace's offers by email, and the back office turned them back on (00288): said in the owner's words.
+  // A gate paused the workspace's offers by email, and the back office turned them back on (00299): said in the owner's words.
   assert.equal(activityTone("mailbox.offers_paused"), "warn");
   assert.equal(activityTone("mailbox.offers_resumed"), "ok");
   assert.equal(

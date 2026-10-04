@@ -29,7 +29,18 @@
     "00252": "a page says how fast it was landed as 00255 (#1227)",
     "00266": "held by open PR #1337 on 29 Sep 2026; recorded when it lands",
     "00267": "the reply lanes and fairness (#1340) landed as 00281, above production's head then (00275)",
-    "00268": "a page of People reads its own people landed as 00276 (#1343), above production's head then (00275)"
+    "00268": "a page of People reads its own people landed as 00276 (#1343), above production's head then (00275)",
+    "00285": "Reports' first moments (cm-reports) drafted it; One message, every channel's versions landed as 00296 (#1374)",
+    "00286": "Reports' counts (cm-reports) drafted it; One message, every channel's yes per channel landed as 00297 (#1374)",
+    "00287": "production holds the Ask voice lane's (#1371); One message, every channel's campaign channels landed as 00298 (#1374)",
+    "00288": "production holds the Ask voice lane's (#1371); One message, every channel's offers by email landed as 00299 (#1374)",
+    "00289": "production holds the Ask voice lane's (#1371)",
+    "00290": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
+    "00291": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
+    "00292": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
+    "00293": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
+    "00294": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
+    "00295": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -287,9 +298,9 @@
     "00282_a_broadcast_is_assembled_whole.sql": "26b4f5ea713483f3c502b04dc8fc88719854f25ae82fbaf49962edf32a38b300",
     "00283_the_service_role_s_statements_have_a_bound.sql": "1faddcc8898b6efdef12d3cffab38200638aae5fb35c060750d8396261fba443",
     "00284_a_thread_is_answered_one_turn_at_a_time.sql": "566085bccfb1629b0f5607a181251e62c9dde7e05e717061b4211014740f2ff8",
-    "00285_a_message_has_a_version_per_channel.sql": "4b56c9284fb884da325f69ffa58dca7ab979eaf2ab6ccd6a4f9f311f2d703fa8",
-    "00286_a_yes_covers_the_channels_it_was_given_for.sql": "59125b441be0af21c05fc8e39d676b917b3f1d87847a3ba14634787496dcb3ad",
-    "00287_a_campaign_goes_by_the_channels_it_ticks.sql": "b65485726452e7605d27378750ef59f382d47cd4221f1a8e4512fa4afd6f4e7b",
-    "00288_an_offer_by_email_goes_only_where_it_is_owed.sql": "3305a58322dcd414c17e166f6744df2e177cf353e4c69c3f05dc2b566eeea14b"
+    "00296_a_message_has_a_version_per_channel.sql": "66162f1ad433ed34753953a6c6cfd8d59c877b02ea969514b24e50099d29f2ec",
+    "00297_a_yes_covers_the_channels_it_was_given_for.sql": "d99bd5c8eece93befa188fbf799f2b1bcebd9cccbc55488cb4377f9e10ed5d68",
+    "00298_a_campaign_goes_by_the_channels_it_ticks.sql": "5a8b4ec8c53774a18d9a803c978b86a84330ce212797118f275d655396830eff",
+    "00299_an_offer_by_email_goes_only_where_it_is_owed.sql": "945f3a84807f0dc6b7b47c060508ce69199c7412d4a63493c0b76c9d15599a3f"
   }
 }

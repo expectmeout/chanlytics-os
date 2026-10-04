@@ -1,7 +1,7 @@
 /**
  * What the database's reads and writes of offers by email say when the database answers badly (One message, every channel,
- * step 4; migration 00288). Either deploy order works only where "the column is not there yet" is told apart from "the read
- * failed": the first is a database before 00288, and reads as no pause; the second is "we could not check", which is never
+ * step 4; migration 00299). Either deploy order works only where "the column is not there yet" is told apart from "the read
+ * failed": the first is a database before 00299, and reads as no pause; the second is "we could not check", which is never
  * "not paused". PostgREST's schema-cache message ("Could not find ... in the schema cache") is the second: a cache that has
  * not caught up with a column that exists, or a fault, and the send door that asked must not send an offer on it.
  * The client is a double that answers what it is told; nothing here reaches a database.
@@ -44,7 +44,7 @@ const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const error = (code, message) => ({ data: null, error: { code, message } });
 
 test("the pause reads as none only where Postgres says the pause's own column is not there (42703): any other failed read throws, a schema cache that cannot find it among them", async () => {
-  // A database before 00288: the column does not exist, said by Postgres about that column.
+  // A database before 00299: the column does not exist, said by Postgres about that column.
   for (const column of ["offers_paused_at", "offers_paused_reason"])
     assert.equal(
       await emailOffersPause(client({ read: error("42703", `column mailboxes.${column} does not exist`) }).db, T),

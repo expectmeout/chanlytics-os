@@ -675,7 +675,7 @@ test("a START is noted on the channel it came on, after the ingest and with its 
       assert.deepEqual(quiet.order, ["ingest_inbound"]);
     }
 
-    // A database before 00286 has no such function, and PostgREST names it: nothing to repair, nothing logged.
+    // A database before 00297 has no such function, and PostgREST names it: nothing to repair, nothing logged.
     const before = world(() => {
       throw Object.assign(
         new Error(

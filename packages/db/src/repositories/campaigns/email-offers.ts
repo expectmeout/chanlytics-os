@@ -1,10 +1,10 @@
 /**
- * Offers by email, as the database keeps them (One message, every channel, step 4; migration 00288): the pause the gates
+ * Offers by email, as the database keeps them (One message, every channel, step 4; migration 00299): the pause the gates
  * set on a workspace's mailbox, the counts they are judged by, the yes a person gives by email, the two ways a person says no
  * (an unsubscribe by link or by reply, and "Stop all messages"), and the count Setup shows. Each is the one place its
  * function is named.
  *
- * Every read tolerates a database 00288 has not reached, so either app may deploy first: the pause reads as none, the count
+ * Every read tolerates a database 00299 has not reached, so either app may deploy first: the pause reads as none, the count
  * as none kept (null), and a write that needs the function fails by name, which its caller logs and carries on from. Nothing
  * here is how a person is judged: that is contracts' mayMessageFor, which reads what these keep.
  */
@@ -15,7 +15,7 @@ import type { Database, Json } from "../../database.types";
 type Db = SupabaseClient<Database>;
 
 /**
- * Whether a read failed because a column it names is not there yet (a database before 00288): Postgres's own 42703,
+ * Whether a read failed because a column it names is not there yet (a database before 00299): Postgres's own 42703,
  * "column mailboxes.offers_paused_at does not exist", about one of these columns and no other. PostgREST's "Could not find
  * ... in the schema cache" is not it: that is a cache that has not caught up with a column that IS there, or a fault, and
  * is neither "not paused" nor "no column".
@@ -24,14 +24,14 @@ function noColumn(error: { message: string; code?: string } | null | undefined, 
   return !!error && error.code === "42703" && columns.some((c) => error.message.includes(c));
 }
 
-/** Whether a call failed because the function it names is not there yet (a database before 00288): PostgREST's PGRST202 or Postgres's 42883, for that function. */
+/** Whether a call failed because the function it names is not there yet (a database before 00299): PostgREST's PGRST202 or Postgres's 42883, for that function. */
 function noFunction(error: { message: string; code?: string } | null | undefined, name: string): boolean {
   return !!error && (error.code === "PGRST202" || error.code === "42883") && error.message.includes(name);
 }
 
 /**
  * The pause on a workspace's offers by email: since when and why, or null while they are not paused, the workspace has no
- * mailbox, or the database has no such column (00288, and only that: Postgres's 42703 on those columns). The send door asks
+ * mailbox, or the database has no such column (00299, and only that: Postgres's 42703 on those columns). The send door asks
  * it for every offer, so a pause set a moment ago holds the next one. Any other failed read throws, a schema cache that
  * could not find a column among them: "we could not check" is not "not paused".
  */
@@ -172,7 +172,7 @@ export async function stopAllMessages(
 
 /**
  * How many people an offer by email would reach (Setup's count; offers_email_reach), under the caller's row security. Null on
- * a database 00288 has not reached (its function is not there), where nothing about offers by email is counted yet. Any
+ * a database 00299 has not reached (its function is not there), where nothing about offers by email is counted yet. Any
  * other failed read throws.
  */
 export async function offersEmailReach(db: Db, tenantId: string): Promise<number | null> {

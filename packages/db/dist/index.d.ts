@@ -31632,8 +31632,8 @@ declare function resolveOutboundTargetForContact(db: Db$m, p: {
  * whether they have a relationship with the business (`has_relationship`, the other way into an offer by email). The
  * relationship is asked only by a send that needs it, an email OFFER: it is a function of the person's row that reads their
  * messages, calls and deals, so a WhatsApp reply or a reminder never pays for it. The answer as the database gives it,
- * `{ data, error }`: the door words a failed read itself, because "we could not check" is not "yes". A database 00288
- * has not reached has no `has_relationship`, and one 00286 has not reached has no channel arrays either: it is read
+ * `{ data, error }`: the door words a failed read itself, because "we could not check" is not "yes". A database 00299
+ * has not reached has no `has_relationship`, and one 00297 has not reached has no channel arrays either: it is read
  * again without them, a yes then covers WhatsApp alone and no relationship is on record, as before them: code that ships
  * before its migration must keep every reply, answer and booking link going.
  */
@@ -31894,12 +31894,12 @@ declare function suppressEmailOf(db: Db$l, p: {
 }): Promise<string | null>;
 
 /**
- * Offers by email, as the database keeps them (One message, every channel, step 4; migration 00288): the pause the gates
+ * Offers by email, as the database keeps them (One message, every channel, step 4; migration 00299): the pause the gates
  * set on a workspace's mailbox, the counts they are judged by, the yes a person gives by email, the two ways a person says no
  * (an unsubscribe by link or by reply, and "Stop all messages"), and the count Setup shows. Each is the one place its
  * function is named.
  *
- * Every read tolerates a database 00288 has not reached, so either app may deploy first: the pause reads as none, the count
+ * Every read tolerates a database 00299 has not reached, so either app may deploy first: the pause reads as none, the count
  * as none kept (null), and a write that needs the function fails by name, which its caller logs and carries on from. Nothing
  * here is how a person is judged: that is contracts' mayMessageFor, which reads what these keep.
  */
@@ -31907,7 +31907,7 @@ declare function suppressEmailOf(db: Db$l, p: {
 type Db$k = SupabaseClient<Database>;
 /**
  * The pause on a workspace's offers by email: since when and why, or null while they are not paused, the workspace has no
- * mailbox, or the database has no such column (00288, and only that: Postgres's 42703 on those columns). The send door asks
+ * mailbox, or the database has no such column (00299, and only that: Postgres's 42703 on those columns). The send door asks
  * it for every offer, so a pause set a moment ago holds the next one. Any other failed read throws, a schema cache that
  * could not find a column among them: "we could not check" is not "not paused".
  */
@@ -31978,7 +31978,7 @@ declare function stopAllMessages(db: Db$k, p: {
 }): Promise<Unsubscribed>;
 /**
  * How many people an offer by email would reach (Setup's count; offers_email_reach), under the caller's row security. Null on
- * a database 00288 has not reached (its function is not there), where nothing about offers by email is counted yet. Any
+ * a database 00299 has not reached (its function is not there), where nothing about offers by email is counted yet. Any
  * other failed read throws.
  */
 declare function offersEmailReach(db: Db$k, tenantId: string): Promise<number | null>;
@@ -32939,13 +32939,13 @@ declare function textLineFacts(db: Db$e, tenantId: string): Promise<{
 } | null>;
 /**
  * The channels a playbook ticks (`playbooks.channels`), for an edit that names none: the row's own, and null when the
- * row has none or the column is not there yet (a database 00287 has not reached), which the check reads as WhatsApp
+ * row has none or the column is not there yet (a database 00298 has not reached), which the check reads as WhatsApp
  * alone. Any other failed read throws.
  */
 declare function playbookChannels(db: Db$e, playbookId: string): Promise<string[] | null>;
 /**
- * Up to `limit` people of a run still queued, each with their own words and the channel the run picked for them (00287):
- * what the batch sends from. A database 00287 has not reached keeps no channel on a recipient, so it is read again
+ * Up to `limit` people of a run still queued, each with their own words and the channel the run picked for them (00298):
+ * what the batch sends from. A database 00298 has not reached keeps no channel on a recipient, so it is read again
  * without it and everyone goes by WhatsApp, as every run did. Any other failed read throws.
  */
 declare function queuedRecipients(db: Db$e, p: {
@@ -32958,14 +32958,14 @@ declare function queuedRecipients(db: Db$e, p: {
     channel?: string | null;
 }>>;
 /**
- * Whether anyone on a run, in any state, goes by email or text (a recipient's channel, 00287): the question WhatsApp's
- * template not being approved asks of it, because that holds the run's WhatsApp people alone. False on a database 00287
+ * Whether anyone on a run, in any state, goes by email or text (a recipient's channel, 00298): the question WhatsApp's
+ * template not being approved asks of it, because that holds the run's WhatsApp people alone. False on a database 00298
  * has not reached, where everyone goes by WhatsApp. Any other failed read throws.
  */
 declare function runGoesByOthers(db: Db$e, tenantId: string, broadcastId: string): Promise<boolean>;
 /**
  * The campaign messages (a broadcast's or a playbook run's) a workspace sent on a channel this calendar month, in its
- * zone, that left or may still leave (00287): what its month's allowance on that channel has spent, as `monthSent` counts
+ * zone, that left or may still leave (00298): what its month's allowance on that channel has spent, as `monthSent` counts
  * the cold emails. `at` is the instant the month is read at (now when none).
  */
 declare function campaignMonthSent(db: Db$e, tenantId: string, channel: ConsentChannel, at?: Date): Promise<number>;
@@ -33489,7 +33489,7 @@ declare function releaseControl(db: Db$9, p: {
  * WhatsApp's rows are the edge's: its admin doors own creating, syncing and deleting them, because that is where the
  * number's credentials live. What is read here is the one question the rest of the product asks -- which templates may
  * this workspace send, right now -- so that no caller has to name one by a literal again. An email or a text version
- * (00285) is written and removed through the two doors below, on the member's own session: a member may only read the
+ * (00296) is written and removed through the two doors below, on the member's own session: a member may only read the
  * table, and the doors say who may write it and which rows.
  */
 
@@ -33540,7 +33540,7 @@ type VersionDoor = {
     };
 };
 /**
- * Write, or rewrite, a message's email or text version (save_template_version, 00285). The words are already checked
+ * Write, or rewrite, a message's email or text version (save_template_version, 00296). The words are already checked
  * (contracts validateOwnVersion); the door holds who may, that the message exists, and the lengths. A text takes no
  * subject. The session's own client, never the service role's: the door judges the caller.
  */
@@ -33552,7 +33552,7 @@ declare function saveTemplateVersion(db: Db$8, p: {
     subject: string | null;
     body: string;
 }): Promise<VersionDoor>;
-/** Remove an email or text version a member wrote (remove_template_version, 00285); never a WhatsApp template. */
+/** Remove an email or text version a member wrote (remove_template_version, 00296); never a WhatsApp template. */
 declare function removeTemplateVersion(db: Db$8, templateId: string): Promise<VersionDoor>;
 /** The id of the WhatsApp template this workspace already holds under a name and a language, or null when none. */
 declare function templateIdOf(db: Db$8, tenantId: string, name: string, language: string): Promise<string | null>;

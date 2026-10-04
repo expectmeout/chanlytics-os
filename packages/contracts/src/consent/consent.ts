@@ -90,7 +90,7 @@ export interface PurposeBearing extends ConsentBearing {
   /**
    * Whether the person has dealt with the business, read from what the row already holds (relationshipOnRecord, spec 4.1):
    * they wrote or called, or have a deal. Absent or null is no relationship on record, so an offer by email asks for the
-   * person's own yes. The database keeps the same fact as `has_relationship` (00288), which a test holds to that function.
+   * person's own yes. The database keeps the same fact as `has_relationship` (00299), which a test holds to that function.
    */
   has_relationship?: boolean | null;
 }
@@ -98,7 +98,7 @@ export interface PurposeBearing extends ConsentBearing {
 /**
  * Whether a person has a relationship with the business on record (spec 4.1: "a fact the row already holds"): they wrote
  * to it in their own words, they called it, or they have a deal. THE one reading of those three facts: People's rows ask
- * it of the columns `people_list` returns, and the database's `has_relationship` (00288) keeps the same rule for the rows
+ * it of the columns `people_list` returns, and the database's `has_relationship` (00299) keeps the same rule for the rows
  * the send door reads, which a test holds equal case by case. `lastWroteAt` is when they last wrote words that were a
  * person's, not an out-of-office, a list's mail or a form's notification from their address (an email the intake read as
  * automated, an automatic reply or a delivery report: meta.email.claim; the database's message_is_a_persons_words says it

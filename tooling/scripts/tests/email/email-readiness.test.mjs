@@ -325,7 +325,7 @@ test("the page's readiness says offers by email can go only with the campaigns d
   await edgeOffers(false);
   const closed = (await ready(withDb({}, config(null)))).email.offers;
   assert.equal(closed.why, OFFERS_BY_EMAIL_WORDS.noCampaignsDomain);
-  // A database before 00288 has no pause columns: the mailbox reads as not paused.
+  // A database before 00299 has no pause columns: the mailbox reads as not paused.
   await edgeOffers(true);
   const old = fakeDb({
     tenant_channels: [],

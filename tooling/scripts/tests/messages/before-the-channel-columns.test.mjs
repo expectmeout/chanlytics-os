@@ -1,6 +1,6 @@
 /**
  * Either deploy order works (One message, every channel, steps 2 and 3): the code that sends reads three things the
- * migrations 00286 (a person's consent_channels and marketing_channels) and 00287 (a recipient's channel) add, and it may
+ * migrations 00297 (a person's consent_channels and marketing_channels) and 00298 (a recipient's channel) add, and it may
  * reach production before they do. Where the database answers that such a column does not exist (42703), each read is
  * made again without it -- the arrays read as null, which is WhatsApp alone, and a recipient's channel as null, which is
  * WhatsApp -- so every reply, receptionist answer, booking link and WhatsApp broadcast keeps going.
@@ -24,8 +24,8 @@ const { dispatchJob } = await import(dist("jobs"));
 const T = "11111111-1111-4111-8111-111111111111";
 const NOW = Date.parse("2026-09-10T10:00:00.000Z");
 /** The columns the two migrations add, which a database that has not run them does not have. */
-const BEFORE_00286 = { contacts: ["consent_channels", "marketing_channels"] };
-const BEFORE_00287 = { broadcast_recipients: ["channel"] };
+const BEFORE_00297 = { contacts: ["consent_channels", "marketing_channels"] };
+const BEFORE_00298 = { broadcast_recipients: ["channel"] };
 
 /** The selects a table was asked, in order: how a read made again is seen. */
 function watch(db, table) {
@@ -56,8 +56,8 @@ const person = (over = {}) => ({
   ...over,
 });
 
-test("the door's read of the wire, on a database 00286 has not reached, is made again without the channel arrays: a reply still goes, and a yes covers WhatsApp alone", async () => {
-  await withoutColumns(BEFORE_00286, async () => {
+test("the door's read of the wire, on a database 00297 has not reached, is made again without the channel arrays: a reply still goes, and a yes covers WhatsApp alone", async () => {
+  await withoutColumns(BEFORE_00297, async () => {
     const t = {
       conversations: [
         { id: "c1", tenant_id: T, paused_until: null, contacts: person(), tenants: { status: "active" } },
@@ -106,8 +106,8 @@ test("the door's read of the wire, on a database 00286 has not reached, is made 
   });
 });
 
-test("a send's thread and consent, on a database 00286 has not reached: found by number and by person without the arrays, which read as null", async () => {
-  await withoutColumns(BEFORE_00286, async () => {
+test("a send's thread and consent, on a database 00297 has not reached: found by number and by person without the arrays, which read as null", async () => {
+  await withoutColumns(BEFORE_00297, async () => {
     const t = { contacts: [person()], conversations: [] };
     const db = fakeDb(t);
     const byNumber = watch(db, "contacts");
@@ -204,8 +204,8 @@ function context(t) {
 }
 const JOB = { id: "j1", tenant_id: T, kind: "broadcast_send", payload: { broadcast_id: "b1" } };
 
-test("a WhatsApp broadcast, on a database 00287 has not reached, still goes: the recipients are read again without their channel, and everyone is WhatsApp's", async () => {
-  await withoutColumns({ ...BEFORE_00286, ...BEFORE_00287 }, async () => {
+test("a WhatsApp broadcast, on a database 00298 has not reached, still goes: the recipients are read again without their channel, and everyone is WhatsApp's", async () => {
+  await withoutColumns({ ...BEFORE_00297, ...BEFORE_00298 }, async () => {
     const t = world();
     const w = context(t);
     const seen = watch(w.ctx.db, "broadcast_recipients");
@@ -221,8 +221,8 @@ test("a WhatsApp broadcast, on a database 00287 has not reached, still goes: the
   });
 });
 
-test("a run whose WhatsApp template is not approved, on a database 00287 has not reached, fails as it always did: nobody on it goes by email or text there", async () => {
-  await withoutColumns({ ...BEFORE_00286, ...BEFORE_00287 }, async () => {
+test("a run whose WhatsApp template is not approved, on a database 00298 has not reached, fails as it always did: nobody on it goes by email or text there", async () => {
+  await withoutColumns({ ...BEFORE_00297, ...BEFORE_00298 }, async () => {
     const t = world();
     t.templates[0].meta_status = "rejected";
     const w = context(t);

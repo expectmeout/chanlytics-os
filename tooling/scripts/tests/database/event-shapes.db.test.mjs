@@ -11,7 +11,7 @@
  *     converted, with a phone and without), the lead-insert trigger lead_link_contact, reach_out_person;
  *   - contact.consent_changed <- ingest_inbound (a STOP and a START), note_yes_on_channel (a START by text from
  *     someone already opted in), set_contact_consent, set_marketing_consent, set_email_marketing (a no, and a reply's
- *     no taken back), set_email_offers_yes (a yes to offers by email, 00288) and stop_all_messages (the unsubscribe page's
+ *     no taken back), set_email_offers_yes (a yes to offers by email, 00299) and stop_all_messages (the unsubscribe page's
  *     second act: a STOP, and the email unsubscribe with it);
  *   - platform.acted <- partner_status_set, partner_standing_set, partner_second_factor_reset (a platform admin's).
  * And the list of writers is not this file's word for it: the catalog is asked which functions insert into events with
@@ -322,7 +322,7 @@ test("ingest_inbound: a STOP and a START texted by a customer", { skip }, async 
   assert.deepEqual([start.consent, start.source], ["opted_in", "customer_message"]);
 });
 
-test("note_yes_on_channel: a START by text from someone already opted in on WhatsApp (00286)", { skip }, async () => {
+test("note_yes_on_channel: a START by text from someone already opted in on WhatsApp (00297)", { skip }, async () => {
   const number = phone();
   const opted = ok(
     await db.rpc("ingest_inbound", {
@@ -545,7 +545,7 @@ test(
 );
 
 test(
-  "set_email_offers_yes and stop_all_messages (00288): a yes to offers by email, and the page's STOP for everything with the email unsubscribe",
+  "set_email_offers_yes and stop_all_messages (00299): a yes to offers by email, and the page's STOP for everything with the email unsubscribe",
   { skip },
   async () => {
     const asked = await contact(w.t, { email: `yes-${RUN}@example.com` });

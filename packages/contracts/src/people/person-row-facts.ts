@@ -195,7 +195,7 @@ export function consentOf(r: PersonRowDto, tz: string, nowMs: number): PersonCon
           : "unknown";
   const marketingSub = offersSub(r, marketing, tz, nowMs);
   // They wrote (in a person's own words: last_wrote_at, not an automatic reply or a list's mail), called or have a deal: all
-  // three are columns people_list returns (the newest deal's id is any deal's). A row read before 00288 has no last_wrote_at,
+  // three are columns people_list returns (the newest deal's id is any deal's). A row read before 00299 has no last_wrote_at,
   // which is no relationship on record: an offer by email then asks for the person's own yes.
   const relationship = relationshipOnRecord({
     lastWroteAt: r.last_wrote_at ?? null,

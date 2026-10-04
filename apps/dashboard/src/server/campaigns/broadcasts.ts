@@ -56,7 +56,7 @@ interface BroadcastRow {
 interface RecipientRow {
   broadcast_id: string;
   contact_id: string;
-  /** The channel the send picked for them (reachFor, 00287): null on a run made before; absent where the read did not ask. */
+  /** The channel the send picked for them (reachFor, 00298): null on a run made before; absent where the read did not ask. */
   channel?: string | null;
   state: string;
   reason: string | null;
@@ -353,7 +353,7 @@ const RECIPIENT_COLUMNS =
   "broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta), contacts(display_name, wa_profile_name, phone_e164, email)";
 
 /**
- * Every person on a run, a page at a time, each with the channel the send picked for them. A database 00287 has not
+ * Every person on a run, a page at a time, each with the channel the send picked for them. A database 00298 has not
  * reached has no such column, and every run there went by WhatsApp: read again without it, so a deploy that lands before
  * the migration shows the run as it always did.
  */

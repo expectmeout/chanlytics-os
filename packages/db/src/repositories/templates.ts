@@ -5,7 +5,7 @@
  * WhatsApp's rows are the edge's: its admin doors own creating, syncing and deleting them, because that is where the
  * number's credentials live. What is read here is the one question the rest of the product asks -- which templates may
  * this workspace send, right now -- so that no caller has to name one by a literal again. An email or a text version
- * (00285) is written and removed through the two doors below, on the member's own session: a member may only read the
+ * (00296) is written and removed through the two doors below, on the member's own session: a member may only read the
  * table, and the doors say who may write it and which rows.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -112,7 +112,7 @@ function versionRefOf(data: unknown): VersionRef | null {
 }
 
 /**
- * Write, or rewrite, a message's email or text version (save_template_version, 00285). The words are already checked
+ * Write, or rewrite, a message's email or text version (save_template_version, 00296). The words are already checked
  * (contracts validateOwnVersion); the door holds who may, that the message exists, and the lengths. A text takes no
  * subject. The session's own client, never the service role's: the door judges the caller.
  */
@@ -141,7 +141,7 @@ export async function saveTemplateVersion(
   return { ok: true, version };
 }
 
-/** Remove an email or text version a member wrote (remove_template_version, 00285); never a WhatsApp template. */
+/** Remove an email or text version a member wrote (remove_template_version, 00296); never a WhatsApp template. */
 export async function removeTemplateVersion(db: Db, templateId: string): Promise<VersionDoor> {
   const { data, error } = await db.rpc("remove_template_version", { p_template_id: templateId });
   if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };

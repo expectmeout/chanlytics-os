@@ -2326,7 +2326,7 @@ var EVENT_KINDS = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00288). The reason, never an address. */
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
@@ -6168,7 +6168,7 @@ var EVENT_KINDS2 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00288). The reason, never an address. */
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
@@ -9685,7 +9685,7 @@ var EVENT_KINDS3 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00288). The reason, never an address. */
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
@@ -13493,7 +13493,7 @@ var EVENT_KINDS4 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00288). The reason, never an address. */
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
@@ -17616,7 +17616,7 @@ var EVENT_KINDS22 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00288). The reason, never an address. */
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
@@ -20953,7 +20953,7 @@ var EVENT_KINDS32 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00288). The reason, never an address. */
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
@@ -23650,7 +23650,7 @@ function frozen(r5) {
 function peoplePorts(ctx, tenantId) {
   const db = ctx.db;
   return {
-    // On a database 00287 has not reached, a recipient has no channel and everyone goes by WhatsApp, as every run did
+    // On a database 00298 has not reached, a recipient has no channel and everyone goes by WhatsApp, as every run did
     // (packages/db queuedRecipients): code that ships before its migration must keep its broadcasts going.
     batch: (id, limit) => queuedRecipients(db, { tenantId, broadcastId: id, limit }),
     // The batch's people in one read, not one read per person.

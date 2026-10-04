@@ -1,5 +1,5 @@
 /**
- * A campaign goes by the channels it ticks (00287), on a real Postgres. One message, every channel, step 3: a playbook
+ * A campaign goes by the channels it ticks (00298), on a real Postgres. One message, every channel, step 3: a playbook
  * and a run carry the channels they may go by (WhatsApp alone by default, so nothing made before changes), each person on
  * a run carries the channel they are reached on, the run is assembled whole with both, the People list says the channel
  * a person last wrote on, and the month's campaign messages on a channel are counted for the allowance.

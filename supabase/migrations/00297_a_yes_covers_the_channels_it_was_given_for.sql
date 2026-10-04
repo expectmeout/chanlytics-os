@@ -1,4 +1,4 @@
--- 00286 · A yes covers the channels it was given for.
+-- 00297 · A yes covers the channels it was given for.
 --
 -- One message, every channel, step 2 (docs/2026-10-02-one-message-every-channel.md, 2.3 and 4; the campaigns-on-every-
 -- channel spec, 4.1 and decisions 6 and 11). A yes is given somewhere, and it covers the channel it was given for: a
@@ -344,7 +344,7 @@ returns table (
   marketing_consent            text,
   marketing_consent_source     text,
   marketing_consent_updated_at timestamptz,
-  -- The channels each yes covers (00286; null: a yes recorded before they were kept, which covers WhatsApp alone), and
+  -- The channels each yes covers (00297; null: a yes recorded before they were kept, which covers WhatsApp alone), and
   -- when the receptionist first asked for the yes to offers.
   consent_channels             text[],
   marketing_channels           text[],
@@ -468,7 +468,7 @@ as $$
     c.in_touch_at, c.added_at
   from page c
   left join lateral (
-    -- What each yes covers, and when offers were asked for (00286): read for the page's people alone, by their key.
+    -- What each yes covers, and when offers were asked for (00297): read for the page's people alone, by their key.
     select k.consent_channels, k.marketing_channels, k.offers_asked_at
       from contacts k
      where k.id = c.id and k.tenant_id = p_tenant_id
@@ -595,4 +595,4 @@ revoke execute on function public.people_list(uuid, uuid, text, integer, integer
 grant execute on function public.people_list(uuid, uuid, text, integer, integer, timestamptz, timestamptz, uuid) to authenticated, service_role;
 
 comment on function public.people_list(uuid, uuid, text, integer, integer, timestamptz, timestamptz, uuid) is
-  'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00286; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers.';
+  'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00297; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers.';

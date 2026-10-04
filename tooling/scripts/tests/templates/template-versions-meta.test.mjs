@@ -1,7 +1,7 @@
 /**
  * Meta's sync and delete never touch an email or a text version.
  *
- * A message's email and text versions live in the same table as its WhatsApp one (00285), under the same name, in the
+ * A message's email and text versions live in the same table as its WhatsApp one (00296), under the same name, in the
  * same language, and the table is unique on (workspace, channel, name, language). The edge's template doors are
  * Meta's: the sync upserts what Meta lists and leaves every row it does not list as it was, the delete takes one
  * WhatsApp row and its twin at Meta. This runs the real doors over a database in memory holding the same message on

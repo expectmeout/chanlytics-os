@@ -1962,7 +1962,7 @@ test("every cell of the email row at the door: a relationship or their own yes g
       "no_marketing_consent",
     ],
     [
-      "a row read before 00288, with no relationship column",
+      "a row read before 00299, with no relationship column",
       (() => {
         const c = customer();
         delete c.has_relationship;
@@ -2087,7 +2087,7 @@ test("an offer goes only with the one-click unsubscribe it owes, and never while
   assert.equal((await deliver(ports(closed.t, closed.w), offered())).reason, "email_marketing_disabled");
 });
 
-test("a database without 00288 sends no offer by email on a relationship alone, and breaks nothing else: no relationship column, no pause column", async () => {
+test("a database without 00299 sends no offer by email on a relationship alone, and breaks nothing else: no relationship column, no pause column", async () => {
   // The contact row has no has_relationship and the mailbox no pause columns: the reads fall back, and the door judges what it has.
   const who = customer();
   delete who.has_relationship;

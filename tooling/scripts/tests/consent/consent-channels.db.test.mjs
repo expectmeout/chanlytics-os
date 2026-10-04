@@ -1,5 +1,5 @@
 /**
- * A yes covers the channels it was given for -- on a real database (One message, every channel, step 2; 00286).
+ * A yes covers the channels it was given for -- on a real database (One message, every channel, step 2; 00297).
  *
  * consent-channels.test.mjs holds contracts' channelsOfYes. This holds the other half, where the rule is kept: the
  * migration's consent_channels_of is that function case by case; each contact.consent_changed event, written by the
@@ -19,7 +19,7 @@ import { CONSENT_CHANNELS, channelsOfYes } from "../../../../packages/contracts/
 import { ingestInbound } from "../../../../packages/db/src/repositories/ingest.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const MIGRATION = path.join(ROOT, "supabase", "migrations", "00286_a_yes_covers_the_channels_it_was_given_for.sql");
+const MIGRATION = path.join(ROOT, "supabase", "migrations", "00297_a_yes_covers_the_channels_it_was_given_for.sql");
 const CLI = process.env.SUPABASE_CLI || "supabase";
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -323,7 +323,7 @@ test(
     );
 
     // A yes with no list kept (a row written without its event) holds WhatsApp: the door keeps that reach and adds text.
-    const legacy = await before00286({ consent: "opted_in" });
+    const legacy = await before00297({ consent: "opted_in" });
     assert.equal((await lists(legacy)).consent_channels, null);
     assert.equal(await door(legacy, "whatsapp"), false, "NULL already covers WhatsApp");
     assert.equal(await door(legacy, "sms"), true);
@@ -557,8 +557,8 @@ function backfillSql() {
     .map((s) => `${s};`);
 }
 
-/** A person whose answer is on the row and whose lists were never kept: as every yes was before 00286. */
-async function before00286(row, events = []) {
+/** A person whose answer is on the row and whose lists were never kept: as every yes was before 00297. */
+async function before00297(row, events = []) {
   const c = ok(
     await db
       .from("contacts")
@@ -580,34 +580,34 @@ test(
     const t = (hours) => new Date(Date.UTC(2026, 8, 1, hours)).toISOString();
 
     // A yes with no event at all: it keeps the WhatsApp reach it had.
-    const noEvent = await before00286({ consent: "opted_in", marketing_consent: "opted_in" });
+    const noEvent = await before00297({ consent: "opted_in", marketing_consent: "opted_in" });
     // Their own message on text, the form, and a plain yes.
-    const byText = await before00286({ consent: "opted_in" }, [
+    const byText = await before00297({ consent: "opted_in" }, [
       [yes({ source: "customer_message", channel: "sms", words: "START" }), t(1)],
     ]);
-    const byForm = await before00286({ consent: "opted_in", marketing_consent: "opted_in" }, [
+    const byForm = await before00297({ consent: "opted_in", marketing_consent: "opted_in" }, [
       [yes({ source: "form" }), t(1)],
       [yes({ purpose: "marketing", source: "form" }), t(2)],
     ]);
     // Only what came after the last no: a form, then a STOP, then START by text is text alone.
-    const afterNo = await before00286({ consent: "opted_in" }, [
+    const afterNo = await before00297({ consent: "opted_in" }, [
       [yes({ source: "form" }), t(1)],
       [{ consent: "opted_out", source: "customer_message", channel: "whatsapp" }, t(2)],
       [yes({ source: "customer_message", channel: "sms" }), t(3)],
     ]);
     // Two yeses with no no between them add up.
-    const added = await before00286({ consent: "opted_in" }, [
+    const added = await before00297({ consent: "opted_in" }, [
       [yes({ source: "customer_message", channel: "whatsapp" }), t(1)],
       [yes({ source: "customer_message", channel: "email" }), t(2)],
     ]);
     // The offers answer is its own: a conversational no does not empty it, and its own no does.
-    const offersOnly = await before00286({ consent: "opted_in", marketing_consent: "opted_in" }, [
+    const offersOnly = await before00297({ consent: "opted_in", marketing_consent: "opted_in" }, [
       [yes({ purpose: "marketing", source: "customer_message", channel: "whatsapp" }), t(1)],
       [{ consent: "opted_out", source: "customer_message", channel: "sms" }, t(2)],
     ]);
     // No yes on the row: nothing to keep, and nothing is written.
-    const never = await before00286({ consent: "unknown" });
-    const stopped = await before00286({ consent: "opted_out", marketing_consent: "opted_out" }, [
+    const never = await before00297({ consent: "unknown" });
+    const stopped = await before00297({ consent: "opted_out", marketing_consent: "opted_out" }, [
       [yes({ source: "form" }), t(1)],
       [{ consent: "opted_out", source: "customer_message", channel: "whatsapp" }, t(2)],
     ]);

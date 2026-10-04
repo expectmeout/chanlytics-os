@@ -2486,7 +2486,7 @@ var EVENT_KINDS = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00288). The reason, never an address. */
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
@@ -8330,7 +8330,7 @@ var EVENT_KINDS2 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00288). The reason, never an address. */
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
@@ -12684,7 +12684,7 @@ var EVENT_KINDS3 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00288). The reason, never an address. */
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,

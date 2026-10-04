@@ -149,7 +149,7 @@ function lastInboundCall(supabase: SupabaseClient<Database>, tenantId: string) {
 
 /**
  * Each WhatsApp template by name, with what Meta said of it and whether it is hidden. An email or a text version of a
- * message (00285) is approved the moment it is written and is nobody's word but its author's, so it is no verdict of
+ * message (00296) is approved the moment it is written and is nobody's word but its author's, so it is no verdict of
  * Meta's: counted here, a starter still in review would read as approved by its other versions.
  */
 function templateVerdicts(supabase: SupabaseClient<Database>, tenantId: string) {
@@ -210,7 +210,7 @@ function offersReachCount(supabase: SupabaseClient<Database>, tenantId: string) 
  * How many people an offer by email would reach (the database's offers_email_reach, the rule of contracts mayMessageFor in
  * SQL) -- counted only while this workspace can send one (contracts emailOffersOpen: the deployment's campaigns domain
  * verified, the business's address on file, a mailbox whose offers are not paused). Null otherwise, and where the count
- * could not be read or the database has none (00288): Setup then says nothing of offers by email, never a zero for it. A
+ * could not be read or the database has none (00299): Setup then says nothing of offers by email, never a zero for it. A
  * read that fails is said in the log (`setup_offers_by_email_failed`), so a Setup that says nothing has a reason on record.
  */
 async function offersByEmailOf(

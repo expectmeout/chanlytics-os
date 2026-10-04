@@ -506,7 +506,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     // A broadcast assembled whole (00282): the run, its people and its send job as one write, the way the database
     // makes them. Who may call it, and whose templates, playbooks and people it accepts, are SQL's, proved on a stack
     // in broadcasts/assemble-broadcast.db.test.mjs. It keeps the channels the run ticks (WhatsApp alone when none are
-    // given, 00287) and each person's channel (none stays none, which is WhatsApp), as campaign-channels.db.test.mjs
+    // given, 00298) and each person's channel (none stays none, which is WhatsApp), as campaign-channels.db.test.mjs
     // holds the real one to; which channels a run may carry, and that a person's is among them, are SQL's too.
     assemble_broadcast: ({ p_tenant, p_run, p_recipients, p_send_at }) => {
       const at = stampOf(tables);

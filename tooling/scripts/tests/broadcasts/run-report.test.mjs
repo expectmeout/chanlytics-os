@@ -631,7 +631,7 @@ test("each part of a run's report says its own words: the span its bars cover, w
 
 /* ------------------- each person's channel (One message, every channel, step 3) ------------------- */
 
-test("the detail reads the channel each person was picked for, and a database 00287 has not reached reads as it always did: by WhatsApp, with no word of it", async () => {
+test("the detail reads the channel each person was picked for, and a database 00298 has not reached reads as it always did: by WhatsApp, with no word of it", async () => {
   const world = {
     broadcasts: [bRow()],
     broadcast_recipients: [

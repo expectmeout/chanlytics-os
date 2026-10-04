@@ -231,13 +231,13 @@ interface WireFacts {
     marketing_consent: string | null;
     /**
      * The channels each yes covers (consent-channels.ts; the database keeps them by each consent event). Null, or absent
-     * from the answer of a database 00286 has not reached (wireRowOf): WhatsApp alone.
+     * from the answer of a database 00297 has not reached (wireRowOf): WhatsApp alone.
      */
     consent_channels?: string[] | null;
     marketing_channels?: string[] | null;
     /** Email's own answer (00174): opted_out once they pressed Unsubscribe. */
     email_marketing: string | null;
-    has_relationship?: boolean | null; // wrote, called or has a deal (00288): the way into an offer by email; absent: none
+    has_relationship?: boolean | null; // wrote, called or has a deal (00299): the way into an offer by email; absent: none
     erased_at: string | null;
     erasing_since: string | null;
     /** The address on file now, and whether it has stopped being sent to (00125, 00126). */
@@ -257,7 +257,7 @@ interface WireFacts {
  * leaves the person queued, and the voice agent says it could not send.
  */
 async function wireFacts({ db, emailOffers }: DeliverPorts, d: Delivery): Promise<WireFacts> {
-  // Read again without the channel arrays on a database 00286 has not reached (wireRowOf): a yes then covers WhatsApp alone.
+  // Read again without the channel arrays on a database 00297 has not reached (wireRowOf): a yes then covers WhatsApp alone.
   const relationship = isOfferByEmail(d); // the one send that asks whether they have a relationship with the business
   const { data, error } = await wireRowOf(db, { tenantId: d.tenantId, conversationId: d.conversationId, relationship });
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);

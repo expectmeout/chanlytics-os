@@ -33,7 +33,7 @@ export const OFFERS_BY_EMAIL_WORDS = {
  *
  * `minimum` is the fewest offers a gate judges at all (the spec names none; a rate over a handful of sends is noise: one
  * complaint on the first offer is 100%). Below it the gate says nothing, and a gate is judged over the offers sent since
- * the workspace's last resume (`offers_resumed_at`, 00288), so a resumed workspace starts a fresh count and is not paused
+ * the workspace's last resume (`offers_resumed_at`, 00299), so a resumed workspace starts a fresh count and is not paused
  * again by the offers that paused it. At 200 offers a single complaint is 0.5%, above the line; at 100 offers it takes
  * three bounces, which are 3%.
  */
@@ -49,7 +49,7 @@ export type OfferPauseReason = (typeof OFFER_PAUSE_REASONS)[number];
 /**
  * What the database counts of a workspace's offers by email, among those that left (sent, delivered, or failed by a
  * bounce): the last `OFFER_GATES.complaints.window` of them and the complaints among them, and the last
- * `OFFER_GATES.bounces.window` and the hard bounces among them (email_offer_counts, 00288).
+ * `OFFER_GATES.bounces.window` and the hard bounces among them (email_offer_counts, 00299).
  */
 export interface OfferCounts {
   complaintSample: number;
@@ -77,7 +77,7 @@ export interface OfferPause {
   reason: OfferPauseReason | null;
 }
 
-/** The pause as the mailbox keeps it (`offers_paused_at`, `offers_paused_reason`, 00288): null while offers are not paused. */
+/** The pause as the mailbox keeps it (`offers_paused_at`, `offers_paused_reason`, 00299): null while offers are not paused. */
 export function offerPauseOf(at: string | null | undefined, reason: string | null | undefined): OfferPause | null {
   if (!at) return null;
   return {

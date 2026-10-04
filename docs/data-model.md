@@ -285,7 +285,7 @@ Foreign keys:
 | `message_id` | uuid | yes |  |  |
 | `sent_at` | timestamp with time zone | yes |  |  |
 | `facts` | jsonb | yes |  | Per-person words a run resolved when it was made (a visit's time and service); the send fills the template's slots from them. |
-| `channel` | text | yes |  | The channel this person is reached on, picked once at enrolment (contracts' reachFor) from the run's channels. NULL: a recipient written before the channels, which is WhatsApp (00287). |
+| `channel` | text | yes |  | The channel this person is reached on, picked once at enrolment (contracts' reachFor) from the run's channels. NULL: a recipient written before the channels, which is WhatsApp (00298). |
 
 Foreign keys:
 
@@ -326,7 +326,7 @@ Foreign keys:
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `playbook_id` | uuid | yes |  |  |
 | `run_for` | date | yes |  |  |
-| `channels` | text[] | no | `'{whatsapp}'::text[]` | The channels this run ticked (whatsapp, sms, email, each once, at least one), written whole with its people by assemble_broadcast. WhatsApp alone by default, as every run was before (00287). |
+| `channels` | text[] | no | `'{whatsapp}'::text[]` | The channels this run ticked (whatsapp, sms, email, each once, at least one), written whole with its people by assemble_broadcast. WhatsApp alone by default, as every run was before (00298). |
 
 Foreign keys:
 
@@ -1983,7 +1983,7 @@ Foreign keys:
 | `signed_by` | text | yes |  |  |
 | `include_unconfirmed` | boolean | no | `false` |  |
 | `hand` | jsonb | yes |  | A reach-out's last step that hands each lead it reaches to the team (Reach out Part 5, G20): {kind: call \| note, words}. Such a step has no template. |
-| `channels` | text[] | no | `'{whatsapp}'::text[]` | The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer's ticks. Each person is reached once, on one of them (contracts' reachFor). WhatsApp alone by default, as every campaign was before (00287). |
+| `channels` | text[] | no | `'{whatsapp}'::text[]` | The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer's ticks. Each person is reached once, on one of them (contracts' reachFor). WhatsApp alone by default, as every campaign was before (00298). |
 
 Foreign keys:
 

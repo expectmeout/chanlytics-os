@@ -235,7 +235,7 @@ function readingWords(kind: string, p: Record<string, unknown>, base: string): s
     : `${who} wrote back`;
 }
 
-/** The gates that pause a workspace's offers by email (00288), in the owner's words: which one tripped. */
+/** The gates that pause a workspace's offers by email (00299), in the owner's words: which one tripped. */
 const OFFERS_PAUSED_WHY: Record<string, string> = {
   complaints: "too many offers were marked as spam",
   bounces: "too many offers bounced",

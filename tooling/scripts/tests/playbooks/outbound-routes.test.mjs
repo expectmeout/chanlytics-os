@@ -1233,7 +1233,7 @@ test("a playbook ticks channels: made with them, kept by an edit that names none
   const row = tables.playbooks.find((p) => p.id === made.id);
   assert.deepEqual(row.channels, ["whatsapp", "email"]);
   assert.deepEqual(tables.decisions.at(-1).payload.channels, ["whatsapp", "email"], "the ledger says the channels");
-  // Naming none is WhatsApp alone, and the column is not even named: a database 00287 has not reached takes it as before.
+  // Naming none is WhatsApp alone, and the column is not even named: a database 00298 has not reached takes it as before.
   const plain = await playbooks.POST.run(send("POST", body, inB), ctxFor(tables));
   const before = tables.playbooks.find((p) => p.id === plain.id);
   assert.ok(!("channels" in before), "WhatsApp alone is the column's default, written as every playbook always was");

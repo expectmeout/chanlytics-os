@@ -406,7 +406,7 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   const handler = readCode("packages/jobs/src/broadcast-send.ts");
   assert.ok(
     // The batch's read is packages/db queuedRecipients (step 3): the words and the channel their run picked for them,
-    // read again without the channel on a database 00287 has not reached, run in before-the-channel-columns.test.mjs.
+    // read again without the channel on a database 00298 has not reached, run in before-the-channel-columns.test.mjs.
     handler.includes("queuedRecipients(db,"),
     "the row's own words ride the batch; the slots are filled from them (run in core-broadcast.test.mjs)",
   );

@@ -1,4 +1,4 @@
--- 00287 · A campaign goes by the channels it ticks.
+-- 00298 · A campaign goes by the channels it ticks.
 --
 -- One message, every channel, step 3 (docs/2026-10-02-one-message-every-channel.md, 2.3 and 4; the campaigns-on-every-
 -- channel spec, 4.2 to 4.5). A campaign, a broadcast or a playbook's run, has gone out on WhatsApp alone. It now ticks the
@@ -23,7 +23,7 @@
 --                               the pick reads first, and `email_suppressed_at`, when their address stopped being sent to
 --                               (a bounce, a complaint), which the pick reads as no address by email, so a person with a
 --                               dead address falls back to another channel instead of being held at the door (recreated
---                               from 00286's: the return type changes, so it is dropped and made again with its grants
+--                               from 00297's: the return type changes, so it is dropped and made again with its grants
 --                               and comment).
 --   campaign_month_sent(tenant, channel, at)
 --                               the campaign messages a workspace sent on a channel this calendar month, in its own zone,
@@ -67,11 +67,11 @@ alter table public.broadcast_recipients add constraint broadcast_recipients_chan
   check (channel is null or channel in ('whatsapp', 'sms', 'email'));
 
 comment on column public.playbooks.channels is
-  'The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer''s ticks. Each person is reached once, on one of them (contracts'' reachFor). WhatsApp alone by default, as every campaign was before (00287).';
+  'The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer''s ticks. Each person is reached once, on one of them (contracts'' reachFor). WhatsApp alone by default, as every campaign was before (00298).';
 comment on column public.broadcasts.channels is
-  'The channels this run ticked (whatsapp, sms, email, each once, at least one), written whole with its people by assemble_broadcast. WhatsApp alone by default, as every run was before (00287).';
+  'The channels this run ticked (whatsapp, sms, email, each once, at least one), written whole with its people by assemble_broadcast. WhatsApp alone by default, as every run was before (00298).';
 comment on column public.broadcast_recipients.channel is
-  'The channel this person is reached on, picked once at enrolment (contracts'' reachFor) from the run''s channels. NULL: a recipient written before the channels, which is WhatsApp (00287).';
+  'The channel this person is reached on, picked once at enrolment (contracts'' reachFor) from the run''s channels. NULL: a recipient written before the channels, which is WhatsApp (00298).';
 
 /* ------------------------------------------------------ the session's ticks -- */
 
@@ -153,7 +153,7 @@ comment on function public.assemble_broadcast(uuid, jsonb, jsonb, timestamptz) i
 
 /* ------------------------------------------------------------- people_list -- */
 
--- Its return type changes, so the function is dropped and made again, with the grants and the comment 00286 gave it.
+-- Its return type changes, so the function is dropped and made again, with the grants and the comment 00297 gave it.
 drop function if exists public.people_list(uuid, uuid, text, integer, integer, timestamptz, timestamptz, uuid);
 
 create or replace function public.people_list(p_tenant_id uuid, p_contact_id uuid default null, p_query text default null, p_limit integer default 1000, p_offset integer default 0,
@@ -174,7 +174,7 @@ returns table (
   marketing_consent            text,
   marketing_consent_source     text,
   marketing_consent_updated_at timestamptz,
-  -- The channels each yes covers (00286; null: a yes recorded before they were kept, which covers WhatsApp alone), and
+  -- The channels each yes covers (00297; null: a yes recorded before they were kept, which covers WhatsApp alone), and
   -- when the receptionist first asked for the yes to offers.
   consent_channels             text[],
   marketing_channels           text[],
@@ -196,7 +196,7 @@ returns table (
   last_message_sender     text,
   last_inbound_text       text,
   last_inbound_at         timestamptz,
-  -- The wire of that message (00287): the channel they last wrote on, which a campaign reaches them on first.
+  -- The wire of that message (00298): the channel they last wrote on, which a campaign reaches them on first.
   last_inbound_channel    text,
   last_call_at            timestamptz,
   last_inbound_call_at    timestamptz,
@@ -300,7 +300,7 @@ as $$
     c.in_touch_at, c.added_at
   from page c
   left join lateral (
-    -- What each yes covers, when offers were asked for (00286), and when their address stopped being sent to (00126):
+    -- What each yes covers, when offers were asked for (00297), and when their address stopped being sent to (00126):
     -- read for the page's people alone, by their key.
     select k.consent_channels, k.marketing_channels, k.offers_asked_at, k.email_suppressed_at
       from contacts k
@@ -428,7 +428,7 @@ revoke execute on function public.people_list(uuid, uuid, text, integer, integer
 grant execute on function public.people_list(uuid, uuid, text, integer, integer, timestamptz, timestamptz, uuid) to authenticated, service_role;
 
 comment on function public.people_list(uuid, uuid, text, integer, integer, timestamptz, timestamptz, uuid) is
-  'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00286; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent (whatsapp, sms or email; null when they have sent none): the channel a campaign reaches them on first (00287, contracts'' reachFor). `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it.';
+  'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00297; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent (whatsapp, sms or email; null when they have sent none): the channel a campaign reaches them on first (00298, contracts'' reachFor). `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it.';
 
 /* ---------------------------------------------------------- the month's count -- */
 
@@ -463,4 +463,4 @@ $$;
 revoke execute on function public.campaign_month_sent(uuid, text, timestamptz) from public, anon, authenticated;
 grant execute on function public.campaign_month_sent(uuid, text, timestamptz) to service_role;
 comment on function public.campaign_month_sent(uuid, text, timestamptz) is
-  'The campaign messages (a broadcast''s or a playbook run''s: meta.source broadcast) a workspace sent on a channel this calendar month in its own zone that left, may have left, or wait to go: what its month''s allowance on that channel has spent (00287; reach_out_month_sent counts the cold emails the same way). Service role only.';
+  'The campaign messages (a broadcast''s or a playbook run''s: meta.source broadcast) a workspace sent on a channel this calendar month in its own zone that left, may have left, or wait to go: what its month''s allowance on that channel has spent (00298; reach_out_month_sent counts the cold emails the same way). Service role only.';

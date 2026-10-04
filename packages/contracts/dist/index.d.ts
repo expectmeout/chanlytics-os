@@ -7100,14 +7100,14 @@ interface PurposeBearing extends ConsentBearing {
     /**
      * Whether the person has dealt with the business, read from what the row already holds (relationshipOnRecord, spec 4.1):
      * they wrote or called, or have a deal. Absent or null is no relationship on record, so an offer by email asks for the
-     * person's own yes. The database keeps the same fact as `has_relationship` (00288), which a test holds to that function.
+     * person's own yes. The database keeps the same fact as `has_relationship` (00299), which a test holds to that function.
      */
     has_relationship?: boolean | null;
 }
 /**
  * Whether a person has a relationship with the business on record (spec 4.1: "a fact the row already holds"): they wrote
  * to it in their own words, they called it, or they have a deal. THE one reading of those three facts: People's rows ask
- * it of the columns `people_list` returns, and the database's `has_relationship` (00288) keeps the same rule for the rows
+ * it of the columns `people_list` returns, and the database's `has_relationship` (00299) keeps the same rule for the rows
  * the send door reads, which a test holds equal case by case. `lastWroteAt` is when they last wrote words that were a
  * person's, not an out-of-office, a list's mail or a form's notification from their address (an email the intake read as
  * automated, an automatic reply or a delivery report: meta.email.claim; the database's message_is_a_persons_words says it
@@ -7508,10 +7508,10 @@ declare function proposalsWaiting<T extends {
  * customer is sent says so. (Listed first, in the house order: WhatsApp, text, email.)
  *
  * A YES OFFERS by EMAIL is not this table's. It is the person's own answer about offers by email (`contacts.email_marketing`,
- * 00174 and 00288's set_email_offers_yes): a ledger event of purpose `email_marketing`, which keeps no channel list, and it
+ * 00174 and 00299's set_email_offers_yes): a ledger event of purpose `email_marketing`, which keeps no channel list, and it
  * covers email alone, never WhatsApp. No door writes a `marketing` event on the email channel, so the (offers, their own
  * message, email) case below is reached by nothing: the function answers it as the database's `consent_channels_of`
- * (00286) does, because a test holds the two equal case by case, and says no more of an input nobody sends.
+ * (00297) does, because a test holds the two equal case by case, and says no more of an input nobody sends.
  *
  * The last row is every yes recorded before the channels were (and any row a write reaches without its event): it
  * keeps exactly the reach it had, which was WhatsApp, since no message that starts a conversation has ever gone out by
@@ -7576,7 +7576,7 @@ interface PersonConsent {
     marketingChannels: readonly string[] | null;
     /**
      * Email's own answer about offers (00174): unknown until they ask for offers by email or unsubscribe. Null where the row
-     * carries none (a database 00288 has not reached does not return it): then nothing is said, and an offer by email
+     * carries none (a database 00299 has not reached does not return it): then nothing is said, and an offer by email
      * fails closed (consent.ts mayMessageFor).
      */
     emailMarketing: "unknown" | "opted_in" | "opted_out" | null;
@@ -7747,7 +7747,7 @@ declare const OFFERS_BY_EMAIL_WORDS: {
  *
  * `minimum` is the fewest offers a gate judges at all (the spec names none; a rate over a handful of sends is noise: one
  * complaint on the first offer is 100%). Below it the gate says nothing, and a gate is judged over the offers sent since
- * the workspace's last resume (`offers_resumed_at`, 00288), so a resumed workspace starts a fresh count and is not paused
+ * the workspace's last resume (`offers_resumed_at`, 00299), so a resumed workspace starts a fresh count and is not paused
  * again by the offers that paused it. At 200 offers a single complaint is 0.5%, above the line; at 100 offers it takes
  * three bounces, which are 3%.
  */
@@ -7769,7 +7769,7 @@ type OfferPauseReason = (typeof OFFER_PAUSE_REASONS)[number];
 /**
  * What the database counts of a workspace's offers by email, among those that left (sent, delivered, or failed by a
  * bounce): the last `OFFER_GATES.complaints.window` of them and the complaints among them, and the last
- * `OFFER_GATES.bounces.window` and the hard bounces among them (email_offer_counts, 00288).
+ * `OFFER_GATES.bounces.window` and the hard bounces among them (email_offer_counts, 00299).
  */
 interface OfferCounts {
     complaintSample: number;
@@ -7788,7 +7788,7 @@ interface OfferPause {
     at: string;
     reason: OfferPauseReason | null;
 }
-/** The pause as the mailbox keeps it (`offers_paused_at`, `offers_paused_reason`, 00288): null while offers are not paused. */
+/** The pause as the mailbox keeps it (`offers_paused_at`, `offers_paused_reason`, 00299): null while offers are not paused. */
 declare function offerPauseOf(at: string | null | undefined, reason: string | null | undefined): OfferPause | null;
 /** The Campaigns head's and Connections' words for a pause: what it holds, why, and what it does not. */
 declare const OFFERS_PAUSED_WORDS: {
@@ -9452,7 +9452,7 @@ interface PersonRowDto {
     /** As normalizeEmail stores it (00125). A person may have this and no number. */
     email: string | null;
     /**
-     * When that address stopped being sent to (a permanent bounce, a complaint, the provider's own suppression; 00287),
+     * When that address stopped being sent to (a permanent bounce, a complaint, the provider's own suppression; 00298),
      * or null: a campaign does not pick email for a person who has it (whyNotReceive). Absent on a row read before it.
      */
     email_suppressed_at?: string | null;
@@ -9472,7 +9472,7 @@ interface PersonRowDto {
     offers_asked_at?: string | null;
     /**
      * Email's own answer about offers (00174): unknown | opted_in | opted_out, how it was given and when. Absent on a row read
-     * from a database 00288 has not reached, whose rows are then read as having no answer (an offer by email fails closed).
+     * from a database 00299 has not reached, whose rows are then read as having no answer (an offer by email fails closed).
      */
     email_marketing?: string | null;
     email_marketing_source?: string | null;
@@ -9498,7 +9498,7 @@ interface PersonRowDto {
     /** The channel of their last written message to the business (whatsapp | sms | email), or null: reachFor's first pick. */
     last_inbound_channel?: string | null;
     /**
-     * When they last wrote words that were a person's own (00288): last_inbound_at less an automatic reply, a list's mail and a
+     * When they last wrote words that were a person's own (00299): last_inbound_at less an automatic reply, a list's mail and a
      * delivery report. The "they wrote" of a relationship on record (consent.ts relationshipOnRecord). Absent on a row read
      * before the column existed, which is none.
      */

@@ -50,7 +50,7 @@ export async function changePlaybook(ctx: RouteContext, req: Request, p: Playboo
   // A reach-out step is edited on its own sheet (Part 4); here it may only be paused or resumed, above.
   if (triggerOf(p.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
   // An edit that names no channels keeps the ones it has: the check reads them, and the column is written only when
-  // they change (a database 00287 has not reached has none to read or write).
+  // they change (a database 00298 has not reached has none to read or write).
   const kept = await keptChannels(ctx, id);
   const v = await checkPlaybookInput(ctx, p.tenant_id, body, { ...p, channels: kept });
   const { error } = await updatePlaybook(ctx.supabase, id, {

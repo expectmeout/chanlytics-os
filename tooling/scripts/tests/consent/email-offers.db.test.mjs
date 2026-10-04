@@ -1,5 +1,5 @@
 /**
- * Offers by email, on a real database (One message, every channel, step 4; migration 00288).
+ * Offers by email, on a real database (One message, every channel, step 4; migration 00299).
  *
  * email-offers.test.mjs holds contracts' rule. This holds the other half, where the facts it reads are kept: the
  * migration's has_relationship is contracts' relationshipOnRecord case by case (over the columns people_list returns);

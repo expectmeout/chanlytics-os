@@ -98,7 +98,7 @@ interface TenantRunContext extends RunContext {
  * number that is not there: a run that held everyone as unreachable over a blip would be a day lost. A texting line's or
  * a mailbox's read that fails is that channel not ready, said in the log: the people who go by it are held that day, and
  * the playbooks that go by WhatsApp alone still run, as they did before the other two were read at all. The mailbox
- * carries the workspace's pause on offers by email (`offersPause`, 00288), which the same read answers.
+ * carries the workspace's pause on offers by email (`offersPause`, 00299), which the same read answers.
  */
 async function channelFacts(db: Db, tenantId: string) {
   let whatsapp: Awaited<ReturnType<typeof whatsappChannelConfig>>;
