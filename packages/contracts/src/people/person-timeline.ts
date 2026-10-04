@@ -77,13 +77,17 @@ export function consentChangeWords(c: ConsentChange): { who: string; text: strin
             ? "Said no in a reply to your reach-out"
             : "Unsubscribed from your emails"
           : c.consent === "opted_in"
-            ? "Marketing email: back to yes"
+            ? c.source === "reply_undone"
+              ? "Marketing email: back to yes"
+              : "Asked for offers by email"
             : "Marketing email: back to not asked",
       ...(c.source === "unsubscribe"
-        ? { sub: "Pressed Unsubscribe in an email" }
+        ? { sub: c.words ? `Wrote “${c.words}” in reply to an email` : "Pressed Unsubscribe in an email" }
         : c.source === "reply_undone"
           ? { sub: "A reply read as no, undone" }
-          : {}),
+          : c.consent === "opted_in" && c.source === "customer_message"
+            ? { sub: `In their own words by email${c.words ? `: “${c.words}”` : ""}` }
+            : {}),
     };
   const offers = c.purpose === "marketing";
   const text =

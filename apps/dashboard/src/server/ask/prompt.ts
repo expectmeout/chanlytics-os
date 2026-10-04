@@ -55,7 +55,7 @@ export const ASK_DEFINITIONS: Record<string, string> = {
   "veto window": "The reply policy mode where every draft waits a short while before sending, so a person can stop it.",
   "missed call": "A phone call the receptionist did not answer, or that ended before anyone spoke.",
   "median reply time":
-    "The middle value of how long the receptionist took to answer, over the period; half the replies were faster.",
+    "The middle value of how long a customer waited for the receptionist's answer over the period; half the replies were faster. Where the reply policy holds each reply (the hold window the owner set), that wait is part of it: the hold is the owner's setting, not the receptionist's speed, so say it, and use the report's reply_time.hold for how many went out as the hold ended and how many took longer.",
   "said yes":
     "A recorded answer that the person wants offers and news by WhatsApp: the desk recorded it on their profile, or they sent YES OFFERS or START themselves. Only these people can be on a broadcast.",
   broadcast:
@@ -64,7 +64,7 @@ export const ASK_DEFINITIONS: Record<string, string> = {
     "A person on a broadcast the send skipped at the wire: no recorded yes, asked to stop, no number, or a person had their thread.",
   calendar:
     "The owner's calendar as the receptionist reads it: an iCal feed of what is taken, the business's hours and closures, and the booking rules. The receptionist offers only the open windows, then sends the booking link, or takes their details where there is none; it never books, moves or cancels anything itself.",
-  playbook: `A standing rule that sends one approved WhatsApp template to newly eligible people who said yes: win-back (quiet 30 days), welcome (new this week), save our number (only ever phoned), the month's offer (everyone who said yes, on a cadence), and, where deals are on, the proposal follow-up (one nudge per proposal waiting past the workspace's pace, with its link, once). It runs at its hour by the business's clock, reaches a person once within its gap, one playbook message per person per week, under its class's autonomy mode — auto sends the run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless stopped, ask leaves it waiting for a person on Today, never runs nothing.`,
+  playbook: `A standing rule that sends one approved WhatsApp template to newly eligible people who said yes: win-back (by visits where a calendar is connected, by 30 days of silence where not), the month's offer (everyone who said yes, on a cadence), a reminder before a visit and a check after one, and, where deals are on, the proposal follow-up (one nudge per proposal waiting past the workspace's pace, with its link, once). It runs at its hour by the business's clock, reaches a person once within its gap, one playbook message per person per week, under its class's autonomy mode — auto sends the run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless stopped, ask leaves it waiting for a person on Today, never runs nothing.`,
 };
 
 export const ASK_RULES = [
@@ -338,7 +338,20 @@ export interface TurnFacts {
    * or named without a read. A page's rows can be cut by its caps, or its build fail, and the words can point past them.
    */
   focusRead?: boolean;
+  /**
+   * The person is listening, not reading (the voice door, spec 2026-10-03 §3.4): SPOKEN_LINE is said last, after the
+   * language, so the say is written for the ear and the figures still go to show.
+   */
+  spoken?: boolean;
 }
+
+/**
+ * The spoken register, one line in the turn's words (spec 2026-10-03 §3.4, verbatim): the agent starts speaking at
+ * the first comma, so the opening clause is short and punctuated; the normaliser reads digits, so a time or a count
+ * stays as the page shows it; an id, a route, a symbol or a tag would be read aloud as nonsense.
+ */
+const SPOKEN_LINE =
+  "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol or a bracketed tag. Every figure and row goes in show, where the screen draws it.";
 
 /**
  * This turn's words, in the user's message after the page's data and before
@@ -396,6 +409,7 @@ export function turnWords(t: TurnFacts): string {
     lines.push(`Their words point at ${f.label} (${f.kind} ${f.id}): ${then}.`);
   if (t.language === "es") lines.push("They wrote in Spanish; answer in Spanish.");
   else if (t.language === "en") lines.push("They wrote in English; answer in English.");
+  if (t.spoken) lines.push(SPOKEN_LINE);
   return lines.join("\n");
 }
 

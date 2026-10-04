@@ -586,7 +586,9 @@ const workspaceTables = () => ({
   tenant_channels: [{ tenant_id: TENANT, kind: "voice", status: "active", number_e164: "+19296566623", config: {} }],
   messages: [{ tenant_id: TENANT, direction: "inbound", channel: "whatsapp", channel_ts: ago(1), created_at: ago(1) }],
   calls: [{ tenant_id: TENANT, direction: "inbound", started_at: ago(2) }],
-  templates: [{ tenant_id: TENANT, name: "visit_reminder", meta_status: "approved", hidden_at: null }],
+  templates: [
+    { tenant_id: TENANT, channel: "whatsapp", name: "visit_reminder", meta_status: "approved", hidden_at: null },
+  ],
   memberships: [
     { id: "m1", tenant_id: TENANT },
     { id: "m2", tenant_id: TENANT },

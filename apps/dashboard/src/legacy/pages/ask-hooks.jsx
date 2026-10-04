@@ -7,96 +7,12 @@ const useAhState = React.useState;
 const useAhEffect = React.useEffect;
 const useAhRef = React.useRef;
 
-const ahRecognizer = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;
-
-// A browser told No once never asks again: it blocks in silence. Where the Permissions API says so (Chrome, Android),
-// the press is told before the recogniser is started, so the toast can say where to allow it. Browsers without the
-// API (Safari, Firefox) answer "not blocked" and prompt on their own.
-const ahMicBlocked = async () => {
-  try {
-    if (!navigator.permissions || typeof navigator.permissions.query !== "function") return false;
-    const status = await navigator.permissions.query({ name: "microphone" });
-    return status.state === "denied";
-  } catch {
-    return false;
-  }
-};
-
-// Hold to talk, as the live whisper does it: press starts the browser's own
-// recogniser, release stops it, and what was heard is handed back on its own.
-// Interim words are handed back as they come, so the input shows them.
-// Nothing is recorded or uploaded. Where the browser can say whether the
-// microphone is blocked, the press waits for that answer first, and a press
-// released before it starts nothing (`wantRef`); elsewhere it starts at once.
-// What the words are for is the Line on screen as listening began: the element that had focus then (the field, the
-// mic). Closing Ask takes the Line off the page (AskReal draws nothing closed) and stopped only the reading aloud, so
-// the recogniser went on and its end asked what it had heard in a Line that was gone (G:0). Words heard for a Line
-// that is gone are dropped, and a word arriving after it stops the recogniser.
-const ahLineGone = (el) => !!el && el.isConnected === false;
-const useAskTalk = ({ lang, onWords, onHeard, disabled }) => {
-  const [listening, setListening] = useAhState(false);
-  const recRef = useAhRef(null);
-  const heardRef = useAhRef("");
-  const wantRef = useAhRef(false);
-  const forRef = useAhRef(null);
-  const canTalk = !!ahRecognizer();
-  const begin = (SR) => {
-    if (!wantRef.current || recRef.current) return;
-    wantRef.current = false;
-    const rec = new SR();
-    rec.lang = lang === "es" ? "es-ES" : (navigator.language || "en-US");
-    rec.interimResults = true;
-    rec.continuous = true;
-    heardRef.current = "";
-    forRef.current = typeof document !== "undefined" ? document.activeElement || null : null;
-    rec.onresult = (ev) => {
-      if (ahLineGone(forRef.current)) { heardRef.current = ""; try { rec.stop(); } catch { /* already stopped */ } return; }
-      let finals = "";
-      let interim = "";
-      for (let i = 0; i < ev.results.length; i++) {
-        const r = ev.results[i];
-        if (r.isFinal) finals += r[0].transcript;
-        else interim += r[0].transcript;
-      }
-      heardRef.current = finals.trim();
-      onWords((finals + interim).trim());
-    };
-    rec.onerror = (ev) => {
-      setListening(false);
-      recRef.current = null;
-      onHeard(null, ev && ev.error ? ev.error : "error");
-    };
-    rec.onend = () => {
-      setListening(false);
-      recRef.current = null;
-      const heard = heardRef.current;
-      heardRef.current = "";
-      if (heard && !ahLineGone(forRef.current)) onHeard(heard, null);
-    };
-    recRef.current = rec;
-    setListening(true);
-    try { rec.start(); } catch { setListening(false); recRef.current = null; }
-  };
-  const start = (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    const SR = ahRecognizer();
-    if (!SR || listening || disabled) return;
-    wantRef.current = true;
-    const perms = typeof navigator !== "undefined" ? navigator.permissions : null;
-    if (perms && typeof perms.query === "function") {
-      ahMicBlocked().then((blocked) => {
-        if (blocked) { wantRef.current = false; onHeard(null, "blocked"); }
-        else begin(SR);
-      });
-    } else begin(SR);
-  };
-  const stop = () => {
-    wantRef.current = false;
-    const rec = recRef.current;
-    if (rec) { try { rec.stop(); } catch { /* already stopped */ } }
-  };
-  return { canTalk, listening, start, stop };
-};
+// Hold to talk is the kit's (surfaces/kit/talk/use-hold-to-talk.ts, published as window.useHoldToTalk): press starts the
+// browser's own recogniser, release stops it, and what was heard is handed back on its own, interim words as they come,
+// so the input shows them. Nothing is recorded or uploaded. What it adds here is the Line's language: Spanish where the
+// Line speaks it. Words heard for a Line that is gone (Ask closed while it listened) are dropped by the kit's.
+const useAskTalk = ({ lang, onWords, onHeard, disabled }) =>
+  window.useHoldToTalk({ lang: lang === "es" ? "es-ES" : undefined, onWords, onHeard, disabled });
 
 // A Space held on an empty line talks (the Line, 6.6): held 300ms it starts
 // listening, and letting go asks. A tap does nothing, because an empty line
@@ -327,7 +243,56 @@ const ahSlide = (from, stage, hero) => {
   }
 };
 
+// A voice conversation with Ask on the agent (legacy-bridge/ask/voice.ts; docs/superpowers/specs/2026-10-03-ask-spoken-design.md,
+// §3.5): one at a time, begun from the mic's tap or an answer's Read aloud, ended by the person, by typing, by Esc, by
+// closing, or by the agent going. `hear` is given the Line's actions (the question, a read, the Say, the landing, a
+// cut, the mode, how loud the person is, gone); the hook keeps whether it runs, the agent's mode and the thread it runs
+// on, and while the agent speaks feeds the three its voice (mascot mood.ts `voice`), read off the client twenty times a
+// second. Where the device cannot (no microphone, or no secure page) `can` is false and nothing starts.
+const AH_VOICE_LEVEL_MS = 50;
+const useAskVoice = ({ A, M, hear }) => {
+  const [on, setOn] = useAhState(false);
+  const [mode, setMode] = useAhState("listening");
+  const threadRef = useAhRef(null);
+  const hearRef = useAhRef(hear);
+  hearRef.current = hear;
+  const can = !!(A && A.canVoice && A.canVoice());
+  const rest = () => { setOn(false); setMode("listening"); threadRef.current = null; };
+  // The end: the Line is told first (the conversation's end comes back as "gone" through the same hearing, with the
+  // thread still known, so the stored turn is read), and the thread forgotten after.
+  const stop = async () => {
+    setOn(false); setMode("listening");
+    if (A && A.stopVoice) await A.stopVoice();
+    threadRef.current = null;
+  };
+  const start = async (input) => {
+    if (!can) return null;
+    setOn(true); setMode("listening");
+    try {
+      const got = await A.startVoice(input, (a) => {
+        if (a.t === "mode") setMode(a.mode);
+        // Heard before the rest: "gone" reads the thread off threadRef, which the rest clears.
+        hearRef.current(a);
+        if (a.t === "gone") rest();
+      });
+      // Ended before it was up (null): nothing runs, and the Line was told so.
+      if (!got) { rest(); return null; }
+      threadRef.current = got.threadId;
+      return got;
+    } catch (e) {
+      rest();
+      throw e;
+    }
+  };
+  useAhEffect(() => {
+    if (!on || mode !== "speaking" || !M || !M.mood.voice) return undefined;
+    const id = setInterval(() => M.mood.voice(A.level ? A.level() : 0, true), AH_VOICE_LEVEL_MS);
+    return () => { clearInterval(id); M.mood.voice(0, false); };
+  }, [on, mode, A, M]);
+  return { can, on, mode, start, stop, threadId: () => threadRef.current };
+};
+
 window.AskHooks = {
-  useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech, useAskPin, useAskLatest,
+  useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech, useAskVoice, useAskPin, useAskLatest,
   pinNow: ahPinNow, pinTop: ahPinTop, latestShown: ahLatestShown, slide: ahSlide, slideFrom: ahSlideFrom,
 };

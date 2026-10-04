@@ -875,6 +875,50 @@ The app signs in with Apple and Google natively (PR 3 of the phone app) and hand
 
 3. **Watch** `native_sign_in_failed` on the dashboard's logs: a provider that does not know the app answers there.
 
+## Turn on Ask, spoken
+
+Ask as a voice conversation on ElevenLabs Agents, with Ask itself as the agent's model (the design,
+`docs/superpowers/specs/2026-10-03-ask-spoken-design.md`; the door, `docs/decisions/0026-a-provider-calls-the-dashboard.md`).
+Nothing of it runs until the five variables are set, and each app refuses in words until the other is there.
+
+1. **The agent's key and the webhook's secret on the edge:** `ELEVENLABS_API_KEY` (the vendor's API key: the edge
+   mints a conversation token with it, `POST /api/admin/voice/session`, and erases a conversation once its minutes
+   are written), `ELEVENLABS_AGENT_ID` (step 3's), `ELEVENLABS_WEBHOOK_SECRET` (step 4's). None reaches the
+   dashboard.
+2. **The two secrets on the dashboard:** `ASK_VOICE_SECRET` (any long random string: the member's access token is
+   sealed under it in `ask_voice_sessions` for the hour the brain door may need it) and `ELEVENLABS_LLM_SECRET` (any
+   long random string: the agent sends it in `x-chanlytics-agent` on every request to the brain door). Both are
+   required in production (`env.ts`); a dashboard without them answers `upstream_voice` and the door 401.
+3. **The agent, from code:** `node tooling/scripts/voice/elevenlabs-agent.mjs --name chanlytics-ask --url https://<the dashboard's host>/api/ask/voice/llm --voice <voice_id>`
+   prints the body; `--apply` creates or converges the one agent by name and reads every field back (the key from
+   the environment or `apps/edge/.env.local`, the header's value from `ELEVENLABS_LLM_SECRET`). Its id is
+   `ELEVENLABS_AGENT_ID`. The body is `tooling/scripts/voice/elevenlabs-agent-config.mjs`, held to the spec by
+   `tooling/scripts/tests/ask-voice/elevenlabs-agent.test.mjs`: authentication on and no allowlist, `cascade_timeout_seconds` 15 (the
+   vendor's ceiling; the brain door sends the vendor's buffer words whenever ten seconds pass with nothing speakable,
+   contracts `ASK_VOICE_PULSE_MS`), audio not recorded, seven days' retention, the limits of the plan.
+4. **The post-call webhook:** in the vendor's console (Agents › Settings › Post-call webhooks), one webhook at
+   `https://<the edge's host>/api/elevenlabs-webhook` for `post_call_transcription`; its signing secret is
+   `ELEVENLABS_WEBHOOK_SECRET`; then `--apply` again with `--webhook <the webhook's id>` so the agent names it. The
+   door verifies `elevenlabs-signature` (`t=…,v0=…`, HMAC-SHA256 over `t.body`, thirty minutes), ends the session row
+   with its minutes, logs each turn's timings (`ask_voice_session_ended`: `ttfb_ms`, `ttf_sentence_ms`) and erases
+   the vendor's record. A delivery it cannot use is 200 and a line (`elevenlabs_webhook_unknown`), never a retry.
+5. **A laptop:** the brain door needs a public address, so run a tunnel to the dev server
+   (`cloudflared tunnel --url http://localhost:<port>`) and point a throwaway agent at it
+   (`--set-url <agent_id> --url https://<tunnel>/api/ask/voice/llm`); the pane cannot open a microphone, so a voice
+   session is tried in a real browser at `http://localhost:<port>` after the sign-in helper.
+
+What to read: `ask_voice_session` (a conversation began: its thread and conversation ids), `ask_voice_turn` (one
+spoken turn: `ms`, `chars`, `pulses`, `followed` for a duplicate the vendor sent, `failed`), `ask_voice_door_refused`
+(`why`: `secret`, `session`, `no_session`, `ended`, `expired`, `member`, `rate`), `voice_session_minted` and
+`voice_session_refused` on the edge, `ask_voice_session_ended` from the webhook. The rows: `ask_voice_sessions`
+(the member's own under RLS; `turn_key` and `turn_started_at` are the door's claim), swept a day after their token
+expired (`sweep_voice_sessions`, 00288, nightly, judged on its runs).
+
+The gate, as every phase's: `E2E_BASE_URL=https://<host> ELEVENLABS_LLM_SECRET=… REPS=3 node tooling/scripts/eval-ask.mjs --spoken`
+asks every first turn through the brain door as the agent would and adds the spoken rules to the judge
+(`tooling/scripts/eval-ask-spoken.mjs`): no id, no route, no bracketed tag, an early comma in a long headline; the
+numbers go into the spec's §4.
+
 ## Walk the phone app
 
 The preview app on an Android emulator or phone, walked end to end from this computer: cleared to its sign-in screen,

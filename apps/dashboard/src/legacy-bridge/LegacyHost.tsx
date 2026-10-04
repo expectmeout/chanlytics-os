@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
+import { PrefetchKind } from "next/dist/client/components/router-reducer/router-reducer-types";
 import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { movedAddress, routeOfAddress, routeOfPath } from "@chanlytics/contracts";
 import { routeHasPage } from "@/surfaces/routes";
@@ -157,7 +158,13 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
   const place = useCallback(() => setPlaced(true), []);
   // The frame moves to a route with a page of its own through the router (workspace.ts goToRoute).
   useEffect(() => {
-    setAppRouter(router);
+    // What the frame asks of the router: a move, and a route warmed in full (workspace.ts warmRoute).
+    setAppRouter({
+      push: (href) => router.push(href),
+      replace: (href) => router.replace(href),
+      prefetch: (href, options) =>
+        router.prefetch(href, { kind: PrefetchKind.FULL, onInvalidate: options?.onInvalidate }),
+    });
     return () => setAppRouter(null);
   }, [router]);
   useEffect(() => {

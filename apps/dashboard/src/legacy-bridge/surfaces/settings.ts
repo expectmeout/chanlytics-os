@@ -6,7 +6,9 @@
  */
 
 import {
+  OWN_VERSION_CHANNELS,
   STARTER_TEMPLATES,
+  isReachOutRow,
   templateSentWords,
   templateUnused,
   templateUseNote,
@@ -74,8 +76,23 @@ export interface SettingsSurface {
   facts: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
   channels: ChannelVM[] | null;
   templatesAll: TemplateDto[] | null;
+  /**
+   * A message's other versions (One message, every channel, step 1): the workspace's email and text rows, which the
+   * Templates page sets beside each message's WhatsApp rows by their name. `templatesAll` stays WhatsApp's alone, so
+   * what the Inbox, Broadcasts, Playbooks and Ask read of it does not change; a reach-out's emails are not here (their
+   * own list), and null is a read that failed, as it is for `templatesAll`.
+   */
+  templateVersions?: TemplateDto[] | null;
   templateUse: TemplateUse | null;
   templateSent: Record<string, TemplateSentWords> | null;
+}
+
+/** The email and text rows among the templates read, for the page that draws a message's versions; null where the read failed. */
+function versionRowsOf(tpl: Error | { templates?: TemplateDto[] }): TemplateDto[] | null {
+  if (tpl instanceof Error) return null;
+  return (tpl.templates ?? []).filter(
+    (t) => (OWN_VERSION_CHANNELS as readonly string[]).includes(t.channel) && !isReachOutRow(t),
+  );
 }
 
 export const settingsOverride: SurfaceOverride = {
@@ -236,6 +253,7 @@ export const settingsOverride: SurfaceOverride = {
       facts: w.__FACTS ?? null,
       channels: w.__CHANNELS ?? null,
       templatesAll: w.__TEMPLATES_ALL ?? null,
+      templateVersions: versionRowsOf(tpl),
       templateUse: w.__TEMPLATE_USE ?? null,
       templateSent: w.__TEMPLATE_SENT ?? null,
     });

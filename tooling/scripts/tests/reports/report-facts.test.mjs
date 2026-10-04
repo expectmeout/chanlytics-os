@@ -39,19 +39,22 @@ const DAYS = [
   "2026-09-04",
 ];
 /** A quiet week of one message a day, then the week the test describes (`cur`, by day). */
-const report = (cur = {}, over = {}) =>
-  toReportVM({
-    timezone: "UTC",
-    days: 7,
-    span_days: 14,
-    today: "2026-09-04",
-    series: DAYS.map((d, i) => day(d, i < 7 ? { messages_in: 1, answered_ai: 1 } : cur[d] || {})),
-    reasons: {},
-    reply_seconds: [],
-    sentiments: {},
-    voicemail: 0,
-    ...over,
-  });
+const report = (cur = {}, over = {}, opts = {}) =>
+  toReportVM(
+    {
+      timezone: "UTC",
+      days: 7,
+      span_days: 14,
+      today: "2026-09-04",
+      series: DAYS.map((d, i) => day(d, i < 7 ? { messages_in: 1, answered_ai: 1 } : cur[d] || {})),
+      reasons: {},
+      reply_seconds: [],
+      sentiments: {},
+      voicemail: 0,
+      ...over,
+    },
+    opts,
+  );
 const cday = (d, over = {}) => ({
   day: d,
   sent: 0,
@@ -116,7 +119,7 @@ test("why it handed over says the reason, never the count the Needed you tile al
   assert.ok(!`${only.text}${only.sub}`.includes("3"));
 });
 
-test("the one busiest day, with the peak hours and what came in outside 8am to 8pm; a week is said as days", () => {
+test("the one busiest day, with the peak hours; a week is said as days", () => {
   const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
   grid[1][17] = 3;
   grid[1][18] = 2;
@@ -124,7 +127,7 @@ test("the one busiest day, with the peak hours and what came in outside 8am to 8
   const vm = report({ "2026-09-01": { messages_in: 6, answered_ai: 6 } }, { hours: grid });
   const b = reportFacts(vm, null).find((x) => x.id === "busiest");
   assert.equal(b.text, "Tuesday was your busiest day");
-  assert.equal(b.sub, "peak 5pm to 7pm, 1 outside 8am to 8pm");
+  assert.equal(b.sub, "peak 5pm to 7pm");
   assert.equal(b.door, null);
   const tie = report({
     "2026-09-01": { messages_in: 2, answered_ai: 2 },
@@ -216,4 +219,29 @@ test("at most three, in priority order, and a quiet period has none", () => {
     voicemail: 0,
   });
   assert.deepEqual(reportFacts(quiet, null), []);
+});
+
+test("no hours set is a line after the busiest day, inside the same cap of three: it never pushes out what an owner should act on first", () => {
+  const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
+  grid[1][10] = 1;
+  const crowded = { "2026-09-01": { messages_in: 3, answered_ai: 1, unanswered: 1, escalations: 1 } };
+  const over = { reasons: { non_text: 1 }, hours: grid, arrivals: [{ d: "2026-09-01", q: 40, n: 1 }] };
+  const cm = campaigns([source("p1", "playbook", "Win-back", 10, 2)]);
+  const unset = { profile: {} };
+  assert.deepEqual(
+    reportFacts(report(crowded, over, unset), cm).map((x) => x.id),
+    ["unanswered", "handovers", "busiest"],
+    "three already: the line waits for a quieter period",
+  );
+  const calm = { "2026-09-01": { messages_in: 3, answered_ai: 3, escalations: 1 } };
+  assert.deepEqual(
+    reportFacts(report(calm, over, unset), cm).map((x) => x.id),
+    ["handovers", "busiest", "hours"],
+    "after the busiest day, before the campaign",
+  );
+  assert.deepEqual(
+    reportFacts(report(calm, over), cm).map((x) => x.id),
+    ["handovers", "busiest", "campaign"],
+    "no profile given: the line is never a guess",
+  );
 });

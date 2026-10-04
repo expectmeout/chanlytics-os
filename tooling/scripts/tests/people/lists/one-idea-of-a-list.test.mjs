@@ -207,7 +207,7 @@ const OLD = {
   quiet: (o) => o.state === "quiet",
   phoned_only: (o, v) => !v.hasChat && v.calls > 0,
   opted_in: (o, v) => v.consent.state === "opted_in",
-  offers_ok: (o, v) => mayReceive(v, "marketing"),
+  offers_ok: (o, v) => mayReceive(v, "marketing", "whatsapp"),
   opted_out: (o, v) => v.consent.state === "opted_out",
 };
 

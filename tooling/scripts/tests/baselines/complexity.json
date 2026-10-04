@@ -1,7 +1,7 @@
 {
   "apps/dashboard/app/api/v1/ask/route.ts::handle#1": {
-    "lines": 208,
-    "branches": 40,
+    "lines": 108,
+    "branches": 36,
     "depth": 2
   },
   "apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts::handle#1": {
@@ -255,9 +255,9 @@
     "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/broadcast.ts::proposeBroadcast#1": {
-    "lines": 112,
-    "branches": 35,
-    "depth": 3
+    "lines": 95,
+    "branches": 32,
+    "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/deal.ts::proposeDeal#1": {
     "lines": 115,
@@ -265,18 +265,18 @@
     "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/playbook.ts::proposePlaybook#1": {
-    "lines": 183,
-    "branches": 50,
-    "depth": 4
-  },
-  "apps/dashboard/src/server/calendar/calendar-week.ts::calendarSources#1": {
-    "lines": 111,
+    "lines": 148,
     "branches": 36,
     "depth": 2
   },
+  "apps/dashboard/src/server/calendar/calendar-week.ts::calendarSources#1": {
+    "lines": 99,
+    "branches": 35,
+    "depth": 2
+  },
   "apps/dashboard/src/server/campaigns/broadcasts.ts::getBroadcast/map(fn)#1": {
-    "lines": 27,
-    "branches": 43,
+    "lines": 23,
+    "branches": 35,
     "depth": 0
   },
   "apps/dashboard/src/server/campaigns/policy-write.ts::changePolicy#1": {
@@ -320,8 +320,8 @@
     "depth": 2
   },
   "apps/edge/lib/playbooks.ts::loadTenantRunContext#1": {
-    "lines": 148,
-    "branches": 37,
+    "lines": 135,
+    "branches": 35,
     "depth": 2
   },
   "apps/edge/lib/reach-out/check.ts::checkSends#1": {
@@ -465,7 +465,7 @@
     "depth": 1
   },
   "packages/contracts/src/people/person-row.ts::toPersonRowVM#1": {
-    "lines": 144,
+    "lines": 142,
     "branches": 84,
     "depth": 0
   },
@@ -529,21 +529,6 @@
     "branches": 34,
     "depth": 2
   },
-  "packages/core/src/campaigns/check-playbook.ts::checkPlaybook#1": {
-    "lines": 72,
-    "branches": 38,
-    "depth": 3
-  },
-  "packages/core/src/campaigns/create-broadcast.ts::createBroadcast#1": {
-    "lines": 152,
-    "branches": 45,
-    "depth": 2
-  },
-  "packages/core/src/campaigns/run-playbook.ts::runPlaybook#1": {
-    "lines": 183,
-    "branches": 48,
-    "depth": 2
-  },
   "packages/core/src/conversations/reply.ts::queueReply#1": {
     "lines": 152,
     "branches": 27,
@@ -568,16 +553,6 @@
     "lines": 93,
     "branches": 32,
     "depth": 2
-  },
-  "packages/core/src/messages/broadcast.ts::sendBroadcastBatch#1": {
-    "lines": 232,
-    "branches": 28,
-    "depth": 3
-  },
-  "packages/jobs/src/broadcast-send.ts::broadcastSend#1": {
-    "lines": 172,
-    "branches": 1,
-    "depth": 0
   },
   "packages/jobs/src/settle.ts::settleJob#1": {
     "lines": 162,

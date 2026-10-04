@@ -3,16 +3,22 @@ import type { z } from "zod";
 import {
   AppError,
   PROPOSAL_SPECS,
+  channelsReady,
   emptyReadSet,
   noteRows,
   type AskCitationKind,
   type AskProposal,
   type AskReadSet,
+  type CampaignHow,
+  type ConsentChannel,
   type MembershipRole,
+  type NumberHealth,
   type ProposalKindAboveOperator,
 } from "@chanlytics/contracts";
+import { parseChannels } from "@chanlytics/core";
 import type { RouteContext } from "../../with-route";
 import { readerContext, type ReaderContext } from "../../readers";
+import { whatsappHealthOf } from "../../campaigns/channels-ready";
 import { log } from "@/server/log";
 
 /**
@@ -190,6 +196,52 @@ export const unread =
     log.error("ask_tool_read_failed", { tool, read, tenant_id: t.tenantId, error: e });
     return null;
   };
+
+/**
+ * The channels a proposal is counted by, as the route that commits it reads them: WhatsApp alone, since a proposal names
+ * none, the workspace ready on it or not. `health` is the number's (contracts numberHealth), null with none connected,
+ * and undefined where it could not be read, which counts as the pages count then: WhatsApp can send, which their number
+ * banner judges.
+ */
+export function whatsappHowOf(health: NumberHealth | null | undefined): CampaignHow {
+  return {
+    channels: ["whatsapp"],
+    ready: channelsReady({
+      whatsapp: health === undefined ? { canSend: true, refusal: null } : health,
+      textLine: null,
+      email: { mailbox: false, domain: false },
+    }),
+  };
+}
+
+/**
+ * The channels a campaign proposal names, read as the composers' routes read them (core parseChannels): WhatsApp alone
+ * when it names none, and then `named` is false, so the card says nothing of channels and commits the body it always did.
+ * A list that is not WhatsApp, text and email each once is a refusal, in the model's words.
+ */
+export function proposedChannels(asked: unknown): { channels: ConsentChannel[]; named: boolean } | { refusal: string } {
+  const named = asked !== undefined && asked !== null;
+  try {
+    return { channels: parseChannels(named ? asked : undefined), named };
+  } catch (e) {
+    return {
+      refusal: `channels: ${e instanceof Error ? e.message : String(e)} Name them as whatsapp, sms or email, each once.`,
+    };
+  }
+}
+
+/** The `channels` a card keeps for its commit: the ones the proposal named (`proposedChannels`), and nothing where it named none. */
+export const namedChannels = (c: { channels: ConsentChannel[]; named: boolean }): { channels?: ConsentChannel[] } =>
+  c.named ? { channels: c.channels } : {};
+
+/** The same, reading the number (channels-ready.ts): one read of its config, said in the log when it fails. */
+export async function whatsappHow(t: ToolContext): Promise<CampaignHow> {
+  const health = await whatsappHealthOf(t.ctx, t.tenantId).catch((e: unknown) => {
+    log.error("ask_tool_read_failed", { tool: "campaigns", read: "number", tenant_id: t.tenantId, error: e });
+    return undefined;
+  });
+  return whatsappHowOf(health);
+}
 
 /**
  * A reader's 404 as the tool's own "not here" answer, null; any other failure

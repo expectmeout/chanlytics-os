@@ -488,7 +488,15 @@ const { setStatus } = await import("../../../../apps/dashboard/src/legacy-bridge
 // The write that lands moves the surfaces the refresh map names, through a module the loader hands over off the main
 // thread: loaded before a test waits on a write, so it is not the wait.
 await import("../../../../apps/dashboard/src/legacy-bridge/refresh-map.ts");
-const { MoreMenu, StatePill } = kitPages;
+const { StatePill } = kitPages;
+// The person's More is the kit's Menu (surfaces/kit/menu): its trigger is the page's Button, its items in groups.
+const { Menu } = await import(`${P}/../kit/menu/menu.tsx`);
+const { SubTabs } = await import(`${P}/../kit/sub-tabs/sub-tabs.tsx`);
+const itemsIn = (menu) => menu.props.groups.flatMap((g) => g.items);
+/** The kit Menu's items as the page built them: an item's act is `onSelect`, given here as `onClick` too. */
+const actsIn = (menu) => itemsIn(menu).map((i) => ({ ...i, onClick: i.onSelect }));
+/** The Menu of a drawn tree, and what a bar's menu says on its button (its trigger's words). */
+const menuByWords = (tree, words) => find(tree, (n) => n.type === Menu && textOf(n.props.trigger).trim() === words);
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 /** Turns of the loop for what a press started to finish: and for every request out to be answered, and what follows it (a held one is not out). */
@@ -625,9 +633,9 @@ test("REGRESSION (B15): the bulk bar's receptionist menu uses the one set of wor
   let tree = draw();
   byTestId(tree, "select-all").props.onChange();
   tree = draw();
-  const menu = find(tree, (n) => n.props?.label === "Receptionist");
+  const menu = menuByWords(tree, "Receptionist");
   assert.deepEqual(
-    menu.props.items.filter((i) => !i.header).map((i) => i.label),
+    itemsIn(menu).map((i) => i.label),
     ["Answer", "Ask me first", "Never", "Follow the workspace"],
   );
 });
@@ -693,18 +701,18 @@ test("REGRESSION (B17): the timeline narrows by kind, and each linked item opens
   // The fixture's one visit has not happened: it is Coming up, not History, and it is a door to its day.
   const ahead = all(tree, (n) => n.props?.["data-testid"] === "person-visit-ahead");
   assert.equal(ahead.length, 1, "the visit ahead is Coming up");
-  assert.ok(
-    byTestId(tree, "timeline-filter-all") &&
-      byTestId(tree, "timeline-filter-messages") &&
-      byTestId(tree, "timeline-filter-visits"),
-    "a filter for each kind History holds",
+  // The filters are the kit's sub-tabs: one tab for each kind History holds, and none for a kind it does not.
+  const filters = (t) => find(t, (n) => n.type === SubTabs).props;
+  assert.deepEqual(
+    filters(tree).tabs.map((t) => t.testid),
+    ["timeline-filter-all", "timeline-filter-messages", "timeline-filter-visits"],
+    "a filter for each kind History holds, and none for a kind it does not",
   );
-  assert.equal(byTestId(tree, "timeline-filter-calls"), null, "and none for a kind it does not");
   for (const open of all(tree, (n) => n.props?.["data-testid"] === "timeline-open")) press(open);
   press(ahead[0]);
   const day = toPersonRowVM(row({ visits: VISITS }), ZONE, new Date(NOW)).nextVisitDate;
   assert.ok(went.includes("inbox/th-cv1") && went.includes(`calendar/${day}`), `the doors: ${went}`);
-  press(byTestId(tree, "timeline-filter-visits"));
+  filters(tree).onSelect("visits");
   tree = draw();
   assert.equal(
     all(tree, (n) =>
@@ -758,16 +766,15 @@ test("REGRESSION: a profile's Add to a list opens over the card -- the card clip
   cells = [];
   frames.begin();
   const lists = PersonLists({ personId: "p1", canEdit: true, first: "Daniela", flash: () => {} });
-  const add = find(lists, (n) => n.type === MoreMenu);
-  assert.equal(add.props.testid, "person-list-add");
-  assert.equal(add.props.escape, true, "placed against the window, so the card's rounded clip cannot cut it off");
+  const add = find(lists, (n) => n.type === Menu);
+  assert.equal(add.props.trigger.props["data-testid"], "person-list-add");
   assert.deepEqual(
-    add.props.items.map((i) => i.header || i.label),
+    add.props.groups.flatMap((g) => [g.header, ...g.items.map((i) => i.label)]).filter(Boolean),
     ["Best buyers"],
     "the lists they are not on, and no header saying Add to under a link that says it",
   );
   assert.ok(
-    add.props.btnClass.split(" ").includes("is-plain"),
+    add.props.trigger.props.className.split(" ").includes("is-plain"),
     "a quiet link under the chips, as Add an email is, not a button among them",
   );
 });
@@ -812,13 +819,16 @@ test("REGRESSION: a person's page says who they are once -- the header held two 
     "one door, one label: the card said Open in Inbox and the header said Open thread",
   );
   const actions = find(tree, (n) => cls(n) === "cl-prof-queue-actions");
-  const more = find(actions, (n) => n.type === MoreMenu && n.props.testid === "person-more");
+  const more = find(actions, (n) => n.type === Menu);
   assert.ok(
-    byTestId(actions, "person-open-thread") && more && more.props.label === "More",
+    byTestId(actions, "person-open-thread") &&
+      more &&
+      more.props.trigger.props["data-testid"] === "person-more" &&
+      /^More/.test(textOf(more.props.trigger).trim()),
     "the thread beside who they are, and the rest behind More, in words: a ⋯ was too quiet to find",
   );
   assert.ok(
-    more.props.items.some((i) => i.label === "Send booking link"),
+    itemsIn(more).some((i) => i.label === "Send booking link"),
     "REGRESSION: 'Send the booking-link template' was a button of its own beside a thread button to the same place",
   );
 
@@ -1870,9 +1880,9 @@ test("a smart list rides the rail with who its rule holds for, and says its rule
     null,
     "no cross on a rule",
   );
-  const menu = find(lists, (n) => n.type === MoreMenu);
+  const menu = find(lists, (n) => n.type === Menu);
   assert.deepEqual(
-    menu.props.items.filter((i) => i.label).map((i) => i.label),
+    itemsIn(menu).map((i) => i.label),
     ["Regulars"],
     "Add to offers only the lists kept by hand",
   );
@@ -1975,14 +1985,9 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
   assert.equal(byTestId(tree, "person-proposal"), null, "REGRESSION: the link was an About row of its own");
   assert.ok(!aboutKeys(tree).includes("Proposal"), `About says it no more: ${aboutKeys(tree)}`);
   // The sends are the More menu's first items, in plain words, each saying what it does under it.
-  const moreOf = (t) => find(t, (n) => n.type === MoreMenu && n.props.testid === "person-more");
-  const labels = (t) =>
-    moreOf(t)
-      ? moreOf(t)
-          .props.items.filter((i) => i.label)
-          .map((i) => i.label)
-      : [];
-  const items = moreOf(tree).props.items.filter((i) => i.label);
+  const moreOf = (t) => find(t, (n) => n.type === Menu);
+  const labels = (t) => (moreOf(t) ? itemsIn(moreOf(t)).map((i) => i.label) : []);
+  const items = itemsIn(moreOf(tree));
   assert.deepEqual(
     items.slice(0, 2).map((i) => i.label),
     ["Send booking link", "Send proposal"],
@@ -1992,7 +1997,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
     /^Opens their thread with it ready to send/.test(items[1].title),
     `what it does, on hover: ${items[1].title}`,
   );
-  const send = { props: { onClick: items[1].onClick } };
+  const send = { props: { onClick: items[1].onSelect } };
 
   // The press carries the contract's words into the thread's composer and opens the thread; nothing is sent.
   const carried = [];
@@ -2201,9 +2206,9 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     assert.deepEqual([textOf(next), next.props.className], ["Send proposal", "btn btn-sm"]);
     assert.deepEqual(movesOf(card).map(textOf), ["Mark as client", "Mark as passed", "Edit proposal"]);
     // The card leads with the send, so the More menu does not say it again.
-    const more = find(tree, (n) => n.props?.testid === "person-more");
+    const more = find(tree, (n) => n.type === Menu);
     assert.ok(
-      !more.props.items.some((i) => /proposal/i.test(i.label || "")),
+      !itemsIn(more).some((i) => /proposal/i.test(i.label || "")),
       "REGRESSION: Send proposal on the card and again under More",
     );
     went.length = 0;
@@ -2440,13 +2445,8 @@ test("REGRESSION: a History filter holds still -- on a phone a shorter list made
     change();
   };
   try {
-    const pressed = { tag: "the Visits button" };
-    byTestId(draw(), "timeline-filter-visits").props.onClick({
-      currentTarget: pressed,
-      stopPropagation() {},
-      preventDefault() {},
-    });
-    assert.deepEqual(held, [pressed], "the switch runs through holdStill, from the button pressed");
+    find(draw(), (n) => n.type === SubTabs).props.onSelect("visits");
+    assert.equal(held.length, 1, "the switch runs through holdStill, from the tab pressed");
     const timeline = find(draw(), (n) => typeof n.type === "function" && n.type.name === "PersonTimeline");
     assert.equal(timeline.props.filter, "visits", "and History shows the visits");
   } finally {
@@ -2819,8 +2819,8 @@ test("who may do what to a note: its author changes it, an owner or its author d
   try {
     const actsOf = (tree) =>
       all(tree, (n) => n.props?.["data-testid"] === "person-note").map((r) => {
-        const m = find(r, (n) => n.type === MoreMenu);
-        return m ? m.props.items.map((i) => i.label) : [];
+        const m = find(r, (n) => n.type === Menu);
+        return m ? itemsIn(m).map((i) => i.label) : [];
       });
     globalThis.window.__ME = { role: "owner" };
     let draw = await profile(vm);
@@ -2946,7 +2946,7 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
     assert.equal(sent.at(-1)[2].due_on, "2026-12-01");
 
     // Its author takes a day away: the change says so. A note that never had one says nothing of days.
-    const editOf = (row) => find(row, (n) => n.type === MoreMenu).props.items.find((i) => i.label === W.edit);
+    const editOf = (row) => actsIn(find(row, (n) => n.type === Menu)).find((i) => i.label === W.edit);
     [step, done, plain] = rowsOf(draw());
     editOf(step).onClick();
     tree = draw();

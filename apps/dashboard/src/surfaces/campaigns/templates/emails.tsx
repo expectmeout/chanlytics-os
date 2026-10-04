@@ -1,13 +1,13 @@
 /**
  * A reach-out's emails on Templates (moved from legacy/pages/messages.jsx, decision 0015; Reach out Part 4 PR 8, R19):
- * contracts' rows (emailTemplateRowsOf) over the reach_outs surface's chains, drawn by their own row
- * (../reach-out/email-row.tsx) and found by their words too. Unread is no row and no claim either way; a read that
- * failed is said. "All approved" is WhatsApp's to say, of its own rows.
+ * contracts' rows (emailTemplateRowsOf) over the reach_outs surface's chains, each a message with an email version
+ * (../reach-out/email-message.tsx, step 5), opened in the pane beside the list and edited there, and found by their words
+ * too. Unread is no row and no claim either way; a read that failed is said. "All approved" is WhatsApp's to say, of its
+ * own rows.
  */
-import type { Dispatch, SetStateAction } from "react";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { surfaceValue } from "../../surface-values";
-import { EmailTemplateRow } from "../reach-out/email-row";
+import { ReachOutEmailRow } from "../reach-out/email-message";
 import type { ReachOutsSurface } from "../reach-out/surface";
 import { reachOuts } from "../reach-out/surface";
 
@@ -58,21 +58,21 @@ export function TplNothing({ hasWhatsApp, customN, emails }: TplNothingProps) {
   ) : null;
 }
 
+/** An email's key among the page's open messages: a WhatsApp message's is its own, and this one is told apart by its prefix. */
+const emailKey = (t: Emails[number]): string => `e:${t.template_id}`;
+
+/** The email whose pane is open, by the page's key for the open message; none where the key is a message's, or it is gone. */
+export const tplEmailOpen = (emails: Emails, openKey: string | null): Emails[number] | null =>
+  (openKey && emails.find((t) => emailKey(t) === openKey)) || null;
+
 interface TplEmailRowsProps {
   emails: Emails;
   openKey: string | null;
-  setOpenKey: Dispatch<SetStateAction<string | null>>;
+  onOpenKey: (key: string) => void;
 }
 
-export const TplEmailRows = ({ emails, openKey, setOpenKey }: TplEmailRowsProps) =>
+export const TplEmailRows = ({ emails, openKey, onOpenKey }: TplEmailRowsProps) =>
   emails.map((t) => {
-    const key = `e:${t.template_id}`;
-    return (
-      <EmailTemplateRow
-        key={key}
-        t={t}
-        open={openKey === key}
-        onOpen={() => setOpenKey((k) => (k === key ? null : key))}
-      />
-    );
+    const key = emailKey(t);
+    return <ReachOutEmailRow key={key} t={t} open={openKey === key} onOpen={() => onOpenKey(key)} />;
   });

@@ -145,19 +145,22 @@ var PLAYBOOK_TRIGGERS = [
     kind: "visit",
     hint: "The day before an appointment on the calendar"
   },
+  // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the visit went and offers nothing,
+  // so it reaches a yes to texts. It was a re-engagement, and its "book your next visit" made it an offer.
   {
     id: "visited",
     label: "After the visit",
     list: null,
-    cls: "reengage",
+    cls: "booking",
     kind: "visit",
     hint: "The day after a visit, when nothing is booked next"
   },
-  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
-  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  // People's Lapsed list, by visits rather than silence (00155). Since 2 Oct 2026 it IS the win-back where a calendar is
+  // connected, and the quiet one is the win-back where none is: one moment, read the one way the workspace can
+  // (momentOffered), so both are called Win-back and their hints say which.
   {
     id: "lapsed",
-    label: "Lapsed",
+    label: "Win-back",
     list: "lapsed",
     cls: "reengage",
     kind: "list",
@@ -221,6 +224,14 @@ function delayWords(ms2) {
   return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
 }
 var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
+function triggerOf(id) {
+  return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
+}
+var hintOf = (id) => (triggerOf(id)?.hint ?? "").toLowerCase();
+var WIN_BACK_WORDS = {
+  quiet_30: `A calendar is connected here, so the win-back goes by visits: ${hintOf("lapsed")}. Start that one.`,
+  lapsed: `The win-back by visits needs your calendar, and none is connected. Start the one that goes by silence: ${hintOf("quiet_30")}.`
+};
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -295,6 +306,11 @@ var PolicyLimitsSchema = z3.object({
    */
   max_llm_tokens_day: z3.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
+var CONSENT_CHANNEL_WORDS = {
+  whatsapp: "on WhatsApp",
+  sms: "by text",
+  email: "by email"
+};
 var ASKED_TO_STOP = "asked to stop receiving messages";
 var OPT_OUT_REFUSAL = `This customer ${ASKED_TO_STOP}. They can text START to opt back in.`;
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
@@ -896,8 +912,24 @@ var REPLY_LIMITS = {
 var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
 var CALL_HEARTBEAT_MS = 10 * MIN_MS;
 var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
+function namedSlots(names3, labels = names3) {
+  return { kind: "named", keys: names3, labels };
+}
 var HAND_KINDS = ["call", "note"];
 var HAND_WORDS_MAX = 280;
+var REACH_OUT_SLOTS = ["opening", "business", "city", "your name", "your business", "booking link"];
+var REACH_OUT_SLOT_LABELS = {
+  opening: "Opening",
+  business: "Their business",
+  city: "Their city",
+  "your name": "Your name",
+  "your business": "Your business",
+  "booking link": "Booking link"
+};
+var REACH_OUT_SLOT_SET = namedSlots(
+  REACH_OUT_SLOTS,
+  REACH_OUT_SLOTS.map((s) => REACH_OUT_SLOT_LABELS[s])
+);
 var REACH_OUT_SUBJECT_MAX = 80;
 var REACH_OUT_BODY_MAX = 1200;
 var OPENING_WORDS_MAX = 40;
@@ -1228,6 +1260,7 @@ var LeadSuggestAnswerSchema = z10.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var AskProposalOutcomeSchema = z11.object({
   state: z11.enum(["done", "dismissed", "failed", "undone"]),
@@ -2145,6 +2178,35 @@ var PROPOSAL = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+var OFFERS_BY_EMAIL_WORDS = {
+  /** The deployment's campaigns domain is not set up or not verified yet. */
+  noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
+  /** The business has no postal address on file, which every offer's foot names. */
+  noAddress: "Add your business's address to send offers by email.",
+  /** The workspace's offers are paused by a gate. */
+  paused: "Offers by email are paused while complaints and bounces settle."
+};
+var CHANNEL_WORDS = {
+  noOffersByText: "Texts carry no offers.",
+  /**
+   * What an offer by email says where the read carries no facts about offers (the WhatsApp-alone reading, a page cached before
+   * them, Ask's own): the campaigns domain, which is what its absence is. A read that has them says the reason that is true.
+   */
+  noOffersByEmailYet: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain,
+  noWhatsApp: "Connect a WhatsApp number first.",
+  noTextLine: "No texting line yet.",
+  textLineMock: "Your texting line is a test filing: it sends nothing.",
+  textLineNotActive: "Your texting line is not approved by the carriers yet.",
+  noMailbox: "Set up email in Settings \u203A Connections first.",
+  noEmailDomain: "Email is not switched on for this deployment yet.",
+  /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
+  unchecked: "This could not be checked just now."
+};
+var READY_WHATSAPP_ALONE = {
+  whatsapp: { ready: true, why: null },
+  sms: { ready: false, why: CHANNEL_WORDS.unchecked },
+  email: { ready: false, why: CHANNEL_WORDS.unchecked }
+};
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -2164,6 +2226,12 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   15 * MIN_MS,
   30 * MIN_MS
 ];
+var capitalised = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+var PREVIEW_CHANNEL_WORDS = {
+  whatsapp: capitalised(CONSENT_CHANNEL_WORDS.whatsapp),
+  sms: capitalised(CONSENT_CHANNEL_WORDS.sms),
+  email: capitalised(CONSENT_CHANNEL_WORDS.email)
+};
 var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
 var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var EVENT_KINDS = [
@@ -2259,6 +2327,9 @@ var EVENT_KINDS = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
+  "mailbox.offers_paused",
+  "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
    * removed. The host and the reason, never the provider's id. */
   "sending_domain.added",
@@ -2511,6 +2582,8 @@ var RETENTION_DAYS = {
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
@@ -2723,7 +2796,7 @@ var REACH_OUT_SHEET_WORDS = {
   stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
   stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
   first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS} to stop it.`,
-  slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
+  slotsHint: "each is filled for each business, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
   footHint: "as the law asks",
   repliesHint: "into your Inbox",
@@ -2778,6 +2851,139 @@ var REACH_OUT_REFUSALS = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET = new Set(Object.values(REACH_OUT_REFUSALS));
+var CAMPAIGN_ROOMS = {
+  home: "Campaigns",
+  sent: "Sent",
+  library: "Library",
+  newMessage: "New message"
+};
+var { sent, library } = CAMPAIGN_ROOMS;
+var PLAYBOOK_DELETE_WORDS = {
+  /** The toast's tail, after the playbook's name. */
+  done: `deleted \u2014 its runs stay in ${sent} with their numbers`,
+  /** The question's detail. */
+  detail: `Its runs stay in ${sent} with their numbers.`
+};
+var LIBRARY_WORDS = {
+  title: library,
+  demo: `The ${library} reads a real workspace \u2014 what WhatsApp has approved for it.`,
+  reading: `Reading the ${library}\u2026`,
+  failed: `The ${library} couldn\u2019t be loaded right now`,
+  failedWhat: `the ${library}`,
+  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
+  noNumber: `The ${library} holds what WhatsApp approves for a number, so it needs one.`
+};
+var OFFERS_IN_WRITING_WORDS = {
+  lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
+  link: `print one in ${sent}`
+};
+var LIFECYCLE_WORDS = {
+  title: CAMPAIGN_ROOMS.home,
+  lede: "What goes out on its own as a customer reaches a moment, and what you send yourself.",
+  library: CAMPAIGN_ROOMS.library,
+  newMessage: CAMPAIGN_ROOMS.newMessage,
+  // Said, after the standard beat, where a tile's read is still out.
+  reading: "Reading\u2026",
+  close: "Close",
+  rail: "Your customer, start to finish",
+  needs: {
+    none: "Answers whoever writes",
+    messages: "Reaches a yes to messages",
+    offers: "Needs a yes to offers"
+  },
+  receptionist: "Answers \xB7 asks for the yes",
+  // First contact where the workspace has nothing to answer on: no number and no channel that can send.
+  noLine: { state: "No line to answer on yet", needs: "Connect a number or email to answer on" },
+  alsoRunning: "Also running",
+  callText: {
+    name: "The call's text",
+    words: "The booking link and your WhatsApp, sent while they're on the phone",
+    on: "When a caller asks",
+    none: "No message for it yet"
+  },
+  monthsOffer: { name: "The month's offer" },
+  // What the drawer's head calls a line that is not a stage.
+  kickers: { call_text: "The call's text", moment: "Also", list: "On a list", reach_out: "Reach-out" },
+  gone: {
+    title: "That playbook isn't here any more.",
+    body: "Its runs stay in Sent, with their numbers."
+  },
+  compose: {
+    title: CAMPAIGN_ROOMS.newMessage,
+    kind: "What kind of message",
+    once: "Send once",
+    every: "Every time a moment comes",
+    // The send screen is made of the broadcasts read (its lists and its messages): said where it could not be, with its Retry.
+    failed: {
+      what: "who and what you can send to",
+      body: "Nothing goes out until it reads. Everything else here is current.",
+      surface: "broadcasts"
+    }
+  },
+  phone: { moments: "Moments", also: "Also", turnOn: "Turn on" },
+  // A read that failed is its own state, never a tile that is not there or a zero that was not counted. The page draws the
+  // kit's failed read where the data would be, and its Retry reads `surface` again.
+  failed: {
+    templates: {
+      what: "your templates",
+      body: "The call's text and the Library's count show once they read. Everything else here is current.",
+      surface: "settings"
+    },
+    counts: {
+      what: "who each moment reaches",
+      body: "The moments show who they reach once it reads. Everything else here is current.",
+      surface: "playbooks"
+    },
+    chains: { what: "your reach-outs", body: "The moments above are current.", surface: "reach_outs" },
+    report: { what: "this period's numbers", body: "The runs below stand.", surface: "broadcasts" },
+    // The broadcasts read itself, said in each tile made from it.
+    reach: {
+      what: "who can hear you",
+      body: "The ladder shows once it reads. Everything else here is current.",
+      surface: "broadcasts"
+    },
+    coming: {
+      what: "what is coming up",
+      body: "What is coming shows once it reads. Everything else here is current.",
+      surface: "broadcasts"
+    },
+    results: {
+      what: "what came back",
+      body: "The numbers show once they read. Everything else here is current.",
+      surface: "broadcasts"
+    }
+  },
+  reach: {
+    title: "Who can hear you",
+    people: "In People",
+    messages: "Can get your messages",
+    offers: "Said yes to offers",
+    // What a yes opens, in the moments' own names; the month's offer and a person's own notes are not stages.
+    opensMessages: "Opens:",
+    ownOffers: ["the month's offer", "your notes"],
+    asks: "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
+    phoneAsks: "Your receptionist asks for the yes to offers, once a person, in a conversation they started.",
+    code: "Show the code",
+    copy: "Copy the phrase",
+    link: "People"
+  },
+  coming: {
+    title: "Coming up",
+    window: "next 7 days",
+    link: "Calendar",
+    rules: `Sends wait for ${SENDING_HOURS_WORDS.range} \xB7 one a week per person, across every moment`,
+    empty: "Nothing is set to go out in the next 7 days.",
+    nobody: "Nobody",
+    waiting: "Waiting on you"
+  },
+  results: {
+    title: "What came back",
+    link: "All runs",
+    quiet: "Nothing went out, and nobody said yes or asked to stop.",
+    funnel: { sent: "Sent", delivered: "Delivered", read: "Read", replied: "Replied" },
+    funnelLabel: "Sent, delivered, read and replied"
+  }
+};
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
 var REACH_OUT_PREVIEW_INDEX_MAX = 199;
@@ -3201,6 +3407,48 @@ async function recordEvent(db, tenantId, kind, subjectType, subjectId, data) {
   }
   return { error: error?.message ?? null };
 }
+function noChannelColumns(error) {
+  return !!error && /\b(consent_channels|marketing_channels|channel)\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
+}
+async function queuedRecipients(db, p) {
+  const first = await db.from("broadcast_recipients").select("contact_id, facts, channel").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").limit(p.limit);
+  const { data, error } = noChannelColumns(first.error) ? await db.from("broadcast_recipients").select("contact_id, facts").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").limit(p.limit) : first;
+  if (error) throw new Error(`queued_recipients: ${error.message}`);
+  return data ?? [];
+}
+async function runGoesByOthers(db, tenantId, broadcastId) {
+  const { count, error } = await db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId).in("channel", ["sms", "email"]);
+  if (noChannelColumns(error)) return false;
+  if (error) throw new Error(`run_goes_by_others: ${error.message}`);
+  return (count ?? 0) > 0;
+}
+async function campaignMonthSent(db, tenantId, channel, at) {
+  const { data, error } = await db.rpc("campaign_month_sent", {
+    p_tenant_id: tenantId,
+    p_channel: channel,
+    ...at ? { p_at: at.toISOString() } : {}
+  });
+  if (error) throw new Error(`cannot count the month's ${channel} campaign messages: ${error.message}`);
+  if (typeof data !== "number")
+    throw new Error(`cannot count the month's ${channel} campaign messages: the database answered no count`);
+  return data;
+}
+async function noteYesOnChannel(db, p, contactId) {
+  const failed = (error) => dbLog().error("consent_channel_write_failed", { tenant_id: p.tenantId, contact_id: contactId, error });
+  try {
+    const { error } = await db.rpc("note_yes_on_channel", {
+      p_tenant_id: p.tenantId,
+      p_contact_id: contactId,
+      p_channel: p.channel,
+      p_message_external_id: p.messageExternalId,
+      p_words: (p.body ?? "").slice(0, 80)
+    });
+    const missing = error?.code === "PGRST202" || /Could not find the function public\.note_yes_on_channel/.test(error?.message ?? "");
+    if (error && !missing) failed(error.message);
+  } catch (e) {
+    failed(e instanceof Error ? e.message : String(e));
+  }
+}
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,
@@ -3219,6 +3467,7 @@ async function ingestInbound(db, p) {
   });
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   const out = data;
+  if (p.optIn && out?.contact_id) await noteYesOnChannel(db, p, out.contact_id);
   if (p.optInMarketing && out?.contact_id) {
     const args = {
       p_tenant_id: p.tenantId,
@@ -3263,18 +3512,22 @@ async function getOrCreateContact(db, tenantId, phoneE164) {
 async function resolveOutboundTarget(db, p) {
   const phone = normalizePhone(p.phoneE164);
   if (!phone) return null;
-  const { data: existing, error: selErr } = await db.from("contacts").select("id, consent, dnc, marketing_consent").eq("tenant_id", p.tenantId).eq("phone_e164", phone).maybeSingle();
+  const first = await db.from("contacts").select("id, consent, dnc, marketing_consent, consent_channels, marketing_channels").eq("tenant_id", p.tenantId).eq("phone_e164", phone).maybeSingle();
+  const { data: existing, error: selErr } = noChannelColumns(first.error) ? await db.from("contacts").select("id, consent, dnc, marketing_consent").eq("tenant_id", p.tenantId).eq("phone_e164", phone).maybeSingle() : first;
   if (selErr) throw new Error(`resolve_outbound_target: ${selErr.message}`);
   let contact3 = existing;
   if (!contact3) {
     if (!p.create) return null;
     contact3 = await getOrCreateContact(db, p.tenantId, phone);
   }
+  return threadOf(db, p.tenantId, contact3, p.touch);
+}
+async function threadOf(db, tenantId, contact3, touch) {
   const { data: conv, error: cErr } = await db.from("conversations").upsert(
     {
-      tenant_id: p.tenantId,
+      tenant_id: tenantId,
       contact_id: contact3.id,
-      ...p.touch === false ? {} : { last_message_at: (/* @__PURE__ */ new Date()).toISOString() }
+      ...touch === false ? {} : { last_message_at: (/* @__PURE__ */ new Date()).toISOString() }
     },
     { onConflict: "tenant_id,contact_id" }
   ).select("id, paused_until").single();
@@ -3285,8 +3538,45 @@ async function resolveOutboundTarget(db, p) {
     pausedUntil: conv.paused_until ?? null,
     consent: contact3.consent ?? null,
     dnc: contact3.dnc ?? false,
-    marketing_consent: contact3.marketing_consent ?? null
+    marketing_consent: contact3.marketing_consent ?? null,
+    consent_channels: contact3.consent_channels ?? null,
+    marketing_channels: contact3.marketing_channels ?? null
   };
+}
+async function resolveOutboundTargetForContact(db, p) {
+  const first = await db.from("contacts").select(
+    "id, consent, dnc, marketing_consent, consent_channels, marketing_channels, erased_at, merged_into_contact_id"
+  ).eq("tenant_id", p.tenantId).eq("id", p.contactId).maybeSingle();
+  const { data, error } = noChannelColumns(first.error) ? await db.from("contacts").select("id, consent, dnc, marketing_consent, erased_at, merged_into_contact_id").eq("tenant_id", p.tenantId).eq("id", p.contactId).maybeSingle() : first;
+  if (error) throw new Error(`resolve_outbound_target_for_contact: ${error.message}`);
+  if (!data || data.erased_at || data.merged_into_contact_id) return null;
+  return threadOf(db, p.tenantId, data, p.touch);
+}
+async function setEmailOffersYes(db, p) {
+  const { data, error } = await db.rpc("set_email_offers_yes", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_source: p.source,
+    ...p.messageId ? { p_message_id: p.messageId } : {},
+    p_evidence: p.evidence
+  });
+  if (error) throw new Error(`cannot record the yes to offers by email: ${error.message}`);
+  const said = data ?? null;
+  if (said?.changed === true) return "recorded";
+  return said?.refused === "unsubscribed" ? "unsubscribed" : "unchanged";
+}
+async function setEmailUnsubscribed(db, p) {
+  const { data, error } = await db.rpc("set_email_marketing", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_state: "opted_out",
+    p_source: "unsubscribe",
+    ...p.messageId ? { p_message_id: p.messageId } : {},
+    p_evidence: p.evidence
+  });
+  if (error) throw new Error(`cannot record the unsubscribe: ${error.message}`);
+  const said = data ?? null;
+  return { business: typeof said?.business === "string" ? said.business : null, changed: said?.changed === true };
 }
 async function mailboxById(db, id) {
   const { data, error } = await db.from("mailboxes").select("*").eq("id", id).maybeSingle();
@@ -3313,13 +3603,45 @@ async function ingestInboundEmail(db, p) {
     type: "text",
     body: p.body,
     channelTs: p.channelTs,
-    meta: p.meta
+    meta: p.meta,
+    optOut: p.optOut ?? false
   });
   if (!known.data) {
     const { error } = await db.from("contacts").update({ email: p.address }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).is("email", null);
     if (error && error.code !== "23505")
       throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
     if (error) dbLog().error("ingest_email_address_taken", { tenant_id: p.tenantId, contact_id: out.contact_id });
+  }
+  const evidence = { channel: "email", message_external_id: p.receivedId, words: (p.words ?? "").slice(0, 80) || null };
+  if (p.unsubscribe && !out.processed)
+    await setEmailUnsubscribed(db, {
+      tenantId: p.tenantId,
+      contactId: out.contact_id,
+      messageId: out.message_id,
+      evidence: { ...evidence, via: "reply" }
+    });
+  if (p.optInOffers && !out.processed) {
+    try {
+      const yes = await setEmailOffersYes(db, {
+        tenantId: p.tenantId,
+        contactId: out.contact_id,
+        source: "customer_message",
+        messageId: out.message_id,
+        evidence
+      });
+      if (yes === "unsubscribed")
+        dbLog().warn("email_yes_refused", {
+          tenant_id: p.tenantId,
+          contact_id: out.contact_id,
+          reason: "unsubscribed"
+        });
+    } catch (e) {
+      dbLog().error("email_yes_not_recorded", {
+        tenant_id: p.tenantId,
+        contact_id: out.contact_id,
+        error: e instanceof Error ? e.message : String(e)
+      });
+    }
   }
   return out;
 }
@@ -3331,6 +3653,11 @@ async function sentEmailWithMessageId(db, tenantId, rfcMessageId) {
 async function stampMailboxReceived(db, mailboxId, at) {
   const { error } = await db.from("mailboxes").update({ last_received_at: at, last_error: null }).eq("id", mailboxId);
   if (error) dbLog().error("mailbox_stamp_failed", { mailbox_id: mailboxId, error: error.message });
+}
+async function mailboxOfTenant(db, tenantId) {
+  const { data, error } = await db.from("mailboxes").select("*").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`mailbox: ${error.message}`);
+  return data;
 }
 var missingDoor = (e) => e.code === "PGRST202" || e.code === "42883" || /could not find the function/i.test(e.message);
 var textOf = (v) => typeof v === "string" && v !== "" ? v : null;
@@ -3416,6 +3743,30 @@ async function markReplyTold(db, p) {
     p_claimed_at: p.claim
   });
   if (error) throw new Error(`cannot mark the reply's notice told: ${error.message}`);
+}
+async function withdrawEmail(db, p) {
+  const why = { reason: p.reason };
+  const { data, error } = await db.from("messages").update({ status: "canceled", error: why }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("status", "queued").select("id");
+  if (error) throw new Error(`cannot withdraw the email: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function insertQueuedEmail(db, row) {
+  const { error } = await db.from("messages").insert(row);
+  if (!error) return "written";
+  if (error.code === "23505") return "exists";
+  throw new Error(`cannot write the email: ${error.message}`);
+}
+async function writtenEmail(db, p) {
+  const { data, error } = await db.from("messages").select("conversation_id, contact_id, status, meta").eq("tenant_id", p.tenantId).eq("id", p.id).maybeSingle();
+  if (error) throw new Error(`cannot read the written email: ${error.message}`);
+  if (!data) return null;
+  const to = data.meta?.email?.request?.to;
+  return {
+    conversation_id: data.conversation_id,
+    contact_id: data.contact_id,
+    status: data.status,
+    to: Array.isArray(to) && typeof to[0] === "string" ? to[0] : null
+  };
 }
 var POS_TTL_MS = 5 * MIN_MS;
 async function readJobToRequeue(db, tenantId, jobId) {
@@ -3579,19 +3930,22 @@ var PLAYBOOK_TRIGGERS2 = [
     kind: "visit",
     hint: "The day before an appointment on the calendar"
   },
+  // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the visit went and offers nothing,
+  // so it reaches a yes to texts. It was a re-engagement, and its "book your next visit" made it an offer.
   {
     id: "visited",
     label: "After the visit",
     list: null,
-    cls: "reengage",
+    cls: "booking",
     kind: "visit",
     hint: "The day after a visit, when nothing is booked next"
   },
-  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
-  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  // People's Lapsed list, by visits rather than silence (00155). Since 2 Oct 2026 it IS the win-back where a calendar is
+  // connected, and the quiet one is the win-back where none is: one moment, read the one way the workspace can
+  // (momentOffered), so both are called Win-back and their hints say which.
   {
     id: "lapsed",
-    label: "Lapsed",
+    label: "Win-back",
     list: "lapsed",
     cls: "reengage",
     kind: "list",
@@ -3655,6 +4009,14 @@ function delayWords2(ms2) {
   return minutes === 60 ? "an hour" : plural2(minutes / 60, "hour");
 }
 var PLAYBOOK_VETO_DELAY_WORDS2 = delayWords2(PLAYBOOK_VETO_DELAY_MS2);
+function triggerOf2(id) {
+  return PLAYBOOK_TRIGGERS2.find((t) => t.id === id) ?? null;
+}
+var hintOf2 = (id) => (triggerOf2(id)?.hint ?? "").toLowerCase();
+var WIN_BACK_WORDS2 = {
+  quiet_30: `A calendar is connected here, so the win-back goes by visits: ${hintOf2("lapsed")}. Start that one.`,
+  lapsed: `The win-back by visits needs your calendar, and none is connected. Start the one that goes by silence: ${hintOf2("quiet_30")}.`
+};
 var POLICY_CLASS_WORDS2 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -3729,6 +4091,11 @@ var PolicyLimitsSchema2 = z32.object({
    */
   max_llm_tokens_day: z32.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
+var CONSENT_CHANNEL_WORDS2 = {
+  whatsapp: "on WhatsApp",
+  sms: "by text",
+  email: "by email"
+};
 var ASKED_TO_STOP2 = "asked to stop receiving messages";
 var OPT_OUT_REFUSAL2 = `This customer ${ASKED_TO_STOP2}. They can text START to opt back in.`;
 var PRIVATE_HOST2 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
@@ -4334,8 +4701,24 @@ var REPLY_LIMITS2 = {
 var REPLY_MAX_ANY2 = Math.max(...Object.values(REPLY_LIMITS2).map((l) => l.max));
 var CALL_HEARTBEAT_MS2 = 10 * MIN_MS2;
 var REPLY_DELAY_MAX_MS2 = 10 * MIN_MS2;
+function namedSlots2(names3, labels = names3) {
+  return { kind: "named", keys: names3, labels };
+}
 var HAND_KINDS2 = ["call", "note"];
 var HAND_WORDS_MAX2 = 280;
+var REACH_OUT_SLOTS2 = ["opening", "business", "city", "your name", "your business", "booking link"];
+var REACH_OUT_SLOT_LABELS2 = {
+  opening: "Opening",
+  business: "Their business",
+  city: "Their city",
+  "your name": "Your name",
+  "your business": "Your business",
+  "booking link": "Booking link"
+};
+var REACH_OUT_SLOT_SET2 = namedSlots2(
+  REACH_OUT_SLOTS2,
+  REACH_OUT_SLOTS2.map((s) => REACH_OUT_SLOT_LABELS2[s])
+);
 var REACH_OUT_SUBJECT_MAX2 = 80;
 var REACH_OUT_BODY_MAX2 = 1200;
 var OPENING_WORDS_MAX2 = 40;
@@ -4671,6 +5054,7 @@ var LeadSuggestAnswerSchema2 = z102.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS2 = 35 * MIN_MS2;
 var ASK_UNDO_MS2 = 10 * 6e4;
 var AskProposalOutcomeSchema2 = z112.object({
   state: z112.enum(["done", "dismissed", "failed", "undone"]),
@@ -5588,6 +5972,35 @@ var PROPOSAL2 = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES2 = { ...PROPOSAL2, label: "Enlace de la propuesta" };
+var OFFERS_BY_EMAIL_WORDS2 = {
+  /** The deployment's campaigns domain is not set up or not verified yet. */
+  noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
+  /** The business has no postal address on file, which every offer's foot names. */
+  noAddress: "Add your business's address to send offers by email.",
+  /** The workspace's offers are paused by a gate. */
+  paused: "Offers by email are paused while complaints and bounces settle."
+};
+var CHANNEL_WORDS2 = {
+  noOffersByText: "Texts carry no offers.",
+  /**
+   * What an offer by email says where the read carries no facts about offers (the WhatsApp-alone reading, a page cached before
+   * them, Ask's own): the campaigns domain, which is what its absence is. A read that has them says the reason that is true.
+   */
+  noOffersByEmailYet: OFFERS_BY_EMAIL_WORDS2.noCampaignsDomain,
+  noWhatsApp: "Connect a WhatsApp number first.",
+  noTextLine: "No texting line yet.",
+  textLineMock: "Your texting line is a test filing: it sends nothing.",
+  textLineNotActive: "Your texting line is not approved by the carriers yet.",
+  noMailbox: "Set up email in Settings \u203A Connections first.",
+  noEmailDomain: "Email is not switched on for this deployment yet.",
+  /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
+  unchecked: "This could not be checked just now."
+};
+var READY_WHATSAPP_ALONE2 = {
+  whatsapp: { ready: true, why: null },
+  sms: { ready: false, why: CHANNEL_WORDS2.unchecked },
+  email: { ready: false, why: CHANNEL_WORDS2.unchecked }
+};
 var LIMIT_TIERS2 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -5607,6 +6020,13 @@ var BROADCAST_THROTTLE_WAITS_MS2 = [
   15 * MIN_MS2,
   30 * MIN_MS2
 ];
+var OUTCOME_UNKNOWN = "outcome_unknown";
+var capitalised2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+var PREVIEW_CHANNEL_WORDS2 = {
+  whatsapp: capitalised2(CONSENT_CHANNEL_WORDS2.whatsapp),
+  sms: capitalised2(CONSENT_CHANNEL_WORDS2.sms),
+  email: capitalised2(CONSENT_CHANNEL_WORDS2.email)
+};
 var SHORT2 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
 var LONG2 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var JOB_KINDS = [
@@ -5752,6 +6172,9 @@ var EVENT_KINDS2 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
+  "mailbox.offers_paused",
+  "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
    * removed. The host and the reason, never the provider's id. */
   "sending_domain.added",
@@ -6004,6 +6427,8 @@ var RETENTION_DAYS2 = {
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
@@ -6216,7 +6641,7 @@ var REACH_OUT_SHEET_WORDS2 = {
   stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
   stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
   first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS2} to stop it.`,
-  slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
+  slotsHint: "each is filled for each business, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
   footHint: "as the law asks",
   repliesHint: "into your Inbox",
@@ -6271,10 +6696,145 @@ var REACH_OUT_REFUSALS2 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET2 = new Set(Object.values(REACH_OUT_REFUSALS2));
+var CAMPAIGN_ROOMS2 = {
+  home: "Campaigns",
+  sent: "Sent",
+  library: "Library",
+  newMessage: "New message"
+};
+var { sent: sent2, library: library2 } = CAMPAIGN_ROOMS2;
+var PLAYBOOK_DELETE_WORDS2 = {
+  /** The toast's tail, after the playbook's name. */
+  done: `deleted \u2014 its runs stay in ${sent2} with their numbers`,
+  /** The question's detail. */
+  detail: `Its runs stay in ${sent2} with their numbers.`
+};
+var LIBRARY_WORDS2 = {
+  title: library2,
+  demo: `The ${library2} reads a real workspace \u2014 what WhatsApp has approved for it.`,
+  reading: `Reading the ${library2}\u2026`,
+  failed: `The ${library2} couldn\u2019t be loaded right now`,
+  failedWhat: `the ${library2}`,
+  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
+  noNumber: `The ${library2} holds what WhatsApp approves for a number, so it needs one.`
+};
+var OFFERS_IN_WRITING_WORDS2 = {
+  lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
+  link: `print one in ${sent2}`
+};
+var LIFECYCLE_WORDS2 = {
+  title: CAMPAIGN_ROOMS2.home,
+  lede: "What goes out on its own as a customer reaches a moment, and what you send yourself.",
+  library: CAMPAIGN_ROOMS2.library,
+  newMessage: CAMPAIGN_ROOMS2.newMessage,
+  // Said, after the standard beat, where a tile's read is still out.
+  reading: "Reading\u2026",
+  close: "Close",
+  rail: "Your customer, start to finish",
+  needs: {
+    none: "Answers whoever writes",
+    messages: "Reaches a yes to messages",
+    offers: "Needs a yes to offers"
+  },
+  receptionist: "Answers \xB7 asks for the yes",
+  // First contact where the workspace has nothing to answer on: no number and no channel that can send.
+  noLine: { state: "No line to answer on yet", needs: "Connect a number or email to answer on" },
+  alsoRunning: "Also running",
+  callText: {
+    name: "The call's text",
+    words: "The booking link and your WhatsApp, sent while they're on the phone",
+    on: "When a caller asks",
+    none: "No message for it yet"
+  },
+  monthsOffer: { name: "The month's offer" },
+  // What the drawer's head calls a line that is not a stage.
+  kickers: { call_text: "The call's text", moment: "Also", list: "On a list", reach_out: "Reach-out" },
+  gone: {
+    title: "That playbook isn't here any more.",
+    body: "Its runs stay in Sent, with their numbers."
+  },
+  compose: {
+    title: CAMPAIGN_ROOMS2.newMessage,
+    kind: "What kind of message",
+    once: "Send once",
+    every: "Every time a moment comes",
+    // The send screen is made of the broadcasts read (its lists and its messages): said where it could not be, with its Retry.
+    failed: {
+      what: "who and what you can send to",
+      body: "Nothing goes out until it reads. Everything else here is current.",
+      surface: "broadcasts"
+    }
+  },
+  phone: { moments: "Moments", also: "Also", turnOn: "Turn on" },
+  // A read that failed is its own state, never a tile that is not there or a zero that was not counted. The page draws the
+  // kit's failed read where the data would be, and its Retry reads `surface` again.
+  failed: {
+    templates: {
+      what: "your templates",
+      body: "The call's text and the Library's count show once they read. Everything else here is current.",
+      surface: "settings"
+    },
+    counts: {
+      what: "who each moment reaches",
+      body: "The moments show who they reach once it reads. Everything else here is current.",
+      surface: "playbooks"
+    },
+    chains: { what: "your reach-outs", body: "The moments above are current.", surface: "reach_outs" },
+    report: { what: "this period's numbers", body: "The runs below stand.", surface: "broadcasts" },
+    // The broadcasts read itself, said in each tile made from it.
+    reach: {
+      what: "who can hear you",
+      body: "The ladder shows once it reads. Everything else here is current.",
+      surface: "broadcasts"
+    },
+    coming: {
+      what: "what is coming up",
+      body: "What is coming shows once it reads. Everything else here is current.",
+      surface: "broadcasts"
+    },
+    results: {
+      what: "what came back",
+      body: "The numbers show once they read. Everything else here is current.",
+      surface: "broadcasts"
+    }
+  },
+  reach: {
+    title: "Who can hear you",
+    people: "In People",
+    messages: "Can get your messages",
+    offers: "Said yes to offers",
+    // What a yes opens, in the moments' own names; the month's offer and a person's own notes are not stages.
+    opensMessages: "Opens:",
+    ownOffers: ["the month's offer", "your notes"],
+    asks: "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
+    phoneAsks: "Your receptionist asks for the yes to offers, once a person, in a conversation they started.",
+    code: "Show the code",
+    copy: "Copy the phrase",
+    link: "People"
+  },
+  coming: {
+    title: "Coming up",
+    window: "next 7 days",
+    link: "Calendar",
+    rules: `Sends wait for ${SENDING_HOURS_WORDS2.range} \xB7 one a week per person, across every moment`,
+    empty: "Nothing is set to go out in the next 7 days.",
+    nobody: "Nobody",
+    waiting: "Waiting on you"
+  },
+  results: {
+    title: "What came back",
+    link: "All runs",
+    quiet: "Nothing went out, and nobody said yes or asked to stop.",
+    funnel: { sent: "Sent", delivered: "Delivered", read: "Read", replied: "Replied" },
+    funnelLabel: "Sent, delivered, read and replied"
+  }
+};
+var CAMPAIGN_EMAIL_TAG = "cl_campaign";
 function isCampaignEmail(request) {
-  const headers = request?.headers;
-  const v = headers?.["List-Unsubscribe"];
-  return typeof v === "string" && v.trim() !== "";
+  const r23 = request;
+  const v = r23?.headers?.["List-Unsubscribe"];
+  if (typeof v === "string" && v.trim() !== "") return true;
+  return Array.isArray(r23?.tags) && r23.tags.some((t) => !!t && typeof t === "object" && t.name === CAMPAIGN_EMAIL_TAG);
 }
 var NINE_TO_FIVE2 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME2 = { from: 8 * 60, to: 20 * 60 };
@@ -6832,6 +7392,9 @@ function logger(base = {}) {
     child: (extra) => logger({ ...base, ...extra })
   };
 }
+function errField(e) {
+  return e instanceof Error ? errText(e) : String(e);
+}
 z30.config({ jitless: true });
 var MODELS3 = {
   OPUS_5_5: "claude-opus-5-5",
@@ -6950,19 +7513,22 @@ var PLAYBOOK_TRIGGERS3 = [
     kind: "visit",
     hint: "The day before an appointment on the calendar"
   },
+  // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the visit went and offers nothing,
+  // so it reaches a yes to texts. It was a re-engagement, and its "book your next visit" made it an offer.
   {
     id: "visited",
     label: "After the visit",
     list: null,
-    cls: "reengage",
+    cls: "booking",
     kind: "visit",
     hint: "The day after a visit, when nothing is booked next"
   },
-  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
-  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  // People's Lapsed list, by visits rather than silence (00155). Since 2 Oct 2026 it IS the win-back where a calendar is
+  // connected, and the quiet one is the win-back where none is: one moment, read the one way the workspace can
+  // (momentOffered), so both are called Win-back and their hints say which.
   {
     id: "lapsed",
-    label: "Lapsed",
+    label: "Win-back",
     list: "lapsed",
     cls: "reengage",
     kind: "list",
@@ -7026,6 +7592,14 @@ function delayWords3(ms2) {
   return minutes === 60 ? "an hour" : plural3(minutes / 60, "hour");
 }
 var PLAYBOOK_VETO_DELAY_WORDS3 = delayWords3(PLAYBOOK_VETO_DELAY_MS3);
+function triggerOf3(id) {
+  return PLAYBOOK_TRIGGERS3.find((t) => t.id === id) ?? null;
+}
+var hintOf3 = (id) => (triggerOf3(id)?.hint ?? "").toLowerCase();
+var WIN_BACK_WORDS3 = {
+  quiet_30: `A calendar is connected here, so the win-back goes by visits: ${hintOf3("lapsed")}. Start that one.`,
+  lapsed: `The win-back by visits needs your calendar, and none is connected. Start the one that goes by silence: ${hintOf3("quiet_30")}.`
+};
 var POLICY_CLASS_WORDS3 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -7100,6 +7674,11 @@ var PolicyLimitsSchema3 = z33.object({
    */
   max_llm_tokens_day: z33.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
+var CONSENT_CHANNEL_WORDS3 = {
+  whatsapp: "on WhatsApp",
+  sms: "by text",
+  email: "by email"
+};
 var ASKED_TO_STOP3 = "asked to stop receiving messages";
 var OPT_OUT_REFUSAL3 = `This customer ${ASKED_TO_STOP3}. They can text START to opt back in.`;
 var PRIVATE_HOST3 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
@@ -7541,6 +8120,10 @@ var LeadSearchPlanSchema3 = z73.object({
   if (!US_CODES3.has(p.area.state))
     ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
+var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
+function posesAsReply(subject) {
+  return ANSWER_OR_FORWARD.test(subject);
+}
 var L3 = (id, name, region, native) => ({
   id,
   label: region ? `${name} (${region})` : name,
@@ -7693,8 +8276,24 @@ var REPLY_LIMITS3 = {
 var REPLY_MAX_ANY3 = Math.max(...Object.values(REPLY_LIMITS3).map((l) => l.max));
 var CALL_HEARTBEAT_MS3 = 10 * MIN_MS3;
 var REPLY_DELAY_MAX_MS3 = 10 * MIN_MS3;
+function namedSlots3(names3, labels = names3) {
+  return { kind: "named", keys: names3, labels };
+}
 var HAND_KINDS3 = ["call", "note"];
 var HAND_WORDS_MAX3 = 280;
+var REACH_OUT_SLOTS3 = ["opening", "business", "city", "your name", "your business", "booking link"];
+var REACH_OUT_SLOT_LABELS3 = {
+  opening: "Opening",
+  business: "Their business",
+  city: "Their city",
+  "your name": "Your name",
+  "your business": "Your business",
+  "booking link": "Booking link"
+};
+var REACH_OUT_SLOT_SET3 = namedSlots3(
+  REACH_OUT_SLOTS3,
+  REACH_OUT_SLOTS3.map((s) => REACH_OUT_SLOT_LABELS3[s])
+);
 var REACH_OUT_SUBJECT_MAX3 = 80;
 var REACH_OUT_BODY_MAX3 = 1200;
 var OPENING_WORDS_MAX3 = 40;
@@ -8025,6 +8624,7 @@ var LeadSuggestAnswerSchema3 = z103.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS3 = 35 * MIN_MS3;
 var ASK_UNDO_MS3 = 10 * 6e4;
 var AskProposalOutcomeSchema3 = z113.object({
   state: z113.enum(["done", "dismissed", "failed", "undone"]),
@@ -8942,6 +9542,35 @@ var PROPOSAL3 = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES3 = { ...PROPOSAL3, label: "Enlace de la propuesta" };
+var OFFERS_BY_EMAIL_WORDS3 = {
+  /** The deployment's campaigns domain is not set up or not verified yet. */
+  noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
+  /** The business has no postal address on file, which every offer's foot names. */
+  noAddress: "Add your business's address to send offers by email.",
+  /** The workspace's offers are paused by a gate. */
+  paused: "Offers by email are paused while complaints and bounces settle."
+};
+var CHANNEL_WORDS3 = {
+  noOffersByText: "Texts carry no offers.",
+  /**
+   * What an offer by email says where the read carries no facts about offers (the WhatsApp-alone reading, a page cached before
+   * them, Ask's own): the campaigns domain, which is what its absence is. A read that has them says the reason that is true.
+   */
+  noOffersByEmailYet: OFFERS_BY_EMAIL_WORDS3.noCampaignsDomain,
+  noWhatsApp: "Connect a WhatsApp number first.",
+  noTextLine: "No texting line yet.",
+  textLineMock: "Your texting line is a test filing: it sends nothing.",
+  textLineNotActive: "Your texting line is not approved by the carriers yet.",
+  noMailbox: "Set up email in Settings \u203A Connections first.",
+  noEmailDomain: "Email is not switched on for this deployment yet.",
+  /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
+  unchecked: "This could not be checked just now."
+};
+var READY_WHATSAPP_ALONE3 = {
+  whatsapp: { ready: true, why: null },
+  sms: { ready: false, why: CHANNEL_WORDS3.unchecked },
+  email: { ready: false, why: CHANNEL_WORDS3.unchecked }
+};
 var LIMIT_TIERS3 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -8961,6 +9590,13 @@ var BROADCAST_THROTTLE_WAITS_MS3 = [
   15 * MIN_MS3,
   30 * MIN_MS3
 ];
+var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var capitalised3 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+var PREVIEW_CHANNEL_WORDS3 = {
+  whatsapp: capitalised3(CONSENT_CHANNEL_WORDS3.whatsapp),
+  sms: capitalised3(CONSENT_CHANNEL_WORDS3.sms),
+  email: capitalised3(CONSENT_CHANNEL_WORDS3.email)
+};
 var SHORT3 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
 var LONG3 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var EVENT_KINDS3 = [
@@ -9056,6 +9692,9 @@ var EVENT_KINDS3 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
+  "mailbox.offers_paused",
+  "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
    * removed. The host and the reason, never the provider's id. */
   "sending_domain.added",
@@ -9316,6 +9955,8 @@ var RETENTION_DAYS3 = {
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
@@ -9507,6 +10148,7 @@ var KIND_META3 = {
   email: { name: CHANNEL_KIND_WORDS3.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS3.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var CALL_ACTIVITY_STALE_MS3 = 15 * MIN_MS3;
 var NOTE_SUGGEST_MODEL3 = MODEL_ROUTES3.note_suggest.model;
 var NOTE_SUGGEST_KINDS3 = ["preference", "timing", "contact", "sensitivity", "context"];
@@ -9528,7 +10170,7 @@ var REACH_OUT_SHEET_WORDS3 = {
   stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
   stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
   first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS3} to stop it.`,
-  slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
+  slotsHint: "each is filled for each business, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
   footHint: "as the law asks",
   repliesHint: "into your Inbox",
@@ -9583,6 +10225,139 @@ var REACH_OUT_REFUSALS3 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET3 = new Set(Object.values(REACH_OUT_REFUSALS3));
+var CAMPAIGN_ROOMS3 = {
+  home: "Campaigns",
+  sent: "Sent",
+  library: "Library",
+  newMessage: "New message"
+};
+var { sent: sent3, library: library3 } = CAMPAIGN_ROOMS3;
+var PLAYBOOK_DELETE_WORDS3 = {
+  /** The toast's tail, after the playbook's name. */
+  done: `deleted \u2014 its runs stay in ${sent3} with their numbers`,
+  /** The question's detail. */
+  detail: `Its runs stay in ${sent3} with their numbers.`
+};
+var LIBRARY_WORDS3 = {
+  title: library3,
+  demo: `The ${library3} reads a real workspace \u2014 what WhatsApp has approved for it.`,
+  reading: `Reading the ${library3}\u2026`,
+  failed: `The ${library3} couldn\u2019t be loaded right now`,
+  failedWhat: `the ${library3}`,
+  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
+  noNumber: `The ${library3} holds what WhatsApp approves for a number, so it needs one.`
+};
+var OFFERS_IN_WRITING_WORDS3 = {
+  lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
+  link: `print one in ${sent3}`
+};
+var LIFECYCLE_WORDS3 = {
+  title: CAMPAIGN_ROOMS3.home,
+  lede: "What goes out on its own as a customer reaches a moment, and what you send yourself.",
+  library: CAMPAIGN_ROOMS3.library,
+  newMessage: CAMPAIGN_ROOMS3.newMessage,
+  // Said, after the standard beat, where a tile's read is still out.
+  reading: "Reading\u2026",
+  close: "Close",
+  rail: "Your customer, start to finish",
+  needs: {
+    none: "Answers whoever writes",
+    messages: "Reaches a yes to messages",
+    offers: "Needs a yes to offers"
+  },
+  receptionist: "Answers \xB7 asks for the yes",
+  // First contact where the workspace has nothing to answer on: no number and no channel that can send.
+  noLine: { state: "No line to answer on yet", needs: "Connect a number or email to answer on" },
+  alsoRunning: "Also running",
+  callText: {
+    name: "The call's text",
+    words: "The booking link and your WhatsApp, sent while they're on the phone",
+    on: "When a caller asks",
+    none: "No message for it yet"
+  },
+  monthsOffer: { name: "The month's offer" },
+  // What the drawer's head calls a line that is not a stage.
+  kickers: { call_text: "The call's text", moment: "Also", list: "On a list", reach_out: "Reach-out" },
+  gone: {
+    title: "That playbook isn't here any more.",
+    body: "Its runs stay in Sent, with their numbers."
+  },
+  compose: {
+    title: CAMPAIGN_ROOMS3.newMessage,
+    kind: "What kind of message",
+    once: "Send once",
+    every: "Every time a moment comes",
+    // The send screen is made of the broadcasts read (its lists and its messages): said where it could not be, with its Retry.
+    failed: {
+      what: "who and what you can send to",
+      body: "Nothing goes out until it reads. Everything else here is current.",
+      surface: "broadcasts"
+    }
+  },
+  phone: { moments: "Moments", also: "Also", turnOn: "Turn on" },
+  // A read that failed is its own state, never a tile that is not there or a zero that was not counted. The page draws the
+  // kit's failed read where the data would be, and its Retry reads `surface` again.
+  failed: {
+    templates: {
+      what: "your templates",
+      body: "The call's text and the Library's count show once they read. Everything else here is current.",
+      surface: "settings"
+    },
+    counts: {
+      what: "who each moment reaches",
+      body: "The moments show who they reach once it reads. Everything else here is current.",
+      surface: "playbooks"
+    },
+    chains: { what: "your reach-outs", body: "The moments above are current.", surface: "reach_outs" },
+    report: { what: "this period's numbers", body: "The runs below stand.", surface: "broadcasts" },
+    // The broadcasts read itself, said in each tile made from it.
+    reach: {
+      what: "who can hear you",
+      body: "The ladder shows once it reads. Everything else here is current.",
+      surface: "broadcasts"
+    },
+    coming: {
+      what: "what is coming up",
+      body: "What is coming shows once it reads. Everything else here is current.",
+      surface: "broadcasts"
+    },
+    results: {
+      what: "what came back",
+      body: "The numbers show once they read. Everything else here is current.",
+      surface: "broadcasts"
+    }
+  },
+  reach: {
+    title: "Who can hear you",
+    people: "In People",
+    messages: "Can get your messages",
+    offers: "Said yes to offers",
+    // What a yes opens, in the moments' own names; the month's offer and a person's own notes are not stages.
+    opensMessages: "Opens:",
+    ownOffers: ["the month's offer", "your notes"],
+    asks: "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
+    phoneAsks: "Your receptionist asks for the yes to offers, once a person, in a conversation they started.",
+    code: "Show the code",
+    copy: "Copy the phrase",
+    link: "People"
+  },
+  coming: {
+    title: "Coming up",
+    window: "next 7 days",
+    link: "Calendar",
+    rules: `Sends wait for ${SENDING_HOURS_WORDS3.range} \xB7 one a week per person, across every moment`,
+    empty: "Nothing is set to go out in the next 7 days.",
+    nobody: "Nobody",
+    waiting: "Waiting on you"
+  },
+  results: {
+    title: "What came back",
+    link: "All runs",
+    quiet: "Nothing went out, and nobody said yes or asked to stop.",
+    funnel: { sent: "Sent", delivered: "Delivered", read: "Read", replied: "Replied" },
+    funnelLabel: "Sent, delivered, read and replied"
+  }
+};
 var NINE_TO_FIVE3 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME3 = { from: 8 * 60, to: 20 * 60 };
 var REACH_OUT_PREVIEW_INDEX_MAX3 = 199;
@@ -9963,6 +10738,7 @@ var VOICE_AGENT_DEFAULTS = {
   post_call_analysis_model: RETELL_MODELS.analysis,
   allow_user_dtmf: true
 };
+var ELEVENLABS_WEBHOOK_TOLERANCE_S = 30 * 60;
 var API2 = "https://api.twilio.com/2010-04-01";
 var TRUNKING = "https://trunking.twilio.com/v1";
 var MESSAGING = "https://messaging.twilio.com/v1";
@@ -9989,14 +10765,144 @@ function messageIdHeader(id) {
   const bare = s.replace(/^<|>$/g, "");
   return /^[^\s<>@]+@[^\s<>@]+$/.test(bare) ? `<${bare}>` : null;
 }
+function mailboxHeader(name, address) {
+  const clean = oneLine(name).replace(/["\\]/g, "");
+  return clean ? `"${clean}" <${address}>` : address;
+}
+var REPLY_PREFIX = /^\s*(?:re|aw|sv|rv|antw)\s*:\s*/i;
+var SUBJECT_MAX = 200;
+function replySubject(parentSubject) {
+  let s = oneLine(parentSubject ?? "");
+  while (REPLY_PREFIX.test(s)) s = s.replace(REPLY_PREFIX, "");
+  return `Re: ${s || "your message"}`.slice(0, SUBJECT_MAX);
+}
+var LINK_IN_TEXT = /https?:\/\/[^\s<>]+/g;
+var linkify = (escaped) => escaped.replace(LINK_IN_TEXT, (m) => {
+  const trail = /[.,;:!?)]+$/.exec(m)?.[0] ?? "";
+  const href = m.slice(0, m.length - trail.length);
+  return `<a href="${href}">${href}</a>${trail}`;
+});
+function emailHtml(text) {
+  return text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${linkify(escapeHtml(p)).replace(/\n/g, "<br>")}</p>`).join("\n");
+}
+function referencesFor(parent) {
+  const ids = [...parent.references, parent.rfcMessageId].map(messageIdHeader).filter((x) => x !== null);
+  const unique = [...new Set(ids)];
+  const MAX = 20;
+  return unique.length <= MAX ? unique : [...unique.slice(0, 1), ...unique.slice(unique.length - (MAX - 1))];
+}
+var UNSUBSCRIBE_URL = /^https:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+;=%]+$/;
+var BARE_ADDRESS = /^[A-Za-z0-9._+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
+function unsubscribeHeaders(c) {
+  const url = c.unsubscribeUrl.trim();
+  if (!UNSUBSCRIBE_URL.test(url)) throw new Error("buildEmailRequest: a campaign's unsubscribe is one https address");
+  const mail = c.unsubscribeMailto?.trim().replace(/^mailto:/i, "");
+  if (mail !== void 0 && !BARE_ADDRESS.test(mail))
+    throw new Error("buildEmailRequest: a campaign's unsubscribe by mail is one address");
+  return {
+    "List-Unsubscribe": mail ? `<${url}>, <mailto:${mail}>` : `<${url}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
+  };
+}
+function buildEmailRequest(i) {
+  const subject = i.parent ? replySubject(i.parent.subject) : oneLine(i.subject ?? "").slice(0, SUBJECT_MAX);
+  if (!subject) throw new Error("buildEmailRequest: a first email names its subject");
+  if (!i.parent && (i.campaign || i.actor === "ai") && posesAsReply(subject))
+    throw new Error("buildEmailRequest: a first email a program sends does not pose as a reply");
+  if (i.campaign && !i.campaign.footer.trim()) throw new Error("buildEmailRequest: a campaign's footer is never empty");
+  const unsubscribe = i.campaign ? unsubscribeHeaders(i.campaign) : {};
+  const text = [i.body.trim(), i.signature?.trim(), i.campaign?.footer.trim()].filter(Boolean).join("\n\n");
+  const footerHtml = i.campaign?.footerHtml?.trim() || null;
+  if (footerHtml && !footerHtml.includes(`href="${escapeHtml(i.campaign.unsubscribeUrl.trim())}"`))
+    throw new Error("buildEmailRequest: a campaign's HTML footer carries its unsubscribe link");
+  const html = footerHtml ? `${emailHtml([i.body.trim(), i.signature?.trim()].filter(Boolean).join("\n\n"))}
+${footerHtml}` : emailHtml(text);
+  const inReplyTo = i.parent ? messageIdHeader(i.parent.rfcMessageId) : null;
+  const references = i.parent ? referencesFor(i.parent) : [];
+  const autoSubmitted = i.campaign || i.actor === "ai" && !i.parent ? "auto-generated" : i.actor === "ai" ? "auto-replied" : null;
+  const headers2 = {
+    ...inReplyTo ? { "In-Reply-To": inReplyTo } : {},
+    ...references.length ? { References: references.join(" ") } : {},
+    ...autoSubmitted ? { "Auto-Submitted": autoSubmitted } : {},
+    ...unsubscribe
+  };
+  return {
+    from: mailboxHeader(i.identity.fromName, i.identity.fromAddress),
+    to: [i.to],
+    reply_to: [i.identity.replyTo],
+    subject,
+    text,
+    html,
+    headers: headers2,
+    tags: [
+      { name: "cl_message", value: i.messageId },
+      { name: "cl_tenant", value: i.tenantId }
+    ],
+    idempotency_key: i.messageId
+  };
+}
 function isEmailRequest(v) {
   if (!v || typeof v !== "object") return false;
   const r23 = v;
   const strings = (x) => Array.isArray(x) && x.length > 0 && x.every((s) => typeof s === "string" && s.length > 0);
   return typeof r23.from === "string" && strings(r23.to) && strings(r23.reply_to) && typeof r23.subject === "string" && typeof r23.text === "string" && typeof r23.html === "string" && !!r23.headers && typeof r23.headers === "object" && Array.isArray(r23.tags) && typeof r23.idempotency_key === "string" && r23.idempotency_key.length > 0;
 }
+function hostedAddress(localPart, domain) {
+  return `${localPart}@${domain}`;
+}
+function replyRouteAddress(replyToken, domain) {
+  return `r+${replyToken}@${domain}`;
+}
+function hostedIdentity(mailbox, domain) {
+  return {
+    fromName: mailbox.from_name,
+    fromAddress: hostedAddress(mailbox.local_part, domain),
+    replyTo: replyRouteAddress(mailbox.reply_token, domain)
+  };
+}
+function campaignsIdentity(mailbox, campaignsDomain, mailDomain) {
+  return {
+    fromName: mailbox.from_name,
+    fromAddress: hostedAddress(mailbox.local_part, campaignsDomain),
+    replyTo: replyRouteAddress(mailbox.reply_token, mailDomain)
+  };
+}
 function messageIdsIn(header) {
   return (header ?? "").split(/\s+/).map(messageIdHeader).filter((x) => x !== null);
+}
+function authResultsOf(header) {
+  let said = header.toLowerCase().replace(/"[^"]*"/g, '""');
+  for (let before = ""; before !== said; ) {
+    before = said;
+    said = said.replace(/\([^()]*\)/g, " ");
+  }
+  return said.split(";").slice(1).flatMap((clause) => {
+    const [head, ...rest] = clause.trim().split(/\s+/);
+    const m = /^([a-z0-9-]+)(?:\/\d+)?=([a-z]+)$/.exec(head ?? "");
+    if (!m) return [];
+    const props = /* @__PURE__ */ new Map();
+    for (const pair of rest) {
+      const eq = pair.indexOf("=");
+      if (eq > 0 && !props.has(pair.slice(0, eq))) props.set(pair.slice(0, eq), pair.slice(eq + 1));
+    }
+    return [{ method: m[1] ?? "", result: m[2] ?? "", props }];
+  });
+}
+var domainOf = (identity) => {
+  const d = identity?.slice(identity.lastIndexOf("@") + 1).trim();
+  return d || null;
+};
+function senderAuthenticated(e) {
+  const from = domainOf(e.from?.address.toLowerCase());
+  if (!from) return false;
+  const results = authResultsOf(e.headers["authentication-results"] ?? "");
+  const dmarc = results.filter((r23) => r23.method === "dmarc");
+  if (dmarc.some((r23) => r23.result === "fail")) return false;
+  const alignedDmarc = dmarc.some((r23) => r23.result === "pass" && domainOf(r23.props.get("header.from")) === from);
+  const signedByFrom = results.some(
+    (r23) => r23.method === "dkim" && r23.result === "pass" && (r23.props.has("header.d") ? r23.props.get("header.d") === from : domainOf(r23.props.get("header.i")) === from)
+  );
+  return alignedDmarc || signedByFrom;
 }
 function classifyReceived(e) {
   const h = e.headers;
@@ -10033,7 +10939,27 @@ function requestIdShaped(value) {
   const v = typeof value === "string" ? value.trim() : "";
   return SHAPE22.test(v) ? v : null;
 }
+var UNSUBSCRIBE_PATH = "/u/";
+var VERSION = 1;
 var PAYLOAD_BYTES = 1 + 16 * 3;
+var MAC_BYTES = 16;
+var bytesOf = (uuid) => Buffer.from(uuid.replace(/-/g, ""), "hex");
+var macOf = (secret, payload) => createHmac2("sha256", secret).update("chanlytics-unsubscribe:").update(payload).digest().subarray(0, MAC_BYTES);
+function signUnsubscribeToken(secret, c) {
+  if (!secret) throw new Error("signUnsubscribeToken: no secret");
+  for (const id of [c.tenantId, c.contactId, c.messageId])
+    if (!UUID3.test(id)) throw new Error("signUnsubscribeToken: the workspace, the person and the email are uuids");
+  const payload = Buffer.concat([
+    Buffer.from([VERSION]),
+    bytesOf(c.tenantId),
+    bytesOf(c.contactId),
+    bytesOf(c.messageId)
+  ]);
+  return Buffer.concat([payload, macOf(secret, payload)]).toString("base64url");
+}
+function unsubscribeUrl(origin, token) {
+  return `${origin.replace(/\/+$/, "")}${UNSUBSCRIBE_PATH}${token}`;
+}
 var LEAD_JUDGE_MAX_TOKENS = MODEL_ROUTES3.lead_judge.maxTokens;
 var LEAD_JUDGE_DEFAULT_MODEL = MODEL_ROUTES3.lead_judge.model;
 
@@ -10283,7 +11209,7 @@ function logger2(base = {}) {
     child: (extra) => logger2({ ...base, ...extra })
   };
 }
-function errField(e) {
+function errField2(e) {
   return e instanceof Error ? errText2(e) : String(e);
 }
 z31.config({ jitless: true });
@@ -10404,19 +11330,22 @@ var PLAYBOOK_TRIGGERS4 = [
     kind: "visit",
     hint: "The day before an appointment on the calendar"
   },
+  // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the visit went and offers nothing,
+  // so it reaches a yes to texts. It was a re-engagement, and its "book your next visit" made it an offer.
   {
     id: "visited",
     label: "After the visit",
     list: null,
-    cls: "reengage",
+    cls: "booking",
     kind: "visit",
     hint: "The day after a visit, when nothing is booked next"
   },
-  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
-  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  // People's Lapsed list, by visits rather than silence (00155). Since 2 Oct 2026 it IS the win-back where a calendar is
+  // connected, and the quiet one is the win-back where none is: one moment, read the one way the workspace can
+  // (momentOffered), so both are called Win-back and their hints say which.
   {
     id: "lapsed",
-    label: "Lapsed",
+    label: "Win-back",
     list: "lapsed",
     cls: "reengage",
     kind: "list",
@@ -10480,6 +11409,14 @@ function delayWords4(ms2) {
   return minutes === 60 ? "an hour" : plural4(minutes / 60, "hour");
 }
 var PLAYBOOK_VETO_DELAY_WORDS4 = delayWords4(PLAYBOOK_VETO_DELAY_MS4);
+function triggerOf4(id) {
+  return PLAYBOOK_TRIGGERS4.find((t) => t.id === id) ?? null;
+}
+var hintOf4 = (id) => (triggerOf4(id)?.hint ?? "").toLowerCase();
+var WIN_BACK_WORDS4 = {
+  quiet_30: `A calendar is connected here, so the win-back goes by visits: ${hintOf4("lapsed")}. Start that one.`,
+  lapsed: `The win-back by visits needs your calendar, and none is connected. Start the one that goes by silence: ${hintOf4("quiet_30")}.`
+};
 var POLICY_CLASS_WORDS4 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -10554,6 +11491,11 @@ var PolicyLimitsSchema4 = z34.object({
    */
   max_llm_tokens_day: z34.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
+var CONSENT_CHANNEL_WORDS4 = {
+  whatsapp: "on WhatsApp",
+  sms: "by text",
+  email: "by email"
+};
 var ASKED_TO_STOP4 = "asked to stop receiving messages";
 var OPT_OUT_REFUSAL4 = `This customer ${ASKED_TO_STOP4}. They can text START to opt back in.`;
 var PRIVATE_HOST4 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
@@ -11147,8 +12089,24 @@ var REPLY_LIMITS4 = {
 var REPLY_MAX_ANY4 = Math.max(...Object.values(REPLY_LIMITS4).map((l) => l.max));
 var CALL_HEARTBEAT_MS4 = 10 * MIN_MS4;
 var REPLY_DELAY_MAX_MS4 = 10 * MIN_MS4;
+function namedSlots4(names3, labels = names3) {
+  return { kind: "named", keys: names3, labels };
+}
 var HAND_KINDS4 = ["call", "note"];
 var HAND_WORDS_MAX4 = 280;
+var REACH_OUT_SLOTS4 = ["opening", "business", "city", "your name", "your business", "booking link"];
+var REACH_OUT_SLOT_LABELS4 = {
+  opening: "Opening",
+  business: "Their business",
+  city: "Their city",
+  "your name": "Your name",
+  "your business": "Your business",
+  "booking link": "Booking link"
+};
+var REACH_OUT_SLOT_SET4 = namedSlots4(
+  REACH_OUT_SLOTS4,
+  REACH_OUT_SLOTS4.map((s) => REACH_OUT_SLOT_LABELS4[s])
+);
 var REACH_OUT_SUBJECT_MAX4 = 80;
 var REACH_OUT_BODY_MAX4 = 1200;
 var OPENING_WORDS_MAX4 = 40;
@@ -11479,6 +12437,7 @@ var LeadSuggestAnswerSchema4 = z104.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS4 = 35 * MIN_MS4;
 var ASK_UNDO_MS4 = 10 * 6e4;
 var AskProposalOutcomeSchema4 = z114.object({
   state: z114.enum(["done", "dismissed", "failed", "undone"]),
@@ -12396,6 +13355,35 @@ var PROPOSAL4 = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES4 = { ...PROPOSAL4, label: "Enlace de la propuesta" };
+var OFFERS_BY_EMAIL_WORDS4 = {
+  /** The deployment's campaigns domain is not set up or not verified yet. */
+  noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
+  /** The business has no postal address on file, which every offer's foot names. */
+  noAddress: "Add your business's address to send offers by email.",
+  /** The workspace's offers are paused by a gate. */
+  paused: "Offers by email are paused while complaints and bounces settle."
+};
+var CHANNEL_WORDS4 = {
+  noOffersByText: "Texts carry no offers.",
+  /**
+   * What an offer by email says where the read carries no facts about offers (the WhatsApp-alone reading, a page cached before
+   * them, Ask's own): the campaigns domain, which is what its absence is. A read that has them says the reason that is true.
+   */
+  noOffersByEmailYet: OFFERS_BY_EMAIL_WORDS4.noCampaignsDomain,
+  noWhatsApp: "Connect a WhatsApp number first.",
+  noTextLine: "No texting line yet.",
+  textLineMock: "Your texting line is a test filing: it sends nothing.",
+  textLineNotActive: "Your texting line is not approved by the carriers yet.",
+  noMailbox: "Set up email in Settings \u203A Connections first.",
+  noEmailDomain: "Email is not switched on for this deployment yet.",
+  /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
+  unchecked: "This could not be checked just now."
+};
+var READY_WHATSAPP_ALONE4 = {
+  whatsapp: { ready: true, why: null },
+  sms: { ready: false, why: CHANNEL_WORDS4.unchecked },
+  email: { ready: false, why: CHANNEL_WORDS4.unchecked }
+};
 var LIMIT_TIERS4 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -12415,6 +13403,12 @@ var BROADCAST_THROTTLE_WAITS_MS4 = [
   15 * MIN_MS4,
   30 * MIN_MS4
 ];
+var capitalised4 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+var PREVIEW_CHANNEL_WORDS4 = {
+  whatsapp: capitalised4(CONSENT_CHANNEL_WORDS4.whatsapp),
+  sms: capitalised4(CONSENT_CHANNEL_WORDS4.sms),
+  email: capitalised4(CONSENT_CHANNEL_WORDS4.email)
+};
 var SHORT4 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
 var LONG4 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var EVENT_KINDS4 = [
@@ -12510,6 +13504,9 @@ var EVENT_KINDS4 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
+  "mailbox.offers_paused",
+  "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
    * removed. The host and the reason, never the provider's id. */
   "sending_domain.added",
@@ -12770,6 +13767,8 @@ var RETENTION_DAYS4 = {
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
@@ -12982,7 +13981,7 @@ var REACH_OUT_SHEET_WORDS4 = {
   stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
   stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
   first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS4} to stop it.`,
-  slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
+  slotsHint: "each is filled for each business, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
   footHint: "as the law asks",
   repliesHint: "into your Inbox",
@@ -13037,6 +14036,139 @@ var REACH_OUT_REFUSALS4 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET4 = new Set(Object.values(REACH_OUT_REFUSALS4));
+var CAMPAIGN_ROOMS4 = {
+  home: "Campaigns",
+  sent: "Sent",
+  library: "Library",
+  newMessage: "New message"
+};
+var { sent: sent4, library: library4 } = CAMPAIGN_ROOMS4;
+var PLAYBOOK_DELETE_WORDS4 = {
+  /** The toast's tail, after the playbook's name. */
+  done: `deleted \u2014 its runs stay in ${sent4} with their numbers`,
+  /** The question's detail. */
+  detail: `Its runs stay in ${sent4} with their numbers.`
+};
+var LIBRARY_WORDS4 = {
+  title: library4,
+  demo: `The ${library4} reads a real workspace \u2014 what WhatsApp has approved for it.`,
+  reading: `Reading the ${library4}\u2026`,
+  failed: `The ${library4} couldn\u2019t be loaded right now`,
+  failedWhat: `the ${library4}`,
+  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
+  noNumber: `The ${library4} holds what WhatsApp approves for a number, so it needs one.`
+};
+var OFFERS_IN_WRITING_WORDS4 = {
+  lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
+  link: `print one in ${sent4}`
+};
+var LIFECYCLE_WORDS4 = {
+  title: CAMPAIGN_ROOMS4.home,
+  lede: "What goes out on its own as a customer reaches a moment, and what you send yourself.",
+  library: CAMPAIGN_ROOMS4.library,
+  newMessage: CAMPAIGN_ROOMS4.newMessage,
+  // Said, after the standard beat, where a tile's read is still out.
+  reading: "Reading\u2026",
+  close: "Close",
+  rail: "Your customer, start to finish",
+  needs: {
+    none: "Answers whoever writes",
+    messages: "Reaches a yes to messages",
+    offers: "Needs a yes to offers"
+  },
+  receptionist: "Answers \xB7 asks for the yes",
+  // First contact where the workspace has nothing to answer on: no number and no channel that can send.
+  noLine: { state: "No line to answer on yet", needs: "Connect a number or email to answer on" },
+  alsoRunning: "Also running",
+  callText: {
+    name: "The call's text",
+    words: "The booking link and your WhatsApp, sent while they're on the phone",
+    on: "When a caller asks",
+    none: "No message for it yet"
+  },
+  monthsOffer: { name: "The month's offer" },
+  // What the drawer's head calls a line that is not a stage.
+  kickers: { call_text: "The call's text", moment: "Also", list: "On a list", reach_out: "Reach-out" },
+  gone: {
+    title: "That playbook isn't here any more.",
+    body: "Its runs stay in Sent, with their numbers."
+  },
+  compose: {
+    title: CAMPAIGN_ROOMS4.newMessage,
+    kind: "What kind of message",
+    once: "Send once",
+    every: "Every time a moment comes",
+    // The send screen is made of the broadcasts read (its lists and its messages): said where it could not be, with its Retry.
+    failed: {
+      what: "who and what you can send to",
+      body: "Nothing goes out until it reads. Everything else here is current.",
+      surface: "broadcasts"
+    }
+  },
+  phone: { moments: "Moments", also: "Also", turnOn: "Turn on" },
+  // A read that failed is its own state, never a tile that is not there or a zero that was not counted. The page draws the
+  // kit's failed read where the data would be, and its Retry reads `surface` again.
+  failed: {
+    templates: {
+      what: "your templates",
+      body: "The call's text and the Library's count show once they read. Everything else here is current.",
+      surface: "settings"
+    },
+    counts: {
+      what: "who each moment reaches",
+      body: "The moments show who they reach once it reads. Everything else here is current.",
+      surface: "playbooks"
+    },
+    chains: { what: "your reach-outs", body: "The moments above are current.", surface: "reach_outs" },
+    report: { what: "this period's numbers", body: "The runs below stand.", surface: "broadcasts" },
+    // The broadcasts read itself, said in each tile made from it.
+    reach: {
+      what: "who can hear you",
+      body: "The ladder shows once it reads. Everything else here is current.",
+      surface: "broadcasts"
+    },
+    coming: {
+      what: "what is coming up",
+      body: "What is coming shows once it reads. Everything else here is current.",
+      surface: "broadcasts"
+    },
+    results: {
+      what: "what came back",
+      body: "The numbers show once they read. Everything else here is current.",
+      surface: "broadcasts"
+    }
+  },
+  reach: {
+    title: "Who can hear you",
+    people: "In People",
+    messages: "Can get your messages",
+    offers: "Said yes to offers",
+    // What a yes opens, in the moments' own names; the month's offer and a person's own notes are not stages.
+    opensMessages: "Opens:",
+    ownOffers: ["the month's offer", "your notes"],
+    asks: "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
+    phoneAsks: "Your receptionist asks for the yes to offers, once a person, in a conversation they started.",
+    code: "Show the code",
+    copy: "Copy the phrase",
+    link: "People"
+  },
+  coming: {
+    title: "Coming up",
+    window: "next 7 days",
+    link: "Calendar",
+    rules: `Sends wait for ${SENDING_HOURS_WORDS4.range} \xB7 one a week per person, across every moment`,
+    empty: "Nothing is set to go out in the next 7 days.",
+    nobody: "Nobody",
+    waiting: "Waiting on you"
+  },
+  results: {
+    title: "What came back",
+    link: "All runs",
+    quiet: "Nothing went out, and nobody said yes or asked to stop.",
+    funnel: { sent: "Sent", delivered: "Delivered", read: "Read", replied: "Replied" },
+    funnelLabel: "Sent, delivered, read and replied"
+  }
+};
 var NINE_TO_FIVE4 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME4 = { from: 8 * 60, to: 20 * 60 };
 var REACH_OUT_PREVIEW_INDEX_MAX4 = 199;
@@ -13422,6 +14554,7 @@ var VOICE_AGENT_DEFAULTS2 = {
   post_call_analysis_model: RETELL_MODELS2.analysis,
   allow_user_dtmf: true
 };
+var ELEVENLABS_WEBHOOK_TOLERANCE_S2 = 30 * 60;
 var API22 = "https://api.twilio.com/2010-04-01";
 var TRUNKING2 = "https://trunking.twilio.com/v1";
 var MESSAGING2 = "https://messaging.twilio.com/v1";
@@ -13599,19 +14732,22 @@ var PLAYBOOK_TRIGGERS22 = [
     kind: "visit",
     hint: "The day before an appointment on the calendar"
   },
+  // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the visit went and offers nothing,
+  // so it reaches a yes to texts. It was a re-engagement, and its "book your next visit" made it an offer.
   {
     id: "visited",
     label: "After the visit",
     list: null,
-    cls: "reengage",
+    cls: "booking",
     kind: "visit",
     hint: "The day after a visit, when nothing is booked next"
   },
-  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
-  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  // People's Lapsed list, by visits rather than silence (00155). Since 2 Oct 2026 it IS the win-back where a calendar is
+  // connected, and the quiet one is the win-back where none is: one moment, read the one way the workspace can
+  // (momentOffered), so both are called Win-back and their hints say which.
   {
     id: "lapsed",
-    label: "Lapsed",
+    label: "Win-back",
     list: "lapsed",
     cls: "reengage",
     kind: "list",
@@ -13675,6 +14811,14 @@ function delayWords22(ms2) {
   return minutes === 60 ? "an hour" : plural22(minutes / 60, "hour");
 }
 var PLAYBOOK_VETO_DELAY_WORDS22 = delayWords22(PLAYBOOK_VETO_DELAY_MS22);
+function triggerOf22(id) {
+  return PLAYBOOK_TRIGGERS22.find((t) => t.id === id) ?? null;
+}
+var hintOf22 = (id) => (triggerOf22(id)?.hint ?? "").toLowerCase();
+var WIN_BACK_WORDS22 = {
+  quiet_30: `A calendar is connected here, so the win-back goes by visits: ${hintOf22("lapsed")}. Start that one.`,
+  lapsed: `The win-back by visits needs your calendar, and none is connected. Start the one that goes by silence: ${hintOf22("quiet_30")}.`
+};
 var POLICY_CLASS_WORDS22 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -13749,19 +14893,36 @@ var PolicyLimitsSchema22 = z322.object({
    */
   max_llm_tokens_day: z322.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
+var CONSENT_CHANNEL_WORDS22 = {
+  whatsapp: "on WhatsApp",
+  sms: "by text",
+  email: "by email"
+};
+function yesCovers(channels, channel) {
+  return channels == null ? channel === "whatsapp" : channels.includes(channel);
+}
 function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
 }
 var ASKED_TO_STOP22 = "asked to stop receiving messages";
 var OPT_OUT_REFUSAL22 = `This customer ${ASKED_TO_STOP22}. They can text START to opt back in.`;
-function mayMessageFor(c, purpose, opts = {}) {
+function mayMessageFor(c, purpose, opts) {
   if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
   if (purpose === "outreach")
     return c.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
-  if (purpose === "marketing") {
-    return c.marketing_consent === "opted_in" ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
+  if (opts.channel === "email") {
+    if (purpose !== "marketing") return { ok: true, reason: null };
+    const answer = c.email_marketing;
+    if (answer === "opted_out") return { ok: false, reason: "unsubscribed" };
+    if (c.marketing_consent === "opted_out") return { ok: false, reason: "no_marketing_consent" };
+    if (answer === "opted_in") return { ok: true, reason: null };
+    return answer === "unknown" && c.has_relationship === true ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
   }
-  if (opts.proactive && c.consent !== "opted_in") return { ok: false, reason: "not_opted_in" };
+  if (purpose === "marketing") {
+    return c.marketing_consent === "opted_in" && yesCovers(c.marketing_channels, opts.channel) ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
+  }
+  if (opts.proactive && (c.consent !== "opted_in" || !yesCovers(c.consent_channels, opts.channel)))
+    return { ok: false, reason: "not_opted_in" };
   return { ok: true, reason: null };
 }
 function purposeOfTemplate(category) {
@@ -14551,8 +15712,67 @@ var REPLY_LIMITS22 = {
 var REPLY_MAX_ANY22 = Math.max(...Object.values(REPLY_LIMITS22).map((l) => l.max));
 var CALL_HEARTBEAT_MS22 = 10 * MIN_MS22;
 var REPLY_DELAY_MAX_MS22 = 10 * MIN_MS22;
+function namedSlots22(names3, labels = names3) {
+  return { kind: "named", keys: names3, labels };
+}
+var NUMBERED_SLOT = /\{\{(\d+)\}\}/g;
+var NAMED_SLOT = /\{\{([^{}]*)\}\}/g;
+var patternOf = (set) => set.kind === "numbered" ? NUMBERED_SLOT : NAMED_SLOT;
+function slotKey(name) {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
+var keyInSet = (set, inner) => set.kind === "numbered" ? inner.replace(/^0+(?=\d)/, "") : slotKey(inner);
+var placeInSet = (set, key) => !set || set.kind === "numbered" ? Number(key) - 1 : set.keys.indexOf(key);
+function slotValueOf(set, key, values) {
+  return values[placeInSet(set, key)];
+}
+function fillSlots(text, values, set) {
+  const kind = set ?? { kind: "numbered" };
+  return text.replace(
+    patternOf(kind),
+    (whole, inner) => slotValueOf(set, keyInSet(kind, inner), values) ?? whole
+  );
+}
+function smsStopLine(language) {
+  return /^es/i.test(language) ? "Responde STOP para darte de baja" : "Reply STOP to opt out";
+}
+function partText(components, type) {
+  if (!Array.isArray(components)) return null;
+  const part = components.find((c) => {
+    const kind = !!c && typeof c === "object" ? c.type : null;
+    return typeof kind === "string" && kind.toUpperCase() === type;
+  });
+  return typeof part?.text === "string" && part.text.trim() ? part.text : null;
+}
+function versionWords(row2) {
+  return {
+    subject: row2.channel === "email" ? partText(row2.components, "HEADER") ?? row2.header ?? null : null,
+    body: partText(row2.components, "BODY") ?? row2.body_preview ?? ""
+  };
+}
+function renderOwnVersion(channel, w, values, language, set) {
+  const body = fillSlots(w.body, values, set);
+  return {
+    subject: channel === "email" && w.subject ? fillSlots(w.subject, values, set) : null,
+    body: channel === "sms" ? `${body}
+${smsStopLine(language)}` : body
+  };
+}
 var HAND_KINDS22 = ["call", "note"];
 var HAND_WORDS_MAX22 = 280;
+var REACH_OUT_SLOTS22 = ["opening", "business", "city", "your name", "your business", "booking link"];
+var REACH_OUT_SLOT_LABELS22 = {
+  opening: "Opening",
+  business: "Their business",
+  city: "Their city",
+  "your name": "Your name",
+  "your business": "Your business",
+  "booking link": "Booking link"
+};
+var REACH_OUT_SLOT_SET22 = namedSlots22(
+  REACH_OUT_SLOTS22,
+  REACH_OUT_SLOTS22.map((s) => REACH_OUT_SLOT_LABELS22[s])
+);
 var REACH_OUT_SUBJECT_MAX22 = 80;
 var REACH_OUT_BODY_MAX22 = 1200;
 var OPENING_WORDS_MAX22 = 40;
@@ -14833,8 +16053,8 @@ function replyStepWords(reading, p) {
   if (reading.intent === "not_now")
     words322 = `Write to ${b} again: they said not now${reading.summary ? ` ("${reading.summary}")` : ""}.`;
   else if (reading.intent === "wrong_person") {
-    const who = reading.referTo ?? "someone else";
-    words322 = p.automatic ? `${b}'s automatic reply says to write to ${who}.` : `${b} said to write to ${who} instead.`;
+    const who2 = reading.referTo ?? "someone else";
+    words322 = p.automatic ? `${b}'s automatic reply says to write to ${who2}.` : `${b} said to write to ${who2} instead.`;
   } else if (reading.intent === "away") words322 = `${b} is back today: write to them.`;
   else return null;
   return withinChars(p.writer ? `${words322} (${p.writer} wrote it.)` : words322, STEP_WORDS_MAX);
@@ -15226,6 +16446,7 @@ var LeadSuggestAnswerSchema22 = z1022.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS22 = 35 * MIN_MS22;
 var ASK_UNDO_MS22 = 10 * 6e4;
 var AskProposalOutcomeSchema22 = z1122.object({
   state: z1122.enum(["done", "dismissed", "failed", "undone"]),
@@ -16144,6 +17365,46 @@ var PROPOSAL22 = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES22 = { ...PROPOSAL22, label: "Enlace de la propuesta" };
+var OFFERS_BY_EMAIL_WORDS22 = {
+  /** The deployment's campaigns domain is not set up or not verified yet. */
+  noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
+  /** The business has no postal address on file, which every offer's foot names. */
+  noAddress: "Add your business's address to send offers by email.",
+  /** The workspace's offers are paused by a gate. */
+  paused: "Offers by email are paused while complaints and bounces settle."
+};
+var CHANNEL_WORDS22 = {
+  noOffersByText: "Texts carry no offers.",
+  /**
+   * What an offer by email says where the read carries no facts about offers (the WhatsApp-alone reading, a page cached before
+   * them, Ask's own): the campaigns domain, which is what its absence is. A read that has them says the reason that is true.
+   */
+  noOffersByEmailYet: OFFERS_BY_EMAIL_WORDS22.noCampaignsDomain,
+  noWhatsApp: "Connect a WhatsApp number first.",
+  noTextLine: "No texting line yet.",
+  textLineMock: "Your texting line is a test filing: it sends nothing.",
+  textLineNotActive: "Your texting line is not approved by the carriers yet.",
+  noMailbox: "Set up email in Settings \u203A Connections first.",
+  noEmailDomain: "Email is not switched on for this deployment yet.",
+  /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
+  unchecked: "This could not be checked just now."
+};
+var CAMPAIGN_MONTH_ALLOWANCE = {
+  email: 2e3,
+  sms: 500
+};
+function heldByAllowance(trigger, purpose) {
+  const t = trigger ? triggerOf22(trigger) : null;
+  return !(t?.cls === "booking" && purpose === "conversational");
+}
+function allowanceRoom(channel, sent222) {
+  return Math.max(0, CAMPAIGN_MONTH_ALLOWANCE[channel] - sent222);
+}
+var READY_WHATSAPP_ALONE22 = {
+  whatsapp: { ready: true, why: null },
+  sms: { ready: false, why: CHANNEL_WORDS22.unchecked },
+  email: { ready: false, why: CHANNEL_WORDS22.unchecked }
+};
 function parseParamSpec(raw) {
   if (typeof raw === "string") {
     const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
@@ -16187,6 +17448,10 @@ function resolveParams(specs, f) {
     }
   });
 }
+function audienceTrigger(audience) {
+  const t = audience && typeof audience === "object" ? audience.trigger : null;
+  return typeof t === "string" ? t : null;
+}
 var LIMIT_TIERS22 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -16214,7 +17479,63 @@ function renderTemplate(body, params) {
     return typeof v === "string" && v !== "" ? v : m;
   });
 }
-var OUTCOME_UNKNOWN = "outcome_unknown";
+var OUTCOME_UNKNOWN2 = "outcome_unknown";
+var escapeHtml2 = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var EMAIL_STOP_LINE = "Reply STOP to stop these emails.";
+var MARKETING_LINE = "This is a marketing email.";
+var COLD_NO_THANKS = `Not interested? Reply "no thanks" and I won't write again`;
+var offerWhy = (who2, why) => why === "asked" ? `You asked for offers from ${who2}.` : `You're a customer of ${who2}.`;
+function offerParts(address, f) {
+  const parts2 = { address: address?.trim() ?? "", url: f.unsubscribeUrl.trim() };
+  if (!parts2.address || !parts2.url) throw new Error("emailFoot: an offer foot names where and how to stop");
+  return parts2;
+}
+function coldParts(business, address, f) {
+  const parts2 = {
+    why: f.why.trim(),
+    business: business.trim(),
+    address: address?.trim() ?? "",
+    url: f.unsubscribeUrl.trim()
+  };
+  if (!parts2.why || !parts2.business || !parts2.address || !parts2.url)
+    throw new Error("emailFoot: a cold foot names why, who, where and how to stop");
+  return parts2;
+}
+function emailFoot(business, address, foot) {
+  if (foot.kind === "cold") {
+    const p = coldParts(business, address, foot);
+    return [p.why, MARKETING_LINE, `${p.business} \xB7 ${p.address}`, `${COLD_NO_THANKS}.`, `Unsubscribe: ${p.url}`].join(
+      "\n"
+    );
+  }
+  const who2 = business.trim() || "us";
+  if (foot.kind === "offer") {
+    const p = offerParts(address, foot);
+    return [offerWhy(who2, foot.why), `${who2} \xB7 ${p.address}`, `Unsubscribe: ${p.url}`].join("\n");
+  }
+  const where = address?.trim();
+  const facts = foot.facts;
+  const why = typeof facts.proposal_link === "string" ? `You're getting this about your proposal from ${who2}.` : typeof facts.visit_when === "string" ? `You're getting this because of your visit with ${who2}.` : `You're getting this because you've been in touch with ${who2}.`;
+  return where ? `${why}
+${EMAIL_STOP_LINE}
+${who2} \xB7 ${where}` : `${why}
+${EMAIL_STOP_LINE}`;
+}
+function emailFootHtml(business, address, foot) {
+  if (foot.kind === "cold") {
+    const p2 = coldParts(business, address, foot);
+    return `<p>${escapeHtml2(p2.why)}<br>${escapeHtml2(MARKETING_LINE)}<br>${escapeHtml2(p2.business)} \xB7 ${escapeHtml2(p2.address)}<br>${escapeHtml2(COLD_NO_THANKS)} \xB7 <a href="${escapeHtml2(p2.url)}">Unsubscribe</a></p>`;
+  }
+  const who2 = business.trim() || "us";
+  const p = offerParts(address, foot);
+  return `<p>${escapeHtml2(offerWhy(who2, foot.why))}<br>${escapeHtml2(`${who2} \xB7 ${p.address}`)}<br><a href="${escapeHtml2(p.url)}">Unsubscribe</a></p>`;
+}
+var capitalised22 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+var PREVIEW_CHANNEL_WORDS22 = {
+  whatsapp: capitalised22(CONSENT_CHANNEL_WORDS22.whatsapp),
+  sms: capitalised22(CONSENT_CHANNEL_WORDS22.sms),
+  email: capitalised22(CONSENT_CHANNEL_WORDS22.email)
+};
 var SHORT22 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
 var LONG22 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var EVENT_KINDS22 = [
@@ -16310,6 +17631,9 @@ var EVENT_KINDS22 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
+  "mailbox.offers_paused",
+  "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
    * removed. The host and the reason, never the provider's id. */
   "sending_domain.added",
@@ -16361,6 +17685,9 @@ var EVENT_KINDS22 = [
   // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
   "workspace.activated"
 ];
+var EMAIL_STOP_PATTERN = /^\s*(stop|baja|alto)\s*[.!]?\s*$/i;
+var EMAIL_UNSUBSCRIBE_PATTERN = /^\s*(?:please\s+)?(?:unsubscribe(?:\s+me)?|desuscribir(?:me)?)\s*[.!]?\s*$/i;
+var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
 var OFFERS_OPT_IN_PHRASES22 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS22 = [
   "approve",
@@ -16562,6 +17889,8 @@ var RETENTION_DAYS22 = {
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
@@ -16810,7 +18139,7 @@ var REACH_OUT_SHEET_WORDS22 = {
   stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
   stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
   first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS22} to stop it.`,
-  slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
+  slotsHint: "each is filled for each business, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
   footHint: "as the law asks",
   repliesHint: "into your Inbox",
@@ -16865,10 +18194,145 @@ var REACH_OUT_REFUSALS22 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET22 = new Set(Object.values(REACH_OUT_REFUSALS22));
+var CAMPAIGN_ROOMS22 = {
+  home: "Campaigns",
+  sent: "Sent",
+  library: "Library",
+  newMessage: "New message"
+};
+var { sent: sent22, library: library22 } = CAMPAIGN_ROOMS22;
+var PLAYBOOK_DELETE_WORDS22 = {
+  /** The toast's tail, after the playbook's name. */
+  done: `deleted \u2014 its runs stay in ${sent22} with their numbers`,
+  /** The question's detail. */
+  detail: `Its runs stay in ${sent22} with their numbers.`
+};
+var LIBRARY_WORDS22 = {
+  title: library22,
+  demo: `The ${library22} reads a real workspace \u2014 what WhatsApp has approved for it.`,
+  reading: `Reading the ${library22}\u2026`,
+  failed: `The ${library22} couldn\u2019t be loaded right now`,
+  failedWhat: `the ${library22}`,
+  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
+  noNumber: `The ${library22} holds what WhatsApp approves for a number, so it needs one.`
+};
+var OFFERS_IN_WRITING_WORDS22 = {
+  lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
+  link: `print one in ${sent22}`
+};
+var LIFECYCLE_WORDS22 = {
+  title: CAMPAIGN_ROOMS22.home,
+  lede: "What goes out on its own as a customer reaches a moment, and what you send yourself.",
+  library: CAMPAIGN_ROOMS22.library,
+  newMessage: CAMPAIGN_ROOMS22.newMessage,
+  // Said, after the standard beat, where a tile's read is still out.
+  reading: "Reading\u2026",
+  close: "Close",
+  rail: "Your customer, start to finish",
+  needs: {
+    none: "Answers whoever writes",
+    messages: "Reaches a yes to messages",
+    offers: "Needs a yes to offers"
+  },
+  receptionist: "Answers \xB7 asks for the yes",
+  // First contact where the workspace has nothing to answer on: no number and no channel that can send.
+  noLine: { state: "No line to answer on yet", needs: "Connect a number or email to answer on" },
+  alsoRunning: "Also running",
+  callText: {
+    name: "The call's text",
+    words: "The booking link and your WhatsApp, sent while they're on the phone",
+    on: "When a caller asks",
+    none: "No message for it yet"
+  },
+  monthsOffer: { name: "The month's offer" },
+  // What the drawer's head calls a line that is not a stage.
+  kickers: { call_text: "The call's text", moment: "Also", list: "On a list", reach_out: "Reach-out" },
+  gone: {
+    title: "That playbook isn't here any more.",
+    body: "Its runs stay in Sent, with their numbers."
+  },
+  compose: {
+    title: CAMPAIGN_ROOMS22.newMessage,
+    kind: "What kind of message",
+    once: "Send once",
+    every: "Every time a moment comes",
+    // The send screen is made of the broadcasts read (its lists and its messages): said where it could not be, with its Retry.
+    failed: {
+      what: "who and what you can send to",
+      body: "Nothing goes out until it reads. Everything else here is current.",
+      surface: "broadcasts"
+    }
+  },
+  phone: { moments: "Moments", also: "Also", turnOn: "Turn on" },
+  // A read that failed is its own state, never a tile that is not there or a zero that was not counted. The page draws the
+  // kit's failed read where the data would be, and its Retry reads `surface` again.
+  failed: {
+    templates: {
+      what: "your templates",
+      body: "The call's text and the Library's count show once they read. Everything else here is current.",
+      surface: "settings"
+    },
+    counts: {
+      what: "who each moment reaches",
+      body: "The moments show who they reach once it reads. Everything else here is current.",
+      surface: "playbooks"
+    },
+    chains: { what: "your reach-outs", body: "The moments above are current.", surface: "reach_outs" },
+    report: { what: "this period's numbers", body: "The runs below stand.", surface: "broadcasts" },
+    // The broadcasts read itself, said in each tile made from it.
+    reach: {
+      what: "who can hear you",
+      body: "The ladder shows once it reads. Everything else here is current.",
+      surface: "broadcasts"
+    },
+    coming: {
+      what: "what is coming up",
+      body: "What is coming shows once it reads. Everything else here is current.",
+      surface: "broadcasts"
+    },
+    results: {
+      what: "what came back",
+      body: "The numbers show once they read. Everything else here is current.",
+      surface: "broadcasts"
+    }
+  },
+  reach: {
+    title: "Who can hear you",
+    people: "In People",
+    messages: "Can get your messages",
+    offers: "Said yes to offers",
+    // What a yes opens, in the moments' own names; the month's offer and a person's own notes are not stages.
+    opensMessages: "Opens:",
+    ownOffers: ["the month's offer", "your notes"],
+    asks: "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
+    phoneAsks: "Your receptionist asks for the yes to offers, once a person, in a conversation they started.",
+    code: "Show the code",
+    copy: "Copy the phrase",
+    link: "People"
+  },
+  coming: {
+    title: "Coming up",
+    window: "next 7 days",
+    link: "Calendar",
+    rules: `Sends wait for ${SENDING_HOURS_WORDS22.range} \xB7 one a week per person, across every moment`,
+    empty: "Nothing is set to go out in the next 7 days.",
+    nobody: "Nobody",
+    waiting: "Waiting on you"
+  },
+  results: {
+    title: "What came back",
+    link: "All runs",
+    quiet: "Nothing went out, and nobody said yes or asked to stop.",
+    funnel: { sent: "Sent", delivered: "Delivered", read: "Read", replied: "Replied" },
+    funnelLabel: "Sent, delivered, read and replied"
+  }
+};
+var CAMPAIGN_EMAIL_TAG2 = "cl_campaign";
 function isCampaignEmail2(request) {
-  const headers = request?.headers;
-  const v = headers?.["List-Unsubscribe"];
-  return typeof v === "string" && v.trim() !== "";
+  const r222 = request;
+  const v = r222?.headers?.["List-Unsubscribe"];
+  if (typeof v === "string" && v.trim() !== "") return true;
+  return Array.isArray(r222?.tags) && r222.tags.some((t) => !!t && typeof t === "object" && t.name === CAMPAIGN_EMAIL_TAG2);
 }
 var NINE_TO_FIVE22 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME22 = { from: 8 * 60, to: 20 * 60 };
@@ -16929,6 +18393,9 @@ var REACH_OUT_SHEET_PARTS22 = {
   repliesLine: "Replies"
 };
 var WHEN222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var encoder = null;
+var utf8Bytes = (s) => (encoder ??= new TextEncoder()).encode(s);
+var hexOf = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 var PAGE_VITALS22 = ["LCP", "INP", "CLS", "FCP", "TTFB"];
 var PAGE_NAME22 = /^[a-z][a-z0-9-]{0,31}$/;
 var VITAL_ID22 = /^[A-Za-z0-9-]{1,64}$/;
@@ -17321,19 +18788,22 @@ var PLAYBOOK_TRIGGERS32 = [
     kind: "visit",
     hint: "The day before an appointment on the calendar"
   },
+  // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the visit went and offers nothing,
+  // so it reaches a yes to texts. It was a re-engagement, and its "book your next visit" made it an offer.
   {
     id: "visited",
     label: "After the visit",
     list: null,
-    cls: "reengage",
+    cls: "booking",
     kind: "visit",
     hint: "The day after a visit, when nothing is booked next"
   },
-  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
-  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  // People's Lapsed list, by visits rather than silence (00155). Since 2 Oct 2026 it IS the win-back where a calendar is
+  // connected, and the quiet one is the win-back where none is: one moment, read the one way the workspace can
+  // (momentOffered), so both are called Win-back and their hints say which.
   {
     id: "lapsed",
-    label: "Lapsed",
+    label: "Win-back",
     list: "lapsed",
     cls: "reengage",
     kind: "list",
@@ -17397,6 +18867,14 @@ function delayWords32(ms2) {
   return minutes === 60 ? "an hour" : plural32(minutes / 60, "hour");
 }
 var PLAYBOOK_VETO_DELAY_WORDS32 = delayWords32(PLAYBOOK_VETO_DELAY_MS32);
+function triggerOf32(id) {
+  return PLAYBOOK_TRIGGERS32.find((t) => t.id === id) ?? null;
+}
+var hintOf32 = (id) => (triggerOf32(id)?.hint ?? "").toLowerCase();
+var WIN_BACK_WORDS32 = {
+  quiet_30: `A calendar is connected here, so the win-back goes by visits: ${hintOf32("lapsed")}. Start that one.`,
+  lapsed: `The win-back by visits needs your calendar, and none is connected. Start the one that goes by silence: ${hintOf32("quiet_30")}.`
+};
 var POLICY_CLASS_WORDS32 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -17471,6 +18949,11 @@ var PolicyLimitsSchema32 = z332.object({
    */
   max_llm_tokens_day: z332.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
+var CONSENT_CHANNEL_WORDS32 = {
+  whatsapp: "on WhatsApp",
+  sms: "by text",
+  email: "by email"
+};
 var ASKED_TO_STOP32 = "asked to stop receiving messages";
 var OPT_OUT_REFUSAL32 = `This customer ${ASKED_TO_STOP32}. They can text START to opt back in.`;
 var PRIVATE_HOST32 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
@@ -18064,8 +19547,24 @@ var REPLY_LIMITS32 = {
 var REPLY_MAX_ANY32 = Math.max(...Object.values(REPLY_LIMITS32).map((l) => l.max));
 var CALL_HEARTBEAT_MS32 = 10 * MIN_MS32;
 var REPLY_DELAY_MAX_MS32 = 10 * MIN_MS32;
+function namedSlots32(names3, labels = names3) {
+  return { kind: "named", keys: names3, labels };
+}
 var HAND_KINDS32 = ["call", "note"];
 var HAND_WORDS_MAX32 = 280;
+var REACH_OUT_SLOTS32 = ["opening", "business", "city", "your name", "your business", "booking link"];
+var REACH_OUT_SLOT_LABELS32 = {
+  opening: "Opening",
+  business: "Their business",
+  city: "Their city",
+  "your name": "Your name",
+  "your business": "Your business",
+  "booking link": "Booking link"
+};
+var REACH_OUT_SLOT_SET32 = namedSlots32(
+  REACH_OUT_SLOTS32,
+  REACH_OUT_SLOTS32.map((s) => REACH_OUT_SLOT_LABELS32[s])
+);
 var REACH_OUT_SUBJECT_MAX32 = 80;
 var REACH_OUT_BODY_MAX32 = 1200;
 var OPENING_WORDS_MAX32 = 40;
@@ -18396,6 +19895,7 @@ var LeadSuggestAnswerSchema32 = z1032.object({
     })
   ).min(1).max(4)
 });
+var ASK_VOICE_TOKEN_MIN_MS32 = 35 * MIN_MS32;
 var ASK_UNDO_MS32 = 10 * 6e4;
 var AskProposalOutcomeSchema32 = z1132.object({
   state: z1132.enum(["done", "dismissed", "failed", "undone"]),
@@ -19314,6 +20814,43 @@ var PROPOSAL32 = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES32 = { ...PROPOSAL32, label: "Enlace de la propuesta" };
+var OFFERS_BY_EMAIL_WORDS32 = {
+  /** The deployment's campaigns domain is not set up or not verified yet. */
+  noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
+  /** The business has no postal address on file, which every offer's foot names. */
+  noAddress: "Add your business's address to send offers by email.",
+  /** The workspace's offers are paused by a gate. */
+  paused: "Offers by email are paused while complaints and bounces settle."
+};
+var OFFER_PAUSE_REASONS = ["complaints", "bounces"];
+function offerPauseOf(at3, reason) {
+  if (!at3) return null;
+  return {
+    at: at3,
+    reason: OFFER_PAUSE_REASONS.includes(reason ?? "") ? reason : null
+  };
+}
+var CHANNEL_WORDS32 = {
+  noOffersByText: "Texts carry no offers.",
+  /**
+   * What an offer by email says where the read carries no facts about offers (the WhatsApp-alone reading, a page cached before
+   * them, Ask's own): the campaigns domain, which is what its absence is. A read that has them says the reason that is true.
+   */
+  noOffersByEmailYet: OFFERS_BY_EMAIL_WORDS32.noCampaignsDomain,
+  noWhatsApp: "Connect a WhatsApp number first.",
+  noTextLine: "No texting line yet.",
+  textLineMock: "Your texting line is a test filing: it sends nothing.",
+  textLineNotActive: "Your texting line is not approved by the carriers yet.",
+  noMailbox: "Set up email in Settings \u203A Connections first.",
+  noEmailDomain: "Email is not switched on for this deployment yet.",
+  /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
+  unchecked: "This could not be checked just now."
+};
+var READY_WHATSAPP_ALONE32 = {
+  whatsapp: { ready: true, why: null },
+  sms: { ready: false, why: CHANNEL_WORDS32.unchecked },
+  email: { ready: false, why: CHANNEL_WORDS32.unchecked }
+};
 var LIMIT_TIERS32 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -19333,6 +20870,12 @@ var BROADCAST_THROTTLE_WAITS_MS32 = [
   15 * MIN_MS32,
   30 * MIN_MS32
 ];
+var capitalised32 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+var PREVIEW_CHANNEL_WORDS32 = {
+  whatsapp: capitalised32(CONSENT_CHANNEL_WORDS32.whatsapp),
+  sms: capitalised32(CONSENT_CHANNEL_WORDS32.sms),
+  email: capitalised32(CONSENT_CHANNEL_WORDS32.email)
+};
 var SHORT32 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
 var LONG32 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var EVENT_KINDS32 = [
@@ -19428,6 +20971,9 @@ var EVENT_KINDS32 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
+  "mailbox.offers_paused",
+  "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
    * removed. The host and the reason, never the provider's id. */
   "sending_domain.added",
@@ -19680,6 +21226,8 @@ var RETENTION_DAYS32 = {
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
@@ -19892,7 +21440,7 @@ var REACH_OUT_SHEET_WORDS32 = {
   stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
   stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
   first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS32} to stop it.`,
-  slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
+  slotsHint: "each is filled for each business, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
   footHint: "as the law asks",
   repliesHint: "into your Inbox",
@@ -19947,6 +21495,139 @@ var REACH_OUT_REFUSALS32 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET32 = new Set(Object.values(REACH_OUT_REFUSALS32));
+var CAMPAIGN_ROOMS32 = {
+  home: "Campaigns",
+  sent: "Sent",
+  library: "Library",
+  newMessage: "New message"
+};
+var { sent: sent32, library: library32 } = CAMPAIGN_ROOMS32;
+var PLAYBOOK_DELETE_WORDS32 = {
+  /** The toast's tail, after the playbook's name. */
+  done: `deleted \u2014 its runs stay in ${sent32} with their numbers`,
+  /** The question's detail. */
+  detail: `Its runs stay in ${sent32} with their numbers.`
+};
+var LIBRARY_WORDS32 = {
+  title: library32,
+  demo: `The ${library32} reads a real workspace \u2014 what WhatsApp has approved for it.`,
+  reading: `Reading the ${library32}\u2026`,
+  failed: `The ${library32} couldn\u2019t be loaded right now`,
+  failedWhat: `the ${library32}`,
+  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
+  noNumber: `The ${library32} holds what WhatsApp approves for a number, so it needs one.`
+};
+var OFFERS_IN_WRITING_WORDS32 = {
+  lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
+  link: `print one in ${sent32}`
+};
+var LIFECYCLE_WORDS32 = {
+  title: CAMPAIGN_ROOMS32.home,
+  lede: "What goes out on its own as a customer reaches a moment, and what you send yourself.",
+  library: CAMPAIGN_ROOMS32.library,
+  newMessage: CAMPAIGN_ROOMS32.newMessage,
+  // Said, after the standard beat, where a tile's read is still out.
+  reading: "Reading\u2026",
+  close: "Close",
+  rail: "Your customer, start to finish",
+  needs: {
+    none: "Answers whoever writes",
+    messages: "Reaches a yes to messages",
+    offers: "Needs a yes to offers"
+  },
+  receptionist: "Answers \xB7 asks for the yes",
+  // First contact where the workspace has nothing to answer on: no number and no channel that can send.
+  noLine: { state: "No line to answer on yet", needs: "Connect a number or email to answer on" },
+  alsoRunning: "Also running",
+  callText: {
+    name: "The call's text",
+    words: "The booking link and your WhatsApp, sent while they're on the phone",
+    on: "When a caller asks",
+    none: "No message for it yet"
+  },
+  monthsOffer: { name: "The month's offer" },
+  // What the drawer's head calls a line that is not a stage.
+  kickers: { call_text: "The call's text", moment: "Also", list: "On a list", reach_out: "Reach-out" },
+  gone: {
+    title: "That playbook isn't here any more.",
+    body: "Its runs stay in Sent, with their numbers."
+  },
+  compose: {
+    title: CAMPAIGN_ROOMS32.newMessage,
+    kind: "What kind of message",
+    once: "Send once",
+    every: "Every time a moment comes",
+    // The send screen is made of the broadcasts read (its lists and its messages): said where it could not be, with its Retry.
+    failed: {
+      what: "who and what you can send to",
+      body: "Nothing goes out until it reads. Everything else here is current.",
+      surface: "broadcasts"
+    }
+  },
+  phone: { moments: "Moments", also: "Also", turnOn: "Turn on" },
+  // A read that failed is its own state, never a tile that is not there or a zero that was not counted. The page draws the
+  // kit's failed read where the data would be, and its Retry reads `surface` again.
+  failed: {
+    templates: {
+      what: "your templates",
+      body: "The call's text and the Library's count show once they read. Everything else here is current.",
+      surface: "settings"
+    },
+    counts: {
+      what: "who each moment reaches",
+      body: "The moments show who they reach once it reads. Everything else here is current.",
+      surface: "playbooks"
+    },
+    chains: { what: "your reach-outs", body: "The moments above are current.", surface: "reach_outs" },
+    report: { what: "this period's numbers", body: "The runs below stand.", surface: "broadcasts" },
+    // The broadcasts read itself, said in each tile made from it.
+    reach: {
+      what: "who can hear you",
+      body: "The ladder shows once it reads. Everything else here is current.",
+      surface: "broadcasts"
+    },
+    coming: {
+      what: "what is coming up",
+      body: "What is coming shows once it reads. Everything else here is current.",
+      surface: "broadcasts"
+    },
+    results: {
+      what: "what came back",
+      body: "The numbers show once they read. Everything else here is current.",
+      surface: "broadcasts"
+    }
+  },
+  reach: {
+    title: "Who can hear you",
+    people: "In People",
+    messages: "Can get your messages",
+    offers: "Said yes to offers",
+    // What a yes opens, in the moments' own names; the month's offer and a person's own notes are not stages.
+    opensMessages: "Opens:",
+    ownOffers: ["the month's offer", "your notes"],
+    asks: "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
+    phoneAsks: "Your receptionist asks for the yes to offers, once a person, in a conversation they started.",
+    code: "Show the code",
+    copy: "Copy the phrase",
+    link: "People"
+  },
+  coming: {
+    title: "Coming up",
+    window: "next 7 days",
+    link: "Calendar",
+    rules: `Sends wait for ${SENDING_HOURS_WORDS32.range} \xB7 one a week per person, across every moment`,
+    empty: "Nothing is set to go out in the next 7 days.",
+    nobody: "Nobody",
+    waiting: "Waiting on you"
+  },
+  results: {
+    title: "What came back",
+    link: "All runs",
+    quiet: "Nothing went out, and nobody said yes or asked to stop.",
+    funnel: { sent: "Sent", delivered: "Delivered", read: "Read", replied: "Replied" },
+    funnelLabel: "Sent, delivered, read and replied"
+  }
+};
 var NINE_TO_FIVE32 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME32 = { from: 8 * 60, to: 20 * 60 };
 var REACH_OUT_PREVIEW_INDEX_MAX32 = 199;
@@ -20374,6 +22055,17 @@ async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {
   const { error } = await recordEvent2(db, tenantId, kind, subjectType, subjectId, data);
   if (error) dbLog2().error("emit_event_failed", { tenant_id: tenantId, kind, error });
 }
+async function textLineFacts(db, tenantId) {
+  const { data, error } = await db.from("lines").select("sms_state, reg_mock").eq("tenant_id", tenantId).not("messaging_service_sid", "is", null).neq("voice_state", "failed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`text_line_facts: ${error.message}`);
+  return data ?? null;
+}
+function noChannelColumns2(error) {
+  return !!error && /\b(consent_channels|marketing_channels|channel)\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
+}
+function noRelationshipColumn(error) {
+  return !!error && /\bhas_relationship\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
+}
 async function recordCarrierOptOut(db, p) {
   const { data, error } = await db.from("contacts").update({
     consent: "opted_out",
@@ -20413,6 +22105,24 @@ async function recordOutbound(db, p) {
     status === "sent" ? emitEvent(db, p.tenantId, "message.sent", "message", data.id, { sender: p.sender }) : Promise.resolve()
   ]);
   return data.id;
+}
+async function wireRowOf(db, p) {
+  const head = "paused_until, control_kind, control_until, contact_id, contacts (consent, dnc, marketing_consent, ";
+  const tail = "email_marketing, erased_at, erasing_since, email, email_suppressed_at), tenants (status)";
+  const read = (columns) => db.from("conversations").select(`${head}${columns}${tail}`).eq("id", p.conversationId).eq("tenant_id", p.tenantId).maybeSingle();
+  const full = await read(`consent_channels, marketing_channels, ${p.relationship ? "has_relationship, " : ""}`);
+  if (!noRelationshipColumn(full.error) && !noChannelColumns2(full.error)) return full;
+  const withChannels = noRelationshipColumn(full.error) ? await read("consent_channels, marketing_channels, ") : full;
+  return noChannelColumns2(withChannels.error) ? read("") : withChannels;
+}
+function noColumn(error, ...columns) {
+  return !!error && error.code === "42703" && columns.some((c) => error.message.includes(c));
+}
+async function emailOffersPause(db, tenantId) {
+  const { data, error } = await db.from("mailboxes").select("offers_paused_at, offers_paused_reason").eq("tenant_id", tenantId).maybeSingle();
+  if (noColumn(error, "offers_paused_at", "offers_paused_reason")) return null;
+  if (error) throw new Error(`cannot read whether offers by email are paused: ${error.message}`);
+  return offerPauseOf(data?.offers_paused_at, data?.offers_paused_reason);
 }
 async function stampEmailLeftAs(db, p) {
   const { data, error } = await db.rpc("stamp_email_left_as", {
@@ -20460,6 +22170,26 @@ async function outreachFactsOf(db, p) {
 }
 var POS_TTL_MS2 = 5 * MIN_MS32;
 var CALL_CONTROL_S2 = 15 * 60;
+function isOfferByEmail(d) {
+  return d.channel === "email" && d.purpose === "marketing";
+}
+async function offerFacts(d, emailOffers, pausedSince) {
+  const open = emailOffers === true;
+  const asked2 = open && isOfferByEmail(d);
+  return { open, paused: asked2 ? await pausedSince() !== null : false };
+}
+function offerRefusal(d, o) {
+  if (!isOfferByEmail(d)) return null;
+  if (!o.open) return "email_marketing_disabled";
+  if (o.paused) return "email_offers_paused";
+  const headers = d.email?.headers ?? {};
+  const oneClick = !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
+  return oneClick ? null : "outreach_without_unsubscribe";
+}
+function textRefusal(purpose, line) {
+  if (purpose === "marketing") return "sms_carries_no_promotions";
+  return line?.sms_state === "active" && !line.reg_mock ? null : "sms_line_not_active";
+}
 function isWireUnavailable(w) {
   return typeof w === "object" && w !== null && "unavailable" in w && w.unavailable === true;
 }
@@ -20478,12 +22208,12 @@ var NotTakenError = class extends Error {
   channel;
   status;
   errorBody;
-  constructor(channel, sent) {
-    super(`deliver: the ${channel} provider did not take it (${sent.status || "no answer"}: ${sent.errorBody ?? ""})`);
+  constructor(channel, sent42) {
+    super(`deliver: the ${channel} provider did not take it (${sent42.status || "no answer"}: ${sent42.errorBody ?? ""})`);
     this.name = "NotTakenError";
     this.channel = channel;
-    this.status = sent.status;
-    this.errorBody = sent.errorBody ?? null;
+    this.status = sent42.status;
+    this.errorBody = sent42.errorBody ?? null;
   }
 };
 function isNotTakenError(e) {
@@ -20497,14 +22227,14 @@ async function putOnWire(wire, d, asReply) {
   if (send === null)
     return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
   const reply = d.email && asReply ? { reply: true, ownEmail: d.ownEmail } : {};
-  const sent = await send(d.to, {
+  const sent42 = await send(d.to, {
     body: d.body,
     template: d.template,
     ...d.email ? { email: d.email, purpose: d.purpose } : {},
     ...reply
   });
-  if (!sent.ok && sent.outcome === "retryable" && d.holdIfNotTaken) throw new NotTakenError(d.channel, sent);
-  return sent;
+  if (!sent42.ok && sent42.outcome === "retryable" && d.holdIfNotTaken) throw new NotTakenError(d.channel, sent42);
+  return sent42;
 }
 var deliverLog = logger2();
 function kindOf(d) {
@@ -20513,10 +22243,9 @@ function kindOf(d) {
   if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
   return d.messageId ? "draft" : "answer";
 }
-async function wireFacts(db, d) {
-  const { data, error } = await db.from("conversations").select(
-    "paused_until, control_kind, control_until, contact_id, contacts (consent, dnc, marketing_consent, email_marketing, erased_at, erasing_since, email, email_suppressed_at), tenants (status)"
-  ).eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
+async function wireFacts({ db, emailOffers }, d) {
+  const relationship = isOfferByEmail(d);
+  const { data, error } = await wireRowOf(db, { tenantId: d.tenantId, conversationId: d.conversationId, relationship });
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data;
@@ -20528,13 +22257,17 @@ async function wireFacts(db, d) {
       consent: null,
       dnc: null,
       marketing_consent: null,
+      consent_channels: null,
+      marketing_channels: null,
       email_marketing: null,
       erased_at: null,
       erasing_since: null,
       email: null,
       email_suppressed_at: null
     },
-    tenantStatus: row.tenants?.status ?? null
+    tenantStatus: row.tenants?.status ?? null,
+    smsLine: d.channel === "sms" ? await textLineFacts(db, d.tenantId) : null,
+    offers: await offerFacts(d, emailOffers, () => emailOffersPause(db, d.tenantId))
   };
 }
 var SHARE_WINDOW_MS = 24 * 36e5;
@@ -20588,14 +22321,16 @@ async function outreachFacts(db, d, f, nowMs) {
 }
 function refusalFor(d, f, nowMs, o) {
   if (f.contact.erased_at || f.contact.erasing_since) return "erased";
-  if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
   if (d.purpose === "outreach" && d.channel !== "email") return "outreach_is_email_only";
+  const text = d.channel === "sms" ? textRefusal(d.purpose, f.smsLine) : null;
+  if (text) return text;
   if (d.channel === "email") {
-    if (d.purpose === "marketing") return "email_marketing_disabled";
+    const offer = offerRefusal(d, f.offers);
+    if (offer) return offer;
     if (f.contact.email_suppressed_at) return "email_suppressed";
     if (f.contact.email !== d.to) return "recipient_changed";
   }
-  const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
+  const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive, channel: d.channel });
   if (!may.ok) return may.reason;
   if (d.purpose === "outreach") {
     if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
@@ -20645,15 +22380,15 @@ async function stampThread(db, d, nowMs) {
       error: error.message
     });
 }
-async function leftAs(db, d, sent) {
-  if (!sent.leftAs) return;
-  const why = sent.leftAsWhy ?? null;
-  await stampEmailLeftAs(db, { tenantId: d.tenantId, messageId: d.messageId, leftAs: sent.leftAs, why }).catch(
+async function leftAs(db, d, sent42) {
+  if (!sent42.leftAs) return;
+  const why = sent42.leftAsWhy ?? null;
+  await stampEmailLeftAs(db, { tenantId: d.tenantId, messageId: d.messageId, leftAs: sent42.leftAs, why }).catch(
     (e) => {
       deliverLog.error("deliver_left_as_failed", {
         tenant_id: d.tenantId,
         message_id: d.messageId,
-        error: errField(e)
+        error: errField2(e)
       });
     }
   );
@@ -20674,7 +22409,7 @@ function assertFrozenFor(d) {
 async function deliver(ports, d) {
   assertFrozenFor(d);
   const nowMs = (ports.now ?? Date.now)();
-  const facts = await wireFacts(ports.db, d);
+  const facts = await wireFacts(ports, d);
   const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts, nowMs) : null;
   const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
@@ -20689,7 +22424,7 @@ async function deliver(ports, d) {
         consent: contact22.consent,
         dnc: contact22.dnc,
         marketing_consent: contact22.marketing_consent,
-        ...d.purpose === "outreach" ? { email_marketing: contact22.email_marketing } : {},
+        ...d.purpose === "outreach" || d.purpose === "marketing" ? { email_marketing: contact22.email_marketing } : {},
         ...overtakenBy ? { after: overtakenBy } : {},
         ...said
       });
@@ -20697,8 +22432,8 @@ async function deliver(ports, d) {
     return { outcome: "refused", reason: why, messageId: d.messageId ?? null };
   };
   if (reason) return refuse(reason);
-  const sent = await putOnWire(ports.wire, d, kindOf(d) === "reply");
-  if (!sent.ok && d.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
+  const sent42 = await putOnWire(ports.wire, d, kindOf(d) === "reply");
+  if (!sent42.ok && d.channel === "sms" && smsRefusalOf(sent42) === "opted_out") {
     if (facts.contactId)
       await recordCarrierOptOut(ports.db, {
         tenantId: d.tenantId,
@@ -20708,29 +22443,29 @@ async function deliver(ports, d) {
       });
     return refuse("opted_out", { consent: "opted_out", dnc: true }, { source: CARRIER_CONSENT_SOURCE });
   }
-  if (sent.ok) {
+  if (sent42.ok) {
     if (d.messageId) {
       const marked = await finalizeQueued(ports.db, d, {
         status: "sent",
-        ...sent.wamid ? { external_id: sent.wamid } : {}
+        ...sent42.wamid ? { external_id: sent42.wamid } : {}
       }).catch((e) => {
         deliverLog.error("deliver_finalize_failed", {
           tenant_id: d.tenantId,
           message_id: d.messageId,
-          wamid: sent.wamid,
-          error: errField(e)
+          wamid: sent42.wamid,
+          error: errField2(e)
         });
         return null;
       });
       await Promise.all([
-        marked === false ? event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent.wamid }) : Promise.resolve(),
+        marked === false ? event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent42.wamid }) : Promise.resolve(),
         // A cold email leaves its thread where it was: the Inbox reads the latest hundred threads, and a run of cold
         // sends would push every customer off it. The thread rises when the business writes back.
         d.purpose === "outreach" ? Promise.resolve() : stampThread(ports.db, d, nowMs),
         event(ports.db, d, "message.sent", d.messageId, { sender: d.sender }),
-        leftAs(ports.db, d, sent)
+        leftAs(ports.db, d, sent42)
       ]);
-      return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
+      return { outcome: "sent", messageId: d.messageId, externalId: sent42.wamid };
     }
     const messageId2 = await recordOutbound(ports.db, {
       tenantId: d.tenantId,
@@ -20740,24 +22475,24 @@ async function deliver(ports, d) {
       type: d.template ? "template" : "text",
       body: d.body,
       channel: d.channel,
-      externalId: sent.wamid,
+      externalId: sent42.wamid,
       status: "sent",
       meta: d.meta ?? {}
     }).catch((e) => {
       deliverLog.error("deliver_record_failed", {
         tenant_id: d.tenantId,
         conversation_id: d.conversationId,
-        wamid: sent.wamid,
-        error: errField(e)
+        wamid: sent42.wamid,
+        error: errField2(e)
       });
       return null;
     });
-    return { outcome: "sent", messageId: messageId2, externalId: sent.wamid };
+    return { outcome: "sent", messageId: messageId2, externalId: sent42.wamid };
   }
   const failure = {
-    http_status: sent.status,
-    body: sent.errorBody ?? null,
-    ...sent.outcome === "unknown" ? { outcome: "unknown" } : {}
+    http_status: sent42.status,
+    body: sent42.errorBody ?? null,
+    ...sent42.outcome === "unknown" ? { outcome: "unknown" } : {}
   };
   let messageId = d.messageId ?? null;
   if (d.messageId) {
@@ -20776,24 +22511,24 @@ async function deliver(ports, d) {
       meta: { ...d.meta ?? {}, ...failure }
     });
   }
-  await event(ports.db, d, "message.send_failed", messageId, { ...failure, reason: sent.reason ?? "provider" });
+  await event(ports.db, d, "message.send_failed", messageId, { ...failure, reason: sent42.reason ?? "provider" });
   return {
     outcome: "failed",
-    reason: sent.reason ?? "provider",
-    status: sent.status,
-    errorBody: sent.errorBody ?? null,
+    reason: sent42.reason ?? "provider",
+    status: sent42.status,
+    errorBody: sent42.errorBody ?? null,
     messageId,
-    ...namedFailure(d.channel, sent)
+    ...namedFailure(d.channel, sent42)
   };
 }
-function namedFailure(channel, sent) {
-  if (sent.reason) return {};
-  const gone = sent.outcome === "unknown" ? { mayHaveGone: true } : {};
+function namedFailure(channel, sent42) {
+  if (sent42.reason) return {};
+  const gone = sent42.outcome === "unknown" ? { mayHaveGone: true } : {};
   if (channel === "email") {
-    const limit = resendLimitOf(sent);
+    const limit = resendLimitOf(sent42);
     return limit ? { limit, ...gone } : gone;
   }
-  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true, ...gone } : gone;
+  return channel === "whatsapp" && graphThrottled(sent42) ? { throttled: true, ...gone } : gone;
 }
 async function templatePurpose(db, tenantId, template) {
   if (!template) return "conversational";
@@ -20944,6 +22679,7 @@ async function provisionLine(ports, cmd) {
     await ports.next({ line_id: lineId, by });
   }
 }
+var emailLog = logger2();
 var EMAIL_BODY_MAX = 2e4;
 var EMAIL_REVIEW_WORDS = {
   person: "An email arrived. The receptionist does not answer email yet, so nothing was sent: read it and reply from here.",
@@ -20968,15 +22704,25 @@ async function ingestEmail(ports, cmd) {
   if (await ports.erasedBefore(mailbox.tenant_id, address, email.receivedAt ?? at)) return "erased_person";
   const { claim } = email;
   if (claim === "report") return "not_a_conversation";
+  const stops = asksToStop(email);
+  const yes = !stops && saysYesToOffers(email);
+  const optInOffers = yes && email.senderAuthenticated === true;
   const kept = await ports.record({
     tenantId: mailbox.tenant_id,
     address,
     receivedId: email.id,
     body: bodyOf(email),
     channelTs: email.receivedAt ?? at,
-    meta: metaOf(email)
+    meta: metaOf(email),
+    optOut: stops,
+    // One word, one answer: a STOP stops everything and says nothing of offers; an unsubscribe and a yes are about offers.
+    unsubscribe: !stops && asksToUnsubscribe(email),
+    optInOffers,
+    words: replyTextOf(email.text).slice(0, 80) || null
   });
   if (!kept.is_new && kept.processed) return "already_handled";
+  if (yes && !optInOffers)
+    emailLog.warn("email_yes_unauthenticated", { tenant_id: mailbox.tenant_id, message_id: kept.message_id });
   const reachOut = await ports.reachOutReply(mailbox.tenant_id, kept.message_id);
   if (reachOut) await ports.readReply(mailbox.tenant_id, kept.message_id);
   if (claim !== "auto_reply")
@@ -21011,6 +22757,15 @@ async function flagForAPerson(ports, email, p) {
     preview: bodyOf(email)?.slice(0, 280) ?? null,
     claim
   });
+}
+function asksToStop(e) {
+  return EMAIL_STOP_PATTERN.test(replyTextOf(e.text));
+}
+function asksToUnsubscribe(e) {
+  return EMAIL_UNSUBSCRIBE_PATTERN.test(replyTextOf(e.text));
+}
+function saysYesToOffers(e) {
+  return e.claim === "person" && MARKETING_OPT_IN_PATTERN.test(replyTextOf(e.text));
 }
 function bodyOf(e) {
   return e.text?.slice(0, EMAIL_BODY_MAX) ?? null;
@@ -21157,9 +22912,166 @@ async function readReply(ports, cmd) {
   await ports.told(tenantId, messageId, claim);
   return "told";
 }
+async function uuidV5(name) {
+  const h = hexOf(await crypto.subtle.digest("SHA-1", utf8Bytes(name)));
+  const v = `${h.slice(0, 12)}5${h.slice(13, 16)}${(parseInt(h.slice(16, 17), 16) & 3 | 8).toString(16)}${h.slice(17, 32)}`;
+  return `${v.slice(0, 8)}-${v.slice(8, 12)}-${v.slice(12, 16)}-${v.slice(16, 20)}-${v.slice(20, 32)}`;
+}
+function channelOf(r42) {
+  return r42.channel === "sms" || r42.channel === "email" ? r42.channel : "whatsapp";
+}
+function rowFacts(r42) {
+  return r42.facts !== null && typeof r42.facts === "object" && !Array.isArray(r42.facts) ? r42.facts : {};
+}
+function metaOf2(b) {
+  const label = b.audience?.label;
+  return {
+    source: "broadcast",
+    broadcast_id: b.id,
+    broadcast_name: b.name,
+    ...b.playbook_id ? { playbook_id: b.playbook_id, playbook_name: typeof label === "string" ? label : b.name } : {}
+  };
+}
+async function versionOf(w, channel) {
+  if (!(channel in w.versions)) {
+    const row = await w.ports.template(w.b.template_name, w.b.template_language, channel);
+    w.versions[channel] = row && row.meta_status === "approved" ? versionWords({ channel, components: row.components, body_preview: row.body_preview }) : null;
+  }
+  return w.versions[channel] ?? null;
+}
+async function overAllowance(w, channel) {
+  if (!heldByAllowance(w.trigger, w.purpose)) return false;
+  w.month[channel] ??= await w.ports.monthSent(channel);
+  return allowanceRoom(channel, w.month[channel] ?? 0) === 0;
+}
+function countSent(w, channel) {
+  if (channel !== "whatsapp") w.month[channel] = (w.month[channel] ?? 0) + 1;
+}
+async function emailDelivery(w, i, base) {
+  const version = await versionOf(w, "email");
+  if (!version) return { held: "no_channel" };
+  const said = renderOwnVersion("email", version, i.params, w.b.template_language);
+  if (!said.subject) return { held: "no_channel" };
+  const messageId = await uuidV5(`broadcast_email:${w.b.id}:${i.c.id}:${w.cmd.waits ?? 0}:${w.cmd.stalls ?? 0}`);
+  const { businessName, address } = w.facts;
+  let foot;
+  if (w.purpose === "marketing") {
+    if (!address?.trim()) return { held: "no_business_address" };
+    const unsubscribeUrl2 = await w.ports.unsubscribeUrl({ messageId, contactId: i.c.id });
+    if (!unsubscribeUrl2?.trim()) return { held: "no_channel" };
+    const offer = {
+      kind: "offer",
+      why: i.c.email_marketing === "opted_in" ? "asked" : "customer",
+      unsubscribeUrl: unsubscribeUrl2
+    };
+    foot = {
+      footer: emailFoot(businessName, address, offer),
+      offer: { unsubscribeUrl: unsubscribeUrl2, footerHtml: emailFootHtml(businessName, address, offer) }
+    };
+  } else foot = { footer: emailFoot(businessName, address, { kind: "visit", facts: rowFacts(i.r) }) };
+  const request = await w.ports.emailRequest({ messageId, to: i.to, subject: said.subject, body: said.body, ...foot });
+  if (!request) return { held: "no_channel" };
+  return {
+    delivery: { ...base, channel: "email", body: said.body, messageId, email: request },
+    queue: {
+      id: messageId,
+      conversationId: i.conversationId,
+      contactId: i.c.id,
+      body: said.body,
+      request,
+      meta: metaOf2(w.b)
+    }
+  };
+}
+async function queueEmailRow(w, made) {
+  return !made.queue || (await w.ports.queueEmail(made.queue)).status === "queued";
+}
+async function prepare(w, i) {
+  const { b, cmd } = w;
+  const base = {
+    tenantId: cmd.tenantId,
+    conversationId: i.conversationId,
+    contactId: i.c.id,
+    to: i.to,
+    sender: "human",
+    kind: "broadcast",
+    purpose: w.purpose,
+    proactive: true,
+    // A send the provider provably did not take (a connection that never opened, its "not now") is handed back rather
+    // than written as failed: this person waits in the queue, and the run waits with them (00282).
+    holdIfNotTaken: true,
+    // A run's message names its playbook, so a thread reads "by the Win-back playbook".
+    meta: metaOf2(b)
+  };
+  if (i.channel === "whatsapp") {
+    return {
+      delivery: {
+        ...base,
+        channel: "whatsapp",
+        body: renderTemplate(w.tpl.body_preview, i.params),
+        template: { name: b.template_name, language: b.template_language, params: i.params }
+      }
+    };
+  }
+  if (i.channel === "email") return emailDelivery(w, i, base);
+  const version = await versionOf(w, "sms");
+  if (!version) return { held: "no_channel" };
+  const said = renderOwnVersion("sms", version, i.params, b.template_language);
+  return { delivery: { ...base, channel: "sms", body: said.body } };
+}
 var BROADCAST_STALL_RETRY_MS = 6e4;
 var BROADCAST_STALLS_MAX = 30;
-var BROADCAST_CHANNEL = "whatsapp";
+var WIRE_WORDS = {
+  whatsapp: {
+    credentials: "This workspace's WhatsApp credentials",
+    down: "WhatsApp could not be reached on this workspace's number",
+    notConnected: "the number is not connected",
+    noWire: "this runtime has no WhatsApp wire",
+    answered: "WhatsApp answered HTTP",
+    reconnect: "Reconnect the number in Settings \u203A Channels",
+    limiting: "WhatsApp kept limiting how fast this number may send",
+    lifts: "WhatsApp lifts these limits on its own",
+    reach: "WhatsApp could not be reached",
+    fine: "Nothing is wrong with the number",
+    to: "WhatsApp"
+  },
+  sms: {
+    credentials: "This workspace's texting line",
+    down: "Texts could not be sent on this workspace's line",
+    notConnected: "the line is not connected",
+    noWire: "this runtime has no texting wire",
+    answered: "the texting provider answered HTTP",
+    reconnect: "Check the line in Settings \u203A Channels",
+    limiting: "The texting provider kept limiting how fast this line may send",
+    lifts: "It lifts these limits on its own",
+    reach: "The texting provider could not be reached",
+    fine: "Nothing is wrong with the line",
+    to: "the texting provider"
+  },
+  email: {
+    credentials: "This workspace's mailbox",
+    down: "Email could not be sent from this workspace's mailbox",
+    notConnected: "the mailbox is not set up",
+    noWire: "this runtime has no email wire",
+    answered: "the mail provider answered HTTP",
+    reconnect: "Check the mailbox in Settings \u203A Connections",
+    limiting: "The mail provider kept limiting how fast this workspace may send",
+    lifts: "It lifts these limits on its own",
+    reach: "The mail provider could not be reached",
+    fine: "Nothing is wrong with the mailbox",
+    to: "the mail provider"
+  }
+};
+var LIMIT_WORDS = {
+  daily: {
+    reached: "The mail provider's limit for the day was reached",
+    again: "It resets on its own; send it again tomorrow."
+  },
+  monthly: {
+    reached: "The mail provider's limit for the month was reached",
+    again: "It resets with the new month; send it again then."
+  }
+};
 var broadcastLog = logger2();
 function wireIsDown(out) {
   return out.reason === "no_credentials" || out.reason === "no_sender_for_channel" || out.reason === "provider" && (out.status === 401 || out.status === 403);
@@ -21170,40 +23082,124 @@ var ThrownAtTheDoor = class {
     this.error = error;
   }
 };
-async function mayGoNow(ports, b, cmd) {
-  if (await ports.workspacePaused()) {
-    await ports.fail(b.id, "paused");
-    await ports.alert({
-      kind: "broadcast_stopped",
-      route: "broadcasts",
-      about: { type: "broadcast", id: b.id },
-      subject: `Broadcast \u201C${b.name}\u201D not sent`,
-      body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again."
-    });
-    return false;
-  }
-  const unbound = await ports.wireUnavailable(BROADCAST_CHANNEL);
-  if (unbound) {
-    broadcastLog.error("broadcast_wire_unavailable", { broadcast_id: b.id, reason: unbound });
-    const stopped = await stall(ports, b, cmd, "credentials") === "stopped";
+async function stoppedByBilling(ports, b) {
+  if (!await ports.workspacePaused()) return false;
+  await ports.fail(b.id, "paused");
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast \u201C${b.name}\u201D not sent`,
+    body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again."
+  });
+  return true;
+}
+async function wireIsUnbound(ports, b, cmd, batch) {
+  for (const channel of new Set(batch.map(channelOf))) {
+    const unbound = await ports.wireUnavailable(channel);
+    if (!unbound) continue;
+    broadcastLog.error("broadcast_wire_unavailable", { broadcast_id: b.id, channel, reason: unbound });
+    const stopped = await stall(ports, b, cmd, channel) === "stopped";
     await ports.page?.(
-      `wire_unavailable:${BROADCAST_CHANNEL}`,
-      `${BROADCAST_CHANNEL}: a workspace's credentials could not be read`,
+      `wire_unavailable:${channel}`,
+      `${channel}: a workspace's credentials could not be read`,
       `Broadcast ${b.id} ${stopped ? "stopped after waiting the most it may" : "waits"}, everyone still queued: ${unbound}.`
     )?.catch(() => void 0);
-    return false;
+    return true;
   }
-  return true;
+  return false;
+}
+async function readPeople(ports, b, batch) {
+  const ids = batch.map((r42) => r42.contact_id);
+  if (ids.length === 0) return { people: /* @__PURE__ */ new Map(), priors: /* @__PURE__ */ new Map(), unreadable: false };
+  try {
+    const [people, priors] = await Promise.all([ports.contacts(ids), ports.alreadySent(b.id, ids)]);
+    return { people, priors, unreadable: false };
+  } catch (e) {
+    broadcastLog.error("broadcast_batch_unreadable", { broadcast_id: b.id, error: errField2(e) });
+    return { people: /* @__PURE__ */ new Map(), priors: /* @__PURE__ */ new Map(), unreadable: true };
+  }
+}
+function addressOf2(c, channel) {
+  const to = channel === "email" ? c.email : c.phone_e164;
+  return to ? { to } : { held: channel === "email" ? "no_address" : "no_phone" };
+}
+async function sendOne(w, r42) {
+  const { ports, b } = w;
+  const skip = async (reason) => {
+    await w.mark(r42.contact_id, { state: "skipped", reason });
+    return "go on";
+  };
+  const c = w.people.get(r42.contact_id) ?? null;
+  if (!c || c.erased_at) return skip("erased");
+  const channel = channelOf(r42);
+  const where = addressOf2(c, channel);
+  if ("held" in where) return skip(where.held);
+  const prior = w.priors.get(c.id) ?? null;
+  if (prior) {
+    await w.mark(r42.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt });
+    return "go on";
+  }
+  if (channel === "whatsapp" && !w.whatsappApproved) return skip("template_not_approved");
+  if (channel !== "whatsapp" && await overAllowance(w, channel)) return skip("month_allowance");
+  const target = channel === "email" ? await ports.targetOfContact(c.id) : await ports.target(where.to);
+  if (!target) return skip("no_thread");
+  const facts = rowFacts(r42);
+  const params = resolveParams(w.specs, {
+    firstName: firstNameOf(c.display_name, c.wa_profile_name),
+    businessName: w.facts.businessName,
+    bookingLink: w.facts.bookingLink,
+    visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
+    visitService: typeof facts.visit_service === "string" ? facts.visit_service : null,
+    // A follow-up's link, frozen when the run was made (0006).
+    proposalLink: typeof facts.proposal_link === "string" ? facts.proposal_link : null
+  });
+  if (params.some((v) => !v)) return skip("missing_value");
+  const made = await prepare(w, { r: r42, c, channel, to: where.to, conversationId: target.conversationId, params });
+  if ("held" in made) return skip(made.held);
+  if (!await ports.mark(b.id, r42.contact_id, { state: "failed", reason: OUTCOME_UNKNOWN2 })) return "go on";
+  const queued = await queueEmailRow(w, made).catch(async (e) => {
+    await release(ports, b.id, r42.contact_id, "not_taken");
+    throw e;
+  });
+  if (!queued) return skip("send_failed");
+  const out = await ports.deliver(made.delivery).catch(async (e) => {
+    if (isNotTakenError(e)) return { outcome: "not_taken", status: e.status };
+    await withdrawQueued(ports, b, made.delivery);
+    throw new ThrownAtTheDoor(e);
+  });
+  if (out.outcome === "not_taken") {
+    await withdrawQueued(ports, b, made.delivery);
+    return giveBack(ports, { broadcastId: b.id, contactId: r42.contact_id }, out.status !== 0, channel);
+  }
+  if (out.outcome === "sent") {
+    countSent(w, channel);
+    await w.mark(r42.contact_id, { state: "sent", reason: null, message_id: out.messageId });
+    return "go on";
+  }
+  if (out.outcome === "refused") return skip(out.reason);
+  if (out.throttled) return giveBack(ports, { broadcastId: b.id, contactId: r42.contact_id }, true, channel);
+  if (out.limit === "daily" || out.limit === "monthly") {
+    await stopForTheLimit(ports, b, r42.contact_id, out.limit);
+    return "stop";
+  }
+  await w.mark(r42.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
+  if (!wireIsDown(out)) return "go on";
+  await stopForTheWire(ports, b, out, channel);
+  return "stop";
 }
 async function sendBroadcastBatch(ports, cmd) {
   const b = await ports.broadcast(cmd.broadcastId);
   if (!b) return;
   if (b.state !== "scheduled" && b.state !== "sending") return;
   if (isReachOutRun(b.audience)) return;
-  if (!await mayGoNow(ports, b, cmd)) return;
+  if (await stoppedByBilling(ports, b)) return;
+  const batch = await ports.batch(b.id, BROADCAST_CHUNK);
+  if (await wireIsUnbound(ports, b, cmd, batch)) return;
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
-  const tpl = await ports.template(b.template_name, b.template_language);
-  if (!tpl || tpl.meta_status !== "approved") {
+  const tpl = await ports.template(b.template_name, b.template_language, "whatsapp");
+  const whatsappApproved = tpl?.meta_status === "approved";
+  if (!whatsappApproved && !await ports.byOtherChannels(b.id)) {
     await ports.fail(b.id, "template_not_approved");
     await ports.alert({
       kind: "broadcast_stopped",
@@ -21214,146 +23210,72 @@ async function sendBroadcastBatch(ports, cmd) {
     });
     return;
   }
-  const purpose = purposeOfTemplate(tpl.category);
-  const specs = parseParamSpecs(b.params);
-  const { businessName, bookingLink, timezone } = await ports.facts();
-  if (await ranIntoTheNight(ports, b, cmd, timezone)) return;
-  const batch = await ports.batch(b.id, BROADCAST_CHUNK);
-  const ids = batch.map((r42) => r42.contact_id);
-  let people = /* @__PURE__ */ new Map();
-  let priors = /* @__PURE__ */ new Map();
-  let unreadable = false;
-  if (ids.length > 0) {
-    try {
-      [people, priors] = await Promise.all([ports.contacts(ids), ports.alreadySent(b.id, ids)]);
-    } catch (e) {
-      unreadable = true;
-      broadcastLog.error("broadcast_batch_unreadable", { broadcast_id: b.id, error: errField(e) });
+  const facts = await ports.facts();
+  if (await ranIntoTheNight(ports, b, cmd, facts.timezone)) return;
+  const { people, priors, unreadable } = await readPeople(ports, b, batch);
+  const w = {
+    ports,
+    cmd,
+    b,
+    // WHICH yes this send needs. Meta's category is the authority — it can
+    // recategorise a live template — and purposeOfTemplate fails closed, so a
+    // template whose category we do not have reads as marketing and needs the
+    // stronger consent rather than the weaker one. Whichever channel it goes by.
+    // The message's own, kept when Meta no longer approves its WhatsApp row (a row that is gone reads as marketing).
+    purpose: purposeOfTemplate(tpl?.category),
+    tpl: tpl ?? { body_preview: null },
+    whatsappApproved,
+    specs: parseParamSpecs(b.params),
+    facts,
+    people,
+    priors,
+    versions: {},
+    month: {},
+    // A visit run is never held by the month's allowance; its audience names the moment (contracts audienceTrigger).
+    trigger: audienceTrigger(b.audience),
+    marked: 0,
+    mark: async (contactId, patch) => {
+      w.marked += 1;
+      await ports.mark(b.id, contactId, patch);
     }
-  }
+  };
   let begun = 0;
-  let marked = 0;
-  const mark = async (contactId, patch) => {
-    marked += 1;
-    await ports.mark(b.id, contactId, patch);
-  };
-  const skip = (contactId, reason) => mark(contactId, { state: "skipped", reason });
-  const one = async (r42) => {
-    const c = people.get(r42.contact_id) ?? null;
-    if (!c || c.erased_at) {
-      await skip(r42.contact_id, "erased");
-      return "go on";
-    }
-    if (!c.phone_e164) {
-      await skip(r42.contact_id, "no_phone");
-      return "go on";
-    }
-    const prior = priors.get(c.id) ?? null;
-    if (prior) {
-      await mark(r42.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt });
-      return "go on";
-    }
-    const target = await ports.target(c.phone_e164);
-    if (!target) {
-      await skip(r42.contact_id, "no_thread");
-      return "go on";
-    }
-    const facts = r42.facts !== null && typeof r42.facts === "object" && !Array.isArray(r42.facts) ? r42.facts : {};
-    const params = resolveParams(specs, {
-      firstName: firstNameOf(c.display_name, c.wa_profile_name),
-      businessName,
-      bookingLink,
-      visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
-      visitService: typeof facts.visit_service === "string" ? facts.visit_service : null,
-      // A follow-up's link, frozen when the run was made (0006).
-      proposalLink: typeof facts.proposal_link === "string" ? facts.proposal_link : null
-    });
-    if (params.some((v) => !v)) {
-      await skip(r42.contact_id, "missing_value");
-      return "go on";
-    }
-    const words42 = renderTemplate(tpl.body_preview, params);
-    await ports.mark(b.id, r42.contact_id, { state: "failed", reason: OUTCOME_UNKNOWN });
-    const out = await ports.deliver({
-      tenantId: cmd.tenantId,
-      conversationId: target.conversationId,
-      contactId: c.id,
-      to: c.phone_e164,
-      channel: "whatsapp",
-      sender: "human",
-      kind: "broadcast",
-      purpose,
-      proactive: true,
-      body: words42,
-      template: { name: b.template_name, language: b.template_language, params },
-      // A send WhatsApp provably did not take (a connection that never opened, its "not now") is handed back rather
-      // than written as failed: this person waits in the queue, and the run waits with them (00282).
-      holdIfNotTaken: true,
-      // A run's message names its playbook, so a thread reads "by the Win-back playbook".
-      meta: {
-        source: "broadcast",
-        broadcast_id: b.id,
-        broadcast_name: b.name,
-        ...b.playbook_id ? {
-          playbook_id: b.playbook_id,
-          playbook_name: String(b.audience?.label ?? b.name)
-        } : {}
-      }
-    }).catch((e) => {
-      if (isNotTakenError(e)) return { outcome: "not_taken", status: e.status };
-      throw new ThrownAtTheDoor(e);
-    });
-    if (out.outcome === "not_taken") return giveBack(ports, b.id, r42.contact_id, out.status !== 0);
-    if (out.outcome === "sent") {
-      await mark(r42.contact_id, { state: "sent", reason: null, message_id: out.messageId });
-      return "go on";
-    }
-    if (out.outcome === "refused") {
-      await skip(r42.contact_id, out.reason);
-      return "go on";
-    }
-    if (out.throttled) return giveBack(ports, b.id, r42.contact_id, true);
-    await mark(r42.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
-    if (!wireIsDown(out)) return "go on";
-    await stopForTheWire(ports, b, out);
-    return "stop";
-  };
   for (const [i, r42] of batch.entries()) {
     if (unreadable) break;
     if (begun > 0 && ports.now() >= cmd.deadline) break;
     begun += 1;
     let verdict;
     try {
-      verdict = await one(r42);
+      verdict = await sendOne(w, r42);
     } catch (e) {
       if (e instanceof ThrownAtTheDoor) throw e.error;
-      broadcastLog.error("broadcast_person_unreadable", { contact_id: r42.contact_id, error: errField(e) });
+      broadcastLog.error("broadcast_person_unreadable", { contact_id: r42.contact_id, error: errField2(e) });
       continue;
     }
     if (verdict === "stop") return;
-    if (verdict === "throttled" || verdict === "unreachable") return backOff(ports, b, cmd, timezone, verdict);
+    if (verdict !== "go on") return backOff(ports, b, cmd, { ...verdict, timezone: facts.timezone });
     if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
   const remaining = await ports.remaining(b.id);
   if (remaining > 0) {
     if (await ports.state(b.id) !== "sending") return;
-    if (batch.length > 0 && marked === 0) await stall(ports, b, cmd, "people");
+    if (batch.length > 0 && w.marked === 0) await stall(ports, b, cmd, "people");
     else await ports.scheduleNext(b.id);
     return;
   }
-  const { sent, held } = await ports.tally(b.id);
-  await ports.finish(b.id, { sent, held });
-  await ports.alert(finishedNews(b, sent, held));
+  const { sent: sent42, held } = await ports.tally(b.id);
+  await ports.finish(b.id, { sent: sent42, held });
+  await ports.alert(finishedNews(b, sent42, held));
 }
-function finishedNews(b, sent, held) {
+function finishedNews(b, sent42, held) {
   const why = "no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish";
   const people = (n) => `${n} ${n === 1 ? "person" : "people"}`;
   return {
     kind: "broadcast_sent",
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
-    subject: sent > 0 ? `Broadcast \u201C${b.name}\u201D sent` : `Broadcast \u201C${b.name}\u201D reached nobody`,
-    body: sent > 0 ? `${sent} of ${people(sent + held)} got it${held ? `; ${held} held back (${why})` : ""}. Replies land in the Inbox.` : `None of the ${people(held)} on it got it: each was held back (${why}). The broadcast's page says who and why.`
+    subject: sent42 > 0 ? `Broadcast \u201C${b.name}\u201D sent` : `Broadcast \u201C${b.name}\u201D reached nobody`,
+    body: sent42 > 0 ? `${sent42} of ${people(sent42 + held)} got it${held ? `; ${held} held back (${why})` : ""}. Replies land in the Inbox.` : `None of the ${people(held)} on it got it: each was held back (${why}). The broadcast's page says who and why.`
   };
 }
 async function ranIntoTheNight(ports, b, cmd, timezone) {
@@ -21362,13 +23284,13 @@ async function ranIntoTheNight(ports, b, cmd, timezone) {
   await stopAfterHours(ports, b);
   return true;
 }
-async function giveBack(ports, broadcastId, contactId, reached) {
-  await release(ports, broadcastId, contactId, reached ? "throttled" : "not_taken");
-  return reached ? "throttled" : "unreachable";
+async function giveBack(ports, who, reached, channel) {
+  await release(ports, who.broadcastId, who.contactId, reached ? "throttled" : "not_taken");
+  return { back: reached ? "throttled" : "unreachable", channel };
 }
-function gotIt(sent) {
-  if (sent === null) return "";
-  return sent === 0 ? "Nobody got it." : sent === 1 ? "One person got it." : `${sent} people got it.`;
+function gotIt(sent42) {
+  if (sent42 === null) return "";
+  return sent42 === 0 ? "Nobody got it." : sent42 === 1 ? "One person got it." : `${sent42} people got it.`;
 }
 async function stall(ports, b, cmd, what) {
   const stalls = (cmd.stalls ?? 0) + 1;
@@ -21377,26 +23299,27 @@ async function stall(ports, b, cmd, what) {
     await ports.scheduleNext(b.id, at, { ...cmd.waits ? { waits: cmd.waits } : {}, stalls });
     return "waits";
   }
-  const sent = await ports.tally(b.id).then(
+  const sent42 = await ports.tally(b.id).then(
     (t) => t.sent,
     () => null
   );
   await ports.fail(b.id, "stalled");
+  const words42 = WIRE_WORDS[what === "people" ? "whatsapp" : what];
   await ports.alert({
     kind: "broadcast_stopped",
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
     body: [
-      `${what === "credentials" ? "This workspace's WhatsApp credentials" : "The people on it"} could not be read for about half an hour, so the rest was not sent.`,
-      gotIt(sent),
-      "Nothing is wrong with the number; send it again later."
+      `${what === "people" ? "The people on it" : words42.credentials} could not be read for about half an hour, so the rest was not sent.`,
+      gotIt(sent42),
+      `${words42.fine}; send it again later.`
     ].filter(Boolean).join(" ")
   });
   return "stopped";
 }
 async function stopAfterHours(ports, b) {
-  const sent = await ports.tally(b.id).then(
+  const sent42 = await ports.tally(b.id).then(
     (t) => t.sent,
     () => null
   );
@@ -21408,20 +23331,49 @@ async function stopAfterHours(ports, b) {
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
     body: [
       "It was waiting to go on when the day's sending hours ran out, so the rest was not sent.",
-      gotIt(sent),
+      gotIt(sent42),
       "Send it again tomorrow."
     ].filter(Boolean).join(" ")
   });
 }
-async function stopForTheWire(ports, b, out) {
-  const cause = out.reason === "no_credentials" ? "the number is not connected" : out.reason === "no_sender_for_channel" ? "this runtime has no WhatsApp wire" : `WhatsApp answered HTTP ${out.status}`;
+async function stopForTheWire(ports, b, out, channel) {
+  const words42 = WIRE_WORDS[channel];
+  const cause = out.reason === "no_credentials" ? words42.notConnected : out.reason === "no_sender_for_channel" ? words42.noWire : `${words42.answered} ${out.status}`;
   await ports.fail(b.id, "wire_unavailable");
   await ports.alert({
     kind: "broadcast_stopped",
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
-    body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.`
+    body: `${words42.down} (${cause}), so the rest was not sent. ${words42.reconnect} and send it again.`
+  });
+}
+async function stopForTheLimit(ports, b, contactId, limit) {
+  await release(ports, b.id, contactId, "throttled");
+  const sent42 = await ports.tally(b.id).then(
+    (t) => t.sent,
+    () => null
+  );
+  const words42 = LIMIT_WORDS[limit];
+  await ports.fail(b.id, "provider_limit");
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast \u201C${b.name}\u201D stopped`,
+    body: [`${words42.reached}, so the rest was not sent.`, gotIt(sent42), words42.again].filter(Boolean).join(" ")
+  });
+  await ports.page?.(
+    "provider_quota:email",
+    `email: the ${limit === "daily" ? "day" : "month"}'s sending limit is used up`,
+    `Broadcast ${b.id} stopped on it, everyone not yet sent still queued. Every workspace's email is refused until it resets or the plan grows.`
+  )?.catch(() => void 0);
+}
+async function withdrawQueued(ports, b, delivery) {
+  const email = delivery.channel === "email" ? delivery.messageId : null;
+  if (!email) return;
+  await ports.withdrawEmail(email).catch((e) => {
+    broadcastLog.error("broadcast_email_not_withdrawn", { broadcast_id: b.id, message_id: email, error: errField2(e) });
   });
 }
 async function release(ports, broadcastId, contactId, reason) {
@@ -21429,25 +23381,27 @@ async function release(ports, broadcastId, contactId, reason) {
     broadcastLog.error("broadcast_release_refused", {
       broadcast_id: broadcastId,
       contact_id: contactId,
-      error: errField(e)
+      error: errField2(e)
     });
   });
 }
-async function backOff(ports, b, cmd, timezone, why) {
+async function backOff(ports, b, cmd, how) {
+  const { back: why, channel, timezone } = how;
+  const words42 = WIRE_WORDS[channel];
   const waited = cmd.waits ?? 0;
   const wait = BROADCAST_THROTTLE_WAITS_MS22[waited];
   const at = wait === void 0 ? null : new Date(ports.now() + jittered2(wait, ports.random));
   if (why === "unreachable")
     await ports.page?.(
-      `unreachable:${BROADCAST_CHANNEL}`,
-      `${BROADCAST_CHANNEL}: a broadcast could not reach the provider`,
-      `Broadcast ${b.id} could not open a connection to WhatsApp; the person it was for is back in the queue and the run ${at ? `tries again at ${at.toISOString()}` : "has stopped"}.`
+      `unreachable:${channel}`,
+      `${channel}: a broadcast could not reach the provider`,
+      `Broadcast ${b.id} could not open a connection to ${words42.to}; the person it was for is back in the queue and the run ${at ? `tries again at ${at.toISOString()}` : "has stopped"}.`
     )?.catch(() => void 0);
   if (at && !nextOpenMoment(timezone, at).moved) {
     await ports.scheduleNext(b.id, at, { waits: waited + 1 });
     return;
   }
-  const { sent } = await ports.tally(b.id);
+  const { sent: sent42 } = await ports.tally(b.id);
   await ports.fail(b.id, why === "throttled" ? "throttled" : "wire_unavailable");
   const until = at ? "until the day's sending hours ran out" : "for about an hour";
   await ports.alert({
@@ -21455,9 +23409,10 @@ async function backOff(ports, b, cmd, timezone, why) {
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
-    body: why === "throttled" ? `WhatsApp kept limiting how fast this number may send ${until}, so the rest was not sent. ${gotIt(sent)} WhatsApp lifts these limits on its own; send it again later.` : `WhatsApp could not be reached ${until}, so the rest was not sent. ${gotIt(sent)} Nothing is wrong with the number; send it again later.`
+    body: why === "throttled" ? `${words42.limiting} ${until}, so the rest was not sent. ${gotIt(sent42)} ${words42.lifts}; send it again later.` : `${words42.reach} ${until}, so the rest was not sent. ${gotIt(sent42)} ${words42.fine}; send it again later.`
   });
 }
+var assembleLog = logger2();
 var MAPS_RUN_TIMEOUT_SECS = 45 * 60;
 var CHECKER_RUN_TIMEOUT_SECS = 15 * 60;
 var JUDGE_TIMEOUT_MS = MODEL_ROUTES22.lead_judge.timeoutMs;
@@ -21630,6 +23585,7 @@ function must(what, r5) {
 }
 
 // src/broadcast-send.ts
+var sendLog = logger();
 async function countRecipients(db, tenantId, broadcastId, state) {
   let q = db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId);
   if (state) q = q.eq("state", state);
@@ -21648,6 +23604,153 @@ function wireUnbound(ctx, channel) {
 }
 function wirePorts(ctx) {
   return { wireUnavailable: async (channel) => wireUnbound(ctx, channel), ...ctx.page ? { page: ctx.page } : {} };
+}
+function emailRequestPort(ctx, tenantId) {
+  let mailbox;
+  let said = false;
+  return async (i) => {
+    const domain = ctx.email?.domain;
+    if (!domain) return null;
+    const campaigns = ctx.email?.campaigns;
+    if (i.offer && !campaigns) return null;
+    mailbox ??= await mailboxOfTenant(ctx.db, tenantId);
+    if (!mailbox) return null;
+    try {
+      const request = buildEmailRequest({
+        identity: i.offer && campaigns ? campaignsIdentity(mailbox, campaigns.domain, domain) : hostedIdentity(mailbox, domain),
+        to: i.to,
+        parent: null,
+        subject: i.subject,
+        body: i.body,
+        // The foot, where a signature goes: after the words, in the text and in the HTML. An offer's is a campaign's:
+        // the one-click unsubscribe rides in its headers and its link in the foot (never the same words twice).
+        signature: i.offer ? null : i.footer,
+        ...i.offer ? { campaign: { unsubscribeUrl: i.offer.unsubscribeUrl, footer: i.footer, footerHtml: i.offer.footerHtml } } : {},
+        // A program's email, sent on its own schedule: marked auto-generated, so an out-of-office does not answer it.
+        actor: "ai",
+        messageId: i.messageId,
+        tenantId
+      });
+      return { ...request, tags: [...request.tags, { name: CAMPAIGN_EMAIL_TAG, value: "broadcast" }] };
+    } catch (e) {
+      if (!said) {
+        said = true;
+        sendLog.error("broadcast_email_request_failed", { tenant_id: tenantId, offer: !!i.offer, error: errField(e) });
+      }
+      return null;
+    }
+  };
+}
+function unsubscribeUrlPort(ctx, tenantId) {
+  let said = false;
+  return ({ messageId, contactId }) => {
+    const c = ctx.email?.campaigns;
+    if (!c) return Promise.resolve(null);
+    try {
+      const token = signUnsubscribeToken(c.unsubscribeSecret, { tenantId, contactId, messageId });
+      return Promise.resolve(unsubscribeUrl(c.unsubscribeOrigin, token));
+    } catch (e) {
+      if (!said) {
+        said = true;
+        sendLog.error("broadcast_unsubscribe_unsigned", { tenant_id: tenantId, error: errField(e) });
+      }
+      return Promise.resolve(null);
+    }
+  };
+}
+function frozen(r5) {
+  return {
+    ...r5,
+    to: [...r5.to],
+    reply_to: [...r5.reply_to],
+    headers: { ...r5.headers },
+    tags: r5.tags.map((t) => ({ ...t }))
+  };
+}
+function peoplePorts(ctx, tenantId) {
+  const db = ctx.db;
+  return {
+    // On a database 00298 has not reached, a recipient has no channel and everyone goes by WhatsApp, as every run did
+    // (packages/db queuedRecipients): code that ships before its migration must keep its broadcasts going.
+    batch: (id, limit) => queuedRecipients(db, { tenantId, broadcastId: id, limit }),
+    // The batch's people in one read, not one read per person.
+    contacts: async (ids) => {
+      const { data, error } = await db.from("contacts").select(
+        "id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name, email, email_marketing"
+      ).in("id", ids).eq("tenant_id", tenantId);
+      if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
+      return new Map((data ?? []).map((c) => [c.id, c]));
+    },
+    // create: false — a broadcast never opens a contact. touch: false — the
+    // door below still has to refuse some of these people, and a thread they
+    // were not messaged in has nothing new in it.
+    target: (phoneE164) => resolveOutboundTarget(db, { tenantId, phoneE164, create: false, touch: false }),
+    // An email reaches the person by their address, so its thread is found by the person.
+    targetOfContact: (contactId) => resolveOutboundTargetForContact(db, { tenantId, contactId, touch: false }),
+    emailRequest: emailRequestPort(ctx, tenantId),
+    unsubscribeUrl: unsubscribeUrlPort(ctx, tenantId),
+    // The email, written queued under the id its request was frozen with, before it leaves (the door asks for the
+    // row). Its row keeps the request as meta.email, as every email's does. A row already there is a resumed run's.
+    queueEmail: async (row) => {
+      const wrote = await insertQueuedEmail(db, {
+        id: row.id,
+        tenant_id: tenantId,
+        conversation_id: row.conversationId,
+        contact_id: row.contactId,
+        channel: "email",
+        direction: "outbound",
+        sender: "human",
+        type: "text",
+        body: row.body,
+        status: "queued",
+        meta: {
+          ...row.meta,
+          email: { subject: row.request.subject, to: [...row.request.to], request: frozen(row.request) }
+        }
+      });
+      if (wrote === "written") return { status: "queued" };
+      const there = await writtenEmail(db, { tenantId, id: row.id });
+      if (!there) throw new Error(`broadcast_send: the email ${row.id} is taken and cannot be read`);
+      return { status: there.status };
+    },
+    withdrawEmail: async (messageId) => {
+      await withdrawEmail(db, { tenantId, id: messageId, reason: "not_taken" });
+    },
+    monthSent: (channel) => campaignMonthSent(db, tenantId, channel),
+    // The messages a dying run left these people: written by deliver after the
+    // wire accepted them, with this broadcast's id in their meta, read once for
+    // the batch. It is the one check standing between a resumed run and a
+    // second WhatsApp template to the same person, so a read that FAILED must
+    // never come back as "no, they have not been messaged".
+    alreadySent: async (id, contactIds) => {
+      const rows = must(
+        "broadcast_send: cannot check what the batch was already sent",
+        await db.from("messages").select("id, contact_id, created_at").eq("tenant_id", tenantId).in("contact_id", contactIds).filter("meta->>broadcast_id", "eq", id).in("status", ["sent", "delivered", "read"])
+      );
+      const prior = /* @__PURE__ */ new Map();
+      for (const m of rows ?? [])
+        if (m.contact_id && !prior.has(m.contact_id)) prior.set(m.contact_id, { id: m.id, sentAt: m.created_at });
+      return prior;
+    },
+    // Whether anyone on the run goes by email or text: what WhatsApp's template not being approved asks (core sendBroadcastBatch).
+    byOtherChannels: (id) => runGoesByOthers(db, tenantId, id),
+    mark: markPort(db, tenantId)
+  };
+}
+function markPort(db, tenantId) {
+  return async (id, contactId, patch) => {
+    const sentAt = patch.sent_at ?? (patch.state === "sent" ? (/* @__PURE__ */ new Date()).toISOString() : null);
+    const write = db.from("broadcast_recipients").update({ ...patch, sent_at: sentAt }).eq("tenant_id", tenantId).eq("broadcast_id", id).eq("contact_id", contactId);
+    if (patch.state !== "failed" || patch.reason !== OUTCOME_UNKNOWN) {
+      must("broadcast_send: cannot record how this person's send went", await write);
+      return true;
+    }
+    const took = must(
+      "broadcast_send: cannot claim this person",
+      await write.eq("state", "queued").select("contact_id")
+    );
+    return (took ?? []).length > 0;
+  };
 }
 async function broadcastSend(ctx, job) {
   const p = job.payload;
@@ -21685,53 +23788,16 @@ async function broadcastSend(ctx, job) {
       // decides which consent the send needs. A template that cannot be READ is
       // not a template Meta withdrew: null here fails the whole broadcast and
       // emails the owner that WhatsApp rejected it, which would be a lie about
-      // their Meta account told over a statement timeout.
-      template: async (name, language) => must(
+      // their Meta account told over a statement timeout. An email's or a text's
+      // version of the message is the row of its name and language on its channel.
+      template: async (name, language, channel) => must(
         `broadcast_send: cannot read template ${name}`,
-        await db.from("templates").select("meta_status, body_preview, category").eq("tenant_id", job.tenant_id).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle()
+        await db.from("templates").select("meta_status, body_preview, category, components").eq("tenant_id", job.tenant_id).eq("channel", channel).eq("name", name).eq("language", language).maybeSingle()
       ),
       facts: () => workspaceFacts(db, job.tenant_id),
-      batch: async (id, limit) => {
-        const { data, error } = await db.from("broadcast_recipients").select("contact_id, facts").eq("tenant_id", job.tenant_id).eq("broadcast_id", id).eq("state", "queued").limit(limit);
-        if (error) throw new Error(`broadcast_send: cannot read recipients: ${error.message}`);
-        return data ?? [];
-      },
-      // The batch's people in one read, not one read per person.
-      contacts: async (ids) => {
-        const { data, error } = await db.from("contacts").select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name").in("id", ids).eq("tenant_id", job.tenant_id);
-        if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
-        return new Map((data ?? []).map((c) => [c.id, c]));
-      },
-      // create: false — a broadcast never opens a contact. touch: false — the
-      // door below still has to refuse some of these people, and a thread they
-      // were not messaged in has nothing new in it.
-      target: (phoneE164) => resolveOutboundTarget(db, { tenantId: job.tenant_id, phoneE164, create: false, touch: false }),
-      // The messages a dying run left these people: written by deliver after the
-      // wire accepted them, with this broadcast's id in their meta, read once for
-      // the batch. It is the one check standing between a resumed run and a
-      // second WhatsApp template to the same person, so a read that FAILED must
-      // never come back as "no, they have not been messaged".
-      alreadySent: async (id, contactIds) => {
-        const rows = must(
-          "broadcast_send: cannot check what the batch was already sent",
-          await db.from("messages").select("id, contact_id, created_at").eq("tenant_id", job.tenant_id).in("contact_id", contactIds).filter("meta->>broadcast_id", "eq", id).in("status", ["sent", "delivered", "read"])
-        );
-        const prior = /* @__PURE__ */ new Map();
-        for (const m of rows ?? [])
-          if (m.contact_id && !prior.has(m.contact_id)) prior.set(m.contact_id, { id: m.id, sentAt: m.created_at });
-        return prior;
-      },
-      // `sent_at` comes from the patch when the caller knows it — a resumed run
-      // reading the message a dying run left knows when it actually went out,
-      // and stamping "now" instead would reorder the broadcast's own page.
-      mark: async (id, contactId, patch) => {
-        const sentAt = patch.sent_at ?? (patch.state === "sent" ? (/* @__PURE__ */ new Date()).toISOString() : null);
-        must(
-          "broadcast_send: cannot record how this person's send went",
-          await db.from("broadcast_recipients").update({ ...patch, sent_at: sentAt }).eq("tenant_id", job.tenant_id).eq("broadcast_id", id).eq("contact_id", contactId)
-        );
-      },
-      deliver: (d) => deliver({ db, wire: ctx.wire }, d),
+      ...peoplePorts(ctx, job.tenant_id),
+      // Offers by email go only where this runtime holds a verified campaigns domain (the edge binds it for this job).
+      deliver: (d) => deliver({ db, wire: ctx.wire, emailOffers: !!ctx.email?.campaigns }, d),
       ...wirePorts(ctx),
       remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),
       // Read by the verb as "is this broadcast still wanted"; null is how a
@@ -21748,11 +23814,11 @@ async function broadcastSend(ctx, job) {
       // This tally is written to the permanent record and read out to the owner,
       // so it is counted rather than tallied from a page of rows.
       tally: async (id) => {
-        const [all, sent] = await Promise.all([
+        const [all, sent5] = await Promise.all([
           countRecipients(db, job.tenant_id, id),
           countRecipients(db, job.tenant_id, id, "sent")
         ]);
-        return { sent, held: all - sent };
+        return { sent: sent5, held: all - sent5 };
       },
       finish: async (id, tally) => {
         must(
@@ -21793,7 +23859,9 @@ async function workspaceFacts(db, tenantId) {
   return {
     businessName,
     bookingLink: parsedCfg?.brain?.booking_link ?? null,
-    timezone: tenantRow?.timezone || "UTC"
+    timezone: tenantRow?.timezone || "UTC",
+    // The postal address an email's foot gives, as the Business record keeps it; none, none.
+    address: parsedCfg?.brain?.profile?.address?.trim() || null
   };
 }
 
@@ -21972,7 +24040,8 @@ function incomingEmailOf(e) {
     references: messageIdsIn(e.headers.references),
     receivedAt: e.createdAt,
     claim: classifyReceived(e),
-    attachments: e.attachments
+    attachments: e.attachments,
+    senderAuthenticated: senderAuthenticated(e)
   };
 }
 async function emailIngest(ctx, job) {
@@ -22167,9 +24236,9 @@ function resumesOf2(payload) {
 }
 async function howFar(db, tenantId, broadcastId) {
   const of = (state) => db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId).eq("state", state);
-  const [sent, queued] = await Promise.all([of("sent"), of("queued")]);
-  const error = sent.error?.message ?? queued.error?.message;
-  return { reached: sent.count ?? 0, remaining: queued.count ?? 0, ...error ? { error } : {} };
+  const [sent5, queued] = await Promise.all([of("sent"), of("queued")]);
+  const error = sent5.error?.message ?? queued.error?.message;
+  return { reached: sent5.count ?? 0, remaining: queued.count ?? 0, ...error ? { error } : {} };
 }
 async function failBroadcast(db, job, broadcastId, why, far) {
   const { data, error } = await db.from("broadcasts").update({ state: "failed", failure: "run_interrupted", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", broadcastId).eq("tenant_id", job.tenant_id).in("state", ["scheduled", "sending"]).select("id");

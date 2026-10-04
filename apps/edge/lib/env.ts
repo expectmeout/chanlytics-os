@@ -123,6 +123,14 @@ export const env = {
   get EMAIL_DOMAIN() {
     return trimmedEnv(process.env.EMAIL_DOMAIN);
   },
+  /**
+   * The domain OFFERS by email leave from (One message, every channel, step 4): a sending subdomain on the platform's
+   * Resend account (campaigns.chanlytics.com), verified there, so a complaint about an offer never touches the domain
+   * replies and visit messages leave from. Blank, or not yet verified: offers by email stay refused, as they were.
+   */
+  get EMAIL_CAMPAIGNS_DOMAIN() {
+    return trimmedEnv(process.env.EMAIL_CAMPAIGNS_DOMAIN);
+  },
   get RESEND_WEBHOOK_SECRET() {
     return trimmedEnv(process.env.RESEND_WEBHOOK_SECRET);
   },
@@ -185,6 +193,21 @@ export const env = {
   // LLM
   get ANTHROPIC_API_KEY() {
     return trimmedEnv(process.env.ANTHROPIC_API_KEY);
+  },
+
+  // Ask spoken (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.2, §3.6): the voice agent's key and id,
+  // which mint a conversation's token for a member, and the secret its post-call webhook is signed with.
+  /** The ElevenLabs API key: mints the voice agent's conversation tokens and deletes its conversations; never logged. */
+  get ELEVENLABS_API_KEY() {
+    return trimmedEnv(process.env.ELEVENLABS_API_KEY);
+  },
+  /** The one voice agent, provisioned from code (tooling/scripts/voice/elevenlabs-agent.mjs). */
+  get ELEVENLABS_AGENT_ID() {
+    return trimmedEnv(process.env.ELEVENLABS_AGENT_ID);
+  },
+  /** The secret the vendor signs its post-call webhook with (elevenlabs-signature). */
+  get ELEVENLABS_WEBHOOK_SECRET() {
+    return trimmedEnv(process.env.ELEVENLABS_WEBHOOK_SECRET);
   },
   /** TypeSafe's key for the second model asked in shadow (decision 0023): never a literal, never logged. */
   get TYPESAFE_API_KEY() {

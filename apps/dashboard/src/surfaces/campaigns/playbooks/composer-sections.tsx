@@ -9,14 +9,28 @@
  * behind the shield.
  */
 import type { Dispatch, SetStateAction } from "react";
+import {
+  PREVIEW_WORDS,
+  allowanceBeforeSend,
+  noMessageWords,
+  purposeOfTemplate,
+  type ConsentChannel,
+} from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { policyChipPart } from "../../legacy-parts";
 import { navigate } from "../../legacy-verbs";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
-import { MessagePreview } from "../parts/message-preview";
-import { CmPicker, LanguagePicker } from "../parts/picker";
-import { CmReach } from "../parts/reach";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { Picker } from "../../kit/picker/picker";
+import { CM_VIA_WORDS, cmTick } from "../parts/channels";
+import { MessagePreview, PreviewStepper } from "../parts/message-preview";
+import { CmLangGlyph } from "../parts/picker";
+import { cmChevron, cmGroups, cmNumbers, cmSearch } from "../parts/picks";
+import { cmPreviewBy } from "../parts/preview-by";
+import { CmVia } from "../parts/send-by";
+import { CmSlot } from "../parts/slot";
+import { CmWho } from "../parts/reach";
 import type { Fields, Model } from "./composer-model";
 import type { PlaybooksSurface } from "./surface";
 import {
@@ -27,15 +41,12 @@ import {
   PB_LIST_GROUPS,
   PB_NONE,
   PB_TEXT,
-  PbTok,
   pbFooter,
   pbGuardWords,
   pbHour,
   pbHours,
-  pbIcon,
   pbListSub,
   pbShort,
-  pbSpell,
   pbTitle,
   pbWith,
 } from "./words";
@@ -53,44 +64,35 @@ export interface SectionCtx extends Model {
   setCadence: Dispatch<SetStateAction<number>>;
   setListId: Dispatch<SetStateAction<string | null>>;
   setCls: Dispatch<SetStateAction<string>>;
+  setChannels: Dispatch<SetStateAction<ConsentChannel[]>>;
   setFills: Dispatch<SetStateAction<Fields["fills"]>>;
   setTyped: Dispatch<SetStateAction<Fields["typed"]>>;
+  /** Which step of the preview's walk is in view (the channels it goes by, in the page's order), and the press that moves it. */
+  who: number;
+  setWho: Dispatch<SetStateAction<number>>;
   chooseMoment: (id: string) => void;
   chooseMessage: (id: string) => void;
   chooseLanguage: (lang: string) => void;
   addStarter: () => Promise<void>;
 }
 
-/** The moment it runs on: a picker of every moment, with who each reaches today. */
+/**
+ * The moment it runs on: a token in the To row's sentence (the kit's Picker), opening every moment with what starts it
+ * and who it reaches today. It was a card a whole row tall, its glyph, its name and what starts it said again under the
+ * name (C2's round 2: the picker repeated the bubble).
+ */
 function momentPicker(x: SectionCtx) {
   const { f, trig, momentChoices, chooseMoment } = x;
   return (
-    <CmPicker
-      value={f.trigger}
-      choices={momentChoices}
-      onPick={chooseMoment}
+    <Picker
       label="The moment it runs on"
-      search={false}
-      fit="trigger"
-      triggerClass="pb-pick"
-      face={
-        trig ? (
-          <>
-            <span className="pb-pick-mark" aria-hidden="true">
-              <Icon name={pbIcon(trig.id)} size={15} />
-            </span>
-            <span className="pb-pick-text">
-              <span className="pb-pick-title">{trig.label}</span>
-              <span className="pb-pick-sub">{trig.hint}</span>
-            </span>
-          </>
-        ) : (
-          <span className="pb-pick-text">
-            <span className="pb-pick-title is-empty">Pick a moment</span>
-          </span>
-        )
-      }
-      testid="pb-moment"
+      value={f.trigger}
+      onValueChange={chooseMoment}
+      groups={cmGroups(momentChoices)}
+      chevron={cmChevron()}
+      face={trig ? trig.label : undefined}
+      placeholder="Pick a moment"
+      data-testid="pb-moment"
     />
   );
 }
@@ -101,45 +103,31 @@ function listPicker(x: SectionCtx) {
   return (
     onList &&
     (lists.length ? (
-      <CmPicker
-        value={f.listId}
-        choices={lists.map((l) => ({
-          id: l.id,
-          label: l.name,
-          group: l.builtin ? "people" : "own",
-          sub: pbListSub(l),
-          icon: l.builtin || l.smart ? "sparkle" : "filter",
-          hint:
-            l.candidates === null || l.candidates === undefined
-              ? null
-              : l.candidates > 0
-                ? `${l.candidates} today`
-                : "nobody today",
-        }))}
-        groups={PB_LIST_GROUPS}
-        onPick={setListId}
+      <Picker
         label="The list it runs on"
-        search={lists.length > 8}
-        fit="trigger"
-        triggerClass="pb-pick"
-        face={
-          list ? (
-            <>
-              <span className="pb-pick-mark" aria-hidden="true">
-                <Icon name={list.builtin || list.smart ? "sparkle" : "filter"} size={15} />
-              </span>
-              <span className="pb-pick-text">
-                <span className="pb-pick-title">{list.name}</span>
-                <span className="pb-pick-sub">{pbListSub(list)}</span>
-              </span>
-            </>
-          ) : (
-            <span className="pb-pick-text">
-              <span className="pb-pick-title is-empty">Pick a list</span>
-            </span>
-          )
-        }
-        testid="pb-list"
+        value={f.listId}
+        onValueChange={setListId}
+        groups={cmGroups(
+          lists.map((l) => ({
+            id: l.id,
+            label: l.name,
+            group: l.builtin ? "people" : "own",
+            sub: pbListSub(l),
+            icon: l.builtin || l.smart ? "sparkle" : "filter",
+            hint:
+              l.candidates === null || l.candidates === undefined
+                ? null
+                : l.candidates > 0
+                  ? `${l.candidates} today`
+                  : "nobody today",
+          })),
+          PB_LIST_GROUPS,
+        )}
+        chevron={cmChevron()}
+        face={list ? list.name : undefined}
+        placeholder="Pick a list"
+        {...(lists.length > 8 ? { search: cmSearch("Find a list", "No list has those words.") } : {})}
+        data-testid="pb-list"
       />
     ) : (
       <p className="pb-warn" data-testid="pb-no-lists">
@@ -154,32 +142,26 @@ function classPicker(x: SectionCtx) {
   const { f, onList, setCls } = x;
   return (
     onList && (
-      <CmPicker
-        value={f.cls}
-        choices={PB_LIST_CLASSES}
-        onPick={setCls}
+      <Picker
         label="What it sends"
-        fit="trigger"
-        triggerClass="pb-pick"
-        face={
-          <span className="pb-pick-text">
-            <span className="pb-pick-title">
-              {(PB_LIST_CLASSES.find((c) => c.id === f.cls) || PB_LIST_CLASSES[0]).label}
-            </span>
-            <span className="pb-pick-sub">
-              {(PB_LIST_CLASSES.find((c) => c.id === f.cls) || PB_LIST_CLASSES[0]).sub}
-            </span>
-          </span>
-        }
-        testid="pb-list-class"
+        value={f.cls}
+        onValueChange={setCls}
+        groups={cmGroups(PB_LIST_CLASSES)}
+        chevron={cmChevron()}
+        data-testid="pb-list-class"
       />
     )
   );
 }
 
-/** Who it's for: the moment, the list it runs on, and who that reaches today. */
+/**
+ * Who it's for: the moment, the list it runs on, and who that reaches today, on one line -- the count, who it reaches on
+ * which channel, and the reasons anybody is held back behind "Who's held back" -- with a thin bar under it.
+ */
 export function whoSection(x: SectionCtx) {
-  const { data, trig, visits, counted, will, pool, of, base, reasons } = x;
+  const { data, trig, visits, counted, will, pool, of, base, reasons, split, splitBy } = x;
+  // The month's emails or texts running out for this moment (a message about a visit is never held, contracts heldByAllowance).
+  const allowance = split ? allowanceBeforeSend(split.byChannel, data.month_sent, x.f.trigger, x.purpose) : null;
   return (
     <section className="pb-sec" data-testid="pb-who">
       <span className="pb-sec-k">Who it's for</span>
@@ -190,7 +172,17 @@ export function whoSection(x: SectionCtx) {
       {/* What a playbook on a list sends, and so which row of Autonomy governs it: an offer, or a win-back. */}
       {classPicker(x)}
       {trig && counted && (
-        <CmReach will={will} pool={pool} of={of} held={base.held} reasons={reasons} size="sm" testid="pb-reach" />
+        <CmWho
+          will={will}
+          pool={pool}
+          of={of}
+          held={base.held}
+          reasons={reasons}
+          by={splitBy}
+          split={split}
+          allowance={allowance}
+          testid="pb-reach"
+        />
       )}
       {visits && data.calendar !== "ok" && (
         <p className="pb-warn" data-testid="pb-calendar">
@@ -203,69 +195,45 @@ export function whoSection(x: SectionCtx) {
 
 /** The message it sends, and the one language it goes out in. */
 function messageHead(x: SectionCtx) {
-  const {
-    usable,
-    group,
-    messageChoices,
-    groups,
-    starter,
-    starterGroup,
-    tpl,
-    offered,
-    langChoices,
-    chooseMessage,
-    chooseLanguage,
-  } = x;
+  const { usable, group, messageChoices, starterGroup, tpl, offered, langChoices, chooseMessage, chooseLanguage } = x;
   return (
     usable.length > 0 && (
       <div className="pb-msg-head">
-        <CmPicker
-          value={group ? group.name : null}
-          choices={messageChoices}
-          groups={{ own: "Written for this moment", all: starterGroup ? "Your other messages" : "Your messages" }}
-          onPick={chooseMessage}
+        <Picker
           label="The message it sends"
-          search={messageChoices.length > 7}
-          searchWords={{ placeholder: "Search messages", empty: (q) => <>No message called “{q}”</> }}
-          note={offered.why}
-          fit="trigger"
-          triggerClass="pb-pick pb-pick-msg"
-          face={
-            tpl ? (
-              <span className="pb-pick-text">
-                <span className="pb-pick-title">{group ? group.title : pbTitle(tpl.name)}</span>
-                <span className="pb-pick-sub">
-                  {starter && tpl.name === starter.name ? "Written for this moment" : "Your message"}
-                </span>
-              </span>
-            ) : (
-              <span className="pb-pick-text">
-                <span className="pb-pick-title is-empty">Pick a message</span>
-                <span className="pb-pick-sub">
-                  {groups.length === 1
-                    ? "One approved message fits this moment"
-                    : `${pbSpell(Math.min(groups.length, 12), true)} approved messages fit this moment`}
-                </span>
-              </span>
-            )
-          }
-          testid="pb-template"
+          value={group ? group.name : null}
+          onValueChange={chooseMessage}
+          groups={cmGroups(messageChoices, {
+            own: "Written for this moment",
+            all: starterGroup ? "Your other messages" : "Your messages",
+          })}
+          chevron={cmChevron()}
+          face={tpl ? (group ? group.title : pbTitle(tpl.name)) : undefined}
+          placeholder="Pick a message"
+          {...(messageChoices.length > 7 ? { search: cmSearch("Find a message", "No message has those words.") } : {})}
+          {...(offered.why ? { note: offered.why } : {})}
+          data-testid="pb-template"
         />
         {tpl && (
-          <LanguagePicker
-            value={tpl.language}
-            choices={langChoices}
-            onPick={chooseLanguage}
-            status={tpl.meta_status || "approved"}
-            tag={pbShort(tpl.language)}
+          <Picker
             label="The language it goes out in"
-            search={false}
+            value={tpl.language}
+            onValueChange={chooseLanguage}
+            groups={cmGroups(
+              langChoices.map((l) => ({ ...l, glyph: <CmLangGlyph status={l.status} />, hint: pbShort(l.id) })),
+            )}
+            chevron={cmChevron()}
+            face={
+              <>
+                <CmLangGlyph status={tpl.meta_status || "approved"} /> {pbShort(tpl.language)}
+              </>
+            }
             note={
               langChoices.length < 2
-                ? "A run sends one language to everyone on it. Another is written in Campaigns › Templates."
+                ? "A run sends one language to everyone on it. Another is written in Campaigns › Library."
                 : "A run sends one language to everyone on it."
             }
-            testid="pb-lang"
+            data-testid="pb-lang"
           />
         )}
       </div>
@@ -288,21 +256,15 @@ function starterLine(x: SectionCtx) {
               <b>{starter.title}</b>, written for this moment,{" "}
               {starterAny.meta_status === "pending"
                 ? "is in review at WhatsApp — it appears here once approved, usually within minutes."
-                : `is ${starterAny.meta_status} at WhatsApp — see Campaigns › Templates.`}
+                : `is ${starterAny.meta_status} at WhatsApp — see Campaigns › Library.`}
             </>
           ) : (
             <>
               <b>{starter.title}</b> is written for this moment.{" "}
               {canEdit ? (
-                <button
-                  type="button"
-                  className="cl-bucket-link"
-                  disabled={adding}
-                  onClick={addStarter}
-                  data-testid="pb-add-starter"
-                >
+                <LinkButton disabled={adding} onClick={addStarter} data-testid="pb-add-starter">
                   {adding ? "Adding…" : "Add it — WhatsApp reviews it, usually within minutes"}
-                </button>
+                </LinkButton>
               ) : null}
             </>
           )}
@@ -315,6 +277,7 @@ function starterLine(x: SectionCtx) {
 /** Why there is no message yet: the read failed, the one it had is gone, the moment's own is not added, or there is none. */
 function messageEmpty(x: SectionCtx) {
   const { tpl, templatesRead, lost, editingTemplateName, starter, usable } = x;
+  const none = noMessageWords(Boolean(starter));
   return (
     !tpl && (
       <div className="pb-empty" data-testid="pb-message-empty">
@@ -330,16 +293,10 @@ function messageEmpty(x: SectionCtx) {
         {starterLine(x)}
         {templatesRead && usable.length === 0 && (
           <p className="pb-empty-line" data-testid="pb-no-template">
-            No approved message {starter ? "for this moment " : ""}yet — write one, or sync yours from WhatsApp Manager,
-            in{" "}
-            <button
-              type="button"
-              className="cl-bucket-link"
-              onClick={() => navigate("messages")}
-              data-testid="pb-no-template-open"
-            >
-              Templates
-            </button>
+            {none.lead}{" "}
+            <LinkButton onClick={() => navigate("messages")} data-testid="pb-no-template-open">
+              {none.link}
+            </LinkButton>
             .
           </p>
         )}
@@ -348,71 +305,8 @@ function messageEmpty(x: SectionCtx) {
   );
 }
 
-interface FillIn {
-  x: SectionCtx;
-  v: Model["vars"][number];
-  i: number;
-  setText: (i: number, v: string) => void;
-  chooseFill: (i: number, kind: string) => void;
-}
-
-/** One slot: its label, what fills it (typed, or a source), and the choice of what may. */
-function fillRow({ x, v, i, setText, chooseFill }: FillIn) {
-  const { data, choices, labels, SRC, HINTS, srcOf, textOf } = x;
-  const src = srcOf(i);
-  const opts: string[] = choices[i] || PB_TEXT;
-  const hint = src !== "text" ? HINTS[src] : null;
-  return (
-    <div
-      key={v.position || i}
-      className={`pb-fill${src === "text" ? " is-typed" : ""}`}
-      data-kind={src}
-      data-testid="pb-fill"
-    >
-      <span className="pb-fill-key" id={`pb-fill-${i}`}>
-        {labels[i]}
-      </span>
-      {src === "text" ? (
-        <input
-          className="pb-fill-input"
-          value={textOf(i)}
-          placeholder={opts[0] === "business_name" ? data.businessName || "" : v.example ? String(v.example) : ""}
-          maxLength={1024}
-          onChange={(e) => setText(i, e.target.value)}
-          aria-labelledby={`pb-fill-${i}`}
-          data-testid="pb-fill-input"
-        />
-      ) : (
-        <span className="pb-fill-val" data-tip={hint || undefined}>
-          <span className="pb-fill-words">
-            {src === "business_name" && data.businessName ? data.businessName : SRC[src] || src}
-          </span>
-          {hint && <span className="pb-fill-hint">{hint}</span>}
-        </span>
-      )}
-      {opts.length > 1 && (
-        <span className="pb-fill-src" data-tip="What fills it">
-          <Icon name={src === "text" ? "pencil" : "chevrons"} size={12} />
-          <select
-            value={src}
-            onChange={(e) => chooseFill(i, e.target.value)}
-            aria-label={`What fills ${labels[i]}`}
-            data-testid="pb-fill-source"
-          >
-            {opts.map((k) => (
-              <option key={k} value={k}>
-                {SRC[k] || k}
-              </option>
-            ))}
-          </select>
-        </span>
-      )}
-    </div>
-  );
-}
-
-/** What fills each slot of the message: typed words, or a source a run fills per person. */
-function fillsBlock(x: SectionCtx, tpl: TemplateDto) {
+/** What changes a slot: the words typed into it, and what fills it. */
+function slotActs(x: SectionCtx, tpl: TemplateDto) {
   const { data, vars, srcOf, textOf, setTyped, setFills } = x;
   const setText = (i: number, v: string) =>
     setTyped((p) => {
@@ -431,16 +325,64 @@ function fillsBlock(x: SectionCtx, tpl: TemplateDto) {
     if (kind === "text" && was === "business_name" && !textOf(i).trim() && data.businessName)
       setText(i, data.businessName);
   };
-  return (
-    <div className="pb-fills" data-testid="pb-vars">
-      {vars.map((v, i) => fillRow({ x, v, i, setText, chooseFill }))}
-    </div>
-  );
+  return { setText, chooseFill };
 }
 
-/** What it says: the message and its language, the message as a customer reads it, and what fills each of its slots. */
+/**
+ * One slot of the message, in the bubble (parts/slot.tsx): its words where the customer reads them, and, where it may
+ * take more than one thing or is typed, the control that changes what fills it. The slot is the template's {{n}}, the
+ * nth of its values.
+ */
+const slotOf = (x: SectionCtx, tpl: TemplateDto) => {
+  const { data, vars, choices, labels, SRC, HINTS, srcOf, textOf } = x;
+  const { setText, chooseFill } = slotActs(x, tpl);
+  return (at: number, text: string) => {
+    const found = vars.findIndex((v) => Number(v.position) === at + 1);
+    const i = found >= 0 ? found : at;
+    const v = vars[i];
+    const src = srcOf(i);
+    const opts: string[] = choices[i] || PB_TEXT;
+    return (
+      <CmSlot
+        label={labels[i] || `Value ${at + 1}`}
+        text={text}
+        kind={src}
+        offers={opts.map((k) => ({ id: k, label: SRC[k] || k }))}
+        onKind={(kind) => chooseFill(i, kind)}
+        typed={textOf(i)}
+        onTyped={(words) => setText(i, words)}
+        placeholder={opts[0] === "business_name" ? data.businessName || "" : v && v.example ? String(v.example) : ""}
+        hint={src !== "text" ? HINTS[src] : null}
+        testid="pb-fill"
+      />
+    );
+  };
+};
+
+/**
+ * What it says: the message and its language, and the message as a customer reads it, each of its slots the control
+ * that changes what fills it (the bubble is the fields; the table of slots under it said every value again).
+ */
 export function messageSection(x: SectionCtx) {
-  const { data, tpl, vars, shown } = x;
+  const { data, tpl, vars, shown, steps, versions, facts, labelled, who, setWho } = x;
+  // The step in view, kept inside the walk as the channels it goes by change; with none open, WhatsApp's bubble as ever.
+  const at = Math.min(who, Math.max(steps.length - 1, 0));
+  const preview = tpl
+    ? cmPreviewBy(
+        { body: tpl.body_preview, header: tpl.header, footer: pbFooter(tpl), buttons: tpl.buttons ?? null },
+        steps.length > 0 ? steps[at].channel : null,
+        {
+          versions,
+          language: tpl.language,
+          business: data.businessName,
+          address: data.businessAddress,
+          facts,
+          labelled,
+          // An offer's email reads with the offer's foot: why they get it, and the way out (step 4).
+          ...(purposeOfTemplate(tpl.category) === "marketing" ? { offer: "customer" as const } : {}),
+        },
+      )
+    : null;
   return (
     <section className="pb-sec" data-testid="pb-message">
       <span className="pb-sec-k">What it says</span>
@@ -448,19 +390,40 @@ export function messageSection(x: SectionCtx) {
       {messageEmpty(x)}
       {/* No stamp: a playbook knows the hour it runs at, not the instant its
           next run lands, and the sentence below says the hour in words. */}
-      {tpl && (
+      {tpl && preview && (
         <div className="pb-preview" data-testid="pb-preview">
+          {/* The message as a person on the channel in view reads it (parts/preview-by.ts); the walk is the channels the
+              playbook goes by, since it names no one. */}
           <MessagePreview
             from={data.businessName}
-            body={tpl.body_preview}
             values={shown}
-            header={tpl.header}
-            footer={pbFooter(tpl)}
-            buttons={tpl.buttons}
-          />
+            slot={vars.length > 0 ? slotOf(x, tpl) : null}
+            {...preview}
+          >
+            <PreviewStepper
+              people={steps.map((step) => ({ label: step.label, position: step.position }))}
+              index={at}
+              onStep={setWho}
+              words={PREVIEW_WORDS.walk.channels}
+            />
+          </MessagePreview>
         </div>
       )}
-      {tpl && vars.length > 0 && fillsBlock(x, tpl)}
+    </section>
+  );
+}
+
+/**
+ * Send by: a switch for each channel it may go by (parts/send-by.tsx), each closed with its reason where the workspace
+ * cannot send on it or the message cannot go by it. What is on is worked out in the model; pressing one starts from what is
+ * on, so a channel that was only ticked and never open is let go.
+ */
+export function viaSection(x: SectionCtx) {
+  const { ticks, on, setChannels } = x;
+  return (
+    <section className="pb-sec" data-testid="pb-via-sec">
+      <span className="pb-sec-k">{CM_VIA_WORDS.label}</span>
+      <CmVia ticks={ticks} onTick={(channel, next) => setChannels(cmTick(on, channel, next))} testid="pb-via" />
     </section>
   );
 }
@@ -472,12 +435,13 @@ function whenSentence(x: SectionCtx) {
   return (
     <p className="pb-when">
       Every day at{" "}
-      <PbTok
-        value={f.hour}
-        options={pbHours().map((h) => ({ v: h, t: pbHour(h) }))}
-        onChange={setHour}
+      <Picker
         label="The hour it runs at"
-        testid="pb-hour"
+        value={String(f.hour)}
+        onValueChange={(h) => setHour(Number(h))}
+        groups={cmNumbers(pbHours().map((h) => ({ v: h, t: pbHour(h) })))}
+        chevron={cmChevron()}
+        data-testid="pb-hour"
       />
       {city ? ` ${city} time` : ""}
       {visits ? (
@@ -491,12 +455,13 @@ function whenSentence(x: SectionCtx) {
       ) : (
         <>
           , up to{" "}
-          <PbTok
-            value={f.cap}
-            options={pbWith(PB_CAPS, Number(f.cap)).map((n) => ({ v: n, t: String(n) }))}
-            onChange={setCap}
+          <Picker
             label="The most one run sends"
-            testid="pb-cap"
+            value={String(f.cap)}
+            onValueChange={(n) => setCap(Number(n))}
+            groups={cmNumbers(pbWith(PB_CAPS, Number(f.cap)).map((n) => ({ v: n, t: String(n) })))}
+            chevron={cmChevron()}
+            data-testid="pb-cap"
           />{" "}
           {Number(f.cap) === 1 ? "person" : "people"} a run.{" "}
           {/* A follow-up is owed once per proposal (0006): there is no gap to choose. */}
@@ -505,17 +470,17 @@ function whenSentence(x: SectionCtx) {
           ) : (
             <>
               No one hears it more than once every{" "}
-              <PbTok
-                value={repeat}
-                options={pbWith(monthly ? PB_CADENCES : PB_GAPS, Number(repeat)).map((n) => ({
-                  v: n,
-                  t: `${n} days`,
-                }))}
-                onChange={monthly ? setCadence : setGap}
+              <Picker
                 label={
                   monthly ? "How often the same person hears it" : "The days before the same person hears it again"
                 }
-                testid="pb-gap"
+                value={String(repeat)}
+                onValueChange={(n) => (monthly ? setCadence : setGap)(Number(n))}
+                groups={cmNumbers(
+                  pbWith(monthly ? PB_CADENCES : PB_GAPS, Number(repeat)).map((n) => ({ v: n, t: `${n} days` })),
+                )}
+                chevron={cmChevron()}
+                data-testid="pb-gap"
               />
               .
             </>

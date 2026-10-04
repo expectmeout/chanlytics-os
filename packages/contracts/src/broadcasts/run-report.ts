@@ -5,6 +5,7 @@
 import { broadcastFailureFix, broadcastFailureWords } from "./broadcast-failures";
 import type { BroadcastRecipientDto } from "./broadcasts";
 import { HELD_REASONS } from "./run-words";
+import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../consent/consent-channels";
 import type { ParamSpec } from "../templates/templates";
 import { HOUR_MS } from "../shared/time";
 
@@ -52,6 +53,12 @@ export interface RunPersonVM {
   initials: string;
   pill: { label: string; tone: RunTone };
   words: string;
+  /**
+   * The channel their message went by, in the words a line says it ("on WhatsApp", "by text", "by email"): said only
+   * where the run reached somebody on a channel other than WhatsApp, which is every run before step 3, so a run that
+   * went by WhatsApp alone says nothing of it; null for such a run, and for someone whose row names no channel.
+   */
+  channel: string | null;
   door: { label: string; to: string } | null;
   /** The last thing that happened to them, by the business's clock; null for someone the run never sent to. */
   at: string | null;
@@ -92,6 +99,7 @@ type ReportRecipient = Pick<
   BroadcastRecipientDto,
   | "contact_id"
   | "name"
+  | "channel"
   | "first_name"
   | "state"
   | "reason"
@@ -164,6 +172,17 @@ export function receiptWords(
   return parts.join(" · ");
 }
 
+/** The channel a recipient's row names, when it names one of the three; null for a run made before rows kept it. */
+const channelOf = (r: Pick<ReportRecipient, "channel">): ConsentChannel | null =>
+  CONSENT_CHANNELS.find((c) => c === r.channel) ?? null;
+
+/** Why a message that left was never delivered, for the channel it left by. */
+const NOT_DELIVERED_WORDS: Record<ConsentChannel, string> = {
+  whatsapp: "WhatsApp could not deliver it",
+  sms: "the text was not delivered",
+  email: "the email was not delivered",
+};
+
 const initialsOf = (name: string, named: boolean): string =>
   named
     ? name
@@ -223,6 +242,11 @@ function runFactsOf(d: RunReportInput, opts: RunReportOpts) {
   // A first-name slot takes the wire's own first name for each person (firstNameOf), and "there" for someone with none.
   const greets = (d.broadcast?.params ?? []).some((p) => p && p.kind === "first_name");
   const cutOff = cutOffWordsOf(d.broadcast?.state);
+  // Said only where somebody was reached some other way than WhatsApp: a run of WhatsApp alone reads as it always did.
+  const channelsSaid = d.recipients.some((r) => {
+    const c = channelOf(r);
+    return c !== null && c !== "whatsapp";
+  });
   return {
     d,
     clock,
@@ -239,6 +263,7 @@ function runFactsOf(d: RunReportInput, opts: RunReportOpts) {
     never,
     greets,
     cutOff,
+    channelsSaid,
   };
 }
 
@@ -268,6 +293,8 @@ interface PersonCase {
   quote: string | null;
   cutOff: string | null;
   clock: (iso: string | null) => string | null;
+  /** The channel their message went by: WhatsApp for a row that names none. */
+  via: ConsentChannel;
 }
 
 /** The pill: the first row that holds, in the order a person's line has always been read. */
@@ -292,7 +319,7 @@ function personPillOf(r: ReportRecipient, c: PersonCase): RunPersonVM["pill"] {
 }
 
 /** The words: why they were held back or not reached, what they answered, or what WhatsApp's receipts say. */
-function personWordsOf(r: ReportRecipient, { hiThere, answer, quote, cutOff, clock }: PersonCase): string {
+function personWordsOf(r: ReportRecipient, { hiThere, answer, quote, cutOff, clock, via }: PersonCase): string {
   if (r.state === "skipped") return (r.reason && HELD_REASONS[r.reason]) || r.reason || "held back";
   if (r.state === "failed")
     return (r.reason && HELD_REASONS[r.reason]) || HELD_REASONS.send_failed || "WhatsApp refused it";
@@ -300,7 +327,7 @@ function personWordsOf(r: ReportRecipient, { hiThere, answer, quote, cutOff, clo
   if (r.consent_after === "opted_out") return quote ? `${quote} — ${answer}` : answer!;
   if (quote) return quote;
   if (r.consent_after === "opted_in") return answer!;
-  if (r.message_status === "failed") return "WhatsApp could not deliver it";
+  if (r.message_status === "failed") return NOT_DELIVERED_WORDS[via];
   if (hiThere) return "greeted “Hi there” — no name on file";
   return receiptWords(r, clock);
 }
@@ -323,12 +350,13 @@ function personFiltersOf(r: ReportRecipient, { out, cutOff }: PersonCase): RunFi
 }
 
 /** One person's line: what happened to them, in words, with the one door it offers. */
-function personLineOf(r: ReportRecipient, { greets, cutOff, clock }: RunFacts): RunPersonVM {
+function personLineOf(r: ReportRecipient, { greets, cutOff, clock, channelsSaid }: RunFacts): RunPersonVM {
   const out = r.state === "sent";
   const hiThere = out && greets && !r.first_name;
   const answer = r.consent_after ? consentAnswerWords(r.consent_after, r.consent_purpose) : null;
   const quote = r.replied && r.reply_words ? `“${r.reply_words}”` : null;
-  const c: PersonCase = { out, hiThere, answer, quote, cutOff, clock };
+  const channel = channelOf(r);
+  const c: PersonCase = { out, hiThere, answer, quote, cutOff, clock, via: channel ?? "whatsapp" };
   const pill = personPillOf(r, c);
   const words = personWordsOf(r, c);
   const door = personDoorOf(r, c);
@@ -339,6 +367,7 @@ function personLineOf(r: ReportRecipient, { greets, cutOff, clock }: RunFacts): 
     initials: initialsOf(r.name, !!r.first_name),
     pill,
     words,
+    channel: channelsSaid && channel ? CONSENT_CHANNEL_WORDS[channel] : null,
     door,
     at: out ? clock(r.replied_at || r.consent_at || r.read_at || r.delivered_at || r.sent_at) : null,
     attn: (out && r.consent_after === "opted_out") || hiThere,
@@ -431,8 +460,10 @@ const deliveredFigure: RunFigureOf = (f) => ({
     f.sent === 0
       ? "nothing has gone out"
       : f.never > 0
-        ? `${f.never} never reached the handset`
-        : "every one reached the handset",
+        ? `${f.never} never reached ${f.channelsSaid ? "them" : "the handset"}`
+        : f.channelsSaid
+          ? "every one reached them"
+          : "every one reached the handset",
   tone: f.delivered.length > 0 ? "ok" : "plain",
   bars: barsOf(
     f,

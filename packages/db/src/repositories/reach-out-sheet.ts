@@ -6,6 +6,7 @@
  * fails throws: "we could not read" is never "none".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { versionWords } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -82,21 +83,16 @@ export async function reachOutSendRefOf(
   return data;
 }
 
-/** An email template's words from its row: HEADER is the subject, BODY the body (the body preview when it has none). */
+/**
+ * An email template's words from its row: HEADER is the subject, BODY the body (the body preview when it has none). The
+ * one reader every version's row goes through (contracts versionWords); a row with no words at all has none.
+ */
 export function emailWordsFrom(row: {
   components: unknown;
   body_preview: string | null;
 }): { subject: string | null; body: string } | null {
-  const part = (type: string): string | null => {
-    for (const c of Array.isArray(row.components) ? row.components : [])
-      if (c && typeof c === "object" && String((c as { type?: unknown }).type ?? "").toUpperCase() === type) {
-        const t = (c as { text?: unknown }).text;
-        return typeof t === "string" && t.trim() ? t : null;
-      }
-    return null;
-  };
-  const body = part("BODY") ?? (row.body_preview?.trim() || null);
-  return body ? { subject: part("HEADER"), body } : null;
+  const words = versionWords({ channel: "email", components: row.components, body_preview: row.body_preview });
+  return words.body.trim() ? words : null;
 }
 
 /** Many templates' words at once, by id: what a workspace's chains say. */

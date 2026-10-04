@@ -592,3 +592,118 @@ test("until 00110 is applied, a YES OFFERS by text is still recorded: the door i
   );
   assert.equal(other.length, 1);
 });
+
+test("a START is noted on the channel it came on, after the ingest and with its words; a failure is logged and never the customer's", async () => {
+  const { ingestInbound } = await import(at("packages/db/src/repositories/ingest.ts"));
+  const inbound = {
+    tenantId: A,
+    channel: "sms",
+    identityExternalId: "15550002",
+    phoneE164: "+15550002",
+    waProfileName: null,
+    messageExternalId: "SM-start-1",
+    type: "text",
+    body: "START",
+    channelTs: "2026-09-12T00:00:00Z",
+    optIn: true,
+  };
+  const result = {
+    message_id: "m1",
+    conversation_id: "c1",
+    contact_id: "p1",
+    is_new: true,
+    processed: false,
+    state: "open",
+    paused_until: null,
+    consent: "opted_in",
+    dnc: false,
+  };
+  const world = (noted) => {
+    const order = [];
+    return {
+      order,
+      db: fakeDb(
+        {},
+        {},
+        {
+          ingest_inbound: () => {
+            order.push("ingest_inbound");
+            return result;
+          },
+          note_yes_on_channel: (a) => {
+            order.push(["note_yes_on_channel", a]);
+            return noted(a);
+          },
+        },
+      ),
+    };
+  };
+  const lines = [];
+  const slot = Symbol.for("chanlytics.db.observer");
+  globalThis[slot] = {
+    log: { info() {}, warn() {}, error: (event, fields) => lines.push([event, fields.error]) },
+    requestId: () => null,
+  };
+  try {
+    // The keyword opt-in: asked once, after the ingest, with the contact it returned and what they wrote.
+    const first = world(() => true);
+    const out = await ingestInbound(first.db, inbound);
+    assert.equal(out.contact_id, "p1");
+    assert.deepEqual(first.order, [
+      "ingest_inbound",
+      [
+        "note_yes_on_channel",
+        {
+          p_tenant_id: A,
+          p_contact_id: "p1",
+          p_channel: "sms",
+          p_message_external_id: "SM-start-1",
+          p_words: "START",
+        },
+      ],
+    ]);
+    assert.deepEqual(lines, [], "nothing to say when it wrote");
+
+    // Not a START: not asked. A STOP, a YES OFFERS and an ordinary message are no yes to messages about a visit.
+    for (const flags of [
+      { optIn: false },
+      { optIn: undefined, optOut: true },
+      { optIn: false, optInMarketing: false },
+    ]) {
+      const quiet = world(() => true);
+      await ingestInbound(quiet.db, { ...inbound, ...flags });
+      assert.deepEqual(quiet.order, ["ingest_inbound"]);
+    }
+
+    // A database before 00297 has no such function, and PostgREST names it: nothing to repair, nothing logged.
+    const before = world(() => {
+      throw Object.assign(
+        new Error(
+          "Could not find the function public.note_yes_on_channel(p_channel, p_contact_id, p_message_external_id, p_tenant_id, p_words) in the schema cache",
+        ),
+        { code: "PGRST202" },
+      );
+    });
+    assert.equal((await ingestInbound(before.db, inbound)).contact_id, "p1");
+    assert.deepEqual(lines, []);
+
+    // Any other refusal is logged by name and the message still stands.
+    const refused = world(() => {
+      throw new Error("permission denied for function note_yes_on_channel");
+    });
+    assert.equal((await ingestInbound(refused.db, inbound)).contact_id, "p1", "the message itself was ingested");
+    assert.deepEqual(lines, [["consent_channel_write_failed", "permission denied for function note_yes_on_channel"]]);
+
+    // The door is not modelled at all (a rejected call, not an error answer): the same.
+    lines.length = 0;
+    const broken = fakeDb({}, {}, { ingest_inbound: () => result });
+    const throwing = {
+      ...broken,
+      rpc: (name, args) => (name === "ingest_inbound" ? broken.rpc(name, args) : Promise.reject(new Error("boom"))),
+    };
+    assert.equal((await ingestInbound(throwing, inbound)).contact_id, "p1");
+    assert.deepEqual(lines, [["consent_channel_write_failed", "boom"]]);
+  } finally {
+    delete globalThis[slot];
+  }
+});

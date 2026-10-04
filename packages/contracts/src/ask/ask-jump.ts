@@ -38,14 +38,30 @@ export const ASK_PAGES: JumpEntry[] = [
   { label: "Conversations", to: "conversations", kind: "page" },
   { label: "Calls", to: "live", kind: "page", sub: "live and recent" },
   { label: "Calendar", to: "calendar", kind: "page", sub: "taken, open and closed times" },
-  { label: "Playbooks", to: "outbound", kind: "page", sub: "campaigns that run on their own" },
-  { label: "Broadcasts", to: "broadcasts", kind: "page", sub: "one message to the people who said yes" },
+  // Campaigns' home (3 Oct 2026): the moments that go out on their own, and what is sent by hand. The old Playbooks list was
+  // `outbound`, which lands here; the name it went by still finds it.
   {
-    label: "Templates",
+    label: "Campaigns",
+    to: "campaigns",
+    kind: "page",
+    sub: "what goes out on its own, and what you send yourself",
+    also: ["playbooks", "moments"],
+  },
+  // Campaigns' rooms: Sent (the runs, and the send screen) and the Library (the wording). Each is still found by the name it
+  // went by, which people learned and still type.
+  {
+    label: "Sent",
+    to: "broadcasts",
+    kind: "page",
+    sub: "one message to the people who said yes",
+    also: ["broadcasts"],
+  },
+  {
+    label: "Library",
     to: "messages",
     kind: "page",
     sub: "the wording the receptionist and the campaigns send",
-    also: ["messages", "wording"],
+    also: ["templates", "messages", "wording"],
   },
   { label: "Reports", to: "reports", kind: "page" },
   { label: "Settings", to: "admin/workspace", kind: "page" },

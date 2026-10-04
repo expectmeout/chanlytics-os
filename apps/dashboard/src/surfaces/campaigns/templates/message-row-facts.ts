@@ -10,10 +10,11 @@ import type { TemplateDto } from "@/surfaces/inbox/types";
 import { surfaceValue } from "../../surface-values";
 import type { PresentRow, TemplateGroup, TemplateRow, TplLang } from "./group";
 import type { StarterLibrary } from "./verbs";
+import { channelsWords, versionsOfMessage } from "./versions";
 import { tplLangLabel, tplOneLine, tplOwn, tplSaid, tplSlotWord } from "./words";
 
 /** The first language a message has on file, else the set's first: where a row opens. */
-export function firstLang(present: PresentRow[], langs: readonly TplLang[]): string {
+function firstLang(present: PresentRow[], langs: readonly TplLang[]): string {
   return present[0] ? present[0].lang.id : langs[0] ? langs[0].id : "en_US";
 }
 
@@ -37,7 +38,7 @@ interface TranslationSource {
 }
 
 /** The language in view, and what is on file or written in it. */
-export function languageFacts(p: LanguageInput) {
+function languageFacts(p: LanguageInput) {
   const { g, langs, S, canAdd, present, langId, back, adding, sentLang } = p;
   // The language in view: the one picked while it is on file, written by the
   // library, being written or just sent; otherwise the message's first.
@@ -78,7 +79,7 @@ export function languageFacts(p: LanguageInput) {
 type StarterText = ReturnType<StarterLibrary["text"]>;
 
 /** The words in view: the body with its slots still in it, what fills them, and the line under them. */
-export function rowWords(p: {
+function rowWords(p: {
   g: TemplateGroup;
   S: StarterLibrary;
   row: TemplateDto | null;
@@ -104,7 +105,7 @@ export function rowWords(p: {
 }
 
 /** What sends this message, how much of it went out, and what the running playbooks do with the language in view. */
-export function usageOf(p: { g: TemplateGroup; present: PresentRow[]; row: TemplateDto | null }) {
+function usageOf(p: { g: TemplateGroup; present: PresentRow[]; row: TemplateDto | null }) {
   const { g, present, row } = p;
   const settings = surfaceValue("settings");
   const playbooks = surfaceValue("playbooks");
@@ -166,7 +167,7 @@ export function usageOf(p: { g: TemplateGroup; present: PresentRow[]; row: Templ
 type Usage = ReturnType<typeof usageOf>;
 
 /** What the row says beside its title, and whether it asks for attention or stands quiet. */
-export function marksOf(p: { g: TemplateGroup; row: TemplateDto | null; usage: Usage }) {
+function marksOf(p: { g: TemplateGroup; row: TemplateDto | null; usage: Usage }) {
   const { g, row, usage } = p;
   const { use, sentIn, skipped, skippedAt, skippedMissing } = usage;
   // Marketing or not is a RULE, not a label: a marketing message may only go to
@@ -204,13 +205,66 @@ export function marksOf(p: { g: TemplateGroup; row: TemplateDto | null; usage: U
   return { offer, tag, attn, dim };
 }
 
+/** Which language of a message is in view, and where Cancel goes back to: what the open message's pane keeps. */
+interface LangView {
+  langId: string;
+  back: string | null;
+  adding: string | null;
+  sentLang: string | null;
+}
+
+const presentOf = (g: TemplateGroup): PresentRow[] => g.rows.filter((r): r is PresentRow => !!r.row);
+
+/** Where a message opens: on the first language it has on file, nothing being written. */
+export const firstView = (g: TemplateGroup, langs: readonly TplLang[]): LangView => ({
+  langId: firstLang(presentOf(g), langs),
+  back: null,
+  adding: null,
+  sentLang: null,
+});
+
+interface FactsInput {
+  g: TemplateGroup;
+  langs: readonly TplLang[];
+  S: StarterLibrary;
+  view: LangView;
+  /** Whether this member may add a language, and why not: the open message's (a row has no use for either). */
+  canAdd?: boolean;
+  addWhy?: string | null;
+  /** The workspace's email and text rows, from which the message's own are found: none where the page has read none. */
+  versions?: readonly TemplateDto[];
+}
+
+/**
+ * What a message's row and the pane it opens both read, worked out from its group and the language in view: the
+ * language's facts, the words in it, the one line of them, what sends it and how much went out, the marks it wears,
+ * the note a refused language carries, and its versions: its rows on each channel, and which channels they say.
+ * The row reads it for the language it opens on; the pane for the one picked.
+ */
+export function messageFacts({ g, langs, S, view, canAdd = false, addWhy = null, versions = [] }: FactsInput) {
+  const present = presentOf(g);
+  const lang = languageFacts({ g, langs, S, canAdd, present, ...view });
+  const { row, starterText, fromRow, untranslatable } = lang;
+  const words = rowWords({ g, S, row, starterText, view: lang.view });
+  const usage = usageOf({ g, present, row });
+  const marks = marksOf({ g, row, usage });
+  const line = lineWords({ g, S, row, starterText, fromRow, view: lang.view });
+  const note =
+    addWhy ||
+    (untranslatable
+      ? `Chanlytics can’t write this one in another language: ${untranslatable}. Add its other languages in WhatsApp Manager.`
+      : null);
+  const has = versionsOfMessage(g, versions);
+  return { present, lang, words, usage, marks, line, note, has, channels: channelsWords(has) };
+}
+
 /**
  * A line of the words with its slots NAMED -- "Hi {first name} -- it's been a
  * while" -- in quotes, so a row reads as the message it is and shows at a glance
  * what varies per person. The whole of it, filled with this business's own
- * name and link, is in the fold.
+ * name and link, is in the pane.
  */
-export function lineWords(p: {
+function lineWords(p: {
   g: TemplateGroup;
   S: StarterLibrary;
   row: TemplateDto | null;

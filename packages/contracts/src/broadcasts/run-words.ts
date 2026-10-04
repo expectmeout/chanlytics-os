@@ -38,6 +38,14 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   // that should have arrived untranslated.
   no_marketing_consent: "no yes to offers",
   no_phone: "no number",
+  // The channel picked was email and no address is on file (step 3), or no channel the send ticks could carry it.
+  no_address: "no email address",
+  no_channel: "no channel it can go by",
+  sms_line_not_active: "the texting line is not active",
+  // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
+  month_allowance: "this month's allowance is used up",
+  // Meta no longer approves the message's WhatsApp template: it holds the people who go by WhatsApp, and only them.
+  template_not_approved: "WhatsApp no longer approves its template",
   // The number is on file but no thread answers to it on this line: a stored
   // number that does not normalise, or one no contact row matches.
   no_thread: "no thread for that number",
@@ -45,7 +53,11 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   paused: "the workspace was paused",
   superseded_by_human: "a person answered first",
   sms_carries_no_promotions: "no offers by text",
-  email_marketing_disabled: "no offers by email yet",
+  email_marketing_disabled: "offers by email are not set up yet",
+  // The workspace's offers by email are paused while complaints or bounces settle (email-offers.ts); reminders still go.
+  email_offers_paused: "offers by email are paused",
+  // An offer's foot names the business's address, and it has none on file: the person is held until it does.
+  no_business_address: "no business address on file",
   email_suppressed: "their email address stopped accepting mail",
   recipient_changed: "their email address changed",
   erased: "deleted",

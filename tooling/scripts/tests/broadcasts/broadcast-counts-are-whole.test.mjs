@@ -326,11 +326,11 @@ test("REGRESSION: a send to a list past a thousand people enrols every one of th
     { maxRows: 1000 },
   );
   const now = new Date("2026-09-20T15:00:00Z");
-  const seg = await createBroadcastPorts({ supabase: db }, TID).list({ kind: "saved", id: S }, now);
+  const seg = await createBroadcastPorts({ supabase: db }, TID, { fresh: false }).list({ kind: "saved", id: S }, now);
   assert.equal(seg.label, "Regulars");
   assert.equal(seg.memberIds.length, 1500, "REGRESSION: the send enrolled 1000 of 1500");
   assert.equal(
-    await createBroadcastPorts({ supabase: db }, "t-other").list({ kind: "saved", id: S }, now),
+    await createBroadcastPorts({ supabase: db }, "t-other", { fresh: false }).list({ kind: "saved", id: S }, now),
     null,
     "another workspace's list is no list",
   );

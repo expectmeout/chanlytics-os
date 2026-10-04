@@ -71,7 +71,7 @@ export const LrControls = ({ c }: { c: LiveCallVM }) => {
         data-testid="live-hand-over"
         {...gate("approve")}
       >
-        <Icon name="phone" size={12} /> {busy === "hand" ? "Passing…" : "Pass the call to me"}
+        <Icon name="phone" size={12} /> {busy === "hand" ? "Passing…" : "Pass to me"}
       </button>
       {arm ? (
         <Confirm
@@ -93,7 +93,7 @@ export const LrControls = ({ c }: { c: LiveCallVM }) => {
           data-testid="live-end"
           {...gate("approve")}
         >
-          {busy === "end" ? "Ending…" : "End the call"}
+          {busy === "end" ? "Ending…" : "End call"}
         </button>
       )}
       {toastNode}

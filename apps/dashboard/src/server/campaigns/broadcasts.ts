@@ -56,6 +56,8 @@ interface BroadcastRow {
 interface RecipientRow {
   broadcast_id: string;
   contact_id: string;
+  /** The channel the send picked for them (reachFor, 00298): null on a run made before; absent where the read did not ask. */
+  channel?: string | null;
   state: string;
   reason: string | null;
   sent_at: string | null;
@@ -337,6 +339,46 @@ async function consentAfter(
   return out;
 }
 
+/** What a person on a run is called: their name, else the number or the address the run went to. */
+function nameOf(r: RecipientRow): string {
+  return personName({
+    display_name: r.contacts?.display_name ?? null,
+    wa_profile_name: r.contacts?.wa_profile_name ?? null,
+    phone_e164: r.contacts?.phone_e164 ?? null,
+    email: r.contacts?.email ?? null,
+  });
+}
+
+const RECIPIENT_COLUMNS =
+  "broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta), contacts(display_name, wa_profile_name, phone_e164, email)";
+
+/**
+ * Every person on a run, a page at a time, each with the channel the send picked for them. A database 00298 has not
+ * reached has no such column, and every run there went by WhatsApp: read again without it, so a deploy that lands before
+ * the migration shows the run as it always did.
+ */
+async function recipientsOf(ctx: RouteContext, tenantId: string, id: string): Promise<RecipientRow[]> {
+  // The person is the tiebreak the pager needs (the key is broadcast_id, contact_id).
+  const read = (columns: string) =>
+    readAllRows("broadcast recipients", (from, to) =>
+      ctx.supabase
+        .from("broadcast_recipients")
+        .select(columns)
+        .eq("tenant_id", tenantId)
+        .eq("broadcast_id", id)
+        .order("sent_at", { ascending: false, nullsFirst: false })
+        .order("contact_id")
+        .range(from, to),
+    ) as unknown as Promise<RecipientRow[]>;
+  try {
+    return await read(`channel, ${RECIPIENT_COLUMNS}`);
+  } catch (e) {
+    const said = e instanceof Error ? e.message : "";
+    if (!/channel/.test(said) || !/does not exist|could not find/i.test(said)) throw e;
+    return (await read(RECIPIENT_COLUMNS)).map((r) => ({ ...r, channel: null }));
+  }
+}
+
 /** One broadcast and every person on it, in the words of what happened to them -- and what came back from each. */
 export async function getBroadcast(ctx: RouteContext, tenantId: string, id: string): Promise<BroadcastDetailDto> {
   const { data: row, error } = await ctx.supabase
@@ -349,20 +391,8 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
   if (!row) throw new AppError("not_found", "Broadcast not found.", 404);
 
   // Every person on it, a page at a time: an unbounded read answers with PostgREST's first 1,000, and a broadcast may
-  // hold BROADCAST_MAX_RECIPIENTS (2,000), so a large run's counts and rows stopped at the thousandth. The person is
-  // the tiebreak the pager needs (the key is broadcast_id, contact_id).
-  const rows = (await readAllRows("broadcast recipients", (from, to) =>
-    ctx.supabase
-      .from("broadcast_recipients")
-      .select(
-        "broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta), contacts(display_name, wa_profile_name, phone_e164, email)",
-      )
-      .eq("tenant_id", tenantId)
-      .eq("broadcast_id", id)
-      .order("sent_at", { ascending: false, nullsFirst: false })
-      .order("contact_id")
-      .range(from, to),
-  )) as unknown as RecipientRow[];
+  // hold BROADCAST_MAX_RECIPIENTS (2,000), so a large run's counts and rows stopped at the thousandth.
+  const rows = await recipientsOf(ctx, tenantId, id);
 
   const { counts, threadsOf } = countRecipients(rows, [id]);
   const threads = threadsOf.get(id);
@@ -375,12 +405,8 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
 
   const people: BroadcastRecipientDto[] = rows.map((r) => ({
     contact_id: r.contact_id,
-    name: personName({
-      display_name: r.contacts?.display_name ?? null,
-      wa_profile_name: r.contacts?.wa_profile_name ?? null,
-      phone_e164: r.contacts?.phone_e164 ?? null,
-      email: r.contacts?.email ?? null,
-    }),
+    name: nameOf(r),
+    channel: r.channel,
     first_name: firstNameOf(r.contacts?.display_name, r.contacts?.wa_profile_name),
     phone: r.contacts?.phone_e164 ?? null,
     state: r.state as RecipientState,

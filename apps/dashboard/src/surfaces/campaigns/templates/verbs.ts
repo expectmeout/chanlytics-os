@@ -31,6 +31,7 @@ import {
   slotLabels,
   starterByName,
   starterForTrigger,
+  startersForTrigger,
   starterPreview,
   starterPreviewValues,
   starterText,
@@ -43,6 +44,7 @@ import {
   templateSlots,
   templateTitle,
   templateUntranslatable,
+  type OwnVersionChannel,
   type StarterTemplate,
 } from "@chanlytics/contracts";
 
@@ -68,6 +70,15 @@ interface StarterBody {
   keys?: string[];
   languages?: string[];
 }
+/** An email or a text version to save (One message, every channel, step 1): the message's name, the language, the channel and the words. */
+export interface VersionDraft {
+  name: string;
+  language: string;
+  channel: OwnVersionChannel;
+  /** An email's subject; a text has none. */
+  subject?: string;
+  body: string;
+}
 
 export const syncTemplates = () => api()("POST templates/sync");
 
@@ -83,6 +94,10 @@ export const templates = {
   show: (id: string) => api()("PUT templates/[id]", { params: { id }, body: { hidden: false } }),
   /** The starter set, or some of it, in the languages asked: idempotent, submitted to Meta where new. */
   addStarters: (body: StarterBody) => api()("POST templates/starter", { body }),
+  /** An email or text version of a message, written or written again: refused in the server's words where it does not fit. */
+  saveVersion: (body: VersionDraft) => api()("POST templates/versions", { body }),
+  /** One email or text version gone; the message and its other versions stay. */
+  removeVersion: (id: string) => api()("DELETE templates/versions/[id]", { params: { id } }),
 };
 
 /**
@@ -107,6 +122,8 @@ export interface StarterLibrary {
   languages: typeof STARTER_LANGUAGES;
   byName: typeof starterByName;
   forTrigger: typeof starterForTrigger;
+  /** Every starter written for a moment, the set's own first, then the ones it replaced (contracts startersForTrigger). */
+  allForTrigger: typeof startersForTrigger;
   text: typeof starterText;
   preview: typeof starterPreview;
   /** A saved row as a customer reads it: this business's name and booking link in the slots that name it. */
@@ -177,6 +194,7 @@ export const starters: StarterLibrary = {
   languages: STARTER_LANGUAGES,
   byName: starterByName,
   forTrigger: starterForTrigger,
+  allForTrigger: startersForTrigger,
   text: starterText,
   preview: starterPreview,
   rowPreview: templatePreview,

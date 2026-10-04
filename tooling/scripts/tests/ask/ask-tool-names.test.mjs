@@ -33,7 +33,15 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runTool, buildProposal, newToolContext, ACT_TOOL_NAMES, ACT_DEFS } = await import(
   at("apps/dashboard/src/server/ask/tools/index.ts")
 );
-const { PERSON_STATE_LABELS, PROPOSAL_SPECS, roleAtLeast } = await import("@chanlytics/contracts");
+const {
+  MOMENTS_RETIRED,
+  PERSON_STATE_LABELS,
+  PLAYBOOK_TRIGGERS,
+  PROPOSAL_SPECS,
+  isWinBack,
+  momentOffered,
+  roleAtLeast,
+} = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 beforeEach(() => readerCache.clear());
 
@@ -479,6 +487,13 @@ function renamed(old, input) {
 /** Whose an action is, in the registry's refusal (tools/context.ts WHOSE). */
 const WHOSE = { owner: "an owner's", partner: "an owner's or a partner's" };
 
+/** The reads with the channels' two after the leading tenants reads: the number's row and the texting line's. */
+const withChannelReads = (reads) => {
+  const at = reads.findIndex((r) => r !== "tenants.select");
+  const i = at < 0 ? reads.length : at;
+  return [...reads.slice(0, i), "tenant_channels.select", "lines.select", ...reads.slice(i)];
+};
+
 /** The old tools that read the threads through the conversations reader (readers/conversations.ts). */
 const THROUGH_THE_HUNDRED = new Set(["get_today", "list_threads"]);
 
@@ -489,6 +504,15 @@ const inWords = (to) => (to.includes(".") ? to.replace(".", " with action ") : t
 const FIXTURE = JSON.parse(
   fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/fixtures/ask-tool-results-7405e34b.json"), "utf8"),
 );
+
+/**
+ * The report's reply_time says the hold the owner set since the Reports fix wave (spec D14): null where the report
+ * carries none, as the report this suite reads does. The one change to the bytes of an answer that has a reply_time.
+ */
+function withHold(result) {
+  const said = JSON.parse(result);
+  return said.reply_time ? JSON.stringify({ ...said, reply_time: { ...said.reply_time, hold: null } }) : result;
+}
 
 test("the mapping names every old tool once, each to a tool and action the registry has", () => {
   assert.equal(Object.keys(NAMES).length, 26, "the twenty-six old tools");
@@ -516,6 +540,32 @@ function withoutPersonState(old, got) {
   return { ...got, result: JSON.stringify(rest) };
 }
 
+/**
+ * campaigns.playbooks lists the moments a NEW playbook is offered, in the words contracts gives them now (2 Oct 2026, the
+ * lifecycle set: contracts momentOffered; this workspace sells by proposal and has no calendar). Its listing is held to
+ * those moments, each one's counts to what 7405e34b counted for it, and the rest of the answer is compared byte for byte.
+ */
+function againstOffered(got, frozen) {
+  const g = JSON.parse(got);
+  const w = JSON.parse(frozen);
+  assert.deepEqual(
+    g.triggers.map((t) => t.trigger),
+    PLAYBOOK_TRIGGERS.filter((t) => momentOffered(t, { dealsOn: true, calendarOn: false })).map((t) => t.id),
+    "the moments offered for a new playbook, retired ones left out",
+  );
+  for (const t of g.triggers) {
+    const was = w.triggers.find((x) => x.trigger === t.trigger);
+    assert.deepEqual(
+      [t.said_yes_now, t.can_be_sent_now, t.counted_per_list],
+      [was.said_yes_now, was.can_be_sent_now, was.counted_per_list],
+      `${t.trigger}: counted as it was`,
+    );
+  }
+  delete g.triggers;
+  delete w.triggers;
+  return [JSON.stringify(g), JSON.stringify(w)];
+}
+
 test("every old tool's call, made by its new name and action, answers the bytes the old tool answered at 7405e34b, and makes the same reads", async () => {
   assert.equal(FIXTURE.length, CASES.length, "one frozen answer per call");
   for (let i = 0; i < CASES.length; i++) {
@@ -524,10 +574,20 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     assert.deepEqual(frozen, [old, input, role], `case ${i} is the call the fixture froze`);
     const call = renamed(old, input);
     const got = withoutPersonState(old, await answer(call.name, call.input, role));
+    // 2 Oct 2026: a moment no longer offered for a new playbook (contracts MOMENTS_RETIRED) is not one of the tool's
+    // triggers: the schema refuses it, naming the ones that are, before anything is read (the check refuses it in the
+    // moment's own words if it gets that far, which core-campaigns.test.mjs runs).
+    if (call.name === "propose_campaign" && String(call.input.trigger) in MOMENTS_RETIRED) {
+      assert.equal(got.isError, true, `${old}: a retired moment is refused`);
+      assert.match(got.result, /expected one of/, `${old}: by the schema, naming the moments there are`);
+      assert.deepEqual(got.reads, [], `${old}: before anything is read`);
+      continue;
+    }
     // A refusal that named an old tool names its new one: the one change to the bytes, applied to every old name.
     let result = want.result;
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
+    if (NAMES[old] === "report") result = withHold(result);
     // An action above the caller is refused by the registry first since PR 4.3 (the Phase 4 plan, D2), in its words,
     // before anything is read, as its builder refused it: the other change to these bytes.
     const act = ACT_DEFS.find((x) => x.name === call.name)?.actions[call.input.action ?? ""];
@@ -537,9 +597,39 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // The threads' messages are one call since 00258: the conversations reader read the table a page at a time, and
     // reads each thread's newest through newest_messages. The old tools that read through it made that read, and no
     // other of the table: the one change to the reads, with the bytes unchanged.
-    const reads = THROUGH_THE_HUNDRED.has(old)
+    const reads0 = THROUGH_THE_HUNDRED.has(old)
       ? want.reads.map((r) => (r === "messages.select" ? "rpc:newest_messages" : r))
       : want.reads;
-    assert.deepEqual(got, { ...want, result, reads }, `${old} -> ${NAMES[old]} ${JSON.stringify(input)}`);
+    // 3 Oct 2026 (One message, every channel, step 3): the playbooks reader asks whether the workspace can send on each
+    // channel (server/campaigns/channels-ready.ts): the WhatsApp number and the texting line, after the turn's tenants
+    // reads (the mailbox only where the deployment sends email, which this one does not). The one change to its reads.
+    // A campaign proposed (a broadcast, a playbook) asks the same of WhatsApp alone, the one channel Ask names: whether
+    // its number can send. One read more, in any order; a call refused before, at its template, never gets that far.
+    const proposes = String(NAMES[old]).startsWith("propose_campaign.") && !want.isError;
+    const counted =
+      NAMES[old] === "campaigns.playbooks"
+        ? withChannelReads(reads0)
+        : proposes
+          ? [...reads0, "tenant_channels.select"]
+          : reads0;
+    // 3 Oct 2026 (the review's item 7): People's rows say who can be sent what against what the workspace can send on, so
+    // a tool that reads the people's pool or a page of them asks for it once a turn (readers/facts.ts channelsReady): the
+    // number's row and the texting line's, in any order among the rest. Answers and cards are unchanged.
+    // A call refused before it reads the people (a list that is no token, a template that is not there) never gets that far.
+    const readsReach =
+      ["search_people", "list_audiences", "propose_broadcast", "propose_playbook"].includes(old) &&
+      counted.includes("rpc:people_list");
+    const reads = readsReach ? [...counted, "tenant_channels.select", "lines.select"] : counted;
+    const [gotResult, wantResult] =
+      NAMES[old] === "campaigns.playbooks" ? againstOffered(got.result, result) : [got.result, result];
+    // 2 Oct 2026: a win-back proposed asks first whether a calendar is connected (check-playbook's calendarOn), from the
+    // zone and settings the turn reads once: the same reads as before, those two earlier. Held to the same reads, in any order.
+    const winBack = call.name === "propose_campaign" && isWinBack(String(call.input.trigger));
+    const inOrder = (r) => (winBack || proposes || readsReach ? [...r].sort() : r);
+    assert.deepEqual(
+      { ...got, result: gotResult, reads: inOrder(got.reads) },
+      { ...want, result: wantResult, reads: inOrder(reads) },
+      `${old} -> ${NAMES[old]} ${JSON.stringify(input)}`,
+    );
   }
 });

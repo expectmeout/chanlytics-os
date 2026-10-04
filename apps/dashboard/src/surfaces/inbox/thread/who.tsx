@@ -3,8 +3,15 @@
  * line under it (`children`). Where they have a page (`to`), the three are one link to it, as a messaging app's header
  * opens the contact: the whole block is the press, a thumb tall on a phone, and the name underlines under a pointer. The
  * call's own header (conversations-page.tsx) and Live's name are the same door.
+ *
+ * The face is the kit's Face at its header size, the one avatar a person wears wherever a thread or a call names them
+ * (the thread's header, the call's header, Live's panel). Its picture slot (`photo`) is where an uploaded photo of a
+ * customer, or a company's logo, goes once members can add one: it covers the initials, which show again if the picture
+ * does not load. Nothing draws a picture yet; when something does, it passes `photo` here and every place that names a
+ * person has it.
  */
 import type { ReactNode } from "react";
+import { Face } from "../../kit/face/face";
 import { hasRouteDoor, routeDoor } from "../shell";
 
 interface IxWhoProps {
@@ -12,16 +19,13 @@ interface IxWhoProps {
   go?: ((to: string) => void) | null;
   who: string;
   avatar: string;
+  photo?: string | null;
   priority?: string | null;
   children?: ReactNode;
 }
 
-export const IxWho = ({ to = null, go = null, who, avatar, priority = null, children }: IxWhoProps) => {
-  const face = (
-    <div className="ix-th-avatar" data-priority={priority || undefined} aria-hidden={to ? "true" : undefined}>
-      {avatar}
-    </div>
-  );
+export const IxWho = ({ to = null, go = null, who, avatar, photo = null, priority = null, children }: IxWhoProps) => {
+  const face = <Face initials={avatar} size="lg" photo={photo ?? undefined} priority={priority} />;
   if (!to || !hasRouteDoor())
     return (
       <div className="ix-th-who">

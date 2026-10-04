@@ -46,6 +46,10 @@ export type {
   ReportLinesVM,
   ReportVM,
 } from "./reports";
+export { holdOf } from "./report-speed";
+export type { ReportHoldVM } from "./report-speed";
+export { closedOf } from "./report-closed";
+export type { ReportArrivalDto, ReportProfile } from "./report-closed";
 export { reportFacts } from "./report-facts";
 export type { ReportFactVM } from "./report-facts";
 export { toReachOutReportVM, reachOutDayWords } from "./reach-out-report";

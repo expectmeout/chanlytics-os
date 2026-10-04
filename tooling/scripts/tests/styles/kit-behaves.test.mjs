@@ -146,7 +146,9 @@ const galleryEntries = FAMILIES.filter((f) => ON_BASE_UI.test(f.family)).flatMap
  * What a server can draw of them: all the browser reads but the roving tab stop, which Base UI's composite (a radio
  * group's one stop, on the option chosen) sets in an effect a server does not run. The browser holds it.
  */
-const SERVER_READ = MARKUP_READ.filter((a) => a !== "tabindex");
+// Nor an indicator's `hidden`: Base UI hides it until its tabs are measured, which a server never does (the browser's
+// hold, e2e/kit/kit-behaves.spec.ts, reads it, and the bar standing under the picked tab).
+const SERVER_READ = MARKUP_READ.filter((a) => a !== "tabindex" && a !== "hidden");
 
 test("the skeleton reads a tag, a class, an attribute read and an element, gives way to what carries no class, and reads no words", () => {
   const a =
@@ -186,12 +188,23 @@ test("the running page draws the gallery's entries of the kit's Base UI componen
   assert.deepEqual(drawn, written, "an entry on one side alone");
 });
 
-test("a server draws each entry the page draws closed as its gallery entry draws it: the switch, the segmented control, the field", async () => {
+test("a server draws each entry the page draws closed as its gallery entry draws it: the switch, the segmented control, the sub-tabs, the field", async () => {
   const { page } = await bundled;
   const closed = page.ENTRIES.filter((e) => e.closed);
   assert.deepEqual(
     closed.map((e) => e.id),
-    ["switch-kit", "segmented-kit", "segmented-kit-hints", "field-kit", "field-kit-wrong"],
+    [
+      "switch-kit",
+      "segmented-kit",
+      "segmented-kit-hints",
+      "subtabs",
+      "subtabs-quiet",
+      "subtabs-dense",
+      "subtabs-glyph",
+      "field-kit",
+      "field-kit-wrong",
+      "field-kit-title",
+    ],
     "the entries a server can draw",
   );
   const apart = [];

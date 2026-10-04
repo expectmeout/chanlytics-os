@@ -34,54 +34,7 @@
   min-width: 0;
 }
 
-/* Buckets */
-.ix-buckets {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  padding: 10px 8px 8px;
-  gap: 2px;
-  border-bottom: 1px solid var(--line);
-}
-.ix-bucket {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--ink-muted);
-  background: transparent;
-  text-align: left;
-  transition: all 120ms;
-}
-.ix-bucket:hover {
-  background: var(--bg-hover);
-  color: var(--ink);
-}
-.ix-bucket.active {
-  background: var(--bg-raised);
-  color: var(--ink);
-  box-shadow: var(--shadow-sm);
-}
-
-.ix-bucket-label { flex: 1; }
-/* Three buckets, one row of words: the icon says again what the label says, and at 12.5px "Needs you" did not fit the
-   106px a third of the rail gives it. Six seeded buckets keep their grid. */
-.ix-buckets.one-row { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 8px; }
-.ix-buckets.one-row .ix-bucket { gap: 6px; padding: 7px 8px; font-size: 11.5px; }
-.ix-buckets.one-row .ix-bucket > .icon { display: none; }
-.ix-buckets.one-row .ix-bucket-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ix-buckets.one-row .ix-bucket-count { min-width: 14px; }
-.ix-bucket-count {
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-  font-variant-numeric: tabular-nums;
-  min-width: 22px;
-  text-align: right;
-}
-/* The Needs you bucket counts people who need you: its number is amber, and the tab itself selects as every tab does. */
-.ix-bucket.accent .ix-bucket-count { color: var(--warn-ink); font-weight: 500; }
+/* The buckets are the kit's sub-tabs (SubTabs, kit.css); the page places the strip, as each look below wants it. */
 
 /* Search row. Its select-all box sits over the rows' own boxes, and the field starts where their avatars do. */
 .ix-search-row {
@@ -222,6 +175,10 @@
   padding: 12px 14px;
   border-bottom: 1px solid var(--line);
   cursor: pointer;
+  /* A row below the fold is not laid out or painted until it is near: a list of hundreds opens as fast as one of ten,
+     and a switch between lists draws only what is in sight. Its height is remembered once seen. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 96px;
   transition: background 100ms;
 }
 .ix-thread:hover { background: var(--bg-hover); }
@@ -494,15 +451,6 @@
 @media (pointer: coarse) {
   html.legacy-on .ix-th-step-done { min-height: 0; padding: 10px 12px 18px; margin: -10px -12px -18px -8px; }
 }
-.ix-th-avatar {
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 500; color: var(--ink-muted);
-}
-.ix-th-avatar[data-priority="P1"] { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .ix-th-name {
   font-size: 14px;
   font-weight: 500;
@@ -1912,12 +1860,30 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   color: var(--ink-dim);
   line-height: 1.4;
 }
-.ix-tpl-pick {
-  max-width: 210px;
-  font-size: 12px;
+/* The template send is the reply box's capsule with the message where the words go: its title (a button that opens the
+   others, and says which were not offered, I4, where there are others) and Send at the right end. */
+.ix-composer-row .ix-tpl-name {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: 0;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
 }
-/* Why an approved template is not offered to this person (I4). */
-.ix-tpl-hidden { flex-basis: 100%; font-size: 11.5px; line-height: 1.4; color: var(--ink-dim); }
+.ix-composer-row .ix-tpl-name:hover { background: transparent; }
+.ix-composer-row .ix-tpl-name .icon { flex: none; color: var(--ink-dim); }
+.ix-composer-row .ix-tpl-name:hover .icon { color: var(--ink); }
+.ix-tpl-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A call offered over the capsule: the two read as one dock, not two boxes. */
+.ix-composer-lead { padding-bottom: 0; }
 
 /* a deep link to a thread that is not in view: the first thread shows, with this */
 .ix-notice { padding: 8px 24px; font-size: 12px; color: var(--warn); border-bottom: 1px solid var(--line); }
@@ -1940,7 +1906,10 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 .ix-composer-actions { flex-wrap: wrap; justify-content: flex-end; }
 @container ixpane (max-width: 520px) {
   .ix-composer-actions { width: 100%; justify-content: flex-start; }
-  .ix-tpl-pick { flex: 1 1 100%; max-width: none; }
+  /* The dock has a left and a right, not one busy edge: the act to do stands on the left and the one that sets it aside
+     on the right. */
+  .ix-state-acts { align-self: stretch; }
+  .ix-state-acts > :last-child:not(:first-child) { margin-inline-start: auto; }
 }
 /* A text field shows where the keys go: the composer and the search set outline:none and moved only a border (I3). */
 .ix-composer-text:focus-visible { box-shadow: var(--focus-ring); }
@@ -2059,7 +2028,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 .ix-composer-row .ix-composer-text { flex: 1; min-width: 0; min-height: 36px; max-height: 160px; overflow-y: auto; padding: 8px 12px; }
 .ix-composer-send { flex: none; height: 36px; }
 @media (pointer: coarse) {
-  .ix-composer-row .ix-composer-text, .ix-composer-send { min-height: 44px; }
+  .ix-composer-row .ix-composer-text, .ix-composer-row .ix-tpl-name, .ix-composer-send { min-height: 44px; }
   /* A hint for a keyboard, not a thumb. */
   .ix-composer .kbd { display: none; }
 }
@@ -2185,7 +2154,6 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 @media (width > 900px) {
   /* I1: the list 360 wide beside the thread, 14 between them, on the page's own light. */
   :where([data-look="glass"]) .inbox {
-    --rail-list: 360px;
     gap: 14px;
     padding: 0 var(--gutter-page) 16px;
     background: transparent;
@@ -2248,11 +2216,6 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 }
 :where([data-look="glass"]) .ix-list > .ix-buckets {
   order: 2;
-  display: flex;
-  gap: 18px;
-  padding: 0 18px;
-  background: transparent;
-  border-bottom: 1px solid var(--line);
 }
 :where([data-look="glass"]) .ix-list-head {
   order: 3;
@@ -2261,40 +2224,6 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 :where([data-look="glass"]) .ix-threads {
   order: 4;
 }
-:where([data-look="glass"]) .ix-list > .ix-buckets > .ix-bucket {
-  flex: none;
-  align-items: baseline;
-  gap: 6px;
-  min-height: 0;
-  margin: 0 0 -1px;
-  padding: 8px 0 9px;
-  border-radius: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  font-size: var(--text-base);
-  font-weight: var(--weight-medium);
-  color: var(--ink-dim);
-}
-:where([data-look="glass"]) .ix-list > .ix-buckets > .ix-bucket:hover {
-  background: transparent;
-  color: var(--ink);
-}
-:where([data-look="glass"]) .ix-list > .ix-buckets > .ix-bucket.active {
-  background: transparent;
-  box-shadow: none;
-  font-weight: var(--weight-semibold);
-  color: var(--ink);
-  border-bottom-color: var(--ink);
-}
-/* A bucket's count is the neutral figure beside its word, the amber kept for a row's wait. */
-:where([data-look="glass"]) .ix-list > .ix-buckets .ix-bucket-count {
-  min-width: 0;
-  text-align: left;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--ink-dim);
-}
-
 /* ---- A row is one person on the pane itself; the open one is the lozenge (I1) ---- */
 :where([data-look="glass"]) .ix-thread-rows {
   display: flex;
@@ -2392,18 +2321,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   padding: 16px 20px 12px;
   border-bottom-color: var(--line);
 }
-/* Who it is: the face (the link's first child) at 36, the name at 600 with its quiet chevron, the wires under it. */
-:where([data-look="glass"]) .ix-th-who > :first-child {
-  border: 0;
-  background: var(--face-fill);
-  box-shadow:
-    var(--surface-inset-ring),
-    var(--surface-inset-depth);
-  color: var(--ink);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.01em;
-}
+/* Who it is: the face is the kit's (Face, at 36); the name at 600 with its quiet chevron, the wires under it. */
 :where([data-look="glass"]) .ix-th-name {
   gap: 4px;
   font-size: var(--text-md);
@@ -2831,69 +2749,30 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   :where([data-look="glass"]) .inbox:has(> [data-testid="inbox-empty"]) .ix-threads {
     display: none;
   }
-  /* The page's head (the one header a page holds) stands over the list alone: a phone's thread is headed by its own
-     person. The tab bar and Ask's circle leave with it (ask.css hides the circle), and the room kept for them. */
-  :where([data-look="glass"]) .main:has(> .main-scroll > .inbox.phone-thread) .pg-slot {
-    display: none;
-  }
-  :where([data-look="glass"]) .app-root:has(.inbox.phone-thread) [data-testid="phone-tabs"] {
-    display: none;
-  }
-  :where([data-look="glass"]) .main-scroll:has(> .inbox.phone-thread) {
-    padding-bottom: 0;
-  }
+  /* The page's head stands over the list alone, and a phone's thread is headed by its own person: the frame lets go of
+     its chrome for a page marked data-takeover (mobile.css, "A page that takes the screen over"). The thread is one
+     window wherever it is opened from, the Inbox or a conversation: no ground of its own, so the page's light shows
+     through it (it had one in Conversations only, with a hairline down its edge). */
   :where([data-look="glass"]) .inbox,
   :where([data-look="glass"]) .inbox .ix-list,
-  :where([data-look="glass"]) .inbox .ix-thread-pane {
+  :where([data-look="glass"]) :is(.inbox, .conversations) .ix-thread-pane {
     border: 0;
     background: transparent;
   }
-  /* The buckets are the one capsule over the list (the strip of views is not drawn here; components.css), the picked
-     one its lozenge, and only a bucket that needs you says its count. */
+  /* The buckets are the Inbox's sub-menu, so they are not a second capsule under the strip of views (components.css draws
+     that one): the kit's sub-tabs, at the page's gutter, 4px under the strip. */
+  :where([data-look="glass"]) .main:has(> .main-scroll > .inbox:not([data-takeover])) .pg-slot {
+    padding-bottom: 4px;
+  }
   :where([data-look="glass"]) .inbox .ix-list > .ix-buckets {
     order: 0;
-    display: inline-flex;
-    width: fit-content;
-    max-width: calc(100% - 24px);
-    gap: 2px;
-    margin: 10px 12px 0;
-    padding: 4px;
-    border-bottom: 0;
-    border-radius: var(--radius-full);
-    background: var(--surface-control-fill);
-    box-shadow: var(--surface-control-depth);
   }
-  :where([data-look="glass"]) .inbox .ix-list > .ix-buckets > .ix-bucket {
-    flex: none;
-    justify-content: center;
-    height: 30px;
-    min-height: 0;
-    margin: 0;
-    padding: 0 14px;
-    border: 0;
-    border-radius: var(--radius-full);
-    font-size: var(--text-base);
-    font-weight: var(--weight-medium);
-    color: var(--ink-muted);
+  .inbox .ix-list > .ix-buckets {
+    margin: 0 16px;
   }
-  :where([data-look="glass"]) .inbox .ix-list > .ix-buckets > .ix-bucket .ix-bucket-label {
-    flex: none;
-  }
-  :where([data-look="glass"]) .inbox .ix-list > .ix-buckets > .ix-bucket.active {
-    background: var(--selected-fill);
-    box-shadow: var(--selected-depth);
-    font-weight: var(--weight-semibold);
-    color: var(--ink);
-  }
-  :where([data-look="glass"]) .inbox .ix-list > .ix-buckets .ix-bucket-count {
-    font-size: var(--text-sm);
-  }
-  :where([data-look="glass"]) .inbox .ix-list > .ix-buckets > .ix-bucket:not(.accent) .ix-bucket-count {
-    display: none;
-  }
-  /* The search under the capsule, 38px tall, at the capsule's sides. */
+  /* The search under the tabs, 38px tall, at the strip's sides. */
   :where([data-look="glass"]) .inbox .ix-list > :nth-child(2) {
-    padding: 10px 12px 8px;
+    padding: 6px 12px 8px;
   }
   :where([data-look="glass"]) .inbox .ix-list > :nth-child(2) > div {
     height: 38px;
@@ -2907,93 +2786,113 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     background: transparent;
     box-shadow: none;
   }
-  /* The thread's header is a capsule of the control layer's glass, 8px from the sides: a 36px inset circle to go
-     back, the person, and the Actions as a 36px inset circle with the three dots (its word is a desk's). */
-  :where([data-look="glass"]) .inbox.phone-thread .ix-thread-pane > .ix-th-head {
-    position: relative;
-    gap: 12px;
-    margin: 14px 8px 0;
-    padding: 12px;
+  /* The thread's header is one 52px pill of the control layer's glass (the kit's capsule), 8px from the sides: the arrow to go back as a
+     bare glyph, who it is (the face, the name and its wire in two short lines: one press to their page, the chevron
+     says so), and Actions as a labelled inset capsule with its chevron, since three dots said nothing of what they
+     held. It carries no backdrop-filter: nothing scrolls under it, and a filter made it the containing block of the
+     menu's sheet, which then opened off the top of the screen instead of from the bottom. */
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-thread-pane > .ix-th-head {
+    gap: 6px;
+    margin: 10px 8px 0;
+    padding: 8px 8px 8px 6px;
     border-bottom: 0;
-    border-radius: var(--radius-3xl);
-    background-color: var(--surface-control-fill);
-    background-image: var(--surface-control-sheen);
-    box-shadow: var(--surface-control-depth);
-    backdrop-filter: var(--surface-control-blur);
   }
-  :where([data-look="glass"]) .inbox.phone-thread .ix-thread-pane > .ix-th-head::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    padding: 1px;
-    border-radius: inherit;
-    background: var(--surface-control-rim);
-    mask:
-      linear-gradient(#000 0 0) content-box exclude,
-      linear-gradient(#000 0 0);
-    pointer-events: none;
-  }
-  :where([data-look="glass"]) .inbox.phone-thread .ix-thread-pane .ix-back {
-    width: 36px;
-    min-width: 36px;
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-thread-pane .ix-back {
+    width: 34px;
+    min-width: 34px;
     height: 36px;
     min-height: 36px;
-    margin: 0 2px 0 0;
+    margin: 0;
     padding: 0;
     border: 0;
     border-radius: var(--radius-circle);
+    background: transparent;
+    box-shadow: none;
+    font-size: var(--text-lg);
+    color: var(--ink-muted);
+  }
+  /* Who it is: the face at 36 and two lines at its height, the name over its wire. */
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-who {
+    gap: 10px;
+  }
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-name {
+    line-height: 1.2;
+  }
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-meta {
+    margin-top: 0;
+    line-height: 1.2;
+  }
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-actions .ix-th-more {
+    position: relative;
+    gap: 5px;
+    width: auto;
+    min-width: 0;
+    height: 34px;
+    min-height: 0;
+    padding: 0 12px 0 14px;
+    border-radius: var(--radius-full);
     background: var(--surface-inset-fill);
     box-shadow:
       var(--surface-inset-ring),
       var(--surface-inset-depth);
-    font-size: var(--text-lg);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
     color: var(--ink);
   }
-  :where([data-look="glass"]) .inbox.phone-thread .ix-th-actions .ix-th-more {
-    width: 36px;
-    height: 36px;
-    min-height: 36px;
-    padding: 0;
-    border-radius: var(--radius-circle);
-    background: var(--surface-inset-fill);
-    box-shadow:
-      var(--surface-inset-ring),
-      var(--surface-inset-depth);
-    font-size: 0;
-    color: var(--ink);
+  /* A thumb's 44px, as an invisible margin round the 34px capsule. */
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-actions .ix-th-more::before {
+    content: "";
+    position: absolute;
+    inset: -5px -4px;
   }
-  :where([data-look="glass"]) .inbox.phone-thread .ix-th-actions .ix-th-more::before {
-    content: "⋯";
-    font-size: var(--text-lg);
-    line-height: 1;
-    letter-spacing: -0.05em;
-  }
-  :where([data-look="glass"]) .inbox.phone-thread .ix-th-actions .ix-th-more > .icon {
-    display: none;
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-actions .ix-th-more > .icon {
+    color: var(--ink-dim);
   }
   /* Under the capsule the standing on the page itself, no hairline; the conversation at the phone's sides, the
      bubbles at the phone's 88%; the band and the reply box at the phone's padding. */
-  :where([data-look="glass"]) .inbox.phone-thread .ix-th-bar {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-bar {
     padding: 10px 16px;
     border-bottom: 0;
   }
-  :where([data-look="glass"]) .inbox.phone-thread .ix-th-scroll {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-scroll {
     gap: 10px;
     padding: 4px 14px 12px;
   }
-  :where([data-look="glass"]) .inbox.phone-thread .ix-thread-pane .tl-msg-bubble > :not(.tl-msg-meta, .tl-msg-by) {
+  :where([data-look="glass"])
+    :is(.inbox, .conversations)[data-takeover]
+    .ix-thread-pane
+    .tl-msg-bubble
+    > :not(.tl-msg-meta, .tl-msg-by) {
     max-width: 88%;
   }
-  :where([data-look="glass"]) .inbox.phone-thread .ix-th-status {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-th-status {
     padding: 14px 16px 0;
   }
-  :where([data-look="glass"]) .inbox.phone-thread .ix-composer {
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-composer {
     padding: 10px 12px 14px;
   }
-  :where([data-look="glass"]) .inbox.phone-thread .ix-composer.ix-composer-row {
+  /* The box that offers a call or a template has no capsule of its own to inset, so it stands on the band's 16. */
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-composer:not(.ix-composer-row) {
+    padding-inline: 16px;
+  }
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .ix-composer.ix-composer-row {
     margin: 0 12px 14px;
   }
-  :where([data-look="glass"]) .inbox.phone-thread .ix-th-status + .ix-composer.ix-composer-row {
+  :where([data-look="glass"])
+    :is(.inbox, .conversations)[data-takeover]
+    .ix-th-status
+    + .ix-composer.ix-composer-row {
     margin-top: 10px;
+  }
+  /* A message that never reached them: the bubble itself is the dashed, dimmed one, not a dashed box round the bubble
+     and its two lines of meta (conversations.css draws that one, for a desk). */
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .tl-msg.undelivered .tl-msg-bubble {
+    border: 0;
+    opacity: 1;
+  }
+  :where([data-look="glass"]) :is(.inbox, .conversations)[data-takeover] .tl-msg.undelivered .tl-msg-body {
+    border: 1px dashed var(--line-strong);
+    background: transparent;
+    opacity: 0.7;
   }
 }

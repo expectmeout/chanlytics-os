@@ -142,6 +142,8 @@ export function resolveSystemPrompt(
     business_name: facts.business_name.value ?? brain.business_name,
     phone_display: facts.phone_display.value,
     booking_link: facts.booking_link.value ?? brain.booking_link ?? null,
+    // Provisioned or nothing, never typed (facts.ts): the ask for the yes to offers is composed only where there is one.
+    whatsapp_line: facts.whatsapp_line.value,
   };
   // NOTHING a workspace already had may be lost by filling in a form.
   //

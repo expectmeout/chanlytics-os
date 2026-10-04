@@ -4,7 +4,6 @@
  */
 import type { AskedPurpose } from "../consent/consent";
 import type { PersonRowVM } from "./person-row";
-import { mayReceive, saidYesTo } from "./person-consent";
 import { MONTH_MS } from "./person-helpers";
 import { DAY_MS, WEEK_MS } from "../shared/time";
 
@@ -55,7 +54,7 @@ const LIST_STEPS: Record<
   new_week: {
     cta: "Get their yes",
     to: GET_YES_ROUTE,
-    text: "Their yes to offers is the phrase and the QR on Broadcasts.",
+    text: "Their yes to offers is the phrase and the QR under Get their yes in Sent.",
     answered: { cta: USE_IN_A_BROADCAST, to: "broadcasts/new_week" },
   },
   booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
@@ -93,12 +92,13 @@ const LIST_STEPS: Record<
  * WHICH yes it counts is the MARKETING one, because these steps all open the
  * composer on a promotional send (win them back, reach the quiet ones, run an
  * offer). Counting the conversational answer here promised an audience the
- * composer would then refuse -- the same mismatch, one screen earlier.
+ * composer would then refuse -- the same mismatch, one screen earlier. Who said it, and who can be sent an offer, are
+ * the rows' own facts (`saidYes`, `canReceive`: reach-any.ts, over the channels the workspace can send on now).
  */
 export function peopleListAction(id: string, members: PersonRowVM[]): PeopleListAction | null {
   const step = LIST_STEPS[id];
   if (!step) return null;
-  if (step.answered && members.length > 0 && members.every((m) => saidYesTo(m, "marketing")))
+  if (step.answered && members.length > 0 && members.every((m) => m.saidYes.offers))
     return broadcastStep(step.answered.cta, step.answered.to, members);
   if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
   return broadcastStep(step.cta, step.to, members);
@@ -129,6 +129,21 @@ export function noNumberWords(who: string, purpose: AskedPurpose): string {
 }
 
 /**
+ * Why nobody can be sent a thing when somebody said the yes it needs and the workspace has no channel to send it on
+ * now (its WhatsApp number is not connected or not allowed to send, for an offer): reachFor's "no_channel". The reason
+ * in `noChannelWords`, and the arithmetic under Today's reach row, in one spelling.
+ */
+export const NO_CHANNEL_REACH = "a broadcast needs a channel you can send on, and none can carry it right now";
+
+/**
+ * Nobody on a list can be sent this, somebody on it said yes, and the workspace has no channel to send it on now: what
+ * is missing is the channel, not a number. Said as `noNumberWords` is, of a list or an audience.
+ */
+export function noChannelWords(who: string, purpose: AskedPurpose): string {
+  return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet — ${NO_CHANNEL_REACH}.`;
+}
+
+/**
  * How many on an audience said yes to what a message needs, as the send screen's line under the audience says it.
  * The number is who it reaches (`sending`: a yes and a number), in the shorthand People's list step uses ("N of M on
  * this list said yes to offers — a broadcast reaches them") -- except when that is 0 and somebody DID say yes
@@ -143,7 +158,7 @@ export function saidYesWords(who: string, purpose: AskedPurpose, sending: number
 }
 
 function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleListAction {
-  const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
+  const offersYes = members.filter((m) => m.canReceive.offers).length;
   if (offersYes === 0) {
     // People on the list, and not one of them has said yes to offers: the
     // list's own step cannot run, and the thing that CAN is getting that yes.
@@ -152,11 +167,12 @@ function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleL
     // nowhere. The button is the door to the answer now. Navigation only: who
     // may be sent an offer is exactly what it was.
     //
-    // NOT when someone here already said yes and simply has no number to send
-    // to: sending them to "get their yes" would ask for an answer they gave. That
-    // case keeps the list's own step, waiting, as before.
-    const saidYes = members.some((m) => saidYesTo(m, "marketing"));
-    if (members.length && !saidYes) {
+    // NOT when someone here already said yes and simply cannot be reached: sending
+    // them to "get their yes" would ask for an answer they gave. That case keeps the
+    // list's own step, waiting, as before, and says which it is: no number to send to
+    // (offers go by WhatsApp), or no channel the workspace can send an offer on now.
+    const said = members.filter((m) => m.saidYes.offers);
+    if (members.length && said.length === 0) {
       return {
         text: "Nobody on this list has said yes to offers yet — a broadcast reaches only that answer.",
         cta: "Get their yes",
@@ -164,12 +180,9 @@ function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleL
         enabled: true,
       };
     }
-    return {
-      text: members.length ? noNumberWords("this list", "marketing") : "Nobody here right now.",
-      cta,
-      to,
-      enabled: false,
-    };
+    const noChannel = said.some((m) => m.whyNot.offers === "no_channel");
+    const why = noChannel ? noChannelWords("this list", "marketing") : noNumberWords("this list", "marketing");
+    return { text: members.length ? why : "Nobody here right now.", cta, to, enabled: false };
   }
   return {
     text: `${offersYes} of ${members.length} on this list said yes to offers — a broadcast reaches them.`,

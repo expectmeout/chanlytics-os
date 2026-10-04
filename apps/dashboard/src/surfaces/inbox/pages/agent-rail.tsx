@@ -11,7 +11,8 @@
 import { useEffect, useReducer, useState } from "react";
 import { askAbout } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { Button } from "../../kit/button/button";
+import { Menu } from "../../kit/menu/menu";
 import { ROUTES } from "../constants";
 import { agentByName, agentIdFor, canDo, gate, navigate, policy, useToast, type PolicyRow } from "../shell";
 import type { SeededThread } from "../types";
@@ -61,26 +62,38 @@ function railHead(agentId: string) {
   return (
     <header className="ix-rail-head">
       <span className="ix-rail-eyebrow">Agent context</span>
-      <MoreMenu
-        btnClass="btn btn-icon btn-sm"
-        items={[
-          { header: "Agent context" },
-          { label: "Open agent", icon: "arrow-right", onClick: () => navigate(ROUTES.agent(agentId)) },
+      <Menu
+        trigger={
+          <Button iconOnly size="sm" aria-label="More" title="More">
+            <Icon name="more" size={13} />
+          </Button>
+        }
+        groups={[
           {
-            label: "Why this call?",
-            icon: "sparkle",
-            onClick: () =>
-              ask({
-                prompt: "Why did the agent make this call?",
-                answer:
-                  "It weighed the client's history, your policies, and the likely outcomes. The full reasoning trail lives on the agent's Fleet page.",
-                links: [{ label: "Open Fleet", to: "fleet" }],
-              }),
-          },
-          {
-            label: "Report bad reasoning",
-            icon: "flag",
-            onClick: () => ask({ mode: "compose", prompt: "This reasoning was off because " }),
+            header: "Agent context",
+            items: [
+              {
+                label: "Open agent",
+                glyph: <Icon name="arrow-right" size={13} />,
+                onSelect: () => navigate(ROUTES.agent(agentId)),
+              },
+              {
+                label: "Why this call?",
+                glyph: <Icon name="sparkle" size={13} />,
+                onSelect: () =>
+                  ask({
+                    prompt: "Why did the agent make this call?",
+                    answer:
+                      "It weighed the client's history, your policies, and the likely outcomes. The full reasoning trail lives on the agent's Fleet page.",
+                    links: [{ label: "Open Fleet", to: "fleet" }],
+                  }),
+              },
+              {
+                label: "Report bad reasoning",
+                glyph: <Icon name="flag" size={13} />,
+                onSelect: () => ask({ mode: "compose", prompt: "This reasoning was off because " }),
+              },
+            ],
           },
         ]}
       />

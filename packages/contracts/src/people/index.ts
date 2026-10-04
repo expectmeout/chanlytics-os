@@ -48,18 +48,20 @@ export {
   OFFERS_YES_SOURCES,
   OWN_MESSAGE_REFUSALS,
 } from "./person-consent";
-export type { PersonConsent, NotReceived } from "./person-consent";
+export type { PersonConsent, NotReceived, ReceiveRow } from "./person-consent";
 export { personNotesVM, NOTE_MAX, NOTE_WORDS, NOTE_REFUSALS } from "../notes/person-notes";
 export type { PersonNoteDto, PersonNoteTeamDto, PersonNoteVM } from "../notes/person-notes";
 export {
   peopleListAction,
   savedListAction,
   noNumberWords,
+  noChannelWords,
   saidYesWords,
   peopleAggregates,
   recencyCells,
   GET_YES_ROUTE,
   NO_NUMBER_REACH,
+  NO_CHANNEL_REACH,
 } from "./people-lists";
 export type { PeopleListAction, PeopleAggregates } from "./people-lists";
 export { attentionRow } from "./person-attention";

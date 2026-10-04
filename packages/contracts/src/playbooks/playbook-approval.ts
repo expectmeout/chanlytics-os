@@ -4,6 +4,7 @@
  */
 import type { BroadcastDto, BroadcastRecipientDto } from "../broadcasts/broadcasts";
 import { purposeOfPlaybook } from "../consent/consent";
+import type { ConsentChannel } from "../consent/consent-channels";
 import { GET_YES_ROUTE } from "../people/people-lists";
 import type { RunReach } from "./playbook-reach";
 import { triggerOf } from "./playbook-triggers";
@@ -13,8 +14,16 @@ import { PARAM_SOURCE_LABELS, type ParamSpec } from "../templates/templates";
 /* --------------------------- a run waiting on you --------------------------- */
 
 export interface ApprovalVM {
-  /** How many it reaches when approved: the people it enrolled. */
+  /**
+   * How many it reaches when approved: the people it enrolled, less those the month's allowance already holds (core
+   * holds them at enrolment, skipped with `month_allowance`), who are in its held line and never in this number.
+   */
   will: number;
+  /**
+   * Who it reaches on each channel, adding up to `will`: the run's own count with the people the month's allowance holds
+   * taken off the channel each was to go by. Null for a run that kept no such count (all WhatsApp).
+   */
+  byChannel: Record<ConsentChannel, number> | null;
   /**
    * The rules that made its list, in words -- true of everyone on it by
    * construction (eligibleForPlaybook). What a run made before runs kept who
@@ -72,6 +81,8 @@ export function poolWords(trigger: string): string {
 export function reachLines(
   reach: RunReach | null | undefined,
   p: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> | null,
+  /** How many of the run's people the month's allowance holds (ALLOWANCE_HELD_WORDS): in the held line, out of `will`. */
+  allowanceHeld = 0,
 ): ApprovalVM["of"] {
   if (!reach || !Number.isFinite(reach.pool)) return null;
   const t = p ? triggerOf(p.trigger) : null;
@@ -88,6 +99,7 @@ export function reachLines(
       door: { words: "Get their yes", to: GET_YES_ROUTE },
     },
     { n: reach.heardAny, words: "heard from a playbook this week", tone: "warn", door: null },
+    { n: allowanceHeld, words: ALLOWANCE_HELD_WORDS, tone: "warn", door: null },
     {
       n: reach.heardThis,
       words: once
@@ -127,7 +139,33 @@ export function reachLines(
     .filter((r) => r.n > 0)
     .sort((a, b) => b.n - a.n || a.rank - b.rank)
     .map(({ n, words, tone, door }) => ({ n, words: `${n} ${words}`, tone, door }));
-  return { pool: reach.pool, held: reach.heardAny + (once ? 0 : reach.heardThis) + reach.overLimit, lines };
+  return {
+    pool: reach.pool,
+    held: reach.heardAny + (once ? 0 : reach.heardThis) + reach.overLimit + allowanceHeld,
+    lines,
+  };
+}
+
+/** What the held line says of the people the month's emails or texts have no room for ("2 held for this month's allowance"). */
+const ALLOWANCE_HELD_WORDS = "held for this month's allowance";
+
+/** The reason core writes on a person it holds at enrolment for the month's allowance (HELD_REASONS keeps its words). */
+const ALLOWANCE_REASON = "month_allowance";
+
+/**
+ * The people a run holds for the month's allowance, by the channel each was to go by (the recipient's own, WhatsApp where the
+ * run kept none): core holds them at enrolment, so they are on the run as skipped and are never reached by approving it.
+ */
+function allowanceHeldOn(
+  recipients: ReadonlyArray<Partial<Pick<BroadcastRecipientDto, "state" | "reason" | "channel">>>,
+): Record<ConsentChannel, number> {
+  const held: Record<ConsentChannel, number> = { whatsapp: 0, sms: 0, email: 0 };
+  for (const r of recipients) {
+    if (r.state !== "skipped" || r.reason !== ALLOWANCE_REASON) continue;
+    const channel = r.channel === "sms" || r.channel === "email" ? r.channel : "whatsapp";
+    held[channel] += 1;
+  }
+  return held;
 }
 
 /**
@@ -156,7 +194,10 @@ export function toApprovalVM(
     broadcast: Pick<BroadcastDto, "recipient_count" | "run_for" | "params"> & {
       audience?: { reach?: RunReach } | null;
     };
-    recipients: readonly Pick<BroadcastRecipientDto, "name" | "first_name">[];
+    recipients: ReadonlyArray<
+      Pick<BroadcastRecipientDto, "name" | "first_name"> &
+        Partial<Pick<BroadcastRecipientDto, "state" | "reason" | "channel">>
+    >;
   },
   opts: {
     playbook: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> | null;
@@ -170,7 +211,11 @@ export function toApprovalVM(
   },
 ): ApprovalVM {
   const b = d.broadcast;
-  const will = b.recipient_count;
+  // The month's allowance holds some at enrolment: they are in the held line, and approving reaches none of them.
+  const heldOn = allowanceHeldOn(d.recipients);
+  const allowanceHeld = heldOn.whatsapp + heldOn.sms + heldOn.email;
+  const will = Math.max(0, b.recipient_count - allowanceHeld);
+  const by = b.audience?.reach?.by_channel;
   const t = opts.playbook ? triggerOf(opts.playbook.trigger) : null;
   const rules: string[] = [];
   if (t && opts.playbook) {
@@ -220,8 +265,15 @@ export function toApprovalVM(
   const late = !!b.run_for && b.run_for !== opts.today;
   return {
     will,
+    byChannel: by
+      ? {
+          whatsapp: Math.max(0, by.whatsapp - heldOn.whatsapp),
+          sms: Math.max(0, by.sms - heldOn.sms),
+          email: Math.max(0, by.email - heldOn.email),
+        }
+      : null,
     rules,
-    of: reachLines(b.audience?.reach ?? null, opts.playbook),
+    of: reachLines(b.audience?.reach ?? null, opts.playbook, allowanceHeld),
     values,
     reader: reader ? reader.name : null,
     hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,

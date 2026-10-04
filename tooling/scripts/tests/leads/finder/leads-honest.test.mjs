@@ -2818,7 +2818,7 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
   try {
     let tree = draw();
     const clsOf = (k) => String((k && (k.rendered || k).props?.className) || "");
-    const cardOf = (id) => find(rowOf(tree, id), (n) => n.props?.className === "pl-card");
+    const cardOf = (id) => find(rowOf(tree, id), (n) => /\blist-row pl-card\b/.test(String(n.props?.className || "")));
     const tr = rowOf(tree, "l1");
     assert.ok(String(tr.props.className).split(/\s+/).includes("pl-card-row"), "the row People's rows wear");
     assert.deepEqual(
@@ -2827,28 +2827,26 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
       "one cell beside the face's box, as a person's row",
     );
     const card = cardOf("l1");
-    assert.deepEqual(
-      card.props.children.filter(Boolean).map(clsOf),
-      ["ix-thread-avatar pl-card-face", "pl-card-name", "pill", "pl-card-lead", "pl-card-facts"],
-      "a person's row, part for part",
-    );
-    assert.equal(
-      textOf(find(card, (n) => n.props?.className === "pl-card-initials")),
-      ROWS[0].tile.initials,
-      "the face: its initials, under the listing's photo when there is one",
-    );
+    // The row is the kit's list row, the one People's is: its face, name, what trails the name, what was said, the facts.
+    for (const part of ["list-row-face", "list-row-name", "list-row-end", "list-row-said", "list-row-facts"])
+      assert.ok(
+        find(card, (n) =>
+          String(n.props?.className || "")
+            .split(/\s+/)
+            .includes(part),
+        ),
+        `a person's row, part for part: ${part}`,
+      );
+    const faceOf = (id) => find(cardOf(id), (n) => /\bface\b/.test(String(n.props?.className || "")));
+    assert.equal(textOf(faceOf("l1")), ROWS[0].tile.initials, "the face: its initials, under the mark");
     // D6: the mark is the face on a phone too, on its own plate over the photo -- never the photo's circle crop.
-    const faceImgs = (id) =>
-      all(
-        find(cardOf(id), (n) => /\bpl-card-face\b/.test(String(n.props?.className || ""))),
-        (n) => n.type === "img",
-      ).map((n) => [n.props.className, n.props.src]);
-    assert.deepEqual(faceImgs("l1"), [["pl-card-photo pl-card-mark", MARK_KEPT]], "the mark, contained on its plate");
+    const faceImgs = (id) => all(faceOf(id), (n) => n.type === "img").map((n) => [n.props.className, n.props.src]);
+    assert.deepEqual(faceImgs("l1"), [["face-photo face-mark", MARK_KEPT]], "the mark, contained on its plate");
     assert.deepEqual(faceImgs("l2"), [], "and a lead with neither keeps its initials");
-    assert.equal(textOf(find(card, (n) => n.props?.className === "pl-card-name")), "Zilker Strength Lab");
+    assert.equal(textOf(find(card, (n) => n.props?.className === "list-row-name")), "Zilker Strength Lab");
     assert.equal(textOf(byTestId(card, "lead-state")), "Ready", "its state, as a person's row says theirs");
     assert.equal(textOf(byTestId(card, "lead-sub")), ROWS[0].sub, "where it is");
-    const facts = find(card, (n) => n.props?.className === "pl-card-facts");
+    const facts = find(card, (n) => n.props?.className === "list-row-facts");
     assert.equal(
       all(facts, (n) => /\bld-slot-shape\b/.test(String(n.props?.className || ""))).length,
       2,
@@ -2958,7 +2956,11 @@ test("on a phone the switch, the list and search are one bar; Find leads is its 
   const field = byTestId(open, "leads-phone-search");
   assert.equal(field.props["aria-label"], "Search leads");
   assert.equal(field.props.autoFocus, true, "pressed, the field takes focus, so the keyboard comes up");
-  assert.equal(byTestId(open, "leads-phone-lists"), null, "and the bar is the field");
+  assert.ok(
+    byTestId(open, "leads-phone-lists"),
+    "and the list stays over it, as the Inbox's buckets stay over its search",
+  );
+  assert.equal(byTestId(open, "leads-phone-search-open"), null, "the capsule at rest is the field now");
   const kept = byTestId(bar({ q: "pilates" }), "leads-phone-search");
   assert.equal(kept.props.value, "pilates", "a view's own words keep the field open");
   assert.notEqual(kept.props.autoFocus, true, "without taking focus: a view coming back must not pull up the keyboard");

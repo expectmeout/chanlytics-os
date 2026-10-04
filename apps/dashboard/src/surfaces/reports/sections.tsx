@@ -85,9 +85,10 @@ function replyTable(vm: ReportVM) {
     : { columns: ["Reply time", "Replies"], rows: vm.replyTime.buckets.map((b) => [b.label, b.value]) };
 }
 
-/** The median reply a day (or week) at a time, against the promised minute, over the spread of every reply. */
+/** The median reply a day (or week) at a time, with the owner's hold drawn where replies waited one, over every reply. */
 function replyBody(vm: ReportVM, days: number) {
   const speed = vm.speed;
+  const hold = vm.replyTime.hold;
   return (
     <>
       {speed && (
@@ -97,7 +98,7 @@ function replyBody(vm: ReportVM, days: number) {
           config={RPT_REPLY}
           scale="seconds"
           yFormat={ckSecondsLabel}
-          reference={{ value: 60, label: "1 min" }}
+          reference={hold ? { value: hold.seconds, label: `${hold.label} hold` } : null}
           height={122}
           animKey={days}
           ariaLabel={`The receptionist's median reply, a ${speed.unit} at a time. The arrow keys read each ${speed.unit}.`}
@@ -120,7 +121,7 @@ function replyBody(vm: ReportVM, days: number) {
         />
       )}
       <SegmentBar
-        title="Every reply, by how long it took"
+        title={hold ? "Every reply, against your hold" : "Every reply, by how long it took"}
         testid="reply-spread"
         rows={vm.replyTime.buckets.map((b) => ({ key: b.id, value: b.value }))}
         config={rptSpread(vm.replyTime.buckets)}
@@ -527,7 +528,7 @@ function campaignsBody(vm: ReportVM, cm: CampaignReportVM | null, days: number) 
         title="Nothing went out"
         testid="chart-campaigns"
         body={`No broadcast or playbook run reached anyone between ${vm.since} and ${vm.until}, and nobody said yes or asked to stop.`}
-        action={{ label: "Open Broadcasts", to: "broadcasts" }}
+        action={{ label: "Open Sent", to: "broadcasts" }}
       />
     );
   return (

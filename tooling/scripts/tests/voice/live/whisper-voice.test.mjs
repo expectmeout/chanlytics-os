@@ -111,19 +111,26 @@ const until = async (done) => {
 };
 const talk = (tree) => byTestId(tree, "live-whisper-talk");
 const box = (tree) => find(byTestId(tree, "live-whisper"), (n) => n.type === "input");
-const hint = (tree) => textOf(find(tree, (n) => n.props?.className === "lm-whisper-hint"));
+// The one line under the field: who hears it, or what was last whispered.
+const hint = (tree) => textOf(byTestId(tree, "live-whisper-note"));
 const held = { preventDefault() {} };
 
 test("hold to talk: the browser's recogniser, hidden where it does not exist", () => {
   hearing(null);
   const none = mount();
   assert.equal(talk(none), null, "no button where the browser cannot listen");
-  assert.ok(!hint(none).includes("Hold the button and say it, or type it."), "and no promise of one");
   assert.ok(byTestId(none, "live-whisper"), "typing a whisper is still there");
+  assert.ok(byTestId(none, "live-whisper-send"), "its button is the arrow alone, faint until there are words");
+  assert.equal(byTestId(none, "live-whisper-send").props.disabled, true);
   hearing({ SpeechRecognition: Recogniser });
   const plain = mount();
   assert.ok(talk(plain), "the recogniser the browser names");
-  assert.ok(hint(plain).includes("Hold the button and say it, or type it."));
+  assert.equal(
+    byTestId(plain, "live-whisper-send"),
+    null,
+    "the mic stands where the arrow does while nothing is typed",
+  );
+  assert.match(hint(plain), /Only the receptionist hears this/, "and the line under the field says who hears it");
   hearing({ webkitSpeechRecognition: Recogniser });
   assert.ok(talk(mount()), "and the prefixed one, where that is all there is (Safari)");
 });
@@ -140,7 +147,8 @@ test("hold to talk: the words show as they come, and what was heard is sent as a
   assert.equal(rec.lang, globalThis.navigator.language || "en-US");
   tree = mount();
   assert.equal(talk(tree).props["aria-pressed"], true);
-  assert.match(textOf(talk(tree)), /Listening… let go to send/);
+  assert.equal(talk(tree).props["aria-label"], "Listening… let go to send");
+  assert.equal(box(tree).props.placeholder, "Listening…");
   rec.onresult(heard([false, "tell them we cl"]));
   assert.equal(box(mount()).props.value, "tell them we cl", "the phrase still being guessed shows in the box");
   rec.onresult(heard([true, "tell them we close at seven"]));
@@ -162,7 +170,7 @@ test("hold to talk: the words show as they come, and what was heard is sent as a
   assert.match(textOf(flashed[0].msg), /Whispered — the receptionist works it into its next answer/);
   tree = mount();
   assert.equal(box(tree).props.value, "", "the box is emptied once it is sent");
-  assert.match(hint(tree), /Last whispered: “tell them we close at seven”/);
+  assert.match(hint(tree), /Whispered: “tell them we close at seven”/);
   assert.equal(talk(tree).props["aria-pressed"], false, "and the recogniser has let go");
 });
 

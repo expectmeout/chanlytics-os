@@ -51,6 +51,27 @@
       "rate": null,
       "spend": false
     },
+    "POST ask/voice/end": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": null,
+      "spend": false
+    },
+    "POST ask/voice/page": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "aggregate",
+      "spend": false
+    },
+    "POST ask/voice": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "voice",
+      "spend": false
+    },
     "POST ask/warm": {
       "kind": "write",
       "scope": "workspace",
@@ -1398,6 +1419,20 @@
       "scope": "workspace",
       "role": "operator",
       "rate": "settings",
+      "spend": false
+    },
+    "DELETE templates/versions/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST templates/versions": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "playbook",
       "spend": false
     },
     "GET today": {

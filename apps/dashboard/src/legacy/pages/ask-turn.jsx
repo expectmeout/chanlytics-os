@@ -140,7 +140,7 @@ const AskCardReceipt = ({ p, t, state, receipt, err, open, undoData, doneAt, bus
       {clock ? <AskRing from={doneAt} until={until} onDone={() => setEnded(true)} /> : <Icon name={state === "done" ? "check" : state === "failed" ? "alert" : "x"} size={11} className={state === "done" ? "ok" : ""} />}
       <span className="ask-card-said">{state === "failed" ? err || receipt : state === "dismissed" ? t.notNow : receipt}</span>
       {can && !armed ? <button className="btn btn-ghost btn-sm ask-card-undo" onClick={p.kind === "playbook" ? () => setArmed(true) : onUndo} disabled={busy} title={clock ? p.undo : undefined}>{clock ? t.undo : p.undo}</button> : null}
-      {can && armed ? <window.Confirm question={`${p.undo}?`} detail="The playbook and its schedule go; runs already sent keep their numbers in Broadcasts." yes="Yes, delete it" danger busy={busy} onYes={undoArmed} onNo={() => setArmed(false)} testid="ask-card-undo" /> : null}
+      {can && armed ? <window.Confirm question={`${p.undo}?`} detail="The playbook and its schedule go; runs already sent keep their numbers in Sent." yes="Yes, delete it" danger busy={busy} onYes={undoArmed} onNo={() => setArmed(false)} testid="ask-card-undo" /> : null}
       {state === "failed" ? <button className="btn btn-ghost btn-sm ask-card-undo" onClick={onRetry}>{t.tryAgain}</button> : null}
     </div>
   );
@@ -521,8 +521,11 @@ const AskReads = ({ traces, t }) => {
 
 // An answer's two acts (D14): Copy its words and Read them aloud. A desktop draws them at the field's end beside Clear;
 // a phone under the newest answer, never under an earlier one and never while one is written. `words` are the
-// answer's plain words (contracts answerText); `speech` is the Line's (AskHooks.useAskSpeech).
-const AskActs = ({ words, lang, speech, flash, t }) => {
+// answer's plain words (contracts answerText); `speech` is the Line's (AskHooks.useAskSpeech). Where the device can
+// talk with Ask (`voice.can`, AskHooks.useAskVoice), Read aloud is Ask's own voice: the answer as the agent's first
+// words, and a follow-up by voice after it (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5); the
+// device's voice reads where it cannot.
+const AskActs = ({ words, lang, speech, voice, flash, t }) => {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(words);
@@ -531,17 +534,35 @@ const AskActs = ({ words, lang, speech, flash, t }) => {
       flash({ tone: "danger", msg: <>{t.copyFailed}</> });
     }
   };
-  const reading = speech.speakingId === "line";
+  const talking = !!(voice && voice.can);
+  // Reading: the agent in its conversation, or the device's own voice (where there is no agent, or it could not start).
+  const reading = !!(voice && voice.on) || speech.speakingId === "line";
+  const read = () => {
+    if (reading) {
+      if (voice && voice.on) voice.stop();
+      else speech.toggle("line", words, lang);
+      return;
+    }
+    if (talking) {
+      // The agent reads where it can start; where it cannot (the mint refused, the connection lost), the device's own
+      // voice reads the same words, and a device without one says why the agent did not.
+      voice.read(words).then((why) => {
+        if (why && !speech.toggle("line", words, lang)) flash({ tone: "danger", msg: <>{why}</> });
+      });
+      return;
+    }
+    if (!speech.toggle("line", words, lang)) flash({ msg: <>{t.noSpeech}</> });
+  };
   return (
     <span className="ask-acts" data-testid="ask-acts">
       <button type="button" className="ask-line-btn quiet" onClick={copy} aria-label={t.copy} title={t.copy} data-testid="ask-copy">
         <Icon name="content" size={14} />
       </button>
-      {speech.canSpeak ? (
+      {talking || speech.canSpeak ? (
         <button
           type="button"
           className={`ask-line-btn quiet${reading ? " on" : ""}`}
-          onClick={() => { if (!speech.toggle("line", words, lang)) flash({ msg: <>{t.noSpeech}</> }); }}
+          onClick={read}
           aria-label={reading ? t.stop : t.read}
           aria-pressed={reading}
           title={reading ? t.stop : t.read}

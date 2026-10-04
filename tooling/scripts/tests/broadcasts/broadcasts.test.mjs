@@ -19,6 +19,7 @@ import {
   EVERYONE_LABEL,
   PEOPLE_LISTS,
   broadcastName,
+  channelsReady,
   cleanParam,
   eligibleFor,
   emptyAudienceRefusal,
@@ -88,18 +89,18 @@ test("the tables: the workspace's, members read, acting members enrol, only the 
 });
 
 test("the one predicate: the yes THIS message needs, no do-not-contact, a number", () => {
-  assert.equal(mayReceive(person(), "marketing"), true);
+  assert.equal(mayReceive(person(), "marketing", "whatsapp"), true);
   assert.equal(
-    mayReceive(person({ consent: { state: "unknown", dnc: false } }), "marketing"),
+    mayReceive(person({ consent: { state: "unknown", dnc: false } }), "marketing", "whatsapp"),
     false,
     "not asked is not a yes",
   );
   assert.equal(
-    mayReceive(person({ consent: { state: "opted_in", dnc: true } }), "marketing"),
+    mayReceive(person({ consent: { state: "opted_in", dnc: true } }), "marketing", "whatsapp"),
     false,
     "the operator's block outranks a yes",
   );
-  assert.equal(mayReceive(person({ phone: null }), "marketing"), false, "nowhere to send");
+  assert.equal(mayReceive(person({ phone: null }), "marketing", "whatsapp"), false, "nowhere to send");
 });
 
 test("ONE rule, not a second copy of it: the VM predicate delegates to mayMessageFor", async () => {
@@ -118,8 +119,11 @@ test("ONE rule, not a second copy of it: the VM predicate delegates to mayMessag
         for (const purpose of ["conversational", "marketing"]) {
           const vm = person({ consent: { state, dnc, marketing } });
           assert.equal(
-            mayReceive(vm, purpose),
-            mayMessageFor({ consent: state, dnc, marketing_consent: marketing }, purpose, { proactive: true }).ok,
+            mayReceive(vm, purpose, "whatsapp"),
+            mayMessageFor({ consent: state, dnc, marketing_consent: marketing }, purpose, {
+              proactive: true,
+              channel: "whatsapp",
+            }).ok,
             `${state}/${marketing}/dnc:${dnc}/${purpose}`,
           );
         }
@@ -134,8 +138,10 @@ test("THE PURPOSE IS REQUIRED, because a default is what broke this", () => {
   // `utility` broadcast demanded marketing consent and the live workspace's seven
   // recorded yeses became an audience of zero. A required argument is checked by
   // the compiler at every call site; a default cannot be audited.
-  assert.equal(eligibleFor.length, 5, "REGRESSION: a defaulted parameter is not counted in .length");
-  assert.equal(mayReceive.length, 2, "REGRESSION: the purpose went back to being optional");
+  // Six since step 3: who a send reaches also says how, the channels it ticks and the workspace's (reachFor), required too.
+  assert.equal(eligibleFor.length, 6, "REGRESSION: a defaulted parameter is not counted in .length");
+  // The channel is required too (One message, every channel, step 2): a yes covers the channels it was given for.
+  assert.equal(mayReceive.length, 3, "REGRESSION: the purpose or the channel went back to being optional");
 });
 
 test("the refusal names the yes that was actually missing", () => {
@@ -156,22 +162,26 @@ test("a yes about appointments is not a yes about offers, which is what error 30
   // carriers refused a live campaign over it -- "marketing consent was combined
   // with other consents. Marketing consent must be collected separately."
   const appointmentsOnly = person({ consent: { state: "opted_in", dnc: false, marketing: "unknown" } });
-  assert.equal(mayReceive(appointmentsOnly, "marketing"), false, "no offer without a yes about offers");
-  assert.equal(mayReceive(appointmentsOnly, "conversational"), true, "but their own appointment still reaches them");
+  assert.equal(mayReceive(appointmentsOnly, "marketing", "whatsapp"), false, "no offer without a yes about offers");
+  assert.equal(
+    mayReceive(appointmentsOnly, "conversational", "whatsapp"),
+    true,
+    "but their own appointment still reaches them",
+  );
 
   const offersToo = person();
-  assert.equal(mayReceive(offersToo, "marketing"), true);
-  assert.equal(mayReceive(offersToo, "conversational"), true);
+  assert.equal(mayReceive(offersToo, "marketing", "whatsapp"), true);
+  assert.equal(mayReceive(offersToo, "conversational", "whatsapp"), true);
 
   // Declining offers is not a request to stop hearing about your own visit.
   const noOffers = person({ consent: { state: "opted_in", dnc: false, marketing: "opted_out" } });
-  assert.equal(mayReceive(noOffers, "marketing"), false);
-  assert.equal(mayReceive(noOffers, "conversational"), true);
+  assert.equal(mayReceive(noOffers, "marketing", "whatsapp"), false);
+  assert.equal(mayReceive(noOffers, "conversational", "whatsapp"), true);
 
   // STOP is not symmetric with that: it stops everything.
   const stopped = person({ consent: { state: "opted_out", dnc: false, marketing: "opted_in" } });
-  assert.equal(mayReceive(stopped, "marketing"), false);
-  assert.equal(mayReceive(stopped, "conversational"), false);
+  assert.equal(mayReceive(stopped, "marketing", "whatsapp"), false);
+  assert.equal(mayReceive(stopped, "conversational", "whatsapp"), false);
 });
 
 test("an audience is a People list, a list kept by hand, or everyone — each crossed with the predicate", () => {
@@ -182,26 +192,35 @@ test("an audience is a People list, a list kept by hand, or everyone — each cr
     person({ id: "c", state: "quiet", heardDays: 45, consent: { state: "unknown", dnc: false, marketing: "unknown" } }),
     person({ id: "d", hasChat: false, calls: 2 }),
   ];
+  // By WhatsApp, which the workspace can send on: who a send reaches also says how (reachFor), required since step 3.
+  const how = {
+    channels: ["whatsapp"],
+    ready: channelsReady({
+      whatsapp: { canSend: true, refusal: null },
+      textLine: null,
+      email: { mailbox: false, domain: false },
+    }),
+  };
   assert.deepEqual(
-    eligibleFor(rows, "everyone", null, null).map((r) => r.id),
+    eligibleFor(rows, "everyone", null, null, "marketing", how).map((r) => r.id),
     ["a", "b", "d"],
   );
   assert.deepEqual(
-    eligibleFor(rows, "list", "quiet", null).map((r) => r.id),
+    eligibleFor(rows, "list", "quiet", null, "marketing", how).map((r) => r.id),
     ["b"],
     "the quiet list, of those who said yes",
   );
   assert.deepEqual(
-    eligibleFor(rows, "list", "phoned_only", null).map((r) => r.id),
+    eligibleFor(rows, "list", "phoned_only", null, "marketing", how).map((r) => r.id),
     ["d"],
   );
-  assert.deepEqual(eligibleFor(rows, "list", "no_such_list", null), []);
+  assert.deepEqual(eligibleFor(rows, "list", "no_such_list", null, "marketing", how), []);
   assert.deepEqual(
-    eligibleFor(rows, "saved", null, new Set(["c", "d"])).map((r) => r.id),
+    eligibleFor(rows, "saved", null, new Set(["c", "d"]), "marketing", how).map((r) => r.id),
     ["d"],
     "a hand-kept list, of those who said yes",
   );
-  assert.deepEqual(eligibleFor(rows, "saved", null, null), []);
+  assert.deepEqual(eligibleFor(rows, "saved", null, null, "marketing", how), []);
   assert.ok(PEOPLE_LISTS.some((l) => l.id === "quiet"));
   // The audience's name names the pool, as every other audience's does, and makes no claim its count can contradict:
   // "Everyone who said yes 0" stood over "1 person on it said yes to offers, with no number to send to".
@@ -282,13 +301,20 @@ test("the view model: delivered and read over sent, open while scheduled or send
 test("the job: its rules are run (core-broadcast.test.mjs); the adapter still reads what the run needs and writes where it did", () => {
   // The job is broadcast-send.ts (Reach out Part 2.5); that the dispatch map names it is store-retired.test.mjs's.
   const h = readCode("packages/jobs/src/broadcast-send.ts");
-  assert.ok(h.includes(".limit(limit);") && BROADCAST_CHUNK === 25);
+  // The batch is db's read now (campaign-channels.ts queuedRecipients, run against the database in memory by
+  // before-the-channel-columns.test.mjs), a page of the chunk's size.
+  assert.ok(h.includes("batch: (id, limit) => queuedRecipients(db, { tenantId, broadcastId: id, limit })"));
+  assert.ok(BROADCAST_CHUNK === 25);
   assert.ok(
-    h.includes('.select("meta_status, body_preview, category")'),
+    // And its components, where an email version keeps its subject: a version is a row of the same name on its channel.
+    h.includes('.select("meta_status, body_preview, category, components")'),
     "the category is selected: it decides which yes the send needs",
   );
   assert.ok(
-    h.includes('.select("id, phone_e164, consent, dnc, marketing_consent, erased_at'),
+    // (The list is long enough to stand on its own lines, and ends with their answer about offers by email: an offer's
+    // foot says whether they asked for it or are a customer.)
+    h.includes('"id, phone_e164, consent, dnc, marketing_consent, erased_at') &&
+      h.includes("wa_profile_name, email, email_marketing"),
     "the person's row still carries what the run needs",
   );
   assert.ok(h.includes('recordEvent(db, job.tenant_id, "broadcast.sent", "broadcast", id, tally)'));
@@ -584,6 +610,7 @@ const SRC = "../../../../apps/dashboard/src";
 await import(`${SRC}/legacy/components/data-bits.jsx`);
 const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { SURFACE_ROUTES, routeHasPage } = await import(`${SRC}/surfaces/routes.ts`);
 
 const marketing = {
@@ -680,10 +707,13 @@ const drawn = (props = {}, over = {}) => {
   return BroadcastsPage(props);
 };
 const compose = (over = {}) => drawn({ initialSegment: "s-regulars" }, over);
-const chipOf = (tree) =>
-  textOf(find(tree, (n) => n.props?.["data-testid"] === "bc-audience" && String(n.props.className).includes("active")))
-    .replace(/\s+/g, " ")
-    .trim();
+// The list the send is for is the kit's picker's token: the one chosen, with the count this message reaches, which is its
+// option's word at the end (the chips that carried it are gone).
+const chipOf = (tree) => {
+  const p = find(tree, (n) => n.type === Picker && n.props["data-testid"] === "bc-audience");
+  const one = p.props.groups.flatMap((g) => g.options).find((o) => o.value === p.props.value);
+  return `${one.label} ${one.meta}`;
+};
 
 test("the surface and the page: Broadcasts is real, fed by the same rules, and the demo draws the sample", async () => {
   const reg = await import(
@@ -699,14 +729,17 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   // audience the route would then refuse.
   // One pass per purpose now keeps a few of the rows as well as counting them, so
   // the composer can show one of the people the number is a length of.
-  assert.ok(s.includes('conversational: audiencePreview(rows, kind, id, ids, "conversational", 5, touched)'));
-  assert.ok(s.includes('marketing: audiencePreview(rows, kind, id, ids, "marketing", 5, touched)'));
+  // And one per set of channels a send may tick (One message, every channel, step 3): the default, WhatsApp alone, is the
+  // pair every audience carries, and the others are its `by`, read by the composer as the owner ticks.
+  assert.ok(s.includes("audiencePreview(rows, kind, id, ids, purpose, { channels, ready }, 5, touched)"));
+  assert.ok(s.includes('conversational: reading("conversational", DEFAULT_CAMPAIGN_CHANNELS)'));
+  assert.ok(s.includes('marketing: reading("marketing", DEFAULT_CAMPAIGN_CHANNELS)'));
   assert.ok(
     s.includes("counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending }"),
     "the chip's number is the length of the list the preview walks -- never a second count",
   );
   assert.ok(
-    s.includes(".map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) }))"),
+    s.includes("purpose: purposeOfTemplate(t.category)"),
     "the purpose is stamped by the surface, never decided in the page",
   );
   assert.ok(s.includes('.filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")'));
@@ -906,9 +939,11 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
   assert.equal(sign.props.href, "https://app.chanlytics.com/yes/studio/sign");
   assert.equal(textOf(sign), "Print a desk sign");
   assert.deepEqual(
-    all(optIn, (n) => ["bc-optin-sign", "bc-optin-copy"].includes(n.props?.["data-testid"])).map(
-      (n) => n.props["data-testid"],
-    ),
+    // The elements drawn (a kit Button is its own node and the host button it draws, both carrying the id).
+    all(
+      optIn,
+      (n) => typeof n.type === "string" && ["bc-optin-sign", "bc-optin-copy"].includes(n.props?.["data-testid"]),
+    ).map((n) => n.props["data-testid"]),
     ["bc-optin-sign", "bc-optin-copy"],
     "the section's first button prints the sign",
   );

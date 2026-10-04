@@ -83,14 +83,14 @@ const THREAD_CLIENT = {
 const NAV_ROUTE = {
   home: "today",
   people: "clients",
-  campaigns: "outbound",
+  campaigns: "campaigns",
   agents: "fleet",
   inbox: "inbox",
   clients: "clients",
   store: "store",
   fleet: "fleet",
   studio: "studio",
-  outbound: "outbound",
+  outbound: "campaigns",
   content: "content",
   broadcasts: "broadcasts",
   messages: "messages",
@@ -160,7 +160,20 @@ const PHONE_TABS = [
   { id: "calendar", route: "calendar", icon: "calendar", label: "Calendar" },
   { id: "people", route: "clients", icon: "users", label: "People" },
 ];
+// A pointer that reaches a sidebar item warms its page (workspace.ts warmRoute), so the press that follows asks the server
+// for nothing. The item says which it is (sidebar.jsx data-nav).
+const sideWarm = (e) => {
+  const item = e.target && e.target.closest ? e.target.closest("[data-nav]") : null;
+  const a = window.CHANLY && window.CHANLY.address;
+  if (item && a && a.warm) a.warm(NAV_ROUTE[item.dataset.nav] || item.dataset.nav);
+};
 const PhoneTabs = ({ page, inboxNeeds, onNavigate, onMenu }) => {
+  // The four places a thumb goes, warmed once the page is idle and when a finger reaches one (workspace.ts warmRoute).
+  useShellEffect(() => {
+    const a = window.CHANLY && window.CHANLY.address;
+    if (a && a.warmSoon) a.warmSoon(PHONE_TABS.map((t) => t.route));
+  }, [page]);
+  const warm = (route) => { const a = window.CHANLY && window.CHANLY.address; if (a && a.warm) a.warm(route); };
   const activeOf = (t) => page === t.route;
   const badge = (t) => (t.id === "inbox" && inboxNeeds > 0 ? String(inboxNeeds) : null);
   return (
@@ -170,6 +183,7 @@ const PhoneTabs = ({ page, inboxNeeds, onNavigate, onMenu }) => {
           key={t.id}
           type="button"
           className={`phone-tab ${activeOf(t) ? "active" : ""}`}
+          onTouchStart={() => warm(t.route)}
           onClick={() => onNavigate(t.route)}
           aria-current={activeOf(t) ? "page" : undefined}
         >
@@ -566,7 +580,7 @@ const appChrome = (s) => {
       <button type="button" className="skip-link" onClick={() => focusPage(true)}>Skip to the page</button>
       {/* On a phone the sidebar is a drawer. Open, it is a dialog, so a page's keys hold still behind it (People's Esc
           cleared its selection as the drawer closed). Not aria-modal: it does not move focus into itself. */}
-      <div className={`side-wrap ${navOpen ? "open" : ""} ${sidebar === "rail" ? "rail" : ""}`} role={navOpen ? "dialog" : undefined} aria-label={navOpen ? "Navigation" : undefined}>
+      <div className={`side-wrap ${navOpen ? "open" : ""} ${sidebar === "rail" ? "rail" : ""}`} role={navOpen ? "dialog" : undefined} aria-label={navOpen ? "Navigation" : undefined} onPointerOver={sideWarm}>
         {/* The wash stands just before the drawer, where a thumb sliding the drawer away finds it to fade (data-bits
             touchSwipe). */}
         {navOpen && <div className="nav-backdrop" role="presentation" onClick={() => setNavOpen(false)} />}

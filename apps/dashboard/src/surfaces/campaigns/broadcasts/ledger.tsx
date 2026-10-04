@@ -5,7 +5,11 @@
 import { DAY_MS, HOUR_MS, MIN_MS } from "@chanlytics/contracts";
 import type { BroadcastVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
+import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
+import type { SubTab } from "../../kit/sub-tabs/sub-tabs";
 import { policyChipPart, statePillPart } from "../../legacy-parts";
 import { navigate } from "../../legacy-verbs";
 import { surfaceValue } from "../../surface-values";
@@ -99,15 +103,14 @@ export function BcHistoryStats({
                 ,
               </span>
             )}
-            <button
-              type="button"
+            <LinkButton
               className={`cm-standing-tap ${origin === id ? "on" : ""}`}
               aria-pressed={origin === id}
               onClick={() => onOrigin(origin === id ? null : id)}
               data-testid={`bc-origin-${id}`}
             >
               <span className="tabular">{n}</span> {words}
-            </button>
+            </LinkButton>
           </span>
         ))}
       {messages > 0 && (
@@ -163,31 +166,39 @@ interface BcBandProps {
   onBand: (band: string | null) => void;
 }
 
+/** Where the band's tabs stand for every run: the first of them, and the one that clears the filter. */
+const BC_BAND_ALL = "all";
+
 /**
- * The runs by state, as the list's filter: press "3 scheduled" and the runs under it
- * are the three; press it again and they are all back. The head's first words, as
- * the Inbox's buckets are its list's. It was a card of its own -- a bar of every run
- * in its state's colour over this legend, 68px -- and the bar said again, in colour,
- * the numbers the legend says in words.
+ * The runs by state, as the list's filter: pick "Scheduled 3" and the runs under it are the three; pick "All" and they
+ * are all back. The list's first words, the kit's sub-tabs as the Inbox's buckets are its list's (its head is the
+ * frame's, which draws a sentence in a <p> and could hold no such strip). It was a card of its own -- a bar of every run
+ * in its state's colour over this legend, 68px -- and the bar said again, in colour, the numbers the legend says in
+ * words. A state with no run has no tab; "waiting on you" is the one tab that is warn, as the Inbox's Needs you is.
  */
 export function BcBand({ rows, band, onBand }: BcBandProps) {
   const parts = BC_BANDS.map((b) => ({ ...b, n: rows.filter((r) => r.state === b.id).length })).filter((b) => b.n > 0);
   if (!parts.length) return null;
+  const tabs: SubTab[] = [
+    { id: BC_BAND_ALL, label: "All", count: rows.length, testid: `bc-band-${BC_BAND_ALL}` },
+    ...parts.map((b): SubTab => ({
+      id: b.id,
+      label: b.words.charAt(0).toUpperCase() + b.words.slice(1),
+      count: b.n,
+      tone: b.tone === "warn" ? "warn" : undefined,
+      testid: `bc-band-${b.id}`,
+    })),
+  ];
   return (
-    <div className="bc-band" role="group" aria-label="The runs by state" data-testid="bc-band">
-      {parts.map((b) => (
-        <button
-          key={b.id}
-          type="button"
-          className={`bc-band-part${band === b.id ? " on" : ""}`}
-          data-tone={b.tone}
-          aria-pressed={band === b.id}
-          onClick={() => onBand(band === b.id ? null : b.id)}
-          data-testid={`bc-band-${b.id}`}
-        >
-          <span className="bc-band-n tabular">{b.n}</span> {b.words}
-        </button>
-      ))}
+    <div className="bc-by-state" data-testid="bc-band">
+      <SubTabs
+        label="The runs by state"
+        value={band ?? BC_BAND_ALL}
+        tabs={tabs}
+        onSelect={(id) => onBand(id === BC_BAND_ALL ? null : id)}
+        quietCounts
+        dense={tabs.length > 3}
+      />
     </div>
   );
 }
@@ -393,15 +404,14 @@ function bcRunSub(row: BroadcastVM, pb: PlaybookCardVM | null | undefined) {
     <div className="bc-run-sub">
       {playbookId ? (
         <>
-          <button
-            type="button"
+          <LinkButton
             className="bc-run-link"
             onClick={() => navigate(`outbound/${playbookId}`)}
             aria-label={`Playbook ${pb ? pb.name : row.name}`}
             data-testid="bc-history-playbook"
           >
             Playbook
-          </button>
+          </LinkButton>
           {row.audience.label && row.audience.label !== row.name ? (
             <span className="bc-run-aud"> · {row.audience.label}</span>
           ) : null}
@@ -416,6 +426,8 @@ function bcRunSub(row: BroadcastVM, pb: PlaybookCardVM | null | undefined) {
 interface BcRunCardProps {
   row: BroadcastVM;
   canSend: boolean;
+  /** Whether its report is the pane beside the list, as a person's row is the one open. */
+  open?: boolean;
   onOpen: () => void;
   armed: boolean;
   onArm: (on: boolean) => void;
@@ -440,6 +452,7 @@ interface BcRunCardProps {
 export function BcRunCard({
   row,
   canSend,
+  open = false,
   onOpen,
   armed,
   onArm,
@@ -468,9 +481,9 @@ export function BcRunCard({
         </span>
         <div className="bc-run-what">
           <div className="bc-run-titles">
-            <button type="button" className="bc-run-name" onClick={onOpen} data-row-open data-testid="bc-open-who">
+            <LinkButton className="bc-run-name" onClick={onOpen} data-row-open data-testid="bc-open-who">
               {row.name}
-            </button>
+            </LinkButton>
             <StatePill kind="broadcast" value={row.state} label={row.stateLabel} />
             {/* The class's words say why a run waits on you ("Re-engage · asks you"); on a run that went they said
                 nothing anyone acts on. The template's name and language are the run's report's. */}
@@ -519,22 +532,42 @@ export function BcRunCard({
           {/* Where the row goes: its report, a screen of its own. The whole row presses it; this is its mark, and its
               name for a keyboard and a screen reader. */}
           {!asking && (
-            <button type="button" className="bc-run-go" onClick={onOpen} aria-label={`Open ${row.name}`}>
+            <Button
+              variant="quiet"
+              size="sm"
+              iconOnly
+              className="bc-run-go"
+              onClick={onOpen}
+              aria-label={`Open ${row.name}`}
+            >
               <Icon name="chevron" size={14} />
-            </button>
+            </Button>
           )}
         </div>
       </div>
     </>
   );
-  const cls = `bc-run${waiting ? " is-urgent" : ""}`;
+  const cls = `bc-run${waiting ? " is-urgent" : ""}${open ? " is-open" : ""}`;
+  // The row's own id (`bc-row-`): the pane beside the list that holds its report is `bc-run-<id>`, and one id is one element.
   // Gone or not, by its state: a run to come or going out is "open", one gone is history.
   return finished ? (
-    <div className={cls} id={`bc-run-${row.id}`} data-testid="bc-history" data-state={row.state}>
+    <div
+      className={cls}
+      id={`bc-row-${row.id}`}
+      aria-current={open ? "true" : undefined}
+      data-testid="bc-history"
+      data-state={row.state}
+    >
       {inner}
     </div>
   ) : (
-    <div className={cls} id={`bc-run-${row.id}`} data-testid="bc-open" data-state={row.state}>
+    <div
+      className={cls}
+      id={`bc-row-${row.id}`}
+      aria-current={open ? "true" : undefined}
+      data-testid="bc-open"
+      data-state={row.state}
+    >
       {inner}
     </div>
   );

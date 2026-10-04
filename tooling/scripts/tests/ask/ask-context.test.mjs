@@ -876,6 +876,38 @@ test("Reports: the period the page shows, its tiles and lines, as the report too
   assert.match(textOf(b.blocks[0]), /^Reports, 7 days · /);
 });
 
+test("Reports: the reply time's line names the hold it includes where replies waited one, and says what it said before where none did", async () => {
+  const replies = Array.from({ length: 14 }, () => ({ day: "2026-09-14", s: 63, hold: 60 }));
+  const report = (rs) => (a) => ({
+    timezone: TZ,
+    days: a.p_days,
+    span_days: a.p_days * 2,
+    today: "2026-09-14",
+    series: [],
+    reasons: {},
+    reply_seconds: rs.map((r) => r.s),
+    sentiments: {},
+    voicemail: 0,
+    replies: rs,
+  });
+  const said = async (rs) => {
+    // A page's context is kept for a minute: each payload is its own build.
+    clearContextCache();
+    const rc = rcIn(ctxFor(tables(), { ...RPCS, report_series: report(rs) }));
+    return textOf((await buildContext(rc, page("reports", [], { view: "7" }))).blocks[0]);
+  };
+  assert.ok(
+    (await said(replies)).includes(
+      "Median reply time: 1m 3s (slowest tenth 1m 3s · 14 replies · includes your 1-minute hold)",
+    ),
+  );
+  const unheld = await said(replies.map(({ day, s: secs }) => ({ day, s: secs })));
+  assert.ok(
+    unheld.includes("Median reply time: 1m 3s (slowest tenth 1m 3s · 14 replies)"),
+    "the old line, no hold said",
+  );
+});
+
 test("a provider whose read fails costs its blocks and never the build: the page's aggregate says it could not be read, and that build is not kept", async () => {
   const rpcs = { ...RPCS, metrics_summary: () => ({ error: "not modelled here" }) };
   const ctx = ctxFor(tables(), rpcs);

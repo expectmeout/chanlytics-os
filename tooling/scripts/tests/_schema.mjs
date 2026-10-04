@@ -110,7 +110,24 @@ async function parseTypes(src) {
         : {},
     );
   }
+  computedColumns(ts, sf, pub, relations);
   return { relations, functions };
+}
+
+/**
+ * A function of one table's row is a column PostgREST serves with it (a computed column: has_relationship, 00299, which the
+ * send door reads beside the person's consent). The types list it as a function whose one argument is that table's Row;
+ * here it joins the relation's columns, nullable, never written, so a select may name it and a write may not.
+ */
+function computedColumns(ts, sf, pub, relations) {
+  for (const [name, f] of membersOf(ts, pub.get("Functions")?.type)) {
+    const args = membersOf(ts, membersOf(ts, f.type).get("Args")?.type);
+    if (args.size !== 1) continue;
+    const [arg] = args.values();
+    const row = /^Database\["public"\]\["Tables"\]\["(\w+)"\]\["Row"\]$/.exec(arg.type?.getText(sf) ?? "");
+    if (row && relations[row[1]])
+      relations[row[1]].columns[name] ??= { nullable: true, required: false, computed: true };
+  }
 }
 
 /** SCHEMA_SETS, read as the data it is: the generated file is one object literal of string arrays. */
@@ -311,7 +328,7 @@ export function asSent(rows) {
 export function unknownWrittenColumn(schema, table, row) {
   const rel = schema.relations[table];
   for (const col of Object.keys(row)) {
-    if (!rel.columns[col])
+    if (!rel.columns[col] || rel.columns[col].computed)
       return refusal("PGRST204", `Could not find the '${col}' column of '${table}' in the schema cache`);
   }
   return null;
@@ -503,3 +520,24 @@ export const URI_TOO_LONG = {
 
 /** PostgREST's max_rows (supabase/config.toml `[api] max_rows`): a read answers at most this many rows. */
 export const MAX_ROWS = 1000;
+
+/**
+ * Runs `body` against a database a migration has not reached: `{ table: [column, ...] }` are columns it does not have yet,
+ * so the in-memory database refuses a read that names one as the real one does (42703, "column t.c does not exist").
+ * How code that ships before its migration is proved to keep working (either deploy order).
+ * The columns are put back when `body` ends, whatever it did, so no other test in the process sees the gap.
+ */
+export async function withoutColumns(columns, body) {
+  const schema = await schemaOf();
+  const gone = [];
+  for (const [table, names] of Object.entries(columns))
+    for (const name of names) {
+      gone.push([table, name, schema.relations[table].columns[name]]);
+      delete schema.relations[table].columns[name];
+    }
+  try {
+    return await body();
+  } finally {
+    for (const [table, name, spec] of gone) schema.relations[table].columns[name] = spec;
+  }
+}

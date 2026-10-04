@@ -152,7 +152,7 @@ export async function steerHeldDraft(
 
   let leadNote: string | undefined;
   try {
-    leadNote = describeLead(await readLeadContext(db, m.tenant_id, phone, 1), new Date(), rt.timezone ?? "UTC");
+    leadNote = describeLead(await readLeadContext(db, m.tenant_id, phone, 1), undefined, rt.timezone ?? "UTC", channel);
   } catch (e) {
     steerLog.warn("steer_lead_context_unavailable", { error: errField(e) });
   }

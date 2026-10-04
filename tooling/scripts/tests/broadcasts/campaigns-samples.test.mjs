@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 const S = "../../../../apps/dashboard/src/surfaces/campaigns";
 const { playbooksSample } = await import(`${S}/playbooks/sample.ts`);
 const { broadcastsSample } = await import(`${S}/broadcasts/sample.ts`);
-const { scheduleLine, nextRunLabel, triggerOf, PLAYBOOK_TRIGGERS, triggerOffered } =
+const { scheduleLine, nextRunLabel, triggerOf, PLAYBOOK_TRIGGERS, triggerOffered, momentOffered } =
   await import("@chanlytics/contracts");
 
 const NOW = new Date("2026-09-28T18:00:00Z");
@@ -49,8 +49,24 @@ test("Playbooks' sample: three playbooks in the words contracts gives them, one 
   assert.deepEqual(
     s.triggers.map((t) => t.id),
     PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, false)).map((t) => t.id),
-    "every moment the workspace is offered, none it is not",
+    "every moment that may run here, none that may not: the cards read theirs from it",
   );
+  // 2 Oct 2026: which of them a NEW playbook may start from is momentOffered's, over the sample's calendar. The welcome
+  // the sample runs is retired and stays a card; its calendar is connected, so the win-back on offer is the one by visits.
+  assert.deepEqual(
+    s.triggers.filter((t) => t.offered).map((t) => t.id),
+    PLAYBOOK_TRIGGERS.filter((t) => momentOffered(t, { dealsOn: false, calendarOn: s.calendar !== "none" })).map(
+      (t) => t.id,
+    ),
+    "the moments a new playbook is offered",
+  );
+  assert.equal(s.triggers.find((t) => t.id === "new_week")?.offered, false, "a retired moment is not offered");
+  assert.ok(
+    s.rows.some((p) => p.trigger === "new_week"),
+    "and the playbook already made on it still draws",
+  );
+  assert.equal(s.triggers.find((t) => t.id === "lapsed")?.offered, true, "the win-back by visits, over a calendar");
+  assert.equal(s.triggers.find((t) => t.id === "quiet_30")?.offered, false, "and not the one by silence");
   assert.equal(s.countsRead, true);
   assert.equal(s.fetchedAt, NOW.getTime());
   assert.doesNotMatch(JSON.stringify(s), MOCKUP);

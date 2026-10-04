@@ -9,10 +9,21 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { surfaceValue } from "./surface-values";
 import type { SurfaceKey, SurfaceValues } from "./surface-values";
-import { onSurfaceMoved } from "@/legacy-bridge/surface-status";
+import { isSurfaceFailed, onSurfaceMoved } from "@/legacy-bridge/surface-status";
 
 export function useSurface<K extends SurfaceKey>(key: K): SurfaceValues[K] | undefined {
   const subscribe = useCallback((fn: () => void) => onSurfaceMoved([key], fn), [key]);
   const snapshot = () => surfaceValue(key);
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
+}
+
+/**
+ * Whether the surface's read failed and none ever landed (`isSurfaceFailed`, the status the shell's own gate reads): a surface
+ * that answers nothing is either not read yet or could not be, and a page that must say which draws this beside
+ * `useSurface`. Drawn again when the surface's status moves, which a value that stays absent does not.
+ */
+export function useSurfaceFailed(key: SurfaceKey): boolean {
+  const subscribe = useCallback((fn: () => void) => onSurfaceMoved([key], fn), [key]);
+  const snapshot = () => isSurfaceFailed(key);
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }

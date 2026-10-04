@@ -3,9 +3,10 @@
  * starter set in the library's order, each with the set's languages, then what the workspace wrote or synced, by name,
  * then what it hid. A message is one row in every language it has, and a language nobody wrote is a row with no words.
  */
+import { isLibrarySample } from "@chanlytics/contracts";
 import type { StarterTemplate } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { TPL_SAMPLES, tplAnd, tplLangLabel, tplTitle } from "./words";
+import { tplAnd, tplLangLabel, tplTitle } from "./words";
 import type { StarterLibrary } from "./verbs";
 
 /** A language by the words the list gives it ("Portuguese (Brazil)"), or the set's own ("English", "Spanish"). */
@@ -65,7 +66,7 @@ export interface TemplateListing {
 
 export function listingOf(templates: TemplateDto[], S: StarterLibrary): TemplateListing {
   const langs: readonly TplLang[] = S.languages;
-  const list = templates.filter((t) => !TPL_SAMPLES.has(t.name));
+  const list = templates.filter((t) => !isLibrarySample(t.name));
   const rowFor = (name: string, lang: string) => list.find((t) => t.name === name && t.language === lang) || null;
   // A language by the words the list gives it ("Portuguese (Brazil)"); the starter
   // set's own two keep the set's words ("English", "Spanish").

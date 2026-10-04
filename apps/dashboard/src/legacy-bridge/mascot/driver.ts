@@ -64,6 +64,8 @@ export interface Mounted {
   /** a word heard: the level jumps to `v` and falls on its own */
   hear(v: number): void;
   level(): number;
+  /** the AI's own voice as it speaks (mood.ts voice): the character moves to its level */
+  voice(level: number, live?: boolean): void;
   beat(strength?: number): void;
   react(kind: Reaction): void;
   /** a read that landed */
@@ -443,6 +445,9 @@ function mountedOf(face: LiveFace): Mounted {
       face.heardLevel = Math.max(face.heardLevel, Math.min(1, Math.max(0, v)));
     },
     level: () => face.heardLevel,
+    voice(level, live) {
+      character.voice(level, live);
+    },
     beat(v) {
       character.beat(v);
     },

@@ -12,6 +12,7 @@
  */
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
 import { CHANNEL_ANSWERED } from "../lines/channels";
+import { durationWords } from "../shared/clock";
 import type { TodayFacts } from "./today-facts";
 import type { TodayFactVM, TodayNeedsRowVM, TodayQueueEmptyVM, TodaySentenceVM, TodayVM } from "./today-vm";
 
@@ -20,12 +21,9 @@ import type { TodayFactVM, TodayNeedsRowVM, TodayQueueEmptyVM, TodaySentenceVM, 
 export const andList = (xs: readonly string[]): string =>
   xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
 
-/** "41s" / "1m 12s". Seconds are exact here: this is a measured median. */
+/** "41s" / "1m 12s": a measured median, said the one way a length of time is said (durationWords). */
 export function secondsPhrase(s: number): string {
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return r ? `${m}m ${r}s` : `${m}m`;
+  return durationWords(s);
 }
 
 /**

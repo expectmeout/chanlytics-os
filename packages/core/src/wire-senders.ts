@@ -110,11 +110,13 @@ export function whatsappWire(read: CredentialsRead<WaConfig>): Sender | null | W
 
 /**
  * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
- * on the platform's account, for everything but a cold email; "own" is one of the workspace's own verified domains on
- * the cold account, for outreach and nothing else.
+ * on the platform's account, for replies, visit messages and everything but the two below; "campaigns" is the same mailbox
+ * on the deployment's campaigns domain (the platform's account too), for offers and nothing else, so a complaint about an
+ * offer never touches the domain replies leave from; "own" is one of the workspace's own verified domains on the cold
+ * account, for outreach and nothing else.
  */
 export interface EmailRoute {
-  lane: "hosted" | "own";
+  lane: "hosted" | "campaigns" | "own";
   cfg: ResendConfig;
   as: EmailSendsAs;
 }
@@ -146,7 +148,7 @@ export function emailSender(routes: EmailRoute[], held: readonly string[] = []):
     const own = p.reply && p.ownEmail && p.purpose !== "outreach" ? ownRouteOf(routes, held, to, p.ownEmail) : null;
     if (own && "route" in own) return { ...(await sendEmail(own.route.cfg, p.ownEmail!)), leftAs: "own" };
     const from = addressOf(p.email.from)?.address;
-    const lane = p.purpose === "outreach" ? "own" : "hosted";
+    const lane = p.purpose === "outreach" ? "own" : p.purpose === "marketing" ? "campaigns" : "hosted";
     const route = routes.find((r) => r.lane === lane && r.as.address === from);
     if (!route || !requestLeavesAs(p.email, route.as)) return refuse("request_leaves_as_another_sender");
     const sent = await sendEmail(route.cfg, p.email);
