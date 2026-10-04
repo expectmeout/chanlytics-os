@@ -5,21 +5,28 @@
  * One run, opened, as the canvas's After board draws it: what went out and what came back, by the run's own people.
  * Five figures, everyone it touched in the words of what happened to them, every reply quoted with what has happened
  * since, and, for a run that stopped, why and what to do next. The words are the contracts' (toRunReportVM, through
- * `broadcasts.report`); this draws them. It is its own screen, as the send is, and it is read when it opens.
+ * `broadcasts.report`); this draws them. It is the pane beside the list (parts/split.tsx), drawn in every state it can
+ * be in -- being read, gone, unread, a reach-out's block, a run's approval sheet, its report -- and it is read when it
+ * opens.
  */
 import { useEffect, useReducer, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { BroadcastDetailDto, BroadcastDto, BroadcastVM, RunFilterId, RunReportVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
+import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
+import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
-import { confirmPart, statePillPart } from "../../legacy-parts";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
+import { confirmPart, policyChipPart, statePillPart } from "../../legacy-parts";
 import { gate, navigate } from "../../legacy-verbs";
-import { CmDot, CmHead } from "../parts/head";
-import { ReachOutRun } from "../reach-out/approval";
+import { CmDot } from "../parts/head";
+import { CmPane } from "../parts/split";
+import { ReachOutRun, roRunHead } from "../reach-out/approval";
 import { reachOuts } from "../reach-out/surface";
 import { starters } from "../templates/verbs";
-import { BcSheet, bcPersonRow, bcStopWords } from "./run-sheet";
+import { BcSheet, bcPersonRow, bcSheetSub, bcStopWords } from "./run-sheet";
 import type { BcSheetAsk } from "./run-sheet";
 import { broadcasts } from "./verbs";
 
@@ -80,64 +87,78 @@ function useBcRunWatch(id: string, d: BroadcastDetailDto | null, setAnswer: Disp
 // A live reach-out run is its own block (Reach out Part 4 PR 7, reach-out/approval.tsx), waiting on you or not (R20).
 const bcReachOutBlock = (
   d: BroadcastDetailDto,
-  p: { sheet: BcSheetAsk | null; acts: ReactNode; onClose: () => void; onDecided: () => void },
+  p: { sheet: BcSheetAsk | null; acts: ReactNode; onDecided: () => void },
 ) =>
   d.reach_out && BC_LIVE.has(d.broadcast.state) ? (
-    <div className="bc-report is-sheet" data-testid="bc-detail">
+    <div className="bc-report is-sheet is-approval" data-testid="bc-detail">
       <ReachOutRun d={d} {...p} />
     </div>
   ) : null;
 
-/** What the head says of a run: its name and state, when it went, whose it is, how many, and the template it sent. */
+/** What a pane's head says, beside the name the pane is given: the rest of what CmPane draws there. */
+interface BcPaneHead {
+  title?: ReactNode;
+  badge?: ReactNode;
+  sub?: ReactNode;
+  tools?: ReactNode;
+}
+
+/**
+ * What the pane's head says of a run: its state beside its name, and under it when it went, whose it is, how many, and
+ * the template it sent. Its verbs (`tools`) are the run's, and Send it again.
+ */
 function bcRunHead(p: {
   d: BroadcastDetailDto;
   acts: ReactNode;
   again: ((b: BroadcastDto) => ReactNode) | null;
-  close: ReactNode;
-}) {
-  const { d, acts, again, close } = p;
+}): BcPaneHead {
+  const { d, acts, again } = p;
   const b = d.broadcast;
   const StatePill = statePillPart();
   const playbookId = b.playbook_id;
   const when = bcWhen(b.started_at || b.scheduled_for);
   const lang = b.template_language ? String(b.template_language).slice(0, 2).toUpperCase() : null;
-  return (
-    <CmHead
-      title={b.name}
-      badge={<StatePill kind="broadcast" value={b.state} />}
-      sub={
-        <>
-          {when && (
-            <>
-              <span>{when}</span>
-              <CmDot />
-            </>
-          )}
-          {playbookId ? (
-            <button type="button" className="bc-run-link" onClick={() => navigate(`outbound/${playbookId}`)}>
-              {b.audience.label} playbook
-            </button>
-          ) : (
-            <span>{b.audience.label}</span>
-          )}
-          <CmDot />
-          <span className="tabular">{d.recipients.length} enrolled</span>
-          <CmDot />
-          <span className="mono bc-report-tpl">
-            {b.template_name}
-            {lang ? ` · ${lang}` : ""}
-          </span>
-        </>
-      }
-      right={
-        <>
-          {acts}
-          {again && again(b)}
-          {close}
-        </>
-      }
-    />
-  );
+  return {
+    title: b.name,
+    badge: <StatePill kind="broadcast" value={b.state} />,
+    sub: (
+      <>
+        {when && (
+          <>
+            <span>{when}</span>
+            <CmDot />
+          </>
+        )}
+        {playbookId ? (
+          <LinkButton className="bc-run-link" onClick={() => navigate(`outbound/${playbookId}`)}>
+            {b.audience.label} playbook
+          </LinkButton>
+        ) : (
+          <span>{b.audience.label}</span>
+        )}
+        <CmDot />
+        <span className="tabular">{d.recipients.length} enrolled</span>
+        <CmDot />
+        <span className="mono bc-report-tpl">
+          {b.template_name}
+          {lang ? ` · ${lang}` : ""}
+        </span>
+      </>
+    ),
+    tools: (
+      <>
+        {acts}
+        {again && again(b)}
+      </>
+    ),
+  };
+}
+
+/** What the pane's head says of a run waiting on you: its name, its policy class, and where it sits in the queue. */
+function bcSheetHead(d: BroadcastDetailDto, sheet: BcSheetAsk): BcPaneHead {
+  const PolicyChip = policyChipPart();
+  const pb = sheet.playbook;
+  return { title: d.broadcast.name, badge: pb ? <PolicyChip cls={pb.policy_class} /> : null, sub: bcSheetSub(sheet) };
 }
 
 /**
@@ -185,7 +206,7 @@ function bcFigures(vm: RunReportVM) {
   );
 }
 
-/** Everyone it touched, and the filter over them. */
+/** Everyone it touched, and the filter over them: the kit's sub-tabs, as the person's History filters are. */
 function bcTouched(p: { vm: RunReportVM; filter: RunFilterId; setFilter: (filter: RunFilterId) => void }) {
   const { vm, filter, setFilter } = p;
   const shown = vm.people.filter((q) => q.in.includes(filter));
@@ -193,20 +214,22 @@ function bcTouched(p: { vm: RunReportVM; filter: RunFilterId; setFilter: (filter
     <section className="bc-touched" data-testid="bc-touched">
       <div className="bc-touched-head">
         <span className="bc-card-title">Everyone it touched</span>
-        <span className="bc-touched-filters" role="group" aria-label="Who to show">
-          {BC_FILTERS.map(([k, label]) => (
-            <button
-              key={k}
-              type="button"
-              className={`bc-touched-filter${filter === k ? " on" : ""}`}
-              aria-pressed={filter === k}
-              onClick={() => setFilter(k)}
-              data-testid={`bc-touched-${k}`}
-            >
-              {label} <span className="tabular">{vm.groups[k]}</span>
-            </button>
-          ))}
-        </span>
+        <SubTabs
+          label="Who to show"
+          className="bc-touched-filters"
+          value={filter}
+          tabs={BC_FILTERS.map(([k, label]) => ({
+            id: k,
+            label,
+            count: vm.groups[k],
+            testid: `bc-touched-${k}`,
+          }))}
+          onSelect={(k) => {
+            const next = BC_FILTERS.find(([id]) => id === k);
+            if (next) setFilter(next[0]);
+          }}
+          dense
+        />
       </div>
       {shown.map(bcPersonRow)}
       {shown.length === 0 && <div className="bc-touched-none">{BC_FILTER_NONE[filter]}</div>}
@@ -242,36 +265,33 @@ function bcAside(vm: RunReportVM) {
         {vm.replies.length > 0 ? (
           <div className="bc-back-list">
             {vm.replies.slice(0, BC_REPLIES_SHOWN).map((x) => (
-              <button
+              <LinkButton
                 key={x.contact_id}
-                type="button"
                 className="bc-back-row"
                 disabled={!x.to}
                 onClick={() => navigate(x.to as string)}
                 title={`${x.name} — open the thread`}
                 data-testid="bc-reply"
               >
-                <span className="bc-person-mark" aria-hidden="true">
-                  {x.initials}
-                </span>
+                <Face initials={x.initials} size="sm" />
                 <span className="bc-back-text">
                   <span className="bc-back-quote">{x.quote || "A reply with no words in it"}</span>
                   <span className="bc-back-outcome" data-tone={x.outcome.tone}>
                     {x.outcome.words}
                   </span>
                 </span>
-              </button>
+              </LinkButton>
             ))}
           </div>
         ) : (
           <p className="bc-back-none">Nobody has written back yet. A reply lands in the Inbox the moment it comes.</p>
         )}
-        <button type="button" className="bc-back-all" onClick={() => navigate("inbox")} data-testid="bc-back-inbox">
+        <LinkButton className="bc-back-all" onClick={() => navigate("inbox")} data-testid="bc-back-inbox">
           {vm.replies.length > BC_REPLIES_SHOWN
             ? `${vm.replies.length - BC_REPLIES_SHOWN} more in the Inbox`
             : "Open the Inbox"}{" "}
           <Icon name="arrow-right" size={11} />
-        </button>
+        </LinkButton>
       </section>
     </div>
   );
@@ -279,13 +299,22 @@ function bcAside(vm: RunReportVM) {
 
 interface BroadcastDetailProps {
   id: string;
+  /** The name the list's row has for it, which the pane's head says while the report is read (else "Broadcast"). */
+  name?: string | null;
   onClose: () => void;
   acts?: ReactNode;
   again?: ((b: BroadcastDto) => ReactNode) | null;
   sheet?: BcSheetAsk | null;
 }
 
-export function BroadcastDetail({ id, onClose, acts = null, again = null, sheet = null }: BroadcastDetailProps) {
+export function BroadcastDetail({
+  id,
+  name = null,
+  onClose,
+  acts = null,
+  again = null,
+  sheet = null,
+}: BroadcastDetailProps) {
   // The last answer, kept with the broadcast it answered for: a read of another id is not this one's.
   const [answer, setAnswer] = useState<BcAnswer | null>(null);
   const [asks, ask] = useReducer((n: number) => n + 1, 0);
@@ -326,23 +355,36 @@ export function BroadcastDetail({ id, onClose, acts = null, again = null, sheet 
     };
   }, [id, asks]);
   useBcRunWatch(id, d, setAnswer);
-  const close = (
-    <button className="btn btn-ghost" onClick={onClose} data-testid="bc-detail-close">
-      Close
-    </button>
+  // The run's pane, in whatever state it is in: Close at its head (Escape closes it too), its name, and the report in its
+  // body. While the report is read it has the name the list's row has; the run's own head says the rest once it lands.
+  const pane = (head: BcPaneHead, body: ReactNode) => (
+    <CmPane
+      id={`bc-run-${id}`}
+      testid="bc-run-solo"
+      closeTestid="bc-detail-close"
+      className="bc-pane"
+      title={head.title ?? name ?? "Broadcast"}
+      badge={head.badge}
+      sub={head.sub}
+      tools={head.tools}
+      onClose={onClose}
+    >
+      {body}
+    </CmPane>
   );
   if (!mine) {
-    return (
+    return pane(
+      {},
       <div className="bc-report" data-testid="bc-detail">
         <div className="bc-report-wait">
           <span className="cl-prof-aut-hint">Reading who got it…</span>
-          {close}
         </div>
-      </div>
+      </div>,
     );
   }
   if (mine.gone) {
-    return (
+    return pane(
+      {},
       <div className="bc-report" data-testid="bc-detail">
         <EmptyState
           kind="line"
@@ -350,12 +392,12 @@ export function BroadcastDetail({ id, onClose, acts = null, again = null, sheet 
           body="The link may be old, or from another workspace."
           testid="bc-detail-gone"
         />
-        <div>{close}</div>
-      </div>
+      </div>,
     );
   }
   if (!d) {
-    return (
+    return pane(
+      {},
       <div className="bc-report" data-testid="bc-detail">
         <FailedRead
           kind="line"
@@ -367,41 +409,40 @@ export function BroadcastDetail({ id, onClose, acts = null, again = null, sheet 
           busy={retrying}
           testid="bc-detail-failed"
         />
-        <div>{close}</div>
-      </div>
+      </div>,
     );
   }
   const b = d.broadcast;
-  const ro = bcReachOutBlock(d, { sheet, acts, onClose, onDecided: ask });
-  if (ro) return ro;
+  const ro = bcReachOutBlock(d, { sheet, acts, onDecided: ask });
+  if (ro) return pane(roRunHead(d, sheet) || {}, ro);
   const vm = broadcasts.report(d);
   const avm =
     sheet && b.state === "pending_approval" ? broadcasts.approval(d, sheet.playbook, sheet.businessName) : null;
   if (sheet && avm) {
-    return (
-      <div className="bc-report is-sheet" data-testid="bc-detail">
+    return pane(
+      bcSheetHead(d, sheet),
+      <div className="bc-report is-sheet is-approval" data-testid="bc-detail">
         <BcSheet
           d={d}
           people={vm.people}
           avm={avm}
           sheet={sheet}
-          onClose={onClose}
           seeAll={seeAll}
           onSeeAll={() => setSeeAll((v) => !v)}
         />
-      </div>
+      </div>,
     );
   }
-  return (
+  return pane(
+    bcRunHead({ d, acts, again }),
     <div className="bc-report" data-testid="bc-detail">
-      {bcRunHead({ d, acts, again, close })}
       {b.params.length > 0 && bcValues(b)}
       {bcFigures(vm)}
       <div className="bc-report-body">
         {bcTouched({ vm, filter, setFilter })}
         {bcAside(vm)}
       </div>
-    </div>
+    </div>,
   );
 }
 
@@ -450,22 +491,23 @@ export function BcRunVerbs({
   return (
     <>
       {row.state === "pending_approval" && (
-        <button
-          className="btn btn-sm btn-primary"
+        <Button
+          size="sm"
+          variant="primary"
           disabled={approving}
           onClick={() => approve(row)}
           data-testid="bc-approve"
           {...(canSend ? {} : gate("approve", "approve a run"))}
         >
           {approving ? "Approving…" : "Approve the run"}
-        </button>
+        </Button>
       )}
       {/* Named for what it does: Stop, Skip or Cancel -- never "Hold", which
           would promise a pause the act does not make. */}
       {canSend && BC_LIVE.has(row.state) && (
-        <button className="btn btn-sm danger" onClick={() => onArm(true)} data-testid="bc-stop">
+        <Button size="sm" tone="danger" onClick={() => onArm(true)} data-testid="bc-stop">
           {stop.verb}
-        </button>
+        </Button>
       )}
     </>
   );

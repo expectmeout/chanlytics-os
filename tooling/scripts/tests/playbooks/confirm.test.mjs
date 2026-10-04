@@ -53,7 +53,15 @@ const { Confirm, MoreMenu } = globalThis;
 // The Broadcasts and Playbooks pages are TSX (decision 0015): their verbs are imported, and their surfaces are the seam's.
 const { BcRunVerbs } = await import(`${S}/surfaces/campaigns/broadcasts/run.tsx`);
 const { BcRunCard } = await import(`${S}/surfaces/campaigns/broadcasts/ledger.tsx`);
-const { PlaybookCard } = await import(`${S}/surfaces/campaigns/playbooks/card-detail.tsx`);
+const { PlaybookPane } = await import(`${S}/surfaces/campaigns/playbooks/card-detail.tsx`);
+const { Menu } = await import(`${S}/surfaces/kit/menu/menu.tsx`);
+/** The kit menu's item by its words (the ⋯ beside Pause and Edit, where Run now and Delete live): what a press does. */
+const moreItem = (tree, label) => {
+  const menu = find(tree, (n) => n.type === Menu);
+  const item = menu && menu.props.groups.flatMap((g) => g.items || []).find((i) => i.label === label);
+  assert.ok(item, `the ⋯ menu offers ${label}`);
+  return item;
+};
 const { playbooks } = await import(`${S}/surfaces/campaigns/playbooks/verbs.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 setSurfaceValue("playbooks", { rows: [], triggers: [] });
@@ -286,7 +294,12 @@ test("a broadcast's stop is armed and named for what it does: Stop a send, Skip 
     const quiet = draw(state, false);
     const trigger = byTestId(quiet, "bc-stop");
     assert.equal(textOf(trigger), verb, state);
-    assert.equal(trigger.props.className, "btn btn-sm danger", "the quiet danger form arms");
+    // The kit's Button (surfaces/kit/button/) in its quiet danger form; the host button it draws wears the classes.
+    assert.equal(
+      find(trigger, (n) => n.type === "button").props.className,
+      "btn btn-sm danger",
+      "the quiet danger form arms",
+    );
     assert.equal(byTestId(quiet, "bc-stop-confirm"), null);
     trigger.props.onClick();
     assert.equal(calls.arm.at(-1), true, "the button arms, it does not cancel");
@@ -348,25 +361,29 @@ const playbook = {
 
 test("a playbook's delete asks through the one Confirm -- it used to relabel its own button and fire on the second click", async () => {
   fresh();
-  const draw = () => again(() => PlaybookCard({ p: playbook, canAct: true, onEdit() {}, flash }));
+  const draw = () => again(() => PlaybookPane({ p: playbook, canAct: true, onEdit() {}, flash, onClose() {} }));
   let tree = draw();
-  const del = byTestId(tree, "pb-delete");
-  assert.equal(textOf(del), "Delete");
-  assert.equal(del.props.className, "btn btn-ghost btn-sm danger");
-  del.props.onClick();
-  assert.deepEqual(calls.pbRemove, [], "the first click arms");
+  // Delete is the kit menu's red item, behind the ⋯ beside Pause and Edit (it was a red button among four).
+  const del = moreItem(tree, "Delete…");
+  assert.equal(del.tone, "danger");
+  del.onSelect();
+  assert.deepEqual(calls.pbRemove, [], "the first press arms");
   tree = draw();
-  assert.equal(byTestId(tree, "pb-delete"), null, "the trigger gives way to the question");
+  assert.equal(
+    find(tree, (n) => n.type === Menu),
+    null,
+    "the menu gives way to the question",
+  );
   const ask = byTestId(tree, "pb-delete-confirm");
   assert.ok(ask);
-  assert.ok(
-    textOf(ask).includes("Delete Win-back?") && textOf(ask).includes("Its runs stay in Broadcasts"),
-    textOf(ask),
-  );
+  assert.ok(textOf(ask).includes("Delete Win-back?") && textOf(ask).includes("Its runs stay in Sent"), textOf(ask));
   byTestId(tree, "pb-delete-no").props.onClick();
   tree = draw();
-  assert.ok(byTestId(tree, "pb-delete"), "No brings the trigger back");
-  byTestId(tree, "pb-delete").props.onClick();
+  assert.ok(
+    find(tree, (n) => n.type === Menu),
+    "No brings the menu back",
+  );
+  moreItem(tree, "Delete…").onSelect();
   tree = draw();
   await byTestId(tree, "pb-delete-yes").props.onClick();
   assert.deepEqual(calls.pbRemove, ["pb-1"]);

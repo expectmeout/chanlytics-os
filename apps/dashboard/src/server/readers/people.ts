@@ -6,6 +6,7 @@ import {
   personName,
   pipelineOf,
   poolRowOf,
+  type ChannelsReady,
   type DealPaceDto,
   type FollowUpFactsDto,
   type PersonRowDto,
@@ -33,6 +34,13 @@ interface PeoplePage {
   deals_on: boolean;
   deal_pace: DealPaceDto | null;
   follow_up: FollowUpFactsDto | null;
+  /**
+   * What the workspace can send on now, channel by channel (campaigns/channels-ready.ts): the page judges who can be sent
+   * what against it (contracts reach-any.ts), rows, lists and Today's leaks alike. Read with the first page alone, as the
+   * pace is. Null on a later page or a search, and where it could not be read: the page counts as before the channels
+   * were, by WhatsApp alone.
+   */
+  channels_ready: ChannelsReady | null;
   /**
    * `offset` is how many rows the caller holds, and counts `has_more`; `next`, when the rows carry their place in the
    * order (00276), is where the next page starts: handed back as `?after=`, it reads just past the last row, and
@@ -71,7 +79,7 @@ export const people: Reader<{ q: string | null; offset: number; after?: PeopleCu
     // row's standing is worked out from them where the rows are held. Unreadable, every row says what it said.
     // How the workspace's customers buy is the turn's (readers/facts.ts).
     const buys = load(rc, facts.sellsBy, undefined).then((r) => r.data);
-    const [out, sellsBy, nameSteps, pace, followUp] = await Promise.all([
+    const [out, sellsBy, nameSteps, pace, followUp, ready] = await Promise.all([
       // The calendar's zone and settings are the turn's too, read just where the calendar's own lookup read them: a
       // turn that holds them reads neither again, and one that fails costs the visits, never the list.
       withVisits(ctx, tenantId, rows, rc.now, facts.zoneAndSettings(rc)),
@@ -89,6 +97,10 @@ export const people: Reader<{ q: string | null; offset: number; after?: PeopleCu
             })
           : null,
       ),
+      // What the workspace can send on now, which who can be sent what is judged against (contracts reach-any.ts): with
+      // the first page alone, as the pace is -- People keeps that page's answer, and a later page or a search would read it
+      // again for nothing. The turn's own read, which Ask's reads share.
+      offset === 0 && !q ? load(rc, facts.channelsReady, undefined).then((r) => r.data) : Promise.resolve(null),
     ]);
     const dealsOn = dealsAreOn(sellsBy);
     // A short page is the last: someone who wrote as the pages were read counts in the total, and is read first on the
@@ -105,6 +117,7 @@ export const people: Reader<{ q: string | null; offset: number; after?: PeopleCu
       deal_pace: dealsOn ? pace : null,
       // The proposal follow-up, where one runs (0006): who it has in hand and when, row by row, on People and Today.
       follow_up: dealsOn ? followUp : null,
+      channels_ready: ready,
       consult_first: out.consult_first,
       page: {
         q,
@@ -158,9 +171,10 @@ export const dealBoard: Reader<undefined, DealBoard> = {
     const pace = dealPaceOf(first.deal_pace);
     const nowMs = rc.now.getTime();
     const fu = first.follow_up;
+    const ready = first.channels_ready;
     const rowsVm = all.map((r) => {
-      const v = poolRowOf(r, { tz, now: rc.now, viewer: rc.userId, dealsOn });
-      return fu ? { ...v, followUp: followUpStandOf(v, fu, tz, nowMs, pace) } : v;
+      const v = poolRowOf(r, { tz, now: rc.now, viewer: rc.userId, dealsOn, ready });
+      return fu ? { ...v, followUp: followUpStandOf(v, fu, tz, nowMs, pace, ready) } : v;
     });
     const board = pipelineOf(rowsVm, nowMs, tz, pace);
     const rows: RowRef[] = board.groups.flatMap((g) =>

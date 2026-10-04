@@ -33,7 +33,7 @@ const NAV_INTEL = [
 ];
 
 const NAV_FOOT = [
-  { id: "admin", icon: "settings", label: "Settings" },
+  { id: "admin", icon: "cog", label: "Settings" },
 ];
 
 const ACTIVE_AGENTS_DEFAULT = [
@@ -96,7 +96,7 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
       onClick={(e) => { if (item.expandable) { onToggle(item.id); } else { onNavigate(item.id); } }}
       data-tip={collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined}
       data-tip-side="right"
-      aria-current={active === item.id ? "page" : undefined}
+      aria-current={active === item.id ? "page" : undefined} data-nav={item.id}
     >
       {item.icon && <Icon name={item.icon} />}
       {!collapsed && <span>{item.label}</span>}
@@ -246,7 +246,7 @@ const WorkspaceMenu = ({ onNavigate, close }) => {
         </button>
       )}
       <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin"); }}>
-        <Icon name="settings" size={13} /><span className="more-item-label">Workspace settings</span>
+        <Icon name="cog" size={13} /><span className="more-item-label">Workspace settings</span>
       </button>
     </>
   );
@@ -411,7 +411,7 @@ const Sidebar = ({
     people: ["clients", "leads", "segments", "pipeline"],
     // Conversations and Live highlight the Inbox: they are its views, not their own place.
     inbox: ["inbox", "conversations", "live", "calls", "chats", "email"],
-    campaigns: ["outbound", "content", "broadcasts", "messages"],
+    campaigns: ["campaigns", "outbound", "content", "broadcasts", "messages"],
     agents: ["fleet", "store", "studio", "tasks"],
   };
   const effActive = (() => {

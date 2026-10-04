@@ -219,9 +219,10 @@ export interface InboundPorts {
     /**
      * That context in a line or two, for the model. A VALUE from the db package
      * on the edge, so it arrives as a port rather than as an import. The zone is
-     * the business's, for the dates a deal's sentence says (0004).
+     * the business's, for the dates a deal's sentence says (0004). The channel is the conversation's: a text rides this
+     * road on the WhatsApp prompt, and the ask for the yes to offers is for WhatsApp alone.
      */
-    describe(lead: LeadContext, now?: Date, tz?: string): string;
+    describe(lead: LeadContext, now?: Date, tz?: string, channel?: InboundChannel): string;
   };
   calendar: {
     openings(rt: InboundRuntime, now?: Date): Promise<string | null>;

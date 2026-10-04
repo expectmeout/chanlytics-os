@@ -10,7 +10,14 @@
  * composer refused every one of them.
  */
 import type { ReactNode } from "react";
-import { CONSENT_SOURCES, offersYesRefusal, stateOf, verbalOptInScript } from "@chanlytics/contracts";
+import {
+  CONSENT_SOURCES,
+  GET_YES_ROUTE,
+  OFFERS_IN_WRITING_WORDS,
+  offersYesRefusal,
+  stateOf,
+  verbalOptInScript,
+} from "@chanlytics/contracts";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { RecordFold } from "../../kit/record/fold";
@@ -276,9 +283,9 @@ function offersFold(c: PageCtx, row: ReactNode) {
                 label: "Why in writing?",
                 text: (
                   <>
-                    {"The carriers require it: their own message, or a sign-up form they signed — "}
-                    <button type="button" className="cl-bucket-link" onClick={() => navigate("broadcasts")}>
-                      print one from Broadcasts
+                    {OFFERS_IN_WRITING_WORDS.lead}
+                    <button type="button" className="cl-bucket-link" onClick={() => navigate(GET_YES_ROUTE)}>
+                      {OFFERS_IN_WRITING_WORDS.link}
                     </button>
                     .
                   </>
@@ -291,7 +298,25 @@ function offersFold(c: PageCtx, row: ReactNode) {
   );
 }
 
-/** The card's three rows, each drawn at rest and, while its editor is a sheet on a phone, behind it. */
+/**
+ * Offers by email, a quiet row beside the two answers (contracts consentOf): Yes once they asked for offers by email,
+ * Unsubscribed once they said no to them, Not asked until then, with how and when under it. Read-only: the person says it
+ * themselves, in their own email or by pressing Unsubscribe. Not drawn where the row carries no answer.
+ */
+function emailOffersRow(c: PageCtx) {
+  const { consent } = c.p;
+  if (!consent.emailOffersLabel) return null;
+  return (
+    <RecordRow
+      id="person-email-offers"
+      label="Offers by email"
+      value={consent.emailOffersLabel}
+      hint={consent.emailOffersSub || null}
+    />
+  );
+}
+
+/** The card's rows, each drawn at rest and, while its editor is a sheet on a phone, behind it. */
 export function settingsCard(c: PageCtx) {
   const { p, isOwner, canRecord, folds } = c;
   const rmPerson = p.receptionistMode.person;
@@ -329,6 +354,7 @@ export function settingsCard(c: PageCtx) {
       {visitFold(c, visitRow)}
       {folds.offers.open ? null : offersRow}
       {offersFold(c, offersRow)}
+      {emailOffersRow(c)}
     </div>
   );
 }

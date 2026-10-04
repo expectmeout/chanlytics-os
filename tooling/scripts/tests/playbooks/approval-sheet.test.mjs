@@ -177,3 +177,68 @@ test("a run that kept who it left out says the board's card: 186 of 312, the wai
   );
   assert.equal(all.of.held, 7, "the playbook's gap and the number's day are waits; the cap is a turn, drawn grey");
 });
+
+test("the month's allowance: people it already holds are in the held line and out of the count -- approving reaches none of them", () => {
+  // Core holds them at enrolment as skipped with month_allowance, on the channel each was to go by; the run's own count (will)
+  // was made before, so it still includes them.
+  const held = (n, channel) =>
+    Array.from({ length: n }, (_, i) =>
+      person(`held-${channel}-${i}`, `H${i}`, { state: "skipped", reason: "month_allowance", channel }),
+    );
+  const sent = [person("A", "A", { channel: "email" }), person("B", "B", { channel: "whatsapp" })];
+  const reach = kept({
+    pool: 20,
+    will: 10,
+    noYes: 6,
+    heardAny: 2,
+    overCap: 0,
+    by_channel: { whatsapp: 4, sms: 0, email: 6 },
+  });
+  const vm = C.toApprovalVM(
+    {
+      broadcast: run({ recipient_count: 10, audience: { kind: "playbook", id: "p1", label: "Win-back", reach } }),
+      recipients: [...sent, ...held(4, "email")],
+    },
+    opts(),
+  );
+  assert.equal(vm.will, 6, "ten enrolled, four held for the month: six will get it");
+  assert.equal(vm.approve, "Approve — 6 now", "the act says six");
+  assert.deepEqual(vm.byChannel, { whatsapp: 4, sms: 0, email: 2 }, "the four come off the channel they were to go by");
+  assert.equal(vm.of.pool, 20);
+  assert.equal(vm.of.held, 6, "the bar's amber holds the two who heard this week and the four the month holds");
+  assert.deepEqual(
+    vm.of.lines.map((l) => [l.words, l.tone]),
+    [
+      ["6 never said yes to offers", "plain"],
+      ["4 held for this month's allowance", "warn"],
+      ["2 heard from a playbook this week", "warn"],
+    ],
+    "one line for them, said in the contracts' words",
+  );
+  // Nobody held for it is the run as it was: the count, the act and the lines unchanged.
+  const plain = C.toApprovalVM(
+    {
+      broadcast: run({ recipient_count: 10, audience: { kind: "playbook", id: "p1", label: "Win-back", reach } }),
+      recipients: sent,
+    },
+    opts(),
+  );
+  assert.equal(plain.will, 10);
+  assert.equal(plain.approve, "Approve — 10 now");
+  assert.ok(!plain.of.lines.some((l) => /allowance/.test(l.words)));
+  // A run that kept no count of who it left out still takes the held off its number, and has no line to say them in.
+  const nocount = C.toApprovalVM(
+    { broadcast: run({ recipient_count: 5 }), recipients: [...sent, ...held(2, "sms")] },
+    opts(),
+  );
+  assert.deepEqual([nocount.will, nocount.of, nocount.byChannel], [3, null, null]);
+  // A person skipped for another reason is not the allowance's.
+  const other = C.toApprovalVM(
+    {
+      broadcast: run({ recipient_count: 3 }),
+      recipients: [person("X", "X", { state: "skipped", reason: "opted_out" })],
+    },
+    opts(),
+  );
+  assert.equal(other.will, 3);
+});

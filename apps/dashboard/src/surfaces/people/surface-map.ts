@@ -5,6 +5,7 @@
  * here reads the window, the wire or the clock: the member looking and the moment are its arguments.
  */
 import {
+  type ChannelsReady,
   type PersonRowDto,
   followUpStandOf,
   type FollowUpFactsDto,
@@ -48,6 +49,11 @@ export interface PeopleLoaded {
   dealPace: DealPaceVM | null;
   /** The proposal follow-up, as the list read answered it (0006); null where none runs. */
   followUp: FollowUpFactsDto | null;
+  /**
+   * What the workspace can send on now, as the list read answered it (readers/people.ts): each row's reach, the lists and
+   * Today's leaks are judged against it. Null where it could not be read: counted by WhatsApp alone, as before the channels.
+   */
+  channelsReady: ChannelsReady | null;
   views: Record<string, unknown>;
   viewsRead: boolean;
 }
@@ -58,7 +64,7 @@ export interface PeopleLoaded {
  */
 export function personRowOf(
   r: PersonRowDto,
-  as: { tz: string; now: Date; dealsOn: boolean; viewer: string | null },
+  as: { tz: string; now: Date; dealsOn: boolean; viewer: string | null; ready: ChannelsReady | null },
 ): PersonRowVM {
   return poolRowOf(r, as);
 }
@@ -74,8 +80,8 @@ export function peopleSurfaceOf(loaded: PeopleLoaded, viewer: string | null, now
   const fu = dealsOn ? loaded.followUp : null;
   const pace = dealsOn ? loaded.dealPace : null;
   const rows = loaded.people.map((r) => {
-    const vm = personRowOf(r, { tz, now, dealsOn, viewer });
-    return fu ? { ...vm, followUp: followUpStandOf(vm, fu, tz, now.getTime(), pace) } : vm;
+    const vm = personRowOf(r, { tz, now, dealsOn, viewer, ready: loaded.channelsReady });
+    return fu ? { ...vm, followUp: followUpStandOf(vm, fu, tz, now.getTime(), pace, loaded.channelsReady) } : vm;
   });
   const calendar = loaded.calendar;
   // What this workspace and this reader can give a list (lists.ts): a rule that needs more says why it can't be counted.

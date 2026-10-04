@@ -68,11 +68,10 @@ test.describe("Live on a real workspace", () => {
     await expect(live.getByTestId("recent-row")).toHaveCount(0);
     await expect(live.getByTestId("live-to-calls")).toBeVisible();
 
-    // With nobody on the line the panel opens on the last call, when there is
-    // one, and shows its summary state — never a blank.
-    const summary = live.getByTestId("live-summary");
-    if ((await liveRows.count()) === 0 && (await summary.count()) > 0) {
-      await expect(summary.locator(".lm-summary-title")).not.toBeEmpty();
+    // With nobody on the line no call that has ended is drawn unasked: the last
+    // call is Conversations', and the list's door above opens it.
+    if ((await liveRows.count()) === 0) {
+      await expect(live.getByTestId("live-summary")).toHaveCount(0);
     }
   });
 

@@ -18,6 +18,7 @@ import {
   toRunReportVM,
   type AudienceKind,
   type BroadcastDetailDto,
+  type ConsentChannel,
   type ParamSpec,
   type PlaybookDto,
 } from "@chanlytics/contracts";
@@ -31,6 +32,8 @@ export interface SendBody {
   template_id: string;
   params: ParamSpec[];
   audience: { kind: AudienceKind; id: string | null };
+  /** The channels it goes by (step 3): WhatsApp alone where it names none. */
+  channels?: ConsentChannel[];
   scheduled_for?: string | null;
   name?: string | null;
 }

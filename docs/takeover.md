@@ -34,31 +34,31 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit            117   of which over 200 lines: 23
+functions over the limit            112   of which over 200 lines: 21
 files over 800 lines                  7
 directories over 20 modules           4
-window globals                      155   names
+window globals                      153   names
 window publishers                   262   sites in 86 files
 copies                               73   of 21 names
-as unknown as                       158
+as unknown as                       155
 as never                             13
-non-null assertions, x!             126
-index reads the compiler lets pass  481   in 127 files
-table names outside packages/db     491
-SQL functions outside packages/db   134   called by .rpc
+non-null assertions, x!             123
+index reads the compiler lets pass  477   in 125 files
+table names outside packages/db     487
+SQL functions outside packages/db   133   called by .rpc
 edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    64   in 34 files
-literal style values               1088   in 22 stylesheets
-primitives outside the kit         2175   selectors naming 862 classes
-inline style props                  219   in 55 files
+literal style values               1030   in 23 stylesheets
+primitives outside the kit         1993   selectors naming 804 classes
+inline style props                  214   in 52 files
 wire names not in snake_case         54   in 26 routes
-dead exports, types and modules     305
-source-text reads in tests          788
-lint warnings                       386   in 155 files, 83 of them exhaustive-deps
-workspace route JS, KB gzipped      882   the shell included
-workspace route CSS, KB gzipped     145
-trees the lint's limits hold         42   15 of them with max-params waiting
+dead exports, types and modules     302
+source-text reads in tests          782
+lint warnings                       384   in 154 files, 83 of them exhaustive-deps
+workspace route JS, KB gzipped      958   the shell included
+workspace route CSS, KB gzipped     147
+trees the lint's limits hold         44   15 of them with max-params waiting
 ```
 
 <!-- measured:end -->

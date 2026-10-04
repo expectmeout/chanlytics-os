@@ -99,6 +99,8 @@ export type {
 export { hoursRuns } from "./workspace-config/prompt-hours";
 export type { HoursRun } from "./workspace-config/prompt-hours";
 export { describeNow, composeSystemPrompt, PROMPT_OPENINGS } from "./workspace-config/compose";
+export { offersFacts } from "./workspace-config/offers-ask";
+export type { LeadChannel } from "./workspace-config/offers-ask";
 export {
   instructionsDraft,
   hasProfile,

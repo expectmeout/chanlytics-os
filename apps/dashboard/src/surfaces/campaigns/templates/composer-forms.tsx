@@ -8,9 +8,16 @@ import type { ReactNode } from "react";
 import { gate, navigate } from "../../legacy-verbs";
 import { fieldErrorPart, unsavedAskPart } from "../../legacy-parts";
 import type { UnsavedWork } from "../../legacy-parts";
+import { Button } from "../../kit/button/button";
+import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
-import { LanguagePicker } from "../parts/picker";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { Picker } from "../../kit/picker/picker";
+import { Segmented } from "../../kit/segmented/segmented";
+import { cmLanguageSearch, cmLanguages } from "../parts/picker";
+import { cmChevron } from "../parts/picks";
 import { MessagePreview } from "../parts/message-preview";
+import { CmPane } from "../parts/split";
 import type { ComposerState, TemplateTranslation, composerActs, composerFacts } from "./composer-acts";
 import { starters } from "./verbs";
 
@@ -28,6 +35,8 @@ interface ComposerCtx {
   work: UnsavedWork;
   businessName: string;
   onCancel?: () => void;
+  /** Drawn as the pane beside the Templates list (composer.tsx), where a new message is not a card. */
+  pane?: boolean;
 }
 
 // The fields the words are changed in: a translation's are the same as a new
@@ -40,73 +49,78 @@ export function composerFields({ st, facts }: ComposerCtx) {
   return (
     <div className="tpl-fields">
       {!translate && (
-        <label className="bc-var">
-          <span className="bc-var-label">Name (lowercase, underscores)</span>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="spring_offer"
-            data-testid="tpl-name"
-          />
-        </label>
-      )}
-      <label className="bc-var tpl-body">
-        <span className="bc-var-label">
-          Message — values as {"{{1}}"}, {"{{2}}"} in order
-        </span>
-        <textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)} data-testid="tpl-body" />
-      </label>
-      <label className="bc-var">
-        <span className="bc-var-label">Footer (optional)</span>
-        <input
-          value={footer}
-          onChange={(e) => setFooter(e.target.value)}
-          placeholder={category === "marketing" ? "Reply STOP to opt out" : ""}
-          data-testid="tpl-footer"
+        <Field
+          label="Name (lowercase, underscores)"
+          value={name}
+          onValueChange={setName}
+          placeholder="spring_offer"
+          data-testid="tpl-name"
         />
-      </label>
+      )}
+      <Field
+        className="tpl-body"
+        label={
+          <>
+            Message — values as {"{{1}}"}, {"{{2}}"} in order
+          </>
+        }
+        rows={4}
+        value={body}
+        onValueChange={setBody}
+        data-testid="tpl-body"
+      />
+      <Field
+        label="Footer (optional)"
+        value={footer}
+        onValueChange={setFooter}
+        placeholder={category === "marketing" ? "Reply STOP to opt out" : ""}
+        data-testid="tpl-footer"
+      />
       {(!translate || buttonUrl) && (
-        <label className="bc-var" data-testid="tpl-button">
-          <span className="bc-var-label">
-            Button (optional)
-            {link ? <> &middot; opens {link.replace(/^https?:\/\//, "")}</> : null}
-          </span>
+        <div data-testid="tpl-button">
           {link ? (
-            <input
+            <Field
+              label={<>Button (optional) &middot; opens {link.replace(/^https?:\/\//, "")}</>}
               value={buttonText}
               maxLength={25}
-              onChange={(e) => setButtonText(e.target.value)}
+              onValueChange={setButtonText}
               placeholder="Book now"
               data-testid="tpl-button-text"
             />
           ) : (
-            // prettier-ignore
-            <span className="bc-excl-hint" data-testid="tpl-button-none">
-              A button needs somewhere to go. Put your booking link in <button type="button" className="cl-bucket-link" onClick={() => navigate("admin/workspace")}>Settings</button> first.
-            </span>
+            <Field
+              label="Button (optional)"
+              control={
+                // prettier-ignore
+                <span className="bc-excl-hint" data-testid="tpl-button-none">
+                  A button needs somewhere to go. Put your booking link in <LinkButton onClick={() => navigate("admin/workspace")}>Settings</LinkButton> first.
+                </span>
+              }
+            />
           )}
-        </label>
+        </div>
       )}
       {slots.length > 0 && (
         <div className="bc-vars" data-testid="tpl-examples">
           {slots.map((n, i) => (
-            <label key={n} className="bc-var">
-              <span className="bc-var-label">
-                Example for {"{{" + n + "}}"}
-                {labels[i] ? ` · ${labels[i]}` : ""}
-              </span>
-              <input
-                value={exampleFor(i)}
-                onChange={(e) =>
-                  setExamples((ex) => {
-                    const next = [...ex];
-                    next[i] = e.target.value;
-                    return next;
-                  })
-                }
-                placeholder="what a real value looks like"
-              />
-            </label>
+            <Field
+              key={n}
+              label={
+                <>
+                  Example for {"{{" + n + "}}"}
+                  {labels[i] ? ` · ${labels[i]}` : ""}
+                </>
+              }
+              value={exampleFor(i)}
+              onValueChange={(words) =>
+                setExamples((ex) => {
+                  const next = [...ex];
+                  next[i] = words;
+                  return next;
+                })
+              }
+              placeholder="what a real value looks like"
+            />
           ))}
         </div>
       )}
@@ -167,14 +181,14 @@ export function translationForm(c: ComposerCtx, translate: TemplateTranslation, 
       ) : failed ? (
         <div className="tpl-retry" data-testid="tpl-translate-failed">
           <FieldError message={error} testid="tpl-error" />
-          <button
-            className="btn btn-sm"
+          <Button
+            size="sm"
             onClick={translateNow}
             data-testid="tpl-translate-again"
             {...gate("approve", "write a template in another language")}
           >
             <Icon name="refresh" size={11} /> Try again
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="tpl-split">
@@ -199,19 +213,20 @@ export function translationForm(c: ComposerCtx, translate: TemplateTranslation, 
             </span>
             <span className="bc-actions-spacer" />
             {onCancel && (
-              <button className="cl-bucket-link" onClick={work.leave} data-testid="tpl-cancel">
+              <LinkButton onClick={work.leave} data-testid="tpl-cancel">
                 Cancel
-              </button>
+              </LinkButton>
             )}
-            <button
-              className="btn btn-primary btn-sm"
+            <Button
+              variant="primary"
+              size="sm"
               disabled={!ready}
               onClick={submit}
               data-testid="tpl-submit"
               {...gate("approve", "submit a template")}
             >
               {submitting ? "Submitting…" : "Submit to WhatsApp"}
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -219,93 +234,93 @@ export function translationForm(c: ComposerCtx, translate: TemplateTranslation, 
   );
 }
 
-/** A new message: from a starter, or from what the owner says, then the words. */
-export function newTemplateForm(c: ComposerCtx, made: Made) {
-  const { st, facts, acts, work, businessName, onCancel } = c;
+/**
+ * What a new message is made of, in the order it is asked: where it starts from, what it says, its kind and language,
+ * then its words and what is wrong with them. A card and the pane beside the list draw the same rows.
+ */
+function newRows(c: ComposerCtx, made: Made) {
+  const { st, acts } = c;
   const { brief, setBrief, category, setCategory, language, setLanguage } = st;
-  const { drafting, warnings, error, submitting } = st;
-  const { startFrom, draft, submit } = acts;
-  const { ready } = facts;
+  const { drafting, warnings, error } = st;
+  const { startFrom, draft } = acts;
   const FieldError = fieldErrorPart();
-  const UnsavedAsk = unsavedAskPart();
+  const spoken = starters.allLanguages.find((l) => l.id === language);
   return (
-    <section className="ct-section tpl-composer" data-testid="tpl-composer">
-      <div className="ct-sec-head">
-        <span className="ct-sec-title">New template</span>
-        <span className="ct-sec-meta">
-          WhatsApp reviews it before it can be sent — usually minutes, sometimes a day
-        </span>
-        {onCancel && (
-          <button className="cl-bucket-link" onClick={work.leave} data-testid="tpl-close">
-            Close
-          </button>
-        )}
-      </div>
+    <>
       <div className="tpl-row">
         <span className="bc-row-label">From</span>
         <div className="bc-chips" style={{ alignItems: "center" }}>
           {starters.list.map((s) => (
-            <button
+            <Button
               key={s.key}
-              className="bc-chip"
+              size="sm"
               title={`${s.title} — ${s.purpose}`}
               onClick={() => startFrom(s)}
               data-testid="tpl-start-from"
             >
               {s.title}
-            </button>
+            </Button>
           ))}
           <span className="bc-excl-hint">a starter to change — or say what you want to tell customers below</span>
         </div>
       </div>
       <div className="tpl-row">
         <span className="bc-row-label">Say</span>
-        <textarea
+        <Field
           className="tpl-brief"
+          aria-label="What you want to tell customers"
           rows={2}
           value={brief}
           placeholder="What do you want to tell customers? e.g. 20% off any service this week, book by Friday"
-          onChange={(e) => setBrief(e.target.value)}
+          onValueChange={setBrief}
           data-testid="tpl-brief"
         />
       </div>
       <div className="tpl-row">
         <span className="bc-row-label">Kind</span>
         <div className="bc-chips">
-          <button
-            className={"bc-chip" + (category === "marketing" ? " active" : "")}
-            onClick={() => setCategory("marketing")}
-            title="An offer, news or an invitation — needs the customer's yes"
-          >
-            Marketing
-          </button>
-          <button
-            className={"bc-chip" + (category === "utility" ? " active" : "")}
-            onClick={() => setCategory("utility")}
-            title="A notice about their own booking or account — no promotional words"
-          >
-            Utility
-          </button>
+          <Segmented
+            label="Kind"
+            value={category}
+            onValueChange={setCategory}
+            options={[
+              {
+                value: "marketing",
+                label: "Marketing",
+                title: "An offer, news or an invitation — needs the customer's yes",
+              },
+              {
+                value: "utility",
+                label: "Utility",
+                title: "A notice about their own booking or account — no promotional words",
+              },
+            ]}
+          />
           {/* Any language WhatsApp takes, found by typing it: the list is 111 long,
               and a select of 111 is a scroll nobody finishes. */}
-          <LanguagePicker
-            display="label"
-            value={language}
-            choices={starters.allLanguages}
-            onPick={(id) => setLanguage(id)}
+          <Picker
             label="The language it is written in"
-            search
-            testid="tpl-language"
+            value={language}
+            onValueChange={setLanguage}
+            groups={cmLanguages(starters.allLanguages)}
+            chevron={cmChevron()}
+            face={
+              <>
+                <Icon name="globe" size={13} /> {spoken ? spoken.label : language}
+              </>
+            }
+            search={cmLanguageSearch(starters.allLanguages)}
+            data-testid="tpl-language"
           />
-          <button
-            className="btn btn-sm"
+          <Button
+            size="sm"
             disabled={drafting || brief.trim().length < 4}
             onClick={draft}
             data-testid="tpl-draft"
             {...gate("approve", "draft a template")}
           >
             <Icon name="sparkle" size={11} /> {drafting ? "Drafting…" : "Draft with Chanlytics"}
-          </button>
+          </Button>
         </div>
       </div>
       {made.fields}
@@ -316,6 +331,80 @@ export function newTemplateForm(c: ComposerCtx, made: Made) {
         </div>
       )}
       <FieldError message={error} testid="tpl-error" />
+    </>
+  );
+}
+
+/**
+ * A new message, in the pane beside the list (parts/split.tsx): its name and what it waits on in the head, Cancel at the
+ * head's end -- which asks first when something was written, as Escape does -- the rows in the body and the submit in
+ * the foot, where the glass bar stands. It was a card over the list, which pushed the messages down while it was open.
+ */
+function newTemplatePane(c: ComposerCtx, made: Made) {
+  const { st, facts, acts, work, businessName } = c;
+  const { submitting } = st;
+  const { submit } = acts;
+  const { ready } = facts;
+  const UnsavedAsk = unsavedAskPart();
+  return (
+    <CmPane
+      testid="messages-composer"
+      title="New template"
+      sub="WhatsApp reviews it before it can be sent — usually minutes, sometimes a day"
+      onClose={work.leave}
+      closeLabel="Cancel"
+      closeTestid="tpl-close"
+      foot={
+        // Cancel, and Escape, with words in it: the one question first (UnsavedAsk), where the submit was.
+        work.asking ? (
+          <UnsavedAsk onYes={work.discard} onNo={work.stay} what="submitted" testid="tpl-leave" />
+        ) : (
+          <>
+            <span className="bc-excl-hint">
+              The words are yours; WhatsApp approves them. {businessName ? `Sent as ${businessName}.` : ""}
+            </span>
+            <Button
+              variant="primary"
+              disabled={!ready}
+              onClick={submit}
+              data-testid="tpl-submit"
+              {...gate("approve", "submit a template")}
+            >
+              {submitting ? "Submitting…" : "Submit to WhatsApp"}
+            </Button>
+          </>
+        )
+      }
+    >
+      <div className="tpl-compose" data-testid="tpl-composer">
+        {newRows(c, made)}
+      </div>
+    </CmPane>
+  );
+}
+
+/** A new message: from a starter, or from what the owner says, then the words. */
+export function newTemplateForm(c: ComposerCtx, made: Made) {
+  if (c.pane) return newTemplatePane(c, made);
+  const { st, facts, acts, work, businessName, onCancel } = c;
+  const { submitting } = st;
+  const { submit } = acts;
+  const { ready } = facts;
+  const UnsavedAsk = unsavedAskPart();
+  return (
+    <section className="ct-section tpl-composer" data-testid="tpl-composer">
+      <div className="ct-sec-head">
+        <span className="ct-sec-title">New template</span>
+        <span className="ct-sec-meta">
+          WhatsApp reviews it before it can be sent — usually minutes, sometimes a day
+        </span>
+        {onCancel && (
+          <LinkButton onClick={work.leave} data-testid="tpl-close">
+            Close
+          </LinkButton>
+        )}
+      </div>
+      {newRows(c, made)}
       <div className="bc-actions">
         {/* Close, with words in it: the one question first (UnsavedAsk), where the submit was. */}
         {work.asking ? (
@@ -326,15 +415,16 @@ export function newTemplateForm(c: ComposerCtx, made: Made) {
               The words are yours; WhatsApp approves them. {businessName ? `Sent as ${businessName}.` : ""}
             </span>
             <span className="bc-actions-spacer" />
-            <button
-              className="btn btn-primary btn-sm"
+            <Button
+              variant="primary"
+              size="sm"
               disabled={!ready}
               onClick={submit}
               data-testid="tpl-submit"
               {...gate("approve", "submit a template")}
             >
               {submitting ? "Submitting…" : "Submit to WhatsApp"}
-            </button>
+            </Button>
           </>
         )}
       </div>

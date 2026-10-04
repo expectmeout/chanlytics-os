@@ -42,6 +42,8 @@ export {
   WABA_FIELDS,
   EVENT_KINDS,
   OPT_OUT_PATTERN,
+  EMAIL_STOP_PATTERN,
+  EMAIL_UNSUBSCRIBE_PATTERN,
   SMS_OPT_OUT_PATTERN,
   OPT_IN_PATTERN,
   MARKETING_OPT_IN_PATTERN,
@@ -108,6 +110,7 @@ export {
   zonedInputValue,
   fromZonedInput,
   callLength,
+  durationWords,
 } from "./clock";
 export type { SchemaSetKey, SchemaSet, Exactly, Within, Holds, SchemaAgreement } from "./schema-sets";
 export { UUID, isUuid, asTenantId, asContactId } from "./identity";

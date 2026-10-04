@@ -275,3 +275,23 @@ export function mmss(ms: number): string {
 export function callLength(ms: number | null | undefined): string | undefined {
   return ms != null && Number.isFinite(ms) && ms > 0 ? mmss(ms) : undefined;
 }
+
+/**
+ * A length of time in an owner's words, said one way on every page: "41s", "1m", "1m 12s" under ten minutes, whole
+ * minutes under an hour ("14m"), then hours and minutes ("2h", "2h 10m"). Today's measured median and Reports' reply
+ * times both read it; they said "1m 5s" and "1m 05s" before (the Reports lenses spec, A5).
+ */
+export function durationWords(seconds: number): string {
+  const v = Math.max(0, Math.round(seconds));
+  if (v < 60) return `${v}s`;
+  if (v < 600) {
+    const m = Math.floor(v / 60);
+    const r = v % 60;
+    return r ? `${m}m ${r}s` : `${m}m`;
+  }
+  const minutes = Math.round(v / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}

@@ -30,12 +30,33 @@ import { notify } from "./notify.js";
 import { pageOperator } from "./page-operator.js";
 import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "./sweep-health.js";
 import { whatsappWithoutReceipts, describeSilentReceipts } from "../whatsapp/receipts-watch.js";
-import { checkMailDomain, describeColdReplyDomainTrouble, describeMailDomainTrouble } from "../email/mail-domain.js";
+import {
+  checkMailDomain,
+  describeCampaignsDomainTrouble,
+  describeColdReplyDomainTrouble,
+  describeMailDomainTrouble,
+} from "../email/mail-domain.js";
+import { campaignsDomain } from "../email/campaigns-domain.js";
 import { coldReplyDomains, emailDomain } from "../email/email.js";
 import { watchAnswerSilence } from "./answer-silence.js";
 import { watchModels } from "./model-watch.js";
 import { env } from "../env.js";
 import type { SweepTick } from "./sweep-door.js";
+
+/**
+ * The campaigns domain offers by email leave from (EMAIL_CAMPAIGNS_DOMAIN), when this deployment names one: it must stay
+ * verified for SENDING, or every offer is refused until it is. Receiving there is nobody's business.
+ */
+async function watchCampaignsDomain({ db, L }: Pick<SweepTick, "db" | "L">): Promise<void> {
+  const campaigns = campaignsDomain();
+  if (!campaigns) return;
+  const c = await checkMailDomain({ domain: campaigns, apiKey: env.RESEND_API_KEY, sendOnly: true });
+  if (c.error) L.error("mail_domain_unreadable", { domain: campaigns, error: c.error });
+  if (c.trouble) {
+    const page = describeCampaignsDomainTrouble(c.trouble, campaigns);
+    await pageOperator({ db }, `campaigns_domain:${campaigns}`, page.subject, page.body);
+  }
+}
 
 export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   const { data, error } = await db.rpc("sweep_health");
@@ -133,6 +154,8 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
       await pageOperator({ db }, `cold_reply_domain:${cold}`, page.subject, page.body);
     }
   }
+
+  await watchCampaignsDomain({ db, L });
 
   // Workspaces whose customers wrote all day and got no answer from anyone (00277), paged once per silent day.
   const answerSilent = await watchAnswerSilence(db, Date.now());

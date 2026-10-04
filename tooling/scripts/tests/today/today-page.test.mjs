@@ -316,6 +316,9 @@ const people = () => ({
       state: "needs_you",
       hasChat: true,
       calls: 0,
+      // What the People surface's row says of reaching them (reach-any.ts): said yes to messages, not to offers.
+      saidYes: { offers: false, messages: true },
+      whyNot: { offers: "no_yes", messages: null },
       consent: {
         state: "opted_in",
         dnc: false,

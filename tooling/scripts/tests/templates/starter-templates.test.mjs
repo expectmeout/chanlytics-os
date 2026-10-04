@@ -1,9 +1,11 @@
 /**
- * The starter set: five templates written for the moments Chanlytics acts
- * on, in English and Spanish. Every one passes the check a template written
- * by hand passes, with no warnings, so what a new workspace gets is a set
- * WhatsApp is expected to approve. Titles for people, names for the wire;
- * the slots known, the playbooks matched; one idempotent door adds the set.
+ * The starter set (2 Oct 2026, the lifecycle set): seven messages written for the moments Chanlytics acts on, in
+ * English and Spanish, each a name with a version per channel (One message, every channel): WhatsApp's, an email's and
+ * a text's where the channel means something for it. Every WhatsApp version passes the check a template written by
+ * hand passes, with no warnings, so what a new workspace gets is a set WhatsApp is expected to approve; every email
+ * and text version passes its own channel's check the same way. Titles for people, names for the wire; the slots
+ * known, the playbooks matched; one idempotent door adds the set, and files the email and text versions beside each
+ * WhatsApp one (template-versions.test.mjs runs it).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -11,44 +13,78 @@ import {
   MOMENT_TRIGGERS,
   STARTER_LANGUAGES,
   STARTER_TEMPLATES,
+  bookingTemplate,
   compareTemplates,
   defaultParamSpecs,
   defaultSlotKinds,
   defaultTemplate,
   guessSlotKind,
+  isLibrarySample,
   slotLabels,
   starterByKey,
   starterByName,
   starterDraft,
+  starterEmailText,
   starterForTrigger,
   starterIndex,
   starterPreview,
+  starterSmsText,
+  starterText,
   startersOffered,
   templateTitle,
+  validateOwnVersion,
   validateTemplateDraft,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 
-test("nine starters, each in English and Spanish, each passing the hand-written check with no warnings", () => {
+/** The set a workspace with deals on is offered, in the order a composer opens on. */
+const OFFERED = [
+  "winback_reply",
+  "this_months_offer",
+  "visit_reminder",
+  "after_visit_check",
+  "proposal_follow_up",
+  "quick_note",
+  "call_text",
+];
+/** What it replaced: never offered again, found by name for a workspace that added one. */
+const RETIRED = ["winback_offer", "welcome_new", "save_our_number", "monthly_offer", "after_visit", "booking_link"];
+
+test("seven starters are offered in the library's order, six are retired and still found by name; each in English and Spanish", () => {
+  assert.deepEqual(
+    startersOffered(true).map((s) => s.key),
+    OFFERED,
+  );
   assert.deepEqual(
     STARTER_TEMPLATES.map((s) => s.key),
-    [
-      "winback_offer",
-      "welcome_new",
-      "save_our_number",
-      "monthly_offer",
-      "visit_reminder",
-      "after_visit",
-      "quick_note",
-      "proposal_follow_up",
-      "booking_link",
-    ],
-    "booking_link is LAST on purpose: the order is what a composer opens on, and this is the one a caller asks for out loud rather than one anybody broadcasts",
+    [...OFFERED, ...RETIRED],
+    "the offered set first, the order a composer opens on, then what it replaced",
   );
   assert.deepEqual(
     STARTER_LANGUAGES.map((l) => l.id),
     ["en_US", "es"],
   );
+  for (const key of RETIRED) {
+    const s = starterByName(key);
+    assert.ok(s?.retired, `${key} is retired and still found by its name`);
+    assert.equal(typeof s.retired.why, "string");
+    assert.ok(
+      s.retired.by === null || OFFERED.includes(s.retired.by),
+      `${key} is replaced by a starter still offered, or by none`,
+    );
+    assert.ok(!startersOffered(true).includes(s), `${key} is never offered`);
+  }
+  for (const key of OFFERED) assert.equal(starterByName(key)?.retired, undefined, key);
+  assert.deepEqual(
+    startersOffered(true)
+      .filter((s) => s.trigger === null)
+      .map((s) => s.key),
+    ["quick_note", "call_text"],
+    "the two that no moment sends: a note for any broadcast, and the call's text",
+  );
+});
+
+test("every WhatsApp version passes the hand-written check with no warnings, and the slots are the same in both languages", () => {
   for (const s of STARTER_TEMPLATES) {
     assert.equal(s.name, s.key, "the name is the key");
     assert.ok(/^[a-z0-9_]+$/.test(s.name), "a name Meta accepts");
@@ -74,6 +110,84 @@ test("nine starters, each in English and Spanish, each passing the hand-written 
   }
 });
 
+test("every email and text version passes its channel's check with no warnings, fills only its message's slots, and is written where the channel means something", () => {
+  for (const s of STARTER_TEMPLATES) {
+    for (const l of STARTER_LANGUAGES) {
+      const slots = starterText(s, l.id).slots.length;
+      const email = s.email?.[l.id];
+      if (email) {
+        const check = validateOwnVersion("email", email, slots, l.id);
+        assert.equal(check.ok, true, `${s.key}/${l.id} email: ${check.ok ? "" : check.error}`);
+        assert.deepEqual(check.warnings, [], `${s.key}/${l.id} email warns: ${check.warnings.join(" | ")}`);
+        assert.equal(starterEmailText(s, l.id), email, "read back in its own language");
+      }
+      const sms = s.sms?.[l.id];
+      if (sms) {
+        const check = validateOwnVersion("sms", sms, slots, l.id);
+        assert.equal(check.ok, true, `${s.key}/${l.id} text: ${check.ok ? "" : check.error}`);
+        assert.deepEqual(check.warnings, [], `${s.key}/${l.id} text warns: ${check.warnings.join(" | ")}`);
+        assert.equal(starterSmsText(s, l.id), sms);
+      }
+    }
+    // A version is in both languages or neither: a person never meets half a channel.
+    for (const channel of ["email", "sms"])
+      assert.deepEqual(
+        Object.keys(s[channel] ?? {}).sort(),
+        s[channel] ? ["en_US", "es"] : [],
+        `${s.key}: its ${channel} version is in both languages or absent`,
+      );
+  }
+  for (const s of startersOffered(true)) {
+    // Texts carry no offers (deliver.ts): a marketing message has no text version, and a utility one has.
+    assert.equal(
+      !!s.sms,
+      s.category === "utility",
+      `${s.key}: ${s.category} ${s.sms ? "has" : "has no"} a text version`,
+    );
+    // A caller has a phone and no address: the call's text is the one message with no email.
+    assert.equal(!!s.email, s.key !== "call_text", `${s.key}: its email version`);
+  }
+  assert.ok(starterByKey("call_text").sms && !starterByKey("call_text").email);
+  assert.deepEqual(
+    startersOffered(true)
+      .filter((s) => s.email && s.sms)
+      .map((s) => s.key),
+    ["visit_reminder", "after_visit_check", "proposal_follow_up"],
+    "the three about a person's own visit or proposal go by every channel",
+  );
+});
+
+test("a version never fills a slot its message does not have, and a text without its message's slots is refused", () => {
+  const visit = starterByKey("visit_reminder");
+  const slots = starterText(visit, "en_US").slots.length;
+  assert.equal(validateOwnVersion("email", { subject: "Hi {{5}}", body: "Hello" }, slots, "en_US").ok, false);
+  const refused = validateOwnVersion("sms", { body: `See you {{${slots + 1}}}` }, slots, "en_US");
+  assert.equal(refused.ok, false);
+  assert.match(refused.error, /is not one of this message's values/);
+});
+
+test("the call's text: bookingTemplate prefers call_text, then booking_link, then any approved template that fills with the booking link", () => {
+  const slots = [{ position: 1 }, { position: 2 }, { position: 3 }];
+  const row = (name, over = {}) => ({ name, language: "en_US", meta_status: "approved", variables: slots, ...over });
+  const custom = row("reservar_ahora", {
+    variables: [{ position: 1, label: "Booking link", example: "https://booksy.example.com/x" }],
+  });
+  assert.equal(bookingTemplate([custom, row("booking_link"), row("call_text")])?.name, "call_text");
+  assert.equal(bookingTemplate([custom, row("booking_link")])?.name, "booking_link", "the one it replaced still works");
+  assert.equal(bookingTemplate([custom])?.name, "reservar_ahora", "or the workspace's own");
+  assert.equal(
+    bookingTemplate([row("call_text", { meta_status: "pending" }), row("booking_link")])?.name,
+    "booking_link",
+    "a call's text Meta has not approved is not one to send",
+  );
+  assert.equal(
+    bookingTemplate([row("quick_note")]),
+    null,
+    "a message with no booking link is not the booking template",
+  );
+  assert.equal(bookingTemplate([]), null);
+});
+
 test("one starter per moment, one for any broadcast; titles for people, names for the wire", () => {
   for (const t of MOMENT_TRIGGERS) {
     const s = starterForTrigger(t.id);
@@ -85,13 +199,41 @@ test("one starter per moment, one for any broadcast; titles for people, names fo
     assert.ok(s, `${t.id} has a starter`);
     assert.equal(s.trigger, t.id === "lapsed" ? "quiet_30" : t.id);
   }
+  // The set's own starter for each moment; a moment no longer offered for a new playbook still finds the one it was made with.
+  assert.deepEqual(
+    Object.fromEntries(
+      [
+        "quiet_30",
+        "lapsed",
+        "everyone_monthly",
+        "visit_tomorrow",
+        "visited",
+        "proposal_waiting",
+        "new_week",
+        "phoned_only",
+      ].map((id) => [id, starterForTrigger(id)?.key]),
+    ),
+    {
+      quiet_30: "winback_reply",
+      lapsed: "winback_reply",
+      everyone_monthly: "this_months_offer",
+      visit_tomorrow: "visit_reminder",
+      visited: "after_visit_check",
+      proposal_waiting: "proposal_follow_up",
+      new_week: "welcome_new",
+      phoned_only: "save_our_number",
+    },
+  );
   // A reach-out's words are its own email (Part 4), never a WhatsApp starter.
   for (const id of ["lead_first", "after_step"]) assert.equal(starterForTrigger(id), null, id);
   assert.equal(starterForTrigger(null)?.key, undefined, "the quick note is for broadcasts, not a trigger");
   assert.equal(starterByKey("quick_note").trigger, null);
-  assert.equal(starterByName("winback_offer").title, "Win-back");
+  // A workspace that holds the retired win-back sees it listed beside the set's own, so the two are called apart.
+  assert.equal(starterByName("winback_offer").title, "Win-back (earlier)");
+  assert.equal(starterByName("winback_reply").title, "Win-back", "the one that took its place keeps the name");
+  assert.equal(starterByName("monthly_offer").title, "This month's offer (earlier)");
   assert.equal(starterByName("nope"), null);
-  assert.equal(templateTitle("winback_offer"), "Win-back");
+  assert.equal(templateTitle("winback_offer"), "Win-back (earlier)");
   assert.equal(templateTitle("approval_confirmation"), "Approval confirmation");
   assert.equal(templateTitle("booking_link"), "Booking link", "the starter's own title");
   assert.equal(templateTitle("spring_offer_v2"), "Spring offer", "a version suffix is not a word");
@@ -100,7 +242,7 @@ test("one starter per moment, one for any broadcast; titles for people, names fo
     "Thanks for reaching out",
     "the workspace's own words win",
   );
-  assert.equal(templateTitle("winback_offer", "   "), "Win-back", "an empty title is no title");
+  assert.equal(templateTitle("winback_offer", "   "), "Win-back (earlier)", "an empty title is no title");
   assert.equal(templateTitle(""), "");
   assert.equal(
     starterPreview(starterByKey("winback_offer"), "en_US", "Marisa's Beauty Salon", "https://book.example.com/marisa"),
@@ -247,8 +389,8 @@ test("the door: idempotent, one language at a time, synced in when the number's 
   );
   assert.ok(r.includes('role: "operator",') && r.includes('rate: "settings",'));
   assert.ok(
-    r.includes('results.push({ ...base, status: "exists", meta_status: have.meta_status });'),
-    "already on file is left alone",
+    /status: "exists",\s*meta_status: have\.meta_status,\s*versions: await versionsOf\(s, l\)/.test(r),
+    "already on file is left alone, and its email and text versions are filed beside it (run in template-versions.test.mjs)",
   );
   assert.ok(
     r.includes("const check = validateTemplateDraft(starterDraft(s, l));"),
@@ -259,7 +401,10 @@ test("the door: idempotent, one language at a time, synced in when the number's 
       r.includes("await syncTemplates(member.tenantId, ctx.userId);"),
     "a shared account's copy is synced in, not refused",
   );
-  assert.ok(r.includes('results.push({ ...base, status: "submitted", meta_status: r.metaStatus });'));
+  assert.ok(
+    /status: "submitted",\s*meta_status: r\.metaStatus,\s*versions: await versionsOf\(s, l\)/.test(r),
+    "a submission is followed by its versions",
+  );
   assert.ok(r.includes("Pick at least one starter template, in English or Spanish."));
   const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
   assert.ok(
@@ -295,8 +440,8 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
     "one card per message: the starters, then what the workspace wrote",
   );
   assert.ok(
-    s.includes('export const TPL_SAMPLES = new Set(["hello_world"]);') && s.includes("!TPL_SAMPLES.has(t.name)"),
-    "Meta's sample is never shown",
+    isLibrarySample("hello_world") && s.includes("!isLibrarySample(t.name)"),
+    "Meta's sample is never shown, nor counted (contracts library-count.ts: the one list)",
   );
   assert.ok(
     s.includes("<MessagePreview") &&
@@ -313,18 +458,6 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
       !readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx").includes("TemplatesCard"),
     "Integrations points at Messages (the WhatsApp row's verb) and lists no template",
   );
-  const tabs = readCode("apps/dashboard/src/legacy/components/surface-tabs.jsx");
-  assert.ok(
-    tabs.includes('match: ["outbound", "broadcasts", "messages", "content"]') &&
-      tabs.includes('{ id: "messages", label: "Templates", to: "messages"') &&
-      tabs.includes('to: "content", demoOnly: true'),
-    "Templates is the third door of the shell's own Campaigns strip, on the route that is still `messages`; Content stays seed-only",
-  );
-  for (const f of ["playbooks/playbooks-page", "broadcasts/broadcasts-page", "templates/templates-page"])
-    assert.ok(
-      !readCode(`apps/dashboard/src/surfaces/campaigns/${f}.tsx`).includes("CampaignsTabs"),
-      `${f}: one strip, the shell's`,
-    );
   assert.ok(s.includes("tplTitle(") && s.includes('" · made here"'), "a title, with the raw name beside it");
   // Broadcasts' send screen and its slot choices (moved from broadcasts.jsx), read as one.
   const b = ["page/send-screen.tsx", "page/reach.ts"]
@@ -353,7 +486,8 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
       p.includes("const tpl = f.picked ? usable.find((t) => t.id === f.tplId) || null : rowIn(starterGroup, null);"),
     "the trigger's starter is picked for you",
   );
-  assert.ok(p.includes("<CmPicker") && p.includes("<MessagePreview"));
+  // The composer's choices are the kit's Picker now (the playbooks' move onto the kit), not Campaigns' own CmPicker.
+  assert.ok(p.includes("<Picker") && p.includes("<MessagePreview"));
   // The Templates composer (moved from templates-real.jsx): its form and its module, read as one.
   const t = ["composer-forms.tsx", "composer.tsx"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}`))
@@ -361,8 +495,9 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   assert.ok(
     t.includes('data-testid="tpl-start-from"') && t.includes("export const starterWords = ") && !t.includes("WaBubble"),
   );
-  const css = readCode("apps/dashboard/src/legacy/styles/components.css");
-  assert.ok(css.includes(".mp-bubble {") && css.includes(".tpl-starter-row {"));
+  // Campaigns' rules live in their own sheet; the starter list's own rows (.tpl-starter-*) went with the list.
+  const css = readCode("apps/dashboard/src/surfaces/campaigns/campaigns.css");
+  assert.ok(css.includes(".mp-bubble {") && !css.includes(".tpl-starter-row"));
 });
 
 test("the library's order, what a composer opens on, and each slot's words", () => {
@@ -373,20 +508,38 @@ test("the library's order, what a composer opens on, and each slot's words", () 
     { name: "approval_request", category: "marketing", source: "meta" },
     { name: "spring_offer", category: "marketing", source: "chanlytics" },
     { name: "winback_offer", category: "marketing", source: "chanlytics" },
+    { name: "winback_reply", category: "marketing", source: "chanlytics" },
+    { name: "call_text", category: "utility", source: "chanlytics" },
   ];
   assert.deepEqual(
     rows
       .slice()
       .sort(compareTemplates)
       .map((r) => r.name),
-    ["winback_offer", "quick_note", "booking_link", "spring_offer", "approval_request", "hello_world"],
-    "starters in the library's order, then written here, then the rest — marketing before utility",
+    [
+      "winback_reply",
+      "quick_note",
+      "call_text",
+      "winback_offer",
+      "booking_link",
+      "spring_offer",
+      "approval_request",
+      "hello_world",
+    ],
+    "the set's starters in the library's order, then the ones it replaced, then written here, then the rest — marketing before utility",
   );
-  assert.equal(defaultTemplate(rows, null).name, "quick_note", "a broadcast opens on the quick note");
-  assert.equal(defaultTemplate(rows, "quiet_30").name, "winback_offer", "a playbook opens on its trigger's starter");
+  assert.equal(
+    defaultTemplate(
+      rows.filter((r) => r.name !== "winback_reply"),
+      null,
+    ).name,
+    "quick_note",
+    "a broadcast opens on the quick note",
+  );
+  assert.equal(defaultTemplate(rows, "quiet_30").name, "winback_reply", "a playbook opens on its trigger's starter");
   assert.equal(
     defaultTemplate(rows, "new_week").name,
-    "winback_offer",
+    "winback_reply",
     "without the trigger's starter, the first in order",
   );
   assert.equal(defaultTemplate([], null), null);
@@ -414,8 +567,22 @@ test("the library's order, what a composer opens on, and each slot's words", () 
     }),
     ["Business name", "Value 2"],
   );
-  assert.equal(starterIndex("welcome_new"), 1);
+  assert.equal(starterIndex("winback_reply"), 0, "the library opens on the win-back");
+  assert.ok(
+    starterIndex("call_text") < starterIndex("winback_offer") &&
+      starterIndex("winback_offer") < starterIndex("welcome_new"),
+    "what the set replaced sorts after every starter it offers",
+  );
   assert.equal(starterIndex("nope"), STARTER_TEMPLATES.length, "a name we did not write sorts after every one we did");
+  assert.deepEqual(
+    slotLabels({
+      name: "this_months_offer",
+      language: "es",
+      variables: [{ position: 1 }, { position: 2 }, { position: 3 }, { position: 4 }],
+    }),
+    ["Nombre", "Nombre del negocio", "La oferta", "Enlace de reservas"],
+    "the new offer reads its slots the way the one it replaced did",
+  );
 });
 
 test("hidden from the composers: the door, the routes, the sync's first sight, the card", () => {
@@ -446,7 +613,8 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   const s = ["page-parts", "message-row-parts"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}.tsx`))
     .join(" ");
-  assert.ok(s.includes('data-testid="template-hide"') && s.includes('data-testid="templates-hidden"'));
+  // Hide is an item of the pane's kit Menu, which takes no test id of its own: it is among the props its `gate` hands the item's button.
+  assert.ok(s.includes('"data-testid": "template-hide"') && s.includes('data-testid="templates-hidden"'));
   const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
   assert.ok(b.includes("body: { hidden: true } })") && b.includes("body: { hidden: false } })"));
   const queue = readCode("apps/dashboard/src/surfaces/today/pages/queue-runs.tsx");
@@ -490,8 +658,9 @@ test("a template's title: the workspace's own words, set through its door, shown
     "a name is looked up among the workspace's rows",
   );
   const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
-  for (const id of ["template-rename", "template-title", "template-title-save"])
-    assert.ok(s.includes(`data-testid="${id}"`), id);
+  for (const id of ["template-title", "template-title-save"]) assert.ok(s.includes(`data-testid="${id}"`), id);
+  // Rename, like Hide, is an item of the pane's kit Menu: its test id rides the item's `gate`.
+  assert.ok(s.includes('"data-testid": "template-rename"'), "template-rename");
   // The default names of a broadcast and a playbook use the title: run in core-campaigns.test.mjs.
   assert.ok(
     readCode("apps/dashboard/src/server/readers/templates.ts").includes("source, hidden_at, title"),
@@ -502,12 +671,13 @@ test("a template's title: the workspace's own words, set through its door, shown
 test("the set a workspace is offered (0006): the proposal follow-up only where deals are on, a utility with no figure in it", () => {
   assert.deepEqual(
     startersOffered(false).map((s) => s.key),
-    STARTER_TEMPLATES.filter((s) => s.key !== "proposal_follow_up").map((s) => s.key),
+    OFFERED.filter((k) => k !== "proposal_follow_up"),
     "a workspace whose customers book is never offered it, nor has it filed with WhatsApp",
   );
   assert.deepEqual(
     startersOffered(true).map((s) => s.key),
-    STARTER_TEMPLATES.map((s) => s.key),
+    OFFERED,
+    "and no workspace is offered a starter the set replaced",
   );
   const s = starterByKey("proposal_follow_up");
   assert.deepEqual(

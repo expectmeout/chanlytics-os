@@ -210,7 +210,7 @@ const RUN_CALLS = [
     "a run that already went",
     { broadcast_id: SENT, verb: "approve" },
     {},
-    { error: "that run is not waiting for approval: the Broadcasts page says Sent" },
+    { error: "that run is not waiting for approval: it is Sent" },
     RUN_READ,
   ],
   [

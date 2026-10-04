@@ -143,6 +143,18 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE templates/[id]": templates,
   "POST templates/starter": templates,
   "POST templates/sync": templates,
+  // An email or text version of a message (One message, every channel, step 1): the Templates page reads them with the
+  // settings surface. No composer offers one (the Inbox's list is WhatsApp's), and no hook is told: Broadcasts and
+  // Playbooks read WhatsApp rows alone. A reach-out's email is written by this route too (step 5), through its chain's
+  // save, so what a chain's edit moves moves with it: its words, the runs its held sends are in, and its leads.
+  "POST templates/versions": () => [
+    settingsOverride,
+    reachOutsOverride,
+    playbooksOverride,
+    broadcastsOverride,
+    leadsOverride,
+  ],
+  "DELETE templates/versions/[id]": settings,
   // Settings and the team.
   // Settings FIRST: it carries the version the next save has to send. Today
   // states the workspace's facts; hours, closures, rules and services are the

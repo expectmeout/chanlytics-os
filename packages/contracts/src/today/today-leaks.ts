@@ -3,8 +3,7 @@
  * Reports (today-period.ts's `ReportsLike`) or People already publishes, in the order of what they cost.
  */
 import type { PersonRowVM } from "../people/person-row";
-import { NO_NUMBER_REACH } from "../people/people-lists";
-import { saidYesTo } from "../people/person-consent";
+import { NO_CHANNEL_REACH, NO_NUMBER_REACH } from "../people/people-lists";
 import type { DealVM } from "../deals/deal-vm";
 import { proposalsWaiting, type DealPaceVM } from "../deals/deal-waits";
 import { consultationsWithoutProposal, consultsHeldWords } from "../deals/deal-consultations";
@@ -84,7 +83,7 @@ export interface PeopleListsLike {
    * consultation ended, for the consultations with no proposal yet (0008), where the surface carries them.
    */
   rows: ReadonlyArray<
-    Pick<PersonRowVM, "consent"> &
+    Pick<PersonRowVM, "consent" | "saidYes" | "whyNot"> &
       Partial<Pick<PersonRowVM, "id" | "name" | "deal" | "askedMs" | "consultedMs" | "followUp">>
   >;
   /** Whether deals are on here (dealsAreOn, 0008): the consultations and the proposals waiting are rows only then. */
@@ -322,12 +321,15 @@ function unreachableLeak({ people, list }: LeakFacts): TodayLeakVM | null {
   // Three, for the same reason: one person who said yes is not yet a list.
   if (!(people && yes && offers && yes.count >= 3 && offers.count === 0)) return null;
   // Nobody can be sent an offer, and that has two causes (#663): nobody said yes to offers, or the ones who did --
-  // anyone in the workspace, as a broadcast to everyone counts them (#811) -- have no number to send one to. Only
-  // the first is a yes to go and get; the second is said with People's reason, and with no door to the QR, which
-  // would ask them for an answer they gave.
-  const noNumber = people.rows.some((r) => saidYesTo(r, "marketing"));
+  // anyone in the workspace, as a broadcast to everyone counts them (#811) -- cannot be sent one: they have no number
+  // to send it to, or the workspace has no channel to send an offer on now (the row's own reason, reachFor's).
+  // Only the first is a yes to go and get; the second is said with People's reason, and with no door to the QR,
+  // which would ask them for an answer they gave.
+  const said = people.rows.filter((r) => r.saidYes.offers);
+  const noNumber = said.length > 0;
+  const why = said.some((r) => r.whyNot.offers === "no_channel") ? NO_CHANNEL_REACH : NO_NUMBER_REACH;
   const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
-  const math = `${noNumber ? NO_NUMBER_REACH : "a broadcast reaches only the second yes"} · 0 can receive one`;
+  const math = `${noNumber ? why : "a broadcast reaches only the second yes"} · 0 can receive one`;
   return {
     id: "unreachable",
     tone: "warn",

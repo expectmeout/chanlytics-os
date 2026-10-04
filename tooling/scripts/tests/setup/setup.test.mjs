@@ -211,7 +211,7 @@ test("a workspace that answers everywhere: nine of ten — the kept number is th
   const none = setupSteps({ ...live(), consent: { yes: 3, offers: 0, offersSaidYes: 0 } }, NOW);
   assert.equal(
     row(none, "yes").sentence,
-    "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.",
+    "Nobody has said yes to offers yet. The keyword and the QR are under Get their yes in Sent.",
   );
   assert.equal(row(none, "yes").state, "not_started", "three conversational yeses do not make this row ready");
   // The door lands on the QR itself (#663), as People's, Today's and Playbooks' do: the top of Broadcasts is the
@@ -283,7 +283,7 @@ test("REGRESSION: a yes to offers with no number to send one to is a yes -- Setu
   const one = row(setupSteps(live({ consent: { yes: 3, offers: 1, offersSaidYes: 2 } }), NOW), "yes");
   assert.deepEqual(
     [one.state, one.sentence, one.verb],
-    ["ready", "1 person said yes to offers.", { label: "Open Broadcasts", to: "broadcasts" }],
+    ["ready", "1 person said yes to offers.", { label: "Get their yes", to: GET_YES_ROUTE }],
   );
 });
 
@@ -677,7 +677,9 @@ test("WhatsApp waits on Meta while the first messages are with them, or while th
   assert.deepEqual(row(inactive, "whatsapp").verb, { label: "Open Connections", to: "admin/integrations" });
   const few = setupSteps(live({ templates: { approved: 2, pending: 0, startersApproved: 2 } }), NOW);
   assert.deepEqual(row(few, "whatsapp").verb, { label: "Add the starters", to: "outbound" });
-  assert.ok(row(few, "whatsapp").details.includes("Add the starter messages: welcome, win-back, the month's offer"));
+  assert.ok(
+    row(few, "whatsapp").details.includes("Add the starter messages: the visit reminder, how did it go, the win-back"),
+  );
 });
 
 test("business facts: partly there says what is missing; a broken config is its own state", () => {

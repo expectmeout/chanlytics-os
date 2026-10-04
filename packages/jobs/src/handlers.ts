@@ -14,6 +14,7 @@ import {
 } from "@chanlytics/contracts";
 import {
   classifyReceived,
+  senderAuthenticated,
   emailPlainText,
   isEmailRequest,
   logger,
@@ -140,6 +141,7 @@ export function incomingEmailOf(e: ReceivedEmail): IncomingEmail {
     receivedAt: e.createdAt,
     claim: classifyReceived(e),
     attachments: e.attachments,
+    senderAuthenticated: senderAuthenticated(e),
   };
 }
 

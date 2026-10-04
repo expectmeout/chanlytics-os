@@ -17,7 +17,7 @@
  * `data/people-globals.js`, People's shared parts (the table, the rail kit, the list page's two hooks: TSX since decision 0015,
  * step 5) the Leads scope, the Pipeline and the person page still draw by name,
  * `data/business-tab.js`, the Business tab's helpers, and `data/mascot.js`
- * (see SAMPLES below). One is read from outside the tree: the kit's stylesheet (KIT_CSS below).
+ * (see SAMPLES below). Two are read from outside the tree: the kit's stylesheet and Campaigns' (OUTSIDE_CSS below).
  *
  *   node tooling/scripts/serve-legacy.mjs [port] [dir]
  */
@@ -196,11 +196,24 @@ export const send = (res, status, type, body) => {
 };
 
 /**
- * The one file the document names from outside the mockup's tree: the kit's stylesheet, which lives with the kit and
+ * A file the document names from outside the mockup's tree: the kit's stylesheet, which lives with the kit and
  * which the app imports right after the tokens (legacy-bridge/legacy.css). Chanlytics.html links it in the same place,
  * as `surfaces/kit/kit.css`, so it is asked for at this path.
  */
 const KIT_CSS = { at: "/surfaces/kit/kit.css", file: path.join(REPO, "apps/dashboard/src/surfaces/kit/kit.css") };
+
+/**
+ * The other: Campaigns' stylesheet, which lives with its surface (a moved surface keeps its rules in its own folder, as
+ * the kit does) and which the app imports right after components.css (legacy-bridge/legacy.css). Chanlytics.html links
+ * it in the same place, as `surfaces/campaigns/campaigns.css`.
+ */
+const CAMPAIGNS_CSS = {
+  at: "/surfaces/campaigns/campaigns.css",
+  file: path.join(REPO, "apps/dashboard/src/surfaces/campaigns/campaigns.css"),
+};
+
+/** The stylesheets the document names from outside the mockup's tree, each at its one path. */
+const OUTSIDE_CSS = [KIT_CSS, CAMPAIGNS_CSS];
 
 /**
  * Whether `file` is under `root`, compared as paths: `src/legacy-bridge` begins with the letters of `src/legacy`
@@ -213,13 +226,14 @@ const isUnder = (root, file) => {
 };
 
 /**
- * One file of the mockup, by its path under `root`, or the kit's stylesheet at its one path. Nothing else outside the
+ * One file of the mockup, by its path under `root`, or one of OUTSIDE_CSS at its one path. Nothing else outside the
  * tree, whatever the path says. Exported for the e2e harness, which serves the same tree with its own routes in front
  * of it.
  */
 export function serveStatic(res, root, rel) {
-  const file = rel === KIT_CSS.at ? KIT_CSS.file : path.join(root, rel);
-  if (file !== KIT_CSS.file && !isUnder(root, file)) {
+  const outside = OUTSIDE_CSS.find((css) => css.at === rel);
+  const file = outside ? outside.file : path.join(root, rel);
+  if (!outside && !isUnder(root, file)) {
     res.writeHead(403).end("Forbidden");
     return;
   }

@@ -13,6 +13,7 @@ import {
   listUnknownWords,
   listsFor,
   membersOf,
+  momentOffered,
   nextRunLabel,
   noteRows,
   numberHealth,
@@ -25,7 +26,6 @@ import {
   toBroadcastVM,
   toRunReportVM,
   triggerOf,
-  triggerOffered,
   unmetNeed,
   type AudienceKind,
   type BroadcastDto,
@@ -39,7 +39,17 @@ import * as readers from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
 import { playbooks } from "../../../readers/playbooks";
 import { templates as templatesReader, type TemplatesRead } from "../../../readers/templates";
-import { UUID, defineActions, noteRow, readAction, str, unlessNotFound, unread, type ToolContext } from "../context";
+import {
+  UUID,
+  defineActions,
+  noteRow,
+  readAction,
+  str,
+  unlessNotFound,
+  unread,
+  whatsappHowOf,
+  type ToolContext,
+} from "../context";
 
 /**
  * The audiences a broadcast may go to, counted by the same contracts
@@ -69,9 +79,20 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   // who had ever texted START; and `said_yes_to_offers` was the REACH, so a list
   // whose one yes to offers had no number read as nobody's yes. The send screen's
   // own counts (audiencePreview): `sending` is the number on its chip.
+  // The number a broadcast goes out on, as the Broadcasts page picks it (legacy-bridge/surface-data.ts): the active
+  // WhatsApp row, and its health from the quality Meta assigned it.
+  const wa = chans?.find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
+  const health = numberHealth({
+    quality: wa?.quality ?? null,
+    event: wa?.quality_event ?? null,
+    limit: wa?.messaging_limit ?? null,
+  });
+  // Counted by WhatsApp, as a proposal names no other channel, the workspace ready on it or not (the composer counts by
+  // the same): no number is none, and channels that could not be read count as the pages count them, WhatsApp able.
+  const how = whatsappHowOf(chans === null ? undefined : wa ? health : null);
   const sizes = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => {
-    const offers = audiencePreview(rows, kind, id, ids, "marketing");
-    const messages = audiencePreview(rows, kind, id, ids, "conversational");
+    const offers = audiencePreview(rows, kind, id, ids, "marketing", how);
+    const messages = audiencePreview(rows, kind, id, ids, "conversational", how);
     return {
       said_yes_to_offers: offers.saidYes,
       can_be_sent_offers: offers.sending,
@@ -103,14 +124,6 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
         : { ...head, cannot_count: listUnknownWords(m.reason, pool.listCtx.calendar) };
     }),
   ];
-  // The number a broadcast goes out on, as the Broadcasts page picks it (legacy-bridge/surface-data.ts): the active
-  // WhatsApp row, and its health from the quality Meta assigned it.
-  const wa = chans?.find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
-  const health = numberHealth({
-    quality: wa?.quality ?? null,
-    event: wa?.quality_event ?? null,
-    limit: wa?.messaging_limit ?? null,
-  });
   // The templates the composer offers (ledger #14): WhatsApp's approved ones as the page hands them over, in the
   // library's order, split as the Broadcasts composer splits them (broadcasts-real.jsx) -- the ones this product can
   // put on the wire, and one sentence, the page's, for those it cannot. A card never checks this: a template offered
@@ -263,8 +276,11 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
         ? { broadcast_id: p.totals.waiting.id, people: p.totals.waiting.recipient_count }
         : null,
     })),
-    // The moments offered here (0006): a proposal's only where deals are on.
-    triggers: PLAYBOOK_TRIGGERS.filter((x) => triggerOffered(x, pb.deals_on)).map((x) => ({
+    // The moments offered for a new playbook here: a proposal's only where deals are on (0006), and of the two win-backs
+    // the one this workspace can read (momentOffered; a connected calendar's feed need not be readable just now).
+    triggers: PLAYBOOK_TRIGGERS.filter((x) =>
+      momentOffered(x, { dealsOn: pb.deals_on, calendarOn: pb.calendar !== "none" }),
+    ).map((x) => ({
       trigger: x.id,
       label: x.label,
       when: x.hint,

@@ -147,6 +147,9 @@ argued in its commit message, and takes no row here: nothing is owed that was no
 | Workspace route CSS +1,700 bytes gzipped, the budget 142,738 → 144,438, measured 141.0 KB (within 100 bytes of the budget) on one machine (the Inbox as canvas I1 in Glass and the frame's head as the boards set it: the list's capsule and underlined buckets, the lozenge rows and the boxes over the faces, the thread's capsule standing, anchored conversation and glass reply box, the phone's capsule header and tab bar, in `inbox.css`, `components.css`, `mobile.css` and `kit.css`)                            | Every rule is the look's, named in `:where([data-look="glass"])`: it leaves with Classic (the plan's step 5.7), when the Classic rules each one restyles go and the Glass rule becomes the one rule.                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Step 5.7 retires Classic and the Inbox's base rules fold into the one look.                                                                                                                                          |
 | Workspace route CSS +3,000 bytes gzipped, the budget 144,438 → 147,438, measured 144.8 KB on one machine (Leads as canvas L1 in Glass and the lead's panel as the panel boards draw it: the six tints a tile and the band wear, the stage as a bar down a row's edge, the band's chip and glass circles, the stage capsule, the checks on rounds, the numbered steps, the links as inset capsules and Call in a glass capsule, the phone's view switch, in `leads.css`, `clients.css` and the Glass block of `tokens.css`) | Every rule is the look's, named in `:where([data-look="glass"])`: it leaves with Classic (the plan's step 5.7), when the Classic rules each one restyles go and the Glass rule becomes the one rule; the tints are tokens because a gradient's colours are literals anywhere else.                                                                                                                                                                                                                                                                                                                                                                                 | Step 5.7 retires Classic and the Leads scope's base rules fold into the one look.                                                                                                                                    |
 | Workspace route CSS +1,000 bytes gzipped, the budget 147,438 → 148,438, measured 145.0 KB on one machine, 400 bytes under the band's top (Campaigns' phone act beside its strip as a circle of the primary fill, the composer's empty message as an inset and every sheet's Close as a glass circle with its name a step up, in `components.css` and `kit.css`)                                                                                                                                                            | Every rule is the look's, named in `:where([data-look="glass"])`: it leaves with Classic (the plan's step 5.7); CI has measured a build up to a kilobyte over this machine's, so the band is raised by that much rather than by the growth alone.                                                                                                                                                                                                                                                                                                                                                                                                                  | Step 5.7 retires Classic and the sheet's and the frame's base rules fold into the one look.                                                                                                                          |
+| Workspace route CSS budget 148,438 to 150,538 bytes gzipped, +2,100 (the phone threads on the kit: sub-tabs, action sheet, capsule, takeover)                                                                                                                                                                                                                                                                                                                                                                              | Measured 147.0 KB against 145.0 (`next build`, then `check:bundle`, 2 October 2026). The phone threads work added the page title's glass lettering, the takeover contract, the thread and call headers as pills, the capsule, the sub-tabs and the Menu's action sheet to the kit, and deleted about a thousand lines of page rules (`inbox.css`, `conversations.css`, `mobile.css`, `live.css`); each family is written once in the kit where the pages wrote it twice, and what is left over is 2.1 KB gzipped. The JS grew 5.0 KB inside its band, the kit's Menu being the first Base UI part the thread headers draw                                          | Phase 4 takes the pages' remaining primitive rules out of the sheets, and retiring Classic (#1367) takes its forms out of them                                                                                       |
+| Literal style values and primitives outside the kit: `surfaces/campaigns/campaigns.css` new (font 25, radius 19, shadow 2, colour 4, blur 1; 133 selectors naming 64 classes), as `components.css` falls by the same and `mobile.css` by 6 selectors; the register's literal values fall 1,065 → 1,048 and its primitives 2,074 → 2,041                                                                                                                                                                                    | Campaigns' rules left the shared stylesheets whole, values with them (review item 22), so the measures, which key by stylesheet, see the new file's first entries as keys of their own, as they saw the kit's. The move is proved by value: `components.css` font 100 → 59 + 25, radius 35 → 15 + 19, shadow 7 → 5 + 2, colour 11 → 7 + 4, blur 1 → 0 + 1, less the 16 font sizes and one radius of the 129 dead rules deleted in the same change                                                                                                                                                                                                                  | Fell in Campaigns' kit step (3 Oct 2026, out of `KIT_PENDING`): `campaigns.css` font 25 → 13, radius 19 → 18, shadow 2 → 1, colour 4 → 1, blur 1 → 0; primitives 2,041 → 1,997 selectors                             |
+| Workspace route JS budget +77,114 bytes gzipped (903,507 to 980,621): the Campaigns home and its composers, steps 1-5 of One message, every channel (contracts' new sentences and rules, +26 KB gzipped on its bundle), the Calendar in Glass (the kit's date picker) and People on the kit (Base UI's Menu and Face), shipped together on 3 Oct 2026                                                                                                                                                                      | Each is feature code a page draws: the contracts bundle is one file the shell loads whole, and the kit's Base UI parts are the Menu and the date picker the pages use. What could leave the route did: the reach-out's door and sheet the shell publishes for Leads now load on first draw (`campaigns/reach-out/later.tsx`), the receipt's words come without the send screen's picker (`broadcasts/when-words.ts`), and People takes each kit part by its own path, not the kit's barrel, which had put the picker, the date picker and the combobox on every page (1,017 KB to 958 KB)                                                                          | Contracts split per surface (a page's words loaded with its page), and the Leads and Today pages leaving the shell, which takes the reach-out globals with them                                                      |
 
 ## The numbers
 
@@ -156,31 +159,31 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit            117   of which over 200 lines: 23
+functions over the limit            112   of which over 200 lines: 21
 files over 800 lines                  7
 directories over 20 modules           4
-window globals                      155   names
+window globals                      153   names
 window publishers                   262   sites in 86 files
 copies                               73   of 21 names
-as unknown as                       158
+as unknown as                       155
 as never                             13
-non-null assertions, x!             126
-index reads the compiler lets pass  481   in 127 files
-table names outside packages/db     491
-SQL functions outside packages/db   134   called by .rpc
+non-null assertions, x!             123
+index reads the compiler lets pass  477   in 125 files
+table names outside packages/db     487
+SQL functions outside packages/db   133   called by .rpc
 edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    64   in 34 files
-literal style values               1088   in 22 stylesheets
-primitives outside the kit         2175   selectors naming 862 classes
-inline style props                  219   in 55 files
+literal style values               1030   in 23 stylesheets
+primitives outside the kit         1993   selectors naming 804 classes
+inline style props                  214   in 52 files
 wire names not in snake_case         54   in 26 routes
-dead exports, types and modules     305
-source-text reads in tests          788
-lint warnings                       386   in 155 files, 83 of them exhaustive-deps
-workspace route JS, KB gzipped      882   the shell included
-workspace route CSS, KB gzipped     145
-trees the lint's limits hold         42   15 of them with max-params waiting
+dead exports, types and modules     302
+source-text reads in tests          782
+lint warnings                       384   in 154 files, 83 of them exhaustive-deps
+workspace route JS, KB gzipped      958   the shell included
+workspace route CSS, KB gzipped     147
+trees the lint's limits hold         44   15 of them with max-params waiting
 ```
 
 <!-- measured:end -->

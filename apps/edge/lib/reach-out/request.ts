@@ -19,12 +19,11 @@ import {
   type EmailRequest,
 } from "../packages/channels.js";
 import {
-  campaignFooter,
-  campaignFooterHtml,
-  isReachOutSlot,
-  reachOutSlots,
+  emailFoot,
+  emailFootHtml,
+  reachOutEmailOf,
+  reachOutSlotFault,
   slotCount,
-  slotsNamed,
   whyFrom,
   wordsNeedOpening,
   type SlotLead,
@@ -80,20 +79,17 @@ export function reachOutWords(
 ): { ok: true; subject: string | null; body: string } | { ok: false; reason: WordsRefusal } {
   const subject = answers ? null : (words.subject ?? "");
   const texts = subject === null ? [words.body] : [subject, words.body];
-  for (const text of texts) {
-    const named = slotsNamed(text);
-    if (named.stray || named.names.some((k) => !isReachOutSlot(k))) return { ok: false, reason: "unknown_slot" };
-  }
+  if (texts.some(reachOutSlotFault)) return { ok: false, reason: "unknown_slot" };
   if (subject !== null && !subject.trim()) return { ok: false, reason: "no_subject" };
   const said = texts.join("\n");
   if (slotCount(said, "your name") > 0 && !workspace.yourName?.trim()) return { ok: false, reason: "no_signed_by" };
   if (slotCount(said, "booking link") > 0 && !workspace.bookingLink?.trim())
     return { ok: false, reason: "no_booking_link" };
   if (wordsNeedOpening({ subject, body: words.body }) && !opening?.trim()) return { ok: false, reason: "no_opening" };
-  const s = subject === null ? null : reachOutSlots(subject, lead, workspace, opening);
-  const b = reachOutSlots(words.body, lead, workspace, opening);
-  if ((s && !s.ok) || !b.ok) return { ok: false, reason: "missing_value" };
-  return { ok: true, subject: s ? s.text : null, body: b.text };
+  // Filled by the one fill every email takes (contracts reachOutEmailOf), the one the sheet's and the Templates page's
+  // previews read: a value this lead lacks holds this email alone.
+  const email = reachOutEmailOf({ subject, body: words.body }, lead, workspace, opening);
+  return email.ok ? { ok: true, subject: email.subject, body: email.body } : { ok: false, reason: email.reason };
 }
 
 /**
@@ -127,7 +123,7 @@ export function reachOutRequest(
   });
   const url = unsubscribeUrl(i.unsubscribe.origin, token);
   // Every lead a reach-out writes to is one the finder found on the map.
-  const foot = { why: whyFrom("maps"), business, address, unsubscribeUrl: url };
+  const foot = { kind: "cold" as const, why: whyFrom("maps"), unsubscribeUrl: url };
   let request: EmailRequest;
   try {
     request = buildEmailRequest({
@@ -139,7 +135,11 @@ export function reachOutRequest(
       signature: null,
       // The owner's words, sent by the machine: the campaign marks it auto-generated either way.
       actor: "human",
-      campaign: { unsubscribeUrl: url, footer: campaignFooter(foot), footerHtml: campaignFooterHtml(foot) },
+      campaign: {
+        unsubscribeUrl: url,
+        footer: emailFoot(business, address, foot),
+        footerHtml: emailFootHtml(business, address, foot),
+      },
       messageId: i.messageId,
       tenantId: i.tenantId,
     });

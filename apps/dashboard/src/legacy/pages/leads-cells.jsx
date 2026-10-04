@@ -319,7 +319,7 @@ const ldReachOutLine = (l, x) => {
 
 // A phone, as People judges it (clients-a.jsx PL_PHONE_QUERY): the slide below is a thumb's alone.
 const ldPhoneNow = () => !!(window.matchMedia && window.matchMedia(window.PL_PHONE_QUERY || "(max-width: 900px)").matches);
-const ldCardCell = (l, x) => {
+const ldCardCell = (l, x, pick) => {
   // Needs review on a phone (Ruben, 25 Sep): a thumb slides the row -- right to keep, left to exclude, the bell's way
   // (data-bits touchSwipe) -- over the act's word. The doors are
   // the cell context's, the same the bench and the bar press; a member who may not find leads gets no slide.
@@ -327,6 +327,7 @@ const ldCardCell = (l, x) => {
   const W = (window.__LEAD_VM && window.__LEAD_VM.LEAD_REVIEW_ACT_WORDS) || { keep: "Keep", exclude: "Exclude" };
   return window.plRowCard({
   face: { initials: l.tile.initials, image: l.tile.image, mark: l.tile.logo },
+  pick,
   name: l.name,
   pill: ldClientOf(l, x) ? <StatePill kind="deal" value="won" testid="lead-state" /> : <StatePill kind="lead_row_state" value={l.state} label={l.stateTag || l.stageLabel} testid="lead-state" />,
   // Under a group's own heading (x.sectioned, leads-scope.jsx ldReviewSections) the reason is said once, above.

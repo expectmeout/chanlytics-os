@@ -7,9 +7,10 @@
  * the door: the whole row, as a link, with the time as plain text.
  */
 import { Fragment } from "react";
-import type { MouseEvent, MouseEventHandler, ReactNode } from "react";
+import type { MouseEventHandler, ReactNode } from "react";
 import { TIMELINE_FILTERS, filterTimeline } from "@chanlytics/contracts";
 import type { PersonVM } from "@chanlytics/contracts";
+import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { EmptyState } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { holdStill, routeDoor } from "../../legacy-verbs";
@@ -62,25 +63,24 @@ function rowBody(e: Item, initials: string) {
   );
 }
 
+/** The tab a press landed on, which `holdStill` keeps where it was (a page with no document to ask keeps none). */
+const tabPressed = (testid: string): HTMLElement | null =>
+  "querySelector" in document ? document.querySelector<HTMLElement>(`[data-testid="${testid}"]`) : null;
+
 /** The filters offered: All, then only the kinds this person's record holds. */
 function filterStrip(items: Item[], filter: string, onFilter: (id: string) => void): ReactNode {
   const offered = TIMELINE_FILTERS.filter((f) => f.id === "all" || items.some((i) => (f.kinds || []).includes(i.kind)));
   if (offered.length <= 2) return null;
+  const testid = (id: string) => `timeline-filter-${id}`;
   return (
-    <div className="cl-tabs cl-tl-filters" role="group" aria-label="Show on the timeline">
-      {offered.map((f) => (
-        <button
-          key={f.id}
-          type="button"
-          className={`cl-tab ${filter === f.id ? "active" : ""}`}
-          aria-pressed={filter === f.id}
-          onClick={(e?: MouseEvent<HTMLButtonElement>) => holdStill(e?.currentTarget, () => onFilter(f.id))}
-          data-testid={`timeline-filter-${f.id}`}
-        >
-          {f.label}
-        </button>
-      ))}
-    </div>
+    <SubTabs
+      label="Show on the timeline"
+      value={filter}
+      className="cl-tl-filters"
+      tabs={offered.map((f) => ({ id: f.id, label: f.label, testid: testid(f.id) }))}
+      // Held still from the tab pressed: the strip does not jump from under the thumb as the list gets shorter.
+      onSelect={(id) => holdStill(tabPressed(testid(id)), () => onFilter(id))}
+    />
   );
 }
 

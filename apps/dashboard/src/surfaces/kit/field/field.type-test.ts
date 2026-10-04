@@ -59,6 +59,34 @@ function _fieldTakes(
   Field({ label: "Booking link", value: now.words, onValueChange: type, ref: refs.box });
   // Another of the kit's controls in the field's place, named, described and marked by it.
   Field({ label: "Service", hint: "What the proposal is for.", control: select, className: "ds-service" });
+  // A control no label can be `for` (a contenteditable box) is handed the focus by the page, as the label is pressed.
+  Field({
+    label: "The message",
+    hint: "10 of 60",
+    hintId: "words-hint",
+    control: select,
+    onLabelPress: () => undefined,
+  });
+  // Where the words around a box already say what it is, no label is drawn and the box is named by its own: a title
+  // said in place, and a search above its list, each found by its test id.
+  Field({
+    "aria-label": "The playbook's name",
+    shape: "title",
+    value: now.words,
+    onValueChange: type,
+    placeholder: "Win-back",
+    "data-testid": "pb-name",
+  });
+  Field({ "aria-label": "Search the words", type: "search", value: now.words, onValueChange: type });
+  // A rename takes the page's keys and the focus; a code or a name is not spell-checked.
+  Field({
+    label: "Name",
+    value: now.words,
+    onValueChange: type,
+    onKeyDown: (event) => void event.key,
+    autoFocus: true,
+    spellCheck: false,
+  });
 
   // @ts-expect-error what is wrong is said with the one red a field wears, its glyph with it
   Field({ label: "Website", value: now.words, onValueChange: type, problem: "A website starts with https://." });
@@ -80,4 +108,10 @@ function _fieldTakes(
   Field({ label: "What fits no field", value: now.words, onValueChange: type, rows: 3, type: "email" });
   // @ts-expect-error never disabled, which lets focus go to the page: it is read-only while a save is out
   Field({ label: "Website", value: now.words, onValueChange: type, disabled: true });
+  // @ts-expect-error a box is named by the label drawn over it or, with none drawn, by its own words: never by neither
+  Field({ value: now.words, onValueChange: type });
+  // @ts-expect-error another control in the field's place is named by the label drawn over it
+  Field({ "aria-label": "Service", control: select });
+  // @ts-expect-error a title said in place is a line of words, not a box of sentences
+  Field({ "aria-label": "The playbook's name", value: now.words, onValueChange: type, rows: 3, shape: "title" });
 }

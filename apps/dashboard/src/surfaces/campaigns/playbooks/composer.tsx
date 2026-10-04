@@ -3,9 +3,10 @@
  * decision 0015; Reach out Part 2.5). The model it reads is composer-model.ts, its three sections composer-sections.tsx
  * and its verbs composer-acts.ts; this holds the sheet and every hook, in the order they were.
  *
- * The composer: a new playbook, or one being changed, in a sheet beside the page (RecordSheet). The moments stay where
- * they were behind it: it was a panel over the grid that pushed the cards down and took the unset moments away while
- * it was open, so opening it moved the whole page.
+ * The composer: a new playbook, or one being changed, in the pane beside the list (parts/split.tsx), as a thread opens
+ * beside the Inbox's. The moments stay where they were beside it: it was a panel over the grid that pushed the cards
+ * down and took the unset moments away while it was open, so opening it moved the whole page; then a sheet over the
+ * page, which hid the list it was written for.
  *
  * It reads the way a playbook is: who it is for (the moment, and who that reaches today), what it says (the message as
  * a customer reads it, and what fills each of its slots), and when it runs (one sentence, its numbers chosen in place).
@@ -23,15 +24,20 @@
  */
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { recordSheetPart, tabDraft, unsavedAskPart, useLegacyUnsavedWork } from "../../legacy-parts";
+import type { ConsentChannel } from "@chanlytics/contracts";
+import { tabDraft, unsavedAskPart, useLegacyUnsavedWork } from "../../legacy-parts";
 import { canDo } from "../../legacy-verbs";
+import { Button } from "../../kit/button/button";
+import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { useLook } from "../../kit/look/look";
 import { useSurface } from "../../use-surface";
+import { CM_VIA_WORDS, cmDefaultChannels } from "../parts/channels";
+import { CmPane } from "../parts/split";
 import { composerActs } from "./composer-acts";
 import { composerModel, composerOffered, composerOpened } from "./composer-model";
 import type { Fields } from "./composer-model";
-import { clockSection, messageSection, underLine, whenOnly, whoSection } from "./composer-sections";
+import { clockSection, messageSection, underLine, viaSection, whenOnly, whoSection } from "./composer-sections";
 import type { SectionCtx } from "./composer-sections";
 import type { PlaybookCardVM, PlaybooksSurface } from "./surface";
 
@@ -70,12 +76,12 @@ function sheetFoot(p: {
           >
             {say ? say.t : null}
           </span>
-          <button type="button" className="btn" onClick={work.leave} data-testid="pb-cancel">
+          <Button onClick={work.leave} data-testid="pb-cancel">
             Cancel
-          </button>
-          <button type="button" className="btn btn-primary" disabled={!ready} onClick={save} data-testid="pb-save">
+          </Button>
+          <Button variant="primary" disabled={!ready} onClick={save} data-testid="pb-save">
             {busy ? "Saving…" : editing ? "Save changes" : "Start it"}
-          </button>
+          </Button>
         </>
       )}
     </div>
@@ -92,24 +98,34 @@ function glassRow(word: string, testid: string, body: ReactNode) {
   );
 }
 
-/** The sheet's body: the three sections, and what stops a run from sending from the number. */
+/**
+ * What stops a run from sending from the number: a number that cannot send, or none. Said while the playbook goes by
+ * WhatsApp, the one channel that has a number; one that goes by email alone never asks.
+ */
+function numberWarning({ data, f }: SectionCtx) {
+  if (!data.number || !f.channels.includes("whatsapp")) return null;
+  if (data.number.present && !data.number.health.canSend)
+    return (
+      <p className="pb-warn" data-testid="pb-number">
+        {data.number.health.refusal}
+      </p>
+    );
+  return data.number.present ? null : (
+    <p className="pb-warn" data-testid="pb-number">
+      No WhatsApp number connected — connect one in Settings › Connections before a run can send.
+    </p>
+  );
+}
+
+/** The sheet's body: the sections, and what stops a run from sending from the number. */
 function sheetBodyClassic(x: SectionCtx) {
-  const { data } = x;
   return (
     <div className="pb-compose">
       {whoSection(x)}
       {messageSection(x)}
+      {viaSection(x)}
       {clockSection(x)}
-      {data.number && data.number.present && !data.number.health.canSend && (
-        <p className="pb-warn" data-testid="pb-number">
-          {data.number.health.refusal}
-        </p>
-      )}
-      {data.number && !data.number.present && (
-        <p className="pb-warn" data-testid="pb-number">
-          No WhatsApp number connected — connect one in Settings › Connections before a run can send.
-        </p>
-      )}
+      {numberWarning(x)}
     </div>
   );
 }
@@ -120,23 +136,14 @@ function sheetBodyClassic(x: SectionCtx) {
  * word at the left and a section at the right; what the section holds and its testids are the Classic sheet's.
  */
 function sheetBodyGlass(x: SectionCtx) {
-  const { data } = x;
   return (
     <div className="pb-compose">
       {glassRow("To", "pb-row-to", whoSection(x))}
       {glassRow("Says", "pb-row-says", messageSection(x))}
+      {glassRow(CM_VIA_WORDS.label, "pb-row-via", viaSection(x))}
       {glassRow("When", "pb-row-when", whenOnly(x))}
       {glassRow("Under", "pb-row-under", underLine(x))}
-      {data.number && data.number.present && !data.number.health.canSend && (
-        <p className="pb-warn" data-testid="pb-number">
-          {data.number.health.refusal}
-        </p>
-      )}
-      {data.number && !data.number.present && (
-        <p className="pb-warn" data-testid="pb-number">
-          No WhatsApp number connected — connect one in Settings › Connections before a run can send.
-        </p>
-      )}
+      {numberWarning(x)}
     </div>
   );
 }
@@ -171,8 +178,12 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
   const [typed, setTyped] = useState(start.typed);
   const [listId, setListId] = useState(start.listId === undefined ? null : start.listId);
   const [cls, setCls] = useState(start.cls || "campaign");
+  // The channels it goes by, ticked in the Send by row: what the playbook has, or WhatsApp alone, as every playbook went.
+  const [channels, setChannels] = useState<ConsentChannel[]>(
+    start.channels && start.channels.length > 0 ? start.channels : cmDefaultChannels(),
+  );
   // What the sheet holds, against what it opened as: changed, it is kept in the tab, and Cancel asks first.
-  const held: Fields = { trigger, tplId, picked, name, hour, cap, gap, cadence, listId, cls, fills, typed };
+  const held: Fields = { trigger, tplId, picked, name, hour, cap, gap, cadence, listId, cls, fills, typed, channels };
   const work = useLegacyUnsavedWork("playbook", draftKey, {
     value: held,
     dirty: JSON.stringify(held) !== JSON.stringify(opened),
@@ -181,6 +192,8 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  // Which step of the preview's walk is in view: the channels it goes by, one at a time (composer-sections.tsx).
+  const [who, setWho] = useState(0);
   const templatesAll = useSurface("settings")?.templatesAll;
   const canEdit = canDo("approve");
 
@@ -212,23 +225,27 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
     setCadence,
     setListId,
     setCls,
+    setChannels,
     setFills,
     setTyped,
+    who,
+    setWho,
     ...acts,
   };
-  const RecordSheet = recordSheetPart();
+  // In the pane beside the list (parts/split.tsx), where the record kit's sheet stood over the page: the list stays in
+  // sight and in reach, as the Inbox's does beside a thread.
   return (
-    <RecordSheet
-      id="playbook"
+    <CmPane
       testid="pb-composer"
       className="pb-sheet"
       title={
         <span className="pb-title-wrap">
-          <input
-            className="pb-title"
+          <Field
+            className="pb-title-box"
+            shape="title"
             value={m.title}
             placeholder={m.auto}
-            onChange={(e) => setName(e.target.value)}
+            onValueChange={setName}
             maxLength={80}
             spellCheck={false}
             aria-label="The playbook's name"
@@ -249,6 +266,6 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
       foot={sheetFoot({ x, work, editing, busy, error, save: acts.save })}
     >
       {glass ? sheetBodyGlass(x) : sheetBodyClassic(x)}
-    </RecordSheet>
+    </CmPane>
   );
 }

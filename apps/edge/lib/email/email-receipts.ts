@@ -28,6 +28,10 @@
  *                   the LEAD it was written for is marked, its address
  *                   invalid (Reach out C11): the Leads page says so, and no
  *                   step or run writes to it again.
+ *   a complaint or a permanent bounce of an OFFER (an email that left from the
+ *                   campaigns domain)
+ *                   the workspace's offers by email are judged against their
+ *                   gates (offer-gates.ts): over a limit, they are paused.
  *
  * A receipt whose tags name no row of ours is the platform's own notification
  * email, or a forged tag: acknowledged and dropped. A database that cannot take
@@ -48,6 +52,7 @@ import {
 import { addressOf, emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "../packages/channels.js";
 import { isCampaignEmail } from "../packages/contracts.js";
 import { holdForComplaint } from "./sending-domains.js";
+import { judgeOfferGates } from "./offer-gates.js";
 import { pageOperator } from "../ops/page-operator.js";
 import { logger, errField } from "../log.js";
 import { upsertEscalation } from "../packages/jobs.js";
@@ -84,6 +89,8 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
     if (flagged === "failed")
       throw new Error(`email receipt: message ${r.messageId} failed and its thread could not be flagged`);
   }
+  // The domain an email left from, read off its frozen request, for what a complaint or a permanent bounce may trip.
+  let leftFrom: string | null = effect.suppress === "hard_bounce" ? requestFromOf(sent?.request) : null;
   if (effect.status) await recordEmailStatus(db, { ...row, status: effect.status, error: effect.error });
   // A complaint arrives after delivery and moves no status: the row is stamped, so the domain it left from counts it
   // (00176). Before the suppression, so a retry of a half-applied receipt still counts it once.
@@ -102,6 +109,7 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
     // leads closed. After the address stops (above), so a no that cannot be recorded -- the receipt then comes again --
     // has already stopped what it could. Then the domain it left from is judged now, not at the next sweep.
     const no = await recordEmailNo(db, { ...row, source: "complaint" });
+    leftFrom = no.from;
     const host = addressOf(no.from)?.address.split("@")[1] ?? null;
     if (host) {
       const log = logger({ tenant_id: r.tenantId });
@@ -112,5 +120,13 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
       );
     }
   }
+  // Last: the receipt is applied, so a judgement that fails is logged there and never refuses it. Only an offer is judged.
+  if (leftFrom) await judgeOfferGates(db, r.tenantId, leftFrom);
   return "applied";
+}
+
+/** The From of a frozen request as a row keeps it; null when it keeps none. */
+function requestFromOf(request: unknown): string | null {
+  const from = (request as { from?: unknown } | null | undefined)?.from;
+  return typeof from === "string" ? from : null;
 }

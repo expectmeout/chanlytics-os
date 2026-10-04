@@ -295,6 +295,19 @@ test("a person who only ever wrote by email is not on WhatsApp: the list says wh
   );
 });
 
+test("a bounced address (00298) rides the row as emailSuppressed, and by email there is then nobody to send to; a good or unread one is not suppressed", () => {
+  const withAddress = (over) =>
+    toPersonRowVM(row({ email: "ana@example.com", consent: "opted_in", ...over }), ZONE, NOW);
+  const dead = withAddress({ email_suppressed_at: iso(3 * D) });
+  assert.equal(dead.emailSuppressed, true);
+  assert.equal(contracts.whyNotReceive(dead, "conversational", "email"), "no_address");
+  assert.equal(contracts.whyNotReceive(dead, "conversational", "whatsapp"), null, "their number is still good");
+  for (const good of [withAddress({ email_suppressed_at: null }), withAddress({})]) {
+    assert.equal(good.emailSuppressed, false, "null, or a row read before the column: not suppressed");
+    assert.equal(contracts.whyNotReceive(good, "conversational", "email"), null);
+  }
+});
+
 test("REGRESSION: a person reached only by email is not held by WhatsApp's window, and their page does not say Phone", () => {
   // Found live: an email-only person's page said "Phone since Sep 17", "Reply
   // window: Closed · template only" and offered to "Send the booking-link

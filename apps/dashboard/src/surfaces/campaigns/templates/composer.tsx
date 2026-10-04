@@ -22,6 +22,8 @@ interface TemplateComposerProps {
   onCancel?: () => void;
   businessName?: string;
   translate?: TemplateTranslation | null;
+  /** Drawn as the pane beside the Templates list (parts/split.tsx): a new message's head, rows and foot, not a card. */
+  pane?: boolean;
 }
 
 /** What happened to the starter set, as the answer of adding it says: each count, and what a failure was. */
@@ -54,7 +56,13 @@ export const starterWords = (d: StarterOutcome): string => {
   return parts.length ? parts.join(" · ") : "Nothing to add";
 };
 
-export function TemplateComposer({ onDone, onCancel, businessName = "", translate = null }: TemplateComposerProps) {
+export function TemplateComposer({
+  onDone,
+  onCancel,
+  businessName = "",
+  translate = null,
+  pane = false,
+}: TemplateComposerProps) {
   const draftKey = translate ? `${translate.name}|${translate.language}` : "new";
   const st = useComposerState(translate, draftKey);
   const { brief, category, language, name, body, footer, examples, labels, buttonText, buttonUrl, warnings } = st;
@@ -76,7 +84,7 @@ export function TemplateComposer({ onDone, onCancel, businessName = "", translat
     void acts.translateNow();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival: a composer is keyed by its language
   }, []);
-  const ctx = { st, facts, acts, work, businessName, onCancel };
+  const ctx = { st, facts, acts, work, businessName, onCancel, pane };
   // The fields the words are changed in and the preview beside them are made before the form is chosen, as the JSX made them.
   const made = { fields: composerFields(ctx), preview: composerPreview(ctx) };
   return translate ? translationForm(ctx, translate, made) : newTemplateForm(ctx, made);

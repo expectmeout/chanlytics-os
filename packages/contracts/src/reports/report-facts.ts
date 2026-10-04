@@ -1,6 +1,7 @@
 /**
  * Worth knowing: the facts the Reports page leads with. At most three, in the order an owner should act on them:
- * messages with no reply, why the receptionist handed over, the busiest day and its hours, the campaign that drew
+ * messages with no reply, why the receptionist handed over, the busiest day and its hours (or, with no one busiest
+ * day, what came while the business was closed; or, with no hours set, the door to set them), the campaign that drew
  * the most replies, and a channel whose share moved. Each is a count over the report's own columns, never an
  * estimate, and none says a tile's number again (the tiles already did). Pure; the page draws what this returns.
  */
@@ -9,10 +10,10 @@ import type { CampaignReportVM } from "./campaign-report";
 import { plural } from "../shared/words";
 
 export interface ReportFactVM {
-  id: "unanswered" | "handovers" | "busiest" | "campaign" | "channel";
+  id: "unanswered" | "handovers" | "busiest" | "hours" | "closed" | "campaign" | "channel";
   tone: "" | "warn";
   /** An icon the legacy Icon set draws. */
-  icon: "alert" | "users" | "calendar" | "sparkle" | "chat";
+  icon: "alert" | "users" | "calendar" | "clock" | "sparkle" | "chat";
   text: string;
   /** The dim second half of the line; empty when the text says it all. */
   sub: string;
@@ -54,10 +55,10 @@ export function reportFacts(vm: ReportVM, campaigns: CampaignReportVM | null): R
 
   // The one busiest weekday: a tie names none. A week is said as days, a longer period as weekdays.
   const b = vm.week.busiest;
+  const h = vm.hours;
+  const peak = h && h.peak !== null ? `peak ${reportHourWords(h.peak)} to ${reportHourWords(h.peak + 2)}` : "";
   if (b !== null) {
-    const h = vm.hours;
-    const peak = h && h.peak !== null ? `peak ${reportHourWords(h.peak)} to ${reportHourWords(h.peak + 2)}` : "";
-    const outside = h && h.outside > 0 ? `${h.outside} outside 8am to 8pm` : "";
+    const closed = h && h.closed ? `${h.closed} while you were closed` : "";
     out.push({
       id: "busiest",
       tone: "",
@@ -66,7 +67,29 @@ export function reportFacts(vm: ReportVM, campaigns: CampaignReportVM | null): R
         vm.week.unit === "average"
           ? `${vm.week.long[b]}s are your busiest day`
           : `${vm.week.long[b]} was your busiest day`,
-      sub: [peak, outside].filter(Boolean).join(", "),
+      sub: [peak, closed].filter(Boolean).join(", "),
+      door: null,
+    });
+  }
+
+  // While you were closed (spec A2): with no hours set, the door to set them; with hours and no one busiest day, the
+  // count the busiest day's line would have carried. Never a guess: a profile that could not be read says neither.
+  if (vm.hoursUnset) {
+    out.push({
+      id: "hours",
+      tone: "",
+      icon: "clock",
+      text: "Set your business hours to see what came in while you were closed",
+      sub: "",
+      door: { label: "Open Settings", to: "admin/workspace" },
+    });
+  } else if (b === null && h && h.closed) {
+    out.push({
+      id: "closed",
+      tone: "",
+      icon: "clock",
+      text: `${h.closed} came in while you were closed`,
+      sub: peak,
       door: null,
     });
   }

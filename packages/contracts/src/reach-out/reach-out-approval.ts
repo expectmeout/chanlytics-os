@@ -1,5 +1,5 @@
 /**
- * A reach-out run on Broadcasts (Reach out, Part 4 PR 7; F13, R20–R22): the block its run draws for as long as it is
+ * A reach-out run in Sent (Reach out, Part 4 PR 7; F13, R20–R22): the block its run draws for as long as it is
  * live, waiting for its owner or not. What approvalWordsOf says of a run waiting (its share and the rest, the held with
  * their doors, how many are still being checked, the first ready business's email), and around it what a live run says
  * whatever its state: the skipped by reason, who gets it (the checked only), and the notice the check sends the first
@@ -114,7 +114,7 @@ const RETIMED = "re-timed in their hours";
 
 /** The block's own acts. */
 const REACH_OUT_RUN_LABELS = {
-  back: "Back to Broadcasts",
+  back: "Back to Sent",
   approving: "Approving…",
   skip: "Skip this run",
   skipYes: "Yes, skip it",
@@ -138,6 +138,6 @@ export function heldNoticeWords(p: { name: string; held: number; reasons: ReachO
   const say = doors.length > 1 ? `${doors.slice(0, -1).join(", ")} or ${doors[doors.length - 1]}` : (doors[0] ?? "");
   return {
     subject: `The check held ${plural(p.held, "email", "emails")} in ${p.name}`,
-    body: `${p.held === 1 ? "It waits" : "They wait"} for your say on the run in Broadcasts${say ? `: ${say}` : ""}. The rest of the run goes as planned.`,
+    body: `${p.held === 1 ? "It waits" : "They wait"} for your say on the run in Sent${say ? `: ${say}` : ""}. The rest of the run goes as planned.`,
   };
 }

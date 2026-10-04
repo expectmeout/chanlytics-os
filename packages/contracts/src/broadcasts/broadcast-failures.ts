@@ -15,6 +15,7 @@ export const BROADCAST_FAILURE_WORDS: Record<string, string> = {
   throttled: "WhatsApp kept limiting how fast this number may send",
   stalled: "its people or its number's credentials could not be read for half an hour",
   after_hours: "the day's sending hours ran out while it waited",
+  provider_limit: "the mail provider's limit for the day or the month was reached",
 };
 
 /**
@@ -24,12 +25,13 @@ export const BROADCAST_FAILURE_WORDS: Record<string, string> = {
  */
 export const BROADCAST_FAILURE_FIX: Record<string, string> = {
   paused: "Unpause it under Settings, then send it again.",
-  template_not_approved: "Open it in Templates — it can be resubmitted.",
+  template_not_approved: "Open it in the Library — it can be resubmitted.",
   wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
   run_interrupted: "Nobody got it, so sending it again reaches nobody twice.",
   throttled: "Nobody got it. WhatsApp lifts these limits on its own; send it again later.",
   stalled: "Nobody got it. Nothing is wrong with the number; send it again later.",
   after_hours: "Nobody got it. Send it again tomorrow, inside the day's sending hours.",
+  provider_limit: "Nobody got it. The mail provider's limit resets on its own; send it again once it has.",
 };
 
 /**
@@ -51,6 +53,8 @@ const BROADCAST_FAILURE_FIX_AFTER: Record<string, (n: number) => string> = {
     `The first ${n === 1 ? "one" : n} got it, then its reads failed. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
   after_hours: (n) =>
     `The first ${n === 1 ? "one" : n} got it before the day's sending hours ran out. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  provider_limit: (n) =>
+    `The first ${n === 1 ? "one" : n} got it, then the mail provider's limit was reached. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
 };
 
 /** The next step past a failed run's reason, by how many it reached first; null for a code nobody has written words for. */

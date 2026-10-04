@@ -156,6 +156,77 @@ export function messageIdsIn(header: string | null | undefined): string[] {
  */
 export type EmailClaim = "report" | "auto_reply" | "automated" | "person";
 
+/** One result of an Authentication-Results header (RFC 8601): `method=result` and its `ptype.property=value` pairs. */
+interface AuthResult {
+  method: string;
+  result: string;
+  props: Map<string, string>;
+}
+
+/**
+ * The results an Authentication-Results header carries, lower-cased: its authserv-id is skipped, quoted strings and
+ * comments are dropped (they are where a sender's own words reach a receiver's header, and they decide nothing), and each
+ * `;`-separated clause is read as `method=result` and the first value of each property it names.
+ */
+function authResultsOf(header: string): AuthResult[] {
+  let said = header.toLowerCase().replace(/"[^"]*"/g, '""');
+  // Comments nest in RFC 5322: drop the innermost until none is left.
+  for (let before = ""; before !== said;) {
+    before = said;
+    said = said.replace(/\([^()]*\)/g, " ");
+  }
+  return said
+    .split(";")
+    .slice(1)
+    .flatMap((clause) => {
+      const [head, ...rest] = clause.trim().split(/\s+/);
+      const m = /^([a-z0-9-]+)(?:\/\d+)?=([a-z]+)$/.exec(head ?? "");
+      if (!m) return [];
+      const props = new Map<string, string>();
+      for (const pair of rest) {
+        const eq = pair.indexOf("=");
+        if (eq > 0 && !props.has(pair.slice(0, eq))) props.set(pair.slice(0, eq), pair.slice(eq + 1));
+      }
+      return [{ method: m[1] ?? "", result: m[2] ?? "", props }];
+    });
+}
+
+/** The domain of an identity a header names: `example.com`, `@example.com` or `user@example.com`. */
+const domainOf = (identity: string | undefined): string | null => {
+  const d = identity?.slice(identity.lastIndexOf("@") + 1).trim();
+  return d || null;
+};
+
+/**
+ * Whether the receiving side PROVES the sender is who the From line says, from the Authentication-Results header it
+ * writes (RFC 8601), as the fetched email carries it: an aligned DMARC pass for the From domain (`dmarc=pass` with
+ * `header.from` that domain), or a DKIM pass signed by it (`dkim=pass` with `header.d` that domain, or, where the verifier
+ * says only the signing identity, `header.i` on it). Anything else is no proof: no header, an SPF result alone (SPF
+ * speaks for the envelope, not the From), a pass for another domain, a failure, a DMARC failure beside a DKIM pass.
+ * FAILS CLOSED, which is the point: a yes to offers widens what may be sent, and a From line is one anyone can write, so
+ * a header this cannot read as a proof is not one. A no (STOP, UNSUBSCRIBE) never asks it, since a no only narrows.
+ *
+ * Only the header's first value is read (a repeated header keeps its first, headersOf): the receiving side writes its own
+ * at the top, above anything the sender sent with the mail. Which party wrote it is not checked here: the header is
+ * evidence only so far as the provider's own mail server is the one that did (RFC 8601, on the trust boundary), which is what the
+ * provider's receiving of mail is believed to be, and what must be seen on a real received email before it is relied on.
+ */
+export function senderAuthenticated(e: Pick<ReceivedEmail, "headers" | "from">): boolean {
+  const from = domainOf(e.from?.address.toLowerCase());
+  if (!from) return false;
+  const results = authResultsOf(e.headers["authentication-results"] ?? "");
+  const dmarc = results.filter((r) => r.method === "dmarc");
+  if (dmarc.some((r) => r.result === "fail")) return false;
+  const alignedDmarc = dmarc.some((r) => r.result === "pass" && domainOf(r.props.get("header.from")) === from);
+  const signedByFrom = results.some(
+    (r) =>
+      r.method === "dkim" &&
+      r.result === "pass" &&
+      (r.props.has("header.d") ? r.props.get("header.d") === from : domainOf(r.props.get("header.i")) === from),
+  );
+  return alignedDmarc || signedByFrom;
+}
+
 export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from">): EmailClaim {
   const h = e.headers;
   const local = e.from?.address.split("@")[0] ?? "";

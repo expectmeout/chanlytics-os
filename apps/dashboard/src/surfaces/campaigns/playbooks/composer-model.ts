@@ -8,14 +8,43 @@
  * message written elsewhere may be anything, its guess first. A message one of whose slots nothing can fill here -- a
  * visit's reminder, on a list -- is not offered at all.
  */
-import { playbookName, poolWords, reachLines } from "@chanlytics/contracts";
-import type { PlaybookTrigger, TemplateGroup } from "@chanlytics/contracts";
+import {
+  CONSENT_CHANNELS,
+  DEFAULT_CAMPAIGN_CHANNELS,
+  PREVIEW_CHANNEL_WORDS,
+  PREVIEW_WORDS,
+  enrolPurpose,
+  playbookName,
+  poolWords,
+  reachLines,
+} from "@chanlytics/contracts";
+import type { ConsentChannel, PlaybookTrigger, ReachSplit, TemplateGroup } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { pageClock } from "@/legacy-bridge/zone";
 import { policyRow } from "../../legacy-parts";
+import {
+  cmChannelsKept,
+  cmChannelsOn,
+  cmDefaultChannels,
+  cmReadyForMessage,
+  cmReachBy,
+  cmReadyOf,
+  cmViaTicks,
+} from "../parts/channels";
 import { starters } from "../templates/verbs";
-import type { PlaybookCardVM, PlaybookTriggerOption, PlaybooksSurface } from "./surface";
-import { PB_NONE, PB_TEXT, pbExample, pbFirstFree, pbIcon, pbLabel, pbLangWords, pbOrder } from "./words";
+import { namedOf, readingFor } from "./surface";
+import type { PlaybookCardVM, PlaybookNamed, PlaybookTriggerOption, PlaybooksSurface } from "./surface";
+import {
+  PB_NONE,
+  PB_TEXT,
+  pbChannelReasons,
+  pbExample,
+  pbFirstFree,
+  pbIcon,
+  pbLabel,
+  pbLangWords,
+  pbOrder,
+} from "./words";
 
 /** What the sheet holds: the moment, the message, the numbers, and the words typed into each slot. */
 export interface Fields {
@@ -31,6 +60,8 @@ export interface Fields {
   cls: string;
   fills: Record<string, string[]>;
   typed: Record<string, string[]>;
+  /** The channels ticked in the Send by row. A draft kept before the row was drawn has none: WhatsApp alone. */
+  channels: ConsentChannel[];
 }
 
 /** The templates a composer may offer, and one sentence for the ones it may not (contracts sendableTemplates). */
@@ -110,6 +141,11 @@ export function composerOpened(
     fills: editing && params ? { [editing.template_id]: params.map((p) => (p && p.kind ? p.kind : "text")) } : {},
     typed:
       editing && params ? { [editing.template_id]: params.map((p) => (p && p.kind === "text" ? p.value : "")) } : {},
+    // A playbook made before channels goes by WhatsApp alone; a new one opens on it too.
+    channels:
+      editing && editing.channels && editing.channels.length > 0
+        ? CONSENT_CHANNELS.filter((c) => (editing.channels ?? []).includes(c))
+        : cmDefaultChannels(),
   };
 }
 
@@ -138,8 +174,11 @@ function composerMessage({ editing, offered, templatesAll, f }: ModelIn, { trig,
   // One entry per message, whatever languages it has: the language is its own control.
   const groups = starters.group(usable);
   // The moment's own message: approved and picked for you, in review at
-  // WhatsApp, or not added yet -- one press adds it.
-  const starter = starters.forTrigger(f.trigger);
+  // WhatsApp, or not added yet -- one press adds it. A starter the set replaced
+  // that the workspace still sends is its own while the set's is not approved.
+  const starter =
+    starters.allForTrigger(f.trigger).find((s) => groups.some((g) => g.name === s.name)) ??
+    starters.forTrigger(f.trigger);
   const starterGroup = starter ? groups.find((g) => g.name === starter.name) || null : null;
   const starterAny = starter ? (templatesAll || PB_NONE).find((t) => t.name === starter.name) || null : null;
   const tpl = f.picked ? usable.find((t) => t.id === f.tplId) || null : rowIn(starterGroup, null);
@@ -203,17 +242,74 @@ function reachCounted({ editing, f }: ModelIn, { trig, onList, list }: Moment, n
   );
 }
 
+/** The key of the count the composer reads: this list's, this playbook's while it keeps its moment, or the moment's own. */
+function reachKey({ editing, f }: ModelIn, { trig, onList, list }: Moment): string | null {
+  if (onList) return list ? list.id : null;
+  if (editing && editing.trigger === f.trigger) return editing.poolKey;
+  return trig ? trig.id : null;
+}
+
+/** What the composer counts from: who a run reaches now and who waits, and who the moment names, for these channels. */
+interface ReachReading {
+  base: { candidates: number; held: number };
+  named: PlaybookNamed | null;
+  counted: boolean;
+}
+
 /**
- * Who it reaches today: the moment's own count, or this playbook's while it keeps its moment, with the cap as it is set
- * here -- the cards' bar and the approval sheet's reasons (contracts reachLines), before anything is saved.
+ * The count for the channels it goes by, where the surface holds the moment's counts by channel (surface.ts `pools`: a
+ * moment, a list, or a playbook whose message is stricter than its moment); where it holds none -- a surface cached
+ * before it did, or a moment it did not count -- the figures the cards carry, which are for WhatsApp alone.
  */
-function reachOf(input: ModelIn, mo: Moment) {
+function reachReading(input: ModelIn, mo: Moment, on: readonly ConsentChannel[]): ReachReading {
+  const key = reachKey(input, mo);
+  const pools = input.data.pools;
+  if (key && pools && key in pools) {
+    const read = readingFor(pools[key], on);
+    return read
+      ? { base: { candidates: read.candidates, held: read.held }, named: namedOf(read), counted: true }
+      : { base: { candidates: 0, held: 0 }, named: null, counted: false };
+  }
+  const named = reachNamed(input, mo);
+  return { base: reachBase(input, mo), named, counted: reachCounted(input, mo, named) };
+}
+
+/**
+ * What the Send by row says and which channels it leaves on (parts/channels.ts): the channels it ticks that the workspace
+ * can send on and its message has a version for. The kind of message is its moment's class, or its message's category
+ * where that is stricter (contracts enrolPurpose), as its run reads it.
+ */
+function channelsModelOf({ data, f }: ModelIn, { trig, onList }: Moment, { tpl }: Message) {
+  const purpose = enrolPurpose(onList ? f.cls : trig ? trig.cls : null, tpl ? { category: tpl.category } : null);
+  const mine = tpl && data.templates ? data.templates.find((t) => t.id === tpl.id) : undefined;
+  const channelReady = cmReadyForMessage(
+    cmReadyOf(data.ready),
+    mine && mine.channels ? mine.channels : DEFAULT_CAMPAIGN_CHANNELS,
+  );
+  const ticked = f.channels || DEFAULT_CAMPAIGN_CHANNELS;
+  return {
+    // What the run is for (enrolPurpose): the one reading the sections ask, so the month's allowance is said by it too.
+    purpose,
+    // The message's email and text versions as words, for the preview (parts/preview-by.ts).
+    versions: mine ? mine.versions : undefined,
+    channelReady,
+    on: cmChannelsOn(ticked, channelReady, purpose),
+    // A playbook keeps a ticked channel that cannot send yet: its run holds those people until it can.
+    kept: cmChannelsKept(ticked, purpose),
+    ticks: cmViaTicks(ticked, channelReady, purpose, true),
+  };
+}
+
+/**
+ * Who it reaches today: the moment's own count, or this playbook's while it keeps its moment, for the channels it goes by,
+ * with the cap as it is set here -- the cards' bar and the approval sheet's reasons (contracts reachLines), before anything
+ * is saved. Where it goes by more than WhatsApp alone, the split by channel and who has no address or no channel to go by.
+ */
+function reachOf(input: ModelIn, mo: Moment, on: readonly ConsentChannel[]) {
   const { f } = input;
   const { visits } = mo;
   const monthly = f.trigger === "everyone_monthly";
-  const base = reachBase(input, mo);
-  const named = reachNamed(input, mo);
-  const counted = reachCounted(input, mo, named);
+  const { base, named, counted } = reachReading(input, mo, on);
   const capN = Math.max(1, Number(f.cap) || 1);
   const overCap = visits ? 0 : Math.max(0, base.candidates - capN);
   const will = base.candidates - overCap;
@@ -240,22 +336,63 @@ function reachOf(input: ModelIn, mo: Moment) {
           },
         )?.lines ?? []
       )
+        // Who has no address or no channel to go by is the reasons' too (contracts reachLines names neither).
+        .concat(pbChannelReasons(named))
+        .sort((a, b) => b.n - a.n)
         .slice(0, 3)
         .map((l) => ({ t: l.words, tone: l.tone, door: l.door }))
     : [];
   const of = poolWords(f.trigger);
-  return { monthly, base, named, counted, capN, overCap, will, pool, reasons, of };
+  // Who a run reaches on which channel, said where it goes by more than WhatsApp alone, as the clause after the count and
+  // as the bar: the figures are of everyone it can reach now, before the cap (the reasons say who waits for the next run).
+  const split: ReachSplit | null =
+    named && named.byChannel ? { reached: base.candidates, byChannel: named.byChannel, held: 0, heldBy: {} } : null;
+  const splitBy = cmReachBy(split, on);
+  return { monthly, base, named, counted, capN, overCap, will, pool, reasons, of, split, splitBy };
 }
 
-/** What the three pickers offer: every moment, every message that fits it, and every language of the one in view. */
-function choicesOf({ data }: ModelIn, { triggers, link }: Moment, { groups, starter, tpl, group }: Message) {
-  const momentChoices = triggers.map((t) => ({
-    id: t.id,
-    label: t.label,
-    sub: t.hint,
-    icon: pbIcon(t.id),
-    hint: t.candidates === null ? null : t.candidates > 0 ? `${t.candidates} today` : "nobody today",
+/**
+ * What the preview steps through. A playbook names no one -- who a run reaches changes with every run -- so the walk is the
+ * channels it goes by, each with how many of the people it reaches now it carries ("‹ By email · 12 people ›"), and each
+ * is the message as a person on that channel reads it (parts/preview-by.ts): the email version's subject, words and foot,
+ * the text version's words and STOP line, WhatsApp's template. A moment that writes the reason an email gives -- a visit's
+ * time, a proposal's link -- is said in its foot, as the run says it (contracts emailFoot).
+ */
+function walkOf(
+  { data }: ModelIn,
+  { trig }: Moment,
+  { on }: { on: readonly ConsentChannel[] },
+  { named, counted }: { named: PlaybookNamed | null; counted: boolean },
+) {
+  const byChannel = counted && named ? named.byChannel : undefined;
+  const steps = on.map((channel) => ({
+    channel,
+    label: PREVIEW_CHANNEL_WORDS[channel],
+    position: byChannel ? PREVIEW_WORDS.people(byChannel[channel]) : "",
   }));
+  const facts: Record<string, unknown> =
+    trig && trig.kind === "visit"
+      ? { visit_when: pbExample("visit_when", data.businessName) }
+      : trig && trig.kind === "deal"
+        ? { proposal_link: pbExample("proposal_link", data.businessName) }
+        : {};
+  return { steps, facts, labelled: on.some((c) => c !== "whatsapp") };
+}
+
+/**
+ * What the three pickers offer: every moment a new playbook may start from, and the one a playbook being changed is on
+ * (a retired moment's too, so it still reads as its own), every message that fits it, and every language of the one in view.
+ */
+function choicesOf({ data, editing }: ModelIn, { triggers, link }: Moment, { groups, starter, tpl, group }: Message) {
+  const momentChoices = triggers
+    .filter((t) => t.offered || (!!editing && editing.trigger === t.id))
+    .map((t) => ({
+      id: t.id,
+      label: t.label,
+      sub: t.hint,
+      icon: pbIcon(t.id),
+      hint: t.candidates === null ? null : t.candidates > 0 ? `${t.candidates} today` : "nobody today",
+    }));
   const messageChoices = groups
     .slice()
     .sort((a, b) => (starter ? Number(b.name === starter.name) - Number(a.name === starter.name) : 0))
@@ -309,7 +446,9 @@ export function composerModel(input: ModelIn) {
   const mo = momentOf(input);
   const msg = composerMessage(input, mo);
   const sl = slotsModelOf(input, msg);
-  const reach = reachOf(input, mo);
+  const via = channelsModelOf(input, mo, msg);
+  const reach = reachOf(input, mo, via.on);
+  const walk = walkOf(input, mo, via, reach);
   const ch = choicesOf(input, mo, msg);
   const words = composerWords(input, mo, msg, sl);
   const ready = !!mo.trig && !!msg.tpl && sl.missing < 0 && !input.busy && (!mo.onList || !!mo.list);
@@ -317,7 +456,9 @@ export function composerModel(input: ModelIn) {
     ...mo,
     ...msg,
     ...sl,
+    ...via,
     ...reach,
+    ...walk,
     ...ch,
     ...words,
     ready,

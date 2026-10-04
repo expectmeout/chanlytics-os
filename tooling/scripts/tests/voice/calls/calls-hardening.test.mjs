@@ -166,7 +166,7 @@ test("Live says only what is true about a silent 'ongoing' row", async () => {
     "a live call nobody has heard from says what is being done about it, and by whom",
   );
   const talking = draw({ ...onTheLine, transcript_object: turns });
-  assert.match(textOf(talking), /Transcript · as the phone provider sends it/, "turns stream now");
+  assert.match(textOf(talking), /Live transcript/, "turns stream now");
   assert.ok(textOf(talking).includes("Is anyone free on Thursday?"), "and are drawn as they come");
   const seen = [
     quiet,

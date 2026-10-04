@@ -23,6 +23,8 @@ export {
   markProcessed,
   recordOutbound,
   resolveOutboundTarget,
+  resolveOutboundTargetForContact,
+  wireRowOf,
   countSentToday,
   recordStatusByExternalId,
   recordEchoAndPause,
@@ -49,6 +51,16 @@ export {
   suppressEmailOf,
 } from "./repositories/email";
 export type { MailboxRow, IngestEmailParams, InboundEmailFacts } from "./repositories/email";
+export {
+  emailOffersPause,
+  pauseEmailOffers,
+  emailOfferCounts,
+  setEmailOffersYes,
+  setEmailUnsubscribed,
+  stopAllMessages,
+  offersEmailReach,
+} from "./repositories/campaigns/email-offers";
+export type { Unsubscribed } from "./repositories/campaigns/email-offers";
 export {
   sendingDomainsOf,
   sendingDomainOf,
@@ -174,6 +186,15 @@ export type {
 } from "./repositories/reach-out-sheet";
 export { forgetNotification, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
 export { resolveChannelDetailed, resolveChannel } from "./repositories/routing";
+export {
+  whatsappChannelConfig,
+  textLineFacts,
+  playbookChannels,
+  queuedRecipients,
+  runGoesByOthers,
+  campaignMonthSent,
+  holdRecipients,
+} from "./repositories/campaigns/campaign-channels";
 export type { RoutedChannel, ChannelLookup } from "./repositories/routing";
 export {
   ingestCall,
@@ -219,8 +240,17 @@ export { readJobToRequeue, hasNewerCopy, assembleBroadcast } from "./jobs";
 export type { JobToRequeue } from "./jobs";
 export { claimControl, releaseControl, CALL_CONTROL_S } from "./repositories/control";
 export type { ControlHolder, ControlOutcome } from "./repositories/control";
-export { templatesFor, templateIdOf, templatesNamed, templateStatusOf } from "./repositories/templates";
-export type { TemplateRow } from "./repositories/templates";
+export {
+  templatesFor,
+  templateIdOf,
+  templatesNamed,
+  templateStatusOf,
+  messageSlots,
+  ownVersionsFiled,
+  saveTemplateVersion,
+  removeTemplateVersion,
+} from "./repositories/templates";
+export type { TemplateRow, VersionRef } from "./repositories/templates";
 export {
   getTenantConfig,
   putTenantConfig,

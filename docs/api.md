@@ -8,7 +8,7 @@ the workspace's money, and the fields it takes. A workspace-scoped route names i
 reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a
 stale copy.
 
-208 handlers in 46 domains.
+210 handlers in 46 domains.
 
 ## activity
 
@@ -1593,6 +1593,24 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/templates/sync/route.ts`).
+
+### `POST /api/v1/templates/versions`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `playbook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `name` | string | yes | at least 1 characters |
+| `language` | string | yes |  |
+| `channel` | one of `"email"`, `"sms"` | yes |  |
+| `subject` | string or null | no |  |
+| `body` | string | yes |  |
+
+### `DELETE /api/v1/templates/versions/[id]`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/templates/versions/[id]/route.ts`).
 
 ## today
 

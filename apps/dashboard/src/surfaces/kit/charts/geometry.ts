@@ -4,6 +4,7 @@
  * the words a point says when the page gives none. Nothing here touches the document.
  */
 import type { CSSProperties } from "react";
+import { durationWords } from "@chanlytics/contracts";
 
 /** One series: a label and a colour token, and how its key is drawn in a legend (a rect for bars, a line for lines). */
 export interface ChartSeries {
@@ -55,12 +56,10 @@ export function ckNiceSeconds(max: number, count = 3) {
   return { max: top, step, ticks };
 }
 
-// An axis tick in seconds. Ticks are whole steps of the list above, so this never meets a value fmtSeconds would
-// round differently; a data value is always said by contracts' fmtSeconds, never by this.
+// An axis tick in seconds: said by the same words as every other duration (contracts' durationWords), so a tick and a
+// data value never read differently.
 export function ckSecondsLabel(s: number): string {
-  if (s < 60) return `${s}s`;
-  if (s < 3600) return s % 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s / 60}m`;
-  return s % 3600 ? `${Math.floor(s / 3600)}h ${Math.round((s % 3600) / 60)}m` : `${s / 3600}h`;
+  return durationWords(s);
 }
 
 type Point = [number, number];

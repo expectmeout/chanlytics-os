@@ -2,7 +2,8 @@
  * The kit's menu (kit.css, "MoreMenu"; docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4 and step 2.5):
  * the one action menu, opened by a control of the page's (the kit's Button): its items in groups, a line between
  * two groups and a group's heading over it; an item's glyph, its words, a second line or a word at its end; the act
- * that destroys in red; an item that opens a page of its own a link (the shell's "a door is a link"); and a set the
+ * that destroys in red; an item that opens a page of its own a link (the shell's "a door is a link"); an item a role
+ * refuses (the honesty gate, `gate`), which stays in the menu, says why when pressed and leaves it open; and a set the
  * page chooses one of, the tick beside the one chosen.
  *
  * Its behaviour is Base UI's Menu (`@base-ui/react/menu`, the plan's decision 15): the arrows walk the items and
@@ -10,6 +11,8 @@
  * back to its control; the page behind holds still while it is open. It hangs under its control from the edge
  * `align` names, and turns over it where the window has no room below, placed by Base UI against the window in a
  * portal on the document's body, where no pane can cut it off or hold it under a blur. The kit writes none of it.
+ * Under 900px it is the phone's action sheet: the same menu, from the bottom edge over the page (kit.css), on a layer
+ * that a press outside closes it through.
  *
  * It draws what the gallery's Menu family draws (tooling/scripts/e2e-harness/kit-gallery.mjs), which
  * e2e/kit/kit-behaves.spec.ts holds to it in a browser. `className` is for the page's layout, and comes last; the
@@ -33,8 +36,15 @@ const itemClasses = variants({ base: "more-item", variants: { tone: { danger: "d
 /** What an item says: its words, which typing finds, a glyph before them, and a second line or a word at its end. */
 type MenuWords = { label: string; glyph?: ReactElement; meta?: ReactNode; hint?: ReactNode };
 
+/**
+ * What an item says on hover (`title`), and the honesty gate's props where a role may not press it (`gate`:
+ * window.gate(...)'s, spread after the item's act). A refused item stays in the menu and keeps it open.
+ */
+type MenuGate = { title?: string; gate?: Record<string, unknown> };
+
 /** An item: words that act where they stand, red where the act destroys, or a door to a page of its own. */
 export type MenuItem = MenuWords &
+  MenuGate &
   (
     | { onSelect: () => void; tone?: "danger"; disabled?: boolean; href?: undefined }
     | { href: string; onSelect?: undefined; tone?: undefined; disabled?: undefined }
@@ -88,14 +98,19 @@ function Item({ item }: { item: MenuItem }) {
     );
   }
   const act = item.onSelect;
+  // A refused item is pressed, so that it can say why: it is not `disabled`, which no press reaches, and the menu stays.
+  const refused = item.gate?.["aria-disabled"] === true || item.gate?.["aria-disabled"] === "true";
   return (
     <BaseMenu.Item
       className={itemClasses({ tone: item.tone })}
       nativeButton
       render={<button type="button" />}
       label={item.label}
+      title={item.title}
       disabled={item.disabled}
+      closeOnClick={!refused}
       onClick={() => act()}
+      {...item.gate}
     >
       {itemContent(item)}
     </BaseMenu.Item>
@@ -145,6 +160,7 @@ export function Menu({ trigger, groups, align = "end", label, className, ref }: 
     <BaseMenu.Root>
       <BaseMenu.Trigger render={trigger} />
       <BaseMenu.Portal>
+        <BaseMenu.Backdrop className="more-backdrop" />
         <BaseMenu.Positioner className="pop-place" sideOffset={MENU_GAP_PX} align={align}>
           <BaseMenu.Popup ref={ref} className={cx(menuClasses({ align }), className)} aria-label={label}>
             {groups.map((group, at) => (

@@ -74,6 +74,9 @@ export function composerActs(a: ActsIn) {
       ...(m.onList ? { policy_class: f.cls } : {}),
       template_id: tpl.id,
       params: m.specs,
+      // The channels it goes by: every one ticked that its kind of message may go by, open now or not (a run holds the
+      // people on one that is not until it is). None names none, and it goes by WhatsApp alone, as it always did.
+      ...(m.kept.length > 0 ? { channels: m.kept } : {}),
       run_hour: Number(f.hour),
       cap_per_run: m.capN,
       gap_days: Number(f.gap),

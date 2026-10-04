@@ -645,6 +645,7 @@ tooling/scripts/
   mobile/
   ops/
   tests/
+  voice/
 e2e/
   auth/
   campaigns/

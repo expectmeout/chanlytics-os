@@ -8,7 +8,8 @@ import { type AskedPurpose, purposeOfPlaybook } from "../consent/consent";
 import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "../deals/sells-by";
 import { type DealPaceVM, waitingOnProposal } from "../deals/deal-waits";
 import type { PersonRowVM } from "../people/person-row";
-import { whyNotReceive } from "../people/person-consent";
+import { readyOrWhatsApp } from "../broadcasts/reach-any";
+import { type ChannelsReady, DEFAULT_CAMPAIGN_CHANNELS, type ReachRow, reachFor } from "../broadcasts/reach-for";
 import { runDueNow } from "./playbook-schedule";
 import { DAY_MS, sweepTickAtOrAfter } from "./playbook-time";
 import { PLAYBOOK_BREATH_MS } from "./playbook-triggers";
@@ -62,6 +63,11 @@ export interface FollowUpFactsDto {
   asks: boolean;
   /** What its template is for, as the send judges a yes (consent purposeOfTemplate, from Meta's category). */
   purpose: AskedPurpose;
+  /**
+   * The channels its playbook ticks (step 3). Absent, as on a read from before the channels were: WhatsApp alone, as every
+   * playbook went (DEFAULT_CAMPAIGN_CHANNELS). Who it reaches is judged over these (followUpStandOf).
+   */
+  channels?: readonly string[];
   /** Contact id -> when their follow-up went. */
   had: Record<string, string>;
   /** Contact id -> when the run they are in, on its way, goes. */
@@ -94,14 +100,39 @@ export function followUpIsFor(r: { deal: { sinceMs: number | null } | null }, at
  * Why a playbook's run sends nothing today whoever it would reach, before anyone is drawn: its template is not one
  * Meta approved, or its number is one Meta will not let send. Core's run stops on it, and the follow-up's words on
  * People and Today ask it too (0006), so they never promise a run that stops. Null: it may send.
+ *
+ * `byOthers`: the playbook also ticks email or text, which a WhatsApp template does not gate. Its template then stops
+ * the run only once the people are drawn and none of them is on email or text (core run-playbook): until then the run
+ * goes on for them, and WhatsApp's people are held (the number's health still stops it, as it does the whole run).
  */
 export function playbookRunStop(o: {
   templateStatus: string | null;
   canSend: boolean;
+  byOthers?: boolean;
 }): "template_not_approved" | "number_flagged" | null {
-  if (o.templateStatus !== "approved") return "template_not_approved";
+  if (o.templateStatus !== "approved" && !o.byOthers) return "template_not_approved";
   if (!o.canSend) return "number_flagged";
   return null;
+}
+
+/**
+ * The same stop for a playbook as its ticks say it: which channels it goes by, the template Meta has, and whether the
+ * WhatsApp number can send (false for none). THE one reading of how the ticks change the stop, so the run (core
+ * run-playbook) and the follow-up's words on People and Today (the dashboard's followUpFacts) never read it twice:
+ * the number's health stops the run only when it ticks WhatsApp (a run that does not tick it never asks), and a template
+ * Meta does not approve stops it only when WhatsApp is all it goes by (`byOthers`: it also ticks email or text, so the
+ * run goes on for them).
+ */
+export function playbookStopBy(o: {
+  channels: readonly string[];
+  templateStatus: string | null;
+  numberCanSend: boolean;
+}): "template_not_approved" | "number_flagged" | null {
+  return playbookRunStop({
+    templateStatus: o.templateStatus,
+    canSend: !o.channels.includes("whatsapp") || o.numberCanSend,
+    byOthers: o.channels.some((c) => c !== "whatsapp"),
+  });
 }
 
 /**
@@ -132,23 +163,30 @@ export function followUpRunAt(
 
 /**
  * Where one person stands with the follow-up (0006), by its run's own rules: named (followUpNames), with the yes to
- * hearing from the business and a number (whyNotReceive), and whether a follow-up for this proposal went or is in a
- * run already made. Otherwise in a run to come: the next, or the first after the week's breath lets them go. Null
- * for anyone it will not reach: not waiting, no link, no yes, no number, or asked to stop. The cap is not counted: a
- * run over it reaches the rest the day after.
+ * hearing from the business and a way to reach them on a channel the follow-up goes by and the workspace can send on
+ * now (reachFor), and whether a follow-up for this proposal went or is in a run already made. Otherwise in a run to
+ * come: the next, or the first after the week's breath lets them go. Null for anyone it will not reach: not waiting,
+ * no link, no yes, no way to reach them, or asked to stop. The cap is not counted: a run over it reaches the rest the
+ * day after.
  */
 export function followUpStandOf(
-  r: Pick<PersonRowVM, "id" | "deal" | "askedMs" | "consent" | "phone">,
+  r: Pick<PersonRowVM, "id" | "deal" | "askedMs"> & ReachRow,
   f: FollowUpFactsDto,
   tz: string,
   nowMs: number,
   pace: Pick<DealPaceVM, "waitDays"> | null,
+  /**
+   * What the workspace can send on now (channels-ready.ts), which the follow-up's channels are judged against; null
+   * where it could not be read (readyOrWhatsApp). Required, as the pace is: no caller may leave the workspace out.
+   */
+  ready: ChannelsReady | null,
 ): FollowUpStand | null {
   if (!followUpNames(r, nowMs, pace)) return null;
   // The run enrols on its class's yes; the send then judges its template's (deliver.ts): a follow-up Meta filed as
   // marketing reaches only whoever said yes to offers too.
-  if (whyNotReceive(r, purposeOfPlaybook("follow_up")) !== null) return null;
-  if (f.purpose === "marketing" && whyNotReceive(r, "marketing") !== null) return null;
+  const how = { channels: f.channels ?? DEFAULT_CAMPAIGN_CHANNELS, ready: readyOrWhatsApp(ready) };
+  if (reachFor(r, purposeOfPlaybook("follow_up"), how).channel === null) return null;
+  if (f.purpose === "marketing" && reachFor(r, "marketing", how).channel === null) return null;
   const when = (m: Record<string, string>): number | null => {
     const ms = m[r.id] ? Date.parse(m[r.id]) : Number.NaN;
     return Number.isFinite(ms) ? ms : null;

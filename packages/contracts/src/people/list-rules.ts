@@ -236,7 +236,7 @@ export type ListRule = { v?: 2; all: ListCondition[] };
 
 /**
  * Version 1's spellings read as version 2's (decision 0009): `offers_yes` was the bare answer to offers and is now
- * said_yes to offers, the consent rule's own answer (saidYesTo). Nothing is written in version 1 again.
+ * said_yes to offers, the answer they gave (reach-any.ts answeredYes). Nothing is written in version 1 again.
  */
 function upgradeFact(raw: unknown): unknown {
   if (!raw || typeof raw !== "object") return raw;

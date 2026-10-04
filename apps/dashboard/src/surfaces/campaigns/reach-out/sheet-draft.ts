@@ -1,15 +1,10 @@
 /**
  * The reach-out sheet's state (moved from legacy/pages/reach-out/reach-out-sheet.jsx, decision 0015): the draft, kept in
- * the tab while it is changed, the caret of the field last focused, and the search's reach.
+ * the tab while it is changed, and the search's reach. Where a slot goes in is each step's own (sheet-fields.tsx: the
+ * editor's seats), not the sheet's.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import type {
-  ReachOutChainDto,
-  ReachOutDraft,
-  ReachOutDraftStep,
-  ReachOutReachDto,
-  ReachOutSlot,
-} from "@chanlytics/contracts";
+import { useEffect, useMemo, useState } from "react";
+import type { ReachOutChainDto, ReachOutDraft, ReachOutDraftStep, ReachOutReachDto } from "@chanlytics/contracts";
 import { meNow } from "../../legacy-verbs";
 import { tabDraft, useLegacyUnsavedWork } from "../../legacy-parts";
 import { reachOuts } from "./surface";
@@ -23,14 +18,7 @@ interface DraftOptions {
   onClose: () => void;
 }
 
-/** Where the caret was in a step's words, when a field last took focus or a selection. */
-interface Caret {
-  n: number;
-  field: "subject" | "body";
-  at: number | null;
-}
-
-/** The sheet's state: the draft (kept in the tab while changed), the caret of the field last focused, the reach. */
+/** The sheet's state: the draft (kept in the tab while changed) and the reach. */
 export function useReachOutDraft(W: Words, { search, chain, includeUnconfirmed, onClose }: DraftOptions) {
   const me: NonNullable<ReturnType<typeof meNow>> = meNow() || {};
   const opened = useMemo(
@@ -55,7 +43,6 @@ export function useReachOutDraft(W: Words, { search, chain, includeUnconfirmed, 
     dirty: JSON.stringify(draft) !== JSON.stringify(opened),
     onLeave: onClose,
   });
-  const caret = useRef<Caret>({ n: 0, field: "body", at: null });
   const [reach, setReach] = useState<ReachOutReachDto | null>(null);
   const [, setLanded] = useState(0);
   useEffect(() => {
@@ -76,22 +63,5 @@ export function useReachOutDraft(W: Words, { search, chain, includeUnconfirmed, 
   }, [search.id]);
   const editStep = (n: number, patch: Partial<ReachOutDraftStep>) =>
     setDraft((d) => ({ ...d, steps: d.steps.map((s, i) => (i === n ? { ...s, ...patch } : s)) }));
-  const slot = (s: ReachOutSlot) => {
-    const c = caret.current;
-    const step = draft.steps[c.n] || draft.steps[0];
-    const put = W.insertSlotAt(String(step[c.field] || ""), c.at, s);
-    caret.current = { ...c, at: put.caret };
-    editStep(c.n, { [c.field]: put.text });
-  };
-  return {
-    draft,
-    setDraft,
-    work,
-    reach,
-    editStep,
-    slot,
-    focus: (n: number, field: Caret["field"], at: number | null) => {
-      caret.current = { n, field, at };
-    },
-  };
+  return { draft, setDraft, work, reach, editStep };
 }

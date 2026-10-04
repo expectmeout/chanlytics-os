@@ -82,6 +82,8 @@ export interface CampaignSourceVM {
 export interface CampaignTotals {
   sent: number;
   delivered: number;
+  /** WhatsApp's read receipts over the period (Campaigns' home draws them in its funnel). */
+  read: number;
   replied: number;
   sends: number;
   optIns: number;
@@ -125,6 +127,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
   const tot = {
     sent: sumOf(current.map((d) => d.sent)),
     delivered: sumOf(current.map((d) => d.delivered)),
+    read: sumOf(current.map((d) => d.read)),
     replied: sumOf(current.map((d) => d.replied)),
     optIns: sumOf(current.map((d) => d.opt_ins)),
     optOuts: sumOf(current.map((d) => d.opt_outs)),

@@ -115,6 +115,17 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
   { entry: "menu-kit", bring: (p) => p.getByTestId("menu-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-set", bring: (p) => p.getByTestId("menu-set-open").click(), ready: ".more-menu" },
   { entry: "popover-kit", bring: (p) => p.getByTestId("popover-open").click(), ready: ".panel-pop" },
+  { entry: "datepicker-kit", bring: (p) => p.getByTestId("datepicker-open").click(), ready: ".date-pick" },
+  {
+    entry: "picker-kit",
+    bring: (p) => p.getByTestId("picker-open").click(),
+    ready: ".rec-combo-pop .rec-combo-note",
+  },
+  {
+    entry: "picker-kit-find",
+    bring: (p) => p.getByTestId("picker-find-open").click(),
+    ready: ".rec-combo-pop .rec-combo-input",
+  },
   { entry: "tooltip-kit", bring: (p) => p.getByTestId("tooltip-trigger").hover(), ready: ".ui-tip.show" },
   {
     entry: "select-kit",
@@ -132,8 +143,13 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
   { entry: "switch-kit", bring: async () => undefined, ready: ".rec-switch" },
   { entry: "segmented-kit", bring: async () => undefined, ready: ".rec-seg" },
   { entry: "segmented-kit-hints", bring: async () => undefined, ready: ".rec-seg[data-hints]" },
+  { entry: "subtabs", bring: async () => undefined, ready: '[data-entry="subtabs"] .subtabs' },
+  { entry: "subtabs-quiet", bring: async () => undefined, ready: '[data-entry="subtabs-quiet"] .subtabs[data-quiet]' },
+  { entry: "subtabs-dense", bring: async () => undefined, ready: '[data-entry="subtabs-dense"] .subtabs[data-dense]' },
+  { entry: "subtabs-glyph", bring: async () => undefined, ready: '[data-entry="subtabs-glyph"] .subtabs' },
   { entry: "field-kit", bring: async () => undefined, ready: ".rec-input-group" },
   { entry: "field-kit-wrong", bring: async () => undefined, ready: ".field-error" },
+  { entry: "field-kit-title", bring: async () => undefined, ready: ".rec-input-title" },
 ];
 
 /** The entry's static HTML, from the gallery's families. */
@@ -212,6 +228,14 @@ const escapeGivesFocusBack =
 const sheetEscape = escapeGivesFocusBack("the sheet", "sheet-open", "section.sheet");
 const menuEscape = escapeGivesFocusBack("the menu", "menu-open", ".more-menu");
 const popoverEscape = escapeGivesFocusBack("the popover", "popover-open", ".panel-pop");
+const datePickerEscape = escapeGivesFocusBack("the date picker", "datepicker-open", ".date-pick");
+// The Select keeps its list mounted once opened, closed and hidden: the open one is the one with data-open.
+const pickerEscape = escapeGivesFocusBack("the picker", "picker-open", ".rec-combo-pop[data-open] .rec-combo-note");
+const pickerFindEscape = escapeGivesFocusBack(
+  "the picker to search",
+  "picker-find-open",
+  ".rec-combo-pop .rec-combo-input",
+);
 
 /** Tab and Shift+Tab walk the sheet's own controls and never leave it. */
 const tabStaysInSheet: Check = async (page) => {
@@ -370,6 +394,52 @@ const popoverPresses: Check = async (page) => {
   return out;
 };
 
+/**
+ * The date picker opens on the day it holds, one tab stop on it; the arrows walk the days, a week for up and down, Page
+ * Down the months and its title follows; Enter chooses the day it stands on, closes it and gives focus back to its
+ * control; and Today chooses today.
+ */
+const datePickerKeys: Check = async (page) => {
+  const out: string[] = [];
+  const day = (id: string) => page.getByTestId(id).innerText();
+  await page.getByTestId("datepicker-open").click();
+  if (!(await met(page, () => !!document.querySelector(".date-pick"), null)))
+    return ["the date picker: a press did not open it"];
+  const stops = await page.evaluate(() =>
+    Array.from(document.querySelectorAll(".date-pick-day"))
+      .filter((b) => (b as HTMLElement).tabIndex === 0)
+      .map((b) => b.getAttribute("aria-label")),
+  );
+  if (stops.length !== 1 || !String(stops[0]).includes("October 2, 2026"))
+    out.push(`the date picker: its tab stop is on ${JSON.stringify(stops)}, not the day it holds (October 2, 2026)`);
+  if (!(await met(page, () => !!document.activeElement?.closest(".date-pick-grid"), null)))
+    out.push("the date picker: focus did not go to the day it holds as it opened");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowDown");
+  const walked = await focused(page);
+  if (!walked.includes("October 10, 2026"))
+    out.push(`the date picker: a right and a down arrow from October 2 reached ${walked}, not October 10`);
+  await page.keyboard.press("PageDown");
+  const title = await page.locator(".date-pick-title").innerText();
+  const month = await focused(page);
+  if (title !== "November 2026" || !month.includes("November 10, 2026"))
+    out.push(`the date picker: Page Down showed "${title}" with focus on ${month}, not November 2026 on the 10th`);
+  await page.keyboard.press("Enter");
+  if (!(await met(page, () => !document.querySelector(".date-pick"), null))) {
+    out.push("the date picker: Enter on a day left it open");
+    await page.keyboard.press("Escape");
+    return out;
+  }
+  if ((await day("datepicker-day")) !== "2026-11-10")
+    out.push("the date picker: Enter did not choose the day it stood on");
+  const back = await focused(page);
+  if (back !== "datepicker-open") out.push(`the date picker: focus went to ${back}, not back to its control`);
+  await page.getByTestId("datepicker-open").click();
+  await page.getByRole("button", { name: "Today" }).click();
+  if ((await day("datepicker-day")) !== "2026-10-02") out.push("the date picker: Today did not choose today");
+  return out;
+};
+
 /** The select opens, is walked by the arrows and chosen from by Enter or a press, and gives focus back to its box. */
 const selectChooses: Check = async (page) => {
   const out: string[] = [];
@@ -506,6 +576,70 @@ const segmentedArrows: Check = async (page) => {
     if (!ok)
       out.push(`the segmented control: ${key} chose ${JSON.stringify(await checked())}, not "${want}" with focus`);
   }
+  return out;
+};
+
+/**
+ * The sub-tabs: the arrows walk the tabs with focus, wrapping, and pick none (a pick can move the address or read a
+ * list), Enter picks the one reached, and the bar under the picked tab moves to it.
+ */
+const subTabsKeys: Check = async (page) => {
+  const out: string[] = [];
+  const here = '[data-entry="subtabs"]';
+  const state = () =>
+    page.evaluate((sel) => {
+      const list = document.querySelector(`${sel} [role="tablist"]`);
+      const picked = list?.querySelector('[aria-selected="true"]');
+      const focus = document.activeElement;
+      return {
+        picked: picked?.textContent ?? "",
+        focus: focus?.textContent ?? "",
+        inList: !!list && list.contains(focus),
+      };
+    }, here);
+  await page.locator(`${here} [aria-selected="true"]`).focus();
+  for (const [key, focus, picked] of [
+    ["ArrowRight", "Handled", "Needs you"],
+    ["ArrowRight", "Snoozed", "Needs you"],
+    ["ArrowRight", "Needs you", "Needs you"],
+    ["ArrowLeft", "Snoozed", "Needs you"],
+  ] as const) {
+    await page.keyboard.press(key);
+    const ok = await met(
+      page,
+      ([sel, f]) => {
+        const list = document.querySelector(`${sel} [role="tablist"]`);
+        return (
+          !!list && list.contains(document.activeElement) && (document.activeElement?.textContent ?? "").startsWith(f)
+        );
+      },
+      [here, focus] as [string, string],
+    );
+    const now = await state();
+    if (!ok) out.push(`the sub-tabs: ${key} left focus on ${JSON.stringify(now.focus)}, not "${focus}"`);
+    if (!now.picked.startsWith(picked))
+      out.push(`the sub-tabs: ${key} picked ${JSON.stringify(now.picked)}, and should pick nothing`);
+  }
+  await page.keyboard.press("Enter");
+  const picked = await met(
+    page,
+    (sel) => !!document.querySelector(`${sel} [aria-selected="true"]`)?.textContent?.startsWith("Snoozed"),
+    here,
+  );
+  if (!picked) out.push(`the sub-tabs: Enter did not pick the tab reached (${JSON.stringify((await state()).picked)})`);
+  // The bar slides to the picked tab on the page's ease (220 ms): it stands under it once the slide is done.
+  const under = await met(
+    page,
+    (sel) => {
+      const list = document.querySelector(`${sel} [role="tablist"]`);
+      const tab = list?.querySelector('[aria-selected="true"]');
+      const mark = list?.querySelector(".subtab-bar");
+      if (!tab || !mark) return false;
+      return Math.abs(mark.getBoundingClientRect().x - tab.getBoundingClientRect().x) <= 2;
+    },
+    here,
+  );
+  if (!under) out.push("the sub-tabs: the bar did not come to stand under the picked tab");
   return out;
 };
 
@@ -660,16 +794,21 @@ const CHECKS: [string, Check][] = [
   ["Escape closes the sheet, and focus goes back", sheetEscape],
   ["Escape closes the menu, and focus goes back", menuEscape],
   ["Escape closes the popover, and focus goes back", popoverEscape],
+  ["Escape closes the date picker, and focus goes back", datePickerEscape],
+  ["Escape closes the picker, and focus goes back to its token", pickerEscape],
+  ["Escape closes the picker to search, and focus goes back to its token", pickerFindEscape],
   ["Tab stays inside the sheet", tabStaysInSheet],
   ["the page behind the sheet holds still", pageHoldsStill],
   ["the menu's arrows and typing", menuKeys],
   ["the menu acts, opens a page as a link, and closes for a press outside", menuActs],
   ["the popover stays for a press inside and closes for one outside", popoverPresses],
+  ["the date picker's keys walk its days and choose", datePickerKeys],
   ["the select opens, is walked, and chooses", selectChooses],
   ["the sheet closes for its Close and its wash", sheetCloses],
   ["the sheet, an option and a select are named and described", namesAreWired],
   ["a switch answers Space", switchSpace],
   ["the segmented control answers the arrows", segmentedArrows],
+  ["the sub-tabs answer the arrows and Enter, and the bar follows the pick", subTabsKeys],
   ["the combobox narrows and chooses by the keys", comboboxKeys],
   ["the tooltip shows on hover and on focus, and hides on Escape", tooltipShows],
   ["a toast is heard and goes on its ×", toastArrives],
@@ -727,6 +866,12 @@ const POPS: { name: string; bring: (page: Page) => Promise<void>; root: string; 
     control: '[data-testid="popover-open"]',
   },
   {
+    name: "the date picker",
+    bring: (p) => p.getByTestId("datepicker-open").click(),
+    root: ".pop-place",
+    control: '[data-testid="datepicker-open"]',
+  },
+  {
     name: "the select's list",
     bring: (p) => p.locator('[data-entry="select-kit"] .rec-select').click(),
     root: ".pop-place:not([hidden])",
@@ -773,11 +918,14 @@ async function heldByNothing(page: Page, pop: (typeof POPS)[number]): Promise<st
         const a = document.querySelector(root)!.getBoundingClientRect();
         const b = document.querySelector(control)!.getBoundingClientRect();
         const gap = Math.min(Math.abs(a.top - b.bottom), Math.abs(b.top - a.bottom));
-        return { gap, reach: b.height * 1.5 + 12 };
+        // A phone's menu is the action sheet, on the window's bottom edge: it stands by its thumb, not its control.
+        const sheet = Math.abs(a.bottom - window.innerHeight) < 2 && a.width >= window.innerWidth - 2;
+        return { gap, reach: b.height * 1.5 + 12, sheet };
       },
       { root: pop.root, control: pop.control },
     );
-    if (apart.gap > apart.reach) out.push(`${pop.name}: stands ${Math.round(apart.gap)}px from its control`);
+    if (!apart.sheet && apart.gap > apart.reach)
+      out.push(`${pop.name}: stands ${Math.round(apart.gap)}px from its control`);
   }
   return out;
 }
@@ -917,7 +1065,7 @@ test("the behaviour checks name each fault planted: Escape, Tab, the scroll, the
   }
 });
 
-test("the other checks name each fault planted: the menu's keys and acts, the popover's press and focus, the select, the sheet's Close, the names, Space, the arrows, the toast", async ({
+test("the other checks name each fault planted: the menu's keys and acts, the popover's press and focus, the date picker's keys, the select, the sheet's Close, the names, Space, the arrows, the toast", async ({
   browser,
   baseURL,
 }) => {
@@ -961,6 +1109,16 @@ test("the other checks name each fault planted: the menu's keys and acts, the po
     await show(page);
     await swallow("Enter");
     expect(await menuActs(page, run)).toContain("the menu: Enter on the first item did not choose it");
+
+    // Page Down swallowed: the date picker's month stays where it opened, and the key moves nothing.
+    await show(page);
+    await swallow("PageDown");
+    expect((await datePickerKeys(page, run))[0]).toMatch(/^the date picker: Page Down showed "October 2026"/);
+
+    // Enter swallowed: the day it stands on is never chosen.
+    await show(page);
+    await swallow("Enter");
+    expect(await datePickerKeys(page, run)).toContain("the date picker: Enter on a day left it open");
 
     // A press outside swallowed before the popover hears it: it stays open.
     await show(page);
@@ -1024,6 +1182,11 @@ test("the other checks name each fault planted: the menu's keys and acts, the po
     await show(page);
     await swallow("ArrowRight");
     expect((await segmentedArrows(page, run))[0]).toMatch(/^the segmented control: ArrowRight chose /);
+
+    // The arrows swallowed: the sub-tabs' focus goes nowhere.
+    await show(page);
+    await swallow("ArrowRight");
+    expect((await subTabsKeys(page, run))[0]).toMatch(/^the sub-tabs: ArrowRight left focus on /);
 
     // The toast's live region taken off: nothing a screen reader hears.
     await show(page);

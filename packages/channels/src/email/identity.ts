@@ -50,6 +50,35 @@ export function sendsAs(
 }
 
 /**
+ * What the mailbox sends OFFERS as (One message, every channel, step 4; the spec's 4.6): From on the campaigns domain, so a
+ * complaint about an offer never touches the domain replies and visit messages leave from, and answered at the same reply
+ * routes as every other email, on the mail domain (the one that receives): a reply to an offer lands in the Inbox.
+ */
+export function sendsAsCampaigns(
+  mailbox: { local_part: string; reply_token: string; reply_token_prev: string | null },
+  campaignsDomain: string,
+  mailDomain: string,
+): EmailSendsAs {
+  return {
+    address: hostedAddress(mailbox.local_part, campaignsDomain),
+    replyRoutes: sendsAs(mailbox, mailDomain).replyRoutes,
+  };
+}
+
+/** The identity an offer is frozen with: the mailbox's name and local part on the campaigns domain, Reply-To its live reply route on the mail domain. */
+export function campaignsIdentity(
+  mailbox: { local_part: string; reply_token: string; from_name: string },
+  campaignsDomain: string,
+  mailDomain: string,
+): EmailIdentity {
+  return {
+    fromName: mailbox.from_name,
+    fromAddress: hostedAddress(mailbox.local_part, campaignsDomain),
+    replyTo: replyRouteAddress(mailbox.reply_token, mailDomain),
+  };
+}
+
+/**
  * What one of a workspace's own domains sends as (Reach out): From on the
  * workspace's domain, answered at the mailbox's own reply routes, so a reply
  * to a cold email lands in the same Inbox as every other. With cold reply

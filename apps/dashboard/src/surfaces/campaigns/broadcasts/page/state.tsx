@@ -5,6 +5,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HOUR_MS } from "@chanlytics/contracts";
+import { LinkButton } from "../../../kit/link-button/link-button";
 import { navigate } from "../../../legacy-verbs";
 import { tabDraft } from "../../../legacy-parts";
 import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "../surface";
@@ -35,7 +36,7 @@ export function useBcOffered(data: BroadcastsSurface) {
 }
 
 // Who a send goes to, and whether the send screen is open: the send the tab kept, and the list a link names.
-export function useBcList(initialSegment: string | null, audiences: AudienceOption[]) {
+export function useBcList(initialSegment: string | null, audiences: AudienceOption[], opened = false) {
   // A send half-written when the page was left: the tab kept it (useUnsavedWork), and the screen opens again on it,
   // with its list, its message and its words -- unless a link names a list, which wins the list.
   // What the tab kept is what `useUnsavedWork` was given as its value (BroadcastsReal), so it has that shape.
@@ -46,9 +47,10 @@ export function useBcList(initialSegment: string | null, audiences: AudienceOpti
     if (!initialSegment && kept && audiences.some((a) => bcKey(a) === kept.aud)) return kept.aud;
     return first ? bcKey(first) : "everyone:";
   });
-  // The composer is its own screen, opened by New broadcast -- and by a link that
-  // names a list ("Broadcast to this list" on People), which is asking to write one.
-  const [writing, setWriting] = useState(!!initialSegment || !!kept);
+  // The composer is its own screen, opened by New message (the home's sheet, which is the one door: `opened`) -- and by a link that
+  // names a list ("Message these people" on People), which is asking to write one.
+  // `opened`: Campaigns' home hosts the screen under New message and has it open from the first draw.
+  const [writing, setWriting] = useState(opened || !!initialSegment || !!kept);
   // The shell keeps this page mounted across its own links, so it follows them: a later link to a list picks that
   // list, and a link to a run, which names no list, leaves the audience where it was. Only a new link moves it: the
   // surface re-reading its audiences does not undo a choice made on the page.
@@ -128,12 +130,13 @@ export function useBcNow(data: BroadcastsSurface) {
   return now;
 }
 
-// A link lands on its run: its report brought into view when the page it replaced was scrolled past where it opens.
+// A link lands on its run: its row brought into view in the list (the report is the pane beside it, always in view), when
+// the list was scrolled past where it stands.
 export function useBcRunLanding(openId: string | null) {
   useEffect(() => {
     const el =
       openId && typeof document !== "undefined" && document.getElementById
-        ? document.getElementById(`bc-run-${openId}`)
+        ? document.getElementById(`bc-row-${openId}`)
         : null;
     if (!el || !el.getBoundingClientRect || !el.scrollIntoView) return;
     const at = el.getBoundingClientRect();
@@ -141,8 +144,15 @@ export function useBcRunLanding(openId: string | null) {
   }, [openId]);
 }
 
-// The yes: the section that gets it, open where the address or a press asks for it, and the send screen's door to it.
-export function useBcYes(initialYes: boolean, data: BroadcastsSurface, setWriting: Setter<boolean>) {
+// The yes: the section that gets it, open where the address or a press asks for it, and the send screen's door to it. `goes` is
+// where the door's press goes where the host of the screen moves the page itself (Campaigns' home: its sheet is an address, which
+// the door replaces with the section's); the page's own screen goes there as every link does.
+export function useBcYes(
+  initialYes: boolean,
+  data: BroadcastsSurface,
+  setWriting: Setter<boolean>,
+  goes: (route: string) => void = navigate,
+) {
   // broadcasts/get-yes: the section that answers "nobody has said yes to
   // offers", opened and brought into view -- it sits on the ledger under the runs,
   // folded to its one line, where a person sent here to find the QR would otherwise
@@ -172,19 +182,25 @@ export function useBcYes(initialYes: boolean, data: BroadcastsSurface, setWritin
   const toYes = () => {
     setWriting(false);
     setYesAsked((n) => n + 1);
-    navigate(data.getYes);
+    goes(data.getYes);
   };
   // That door, in the sentence that says nobody has the yes: drawn when the
   // ledger draws the card, which takes a number to put in the QR. The sentence
   // pointed at "the phrase and QR below", and nothing is below the send.
+  const yesLink =
+    data.optIn && data.optIn.link && data.getYes ? (
+      <LinkButton onClick={toYes} data-testid="bc-held-yes">
+        Get their yes with the phrase and the QR
+      </LinkButton>
+    ) : null;
   const yesDoor =
     data.optIn && data.optIn.link && data.getYes ? (
       <>
         , or{" "}
-        <button type="button" className="bc-nobody-door" onClick={toYes} data-testid="bc-nobody-door">
+        <LinkButton className="bc-nobody-door" onClick={toYes} data-testid="bc-nobody-door">
           get their yes with the phrase and the QR
-        </button>
+        </LinkButton>
       </>
     ) : null;
-  return { yesOpen, setYesOpen, yesDoor };
+  return { yesOpen, setYesOpen, yesDoor, yesLink };
 }

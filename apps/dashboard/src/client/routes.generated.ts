@@ -18,6 +18,7 @@ export const ROUTES = {
   "DELETE team/[id]": { method: "DELETE", path: "/api/v1/team/[id]" },
   "DELETE team/partner": { method: "DELETE", path: "/api/v1/team/partner" },
   "DELETE templates/[id]": { method: "DELETE", path: "/api/v1/templates/[id]" },
+  "DELETE templates/versions/[id]": { method: "DELETE", path: "/api/v1/templates/versions/[id]" },
   "GET activity": { method: "GET", path: "/api/v1/activity" },
   "GET ask/openings": { method: "GET", path: "/api/v1/ask/openings" },
   "GET ask/threads": { method: "GET", path: "/api/v1/ask/threads" },
@@ -187,6 +188,7 @@ export const ROUTES = {
   "POST templates/draft": { method: "POST", path: "/api/v1/templates/draft" },
   "POST templates/starter": { method: "POST", path: "/api/v1/templates/starter" },
   "POST templates/sync": { method: "POST", path: "/api/v1/templates/sync" },
+  "POST templates/versions": { method: "POST", path: "/api/v1/templates/versions" },
   "POST vitals": { method: "POST", path: "/api/v1/vitals" },
   "POST workspaces/create": { method: "POST", path: "/api/v1/workspaces/create" },
   "PUT business-record": { method: "PUT", path: "/api/v1/business-record" },
@@ -230,6 +232,7 @@ export type Routes = {
   "DELETE team/[id]": typeof import("../../app/api/v1/team/[id]/route").DELETE;
   "DELETE team/partner": typeof import("../../app/api/v1/team/partner/route").DELETE;
   "DELETE templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").DELETE;
+  "DELETE templates/versions/[id]": typeof import("../../app/api/v1/templates/versions/[id]/route").DELETE;
   "GET activity": typeof import("../../app/api/v1/activity/route").GET;
   "GET ask/openings": typeof import("../../app/api/v1/ask/openings/route").GET;
   "GET ask/threads": typeof import("../../app/api/v1/ask/threads/route").GET;
@@ -399,6 +402,7 @@ export type Routes = {
   "POST templates/draft": typeof import("../../app/api/v1/templates/draft/route").POST;
   "POST templates/starter": typeof import("../../app/api/v1/templates/starter/route").POST;
   "POST templates/sync": typeof import("../../app/api/v1/templates/sync/route").POST;
+  "POST templates/versions": typeof import("../../app/api/v1/templates/versions/route").POST;
   "POST vitals": typeof import("../../app/api/v1/vitals/route").POST;
   "POST workspaces/create": typeof import("../../app/api/v1/workspaces/create/route").POST;
   "PUT business-record": typeof import("../../app/api/v1/business-record/route").PUT;

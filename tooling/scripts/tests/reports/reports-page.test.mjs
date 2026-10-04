@@ -11,7 +11,14 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
-import { toReportVM, toCampaignReportVM, toBookingReportVM, toDealReportVM, reportFacts } from "@chanlytics/contracts";
+import {
+  toReportVM,
+  toCampaignReportVM,
+  toBookingReportVM,
+  toDealReportVM,
+  reportFacts,
+  REPORT_CHANNELS,
+} from "@chanlytics/contracts";
 import {
   installLegacyReact,
   fresh,
@@ -31,6 +38,7 @@ const flashed = [];
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 const S = "../../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
+const { RPT_CHANNELS } = await import(`${S}/surfaces/reports/series.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
 // The shell's doors, which the surface reaches through the bridge's verbs (surfaces/legacy-verbs.ts).
@@ -237,8 +245,15 @@ const DEALS = toDealReportVM(
   }),
   "7 days",
 );
-const surface = ({ report = {}, campaigns = campaignDto(), booking = CALENDAR, deals = NO_DEALS } = {}) => {
-  const vm = toReportVM(reportDto(report));
+/** `profile` is the workspace's hours as the surface reads them: null could not be read, `{}` was read and holds none. */
+const surface = ({
+  report = {},
+  campaigns = campaignDto(),
+  booking = CALENDAR,
+  deals = NO_DEALS,
+  profile = null,
+} = {}) => {
+  const vm = toReportVM(reportDto(report), { profile });
   const cm = campaigns ? toCampaignReportVM(campaigns) : null;
   return {
     vm,
@@ -330,7 +345,7 @@ test("Worth knowing: the bridge's facts in their order, one line each, a row wit
   assert.equal(textOf(facts[0]), "1 message has no reply yetOpen the Inbox");
   assert.ok(classes(facts[0]).includes("is-warn"), "in amber, with its icon");
   assert.equal(textOf(facts[1]), "Top reason it handed over: asked for a person2 timesSee them");
-  assert.equal(textOf(facts[2]), "Tuesday was your busiest daypeak 10am to 12pm, 2 outside 8am to 8pm");
+  assert.equal(textOf(facts[2]), "Tuesday was your busiest daypeak 10am to 12pm");
   const row = find(facts[0], (n) => n.type === "button");
   assert.ok(classes(row).includes("rpt-fact-row"), "the whole row is the door");
   assert.equal(row.props.title, "1 message has no reply yet", "the sentence rides in the title, for a line cut short");
@@ -482,6 +497,125 @@ test("a caller's mood and the reply spread are part-bars in their own order, eac
     "fastest first: 4, 8 and 12s; 15 and 40s; 70s; 400s; 2000s",
   );
   assert.equal(spread.props.style["--color-lt15"], "var(--chart-ramp-5)", "the fastest the darkest ink");
+});
+
+test("with a hold set the reply card draws it: the chart's one reference is the hold and the spread is said against it; with none there is neither", () => {
+  const held = Array.from({ length: 8 }, () => ({ day: "2026-09-01", s: 63, hold: 60 }));
+  const reply = card(page({ report: { replies: held, reply_seconds: held.map((r) => r.s) } }), "chart-reply");
+  assert.equal(textOf(cls(reply, "ck-ref")), "1-minute hold");
+  const spread = byTestId(reply, "reply-spread");
+  assert.equal(textOf(cls(spread, "ck-segbar-title")), "Every reply, against your hold");
+  assert.deepEqual(
+    all(
+      find(spread, (n) => classes(n).includes("ck-segbar-bar")),
+      (n) => n.type === "i",
+    ).map((i) => i.props.style.background),
+    ["var(--color-atEnd)"],
+    "every reply went out as the hold ended: one part",
+  );
+  const plain = card(page(), "chart-reply");
+  assert.equal(cls(plain, "ck-ref"), null, "no hold: no yardstick the owner never set");
+  assert.equal(textOf(cls(byTestId(plain, "reply-spread"), "ck-segbar-title")), "Every reply, by how long it took");
+});
+
+/* --- phase A through the page (the Reports lenses spec, D14 and A2): the hold the owner set, and the hours they keep --- */
+
+/** The workspace's hours as the surface reads them: Monday to Friday 9 to 6, Saturday 10 to 2, and no Sunday. */
+const HOURS = {
+  profile: {
+    hours: {
+      mon: { open: "09:00", close: "18:00" },
+      tue: { open: "09:00", close: "18:00" },
+      wed: { open: "09:00", close: "18:00" },
+      thu: { open: "09:00", close: "18:00" },
+      fri: { open: "09:00", close: "18:00" },
+      sat: { open: "10:00", close: "14:00" },
+    },
+  },
+};
+const quarter = (h, m = 0) => h * 4 + Math.floor(m / 15);
+/** What came in by the quarter hour: 2 + 4 + 2 while open, and 1 + 2 + 3 + 1 = 7 while closed, by HOURS. */
+const ARRIVALS = [
+  { d: "2026-08-29", q: quarter(11), n: 2 }, // Saturday, open 10 to 2
+  { d: "2026-08-29", q: quarter(15, 30), n: 1 }, // after closing
+  { d: "2026-08-30", q: quarter(12), n: 2 }, // Sunday: no hours
+  { d: "2026-09-01", q: quarter(10), n: 4 }, // Tuesday, open
+  { d: "2026-09-01", q: quarter(20), n: 3 }, // Tuesday evening
+  { d: "2026-09-03", q: quarter(8, 45), n: 1 }, // Thursday, before opening
+  { d: "2026-09-03", q: quarter(14), n: 2 }, // open
+];
+/** Most replies waited the 60-second hold and went out as it ended; one had none, and three took longer, one in each span. */
+const HELD = [
+  ...Array.from({ length: 8 }, () => ({ day: "2026-09-01", s: 62, hold: 60 })),
+  { day: "2026-08-29", s: 6, hold: 0 },
+  { day: "2026-08-30", s: 100, hold: 60 },
+  { day: "2026-09-03", s: 200, hold: 60 },
+  { day: "2026-09-04", s: 600, hold: 60 },
+];
+const factOf = (tree, id) => find(card(tree, "reports-facts"), (n) => n.props?.["data-fact"] === id);
+
+test("the page says the hold and the closed hours: the hero, the speed chart's yardstick, the spread's five rows, and what came while closed", () => {
+  const tree = page({
+    report: { replies: HELD, reply_seconds: HELD.map((r) => r.s), arrivals: ARRIVALS },
+    ...HOURS,
+  });
+  assert.equal(
+    textOf(cls(card(tree, "reports-hero"), "rpt-hero-line")),
+    "13 of 17 customer messages, without you. 8 of 12 went out as your 1-minute hold ended.",
+    "the hold, never the speed the setting made",
+  );
+  const reply = card(tree, "chart-reply");
+  assert.equal(textOf(cls(reply, "ck-ref")), "1-minute hold", "the speed chart's one reference is the owner's hold");
+  const spread = byTestId(reply, "reply-spread");
+  assert.equal(textOf(cls(spread, "ck-segbar-title")), "Every reply, against your hold");
+  assert.deepEqual(
+    all(spread, (n) => classes(n).includes("ck-legend-item")).map(textOf),
+    ["with no hold1", "as the hold ended8", "up to 1m later1", "1 – 5m later1", "over 5m later1"],
+    "five rows, each with its count",
+  );
+  assert.equal(takeaway(tree, "chart-reply"), "3 replies took longer than the hold, at most 9m more.");
+  assert.equal(
+    textOf(factOf(tree, "busiest")),
+    "Tuesday was your busiest daypeak 10am to 12pm, 7 while you were closed",
+    "counted by the workspace's own hours and closures",
+  );
+  assert.equal(factOf(tree, "hours"), null, "hours said: no door to set them");
+});
+
+test("a workspace with no hours is asked for them through the page, with the door to Settings; an unread profile is asked nothing", () => {
+  // Nothing unanswered and no handover, so the third fact has room: Worth knowing keeps three.
+  const calm = {
+    series: reportDto().series.map((d) => ({ ...d, unanswered: 0, escalations: 0 })),
+    reasons: {},
+    arrivals: ARRIVALS,
+  };
+  const tree = page({ report: calm, campaigns: null, profile: {} });
+  const hours = factOf(tree, "hours");
+  assert.equal(textOf(hours), "Set your business hours to see what came in while you were closedOpen Settings");
+  assert.ok(
+    !textOf(factOf(tree, "busiest")).includes("closed"),
+    "and no count of what a guess would have called closed",
+  );
+  press(find(hours, (n) => n.type === "button"));
+  assert.deepEqual(went, ["admin/workspace"], "the door opens Settings, where the hours are kept");
+  const unread = page({ report: calm, campaigns: null, profile: null });
+  assert.equal(factOf(unread, "hours"), null, "a profile that could not be read says nothing of the hours");
+});
+
+test("the channels are contracts' words, in contracts' order, each in the colour kept for it", () => {
+  assert.deepEqual(
+    Object.keys(RPT_CHANNELS),
+    REPORT_CHANNELS.map((c) => c.key),
+    "in the order a chart lists them",
+  );
+  for (const { key, label } of REPORT_CHANNELS)
+    assert.equal(RPT_CHANNELS[key].label, label, `${key} says contracts' word`);
+  assert.deepEqual(Object.fromEntries(Object.entries(RPT_CHANNELS).map(([k, v]) => [k, v.color])), {
+    whatsapp: "var(--chart-cat-1)",
+    voice: "var(--chart-cat-2)",
+    email: "var(--chart-cat-3)",
+    sms: "var(--chart-cat-4)",
+  });
 });
 
 test("when they reach you, as a table: the seven days, then the twenty-four hours", () => {

@@ -16,6 +16,7 @@ import { removePlaybook, setPlaybookState, updatePlaybook, type Json } from "@ch
 import { jsonBody } from "@/server/request-guards";
 import { recordDecision, type playbookScope } from "@/server/verbs";
 import { checkPlaybookInput, playbookWriteError, refuseOnArchivedList } from "@/server/campaigns/playbooks";
+import { channelsChanged, keptChannels } from "@/server/campaigns/playbook-channels";
 import type { RouteContext } from "@/server/with-route";
 
 /** The playbook a playbookScope route acts on, as the scope read it. */
@@ -48,7 +49,10 @@ export async function changePlaybook(ctx: RouteContext, req: Request, p: Playboo
 
   // A reach-out step is edited on its own sheet (Part 4); here it may only be paused or resumed, above.
   if (triggerOf(p.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
-  const v = await checkPlaybookInput(ctx, p.tenant_id, body);
+  // An edit that names no channels keeps the ones it has: the check reads them, and the column is written only when
+  // they change (a database 00298 has not reached has none to read or write).
+  const kept = await keptChannels(ctx, id);
+  const v = await checkPlaybookInput(ctx, p.tenant_id, body, { ...p, channels: kept });
   const { error } = await updatePlaybook(ctx.supabase, id, {
     name: v.name,
     trigger: v.trigger,
@@ -64,6 +68,7 @@ export async function changePlaybook(ctx: RouteContext, req: Request, p: Playboo
     cap_per_run: v.cap_per_run,
     gap_days: v.gap_days,
     cadence_days: v.cadence_days,
+    ...(channelsChanged(v.channels, kept) ? { channels: v.channels } : {}),
   });
   if (error) throw playbookWriteError(error);
   return { id, name: v.name, state: p.state };

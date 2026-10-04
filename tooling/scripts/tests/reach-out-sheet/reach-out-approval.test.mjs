@@ -1,5 +1,5 @@
 /**
- * A reach-out run on Broadcasts (Reach out, Part 4 PR 7; F13, R20–R22), run on the stub React over the surface's own
+ * A reach-out run in Sent (Reach out, Part 4 PR 7; F13, R20–R22), run on the stub React over the surface's own
  * words (surfaces/campaigns/reach-out/surface.ts `run`, contracts reachOutRunWordsOf over approvalWordsOf) and the
  * broadcasts and reach-outs verbs stubbed on the objects the TSX imports (`broadcasts`, `reachOuts`): the block a live
  * reach-out run opens to, waiting on its owner or not; today's share and the rest, the held with their reasons and doors, the skipped by reason, how many are still being
@@ -11,7 +11,18 @@
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, unmount, all, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
+import {
+  installLegacyReact,
+  fresh,
+  again,
+  unmount,
+  all,
+  find,
+  byTestId,
+  textOf,
+  press,
+  settle,
+} from "../_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
@@ -165,6 +176,11 @@ test("a run waiting on its owner: today's share and the rest, the held, the skip
   const tree = redraw();
   assert.ok(byTestId(tree, "ro-run"), "a reach-out run opens to its own block, never a WhatsApp run's sheet");
   assert.equal(byTestId(tree, "bc-sheet"), null);
+  // The block's own back button and top are the pane's head now (the layout is the Inbox's list + pane, docs/2026-10-02-
+  // campaigns-on-the-kit.md §3.1): its name as the title, what it is and its place in the queue under it, Close at its right.
+  const head = find(byTestId(tree, "bc-run-solo"), (n) => n.type === "h2");
+  assert.equal(textOf(head.props.children[0]), "Reach out · Personal trainers", "the run's name is the pane's title");
+  assert.ok(byTestId(tree, "bc-detail-close"), "the pane's Close, where the block's back button was");
   assert.equal(textOf(byTestId(tree, "ro-run-k")), "Waiting on you");
   assert.equal(textOf(byTestId(tree, "ro-run-will")), "30 will get it today");
   assert.match(textOf(byTestId(tree, "ro-run-reach")), /of 44/);
@@ -280,7 +296,10 @@ test("R20: a scheduled run with held opens to them; each door presses its decisi
   assert.equal(held.length, 2, "open at once: the notice and Playbooks' link land on them");
   assert.match(textOf(held[0]), /Studio One/);
   assert.deepEqual(
-    all(held[0], (n) => /^ro-door-/.test(n.props?.["data-testid"] || "")).map((n) => n.props["data-testid"]),
+    // The buttons drawn: a kit LinkButton is its own node and the host button it draws, both carrying the id.
+    all(held[0], (n) => n.type === "button" && /^ro-door-/.test(n.props?.["data-testid"] || "")).map(
+      (n) => n.props["data-testid"],
+    ),
     contracts.holdDoors("unbacked_fact").map((d) => `ro-door-${d}`),
   );
   // One group per row: in the sheet's narrow layout a row's grid has one door cell, and doors laid in it one by one

@@ -19,6 +19,7 @@
 import { Combobox as BaseCombobox } from "@base-ui/react/combobox";
 import type { ReactElement, Ref } from "react";
 import { useMemo, useRef } from "react";
+import { chosen } from "../chosen";
 import { Panel } from "../panel/panel";
 import type { SelectOption } from "../select/select";
 import { cx } from "../variants";
@@ -42,9 +43,6 @@ export type ComboboxProps<V extends string> = {
   className?: string;
   ref?: Ref<HTMLInputElement>;
 };
-
-/** The one chosen, in the record kit's word for it (kit.css, .rec-combo-opt[data-chosen]). */
-const chosen = (state: { selected: boolean }) => (state.selected ? "true" : undefined);
 
 /** A combobox: a box that narrows a list as you type, the list drawn on the document's body. */
 export function Combobox<V extends string>(props: ComboboxProps<V>) {

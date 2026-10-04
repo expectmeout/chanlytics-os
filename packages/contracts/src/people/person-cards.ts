@@ -207,7 +207,9 @@ export function personCardContext(
 ): PersonCardContext {
   const nowMs = now.getTime();
   const row = personRowOf(d);
-  const base = toPersonRowVM(row, tz, now, viewerId);
+  // A card reads none of a row's reach facts (who can be sent what: the lists', Today's and the follow-up's), so it does
+  // not carry the workspace's channels and counts them as before they were.
+  const base = toPersonRowVM(row, tz, now, viewerId, null);
   const dealsOn = !!d.deals_on;
   const deals = dealsOn ? dealsListOf(d, tz, nowMs) : [];
   // The row's columns say WHICH deal shows (people_list's lateral join, pickCurrentDeal's rule); the listed copy of it

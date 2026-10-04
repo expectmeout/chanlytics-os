@@ -955,6 +955,15 @@ Object.assign(globalThis.window, {
 const { PEOPLE_GLOBALS } = await import("../../../../apps/dashboard/src/surfaces/people/people-globals.ts");
 Object.assign(globalThis.window, PEOPLE_GLOBALS);
 const { PipelineScope } = await import("../../../../apps/dashboard/src/surfaces/people/pipeline/scope.tsx");
+// The kit's Menu, which a row and a card draw their acts with.
+const { Menu } = await import("../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
+/** A kit Menu's groups as the list the page built: a heading over its group, a divider between two, an act as `onClick`. */
+const listOf = (menu) =>
+  menu.props.groups.flatMap((g, at) => [
+    ...(at > 0 ? [{ divider: true }] : []),
+    ...(g.header ? [{ header: g.header }] : []),
+    ...g.items.map((i) => ({ ...i, onClick: i.onSelect })),
+  ]);
 const { PeopleReal } = await import("../../../../apps/dashboard/src/surfaces/people/page/people-real.tsx");
 const { PipelineRailRows } = await import("../../../../apps/dashboard/src/surfaces/people/pipeline/rail.tsx");
 
@@ -1605,7 +1614,7 @@ test("on a phone: one bar with the switch, the view's list button, search and Ne
     assert.ok(byTestId(tree, "pipeline-summary"));
     const card = find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes");
     assert.match(card.props.className, /\bpl-card-row\b/);
-    assert.equal(textOf(find(card, (n) => n.props?.className === "pl-card-name")), "Wes");
+    assert.equal(textOf(find(card, (n) => n.props?.className === "list-row-name")), "Wes");
     assert.equal(textOf(byTestId(card, "pipe-chip")), "Nothing back");
     assert.equal(textOf(byTestId(card, "pipe-service")), "Color correction");
     assert.deepEqual(
@@ -2659,8 +2668,8 @@ test("a row's menu: the deal's own acts where the member may record one, then th
   await fresh();
   const asked = [];
   globalThis.window.openDealSheet = (a) => asked.push(a);
-  const menuOf = (tree, id) => find(rowNode(tree, id), (n) => n.type === globalThis.window.MoreMenu);
-  let items = menuOf(draw(), "wes").props.items;
+  const menuOf = (tree, id) => find(rowNode(tree, id), (n) => n.type === Menu);
+  let items = listOf(menuOf(draw(), "wes"));
   assert.deepEqual(
     items.map((it) => (it.divider ? "—" : it.label)),
     [DEAL_ACT_WORDS.won, DEAL_ACT_WORDS.lost, DEAL_ACT_WORDS.edit, "—", "Open the thread", "Open their page"],
@@ -2674,7 +2683,7 @@ test("a row's menu: the deal's own acts where the member may record one, then th
   items.at(-2).onClick();
   assert.equal(went.at(-1), `inbox/${wes.threadId}`, "their thread");
   // A consultation held: start one, with nothing to name a deal by.
-  items = menuOf(draw(), "hana").props.items;
+  items = listOf(menuOf(draw(), "hana"));
   items[0].onClick();
   assert.deepEqual(asked.at(-1), { personId: "hana", mode: "propose", dealId: null });
   // Someone who passed before and came back for a consultation: a new proposal, as dragging their card asks, never
@@ -2689,7 +2698,7 @@ test("a row's menu: the deal's own acts where the member may record one, then th
       }),
     ],
   });
-  items = menuOf(draw(), "bea").props.items;
+  items = listOf(menuOf(draw(), "bea"));
   assert.equal(items[0].label, DEAL_ACT_WORDS.propose);
   items[0].onClick();
   assert.deepEqual(asked.at(-1), { personId: "bea", mode: "propose", dealId: null });
@@ -2697,7 +2706,7 @@ test("a row's menu: the deal's own acts where the member may record one, then th
   globalThis.window.__ME = { role: "viewer" };
   try {
     assert.deepEqual(
-      menuOf(draw(), "wes").props.items.map((it) => it.label),
+      listOf(menuOf(draw(), "wes")).map((it) => it.label),
       ["Open the thread", "Open their page"],
     );
   } finally {
@@ -2879,12 +2888,12 @@ test("on the board a card wears its steps and a Move to menu of the columns it m
   // A card's steps, and its Move to: the columns a proposal out may go to, each asking the one sheet.
   const first = find(col, (n) => n.props?.["data-testid"] === "pipeline-card");
   assert.ok(byTestId(first, "pipe-track"));
-  const menu = find(col, (n) => n.type === globalThis.window.MoreMenu);
+  const menu = find(col, (n) => n.type === Menu);
   assert.deepEqual(
-    menu.props.items.map((it) => it.header || it.label),
+    listOf(menu).map((it) => it.header || it.label),
     ["Move to", "Clients", "Passed or ended"],
   );
-  menu.props.items[1].onClick();
+  listOf(menu)[1].onClick();
   assert.equal(asked.at(-1).mode, "won");
   click(byTestId(col, "pipeline-col-more"));
   assert.equal(cards().length, 27, "and all of them, asked");
@@ -2892,7 +2901,7 @@ test("on the board a card wears its steps and a Move to menu of the columns it m
   globalThis.window.__ME = { role: "viewer" };
   try {
     assert.equal(
-      find(byTestId(draw(), "pipeline-col-proposals"), (n) => n.type === globalThis.window.MoreMenu),
+      find(byTestId(draw(), "pipeline-col-proposals"), (n) => n.type === Menu),
       null,
     );
   } finally {

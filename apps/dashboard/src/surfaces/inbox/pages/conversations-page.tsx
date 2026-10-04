@@ -7,7 +7,9 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { Menu } from "../../kit/menu/menu";
+import { useSwapMotion } from "../../kit/motion/use-swap-motion";
+import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { StatePill } from "../../kit/pill/state-pill";
 import { useSurface } from "../../use-surface";
 import { ROUTES, TICK_MS } from "../constants";
@@ -150,7 +152,7 @@ const cvClock = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).pad
 function callHead(c: ConversationRow, onBack: (() => void) | null) {
   const clientId = c.clientId;
   return (
-    <header className="ix-th-head">
+    <header className="ix-th-head capsule">
       <div className="ix-th-head-main">
         {onBack && (
           <Button
@@ -180,11 +182,23 @@ function callHead(c: ConversationRow, onBack: (() => void) | null) {
       </div>
       {clientId && (
         <div className="ix-th-actions">
-          <MoreMenu
-            btnClass="btn btn-ghost btn-sm ix-th-more"
-            label="Actions"
-            title="Actions"
-            items={[{ label: "Open profile", icon: "users", onClick: () => navigate(ROUTES.client(clientId)) }]}
+          <Menu
+            trigger={
+              <Button variant="quiet" size="sm" className="ix-th-more" title="Actions">
+                Actions <Icon name="chevron-down" size={10} />
+              </Button>
+            }
+            groups={[
+              {
+                items: [
+                  {
+                    label: "Open profile",
+                    glyph: <Icon name="users" size={13} />,
+                    onSelect: () => navigate(ROUTES.client(clientId)),
+                  },
+                ],
+              },
+            ]}
           />
         </div>
       )}
@@ -292,8 +306,10 @@ function listPane(p: {
   counts: Record<string, number>;
   selected: ConversationRow | undefined;
   openRow: (id: string) => void;
+  /** The rows' ref: they swap in with a rise as the channel changes (kit/motion). */
+  swap: ReturnType<typeof useSwapMotion>;
 }) {
-  const { data, rows, query, setQuery, channel, counts, selected, openRow } = p;
+  const { data, rows, query, setQuery, channel, counts, selected, openRow, swap } = p;
   const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = data;
   return (
     <aside className="cv-list">
@@ -317,23 +333,20 @@ function listPane(p: {
         />
       )}
       <div className="cv-filters">
-        <div className="fleet-filter">
-          {CV_CHANNELS.map((ch) => (
-            <button
-              key={ch.id}
-              type="button"
-              className={`fleet-filter-chip ${channel === ch.id ? "active" : ""}`}
-              aria-pressed={channel === ch.id}
-              data-testid={`cv-tab-${ch.id}`}
-              onClick={() => navigate(cvAddress(ch.id, null))}
-            >
-              {ch.label}
-              <span className="fleet-filter-count tally">{counts[ch.id]}</span>
-            </button>
-          ))}
-        </div>
+        <SubTabs
+          label="Conversations by channel"
+          dense
+          value={channel}
+          onSelect={(id) => navigate(cvAddress(id, null))}
+          tabs={CV_CHANNELS.map((ch) => ({
+            id: ch.id,
+            label: ch.label,
+            count: counts[ch.id],
+            testid: `cv-tab-${ch.id}`,
+          }))}
+        />
       </div>
-      <div className="cv-rows">
+      <div className="cv-rows" ref={swap}>
         {rows.map((c) => (
           <CvRow key={c.id} c={c} active={selected?.id === c.id} onSelect={openRow} />
         ))}
@@ -461,6 +474,7 @@ export const ConversationsPage = ({
     cvKeepPlace(channel, { q: v });
   };
   const [selectedId, setSelectedId] = useState<string | null>(initialId);
+  const swap = useSwapMotion(channel);
   // Phone: the list and the viewer take turns (mobile.css owns the breakpoint).
   const [phoneOpen, setPhoneOpen] = useState(!!initialId);
   const [tick, setTick] = useState(0);
@@ -535,8 +549,8 @@ export const ConversationsPage = ({
   );
 
   return (
-    <div className={`conversations ${phoneOpen ? "phone-detail" : ""}`}>
-      {listPane({ data, rows: visible, query, setQuery, channel, counts, selected, openRow })}
+    <div className="conversations" data-takeover={phoneOpen || undefined}>
+      {listPane({ data, rows: visible, query, setQuery, channel, counts, selected, openRow, swap })}
       {readingPane({ data, requestedMissing, selected, closeRow, query })}
     </div>
   );

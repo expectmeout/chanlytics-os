@@ -407,6 +407,7 @@ export type Database = {
       broadcast_recipients: {
         Row: {
           broadcast_id: string
+          channel: string | null
           contact_id: string
           facts: Json | null
           message_id: string | null
@@ -417,6 +418,7 @@ export type Database = {
         }
         Insert: {
           broadcast_id: string
+          channel?: string | null
           contact_id: string
           facts?: Json | null
           message_id?: string | null
@@ -427,6 +429,7 @@ export type Database = {
         }
         Update: {
           broadcast_id?: string
+          channel?: string | null
           contact_id?: string
           facts?: Json | null
           message_id?: string | null
@@ -469,6 +472,7 @@ export type Database = {
       broadcasts: {
         Row: {
           audience: Json
+          channels: string[]
           created_at: string
           created_by: string | null
           failure: string | null
@@ -490,6 +494,7 @@ export type Database = {
         }
         Insert: {
           audience?: Json
+          channels?: string[]
           created_at?: string
           created_by?: string | null
           failure?: string | null
@@ -511,6 +516,7 @@ export type Database = {
         }
         Update: {
           audience?: Json
+          channels?: string[]
           created_at?: string
           created_by?: string | null
           failure?: string | null
@@ -885,6 +891,7 @@ export type Database = {
       contacts: {
         Row: {
           consent: string
+          consent_channels: string[] | null
           consent_source: string | null
           consent_updated_at: string | null
           created_at: string
@@ -903,11 +910,13 @@ export type Database = {
           first_seen_at: string
           id: string
           last_seen_at: string
+          marketing_channels: string[] | null
           marketing_consent: string
           marketing_consent_source: string | null
           marketing_consent_updated_at: string | null
           merged_into_contact_id: string | null
           notes: string | null
+          offers_asked_at: string | null
           phone_e164: string | null
           proposal_url: string | null
           tenant_id: string
@@ -916,6 +925,7 @@ export type Database = {
         }
         Insert: {
           consent?: string
+          consent_channels?: string[] | null
           consent_source?: string | null
           consent_updated_at?: string | null
           created_at?: string
@@ -934,11 +944,13 @@ export type Database = {
           first_seen_at?: string
           id?: string
           last_seen_at?: string
+          marketing_channels?: string[] | null
           marketing_consent?: string
           marketing_consent_source?: string | null
           marketing_consent_updated_at?: string | null
           merged_into_contact_id?: string | null
           notes?: string | null
+          offers_asked_at?: string | null
           phone_e164?: string | null
           proposal_url?: string | null
           tenant_id: string
@@ -947,6 +959,7 @@ export type Database = {
         }
         Update: {
           consent?: string
+          consent_channels?: string[] | null
           consent_source?: string | null
           consent_updated_at?: string | null
           created_at?: string
@@ -965,11 +978,13 @@ export type Database = {
           first_seen_at?: string
           id?: string
           last_seen_at?: string
+          marketing_channels?: string[] | null
           marketing_consent?: string
           marketing_consent_source?: string | null
           marketing_consent_updated_at?: string | null
           merged_into_contact_id?: string | null
           notes?: string | null
+          offers_asked_at?: string | null
           phone_e164?: string | null
           proposal_url?: string | null
           tenant_id?: string
@@ -3306,6 +3321,9 @@ export type Database = {
           last_error: string | null
           last_received_at: string | null
           local_part: string
+          offers_paused_at: string | null
+          offers_paused_reason: string | null
+          offers_resumed_at: string | null
           reply_mode: string
           reply_token: string
           reply_token_prev: string | null
@@ -3319,6 +3337,9 @@ export type Database = {
           last_error?: string | null
           last_received_at?: string | null
           local_part: string
+          offers_paused_at?: string | null
+          offers_paused_reason?: string | null
+          offers_resumed_at?: string | null
           reply_mode?: string
           reply_token: string
           reply_token_prev?: string | null
@@ -3332,6 +3353,9 @@ export type Database = {
           last_error?: string | null
           last_received_at?: string | null
           local_part?: string
+          offers_paused_at?: string | null
+          offers_paused_reason?: string | null
+          offers_resumed_at?: string | null
           reply_mode?: string
           reply_token?: string
           reply_token_prev?: string | null
@@ -4185,6 +4209,7 @@ export type Database = {
           after_playbook_id: string | null
           cadence_days: number
           cap_per_run: number
+          channels: string[]
           created_at: string
           created_by: string | null
           domain_ids: string[]
@@ -4217,6 +4242,7 @@ export type Database = {
           after_playbook_id?: string | null
           cadence_days?: number
           cap_per_run?: number
+          channels?: string[]
           created_at?: string
           created_by?: string | null
           domain_ids?: string[]
@@ -4249,6 +4275,7 @@ export type Database = {
           after_playbook_id?: string | null
           cadence_days?: number
           cap_per_run?: number
+          channels?: string[]
           created_at?: string
           created_by?: string | null
           domain_ids?: string[]
@@ -5385,6 +5412,10 @@ export type Database = {
         Args: { p_permission: string; p_tenant_id: string }
         Returns: boolean
       }
+      campaign_month_sent: {
+        Args: { p_at?: string; p_channel: string; p_tenant_id: string }
+        Returns: number
+      }
       campaign_series: {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
@@ -5436,6 +5467,14 @@ export type Database = {
           tenant_id: string
           unanswered: number
         }[]
+      }
+      consent_channels_of: {
+        Args: { p_channel: string; p_purpose: string; p_source: string }
+        Returns: string[]
+      }
+      consent_channels_union: {
+        Args: { p_add: string[]; p_have: string[] }
+        Returns: string[]
       }
       create_mailbox: {
         Args: { p_from_name: string; p_local_part: string; p_tenant_id: string }
@@ -5531,6 +5570,10 @@ export type Database = {
         Args: { p_error: Json; p_status: string }
         Returns: boolean
       }
+      email_offer_counts: {
+        Args: { p_host: string; p_tenant_id: string }
+        Returns: Json
+      }
       email_sent_at: {
         Args: {
           p_created_at: string
@@ -5602,6 +5645,10 @@ export type Database = {
       }
       has_permission: {
         Args: { p_permission: string; p_tenant_id: string; p_user: string }
+        Returns: boolean
+      }
+      has_relationship: {
+        Args: { c: Database["public"]["Tables"]["contacts"]["Row"] }
         Returns: boolean
       }
       holds_reply_turn: {
@@ -6037,6 +6084,7 @@ export type Database = {
         Args: { p_page: string; p_tenant_id: string; p_view: Json }
         Returns: Json
       }
+      message_is_a_persons_words: { Args: { p_meta: Json }; Returns: boolean }
       message_moment: {
         Args: {
           p_channel_ts: string
@@ -6101,6 +6149,16 @@ export type Database = {
         Args: { p_remaining: number; p_sweep: string }
         Returns: number
       }
+      note_yes_on_channel: {
+        Args: {
+          p_channel: string
+          p_contact_id: string
+          p_message_external_id: string
+          p_tenant_id: string
+          p_words: string
+        }
+        Returns: boolean
+      }
       notification_mark: {
         Args: { p_dismissed?: boolean; p_id: string; p_read?: boolean }
         Returns: Json
@@ -6114,6 +6172,7 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      offers_email_reach: { Args: { p_tenant_id: string }; Returns: number }
       outreach_facts: {
         Args: {
           p_contact_id: string
@@ -6291,6 +6350,10 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      pause_email_offers: {
+        Args: { p_counts?: Json; p_reason: string; p_tenant_id: string }
+        Returns: boolean
+      }
       people_list: {
         Args: {
           p_after_added?: string
@@ -6309,6 +6372,7 @@ export type Database = {
           came_from: string
           channels: string[]
           consent: string
+          consent_channels: string[]
           consent_source: string
           consent_updated_at: string
           conversation_count: number
@@ -6327,6 +6391,10 @@ export type Database = {
           dnc: boolean
           earliest_row_at: string
           email: string
+          email_marketing: string
+          email_marketing_source: string
+          email_marketing_updated_at: string
+          email_suppressed_at: string
           escalation_count: number
           first_contact_at: string
           has_backfill: boolean
@@ -6337,21 +6405,25 @@ export type Database = {
           last_inbound_at: string
           last_inbound_call_at: string
           last_inbound_call_summary: string
+          last_inbound_channel: string
           last_inbound_text: string
           last_message_at: string
           last_message_direction: string
           last_message_sender: string
+          last_wrote_at: string
           latest_assignee_user_id: string
           latest_conversation_id: string
           latest_paused_until: string
           latest_snooze_until: string
           latest_state: string
           latest_wa_inbound_at: string
+          marketing_channels: string[]
           marketing_consent: string
           marketing_consent_source: string
           marketing_consent_updated_at: string
           message_channels: string[]
           needs_human: boolean
+          offers_asked_at: string
           open_escalation_reason: string
           open_escalation_since: string
           phone_e164: string
@@ -7094,6 +7166,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      remove_template_version: {
+        Args: { p_template_id: string }
+        Returns: Json
+      }
       rename_mailbox: {
         Args: { p_from_name: string; p_mailbox_id: string }
         Returns: Json
@@ -7107,8 +7183,20 @@ export type Database = {
         Args: { p_path: string; p_sweep: string; p_timeout_ms?: number }
         Returns: number
       }
+      resume_email_offers: { Args: { p_tenant_id: string }; Returns: boolean }
       runtime_stamp: { Args: { p_tenant_id: string }; Returns: string }
       safe_zone: { Args: { p: string }; Returns: string }
+      save_template_version: {
+        Args: {
+          p_body: string
+          p_channel: string
+          p_language: string
+          p_name: string
+          p_subject: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       scrub_ask_for_contact: {
         Args: { p_contact_id: string; p_needles: string[]; p_tenant_id: string }
         Returns: number
@@ -7163,6 +7251,16 @@ export type Database = {
           p_message_id?: string
           p_source: string
           p_state: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      set_email_offers_yes: {
+        Args: {
+          p_contact_id: string
+          p_evidence?: Json
+          p_message_id?: string
+          p_source: string
           p_tenant_id: string
         }
         Returns: Json
@@ -7231,6 +7329,14 @@ export type Database = {
           conversation_id: string
           status: string
         }[]
+      }
+      stop_all_messages: {
+        Args: {
+          p_contact_id: string
+          p_message_id?: string
+          p_tenant_id: string
+        }
+        Returns: Json
       }
       sweep_health: {
         Args: never

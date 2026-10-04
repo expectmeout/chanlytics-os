@@ -2,6 +2,7 @@
 export {
   isOptedOutContact,
   mayMessageFor,
+  relationshipOnRecord,
   consentChangeOf,
   purposeOfTemplate,
   purposeOfPlaybook,
@@ -45,3 +46,14 @@ export type {
   ConsentFormVM,
   DeskSignVM,
 } from "./consent-page";
+export {
+  CONSENT_CHANNELS,
+  CONSENT_CHANNEL_WORDS,
+  channelsOfYes,
+  yesCovers,
+  coveredChannels,
+  channelsWords,
+} from "./consent-channels";
+export type { ConsentChannel } from "./consent-channels";
+export { offerUnsubscribeWords, STOP_ALL_REFUSALS } from "./offers-unsubscribe";
+export type { OfferUnsubscribeView, OfferPageWords, OfferPageButton } from "./offers-unsubscribe";

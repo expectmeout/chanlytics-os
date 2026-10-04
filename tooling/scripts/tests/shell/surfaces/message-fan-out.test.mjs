@@ -183,6 +183,72 @@ test("a surface's own tables reach it wherever the page is, and a thread's updat
   }
 });
 
+test("Campaigns' home owns what it draws: a message re-reads the playbooks and the broadcasts under it, and what passed while it was away is read once as it comes back", async () => {
+  win.location.hash = "#/campaigns";
+  const r = await running();
+  try {
+    await r.message();
+    assert.deepEqual(
+      [...r.asked].sort(),
+      ["broadcasts", "conversations", "inbox", "playbooks", "today"],
+      "the home's own surface, and the broadcasts whose runs, replies and numbers it draws: not People, Reports or the Calendar",
+    );
+    r.asked.length = 0;
+
+    // Today draws the broadcasts too, and does not own them: the three that draw messages, as it was.
+    win.location.hash = "#/today";
+    win.dispatchEvent({ type: "popstate" });
+    await settle();
+    assert.deepEqual(r.asked, [], "nothing was missed");
+    await r.message();
+    await r.message();
+    assert.deepEqual([...new Set(r.asked)].sort(), ["conversations", "inbox", "today"]);
+    r.asked.length = 0;
+
+    // The home comes back: each surface that let a message pass is read once.
+    win.location.hash = "#/campaigns";
+    win.dispatchEvent({ type: "popstate" });
+    await settle();
+    assert.deepEqual([...r.asked].sort(), ["broadcasts", "playbooks"], "read once, as the page it draws them on");
+    r.asked.length = 0;
+    win.location.hash = "#/campaigns/moment:pb-1";
+    win.dispatchEvent({ type: "popstate" });
+    await settle();
+    assert.deepEqual(r.asked, [], "a moment opened is the same page: nothing passed it");
+    await r.message();
+    assert.deepEqual(
+      [...new Set(r.asked)].sort(),
+      ["broadcasts", "conversations", "inbox", "playbooks", "today"],
+      "and with a moment open the home still hears them",
+    );
+    // What the other pages own is theirs alone: Sent is the broadcasts' page, which draws the playbooks beside it.
+    r.asked.length = 0;
+    win.location.hash = "#/broadcasts";
+    win.dispatchEvent({ type: "popstate" });
+    await settle();
+    r.asked.length = 0;
+    await r.message();
+    assert.deepEqual([...new Set(r.asked)].sort(), ["broadcasts", "conversations", "inbox", "today"]);
+  } finally {
+    r.stop();
+    win.location.hash = "#/today";
+  }
+});
+
+test("the page that owns what it draws is an explicit one: the surface registry names Campaigns' home, and no other page's draws are owned", async () => {
+  const owns = (key, route) => registry.ownsTheScreen(key, route);
+  for (const key of ["playbooks", "broadcasts"]) assert.equal(owns(key, "campaigns"), true, key);
+  // Settings and the reach-outs are drawn on the home too; they have no table of their own to refresh on a message, but a route
+  // that draws them owns them for the refreshes that name a page.
+  for (const key of ["settings", "reach_outs"]) assert.equal(owns(key, "campaigns/new"), true, key);
+  for (const key of ["people", "reports", "calendar"]) assert.equal(owns(key, "campaigns"), false, key);
+  // Today draws a good many surfaces and owns only its own.
+  for (const key of ["broadcasts", "reports", "playbooks", "people", "calendar"])
+    assert.equal(owns(key, "today"), false, `today does not own ${key}`);
+  assert.equal(owns("today", "today"), true);
+  assert.equal(owns("broadcasts", "broadcasts/run:b-1"), true);
+});
+
 /* ------------------------------- the shell's draws ------------------------------- */
 
 // app-shell.jsx on a stub React that counts what would make React draw it again: a setter that changed its value, or

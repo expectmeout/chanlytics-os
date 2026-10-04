@@ -713,8 +713,9 @@ test("REGRESSION: a template the route refuses says why under the form as a fiel
     freshTree();
     const render = () =>
       againTree(() => TemplateComposer({ onDone() {}, onCancel() {}, businessName: "Marisa's Beauty Salon" }));
-    byTestId(render(), "tpl-name").props.onChange({ target: { value: "spring_offer" } });
-    byTestId(render(), "tpl-body").props.onChange({ target: { value: "Twenty percent off this week." } });
+    // The boxes are the kit's Fields (surfaces/kit/field/), which say what was typed as `onValueChange`.
+    byTestId(render(), "tpl-name").props.onValueChange("spring_offer");
+    byTestId(render(), "tpl-body").props.onValueChange("Twenty percent off this week.");
     await byTestId(render(), "tpl-submit").props.onClick();
     const tree = render();
     const err = byTestId(tree, "tpl-error");

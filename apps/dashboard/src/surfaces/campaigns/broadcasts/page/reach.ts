@@ -3,24 +3,73 @@
  * 0015): who the send reaches, what each slot of the message may take and holds, the people behind the count, and the
  * one person the preview is drawn for. Plain functions, each taking what it reads and answering what it works out.
  */
-import type { ParamSourceKind } from "@chanlytics/contracts";
+import { DEFAULT_CAMPAIGN_CHANNELS, purposeOfTemplate } from "@chanlytics/contracts";
+import type { AskedPurpose, AudiencePreview, ConsentChannel, ParamSourceKind } from "@chanlytics/contracts";
+import { sameChannels } from "@/lib/campaign-channels";
 import { pageClock } from "@/legacy-bridge/zone";
+import {
+  cmChannelsOn,
+  cmHeldLines,
+  cmReachBy,
+  cmReadyForMessage,
+  cmReadyOf,
+  cmSplitWords,
+  cmViaTicks,
+} from "../../parts/channels";
+import { cmChannelOfPerson, cmPreviewBy } from "../../parts/preview-by";
 import { starters } from "../../templates/verbs";
+import type { AudienceOption } from "../surface";
 import { broadcasts } from "../verbs";
 import { BC_NONE } from "../run";
 import { bcWhenNote } from "../when";
 import type { BcBase, BcPeople, BcPreview, BcReach, BcSlotChoices, BcSlotVar, BcSlotWords } from "./types";
-import { BC_TEXT, bcKey, bcSlots } from "./words";
+import { BC_TEXT, bcFooter, bcKey, bcSlots } from "./words";
 
-// Who the send reaches with the message picked: the list, how many on it this message may reach, and the number it
-// goes from.
+/**
+ * Nobody on the list is reached: no channel the send ticks can carry this message, so the whole list is held on that. The
+ * list's size is the reading it was made from (reached and held are the whole of it, whatever channels).
+ */
+function bcNobodyOn(base: AudiencePreview): AudiencePreview {
+  const pool = base.sending + base.held;
+  return {
+    people: [],
+    split: { reached: 0, byChannel: { whatsapp: 0, sms: 0, email: 0 }, held: pool, heldBy: { no_channel: pool } },
+    sending: 0,
+    held: pool,
+    saidYes: 0,
+    heard: 0,
+  };
+}
+
+/**
+ * An audience read for the channels the send goes by (contracts reachFor: each person once, on one of them). WhatsApp alone
+ * is the reading every audience carries, with its own count; any other set is the one kept for it (surface.ts `by`), and
+ * none on reaches nobody. Null where the surface holds no preview for it, which the page then says nothing of.
+ */
+function bcReadingOf(
+  a: AudienceOption | null,
+  purpose: AskedPurpose,
+  on: readonly ConsentChannel[],
+): { sending: number; preview: AudiencePreview | null } {
+  if (!a) return { sending: 0, preview: null };
+  const base = a.preview ? a.preview[purpose] : null;
+  if (sameChannels(on, DEFAULT_CAMPAIGN_CHANNELS))
+    return { sending: a.counts ? a.counts[purpose] || 0 : 0, preview: base };
+  if (on.length === 0) return { sending: 0, preview: base ? bcNobodyOn(base) : null };
+  const kept = a.by ? a.by[purpose].find((k) => sameChannels(k.channels, on)) : undefined;
+  return { sending: kept ? kept.preview.sending : 0, preview: kept ? kept.preview : null };
+}
+
+// Who the send reaches with the message picked: the list, how many on it this message may reach by the channels it goes
+// by, and the number it goes from.
 export function bcReachOf({
   audiences,
   aud,
   templates,
   tplId,
   data,
-}: Pick<BcBase, "audiences" | "aud" | "templates" | "tplId" | "data">): BcReach {
+  channels,
+}: Pick<BcBase, "audiences" | "aud" | "templates" | "tplId" | "data" | "channels">): BcReach {
   const active = audiences.find((a) => bcKey(a) === aud) || audiences[0] || null;
   // The template comes BEFORE the counts now, because the counts depend on it.
   //
@@ -32,17 +81,40 @@ export function bcReachOf({
   // the bridge from Meta's own category, so the page never decides it.
   const tpl = templates.find((t) => t.id === tplId) || null;
   const purpose = (tpl && tpl.purpose) || "marketing";
-  const sizeOf = (a: BcReach["active"]) => (a && a.counts ? a.counts[purpose] || 0 : 0);
-  const activeCount = sizeOf(active);
   const number = data.number || null;
-  const numberOk = !!(number && number.present && number.health.canSend);
+  // The channels it goes by: the ones ticked that the workspace can send on and the message has a version for.
+  const channelReady = cmReadyForMessage(cmReadyOf(data.ready), (tpl && tpl.channels) || DEFAULT_CAMPAIGN_CHANNELS);
+  const on = cmChannelsOn(channels, channelReady, purpose);
+  const sizeOf = (a: BcReach["active"]) => bcReadingOf(a, purpose, on).sending;
+  const reading = bcReadingOf(active, purpose, on);
+  const activeCount = reading.sending;
+  const viaWhatsApp = on.includes("whatsapp");
+  // The number matters to the send only where it goes by WhatsApp: a send that does not tick it never asks.
+  const numberOk = !viaWhatsApp || !!(number && number.present && number.health.canSend);
+  // The number's daily limit is WhatsApp's: only who the send reaches on it counts against it.
+  const onWhatsApp = reading.preview && reading.preview.split ? reading.preview.split.byChannel.whatsapp : activeCount;
   const overLimit = !!(
     active &&
+    viaWhatsApp &&
     number &&
     number.health.limitPerDay !== null &&
-    activeCount > number.health.limitPerDay
+    onWhatsApp > number.health.limitPerDay
   );
-  return { active, tpl, purpose, sizeOf, activeCount, number, numberOk, overLimit };
+  return {
+    active,
+    tpl,
+    purpose,
+    sizeOf,
+    activeCount,
+    number,
+    numberOk,
+    overLimit,
+    channelReady,
+    on,
+    // A broadcast goes now: a channel closed now cannot be ticked.
+    ticks: cmViaTicks(channels, channelReady, purpose, false),
+    reading: reading.preview,
+  };
 }
 
 // What each slot of the message may take, and what it takes now.
@@ -137,11 +209,13 @@ export function bcPeopleOf({
   active,
   purpose,
   activeCount,
-}: Pick<BcReach, "active" | "purpose" | "activeCount">): BcPeople {
+  reading,
+  on,
+}: Pick<BcReach, "active" | "purpose" | "activeCount" | "reading" | "on">): BcPeople {
   // Who the preview is drawing it for. The bridge keeps a handful of the rows the
   // count is a length of; a surface cached before they were published has none,
   // and then the composer shows the example values as it always did.
-  const sample = (active && active.preview && active.preview[purpose]) || null;
+  const sample = reading;
   const people = sample ? sample.people : BC_NONE;
   // Nobody on it can be sent this, and somebody on it said yes: the ones who did have no number to send to. Said in
   // People's words (#663), with no door -- asking for their yes would ask for an answer they gave.
@@ -154,10 +228,17 @@ export function bcPeopleOf({
   const yesWords = active
     ? broadcasts.saidYesWords(`“${active.label}”`, purpose, activeCount, (sample && sample.saidYes) || 0)
     : null;
-  return { sample, people, noNumber, yesWords };
+  // Said only where the send goes by more than WhatsApp alone: for WhatsApp alone the line is what it always was.
+  const splitWords = cmSplitWords(sample && sample.split, on);
+  const heldLines = splitWords ? cmHeldLines(sample && sample.split, purpose) : [];
+  // The same split as the To line's clause after the count, and what the preview labels each person's channel by.
+  const reachBy = cmReachBy(sample && sample.split, on);
+  return { sample, people, noNumber, yesWords, splitWords, heldLines, reachBy };
 }
 
-// The one person the preview is drawn for, what they read, and when it lands.
+// The one person the preview is drawn for, what they read, and when it lands. They read the message on the channel the send
+// reaches them on: the email's subject, words and foot, the text's words and STOP line, WhatsApp's template otherwise
+// (parts/preview-by.ts), the channel named where the send goes by more than WhatsApp alone.
 export function bcPreviewOf({
   people,
   who,
@@ -166,11 +247,15 @@ export function bcPreviewOf({
   srcOf,
   whenAt,
   data,
+  tpl,
+  reachBy,
 }: Pick<BcBase, "who" | "whenAt" | "data"> &
-  Pick<BcPeople, "people"> &
+  Pick<BcPeople, "people" | "reachBy"> &
+  Pick<BcReach, "tpl"> &
   Pick<BcSlotWords, "shown"> &
   Pick<BcSlotChoices, "vars" | "srcOf">): BcPreview {
   const person = people.length ? people[Math.min(who, people.length - 1)] : null;
+  const channel = person ? cmChannelOfPerson(person) : null;
   // What this person really reads. A first-name slot takes THEIR name, and the
   // words the wire uses when nobody has one -- "Hi there" (contracts
   // resolveParams) -- had never been shown to anybody before a send.
@@ -191,5 +276,21 @@ export function bcPreviewOf({
   // A surface cached before the ceiling was published carries none; the route's is thirty days.
   const maxDays = data.scheduleMaxDays || 30;
   const whenNote = bcWhenNote(whenAt, maxDays);
-  return { person, forPerson, noName, personNote, goesAt, maxDays, whenNote };
+  // With nobody to walk through (a surface cached before the people were kept), the preview is WhatsApp's, as it was.
+  const preview = tpl
+    ? cmPreviewBy(
+        { body: tpl.body_preview, header: tpl.header, footer: bcFooter(tpl), buttons: tpl.buttons ?? null },
+        person ? channel : "whatsapp",
+        {
+          versions: tpl.versions,
+          language: tpl.language,
+          business: data.businessName,
+          address: data.businessAddress,
+          labelled: reachBy !== null,
+          // An offer's email reads with the offer's foot: why they get it, and the way out (step 4).
+          ...(purposeOfTemplate(tpl.category) === "marketing" ? { offer: "customer" as const } : {}),
+        },
+      )
+    : null;
+  return { person, channel, preview, forPerson, noName, personNote, goesAt, maxDays, whenNote };
 }

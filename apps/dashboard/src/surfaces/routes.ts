@@ -12,7 +12,8 @@
  * route's params the page draws, and `chrome` names the crumbs an address has, as the row's `draw` did. An address the
  * page does not take stays with the frame's table (People's Leads scope, until Leads leaves).
  */
-import { broadcastsChrome, playbooksChrome } from "./campaigns/routes";
+import { CAMPAIGN_ROOMS } from "@chanlytics/contracts";
+import { broadcastsChrome, campaignsChrome } from "./campaigns/routes";
 import { calendarChrome } from "./calendar/chrome";
 import { conversationsCrumbs, conversationsNav, inboxCrumbs } from "./inbox/routes";
 import { liveChrome } from "./live/routes";
@@ -90,18 +91,31 @@ export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
     params: true,
     mount: "conversations",
   },
-  outbound: {
-    activeNav: "outbound",
-    crumbs: ["Campaigns", "Playbooks"],
-    pane: true,
+  // Campaigns' home (canvas A, "Lifecycle"): the page of moments, with a moment or the composer open over it. One mount for every
+  // address: opening a moment or the composer is no new page. An address it does not know is the home.
+  campaigns: {
+    activeNav: "campaigns",
+    crumbs: [CAMPAIGN_ROOMS.home],
+    pane: false,
     takes: () => true,
-    chrome: playbooksChrome,
+    mount: "campaigns",
+    chrome: campaignsChrome,
   },
-  messages: { activeNav: "messages", crumbs: ["Campaigns", "Templates"], pane: true },
+  // The old Playbooks list, a door (3 Oct 2026): `outbound` lands on `campaigns` and `outbound/<id>` on `campaigns/moment:<id>`
+  // (contracts doorOf, applied where a route is written and where an address is moved on load); this draws only for an address
+  // that arrives some other way, which the page at `playbooks` replaces.
+  outbound: { activeNav: "campaigns", crumbs: [CAMPAIGN_ROOMS.home], pane: false, takes: () => true },
+  // The Library: the messages the workspace sends, a room of Campaigns' home with no strip of its own.
+  messages: {
+    activeNav: "messages",
+    crumbs: [{ label: CAMPAIGN_ROOMS.home, to: "campaigns" }, CAMPAIGN_ROOMS.library],
+    pane: true,
+  },
+  // Sent: the runs, a room of Campaigns' home.
   broadcasts: {
     activeNav: "broadcasts",
-    crumbs: ["Campaigns", "Broadcasts"],
-    pane: false,
+    crumbs: [{ label: CAMPAIGN_ROOMS.home, to: "campaigns" }, CAMPAIGN_ROOMS.sent],
+    pane: true,
     takes: () => true,
     chrome: broadcastsChrome,
   },

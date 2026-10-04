@@ -2,7 +2,8 @@
  * The reach-out sheet and the Leads door (Reach out, Part 4 PR 6), run on the stub React over the surface's own words
  * (surfaces/campaigns/reach-out/surface.ts, contracts reach-out-draft.ts and reach-out-sheet.ts) and its verbs stubbed
  * on the one `reachOuts` object the TSX sheet and door import: who gets it as the database counts it; each field's problems in contracts' words and Start held
- * until there are none; a slot put in at the caret; the steps; the pace and the domains; one business's email at a time,
+ * until there are none; a slot put in at the caret by the editor's own menu (the Templates page's, step 5); the steps;
+ * the pace and the domains; one business's email at a time,
  * asked for by a press, its refusals said; Start saving exactly ReachOutChainSchema's shape and the sheet staying open
  * to say what the run did (R14); an edit passing its steps' ids; the domains and the booking link unread said as
  * reading, never as none; and the door on a search, by role and by what the search holds (F10). The bridge's verbs
@@ -12,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
@@ -114,7 +115,12 @@ const sheet = (props = {}) => {
   again(draw);
   return { draw: () => again(draw), done };
 };
-const typeInto = (node, value, at = value.length) => node.props.onChange({ target: { value, selectionStart: at } });
+// A step's words are typed in the editor's slot box (onValueChange hands up the stored words), and the name and a call's
+// words in the kit's Field, which hands them up the same way; a box that still takes an event is `onChange`.
+const typeInto = (node, value, at = value.length) =>
+  node.props.onValueChange
+    ? node.props.onValueChange(value)
+    : node.props.onChange({ target: { value, selectionStart: at } });
 
 test("who gets it: the search's reach as the database counts it, the unconfirmed held with their door", async () => {
   setup();
@@ -154,7 +160,7 @@ test("each field's problems are said under it in contracts' words, and Start wai
   tree = s.draw();
   assert.match(
     textOf(byTestId(tree, "ro-body-issues-0")),
-    /\{\{first name\}\} isn't one of the slots\. Use the chips below\./,
+    /\{\{first name\}\} isn't one of the slots\. Use one of the six\./,
   );
   assert.equal(byTestId(tree, "ro-start").props.disabled, true);
   typeInto(byTestId(tree, "ro-body"), "Book here: {{booking link}}");
@@ -162,18 +168,37 @@ test("each field's problems are said under it in contracts' words, and Start wai
   assert.match(textOf(byTestId(tree, "ro-chain-issues")), /Add your booking link in Settings › Business first/, "F8");
 });
 
-test("a slot chip puts its slot in at the caret of the field last focused", async () => {
+test("a slot goes in by its name, at the caret the box last used had, and the words keep the named slot", async () => {
   setup();
   verbs();
   const s = sheet();
   await settle();
   let tree = s.draw();
-  typeInto(byTestId(tree, "ro-body"), "Hello  there");
+  const box = (t) => byTestId(t, "ro-body");
+  typeInto(box(tree), "Hello  there");
   tree = s.draw();
-  byTestId(tree, "ro-body").props.onFocus({ target: { selectionStart: 6 } });
+  // The box says where its caret was as it lost focus to the press: a place in the stored words.
+  box(tree).props.onBlur({ start: 6, end: 6 });
+  const chips = all(byTestId(tree, "ro-slots"), (n) => n.type === "button");
+  assert.deepEqual(
+    chips.map((c) => [textOf(c), c.props.title]),
+    contracts.REACH_OUT_SLOT_SET.keys.map((key, i) => [
+      contracts.REACH_OUT_SLOT_SET.labels[i],
+      contracts.REACH_OUT_SLOT_WORDS[key],
+    ]),
+    "the six, each by its name with what it is on hover",
+  );
   press(byTestId(tree, "ro-slot-business"));
   tree = s.draw();
-  assert.equal(byTestId(tree, "ro-body").props.value, "Hello {{business}} there");
+  assert.equal(box(tree).props.value, "Hello {{business}} there", "stored with its named slot, as it always was");
+  assert.equal(box(tree).props.slots.kind, "named", "drawn by the editor over the reach-out's six");
+  // A later step has its own row of them, and puts its slot in its own words.
+  press(byTestId(tree, "ro-add"));
+  tree = s.draw();
+  press(byTestId(byTestId(tree, "ro-slots-1"), "ro-slot-your-name"));
+  tree = s.draw();
+  assert.ok(byTestId(tree, "ro-step-body-1").props.value.endsWith("{{your name}}"));
+  assert.equal(box(tree).props.value, "Hello {{business}} there", "the first step is left alone");
 });
 
 test("steps: another is a short nudge four days on, up to five, and the last may be taken off", async () => {
@@ -185,7 +210,8 @@ test("steps: another is a short nudge four days on, up to five, and the last may
   press(byTestId(tree, "ro-add"));
   tree = s.draw();
   assert.match(textOf(byTestId(tree, "ro-step-1")), /A short nudge/);
-  assert.equal(byTestId(tree, "ro-after-1").props.value, 4);
+  // The days are the kit's Picker (surfaces/kit/picker/): its value is the words' own, "4".
+  assert.equal(byTestId(tree, "ro-after-1").props.value, "4");
   for (let i = 0; i < 5; i += 1) {
     const add = byTestId(s.draw(), "ro-add");
     if (add) press(add);
@@ -402,10 +428,11 @@ test("From: up to five domains picked, as the chain's schema allows, and said so
   verbs();
   const s = sheet();
   await settle();
-  for (const id of ["d1", "d2", "d3", "d4", "d5"]) byTestId(s.draw(), `ro-domain-${id}`).props.onChange();
+  // Each domain is the kit's Switch (surfaces/kit/switch/), which is read-only, never disabled, once five are picked.
+  for (const id of ["d1", "d2", "d3", "d4", "d5"]) byTestId(s.draw(), `ro-domain-${id}`).props.onCheckedChange(true);
   const tree = s.draw();
-  assert.equal(byTestId(tree, "ro-domain-d6").props.disabled, true);
-  assert.equal(byTestId(tree, "ro-domain-d1").props.disabled, false, "a picked one may still be let go");
+  assert.equal(byTestId(tree, "ro-domain-d6").props.readOnly, true);
+  assert.equal(byTestId(tree, "ro-domain-d1").props.readOnly, false, "a picked one may still be let go");
   assert.equal(textOf(byTestId(tree, "ro-domains-max")), "Up to 5 domains, or every verified one.");
   setup();
 });
@@ -489,7 +516,11 @@ test("the Leads door: its search's chain, else its ready, else its unconfirmed i
   await settle();
   let tree = redraw();
   assert.equal(textOf(byTestId(tree, "leads-write")).trim(), "Write to the 44 ready");
-  assert.match(byTestId(tree, "leads-write").props.className, /btn-primary ro-door btn-sm/);
+  // The kit's Button (surfaces/kit/button/): the host button it draws wears the primary, small classes and the door's.
+  assert.match(
+    find(byTestId(tree, "leads-write"), (n) => n.type === "button").props.className,
+    /btn-sm btn-primary ro-door/,
+  );
   const onPhone = door(SEARCH, true);
   await settle();
   assert.match(

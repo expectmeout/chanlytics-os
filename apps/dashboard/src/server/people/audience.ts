@@ -8,6 +8,7 @@ import {
   poolRowsOf,
   resolveList,
   ruleLists,
+  type ChannelsReady,
   type ListContext,
   type ListRef,
   type PersonRowDto,
@@ -50,6 +51,12 @@ export async function audiencePool(
   tz: string,
   now: Date,
   /**
+   * What the workspace can send on now, channel by channel (campaigns/channels-ready.ts channelsReadyOrNull): each row's
+   * reach is judged against it, so a list that reads who can be sent what (contracts reach-any.ts) counts as the page does.
+   * Required: no pool may be read without it. Null where it could not be read: counted by WhatsApp alone, as before.
+   */
+  ready: ChannelsReady | null,
+  /**
    * What a caller already read this turn, or how to read it from the turn (readers/audience-pool.ts): how the
    * workspace's customers buy, taken instead of reading it here; everyone in People, read just where this reads its
    * own (readers/everyone.ts, which the Playbooks page's pools share); and the calendar's zone and settings, which the
@@ -69,7 +76,7 @@ export async function audiencePool(
     people,
     // The pool's one reading (contracts audience-pool.ts), for the member asking: a teammate's thread is theirs, and a
     // list about "me" is about them. Where deals are off no row carries one.
-    rows: poolRowsOf(people, { tz, now, viewer, dealsOn: deals_on }),
+    rows: poolRowsOf(people, { tz, now, viewer, dealsOn: deals_on, ready }),
     calendar,
     consult_first,
     deals_on,

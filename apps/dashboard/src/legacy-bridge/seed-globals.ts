@@ -144,6 +144,7 @@ if (typeof window !== "undefined") {
     PolicyChip: KIT_GLOBALS.PolicyChip,
     TlMedia: KIT_GLOBALS.TlMedia,
     AttnRow: KIT_GLOBALS.AttnRow,
+    useHoldToTalk: KIT_GLOBALS.useHoldToTalk,
     // The Inbox's and Conversations' names for the pages that have not moved (surfaces/inbox/legacy-globals.ts), and the
     // one thread's verbs, which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx).
     INBOX_DATA: INBOX_GLOBALS.INBOX_DATA,

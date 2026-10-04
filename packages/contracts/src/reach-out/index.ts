@@ -1,12 +1,10 @@
 /** Reach out: the campaign email's words and rules, its timetable, and the hours and time zones the window keeps. */
 export {
   whyFrom,
-  campaignFooter,
-  campaignFooterHtml,
   isCampaignEmail,
+  CAMPAIGN_EMAIL_TAG,
   unsubscribePageWords,
   WHY_FROM_MAPS,
-  MARKETING_LINE,
   UNSUBSCRIBE_PAGE_HEADER,
 } from "./reach-out";
 export type { UnsubscribeView, UnsubscribePageWords } from "./reach-out";
@@ -26,7 +24,9 @@ export {
   outreachRefusalOf,
   isWaitRefusal,
   isReachOutRun,
-  reachOutSlots,
+  reachOutEmailOf,
+  reachOutExampleValues,
+  REACH_OUT_LANGUAGE,
   OUTREACH_WAIT_REFUSALS,
   REACH_OUT_MONTH_EMAILS,
 } from "./reach-out-rules";
@@ -48,6 +48,7 @@ export { REACH_OUT_CHECKS_PER_DAY } from "./reach-out-rules";
 export type { SlotWorkspace } from "./reach-out-rules";
 export {
   REACH_OUT_SLOTS,
+  REACH_OUT_SLOT_SET,
   REACH_OUT_SLOT_WORDS,
   REACH_OUT_SUBJECT_MAX,
   REACH_OUT_BODY_MAX,
@@ -60,12 +61,9 @@ export {
   SIGNED_BY_MAX,
   REACH_OUT_GAP_MINUTES,
   REACH_OUT_AFTER_DAYS,
-  slotKey,
-  isReachOutSlot,
-  slotsNamed,
-  replaceSlots,
   slotCount,
-  slotParts,
+  reachOutSlotFault,
+  reachOutRules,
   wordsNeedOpening,
   wordCount,
   emailWordCount,
@@ -168,7 +166,6 @@ export {
   reachOutAfterDayChoices,
   reachOutChainBodyOf,
   reachOutDraftIssues,
-  insertSlotAt,
   reachOutSheetPaceOf,
   previewRefusedWords,
   previewLinesOf,
@@ -176,6 +173,7 @@ export {
   reachOutMayPickDomain,
   reachOutPreviewOf,
   reachOutSavedWords,
+  reachOutEditedWords,
   reachOutSheetUnreadOf,
   reachOutWhoWords,
 } from "./reach-out-draft";

@@ -492,7 +492,7 @@ test("a failed run's report says why it stopped and how to get past it, in the c
     );
   assert.deepEqual(run("template_not_approved").stop, {
     words: "WhatsApp no longer approves its template",
-    fix: "Open it in Templates — it can be resubmitted.",
+    fix: "Open it in the Library — it can be resubmitted.",
     tone: "danger",
   });
   assert.equal(run("paused").stop.tone, "warn");
@@ -627,4 +627,124 @@ test("each part of a run's report says its own words: the span its bars cover, w
     [0, 0, 0, 0, 1, 0, 0, 0],
     "a read with no delivery stamp is drawn when it was read: an hour in, in two hours of quarter-hour steps",
   );
+});
+
+/* ------------------- each person's channel (One message, every channel, step 3) ------------------- */
+
+test("the detail reads the channel each person was picked for, and a database 00298 has not reached reads as it always did: by WhatsApp, with no word of it", async () => {
+  const world = {
+    broadcasts: [bRow()],
+    broadcast_recipients: [
+      rec("c-mail", { channel: "email" }),
+      rec("c-wa", { channel: "whatsapp" }),
+      rec("c-old", { channel: null }),
+    ],
+    messages: [],
+    events: [],
+  };
+  const d = await getBroadcast({ supabase: fakeDb(world) }, TID, B);
+  const by = Object.fromEntries(d.recipients.map((r) => [r.contact_id, r.channel]));
+  assert.deepEqual(by, { "c-mail": "email", "c-wa": "whatsapp", "c-old": null }, "a row that names none is null");
+  // A database that has no such column refuses the read that asks for it: read again without, never a run that cannot open.
+  const db = fakeDb(world);
+  const noColumn = {
+    from: (table) => {
+      const q = db.from(table);
+      if (table !== "broadcast_recipients") return q;
+      return {
+        select: (columns, ...rest) =>
+          columns.startsWith("channel,")
+            ? {
+                eq() {
+                  return this;
+                },
+                order() {
+                  return this;
+                },
+                range() {
+                  return this;
+                },
+                then: (res, rej) =>
+                  Promise.resolve({
+                    data: null,
+                    error: { message: "column broadcast_recipients.channel does not exist" },
+                  }).then(res, rej),
+              }
+            : q.select(columns, ...rest),
+      };
+    },
+  };
+  const old = await getBroadcast({ supabase: noColumn }, TID, B);
+  assert.equal(old.recipients.length, 3, "the run opens, with everyone on it");
+  assert.deepEqual(
+    old.recipients.map((r) => r.channel),
+    [null, null, null],
+  );
+});
+
+test("a run's report says each person's channel where it reached anybody by something but WhatsApp, and the words for a message that never arrived are the channel's own", () => {
+  const person = (over) => ({
+    contact_id: "p",
+    name: "Ada Lee",
+    first_name: "Ada",
+    state: "sent",
+    reason: null,
+    sent_at: at(0),
+    message_status: "sent",
+    conversation_id: "cv-p",
+    delivered_at: null,
+    read_at: null,
+    replied: false,
+    replied_at: null,
+    consent_after: null,
+    consent_at: null,
+    consent_purpose: null,
+    reply_words: null,
+    answered_by: null,
+    answered_at: null,
+    waiting_on_you: false,
+    ...over,
+  });
+  const report = (recipients) =>
+    C.toRunReportVM(
+      { broadcast: { state: "sent", params: [] }, recipients },
+      { windowMs: C.REPLY_WINDOW_MS, nowMs: T0 },
+    );
+  const subs = (vm) => vm.figures.map((f) => [f.id, f.sub, f.tone]);
+  const rows = [
+    person({ contact_id: "k-wa", channel: "whatsapp" }),
+    person({ contact_id: "k-mail", channel: "email", message_status: "failed" }),
+    person({ contact_id: "k-text", channel: "sms", message_status: "failed" }),
+    person({ contact_id: "k-wa2", channel: "whatsapp", message_status: "failed" }),
+    person({ contact_id: "k-held", channel: "email", state: "skipped", reason: "no_address", sent_at: null }),
+    person({ contact_id: "k-old", channel: null }),
+  ];
+  const vm = report(rows);
+  const by = Object.fromEntries(vm.people.map((p) => [p.contact_id, [p.channel, p.words]]));
+  assert.deepEqual(by["k-wa"][0], "on WhatsApp");
+  assert.deepEqual(by["k-mail"], ["by email", "the email was not delivered"]);
+  assert.deepEqual(by["k-text"], ["by text", "the text was not delivered"]);
+  assert.deepEqual(by["k-wa2"], ["on WhatsApp", "WhatsApp could not deliver it"]);
+  assert.deepEqual(
+    by["k-held"],
+    ["by email", "no email address"],
+    "a person it never went to has its reason, and the channel it was meant for",
+  );
+  assert.equal(by["k-old"][0], null, "a row with no channel says none");
+  assert.equal(
+    subs(vm)[1][1].includes("handset"),
+    false,
+    "a run that reached by email does not say every one reached the handset",
+  );
+  // A run of WhatsApp alone, or made before channels were kept: the report is what it always was.
+  const delivered = { message_status: "delivered" };
+  const quiet = report([
+    person({ contact_id: "a", channel: "whatsapp", ...delivered }),
+    person({ contact_id: "b", ...delivered }),
+  ]);
+  assert.deepEqual(
+    quiet.people.map((p) => p.channel),
+    [null, null],
+  );
+  assert.equal(subs(quiet)[1][1], "every one reached the handset");
 });

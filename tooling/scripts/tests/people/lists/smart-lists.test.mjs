@@ -349,10 +349,23 @@ test("a list that reads a list whose rule can't be read cannot be counted either
 
 /* ---------------------------------------- playbooks on a list ---------------------------------------- */
 
+/**
+ * How a send goes (step 3, contracts reachFor): by WhatsApp alone, which the workspace can send on, as every campaign went
+ * before it ticked channels.
+ */
+const HOW = {
+  channels: ["whatsapp"],
+  ready: contracts.channelsReady({
+    whatsapp: { canSend: true, refusal: null },
+    textLine: null,
+    email: { mailbox: false, domain: false },
+  }),
+};
+
 test("a playbook on a list runs on who is on it; the Lapsed moment runs on People's Lapsed list", () => {
   const rows = [vm("1"), vm("2"), vm("3")];
   const touches = { byThis: new Map(), byAny: new Map() };
-  const p = { trigger: "saved_list", cap_per_run: 25, gap_days: 90, cadence_days: 30 };
+  const p = { trigger: "saved_list", cap_per_run: 25, gap_days: 90, cadence_days: 30, ...HOW };
   const drawn = playbookRunReach(rows, p, touches, NOW, null, new Set(["1", "3"]));
   assert.deepEqual(drawn.eligible.map((r) => r.id).sort(), ["1", "3"]);
   assert.equal(drawn.reach.pool, 2);
@@ -368,10 +381,13 @@ test("a playbook on a list runs on who is on it; the Lapsed moment runs on Peopl
     ["a"],
     "45 days since the chair, nothing booked",
   );
-  assert.equal(triggerOf("lapsed").label, "Lapsed");
+  // 2 Oct 2026: the win-back by visits is called Win-back, as the win-back by silence is (momentOffered offers one).
+  assert.equal(triggerOf("lapsed").label, "Win-back");
+  // 2 Oct 2026: the win-back's starter was renamed in the new set; what holds is that both win-backs send the one.
+  assert.ok(contracts.starterForTrigger("quiet_30"));
   assert.equal(
     contracts.starterForTrigger("lapsed")?.name,
-    "winback_offer",
+    contracts.starterForTrigger("quiet_30")?.name,
     "the win-back's words, already about a visit",
   );
   assert.equal(contracts.starterForTrigger("saved_list"), null, "a list's message is the owner's choice");
@@ -405,6 +421,8 @@ const runCtx = (over = {}) => ({
     ["reengage", "auto"],
   ]),
   health: contracts.numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
+  // Step 3: a run reads what the workspace can send on.
+  ready: HOW.ready,
   touches: { byThis: new Map(), byAny: new Map() },
   calendar: "none",
   visits: new Map(),
@@ -686,7 +704,7 @@ test("a send to a smart list enrols who its rule holds for, over the same pool i
     {},
     { people_list: () => [person("1", ["sms"]), person("2", ["whatsapp"]), person("3", ["sms", "voice"])] },
   );
-  const ports = createBroadcastPorts({ supabase: db, userId: USER }, A);
+  const ports = createBroadcastPorts({ supabase: db, userId: USER }, A, { fresh: false });
   const seg = await ports.list({ kind: "saved", id: S2 }, new Date("2026-09-20T15:00:00Z"));
   assert.equal(seg.label, "Texters");
   assert.deepEqual(seg.memberIds.sort(), ["1", "3"]);

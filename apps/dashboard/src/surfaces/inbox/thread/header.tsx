@@ -9,7 +9,7 @@ import { linkHost, proposalLinkOf, proposalMessage } from "@chanlytics/contracts
 import type { DealVM, PersonNextStepVM, PersonRowVM } from "@chanlytics/contracts";
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
-import { MoreMenu, type MoreMenuItem } from "../../kit/more-menu/more-menu";
+import { Menu, type MenuGroup, type MenuItem } from "../../kit/menu/menu";
 import { askAbout } from "../../legacy-verbs";
 import { ROUTES } from "../constants";
 import {
@@ -121,9 +121,11 @@ const ixWires = (thread: Thread, labels: Record<string, string>) => {
   return [...new Set(ws.map((c) => labels[c] || c))].join(" · ");
 };
 
-// A menu's groups, a divider between each two that have anything in them.
-const ixMenu = (groups: MoreMenuItem[][]): MoreMenuItem[] =>
-  groups.filter((g) => g.length).flatMap((g, i) => (i ? [{ divider: true }, ...g] : g));
+// A menu's groups: the kit's menu draws a line between each two, so a group with nothing in it is not one.
+const ixMenu = (groups: MenuItem[][]): MenuGroup[] => groups.filter((g) => g.length).map((items) => ({ items }));
+
+// An item's glyph, at the size the menu draws it.
+const ixGlyph = (name: string) => <Icon name={name} size={13} />;
 
 /** Who this is, and what is known of them in People: their deal or a visit, and the deal's link. */
 interface HeaderFacts {
@@ -174,7 +176,7 @@ const DEAL_ICON: Record<string, string> = {
  * (deal-sheet.ts dealMenuActs, through window.__deal). The send needs the link above and a wire free text can go on;
  * the moves need a person People has read, on a real workspace.
  */
-function dealGroup(thread: Thread, facts: HeaderFacts): MoreMenuItem[] {
+function dealGroup(thread: Thread, facts: HeaderFacts): MenuItem[] {
   const { person, proposalUrl } = facts;
   const kit = dealKit();
   // The sheet gives focus back to whatever held it as it opened, and a menu's item is gone by then: the Actions button
@@ -186,13 +188,13 @@ function dealGroup(thread: Thread, facts: HeaderFacts): MoreMenuItem[] {
         : null;
     if (b && b.focus) b.focus();
   };
-  const sendItem: MoreMenuItem | null =
+  const sendItem: MenuItem | null =
     kit && thread.real && proposalUrl && thread.windowOpen && !thread.optedOut
       ? {
           label: kit.actWords.send,
           hint: linkHost(proposalUrl),
-          icon: DEAL_ICON.send,
-          onClick: () =>
+          glyph: ixGlyph(DEAL_ICON.send ?? "send"),
+          onSelect: () =>
             window.dispatchEvent(
               new CustomEvent("inbox:compose", { detail: { text: proposalMessage(proposalUrl), link: proposalUrl } }),
             ),
@@ -201,15 +203,15 @@ function dealGroup(thread: Thread, facts: HeaderFacts): MoreMenuItem[] {
       : null;
   const clientId = thread.clientId;
   const people = peopleRead();
-  const dealItems: MoreMenuItem[] =
+  const dealItems: MenuItem[] =
     kit && !demoSession() && clientId && person && people && people.dealsOn && hasDealSheet()
       ? kit
           .menu(person.deal)
           .filter((a) => a.mode)
           .map((a) => ({
             label: a.label,
-            icon: DEAL_ICON[a.id] || "deal",
-            onClick: () => {
+            glyph: ixGlyph(DEAL_ICON[a.id] || "deal"),
+            onSelect: () => {
               toActions();
               openDealSheet({
                 personId: clientId,
@@ -255,10 +257,10 @@ interface HeaderActs {
   onArchive: (() => void) | null;
 }
 
-function actionsMenu(thread: Thread, dealActs: MoreMenuItem[], acts: HeaderActs) {
+function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs) {
   const { onSnooze, onMarkUnread, onOpenClient, onArchive } = acts;
   const snoozed = thread.state === "snoozed";
-  const conversation: MoreMenuItem[] = [
+  const conversation: MenuItem[] = [
     // A snoozed thread wakes from its status line ("Wake now"); the header's Snooze button read "Wakes …", disabled.
     ...(snoozed
       ? []
@@ -266,41 +268,50 @@ function actionsMenu(thread: Thread, dealActs: MoreMenuItem[], acts: HeaderActs)
           {
             label: "Snooze",
             hint: "until tomorrow 10:00",
-            icon: "clock",
-            onClick: () => onSnooze(thread.id),
+            glyph: ixGlyph("clock"),
+            onSelect: () => onSnooze(thread.id),
             gate: gate("approve", "snooze a conversation"),
           },
         ]),
     // Archive, for the thread in front of you: it lived only in the bulk bar, behind a checkbox a phone never shows.
     ...(onArchive && !thread.archived
-      ? [{ label: "Archive", icon: "check", onClick: onArchive, gate: gate("approve", "archive a conversation") }]
+      ? [
+          {
+            label: "Archive",
+            glyph: ixGlyph("check"),
+            onSelect: onArchive,
+            gate: gate("approve", "archive a conversation"),
+          },
+        ]
       : []),
     // On a real thread "Mark as unread" flipped a local flag the next
     // realtime reseed wiped, and "Block sender" opened the Ask overlay,
     // a no-op outside a demo: both promised something that did not
     // happen. The real way to stop the receptionist for one person is
     // the mode on their profile, so that is where a real session goes.
-    ...(demoSession() ? [{ label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) }] : []),
+    ...(demoSession()
+      ? [{ label: "Mark as unread", glyph: ixGlyph("inbox"), onSelect: () => onMarkUnread(thread.id) }]
+      : []),
   ];
-  const person: MoreMenuItem[] = [
+  const person: MenuItem[] = [
     // clientId is the contact behind the thread, so these only render
     // when there is actually somewhere to go (a phone-only caller has none).
     ...(thread.clientId
-      ? [{ label: "Open profile", icon: "users", onClick: () => onOpenClient(thread.clientId) }]
+      ? [{ label: "Open profile", glyph: ixGlyph("users"), onSelect: () => onOpenClient(thread.clientId) }]
       : []),
     ...(!demoSession() && thread.clientId
-      ? [{ label: "Receptionist settings", icon: "shield", onClick: () => onOpenClient(thread.clientId) }]
+      ? [{ label: "Receptionist settings", glyph: ixGlyph("shield"), onSelect: () => onOpenClient(thread.clientId) }]
       : []),
   ];
-  const file: MoreMenuItem[] = [
+  const file: MenuItem[] = [
     // The transcript as a file, from the route that writes it. It was a button in Conversations' header only, so the
     // thread had it in one tab and not the other.
     ...(thread.real && thread.conversationId && hasHref()
       ? [
           {
             label: "Export transcript",
-            icon: "external",
-            onClick: () => {
+            glyph: ixGlyph("external"),
+            onSelect: () => {
               const to = hrefOf("GET conversations/[id]/export", { id: thread.conversationId ?? "" });
               if (to) ixDownload(to);
             },
@@ -320,9 +331,9 @@ function actionsMenu(thread: Thread, dealActs: MoreMenuItem[], acts: HeaderActs)
       ? [
           {
             label: "Block sender",
-            icon: "x",
-            danger: true,
-            onClick: () => askAbout({ mode: "compose", prompt: "Block this sender because " }),
+            glyph: ixGlyph("x"),
+            tone: "danger" as const,
+            onSelect: () => askAbout({ mode: "compose", prompt: "Block this sender because " }),
           },
         ]
       : [],
@@ -457,7 +468,7 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
   const alsoLeads = alsoInLeads(thread);
 
   return (
-    <header className="ix-th-head">
+    <header className="ix-th-head capsule">
       {headerMain(props, facts, alsoLeads)}
       <div className="ix-th-actions">
         {/* The header says each thing once. A real thread's line under the name names its channel ("WhatsApp · +1 …"),
@@ -478,11 +489,13 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
             find on a phone. The menu says what to do with the conversation, then with the person, then the file --
             no eyebrow: the menu is the thread's. "Conversation" headed a list of five in capitals, and
             "Receptionist for this person…" broke onto two lines. */}
-        <MoreMenu
-          btnClass="btn btn-ghost btn-sm ix-th-more"
-          label="Actions"
-          title="Actions"
-          items={actionsMenu(thread, dealActs, { onSnooze, onMarkUnread, onOpenClient, onArchive })}
+        <Menu
+          trigger={
+            <Button variant="quiet" size="sm" className="ix-th-more" title="Actions">
+              Actions <Icon name="chevron-down" size={10} />
+            </Button>
+          }
+          groups={actionsMenu(thread, dealActs, { onSnooze, onMarkUnread, onOpenClient, onArchive })}
         />
       </div>
       {person && person.nextStep && !demoSession() ? (

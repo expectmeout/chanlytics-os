@@ -11,8 +11,8 @@
  * release or a cancel puts the broadcast_send job on the ledger, or takes it off (schedule, cancelKindFor), and every
  * act is recorded as a decision.
  */
-import { AppError, numberHealth, parseTenantConfig } from "@chanlytics/contracts";
-import { assembleBroadcast } from "@chanlytics/db";
+import { AppError, parseTenantConfig } from "@chanlytics/contracts";
+import { assembleBroadcast, campaignMonthSent, holdRecipients, ownVersionsFiled } from "@chanlytics/db";
 import type {
   ApproveRunPorts,
   AssemblePorts,
@@ -27,6 +27,7 @@ import { cancelKindFor, schedule } from "../jobs";
 import { archivedListWords, audiencePool, poolList, type AudiencePool } from "../people/audience";
 import { serviceDb } from "../service-db";
 import { tenantFacts } from "../tenant";
+import { channelsReadyOf, channelsReadyOrNull, whatsappHealthOf } from "../campaigns/channels-ready";
 
 export function templateValuePorts(ctx: RouteContext, tenantId: string): TemplateValuesPorts {
   return {
@@ -74,20 +75,34 @@ function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
           scheduled_for: row.scheduled_for,
           recipient_count: row.recipient_count,
           created_by: ctx.userId,
+          channels: row.channels,
         },
-        recipients: recipients.map((r) => ({ contact_id: r.contact_id, facts: r.facts })),
+        recipients: recipients.map((r) => ({ contact_id: r.contact_id, facts: r.facts, channel: r.channel })),
         sendAt,
       }),
+    // The month's allowance, counted before anyone is enrolled (a function only the service role may call, so it is
+    // the route's role check that stands in front of it), and those past it held the moment the run exists (core
+    // campaigns/allowance.ts): the send's own check at the wire stays as the backstop.
+    monthSent: (channel) => campaignMonthSent(serviceDb(), tenantId, channel),
+    holdRecipients: (broadcastId, contactIds, reason) =>
+      holdRecipients(serviceDb(), { tenantId, broadcastId, contactIds, reason }),
   };
 }
 
-export function createBroadcastPorts(ctx: RouteContext, tenantId: string): CreateBroadcastPorts {
+/**
+ * The ports a broadcast is made over. `fresh`: ask the edge what the workspace can send on now, whatever it kept: true for
+ * the route that creates one (a send committed on a "ready" the edge has since taken back would enrol people it then holds),
+ * false for a read that only proposes (Ask's card before the person approves it), which the route judges again when it
+ * runs. Required, so no caller leaves the choice to a default.
+ */
+export function createBroadcastPorts(ctx: RouteContext, tenantId: string, o: { fresh: boolean }): CreateBroadcastPorts {
   // The workspace's facts, read once: the zone its people's rows are said in is the zone the send is timed by.
   let facts: ReturnType<typeof tenantFacts> | null = null;
   const zone = async () => (await (facts ??= tenantFacts(ctx.supabase, tenantId))).timezone;
   // The pool, read once: a send to a smart list judges its rule over the same people it enrols from.
   let pool: Promise<AudiencePool> | null = null;
-  const poolAt = async (now: Date) => (pool ??= audiencePool(ctx, tenantId, await zone(), now));
+  const poolAt = async (now: Date) =>
+    (pool ??= audiencePool(ctx, tenantId, await zone(), now, await channelsReadyOrNull(ctx, tenantId)));
   return {
     ...templateValuePorts(ctx, tenantId),
     ...assemblePorts(ctx, tenantId),
@@ -102,24 +117,20 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
       if (found?.archived) throw new AppError("validation", archivedListWords(found.label, "send"));
       return found;
     },
-    number: async () => {
-      const { data: ch, error: chErr } = await ctx.supabase
-        .from("tenant_channels")
-        .select("config")
-        .eq("tenant_id", tenantId)
-        .eq("kind", "whatsapp")
-        .eq("status", "active")
-        .limit(1)
-        .maybeSingle();
-      if (chErr) throw new Error(chErr.message);
-      if (!ch) return null;
-      const cfg = (ch.config && typeof ch.config === "object" && !Array.isArray(ch.config) ? ch.config : {}) as Record<
-        string,
-        unknown
-      >;
-      const s = (k: string) => (typeof cfg[k] === "string" ? cfg[k] : null);
-      return numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });
+    // What the workspace can send on now, channel by channel, and the WhatsApp number's health the day's limit is
+    // judged by (campaigns/channels-ready.ts): the rows the composers read, so a tick refused here is one they greyed.
+    channels: async () => {
+      const [ready, health] = await Promise.all([
+        channelsReadyOf(ctx, tenantId, { fresh: o.fresh }),
+        whatsappHealthOf(ctx, tenantId),
+      ]);
+      return { ready, health };
     },
+    // The email and text versions of a message in a language (a templates row of its name and language there).
+    versions: async (name, language) =>
+      (await ownVersionsFiled(ctx.supabase, tenantId, [name]))
+        .filter((v) => v.language === language)
+        .map((v) => v.channel),
     record: (subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),
   };
 }

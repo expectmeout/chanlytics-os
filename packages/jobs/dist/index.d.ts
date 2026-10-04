@@ -340,6 +340,17 @@ interface JobContext {
     email?: {
         /** The deployment's mail domain: what a mailbox's local part is an address on. */
         domain: string;
+        /**
+         * Where an OFFER by email leaves from (One message, every channel, step 4), bound by the edge only for a job that sends one
+         * (a broadcast's batch) and only while the deployment's campaigns domain is verified: that domain, and what seals the
+         * unsubscribe link every offer carries (the secret, and the origin its page answers on). Absent: this runtime sends no
+         * offer by email, and the door refuses one (core deliver `emailOffers`).
+         */
+        campaigns?: {
+            domain: string;
+            unsubscribeSecret: string;
+            unsubscribeOrigin: string;
+        } | null;
         /** One received email by the provider's id; null when the provider has none such. Throws when it cannot be asked. */
         fetch: (receivedId: string) => Promise<ReceivedEmail | null>;
         /** Was this email received before a person with this address asked to be forgotten (00125's digest)? */

@@ -976,3 +976,52 @@ test("a message with a photo the receptionist looks at takes no part in the turn
   );
   assert.equal(w.seen.processed, 1);
 });
+
+/* ------------------------------------------ the ask for the yes to offers: the conversation's channel reaches the note */
+
+test("the model is told who the person is with the conversation's channel: a text is said to be one, and is never told it has not been asked for the yes to offers", async () => {
+  // A text rides this road on the WhatsApp prompt, which says WhatsApp. The ask for the yes to offers is for WhatsApp
+  // alone (contracts offers-ask.ts), so the lead note carries the channel and withholds the sentence that lets it ask.
+  const lead = {
+    contactId: "k1",
+    conversationId: "conv1",
+    name: "Dana",
+    returning: true,
+    lastSeenAt: null,
+    history: [{ role: "user", content: "hi" }],
+    optedOut: false,
+    marketingConsent: "unknown",
+    offersAskedAt: null,
+  };
+  const leads = { read: async () => lead, personReplyMode: async () => null };
+  const asked = async (over) => {
+    const notes = [];
+    const w = world({ env: { modelKey: "sk-test" }, ...over });
+    await w.run(text("are you open?"), {
+      leads,
+      brain: async () => ({
+        generateReply: async (_h, _t, _s, _f, leadNote) => {
+          notes.push(leadNote);
+          return { text: "We open at 9.", escalate: false, meta: sure };
+        },
+      }),
+    });
+    assert.equal(notes.length, 1, "the model was asked once");
+    return notes[0];
+  };
+  const onWhatsApp = await asked({});
+  assert.match(onWhatsApp, /Has not been asked for the yes to offers\./);
+  assert.doesNotMatch(onWhatsApp, /text message/);
+
+  const byText = await asked({
+    carrier: {
+      channel: "sms",
+      send: async () => ({ ok: true, wamid: "s1", status: 200 }),
+      body: (t) => t,
+      held: null,
+      consent: null,
+    },
+  });
+  assert.match(byText, /This conversation is by text message, not WhatsApp\./);
+  assert.doesNotMatch(byText, /Has not been asked/);
+});

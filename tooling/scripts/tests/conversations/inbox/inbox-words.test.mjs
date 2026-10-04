@@ -132,9 +132,10 @@ test("the templates a person can be sent: every slot a fact the Inbox has, a pro
   assert.deepEqual(
     no.sendable.map((s) => [s.template.name, s.title, s.label]),
     [
-      ["booking_link", "Booking link", "Booking link · English"],
-      ["save_our_number", "Save our number", "Save our number · Spanish"],
+      ["booking_link", "Booking link", "Booking link"],
+      ["save_our_number", "Save our number", "Save our number"],
     ],
+    "a message is offered by its title: the language it is written in is not a choice a person makes",
   );
   assert.equal(
     no.hidden,
@@ -180,6 +181,45 @@ test("the templates a person can be sent: every slot a fact the Inbox has, a pro
     inboxTemplates([tpl("unsynced", { variables: null })], { who: "Rosa Díaz", offersOk: false }).sendable.length,
     1,
     "a template whose slots were never recorded keeps the two the Inbox always sent",
+  );
+});
+
+test("one message is offered once: its default language first, a language said only where two entries would read alike, and no title ends with the language it is in", () => {
+  const { inboxTemplates } = contracts;
+  const to = { who: "Rosa Díaz", offersOk: false };
+  const welcomeEn = tpl("welcome_new", { variables: welcome.variables });
+  const welcomeEs = tpl("welcome_new", { language: "es", variables: welcome.variables });
+  const twins = inboxTemplates([welcomeEs, booking, welcomeEn], to);
+  assert.deepEqual(
+    twins.sendable.map((s) => [s.template.language, s.label]),
+    [
+      ["en_US", "Welcome · English"],
+      ["es", "Welcome · Spanish"],
+      ["en_US", "Booking link"],
+    ],
+    "one message's rows stand together with the default language first, however they came; the two that read alike say why",
+  );
+  const named = inboxTemplates(
+    [tpl("welcome_new", { language: "es", title: "Bienvenida (Spanish)", variables: welcome.variables }), welcomeEn],
+    to,
+  );
+  assert.deepEqual(
+    named.sendable.map((s) => [s.template.language, s.title, s.label]),
+    [
+      ["en_US", "Welcome", "Welcome"],
+      ["es", "Bienvenida", "Bienvenida"],
+    ],
+    "REGRESSION: the picker read 'Bienvenida (Spanish) · Spanish'; the row says its language, so the title does not, and nothing reads alike to be told apart",
+  );
+  assert.deepEqual(
+    inboxTemplates([saveEs, booking], to).sendable.map((s) => s.title),
+    ["Booking link", "Save our number"],
+    "nothing says what language this person reads: a message in the product's own comes before one without",
+  );
+  assert.equal(
+    inboxTemplates([tpl("given", { title: "Hola (Spanish)", variables: booking.variables })], to).sendable[0].title,
+    "Hola (Spanish)",
+    "a title that names a language the row is not in is the owner's words, and stays",
   );
 });
 
@@ -245,6 +285,7 @@ await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx"
 const S = "../../../../../apps/dashboard/src/surfaces";
 const { InboxList } = await import(`${S}/inbox/pages/inbox-list.tsx`);
 const { Composer: InboxComposer } = await import(`${S}/inbox/thread/composer.tsx`);
+const { Menu } = await import(`${S}/kit/menu/menu.tsx`);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 after(() => setSurfaceValue("inbox", undefined));
 /** The Inbox's approved templates, as the surface publishes them (what window.__TEMPLATES was): the composer reads them from the seam. */
@@ -319,39 +360,58 @@ test("the composer names the channel and the number the way the header does", ()
   );
 });
 
-test("the template send offers what can go to this person, by title and language, says why the rest are not offered, and names what it sends", () => {
+test("the template send is the reply box's capsule: the message it will send where the words go, a menu on it for the others that also says why the rest are not offered, and Send", () => {
   const closed = toInboxThreadVM(conv(), asked(), ZONE, NOW);
+  const menuIn = (tree) => find(tree, (n) => n.type === Menu);
+  // The message it will send: the menu's own button where there are others, else the words alone.
+  const nameOf = (tree) => {
+    const menu = menuIn(tree);
+    return textOf(menu ? menu.props.trigger : find(tree, hasClass("ix-tpl-name"))).trim();
+  };
+  // The menu as the composer reads it: a "|" between two groups, a heading in [], the options of a set in ().
+  const shape = (menu) =>
+    menu.props.groups.flatMap((g, i) => [
+      ...(i ? ["|"] : []),
+      ...(g.header ? ["[" + g.header + "]"] : []),
+      ...(g.choose ? ["(" + g.choose.options.map((o) => o.label).join(", ") + ")"] : []),
+    ]);
 
   setTemplates([booking, offer, note]);
   let tree = composerOf(closed);
   assert.equal(
     find(tree, (n) => n.type === "select"),
     undefined,
-    "one template this person can be sent: no picker",
+    "REGRESSION: a select over the button, and its own row, for one message to send",
   );
-  assert.ok(
-    buttonsOf(tree).includes("Send “Booking link”"),
-    "REGRESSION: 'Send booking link', whichever template was picked",
-  );
-  // Why the rest are not offered is one tap away, never a sentence sitting under the reply box.
-  assert.equal(find(tree, byTestId("ix-tpl-hidden")), undefined, "not until it is asked for");
-  find(tree, (n) => n.type === "button" && textOf(n).trim() === "Why?").props.onClick();
-  tree = again(() => InboxComposer({ thread: closed, reply: "", onSend() {} }));
-  assert.equal(
-    textOf(find(tree, byTestId("ix-tpl-hidden"))),
-    "Not offered: 2 that need words the Inbox doesn't ask for.",
+  assert.equal(nameOf(tree), "Booking link", "REGRESSION: 'Send booking link', whichever template was picked");
+  assert.ok(buttonsOf(tree).includes("Send"), "the reply box's own Send, at the capsule's end");
+  assert.ok(find(tree, hasClass("ix-composer-row")), "the same capsule the reply box is, not a box of its own");
+  // Why the rest are not offered is one tap away, in the menu beside the send, never a sentence under the reply box or a link.
+  assert.equal(find(tree, byTestId("ix-tpl-hidden")), undefined);
+  assert.ok(!buttonsOf(tree).includes("Why?"), "the menu says it: no second control for it");
+  assert.deepEqual(
+    shape(menuIn(tree)),
+    ["[Not offered: 2 that need words the Inbox doesn't ask for.]"],
     "REGRESSION: all seven were offered, and most would be refused",
   );
 
+  setTemplates([booking]);
+  tree = composerOf(closed);
+  assert.equal(menuIn(tree), undefined, "one message and nothing held back: the send alone");
+
   setTemplates([booking, saveEs]);
   tree = composerOf(closed);
-  const pick = find(tree, (n) => n.type === "select");
   assert.deepEqual(
-    findAll(pick, (n) => n.type === "option").map(textOf),
-    ["Booking link · English", "Save our number · Spanish"],
-    "REGRESSION: booking_link · en_US",
+    shape(menuIn(tree)),
+    ["(Booking link, Save our number)"],
+    "REGRESSION: booking_link · en_US; the menu lists messages, not languages",
   );
-  assert.ok(buttonsOf(tree).includes("Send template"));
+  assert.deepEqual(menuIn(tree).props.groups[0].choose.value, "0");
+  assert.equal(nameOf(tree), "Booking link", "REGRESSION: 'Send template', which said nothing of what it sends");
+  menuIn(tree).props.groups[0].choose.onChoose("1");
+  tree = again(() => InboxComposer({ thread: closed, reply: "", onSend() {} }));
+  assert.equal(nameOf(tree), "Save our number", "the chosen message is the one the capsule names, and Send sends");
+  assert.equal(menuIn(tree).props.groups[0].choose.value, "1");
 
   setTemplates([tpl("welcome_new", { category: "marketing", variables: welcome.variables }), note]);
   tree = composerOf(closed);
@@ -424,7 +484,12 @@ test("the composer offers templates by contracts' rule, which it imports: there 
     .sendable.map((s) => s.title);
   assert.deepEqual(offered, ["Booking link"]);
   const tree = composerOf(closed);
-  assert.ok(buttonsOf(tree).includes(`Send “${offered[0]}”`), "REGRESSION: the page had no rule to offer templates by");
+  assert.equal(
+    // the promotion it cannot send is said in the menu, so the name is that menu's button
+    textOf(find(tree, (n) => n.type === Menu).props.trigger).trim(),
+    offered[0],
+    "REGRESSION: the page had no rule to offer templates by",
+  );
   assert.equal(
     find(tree, (n) => n.type === "select"),
     undefined,

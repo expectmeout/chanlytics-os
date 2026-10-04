@@ -542,6 +542,9 @@ test("People's bundle publishes People's shared parts on the page's React, under
   const React = {
     createElement: (type, props, ...children) => ({ type, props, children }),
     memo: (component) => component,
+    // What the kit's Base UI parts (Menu, Tabs) ask of React as they load; none of them draws here.
+    forwardRef: (render) => render,
+    createContext: (value) => ({ Provider: "Provider", Consumer: "Consumer", value }),
     Fragment: "Fragment",
     useState: (v) => [v, () => {}],
     useReducer: (_reduce, v) => [v, () => {}],

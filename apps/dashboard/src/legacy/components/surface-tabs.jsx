@@ -41,20 +41,12 @@ const ST_GROUPS = {
         : !!window.__DEMO_MODE && !(window.LM_STORE && window.LM_STORE.isEnded("lc-selena"))), tip: "Calls on your line, as they happen" },
     ],
   },
+  // Campaigns is one page, its home (surfaces/campaigns/home, canvas A), and Sent (broadcasts) and the Library (messages) are its
+  // rooms, reached from it: the three-tab strip (Playbooks · Broadcasts · Templates) is gone (3 Oct 2026). Content is seed-only,
+  // a real workspace has no such surface, and a strip of one draws nothing.
   campaigns: {
-    match: ["outbound", "broadcasts", "messages", "content"],
-    tabs: [
-      { id: "outbound", label: "Playbooks", to: "outbound" },
-      { id: "broadcasts", label: "Broadcasts", to: "broadcasts" },
-      // "Templates" is Meta's word and WhatsApp Manager's, which is where an
-      // owner meets these and where this page syncs them from. It was
-      // "Messages", which made the word mean three things across one nav —
-      // a thread in the Inbox, a send in "15 messages, 87% delivered", and
-      // the wording on file here — and needed this tip to say which.
-      { id: "messages", label: "Templates", to: "messages", tip: "The wording your playbooks and broadcasts send, as the customer sees it" },
-      // Content is seed-only: a real workspace has no such surface yet.
-      { id: "content", label: "Content", to: "content", demoOnly: true },
-    ],
+    match: ["content"],
+    tabs: [{ id: "content", label: "Content", to: "content", demoOnly: true }],
   },
   agents: {
     match: ["fleet", "store", "studio", "tasks"],
@@ -70,28 +62,35 @@ const ST_GROUPS = {
   },
 };
 
-// What each Campaigns tab says is behind it, from the surface that page reads:
-// the playbooks running, the runs waiting on the owner, the templates on file.
-// A surface not read yet says nothing, never a 0 -- a tab visited first reads its
-// own, and the others fill in as they are read. Only the runs waiting on you are
-// a warning; the other two are counts.
-const ST_COUNTS = {
-  outbound: { tone: "plain", n: () => (window.__PLAYBOOKS && window.__PLAYBOOKS.rows ? window.__PLAYBOOKS.rows.filter((p) => p.state === "running").length : 0) },
-  broadcasts: { tone: "warn", n: () => (window.__BROADCASTS && window.__BROADCASTS.rows ? window.__BROADCASTS.rows.filter((r) => r.state === "pending_approval").length : 0) },
-  messages: { tone: "plain", n: () => (Array.isArray(window.__TEMPLATES_ALL) ? window.__TEMPLATES_ALL.filter((t) => !t.hidden_at && t.name !== "hello_world").length : 0) },
-};
+// What the address says of itself, for the routes a press will move to: warmed once the page is idle and when a pointer
+// or a finger reaches a tab, so the move that follows asks the server for nothing (workspace.ts warmRoute).
+const stAddress = () => (window.CHANLY && window.CHANLY.address) || null;
+const stWarm = (route) => { const a = stAddress(); if (a && a.warm) a.warm(route); };
 
 const SurfaceTabs = ({ page, param, onNavigate }) => {
   const [, stBump] = React.useReducer(n => n + 1, 0);
+  // The tab pressed answers at once: the address moves when the router lands, which on a slow connection is a beat
+  // after the press. It is the page's own again as soon as the address says it is, and never kept past a few seconds.
+  const [pending, setPending] = React.useState(null);
+  React.useEffect(() => { setPending(null); }, [page]);
+  React.useEffect(() => {
+    if (!pending) return undefined;
+    const t = setTimeout(() => setPending(null), 3000);
+    return () => clearTimeout(t);
+  }, [pending]);
   React.useEffect(() => {
     // inbox:counts too: the Needs-you tab carries the badge, and the count moves
     // when Today publishes the real one or a decision lands.
-    // The Campaigns surfaces too: each tab's count is read off them.
-    const evs = ["live:ended", "surface:live", "inbox:counts", "inbox:decisions", "leads:verdict", "surface:playbooks", "surface:broadcasts", "surface:settings"];
+    const evs = ["live:ended", "surface:live", "inbox:counts", "inbox:decisions", "leads:verdict"];
     evs.forEach(e => window.addEventListener(e, stBump));
     return () => evs.forEach(e => window.removeEventListener(e, stBump));
   }, []);
   const [groupKey, group] = Object.entries(ST_GROUPS).find(([, g]) => g.match.includes(page)) || [null, null];
+  React.useEffect(() => {
+    const a = stAddress();
+    const g = groupKey ? ST_GROUPS[groupKey] : null;
+    if (g && a && a.warmSoon) a.warmSoon(g.tabs.filter((t) => !t.demoOnly || window.__DEMO_MODE).map((t) => t.to));
+  }, [groupKey, page]);
   if (!group) return null;
   const tabs = group.tabs.filter(t => !t.demoOnly || window.__DEMO_MODE);
   if (tabs.length < 2) return null;
@@ -101,14 +100,13 @@ const SurfaceTabs = ({ page, param, onNavigate }) => {
   return (
     <nav className={`stabs stabs-${groupKey}`} aria-label="Section views">
       {tabs.map(t => {
-        const count = groupKey === "campaigns" ? ST_COUNTS[t.id] : null;
-        const badge = t.badge ? t.badge() : count ? count.n() || null : null;
+        const badge = t.badge ? t.badge() : null;
         const pulse = t.pulse ? t.pulse() : false;
         return (
-          <button key={t.id} className={`stabs-tab ${page === t.id ? "active" : ""}`} data-tip={t.tip || null} data-tip-side="bottom" onClick={() => onNavigate(t.to)}>
+          <button key={t.id} className={`stabs-tab ${(pending || page) === t.id ? "active" : ""}`} data-tip={t.tip || null} data-tip-side="bottom" onPointerEnter={() => stWarm(t.to)} onTouchStart={() => stWarm(t.to)} onFocus={() => stWarm(t.to)} onClick={(e) => { if (page !== t.id) { stripTap(e.currentTarget.parentElement, e.currentTarget); setPending(t.id); } onNavigate(t.to); }}>
             {t.label}
             {pulse && <span className="live-dot" style={{ width: 5, height: 5 }} />}
-            {badge ? <span className={`stabs-badge tally${(count ? count.tone : t.tone) === "warn" ? " tally-warn" : ""}`} data-tone={(count ? count.tone : t.tone) || "plain"}>{badge}</span> : null}
+            {badge ? <span className={`stabs-badge tally${t.tone === "warn" ? " tally-warn" : ""}`} data-tone={t.tone || "plain"}>{badge}</span> : null}
           </button>
         );
       })}
@@ -196,6 +194,22 @@ const stripPager = (view, from) => {
       landed();
     },
   };
+};
+// A tap on a tab moves the underline as a swipe does: from the tab it stood under to the one pressed, on the same
+// ease, and clear again before the page has landed (the picked tab's own underline is hidden while it glides, so there
+// is one). Not under reduced motion (components.css, kit.css: the glide has no transition there).
+const ST_GLIDE_MS = 260;
+const stripTap = (strip, to) => {
+  const from = strip.querySelector(".stabs-tab.active");
+  if (!from || from === to || strip.hasAttribute("data-glide")) return;
+  strip.style.setProperty("--glide-x", `${from.offsetLeft}px`);
+  strip.style.setProperty("--glide-w", `${from.offsetWidth}px`);
+  strip.setAttribute("data-glide", "");
+  void strip.offsetWidth;
+  strip.setAttribute("data-glide", "ease");
+  strip.style.setProperty("--glide-x", `${to.offsetLeft}px`);
+  strip.style.setProperty("--glide-w", `${to.offsetWidth}px`);
+  setTimeout(() => stripUnglide(strip), ST_GLIDE_MS);
 };
 const stripSwipe = () => (window.touchSwipe ? window.touchSwipe({ pages: stripPager, when: stripPhone }) : {});
 

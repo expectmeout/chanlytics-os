@@ -310,7 +310,7 @@ function connectionFactsOf(i: ConnectionInputs, nowMs: number): ConnectionFacts 
 function whatsappRow(i: ConnectionInputs, { wa }: ConnectionFacts): Draft {
   const base = { kind: "whatsapp" as const, icon: "chat", title: "WhatsApp Business" };
   if (wa) {
-    // What Meta has said about the number, in the words Broadcasts, Playbooks
+    // What Meta has said about the number, in the words Sent, Campaigns
     // and the assistant already use: a flagged number is exactly the "joined
     // but not working" the attention state exists for.
     const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit: wa.messagingLimit });
@@ -322,7 +322,7 @@ function whatsappRow(i: ConnectionInputs, { wa }: ConnectionFacts): Draft {
       state: !wa.on ? "off" : flagged ? "attention" : "connected",
       stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On",
       sentence: `${wa.healthLabel}${health}`,
-      verb: { label: "Templates", to: "messages", who: "operator" },
+      verb: { label: "Library", to: "messages", who: "operator" },
     };
   }
   if (i.whatsapp === undefined) {

@@ -24,10 +24,12 @@ import {
   fencedInline,
   promptSafeName,
   type DealFacts,
+  type LeadChannel,
   clockDate,
   DAY_MS,
   dealSentence,
   dealsAreOn,
+  offersFacts,
   pickCurrentDeal,
   proposalLinkOf,
 } from "@chanlytics/contracts";
@@ -203,6 +205,20 @@ export interface LeadContext {
   optedOut: boolean;
   /** Whether an email address is on file for them: the receptionist asks for one only when there is none (the booking rule ask_email). Undefined for a reader that never learned it, which says nothing. */
   hasEmail?: boolean;
+  /**
+   * Their answer about offers (contacts.marketing_consent: unknown, opted_in or opted_out), and when the receptionist
+   * first asked for the yes (contacts.offers_asked_at: null = never asked). `offersAskedAt` is undefined where the
+   * database has not got the column yet: the receptionist then says nothing that lets it ask (contracts offersFacts).
+   * Both optional, so a reader that never learned them and every fake still compile.
+   */
+  marketingConsent?: string | null;
+  /**
+   * The channels that yes covers (contacts.marketing_channels, consent-channels.ts): null where none are kept, a yes
+   * recorded before the channels were, which covers WhatsApp alone. Undefined where the column could not be read,
+   * which reads the same way (contracts yesCovers). A yes kept for text alone is not a yes on WhatsApp.
+   */
+  marketingChannels?: string[] | null;
+  offersAskedAt?: string | null;
   /** The owner's notes on them — facts for the receptionist, never read aloud. The field 00157 superseded: said only
    *  where the notes themselves could not be read (`noteList` null or absent). */
   notes?: string | null;
@@ -232,6 +248,10 @@ function sellsByOf(embedded: unknown): string | null {
 /** A read that names tenants.sells_by on a database 00160 has not reached answers "column does not exist". */
 const noSellsBy = (message: string): boolean =>
   /\bsells_by\b/.test(message) && /does not exist|could not find/i.test(message);
+
+/** The same answer for contacts.offers_asked_at or marketing_channels, on a database the migration that adds them has not reached. */
+const noOffersColumns = (message: string): boolean =>
+  /\b(offers_asked_at|marketing_channels)\b/.test(message) && /does not exist|could not find/i.test(message);
 
 const EMPTY_LEAD: LeadContext = {
   contactId: null,
@@ -266,11 +286,15 @@ export async function readLeadContext(
 ): Promise<LeadContext> {
   // Who they are, and in the same round trip how their workspace's customers buy (0008): a deal and a proposal link are
   // the receptionist's to say only where deals are on. A database 00160 has not reached answers "column does not exist"
-  // for the answer: read again without it, and deals are off there, as they would be.
+  // for the answer: read again without it, and deals are off there, as they would be. And whether they were ever
+  // asked for the yes to offers, and on which channels that yes holds (offers_asked_at and marketing_channels, One
+  // message, every channel, step 2): the edge may deploy before its migration, and a missing column must cost the answer
+  // to that one question, never who they are. Read again without them, and the receptionist is told nothing that lets
+  // it ask (contracts offersFacts).
   const withAnswer = await db
     .from("contacts")
     .select(
-      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, tenants(sells_by)",
+      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)",
     )
     .eq("tenant_id", tenantId)
     .eq("phone_e164", phoneE164)
@@ -285,13 +309,30 @@ export async function readLeadContext(
     notes: string | null;
     proposal_url: string | null;
     email: string | null;
+    marketing_consent: string;
+    marketing_channels?: string[] | null;
+    offers_asked_at?: string | null;
     sellsBy: string | null;
   } | null = withAnswer.data ? { ...withAnswer.data, sellsBy: sellsByOf(withAnswer.data.tenants) } : null;
   let cErr = withAnswer.error;
+  if (cErr && noOffersColumns(cErr.message)) {
+    const unasked = await db
+      .from("contacts")
+      .select(
+        "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, tenants(sells_by)",
+      )
+      .eq("tenant_id", tenantId)
+      .eq("phone_e164", phoneE164)
+      .maybeSingle();
+    contact = unasked.data ? { ...unasked.data, sellsBy: sellsByOf(unasked.data.tenants) } : null;
+    cErr = unasked.error;
+  }
   if (cErr && noSellsBy(cErr.message)) {
     const older = await db
       .from("contacts")
-      .select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email")
+      .select(
+        "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent",
+      )
       .eq("tenant_id", tenantId)
       .eq("phone_e164", phoneE164)
       .maybeSingle();
@@ -362,6 +403,10 @@ export async function readLeadContext(
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     hasEmail: !!contact.email,
+    marketingConsent: contact.marketing_consent,
+    marketingChannels: contact.marketing_channels,
+    // Undefined where the column could not be read: not null, which says "never asked".
+    offersAskedAt: contact.offers_asked_at,
     notes: contact.notes ?? null,
     noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
     proposalUrl: dealsOn ? proposalLinkOf(current, contact.proposal_url) : null,
@@ -440,7 +485,13 @@ export function notesForReceptionist(lead: LeadContext, now = new Date(), tz = "
   return notes ? `Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}` : null;
 }
 
-export function describeLead(lead: LeadContext, now = new Date(), tz = "UTC"): string {
+export function describeLead(
+  lead: LeadContext,
+  now = new Date(),
+  tz = "UTC",
+  /** The channel of the conversation this is read in: the ask for the yes to offers is for WhatsApp alone. */
+  channel?: LeadChannel,
+): string {
   if (!lead.contactId) return "New contact — no prior history on record.";
   const bits: string[] = [];
   // A name may be one the person gave themselves (a WhatsApp profile name): capped, one line, and fenced as their words,
@@ -451,6 +502,21 @@ export function describeLead(lead: LeadContext, now = new Date(), tz = "UTC"): s
   // a reader that never learned it (undefined) says nothing rather than a guess.
   if (lead.hasEmail === true) bits.push("Their email address is on file.");
   else if (lead.hasEmail === false) bits.push("No email address on file.");
+  // What they answered about offers, whether they were asked for the yes, and a text conversation said to be one: the
+  // rule that asks for it once reads these (contracts offers-ask.ts), and a reader that never learned them says nothing.
+  bits.push(
+    ...offersFacts(
+      {
+        marketingConsent: lead.marketingConsent,
+        marketingChannels: lead.marketingChannels,
+        offersAskedAt: lead.offersAskedAt,
+        optedOut: lead.optedOut,
+      },
+      channel,
+      now,
+      tz,
+    ),
+  );
   if (lead.returning) {
     const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / DAY_MS) : null;
     const when =

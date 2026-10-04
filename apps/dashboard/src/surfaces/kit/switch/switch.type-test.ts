@@ -31,6 +31,13 @@ function _switchTakes(button: RefObject<HTMLButtonElement | null>, now: { on: bo
     ref: button,
     className: "set-row-end",
   });
+  // Found by a test id on the button itself, as the kit's Select and Field are.
+  Switch({
+    labelledBy: "ro-domain-every-name",
+    checked: now.on,
+    onCheckedChange: flip,
+    "data-testid": "ro-domain-every",
+  });
 
   // @ts-expect-error a switch says which it is by a name: its own words, or the words beside it
   Switch({ checked: now.on, onCheckedChange: flip });

@@ -82,7 +82,9 @@ function world(tally = { sent: 0, held: 0 }) {
     target: async (phone) => ({ conversationId: `c-k${phone.slice(-1)}` }),
     mark: async (_b, k, patch) => {
       marks.push([k, patch.state, patch.reason ?? null]);
+      return true; // the claim answers that it took the person (a compare-and-set)
     },
+    byOtherChannels: async () => false,
     deliver: (d) => deliver({ db, wire, now: () => NOW }, d),
     remaining: async () => 3,
     state: async () => "sending",

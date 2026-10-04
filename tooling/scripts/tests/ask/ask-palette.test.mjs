@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../shell/address/_address.mjs";
-import { kitPages } from "../_legacy-react.mjs";
+import { kitPages, useStubHooks } from "../_legacy-react.mjs";
 import {
   PROPOSAL_GATE,
   ROLE_PERMS,
@@ -200,8 +200,11 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-// Confirm is the kit's (surfaces/kit/confirm), which seed-globals publishes as window.Confirm.
+// Confirm is the kit's (surfaces/kit/confirm), which seed-globals publishes as window.Confirm, and so is the one
+// recogniser (surfaces/kit/talk), as window.useHoldToTalk, over this file's own React.
+useStubHooks(globalThis.React);
 globalThis.Confirm = globalThis.window.Confirm = kitPages.Confirm;
+globalThis.window.useHoldToTalk = kitPages.useHoldToTalk;
 /** What the palette flashed, in order. */
 const flashed = [];
 Object.assign(globalThis.window, {
@@ -2096,6 +2099,31 @@ test("the thread's arithmetic: the newest question stands a breath under the thr
   assert.equal(H.latestShown({ qTop: 560, scrollTop: 0, clientHeight: 600 }), false, "its first line in sight");
 });
 
+test("the Line's recogniser listens in the Line's language: Spanish where the Line speaks it, the browser's own elsewhere", () => {
+  const H = globalThis.window.AskHooks;
+  const langs = [];
+  globalThis.window.SpeechRecognition = class {
+    start() {
+      langs.push(this.lang);
+    }
+    stop() {}
+  };
+  try {
+    for (const lang of ["es", "en"]) {
+      let talk;
+      const Probe = () => {
+        talk = H.useAskTalk({ lang, onWords() {}, onHeard() {}, disabled: false });
+        return null;
+      };
+      render(Probe, {});
+      talk.start();
+    }
+    assert.deepEqual(langs, ["es-ES", navigator.language || "en-US"]);
+  } finally {
+    delete globalThis.window.SpeechRecognition;
+  }
+});
+
 test("on a phone the mic keeps the finger: the lift asks what was heard, and Type instead leaves it in the field", async () => {
   const ph = phoneWindow();
   const recs = [];
@@ -2838,7 +2866,8 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
   for (const [words, to] of [
     ["calendar", "calendar"],
     ["lists", "clients"],
-    ["playbooks", "outbound"],
+    ["playbooks", "campaigns"], // the Playbooks list is Campaigns' home (contracts doorOf); the old name still finds it
+    ["campaigns", "campaigns"],
     ["broadcasts", "broadcasts"],
     ["messages", "messages"],
     ["setup", "start"],
@@ -3207,10 +3236,15 @@ test("the disc's dot is the usage's standing alone: nothing with no usage surfac
 
 /* ------------------------------ the name a page went by ------------------------------ */
 
-test("a page is found by the name it goes by AND by the one it used to: 'templates' and 'messages' both land there", () => {
-  const byLabel = askJump("templates", ASK_PAGES);
+test("a page is found by the name it goes by AND by the one it used to: 'library', 'templates' and 'messages' all land there", () => {
+  const byLabel = askJump("library", ASK_PAGES);
   assert.equal(byLabel[0]?.to, "messages", "the label first");
-  assert.equal(byLabel[0]?.label, "Templates");
+  assert.equal(byLabel[0]?.label, "Library");
+  // The Library was Templates, and before that Messages; Sent was Broadcasts: each name still finds its room (campaign rooms, 3 Oct).
+  assert.equal(askJump("templates", ASK_PAGES)[0]?.to, "messages", "the name it went by");
+  const sent = askJump("sent", ASK_PAGES);
+  assert.deepEqual([sent[0]?.label, sent[0]?.to], ["Sent", "broadcasts"], "the label first");
+  assert.equal(askJump("broadcasts", ASK_PAGES)[0]?.to, "broadcasts", "the name it went by");
   const byOldName = askJump("messages", ASK_PAGES);
   assert.ok(
     byOldName.some((j) => j.to === "messages"),

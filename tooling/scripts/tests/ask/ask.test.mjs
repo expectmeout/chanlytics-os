@@ -204,9 +204,12 @@ const REACHED = {
   // People › Lists is People's rail; `segments/<id>` still lands there.
   segments: ["Lists", "clients"],
   calendar: ["Calendar", "calendar"],
-  outbound: ["Playbooks", "outbound"],
-  broadcasts: ["Broadcasts", "broadcasts"],
-  messages: ["Templates", "messages"],
+  // Campaigns' home; the old Playbooks list, `outbound`, is a door to it (contracts doorOf), so its jump is the home's.
+  campaigns: ["Campaigns", "campaigns"],
+  outbound: ["Campaigns", "campaigns"],
+  // Campaigns' rooms: Sent and the Library, each still found by the name it went by (ask-palette.test.mjs).
+  broadcasts: ["Sent", "broadcasts"],
+  messages: ["Library", "messages"],
   start: ["Setting up", "start"],
   "admin/profile": ["Profile", "admin/profile"],
   "admin/workspace": ["Settings", "admin/workspace"],
@@ -1162,16 +1165,9 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
 });
 
 test("voice and the phone: hold to talk uses the browser's recogniser, the origin may ask for the microphone, the phone's ✦ opens Ask above the tab bar", () => {
-  const hooks = readCode("apps/dashboard/src/legacy/pages/ask-hooks.jsx");
-  assert.ok(
-    hooks.includes("const ahRecognizer = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;"),
-  );
-  // Press to start, release to stop, and what was heard sent on its own: executed in ask-palette.test.mjs ("on a
-  // phone the mic keeps the finger").
-  assert.ok(
-    hooks.includes('rec.lang = lang === "es" ? "es-ES" : (navigator.language || "en-US");'),
-    "the recogniser listens in the palette's language",
-  );
+  // The one recogniser is the kit's (surfaces/kit/talk), which Ask's hook delegates to. Press to start, release to
+  // stop, what was heard sent on its own, and the language it listens in: executed in ask-palette.test.mjs ("on a
+  // phone the mic keeps the finger", "the Line's recogniser listens in the Line's language").
   const cfg = readCode("apps/dashboard/next.config.ts");
   assert.ok(cfg.includes("microphone=(self)"), "the page may ask for the microphone");
   assert.ok(
