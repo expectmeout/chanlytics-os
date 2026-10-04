@@ -19,7 +19,9 @@
  *
  * The key is ELEVENLABS_API_KEY from the environment, else apps/edge/.env.local (the edge holds every provider key),
  * else apps/dashboard/.env.local (a laptop running the spike); it is never printed. The header's value is
- * ELEVENLABS_LLM_SECRET from the environment or the dashboard's .env.local, never printed either.
+ * ELEVENLABS_LLM_SECRET from the environment, else the edge's .env.local (which holds production's value beside the
+ * key, so an --apply for production carries the header production's brain door checks; 4 Oct 2026 the dashboard's
+ * file held a laptop's older one), else the dashboard's; never printed either.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -58,7 +60,7 @@ const opt = (name, fallback = null) => {
 const edgeEnv = readEnvFile(path.join(ROOT, "apps/edge/.env.local"));
 const dashboardEnv = readEnvFile(path.join(ROOT, "apps/dashboard/.env.local"));
 const KEY = process.env.ELEVENLABS_API_KEY || edgeEnv.ELEVENLABS_API_KEY || dashboardEnv.ELEVENLABS_API_KEY;
-const SECRET = process.env.ELEVENLABS_LLM_SECRET || dashboardEnv.ELEVENLABS_LLM_SECRET;
+const SECRET = process.env.ELEVENLABS_LLM_SECRET || edgeEnv.ELEVENLABS_LLM_SECRET || dashboardEnv.ELEVENLABS_LLM_SECRET;
 
 async function call(method, route, body) {
   const r = await fetch(`${API}${route}`, {
