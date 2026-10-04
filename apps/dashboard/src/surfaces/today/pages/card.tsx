@@ -73,7 +73,7 @@ const RunsDone = ({ nav }: { nav: Nav }) => {
           {timeOf(r.started_at)}: {w.counts}
           {w.still ? " · still sending" : ""}
         </span>
-        <button className="brief-chip" onClick={() => nav(`broadcasts/run:${r.id}`)}>
+        <button className="brief-chip brief-door" onClick={() => nav(`broadcasts/run:${r.id}`)}>
           Open <Icon name={doorGlyph()} size={10} />
         </button>
       </div>
@@ -97,7 +97,7 @@ const ReviewLine = ({ nav }: { nav: Nav }) => {
         <Icon name="star" size={13} />
       </span>
       <span className="brief-beat-text">{line.text}</span>
-      <button className="brief-chip" onClick={() => nav(line.to)}>
+      <button className="brief-chip brief-door" onClick={() => nav(line.to)}>
         Open Reports <Icon name={doorGlyph()} size={10} />
       </button>
     </div>
@@ -229,7 +229,7 @@ function quietProofBeat(quiet: NonNullable<TodayVM["quiet"]>, nav: Nav) {
           .join(" · ")}
       </span>
       {launchpad && (
-        <button className="brief-chip" onClick={() => nav(launchpad.to)}>
+        <button className="brief-chip brief-door" onClick={() => nav(launchpad.to)}>
           {launchpad.label}
         </button>
       )}
@@ -259,7 +259,7 @@ export function recapBeats(vm: TodayVM, nav: Nav) {
               {sn.text}
             </span>
             {sn.warn && (
-              <button className="brief-chip" onClick={() => nav(sn.to || "inbox")}>
+              <button className="brief-chip brief-door" onClick={() => nav(sn.to || "inbox")}>
                 See the thread <Icon name={doorGlyph()} size={10} />
               </button>
             )}
@@ -283,7 +283,7 @@ export function recapBeats(vm: TodayVM, nav: Nav) {
           <span className="brief-beat-text">
             {r.at}: {r.text}
           </span>
-          <button className="brief-chip" onClick={() => nav(r.to)}>
+          <button className="brief-chip brief-door" onClick={() => nav(r.to)}>
             Open <Icon name={doorGlyph()} size={10} />
           </button>
         </div>
@@ -312,9 +312,9 @@ export const TodayCard = ({ beats = true }: { beats?: boolean } = {}) => {
   if (!vm) return null;
   const { recap, quiet } = vm;
   // Glass draws the tile whole (canvas E3): on a quiet day the four figures are zeros, each with what is true under it
-  // (contracts quietFigures), and so is a day with people waiting but nothing counted (vm.zeroFigures); Classic keeps
+  // (contracts quietFigures), and so is a day with people waiting but nothing counted (vm.zero_figures); Classic keeps
   // the quiet sentence in the head instead.
-  const figures = vm.figures ?? (glass ? (quiet?.figures ?? vm.zeroFigures ?? null) : null);
+  const figures = vm.figures ?? (glass ? (quiet?.figures ?? vm.zero_figures ?? null) : null);
   const nav: Nav = (to) => appNavigate(to);
   const R = borrowed<ReportsLike>("__REPORTS");
   const period = R ? TODAY_HELPERS.periodLine(R) : null;

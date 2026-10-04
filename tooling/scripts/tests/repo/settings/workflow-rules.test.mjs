@@ -78,9 +78,14 @@ test("the landed job reads pushes only, opens its issue once, and the Auckland l
   assert.ok(landed.includes("grep -qxF") && landed.includes("gh issue list"), "a re-run finds its issue open");
   const auckland = y.slice(y.indexOf("  auckland:"), y.indexOf("  # The title check above"));
   assert.ok(!auckland.includes("continue-on-error: true"), "green since the tests lane: a red leg is a red run");
+  // Ruben, 1 Oct 2026: the second zone costs a second ~20-minute suite, so it runs when a pull request asks for it with
+  // the `suite` label or a person starts it, and no other event (a merge queue's commit or a push) runs it. It is not a
+  // required check, so a merge needs nothing from it.
   assert.ok(
-    auckland.includes("if: github.event_name != 'merge_group'"),
-    "a merge queue's commit runs the required checks",
+    auckland.includes(
+      "if: contains(github.event.pull_request.labels.*.name, 'suite') || github.event_name == 'workflow_dispatch'",
+    ),
+    "the Auckland leg runs on the `suite` label or by hand, as CLAUDE.md says",
   );
   assert.ok(
     auckland.includes("TZ: Pacific/Auckland") && auckland.includes("TEST_TZ: Pacific/Auckland"),

@@ -29658,7 +29658,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       windowClosing: null,
       recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
       figures: null,
-      zeroFigures: null,
+      zero_figures: null,
       proof,
       noReply,
       calls: null,
@@ -29684,7 +29684,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     },
     figures,
     // Nothing to count while someone waits (the reference workspace's own state): Glass draws the tile's four zeros.
-    zeroFigures: figures ? null : quietFigures(f.live, f.tz, now),
+    zero_figures: figures ? null : quietFigures(f.live, f.tz, now),
     proof,
     noReply,
     callsRead: f.callsRead,

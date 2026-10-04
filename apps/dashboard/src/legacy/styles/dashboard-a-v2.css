@@ -1921,7 +1921,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   /* The brief draws its lines without the mark (above), so a door under the words lines up with the words themselves,
      not with the day card's 34px past a mark (mobile.css); the door's own padding is 6px. */
   .dash-a-v2 .tb-body .brief-beat-text { flex-basis: 100%; }
-  .dash-a-v2 .tb-body .brief-beat-text ~ .brief-chip { margin-left: -6px; }
+  .dash-a-v2 .tb-body .brief-beat-text ~ .brief-door { margin-left: -6px; }
   /* The day's card: its name on its own row with the door to Reports at the right, what the day says under them. */
   :where([data-look="glass"]) .dash-a-v2 .tc-head { flex-wrap: wrap; }
   :where([data-look="glass"]) .dash-a-v2 .tc-line { flex: 1 1 100%; order: 2; }
