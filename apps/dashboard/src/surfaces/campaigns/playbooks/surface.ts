@@ -339,7 +339,8 @@ export const playbooksOverride: SurfaceOverride = {
           triggerLabel: p.trigger === "saved_list" ? (listNameOf(p) ?? unnamed) : (t?.label ?? p.trigger),
           triggerHint: t?.hint ?? "",
           schedule: scheduleLine(p),
-          next: nextRunLabel(p, tz, now),
+          // While the workspace is paused no time is promised: the card says so instead of "tomorrow 10:00".
+          next: nextRunLabel(p, tz, now, pb.ready?.paused === true),
           candidates: reading ? reading.candidates : null,
           held: reading ? reading.held : null,
           named: namedOf(reading),

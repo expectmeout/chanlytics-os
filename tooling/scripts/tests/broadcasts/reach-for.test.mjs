@@ -22,6 +22,9 @@ import {
   channelsReady,
   enrolFor,
   heldByAllowance,
+  monthSentAt,
+  nextMonthStart,
+  OFFERS_BY_EMAIL_WORDS,
   offersNote,
   pastAllowance,
   reachFor,
@@ -33,6 +36,17 @@ const READY = channelsReady({
   whatsapp: { canSend: true, refusal: null },
   textLine: { sms_state: "active", reg_mock: false },
   email: { mailbox: true, domain: true },
+});
+/**
+ * A workspace whose offers by email can go: the campaigns domain verified, the business's address on file, no pause. The
+ * business's own news by email waits for exactly that, as an offer does (decision D2, consent.ts isOfferByEmail), so the
+ * pick of a campaign about "ours" reaches an email only here; READY says nothing of offers, and closes them.
+ */
+const OPEN = { campaigns: true, address: true, paused: null };
+const READY_OPEN = channelsReady({
+  whatsapp: { canSend: true, refusal: null },
+  textLine: { sms_state: "active", reg_mock: false },
+  email: { mailbox: true, domain: true, offers: OPEN },
 });
 const ALL = ["whatsapp", "sms", "email"];
 
@@ -88,29 +102,102 @@ test("whether the workspace can send on each channel, and the sentence that says
     CHANNEL_WORDS.textLineNotActive,
   );
   assert.deepEqual([...DEFAULT_CAMPAIGN_CHANNELS], ["whatsapp"], "a campaign made before goes as it went");
+  // The workspace's pause (billing) rides with the channels and changes none of them: who can be reached is as it was.
+  const live = { whatsapp: { canSend: true, refusal: null }, textLine: { sms_state: "active", reg_mock: false } };
+  const pausedReady = channelsReady({ ...live, email: { mailbox: true, domain: true }, paused: true });
+  assert.equal(pausedReady.paused, true);
+  const { paused: _paused, ...channels } = pausedReady;
+  assert.deepEqual(channels, READY, "the channels are what they were");
+  assert.equal("paused" in READY, false, "a workspace that is not paused says nothing of it");
+  for (const paused of [false, undefined])
+    assert.equal("paused" in channelsReady({ ...live, email: { mailbox: true, domain: true }, paused }), false);
 });
 
-test("what a channel carries: texts never carry offers; offers by email only once the workspace can send them", () => {
-  assert.equal(channelRefuses("sms", "marketing", READY), CHANNEL_WORDS.noOffersByText);
+test("what a channel carries: texts never carry offers; offers by email only once the workspace can send them, and the business's own news by email with them", () => {
+  assert.equal(channelRefuses("sms", "marketing", "ours", READY), CHANNEL_WORDS.noOffersByText);
   assert.equal(channelNeverCarries("sms", "marketing"), CHANNEL_WORDS.noOffersByText);
   // A read with no facts about offers (the WhatsApp-alone reading, Ask's) says the campaigns domain: offers by email are closed.
-  assert.equal(channelRefuses("email", "marketing", READY), CHANNEL_WORDS.noOffersByEmailYet);
+  assert.equal(channelRefuses("email", "marketing", "ours", READY), CHANNEL_WORDS.noOffersByEmailYet);
   assert.equal(channelNeverCarries("email", "marketing"), null, "never is only what no workspace can change");
-  assert.equal(channelRefuses("whatsapp", "marketing", READY), null);
-  for (const c of ALL) assert.equal(channelRefuses(c, "conversational", READY), null, `${c} carries a visit's message`);
+  assert.equal(channelRefuses("whatsapp", "marketing", "ours", READY), null);
+  // A message about their visit or proposal goes by every channel, whatever the workspace's offers are doing.
+  for (const c of ALL)
+    assert.equal(channelRefuses(c, "conversational", "theirs", READY), null, `${c} carries a visit's message`);
+  // Decision D2: the business's own news by email is an offer at the door, so its channel is closed with the same words
+  // while the offers are, and open when they are; by WhatsApp and by text it is the message it always was.
+  assert.equal(channelRefuses("email", "conversational", "ours", READY), CHANNEL_WORDS.noOffersByEmailYet);
+  assert.equal(channelRefuses("email", "conversational", "ours", READY_OPEN), null);
+  assert.equal(channelRefuses("whatsapp", "conversational", "ours", READY), null);
+  assert.equal(channelRefuses("sms", "conversational", "ours", READY), null, "texts carry news, as they carry replies");
   assert.deepEqual(
-    channelChoices(READY, "marketing").map((x) => [x.channel, x.ok]),
+    channelChoices(READY, "marketing", "ours").map((x) => [x.channel, x.ok]),
     [
       ["whatsapp", true],
       ["sms", false],
       ["email", false],
     ],
   );
+  assert.deepEqual(
+    channelChoices(READY, "conversational", "ours").map((x) => [x.channel, x.ok, x.why]),
+    [
+      ["whatsapp", true, null],
+      ["sms", true, null],
+      ["email", false, CHANNEL_WORDS.noOffersByEmailYet],
+    ],
+    "the news says what an offer says: the campaigns domain",
+  );
+  assert.deepEqual(
+    channelChoices(READY_OPEN, "conversational", "ours").map((x) => [x.channel, x.ok]),
+    [
+      ["whatsapp", true],
+      ["sms", true],
+      ["email", true],
+    ],
+  );
+  assert.deepEqual(
+    channelChoices(READY, "conversational", "theirs").map((x) => [x.channel, x.ok]),
+    [
+      ["whatsapp", true],
+      ["sms", true],
+      ["email", true],
+    ],
+    "their visit's message by email is open without the campaigns domain",
+  );
+  // An edge that could not be asked leaves the offers' facts saying so ("could not be checked"), and the news says the same.
+  const unasked = channelsReady({
+    whatsapp: null,
+    textLine: null,
+    email: { mailbox: false, domain: null, offers: { ...OPEN, campaigns: null } },
+  });
+  assert.equal(channelRefuses("email", "conversational", "ours", unasked), CHANNEL_WORDS.unchecked);
+  // Each reason an offer's channel gives is the news': the address missing, and a pause.
+  const noAddress = channelsReady({
+    whatsapp: null,
+    textLine: null,
+    email: { mailbox: true, domain: true, offers: { ...OPEN, address: false } },
+  });
+  assert.equal(channelRefuses("email", "conversational", "ours", noAddress), OFFERS_BY_EMAIL_WORDS.noAddress);
+  const paused = channelsReady({
+    whatsapp: null,
+    textLine: null,
+    email: {
+      mailbox: true,
+      domain: true,
+      offers: { ...OPEN, paused: { at: "2026-10-01T10:00:00Z", reason: "bounces" } },
+    },
+  });
+  assert.equal(channelRefuses("email", "conversational", "ours", paused), OFFERS_BY_EMAIL_WORDS.paused);
+  assert.equal(
+    channelRefuses("email", "conversational", "theirs", paused),
+    null,
+    "a pause holds offers and news alone",
+  );
 });
 
 test("the pick: where they last wrote first, then WhatsApp, text, email; each as the campaign ticks and their yes covers", () => {
-  // A campaign's own pick: its message is the business's news, ours (decision D1).
-  const how = { channels: ALL, ready: READY, about: "ours" };
+  // A campaign's own pick: its message is the business's news, ours (decision D1), which by email waits for the workspace's
+  // offers (decision D2): this workspace's are open.
+  const how = { channels: ALL, ready: READY_OPEN, about: "ours" };
   assert.deepEqual(reachFor(person(), "conversational", how), { channel: "whatsapp", held: null });
   assert.deepEqual(reachFor(person({ lastChannel: "sms" }), "conversational", how), { channel: "sms", held: null });
   assert.deepEqual(
@@ -146,7 +233,7 @@ test("the pick: where they last wrote first, then WhatsApp, text, email; each as
   });
   // Nowhere to send on the only channel ticked.
   assert.deepEqual(
-    reachFor({ ...person(), email: null }, "conversational", { channels: ["email"], ready: READY, about: "ours" }),
+    reachFor({ ...person(), email: null }, "conversational", { channels: ["email"], ready: READY_OPEN, about: "ours" }),
     {
       channel: null,
       held: "no_address",
@@ -177,7 +264,8 @@ test("decision D1 in the pick: by email a campaign's own news needs a yes coveri
       consent: { state: "unknown", channels: null, relationship: false, ...consent },
       ...over,
     });
-  const pick = (r, about, channels = ["email"]) => reachFor(r, "conversational", { channels, ready: READY, about });
+  const pick = (r, about, channels = ["email"]) =>
+    reachFor(r, "conversational", { channels, ready: READY_OPEN, about });
   const email = { channel: "email", held: null };
   // An address and nothing else (the finder's lead, an address typed in): their visit's message goes, the business's news is held.
   assert.deepEqual(pick(onEmail(), "theirs"), email, "a message about their visit asks no yes");
@@ -219,7 +307,7 @@ test("decision D1 in the pick: by email a campaign's own news needs a yes coveri
     onEmail({ state: "opted_in", channels: ["email"] }, { id: "c" }),
     onEmail({ emailMarketing: "opted_out", relationship: true }, { id: "d" }),
   ];
-  const ours = { channels: ["email"], ready: READY, about: "ours" };
+  const ours = { channels: ["email"], ready: READY_OPEN, about: "ours" };
   const theirs = { ...ours, about: "theirs" };
   assert.deepEqual(reachSplit(rows, "conversational", ours), {
     reached: 2,
@@ -241,8 +329,38 @@ test("decision D1 in the pick: by email a campaign's own news needs a yes coveri
   );
 });
 
+test("decision D2 in the pick: the business's own news by email waits for the workspace's offers as an offer does, and their visit's message does not", () => {
+  const customer = person({ phone: null, consent: { state: "unknown", channels: null } }); // a relationship carries news
+  const via = (ready, about) => reachFor(customer, "conversational", { channels: ["email"], ready, about });
+  // Offers closed (no campaigns domain, no address, a pause): no channel carries the news, and the split and the enrolment say so.
+  assert.deepEqual(via(READY, "ours"), { channel: null, held: "no_channel" });
+  const closed = channelsReady({
+    whatsapp: { canSend: true, refusal: null },
+    textLine: null,
+    email: {
+      mailbox: true,
+      domain: true,
+      offers: { ...OPEN, paused: { at: "2026-10-01T10:00:00Z", reason: "complaints" } },
+    },
+  });
+  assert.deepEqual(via(closed, "ours"), { channel: null, held: "no_channel" });
+  assert.deepEqual(via(READY_OPEN, "ours"), { channel: "email", held: null });
+  // Their visit's message goes by email either way: a pause holds offers and news alone.
+  assert.deepEqual(via(READY, "theirs"), { channel: "email", held: null });
+  assert.deepEqual(via(closed, "theirs"), { channel: "email", held: null });
+  const how = (ready) => ({ channels: ["whatsapp", "email"], ready, about: "ours" });
+  const rows = [person({ id: "a", phone: null }), person({ id: "b" })];
+  assert.deepEqual(reachSplit(rows, "conversational", how(closed)).byChannel, { whatsapp: 1, sms: 0, email: 0 });
+  assert.deepEqual(reachSplit(rows, "conversational", how(READY_OPEN)).byChannel, { whatsapp: 1, sms: 0, email: 1 });
+  assert.deepEqual(
+    enrolFor(rows, "everyone", null, null, "conversational", how(closed)).map((e) => [e.row.id, e.channel]),
+    [["b", "whatsapp"]],
+    "nobody is enrolled on a channel the door would refuse",
+  );
+});
+
 test("an address that has bounced is no way to reach them: the pick falls back to another channel instead of choosing email and being refused at the door", () => {
-  const how = { channels: ALL, ready: READY, about: "ours" };
+  const how = { channels: ALL, ready: READY_OPEN, about: "ours" };
   const bounced = (over) => person({ emailSuppressed: true, ...over });
   // They last wrote by email, but that address is dead: WhatsApp, where their yes covers it.
   assert.deepEqual(reachFor(bounced({ lastChannel: "email" }), "conversational", how), {
@@ -254,7 +372,7 @@ test("an address that has bounced is no way to reach them: the pick falls back t
   assert.deepEqual(reachFor(onlyEmail, "conversational", how), { channel: null, held: "no_yes" });
   // The only channel ticked is email: held for the address, which is the owner's to fix. The address is on file and mail
   // to it has stopped, so the reason is not "no address": it says so, and words a correction (heldWords).
-  assert.deepEqual(reachFor(bounced(), "conversational", { channels: ["email"], ready: READY, about: "ours" }), {
+  assert.deepEqual(reachFor(bounced(), "conversational", { channels: ["email"], ready: READY_OPEN, about: "ours" }), {
     channel: null,
     held: "address_stopped",
   });
@@ -290,7 +408,7 @@ test("an address that has bounced is no way to reach them: the pick falls back t
 });
 
 test("the split a composer says, and the people a send enrols with each one's channel", () => {
-  const how = { channels: ALL, ready: READY, about: "ours" };
+  const how = { channels: ALL, ready: READY_OPEN, about: "ours" };
   const rows = [
     person({ id: "a" }),
     person({ id: "b", lastChannel: "email" }),
@@ -310,6 +428,58 @@ test("the split a composer says, and the people a send enrols with each one's ch
       ["c", "email"],
     ],
   );
+});
+
+test("the month a send counts against is the one it goes in: where the next month begins by the workspace's clock, and the count a composer reads at the time picked", () => {
+  const tz = "America/New_York";
+  // The first instant of the next month by the workspace's clock, clock changes included.
+  assert.equal(nextMonthStart(tz, Date.parse("2026-09-28T16:00:00Z")), Date.parse("2026-10-01T04:00:00Z"));
+  assert.equal(
+    nextMonthStart(tz, Date.parse("2026-10-15T12:00:00Z")),
+    Date.parse("2026-11-01T04:00:00Z"),
+    "still summer time",
+  );
+  assert.equal(
+    nextMonthStart(tz, Date.parse("2026-11-15T12:00:00Z")),
+    Date.parse("2026-12-01T05:00:00Z"),
+    "winter time",
+  );
+  assert.equal(
+    nextMonthStart(tz, Date.parse("2026-12-15T12:00:00Z")),
+    Date.parse("2027-01-01T05:00:00Z"),
+    "across the year",
+  );
+  // By the business's clock, not UTC's: eleven at night on the 30th in New York is already October by UTC.
+  assert.equal(nextMonthStart(tz, Date.parse("2026-10-01T03:30:00Z")), Date.parse("2026-10-01T04:00:00Z"));
+  assert.equal(
+    nextMonthStart("Pacific/Auckland", Date.parse("2026-09-30T20:00:00Z")),
+    Date.parse("2026-10-31T11:00:00Z"),
+    "by Auckland's clock 8 PM UTC on the 30th is already the 1st of October, so the next month is November",
+  );
+
+  const used = { email: 2000, sms: 500 };
+  const fresh = { email: 0, sms: 0 };
+  const now = Date.parse("2026-09-28T16:00:00Z");
+  const from = nextMonthStart(tz, now);
+  const read = { month_sent: used, month_sent_next: { from, sent: fresh } };
+  assert.deepEqual(monthSentAt(read, now), used, "a send now counts against this month");
+  assert.deepEqual(monthSentAt(read, from - 1), used, "the last moment of the month");
+  assert.deepEqual(monthSentAt(read, from), fresh, "its first moment is the new month's");
+  assert.deepEqual(monthSentAt(read, Date.parse("2026-10-20T12:00:00Z")), fresh);
+  // A read from before the next month was carried judges every send by this month's, as it did.
+  assert.deepEqual(monthSentAt({ month_sent: used }, Date.parse("2026-10-20T12:00:00Z")), used);
+  // A month that could not be counted says nothing, for either: never a month of nothing.
+  assert.equal(monthSentAt({ month_sent: null, month_sent_next: { from, sent: null } }, now), null);
+  assert.equal(monthSentAt({ month_sent: used, month_sent_next: { from, sent: null } }, from + 1), null);
+  assert.equal(monthSentAt({}, now), null);
+  // The line before a send: made on the 28th for the 1st, the old month's room is not what is said.
+  const byChannel = { email: 5, sms: 3 };
+  const say = (at) => allowanceBeforeSend(byChannel, monthSentAt(read, at), null, "conversational");
+  assert.match(
+    say(now),
+    /^This month's 2,000 emails are used up: 5 people will be held back\. This month's 500 texts are used up: 3 people/,
+  );
+  assert.equal(say(Date.parse("2026-10-01T10:00:00-04:00")), null, "the new month has room for all of them");
 });
 
 test("the month's allowance by email and by text, said once half is used", () => {
@@ -485,7 +655,6 @@ test("the note under an offer says which channels carry offers, as the workspace
       textLine: { sms_state: "active", reg_mock: false },
       email: { mailbox: true, domain: true, ...(offers ? { offers } : {}) },
     });
-  const OPEN = { campaigns: true, address: true, paused: null };
   const alone = offersNote(READY);
   assert.match(alone, /^Offers and news go by WhatsApp only\./);
   assert.match(alone, /registered with the carriers for replies and appointment messages/);
@@ -507,5 +676,8 @@ test("the note under an offer says which channels carry offers, as the workspace
   assert.doesNotMatch(open, /WhatsApp only/);
   // It is the ticks' own question, not a second reading of the facts: it says email exactly where the email tick is open for an offer.
   for (const ready of [READY, withOffers(OPEN), withOffers({ ...OPEN, address: false })])
-    assert.equal(offersNote(ready).includes("and by email"), channelRefuses("email", "marketing", ready) === null);
+    assert.equal(
+      offersNote(ready).includes("and by email"),
+      channelRefuses("email", "marketing", "ours", ready) === null,
+    );
 });

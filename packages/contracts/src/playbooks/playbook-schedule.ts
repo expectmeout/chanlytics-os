@@ -110,13 +110,26 @@ export function runsWords(p: { trigger: string; run_hour: number; cadence_days: 
   return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at}` : `runs daily at ${at}`;
 }
 
-/** "today 10:00", "today, within the hour" or "tomorrow 10:00", by the business's clock; "paused" when it is. */
+/**
+ * What a running playbook's next run says while the WORKSPACE is paused (billing): no time is promised, since the send door
+ * refuses every message of a run until billing resumes (core deliver.ts `paused`), and a card that said "tomorrow 10:00" said
+ * what would not happen.
+ */
+const NEXT_RUN_WORKSPACE_PAUSED = "after billing resumes";
+
+/**
+ * "today 10:00", "today, within the hour" or "tomorrow 10:00", by the business's clock; "paused" when the playbook is, and
+ * "after billing resumes" while the workspace is (`workspacePaused`, the readiness the surface reads: contracts
+ * ChannelsReady.paused). Required: a caller that does not know says so rather than promise a run.
+ */
 export function nextRunLabel(
   p: Pick<PlaybookDto, "state" | "run_hour" | "last_run_for">,
   tz: string,
   now: Date,
+  workspacePaused: boolean,
 ): string {
   if (p.state !== "running") return "paused";
+  if (workspacePaused) return NEXT_RUN_WORKSPACE_PAUSED;
   const { date, hour } = parts(tz, now);
   const at = `${two(p.run_hour)}:00`;
   if (p.last_run_for !== date) {

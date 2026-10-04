@@ -13,6 +13,7 @@ import {
   NO_TEMPLATE_WORDS,
   allowanceBeforeSend,
   heldBackWords,
+  monthSentAt,
   offersNote,
 } from "@chanlytics/contracts";
 import type { ParamSourceKind, TemplateGroup } from "@chanlytics/contracts";
@@ -81,10 +82,11 @@ function bcWhoNotes(v: BcV) {
 // the list, the month's emails or texts running out (contracts allowanceBeforeSend; a broadcast is held at it), and nobody
 // to send it to -- with the door to where their yes is got.
 function bcBlockers(v: BcV) {
-  const { active, overLimit, number, activeCount, canSend, noNumber, yesDoor, on, purpose, sample, data } = v;
+  const { active, overLimit, number, activeCount, canSend, noNumber, yesDoor, on, purpose, sample, data, goesAt } = v;
+  // The month the send is set to go in, not the month it is made in: one set for the 1st, made on the 28th, counts against the new month.
   const allowance =
     active && sample && sample.split
-      ? allowanceBeforeSend(sample.split.byChannel, data.month_sent, null, purpose)
+      ? allowanceBeforeSend(sample.split.byChannel, monthSentAt(data, goesAt), null, purpose)
       : null;
   return (
     <>

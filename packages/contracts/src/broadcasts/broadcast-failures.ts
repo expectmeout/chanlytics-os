@@ -2,6 +2,7 @@
  * Why a run failed, in the owner's words, and what to do about it. Moved whole from broadcasts.ts (Reach out Part
  * 2.5), which re-exports it.
  */
+import type { DeliveryRefusal } from "../consent/consent";
 import { CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channels";
 
 /**
@@ -20,8 +21,36 @@ export const BROADCAST_FAILURES = [
   "after_hours",
   "provider_limit",
   "campaigns_domain_unverified",
+  "email_offers_paused",
 ] as const;
 export type BroadcastFailure = (typeof BROADCAST_FAILURES)[number];
+
+/**
+ * The door's refusals that are a fact about the whole workspace, or about the deployment's lane for its offers by email,
+ * and never about the person it was asked of, with the failure a run stops with when it meets one: a billing pause, the
+ * workspace's offers by email paused by a gate (email-offers.ts), and the campaigns domain this runtime does not hold, which
+ * the business's news by email needs as an offer does (decision D2). Everyone left on the run would meet the same refusal,
+ * so the run stops with that failure and leaves them unsent, rather than burn each as a final skip and end as "sent" (core
+ * messages/broadcast.ts). THE one list, below; a refusal that is the person's own (a stop, an address that bounced) is not on it.
+ */
+export type WorkspaceFailure = Extract<
+  BroadcastFailure,
+  "paused" | "email_offers_paused" | "campaigns_domain_unverified"
+>;
+
+/** The failure a run stops with for a refusal that holds for the whole workspace, or null for the person's own. */
+export function workspaceRefusalFailure(reason: DeliveryRefusal): WorkspaceFailure | null {
+  switch (reason) {
+    case "paused":
+      return "paused";
+    case "email_offers_paused":
+      return "email_offers_paused";
+    case "email_marketing_disabled":
+      return "campaigns_domain_unverified";
+    default:
+      return null;
+  }
+}
 
 /** The failures whose words name the wire the run went out on: the rest read the same whichever channel it was. */
 const WIRE_FAILURES = ["wire_unavailable", "throttled", "stalled"] as const satisfies readonly BroadcastFailure[];
@@ -82,6 +111,7 @@ export const BROADCAST_FAILURE_WORDS: Record<BroadcastFailure, Words> = {
   after_hours: "the day's sending hours ran out before it was done",
   provider_limit: "the mail provider's limit for the day or the month was reached",
   campaigns_domain_unverified: "the domain offers by email leave from is not verified with the mail provider",
+  email_offers_paused: "the workspace's offers by email were paused while complaints and bounces settled",
 };
 
 /**
@@ -109,6 +139,8 @@ export const BROADCAST_FAILURE_FIX: Record<BroadcastFailure, Words> = {
   provider_limit: "Nobody got it. The mail provider's limit resets on its own; send it again once it has.",
   campaigns_domain_unverified:
     "Nobody got it. Nothing is wrong with your mailbox: the platform has been told. Send it again once the domain is verified.",
+  email_offers_paused:
+    "Nobody got it. Check your list for old or wrong addresses; offers by email come back on once it looks right. Send it again then.",
 };
 
 /** The wire's own name in the sentences of BROADCAST_FAILURE_FIX_AFTER: who stopped answering, and what they limited. */
@@ -143,6 +175,8 @@ const BROADCAST_FAILURE_FIX_AFTER: Partial<Record<BroadcastFailure, (n: number, 
     `The first ${n === 1 ? "one" : n} got it, then the mail provider's limit was reached. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
   campaigns_domain_unverified: (n) =>
     `The first ${n === 1 ? "one" : n} got it, then the domain offers by email leave from stopped being verified. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  email_offers_paused: (n) =>
+    `The first ${n === 1 ? "one" : n} got it, then the workspace's offers by email were paused. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
 };
 
 /** The next step past a failed run's reason, by how many it reached first; null for a code nobody has written words for. */

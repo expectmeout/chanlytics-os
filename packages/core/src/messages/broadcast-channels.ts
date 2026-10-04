@@ -8,11 +8,13 @@
  *             the person's thread by their number.
  *   email     the email version's subject and body filled, and a short foot (why they hear from the business, and from
  *             whom), frozen as the request the mailbox sends (the adapter's emailRequest port) and written as the queued
- *             row the door demands before anything leaves (written once the person is claimed). An appointment message
- *             carries no unsubscribe: its foot says a reply of STOP stops them. An OFFER (a marketing message) leaves from
+ *             row the door demands before anything leaves (written once the person is claimed). A message about their visit
+ *             or their proposal carries no unsubscribe: its foot says a reply of STOP stops them. An OFFER leaves from
  *             the mailbox on the campaigns domain, and its foot owes more (contracts emailFoot): why they get it, the
  *             business's name and postal address, and the Unsubscribe link, which the one-click headers carry too. A
- *             business with no postal address on file sends none: the person is held (`no_business_address`).
+ *             business with no postal address on file sends none: the person is held (`no_business_address`). An offer is
+ *             what contracts isOfferByEmail says: a marketing message, and (decision D2) the business's own news, a
+ *             broadcast or a moment's whose message is about "ours", whatever its template's category.
  *
  * Every refusal here is a person held with a reason the run's page already says (contracts HELD_REASONS), never
  * rerouted to another channel.
@@ -22,6 +24,7 @@ import {
   emailFoot,
   emailFootHtml,
   heldByAllowance,
+  isOfferByEmail,
   messageAboutOfTrigger,
   renderOwnVersion,
   renderTemplate,
@@ -76,6 +79,11 @@ export interface Work {
   trigger: string | null;
   /** How many people this batch has settled: a batch that reached nobody waits before the next (broadcast.ts stall). */
   marked: number;
+  /**
+   * The people this batch gave back, still queued, to be tried again once the live hold on their thread has passed (a
+   * day-before reminder: broadcast.ts holdForLater), and when that is: the run waits for it rather than for a minute.
+   */
+  waiting: { count: number; retryAt: Date | null };
   mark(contactId: string, patch: RecipientMark): Promise<void>;
 }
 
@@ -170,8 +178,9 @@ async function emailDelivery(
   });
   const { businessName, address } = w.facts;
   let foot: Foot;
-  if (w.purpose === "marketing") {
-    // An offer owes the postal address and a way out the person can press: with neither, nobody is written to.
+  if (isOfferByEmail({ channel: "email", purpose: w.purpose, proactive: base.proactive, about: base.about })) {
+    // An offer, and the business's own news with it (decision D2), owes the postal address and a way out the person can
+    // press: with neither, nobody is written to. It leaves on the campaigns domain, as the offer foot's request says.
     if (!address?.trim()) return { held: "no_business_address" };
     const unsubscribeUrl = await w.ports.unsubscribeUrl({ messageId, contactId: i.c.id });
     if (!unsubscribeUrl?.trim()) return { held: "no_channel" };
@@ -236,6 +245,8 @@ export async function prepare(
     // email asks a yes covering email or a relationship (contracts messageAboutOfTrigger, decision D1): the run's moment,
     // read as the enrolment read it, so the two cannot disagree about anyone.
     about: messageAboutOfTrigger(w.trigger),
+    // The moment itself, for the door's one question about it: whether this send passes the thread's 24-hour pause (D4).
+    trigger: w.trigger,
     // A send the provider provably did not take (a connection that never opened, its "not now") is handed back rather
     // than written as failed: this person waits in the queue, and the run waits with them (00282).
     holdIfNotTaken: true,

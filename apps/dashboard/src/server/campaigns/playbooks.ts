@@ -18,6 +18,7 @@ import {
   playbookRunReach,
   playbookPoolKey,
   enrolPurpose,
+  messageAboutOfTrigger,
   triggerOf,
   triggerOffered,
   dealsAreOn,
@@ -398,7 +399,9 @@ function poolCounter({ vms, breath, nowMs, pace, ready }: PoolCounting) {
   return (trigger: PlaybookDto["trigger"], listIds: ReadonlySet<string> | null, message: RunMessage): TriggerPool => {
     const base = countFor(trigger, listIds, message, DEFAULT_CAMPAIGN_CHANNELS);
     const purpose = enrolPurpose(triggerOf(trigger)?.cls, message);
-    const by = otherChannelSets(ready, purpose).map((channels) => ({
+    // The moment's message is about their visit or proposal, or the business's own news, which by email waits for the
+    // workspace's offers as an offer does (contracts isOfferByEmail, decision D2): the sets a composer may tick follow it.
+    const by = otherChannelSets(ready, purpose, messageAboutOfTrigger(trigger)).map((channels) => ({
       channels,
       ...countFor(trigger, listIds, message, channels),
     }));

@@ -16,13 +16,40 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { addressOf } from "../packages/channels.js";
-import { offerGate, type OfferPauseReason } from "../packages/contracts.js";
+import { OFFERS_NOTICE_WORDS, offerGate, type OfferPauseReason } from "../packages/contracts.js";
 import { emailOfferCounts, pauseEmailOffers, type Database } from "../packages/db.js";
 import { logger, errField } from "../log.js";
+import { notify } from "../ops/notify.js";
 import { pageOperator } from "../ops/page-operator.js";
+import { loadTenantNotifications } from "../tenant-runtime.js";
 import { campaignsDomain } from "./campaigns-domain.js";
 
 type Db = SupabaseClient<Database>;
+
+/**
+ * The owner, told their offers by email were paused: the bell, and email where the workspace has somebody on file, words
+ * contracts' (OFFERS_NOTICE_WORDS), opening Campaigns' home. The gate wrote an event and paged the platform and told nobody
+ * else, so the rest of a run stopped with its owner never told why. Best effort: the pause already holds, and a notice that
+ * could not be sent is said in the log, never a receipt refused.
+ */
+async function tellOffersPaused(db: Db, tenantId: string, reason: OfferPauseReason): Promise<void> {
+  try {
+    const addressing = await loadTenantNotifications(db, tenantId);
+    const words = OFFERS_NOTICE_WORDS.paused(reason);
+    await notify(
+      { tenantId, ...addressing },
+      {
+        kind: "sweep",
+        route: "outbound",
+        subject: words.title,
+        body: words.body,
+        redactedBody: "A workspace's offers by email were paused.",
+      },
+    );
+  } catch (e) {
+    logger({ tenant_id: tenantId }).error("email_offers_gate_failed", { step: "tell", error: errField(e) });
+  }
+}
 
 /**
  * Whether the gates now say this workspace's offers are to be paused, after a complaint or a bounce on an email that left
@@ -51,6 +78,8 @@ export async function judgeOfferGates(db: Db, tenantId: string, from: string | n
           `${counts.bounceSample} bounced). Its offers by email are held; reminders and replies go on.\n\n` +
           `Once its list is fixed: select public.resume_email_offers('${tenantId}');\n`,
       ).catch((e: unknown) => log.error("email_offers_gate_failed", { step: "page", error: errField(e) }));
+      // The owner, too: the platform's page is not theirs, and the rest of a run stops without it.
+      await tellOffersPaused(db, tenantId, reason);
     }
     return reason;
   } catch (e) {

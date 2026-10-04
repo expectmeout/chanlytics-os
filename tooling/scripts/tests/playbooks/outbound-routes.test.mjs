@@ -1163,8 +1163,14 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
     );
     const ready = tablesFor({ lines: [channelRows.line], templates: [tpl(T1, B), channelRows.textVersion()] });
     await refused(post(ready, { channels: ["sms"] }).run, "conflict", 409, "Nobody there has said yes");
-    // Email: not switched on here, then no mailbox, then no version, then ready.
-    await refused(post(tablesFor(), { channels: ["email"] }).run, "conflict", 409, "Email is not switched on");
+    // Email. A broadcast is the business's own news, which by email waits for the campaigns domain as an offer does
+    // (decision D2), so a deployment that cannot send them says so first: no email wire, then none verified.
+    await refused(
+      post(tablesFor(), { channels: ["email"] }).run,
+      "conflict",
+      409,
+      "Offers by email start once the campaigns domain is set up.",
+    );
     // The edge could not be asked: not offered, and said so, never guessed ready.
     await edgeSays(new Error("connect ECONNREFUSED"));
     await refused(
@@ -1173,15 +1179,42 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
       409,
       "This could not be checked just now.",
     );
-    await edgeSays({ ok: true, ready: true });
-    await refused(post(tablesFor(), { channels: ["email"] }).run, "conflict", 409, "Set up email in Settings");
+    // The campaigns domain verified: then the business's address, the mailbox, the message's version, and the people.
+    await edgeSays({ ok: true, ready: true, offers: true });
     await refused(
-      post(tablesFor({ mailboxes: [channelRows.mailbox] }), { channels: ["email"] }).run,
+      post(tablesFor(), { channels: ["email"] }).run,
+      "conflict",
+      409,
+      "Add your business's address to send offers by email.",
+    );
+    const address = {
+      tenant_config: [
+        {
+          tenant_id: B,
+          config: {
+            brain: {
+              business_name: "Bayside",
+              system_prompt: "Answer as the front desk of Bayside: brief and warm.",
+              fallbacks: { greeting: "g", error: "e", non_text: "n" },
+              profile: { address: "12 Main St, Springfield" },
+            },
+          },
+          version: 1,
+        },
+      ],
+    };
+    await refused(post(tablesFor(address), { channels: ["email"] }).run, "conflict", 409, "Set up email in Settings");
+    await refused(
+      post(tablesFor({ ...address, mailboxes: [channelRows.mailbox] }), { channels: ["email"] }).run,
       "conflict",
       409,
       "This message has no email version yet.",
     );
-    const mail = tablesFor({ mailboxes: [channelRows.mailbox], templates: [tpl(T1, B), channelRows.emailVersion()] });
+    const mail = tablesFor({
+      ...address,
+      mailboxes: [channelRows.mailbox],
+      templates: [tpl(T1, B), channelRows.emailVersion()],
+    });
     // By email the business's news asks a yes covering email or a relationship on record (decision D1): said as that.
     await refused(
       post(mail, { channels: ["email"] }).run,
@@ -1195,6 +1228,7 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
       templates: [tpl(T1, B, { category: "marketing" }), channelRows.emailVersion()],
       mailboxes: [channelRows.mailbox],
     };
+    await edgeSays({ ok: true, ready: true });
     await refused(
       post(tablesFor(offer), { channels: ["email"] }).run,
       "conflict",

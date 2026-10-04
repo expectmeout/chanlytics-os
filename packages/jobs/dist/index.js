@@ -1837,6 +1837,7 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   15 * MIN_MS,
   30 * MIN_MS
 ];
+var BROADCAST_HOLD_WAIT_MS = 10 * MIN_MS;
 var capitalised2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var PREVIEW_CHANNEL_WORDS = {
   whatsapp: capitalised2(CONSENT_CHANNEL_WORDS.whatsapp),
@@ -3049,7 +3050,14 @@ var LIFECYCLE_WORDS = {
     rules: `Sends wait for ${SENDING_HOURS_WORDS.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
-    waiting: "Waiting on you"
+    waiting: "Waiting on you",
+    // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
+    // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
+    paused: {
+      when: { day: "Paused", at: "for billing" },
+      why: "The workspace is paused, so nothing goes until billing resumes",
+      pill: "Workspace paused"
+    }
   },
   results: {
     title: "What came back",
@@ -5724,6 +5732,7 @@ var BROADCAST_THROTTLE_WAITS_MS2 = [
   15 * MIN_MS2,
   30 * MIN_MS2
 ];
+var BROADCAST_HOLD_WAIT_MS2 = 10 * MIN_MS2;
 var OUTCOME_UNKNOWN = "outcome_unknown";
 var capitalised22 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var PREVIEW_CHANNEL_WORDS2 = {
@@ -6999,7 +7008,14 @@ var LIFECYCLE_WORDS2 = {
     rules: `Sends wait for ${SENDING_HOURS_WORDS2.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
-    waiting: "Waiting on you"
+    waiting: "Waiting on you",
+    // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
+    // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
+    paused: {
+      when: { day: "Paused", at: "for billing" },
+      why: "The workspace is paused, so nothing goes until billing resumes",
+      pill: "Workspace paused"
+    }
   },
   results: {
     title: "What came back",
@@ -7163,9 +7179,10 @@ var JOB_WORK = {
   reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" }
 };
 var JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
-function jobNewsWords(jobKind, end, attempts = 1) {
+function jobNewsWords(jobKind, end, how) {
   const w = JOB_WORK[jobKind] ?? JOB_WORK_OTHER;
-  const lead = end === "unfinished" ? jobKind === "outbound_send" ? "It started and never reported back, so it may or may not have reached the customer. Check the conversation before sending it again." : "It started and never reported back, so how it ended is unknown." : end === "unknown_kind" ? "Nothing ran: this is work the app does not know how to do." : `It stopped${attempts > 1 ? ` after ${attempts} tries` : ""} and will not start again on its own.`;
+  const { attempts, resumed } = how;
+  const lead = end === "unfinished" ? jobKind === "outbound_send" ? "It started and never reported back, so it may or may not have reached the customer. Check the conversation before sending it again." : `It started and never reported back, so how it ended is unknown${resumed ? ", and the rest carries on in a fresh run" : ""}.` : end === "unknown_kind" ? "Nothing ran: this is work the app does not know how to do." : `It stopped${attempts > 1 ? ` after ${attempts} tries` : ""} and ${resumed ? "carries on in a fresh run" : "will not start again on its own"}.`;
   return { title: w.stopped, lead, to: w.to };
 }
 var SIGNUP_NAME_MIN2 = 2;
@@ -9405,6 +9422,7 @@ var BROADCAST_THROTTLE_WAITS_MS3 = [
   15 * MIN_MS3,
   30 * MIN_MS3
 ];
+var BROADCAST_HOLD_WAIT_MS3 = 10 * MIN_MS3;
 var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 var capitalised23 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var PREVIEW_CHANNEL_WORDS3 = {
@@ -10627,7 +10645,14 @@ var LIFECYCLE_WORDS3 = {
     rules: `Sends wait for ${SENDING_HOURS_WORDS3.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
-    waiting: "Waiting on you"
+    waiting: "Waiting on you",
+    // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
+    // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
+    paused: {
+      when: { day: "Paused", at: "for billing" },
+      why: "The workspace is paused, so nothing goes until billing resumes",
+      pill: "Workspace paused"
+    }
   },
   results: {
     title: "What came back",
@@ -13323,6 +13348,7 @@ var BROADCAST_THROTTLE_WAITS_MS4 = [
   15 * MIN_MS4,
   30 * MIN_MS4
 ];
+var BROADCAST_HOLD_WAIT_MS4 = 10 * MIN_MS4;
 var capitalised24 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var PREVIEW_CHANNEL_WORDS4 = {
   whatsapp: capitalised24(CONSENT_CHANNEL_WORDS4.whatsapp),
@@ -14543,7 +14569,14 @@ var LIFECYCLE_WORDS4 = {
     rules: `Sends wait for ${SENDING_HOURS_WORDS4.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
-    waiting: "Waiting on you"
+    waiting: "Waiting on you",
+    // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
+    // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
+    paused: {
+      when: { day: "Paused", at: "for billing" },
+      why: "The workspace is paused, so nothing goes until billing resumes",
+      pill: "Workspace paused"
+    }
   },
   results: {
     title: "What came back",
@@ -15288,6 +15321,9 @@ function isOptedOutContact(c) {
 }
 var ASKED_TO_STOP22 = "asked to stop receiving messages";
 var OPT_OUT_REFUSAL22 = `This customer ${ASKED_TO_STOP22}. They can text START to opt back in.`;
+function isOfferByEmail(m) {
+  return m.channel === "email" && (m.purpose === "marketing" || m.purpose === "conversational" && m.proactive && m.about === "ours");
+}
 function mayMessageFor(c, purpose, opts) {
   if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
   if (purpose === "outreach")
@@ -17391,6 +17427,18 @@ var UNASKED22 = {
   has_relationship: false
 };
 var DEALT22 = { ...UNASKED22, has_relationship: true };
+function workspaceRefusalFailure(reason) {
+  switch (reason) {
+    case "paused":
+      return "paused";
+    case "email_offers_paused":
+      return "email_offers_paused";
+    case "email_marketing_disabled":
+      return "campaigns_domain_unverified";
+    default:
+      return null;
+  }
+}
 function wireFailure(code2, channel) {
   return channel === "whatsapp" ? code2 : `${code2}:${channel}`;
 }
@@ -17514,6 +17562,7 @@ var BROADCAST_THROTTLE_WAITS_MS22 = [
   15 * MIN_MS22,
   30 * MIN_MS22
 ];
+var BROADCAST_HOLD_WAIT_MS22 = 10 * MIN_MS22;
 function renderTemplate(body, params) {
   return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
     const v = params[Number(n) - 1];
@@ -18320,6 +18369,9 @@ function messageAboutOfTrigger(trigger) {
   const kind = triggerOf22(trigger ?? "")?.kind;
   return kind === "visit" || kind === "deal" ? "theirs" : "ours";
 }
+function passesHandoverPause(trigger) {
+  return trigger === "visit_tomorrow";
+}
 var PLAYBOOK_CLASS_LABEL22 = {
   reengage: POLICY_CLASS_WORDS22.reengage.short,
   campaign: POLICY_CLASS_WORDS22.campaign.short,
@@ -18825,7 +18877,14 @@ var LIFECYCLE_WORDS22 = {
     rules: `Sends wait for ${SENDING_HOURS_WORDS22.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
-    waiting: "Waiting on you"
+    waiting: "Waiting on you",
+    // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
+    // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
+    paused: {
+      when: { day: "Paused", at: "for billing" },
+      why: "The workspace is paused, so nothing goes until billing resumes",
+      pill: "Workspace paused"
+    }
   },
   results: {
     title: "What came back",
@@ -21016,6 +21075,7 @@ var BROADCAST_THROTTLE_WAITS_MS32 = [
   15 * MIN_MS32,
   30 * MIN_MS32
 ];
+var BROADCAST_HOLD_WAIT_MS32 = 10 * MIN_MS32;
 var capitalised232 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var PREVIEW_CHANNEL_WORDS32 = {
   whatsapp: capitalised232(CONSENT_CHANNEL_WORDS32.whatsapp),
@@ -22228,7 +22288,14 @@ var LIFECYCLE_WORDS32 = {
     rules: `Sends wait for ${SENDING_HOURS_WORDS32.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
-    waiting: "Waiting on you"
+    waiting: "Waiting on you",
+    // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
+    // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
+    paused: {
+      when: { day: "Paused", at: "for billing" },
+      why: "The workspace is paused, so nothing goes until billing resumes",
+      pill: "Workspace paused"
+    }
   },
   results: {
     title: "What came back",
@@ -22806,12 +22873,6 @@ async function outreachFactsOf(db, p) {
 }
 var POS_TTL_MS2 = 5 * MIN_MS32;
 var CALL_CONTROL_S2 = 15 * 60;
-function isOfferByEmail(d) {
-  return d.channel === "email" && d.purpose === "marketing";
-}
-function asksRelationship(d) {
-  return isOfferByEmail(d) || d.channel === "email" && d.purpose === "conversational" && d.proactive && d.about === "ours";
-}
 async function offerFacts(d, emailOffers, pausedSince) {
   const open = emailOffers === true;
   const asked2 = open && isOfferByEmail(d);
@@ -22887,7 +22948,10 @@ async function putOnWire(wire, d, asReply, now) {
   const sent42 = await send(d.to, {
     body: d.body,
     template: d.template,
-    ...d.email ? { email: d.email, purpose: d.purpose } : {},
+    // The lane an email takes is chosen by the purpose it is handed (emailSender): an offer by email leaves by the campaigns
+    // domain, and the business's own news is one at the door (decision D2, contracts isOfferByEmail), so the wire is told it
+    // is, whatever its template's category says. Anything else keeps the purpose it asked with.
+    ...d.email ? { email: d.email, purpose: isOfferByEmail(d) ? "marketing" : d.purpose } : {},
     ...reply,
     ...bound
   });
@@ -22902,8 +22966,11 @@ function kindOf(d) {
   return d.messageId ? "draft" : "answer";
 }
 async function wireFacts({ db, emailOffers }, d) {
-  const relationship = asksRelationship(d);
-  const { data, error } = await wireRowOf(db, { tenantId: d.tenantId, conversationId: d.conversationId, relationship });
+  const { data, error } = await wireRowOf(db, {
+    tenantId: d.tenantId,
+    conversationId: d.conversationId,
+    relationship: isOfferByEmail(d)
+  });
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data;
@@ -23008,10 +23075,13 @@ function refusalFor(d, f, nowMs, o) {
   const kind = kindOf(d);
   if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
+  return heldByThread(d, f, nowMs, kind);
+}
+function heldByThread(d, f, nowMs, kind) {
   const held = !!f.control && nowMs < new Date(f.control.until).getTime();
   if (kind === "draft" && held) return "human_has_it";
-  if (kind !== "draft" && kind !== "system" && (held || f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()))
-    return "human_has_it";
+  const paused = !!f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime() && !passesHandoverPause(d.trigger);
+  if (kind !== "draft" && kind !== "system" && (held || paused)) return "human_has_it";
   return null;
 }
 async function overtakenByHuman(db, d) {
@@ -23608,7 +23678,7 @@ async function emailDelivery(w, i, base) {
   });
   const { businessName, address } = w.facts;
   let foot;
-  if (w.purpose === "marketing") {
+  if (isOfferByEmail({ channel: "email", purpose: w.purpose, proactive: base.proactive, about: base.about })) {
     if (!address?.trim()) return { held: "no_business_address" };
     const unsubscribeUrl2 = await w.ports.unsubscribeUrl({ messageId, contactId: i.c.id });
     if (!unsubscribeUrl2?.trim()) return { held: "no_channel" };
@@ -23657,6 +23727,8 @@ async function prepare(w, i) {
     // email asks a yes covering email or a relationship (contracts messageAboutOfTrigger, decision D1): the run's moment,
     // read as the enrolment read it, so the two cannot disagree about anyone.
     about: messageAboutOfTrigger(w.trigger),
+    // The moment itself, for the door's one question about it: whether this send passes the thread's 24-hour pause (D4).
+    trigger: w.trigger,
     // A send the provider provably did not take (a connection that never opened, its "not now") is handed back rather
     // than written as failed: this person waits in the queue, and the run waits with them (00282).
     holdIfNotTaken: true,
@@ -23727,6 +23799,27 @@ var WIRE_WORDS = {
     to: "the mail provider"
   }
 };
+function gotIt(sent42) {
+  if (sent42 === null) return "";
+  return sent42 === 0 ? "Nobody got it." : sent42 === 1 ? "One person got it." : `${sent42} people got it.`;
+}
+var WORKSPACE_STOP_WORDS = {
+  paused: {
+    cause: (sent42) => sent42 === 0 ? "The workspace is paused until billing resumes, so nothing went out." : ["The workspace is paused until billing resumes, so the rest was not sent.", gotIt(sent42)].filter(Boolean).join(" "),
+    fix: "Resume from Settings \u203A Billing and send it again."
+  },
+  email_offers_paused: {
+    cause: (sent42) => ["Offers by email are paused while complaints and bounces settle, so the rest was not sent.", gotIt(sent42)].filter(Boolean).join(" "),
+    fix: "Check your list for old or wrong addresses; offers by email come back on once it looks right. Send it again then."
+  },
+  campaigns_domain_unverified: {
+    cause: (sent42) => [
+      "The domain offers by email go out from is not verified with the mail provider right now, so the rest was not sent.",
+      gotIt(sent42)
+    ].filter(Boolean).join(" "),
+    fix: "Nothing is wrong with your mailbox, and the platform has been told; send it again once the domain is verified."
+  }
+};
 var LIMIT_WORDS = {
   daily: {
     reached: "The mail provider's limit for the day was reached",
@@ -23737,6 +23830,61 @@ var LIMIT_WORDS = {
     again: "It resets with the new month; send it again then."
   }
 };
+var stopLog = logger2();
+async function release(ports, broadcastId, contactId, reason) {
+  await ports.mark(broadcastId, contactId, { state: "queued", reason, message_id: null }).catch((e) => {
+    stopLog.error("broadcast_release_refused", {
+      broadcast_id: broadcastId,
+      contact_id: contactId,
+      error: errField2(e)
+    });
+  });
+}
+async function stopForTheWorkspace(ports, b, cmd, stop) {
+  const { failure, cause } = stop;
+  const sent42 = await ports.tally(b.id).then(
+    (t) => t.sent,
+    () => null
+  );
+  await ports.fail(b.id, failure);
+  const words = WORKSPACE_STOP_WORDS[failure];
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast \u201C${b.name}\u201D ${failure === "paused" && sent42 === 0 ? "not sent" : "stopped"}`,
+    body: `${words.cause(sent42)} ${words.fix}`
+  });
+  if (failure === "campaigns_domain_unverified")
+    await ports.page?.(
+      "campaigns_domain_unverified",
+      "email: a broadcast's offers could not leave, the campaigns domain is not verified",
+      `Tenant ${cmd.tenantId}, broadcast ${b.id} stopped, everyone not yet sent still queued: ${cause ?? "the campaigns domain is not this runtime's to use"}.`
+    )?.catch(() => void 0);
+}
+async function afterRefusal(w, r42, reason) {
+  const { ports, b } = w;
+  const failure = workspaceRefusalFailure(reason);
+  if (failure) {
+    await release(ports, b.id, r42.contact_id, "not_taken");
+    await stopForTheWorkspace(ports, b, w.cmd, {
+      failure,
+      ...failure === "campaigns_domain_unverified" ? { cause: `the door refused an offer by email (${reason}): this runtime holds no verified campaigns domain` } : {}
+    });
+    return "stop";
+  }
+  if (reason === "human_has_it" && passesHandoverPause(w.trigger) && await holdForLater(w, r42)) return "go on";
+  await w.mark(r42.contact_id, { state: "skipped", reason });
+  return "go on";
+}
+async function holdForLater(w, r42) {
+  const retryAt = new Date(w.ports.now() + jittered2(BROADCAST_HOLD_WAIT_MS22, w.ports.random));
+  if (nextOpenMoment(w.facts.timezone, retryAt).moved) return false;
+  await release(w.ports, w.b.id, r42.contact_id, "not_taken");
+  w.waiting.count += 1;
+  w.waiting.retryAt ??= retryAt;
+  return true;
+}
 var BROADCAST_STALL_RETRY_MS = 6e4;
 var BROADCAST_STALLS_MAX = 30;
 var broadcastLog = logger2();
@@ -23749,16 +23897,9 @@ var ThrownAtTheDoor = class {
     this.error = error;
   }
 };
-async function stoppedByBilling(ports, b) {
+async function stoppedByBilling(ports, b, cmd) {
   if (!await ports.workspacePaused()) return false;
-  await ports.fail(b.id, "paused");
-  await ports.alert({
-    kind: "broadcast_stopped",
-    route: "broadcasts",
-    about: { type: "broadcast", id: b.id },
-    subject: `Broadcast \u201C${b.name}\u201D not sent`,
-    body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again."
-  });
+  await stopForTheWorkspace(ports, b, cmd, { failure: "paused" });
   return true;
 }
 async function wireIsUnbound(ports, b, cmd, batch) {
@@ -23844,7 +23985,7 @@ async function sendOne(w, r42) {
     await w.mark(r42.contact_id, { state: "sent", reason: null, message_id: out.messageId });
     return "go on";
   }
-  if (out.outcome === "refused") return skip(out.reason);
+  if (out.outcome === "refused") return afterRefusal(w, r42, out.reason);
   if (out.throttled) return giveBack(ports, { broadcastId: b.id, contactId: r42.contact_id }, true, channel);
   if (out.limit === "daily" || out.limit === "monthly") {
     await stopForTheLimit(w, r42.contact_id, out, out.limit);
@@ -23860,7 +24001,7 @@ async function sendBroadcastBatch(ports, cmd) {
   if (!b) return;
   if (b.state !== "scheduled" && b.state !== "sending") return;
   if (isReachOutRun(b.audience)) return;
-  if (await stoppedByBilling(ports, b)) return;
+  if (await stoppedByBilling(ports, b, cmd)) return;
   const facts = await ports.facts();
   if (await outsideTheHours(ports, b, cmd, facts.timezone)) return;
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
@@ -23880,7 +24021,9 @@ async function sendBroadcastBatch(ports, cmd) {
     return;
   }
   const purpose = purposeOfTemplate(tpl?.category);
-  if (await offersAreClosed(ports, { b, cmd, batch, purpose })) return;
+  const trigger = audienceTrigger(b.audience);
+  const offers = isOfferByEmail({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger(trigger) });
+  if (await offersAreClosed(ports, { b, cmd, batch, offers })) return;
   const { people, priors, unreadable } = await readPeople(ports, b, batch);
   const w = {
     ports,
@@ -23896,9 +24039,9 @@ async function sendBroadcastBatch(ports, cmd) {
     priors,
     versions: {},
     month: {},
-    // A visit run is never held by the month's allowance; its audience names the moment (contracts audienceTrigger).
-    trigger: audienceTrigger(b.audience),
+    trigger,
     marked: 0,
+    waiting: { count: 0, retryAt: null },
     mark: async (contactId, patch) => {
       w.marked += 1;
       await ports.mark(b.id, contactId, patch);
@@ -23921,16 +24064,26 @@ async function sendBroadcastBatch(ports, cmd) {
     if (verdict !== "go on") return backOff(ports, b, cmd, { ...verdict, timezone: facts.timezone });
     if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
+  await afterTheBatch(w, batch.length);
+}
+async function afterTheBatch(w, picked) {
+  const { ports, b, cmd } = w;
   const remaining = await ports.remaining(b.id);
-  if (remaining > 0) {
-    if (await ports.state(b.id) !== "sending") return;
-    if (batch.length > 0 && w.marked === 0) await stall(ports, b, cmd, "people");
-    else await ports.scheduleNext(b.id);
+  if (remaining <= 0) {
+    const { sent: sent42, held } = await ports.tally(b.id);
+    await ports.finish(b.id, { sent: sent42, held });
+    await ports.alert(finishedNews(b, sent42, held));
     return;
   }
-  const { sent: sent42, held } = await ports.tally(b.id);
-  await ports.finish(b.id, { sent: sent42, held });
-  await ports.alert(finishedNews(b, sent42, held));
+  if (await ports.state(b.id) !== "sending") return;
+  const { count, retryAt } = w.waiting;
+  if (retryAt && (w.marked === 0 || remaining === count))
+    await ports.scheduleNext(b.id, retryAt, {
+      ...cmd.waits ? { waits: cmd.waits } : {},
+      ...cmd.stalls ? { stalls: cmd.stalls } : {}
+    });
+  else if (picked > 0 && w.marked === 0) await stall(ports, b, cmd, "people");
+  else await ports.scheduleNext(b.id);
 }
 function finishedNews(b, sent42, held) {
   const why = "no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish";
@@ -23952,8 +24105,8 @@ async function outsideTheHours(ports, b, cmd, timezone) {
   else await ports.scheduleNext(b.id, open.at);
   return true;
 }
-async function offersAreClosed(ports, { b, cmd, batch, purpose }) {
-  if (purpose !== "marketing" || !batch.some((r42) => channelOf(r42) === "email")) return false;
+async function offersAreClosed(ports, { b, cmd, batch, offers }) {
+  if (!offers || !batch.some((r42) => channelOf(r42) === "email")) return false;
   const unread = await ports.offersUnread();
   if (unread) {
     broadcastLog.error("broadcast_wire_unavailable", { broadcast_id: b.id, channel: "email", reason: unread });
@@ -23967,36 +24120,12 @@ async function offersAreClosed(ports, { b, cmd, batch, purpose }) {
   }
   const why = await ports.offersClosed();
   if (!why) return false;
-  const sent42 = await ports.tally(b.id).then(
-    (t) => t.sent,
-    () => null
-  );
-  await ports.fail(b.id, "campaigns_domain_unverified");
-  await ports.alert({
-    kind: "broadcast_stopped",
-    route: "broadcasts",
-    about: { type: "broadcast", id: b.id },
-    subject: `Broadcast \u201C${b.name}\u201D stopped`,
-    body: [
-      "The domain offers by email go out from is not verified with the mail provider right now, so the rest was not sent.",
-      gotIt(sent42),
-      "Nothing is wrong with your mailbox, and the platform has been told; send it again once the domain is verified."
-    ].filter(Boolean).join(" ")
-  });
-  await ports.page?.(
-    "campaigns_domain_unverified",
-    "email: a broadcast's offers could not leave, the campaigns domain is not verified",
-    `Tenant ${cmd.tenantId}, broadcast ${b.id} stopped, everyone not yet sent still queued: ${why}.`
-  )?.catch(() => void 0);
+  await stopForTheWorkspace(ports, b, cmd, { failure: "campaigns_domain_unverified", cause: why });
   return true;
 }
 async function giveBack(ports, who, reached, channel) {
   await release(ports, who.broadcastId, who.contactId, reached ? "throttled" : "not_taken");
   return { back: reached ? "throttled" : "unreachable", channel };
-}
-function gotIt(sent42) {
-  if (sent42 === null) return "";
-  return sent42 === 0 ? "Nobody got it." : sent42 === 1 ? "One person got it." : `${sent42} people got it.`;
 }
 async function stall(ports, b, cmd, what) {
   const stalls = (cmd.stalls ?? 0) + 1;
@@ -24086,15 +24215,6 @@ async function withdrawQueued(ports, b, delivery) {
   if (!email) return;
   await ports.withdrawEmail(email).catch((e) => {
     broadcastLog.error("broadcast_email_not_withdrawn", { broadcast_id: b.id, message_id: email, error: errField2(e) });
-  });
-}
-async function release(ports, broadcastId, contactId, reason) {
-  await ports.mark(broadcastId, contactId, { state: "queued", reason, message_id: null }).catch((e) => {
-    broadcastLog.error("broadcast_release_refused", {
-      broadcast_id: broadcastId,
-      contact_id: contactId,
-      error: errField2(e)
-    });
   });
 }
 async function backOff(ports, b, cmd, how) {
@@ -25191,8 +25311,10 @@ async function conclude(ports, job, reason, certain, end) {
     return;
   }
   let wreckage;
+  let resumed = false;
   try {
     const settled = await ports.settle(job, certain);
+    resumed = settled.some((s) => s.resumed === true && !s.error);
     for (const s of settled) {
       if (s.error) ports.log.error("job_settle_failed", { job_id: job.id, what: s.what, error: s.error });
       else if (s.notResumed)
@@ -25211,7 +25333,7 @@ async function conclude(ports, job, reason, certain, end) {
     reason
   });
   try {
-    const words = jobNewsWords(job.kind, end, job.attempts);
+    const words = jobNewsWords(job.kind, end, { attempts: job.attempts, resumed });
     const reference = `Reference: job ${job.id} (${job.kind}): ${reason}.`;
     await ports.alert(job, {
       kind: "job_failed",

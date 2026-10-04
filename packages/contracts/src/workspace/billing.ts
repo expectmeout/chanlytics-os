@@ -266,6 +266,16 @@ export interface BillingPlan {
 export const PAUSED_WORDS =
   "Calls are answered only to take a message, and new messages wait in the Inbox for you to answer.";
 
+/**
+ * What a campaign says while the workspace is paused, said the one way: the composers' foot where Send would be, the route's
+ * refusal of a broadcast, and the Campaigns home's rows (their next run is no "Tomorrow 10:00"). The send door refuses every
+ * broadcast message under a pause (core deliver.ts `paused`), so a page that offered Send, or promised a run, said what would
+ * not happen. Today says its own, about the receptionist ("This workspace is paused — the receptionist is not answering
+ * anything."); this is the same fact said about what is sent.
+ */
+export const CAMPAIGNS_PAUSED_WORDS =
+  "This workspace is paused, so nothing is sent until billing resumes. Resume it from Settings › Billing.";
+
 export function planBilling(
   before: { mode: BillingMode; status: BillingStatus; tenant_status: string },
   sub: SubscriptionFacts,

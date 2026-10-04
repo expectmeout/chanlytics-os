@@ -14,7 +14,6 @@ import {
   allowanceBeforeSend,
   messageAboutOfTrigger,
   noMessageWords,
-  purposeOfTemplate,
   type ConsentChannel,
 } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
@@ -28,7 +27,7 @@ import { CM_VIA_WORDS, cmTick } from "../parts/channels";
 import { MessagePreview, PreviewStepper } from "../parts/message-preview";
 import { CmLangGlyph } from "../parts/picker";
 import { cmChevron, cmGroups, cmNumbers, cmSearch } from "../parts/picks";
-import { cmPreviewBy } from "../parts/preview-by";
+import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
 import { CmVia } from "../parts/send-by";
 import { CmSlot } from "../parts/slot";
 import { CmWho } from "../parts/reach";
@@ -380,8 +379,9 @@ export function messageSection(x: SectionCtx) {
           address: data.businessAddress,
           facts,
           labelled,
-          // An offer's email reads with the offer's foot: why they get it, and the way out (step 4).
-          ...(purposeOfTemplate(tpl.category) === "marketing" ? { offer: "customer" as const } : {}),
+          // An offer's email reads with the offer's foot: why they get it, and the way out (step 4). The moment says what
+          // its message is about: the business's news is an offer by email too (decision D2), a visit's is not.
+          ...cmOfferFoot(tpl.category, messageAboutOfTrigger(x.trig ? x.trig.id : null)),
         },
       )
     : null;

@@ -48,6 +48,17 @@ export async function textLineFacts(
 }
 
 /**
+ * Whether the workspace is paused (tenants.status, written by billing): nothing a campaign sends leaves until it resumes,
+ * whatever its channels can do. Asked beside the channels a composer reads, so the page says so instead of offering Send, and
+ * the route refuses a broadcast made under it. A read that fails throws: "we could not check" is not "not paused".
+ */
+export async function workspaceIsPaused(db: Db, tenantId: string): Promise<boolean> {
+  const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`workspace_is_paused: ${error.message}`);
+  return data?.status === "paused";
+}
+
+/**
  * The channels a playbook ticks (`playbooks.channels`), for an edit that names none: the row's own, and null when the
  * row has none or the column is not there yet (a database 00298 has not reached), which the check reads as WhatsApp
  * alone. Any other failed read throws.

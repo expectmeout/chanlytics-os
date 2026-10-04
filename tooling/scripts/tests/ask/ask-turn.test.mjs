@@ -4352,7 +4352,7 @@ test("campaigns.playbooks says the Playbooks page's numbers (ledger #10): every 
   );
   assert.deepEqual(
     read.playbooks.map((p) => [p.playbook_id, p.next_run]),
-    page.playbooks.map((p) => [p.id, nextRunLabel(p, page.timezone, NOW)]),
+    page.playbooks.map((p) => [p.id, nextRunLabel(p, page.timezone, NOW, false)]),
     "the page's rows, and its next-run words",
   );
   const byId = Object.fromEntries(read.playbooks.map((p) => [p.playbook_id, p]));

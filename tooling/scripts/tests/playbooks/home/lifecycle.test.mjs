@@ -688,6 +688,51 @@ test("coming up: a running moment's next run with who will get it, and an off mo
   assert.equal(t.rules, "Sends wait for 9:00–20:59 · one a week per person, across every moment");
 });
 
+test("coming up while the workspace is paused (billing) says so where a time stood, for every running moment, and promises nobody", () => {
+  const ready = {
+    whatsapp: { ready: true, why: null },
+    sms: { ready: false, why: "x" },
+    email: { ready: false, why: "y" },
+  };
+  // The playbooks surface's own readiness says it, or the broadcasts' (the home reads either).
+  for (const [what, over] of [
+    ["the playbooks' readiness", { playbooks: playbooks({ ready: { ...ready, paused: true } }) }],
+    ["the broadcasts' readiness", { broadcasts: broadcasts({ ready: { ...ready, paused: true } }) }],
+  ]) {
+    const t = coming(over);
+    const win = t.rows.find((r) => r.what === "Win-back");
+    assert.deepEqual(win.when, { day: "Paused", at: "for billing" }, `${what}: no "Tomorrow 10:00"`);
+    assert.equal(win.why, "The workspace is paused, so nothing goes until billing resumes", what);
+    assert.deepEqual(win.pill, { tone: "warn", label: "Workspace paused" }, what);
+    assert.deepEqual(win.act, { kind: "open", label: "Open", playbookId: "pb-1" }, "its door is the same");
+    // Who will get it is not said: nobody does, until billing resumes.
+    assert.ok(!win.why.includes("will get it"), what);
+    // The moments that are off still offer Turn on, as before.
+    assert.ok(
+      t.rows.some((r) => r.kind === "off"),
+      what,
+    );
+  }
+  // Not paused (or not known to be), the row is the time it was.
+  for (const over of [
+    {},
+    { playbooks: playbooks({ ready: { ...ready, paused: false } }) },
+    { playbooks: playbooks({ ready: null }), broadcasts: broadcasts({ ready: null }) },
+  ])
+    assert.deepEqual(coming(over).rows[0].when, { day: "Tomorrow", at: "10:00" });
+  // The card's own label, from the surface, is the one the rows are made from: a pause leaves it unparseable as a time, and the
+  // row says paused all the same.
+  const labelled = coming({
+    playbooks: playbooks({ rows: [playbook({ next: "after billing resumes" })], ready: { ...ready, paused: true } }),
+  });
+  assert.deepEqual(labelled.rows[0].when, { day: "Paused", at: "for billing" });
+  // A moment that runs nothing here is no line, paused or not.
+  const archived = coming({
+    playbooks: playbooks({ rows: [playbook({ listArchived: true })], ready: { ...ready, paused: true } }),
+  });
+  assert.ok(!archived.rows.some((r) => r.kind === "moment"));
+});
+
 test("a moment that reaches people says how many, and who waits out the week; a count that failed says so", () => {
   const sends = coming({
     playbooks: playbooks({ rows: [playbook({ candidates: 3, held: 2, named: { pool: 5, saidYes: 5 } })] }),

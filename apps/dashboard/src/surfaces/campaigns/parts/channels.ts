@@ -20,6 +20,7 @@ import {
   type AskedPurpose,
   type ChannelsReady,
   type ConsentChannel,
+  type MessageAbout,
   type ReachSplit,
 } from "@chanlytics/contracts";
 import { channelsOpenFor, openAmong } from "@/lib/campaign-channels";
@@ -80,10 +81,16 @@ export function cmAddressOf(brain: { profile?: { address?: string | null } | nul
   return brain?.profile?.address ?? null;
 }
 
-/** The workspace's readiness with each channel the message has no version on closed, saying why. */
+/**
+ * The workspace's readiness with each channel the message has no version on closed, saying why. The workspace's pause is the
+ * workspace's, not the message's, and rides through (`...ready`).
+ */
 export function cmReadyForMessage(ready: ChannelsReady, has: readonly ConsentChannel[]): ChannelsReady {
-  const closed = (c: ConsentChannel) => (has.includes(c) ? ready[c] : { ready: false, why: CM_VIA_WORDS.noVersion(c) });
-  return { whatsapp: closed("whatsapp"), sms: closed("sms"), email: closed("email") };
+  // A channel closed for want of a version keeps what else it carries (email's `offers`: the reason it gives for an offer or
+  // the business's news is the campaigns domain's, never "no version" over it, nor the domain's over "no version").
+  const closed = (c: ConsentChannel) =>
+    has.includes(c) ? ready[c] : { ...ready[c], ready: false, why: CM_VIA_WORDS.noVersion(c) };
+  return { ...ready, whatsapp: closed("whatsapp"), sms: closed("sms"), email: closed("email") };
 }
 
 /** One tick of the Send by row as it is drawn. */
@@ -103,24 +110,35 @@ export interface CmViaTick {
   waiting: boolean;
 }
 
-/** The channels that are on: ticked, and open to this message. In the page's order; may be none. */
-export function cmChannelsOn(ticks: readonly string[], ready: ChannelsReady, purpose: AskedPurpose): ConsentChannel[] {
-  return openAmong(ticks, channelsOpenFor(ready, purpose));
+/**
+ * The channels that are on: ticked, and open to this message. In the page's order; may be none. `about` is what the message is
+ * about (a broadcast's is ours; a moment's is messageAboutOfTrigger of it), which by email says whether it waits for the
+ * workspace's offers (contracts isOfferByEmail, decision D2).
+ */
+export function cmChannelsOn(
+  ticks: readonly string[],
+  ready: ChannelsReady,
+  purpose: AskedPurpose,
+  about: MessageAbout,
+): ConsentChannel[] {
+  return openAmong(ticks, channelsOpenFor(ready, purpose, about));
 }
 
 /**
- * The row's ticks: every channel, on or off, with the reason one is closed to this message, or must stay on. `keep` is a
- * playbook's: a channel it ticks that cannot send now (no line yet, no version yet) stays ticked, saying so, since its
- * run holds those people until it can; a broadcast goes now, so a channel closed now cannot be ticked.
+ * The row's ticks: every channel, on or off, with the reason one is closed to this message, or must stay on. `message` is
+ * what it is (cmChannelsOn's `purpose` and `about`). `keep` is a playbook's: a channel it ticks that cannot send now (no
+ * line yet, no version yet) stays ticked, saying so, since its run holds those people until it can; a broadcast goes now,
+ * so a channel closed now cannot be ticked.
  */
 export function cmViaTicks(
   ticks: readonly string[],
   ready: ChannelsReady,
-  purpose: AskedPurpose,
+  message: { purpose: AskedPurpose; about: MessageAbout },
   keep: boolean,
 ): CmViaTick[] {
-  const on = cmChannelsOn(ticks, ready, purpose);
-  return channelChoices(ready, purpose).map((c) => {
+  const { purpose, about } = message;
+  const on = cmChannelsOn(ticks, ready, purpose, about);
+  return channelChoices(ready, purpose, about).map((c) => {
     const isOn = on.includes(c.channel);
     const last = isOn && on.length === 1;
     const waiting = keep && !c.ok && ticks.includes(c.channel) && channelNeverCarries(c.channel, purpose) === null;

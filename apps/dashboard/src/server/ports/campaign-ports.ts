@@ -82,8 +82,9 @@ function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
       }),
     // The month's allowance, counted before anyone is enrolled (a function only the service role may call, so it is
     // the route's role check that stands in front of it), and those past it held the moment the run exists (core
-    // campaigns/allowance.ts): the send's own check at the wire stays as the backstop.
-    monthSent: (channel) => campaignMonthSent(serviceDb(), tenantId, channel),
+    // campaigns/allowance.ts): the send's own check at the wire stays as the backstop. Counted in the month the run opens
+    // in (`at`), which a broadcast scheduled ahead may not share with the day it is made.
+    monthSent: (channel, at) => campaignMonthSent(serviceDb(), tenantId, channel, at),
     holdRecipients: (broadcastId, contactIds, reason) =>
       holdRecipients(serviceDb(), { tenantId, broadcastId, contactIds, reason }),
   };
@@ -101,8 +102,9 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string, o: { f
   const zone = async () => (await (facts ??= tenantFacts(ctx.supabase, tenantId))).timezone;
   // The pool, read once: a send to a smart list judges its rule over the same people it enrols from.
   let pool: Promise<AudiencePool> | null = null;
-  const poolAt = async (now: Date) =>
-    (pool ??= audiencePool(ctx, tenantId, await zone(), now, await channelsReadyOrNull(ctx, tenantId)));
+  // Counted without the workspace's pause: it changes what is sent, not who can hear the business (channels-ready.ts).
+  const readyForPool = () => channelsReadyOrNull(ctx, tenantId, { withPause: false });
+  const poolAt = async (now: Date) => (pool ??= audiencePool(ctx, tenantId, await zone(), now, await readyForPool()));
   return {
     ...templateValuePorts(ctx, tenantId),
     ...assemblePorts(ctx, tenantId),
@@ -121,7 +123,8 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string, o: { f
     // judged by (campaigns/channels-ready.ts): the rows the composers read, so a tick refused here is one they greyed.
     channels: async () => {
       const [ready, health] = await Promise.all([
-        channelsReadyOf(ctx, tenantId, { fresh: o.fresh }),
+        // With the workspace's pause: a broadcast made under one is refused (core campaignHowOf), and Ask's card with it.
+        channelsReadyOf(ctx, tenantId, { fresh: o.fresh, withPause: true }),
         whatsappHealthOf(ctx, tenantId),
       ]);
       return { ready, health };

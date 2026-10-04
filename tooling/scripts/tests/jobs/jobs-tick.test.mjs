@@ -199,6 +199,58 @@ test("an email intake that throws is kept and tried again later, not failed: its
   });
 });
 
+test("a broadcast the ledger handed to a fresh run is told as carrying on, never as one that will not start again; one it could not hand on says it will not", async () => {
+  // The bell and the phone show the first line alone: it said "will not start again on its own" over a broadcast the ledger had
+  // just handed to a fresh run, up to six times a run, and an owner who believed it and sent again reached everyone twice.
+  const handed = { what: "broadcast", changed: true, resumed: true, reached: 12, remaining: 30 };
+  const coming = { what: "broadcast", changed: false, resumed: true, reached: 12, remaining: 30 };
+  for (const [what, settled] of [
+    ["handed to a fresh run", [handed]],
+    ["a run already coming", [coming]],
+  ]) {
+    const { ports, calls } = fakes([job("b", "broadcast_send", 1)], { throwOn: new Set(["b"]), settled });
+    await runTick(ports, OPTS);
+    assert.equal(calls.alert[0].subject, "A broadcast stopped partway");
+    assert.match(calls.alert[0].body, /^It stopped and carries on in a fresh run\./, `${what}: the bell's line`);
+    assert.doesNotMatch(calls.alert[0].body.split("\n")[0], /will not start again/, what);
+    assert.match(
+      calls.alert[0].body,
+      /The broadcast carries on in a fresh run: 12 reached so far, 30 still to go/,
+      what,
+    );
+  }
+  // A run that died without reporting back (the last try) is told the same way: unknown how it ended, the rest carries on.
+  const tries = fakes([job("b", "broadcast_send", MAX_ATTEMPTS)], { throwOn: new Set(["b"]), settled: [handed] });
+  await runTick(tries.ports, OPTS);
+  assert.match(
+    tries.calls.alert[0].body,
+    /^It started and never reported back, so how it ended is unknown, and the rest carries on in a fresh run\./,
+  );
+  // Handed on as often as it may, or not at all (the write failed, the read failed, the run had already moved on): nothing
+  // carries it on, and it says so.
+  for (const [what, settled] of [
+    [
+      "too many fresh runs in a row",
+      [
+        {
+          what: "broadcast",
+          changed: true,
+          notResumed: "6 fresh runs in a row did not finish",
+          reached: 12,
+          remaining: 30,
+        },
+      ],
+    ],
+    ["the write failed", [{ what: "broadcast", changed: false, error: "database down" }]],
+    ["it had already moved on", [{ what: "broadcast", changed: false }]],
+    ["a message, not a broadcast", [{ what: "message", changed: true }]],
+  ]) {
+    const { ports, calls } = fakes([job("b", "broadcast_send", 1)], { throwOn: new Set(["b"]), settled });
+    await runTick(ports, OPTS);
+    assert.match(calls.alert[0].body, /^It stopped and will not start again on its own\./, what);
+  }
+});
+
 test("the last try of an intake fails it for good and tells the owner how many tries it took", async () => {
   const { ports, calls } = fakes([job("i", "email_ingest", MAX_ATTEMPTS)], { throwOn: new Set(["i"]) });
   const counts = await runTick(ports, OPTS);

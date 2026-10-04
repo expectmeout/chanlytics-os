@@ -1,6 +1,7 @@
 /**
  * What a broadcast says to its owner when it stops on a wire, in the owner's words, one set per channel (broadcast.ts).
  */
+import type { WorkspaceFailure } from "@chanlytics/contracts";
 import type { Channel } from "../deliver";
 
 /**
@@ -75,6 +76,46 @@ export const WIRE_WORDS: Record<
     reach: "The mail provider could not be reached",
     fine: "Nothing is wrong with the mailbox",
     to: "the mail provider",
+  },
+};
+
+/** "N people got it", "One person got it", "Nobody got it", or nothing when the count could not be read. */
+export function gotIt(sent: number | null): string {
+  if (sent === null) return "";
+  return sent === 0 ? "Nobody got it." : sent === 1 ? "One person got it." : `${sent} people got it.`;
+}
+
+/**
+ * What a run says when it stops for a fact about the whole workspace (contracts workspaceRefusalFailure; broadcast.ts
+ * stopForTheWorkspace), in the owner's words: the cause, with how many it reached first (`sent`, null where that could not
+ * be counted), and what to do. A run that reached nobody says "nothing went out" for a pause, as it always has.
+ */
+export const WORKSPACE_STOP_WORDS: Record<WorkspaceFailure, { cause: (sent: number | null) => string; fix: string }> = {
+  paused: {
+    cause: (sent: number | null): string =>
+      sent === 0
+        ? "The workspace is paused until billing resumes, so nothing went out."
+        : ["The workspace is paused until billing resumes, so the rest was not sent.", gotIt(sent)]
+            .filter(Boolean)
+            .join(" "),
+    fix: "Resume from Settings › Billing and send it again.",
+  },
+  email_offers_paused: {
+    cause: (sent: number | null): string =>
+      ["Offers by email are paused while complaints and bounces settle, so the rest was not sent.", gotIt(sent)]
+        .filter(Boolean)
+        .join(" "),
+    fix: "Check your list for old or wrong addresses; offers by email come back on once it looks right. Send it again then.",
+  },
+  campaigns_domain_unverified: {
+    cause: (sent: number | null): string =>
+      [
+        "The domain offers by email go out from is not verified with the mail provider right now, so the rest was not sent.",
+        gotIt(sent),
+      ]
+        .filter(Boolean)
+        .join(" "),
+    fix: "Nothing is wrong with your mailbox, and the platform has been told; send it again once the domain is verified.",
   },
 };
 
