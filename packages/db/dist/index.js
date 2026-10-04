@@ -955,7 +955,7 @@ function isDealStage(s) {
   return typeof s === "string" && DEAL_STAGES.includes(s);
 }
 var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
-var VOICE_END_REASONS = ["button", "typed", "superseded", "navigated", "vendor", "start"];
+var VOICE_END_REASONS = ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"];
 var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];

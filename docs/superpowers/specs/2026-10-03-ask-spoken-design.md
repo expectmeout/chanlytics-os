@@ -250,6 +250,43 @@ deployment's profile (Opus 5.5 by default, low effort); the gate re-runs with sp
 
 ### 3.5 The Line, listening
 
+> **Amended 4 Oct 2026, evening: the hold is the one mic, and the agent is the mouth** (Ruben, after an afternoon on
+> the two systems: "that system works perfectly … the tap instead of hold I don't like as much … unify it somehow").
+> The tap that opened the agent's own microphone is gone. What stays is the hold the Line always had: the browser's
+> own recogniser hears the person, their words appear as they speak, and the lift asks. What changes is who answers
+> and how:
+>
+> - **The press asks for the session.** On the mic's press (a Space held, a phone's three held: every hold is one) the
+>   Line asks the voice module for the agent's session (`ensureVoice`: the row minted on the Line's thread or a new
+>   one, the vendor's client connected over WebRTC) and starts the recogniser at once, with no beat to wait. The
+>   connection takes two to four seconds; most holds outlast it. Once up, the session's **microphone is muted**: the
+>   agent hears nothing of the room, ever. It says nothing on connect either (`first_message` empty): the first words
+>   are the person's.
+> - **The lift speaks to it.** The words heard go to the agent as a text turn (the client's `sendUserMessage`, which
+>   the vendor documents as the way to "let the user type in the message instead of using the microphone"), and the
+>   agent, whose brain is Ask's own door, answers aloud at once: measured on a bare page 4 Oct, `speaking` 1.1 s after
+>   the send, the answer's text streaming in as it is spoken (`agent_chat_response_part`), the whole as
+>   `agent_response`, and the stored turn read off the thread when `agent_response_complete` lands. The vendor sends
+>   no transcript of a text turn, so the module tells the Line the question itself. A session not up by the lift is
+>   waited for the lift's patience (contracts `ASK_VOICE_UP_WAIT_MS`, 2.5 s) and then left to come up for the next
+>   hold, and the words go the typed way: the text turn, then the clip read aloud as it lands (below).
+> - **The next hold cuts it off.** A new text turn while the agent speaks is an interruption (measured: the agent
+>   stopped mid-count and answered the new question in 0.8 s). While the person holds, the agent's voice is held down
+>   (`setVolume` 0, `hushVoice`), back up on the lift; the mic wears a ring while the agent speaks (`data-state`).
+> - **Between questions the session waits, silently, for a minute.** The vendor hears silence from the muted mic and
+>   at its turn timeout asks the brain with "..." (measured: "Are you still there?" every 25 s, and each such answer
+>   reset the vendor's own after-last-message clock, so the session never ended on its own). So: `turn_timeout` at its
+>   longest (30), `silence_end_call_timeout` off (-1), the brain door answering a silence turn with the buffer words
+>   (voiced as nothing, drawn as nothing), and the **browser ending an idle session itself** a minute after the last
+>   question or answer (contracts `ASK_VOICE_IDLE_MS`), with its own word for why, `idle` (00302 adds it to the row's
+>   set). The next hold reconnects.
+> - **Typed stays text.** A typed question is answered in text alone and ends a running session (`typed`), as before;
+>   Read aloud stays for it (the clip). Today's Listen stays the clip. Clear (`button`) and the Line closing
+>   (`navigated`) end the session as they did. One voice at a time holds: a clip ends a session, a hold ends a clip.
+> - **What the row says now:** `connect_ms` from the press to the connection; `first_audio_ms` from the press to the
+>   agent's first speaking, which is the answer's (no greeting); `end_reason` with `idle` among its words. The voice
+>   doctor reads the same columns.
+>
 > **Amended 4 Oct 2026, after a day on production.** Of 23 conversations Ruben started that morning, every one minted
 > and connected, and 19 ended inside nine seconds, by the browser (`Client disconnected: 1000`), before the brief had
 > begun: Today's Listen opened a two-way conversation, typed "Brief me on today" at the model (two Opus rounds and about
@@ -376,17 +413,19 @@ audio is never fetched.
 > `chanlytics-ask` (the id production's edge names) and a laptop's `chanlytics-ask-dev` pointed at a tunnel, each with
 > its own header secret; `--set-url` refuses the production name. `--apply` sends the whole body, reads the agent back
 > and exits 1 on any field that differs (`agentDrift`), so a vendor default can no longer survive an update; `--check`
-> does the read-back alone. The body, against the first one: `first_message` "I'm listening." with
-> `disable_first_message_interruptions`; `turn_eagerness: patient`, `turn_timeout` 20, `silence_end_call_timeout` 20,
+> does the read-back alone. The body, against the first one: `first_message` empty (the session comes up during the
+> hold; the first words are the person's; it was "I'm listening." while the mic was the agent's own, that afternoon);
+> `turn_eagerness: patient`, `turn_timeout` 30 and `silence_end_call_timeout` -1 (the session's microphone is muted:
+> the vendor hears silence, re-engages at its turn timeout with "..." which the brain door answers with the buffer
+> words, and must never end the session for silence; the browser ends an idle one after a minute, `idle`),
 > `max_duration_seconds` 600 and `max_duration_seconds_after_last_agent_message` 60 (a field the live agent carries and
 > the public schema does not name; a refusal is the signal to drop it); `vad.background_voice_detection` on;
 > `interruption_ignore_terms` (okay, yeah, sí, ajá and their kin) merged with the vendor's defaults; `tts.voice_id`
-> contracts' `ASK_VOICE_ID` on `ASK_VOICE_MODEL` (`eleven_turbo_v2`); every `conversation_config_override` false (the
-> language and the first message included) but `custom_llm_extra_body`; `file_input`, `topic_discovery` and
-> `sentiment_analysis` off. `silence_end_call_timeout` 20 under `turn_timeout` 25, so the end comes before the re-engage
-> (the first body tied them at 20). The drift check compares a list of plain values as a set, since the vendor returns
-> the events and the merged ignore terms in its own order. The brain wiring, the client events, the privacy switches and
-> the limits are as below.
+> contracts' `ASK_VOICE_ID` on `ASK_VOICE_MODEL` (`eleven_turbo_v2`); `client_events` with `audio`, which gates the
+> agent's speech; every `conversation_config_override` false (the language and the first message included) but
+> `custom_llm_extra_body`; `file_input`, `topic_discovery` and `sentiment_analysis` off. The drift check compares a list
+> of plain values as a set, since the vendor returns the events and the merged ignore terms in its own order. The brain
+> wiring, the client events, the privacy switches and the limits are as below.
 
 As the receptionist's Retell agent is provisioned and converged from code, the ElevenLabs agent is: one script,
 `tooling/scripts/voice/elevenlabs-agent.mjs`, idempotent, dry-run by default, that creates or updates the one agent

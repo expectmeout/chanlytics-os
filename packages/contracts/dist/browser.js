@@ -2189,7 +2189,9 @@ var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
 var ASK_VOICE_ID = "UgBBYS2sOqTuMpoF3BR0";
 var ASK_VOICE_MODEL = "eleven_turbo_v2";
 var ASK_SPEECH_MAX_CHARS = 1500;
-var VOICE_END_REASONS = ["button", "typed", "superseded", "navigated", "vendor", "start"];
+var VOICE_END_REASONS = ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"];
+var ASK_VOICE_IDLE_MS = MIN_MS;
+var ASK_VOICE_UP_WAIT_MS = 2500;
 var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_MAX_TOKENS = 4e3;
 var ASK_TOKENS_DAY = 15e5;
@@ -25340,7 +25342,7 @@ var SCHEMA_SETS = {
     "reply_read"
   ],
   "ask_messages.role": ["user", "assistant"],
-  "ask_voice_sessions.end_reason": ["button", "typed", "superseded", "navigated", "vendor", "start"],
+  "ask_voice_sessions.end_reason": ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"],
   "ask_voice_sessions.language": ["en", "es", "other"],
   "billing_accounts.mode": ["stripe", "direct"],
   "billing_accounts.status": [
@@ -31345,10 +31347,12 @@ export {
   ASK_VOICE_CLAIM_STALE_MS,
   ASK_VOICE_FIRST_WORDS_MS,
   ASK_VOICE_ID,
+  ASK_VOICE_IDLE_MS,
   ASK_VOICE_MODEL,
   ASK_VOICE_PULSE_MS,
   ASK_VOICE_TIMING_MAX_MS,
   ASK_VOICE_TOKEN_MIN_MS,
+  ASK_VOICE_UP_WAIT_MS,
   AUDIENCE_KINDS,
   AppError,
   BELL_WINDOW_DAYS,
