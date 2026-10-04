@@ -191,7 +191,7 @@ unnamed durations                    63   in 33 files
 literal style values               1030   in 23 stylesheets
 primitives outside the kit         1993   selectors naming 804 classes
 inline style props                  208   in 56 files
-wire names not in snake_case         55   in 27 routes
+wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     298
 source-text reads in tests          775
 lint warnings                       362   in 155 files, 63 of them exhaustive-deps

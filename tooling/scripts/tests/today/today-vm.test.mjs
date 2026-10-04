@@ -125,7 +125,7 @@ test("nothing counted while someone waits: Glass still draws the day's tile whol
   assert.equal(vm.quiet, null, "someone waits: not a quiet day");
   assert.equal(vm.figures, null, "nothing to count: Classic's card keeps its line");
   assert.deepEqual(
-    vm.zeroFigures.map((f) => [f.id, f.value, f.receipt]),
+    vm.zero_figures.map((f) => [f.id, f.value, f.receipt]),
     [
       ["messages", 0, null],
       ["answered", 0, null],
@@ -133,7 +133,7 @@ test("nothing counted while someone waits: Glass still draws the day's tile whol
       ["new", 0, null],
     ],
   );
-  assert.match(vm.zeroFigures[0].meta, /the last/, "the last message's day stands under the zero");
+  assert.match(vm.zero_figures[0].meta, /the last/, "the last message's day stands under the zero");
   // A day with traffic carries its own figures and no zeros.
   const busy = toTodayVM(
     metrics({ period: { messages_in: 3, answered_by_ai: 2, conversations_active: 1 } }),
@@ -143,7 +143,7 @@ test("nothing counted while someone waits: Glass still draws the day's tile whol
     NOW,
   );
   assert.ok(busy.figures, "the day's figures stand");
-  assert.equal(busy.zeroFigures, null);
+  assert.equal(busy.zero_figures, null);
 });
 
 test("a disconnected channel never reads as a calm morning", () => {

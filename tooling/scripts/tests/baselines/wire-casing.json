@@ -72,7 +72,6 @@
   "GET today answers waitedMs": 1,
   "GET today answers windowClosing": 1,
   "GET today answers windowNote": 1,
-  "GET today answers zeroFigures": 1,
   "GET workspaces answers activeWorkspaceId": 1,
   "GET workspaces answers expiresAt": 1,
   "GET workspaces answers partnerCode": 1,
