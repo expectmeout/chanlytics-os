@@ -183,6 +183,13 @@ test("decision D1, by email: a reply or a message about their own visit, proposa
   assert.deepEqual(ask({ ...unsubscribed, has_relationship: true }, "ours"), unsub);
   assert.deepEqual(ask({ ...unsubscribed, consent: "opted_in", consent_channels: ["email"] }, "ours"), unsub);
   assert.deepEqual(ask(unsubscribed, "ours"), unsub);
+  // A recorded no to offers and news (the yes the consent page asks is to both) bars the business's news by email, over a
+  // relationship and over a yes covering email, as it bars an offer; a message about their own visit goes on.
+  const declined = { ...addressAlone, marketing_consent: "opted_out" };
+  const noOffers = { ok: false, reason: "no_marketing_consent" };
+  assert.deepEqual(ask({ ...declined, has_relationship: true }, "ours"), noOffers);
+  assert.deepEqual(ask({ ...declined, consent: "opted_in", consent_channels: ["email"] }, "ours"), noOffers);
+  assert.deepEqual(ask({ ...declined, has_relationship: true }, "theirs"), yes, "their visit is not news");
   // STOP and do-not-contact refuse everything, whatever it is about and whatever the row holds.
   for (const stopped of [{ consent: "opted_out" }, { dnc: true }])
     for (const about of ["theirs", "ours"])

@@ -4359,6 +4359,7 @@ function mayMessageFor(c, purpose, opts) {
     if (purpose !== "marketing") {
       if (!opts.proactive || opts.about === "theirs") return { ok: true, reason: null };
       if (c.email_marketing === "opted_out") return { ok: false, reason: "unsubscribed" };
+      if (c.marketing_consent === "opted_out") return { ok: false, reason: "no_marketing_consent" };
       const saidYes = c.consent === "opted_in" && yesCovers(c.consent_channels, "email");
       return saidYes || c.has_relationship === true ? { ok: true, reason: null } : { ok: false, reason: "not_opted_in" };
     }

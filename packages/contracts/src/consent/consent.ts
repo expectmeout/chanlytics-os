@@ -169,6 +169,9 @@ export function mayMessageFor(
       // a utility template. It goes by email as an offer would: not to someone who pressed Unsubscribe, and only to
       // someone whose yes covers email or who has dealt with the business. An address alone is not enough.
       if (c.email_marketing === "opted_out") return { ok: false, reason: "unsubscribed" };
+      // A recorded no to offers and news (the yes the consent page asks is to both) bars the business's news by email too,
+      // as it bars an offer below: the conservative reading of 3 Oct, and the promotional-under-a-utility-twin case D1 closes.
+      if (c.marketing_consent === "opted_out") return { ok: false, reason: "no_marketing_consent" };
       const saidYes = c.consent === "opted_in" && yesCovers(c.consent_channels, "email");
       return saidYes || c.has_relationship === true
         ? { ok: true, reason: null }
