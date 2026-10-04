@@ -10,6 +10,8 @@ import { P } from "./pipeline/pipe";
 import { peopleSample } from "./sample";
 import type { PeopleSurface } from "./surface";
 import { heldPerson } from "./person/read";
+import type { SurfaceViews } from "../routes";
+import { plScopeRoute, plScopes } from "./words";
 
 /** People's crumb: its own words, and back to the list. */
 const PEOPLE_CRUMB = { label: "People", to: "clients" };
@@ -86,7 +88,23 @@ function personName(id: string): string {
 }
 
 /**
- * The crumbs, the mount and the act of an address. The mount is one for every view of People, one for the Pipeline's
+ * People | Leads (| Pipeline), the page's scopes, as the views the frame draws (PRD 6.1): the Pipeline only where deals are
+ * on. None until People has landed, which is when its deals are known, so the strip never gains a tab after it is drawn.
+ */
+function scopeViews(picked: "people" | "leads" | "pipeline"): SurfaceViews | null {
+  const people = peopleFor();
+  if (!people) return null;
+  const tabs = plScopes(!!people.dealsOn).map((s) => ({
+    id: s.id,
+    label: s.label,
+    to: plScopeRoute(s.id),
+    testid: `scope-${s.id}`,
+  }));
+  return { name: "people", label: "Which people", testid: "people-scope", picked, tabs };
+}
+
+/**
+ * The crumbs, the mount, the act and the views of an address. The mount is one for every view of People, one for the Pipeline's
  * address, drawn as the Pipeline or, where deals are off, as People, and one for Leads, because the page follows its own
  * address (people-route.tsx): a list picked is said in the path by the page, and a page mounted afresh for each would lose its
  * toast and its selection with every pick.
@@ -94,14 +112,28 @@ function personName(id: string): string {
 export function peopleChrome({ param, backToPeople }: { param: string | null; backToPeople: unknown }) {
   if (!param) {
     // "Add client" opens the Ask overlay, which is demo theater; a real workspace gains people when they write or phone.
-    return { crumbs: ["People"], mount: "clients", act: { ask: true, label: "Add client", glyph: "plus" } };
+    return {
+      crumbs: ["People"],
+      mount: "clients",
+      act: { ask: true, label: "Add client", glyph: "plus" },
+      views: scopeViews("people"),
+    };
   }
   // Its People is the profile's own Back (on a phone the only one: the crumb says ‹ People and the page draws none). A person is
   // a mount of their own: the frame keys it by the whole route.
   if (isPersonParam(param)) return { crumbs: [{ ...PEOPLE_CRUMB, go: backToPeople }, personName(param)] };
-  if (param === "new-list") return { crumbs: [PEOPLE_CRUMB, "New list"], mount: "clients" };
-  if (/^pipeline(:|$)/.test(param)) return { crumbs: pipelineCrumbs(param), mount: "clients/pipeline" };
+  if (param === "new-list")
+    return { crumbs: [PEOPLE_CRUMB, "New list"], mount: "clients", views: scopeViews("people") };
+  if (/^pipeline(:|$)/.test(param)) {
+    const deals = !!peopleFor()?.dealsOn;
+    return {
+      crumbs: pipelineCrumbs(param),
+      mount: "clients/pipeline",
+      views: scopeViews(deals ? "pipeline" : "people"),
+    };
+  }
   // Every view of Leads is one mount: the page follows its address (`p-<lead>` is the lead open over the view).
-  if (/^leads(:|$)/.test(param)) return { crumbs: leadsCrumbs(param), mount: "clients/leads" };
-  return { crumbs: [PEOPLE_CRUMB, viewLabel(param)], mount: "clients" };
+  if (/^leads(:|$)/.test(param))
+    return { crumbs: leadsCrumbs(param), mount: "clients/leads", views: scopeViews("leads") };
+  return { crumbs: [PEOPLE_CRUMB, viewLabel(param)], mount: "clients", views: scopeViews("people") };
 }

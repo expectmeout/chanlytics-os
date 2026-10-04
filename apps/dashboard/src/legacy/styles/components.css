@@ -2176,18 +2176,9 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   :where([data-look="glass"]) .pg-slot:has(> .pg-head-slot > header[class="pg-head"]) {
     padding-top: 14px;
   }
-  /* A page that draws its own strip of views under the slot (People's three scopes, clients.css) and names an act
-     (the Pipeline's New proposal, canvas D1-list): the act stands at the strip's right on the strip's row, a 36px
-     capsule, where it stood on a row of its own over the hidden name. The slot's bottom edge is the strip's top. */
-  :where([data-look="glass"]) .main:has(> .main-scroll > .clients) .pg-slot {
-    position: relative;
-  }
-  :where([data-look="glass"]) .main:has(> .main-scroll > .clients) .pg-act-slot {
-    position: absolute;
-    top: 100%;
-    right: var(--gutter-page);
-    z-index: 2;
-  }
+  /* A page whose views are in the slot and that names an act (People's three scopes, the Pipeline's New proposal, canvas
+     D1-list): the act stands at the strip's right on the strip's row, a 36px capsule, where it stood on a row of its own
+     over the hidden name. */
   :where([data-look="glass"]) .main:has(> .main-scroll > .clients) .pg-act-slot > span > :first-child {
     height: var(--control-h-lg);
     padding: 0 16px;

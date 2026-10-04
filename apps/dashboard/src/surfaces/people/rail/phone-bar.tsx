@@ -1,18 +1,17 @@
 /**
  * The phone's top (900px and under, the band the rows and the Lists sheet use), the same for every scope of People
- * (moved whole from legacy/pages/people.jsx, decision 0015), in the Inbox's three tiers: the scopes as the shell's own
- * tab strip (.stabs), a row of its own with the one picked underlined; under it the row of the list being shown and the
- * scope's own last control (People's more-menu, Leads' Find, the Pipeline's +), as the Inbox's buckets stand; and the
- * search, a capsule at rest as the Inbox's is. Nothing else sits above the rows but the one line under them.
+ * (moved whole from legacy/pages/people.jsx, decision 0015), in the Inbox's tiers under the strip of views the frame draws
+ * (SurfaceTabs: the scopes are the page's views, said in its chrome, surfaces/people/chrome.ts): the row of the list
+ * being shown and the scope's own last control (People's more-menu, Leads' Find, the Pipeline's +), as the Inbox's buckets
+ * stand; and the search, a capsule at rest as the Inbox's is. Nothing else sits above the rows but the one line under them.
  * A press on the capsule opens the field -- full width and 16px, so a phone never zooms into it -- with Cancel beside it;
- * the scopes and the list stay over it, as the Inbox's views stay over its search. Hookless: its state is the page's
+ * the list stays over it, as the Inbox's views stay over its search. Hookless: its state is the page's
  * (`searchOpen`), so the page's one keyboard listener opens it on /.
- * `listCount` (Leads') stands apart from the name and never gives way: the name is what an ellipsis shortens. `dealsOn`
- * puts the Pipeline in the switch; with no `onLists` there is no list to pick and the row draws no list button.
+ * `listCount` (Leads') stands apart from the name and never gives way: the name is what an ellipsis shortens. With no
+ * `onLists` there is no list to pick and the row draws no list button.
  */
 import type { ReactNode, RefObject } from "react";
 import { Icon } from "../../kit/icon/icon";
-import { PeopleScopeTabs } from "./scope-tabs";
 
 type SearchRef = RefObject<HTMLInputElement | null> | null;
 
@@ -98,9 +97,6 @@ function PeoplePhoneSearch({
 }
 
 export function PeoplePhoneBar({
-  scope,
-  onScope,
-  dealsOn = false,
   listLabel = null,
   listCount = null,
   onLists = null,
@@ -114,9 +110,6 @@ export function PeoplePhoneBar({
   trailing = null,
   testid,
 }: {
-  scope: string;
-  onScope: (to: string) => void;
-  dealsOn?: boolean;
   listLabel?: ReactNode;
   listCount?: number | string | null;
   onLists?: (() => void) | null;
@@ -131,10 +124,9 @@ export function PeoplePhoneBar({
   testid: string;
 }) {
   const id = (part: string) => `${testid}-phone-${part}`;
-  // The tiers are one top: `-phone-bar` names all of them, so what reads the bar (the scopes, the list, search) finds them.
+  // The tiers are one top: `-phone-bar` names all of them, so what reads the bar (the list, search) finds them.
   return (
     <div className="pp-top" data-testid={id("bar")}>
-      <PeopleScopeTabs scope={scope} onScope={onScope} dealsOn={dealsOn} testid={id("scopes")} />
       {onLists || trailing ? (
         <div className="pp-bar">
           {onLists ? (

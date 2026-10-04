@@ -130,7 +130,6 @@ if (typeof window !== "undefined") {
     // frame draws once and their doors (app-shell.jsx), and the demo's Lists page's mark and route (people-globals.ts).
     plScopes: PEOPLE_GLOBALS.plScopes,
     plScopeRoute: PEOPLE_GLOBALS.plScopeRoute,
-    PeopleScopeTabs: PEOPLE_GLOBALS.PeopleScopeTabs,
     ChannelGlyph: PEOPLE_GLOBALS.ChannelGlyph,
     __listRoute: PEOPLE_GLOBALS.__listRoute,
     DealSheetHost: PEOPLE_GLOBALS.DealSheetHost,

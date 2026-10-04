@@ -37,23 +37,10 @@
   overflow-y: auto;
 }
 
-/* People | Leads (| Pipeline): the one switch between the page's scopes (clients-a.jsx PeopleScopeTabs), drawn as
-   the shell's own tab strip (components.css .stabs: the Inbox's and Campaigns' views, the picked one underlined in
-   the accent). On a desk it is the page's first child, a row of its own across the rail and the rows, so it stands
-   where every other page's views stand; on a phone it is the bar's first row (.pp-top), where the grid is one column
-   and the rail is not drawn. It was a boxed segmented control at the head of the rail, with its own colours and its
-   own size: one control, two looks (Ruben, 25 Sep). */
-.clients > .stabs-people { grid-column: 1 / -1; }
-.clients:has(> .stabs-people) { grid-template-rows: auto minmax(0, 1fr); }
-/* In the Glass look the strip is a capsule as wide as its tabs, set in from the page's edge where the shell's own
-   strip of views stands (components.css, .main > .stabs): the page's gutter on a desk, and on a phone the boards' 12px
-   with the tabs' 10px of padding, as the Inbox's strip stands (components.css, "the strip and the act stand at the
-   boards' 12px", "its tabs give up 4px"): People draws its own on the page, so it says those numbers itself. */
-:where([data-look="glass"]) .clients > .stabs-people { margin: 0 24px 8px; }
-:where([data-look="glass"]) .pp-top > .stabs-people { margin: 0 12px 4px; }
-@media (max-width: 900px) {
-  :where([data-look="glass"]) .pp-top > [role="tablist"] > * { padding-inline: 10px; }
-}
+/* People | Leads (| Pipeline): the one switch between the page's scopes is the frame's strip of views (SurfaceTabs, the
+   Inbox's Needs you / Conversations / Live), drawn once for every page from what the page's chrome says
+   (surfaces/people/chrome.ts), so it stands where the Inbox's does and moves as it moves. This page draws no strip of
+   its own, and sets none of its sides. */
 
 .cl-rail-section {
   padding: 14px 12px 8px;
@@ -2279,8 +2266,8 @@
 /* ==== People on a phone (docs/superpowers/specs/2026-09-22-people-on-a-phone-design.md) ============================
    The page draws these only at 900px and under (PL_PHONE_QUERY), the band the rows, the bar and the Lists sheet share. */
 
-/* The phone's top (PeoplePhoneBar): the scopes as the shell's own tab strip (.stabs, the Inbox's views), then the
-   bar -- the list and the scope's own last control -- then the search, a row of its own: a capsule at rest that opens
+/* The phone's top (PeoplePhoneBar), under the frame's strip of views: the bar -- the list and the scope's own last
+   control -- then the search, a row of its own: a capsule at rest that opens
    into the field, at 16px, since a phone zooms into anything smaller. */
 .pp-top { flex: none; }
 .pp-bar { display: flex; align-items: center; gap: 6px; padding: 8px 8px 6px 16px; flex: none; }
@@ -2653,9 +2640,6 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
     padding: 0 var(--gutter-page) 16px;
     column-gap: 14px;
     background: transparent;
-  }
-  :where([data-look="glass"]) .main-scroll > .clients > .stabs-people {
-    margin: 0 0 8px;
   }
   /* The head stands in the page's own gutter, where the scope strip and the panes do. */
   :where([data-look="glass"]) .main-scroll:has(> .clients) > header:first-child {
@@ -3067,10 +3051,10 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
   :where([data-look="glass"]) .main-scroll:has(> .clients) > header .pg-sentence {
     display: none;
   }
-  /* The strip stands where the Inbox's does, 2px up: the slot over it leaves 14 under the name where the Inbox's leaves
-     its buckets 4 (the Inbox's strip is inside the slot, People's under it). */
+  /* The list picked stands 4px under the strip, as the Inbox's buckets and Conversations' channels do (inbox.css,
+     conversations.css): the strip is the frame's, in its slot, for People as for them. */
   :where([data-look="glass"]) .main:has(> .main-scroll > .clients) .pg-slot {
-    padding-bottom: 14px;
+    padding-bottom: 4px;
   }
   /* The page's light shows through, as it does behind the Inbox and as it does behind People on a desk: the page stood on
      the flat ground (--bg) and hid the pools. */

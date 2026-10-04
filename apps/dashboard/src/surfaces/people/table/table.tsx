@@ -6,7 +6,7 @@
  * `<table class="cl-table">`, so the page's selectors and the phone's card rules hold.
  */
 import { cloneElement, memo } from "react";
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement, ReactNode, RefObject } from "react";
 import { holdStill } from "../../legacy-verbs";
 import { EmptyState } from "../../kit/empty/empty";
 import type { TableColumn, TableCtx, TableEmpty, TableRow } from "../types";
@@ -210,6 +210,8 @@ interface PeopleTableProps<R extends TableRow, X extends TableCtx> {
   busy?: boolean;
   selectMode?: boolean;
   sections?: readonly TableSection<R>[] | null;
+  /** The rows' element for the kit's swap motion (kit/motion, the page's hook): they rise as the list under the view changes. */
+  swapRef?: RefObject<HTMLTableSectionElement | null> | null;
 }
 
 /** The table's heading row: the select-all box, and a heading for each column (a heading that sorts is a button). */
@@ -294,6 +296,7 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
   busy = false,
   selectMode = false,
   sections = null,
+  swapRef = null,
 }: PeopleTableProps<R, X>) {
   const words = PL_NOUNS[noun] || PERSON_NOUN;
   // `selectMode`: the page's Select people (a phone's more-menu), a selection begun with nobody picked yet.
@@ -352,7 +355,7 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
           {sections && sections.some((s) => s.rows.length > 0) ? (
             plSectionBodies(sections, span, budget, row)
           ) : (
-            <tbody data-dims>
+            <tbody data-dims ref={swapRef ?? undefined}>
               {/* The cursor's row is the table's one tab stop (the first row until there is a cursor), and a row focused --
                   by Tab, or by a click -- takes the cursor, so what a screen reader hears and what the keys act on agree.
                   J and K move focus with the cursor (the page's effect on `cursor`). */}

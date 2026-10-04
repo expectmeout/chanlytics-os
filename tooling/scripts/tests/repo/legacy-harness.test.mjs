@@ -561,11 +561,7 @@ test("People's bundle publishes the parts the shell still draws by name on the p
     if (name === "plScopes") assert.equal(win[name], "the page's own", "a name the page has is left alone");
     else assert.ok(name in win, `${name} is published`);
   }
-  assert.equal(
-    typeof win.PeopleScopeTabs,
-    "function",
-    "the shell's strip draws it by name (components/surface-tabs.jsx)",
-  );
+  assert.equal(win.PeopleScopeTabs, undefined, "the strip is the frame's (SurfaceTabs): the page has none to publish");
   // Every page that drew People's table, hooks and rail kit by name has moved (Leads last, decision 0015 step 9): they are
   // imported, and publishing them was what kept them in the shell's chunk.
   for (const name of ["PeopleTable", "usePlControls", "usePlPlace", "PeopleRail", "plSortKeys"])
