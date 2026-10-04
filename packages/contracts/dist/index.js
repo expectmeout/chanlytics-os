@@ -27553,7 +27553,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       windowClosing: null,
       recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
       figures: null,
-      zeroFigures: null,
+      zero_figures: null,
       proof,
       noReply,
       calls: null,
@@ -27579,7 +27579,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     },
     figures,
     // Nothing to count while someone waits (the reference workspace's own state): Glass draws the tile's four zeros.
-    zeroFigures: figures ? null : quietFigures(f.live, f.tz, now),
+    zero_figures: figures ? null : quietFigures(f.live, f.tz, now),
     proof,
     noReply,
     callsRead: f.callsRead,
@@ -27618,9 +27618,10 @@ function needsSentences(vm) {
   if (people.length) {
     const one = people.length === 1 && vm.queue.more === 0;
     const detail = vm.standing.detail;
-    const lead = `${people[0]} has been `;
+    const [first = ""] = people;
+    const lead = `${first} has been `;
     if (one && detail && detail.startsWith(lead))
-      out.push([bold(people[0]), plain(` needs you, ${detail.slice(lead.length)}`)]);
+      out.push([bold(first), plain(` needs you, ${detail.slice(lead.length)}`)]);
     else {
       out.push([...names2(people, vm.queue.more), plain(one ? " needs you." : " need you.")]);
       if (detail) out.push([plain(detail)]);
