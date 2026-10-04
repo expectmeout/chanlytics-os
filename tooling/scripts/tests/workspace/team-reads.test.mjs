@@ -86,10 +86,10 @@ test("the roster runs on the CALLER's client", () => {
 // The invite's email lookup moved to the platform's client in 00121, and which
 // client asks is proved by running it: team-writes.test.mjs.
 
-test("the one remaining admin call is the one that must be", () => {
-  // Sending a signup email is not something SQL can do.
-  const adminCalls = service.match(/auth\.admin\.\w+/g) ?? [];
-  assert.deepEqual([...new Set(adminCalls)], ["auth.admin.inviteUserByEmail"]);
+test("the one remaining auth call is the one that must be, and it is packages/db's", () => {
+  // Sending a signup email is not something SQL can do. The call is db's (auth.ts), so this file names no admin API.
+  assert.deepEqual(service.match(/auth\.admin\.\w+/g) ?? [], [], "no admin API named here");
+  assert.deepEqual([...new Set(service.match(/\b(inviteUserByEmail)\(/g))], ["inviteUserByEmail("]);
 });
 
 test("invitations are read by plain RLS, as they always could have been", () => {

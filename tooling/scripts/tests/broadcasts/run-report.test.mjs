@@ -221,6 +221,92 @@ test("a failed run says how to get past it, in words for each reason it can stop
   );
 });
 
+test("a failure that names its wire says the channel's own provider, never WhatsApp on an email or a text; a code stored with no channel is WhatsApp's, as every run before 00298 was", () => {
+  // The set is closed: each code has words, and the codes that name a wire have a set for each channel.
+  for (const code of C.BROADCAST_FAILURES) {
+    assert.ok(
+      code in C.BROADCAST_FAILURE_WORDS && code in C.BROADCAST_FAILURE_FIX,
+      `${code} has its words and its fix`,
+    );
+  }
+  assert.deepEqual(Object.keys(C.BROADCAST_FAILURE_WORDS).sort(), [...C.BROADCAST_FAILURES].sort());
+  // What the send job writes: WhatsApp's is the bare code, the others carry their channel.
+  assert.deepEqual(
+    ["whatsapp", "sms", "email"].map((c) => C.wireFailure("wire_unavailable", c)),
+    ["wire_unavailable", "wire_unavailable:sms", "wire_unavailable:email"],
+  );
+  const words = (code) => C.broadcastFailureWords(code);
+  assert.equal(words("wire_unavailable"), "WhatsApp could not be reached", "stored with no channel: WhatsApp's");
+  assert.equal(words("wire_unavailable:sms"), "the texting provider could not be reached");
+  assert.equal(words("wire_unavailable:email"), "the mail provider could not be reached");
+  assert.equal(words("throttled"), "WhatsApp kept limiting how fast this number may send");
+  assert.equal(words("throttled:email"), "the mail provider kept limiting how fast this workspace may send");
+  assert.equal(words("stalled:email"), "its mailbox could not be read for half an hour");
+  assert.equal(words("stalled:sms"), "its line's credentials could not be read for half an hour");
+  assert.equal(words("people_unreadable"), "its people could not be read for half an hour");
+  for (const email of ["wire_unavailable:email", "throttled:email", "stalled:email"]) {
+    assert.ok(!/whatsapp|number/i.test(words(email)), `${email} says ${words(email)}`);
+    assert.ok(!/whatsapp|number/i.test(C.broadcastFailureFix(email)), `${email}: ${C.broadcastFailureFix(email)}`);
+    assert.ok(
+      !/whatsapp|number/i.test(C.broadcastFailureFix(email, 7)),
+      `${email}: ${C.broadcastFailureFix(email, 7)}`,
+    );
+  }
+  assert.equal(
+    C.broadcastFailureFix("throttled:sms"),
+    "Nobody got it. The texting provider lifts these limits on its own; send it again later.",
+  );
+  assert.match(
+    C.broadcastFailureFix("wire_unavailable:email", 3),
+    /^The first 3 got it, then the mail provider stopped answering\./,
+  );
+  assert.match(C.broadcastFailureFix("throttled", 1), /^The first one got it, then WhatsApp limited the number\./);
+  // A code that does not name its wire has no channel to carry: one that is given one, and any other text, is unknown.
+  assert.equal(words("paused:email"), "it could not finish");
+  assert.equal(words("wire_unavailable:fax"), "it could not finish");
+  assert.equal(words("wire_unavailable:email:sms"), "it could not finish");
+  assert.equal(words("something_new"), "it could not finish");
+  assert.equal(C.broadcastFailureFix("paused:email"), null);
+  assert.equal(words(null), "no reason was recorded");
+  // The run's own page says it too (the stop of a failed run).
+  const stop = (failure) =>
+    C.toRunReportVM(
+      { broadcast: { state: "failed", failure, params: [] }, recipients: [] },
+      { windowMs: C.REPLY_WINDOW_MS, nowMs: T0, clock: () => null },
+    ).stop;
+  assert.equal(stop("wire_unavailable:email").words, "the mail provider could not be reached");
+  assert.equal(stop("wire_unavailable:email").tone, "danger");
+  assert.equal(stop("paused").tone, "warn");
+});
+
+test("a person whose send the provider refused reads the channel's provider, and a row that names no channel is WhatsApp's", () => {
+  const person = (over) => ({
+    contact_id: "c",
+    name: "Ada",
+    first_name: "Ada",
+    phone: null,
+    state: "failed",
+    reason: "send_failed",
+    ...over,
+  });
+  const wordsOf = (r) =>
+    C.toRunReportVM(
+      { broadcast: { state: "sent", params: [] }, recipients: [person(r)] },
+      { windowMs: C.REPLY_WINDOW_MS, nowMs: T0, clock: () => null },
+    ).people[0].words;
+  assert.equal(wordsOf({}), "WhatsApp refused", "no channel on the row: a run made before they were kept");
+  assert.equal(wordsOf({ channel: "whatsapp" }), "WhatsApp refused");
+  assert.equal(wordsOf({ channel: "sms" }), "the texting provider refused it");
+  assert.equal(wordsOf({ channel: "email" }), "the mail provider refused it");
+  // A failure with another reason keeps that reason's words, whichever channel; one with none is the channel's refusal.
+  assert.equal(wordsOf({ channel: "email", reason: "outcome_unknown" }), "a run that did not finish");
+  assert.equal(wordsOf({ channel: "email", reason: null }), "the mail provider refused it");
+  // A person held back as send_failed (an email whose row had already had its say) reads the same.
+  assert.equal(wordsOf({ channel: "email", state: "skipped" }), "the mail provider refused it");
+  // Where the channel is not known (a person's own page), the words claim none.
+  assert.equal(C.HELD_REASONS.send_failed, "the provider refused it");
+});
+
 test("the report's five figures are the ones Reports draws, scoped to the run: sent, delivered, replied, said yes, asked to stop", () => {
   const r = (over) => ({
     contact_id: "c",

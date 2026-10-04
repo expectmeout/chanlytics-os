@@ -61,7 +61,9 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   email_suppressed: "their email address stopped accepting mail",
   recipient_changed: "their email address changed",
   erased: "deleted",
-  send_failed: "WhatsApp refused",
+  // The provider refused the send, on whichever channel the person was reached by: a page that knows the channel says
+  // it by SEND_REFUSED_WORDS, and a row that does not (a person's own page, a run made before rows kept theirs) says this.
+  send_failed: "the provider refused it",
   missing_value: "a value was missing",
   // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
   // this object opaque to the bundler, which then carries the whole map into

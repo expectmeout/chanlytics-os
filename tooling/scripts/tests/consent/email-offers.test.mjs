@@ -13,7 +13,7 @@ import {
   OFFER_GATES,
   PURPOSE_REFUSALS,
   HELD_REASONS,
-  MARKETING_LINE,
+  SENDER_WORDS,
   channelChoices,
   channelNeverCarries,
   channelRefuses,
@@ -34,7 +34,9 @@ import {
   reachFor,
   reachSplit,
   relationshipOnRecord,
+  senderWords,
   setupSteps,
+  smsStopLine,
   whyNotReceive,
   EMAIL_STOP_PATTERN,
   EMAIL_UNSUBSCRIBE_PATTERN,
@@ -56,7 +58,10 @@ const ready = (offers) =>
 /* ------------------------------------------------------- the rule, cell by cell -- */
 
 test("the email row of the consent table: a message about a visit needs no yes, an offer needs not-unsubscribed and a relationship or their own yes", () => {
-  const ask = (c, purpose, proactive = true) => mayMessageFor(c, purpose, { proactive, channel: "email" });
+  // `about` is what the message is about (decision D1): theirs, the visit they booked; ours, an offer the business chose to
+  // send. Only a message that is not an offer reads it (the D1 test below holds the business's news to its rule).
+  const ask = (c, purpose, proactive = true, about = purpose === "marketing" ? "ours" : "theirs") =>
+    mayMessageFor(c, purpose, { proactive, channel: "email", about });
   const yes = { ok: true, reason: null };
   // Conversational, proactive or not: an address is all it asks (the door finds it unsuppressed). No yes, no relationship.
   for (const proactive of [true, false])
@@ -122,10 +127,103 @@ test("the email row of the consent table: a message about a visit needs no yes, 
     mayMessageFor({ marketing_consent: "opted_in", email_marketing: "opted_out" }, "marketing", {
       proactive: true,
       channel: "whatsapp",
+      about: "ours",
     }),
     yes,
     "an unsubscribe from email is no answer to a WhatsApp offer",
   );
+});
+
+test("decision D1, by email: a reply or a message about their own visit, proposal or call needs no yes; the business's own news needs a yes covering email or a relationship, and an unsubscribe ends it", () => {
+  const ask = (c, about, proactive = true) =>
+    mayMessageFor(c, "conversational", { proactive, channel: "email", about });
+  const yes = { ok: true, reason: null };
+  const notOptedIn = { ok: false, reason: "not_opted_in" };
+  // Someone the business has an address for and nothing else: no yes on record, no relationship, nobody has unsubscribed.
+  const addressAlone = { consent: "unknown", email_marketing: "unknown", has_relationship: false };
+
+  // A reply answers someone who wrote: no yes is asked of it, whatever it is about.
+  assert.deepEqual(ask(addressAlone, "ours", false), yes);
+  assert.deepEqual(ask(addressAlone, "theirs", false), yes);
+  // About something of theirs (their visit, their proposal, the call they are on, a thread they wrote in): no yes either.
+  assert.deepEqual(ask(addressAlone, "theirs"), yes);
+  assert.deepEqual(
+    ask({ ...addressAlone, email_marketing: "opted_out" }, "theirs"),
+    yes,
+    "an unsubscribe is not a STOP",
+  );
+  // The business's own news (a broadcast, whatever its WhatsApp template's category): an address alone is not enough.
+  assert.deepEqual(ask(addressAlone, "ours"), notOptedIn);
+  assert.deepEqual(ask({ consent: "unknown", email_marketing: "unknown" }, "ours"), notOptedIn, "no relationship read");
+  assert.deepEqual(
+    ask({ consent: "opted_in", email_marketing: "unknown", has_relationship: null }, "ours"),
+    notOptedIn,
+  );
+  // A relationship on record (they wrote, called, or have a deal) is enough, with no yes at all.
+  assert.deepEqual(ask({ ...addressAlone, has_relationship: true }, "ours"), yes);
+  // So is a yes covering email.
+  assert.deepEqual(ask({ ...addressAlone, consent: "opted_in", consent_channels: ["email"] }, "ours"), yes);
+  assert.deepEqual(
+    ask({ ...addressAlone, consent: "opted_in", consent_channels: ["whatsapp", "sms", "email"] }, "ours"),
+    yes,
+  );
+  // A yes recorded before the channels were covers WhatsApp alone: it is no yes to email, so without a relationship it is refused.
+  assert.deepEqual(ask({ ...addressAlone, consent: "opted_in", consent_channels: null }, "ours"), notOptedIn);
+  assert.deepEqual(ask({ ...addressAlone, consent: "opted_in" }, "ours"), notOptedIn, "a row read without the column");
+  assert.deepEqual(
+    ask({ ...addressAlone, consent: "opted_in", consent_channels: ["whatsapp", "sms"] }, "ours"),
+    notOptedIn,
+  );
+  assert.deepEqual(ask({ ...addressAlone, consent: "opted_in", consent_channels: [] }, "ours"), notOptedIn);
+  // A yes that covers email counts only while it is a yes.
+  assert.deepEqual(ask({ ...addressAlone, consent: "unknown", consent_channels: ["email"] }, "ours"), notOptedIn);
+  // Their own unsubscribe from email outranks the yes and the relationship, and is the reason said.
+  const unsubscribed = { ...addressAlone, email_marketing: "opted_out" };
+  const unsub = { ok: false, reason: "unsubscribed" };
+  assert.deepEqual(ask({ ...unsubscribed, has_relationship: true }, "ours"), unsub);
+  assert.deepEqual(ask({ ...unsubscribed, consent: "opted_in", consent_channels: ["email"] }, "ours"), unsub);
+  assert.deepEqual(ask(unsubscribed, "ours"), unsub);
+  // A recorded no to offers and news (the yes the consent page asks is to both) bars the business's news by email, over a
+  // relationship and over a yes covering email, as it bars an offer; a message about their own visit goes on.
+  const declined = { ...addressAlone, marketing_consent: "opted_out" };
+  const noOffers = { ok: false, reason: "no_marketing_consent" };
+  assert.deepEqual(ask({ ...declined, has_relationship: true }, "ours"), noOffers);
+  assert.deepEqual(ask({ ...declined, consent: "opted_in", consent_channels: ["email"] }, "ours"), noOffers);
+  assert.deepEqual(ask({ ...declined, has_relationship: true }, "theirs"), yes, "their visit is not news");
+  // STOP and do-not-contact refuse everything, whatever it is about and whatever the row holds.
+  for (const stopped of [{ consent: "opted_out" }, { dnc: true }])
+    for (const about of ["theirs", "ours"])
+      for (const proactive of [true, false])
+        assert.deepEqual(
+          ask(
+            { email_marketing: "opted_in", has_relationship: true, consent_channels: ["email"], ...stopped },
+            about,
+            proactive,
+          ),
+          { ok: false, reason: "opted_out" },
+          `${JSON.stringify(stopped)} ${about} ${proactive ? "proactive" : "reply"}`,
+        );
+  // Only email reads it: by text and WhatsApp the same question is asked of the same yes, theirs or ours.
+  for (const about of ["theirs", "ours"]) {
+    const waYes = { consent: "opted_in", consent_channels: ["whatsapp"], has_relationship: false };
+    assert.deepEqual(
+      mayMessageFor(waYes, "conversational", { proactive: true, channel: "whatsapp", about }),
+      yes,
+      about,
+    );
+    assert.deepEqual(
+      mayMessageFor(waYes, "conversational", { proactive: true, channel: "sms", about }),
+      notOptedIn,
+      about,
+    );
+  }
+  // An offer is the business's own by definition: it asks marketing's rule, and `about` moves nothing there.
+  for (const about of ["theirs", "ours"])
+    assert.deepEqual(
+      mayMessageFor(addressAlone, "marketing", { proactive: true, channel: "email", about }),
+      { ok: false, reason: "no_marketing_consent" },
+      about,
+    );
 });
 
 test("a relationship on record is what the row holds: they wrote in their own words, they called, or they have a deal", () => {
@@ -169,7 +267,7 @@ test("why a person is not reached by email: no address, a dead address, a stop, 
     },
     ...over,
   });
-  const offers = (consent, over) => whyNotReceive(row(consent, over), "marketing", "email");
+  const offers = (consent, over) => whyNotReceive(row(consent, over), "marketing", "email", "ours");
   assert.equal(offers({ emailMarketing: "unknown", relationship: true }), null);
   assert.equal(offers({ emailMarketing: "opted_in", relationship: false }), null);
   assert.equal(offers({ emailMarketing: "unknown", relationship: false }), "no_yes");
@@ -184,15 +282,36 @@ test("why a person is not reached by email: no address, a dead address, a stop, 
   assert.equal(offers({ emailMarketing: "opted_in" }, { email: null }), "no_address");
   assert.equal(
     offers({ emailMarketing: "opted_in" }, { emailSuppressed: true }),
+    "address_stopped",
+    "an address that bounced is on file and mail to it has stopped: its own reason, never 'no address'",
+  );
+  assert.equal(
+    offers({ emailMarketing: "opted_in" }, { email: null, emailSuppressed: true }),
     "no_address",
-    "a bounced address is no address",
+    "with no address at all there is nothing on file to have stopped",
   );
   // A message about a visit goes to an unsubscribed address: unsubscribe is not STOP (decision 12).
-  assert.equal(whyNotReceive(row({ emailMarketing: "opted_out" }), "conversational", "email"), null);
+  assert.equal(whyNotReceive(row({ emailMarketing: "opted_out" }), "conversational", "email", "theirs"), null);
+  // The business's own news does not (decision D1): their unsubscribe ends it, and without a yes covering email or a
+  // relationship it is no yes, an address alone being no more than it was for an offer.
+  const news = (consent, over) => whyNotReceive(row(consent, over), "conversational", "email", "ours");
+  assert.equal(news({ emailMarketing: "opted_out", relationship: true }), "unsubscribed");
+  assert.equal(news({ emailMarketing: "unknown", relationship: false }), "no_yes");
+  assert.equal(news({ emailMarketing: "unknown", relationship: true }), null, "a relationship on record");
+  assert.equal(news({ state: "opted_in", channels: ["email"] }), null, "a yes covering email");
+  assert.equal(
+    news({ state: "opted_in", channels: null }),
+    "no_yes",
+    "a yes from before the channels covers WhatsApp alone",
+  );
+  assert.equal(news({ state: "opted_out", relationship: true }), "stopped");
+  assert.equal(news({ relationship: true }, { email: null }), "no_address");
+  // An address on file that mail no longer reaches is said as itself, not as no address (heldWords words a correction).
+  assert.equal(news({ relationship: true }, { emailSuppressed: true }), "address_stopped");
 });
 
 test("an unsubscribe is the strictest reason after a stop; the words for every place that says it", () => {
-  const how = { channels: ["email"], ready: ready(OPEN) };
+  const how = { channels: ["email"], ready: ready(OPEN), about: "ours" };
   const person = (consent) => ({
     phone: null,
     email: "dani@example.com",
@@ -215,7 +334,7 @@ test("an unsubscribe is the strictest reason after a stop; the words for every p
     held: null,
   });
   // Among several channels' reasons, a stop outranks an unsubscribe, and an unsubscribe a missing yes or number.
-  const all = { channels: ["whatsapp", "email"], ready: ready(OPEN) };
+  const all = { channels: ["whatsapp", "email"], ready: ready(OPEN), about: "ours" };
   assert.equal(
     reachFor({ ...person({ emailMarketing: "opted_out", relationship: true }), phone: "+15550100" }, "marketing", all)
       .held,
@@ -234,6 +353,13 @@ test("an unsubscribe is the strictest reason after a stop; the words for every p
   assert.deepEqual([split.byChannel.email, split.heldBy], [1, { unsubscribed: 1 }]);
   // The owner's words: the composer's held-back line, the run's report, and the door's reason on a thread.
   assert.match(heldWords("unsubscribed", "marketing"), /unsubscribed from offers by email.*still reach them/);
+  // An address on file that mail no longer goes to is not "no address": it says to correct it, in the door's own sentence.
+  for (const purpose of ["marketing", "conversational"]) {
+    assert.equal(heldWords("address_stopped", purpose), PURPOSE_REFUSALS.email_suppressed);
+    assert.match(heldWords("address_stopped", purpose), /bounced for good.*Correct the address/);
+    assert.notEqual(heldWords("address_stopped", purpose), heldWords("no_address", purpose));
+  }
+  assert.match(heldWords("no_address", "marketing"), /^No email address on file/);
   assert.equal(HELD_REASONS.unsubscribed, "unsubscribed");
   assert.match(PURPOSE_REFUSALS.unsubscribed, /replies and messages about their visits still can/);
   for (const reason of ["email_offers_paused", "email_marketing_disabled", "outreach_without_unsubscribe"]) {
@@ -339,7 +465,7 @@ test("the person is picked for email when offers can go, and held with the reaso
       ...consent,
     },
   });
-  const how = (r) => ({ channels: ["whatsapp", "email"], ready: ready(r) });
+  const how = (r) => ({ channels: ["whatsapp", "email"], ready: ready(r), about: "ours" });
   assert.deepEqual(
     reachFor(person(), "marketing", how(OPEN)),
     { channel: "email", held: null },
@@ -434,7 +560,7 @@ test("the pause as the mailbox keeps it, and what the Campaigns head and the tic
 test("the one foot builder, by kind: an offer says why they get it, who and where, and the Unsubscribe link; a visit's is as it was; a cold email's is the reach-out's", () => {
   const url = "https://app.example.com/u/abc_DEF-123";
   const offer = (why, address = "12 Main St, Springfield") =>
-    emailFoot("Northside Studio", address, { kind: "offer", why, unsubscribeUrl: url });
+    emailFoot("Northside Studio", address, { kind: "offer", why, unsubscribeUrl: url }, "en");
   assert.equal(
     offer("customer"),
     `You're a customer of Northside Studio.\nNorthside Studio · 12 Main St, Springfield\nUnsubscribe: ${url}`,
@@ -448,63 +574,63 @@ test("the one foot builder, by kind: an offer says why they get it, who and wher
   for (const address of [null, "", "   "]) {
     assert.throws(() => offer("customer", address), /an offer foot names where and how to stop/, `${address}`);
     assert.throws(
-      () => emailFootHtml("Northside Studio", address, { kind: "offer", why: "customer", unsubscribeUrl: url }),
+      () => emailFootHtml("Northside Studio", address, { kind: "offer", why: "customer", unsubscribeUrl: url }, "en"),
       /an offer foot names where and how to stop/,
       `${address} (HTML)`,
     );
   }
   assert.throws(
-    () => emailFoot("Northside Studio", undefined, { kind: "offer", why: "asked", unsubscribeUrl: url }),
+    () => emailFoot("Northside Studio", undefined, { kind: "offer", why: "asked", unsubscribeUrl: url }, "en"),
     /an offer foot names where and how to stop/,
     "an address left out altogether",
   );
   assert.throws(
-    () => emailFoot("Northside Studio", "12 Main St", { kind: "offer", why: "asked", unsubscribeUrl: "  " }),
+    () => emailFoot("Northside Studio", "12 Main St", { kind: "offer", why: "asked", unsubscribeUrl: "  " }, "en"),
     /an offer foot names where and how to stop/,
     "and not without the link",
   );
   // The visit's foot: its reason, STOP as the way out, no link.
   assert.equal(
-    emailFoot("Northside Studio", "12 Main St", { kind: "visit", facts: { visit_when: "tomorrow at 2:00 PM" } }),
+    emailFoot("Northside Studio", "12 Main St", { kind: "visit", facts: { visit_when: "tomorrow at 2:00 PM" } }, "en"),
     "You're getting this because of your visit with Northside Studio.\nReply STOP to stop these emails.\nNorthside Studio · 12 Main St",
   );
   assert.match(
-    emailFoot("Northside Studio", null, { kind: "visit", facts: { proposal_link: "https://x.example/p" } }),
+    emailFoot("Northside Studio", null, { kind: "visit", facts: { proposal_link: "https://x.example/p" } }, "en"),
     /^You're getting this about your proposal from Northside Studio\.\nReply STOP/,
   );
   // A cold email's foot (the reach-out's): the finder's reason, that it is marketing, who and where, both ways to say no.
   const cold = { kind: "cold", why: "I found your business on Google Maps.", unsubscribeUrl: url };
   assert.equal(
-    emailFoot("Northside Studio", "12 Main St, Springfield", cold),
+    emailFoot("Northside Studio", "12 Main St, Springfield", cold, "en"),
     [
       "I found your business on Google Maps.",
-      MARKETING_LINE,
+      "This is a marketing email.",
       "Northside Studio · 12 Main St, Springfield",
       'Not interested? Reply "no thanks" and I won\'t write again.',
       `Unsubscribe: ${url}`,
     ].join("\n"),
   );
-  assert.equal(MARKETING_LINE, "This is a marketing email.");
   // A cold foot is never built with a part missing: the law asks for each; a visit's foot, which carries no link, does not refuse.
   for (const [what, args] of [
-    ["address", ["Northside Studio", "  ", cold]],
-    ["business", ["  ", "12 Main St", cold]],
-    ["reason", ["Northside Studio", "12 Main St", { ...cold, why: " " }]],
-    ["link", ["Northside Studio", "12 Main St", { ...cold, unsubscribeUrl: "" }]],
+    ["address", ["Northside Studio", "  ", cold, "en"]],
+    ["business", ["  ", "12 Main St", cold, "en"]],
+    ["reason", ["Northside Studio", "12 Main St", { ...cold, why: " " }, "en"]],
+    ["link", ["Northside Studio", "12 Main St", { ...cold, unsubscribeUrl: "" }, "en"]],
   ]) {
     assert.throws(() => emailFoot(...args), /why, who, where and how to stop/, what);
     assert.throws(() => emailFootHtml(...args), /why, who, where and how to stop/, `${what} (HTML)`);
   }
   assert.equal(
-    emailFootHtml("Northside Studio", "12 Main St", cold),
+    emailFootHtml("Northside Studio", "12 Main St", cold, "en"),
     `<p>I found your business on Google Maps.<br>This is a marketing email.<br>Northside Studio · 12 Main St<br>Not interested? Reply &quot;no thanks&quot; and I won&#39;t write again · <a href="${url}">Unsubscribe</a></p>`,
   );
   // The HTML twin of an offer: the same lines, the link reading Unsubscribe, everything escaped.
-  const html = emailFootHtml("Tom & Jerry's <Spa>", "12 Main St", {
-    kind: "offer",
-    why: "customer",
-    unsubscribeUrl: `${url}?a=1&b="2"`,
-  });
+  const html = emailFootHtml(
+    "Tom & Jerry's <Spa>",
+    "12 Main St",
+    { kind: "offer", why: "customer", unsubscribeUrl: `${url}?a=1&b="2"` },
+    "en",
+  );
   assert.equal(
     html,
     `<p>You&#39;re a customer of Tom &amp; Jerry&#39;s &lt;Spa&gt;.<br>Tom &amp; Jerry&#39;s &lt;Spa&gt; · 12 Main St<br><a href="${url}?a=1&amp;b=&quot;2&quot;">Unsubscribe</a></p>`,
@@ -547,13 +673,13 @@ test("the one foot builder, by kind: an offer says why they get it, who and wher
 });
 
 test("the unsubscribe page says to a customer what the spec says, and offers the second, confirmed act", () => {
-  const ask = offerUnsubscribeWords({ kind: "ask", business: "Northside Studio" });
+  const ask = offerUnsubscribeWords({ kind: "ask", business: "Northside Studio" }, "en");
   assert.equal(ask.lead, "Stop offers from Northside Studio?");
   assert.deepEqual(ask.buttons, [
     { label: "Unsubscribe from offers", name: "unsubscribe", value: "yes", quiet: false },
   ]);
   assert.match(ask.body, /won't send you offers by email again\. You'll still get messages about your visits\./);
-  const done = offerUnsubscribeWords({ kind: "done", business: "Northside Studio" });
+  const done = offerUnsubscribeWords({ kind: "done", business: "Northside Studio" }, "en");
   assert.equal(done.lead, "You're unsubscribed from offers from Northside Studio.");
   assert.equal(done.body, "You'll still get messages about your visits.");
   assert.deepEqual(
@@ -561,16 +687,148 @@ test("the unsubscribe page says to a customer what the spec says, and offers the
     [{ label: "Stop all messages", name: "stop_all", value: "ask", quiet: true }],
     "a quiet second act, not the page's main one",
   );
-  const confirm = offerUnsubscribeWords({ kind: "stop_ask", business: "Northside Studio" });
+  const confirm = offerUnsubscribeWords({ kind: "stop_ask", business: "Northside Studio" }, "en");
   assert.equal(confirm.lead, "Stop every message from Northside Studio?");
   assert.match(confirm.body, /reminders and confirmations about your visits/);
   assert.deepEqual(
     confirm.buttons.map((b) => [b.name, b.value]),
     [["stop_all", "yes"]],
   );
-  const stopped = offerUnsubscribeWords({ kind: "stopped", business: null });
+  const stopped = offerUnsubscribeWords({ kind: "stopped", business: null }, "en");
   assert.equal(stopped.lead, "You won't get any more messages from this business.");
   assert.deepEqual(stopped.buttons, []);
+});
+
+/* ------------------------------------------- in the language of the version -- */
+
+test("the sender's words are one table: a text's STOP line, an email's foot and the page read the same in English and Spanish, and any other language reads English", () => {
+  // One table: the text line is the table's, in every language the sender knows.
+  assert.equal(smsStopLine("en_US"), SENDER_WORDS.en.textStop);
+  assert.equal(smsStopLine("es_MX"), SENDER_WORDS.es.textStop);
+  // Spanish is "es" and its regions; everything else, a code nobody wrote and a version with none (null), reads English.
+  for (const es of ["es", "ES", "es_MX", "es-419", "es_US"]) assert.equal(senderWords(es), SENDER_WORDS.es, es);
+  for (const en of ["en", "en_US", "pt_BR", "fr", "fil", "english", "", null])
+    assert.equal(senderWords(en), SENDER_WORDS.en, `${en}`);
+  assert.deepEqual(
+    Object.keys(SENDER_WORDS.es).sort(),
+    Object.keys(SENDER_WORDS.en).sort(),
+    "every line is said in both",
+  );
+});
+
+test("the email foot speaks the version's language, each kind, text and HTML; the address and the link are never translated", () => {
+  const url = "https://app.example.com/u/abc_DEF-123";
+  const offer = (why) => ({ kind: "offer", why, unsubscribeUrl: url });
+  assert.equal(
+    emailFoot("Estudio Norte", "Calle Mayor 12, Madrid", offer("customer"), "es"),
+    `Eres cliente de Estudio Norte.\nEstudio Norte · Calle Mayor 12, Madrid\nDarme de baja: ${url}`,
+  );
+  assert.equal(
+    emailFoot("Estudio Norte", "Calle Mayor 12, Madrid", offer("asked"), "es_MX"),
+    `Pediste recibir ofertas de Estudio Norte.\nEstudio Norte · Calle Mayor 12, Madrid\nDarme de baja: ${url}`,
+  );
+  assert.equal(
+    emailFootHtml("Estudio Norte", "Calle Mayor 12, Madrid", offer("customer"), "es"),
+    `<p>Eres cliente de Estudio Norte.<br>Estudio Norte · Calle Mayor 12, Madrid<br><a href="${url}">Darme de baja</a></p>`,
+  );
+  // A visit's foot: the reason for each of its three facts, and a reply of STOP, in Spanish.
+  const visit = (facts, address = "Calle Mayor 12") =>
+    emailFoot("Estudio Norte", address, { kind: "visit", facts }, "es");
+  assert.equal(
+    visit({ visit_when: "mañana a las 14:00" }),
+    "Recibes esto por tu visita con Estudio Norte.\nResponde STOP para dejar de recibir estos correos.\nEstudio Norte · Calle Mayor 12",
+  );
+  assert.equal(
+    visit({ proposal_link: "https://x.example/p" }, null),
+    "Recibes esto sobre tu propuesta de Estudio Norte.\nResponde STOP para dejar de recibir estos correos.",
+  );
+  assert.equal(
+    visit({}, null),
+    "Recibes esto porque has estado en contacto con Estudio Norte.\nResponde STOP para dejar de recibir estos correos.",
+  );
+  // With no name on file the foot names "nosotros", not "us".
+  assert.match(emailFoot("  ", null, { kind: "visit", facts: {} }, "es"), /en contacto con nosotros\./);
+  assert.match(emailFoot("  ", null, { kind: "visit", facts: {} }, "en"), /been in touch with us\./);
+  // A cold foot (the reach-out's) keeps the finder's reason as given and says the rest in the language.
+  const cold = { kind: "cold", why: "Encontré su negocio en Google Maps.", unsubscribeUrl: url };
+  assert.equal(
+    emailFoot("Estudio Norte", "Calle Mayor 12", cold, "es"),
+    [
+      "Encontré su negocio en Google Maps.",
+      "Este es un correo de marketing.",
+      "Estudio Norte · Calle Mayor 12",
+      '¿No te interesa? Responde "no, gracias" y no volveré a escribirte.',
+      `Darme de baja: ${url}`,
+    ].join("\n"),
+  );
+  assert.match(
+    emailFootHtml("Estudio Norte", "Calle Mayor 12", cold, "es"),
+    /<a href="[^"]+">Darme de baja<\/a><\/p>$/,
+  );
+  // Any other language, and a version that kept none, reads as English did.
+  for (const language of ["pt_BR", "fr", "", null])
+    assert.equal(
+      emailFoot("Northside Studio", "12 Main St", offer("customer"), language),
+      emailFoot("Northside Studio", "12 Main St", offer("customer"), "en"),
+      `${language}`,
+    );
+  // The composers' preview draws the foot in the language of the version it is under.
+  const versions = { email: { subject: "Octubre", body: "Hola {{1}}" } };
+  const preview = previewOn("email", {
+    versions,
+    language: "es",
+    business: "Estudio Norte",
+    address: "Calle Mayor 12",
+    offer: "customer",
+  });
+  assert.equal(preview.foot.split("\n")[0], "Eres cliente de Estudio Norte.");
+  assert.match(preview.foot, /Darme de baja: \(their own unsubscribe link\)$/);
+  assert.match(
+    previewOn("email", { versions, language: "es_MX", business: "Estudio Norte", address: null }).foot,
+    /Responde STOP para dejar de recibir estos correos\./,
+  );
+});
+
+test("the unsubscribe page speaks the language of the offer it came from: every view, every button, and English where the language is not known", () => {
+  const views = ["ask", "done", "stop_ask", "stopped"].map((kind) => ({ kind, business: "Estudio Norte" }));
+  const es = views.map((v) => offerUnsubscribeWords(v, "es"));
+  assert.deepEqual(
+    es.map((w) => w.lead),
+    [
+      "¿Dejar de recibir ofertas de Estudio Norte?",
+      "Te diste de baja de las ofertas de Estudio Norte.",
+      "¿Dejar de recibir todos los mensajes de Estudio Norte?",
+      "No recibirás más mensajes de Estudio Norte.",
+    ],
+  );
+  assert.deepEqual(
+    es.flatMap((w) => w.buttons.map((b) => [b.name, b.value, b.quiet, b.label])),
+    [
+      ["unsubscribe", "yes", false, "Darme de baja de las ofertas"],
+      ["stop_all", "ask", true, "Dejar de recibir todos los mensajes"],
+      ["stop_all", "yes", false, "Sí, dejar de recibir todos los mensajes"],
+    ],
+    "the same acts as in English: only their words move",
+  );
+  assert.match(es[0].body, /Seguirás recibiendo mensajes sobre tus visitas\./);
+  assert.equal(es[0].foot, "Estudio Norte envía su correo con Chanlytics.");
+  // No business name reads the stand-in in the language, and the acts are the English page's.
+  assert.equal(
+    offerUnsubscribeWords({ kind: "stopped", business: null }, "es").lead,
+    "No recibirás más mensajes de este negocio.",
+  );
+  const en = views.map((v) => offerUnsubscribeWords(v, "en"));
+  assert.deepEqual(
+    es.map((w) => w.buttons.map((b) => [b.name, b.value, b.quiet])),
+    en.map((w) => w.buttons.map((b) => [b.name, b.value, b.quiet])),
+  );
+  // Not known (the email's language could not be read), or not one the sender writes: English.
+  for (const language of [null, "", "fr", "pt_BR"])
+    assert.deepEqual(
+      views.map((v) => offerUnsubscribeWords(v, language)),
+      en,
+      `${language}`,
+    );
 });
 
 test("what an email's words are read as: STOP stops everything; UNSUBSCRIBE and YES OFFERS are about offers", () => {
@@ -625,7 +883,7 @@ test("a person's page says their answer about offers by email, quietly: Yes, Uns
   );
   // And it is what the rule reads: the same row, judged.
   const judged = (over) =>
-    whyNotReceive({ consent: of(over), phone: null, email: "d@example.com" }, "marketing", "email");
+    whyNotReceive({ consent: of(over), phone: null, email: "d@example.com" }, "marketing", "email", "ours");
   assert.equal(judged({ email_marketing: "unknown", last_wrote_at: daysAgo(3) }), null);
   assert.equal(judged({ email_marketing: "unknown", last_wrote_at: null }), "no_yes");
   assert.equal(

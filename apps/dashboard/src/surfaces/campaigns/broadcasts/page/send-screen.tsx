@@ -8,18 +8,25 @@
  * called from BroadcastsReal with the page's state.
  */
 import type { ReactNode } from "react";
-import { CAMPAIGN_ROOMS, NO_TEMPLATE_WORDS, allowanceBeforeSend } from "@chanlytics/contracts";
+import {
+  CAMPAIGN_ROOMS,
+  NO_TEMPLATE_WORDS,
+  allowanceBeforeSend,
+  heldBackWords,
+  offersNote,
+} from "@chanlytics/contracts";
 import type { ParamSourceKind, TemplateGroup } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
+import { Confirm } from "../../../kit/confirm/confirm";
 import { FailedRead } from "../../../kit/empty/empty";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Picker } from "../../../kit/picker/picker";
-import { confirmPart, unsavedAskPart } from "../../../legacy-parts";
+import { UnsavedAsk } from "../../../kit/record/work";
 import { gate, gateTitle, navigate } from "../../../legacy-verbs";
 import { MessagePreview, PreviewStepper } from "../../parts/message-preview";
-import { CM_VIA_WORDS, cmTick } from "../../parts/channels";
+import { CM_VIA_WORDS, cmReadyOf, cmTick } from "../../parts/channels";
 import { CmLangGlyph } from "../../parts/picker";
 import { cmChevron, cmGroups, cmSearch } from "../../parts/picks";
 import { CmVia } from "../../parts/send-by";
@@ -33,29 +40,30 @@ import { broadcasts } from "../verbs";
 import { BcWhenPick, bcNowNote } from "../when";
 import { BcAudiencePick, BcCount, BcHeldBack, BcReachBar, BcReachBy } from "./audience";
 import type { BcV } from "./types";
-import { BC_TEXT, bcLangWords, bcTitle } from "./words";
+import { BC_SAYS, BC_TEXT, bcLangWords, bcTitle } from "./words";
 
 // What stood as paragraphs under the To row, and now sits behind "Who's held back" (page/audience.tsx BcHeldBack): who said yes,
 // the rules every send keeps (who is held back at the wire, how many go at a time), what an offer needs, and how many heard
 // from a run this week.
 function bcWhoNotes(v: BcV) {
-  const { data, active, yesWords, purpose, sample } = v;
+  const { data, active, yesWords, purpose, sample, on } = v;
   return (
     <>
       <div className="bc-meta">
         <Icon name="shield" size={11} />
         <span>
           {active ? yesWords : "Pick who this goes to"}
-          {" · "}people who asked to stop, have no number, or are mid-thread with a person are held back at the wire
+          {" · "}
+          {heldBackWords(on)}
           {data.chunk ? ` · sent ${data.chunk} at a time` : ""}
         </span>
       </div>
-      {/* Said once, here, where an offer is picked: why a customer who only ever
-                texted is not in an offer's count. The wire refuses per customer
-                (sms_carries_no_promotions); the page states the rule. */}
-      {purpose === "marketing" && data.offersNote && (
+      {/* Said once, here, where an offer is picked: which channels carry offers, and so why a customer who only ever
+                texted is not in an offer's count. The wire refuses per customer (sms_carries_no_promotions); the page
+                states the rule, as the workspace's channels make it true today (contracts offersNote). */}
+      {purpose === "marketing" && (
         <div className="bc-excl-hint" data-testid="bc-offers-note">
-          {data.offersNote}
+          {offersNote(cmReadyOf(data.ready))}
         </div>
       )}
       {/* Who of these already heard from a run this week: a send by hand is not held back by the week a playbook
@@ -404,11 +412,7 @@ function bcColWhen({ whenAt, maxDays, setWhenAt, whenNote, number, channels }: B
       {number && byWhatsApp && (
         <div className={`bc-number bc-number-${number.health.tone}`} data-testid="bc-number">
           <Icon name="chat" size={11} />
-          <span>
-            {number.present
-              ? `WhatsApp ${number.display || ""} · ${number.health.label}`
-              : "No WhatsApp number connected — connect one in Settings › Connections."}
-          </span>
+          <span>{number.present ? `WhatsApp ${number.display || ""} · ${number.health.label}` : BC_SAYS.noNumber}</span>
         </div>
       )}
       {number && byWhatsApp && number.present && !number.health.canSend && (
@@ -443,16 +447,57 @@ function bcNewTemplate(v: BcV) {
   );
 }
 
-// The send screen's foot: the name, and the two acts, the second of which asks before anything leaves. Cancel, and Escape,
-// with something written: the one question first (UnsavedAsk), where the foot's acts were.
+// The send screen's foot: what keeps the send from going (the first thing, in one line, as the playbook composer's foot says
+// its own: on a phone the foot is docked away from the columns that explain it), the name, and the two acts, the one that
+// cannot be taken back asking before anything leaves. A time picked makes Schedule it the act, with Send now beside it. Cancel,
+// and Escape, with something written: the one question first (UnsavedAsk), where the foot's acts were.
 function bcSendFoot(v: BcV) {
-  const Confirm = confirmPart();
-  const UnsavedAsk = unsavedAskPart();
-  const { data, name, setName, canSend, armed, ready, whenNote, submit, setArmed, active, activeCount, tpl, busy } = v;
-  const { work, splitWords } = v;
+  const { data, name, setName, canSend, armed, ready, say, whenAt, whenNote, submit, setArmed, active, activeCount } =
+    v;
+  const { tpl, busy, work, splitWords } = v;
   if (work.asking) return <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="bc-leave" />;
+  // A time picked that cannot be scheduled (passed, or past the ceiling) is what Schedule it waits on, when nothing else is.
+  const stop = say ?? (whenAt !== null && !whenNote.ok ? { tone: "warn" as const, words: whenNote.words } : null);
+  // The act is the one the screen is set up for: Send now, or Schedule it once a time is picked, which is then the last
+  // of the two, where the act stood.
+  const later = whenAt !== null;
+  const scheduleIt = (
+    <Button
+      key="later"
+      variant={later ? "primary" : undefined}
+      className={`bc-send-later ${later ? "bc-act-main" : "bc-act-second"}`}
+      disabled={!ready || !whenNote.ok}
+      onClick={() => submit(true)}
+      {...gate("approve", "schedule a broadcast")}
+    >
+      Schedule it
+    </Button>
+  );
+  const sendNow = (
+    <Button
+      key="now"
+      variant={later ? undefined : "primary"}
+      className={`bc-send-now ${later ? "bc-act-second" : "bc-act-main"}`}
+      disabled={!ready}
+      onClick={() => setArmed(true)}
+      data-testid="bc-send"
+      {...gate("approve", "send a broadcast")}
+    >
+      <Icon name="send" size={13} /> {active && activeCount > 0 ? `Send to ${activeCount} now` : "Send now"}
+    </Button>
+  );
   return (
     <div className="bc-foot">
+      {/* Said while the person who may press the acts is stopped; a role that may not has its own line below. */}
+      {canSend && stop && (
+        <span
+          className={`bc-excl-hint bc-foot-say${stop.tone === "warn" ? " warn" : ""}`}
+          role="status"
+          data-testid="bc-foot-say"
+        >
+          {stop.words}
+        </span>
+      )}
       <Field
         className="bc-foot-name"
         aria-label="Name this broadcast"
@@ -473,28 +518,7 @@ function bcSendFoot(v: BcV) {
                 and nothing has left. Send now does not -- it is the only act on this
                 surface that cannot be taken back, and it was the only one that was not
                 armed, while Stop, Skip and both Deletes each ask first. */}
-        {!armed && (
-          <Button
-            className="bc-send-later"
-            disabled={!ready || !whenNote.ok}
-            onClick={() => submit(true)}
-            {...gate("approve", "schedule a broadcast")}
-          >
-            Schedule it
-          </Button>
-        )}
-        {!armed && (
-          <Button
-            variant="primary"
-            className="bc-send-now"
-            disabled={!ready}
-            onClick={() => setArmed(true)}
-            data-testid="bc-send"
-            {...gate("approve", "send a broadcast")}
-          >
-            <Icon name="send" size={13} /> {active && activeCount > 0 ? `Send to ${activeCount} now` : "Send now"}
-          </Button>
-        )}
+        {!armed && (later ? [sendNow, scheduleIt] : [scheduleIt, sendNow])}
         {armed && tpl && active && (
           <Confirm
             question={`Send “${bcTitle(tpl.name)}”${bcLangWords(tpl)} to ${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}”?`}

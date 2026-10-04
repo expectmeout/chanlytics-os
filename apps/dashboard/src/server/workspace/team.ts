@@ -1,5 +1,5 @@
 import "server-only";
-import type { Database } from "@chanlytics/db";
+import { inviteUserByEmail, type Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "@chanlytics/contracts";
 import { serviceDb } from "../service-db";
@@ -7,7 +7,8 @@ import { log } from "@/server/log";
 
 /**
  * Team operations: the roster, an invitation, a role change, a removal, and the sign-in that completes an invitation.
- * The only file that touches auth.admin. A function takes the workspace the route has already proven the caller belongs
+ * The one email it sends, the invitation's, goes through packages/db's inviteUserByEmail (SQL cannot send mail); no file
+ * here names the admin API. A function takes the workspace the route has already proven the caller belongs
  * to (memberContext) and hands it to the database's team_* functions with the session's verified user as the actor;
  * each checks that the actor owns the workspace before it changes anything. The service role bypasses RLS, so that
  * scoping lives in those functions and in the tenant each call names.
@@ -174,7 +175,7 @@ export async function inviteMember(
     "invite",
   );
   if (inv.already_invited === true) return { alreadyInvited: true as const };
-  const { error: mailErr } = await db.auth.admin.inviteUserByEmail(email);
+  const { error: mailErr } = await inviteUserByEmail(db, email);
   if (mailErr) {
     // The intent row without the email is a lie in the invites list, and on the ledger: take both back.
     await db.rpc("team_invite_withdraw", { p_tenant_id: tenantId, p_invitation_id: String(inv.invitation_id) });

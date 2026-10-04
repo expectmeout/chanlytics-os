@@ -6,13 +6,14 @@
  */
 import type { ReactNode } from "react";
 import { gate, navigate } from "../../legacy-verbs";
-import { fieldErrorPart, unsavedAskPart } from "../../legacy-parts";
-import type { UnsavedWork } from "../../legacy-parts";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
+import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Picker } from "../../kit/picker/picker";
+import { UnsavedAsk } from "../../kit/record/work";
+import type { UnsavedWork } from "../../kit/record/work";
 import { Segmented } from "../../kit/segmented/segmented";
 import { cmLanguageSearch, cmLanguages } from "../parts/picker";
 import { cmChevron } from "../parts/picks";
@@ -150,8 +151,6 @@ export function translationForm(c: ComposerCtx, translate: TemplateTranslation, 
   const { drafting, failed, error, warnings, submitting } = st;
   const { toLabel, fromLabel, ready } = facts;
   const { translateNow, submit } = acts;
-  const FieldError = fieldErrorPart();
-  const UnsavedAsk = unsavedAskPart();
   return (
     <section className="ct-section tpl-composer is-translate" data-testid="tpl-composer" data-mode="translate">
       <div className="ct-sec-head">
@@ -243,7 +242,6 @@ function newRows(c: ComposerCtx, made: Made) {
   const { brief, setBrief, category, setCategory, language, setLanguage } = st;
   const { drafting, warnings, error } = st;
   const { startFrom, draft } = acts;
-  const FieldError = fieldErrorPart();
   const spoken = starters.allLanguages.find((l) => l.id === language);
   return (
     <>
@@ -345,7 +343,6 @@ function newTemplatePane(c: ComposerCtx, made: Made) {
   const { submitting } = st;
   const { submit } = acts;
   const { ready } = facts;
-  const UnsavedAsk = unsavedAskPart();
   return (
     <CmPane
       testid="messages-composer"
@@ -390,7 +387,6 @@ export function newTemplateForm(c: ComposerCtx, made: Made) {
   const { submitting } = st;
   const { submit } = acts;
   const { ready } = facts;
-  const UnsavedAsk = unsavedAskPart();
   return (
     <section className="ct-section tpl-composer" data-testid="tpl-composer">
       <div className="ct-sec-head">

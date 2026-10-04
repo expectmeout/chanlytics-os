@@ -205,11 +205,14 @@ export type Database = {
       }
       ask_voice_sessions: {
         Row: {
+          connect_ms: number | null
           context: Json | null
           conversation_id: string | null
           created_at: string
           duration_s: number | null
+          end_reason: string | null
           ended_at: string | null
+          first_audio_ms: number | null
           id: string
           language: string
           scope: Json | null
@@ -223,11 +226,14 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          connect_ms?: number | null
           context?: Json | null
           conversation_id?: string | null
           created_at?: string
           duration_s?: number | null
+          end_reason?: string | null
           ended_at?: string | null
+          first_audio_ms?: number | null
           id: string
           language?: string
           scope?: Json | null
@@ -241,11 +247,14 @@ export type Database = {
           user_id: string
         }
         Update: {
+          connect_ms?: number | null
           context?: Json | null
           conversation_id?: string | null
           created_at?: string
           duration_s?: number | null
+          end_reason?: string | null
           ended_at?: string | null
+          first_audio_ms?: number | null
           id?: string
           language?: string
           scope?: Json | null
@@ -406,6 +415,7 @@ export type Database = {
       }
       broadcast_recipients: {
         Row: {
+          attempt: number
           broadcast_id: string
           channel: string | null
           contact_id: string
@@ -417,6 +427,7 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          attempt?: number
           broadcast_id: string
           channel?: string | null
           contact_id: string
@@ -428,6 +439,7 @@ export type Database = {
           tenant_id: string
         }
         Update: {
+          attempt?: number
           broadcast_id?: string
           channel?: string | null
           contact_id?: string

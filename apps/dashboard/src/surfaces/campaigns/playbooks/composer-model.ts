@@ -21,7 +21,7 @@ import {
 import type { ConsentChannel, PlaybookTrigger, ReachSplit, TemplateGroup } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { pageClock } from "@/legacy-bridge/zone";
-import { policyRow } from "../../legacy-parts";
+import { policyStore } from "../../legacy-verbs";
 import {
   cmChannelsKept,
   cmChannelsOn,
@@ -34,17 +34,7 @@ import {
 import { starters } from "../templates/verbs";
 import { namedOf, readingFor } from "./surface";
 import type { PlaybookCardVM, PlaybookNamed, PlaybookTriggerOption, PlaybooksSurface } from "./surface";
-import {
-  PB_NONE,
-  PB_TEXT,
-  pbChannelReasons,
-  pbExample,
-  pbFirstFree,
-  pbIcon,
-  pbLabel,
-  pbLangWords,
-  pbOrder,
-} from "./words";
+import { PB_NONE, PB_TEXT, pbExample, pbFirstFree, pbIcon, pbLabel, pbLangWords, pbOrder } from "./words";
 
 /** What the sheet holds: the moment, the message, the numbers, and the words typed into each slot. */
 export interface Fields {
@@ -303,7 +293,8 @@ function channelsModelOf({ data, f }: ModelIn, { trig, onList }: Moment, { tpl }
 /**
  * Who it reaches today: the moment's own count, or this playbook's while it keeps its moment, for the channels it goes by,
  * with the cap as it is set here -- the cards' bar and the approval sheet's reasons (contracts reachLines), before anything
- * is saved. Where it goes by more than WhatsApp alone, the split by channel and who has no address or no channel to go by.
+ * is saved. Where it goes by more than WhatsApp alone, the split by channel; who has no address, an address that stopped
+ * or no channel to go by is among the reasons, as contracts' reachLines says them.
  */
 function reachOf(input: ModelIn, mo: Moment, on: readonly ConsentChannel[]) {
   const { f } = input;
@@ -327,6 +318,10 @@ function reachOf(input: ModelIn, mo: Moment, on: readonly ConsentChannel[]) {
             heardAny: base.held,
             overCap,
             overLimit: 0,
+            // Who has no address, an address mail no longer goes to, or no channel to go by: the reasons' too.
+            no_address: named.noAddress ?? 0,
+            address_stopped: named.addressStopped ?? 0,
+            no_channel: named.noChannel ?? 0,
           },
           {
             trigger: f.trigger as PlaybookTrigger,
@@ -336,8 +331,6 @@ function reachOf(input: ModelIn, mo: Moment, on: readonly ConsentChannel[]) {
           },
         )?.lines ?? []
       )
-        // Who has no address or no channel to go by is the reasons' too (contracts reachLines names neither).
-        .concat(pbChannelReasons(named))
         .sort((a, b) => b.n - a.n)
         .slice(0, 3)
         .map((l) => ({ t: l.words, tone: l.tone, door: l.door }))
@@ -428,7 +421,7 @@ function composerWords({ editing, f, error }: ModelIn, { trig }: Moment, { tpl }
   const title = f.name === null ? auto : f.name;
   const city = pageClock().city();
   // The Autonomy row its runs keep to, said by the one chip (PolicyChip) -- and not said at all where there is no row to name.
-  const runsUnder = trig && policyRow(trig.cls) ? trig.cls : null;
+  const runsUnder = trig && policyStore()?.row(trig.cls) ? trig.cls : null;
   const say = error
     ? { tone: "danger", t: error }
     : !trig

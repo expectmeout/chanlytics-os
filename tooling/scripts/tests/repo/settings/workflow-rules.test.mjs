@@ -92,3 +92,36 @@ test("the landed job reads pushes only, opens its issue once, and the Auckland l
     "node's zone and the launcher's",
   );
 });
+
+test("every pull request runs the tests of what it changed, and a label starts the suite alone, never CI again", () => {
+  const y = workflow("ci.yml");
+  assert.match(y, /pull_request:\n {4}types: \[opened, synchronize, reopened\]\n/, "no `labeled`: a label re-ran CI");
+  const typecheck = y.slice(y.indexOf("  typecheck:"), y.indexOf("  auckland:"));
+  assert.ok(typecheck.includes("fetch-depth: 2"), "the merge commit's base, for HEAD^1..HEAD");
+  assert.ok(typecheck.includes("run: node tooling/scripts/checks/changed-tests.mjs HEAD^1 HEAD"));
+  assert.ok(
+    typecheck.includes(
+      "if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'suite')",
+    ),
+    "a labelled pull request runs the whole suite instead",
+  );
+  const suite = workflow("suite.yml");
+  assert.match(suite, /pull_request:\n {4}types: \[labeled\]\n/);
+  assert.equal((suite.match(/if: github\.event\.label\.name == 'suite'/g) ?? []).length, 2, "both legs, on that label");
+  assert.ok(!/Typecheck|Secret scan|Migrations replay/.test(suite), "no required check's name");
+});
+
+test("the nightly's node suite has its own job and cap, the specs run after it whatever it said, and one report says which half was red", () => {
+  const y = workflow("nightly-e2e.yml");
+  const suite = y.slice(y.indexOf("  suite:"), y.indexOf("  e2e:"));
+  assert.ok(suite.includes("timeout-minutes: 45") && suite.includes("run: pnpm test"));
+  const e2e = y.slice(y.indexOf("  e2e:"), y.indexOf("  report:"));
+  assert.ok(
+    e2e.includes("needs: suite") && e2e.includes("if: ${{ !cancelled() }}"),
+    "after, never beside, never skipped",
+  );
+  assert.ok(!e2e.includes("run: pnpm test\n"), "the suite runs once");
+  const report = y.slice(y.indexOf("  report:"));
+  assert.ok(report.includes("needs: [suite, e2e]") && report.includes("always()"));
+  assert.ok(report.includes("SUITE: ${{ needs.suite.result }}") && report.includes("SPECS: ${{ needs.e2e.result }}"));
+});

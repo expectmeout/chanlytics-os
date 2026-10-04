@@ -20,9 +20,9 @@ import { errField } from "../log.js";
 import { alertFor } from "./job-alert.js";
 import { waCredentialsForTenant } from "../tenant-runtime.js";
 import { smsSenderForTenant } from "../sms/sms.js";
-import { emailWireFor, emailIntake } from "../email/email.js";
-import { campaignsLane } from "../email/campaigns-domain.js";
-import { isWireUnavailable, whatsappWire, wireUnavailable } from "../packages/core.js";
+import { emailBoundFor, emailIntake } from "../email/email.js";
+import { campaignsBinding } from "../email/campaigns-domain.js";
+import { isWireUnavailable, whatsappWire } from "../packages/core.js";
 import { pageOperator } from "./page-operator.js";
 import { provisionLineJob } from "../lines/line-provision-job.js";
 import { leadPipeline } from "../leads/lead-pipeline.js";
@@ -95,14 +95,14 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
           // Each wire is bound on its own: a mailbox that could not be read is email's wire unbound (core
           // WireUnavailable), never a throw that fails a WhatsApp or SMS reply that needed no email at all.
           // A broadcast's batch may send OFFERS by email: only for that job is the campaigns domain asked about (it is
-          // kept five minutes) and bound, as the wire's route and the intake's lane; every other job never sees it.
-          const campaigns = job.kind === "broadcast_send" ? await campaignsLane() : null;
-          const email = await emailWireFor(db, job.tenant_id, campaigns).catch((e: unknown) => {
-            L.error("email_wire_unavailable", { tenant_id: job.tenant_id, error: errField(e) });
-            return wireUnavailable(errField(e));
-          });
+          // kept five minutes) and bound, as the wire's route and the intake's lane; every other job never sees it. For a
+          // domain the deployment names the answer is never "no lane": verified binds it, one the provider says is not
+          // verified closes offers and the run stops, and one it could not be asked about makes a run of offers wait while
+          // the email wire stays bound for everything else (emailBoundFor says each).
+          const offers = job.kind === "broadcast_send" ? await campaignsBinding() : ({ state: "none" } as const);
+          const { email, campaigns, closed, unread } = await emailBoundFor(db, job.tenant_id, offers, L);
           // Email's intake: the provider fetch and the mail domain live here. Absent where email is off.
-          const intake = emailIntake(db, campaigns);
+          const intake = emailIntake(db, campaigns, closed, unread);
           // The lead finder's pipeline: absent without APIFY_TOKEN, and a lead job then fails by name.
           const leads = leadPipeline();
           const wire = {

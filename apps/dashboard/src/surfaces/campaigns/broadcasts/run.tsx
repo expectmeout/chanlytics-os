@@ -14,12 +14,14 @@ import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { BroadcastDetailDto, BroadcastDto, BroadcastVM, RunFilterId, RunReportVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
+import { Confirm } from "../../kit/confirm/confirm";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { StatePill } from "../../kit/pill/state-pill";
+import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
-import { confirmPart, policyChipPart, statePillPart } from "../../legacy-parts";
 import { gate, navigate } from "../../legacy-verbs";
 import { CmDot } from "../parts/head";
 import { CmPane } from "../parts/split";
@@ -114,7 +116,6 @@ function bcRunHead(p: {
 }): BcPaneHead {
   const { d, acts, again } = p;
   const b = d.broadcast;
-  const StatePill = statePillPart();
   const playbookId = b.playbook_id;
   const when = bcWhen(b.started_at || b.scheduled_for);
   const lang = b.template_language ? String(b.template_language).slice(0, 2).toUpperCase() : null;
@@ -156,7 +157,6 @@ function bcRunHead(p: {
 
 /** What the pane's head says of a run waiting on you: its name, its policy class, and where it sits in the queue. */
 function bcSheetHead(d: BroadcastDetailDto, sheet: BcSheetAsk): BcPaneHead {
-  const PolicyChip = policyChipPart();
   const pb = sheet.playbook;
   return { title: d.broadcast.name, badge: pb ? <PolicyChip cls={pb.policy_class} /> : null, sub: bcSheetSub(sheet) };
 }
@@ -472,7 +472,6 @@ export function BcRunVerbs({
   approve,
   cancel,
 }: BcRunVerbsProps) {
-  const Confirm = confirmPart();
   const stop = bcStopWords(row.state);
   if (armed && canSend) {
     return (

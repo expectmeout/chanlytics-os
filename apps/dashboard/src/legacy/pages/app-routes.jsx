@@ -283,6 +283,8 @@ const drawRoute = (r) => {
         ...surface,
         activeNav: asked(surface.activeNav),
         crumbs: chrome ? chrome.crumbs : asked(surface.crumbs),
+        // The page's views, drawn by the frame's strip of views (SurfaceTabs) like the Inbox's: the page says them, never draws them.
+        views: chrome && chrome.views ? chrome.views : null,
         primaryAction: act ? surfaceAct(act, r.openAsk) : null,
         content: r.routePage,
       }

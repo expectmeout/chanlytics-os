@@ -281,8 +281,12 @@ interface PoolCounts {
    * list whose yes has no number from a list nobody said yes to (#663's rule).
    */
   saidYes: number;
-  /** No email address, where email was the only channel left; and no channel the playbook ticks could carry its message. */
+  /**
+   * No email address, where email was the only channel left; an address on file mail no longer goes to (it bounced, or they
+   * marked a message as spam); and no channel the playbook ticks could carry its message.
+   */
   no_address: number;
+  address_stopped: number;
   no_channel: number;
   /** Who a run reaches on each channel (step 3), adding up to `candidates`. */
   by_channel: Record<ConsentChannel, number>;
@@ -386,6 +390,7 @@ function poolCounter({ vms, breath, nowMs, pace, ready }: PoolCounting) {
       noNumber: reach.noNumber,
       saidYes,
       no_address: reach.no_address ?? 0,
+      address_stopped: reach.address_stopped ?? 0,
       no_channel: reach.no_channel ?? 0,
       by_channel: reach.by_channel ?? { whatsapp: 0, sms: 0, email: 0 },
     };

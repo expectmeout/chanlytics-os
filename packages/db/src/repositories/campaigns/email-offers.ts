@@ -123,6 +123,22 @@ export async function setEmailOffersYes(
   return said?.refused === "unsubscribed" ? "unsubscribed" : "unchanged";
 }
 
+/**
+ * The language an offer by email was sent in: its broadcast's message (broadcasts.template_language), so the unsubscribe
+ * page a customer lands on from it speaks the language they read the offer in. Null when the broadcast is not there or
+ * kept none. A failed read throws, and the page then says its words in English rather than fail the press.
+ */
+export async function offerLanguageOf(db: Db, p: { tenantId: string; broadcastId: string }): Promise<string | null> {
+  const { data, error } = await db
+    .from("broadcasts")
+    .select("template_language")
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.broadcastId)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the language the offer was sent in: ${error.message}`);
+  return data?.template_language ?? null;
+}
+
 /** What a person's no to email, by link or by reply, came to. */
 export interface Unsubscribed {
   /** The workspace's name, for the page's words; null when it could not be read. */

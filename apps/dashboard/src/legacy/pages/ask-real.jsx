@@ -20,8 +20,6 @@ const useArRef = React.useRef;
 const AR_FOLDED = 3;
 // A hold's lift that makes no click on the button (the finger let go elsewhere) is forgotten after this.
 const AR_LIFT_MS = 400;
-// A press on the mic lifted inside this is a tap: a conversation with Ask, not a hold to dictate (AskHooks' hold beat).
-const AR_TAP_MS = 300;
 
 const arRoute = () => {
   const [page, ...rest] = window.CHANLY.address.route().split("/");
@@ -118,10 +116,6 @@ const useArLine = (A, H) => {
   const asked = useArRef(null);
   // A hold on the mic in progress, or just lifted: the click its lift makes is not a press (see pressMic).
   const held = useArRef(false);
-  // When the mic was pressed: a lift inside the hold's beat is a tap, which talks with Ask (arLineEnd, liftMic).
-  const downAt = useArRef(0);
-  // The beat a press waits where Ask can talk, before it dictates: a lift before it fires is a tap (arLineEnd).
-  const beat = useArRef(0);
   // When the Line opened: the question says how long it waited (the turn's shape, opened_ms).
   const openedAt = useArRef(0);
   // Whether the takeover's Back entry is in the history (useArClose pushes it on a phone, nav takes it for a place).
@@ -130,36 +124,41 @@ const useArLine = (A, H) => {
     query, setQuery, threads, setThreads, active, setActive, live, setLive, quick, setQuick, scope, setScope, sel, setSel,
     move, setMove, lang, setLang, tick, setTick, view, setView, unfolded, setUnfolded, foldAll, setFoldAll, doomed,
     setDoomed, composing, setComposing, slideFrom, speech, toastNode, flash, inputRef, faceRef, heroRef, stageRef, bodyRef,
-    dialogRef, typing, threadsReady, turnSeq, asked, held, downAt, beat, openedAt, pushed,
+    dialogRef, typing, threadsReady, turnSeq, asked, held, openedAt, pushed,
   };
 };
 
-/** Talking: held on the mic, a Space held on an empty line, a phone's three held a beat; said where the browser cannot listen. And a conversation with Ask in its own voice (H.useAskVoice), begun by the mic's tap or an answer's Read aloud (arVoiceBegin). */
+/** Talking: held on the mic, a Space held on an empty line, a phone's three held a beat; said where the browser cannot listen. The hold is the one mic (the spec's §3.5 as amended 4 Oct, evening): the press asks for the agent's session too (H.useAskVoice, arVoiceInput), its microphone muted, so the words heard can go to it on the lift and be answered aloud (arSubmitter). */
 const useArVoice = (ln) => {
   const { A, H, M, lang, live, query, setQuery, typing, flash, t, submit } = ln;
+  const voice = H.useAskVoice({ A, M, hear: (a) => arVoiceHeard(ln, a) });
   const talk = H.useAskTalk({
     lang,
     disabled: !!live,
     onWords: (words) => { setQuery(words); if (M) M.mood.hear(0.8); },
     onHeard: (heard, error) => {
-      if (heard) { if (!typing.current) submit(heard); return; }
+      if (heard) { if (!typing.current) submit(heard, undefined, { spoken: true }); return; }
       // Each said once: a second press refreshes the toast that says it (`once`), never a second beneath it.
       if (error === "blocked") flash({ once: "ask-mic", msg: <>{t.micBlocked}</> });
       else if (error === "not-allowed") flash({ once: "ask-mic", msg: <>{t.micDenied}</> });
       else if (error && error !== "aborted" && error !== "no-speech") flash({ once: "ask-mic", msg: <>{t.micFailed}</> });
     },
   });
+  // Every hold is one: the recogniser starts, the session is asked for (up by the lift, most holds), and the agent's
+  // voice is held down while the person talks; the lift stops the recogniser and lets the voice back up.
+  const begin = (e) => {
+    if (!talk.canTalk) { flash({ once: "ask-mic", msg: <>{t.noVoice}</> }); return; }
+    if (voice.can) { voice.hush(true); voice.ensure(arVoiceInput(ln)); }
+    talk.start(e);
+  };
+  const end = () => { talk.stop(); if (voice.can) voice.hush(false); };
   // A Space held on an empty line talks (6.6); where the browser cannot listen, it says so.
-  const hold = H.useHoldSpace({
-    empty: () => !query && !live,
-    talk: { start: () => (talk.canTalk ? talk.start() : flash({ once: "ask-mic", msg: <>{t.noVoice}</> })), stop: talk.stop },
-  });
+  const hold = H.useHoldSpace({ empty: () => !query && !live, talk: { start: begin, stop: end } });
   // A phone's three listen to a press held a beat, with a buzz where the browser has one (S11, S16); where the browser
   // cannot listen, they say so (the field's button is Send alone there).
   const buzz = (ms) => { try { if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms); } catch { /* none here */ } };
-  const holdThree = H.useHoldPress({ talk: { start: () => (talk.canTalk ? talk.start() : flash({ once: "ask-mic", msg: <>{t.noVoice}</> })), stop: talk.stop }, onHold: () => buzz(8) });
-  const voice = { ...H.useAskVoice({ A, M, hear: (a) => arVoiceHeard(ln, a) }), read: (words) => arVoiceBegin(ln, words, true) };
-  return { talk, hold, buzz, holdThree, voice };
+  const holdThree = H.useHoldPress({ talk: { start: begin, stop: end }, onHold: () => buzz(8) });
+  return { talk, hold, buzz, holdThree, voice, begin, end };
 };
 
 // Ask's mood, said once for every face: in a voice conversation, speaking as the agent speaks and listening between
@@ -167,15 +166,15 @@ const useArVoice = (ln) => {
 // first words, answering while they stream or are read aloud, at rest otherwise. Said while the Line is closed too,
 // so a turn left running still shows.
 const useArMood = ({ M, talk, live, quick, speech, composing, voice }) => {
-  const moodState = voice.on
-    ? voice.mode === "speaking" ? "speaking" : live ? "thinking" : "listening"
+  const moodState = voice.speaking
+    ? "speaking"
     : talk.listening
       ? "listening"
       : live
         ? live.say || live.text ? "speaking" : "thinking"
         : quick && quick.pending
           ? "thinking"
-          : speech.speakingId ? "speaking" : composing ? "listening" : "idle";
+          : speech.speakingId ? "speaking" : speech.loading ? "thinking" : composing ? "listening" : "idle";
   // Said as it changes, never the same word twice: at mount, and at a strict mode's second mount, the Line has nothing
   // to say, and the three may be reading the page in for a face that mounted a moment before (legacy-bridge/arrival.ts);
   // a first word of "idle" ended that read on nothing.
@@ -274,7 +273,7 @@ const useArClose = ({ open, onClose, setQuick, setDoomed, setView, speech, voice
   // Closed: nothing keeps reading or talking and the rows are home again; the words typed and an open conversation
   // come back until Clear (D14, S9).
   useArEffect(() => {
-    if (!open) { setQuick(null); setDoomed(null); setView("rows"); speech.stop(); if (voice.on) voice.stop(); }
+    if (!open) { setQuick(null); setDoomed(null); setView("rows"); speech.stop(); if (voice.up) voice.stop("navigated"); }
   }, [open]);
 };
 
@@ -417,7 +416,7 @@ const arActs = (ln) => {
   const clearLine = () => {
     moveOn();
     setActive(null); setQuery(""); setQuick(null); setView("rows"); setUnfolded(-1); setFoldAll(false);
-    speech.stop(); if (ln.voice && ln.voice.on) ln.voice.stop();
+    speech.stop(); if (ln.voice && ln.voice.up) ln.voice.stop("button");
   };
   // What became of a card, kept on the conversation the Line holds, so the card drawn again (a fold, the answer back
   // under the line) says "Sent" and never offers Send twice. The route keeps it too (AskCard `record`).
@@ -470,15 +469,17 @@ const arLetGo = (el) => { if (arPhone() && el && typeof el.blur === "function") 
 // opening another conversation does) stops an answer read aloud, which went on over the next one (D14).
 const arSubmitter = (ln) => {
   const { A, M, query, live, active, threads, threadsReady, turnSeq, scope, surface, openedAt, inputRef, speech, setQuery, setView, setUnfolded, setLang, setQuick, setActive, setLive, setScope, openThread } = ln;
-  const submit = async (qArg, chipArg) => {
-    const q = (typeof qArg === "string" ? qArg : query).trim(), chip = chipArg !== undefined ? chipArg : scope; // a seed names its opening's chip
+  const submit = async (qArg, chipArg, how) => {
+    const q = (typeof qArg === "string" ? qArg : query).trim(), chip = chipArg !== undefined ? chipArg : scope; // a seed names its opening's chip; `how.spoken` marks a question the recogniser heard
     if (!q || live) return;
     arLetGo(inputRef.current); speech.stop();
-    if (ln.voice && ln.voice.on) ln.voice.stop(); // typing ends the spoken conversation: one voice at a time
+    const spoken = !!(how && how.spoken);
+    if (!spoken && ln.voice && ln.voice.up) ln.voice.stop("typed"); // a typed question is answered in text alone: one voice at a time
     setQuery("");
     setView("rows");
     setUnfolded(-1);
     setLang(A.language(q));
+    if (spoken && (await arSaidToAgent(ln, q, chip))) return;
     if (!active) {
       const pending = A.quick(q);
       if (pending) {
@@ -504,9 +505,8 @@ const arSubmitter = (ln) => {
     setActive(thread);
     const mine = ++turnSeq.current;
     setLive({ q, text: "", say: null, traces: [] });
-    const turn = { mine, threadId: thread.id, final: null, spoke: false, said: 0 };
-    // The page, as it is now: the rows on screen and the row the words name, if they name one -- in the thread it joins, by its last answer's items first (legacy-bridge/ask/context.ts).
-    // A page that cannot say what it holds sends none: the question still goes.
+    const turn = { mine, threadId: thread.id, final: null, spoke: false, said: 0, spoken };
+    // The page, as it is now: the rows on screen and the row the words name, if they name one -- in the thread it joins, by its last answer's items first (legacy-bridge/ask/context.ts). A page that cannot say what it holds sends none: the question still goes.
     let context = null;
     try { context = A.context ? A.context(arRoute(), q, base && base.messages) : null; } catch (e) { context = null; }
     await A.send({ text: q, threadId: turn.threadId, scope: thread.scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null, context }, (ev) => arTurnHeard(ln, turn, ev));
@@ -526,8 +526,7 @@ const arTurnHeard = ({ M, turnSeq, setActive, setLive }, turn, ev) => {
     return;
   }
   if (ev.t === "say") {
-    // The answer's Say as written so far: it replaces what was drawn; the final message is the answer. An empty one
-    // takes back an answer the server set aside, and the reads show again.
+    // The answer's Say as written so far: it replaces what was drawn; the final message is the answer. An empty one takes back an answer the server set aside, and the reads show again.
     const back = !ev.headline && !ev.detail;
     setLive((prev) => (prev ? { ...prev, say: back ? null : { headline: ev.headline, detail: ev.detail } } : prev));
     if (!back) turn.spoke = true;
@@ -547,7 +546,7 @@ const arTurnHeard = ({ M, turnSeq, setActive, setLive }, turn, ev) => {
 };
 
 /** The turn done, if still the current one: the answer on the line, the thread's title read again, and the answer's `now` place gone to. */
-const arTurnLanded = ({ A, M, t, turnSeq, setLive, setActive, setThreads, buzz, nav }, turn) => {
+const arTurnLanded = ({ A, M, t, turnSeq, setLive, setActive, setThreads, buzz, nav, speech, flash }, turn) => {
   if (turn.mine !== turnSeq.current) return;
   if (!turn.final) turn.final = arFailed("e-" + Date.now(), t.cutOff);
   setLive(null);
@@ -559,6 +558,8 @@ const arTurnLanded = ({ A, M, t, turnSeq, setLive, setActive, setThreads, buzz, 
     else if (!turn.spoke) M.mood.react("nod");
   }
   setActive((prev) => (prev ? { ...prev, id: turn.threadId || prev.id, messages: [...prev.messages, turn.final] } : prev));
+  // A question spoken is answered aloud by itself (the spec's §3.5 as amended 4 Oct): the words Read aloud would read, in Ask's voice; a typed one stays quiet.
+  if (turn.spoken && !turn.final.failed && speech.canSpeak) { const say = A.answerText(A.answer(turn.final).answer); if (say) speech.toggle(say, "answer").then((why) => { if (why !== null) flash({ tone: "danger", msg: <>{why || t.readFailed}</> }); }); }
   if (turn.threadId) A.threads().then((list) => {
     setThreads(list);
     const now = list.find((x) => x.id === turn.threadId);
@@ -569,25 +570,26 @@ const arTurnLanded = ({ A, M, t, turnSeq, setLive, setActive, setThreads, buzz, 
   if (o && o.now) setTimeout(() => nav(o.to), 250);
 };
 
-// A conversation with Ask in its own voice (legacy-bridge/ask/voice.ts; the spec 2026-10-03-ask-spoken, §3.5): begun by the
-// mic's tap or an answer's Read aloud (`first`: the answer as the agent's first words), on the thread open or a new one
-// its first question titles; the Line says why where the device cannot. What the agent says the conversation did comes
-// back as actions (arVoiceHeard): the question and a read as a typed turn's, the Say as the agent writes it, the stored
-// turn read off the thread once it lands or is cut (the cards and the figures are the server's), and how loud the person is.
-// Resolves to null once the conversation is up, else to why it is not (the gateway's words, or the Line's own): the
-// mic's tap flashes that itself; an answer's Read aloud asks quietly and reads with the device's voice instead.
-const arVoiceBegin = (ln, first, quiet) => {
-  const { A, voice, active, scope, surface, lang, flash, t, setActive } = ln;
-  if (!voice.can) { if (!quiet) flash({ once: "ask-voice", msg: <>{t.noVoiceHere}</> }); return Promise.resolve(t.noVoiceHere); }
+// The agent's session for a hold (legacy-bridge/ask/voice.ts; the spec's §3.5 as amended 4 Oct 2026, evening): on the
+// Line's thread when it has one, with the page under it, asked for on the press and spoken to on the lift. What the
+// agent did comes back as actions (arVoiceHeard). Read aloud is the one-way speech (AskActs), not a conversation.
+const arVoiceInput = (ln) => {
+  const { A, active, scope, surface } = ln;
   let context = null;
   try { context = A.context ? A.context(arRoute()) : null; } catch (e) { context = null; }
-  return voice.start({ threadId: active ? active.id : null, scope: active ? active.scope : scope, surface, context, language: lang, first })
-    .then((got) => { if (got && !active) setActive({ id: got.threadId, title: got.title, messages: [], scope: scope || null }); return null; })
-    .catch((e) => {
-      const why = (e && e.message) || t.voiceFailed;
-      if (!quiet) flash({ tone: "danger", msg: <>{why}</> });
-      return why;
-    });
+  return { threadId: active ? active.id : null, scope: active ? active.scope : scope, surface, context };
+};
+// A question spoken goes to the agent when the session the press asked for is up by the lift: the Line hears the
+// question from the module, the answer streams in as the agent speaks it (arVoiceHeard), and the stored turn is read
+// when it lands. Not up in time, or no session to be had: false, and the words go the typed way, read aloud as the
+// answer lands (arTurnLanded).
+const arSaidToAgent = async (ln, q, chip) => {
+  const { voice, active, setActive } = ln;
+  if (!voice || !voice.can) return false;
+  const up = await voice.soon(arVoiceInput(ln));
+  if (!up) return false;
+  if (!active) setActive({ id: up.threadId, title: q, messages: [], scope: chip || null });
+  return voice.say(q);
 };
 const arVoiceHeard = (ln, a) => {
   const { A, M, voice, setActive, setLive, setThreads } = ln;
@@ -696,9 +698,9 @@ const arOnKey = ({ hold, live, stop, onClose, showRows, rows, moves, sel, setSel
   return onKey;
 };
 
-/** The field's end: the one button (the mic held to talk and tapped to talk with Ask, Send, Stop, or the conversation's end), with Copy, Read aloud and Clear before it beside a desktop's answer. */
+/** The field's end: the one button (the mic held to talk, Send, or Stop), with Copy, Read aloud and Clear before it beside a desktop's answer. */
 const arLineEnd = (ln) => {
-  const { words, flash, t, phone, buzz, talk, held, downAt, beat, speech, voice, query, live, stop, submit, drawn, lang, clearLine, AskActs } = ln;
+  const { words, flash, t, phone, buzz, talk, held, speech, voice, query, live, stop, submit, drawn, lang, clearLine, AskActs, begin, end } = ln;
   // Held to talk. The button keeps the finger (pointer capture), so the lift reaches it even once a phone's foot has
   // turned into "Let go to ask" over it; a phone buzzes as it starts (S16). The recogniser may end on its own before
   // the finger lifts (a pause ends it on Android Chrome and iOS Safari) and the words heard are asked then, so by the
@@ -709,27 +711,11 @@ const arLineEnd = (ln) => {
     const el = e && e.currentTarget;
     if (el && el.setPointerCapture && e.pointerId != null) { try { el.setPointerCapture(e.pointerId); } catch { /* not a live pointer */ } }
     held.current = true;
-    downAt.current = Date.now();
     if (phone) buzz(8);
-    // Where Ask can talk and nothing is typed, a press waits the tap's beat before it dictates: a lift inside the
-    // beat is a tap, which talks with Ask and never touches the recogniser (liftMic); a finger still down when the
-    // beat ends is a hold, which dictates as it always did.
-    if (voice.can && !query) {
-      beat.current = window.setTimeout(() => { beat.current = 0; talk.start(e); }, AR_TAP_MS);
-      return;
-    }
-    talk.start(e);
+    begin(e);
   };
   const liftMic = () => {
-    if (beat.current) {
-      // A tap, not a hold (lifted inside the beat, nothing typed): the person wants to talk with Ask.
-      window.clearTimeout(beat.current);
-      beat.current = 0;
-      if (downAt.current) arVoiceBegin(ln);
-    } else {
-      talk.stop();
-    }
-    downAt.current = 0;
+    end();
     window.setTimeout(() => { held.current = false; }, AR_LIFT_MS);
   };
   const pressed = (act) => () => {
@@ -740,19 +726,19 @@ const arLineEnd = (ln) => {
   // a turn runs. One element in one place, keyed, so the finger a hold captured is still held as the words heard fill
   // the field; where the browser cannot listen there is no mic, only Send, faint until there are words.
   const hasWords = !!query.trim();
-  // The conversation's end while one runs; else Stop while a turn runs; else the mic (held to dictate, tapped to talk with Ask).
-  const role = voice.on ? "voice" : live ? "stop" : talk.listening || (!hasWords && (talk.canTalk || voice.can)) ? "talk" : "send";
-  const one = role === "voice"
-    ? { className: "ask-send talk on", onClick: pressed(voice.stop), "aria-pressed": true, "aria-label": t.voiceStop, title: t.voiceStop, "data-testid": "ask-voice", icon: "mic" }
-    : role === "stop"
+  // Stop while a typed turn runs; the mic while the agent answers a spoken one (held again, the next words cut it off;
+  // a ring breathes out of it while it speaks, data-state); else the mic, or Send once there are words.
+  const role = live && !voice.up ? "stop" : talk.listening || (!hasWords && talk.canTalk) ? "talk" : "send";
+  const one = role === "stop"
     ? { onClick: pressed(stop), "aria-label": t.stopAnswer, title: t.stopAnswer, "data-testid": "ask-stop", icon: "stop" }
     : role === "talk"
       ? {
           className: `ask-send talk${talk.listening ? " on" : ""}`,
           "aria-pressed": talk.listening,
-          "aria-label": voice.can ? t.voice : t.talk,
-          title: voice.can ? t.voice : t.talk,
+          "aria-label": t.talk,
+          title: t.talk,
           "data-testid": "ask-talk",
+          "data-state": voice.speaking ? "speaking" : undefined,
           icon: "mic",
           onPointerDown: pressMic,
           onPointerUp: liftMic,
@@ -772,7 +758,7 @@ const arLineEnd = (ln) => {
   // stays the same element); a phone's foot keeps only the one button, its acts under the answer, Clear the head's.
   const right = drawn && !phone ? (
     <>
-      <AskActs key="acts" words={words} lang={lang} speech={speech} voice={voice} flash={flash} t={t} />
+      <AskActs key="acts" words={words} speech={speech} flash={flash} t={t} />
       <button key="clear" type="button" className="ask-line-btn quiet" onClick={clearLine} aria-label={t.clear} title={t.clear} data-testid="ask-clear">
         <Icon name="x" size={14} />
       </button>
@@ -955,7 +941,7 @@ const arStage = ({ H, talk, live, stageRef, phone, faceRef, AskFace, scope, setS
 // it once it is whole (D14). A desktop's is the rows or the answer. At rest, while it listens at home and while the
 // field is in use there, what it holds stands centred (`rest`, `composing`; spec 5.2, 5.9); a thread dims under the
 // three come forward (`dim`, D4).
-const arMiddle = ({ phone, thread, listen, restful, composingRows, bodyRef, body, hero, folded, nowQ, drawn, words, speech, voice, flash, t, lang, nav, submit, noteOutcome, editWords, AskThread, AskQuestion, AskActs }) => (
+const arMiddle = ({ phone, thread, listen, restful, composingRows, bodyRef, body, hero, folded, nowQ, drawn, words, speech, flash, t, lang, nav, submit, noteOutcome, editWords, AskThread, AskQuestion, AskActs }) => (
   <div className={`ask-line-body${restful ? " rest" : ""}${composingRows ? " composing" : ""}${thread ? " thread" : ""}${listen ? " dim" : ""}`} ref={bodyRef}>
     {thread ? <AskThread turns={folded} t={t} lang={lang} onNav={nav} onFollow={submit} onOutcome={noteOutcome} onEdit={editWords} /> : null}
     {phone ? (
@@ -963,7 +949,7 @@ const arMiddle = ({ phone, thread, listen, restful, composingRows, bodyRef, body
         {thread && nowQ ? <AskQuestion text={nowQ} now /> : null}
         {hero}
         {body}
-        {thread && drawn ? <AskActs words={words} lang={lang} speech={speech} voice={voice} flash={flash} t={t} /> : null}
+        {thread && drawn ? <AskActs words={words} speech={speech} flash={flash} t={t} /> : null}
       </div>
     ) : body}
   </div>

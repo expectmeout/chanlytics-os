@@ -111,8 +111,10 @@ export {
   namedProblem,
 } from "./message-version-slots";
 export type { SlotPart, SlotEdit } from "./message-version-slots";
-export { emailFoot, emailFootHtml, MARKETING_LINE } from "./email-foot";
+export { emailFoot, emailFootHtml } from "./email-foot";
 export type { EmailFoot, LinkedFoot } from "./email-foot";
+export { SENDER_WORDS, senderWords, senderLanguage } from "./sender-words";
+export type { SenderWords, SenderLanguage } from "./sender-words";
 export { starterPreviewValues, starterPreview, templatePreviewValues, templatePreview } from "./template-preview";
 export type { OwnFacts } from "./template-preview";
 export {

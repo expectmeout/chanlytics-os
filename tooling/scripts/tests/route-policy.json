@@ -30,6 +30,13 @@
       "rate": "ask",
       "spend": false
     },
+    "POST ask/speech": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "speech",
+      "spend": false
+    },
     "GET ask/threads/[id]": {
       "kind": "read",
       "scope": "account",

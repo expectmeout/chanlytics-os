@@ -184,7 +184,12 @@ export function followUpStandOf(
   if (!followUpNames(r, nowMs, pace)) return null;
   // The run enrols on its class's yes; the send then judges its template's (deliver.ts): a follow-up Meta filed as
   // marketing reaches only whoever said yes to offers too.
-  const how = { channels: f.channels ?? DEFAULT_CAMPAIGN_CHANNELS, ready: readyOrWhatsApp(ready) };
+  // A follow-up is about the proposal their deal waits on: theirs (consent.ts MessageAbout).
+  const how = {
+    channels: f.channels ?? DEFAULT_CAMPAIGN_CHANNELS,
+    ready: readyOrWhatsApp(ready),
+    about: "theirs" as const,
+  };
   if (reachFor(r, purposeOfPlaybook("follow_up"), how).channel === null) return null;
   if (f.purpose === "marketing" && reachFor(r, "marketing", how).channel === null) return null;
   const when = (m: Record<string, string>): number | null => {

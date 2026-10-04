@@ -4,19 +4,28 @@
  */
 import {
   PLAYBOOK_REACH_WORDS,
+  consentGuardWords,
+  heldBackWords,
   isWinBack,
   playbookNoNumberWords,
   playbookReach,
   playbookReachDoor,
 } from "@chanlytics/contracts";
-import type { ParamSourceKind, PlaybookDto, PlaybookReach } from "@chanlytics/contracts";
+import type {
+  AskedPurpose,
+  ConsentChannel,
+  MessageAbout,
+  ParamSourceKind,
+  PlaybookDto,
+  PlaybookReach,
+} from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { pageClock } from "@/legacy-bridge/zone";
 import { surfaceValue } from "../../surface-values";
 import { bcWhenWords } from "../broadcasts/when-words";
 import { mpFill } from "../parts/message-preview";
 import { starters } from "../templates/verbs";
-import type { PlaybookNamed, PlaybookTriggerOption } from "./surface";
+import type { PlaybookTriggerOption } from "./surface";
 
 // Stable empties, so a workspace without templates or triggers does not
 // re-run the effects on every render.
@@ -205,39 +214,28 @@ export const pbFirstFree = (
   return t ? t.id : "quiet_30";
 };
 
-// What every run keeps to, behind the shield.
-export const pbGuardWords = (kind: string) =>
-  kind === "visit"
-    ? "Only people with a recorded yes and a number. One message per visit. Anyone who asked to stop, or is mid-thread with a person, is held back at the wire."
-    : kind === "deal"
-      ? "Only people with a recorded yes and a number, whose proposal has its link and nothing back. One message per proposal, and one playbook message per person a week, across every playbook. Anyone who asked to stop, or is mid-thread with a person, is held back at the wire."
-      : "Only people with a recorded yes and a number. Never twice within its gap, and one playbook message per person a week, across every playbook. Anyone who asked to stop, or is mid-thread with a person, is held back at the wire.";
+// Who a run reaches, said in the guardrails: what each channel it goes by asks of a person (contracts consentGuardWords), so
+// an email about a visit is not said to need a yes and a number. The channels are the ones the playbook keeps ticked.
+export const pbWhoWords = (channels: readonly ConsentChannel[], purpose: AskedPurpose, about: MessageAbout) =>
+  consentGuardWords(channels, purpose, about).join(" ");
 
-// Who a run leaves out for want of a way to reach them on the channels it goes by, as the reasons under its reach say it:
-// no email address where email was the only channel left, and no channel its message can go by here (contracts heldWords
-// words the same two for a person). The other reasons are contracts' reachLines, which names neither.
-export const pbChannelReasons = (named: Pick<PlaybookNamed, "noAddress" | "noChannel"> | null) => {
-  const one = (n: number, singular: string, plural: string) => `${n} ${n === 1 ? singular : plural}`;
-  const lines: { n: number; words: string; tone: "plain"; door: null }[] = [];
-  const noAddress = named?.noAddress ?? 0;
-  const noChannel = named?.noChannel ?? 0;
-  if (noAddress > 0)
-    lines.push({
-      n: noAddress,
-      words: one(noAddress, "has no email address on file", "have no email address on file"),
-      tone: "plain",
-      door: null,
-    });
-  if (noChannel > 0)
-    lines.push({
-      n: noChannel,
-      words: one(
-        noChannel,
-        "has no channel this message can go by here",
-        "have no channel this message can go by here",
-      ),
-      tone: "plain",
-      door: null,
-    });
-  return lines;
+// A sentence from a clause contracts words (heldBackWords: "people who asked to stop, ... are held back at the wire").
+const pbSentence = (clause: string) => `${clause.charAt(0).toUpperCase()}${clause.slice(1)}.`;
+
+// What every run keeps to, behind the shield: who it reaches (pbWhoWords), the moment's own rule, and who the wire holds back
+// (contracts heldBackWords) for the channels it goes by.
+// `about` is the moment's (contracts messageAboutOfTrigger): a visit's or a follow-up's message is theirs (decision D1).
+export const pbGuardWords = (
+  kind: string,
+  channels: readonly ConsentChannel[],
+  purpose: AskedPurpose,
+  about: MessageAbout,
+) => {
+  const moment =
+    kind === "visit"
+      ? "One message per visit."
+      : kind === "deal"
+        ? "Their proposal has its link and nothing back. One message per proposal, and one playbook message per person a week, across every playbook."
+        : "Never twice within its gap, and one playbook message per person a week, across every playbook.";
+  return [pbWhoWords(channels, purpose, about), moment, pbSentence(heldBackWords(channels))].filter(Boolean).join(" ");
 };

@@ -571,10 +571,33 @@ test("the detail says what it keeps to: the workspace's mode for its class, and 
   assert.ok(tip, "a visit playbook's count says the day's visits are picked from the people who said yes");
   assert.match(tip.props["data-tip"], /^Everyone with a recorded yes — the day's visits are picked from them/);
 
-  const guard = pbGuardWords("visit");
-  assert.match(guard, /One message per visit\. Anyone who asked to stop/);
+  // The guardrails: who it reaches for the channels it goes by (contracts consentGuardWords), the moment's own rule, and
+  // who the wire holds back (contracts heldBackWords). WhatsApp's reach is a recorded yes and a phone number.
+  const guard = pbGuardWords("visit", ["whatsapp"], "conversational");
+  assert.equal(
+    guard,
+    "Only people with a recorded yes to hearing from you and a phone number. One message per visit. People who asked to stop, have no phone number, or are mid-thread with a person are held back at the wire.",
+  );
   assert.doesNotMatch(guard, /gap|a week/, "no gap and no breath are promised for a visit trigger");
-  assert.match(pbGuardWords("list"), /Never twice within its gap/);
+  assert.match(
+    pbGuardWords("list", ["whatsapp"], "marketing"),
+    /^Only people with a recorded yes to offers and a phone number\. Never twice within its gap/,
+  );
+  assert.match(
+    pbGuardWords("deal", ["whatsapp"], "conversational"),
+    /Their proposal has its link and nothing back\. One message per proposal/,
+  );
+  // An offer by email asks no recorded yes and no number: a yes to offers by email or a relationship on record, and an
+  // address that works, and the wire's holds name an address, not a number.
+  const byMail = pbGuardWords("list", ["email"], "marketing");
+  assert.ok(
+    byMail.startsWith(
+      "Only people with a yes to offers by email or a relationship with you on record, and an email address that works.",
+    ),
+    byMail,
+  );
+  assert.doesNotMatch(byMail, /phone number|a number/);
+  assert.match(byMail, /have no email address that works/);
 });
 
 /* ------------------------------- Send by (One message, every channel, step 3) ------------------------------- */
@@ -747,6 +770,60 @@ test("the reach says who it reaches on which channel as the owner ticks, and who
   assert.equal(byTestId(tree, "pb-reach-by"), null);
 });
 
+test("the reasons under the reach are contracts' reachLines alone: no address, an address that stopped and no channel each have their line, and the page types none of them", () => {
+  const email = { whatsapp: 0, sms: 0, email: 8 };
+  const pool = poolOf({
+    by: [
+      poolOf({
+        channels: ["email"],
+        candidates: 8,
+        noYes: 0,
+        noNumber: 0,
+        no_address: 5,
+        address_stopped: 3,
+        no_channel: 2,
+        by_channel: email,
+      }),
+    ],
+  });
+  const tree = composingVia({ pools: { visit_tomorrow: pool } });
+  viaOf(tree).email.props.onCheckedChange(true);
+  viaOf(page()).whatsapp.props.onCheckedChange(false);
+  const held = find(byTestId(page(), "pb-reach"), (n) => n.type === Popover && n.props.label === "Who's held back");
+  const text = textOf(held.props.children);
+  assert.ok(text.includes("5 have no email address on file"), text);
+  assert.ok(text.includes("3 have an email address mail no longer goes to"), text);
+  assert.ok(text.includes("2 have no channel this message can go by here"), text);
+  assert.ok(
+    text.indexOf("5 have no") < text.indexOf("3 have an") && text.indexOf("3 have an") < text.indexOf("2 have no"),
+    "the most first",
+  );
+});
+
+test("the guardrails say who the run reaches for the channels it goes by, where they are read and not in the tooltip alone", () => {
+  let tree = composingVia();
+  const who = (t) => textOf(byTestId(t, "pb-guard-who"));
+  // WhatsApp alone, a message about their visit: a recorded yes to hearing from you and a phone number.
+  assert.equal(who(tree), "Only people with a recorded yes to hearing from you and a phone number.");
+  assert.ok(
+    byTestId(tree, "pb-guard").props["data-tip"].startsWith(who(tree)),
+    "the tooltip repeats it, with the rest",
+  );
+  // Email ticked too: one line for each way they differ, from the one predicate (contracts consentGuardWords), so an email
+  // is never said to ask a recorded yes and a number.
+  viaOf(tree).email.props.onCheckedChange(true);
+  tree = page();
+  // A visit's message is theirs (contracts messageAboutOfTrigger, decision D1): by email it asks an address and no yes.
+  assert.equal(who(tree), contracts.consentGuardWords(["whatsapp", "email"], "conversational", "theirs").join(" "));
+  assert.ok(who(tree).includes("an email address that works"));
+  assert.ok(
+    byTestId(tree, "pb-guard").props["data-tip"].includes("have no phone number or no email address that works"),
+  );
+  // An offer: WhatsApp's recorded yes to offers.
+  tree = composingVia({}, "everyone_monthly");
+  assert.equal(who(tree), "Only people with a recorded yes to offers and a phone number.");
+});
+
 test("Save sends the channels it goes by: WhatsApp alone by default, the ones ticked when changed, and the ones a playbook has when it is changed", async () => {
   let tree = composingVia();
   await press(byTestId(tree, "pb-save"));
@@ -890,7 +967,12 @@ test("the preview steps through the channels the playbook goes by, each as that 
   );
   assert.equal(
     now.foot,
-    contracts.emailFoot("Northside Studio", null, { kind: "visit", facts: { visit_when: "tomorrow at 2:00 PM" } }),
+    contracts.emailFoot(
+      "Northside Studio",
+      null,
+      { kind: "visit", facts: { visit_when: "tomorrow at 2:00 PM" } },
+      "en_US",
+    ),
     "the foot is the one the run sends (contracts emailFoot), with a visit's reason",
   );
   assert.ok(now.foot.startsWith("You're getting this because of your visit with Northside Studio."));

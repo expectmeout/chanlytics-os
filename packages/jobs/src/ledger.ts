@@ -60,6 +60,22 @@ export const YIELD_AT_MS = 45_000;
 export const FUNCTION_CEILING_MS = MIN_MS;
 
 /**
+ * What a send in flight at the yield point still has to do once its answer is back: settle its row, write the person's
+ * and schedule the batch that follows. The ceiling is not the send's: this much of it is kept.
+ */
+export const SEND_SETTLE_MS = 5_000;
+
+/**
+ * The latest moment a send under a handler's `deadline` (the tick's start plus YIELD_AT_MS, as every kind but a lead's is
+ * handed) may still be waited for: the ceiling less SEND_SETTLE_MS. A send that starts at the yield point is given
+ * FUNCTION_CEILING_MS - YIELD_AT_MS - SEND_SETTLE_MS of it, ten seconds, and one that starts early is bounded by the wire's
+ * own deadline instead (channels SEND_DEADLINE_MS, 32 s), which a late start would otherwise take whole: a send begun at
+ * 44 s ran to 76, past a ceiling that kills the function at 60 with the email in flight and its row still queued.
+ * ops-hygiene.test.mjs holds the two numbers under the ceiling.
+ */
+export const sendByAt = (deadline: number): number => deadline + (FUNCTION_CEILING_MS - YIELD_AT_MS) - SEND_SETTLE_MS;
+
+/**
  * The deadline a LEAD job is handed, from the tick's start. A broadcast's
  * deadline stops fifteen seconds short of the ceiling so a send in flight can
  * come back; a lead job guards every call it makes with its own margin

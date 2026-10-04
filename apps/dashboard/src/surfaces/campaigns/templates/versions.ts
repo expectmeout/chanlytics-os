@@ -8,14 +8,16 @@ import {
   EMAIL_SUBJECT_MAX,
   VERSION_CHANNELS,
   VERSION_CHANNEL_WORDS,
+  channelNeverCarries,
   numberedSlots,
+  purposeOfTemplate,
   smsVersionSegments,
   starterEmailText,
   starterSmsText,
   versionWords,
   versionsOf,
 } from "@chanlytics/contracts";
-import type { OwnVersionChannel, SlotSet, VersionChannel, VersionWords } from "@chanlytics/contracts";
+import type { AskedPurpose, OwnVersionChannel, SlotSet, VersionChannel, VersionWords } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { PresentRow, TemplateGroup } from "./group";
 import type { StarterLibrary } from "./verbs";
@@ -82,13 +84,27 @@ export function startingWords(p: {
 }
 
 /**
- * Whether the message is an offer, which texts never carry: a starter's own kind, else the category of the row in view
- * (or, with none in that language, of one it has), else what it says it is for.
+ * What kind of message this is, by the one reading every send makes of a category (contracts purposeOfTemplate): a
+ * starter's own, else the category Meta filed the row in view with (or, with none in that language, one it has). A message
+ * whose category is not known is a marketing one, so the Library never offers a channel that carries no offers to a message
+ * a send would treat as an offer.
  */
-export function isOffer(g: TemplateGroup, row: TemplateDto | null, present: readonly PresentRow[]): boolean {
-  if (g.starter) return g.starter.category === "marketing";
-  const category = (row ?? present[0]?.row)?.category;
-  return /market/i.test(String(category || g.purpose || ""));
+function purposeOfMessage(g: TemplateGroup, row: TemplateDto | null, present: readonly PresentRow[]): AskedPurpose {
+  return purposeOfTemplate(g.starter ? g.starter.category : (row ?? present[0]?.row)?.category);
+}
+
+/**
+ * Why this channel never carries the message, in contracts' words ("Texts carry no offers."), or null where it may: the
+ * one rule the send and the ticks keep (channelNeverCarries), so a message the Library gives no text version is one a send
+ * would not send by text.
+ */
+export function neverCarried(
+  channel: OwnVersionChannel,
+  g: TemplateGroup,
+  row: TemplateDto | null,
+  present: readonly PresentRow[],
+): string | null {
+  return channelNeverCarries(channel, purposeOfMessage(g, row, present));
 }
 
 /**

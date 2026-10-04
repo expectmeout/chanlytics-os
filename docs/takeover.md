@@ -42,7 +42,7 @@ window publishers                   176   sites in 53 files
 copies                               73   of 21 names
 as unknown as                       142
 as never                             13
-non-null assertions, x!             119
+non-null assertions, x!             116
 index reads the compiler lets pass  484   in 128 files
 table names outside packages/db     487
 SQL functions outside packages/db   133   called by .rpc
@@ -50,15 +50,15 @@ edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
 literal style values               1028   in 23 stylesheets
-primitives outside the kit         1993   selectors naming 804 classes
+primitives outside the kit         1988   selectors naming 803 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
-dead exports, types and modules     302
+dead exports, types and modules     301
 source-text reads in tests          771
 lint warnings                       358   in 155 files, 59 of them exhaustive-deps
 workspace route JS, KB gzipped      702   the shell included
 workspace route CSS, KB gzipped     147
-workspace pages' own JS, KB         530   gzipped, each page's chunks once, beside the route
+workspace pages' own JS, KB         542   gzipped, each page's chunks once, beside the route
 trees the lint's limits hold         44   15 of them with max-params waiting
 ```
 

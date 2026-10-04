@@ -45,13 +45,46 @@ permissions:
   contents: read
 
 jobs:
+  # The node suite with the service credentials, its integration suites against real Postgres. Its own job with its
+  # own cap, ahead of the specs: in one 60-minute job its 31 minutes left the specs too little, and from 1 Oct 2026
+  # every run ended cancelled with the specs unfinished. The specs still run after it, never beside it: both write
+  # to the e2e project, and create_workspace allows five an hour.
+  suite:
+    name: Node suite against real Postgres
+    if: ${{ !inputs.credential_free_only }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The integration suites talk to real Postgres. ci.yml holds no live
+      # secrets by policy, so until now they ran NOWHERE — written tests
+      # covering erasure, the message lifecycle, opt-out, the deadman and the
+      # metrics, executed by nobody. SUPABASE_URL is what they read; passing
+      # only NEXT_PUBLIC_SUPABASE_URL left them skipping even here.
+      - name: Integration suites against real Postgres
+        run: pnpm test
+        env:
+          REQUIRE_SERVICE_CREDENTIALS: "1"
+          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+
   e2e:
     name: Playwright against production
+    # After the suite, whatever it said: a red suite is no reason to leave the pages unlooked at. A dispatch for the
+    # credential-free half skips the suite, and this still runs.
+    needs: suite
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     # A green run takes about fifteen minutes; a run with a handful of failing specs takes their three tries each
     # on top. The cap was 30, and from 20 Sep every run hit it, so every run ended "cancelled" -- past the steps
     # below that say so, since a cancelled job is not a failed one. The cap leaves room for the failures to finish
-    # and be reported; the steps below speak on a cancellation too.
+    # and be reported; the report job speaks on a cancellation too.
     timeout-minutes: 60
     # Who the signed-in specs are, and who else is on their team: addresses at
     # example.com, which receive no mail. e2e-workspace.mjs makes both users
@@ -120,18 +153,6 @@ jobs:
           CODE: ${{ steps.ask_day.outputs.code }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: pnpm e2e:install
-      # The integration suites talk to real Postgres. ci.yml holds no live
-      # secrets by policy, so until now they ran NOWHERE — written tests
-      # covering erasure, the message lifecycle, opt-out, the deadman and the
-      # metrics, executed by nobody. SUPABASE_URL is what they read; passing
-      # only NEXT_PUBLIC_SUPABASE_URL left them skipping even here.
-      - name: Integration suites against real Postgres
-        if: ${{ env.CREDENTIAL_FREE != 'true' }}
-        run: pnpm test
-        env:
-          REQUIRE_SERVICE_CREDENTIALS: "1"
-          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
       # The run's own workspace, made or put back in its known state before any
       # spec signs in. The signed-in specs used to run as the owner's account in
       # a live customer's workspace, writing to it and spending Ask tokens there.
@@ -186,30 +207,40 @@ jobs:
           name: playwright-report
           path: playwright-report
           retention-days: 7
-      # Somebody has to be told. The job runs at 09:00 with nobody watching,
-      # and its whole purpose is to notice things. One issue, not one a night:
-      # a red run comments on it (the old per-night issues fold into it the
-      # first time), a green run closes it, and the second red run in a row
-      # pages the platform through the edge's pager door, once PAGER_URL and
-      # PAGER_KEY are set (docs/runbook.md, What CI proves). A run the cap
-      # cancelled is a run nobody heard from: it is red too.
+  # Somebody has to be told. The run starts at 09:00 with nobody watching,
+  # and its whole purpose is to notice things. One issue, not one a night:
+  # a red run comments on it (the old per-night issues fold into it the
+  # first time), a green run closes it, and the second red run in a row
+  # pages the platform through the edge's pager door, once PAGER_URL and
+  # PAGER_KEY are set (docs/runbook.md, What CI proves). A half the cap
+  # cancelled is a half nobody heard from: it is red too. The issue says
+  # which half was red: the node suite, the specs, or both.
+  report:
+    name: Say what the night came to
+    needs: [suite, e2e]
+    if: ${{ always() && !inputs.credential_free_only }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
       - name: Say so, where a person will see it
-        if: ${{ always() && env.CREDENTIAL_FREE != 'true' }}
         shell: bash
         run: |
           nightly=(--title "Nightly e2e is red" --match "Nightly e2e is red" --match "Nightly e2e failed " --match "Nightly e2e hit its cap ")
-          if [ "$STATUS" = "success" ]; then
+          if [ "$SUITE" = "success" ] && [ "$SPECS" = "success" ]; then
             node tooling/scripts/ops/rolling-issue.mjs --state green "${nightly[@]}"
           else
-            if [ "$STATUS" = "cancelled" ]; then
-              echo "The nightly suite was cancelled (the job cap, or by hand) before it finished." > nightly.md
-            else
-              echo "The nightly suite failed: the steps above in the run say which." > nightly.md
-            fi
+            echo "The nightly's node suite: $SUITE. Its specs against production: $SPECS. A cancelled half hit its cap or was cancelled by hand before it finished; the run's jobs say which tests failed." > nightly.md
             node tooling/scripts/ops/rolling-issue.mjs --state red "${nightly[@]}" --body-file nightly.md --page-after 2 --condition nightly_red
           fi
         env:
-          STATUS: ${{ job.status }}
+          SUITE: ${{ needs.suite.result }}
+          SPECS: ${{ needs.e2e.result }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PAGER_URL: ${{ secrets.PAGER_URL }}
           PAGER_KEY: ${{ secrets.PAGER_KEY }}

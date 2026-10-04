@@ -9,11 +9,12 @@ import type { ReactNode } from "react";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { TemplateSentWords } from "@chanlytics/contracts";
 import { gate, navigate } from "../../legacy-verbs";
-import { confirmPart, statePillPart } from "../../legacy-parts";
 import { Button } from "../../kit/button/button";
+import { Confirm } from "../../kit/confirm/confirm";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { StatePill } from "../../kit/pill/state-pill";
 import { Menu } from "../../kit/menu/menu";
 import type { MenuGroup } from "../../kit/menu/menu";
 import { Picker } from "../../kit/picker/picker";
@@ -325,7 +326,6 @@ function newLanguage(c: RowCtx) {
 /** The foot of an open message: what it is called at WhatsApp, its rating, and the act that adds a language. */
 function cardFoot(c: RowCtx) {
   const { g, busy, doing, row, cur, starterText, onAdd } = c;
-  const StatePill = statePillPart();
   return (
     <div className="msg-card-foot">
       {row ? (
@@ -366,7 +366,6 @@ function cardFoot(c: RowCtx) {
 function cardActs(c: RowCtx, row: TemplateDto) {
   const { S, busy, cur, renaming, draft, arm, sending, pausedWords } = c;
   const { closeActs, setRenaming, setDraft, setArm, setSentLang, setAdding, onRename, onDelete } = c;
-  const Confirm = confirmPart();
   return (
     <div className="msg-card-acts" data-testid="template-row">
       {renaming ? (

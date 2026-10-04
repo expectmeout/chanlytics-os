@@ -1841,6 +1841,11 @@ test("People › Pipeline is an address of People's route (clients/pipeline): th
   const { peopleTakes, peopleChrome } = await importSrc("apps/dashboard/src/surfaces/people/chrome.ts");
   const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
   const chrome = (param) => peopleChrome({ param });
+  // The crumbs and the mount are what this pins; the views the frame's strip draws are people/moments/people-views.test.mjs's.
+  const where = (param) => {
+    const { crumbs, mount } = chrome(param);
+    return { crumbs, mount };
+  };
   const PEOPLE = { label: "People", to: "clients" };
   try {
     setSurfaceValue("people", { rows: [], lists: [], saved: [], dealsOn: true });
@@ -1849,7 +1854,7 @@ test("People › Pipeline is an address of People's route (clients/pipeline): th
     assert.equal(peopleTakes("pipelines"), true, "an id that starts with the word is a person's: the page's");
     assert.equal(peopleTakes("leads"), true, "Leads is the page's too, one mount of its own (decision 0015, step 9)");
     assert.equal(chrome("leads").mount, "clients/leads");
-    assert.deepEqual(chrome("pipeline"), { crumbs: [PEOPLE, "Pipeline"], mount: "clients/pipeline" });
+    assert.deepEqual(where("pipeline"), { crumbs: [PEOPLE, "Pipeline"], mount: "clients/pipeline" });
     // Every view of the Pipeline, and a person open over one, is the page already there: it follows its address (contracts
     // pipelineRoute), and the crumbs name the view.
     const viewed = chrome("pipeline:v-proposals:p-5b3c1a2e");
@@ -1874,9 +1879,9 @@ test("People › Pipeline is an address of People's route (clients/pipeline): th
     // Where deals are off the address draws People, and says People.
     setSurfaceValue("people", { rows: [], lists: [], saved: [], dealsOn: false });
     assert.equal(peopleTakes("pipeline:v-proposals"), true, "the route still takes it: it draws People");
-    assert.deepEqual(chrome("pipeline"), { crumbs: ["People"], mount: "clients/pipeline" });
+    assert.deepEqual(where("pipeline"), { crumbs: ["People"], mount: "clients/pipeline" });
     assert.deepEqual(
-      chrome("pipeline:v-proposals"),
+      where("pipeline:v-proposals"),
       { crumbs: ["People"], mount: "clients/pipeline" },
       "every view of it too",
     );

@@ -58,7 +58,8 @@ async function draftReply(
   const may = mayMessageFor(
     { consent: conv.contacts?.consent ?? null, dnc: conv.contacts?.dnc ?? null },
     "conversational",
-    { channel },
+    // A reply in the thread they wrote in: theirs (contracts MessageAbout).
+    { channel, about: "theirs" },
   );
   if (!may.ok) return refuse(`${who} opted out; nothing can be sent to them`);
   // The window the reply route will enforce, on the channel it will send on:

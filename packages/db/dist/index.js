@@ -656,6 +656,34 @@ var REPLY_DELAY_MIN_MS = 5e3;
 var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var PAUSE_HOURS_MIN = 1;
 var PAUSE_HOURS_MAX = 168;
+var SENDER_WORDS = {
+  en: {
+    textStop: "Reply STOP to opt out",
+    emailStop: "Reply STOP to stop these emails.",
+    marketing: "This is a marketing email.",
+    noThanks: `Not interested? Reply "no thanks" and I won't write again`,
+    unsubscribe: "Unsubscribe",
+    us: "us",
+    offerAsked: (who) => `You asked for offers from ${who}.`,
+    offerCustomer: (who) => `You're a customer of ${who}.`,
+    visitProposal: (who) => `You're getting this about your proposal from ${who}.`,
+    visitBooked: (who) => `You're getting this because of your visit with ${who}.`,
+    visitInTouch: (who) => `You're getting this because you've been in touch with ${who}.`
+  },
+  es: {
+    textStop: "Responde STOP para darte de baja",
+    emailStop: "Responde STOP para dejar de recibir estos correos.",
+    marketing: "Este es un correo de marketing.",
+    noThanks: `\xBFNo te interesa? Responde "no, gracias" y no volver\xE9 a escribirte`,
+    unsubscribe: "Darme de baja",
+    us: "nosotros",
+    offerAsked: (who) => `Pediste recibir ofertas de ${who}.`,
+    offerCustomer: (who) => `Eres cliente de ${who}.`,
+    visitProposal: (who) => `Recibes esto sobre tu propuesta de ${who}.`,
+    visitBooked: (who) => `Recibes esto por tu visita con ${who}.`,
+    visitInTouch: (who) => `Recibes esto porque has estado en contacto con ${who}.`
+  }
+};
 function namedSlots(names3, labels = names3) {
   return { kind: "named", keys: names3, labels };
 }
@@ -927,6 +955,8 @@ function isDealStage(s) {
   return typeof s === "string" && DEAL_STAGES.includes(s);
 }
 var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
+var VOICE_END_REASONS = ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"];
+var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
 var ASK_SURFACES = [
@@ -1283,18 +1313,18 @@ function ruleFacts(rule2) {
   return rule2.all.flatMap((c) => "any" in c ? c.any : [c]);
 }
 function factNeeds(f) {
-  const needs = new Set(fieldOf(f.field).needs);
-  if (f.field === "standing" && f.value === "waiting_on_you") needs.add("viewer");
-  if (f.field === "assigned" && f.value !== "nobody") needs.add("viewer");
+  const needs2 = new Set(fieldOf(f.field).needs);
+  if (f.field === "standing" && f.value === "waiting_on_you") needs2.add("viewer");
+  if (f.field === "assigned" && f.value !== "nobody") needs2.add("viewer");
   if (f.field === "deal_stage" && f.value === "consultation") {
-    needs.add("calendar");
-    needs.add("consult");
+    needs2.add("calendar");
+    needs2.add("consult");
   }
-  return LIST_NEEDS.filter((n) => needs.has(n));
+  return LIST_NEEDS.filter((n) => needs2.has(n));
 }
 function ruleNeeds(rule2) {
-  const needs = new Set(ruleFacts(rule2).flatMap(factNeeds));
-  return LIST_NEEDS.filter((n) => needs.has(n));
+  const needs2 = new Set(ruleFacts(rule2).flatMap(factNeeds));
+  return LIST_NEEDS.filter((n) => needs2.has(n));
 }
 function dayHolds(days, op, n) {
   switch (op) {
@@ -1573,13 +1603,13 @@ var BUILTIN_LISTS = [
   }
 ];
 var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
-  const needs = ruleNeeds(l.rule);
+  const needs2 = ruleNeeds(l.rule);
   return {
     ...l,
-    ...needs.includes("calendar") ? { needsCalendar: true } : {},
-    ...needs.includes("consult") ? { needsConsultFirst: true } : {},
-    ...needs.includes("deals") ? { needsDeals: true } : {},
-    ...needs.includes("viewer") ? { needsViewer: true } : {},
+    ...needs2.includes("calendar") ? { needsCalendar: true } : {},
+    ...needs2.includes("consult") ? { needsConsultFirst: true } : {},
+    ...needs2.includes("deals") ? { needsDeals: true } : {},
+    ...needs2.includes("viewer") ? { needsViewer: true } : {},
     test: (vm) => listRuleMatches(l.rule, vm)
   };
 });
@@ -1823,6 +1853,16 @@ var PROPOSAL = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+var STOP_EN = SENDER_WORDS.en.textStop;
+var STOP_ES = SENDER_WORDS.es.textStop;
+var UNASKED = {
+  consent: "unknown",
+  dnc: false,
+  marketing_consent: "unknown",
+  email_marketing: "unknown",
+  has_relationship: false
+};
+var DEALT = { ...UNASKED, has_relationship: true };
 var OFFERS_BY_EMAIL_WORDS = {
   /** The deployment's campaigns domain is not set up or not verified yet. */
   noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
@@ -1855,6 +1895,18 @@ var CHANNEL_WORDS = {
   /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
   unchecked: "This could not be checked just now."
 };
+var HELD_ORDER = {
+  stopped: 0,
+  unsubscribed: 1,
+  no_yes: 2,
+  no_number: 3,
+  no_address: 4,
+  address_stopped: 5,
+  no_channel: 6
+};
+var HELD_ON = Object.keys(HELD_ORDER).sort(
+  (a, b) => HELD_ORDER[a] - HELD_ORDER[b]
+);
 var READY_WHATSAPP_ALONE = {
   whatsapp: { ready: true, why: null },
   sms: { ready: false, why: CHANNEL_WORDS.unchecked },
@@ -1896,11 +1948,11 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   15 * MIN_MS,
   30 * MIN_MS
 ];
-var capitalised = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+var capitalised2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var PREVIEW_CHANNEL_WORDS = {
-  whatsapp: capitalised(CONSENT_CHANNEL_WORDS.whatsapp),
-  sms: capitalised(CONSENT_CHANNEL_WORDS.sms),
-  email: capitalised(CONSENT_CHANNEL_WORDS.email)
+  whatsapp: capitalised2(CONSENT_CHANNEL_WORDS.whatsapp),
+  sms: capitalised2(CONSENT_CHANNEL_WORDS.sms),
+  email: capitalised2(CONSENT_CHANNEL_WORDS.email)
 };
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
@@ -3802,7 +3854,9 @@ async function migrationHead(db) {
 }
 
 // src/auth.ts
-import { createClient } from "@supabase/supabase-js";
+import {
+  createClient
+} from "@supabase/supabase-js";
 async function signUpOnPublicKey(cfg, args) {
   if (!cfg.url || !cfg.anonKey) {
     throw new Error("public_client_unconfigured: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY");
@@ -3811,6 +3865,15 @@ async function signUpOnPublicKey(cfg, args) {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
   });
   return anon.auth.signUp({ email: args.email, password: args.password, options: { data: args.userData } });
+}
+async function inviteUserByEmail(db, email) {
+  return db.auth.admin.inviteUserByEmail(email);
+}
+async function listSecondFactors(db, userId) {
+  return db.auth.admin.mfa.listFactors({ userId });
+}
+async function deleteSecondFactor(db, userId, factorId) {
+  return db.auth.admin.mfa.deleteFactor({ id: factorId, userId });
 }
 
 // src/waitlist.ts
@@ -3997,11 +4060,17 @@ function noChannelColumns(error) {
 function noRelationshipColumn(error) {
   return !!error && /\bhas_relationship\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
 }
+var UNDEFINED_COLUMN = "42703";
 async function queuedRecipients(db, p) {
-  const first = await db.from("broadcast_recipients").select("contact_id, facts, channel").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").limit(p.limit);
-  const { data, error } = noChannelColumns(first.error) ? await db.from("broadcast_recipients").select("contact_id, facts").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").limit(p.limit) : first;
-  if (error) throw new Error(`queued_recipients: ${error.message}`);
-  return data ?? [];
+  const withAttempt = await db.from("broadcast_recipients").select("contact_id, facts, channel, attempt").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
+  if (!withAttempt.error) return withAttempt.data ?? [];
+  if (withAttempt.error.code !== UNDEFINED_COLUMN) throw new Error(`queued_recipients: ${withAttempt.error.message}`);
+  const withChannel = await db.from("broadcast_recipients").select("contact_id, facts, channel").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
+  if (!withChannel.error) return withChannel.data ?? [];
+  if (withChannel.error.code !== UNDEFINED_COLUMN) throw new Error(`queued_recipients: ${withChannel.error.message}`);
+  const bare = await db.from("broadcast_recipients").select("contact_id, facts").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
+  if (bare.error) throw new Error(`queued_recipients: ${bare.error.message}`);
+  return bare.data ?? [];
 }
 async function runGoesByOthers(db, tenantId, broadcastId) {
   const { count, error } = await db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId).in("channel", ["sms", "email"]);
@@ -4338,6 +4407,11 @@ async function setEmailOffersYes(db, p) {
   const said = data ?? null;
   if (said?.changed === true) return "recorded";
   return said?.refused === "unsubscribed" ? "unsubscribed" : "unchanged";
+}
+async function offerLanguageOf(db, p) {
+  const { data, error } = await db.from("broadcasts").select("template_language").eq("tenant_id", p.tenantId).eq("id", p.broadcastId).maybeSingle();
+  if (error) throw new Error(`cannot read the language the offer was sent in: ${error.message}`);
+  return data?.template_language ?? null;
 }
 async function setEmailUnsubscribed(db, p) {
   const { data, error } = await db.rpc("set_email_marketing", {
@@ -5775,7 +5849,11 @@ async function messageSenders(db, tenantId, ids) {
 }
 
 // src/ask-voice-session.ts
-var VOICE_SESSION_COLUMNS = "id, tenant_id, user_id, thread_id, conversation_id, token_cipher, token_expires_at, surface, scope, context, language, turn_key, turn_started_at, duration_s, created_at, ended_at";
+var VOICE_SESSION_COLUMNS = "id, tenant_id, user_id, thread_id, conversation_id, token_cipher, token_expires_at, surface, scope, context, language, turn_key, turn_started_at, duration_s, created_at, ended_at, end_reason, connect_ms, first_audio_ms";
+function voiceRowOf(r2) {
+  const ended = VOICE_END_REASONS.includes(r2.end_reason ?? "") ? r2.end_reason : null;
+  return { ...r2, end_reason: ended };
+}
 async function insertVoiceSession(db, row) {
   const { error } = await db.from("ask_voice_sessions").insert(row);
   if (error) throw new Error(`ask voice session: ${error.message}`);
@@ -5783,12 +5861,12 @@ async function insertVoiceSession(db, row) {
 async function readVoiceSession(db, id) {
   const { data, error } = await db.from("ask_voice_sessions").select(VOICE_SESSION_COLUMNS).eq("id", id).maybeSingle();
   if (error) throw new Error(`ask voice session: ${error.message}`);
-  return data ?? null;
+  return data ? voiceRowOf(data) : null;
 }
 async function readVoiceSessionByConversation(db, conversationId) {
   const { data, error } = await db.from("ask_voice_sessions").select(VOICE_SESSION_COLUMNS).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(`ask voice session by conversation: ${error.message}`);
-  return data ?? null;
+  return data ? voiceRowOf(data) : null;
 }
 async function claimVoiceTurn(db, id, turnKey, now, staleMs) {
   const stale = new Date(now.getTime() - staleMs).toISOString();
@@ -5797,7 +5875,13 @@ async function claimVoiceTurn(db, id, turnKey, now, staleMs) {
   return (data ?? []).length > 0;
 }
 async function endVoiceSession(db, id, fields) {
-  const { data, error } = await db.from("ask_voice_sessions").update({ ended_at: fields.endedAt, ...fields.durationS === void 0 ? {} : { duration_s: fields.durationS } }).eq("id", id).select("id");
+  const { data, error } = await db.from("ask_voice_sessions").update({
+    ended_at: fields.endedAt,
+    ...fields.durationS === void 0 ? {} : { duration_s: fields.durationS },
+    ...fields.endReason === void 0 ? {} : { end_reason: fields.endReason },
+    ...fields.connectMs === void 0 ? {} : { connect_ms: fields.connectMs },
+    ...fields.firstAudioMs === void 0 ? {} : { first_audio_ms: fields.firstAudioMs }
+  }).eq("id", id).select("id");
   if (error) throw new Error(`ask voice session end: ${error.message}`);
   return (data ?? []).length > 0;
 }
@@ -6814,6 +6898,7 @@ export {
   declineHandover,
   declinePartnerInvite,
   deleteList,
+  deleteSecondFactor,
   deleteSendingDomain,
   deleteSendingDomainAsRead,
   describeLead,
@@ -6862,6 +6947,7 @@ export {
   insertQueuedEmail,
   insertVoiceSession,
   invitePartner,
+  inviteUserByEmail,
   isWorkspaceCall,
   keepIdempotencyReceipt,
   lastInboundEmail,
@@ -6874,6 +6960,7 @@ export {
   listMemberIds,
   listPolicies,
   listRow,
+  listSecondFactors,
   mailboxById,
   mailboxFor,
   mailboxOfTenant,
@@ -6894,6 +6981,7 @@ export {
   namesOfPeople,
   notesForReceptionist,
   observeDb,
+  offerLanguageOf,
   offersEmailReach,
   outreachFactsOf,
   outreachModeOf,

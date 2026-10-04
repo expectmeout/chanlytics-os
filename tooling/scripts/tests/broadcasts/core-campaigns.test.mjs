@@ -13,6 +13,7 @@ import {
   REACH_OUT_IS_NOT_A_MOMENT,
   PEOPLE_LISTS,
   FOLLOW_UP_NEEDS_LINK,
+  err,
   MESSAGE_MOMENT_WORDS,
   MOMENTS_RETIRED,
   WIN_BACK_WORDS,
@@ -170,6 +171,24 @@ async function refused(p, code, status, words) {
     if (words) assert.ok(e.message.includes(words), `${JSON.stringify(e.message)} should say ${JSON.stringify(words)}`);
     return true;
   });
+}
+/**
+ * What a refusal costs the person and the log: the envelope the route answers it with (withRoute sends an AppError's code,
+ * message and details as they stand), and the lines the call logged (the logger writes one JSON object to console.error).
+ */
+async function refusedLoudly(p) {
+  const said = [];
+  const error = console.error;
+  console.error = (...args) => said.push(JSON.parse(args[0]));
+  try {
+    const e = await p.then(
+      () => assert.fail("it should have been refused"),
+      (x) => x,
+    );
+    return { e, wire: JSON.stringify(err(e.code, e.message, e.details)), said };
+  } finally {
+    console.error = error;
+  }
 }
 const everyone = { kind: "everyone" };
 const make = (f, body) => createBroadcast(f.ports, { userId: "u1", body, now: NOW });
@@ -345,7 +364,7 @@ test("the audience: everyone, a People list, or a list kept by hand, crossed wit
     make(nobody, { template_id: T1, audience: everyone }),
     "conflict",
     409,
-    emptyAudienceRefusal("marketing", EVERYONE_LABEL, noOne),
+    emptyAudienceRefusal("marketing", EVERYONE_LABEL, noOne, { channels: ["whatsapp"], about: "ours" }),
   );
   await refused(
     make(fakes({ people: noOne, template: template({ category: "utility" }) }), {
@@ -354,7 +373,7 @@ test("the audience: everyone, a People list, or a list kept by hand, crossed wit
     }),
     "conflict",
     409,
-    emptyAudienceRefusal("conversational", EVERYONE_LABEL, noOne),
+    emptyAudienceRefusal("conversational", EVERYONE_LABEL, noOne, { channels: ["whatsapp"], about: "ours" }),
   );
   const crowd = Array.from({ length: BROADCAST_MAX_RECIPIENTS + 1 }, (_, i) => person(i));
   await refused(
@@ -534,7 +553,9 @@ test("the number: none connected, flagged, or an audience past the day's limit, 
 
 /**
  * A person with an email address too, who said yes on WhatsApp and by text, and last wrote on a channel or none: what
- * reachFor picks a channel from (a visit message by email needs no yes; an offer by email waits for its release).
+ * reachFor picks a channel from (an offer by email waits for its release). They have dealt with the business (a
+ * relationship on record, as a customer has), which is what lets an email the business chose to send reach them with no
+ * yes covering email: a broadcast's message is ours (decision D1), and these tests' subject is the channels, not that rule.
  */
 const reachable = (id, over = {}) => {
   const p = person(id);
@@ -542,7 +563,7 @@ const reachable = (id, over = {}) => {
     ...p,
     email: `p${id}@example.com`,
     lastChannel: null,
-    consent: { ...p.consent, channels: ["whatsapp", "sms"], marketingChannels: null },
+    consent: { ...p.consent, channels: ["whatsapp", "sms"], marketingChannels: null, relationship: true },
     ...over,
   };
 };
@@ -572,6 +593,68 @@ test("a broadcast goes by the channels it ticks, each person once on the first t
       ["d", "sms"],
     ],
     "the channel a person last wrote on comes first; else WhatsApp, text, email; each person once",
+  );
+});
+
+test("a broadcast is the business's own news, whatever its template's category: by email it enrols whoever has a relationship on record or a yes covering email, and not an address alone (decision D1)", async () => {
+  // A utility template (the yes to messages is the one asked) with Email ticked: its WhatsApp twin is a utility, which was
+  // all an email asked, so every address went. Now an address alone is held, as it is for an offer.
+  const utility = template({ category: "utility" });
+  const ready = workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true });
+  /** An address and no number; the consent says what the person has done, and by default nothing at all. */
+  const byEmail = (id, consent = {}) => {
+    const r = reachable(id, { phone: null });
+    return { ...r, consent: { ...r.consent, state: "unknown", channels: null, relationship: false, ...consent } };
+  };
+  const people = [
+    byEmail("a"), // an address, nothing else: held
+    byEmail("b", { relationship: true }), // wrote, called or has a deal: enrolled
+    byEmail("c", { state: "opted_in", channels: ["whatsapp", "sms", "email"] }), // a yes covering email: enrolled
+    byEmail("d", { state: "opted_in", channels: ["whatsapp", "sms"] }), // a yes that does not cover email: held
+    byEmail("e", { state: "opted_in", channels: null }), // a yes from before the channels, WhatsApp alone: held
+    byEmail("f", { relationship: true, emailMarketing: "opted_out" }), // they pressed Unsubscribe: held, whatever else
+    byEmail("g", { state: "opted_out", relationship: true }), // STOP: held
+  ];
+  const f = fakes({ template: utility, people, channels: ready, versions: ["email"] });
+  const r = await make(f, { template_id: T1, audience: everyone, channels: ["email"] });
+  assert.deepEqual(
+    f.of("assemble")[0][2].map((x) => [x.contact_id, x.channel]),
+    [
+      ["b", "email"],
+      ["c", "email"],
+    ],
+    "the two the business may send its news by email; the address alone is not enrolled",
+  );
+  assert.equal(r.recipient_count, 2);
+  // Nobody qualifies: the broadcast is refused before a row, as one to an audience that has nobody to send to is.
+  const strangers = fakes({
+    template: utility,
+    people: [byEmail("a"), byEmail("d", { state: "opted_in", channels: ["whatsapp", "sms"] })],
+    channels: ready,
+    versions: ["email"],
+  });
+  // Said as what an email of the business's news asks (consent-asks.ts, from the one predicate), never as "a number".
+  await refused(
+    make(strangers, { template_id: T1, audience: everyone, channels: ["email"] }),
+    "conflict",
+    409,
+    "people with a yes to hearing from you by email or a relationship with you on record, and an email address that works",
+  );
+  assert.deepEqual(strangers.ops(), [], "nothing enrolled, nothing scheduled, nothing on the ledger");
+  // By WhatsApp, people are asked what they always were: the yes to messages, kept for WhatsApp (an unknown state holds
+  // them; a yes recorded before the channels were covers it, with no relationship asked of anyone).
+  const withNumber = (id, consent) => ({ ...byEmail(id, consent), phone: "+15551230009" });
+  const wa = fakes({
+    template: utility,
+    people: [withNumber("a", {}), withNumber("e", { state: "opted_in", channels: null })],
+    channels: ready,
+    versions: ["email"],
+  });
+  await make(wa, { template_id: T1, audience: everyone, channels: ["whatsapp"] });
+  assert.deepEqual(
+    wa.of("assemble")[0][2].map((x) => [x.contact_id, x.channel]),
+    [["e", "whatsapp"]],
+    "email's rule is email's alone: the same two, by WhatsApp, are held for the yes and sent on it",
   );
 });
 
@@ -833,13 +916,19 @@ test("what could not be written says so: the run, its people and its job are one
   // transaction itself is proved against Postgres (broadcasts/assemble-broadcast.db.test.mjs).
   for (const why of ["insert refused", "3 of the 40 people are not this workspace's to send to"]) {
     const f = fakes({ assemble: new Error(why) });
-    await refused(
-      make(f, { template_id: T1, audience: everyone }),
-      "internal",
-      500,
-      "The broadcast could not be created. Nothing was sent; try again.",
-    );
+    const { e, wire, said } = await refusedLoudly(make(f, { template_id: T1, audience: everyone }));
+    assert.equal(e.code, "internal");
+    assert.equal(e.status, 500);
+    assert.equal(e.message, "The broadcast could not be created. Nothing was sent; try again.");
     assert.deepEqual(f.ops(), ["assemble"], "nothing to fail, nothing recorded");
+    // The database's words are the log's: the answer the route sends carries none of them.
+    assert.equal(e.details, undefined, "no details to send");
+    assert.ok(!wire.includes(why), `the response says ${wire}`);
+    assert.deepEqual(
+      said.map((l) => [l.event, l.step, l.error]),
+      [["campaign_step_failed", "assemble", why]],
+      "and the cause is said, by name, where support reads it",
+    );
   }
 });
 
@@ -898,13 +987,18 @@ test("approve: a run not waiting is refused; one that changed under the approver
   );
   assert.deepEqual(moved.ops(), ["release"]);
   const noJob = fakes({ schedule: new Error("schedule_job: no row") });
-  await refused(
-    approveRun(noJob.ports, { row, now: NOW }),
-    "upstream_meta",
-    502,
-    "The send could not be scheduled. The run is still waiting; try again.",
-  );
+  const stuck = await refusedLoudly(approveRun(noJob.ports, { row, now: NOW }));
+  assert.equal(stuck.e.code, "upstream_meta");
+  assert.equal(stuck.e.status, 502);
+  assert.equal(stuck.e.message, "The send could not be scheduled. The run is still waiting; try again.");
   assert.deepEqual(noJob.ops(), ["release", "schedule", "hold"]);
+  // What the job ledger said is the log's, never the response's.
+  assert.equal(stuck.e.details, undefined);
+  assert.ok(!stuck.wire.includes("schedule_job"), `the response says ${stuck.wire}`);
+  assert.deepEqual(
+    stuck.said.map((l) => [l.event, l.step, l.broadcast_id, l.error]),
+    [["campaign_step_failed", "schedule", "b1", "Error: schedule_job: no row"]],
+  );
   const f = fakes();
   const r = await approveRun(f.ports, { row, now: NOW });
   assert.deepEqual(f.log, [
@@ -1445,8 +1539,18 @@ test("a run with room for everyone holds nobody, and a WhatsApp run never counts
 
 test("a month that could not be counted is not room: the broadcast is refused in words, and nothing is written", async () => {
   const f = fakes({ ...MONTH, people: byEmailAndText(), monthSent: new Error("rpc: connection reset") });
-  await refused(make(f, ALL_THREE), "internal", 500, "could not be counted just now");
+  const { e, wire, said } = await refusedLoudly(make(f, ALL_THREE));
+  assert.equal(e.code, "internal");
+  assert.equal(e.status, 500);
+  assert.ok(e.message.includes("could not be counted just now"), e.message);
   assert.deepEqual(f.ops(), [], "no run, no people, no job");
+  // The database's own words are never the person's to read: the response carries none, and the log carries the cause.
+  assert.equal(e.details, undefined);
+  assert.ok(!wire.includes("connection reset"), `the response says ${wire}`);
+  assert.deepEqual(
+    said.map((l) => [l.event, l.step, l.error]),
+    [["campaign_step_failed", "month_count", "Error: rpc: connection reset"]],
+  );
 });
 
 test("a hold that could not be written leaves the people queued, and the run is made all the same: the send holds them at the wire, and neither the receipt nor the ledger claims a hold that was not written", async () => {

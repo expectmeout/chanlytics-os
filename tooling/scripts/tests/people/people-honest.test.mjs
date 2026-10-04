@@ -1082,12 +1082,10 @@ test("REGRESSION: on a phone People is one bar, one line and the people -- a 57p
     let tree = draw();
     const bar = byTestId(tree, "people-phone-bar");
     assert.ok(bar, "the bar");
-    assert.deepEqual(
-      all(bar, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props["aria-selected"]]),
-      [
-        ["People", true],
-        ["Leads", false],
-      ],
+    assert.equal(
+      all(bar, (n) => n.props?.role === "tab").length,
+      0,
+      "the scopes are the frame's strip of views over the page, never the bar's",
     );
     assert.equal(textOf(byTestId(bar, "people-phone-lists")).trim(), "Everyone", "the list being shown");
     assert.equal(byTestId(bar, "people-phone-search-open").props["aria-label"], "Search by name or phone");
@@ -1117,40 +1115,28 @@ test("REGRESSION: on a phone People is one bar, one line and the people -- a 57p
     assert.deepEqual(idsShown(tree), ["person-p1"]);
   }));
 
-test("where deals are on, the switch has a third tab, the Pipeline, on a desktop and in a phone's bar, and it goes to clients/pipeline", async () => {
-  await freshPage({ people: [person(1)], dealsOn: true });
-  went.length = 0;
-  let tree = draw();
-  assert.deepEqual(
-    all(byTestId(tree, "people-scope"), (n) => n.props?.role === "tab").map((n) => [
-      textOf(n),
-      n.props["aria-selected"],
-    ]),
-    [
-      ["People", true],
-      ["Leads", false],
-      ["Pipeline", false],
-    ],
-  );
-  click(byTestId(tree, "scope-pipeline"));
-  assert.deepEqual(went, ["clients/pipeline"]);
-  await onPhone(async () => {
-    await freshPage({ people: [person(1)], dealsOn: true });
-    went.length = 0;
-    tree = draw();
-    const tabs = all(byTestId(tree, "people-phone-bar"), (n) => n.props?.role === "tab");
-    assert.deepEqual(
-      tabs.map((n) => [textOf(n), n.props["aria-selected"]]),
-      [
-        ["People", true],
-        ["Leads", false],
-        ["Pipeline", false],
-      ],
-    );
-    click(tabs[2]);
-    assert.deepEqual(went, ["clients/pipeline"]);
-    assert.ok(byTestId(tree, "people-phone-lists"), "People keeps its list to pick beside three tabs");
-  });
+/** Whether anything in the tree is a strip of views: the frame's (SurfaceTabs) draws it, and no page does. */
+const drawsAStrip = (tree) =>
+  !!byTestId(tree, "people-scope") ||
+  all(tree, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes("stabs"),
+  ).length > 0;
+
+test("the switch between the scopes is the frame's strip of views: the page draws none of its own, on a desktop or in a phone's bar, deals on or off", async () => {
+  // What the strip holds (People, Leads, the Pipeline where deals are on), which is picked, and where a press goes are the
+  // chrome's (people-views.test.mjs); this page says them and draws nothing of them.
+  for (const dealsOn of [false, true]) {
+    await freshPage({ people: [person(1)], dealsOn });
+    assert.equal(drawsAStrip(draw()), false, `a desktop's page draws no strip (deals ${dealsOn})`);
+    await onPhone(async () => {
+      await freshPage({ people: [person(1)], dealsOn });
+      const tree = draw();
+      assert.equal(drawsAStrip(tree), false, `a phone's bar draws no strip (deals ${dealsOn})`);
+      assert.ok(byTestId(tree, "people-phone-lists"), "People keeps its list to pick, the frame's strip over it");
+    });
+  }
 });
 
 // Ruben, 24 Sep: the scopes on a phone should look like the Inbox's views. They were a boxed switch squeezed into the
@@ -1169,29 +1155,16 @@ test("People's scopes are its strip's order: People, Leads, the Pipeline; a pers
   assert.equal(w.stripSlide(w.stripPlace("clients", "leads"), w.stripPlace("clients", null)), "prev");
 });
 
-test("on a phone the scopes are the Inbox's tab strip, on a row of their own over the bar, and they stay while searching", () =>
+test("on a phone the top is the list's row and the search under the frame's strip, and the list stays over the search", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1)], dealsOn: true });
     went.length = 0;
     let tree = draw();
     const top = byTestId(tree, "people-phone-bar");
     const kids = (top.props.children || []).filter(Boolean);
-    // The first row is the one switch (PeopleScopeTabs), the component a desk draws over its rail; the strip is what
-    // it rendered.
-    const strip = kids[0].rendered ?? kids[0];
-    assert.match(String(strip.props.className), /\bstabs\b/, "the shell's own strip, as the Inbox draws its views");
-    assert.equal(strip.props.role, "tablist");
-    assert.deepEqual(
-      all(strip, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props.className]),
-      [
-        ["People", "stabs-tab active"],
-        ["Leads", "stabs-tab"],
-        ["Pipeline", "stabs-tab"],
-      ],
-      "the picked one underlined, as the Inbox's is",
-    );
-    const bar = kids[1];
-    assert.equal(bar.props.className, "pp-bar", "the bar is the row under it");
+    // The frame's strip of views stands over this (SurfaceTabs); the page's top begins at the bar.
+    const bar = kids[0];
+    assert.equal(bar.props.className, "pp-bar", "the bar is the first row, under the frame's strip");
     assert.equal(all(bar, (n) => n.props?.role === "tab").length, 0, "no switch squeezed beside the list button");
     assert.ok(byTestId(bar, "people-phone-lists"), "the list button has the bar");
     // The top stands over the page's scroller, not in it, as the Inbox's strip does: the rows scroll and bounce under
@@ -1207,13 +1180,7 @@ test("on a phone the scopes are the Inbox's tab strip, on a row of their own ove
     tree = draw();
     const searching = byTestId(tree, "people-phone-bar");
     assert.ok(byTestId(searching, "people-phone-search"), "the bar is the field");
-    assert.deepEqual(
-      all(byTestId(searching, "people-phone-scopes"), (n) => n.props?.role === "tab").map(textOf),
-      ["People", "Leads", "Pipeline"],
-      "and the scopes stay over it",
-    );
-    click(all(byTestId(searching, "people-phone-scopes"), (n) => n.props?.role === "tab")[1]);
-    assert.deepEqual(went, ["clients/leads"]);
+    assert.ok(byTestId(searching, "people-phone-lists"), "and the list stays over it");
   }));
 
 test("a desktop draws no phone bar, and keeps its controls row and its list head", async () => {
@@ -2195,9 +2162,9 @@ test("the Leads scope imports People's parts: the list page's hooks, the table a
     "PhoneSheet",
   ])
     assert.equal(peoplePages[name], undefined, `${name} is imported, not published`);
-  // The shell's strip draws People's scopes by name (components/surface-tabs.jsx) until it moves.
-  for (const name of ["plScopes", "plScopeRoute", "PeopleScopeTabs"])
-    assert.equal(typeof peoplePages[name], "function", name);
+  // The shell's strip reads People's scope words by name (components/surface-tabs.jsx stripPlace); it draws them from the page's chrome.
+  for (const name of ["plScopes", "plScopeRoute"]) assert.equal(typeof peoplePages[name], "function", name);
+  assert.equal(peoplePages.PeopleScopeTabs, undefined, "and the page's own copy of the strip is gone");
 });
 
 test("REGRESSION: on a list, the Offers column shows the answer about offers -- the Lists page showed the yes to messages under the Offers heading", async () => {

@@ -23,7 +23,6 @@ import { setupDto } from "../../legacy-verbs";
 import type { usePlControls } from "../../people/hooks/use-controls";
 import type { usePlPlace } from "../../people/hooks/use-place";
 import type { PeopleRead, TableEmpty } from "../../people/types";
-import { plScopeRoute } from "../../people/words";
 import type { ReviewDoors } from "../bench/types";
 import type { LeadCellCtx } from "../cells/types";
 import { bulkLeads, checkLeadsAgain, peekVMFor, warmLeadsView as warmView, type LeadsSurface } from "../surface";
@@ -318,10 +317,6 @@ export const leadsBulkProps = (p: LeadsPage) => {
       shut: () => setBulkSheet(null),
     }),
     exportHref: api().url("GET leads/export", { query: bulkView }),
-    onScope: (to: string) => nav(plScopeRoute(to)),
-    // The Pipeline is in the switch where deals are on (0008): People's surface says so, and it lands after Leads' on a
-    // cold load of Leads, when the switch gains its third tab.
-    dealsOn: !!p.people.dealsOn,
     ...railDoors(p),
     chip: p.chip,
     onPickChip: p.setChip,

@@ -2,9 +2,10 @@
  * A message's email or text version, in the pane beside the list, when the channel switch is on it (One message, every
  * channel, step 1): the version in the language in view as its recipient reads it, with its Edit and Remove under a menu
  * (Remove asks first); or, where the message has none, one quiet line and the act that writes it, which opens the editor
- * on the starter's words or a copy of the WhatsApp ones. A marketing message has no text version and cannot have one,
- * so it says that and offers nothing: texts carry no offers. The editor takes the view's place while a version is being
- * written, and its words come back if the pane was left with them unsaved (the editor's own rule).
+ * on the starter's words or a copy of the WhatsApp ones. A message the channel never carries (an offer, by text) has no
+ * version there and cannot have one, so it says why in contracts' words and offers nothing. The editor takes the view's
+ * place while a version is being written, and its words come back if the pane was left with them unsaved (the editor's
+ * own rule).
  */
 import { useState } from "react";
 import { VERSION_CHANNEL_WORDS } from "@chanlytics/contracts";
@@ -37,8 +38,12 @@ interface VersionViewProps {
   values: readonly SlotValue[];
   /** An email's rules where it is not a campaign message's: a reach-out's (step 5). */
   rules?: EmailRules<string>;
-  /** A marketing message: it has no text version. */
-  offer: boolean;
+  /**
+   * Why this channel never carries this message, in contracts' words (channelNeverCarries: "Texts carry no offers."), or
+   * null where it may. A message a channel never carries has no version there and cannot have one, so it says why and
+   * offers nothing.
+   */
+  neverCarried: string | null;
   /** For a starter, whether the library wrote it a version on this channel in this language (the words in `start`). */
   starterHas: boolean;
   /** Whether the message is on file (a WhatsApp row of it): a version is filed under a message that is. */
@@ -125,14 +130,13 @@ function Held(p: VersionViewProps & { row: VersionRow; onEdit: () => void }) {
 
 /** A message with no version here: what it says of that, and the act that writes one. */
 function None(p: VersionViewProps & { onWrite: () => void }) {
-  const { channel, lang, offer, busy, onWrite } = p;
+  const { channel, lang, neverCarried, busy, onWrite } = p;
   const word = VERSION_CHANNEL_WORDS[channel];
-  // A marketing message has no text version and cannot have one: there is nothing to write, so no act is offered.
-  const noOffers = channel === "sms" && offer;
+  // A message this channel never carries has no version and cannot have one: there is nothing to write, so no act is offered.
   return (
     <div className="tpl-ver-none" data-testid="template-version-none">
-      <p className="bc-excl-hint">{noOffers ? WORDS.noOffersByText : WORDS.none(word, lang.label)}</p>
-      {noOffers ? null : (
+      <p className="bc-excl-hint">{neverCarried ?? WORDS.none(word, lang.label)}</p>
+      {neverCarried ? null : (
         <Button
           size="sm"
           disabled={busy}
@@ -152,14 +156,11 @@ function None(p: VersionViewProps & { onWrite: () => void }) {
  * library wrote is shown as it reads and said to come with the set; one the library did not write is said not to.
  */
 function Unfiled(p: VersionViewProps) {
-  const { channel, lang, start, slots, values, rules, offer, starterHas } = p;
-  const noOffers = channel === "sms" && offer;
-  if (!starterHas || noOffers)
+  const { channel, lang, start, slots, values, rules, neverCarried, starterHas } = p;
+  if (!starterHas || neverCarried)
     return (
       <div className="tpl-ver-none" data-testid="template-version-none">
-        <p className="bc-excl-hint">
-          {noOffers ? WORDS.noOffersByText : WORDS.noneInSet(VERSION_CHANNEL_WORDS[channel])}
-        </p>
+        <p className="bc-excl-hint">{neverCarried ?? WORDS.noneInSet(VERSION_CHANNEL_WORDS[channel])}</p>
       </div>
     );
   return (

@@ -3,11 +3,12 @@
  * channel a campaign may go by, WhatsApp, Text and Email, on the broadcast composer and the playbook composer alike. Each
  * is an independent on or off, so each is the kit's Switch beside its word. A channel the workspace cannot send on, or the
  * message cannot go by, is off and does not change when pressed: it is drawn as unavailable (the kit dims a switch that is
- * read-only, and its word goes faint), and says why: on hover and on keyboard focus in the kit's tooltip, and to a screen
- * reader as the switch's own description (a tooltip is for a pointer and a keyboard alone). The one channel that is on
- * stays on, dimmed too, since it takes no press. A playbook's channel that waits for a line or a version is neither: it is
- * on and live, its word underlined as a thing with a reason to read. What is on, and why a channel is closed, is
- * parts/channels.ts's.
+ * read-only, and its word goes faint), and says why: on hover and on keyboard focus in the kit's tooltip, to a screen
+ * reader as the switch's own description, and on a touch screen as a line under the row (a tooltip is for a pointer and a
+ * keyboard alone, and never shows to a finger: on a phone the owner would see a dimmed switch and no reason). The one
+ * channel that is on stays on, dimmed too, since it takes no press. A playbook's channel that waits for a line or a
+ * version is neither: it is on and live, its word underlined as a thing with a reason to read. What is on, and why a
+ * channel is closed, is parts/channels.ts's.
  */
 import { useId } from "react";
 import type { ConsentChannel } from "@chanlytics/contracts";
@@ -56,13 +57,27 @@ function CmViaOne({ tick, onTick, testid }: { tick: CmViaTick; onTick: CmViaProp
   return tick.why ? <Tooltip tip={tick.why}>{one}</Tooltip> : one;
 }
 
-/** The row: a switch for each channel, in the page's order. */
+/**
+ * The row: a switch for each channel, in the page's order, and under it, on a touch screen alone (campaigns.css), why each
+ * channel that has a reason has one. The line is hidden from a screen reader, which already has the same words as each
+ * switch's description.
+ */
 export function CmVia({ ticks, onTick, testid }: CmViaProps) {
+  const reasons = ticks.filter((t) => t.why);
   return (
     <div className="cm-via" role="group" aria-label={CM_VIA_WORDS.label} data-testid={testid}>
       {ticks.map((t) => (
         <CmViaOne key={t.channel} tick={t} onTick={onTick} testid={`${testid}-${t.channel}`} />
       ))}
+      {reasons.length > 0 ? (
+        <ul className="cm-via-whys" aria-hidden="true" data-testid={`${testid}-whys`}>
+          {reasons.map((t) => (
+            <li key={t.channel} data-channel={t.channel}>
+              <span className="cm-via-why-word">{t.word}</span> {t.why}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

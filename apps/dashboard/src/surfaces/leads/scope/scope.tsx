@@ -13,7 +13,6 @@ import { Icon } from "../../kit/icon/icon";
 import { gate } from "../../legacy-verbs";
 import { PeopleListsSheet } from "../../people/rail/lists-sheet";
 import { PeopleRail } from "../../people/rail/people-rail";
-import { PeopleScopeTabs } from "../../people/rail/scope-tabs";
 import { PeopleStanding } from "../../people/rail/standing";
 import { PeopleTable, type TableSection } from "../../people/table/table";
 import { LeadBand } from "../bench/band";
@@ -105,12 +104,9 @@ const tableOf = (p: P, phone: boolean, sections: Sections) => (
 /** A phone's one bar stands over the scroller, as the Inbox's strip does: the rows scroll and bounce under it. */
 const phoneBarOf = (p: P) => (
   <LeadsPhoneBar
-    scope="leads"
-    onScope={p.onScope}
     mapOn={!!p.mapOpen}
     onMap={p.onMap}
     canMap={!!p.canMap}
-    dealsOn={!!p.dealsOn}
     listLabel={p.railLabel}
     listCount={p.railCount}
     onLists={p.onLists}
@@ -437,9 +433,8 @@ export const LeadsScope = (p: P) => {
   const railRows = railRowsOf(p, phone);
   return (
     <div className="clients leads-scope" data-loading={p.loading ? "1" : undefined}>
-      {/* The switch between the scopes, over the rail and the rows. At a phone's width both are the bar's: its first row
-          is the switch and its list button is the rail (the stylesheet hides .cl-rail at 900px anyway). */}
-      {!phone && <PeopleScopeTabs scope="leads" onScope={p.onScope} dealsOn={!!p.dealsOn} />}
+      {/* The switch between the scopes is the frame's strip of views, over this page (surfaces/people/chrome.ts). At a
+          phone's width the rail is the bar's list button (the stylesheet hides .cl-rail at 900px anyway). */}
       {!phone && (
         <PeopleRail scope="leads" active={null} onPick={NO_PICK}>
           {railRows}

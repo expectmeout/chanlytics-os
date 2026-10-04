@@ -8,20 +8,18 @@
 import {
   CONSENT_CHANNELS,
   DEFAULT_CAMPAIGN_CHANNELS,
-  OWN_VERSION_CHANNELS,
+  HELD_ON,
   VERSION_CHANNEL_WORDS,
   channelChoices,
   channelNeverCarries,
   heldWords,
+  previewVersionsOf,
   reachByWords,
   reachSplitWords,
   readyOrWhatsApp,
-  versionWords,
   type AskedPurpose,
   type ChannelsReady,
   type ConsentChannel,
-  type HeldOn,
-  type PreviewVersions,
   type ReachSplit,
 } from "@chanlytics/contracts";
 import { channelsOpenFor, openAmong } from "@/lib/campaign-channels";
@@ -71,28 +69,11 @@ export function cmChannelsOf(
 
 /**
  * A message's email and text versions as the words a preview draws, from the workspace's rows of its name and language
- * (contracts versionWords): a channel the message has no row on is left out. The surfaces stamp this on each template they
- * offer, beside `channels`, so the composers draw an email or a text as the person reads it.
+ * (contracts previewVersionsOf, which Ask's cards read the same rows through): a channel the message has no row on is left
+ * out. The surfaces stamp this on each template they offer, beside `channels`, so the composers draw an email or a text as the
+ * person reads it.
  */
-export function cmVersionsOf(
-  rows: readonly {
-    name: string;
-    channel: string;
-    language: string;
-    components?: unknown;
-    header?: string | null;
-    body_preview?: string | null;
-  }[],
-  name: string,
-  language: string,
-): PreviewVersions {
-  const out: PreviewVersions = {};
-  for (const channel of OWN_VERSION_CHANNELS) {
-    const row = rows.find((r) => r.channel === channel && r.name === name && r.language === language);
-    if (row) out[channel] = versionWords(row);
-  }
-  return out;
-}
+export const cmVersionsOf = previewVersionsOf;
 
 /** The business's postal address where its Business record holds one: what an email's foot names (contracts emailFoot). */
 export function cmAddressOf(brain: { profile?: { address?: string | null } | null } | null | undefined): string | null {
@@ -186,15 +167,12 @@ export function cmReachBy(split: ReachSplit | null | undefined, on: readonly Con
 /** A channel's colour on the split bar: the chart palette's, as Reports draws the channel. */
 export const cmChannelColour = (channel: ConsentChannel): string => RPT_CHANNEL_COLORS[channel];
 
-/** The reasons a person is held, as a count keeps them. */
-const CM_HELD_ON: readonly HeldOn[] = ["stopped", "unsubscribed", "no_yes", "no_number", "no_address", "no_channel"];
-
 /** Who is held and why, by reason, the most first: "7 · No email address on file, so nothing can be sent." */
 export function cmHeldLines(
   split: ReachSplit | null | undefined,
   purpose: AskedPurpose,
 ): { n: number; words: string }[] {
-  return CM_HELD_ON.flatMap((why) => {
+  return HELD_ON.flatMap((why) => {
     const n = split?.heldBy[why] ?? 0;
     return n > 0 ? [{ n, words: heldWords(why, purpose) }] : [];
   }).sort((a, b) => b.n - a.n);

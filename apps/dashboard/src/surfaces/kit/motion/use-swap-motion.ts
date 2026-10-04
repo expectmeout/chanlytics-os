@@ -1,5 +1,5 @@
 /**
- * A list that changes under one view (the Inbox's bucket, Conversations' channel) answers the press with a short rise
+ * A list that changes under one view (the Inbox's bucket, Conversations' channel, People's list) answers the press with a short rise
  * and fade of its rows, so the change reads as the same list answering and never as a page refreshing: the rows were
  * swapped between two frames, a hard cut (measured: no request, 10 to 110 ms to the new rows, nothing to say that the
  * list had heard). It is the web animations API on the list's own element, one run per change, cancelled by the next:
@@ -16,8 +16,8 @@ const RISE_MS = 180;
 const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 /** The ref for the list's element: its rows swap in with a rise whenever `key` changes after the first draw. */
-export function useSwapMotion(key: string) {
-  const list = useRef<HTMLDivElement | null>(null);
+export function useSwapMotion<T extends HTMLElement = HTMLDivElement>(key: string) {
+  const list = useRef<T | null>(null);
   const was = useRef(key);
   useEffect(() => {
     if (was.current === key) return;

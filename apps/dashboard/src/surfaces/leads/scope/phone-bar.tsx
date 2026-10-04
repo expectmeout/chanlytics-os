@@ -16,9 +16,6 @@ import { gate, leaving, touchSwipe } from "../../legacy-verbs";
 import { PeoplePhoneBar } from "../../people/rail/phone-bar";
 
 interface LeadsPhoneBarProps {
-  scope: string;
-  onScope: (to: string) => void;
-  dealsOn?: boolean;
   listLabel?: ReactNode;
   listCount?: number | string | null;
   onLists?: (() => void) | null;
@@ -71,9 +68,6 @@ function viewSwitch(mapOn: boolean, onMap: (on: boolean) => void) {
 }
 
 export const LeadsPhoneBar = ({
-  scope,
-  onScope,
-  dealsOn = false,
   listLabel,
   listCount = null,
   onLists,
@@ -92,9 +86,6 @@ export const LeadsPhoneBar = ({
 }: LeadsPhoneBarProps) => (
   <>
     <PeoplePhoneBar
-      scope={scope}
-      onScope={onScope}
-      dealsOn={dealsOn}
       listLabel={listLabel}
       listCount={listCount}
       onLists={onLists}

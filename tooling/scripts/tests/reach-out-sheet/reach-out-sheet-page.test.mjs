@@ -443,12 +443,13 @@ test("From: up to five domains picked, as the chain's schema allows, and said so
 test("a draft kept in the tab comes back as typed, but who it writes to is the door's", async () => {
   setup();
   verbs();
-  const keep = W.tabDraft;
+  // The tab's memory is where a kept draft lives (kit/record/work.tsx tabDraft reads it; the sheet imports the kit's own).
+  const keep = W.window.__tabMemory;
   const kept = {
     ...contracts.reachOutDraftOf({ chain: null, searchName: SEARCH.name, signedBy: "Sam" }),
     name: "Kept",
   };
-  W.tabDraft = () => kept;
+  W.window.__tabMemory = { draft: () => kept, keepDraft() {}, dropDraft() {} };
   try {
     const s = sheet({ includeUnconfirmed: true });
     await settle();
@@ -456,7 +457,7 @@ test("a draft kept in the tab comes back as typed, but who it writes to is the d
     assert.equal(byTestId(tree, "ro-name").props.value, "Kept");
     assert.match(textOf(byTestId(tree, "ro-reach")), /44 unconfirmed addresses, included/);
   } finally {
-    W.tabDraft = keep;
+    W.window.__tabMemory = keep;
   }
 });
 

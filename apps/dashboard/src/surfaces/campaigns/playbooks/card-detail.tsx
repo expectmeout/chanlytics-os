@@ -11,13 +11,15 @@ import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { PLAYBOOK_DELETE_WORDS, pipelineRoute, poolWords } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { pageClock } from "@/legacy-bridge/zone";
-import { confirmPart, policyChipPart, statePillPart } from "../../legacy-parts";
 import { canRestoreList, gate, navigate, restoreList } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
+import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu } from "../../kit/menu/menu";
 import type { MenuItem } from "../../kit/menu/menu";
+import { StatePill } from "../../kit/pill/state-pill";
+import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { useSurface } from "../../use-surface";
 import { bcWhenWords } from "../broadcasts/when-words";
 import { MessagePreview } from "../parts/message-preview";
@@ -473,7 +475,6 @@ function cardHistory(c: CardCtx) {
 /** A run waiting on a person: Approve, the card's one filled act, for every role (it says who may), and Skip, which asks. */
 function cardWaitActs(c: CardCtx) {
   const { p, canAct, busy, skipSure, setSkipSure, waiting, acts } = c;
-  const Confirm = confirmPart();
   if (!waiting) return null;
   if (canAct && skipSure) {
     return (
@@ -583,7 +584,6 @@ function cardOwnActs(c: CardCtx, phone = false) {
 /** Delete, asked: the one question, where the acts were. */
 function cardDeleteAsk(c: CardCtx) {
   const { p, canAct, busy, sure, setSure, acts } = c;
-  const Confirm = confirmPart();
   if (!canAct || !sure) return null;
   return (
     <Confirm
@@ -651,8 +651,6 @@ export function PlaybookPane({ p, canAct, onEdit, flash, onClose }: PaneProps) {
   const c = useCard({ p, canAct, onEdit, flash });
   const phone = useCmPhone();
   const { status, reachWords, waiting } = c;
-  const StatePill = statePillPart();
-  const PolicyChip = policyChipPart();
   const asking = cardDeleteAsk(c);
   const foot = asking ? (
     <div className="pb-pane-foot">{asking}</div>

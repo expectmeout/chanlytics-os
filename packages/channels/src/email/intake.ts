@@ -86,6 +86,12 @@ export interface ReceivedEmail {
   html: string | null;
   /** Lower-cased names; a header that repeats keeps its first value. */
   headers: Record<string, string>;
+  /**
+   * Every Authentication-Results header the provider listed, in the order it listed them: the one place a repeated header
+   * keeps all its values (`headers` keeps the first), because which of them the receiving side wrote is decided by the
+   * name each carries (`senderAuthenticated`), never by where it sits. Absent reads as none.
+   */
+  authResults?: string[];
   messageId: string | null;
   createdAt: string | null;
   attachments: Array<{ filename: string | null; contentType: string | null; size: number | null }>;
@@ -99,6 +105,18 @@ function headersOf(v: unknown): Record<string, string> {
   if (Array.isArray(v)) for (const h of v) put((h as { name?: unknown })?.name, (h as { value?: unknown })?.value);
   else if (v && typeof v === "object")
     for (const [k, val] of Object.entries(v)) put(k, Array.isArray(val) ? val[0] : val);
+  return out;
+}
+
+/** Every value of one header (by its lower-cased name), in the order listed, where `headersOf` keeps the first. */
+function allValuesOf(v: unknown, name: string): string[] {
+  const out: string[] = [];
+  const take = (k: unknown, val: unknown) => {
+    if (typeof k !== "string" || k.toLowerCase() !== name) return;
+    for (const x of Array.isArray(val) ? val : [val]) if (typeof x === "string") out.push(x);
+  };
+  if (Array.isArray(v)) for (const h of v) take((h as { name?: unknown })?.name, (h as { value?: unknown })?.value);
+  else if (v && typeof v === "object") for (const [k, val] of Object.entries(v)) take(k, val);
   return out;
 }
 
@@ -117,6 +135,7 @@ export function receivedEmailFrom(body: unknown): ReceivedEmail | null {
     text: str(b.text),
     html: str(b.html),
     headers,
+    authResults: allValuesOf(b.headers, "authentication-results"),
     messageId: messageIdHeader(str(b.message_id) ?? headers["message-id"]),
     createdAt: str(b.created_at),
     attachments: (Array.isArray(b.attachments) ? b.attachments : []).map((a) => {
@@ -164,18 +183,31 @@ interface AuthResult {
 }
 
 /**
- * The results an Authentication-Results header carries, lower-cased: its authserv-id is skipped, quoted strings and
- * comments are dropped (they are where a sender's own words reach a receiver's header, and they decide nothing), and each
- * `;`-separated clause is read as `method=result` and the first value of each property it names.
+ * A header's words as the rest of this file reads them: lower-cased, with quoted strings and comments dropped (they are
+ * where a sender's own words reach a receiver's header, and they decide nothing).
  */
-function authResultsOf(header: string): AuthResult[] {
+function withoutComments(header: string): string {
   let said = header.toLowerCase().replace(/"[^"]*"/g, '""');
   // Comments nest in RFC 5322: drop the innermost until none is left.
   for (let before = ""; before !== said;) {
     before = said;
     said = said.replace(/\([^()]*\)/g, " ");
   }
-  return said
+  return said;
+}
+
+/** The name that opens an Authentication-Results header, lower-cased: the server that wrote it (its optional version after it is left). */
+function authservIdOf(header: string): string {
+  return withoutComments(header).split(";")[0]?.trim().split(/\s+/)[0] ?? "";
+}
+
+/**
+ * The results an Authentication-Results header carries, lower-cased: its authserv-id is skipped (`senderAuthenticated` has
+ * already judged whose it is), and each `;`-separated clause is read as `method=result` and the first value of each property
+ * it names.
+ */
+function authResultsOf(header: string): AuthResult[] {
+  return withoutComments(header)
     .split(";")
     .slice(1)
     .flatMap((clause) => {
@@ -206,15 +238,25 @@ const domainOf = (identity: string | undefined): string | null => {
  * FAILS CLOSED, which is the point: a yes to offers widens what may be sent, and a From line is one anyone can write, so
  * a header this cannot read as a proof is not one. A no (STOP, UNSUBSCRIBE) never asks it, since a no only narrows.
  *
- * Only the header's first value is read (a repeated header keeps its first, headersOf): the receiving side writes its own
- * at the top, above anything the sender sent with the mail. Which party wrote it is not checked here: the header is
- * evidence only so far as the provider's own mail server is the one that did (RFC 8601, on the trust boundary), which is what the
- * provider's receiving of mail is believed to be, and what must be seen on a real received email before it is relied on.
+ * Which party wrote a header is decided by its authserv-id, the name that opens it (RFC 8601, on the trust boundary): the
+ * header is evidence only so far as the provider's own receiving side is the one that wrote it, and a sender can put any
+ * Authentication-Results line it likes into its own mail, with any name and in any place among the headers. So only a header
+ * that names `authservId`, the name the provider's receiving side writes (configuration: EMAIL_AUTHSERV_ID, to be read off a
+ * real received email), is read at all. With none given, nothing is proof: no yes by email is recorded until it is. And
+ * exactly one such header is believed: the provider writes its own once, so a second that carries its name is somebody's
+ * copy of it, and a mail with two is read as proving nothing rather than as whichever sits on top.
  */
-export function senderAuthenticated(e: Pick<ReceivedEmail, "headers" | "from">): boolean {
+export function senderAuthenticated(
+  e: Pick<ReceivedEmail, "from" | "authResults">,
+  authservId: string | null,
+): boolean {
+  const expected = authservId?.trim().toLowerCase();
+  if (!expected) return false;
   const from = domainOf(e.from?.address.toLowerCase());
   if (!from) return false;
-  const results = authResultsOf(e.headers["authentication-results"] ?? "");
+  const own = (e.authResults ?? []).filter((h) => authservIdOf(h) === expected);
+  if (own.length !== 1) return false;
+  const results = authResultsOf(own[0] ?? "");
   const dmarc = results.filter((r) => r.method === "dmarc");
   if (dmarc.some((r) => r.result === "fail")) return false;
   const alignedDmarc = dmarc.some((r) => r.result === "pass" && domainOf(r.props.get("header.from")) === from);

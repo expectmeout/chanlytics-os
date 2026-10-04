@@ -38,7 +38,7 @@ corepack pnpm -r typecheck
 corepack pnpm lint                            # ESLint, warnings held per file and rule; -- --update banks a fall, -- --raise a rise
 corepack pnpm format                          # Prettier over the tree; the pre-commit hook does this for staged files
 corepack pnpm test                            # the node suite, in UTC (~20 min; run the files a change touches instead, one per command: node tooling/scripts/checks/test.mjs <file>), and what it ran of the code held at a floor; database suites skip without credentials
-TEST_TZ=Pacific/Auckland corepack pnpm test   # the same suite with the clock twelve hours east: CI's second leg (PowerShell: $env:TEST_TZ='Pacific/Auckland'). CI runs both legs only on a pull request labelled `suite`, or by hand (Ruben, 1 Oct 2026)
+TEST_TZ=Pacific/Auckland corepack pnpm test   # the same suite with the clock twelve hours east: CI's second leg (PowerShell: $env:TEST_TZ='Pacific/Auckland'). CI runs both legs only on a pull request labelled `suite`, or by hand (Ruben, 1 Oct 2026); every other pull request runs the tests of what it changed (tooling/scripts/checks/changed-tests.mjs), and the nightly the whole suite
 UPDATE_BASELINES=1 corepack pnpm test         # the same, banking every ratchet's reduction, and nothing else (docs/debt.md)
 UPDATE_BASELINES=raise corepack pnpm test     # the same, raising a number that rose: argued under "Rises" in docs/debt.md
 corepack pnpm check:dead-exports              # knip against a baseline that may only fall; -- --update banks a fall, -- --raise a rise

@@ -102,8 +102,6 @@ const lower = (channel: string): string => channel.toLowerCase();
 export const TPL_VERSION_WORDS = {
   /** The switch's name to a screen reader. */
   switchName: (title: string): string => `Channel for ${title}`,
-  /** A marketing message has no text version and cannot have one: texts carry no offers. */
-  noOffersByText: "Texts carry no offers.",
   /** The message has no version on this channel in the language in view. */
   none: (channel: string, language: string): string => `No ${lower(channel)} version in ${language} yet.`,
   write: (channel: string): string => `Write the ${lower(channel)} version`,

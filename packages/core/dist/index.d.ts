@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ResendConfig, EmailSendsAs, WaConfig, EmailRequest, ResendLimit, SendResult, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, ParamSpec, Audience, PersonRowVM, ListRef, ChannelsReady, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, ConsentChannel, CampaignHow, AskedPurpose, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, ParamSpec, Audience, PersonRowVM, ListRef, ChannelsReady, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, ConsentChannel, CampaignHow, AskedPurpose, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
 export { DeliveryRefusal } from '@chanlytics/contracts';
 import { Json, Database, RoutedChannel, LeadContext, IngestResult } from '@chanlytics/db';
 
@@ -177,6 +177,11 @@ interface WirePayload {
      * that domain's route when the route still holds it, and as `email` on the mailbox otherwise (N5).
      */
     ownEmail?: EmailRequest;
+    /**
+     * The most the wire may take to answer, in ms, from the moment the send is put on it (Delivery.sendBy, worked out at the
+     * wire). The email wire bounds its tries by it (channels sendEmail); absent, by its own deadline alone.
+     */
+    deadlineMs?: number;
 }
 /** How to put words on one channel's wire. Owns its own address format. */
 type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
@@ -201,6 +206,12 @@ interface Delivery {
     purpose: SendPurpose;
     /** True when this send starts a conversation rather than answering one. */
     proactive: boolean;
+    /**
+     * What the message is about (contracts MessageAbout, decision D1): theirs (a visit they booked, their proposal, the
+     * call they are on, a thread they wrote in) or ours (a broadcast, a moment's news). By email, ours asks for a yes
+     * covering email or a relationship on record; theirs asks no yes. Required: a sender says which.
+     */
+    about: MessageAbout;
     body: string;
     template?: TemplateSend;
     /** The frozen request, on the email wire (WirePayload.email). */
@@ -230,6 +241,13 @@ interface Delivery {
      * NotTakenError before anything is written, and the row stays queued. Without it, it fails as any refusal does.
      */
     holdIfNotTaken?: boolean;
+    /**
+     * Epoch ms: the latest moment the provider's answer may still be waited for. A caller that runs inside a function with
+     * a ceiling (a broadcast's batch: jobs sendByAt) says when the send must be over by, so one started late is bounded by
+     * what is left rather than by the wire's own deadline, which is longer than the time a late start has. An email that
+     * runs out of it settles as `failed` with an unknown outcome (the provider may have taken it), as any timeout does.
+     */
+    sendBy?: number;
 }
 type Delivered = {
     outcome: "sent";
@@ -777,6 +795,11 @@ interface RecipientRow {
     facts: unknown;
     /** The channel the run picked for them at enrolment (contracts reachFor); null or absent on a run made before: WhatsApp. */
     channel?: string | null;
+    /**
+     * How many times this person was claimed and given back (00301: the guard adds one on every release): what a broadcast's
+     * email to them is named by. Absent from the read of a database that has not reached that migration.
+     */
+    attempt?: number;
 }
 interface ContactRow {
     id: string;
@@ -930,6 +953,23 @@ interface BroadcastBatchPorts {
      * A number that is ABSENT is not this port's to say: the door answers that per person, as it always did.
      */
     wireUnavailable(channel: Channel): Promise<string | null>;
+    /**
+     * Why an OFFER by email cannot leave from this runtime right now though the deployment is meant to send them (it names
+     * a campaigns domain, and the mail provider says the domain is not verified for sending), or null when it can, and for a
+     * deployment that names none (an offer is then held person by person at enrolment and the door, as it always was).
+     * Asked BEFORE anyone is claimed, for a run whose message is an offer and whose batch has anyone going by email: the
+     * run stops with the reason said, rather than skip each of them as having no channel, a skip that is final. A domain
+     * that could not be read at all is not this port's: that is the email wire not bound (`wireUnavailable`), and the run waits.
+     */
+    offersClosed(): Promise<string | null>;
+    /**
+     * Why it cannot yet be known whether an OFFER by email may leave: the deployment names a campaigns domain and the mail
+     * provider could not be asked about it (a failed or slow read), or null. Asked where offersClosed is, before anyone is
+     * claimed: the run waits a minute and asks again (a stall), as a wire that could not be bound does. Only an offer asks
+     * it: a visit's email leaves from the mail domain, which is not in question, so a domain that could not be read holds
+     * no reminder back.
+     */
+    offersUnread(): Promise<string | null>;
     /** The platform's own pager, for a wire that could not be bound: said once per six hours by the pager's own quiet. */
     page?(key: string, subject: string, body: string): Promise<unknown>;
     /** How many are still queued; throws when it cannot be counted. */
@@ -1720,7 +1760,9 @@ interface BroadcastReceipt {
  * over them (message-channels.ts readyForMessage). Refuses nothing: a playbook keeps a tick that cannot send yet, and
  * Ask counts a proposal by it.
  */
-declare function campaignHow(ports: Pick<CreateBroadcastPorts, "channels" | "versions">, tpl: Pick<TemplateRow, "name" | "language">, channels: ConsentChannel[]): Promise<{
+declare function campaignHow(ports: Pick<CreateBroadcastPorts, "channels" | "versions">, tpl: Pick<TemplateRow, "name" | "language">, channels: ConsentChannel[], 
+/** What the message is about: a broadcast's is ours, a visit or proposal moment's theirs (contracts MessageAbout). */
+about: MessageAbout): Promise<{
     how: CampaignHow;
     health: NumberHealth | null;
 }>;
@@ -2556,8 +2598,8 @@ declare function identityOf(p: CleanPlace, held: Map<string, string>, suppressed
  * spread. Distance is haversine, in metres, deterministic. No other gazetteer
  * is bundled.
  *
- * zcta-centroids.json is written by tooling/scripts/gen/zcta-centroids.mjs
- * from the Census 2020 gazetteer: [zip, lat, lng] triples sorted by zip.
+ * zcta-centroids.generated.ts is written by tooling/scripts/gen/zcta-centroids.mjs
+ * from the Census 2020 gazetteer: one zip,lat,lng row a line, sorted by zip.
  */
 
 interface LatLng {

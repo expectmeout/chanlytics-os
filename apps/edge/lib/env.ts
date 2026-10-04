@@ -131,6 +131,15 @@ export const env = {
   get EMAIL_CAMPAIGNS_DOMAIN() {
     return trimmedEnv(process.env.EMAIL_CAMPAIGNS_DOMAIN);
   },
+  /**
+   * The name Resend's receiving side writes at the start of the Authentication-Results header it adds to every email it
+   * hands over (RFC 8601's authserv-id), read off a real received email. A yes by email is recorded only when the header
+   * that proves the sender carries this name, so a header a sender wrote into its own mail proves nothing. Blank: no yes
+   * by email is recorded at all (the check fails closed); a no (STOP, UNSUBSCRIBE) never asks it.
+   */
+  get EMAIL_AUTHSERV_ID() {
+    return trimmedEnv(process.env.EMAIL_AUTHSERV_ID);
+  },
   get RESEND_WEBHOOK_SECRET() {
     return trimmedEnv(process.env.RESEND_WEBHOOK_SECRET);
   },
@@ -201,7 +210,10 @@ export const env = {
   get ELEVENLABS_API_KEY() {
     return trimmedEnv(process.env.ELEVENLABS_API_KEY);
   },
-  /** The one voice agent, provisioned from code (tooling/scripts/voice/elevenlabs-agent.mjs). */
+  /**
+   * The voice agent this edge mints conversations on, provisioned from code (tooling/scripts/voice/elevenlabs-agent.mjs):
+   * production's (`chanlytics-ask`) on production, a laptop's (`chanlytics-ask-dev`, pointed at a tunnel) elsewhere.
+   */
   get ELEVENLABS_AGENT_ID() {
     return trimmedEnv(process.env.ELEVENLABS_AGENT_ID);
   },

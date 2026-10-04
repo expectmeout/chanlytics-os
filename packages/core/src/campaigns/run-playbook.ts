@@ -8,6 +8,7 @@ import {
   playbookRunReach,
   playbookStopBy,
   enrolPurpose,
+  messageAboutOfTrigger,
   proposalFactsFor,
   triggerOf,
   triggerOffered,
@@ -279,7 +280,12 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   // The channels as this message can go by them: the workspace's, with the message's own versions in them (WhatsApp's
   // only while Meta approves its template). The run never fails over one: the people a channel cannot carry are held
   // (`no_channel`), and the rest go on their own versions.
-  const how: CampaignHow = { channels, ready: readyForMessage(ctx.ready, versionsHeld(message.own, message.approved)) };
+  const how: CampaignHow = {
+    channels,
+    ready: readyForMessage(ctx.ready, versionsHeld(message.own, message.approved)),
+    // A visit's or a follow-up's message is theirs; any other moment's, the business's news (decision D1).
+    about: messageAboutOfTrigger(p.trigger),
+  };
   const { eligible, reach, channelOf, dropped } = draw(run, message.row, how, gate.listIds);
   // A template Meta does not approve holds WhatsApp's people alone: none is drawn on it, and the purpose stays the
   // message's own category. A run that ticks WhatsApp and has nobody on email or text stops on it, as it always did.

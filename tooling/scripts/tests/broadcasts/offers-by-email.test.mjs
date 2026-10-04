@@ -18,6 +18,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { sendsAs, sendsAsCampaigns, verifyUnsubscribeToken } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
+import { middayZone } from "../shared/_midday-zone.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = (pkg) => pathToFileURL(path.join(here, `../../../../packages/${pkg}/dist/index.js`)).href;
@@ -110,7 +111,8 @@ const world = ({ contacts, address = "12 Main St, Springfield", mailbox = MAILBO
       failure: null,
     },
   ],
-  tenants: [{ id: TID, name: "Marisa's Salon", status: "active", timezone: "UTC" }],
+  // The batch asks the day's sending hours on the machine's clock: this workspace's noon is now, whenever the suite runs.
+  tenants: [{ id: TID, name: "Marisa's Salon", status: "active", timezone: middayZone() }],
   tenant_config: [
     {
       tenant_id: TID,
@@ -372,27 +374,149 @@ test("offers wait on the deployment and the workspace: no campaigns lane, or off
   assert.equal(wp.posted.length, 0);
 });
 
-test("a visit's message in the same workspace keeps the reply domain, its own foot and no unsubscribe", async () => {
-  const t = world({
-    contacts: [customer(1, { has_relationship: false, email_marketing: null })],
-    templates: [
-      template("whatsapp", { category: "utility" }),
-      template("email", {
-        category: "utility",
-        source: "chanlytics",
-        components: [
-          { type: "HEADER", format: "TEXT", text: "Your visit, {{1}}" },
-          { type: "BODY", text: "Hi {{1}}, see you tomorrow." },
-        ],
-      }),
-    ],
+test("where the deployment names a campaigns domain the provider does not verify, the run stops with that said and nobody is held; where the provider could not be asked, the run waits and nobody is held", async () => {
+  const attempt = async (t, bind) => {
+    const w = context(t, { lane: null });
+    const news = [];
+    const later = [];
+    w.ctx.alert = async (n) => news.push(n);
+    w.ctx.schedule = async (kind, dueAt, payload) => later.push({ kind, dueAt, payload });
+    bind(w.ctx);
+    try {
+      await dispatchJob(w.ctx, JOB);
+    } finally {
+      w.restore();
+    }
+    return { w, news, later };
+  };
+  // Closed: named, and the provider says it is not verified. Every offer by email was held no_channel, for good; now the
+  // person stays queued, the broadcast fails by a name of its own, and the owner is told the cause is not their mailbox.
+  const closed = world({ contacts: [customer(1), customer(2)] });
+  const stopped = await attempt(closed, (ctx) => {
+    ctx.email = {
+      domain: MAIL,
+      campaignsClosed: "the campaigns domain campaigns.example.com is not verified for sending",
+    };
   });
+  assert.deepEqual(outcomes(closed), [
+    ["1", "queued", null],
+    ["2", "queued", null],
+  ]);
+  assert.deepEqual(
+    [closed.broadcasts[0].state, closed.broadcasts[0].failure],
+    ["failed", "campaigns_domain_unverified"],
+  );
+  assert.equal(stopped.w.posted.length, 0, "nothing left from any domain");
+  assert.equal(stopped.later.length, 0, "stopped, not waiting");
+  assert.match(
+    stopped.news[0].body,
+    /is not verified with the mail provider right now.*Nothing is wrong with your mailbox/,
+  );
+  // The same words a page gives the owner afterwards.
+  const { broadcastFailureWords } = await import("@chanlytics/contracts");
+  assert.match(broadcastFailureWords(closed.broadcasts[0].failure), /not verified with the mail provider/);
+  // Unread: the provider could not be asked. The email wire is bound as ever, and the intake says the domain could not be
+  // checked (core offersUnread): a run of offers waits a minute and asks again, nobody claimed.
+  const UNREAD = "the campaigns domain campaigns.example.com could not be checked";
+  const unread = world({ contacts: [customer(1)] });
+  const waiting = await attempt(unread, (ctx) => {
+    ctx.email = { domain: MAIL, campaignsUnread: UNREAD };
+  });
+  assert.deepEqual(outcomes(unread), [["1", "queued", null]], "not held: nobody was claimed");
+  assert.equal(unread.broadcasts[0].state, "sending", "begun, and waiting, not failed");
+  assert.deepEqual(
+    waiting.later.map((l) => [l.kind, l.payload]),
+    [["broadcast_send", { broadcast_id: "b1", stalls: 1 }]],
+    "the next batch is a stall away, carrying the count",
+  );
+  assert.equal(waiting.w.posted.length, 0);
+  assert.deepEqual(waiting.news, [], "and nobody is told yet");
+  // A visit's email in the same minute goes: it leaves from the mail domain, which is not in question. Binding the whole
+  // email wire unavailable for an unread campaigns domain held it too, for half an hour, by which time it said "tomorrow".
+  const ana = customer(1, { has_relationship: false, email_marketing: null });
+  const visit = asVisitRun(
+    world({
+      contacts: [ana],
+      templates: UTILITY,
+      broadcast_recipients: [{ ...recipient(ana.id), facts: { visit_when: "tomorrow at 2:00 PM" } }],
+    }),
+  );
+  const reminded = await attempt(visit, (ctx) => {
+    ctx.email = { domain: MAIL, campaignsUnread: UNREAD };
+  });
+  assert.deepEqual(outcomes(visit), [["1", "sent", null]]);
+  assert.equal(reminded.w.posted.length, 1);
+});
+
+/** A world's run made a visit's: its audience names the moment, as run-playbook writes it (the send reads it there). */
+const asVisitRun = (w) => {
+  w.broadcasts[0] = {
+    ...w.broadcasts[0],
+    playbook_id: "p1",
+    audience: { kind: "playbook", id: "p1", label: "Visit reminder", trigger: "visit_tomorrow" },
+  };
+  return w;
+};
+
+/** A message in the same workspace that is no offer: Meta files it as a utility, with its email version beside it. */
+const UTILITY = [
+  template("whatsapp", { category: "utility" }),
+  template("email", {
+    category: "utility",
+    source: "chanlytics",
+    components: [
+      { type: "HEADER", format: "TEXT", text: "Your visit, {{1}}" },
+      { type: "BODY", text: "Hi {{1}}, see you tomorrow." },
+    ],
+  }),
+];
+
+test("a visit's message in the same workspace keeps the reply domain, its own foot and no unsubscribe", async () => {
+  // A visit's run keeps the visit it was made for on each person's recipient row (visitFactsFor): it is about their own visit,
+  // which by email asks an address and no yes, even of someone with no relationship on record (decision D1).
+  const ana = customer(1, { has_relationship: false, email_marketing: null });
+  const t = asVisitRun(
+    world({
+      contacts: [ana],
+      templates: UTILITY,
+      broadcast_recipients: [{ ...recipient(ana.id), facts: { visit_when: "tomorrow at 2:00 PM" } }],
+    }),
+  );
   const w = await run(t);
   assert.deepEqual(outcomes(t), [["1", "sent", null]]);
   const [{ body }] = w.posted;
   assert.equal(body.from, `"Marisa's Salon" <marisas@${MAIL}>`, "Visit emails keep today's domain");
   assert.ok(!("List-Unsubscribe" in body.headers));
   assert.match(body.text, /Reply STOP to stop these emails\.$|Reply STOP to stop these emails\.\n/);
+});
+
+test("the business's own news by email, though its message is a utility (decision D1): it goes to a relationship or a yes covering email and holds an address alone and an unsubscribe, with no unsubscribe link of its own", async () => {
+  // The same message, sent as a broadcast: the run kept no visit or proposal for anyone, so it is the business's news.
+  const t = world({
+    contacts: [
+      customer(1, { has_relationship: false, email_marketing: null }), // an address and a yes for WhatsApp and text: held
+      customer(2), // wrote to the business: goes
+      customer(3, { has_relationship: false, consent_channels: ["whatsapp", "sms", "email"] }), // a yes covering email: goes
+      customer(4, { email_marketing: "opted_out" }), // pressed Unsubscribe, though a customer: held
+    ],
+    templates: UTILITY,
+  });
+  const w = await run(t);
+  assert.deepEqual(outcomes(t), [
+    ["1", "skipped", "not_opted_in"],
+    ["2", "sent", null],
+    ["3", "sent", null],
+    ["4", "skipped", "unsubscribed"],
+  ]);
+  assert.equal(w.posted.length, 2, "the provider is asked only for the two it may reach");
+  for (const { body } of w.posted) {
+    assert.equal(
+      body.from,
+      `"Marisa's Salon" <marisas@${MAIL}>`,
+      "it is no offer: the reply domain, not the campaigns one",
+    );
+    assert.ok(!("List-Unsubscribe" in body.headers), "and carries no offer's unsubscribe");
+  }
 });
 
 test("a database that has not been given 00299 sends no offer on a relationship alone, and the person who asked still gets theirs", async () => {

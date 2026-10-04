@@ -1709,6 +1709,8 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 }
 :where([data-look="glass"]) .dash-a-v2 .tb .tb-listen > svg { fill: currentColor; }
 :where([data-look="glass"]) .tb-listen-len { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0; color: var(--ink-dim); }
+/* Why the voice could not be had, said once beside Listen in the server's words; nothing else speaks. */
+:where([data-look="glass"]) .tb-why { font-size: var(--text-xs); color: var(--ink-dim); min-width: 0; }
 :where([data-look="glass"]) .dash-a-v2 .tb-foot > .tb-follow {
   height: 34px;
   padding: 0 10px;

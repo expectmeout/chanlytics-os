@@ -39,9 +39,25 @@ interface SurfaceAct {
   testid?: string;
 }
 
+/**
+ * The views of one page, which the frame draws as its strip of views (SurfaceTabs, the Inbox's Needs you / Conversations /
+ * Live): the page says which there are and which is picked, and the frame draws and moves them, so a page's views are
+ * drawn once, in one place, whichever page it is. `name` is the strip's class (`stabs-<name>`), `label` its name to a
+ * screen reader, and a tab's `to` the route it moves to.
+ */
+export interface SurfaceViews {
+  name: string;
+  label: string;
+  testid?: string;
+  picked: string;
+  tabs: readonly { id: string; label: string; to: string; testid?: string }[];
+}
+
 /** What the frame draws around a route's page. */
 interface SurfaceChrome {
   crumbs: readonly Crumb[];
+  /** The page's views, where it has more than one: drawn by the frame's strip of views, not by the page. */
+  views?: SurfaceViews | null;
   /** What the view is mounted under, where the page follows its address itself: absent, the route's own key. */
   mount?: string;
   act?: SurfaceAct | null;
