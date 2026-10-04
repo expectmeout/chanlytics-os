@@ -286,8 +286,11 @@ deployment's profile (Opus 5.5 by default, low effort); the gate re-runs with sp
 > - **One voice at a time**, held where the two pipes are composed (`legacy-bridge/ask.ts`): a clip ends the
 >   conversation it would talk over (an open microphone would hear the brief and the agent answer it), and a
 >   conversation ends the clip.
-> - **The mic says what it is doing:** Connecting (a tap cancels), then End; the Line's Read aloud says it is getting
->   the voice, then Stop. Typing ends the conversation as before, and now says so (`typed`).
+> - **The mic says what it is doing:** Connecting (a tap cancels), then up: a ring breathes out of the coral button
+>   while the agent listens and quicker while it speaks, and its words say "Listening — tap to end" or "Ask is
+>   speaking — tap to end" (Ruben, 4 Oct: a still coral button read as switched off, and a second tap ended the
+>   call); the Line's Read aloud says it is getting the voice, then Stop. Typing ends the conversation as before, and
+>   now says so (`typed`).
 > - **A question spoken is answered aloud** (Ruben, 4 Oct, the vision's (b)): a question the recogniser heard (the mic
 >   held, a Space held, a phone's three held) marks its turn, and when that turn's answer lands the Line reads the
 >   answer's words through the one-way speech by itself, as a press on Read aloud would; a typed question stays quiet,

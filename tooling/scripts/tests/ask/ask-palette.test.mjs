@@ -2390,6 +2390,16 @@ test("where Ask can talk, a press on the mic waits the beat: a lift inside it is
     assert.equal(started.length, 1, "a tap talks with Ask");
     assert.equal(started[0].input.ask, undefined, "with no first question of its own");
     assert.ok(byTestId(tree, "ask-voice"), "and the one button is the conversation's end");
+    // Up, the button says what the agent is doing and the way out, and draws it (data-state): a still button read as off.
+    const t = globalThis.window.askText("en");
+    let end = byTestId(tree, "ask-voice");
+    assert.equal(end.props["data-state"], "listening", "up: the agent listens");
+    assert.equal(end.props["aria-label"], t.voiceListening, "and the button says so, with the way out");
+    started[0].on({ t: "mode", mode: "speaking" });
+    tree = await later(Palette, OPEN);
+    end = byTestId(tree, "ask-voice");
+    assert.equal(end.props["data-state"], "speaking", "the agent speaks");
+    assert.equal(end.props["aria-label"], t.voiceSpeaking);
     await wait(340);
     assert.equal(recs.length, 0, "and the beat, cleared by the lift, never fires");
     started[0].on({ t: "gone", reason: "agent" });

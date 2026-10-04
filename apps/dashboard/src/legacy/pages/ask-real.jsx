@@ -739,7 +739,7 @@ const arLineEnd = (ln) => {
   const hasWords = !!query.trim();
   // End while a conversation runs (Connecting until the agent is up); else Stop while a turn runs; else the mic.
   const role = voice.on ? "voice" : live ? "stop" : talk.listening || (!hasWords && (talk.canTalk || voice.can)) ? "talk" : "send";
-  const voiceWord = voice.connecting ? t.voiceConnecting : t.voiceStop;
+  const voiceWord = voice.connecting ? t.voiceConnecting : voice.mode === "speaking" ? t.voiceSpeaking : t.voiceListening; // up, the button says what the agent is doing and the way out
   const one = role === "voice"
     ? { className: `ask-send talk on${voice.connecting ? " connecting" : ""}`, onClick: pressed(() => voice.stop("button")), "aria-pressed": true, "aria-busy": voice.connecting || undefined, "aria-label": voiceWord, title: voiceWord, "data-testid": "ask-voice", "data-state": voice.connecting ? "connecting" : voice.mode, icon: "mic" }
     : role === "stop"
