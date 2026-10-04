@@ -124,11 +124,6 @@ const T = {
   },
 } as const;
 
-/** One of the questions' words by its key, in the language asked: what Today's Listen asks Ask in its own voice ("brief"). */
-export function askQuestionWords(key: keyof (typeof T)["en"], language: AskLanguage): string {
-  return (language === "es" ? T.es : T.en)[key];
-}
-
 /**
  * Each page's own questions, after those the workspace's state asks for (who needs you, a held draft, a call, the
  * openings): the key of each question's words and its icon, in the order offered. Leads' own are its ideas and its

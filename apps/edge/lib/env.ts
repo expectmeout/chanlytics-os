@@ -210,7 +210,10 @@ export const env = {
   get ELEVENLABS_API_KEY() {
     return trimmedEnv(process.env.ELEVENLABS_API_KEY);
   },
-  /** The one voice agent, provisioned from code (tooling/scripts/voice/elevenlabs-agent.mjs). */
+  /**
+   * The voice agent this edge mints conversations on, provisioned from code (tooling/scripts/voice/elevenlabs-agent.mjs):
+   * production's (`chanlytics-ask`) on production, a laptop's (`chanlytics-ask-dev`, pointed at a tunnel) elsewhere.
+   */
   get ELEVENLABS_AGENT_ID() {
     return trimmedEnv(process.env.ELEVENLABS_AGENT_ID);
   },

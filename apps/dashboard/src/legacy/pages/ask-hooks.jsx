@@ -88,17 +88,22 @@ const useAskFocus = (ref, when, deps) => {
 
 // Reading an answer aloud: one at a time, a toggle per answer, stopped when
 // the palette closes. The browser's own synthesis; nothing leaves the device.
+// Reading aloud in Ask's voice (legacy-bridge/ask/speech.ts): the bridge holds what is happening (idle, loading,
+// speaking) and tells every watcher, so the Line reads it rather than keeping a copy, and a Stop from anywhere (the
+// Line closing, a question asked, Today's own button) is seen here. `toggle` reads, or stops what is read or awaited;
+// it answers a promise of why it could not (the server's words; "" where it gave none) or null. `speakingId` and
+// `loading` name the one thing the Line reads, "line", while it is read or awaited, as the mood and the acts read them.
 const useAskSpeech = (A) => {
-  const [speakingId, setSpeakingId] = useAhState(null);
-  const stop = () => { if (A) A.stopSpeaking(); setSpeakingId(null); };
-  const toggle = (id, text, lang) => {
-    if (!A) return false;
-    if (speakingId === id) { stop(); return true; }
-    const ok = A.speak(text, lang, () => setSpeakingId((cur) => (cur === id ? null : cur)));
-    setSpeakingId(ok ? id : null);
-    return ok;
+  const [, setTick] = useAhState(0);
+  useAhEffect(() => (A && A.watchSpeech ? A.watchSpeech(() => setTick((n) => n + 1)) : undefined), [A, setTick]);
+  const state = A && A.state ? A.state() : "idle";
+  const stop = () => { if (A && A.stopSpeaking) A.stopSpeaking(); };
+  const toggle = async (text, purpose = "answer") => {
+    if (!A || !A.speak) return null;
+    if (A.state && A.state() !== "idle") { stop(); return null; }
+    try { await A.speak(text, purpose); return null; } catch (e) { return (e && e.message) || ""; }
   };
-  return { canSpeak: !!(A && A.canSpeak()), speakingId, toggle, stop };
+  return { canSpeak: !!(A && A.canSpeak && A.canSpeak()), speakingId: state === "speaking" ? "line" : null, loading: state === "loading" ? "line" : null, toggle, stop };
 };
 
 // A phone's thread (docs/superpowers/specs/2026-09-27-ask-chat-on-a-phone-design.md): the newest question stands at
@@ -252,22 +257,26 @@ const ahSlide = (from, stage, hero) => {
 const AH_VOICE_LEVEL_MS = 50;
 const useAskVoice = ({ A, M, hear }) => {
   const [on, setOn] = useAhState(false);
+  // Connecting: the tap has landed and the agent is not up yet; the button says so, and a tap meanwhile ends it.
+  const [connecting, setConnecting] = useAhState(false);
   const [mode, setMode] = useAhState("listening");
   const threadRef = useAhRef(null);
   const hearRef = useAhRef(hear);
   hearRef.current = hear;
   const can = !!(A && A.canVoice && A.canVoice());
-  const rest = () => { setOn(false); setMode("listening"); threadRef.current = null; };
+  const rest = () => { setOn(false); setConnecting(false); setMode("listening"); threadRef.current = null; };
   // The end: the Line is told first (the conversation's end comes back as "gone" through the same hearing, with the
   // thread still known, so the stored turn is read), and the thread forgotten after.
-  const stop = async () => {
+  // The end, with the person's reason (voice.ts: `button` End pressed, `typed`, `navigated` the Line closing), which
+  // the row keeps (00300).
+  const stop = async (reason = "button") => {
     setOn(false); setMode("listening");
-    if (A && A.stopVoice) await A.stopVoice();
+    if (A && A.stopVoice) await A.stopVoice(reason);
     threadRef.current = null;
   };
   const start = async (input) => {
     if (!can) return null;
-    setOn(true); setMode("listening");
+    setOn(true); setConnecting(true); setMode("listening");
     try {
       const got = await A.startVoice(input, (a) => {
         if (a.t === "mode") setMode(a.mode);
@@ -277,6 +286,7 @@ const useAskVoice = ({ A, M, hear }) => {
       });
       // Ended before it was up (null): nothing runs, and the Line was told so.
       if (!got) { rest(); return null; }
+      setConnecting(false);
       threadRef.current = got.threadId;
       return got;
     } catch (e) {
@@ -289,7 +299,7 @@ const useAskVoice = ({ A, M, hear }) => {
     const id = setInterval(() => M.mood.voice(A.level ? A.level() : 0, true), AH_VOICE_LEVEL_MS);
     return () => { clearInterval(id); M.mood.voice(0, false); };
   }, [on, mode, A, M]);
-  return { can, on, mode, start, stop, threadId: () => threadRef.current };
+  return { can, on, connecting, mode, start, stop, threadId: () => threadRef.current };
 };
 
 window.AskHooks = {

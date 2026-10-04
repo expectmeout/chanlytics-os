@@ -17114,6 +17114,10 @@ CREATE TABLE public.ask_voice_sessions (
     duration_s integer,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     ended_at timestamp with time zone,
+    end_reason text,
+    connect_ms integer,
+    first_audio_ms integer,
+    CONSTRAINT ask_voice_sessions_end_reason_check CHECK (((end_reason IS NULL) OR (end_reason = ANY (ARRAY['button'::text, 'typed'::text, 'superseded'::text, 'navigated'::text, 'vendor'::text, 'start'::text])))),
     CONSTRAINT ask_voice_sessions_id_is_sha256 CHECK ((id ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ask_voice_sessions_language_check CHECK ((language = ANY (ARRAY['en'::text, 'es'::text, 'other'::text])))
 );
@@ -17124,6 +17128,27 @@ CREATE TABLE public.ask_voice_sessions (
 --
 
 COMMENT ON TABLE public.ask_voice_sessions IS 'One row per voice conversation of Ask: whose it is, its thread, the member''s access token sealed under the dashboard''s key, and the turn the brain door claims. The member''s own under RLS; the brain door reads it on the service role (apps/dashboard/src/server/ask/voice-session.ts).';
+
+
+--
+-- Name: COLUMN ask_voice_sessions.end_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ask_voice_sessions.end_reason IS 'The browser''s word for how it ended: button, typed, superseded, navigated, vendor, start. Null while it runs.';
+
+
+--
+-- Name: COLUMN ask_voice_sessions.connect_ms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ask_voice_sessions.connect_ms IS 'From the tap to the connection up, in ms, as the browser measured it.';
+
+
+--
+-- Name: COLUMN ask_voice_sessions.first_audio_ms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ask_voice_sessions.first_audio_ms IS 'From the tap to the first audio heard, in ms, as the browser measured it; null when none came.';
 
 
 --
@@ -28580,6 +28605,27 @@ GRANT INSERT(language) ON TABLE public.ask_voice_sessions TO authenticated;
 --
 
 GRANT UPDATE(ended_at) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.end_reason; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(end_reason) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.connect_ms; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(connect_ms) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.first_audio_ms; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(first_audio_ms) ON TABLE public.ask_voice_sessions TO authenticated;
 
 
 --

@@ -229,7 +229,7 @@ export {
   endVoiceSession,
   moveVoiceSessionContext,
 } from "./ask-voice-session";
-export type { VoiceSessionRow, NewVoiceSession } from "./ask-voice-session";
+export type { VoiceSessionRow, NewVoiceSession, VoiceEndReason } from "./ask-voice-session";
 export {
   claimIdempotencyKey,
   takeIdempotencyKey,

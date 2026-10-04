@@ -1758,168 +1758,103 @@ test("Glass: the bell's rows carry no dismiss of their own; Mark all read stays"
   });
 });
 
-test("Glass brief: Listen reads the line aloud where the device can speak, says Stop while it does, and is absent where it cannot", () => {
+test("Glass brief: Listen is absent where the device cannot play audio, and the follow-up stands alone", () => {
   clear();
   set({ today: busy(), __REPORTS: reports() });
   inGlass(() => {
     const silent = draw(TodayBriefPane);
     assert.equal(byTestId(silent, "today-brief-listen"), null, "no voice on this device: no Listen");
     assert.equal(buttons(silent, "Ask a follow-up").length, 1, "the follow-up stands alone");
-    const spoken = [];
-    W.speechSynthesis = { speak: (u) => spoken.push(u), cancel: () => spoken.push("cancel") };
-    globalThis.SpeechSynthesisUtterance = function SpeechSynthesisUtterance(text) {
-      this.text = text;
-    };
-    try {
-      fresh();
-      const tree = again(() => TodayBriefPane());
-      const listen = byTestId(tree, "today-brief-listen");
-      assert.ok(listen, "a voice: Listen");
-      assert.match(textOf(listen), /Listen\d+:\d\d/, "with how long it takes to hear");
-      assert.equal(listen.props["aria-pressed"], false);
-      press(listen);
-      assert.equal(spoken.at(-1)?.text, textOf(byTestId(tree, "today-brief-line")), "the line, read aloud");
-      const reading = byTestId(
-        again(() => TodayBriefPane()),
-        "today-brief-listen",
-      );
-      assert.equal(reading.props["aria-pressed"], true);
-      assert.match(textOf(reading), /Stop/, "and Stop while it reads");
-      press(reading);
-      assert.equal(spoken.at(-1), "cancel");
-    } finally {
-      delete W.speechSynthesis;
-      delete globalThis.SpeechSynthesisUtterance;
-    }
   });
 });
 
-test('Glass brief: where the device can talk with Ask, Listen is the brief spoken by Ask (one voice conversation, asked "Brief me on today"), Stop ends it, and the agent going lets go', () => {
-  clear();
-  set({ today: busy(), __REPORTS: reports() });
-  const started = [];
-  const stopped = [];
-  let on = false;
-  const watchers = new Set();
-  /** The vendor's end, as voice.ts tells every watcher. */
-  const heard = (a) => {
-    on = false;
-    for (const w of watchers) w(a);
-  };
-  const voice = {
-    canVoice: () => true,
-    language: () => "en",
-    voiceOn: () => on,
-    watchVoice: (w) => {
-      watchers.add(w);
-      return () => watchers.delete(w);
-    },
-    startVoice: async (input) => {
-      started.push(input);
-      on = true;
-      return { threadId: "t-voice", title: "Voice" };
-    },
-    stopVoice: async () => {
-      stopped.push(1);
-      on = false;
-    },
-  };
-  W.__ask = voice;
-  globalThis.__ask = voice;
-  try {
-    inGlass(() => {
-      fresh();
-      const tree = again(() => TodayBriefPane());
-      const listen = byTestId(tree, "today-brief-listen");
-      assert.ok(listen, "Ask's own voice: Listen, without the device's");
-      assert.equal(listen.props["aria-pressed"], false);
-      press(listen);
-      assert.equal(started.length, 1, "one conversation");
-      assert.deepEqual(
-        [started[0].ask, started[0].surface, started[0].threadId, started[0].language],
-        ["Brief me on today", "today", null, "en"],
-        "asked the brief's question, on Today, on a thread of its own",
-      );
-      const speaking = byTestId(
-        again(() => TodayBriefPane()),
-        "today-brief-listen",
-      );
-      assert.equal(speaking.props["aria-pressed"], true);
-      assert.match(textOf(speaking), /Stop/, "Stop while Ask speaks");
-      press(speaking);
-      assert.equal(stopped.length, 1, "Stop ends the conversation");
-      assert.equal(
-        byTestId(
-          again(() => TodayBriefPane()),
-          "today-brief-listen",
-        ).props["aria-pressed"],
-        false,
-      );
-      press(
-        byTestId(
-          again(() => TodayBriefPane()),
-          "today-brief-listen",
-        ),
-      );
-      assert.equal(started.length, 2);
-      heard({ t: "gone", reason: "agent" });
-      assert.equal(
-        byTestId(
-          again(() => TodayBriefPane()),
-          "today-brief-listen",
-        ).props["aria-pressed"],
-        false,
-        "the agent going lets go of Stop",
-      );
-    });
-  } finally {
-    delete W.__ask;
-    delete globalThis.__ask;
-  }
-});
-
-test("Glass brief: an agent that could not start (the mint refused, the connection lost) hands the brief to the device's own voice, and Stop then stops that voice, not a conversation that never began", async () => {
-  clear();
-  set({ today: busy(), __REPORTS: reports() });
+/** Ask's voice stood in for (legacy-bridge/ask/speech.ts as the pane reads it off window.__ask): the clip lands when the test says. */
+function speechStub() {
   const spoken = [];
-  W.speechSynthesis = { speak: (u) => spoken.push(u), cancel: () => spoken.push("cancel") };
-  globalThis.SpeechSynthesisUtterance = function SpeechSynthesisUtterance(text) {
-    this.text = text;
+  const stops = [];
+  let state = "idle";
+  const watchers = new Set();
+  const move = (s) => {
+    state = s;
+    for (const w of watchers) w();
   };
-  const stopped = [];
-  const voice = {
-    canVoice: () => true,
-    language: () => "en",
-    // As voice.ts does when the mint or the connection refuses: the Line hears "gone", then the start throws.
-    voiceOn: () => false,
-    watchVoice: () => () => {},
-    startVoice: async (_input, on) => {
-      on({ t: "gone", reason: "start" });
-      throw new Error("Voice is off while this workspace is paused or its plan has ended.");
+  let land = null;
+  let fail = null;
+  const stub = {
+    canSpeak: () => true,
+    state: () => state,
+    watchSpeech: (on) => {
+      watchers.add(on);
+      return () => watchers.delete(on);
     },
-    stopVoice: async () => {
-      stopped.push(1);
+    speak: (text, purpose) => {
+      spoken.push({ text, purpose });
+      move("loading");
+      return new Promise((resolve, reject) => {
+        land = () => {
+          move("speaking");
+          resolve();
+        };
+        fail = (why) => {
+          move("idle");
+          reject(new Error(why));
+        };
+      });
+    },
+    stopSpeaking: () => {
+      stops.push(1);
+      move("idle");
     },
   };
-  W.__ask = voice;
-  globalThis.__ask = voice;
+  return {
+    stub,
+    spoken,
+    stops,
+    land: () => land && land(),
+    fail: (why) => fail && fail(why),
+    /** The clip finished on its own. */
+    ends: () => move("idle"),
+  };
+}
+const settled = () => new Promise((r) => setImmediate(r));
+
+test("Glass brief: Listen reads the brief's own words in Ask's voice, says it is getting the voice until the clip plays, Stop while it does, and a second press stops it", async () => {
+  clear();
+  set({ today: busy(), __REPORTS: reports() });
+  const s = speechStub();
+  W.__ask = s.stub;
+  globalThis.__ask = s.stub;
   const doc = W.document.documentElement;
   const was = doc.getAttribute;
   doc.getAttribute = (name) => (name === "data-look" ? "glass" : null);
   try {
     fresh();
     const tree = again(() => TodayBriefPane());
-    press(byTestId(tree, "today-brief-listen"));
-    await new Promise((r) => setImmediate(r));
-    assert.equal(spoken.at(-1)?.text, textOf(byTestId(tree, "today-brief-line")), "the device reads the line instead");
-    const reading = byTestId(
+    const listen = byTestId(tree, "today-brief-listen");
+    assert.ok(listen, "a voice: Listen");
+    assert.match(textOf(listen), /Listen\d+:\d\d/, "with how long it takes to hear");
+    assert.equal(listen.props["aria-pressed"], false);
+    press(listen);
+    assert.equal(s.spoken.length, 1, "one clip asked for");
+    assert.equal(s.spoken[0].text, textOf(byTestId(tree, "today-brief-line")), "the brief's own words, as drawn");
+    assert.equal(s.spoken[0].purpose, "brief");
+    const loading = byTestId(
       again(() => TodayBriefPane()),
       "today-brief-listen",
     );
-    assert.equal(reading.props["aria-pressed"], true, "Stop while the device reads");
-    press(reading);
-    assert.equal(spoken.at(-1), "cancel", "Stop stops the device's voice");
-    assert.equal(stopped.length, 0, "and not a conversation that never began");
+    assert.match(textOf(loading), /Getting Ask's voice/, "getting the voice until the clip plays");
+    assert.equal(loading.props["aria-busy"], true);
+    assert.equal(loading.props["aria-pressed"], false, "not Stop yet");
+    s.land();
+    await settled();
+    const playing = byTestId(
+      again(() => TodayBriefPane()),
+      "today-brief-listen",
+    );
+    assert.equal(playing.props["aria-pressed"], true);
+    assert.match(textOf(playing), /Stop/, "Stop while it plays");
+    press(playing);
+    assert.equal(s.stops.length, 1, "Stop stops the clip");
     assert.equal(
       byTestId(
         again(() => TodayBriefPane()),
@@ -1927,53 +1862,94 @@ test("Glass brief: an agent that could not start (the mint refused, the connecti
       ).props["aria-pressed"],
       false,
     );
+    assert.equal(s.spoken.length, 1, "and asked for nothing more");
   } finally {
     doc.getAttribute = was;
-    delete W.speechSynthesis;
-    delete globalThis.SpeechSynthesisUtterance;
     delete W.__ask;
     delete globalThis.__ask;
   }
 });
 
-test("Glass brief: a pane drawn again while the agent speaks (Today redrew itself) says Stop and ends nothing; the agent going, heard through the watch, lets go", () => {
+test("Glass brief: a clip that could not be made says why beside Listen, in the server's words, and nothing else speaks; the next press tries again", async () => {
   clear();
   set({ today: busy(), __REPORTS: reports() });
-  const stopped = [];
-  let on = true;
-  const watchers = new Set();
-  const voice = {
-    canVoice: () => true,
-    language: () => "en",
-    voiceOn: () => on,
-    watchVoice: (w) => {
-      watchers.add(w);
-      return () => watchers.delete(w);
-    },
-    startVoice: async () => ({ threadId: "t-voice", title: "Voice" }),
-    stopVoice: async () => {
-      stopped.push(1);
-      on = false;
-    },
-  };
-  W.__ask = voice;
-  globalThis.__ask = voice;
+  const s = speechStub();
+  W.__ask = s.stub;
+  globalThis.__ask = s.stub;
+  const doc = W.document.documentElement;
+  const was = doc.getAttribute;
+  doc.getAttribute = (name) => (name === "data-look" ? "glass" : null);
   try {
-    inGlass(() => {
-      fresh();
-      let tree = again(() => TodayBriefPane());
-      const listen = byTestId(tree, "today-brief-listen");
-      assert.equal(listen.props["aria-pressed"], true, "a conversation runs: the pane finds it and says Stop");
-      assert.match(textOf(listen), /Stop/);
-      assert.equal(stopped.length, 0, "and ended nothing by being drawn");
-      assert.equal(watchers.size, 1, "it follows the conversation");
-      for (const w of [...watchers]) w({ t: "gone", reason: "agent" });
-      on = false;
-      tree = again(() => TodayBriefPane());
-      assert.equal(byTestId(tree, "today-brief-listen").props["aria-pressed"], false, "the agent gone, Listen again");
-      assert.equal(stopped.length, 0, "nothing of the pane's doing");
-    });
+    fresh();
+    press(
+      byTestId(
+        again(() => TodayBriefPane()),
+        "today-brief-listen",
+      ),
+    );
+    s.fail("Voice is off while this workspace is paused or its plan has ended.");
+    await settled();
+    const tree = again(() => TodayBriefPane());
+    const listen = byTestId(tree, "today-brief-listen");
+    assert.equal(listen.props["aria-pressed"], false, "back to Listen");
+    assert.match(textOf(listen), /^Listen/, "and it says Listen, not Stop");
+    const why = byTestId(tree, "today-brief-listen-why");
+    assert.ok(why, "why, beside the button");
+    assert.match(textOf(why), /paused or its plan has ended/, "in the server's words");
+    assert.equal(s.stops.length, 0, "nothing to stop");
+    assert.equal("speechSynthesis" in W && W.speechSynthesis, false, "the browser's own voice is not asked");
+    press(listen);
+    assert.equal(s.spoken.length, 2, "the next press tries again");
+    assert.equal(
+      byTestId(
+        again(() => TodayBriefPane()),
+        "today-brief-listen-why",
+      ),
+      null,
+      "and the old reason is gone",
+    );
   } finally {
+    doc.getAttribute = was;
+    delete W.__ask;
+    delete globalThis.__ask;
+  }
+});
+
+test("Glass brief: a pane drawn again while the clip plays (Today redrew itself) says Stop and stops nothing; the clip ending on its own lets go", async () => {
+  clear();
+  set({ today: busy(), __REPORTS: reports() });
+  const s = speechStub();
+  W.__ask = s.stub;
+  globalThis.__ask = s.stub;
+  const doc = W.document.documentElement;
+  const was = doc.getAttribute;
+  doc.getAttribute = (name) => (name === "data-look" ? "glass" : null);
+  try {
+    fresh();
+    press(
+      byTestId(
+        again(() => TodayBriefPane()),
+        "today-brief-listen",
+      ),
+    );
+    s.land();
+    await settled();
+    // Today redraws from nothing (its data moved): a fresh pane finds the clip playing and says Stop.
+    fresh();
+    const redrawn = byTestId(
+      again(() => TodayBriefPane()),
+      "today-brief-listen",
+    );
+    assert.equal(redrawn.props["aria-pressed"], true, "a pane drawn again finds the clip playing");
+    assert.equal(s.stops.length, 0, "and stops nothing");
+    s.ends();
+    const after = byTestId(
+      again(() => TodayBriefPane()),
+      "today-brief-listen",
+    );
+    assert.equal(after.props["aria-pressed"], false, "the clip ending lets go of Stop");
+  } finally {
+    doc.getAttribute = was;
     delete W.__ask;
     delete globalThis.__ask;
   }

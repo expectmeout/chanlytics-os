@@ -19,7 +19,7 @@ export { PROPOSAL_SPECS, proposalSpec, proposalBelowNeeds, PROPOSAL_GATE, askUnd
 export { PROPOSAL_WORDS } from "./ask-proposals/spec";
 export { ASK_ANSWER_FORMAT } from "./ask/answer-format";
 export { cleanAnswer, isUngrounded, sameQuestion, navigateLabel, FOLLOWUP_ECHO } from "./ask/answer-text";
-export { scopeFromRoute, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_TURN_BUDGET_MS, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_PULSE_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_MAX_TOKENS, ASK_TOKENS_DAY, ASK_CAPS, ASK_THREAD_VERBS, ASK_UNDO_MS, ASK_SURFACES, ASK_SCOPE_KINDS } from "./ask/ask";
+export { scopeFromRoute, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_TURN_BUDGET_MS, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_PULSE_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_ID, ASK_VOICE_MODEL, ASK_SPEECH_MAX_CHARS, ASK_VOICE_TIMING_MAX_MS, VOICE_END_REASONS, ASK_MAX_TOKENS, ASK_TOKENS_DAY, ASK_CAPS, ASK_THREAD_VERBS, ASK_UNDO_MS, ASK_SURFACES, ASK_SCOPE_KINDS } from "./ask/ask";
 export { answerText, cardOpenRoute, oneDoor, answerFromV1, rightNowLine, rightNowCounts, needsAnswer, callsAnswer, openingsAnswer, normalizeAnswer, answerWords, partialSay, answerForCards, failedAnswer, proseAnswer, v1FromAnswer, clip, ASK_ANSWER_CAPS } from "./ask/ask-answer";
 export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, itemFocus } from "./ask/ask-context";
 export { dayFromQuestion, askIntent, callsToday } from "./ask/ask-fast-paths";
@@ -28,7 +28,7 @@ export { detectLanguage, ASK_LANGUAGES } from "./ask/ask-language";
 export { askModelProfile, ASK_MODELS, ASK_MODEL_PROFILES, ASK_MODEL } from "./ask/ask-model";
 export { applySettingsChange, describeSettingsChange } from "./ask/ask-settings-change";
 export { cacheHitOf } from "./ask/ask-shape";
-export { buildAskSuggestions, askQuestionWords } from "./ask/ask-suggestions";
+export { buildAskSuggestions } from "./ask/ask-suggestions";
 export { emptyReadSet, noteRows, groundCitations, citationRoute, ASK_CITATION_KINDS, ASK_PAGE_ROUTES, ASK_ROW_WORDS } from "./ask/citations";
 export { eligibleFor, enrolFor, saidYesOnAny, heldWords, heldBackWords, audienceMembers, heardWords, audiencePreview, audienceTrigger, AUDIENCE_KINDS, EVERYONE_LABEL, EVERYONE_HINT } from "./broadcasts/broadcast-audience";
 export { broadcastFailureFix, broadcastFailureWords, wireFailure, BROADCAST_FAILURES, BROADCAST_FAILURE_WORDS, BROADCAST_FAILURE_FIX } from "./broadcasts/broadcast-failures";

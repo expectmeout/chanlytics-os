@@ -1032,6 +1032,7 @@ function leadNoteLeft(left, max) {
 }
 var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
 var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
+var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
 var ASK_SURFACES = [
@@ -6141,6 +6142,7 @@ function waitingOnProposal(r22, nowMs, pace) {
   return !heardSinceProposal(r22);
 }
 var ASK_VOICE_TOKEN_MIN_MS2 = 35 * MIN_MS2;
+var ASK_VOICE_TIMING_MAX_MS2 = 10 * MIN_MS2;
 var ASK_UNDO_MS2 = 10 * 6e4;
 var ASK_SCOPE_KINDS2 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
 var ASK_SURFACES2 = [
@@ -11509,6 +11511,7 @@ function leadNoteLeft3(left, max) {
 }
 var LEAD_UNCLAIMED_NOTE3 = "Listing not claimed by the owner";
 var ASK_VOICE_TOKEN_MIN_MS3 = 35 * MIN_MS3;
+var ASK_VOICE_TIMING_MAX_MS3 = 10 * MIN_MS3;
 var ASK_UNDO_MS3 = 10 * 6e4;
 var ASK_SCOPE_KINDS3 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
 var ASK_SURFACES3 = [

@@ -955,6 +955,8 @@ function isDealStage(s) {
   return typeof s === "string" && DEAL_STAGES.includes(s);
 }
 var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
+var VOICE_END_REASONS = ["button", "typed", "superseded", "navigated", "vendor", "start"];
+var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
 var ASK_SURFACES = [
@@ -5846,7 +5848,11 @@ async function messageSenders(db, tenantId, ids) {
 }
 
 // src/ask-voice-session.ts
-var VOICE_SESSION_COLUMNS = "id, tenant_id, user_id, thread_id, conversation_id, token_cipher, token_expires_at, surface, scope, context, language, turn_key, turn_started_at, duration_s, created_at, ended_at";
+var VOICE_SESSION_COLUMNS = "id, tenant_id, user_id, thread_id, conversation_id, token_cipher, token_expires_at, surface, scope, context, language, turn_key, turn_started_at, duration_s, created_at, ended_at, end_reason, connect_ms, first_audio_ms";
+function voiceRowOf(r2) {
+  const ended = VOICE_END_REASONS.includes(r2.end_reason ?? "") ? r2.end_reason : null;
+  return { ...r2, end_reason: ended };
+}
 async function insertVoiceSession(db, row) {
   const { error } = await db.from("ask_voice_sessions").insert(row);
   if (error) throw new Error(`ask voice session: ${error.message}`);
@@ -5854,12 +5860,12 @@ async function insertVoiceSession(db, row) {
 async function readVoiceSession(db, id) {
   const { data, error } = await db.from("ask_voice_sessions").select(VOICE_SESSION_COLUMNS).eq("id", id).maybeSingle();
   if (error) throw new Error(`ask voice session: ${error.message}`);
-  return data ?? null;
+  return data ? voiceRowOf(data) : null;
 }
 async function readVoiceSessionByConversation(db, conversationId) {
   const { data, error } = await db.from("ask_voice_sessions").select(VOICE_SESSION_COLUMNS).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(`ask voice session by conversation: ${error.message}`);
-  return data ?? null;
+  return data ? voiceRowOf(data) : null;
 }
 async function claimVoiceTurn(db, id, turnKey, now, staleMs) {
   const stale = new Date(now.getTime() - staleMs).toISOString();
@@ -5868,7 +5874,13 @@ async function claimVoiceTurn(db, id, turnKey, now, staleMs) {
   return (data ?? []).length > 0;
 }
 async function endVoiceSession(db, id, fields) {
-  const { data, error } = await db.from("ask_voice_sessions").update({ ended_at: fields.endedAt, ...fields.durationS === void 0 ? {} : { duration_s: fields.durationS } }).eq("id", id).select("id");
+  const { data, error } = await db.from("ask_voice_sessions").update({
+    ended_at: fields.endedAt,
+    ...fields.durationS === void 0 ? {} : { duration_s: fields.durationS },
+    ...fields.endReason === void 0 ? {} : { end_reason: fields.endReason },
+    ...fields.connectMs === void 0 ? {} : { connect_ms: fields.connectMs },
+    ...fields.firstAudioMs === void 0 ? {} : { first_audio_ms: fields.firstAudioMs }
+  }).eq("id", id).select("id");
   if (error) throw new Error(`ask voice session end: ${error.message}`);
   return (data ?? []).length > 0;
 }

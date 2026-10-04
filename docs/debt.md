@@ -175,7 +175,7 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit            100   of which over 200 lines: 16
+functions over the limit             99   of which over 200 lines: 16
 files over 800 lines                  5
 directories over 20 modules           4
 window globals                      106   names
@@ -183,7 +183,7 @@ window publishers                   202   sites in 69 files
 copies                               73   of 21 names
 as unknown as                       146
 as never                             13
-non-null assertions, x!             121
+non-null assertions, x!             118
 index reads the compiler lets pass  484   in 128 files
 table names outside packages/db     487
 SQL functions outside packages/db   133   called by .rpc

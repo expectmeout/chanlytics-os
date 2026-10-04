@@ -356,7 +356,8 @@ const ask = (threads = []) => {
   globalThis.window.__ask = {
     surfaceFor,
     ...palette,
-    ...askSpeech(globalThis.window),
+    // The one-way speech, over a route nothing answers here: a test that reads aloud stubs speak/canSpeak itself.
+    ...askSpeech(globalThis.window, { api: { speech: async () => new Blob() } }),
     quick: quickAnswer(palette, openings),
     answerText,
     cardOpenRoute,
@@ -1900,21 +1901,64 @@ test("on a phone the newest answer carries Copy, which copies its words; an earl
   }
 });
 
+/** Ask's voice stood in for (legacy-bridge/ask/speech.ts as the Line reads it off window.__ask): the clip lands when the test says. */
+const speechStub = () => {
+  const spoken = [];
+  let stops = 0;
+  let state = "idle";
+  const watchers = new Set();
+  const move = (s) => {
+    state = s;
+    for (const w of watchers) w();
+  };
+  let land = null;
+  let fail = null;
+  const stub = {
+    canSpeak: () => true,
+    state: () => state,
+    watchSpeech: (on) => {
+      watchers.add(on);
+      return () => watchers.delete(on);
+    },
+    speak: (text, purpose) => {
+      spoken.push({ text, purpose });
+      move("loading");
+      return new Promise((resolve, reject) => {
+        land = () => {
+          move("speaking");
+          resolve();
+        };
+        fail = (why) => {
+          move("idle");
+          reject(new Error(why));
+        };
+      });
+    },
+    stopSpeaking: () => {
+      stops += 1;
+      move("idle");
+    },
+  };
+  return {
+    stub,
+    spoken,
+    get stops() {
+      return stops;
+    },
+    land: () => land && land(),
+    fail: (why) => fail && fail(why),
+    ends: () => move("idle"),
+  };
+};
+
 test("REGRESSION: on a phone an answer read aloud stops when another question is asked or another conversation is opened -- it went on over the next answer, whose Read then said Stop (D14)", async () => {
   const ph = phoneWindow();
   const props = { open: true, onClose() {} };
-  const voice = { spoken: [], stops: 0 };
+  const s = speechStub();
   try {
     const calls = ask([TH(1)]);
     Object.assign(globalThis.window.__ask, {
-      canSpeak: () => true,
-      speak: (text) => {
-        voice.spoken.push(text);
-        return true;
-      },
-      stopSpeaking: () => {
-        voice.stops += 1;
-      },
+      ...s.stub,
       send: async (input, on) => {
         calls.sent.push(input.text);
         const n = calls.sent.length;
@@ -1926,26 +1970,86 @@ test("REGRESSION: on a phone an answer read aloud stops when another question is
     let tree = await later(Palette, props);
     tree = await asks(tree, props, "first?");
     press(byTestId(nowOf(tree), "ask-read"));
+    s.land();
     tree = await later(Palette, props);
-    assert.deepEqual(voice.spoken, ["Answer 1."], "the answer, read aloud");
+    assert.deepEqual(s.spoken, [{ text: "Answer 1.", purpose: "answer" }], "the answer's say, read in Ask's voice");
     assert.equal(byTestId(nowOf(tree), "ask-read").props["aria-pressed"], true);
-    let stops = voice.stops;
+    let stops = s.stops;
     tree = await asks(tree, props, "second?");
-    assert.ok(voice.stops > stops, "a question asked: the reading stops");
+    assert.ok(s.stops > stops, "a question asked: the reading stops");
     assert.equal(
       byTestId(nowOf(tree), "ask-read").props["aria-pressed"],
       false,
       "and the new answer's Read is not pressed",
     );
     press(byTestId(nowOf(tree), "ask-read"));
+    s.land();
     tree = await later(Palette, props);
-    stops = voice.stops;
+    stops = s.stops;
     press(byTestId(tree, "ask-earlier"));
     tree = await later(Palette, props);
     press(byTestId(tree, "ask-row-thread"));
     tree = await later(Palette, props);
     assert.equal(textOf(byTestId(nowOf(tree), "ask-say")), "The answer to Question 1.", "another conversation is open");
-    assert.ok(voice.stops > stops, "and the reading stops");
+    assert.ok(s.stops > stops, "and the reading stops");
+  } finally {
+    await closes();
+    ph.restore();
+  }
+});
+
+test("Read aloud speaks the answer's say in Ask's one voice: the button says it is getting the voice until the clip plays, Stop while it does, and a press then stops it; a clip that could not be made says why, in the server's words, and nothing else speaks", async () => {
+  const ph = phoneWindow();
+  const props = { open: true, onClose() {} };
+  const s = speechStub();
+  try {
+    const calls = ask([TH(1)]);
+    Object.assign(globalThis.window.__ask, {
+      ...s.stub,
+      send: async (input, on) => {
+        calls.sent.push(input.text);
+        on({ t: "thread", id: TH(5).id, title: input.text });
+        on({ t: "final", message: said("m-1", "Answer 1.") });
+      },
+    });
+    render(Palette, props);
+    let tree = await later(Palette, props);
+    tree = await asks(tree, props, "first?");
+    const flashes = flashed.length;
+    press(byTestId(nowOf(tree), "ask-read"));
+    tree = await later(Palette, props);
+    assert.deepEqual(
+      s.spoken,
+      [{ text: "Answer 1.", purpose: "answer" }],
+      "one clip asked for: the say, not the whole text",
+    );
+    let read = byTestId(nowOf(tree), "ask-read");
+    assert.equal(read.props["aria-busy"], true, "getting the voice until the clip plays");
+    assert.equal(read.props["aria-pressed"], false, "not Stop yet");
+    s.land();
+    tree = await later(Palette, props);
+    read = byTestId(nowOf(tree), "ask-read");
+    assert.equal(read.props["aria-pressed"], true, "Stop while it plays");
+    assert.equal(read.props["aria-busy"], undefined);
+    const stops = s.stops;
+    press(read);
+    tree = await later(Palette, props);
+    assert.ok(s.stops > stops, "a press stops the clip");
+    assert.equal(byTestId(nowOf(tree), "ask-read").props["aria-pressed"], false);
+    assert.equal(flashed.length, flashes, "nothing said: it worked");
+    // The clip could not be made (the mint refused, the vendor down): why, once, in the server's words; nothing else speaks.
+    press(byTestId(nowOf(tree), "ask-read"));
+    s.fail("Voice is off while this workspace is paused or its plan has ended.");
+    tree = await later(Palette, props);
+    assert.equal(flashed.length, flashes + 1, "one flash");
+    assert.match(textOf(flashed.at(-1).msg), /paused or its plan has ended/, "the server's words");
+    assert.equal(flashed.at(-1).tone, "danger");
+    assert.equal(byTestId(nowOf(tree), "ask-read").props["aria-pressed"], false, "and Read is at rest again");
+    assert.equal(
+      "speechSynthesis" in globalThis.window && globalThis.window.speechSynthesis,
+      false,
+      "the browser's own voice is never asked",
+    );
   } finally {
     await closes();
     ph.restore();
@@ -2169,77 +2273,6 @@ test("on a phone the mic keeps the finger: the lift asks what was heard, and Typ
   } finally {
     await closes();
     delete globalThis.window.SpeechRecognition;
-    ph.restore();
-  }
-});
-
-test("Read aloud where Ask can talk: the agent reads the answer as the conversation's first words; an agent that cannot start hands the words to the device's own voice, whose Stop is the button's; a device with no voice hears why instead", async () => {
-  const ph = phoneWindow();
-  const props = { open: true, onClose() {} };
-  const device = { spoken: [], stops: 0 };
-  const started = [];
-  let refuse = null;
-  try {
-    const calls = ask([TH(1)]);
-    Object.assign(globalThis.window.__ask, {
-      canSpeak: () => true,
-      speak: (text) => {
-        device.spoken.push(text);
-        return true;
-      },
-      stopSpeaking: () => {
-        device.stops += 1;
-      },
-      canVoice: () => true,
-      startVoice: async (input, on) => {
-        if (refuse) throw new Error(refuse);
-        started.push({ input, on });
-        return { threadId: TH(5).id, title: "Voice" };
-      },
-      stopVoice: async () => {},
-      send: async (input, on) => {
-        calls.sent.push(input.text);
-        on({ t: "thread", id: TH(5).id, title: input.text });
-        on({ t: "final", message: said("m-1", "Answer 1.") });
-      },
-    });
-    render(Palette, props);
-    let tree = await later(Palette, props);
-    tree = await asks(tree, props, "first?");
-    // The agent reads: one conversation on this thread, opened on the answer's words; the device stays quiet.
-    press(byTestId(nowOf(tree), "ask-read"));
-    for (let i = 0; i < 3; i++) tree = await later(Palette, props);
-    assert.equal(started.length, 1, "the agent reads");
-    assert.equal(started[0].input.first, "Answer 1.", "the answer, as the conversation's first words");
-    assert.equal(started[0].input.threadId, TH(5).id, "on the answer's thread");
-    assert.deepEqual(device.spoken, [], "and the device stays quiet");
-    assert.equal(byTestId(nowOf(tree), "ask-read").props["aria-pressed"], true, "Stop while the agent reads");
-    started[0].on({ t: "gone", reason: "agent" });
-    tree = await later(Palette, props);
-    assert.equal(byTestId(nowOf(tree), "ask-read").props["aria-pressed"], false, "the agent gone, Read again");
-    // The agent cannot start (the mint refused): the device's own voice reads the same words, with no flash.
-    refuse = "The voice agent could not be reached just now. Try again in a moment.";
-    const flashes = flashed.length;
-    press(byTestId(nowOf(tree), "ask-read"));
-    for (let i = 0; i < 3; i++) tree = await later(Palette, props);
-    assert.deepEqual(device.spoken, ["Answer 1."], "the device reads the answer instead");
-    assert.equal(flashed.length, flashes, "quietly");
-    assert.equal(byTestId(nowOf(tree), "ask-read").props["aria-pressed"], true, "and Stop is the device's");
-    const stops = device.stops;
-    press(byTestId(nowOf(tree), "ask-read"));
-    tree = await later(Palette, props);
-    assert.ok(device.stops > stops, "Stop stops the device's voice");
-    // A device with no voice of its own hears why the agent did not read.
-    globalThis.window.__ask.canSpeak = () => false;
-    globalThis.window.__ask.speak = () => false;
-    tree = await later(Palette, props);
-    press(byTestId(nowOf(tree), "ask-read"));
-    for (let i = 0; i < 3; i++) tree = await later(Palette, props);
-    assert.equal(flashed.length, flashes + 1, "one flash");
-    assert.match(textOf(flashed.at(-1).msg), /could not be reached/, "the gateway's words");
-    assert.equal(flashed.at(-1).tone, "danger");
-  } finally {
-    await closes();
     ph.restore();
   }
 });

@@ -1,5 +1,6 @@
 import { SupabaseClient, AuthMFAAdminDeleteFactorResponse, UserResponse, AuthMFAAdminListFactorsResponse, AuthResponse, PostgrestError } from '@supabase/supabase-js';
-import { ContactAddedData, ContactConsentChangedData, PlatformActedData, ActivationMilestone, WabaEventKind, AiUsageBody, PurposeBearing, OfferCounts, OfferPause, OfferPauseReason, ConsentChannel, SchemaSet, DealFacts, LeadChannel, OwnVersionChannel, PersonRowDto, NameableContact } from '@chanlytics/contracts';
+import { ContactAddedData, ContactConsentChangedData, PlatformActedData, ActivationMilestone, WabaEventKind, AiUsageBody, PurposeBearing, OfferCounts, OfferPause, OfferPauseReason, ConsentChannel, SchemaSet, DealFacts, LeadChannel, VoiceEndReason, OwnVersionChannel, PersonRowDto, NameableContact } from '@chanlytics/contracts';
+export { VoiceEndReason } from '@chanlytics/contracts';
 import * as _supabase_postgrest_js from '@supabase/postgrest-js';
 
 type Json = string | number | boolean | null | {
@@ -204,11 +205,14 @@ type Database = {
             };
             ask_voice_sessions: {
                 Row: {
+                    connect_ms: number | null;
                     context: Json | null;
                     conversation_id: string | null;
                     created_at: string;
                     duration_s: number | null;
+                    end_reason: string | null;
                     ended_at: string | null;
+                    first_audio_ms: number | null;
                     id: string;
                     language: string;
                     scope: Json | null;
@@ -222,11 +226,14 @@ type Database = {
                     user_id: string;
                 };
                 Insert: {
+                    connect_ms?: number | null;
                     context?: Json | null;
                     conversation_id?: string | null;
                     created_at?: string;
                     duration_s?: number | null;
+                    end_reason?: string | null;
                     ended_at?: string | null;
+                    first_audio_ms?: number | null;
                     id: string;
                     language?: string;
                     scope?: Json | null;
@@ -240,11 +247,14 @@ type Database = {
                     user_id: string;
                 };
                 Update: {
+                    connect_ms?: number | null;
                     context?: Json | null;
                     conversation_id?: string | null;
                     created_at?: string;
                     duration_s?: number | null;
+                    end_reason?: string | null;
                     ended_at?: string | null;
+                    first_audio_ms?: number | null;
                     id?: string;
                     language?: string;
                     scope?: Json | null;
@@ -8848,11 +8858,14 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
         };
         ask_voice_sessions: {
             Row: {
+                connect_ms: number | null;
                 context: Json | null;
                 conversation_id: string | null;
                 created_at: string;
                 duration_s: number | null;
+                end_reason: string | null;
                 ended_at: string | null;
+                first_audio_ms: number | null;
                 id: string;
                 language: string;
                 scope: Json | null;
@@ -8866,11 +8879,14 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
                 user_id: string;
             };
             Insert: {
+                connect_ms?: number | null;
                 context?: Json | null;
                 conversation_id?: string | null;
                 created_at?: string;
                 duration_s?: number | null;
+                end_reason?: string | null;
                 ended_at?: string | null;
+                first_audio_ms?: number | null;
                 id: string;
                 language?: string;
                 scope?: Json | null;
@@ -8884,11 +8900,14 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
                 user_id: string;
             };
             Update: {
+                connect_ms?: number | null;
                 context?: Json | null;
                 conversation_id?: string | null;
                 created_at?: string;
                 duration_s?: number | null;
+                end_reason?: string | null;
                 ended_at?: string | null;
+                first_audio_ms?: number | null;
                 id?: string;
                 language?: string;
                 scope?: Json | null;
@@ -16879,11 +16898,14 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
     };
     ask_voice_sessions: {
         Row: {
+            connect_ms: number | null;
             context: Json | null;
             conversation_id: string | null;
             created_at: string;
             duration_s: number | null;
+            end_reason: string | null;
             ended_at: string | null;
+            first_audio_ms: number | null;
             id: string;
             language: string;
             scope: Json | null;
@@ -16897,11 +16919,14 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
             user_id: string;
         };
         Insert: {
+            connect_ms?: number | null;
             context?: Json | null;
             conversation_id?: string | null;
             created_at?: string;
             duration_s?: number | null;
+            end_reason?: string | null;
             ended_at?: string | null;
+            first_audio_ms?: number | null;
             id: string;
             language?: string;
             scope?: Json | null;
@@ -16915,11 +16940,14 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
             user_id: string;
         };
         Update: {
+            connect_ms?: number | null;
             context?: Json | null;
             conversation_id?: string | null;
             created_at?: string;
             duration_s?: number | null;
+            end_reason?: string | null;
             ended_at?: string | null;
+            first_audio_ms?: number | null;
             id?: string;
             language?: string;
             scope?: Json | null;
@@ -21926,11 +21954,14 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
     };
     ask_voice_sessions: {
         Row: {
+            connect_ms: number | null;
             context: Json | null;
             conversation_id: string | null;
             created_at: string;
             duration_s: number | null;
+            end_reason: string | null;
             ended_at: string | null;
+            first_audio_ms: number | null;
             id: string;
             language: string;
             scope: Json | null;
@@ -21944,11 +21975,14 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
             user_id: string;
         };
         Insert: {
+            connect_ms?: number | null;
             context?: Json | null;
             conversation_id?: string | null;
             created_at?: string;
             duration_s?: number | null;
+            end_reason?: string | null;
             ended_at?: string | null;
+            first_audio_ms?: number | null;
             id: string;
             language?: string;
             scope?: Json | null;
@@ -21962,11 +21996,14 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
             user_id: string;
         };
         Update: {
+            connect_ms?: number | null;
             context?: Json | null;
             conversation_id?: string | null;
             created_at?: string;
             duration_s?: number | null;
+            end_reason?: string | null;
             ended_at?: string | null;
+            first_audio_ms?: number | null;
             id?: string;
             language?: string;
             scope?: Json | null;
@@ -26973,11 +27010,14 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
     };
     ask_voice_sessions: {
         Row: {
+            connect_ms: number | null;
             context: Json | null;
             conversation_id: string | null;
             created_at: string;
             duration_s: number | null;
+            end_reason: string | null;
             ended_at: string | null;
+            first_audio_ms: number | null;
             id: string;
             language: string;
             scope: Json | null;
@@ -26991,11 +27031,14 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
             user_id: string;
         };
         Insert: {
+            connect_ms?: number | null;
             context?: Json | null;
             conversation_id?: string | null;
             created_at?: string;
             duration_s?: number | null;
+            end_reason?: string | null;
             ended_at?: string | null;
+            first_audio_ms?: number | null;
             id: string;
             language?: string;
             scope?: Json | null;
@@ -27009,11 +27052,14 @@ declare function builderOf<T extends TenantTable>(db: Db$o, table: T): _supabase
             user_id: string;
         };
         Update: {
+            connect_ms?: number | null;
             context?: Json | null;
             conversation_id?: string | null;
             created_at?: string;
             duration_s?: number | null;
+            end_reason?: string | null;
             ended_at?: string | null;
+            first_audio_ms?: number | null;
             id?: string;
             language?: string;
             scope?: Json | null;
@@ -33713,6 +33759,7 @@ declare function messageSenders(db: Db$d, tenantId: string, ids: readonly string
  */
 
 type Db$c = SupabaseClient<Database>;
+
 interface VoiceSessionRow {
     /** The sha256, hex, of the id the browser and the vendor carry. */
     id: string;
@@ -33732,8 +33779,13 @@ interface VoiceSessionRow {
     duration_s: number | null;
     created_at: string;
     ended_at: string | null;
+    /** The browser's word for how it ended (00300); null while it runs, or when the webhook ended it first. */
+    end_reason: VoiceEndReason | null;
+    /** From the tap to the connection up, and to the first audio heard, as the browser measured them (00300). */
+    connect_ms: number | null;
+    first_audio_ms: number | null;
 }
-/** What the voice route writes: the rest is the door's and the webhook's. */
+/** What the voice route writes: the rest is the door's, the webhook's and the end's. */
 type NewVoiceSession = Pick<VoiceSessionRow, "id" | "tenant_id" | "user_id" | "thread_id" | "conversation_id" | "token_cipher" | "token_expires_at" | "surface" | "scope" | "context" | "language">;
 /** The row, as the member (RLS: their own, on a thread of their own in the workspace). */
 declare function insertVoiceSession(db: Db$c, row: NewVoiceSession): Promise<void>;
@@ -33748,10 +33800,16 @@ declare function readVoiceSessionByConversation(db: Db$c, conversationId: string
  * row does not include these two columns.
  */
 declare function claimVoiceTurn(db: Db$c, id: string, turnKey: string, now: Date, staleMs: number): Promise<boolean>;
-/** The conversation over: by the browser (the member's own row), or by the post-call webhook with its minutes. */
+/**
+ * The conversation over: by the browser (the member's own row, with how it went: the reason and its two timings,
+ * 00300), or by the post-call webhook with its minutes.
+ */
 declare function endVoiceSession(db: Db$c, id: string, fields: {
     endedAt: string;
     durationS?: number;
+    endReason?: VoiceEndReason;
+    connectMs?: number | null;
+    firstAudioMs?: number | null;
 }): Promise<boolean>;
 /** The page under the Line changed: the next spoken turn reads this one (the member's own row). */
 declare function moveVoiceSessionContext(db: Db$c, id: string, fields: {

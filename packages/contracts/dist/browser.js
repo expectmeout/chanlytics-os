@@ -2186,6 +2186,11 @@ var ASK_VOICE_PULSE_MS = 1e4;
 var ASK_VOICE_FIRST_WORDS_MS = 2500;
 var ASK_VOICE_CLAIM_STALE_MS = MIN_MS;
 var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
+var ASK_VOICE_ID = "UgBBYS2sOqTuMpoF3BR0";
+var ASK_VOICE_MODEL = "eleven_turbo_v2";
+var ASK_SPEECH_MAX_CHARS = 1500;
+var VOICE_END_REASONS = ["button", "typed", "superseded", "navigated", "vendor", "start"];
+var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_MAX_TOKENS = 4e3;
 var ASK_TOKENS_DAY = 15e5;
 var ASK_CAPS = {
@@ -6847,9 +6852,6 @@ var T = {
     actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla"
   }
 };
-function askQuestionWords(key, language) {
-  return (language === "es" ? T.es : T.en)[key];
-}
 var PAGE_QUESTIONS = {
   today: [
     ["brief", "sparkle"],
@@ -25192,6 +25194,7 @@ var ROUTE_KEYS = [
   "PATCH workspaces",
   "POST ask",
   "POST ask/messages/[id]/proposals/[pid]",
+  "POST ask/speech",
   "POST ask/voice",
   "POST ask/voice/end",
   "POST ask/voice/page",
@@ -25336,6 +25339,7 @@ var SCHEMA_SETS = {
     "reply_read"
   ],
   "ask_messages.role": ["user", "assistant"],
+  "ask_voice_sessions.end_reason": ["button", "typed", "superseded", "navigated", "vendor", "start"],
   "ask_voice_sessions.language": ["en", "es", "other"],
   "billing_accounts.mode": ["stripe", "direct"],
   "billing_accounts.status": [
@@ -31330,6 +31334,7 @@ export {
   ASK_PAGE_ROUTES,
   ASK_ROW_WORDS,
   ASK_SCOPE_KINDS,
+  ASK_SPEECH_MAX_CHARS,
   ASK_SURFACES,
   ASK_THREAD_ROUTES,
   ASK_THREAD_VERBS,
@@ -31338,7 +31343,10 @@ export {
   ASK_UNDO_MS,
   ASK_VOICE_CLAIM_STALE_MS,
   ASK_VOICE_FIRST_WORDS_MS,
+  ASK_VOICE_ID,
+  ASK_VOICE_MODEL,
   ASK_VOICE_PULSE_MS,
+  ASK_VOICE_TIMING_MAX_MS,
   ASK_VOICE_TOKEN_MIN_MS,
   AUDIENCE_KINDS,
   AppError,
@@ -32001,6 +32009,7 @@ export {
   VERSION_CHANNELS,
   VERSION_CHANNEL_WORDS,
   VISION_STRENGTH,
+  VOICE_END_REASONS,
   WABA_FIELDS,
   WAITING_AFTER_DAYS,
   WA_WINDOW_MS,
@@ -32046,7 +32055,6 @@ export {
   askJump,
   askModelProfile,
   askPages,
-  askQuestionWords,
   askUndoOpen,
   attentionOf,
   attentionRow,

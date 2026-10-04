@@ -49,6 +49,8 @@ export const DASHBOARD_LOG_EVENTS = [
   "ask_say_not_first",
   "ask_shape_failed",
   "ask_sources_dropped",
+  "ask_speech",
+  "ask_speech_refused",
   "ask_thread_touch_failed",
   "ask_tool_failed",
   "ask_tool_input_cut_off",

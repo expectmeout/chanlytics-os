@@ -37,8 +37,7 @@
     "00292": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00293": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00294": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
-    "00295": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
-    "00300": "held by the Ask voice lane's draft (cm-ask-voice-1, a voice session says how it went) when the Campaigns review fixes numbered 00301"
+    "00295": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -303,6 +302,7 @@
     "00297_a_yes_covers_the_channels_it_was_given_for.sql": "d99bd5c8eece93befa188fbf799f2b1bcebd9cccbc55488cb4377f9e10ed5d68",
     "00298_a_campaign_goes_by_the_channels_it_ticks.sql": "5a8b4ec8c53774a18d9a803c978b86a84330ce212797118f275d655396830eff",
     "00299_an_offer_by_email_goes_only_where_it_is_owed.sql": "945f3a84807f0dc6b7b47c060508ce69199c7412d4a63493c0b76c9d15599a3f",
+    "00300_a_voice_session_says_how_it_went.sql": "a2a727ebbeeb7757a81cf010d278aa2337815d56c0998d85a8590a6008b4c6b1",
     "00301_a_released_person_is_tried_again_under_a_new_attempt.sql": "8bafa7920769883ddc5df494841530dca0a5047af8e617a3713ff2da47430b27"
   }
 }

@@ -250,6 +250,53 @@ deployment's profile (Opus 5.5 by default, low effort); the gate re-runs with sp
 
 ### 3.5 The Line, listening
 
+> **Amended 4 Oct 2026, after a day on production.** Of 23 conversations Ruben started that morning, every one minted
+> and connected, and 19 ended inside nine seconds, by the browser (`Client disconnected: 1000`), before the brief had
+> begun: Today's Listen opened a two-way conversation, typed "Brief me on today" at the model (two Opus rounds and about
+> 61k cached tokens for words the page already drew, nine to ten seconds to the first word), and a second tap on a button
+> that already read Stop hung up; an agent that could not start handed the words to the browser's own synthesis, which
+> read them in a robotic voice and hid the failure; and the row's end said "stopped" for every cause alike. What changed:
+>
+> - **Two pipes, one voice.** Today's Listen and an answer's Read aloud are the **one-way speech**: the words on screen
+>   (the brief's line; an answer's `say`, its headline then its detail, never the figures) go to `POST /api/v1/ask/speech`
+>   (`text`, `purpose`), which asks the edge's door E, `POST /api/admin/voice/speech` (the signed admin token, the spend
+>   check the mint makes, the key), for the vendor's text-to-speech stream (`/v1/text-to-speech/{voice}/stream`, Flash
+>   v2.5, MP3, the vendor's normaliser on) and streams it back as the clip; the browser plays it from a Blob through one
+>   `<audio>` the bridge owns (`legacy-bridge/ask/speech.ts`), never a pane's, so a pane drawn again finds it playing and
+>   a pane gone leaves it to finish. No agent, no microphone, no session row, no thread; the first word in about a
+>   second. The Ask line's mic alone opens a **conversation** (below), and the agent speaks its own first words.
+> - **No fallback voice.** The browser's synthesis is gone. A clip that cannot be made says why beside the button, in
+>   the server's words (a paused workspace, a vendor down), and nothing else speaks.
+> - **The row says how it went** (00300): `end_reason` (contracts `VOICE_END_REASONS`: `button`, `typed`,
+>   `superseded`, `navigated`, `vendor`, `start`), `connect_ms` and `first_audio_ms` as the browser measured them from
+>   the tap, written on the end (POST ask/voice/end; a word outside the set, an older bundle's, ends the row all the
+>   same and is kept on the log alone, so either app may deploy first; the migration goes before the dashboard, since
+>   the end writes the columns). The vendor erases its record after the call (door D), so the row is the one record;
+>   the voice doctor reads it (runbook).
+> - **The agent speaks first.** `first_message` is "I'm listening.", protected from interruption; the browser overrides
+>   nothing of the agent but the session it hands it (the language and the first message were overridable, and the live
+>   agent allowed a text-only override the spec forbade). Patient turns; a silent call ends after twenty seconds,
+>   before the agent would ask the brain again at twenty-five (the two were a tie, and which fires first the vendor does
+>   not say; whether the end's clock counts the agent's own speaking is unstated too, so the dev agent's first mic run
+>   measures it); background-voice detection, the listener's words ignored, the vendor's transcript readers off: §3.7 as
+>   amended. The voice and its model are contracts' one pair, `ASK_VOICE_ID` ("Mark - Natural Conversations", Ruben's
+>   pick) on `ASK_VOICE_MODEL` (Turbo v2: the vendor holds an English agent to Turbo v2 or Flash v2, and this voice is
+>   high quality on Turbo), read by the agent's config and the speech door alike, so a brief and a spoken answer sound
+>   the same.
+> - **One voice at a time**, held where the two pipes are composed (`legacy-bridge/ask.ts`): a clip ends the
+>   conversation it would talk over (an open microphone would hear the brief and the agent answer it), and a
+>   conversation ends the clip.
+> - **The mic says what it is doing:** Connecting (a tap cancels), then End; the Line's Read aloud says it is getting
+>   the voice, then Stop. Typing ends the conversation as before, and now says so (`typed`).
+> - **What the vendor keeps of the speech:** the words of each clip go into the vendor's text-to-speech history (every
+>   answer carries a `history-item-id`; measured 4 Oct), under the account's retention; zero retention is an Enterprise
+>   switch. A brief names customers. Deleting each history item after the clip is §8's follow-up, and until then this is
+>   a fact for Ruben to know (§9).
+>
+> What follows is the design as first built, kept for the conversation pipe, which it still describes; where it says
+> Today's Listen or Read aloud starts a conversation, or that the device's voice reads where the agent cannot, the
+> amendment above is the truth.
+
 `legacy-bridge/ask/voice.ts`, beside `speech.ts`, is the one module that knows ElevenLabs' client: the plain
 `@elevenlabs/client` (React v1 would need a `ConversationProvider` around the Line, sources §4). It is loaded with
 `import()` on the first tap, so the workspace route's budget (`tooling/scripts/checks/bundle-budget.mjs`) does not
@@ -317,6 +364,22 @@ sources §8; retention is set regardless, section 3.7). The transcript is not st
 audio is never fetched.
 
 ### 3.7 The agent, as code
+
+> **Amended 4 Oct 2026.** Two agents from one body, `tooling/scripts/voice/elevenlabs-agent-config.mjs`: production's
+> `chanlytics-ask` (the id production's edge names) and a laptop's `chanlytics-ask-dev` pointed at a tunnel, each with
+> its own header secret; `--set-url` refuses the production name. `--apply` sends the whole body, reads the agent back
+> and exits 1 on any field that differs (`agentDrift`), so a vendor default can no longer survive an update; `--check`
+> does the read-back alone. The body, against the first one: `first_message` "I'm listening." with
+> `disable_first_message_interruptions`; `turn_eagerness: patient`, `turn_timeout` 20, `silence_end_call_timeout` 20,
+> `max_duration_seconds` 600 and `max_duration_seconds_after_last_agent_message` 60 (a field the live agent carries and
+> the public schema does not name; a refusal is the signal to drop it); `vad.background_voice_detection` on;
+> `interruption_ignore_terms` (okay, yeah, sí, ajá and their kin) merged with the vendor's defaults; `tts.voice_id`
+> contracts' `ASK_VOICE_ID` on `ASK_VOICE_MODEL` (`eleven_turbo_v2`); every `conversation_config_override` false (the
+> language and the first message included) but `custom_llm_extra_body`; `file_input`, `topic_discovery` and
+> `sentiment_analysis` off. `silence_end_call_timeout` 20 under `turn_timeout` 25, so the end comes before the re-engage
+> (the first body tied them at 20). The drift check compares a list of plain values as a set, since the vendor returns
+> the events and the merged ignore terms in its own order. The brain wiring, the client events, the privacy switches and
+> the limits are as below.
 
 As the receptionist's Retell agent is provisioned and converged from code, the ElevenLabs agent is: one script,
 `tooling/scripts/voice/elevenlabs-agent.mjs`, idempotent, dry-run by default, that creates or updates the one agent
@@ -464,20 +527,28 @@ first conversations. Starter's 75 minutes prove the design; Pro is the step befo
    an always-on socket host beside the dashboard (a small service, not a Vercel function), which is the whole of why
    it is not V1. `api_type: websocket` on a custom LLM exists with no protocol page and is not built on.
 3. **Language by ear.** The `language_detection` system tool, which switches the agent's ASR and TTS mid-conversation
-   only when the door returns that function call (sources §6); V1 fixes the language per session.
+   only when the door returns that function call (sources §6); V1 fixes the language per session. Since 4 Oct 2026 the
+   agent is English alone (no override, no preset): a Spanish session is a `language_presets` entry on Flash v2.5 with
+   a native voice from the library (Magnitudo, Aurelio, Ramiro, Natalia are in it), when Ruben asks for it.
 4. **Hands-free on a phone.** After each answer the microphone reopens for a beat. The app's WebView route to WebRTC
    is UNKNOWN; the React Native SDK needs a development build with the LiveKit modules and the microphone permission
    strings (sources §4), so it is an app release. Mobile Safari is measured in the spike.
 5. **What was spoken** drawn on the turn after an interruption (`agent_response_correction`).
 6. **ASR keywords** per session from the workspace's services and names (up to 50), once a misheard service shows
    up in the transcripts.
+7. **The door speaks only when it should** (4 Oct 2026): latest-wins on a request whose words extend the turn in
+   flight (a paused question ran two Opus turns); `skip_turn` for silence and room talk and `end_call` on a goodbye,
+   once a spike settles how the door streams a function call (the vendor documents no streamed encoding).
+8. **The clip cached by its text**, so a brief replayed is instant and free; the speech bucket counting clips that
+   played, not clips asked for; and each clip's `history-item-id` deleted at the vendor once it has played
+   (`DELETE /v1/history/{id}`), as door D erases a conversation, since a brief names customers.
 
 ## 9. Decisions for Ruben
 
-1. **The voice.** From the account's premade set: River (calm, neutral), Matilda (professional) or Sarah (warm); or
-   one voice for customers and owners by moving the receptionist's line to an ElevenLabs voice inside Retell. The
-   three sound like it everywhere.
-2. **Stick for the thread until typing**, as section 2 proposes, or a tap per answer.
+1. **The voice.** DECIDED 4 Oct 2026: "Mark - Natural Conversations" from the account's library (contracts
+   `ASK_VOICE_ID`), for the agent and the one-way speech alike. (River, the spike's, was the premade default.)
+2. **Stick for the thread until typing**, as section 2 proposes, or a tap per answer. DECIDED 4 Oct 2026: stick, and
+   Today's Listen is not a conversation at all (§3.5 as amended).
 3. **Retention at the vendor:** seven days with audio off and a delete after each conversation (proposed), or longer
    to listen back.
 4. **The plan:** Starter for the spike and the proof, Pro before customers lean on it; burst off (proposed) or on.
@@ -506,6 +577,15 @@ voice brief); `apps/dashboard/proxy.ts` (the one public path); `apps/dashboard/s
 `LOG_EVENTS` (the events); `docs/architecture.md` (the fifth door); `tooling/scripts/eval-ask.mjs` (spoken cases);
 `.env.example`.
 
+Added 4 Oct 2026 (§3.5 and §3.7 as amended): `apps/dashboard/app/api/v1/ask/speech/route.ts` (the one-way speech);
+`apps/edge/api/admin/voice/speech.ts` (door E) over `apps/edge/lib/voice/ask-voice.ts` (`speakAskVoice`);
+`packages/channels/src/voice/elevenlabs.ts` (`speakText`); `supabase/migrations/00300_a_voice_session_says_how_it_went.sql`;
+`legacy-bridge/ask/speech.ts` rewritten over the route (the browser's synthesis gone; the module holds the state and
+tells its watchers); contracts `ask/ask.ts` (`ASK_VOICE_ID`, `ASK_VOICE_MODEL`, `ASK_SPEECH_MAX_CHARS`,
+`VOICE_END_REASONS`, `ASK_VOICE_TIMING_MAX_MS`); `server/rate-limit.ts` (the `speech` bucket);
+`tooling/scripts/voice/elevenlabs-agent*.mjs` (two agents, the drift check); `.gitattributes` (the vendored worklets as
+bytes); tests `tooling/scripts/tests/ask-voice/speech-{route,door,port,module}.test.mjs`.
+
 ## 11. Delivery
 
 All local, uncommitted, until Ruben says the whole thing is verified (his rule of 2 Oct); then one push per PR.
@@ -519,6 +599,14 @@ All local, uncommitted, until Ruben says the whole thing is verified (his rule o
    budget raised only if the check counts the on-demand chunk (it should not: the chunk is fetched on tap).
 5. **PR 4, the proof:** door D, the eval cases, the privacy switches in the script, the runbook's lines ("Voice:
    mint, speak, end"), the decision note.
+6. **PR 5, the two pipes (4 Oct 2026, after a day on production):** the one-way speech for Listen and Read aloud, the
+   fallback voice removed, the row's end reason and timings (00300), the agent tuned to the brain and held by a drift
+   check, the mic's Connecting state. Before it merges: the dev agent converged with `--apply`, a mic run through a
+   tunnel (the silence timeouts measured there: a `vendor` end with a short life while the agent was still talking is
+   the sign to raise the end), a Listen on an iPhone (the element is unlocked in the press, untested on a device), Ruben
+   hearing Listen and the mic. Order at the push: 00300 pushed first (dry run first; the end route writes its columns),
+   then the apps in either order, the production agent created, the edge's `ELEVENLABS_AGENT_ID` set with `--force
+   --value`, both apps redeployed, one Listen tap and one mic tap read off the voice doctor, the spike agent deleted.
 
 ## 12. Risks
 

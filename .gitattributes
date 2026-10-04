@@ -9,3 +9,5 @@ packages/db/src/database.types.ts linguist-generated=true
 supabase/schema.sql linguist-generated=true
 docs/data-model.md linguist-generated=true
 docs/api.md linguist-generated=true
+# The agent client's audio worklets, vendored byte for byte (voice-worklets.test.mjs compares them with the package): no line-ending conversion.
+apps/dashboard/public/voice/* -text
