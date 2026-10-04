@@ -53,8 +53,12 @@ interface AskVoice {
   canVoice(): boolean;
   /** The language the person last asked in (the palette's). */
   language(): "en" | "es";
-  startVoice(input: VoiceStart, on: (a: VoiceAction) => void): Promise<{ threadId: string; title: string }>;
+  startVoice(input: VoiceStart, on: (a: VoiceAction) => void): Promise<{ threadId: string; title: string } | null>;
   stopVoice(): Promise<void>;
+  /** Whether a conversation runs now. */
+  voiceOn(): boolean;
+  /** Follow the running conversation from a pane that did not start it; answers the stop. */
+  watchVoice(on: (a: VoiceAction) => void): () => void;
 }
 
 /** Ask's voice where the shell has wired it and the device can talk with it; nothing in a stand-in window. */

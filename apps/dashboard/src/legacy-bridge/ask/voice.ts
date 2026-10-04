@@ -70,14 +70,20 @@ export function installVoice(win: Window, deps: VoiceDeps) {
   let session: string | null = null;
   let state: VoiceTurnState = VOICE_TURN_START;
   let listener: ((a: VoiceAction) => void) | null = null;
+  /** Who else follows the conversation: a pane drawn again while it runs (Today redraws itself as its data moves). */
+  const watchers = new Set<(a: VoiceAction) => void>();
+  const tell = (a: VoiceAction) => {
+    if (listener) listener(a);
+    for (const w of watchers) w(a);
+  };
   /** Which start is the current one; an end moves it on, and a start that finds itself behind closes what it opened. */
   let generation = 0;
 
   const hear = (ev: VoiceEvent) => {
-    if (!listener) return;
+    if (!listener && watchers.size === 0) return;
     const r = reduceVoiceEvent(state, ev);
     state = r.state;
-    for (const a of r.actions) listener(a);
+    for (const a of r.actions) tell(a);
   };
   const forget = () => {
     conv = null;
@@ -106,6 +112,7 @@ export function installVoice(win: Window, deps: VoiceDeps) {
     if (ended) await deps.api.voiceEnd(ended, reason);
     // The Line hears the end it asked for too, so a turn cut short is let go of and the thread read.
     if (on) on({ t: "gone", reason });
+    for (const w of watchers) w({ t: "gone", reason });
   }
 
   return {
@@ -198,6 +205,18 @@ export function installVoice(win: Window, deps: VoiceDeps) {
       return { threadId: started.thread_id, title: started.title };
     },
     stopVoice: () => stopVoice(),
+    /**
+     * Follow the conversation that runs, from outside the start that began it: a pane drawn again while the agent
+     * speaks hears the end as the starter does. Answers the stop. A pane that goes away never ends the conversation:
+     * it is the member's, not the pane's (seen on production, 4 Oct 2026: Today redrew itself as the voice wrote its
+     * thread, the pane's unmount hung up, and every conversation lasted six seconds).
+     */
+    watchVoice(on: (a: VoiceAction) => void): () => void {
+      watchers.add(on);
+      return () => {
+        watchers.delete(on);
+      };
+    },
     /** The page under the Line changed: the next spoken turn reads this one. */
     pageMoved(context: PageContext): void {
       if (session) void deps.api.voicePage(session, context);

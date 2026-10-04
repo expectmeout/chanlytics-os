@@ -48,16 +48,24 @@ function spokenLength(text: string): string {
  * reads; a page left mid-sentence falls silent either way.
  */
 function useSpeech(text: string | null): { can: boolean; speaking: boolean; toggle: () => void } {
-  const [speaking, setSpeaking] = useState(false);
+  // A pane drawn while the agent already speaks (Today redraws itself as its data moves) finds it running.
+  const [speaking, setSpeaking] = useState(() => !!askVoice()?.voiceOn());
   /** Who is reading: the agent, or the device's own voice; nobody between. */
-  const reader = useRef<"agent" | "device" | null>(null);
-  useEffect(
-    () => () => {
-      if (reader.current === "agent") void askVoice()?.stopVoice();
-      else if (reader.current === "device") window.speechSynthesis.cancel();
-    },
-    [],
-  );
+  const reader = useRef<"agent" | "device" | null>(askVoice()?.voiceOn() ? "agent" : null);
+  // The conversation is the member's, never the pane's: a pane that goes away leaves it running and lets go of the
+  // device's voice alone; while drawn it follows the conversation's end, from whichever pane began it.
+  useEffect(() => {
+    const off = askVoice()?.watchVoice((a) => {
+      if (a.t === "gone" && reader.current === "agent") {
+        reader.current = null;
+        setSpeaking(false);
+      }
+    });
+    return () => {
+      if (off) off();
+      if (reader.current === "device") window.speechSynthesis.cancel();
+    };
+  }, []);
   const voice = askVoice();
   const can = !!voice || canSpeak();
   const quiet = () => {
@@ -100,8 +108,8 @@ function useSpeech(text: string | null): { can: boolean; speaking: boolean; togg
           language,
           ask: askQuestionWords("brief", language),
         },
-        (a) => {
-          if (a.t === "gone" && reader.current === "agent") quiet();
+        () => {
+          /* the end is heard through watchVoice, which outlives this pane */
         },
       )
       .catch(() => {
