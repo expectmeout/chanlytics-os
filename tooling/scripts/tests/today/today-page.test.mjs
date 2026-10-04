@@ -1802,17 +1802,29 @@ test('Glass brief: where the device can talk with Ask, Listen is the brief spoke
   set({ today: busy(), __REPORTS: reports() });
   const started = [];
   const stopped = [];
-  let heard = null;
+  let on = false;
+  const watchers = new Set();
+  /** The vendor's end, as voice.ts tells every watcher. */
+  const heard = (a) => {
+    on = false;
+    for (const w of watchers) w(a);
+  };
   const voice = {
     canVoice: () => true,
     language: () => "en",
-    startVoice: async (input, on) => {
+    voiceOn: () => on,
+    watchVoice: (w) => {
+      watchers.add(w);
+      return () => watchers.delete(w);
+    },
+    startVoice: async (input) => {
       started.push(input);
-      heard = on;
+      on = true;
       return { threadId: "t-voice", title: "Voice" };
     },
     stopVoice: async () => {
       stopped.push(1);
+      on = false;
     },
   };
   W.__ask = voice;
@@ -1882,6 +1894,8 @@ test("Glass brief: an agent that could not start (the mint refused, the connecti
     canVoice: () => true,
     language: () => "en",
     // As voice.ts does when the mint or the connection refuses: the Line hears "gone", then the start throws.
+    voiceOn: () => false,
+    watchVoice: () => () => {},
     startVoice: async (_input, on) => {
       on({ t: "gone", reason: "start" });
       throw new Error("Voice is off while this workspace is paused or its plan has ended.");
@@ -1920,6 +1934,49 @@ test("Glass brief: an agent that could not start (the mint refused, the connecti
     doc.getAttribute = was;
     delete W.speechSynthesis;
     delete globalThis.SpeechSynthesisUtterance;
+    delete W.__ask;
+    delete globalThis.__ask;
+  }
+});
+
+test("Glass brief: a pane drawn again while the agent speaks (Today redrew itself) says Stop and ends nothing; the agent going, heard through the watch, lets go", () => {
+  clear();
+  set({ today: busy(), __REPORTS: reports() });
+  const stopped = [];
+  let on = true;
+  const watchers = new Set();
+  const voice = {
+    canVoice: () => true,
+    language: () => "en",
+    voiceOn: () => on,
+    watchVoice: (w) => {
+      watchers.add(w);
+      return () => watchers.delete(w);
+    },
+    startVoice: async () => ({ threadId: "t-voice", title: "Voice" }),
+    stopVoice: async () => {
+      stopped.push(1);
+      on = false;
+    },
+  };
+  W.__ask = voice;
+  globalThis.__ask = voice;
+  try {
+    inGlass(() => {
+      fresh();
+      let tree = again(() => TodayBriefPane());
+      const listen = byTestId(tree, "today-brief-listen");
+      assert.equal(listen.props["aria-pressed"], true, "a conversation runs: the pane finds it and says Stop");
+      assert.match(textOf(listen), /Stop/);
+      assert.equal(stopped.length, 0, "and ended nothing by being drawn");
+      assert.equal(watchers.size, 1, "it follows the conversation");
+      for (const w of [...watchers]) w({ t: "gone", reason: "agent" });
+      on = false;
+      tree = again(() => TodayBriefPane());
+      assert.equal(byTestId(tree, "today-brief-listen").props["aria-pressed"], false, "the agent gone, Listen again");
+      assert.equal(stopped.length, 0, "nothing of the pane's doing");
+    });
+  } finally {
     delete W.__ask;
     delete globalThis.__ask;
   }

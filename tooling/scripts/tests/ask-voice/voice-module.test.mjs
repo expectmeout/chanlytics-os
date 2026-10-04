@@ -179,6 +179,37 @@ test("a start the vendor refuses: the row is ended as a start that failed, the L
   assert.equal(voice.voiceOn(), false);
 });
 
+test("a watcher follows a conversation it did not start: it hears the agent's words and every end, the starter's or the agent's, and a watcher that lets go hears nothing more", async () => {
+  const v = vendor();
+  const a = api();
+  const voice = installVoice(WIN, { api: a, load: v.load });
+  const starter = [];
+  const watched = [];
+  const started = voice.startVoice(START, (x) => starter.push(x));
+  await tick();
+  await tick();
+  v.connect();
+  await started;
+  const off = voice.watchVoice((x) => watched.push(x));
+  v.convs[0].opts.onMessage({ source: "ai", message: "Two people need you." });
+  assert.deepEqual(
+    watched,
+    [{ t: "spoken", text: "Two people need you." }],
+    "the watcher hears what the starter hears",
+  );
+  assert.deepEqual(starter, watched);
+  await voice.stopVoice();
+  assert.deepEqual(watched.at(-1), { t: "gone", reason: "stopped" }, "and the end the starter asked for");
+  off();
+  const again = voice.startVoice(START, () => {});
+  await tick();
+  await tick();
+  v.connect();
+  await again;
+  v.convs[1].opts.onDisconnect({ reason: "agent" });
+  assert.equal(watched.length, 2, "a watcher that let go hears nothing of the next conversation");
+});
+
 test("the page moved: the row is told while a conversation runs, and not before or after", async () => {
   const v = vendor();
   const a = api();
