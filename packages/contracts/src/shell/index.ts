@@ -47,6 +47,7 @@ export {
   IN_APP_CLASS,
   APP_KEYS_RESIZE_CLASS,
   PREFETCH_SLOT,
+  PREFETCH_READS,
   isSidebarPref,
   SHORTCUTS,
   TOAST_TONES,
@@ -90,20 +91,22 @@ export {
   PAGE_VITALS_READ,
   PAGE_VITALS_MIN_LOADS,
   PageVitalReport,
-  PageVitalsInput,
   vitalsPageOf,
   vitalValueWords,
   vitalVerdict,
   pageVitalsWords,
 } from "./vitals";
+export { PageVitalsInput } from "./vitals-schema";
 export type {
   PageVital,
-  PageVitalsInputDto,
   PageVitalsRowDto,
   PageVitalVerdict,
   PageVitalLineVM,
   PageVitalsPageVM,
   PageVitalsVM,
 } from "./vitals";
-export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, ClientErrorInput, clientErrorOf } from "./client-error";
-export type { ClientErrorBoundary, ClientErrorInputDto } from "./client-error";
+export type { PageVitalsInputDto } from "./vitals-schema";
+export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf } from "./client-error";
+export { ClientErrorInput } from "./client-error-schema";
+export type { ClientErrorBoundary } from "./client-error";
+export type { ClientErrorInputDto } from "./client-error-schema";

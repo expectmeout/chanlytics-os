@@ -96,9 +96,10 @@ export {
   ListConditionSchema,
   ListRuleSchema,
   LIST_DRAFT_JSON_SCHEMA,
-  ListDraftAnswerSchema,
-} from "./list-rules";
-export type { ListNeed, ListFact, ListAny, ListCondition, ListRule, InList, ListDraftAnswer } from "./list-rules";
+} from "./lists/list-rules";
+export { ListDraftAnswerSchema, PeopleExportQuerySchema } from "./lists/list-schemas";
+export type { ListNeed, ListFact, ListAny, ListCondition, ListRule, InList } from "./lists/list-rules";
+export type { ListDraftAnswer } from "./lists/list-schemas";
 export {
   listToken,
   parseListToken,
@@ -120,10 +121,9 @@ export {
   PEOPLE_LIST_GROUPS,
   BUILTIN_LISTS,
   PEOPLE_LISTS,
-  PeopleExportQuerySchema,
   viewerListWords,
   TODAY_PINS_MAX,
-} from "./lists";
+} from "./lists/lists";
 export type {
   ListRef,
   PeopleListGroup,
@@ -135,7 +135,7 @@ export type {
   ListDef,
   SavedListRowLike,
   TodayPin,
-} from "./lists";
+} from "./lists/lists";
 export {
   personLikeOf,
   peopleVisitsOf,

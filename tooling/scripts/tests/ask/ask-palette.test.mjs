@@ -29,23 +29,9 @@ import {
   groundCitations,
   normalizeAnswer,
   LeadSearchPlanSchema,
-  LEAD_COUNT_CHOICES,
-  LEAD_QUESTION_WAIT_LINE,
-  leadEndingLine,
-  leadPlanAsk,
-  leadPlanFacts,
-  leadPlanLikely,
   leadQuestionRoute,
   leadsRoute,
-  planArea,
-  planCeiling,
-  planMinutes,
-  planSaid,
   planSentence,
-  planVersionOf,
-  planWhere,
-  planWho,
-  planWords,
 } from "@chanlytics/contracts";
 
 /* ---------------------------------- the window ---------------------------------- */
@@ -218,8 +204,10 @@ await import("../../../../apps/dashboard/src/legacy/pages/ask-turn.jsx");
 await import("../../../../apps/dashboard/src/legacy/pages/ask-real.jsx");
 // Ask's face in the line (components/ask-face.jsx): drawn in every case; it moves only where a case installs the bridge.
 await import("../../../../apps/dashboard/src/legacy/components/ask-face.jsx");
-// A lead search's card on the rail is the finder's own plan card (leads-finder.jsx LeadPlanCard, hookless).
-await import("../../../../apps/dashboard/src/legacy/pages/leads-finder.jsx");
+// A lead search's card on the rail is the finder's own plan card (surfaces/leads/finder/plan-card.tsx, hookless), which
+// Ask's palette draws by name until it moves: what seed-globals publishes (surfaces/leads/globals.ts).
+const { LEADS_GLOBALS } = await import("../../../../apps/dashboard/src/surfaces/leads/globals.ts");
+Object.assign(globalThis.window, LEADS_GLOBALS);
 const { askPalette, quickAnswer, surfaceFor } =
   await import("../../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
 const { askSpeech } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/speech.ts");
@@ -2931,32 +2919,12 @@ const LEAD_CARD = {
   payload: { plan: LEAD_PLAN, view: { title: "Find 200 personal trainers" }, facts: LEAD_FACTS },
   undo: "Stop the search",
 };
-/** The derivations the plan card reads off the window (seed-globals.ts __LEAD_VM), so the card on the rail is the finder's own. */
-const LEAD_VM = {
-  planWords,
-  planSaid,
-  planWhere,
-  planWho,
-  planArea,
-  planMinutes,
-  planCeiling,
-  planSentence,
-  planVersionOf,
-  LEAD_COUNT_CHOICES,
-  leadEndingLine,
-  leadPlanLikely,
-  leadPlanFacts,
-  leadPlanAsk,
-  LEAD_QUESTION_WAIT_LINE,
-};
-
 test("on Leads the Line is the finder: describe the businesses, Find businesses with the day's chip and the consent line; the words go as typed on the leads surface; the card puts them back to change and opens the search once approved", async () => {
   const hash = globalThis.window.location.hash;
   const chanly = globalThis.window.CHANLY;
   const went = [];
   globalThis.window.location.hash = "#/clients/leads";
   globalThis.window.__LEADS = { suggestions: { items: [{ words: "100 nail salons in Queens, NY" }] }, searches: [] };
-  globalThis.window.__LEAD_VM = LEAD_VM;
   globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
   try {
     ask([]);
@@ -3037,7 +3005,6 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
     globalThis.window.location.hash = hash;
     globalThis.window.CHANLY = chanly;
     delete globalThis.window.__LEADS;
-    delete globalThis.window.__LEAD_VM;
   }
 });
 
@@ -3047,7 +3014,6 @@ test("on Leads a card that answers a search commits through Ask's door with no u
   const went = [];
   globalThis.window.location.hash = "#/clients/leads";
   globalThis.window.__LEADS = { suggestions: { items: [] }, searches: [] };
-  globalThis.window.__LEAD_VM = LEAD_VM;
   globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
   const answering = {
     ...LEAD_CARD,
@@ -3106,7 +3072,6 @@ test("on Leads a card that answers a search commits through Ask's door with no u
     globalThis.window.location.hash = hash;
     globalThis.window.CHANLY = chanly;
     delete globalThis.window.__LEADS;
-    delete globalThis.window.__LEAD_VM;
   }
 });
 

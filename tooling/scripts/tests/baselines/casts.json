@@ -64,14 +64,10 @@
     "unknownAs": 1
   },
   "apps/dashboard/src/legacy-bridge/identity.ts": {
-    "unknownAs": 3
+    "unknownAs": 1
   },
   "apps/dashboard/src/legacy-bridge/inbox-verbs.ts": {
     "unknownAs": 1
-  },
-  "apps/dashboard/src/legacy-bridge/leads.ts": {
-    "unknownAs": 3,
-    "never": 1
   },
   "apps/dashboard/src/legacy-bridge/mascot/driver.ts": {
     "unknownAs": 2
@@ -95,9 +91,6 @@
   "apps/dashboard/src/legacy-bridge/refresh-map.ts": {
     "unknownAs": 1
   },
-  "apps/dashboard/src/legacy-bridge/setup.ts": {
-    "unknownAs": 1
-  },
   "apps/dashboard/src/legacy-bridge/surface-cache.ts": {
     "unknownAs": 2
   },
@@ -115,10 +108,6 @@
   },
   "apps/dashboard/src/legacy-bridge/surfaces/settings.ts": {
     "unknownAs": 1
-  },
-  "apps/dashboard/src/legacy-bridge/whatsapp-connect.ts": {
-    "unknownAs": 2,
-    "nonNull": 2
   },
   "apps/dashboard/src/legacy-bridge/zone.ts": {
     "unknownAs": 1
@@ -202,6 +191,10 @@
   },
   "apps/dashboard/src/server/workspace/workspace-list.ts": {
     "unknownAs": 1
+  },
+  "apps/dashboard/src/surfaces/leads/surface.ts": {
+    "unknownAs": 1,
+    "never": 1
   },
   "apps/dashboard/src/surfaces/people/people-detail.ts": {
     "unknownAs": 1
@@ -342,12 +335,6 @@
   "packages/contracts/src/config/business-tab/abilities.ts": {
     "unknownAs": 1
   },
-  "packages/contracts/src/config/business-tab/booking-rules-words.ts": {
-    "unknownAs": 1
-  },
-  "packages/contracts/src/config/business-tab/fold-limits.ts": {
-    "unknownAs": 1
-  },
   "packages/contracts/src/conversations/inbox-thread.ts": {
     "nonNull": 4
   },
@@ -360,10 +347,10 @@
   "packages/contracts/src/leads/lead-first-day.ts": {
     "nonNull": 1
   },
-  "packages/contracts/src/people/list-rules.ts": {
+  "packages/contracts/src/people/lists/list-rules.ts": {
     "nonNull": 1
   },
-  "packages/contracts/src/people/lists.ts": {
+  "packages/contracts/src/people/lists/lists.ts": {
     "nonNull": 1
   },
   "packages/contracts/src/people/person-cards.ts": {

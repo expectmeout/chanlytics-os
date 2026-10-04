@@ -26,7 +26,6 @@ import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 import {
   dealsAreOn,
-  FIRST_RUN_HELPERS,
   hoursLines,
   MEMBERSHIP_ROLES,
   pipelineOf,
@@ -266,7 +265,6 @@ function globalsInstalledByThePages() {
  * published, or the mockup's copy answers for it.
  */
 const NOT_PUBLISHED = new Map([
-  ["__CHANNELS", "defining it at all flips settings.jsx to PaneIntegrationsReal, and its shape is toChannelVM's"],
   ["__CALENDAR", "the Calendar pane's surface; the Business record's calendar row reads the config"],
   ["__calendar", "the Calendar pane's verbs"],
   [
@@ -274,20 +272,10 @@ const NOT_PUBLISHED = new Map([
     "the Calendar's two words (surfaces/calendar/words.ts); the record's row reads them beside __CALENDAR, which is left alone",
   ],
   ["__setup", "the Setup pane's verbs"],
-  ["__TEAM", "the Team card's surface"],
-  ["__TEAM_INVITES", "the Team card's invitations"],
-  ["__teamInvite", "the Team card's verbs"],
-  ["__teamRemove", "the Team card's verbs"],
-  ["__teamSetRole", "the Team card's verbs"],
-  ["__inviteState", "the Team card's own state"],
   ["__activity", "the Activity log pane's surface"],
   ["__platform", "the back office, which an owner never sees"],
-  ["__setPolicy", "the Autonomy pane's verb"],
-  ["__shell", "the chrome's own, published by the app shell"],
   ["__href", "the chrome's own"],
-  ["__me", "the chrome's own; the fixture publishes __ME, which the record reads"],
   ["__surfaceFailed", "the surface runner's, for a read that failed; nothing here fails a read"],
-  ["__today", "Today's helpers; the Notifications pane lists what is sent from them, and the record never reads them"],
 ]);
 
 test("the fixture publishes every global the Business record and Settings read, or says why not", async () => {
@@ -607,15 +595,12 @@ test("in a browser, the pipeline record's page stands at its workspace's address
 
 /* ------------------------------------------- the first run and Ask ------------------------------------------- */
 
-test("every record publishes the first run's helpers, from contracts; Ask's client only in a browser, where the first run is its own surface (Ask Rewired, Phase 7)", async () => {
+// The first run is an App Router page (surfaces/setup/first-run, decision 0015 step 10) that imports contracts' helpers,
+// so no record publishes them: the mockup draws no first run.
+test("no record publishes the first run's helpers; Ask's client only in a browser, where the first run is its own surface (Ask Rewired, Phase 7)", async () => {
   for (const name of SCENARIOS) {
     const w = await publishedGlobals(name);
-    assert.deepEqual(
-      Object.keys(w.__firstRun).sort(),
-      Object.keys(FIRST_RUN_HELPERS).sort(),
-      `${name}: setup.ts's own`,
-    );
-    assert.deepEqual(plain(w.__firstRun.words), plain(FIRST_RUN_HELPERS.words), `${name}: its words, from contracts`);
+    assert.equal(w.__firstRun, undefined, `${name}: the first run reads contracts, not the window`);
     assert.equal(w.__ask, undefined, `${name}: outside a browser there is nothing for the Line to ask with`);
   }
   const record = scenario("nightly", NOW);

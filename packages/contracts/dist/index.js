@@ -1,6 +1,6 @@
 // src/zod-config.ts
-import { z } from "zod";
-z.config({ jitless: true });
+import { config } from "zod/v4/core";
+config({ jitless: true });
 
 // src/ai/models.ts
 var MODELS = {
@@ -84,32 +84,32 @@ function isModelId(v) {
 var RETELL_MODELS = { llm: "claude-4.5-haiku", analysis: "gpt-4.1" };
 
 // src/ai/system-one.ts
-import { z as z2 } from "zod";
+import { z } from "zod";
 var SYSTEM_ONE_MODEL = "jev-1.13.0";
 var SYSTEM_ONE_INPUT_USD_PER_MILLION = 0.042;
 var SYSTEM_ONE_STATE_MAX_CHARS = 2e4;
-var Probability = z2.number().min(0).max(1);
-var SystemOneAnswerSchema = z2.discriminatedUnion("type", [
-  z2.object({ type: z2.literal("noul"), noul: Probability }),
-  z2.object({
-    type: z2.literal("choice"),
-    choice: z2.string(),
-    probabilities: z2.record(z2.string(), Probability),
+var Probability = z.number().min(0).max(1);
+var SystemOneAnswerSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("noul"), noul: Probability }),
+  z.object({
+    type: z.literal("choice"),
+    choice: z.string(),
+    probabilities: z.record(z.string(), Probability),
     confidence: Probability
   }),
-  z2.object({
-    type: z2.literal("score"),
-    score: z2.number(),
-    legend: z2.record(z2.string(), z2.unknown()),
-    probabilities: z2.record(z2.string(), Probability),
+  z.object({
+    type: z.literal("score"),
+    score: z.number(),
+    legend: z.record(z.string(), z.unknown()),
+    probabilities: z.record(z.string(), Probability),
     confidence: Probability
   })
 ]);
-var SystemOneResponseSchema = z2.object({
+var SystemOneResponseSchema = z.object({
   /** The versioned id of the model that answered. */
-  model: z2.string().min(1),
-  answers: z2.record(z2.string(), SystemOneAnswerSchema),
-  usage: z2.object({ input_tokens: z2.number().int().min(0), output_tokens: z2.number().int().min(0).optional() })
+  model: z.string().min(1),
+  answers: z.record(z.string(), SystemOneAnswerSchema),
+  usage: z.object({ input_tokens: z.number().int().min(0), output_tokens: z.number().int().min(0).optional() })
 });
 function parseSystemOneResponse(raw) {
   const r2 = SystemOneResponseSchema.safeParse(raw);
@@ -362,7 +362,6 @@ function policyClassOffered(cls, dealsOn) {
 }
 
 // src/config/workspace-config/policy-classes.ts
-import { z as z3 } from "zod";
 var POLICY_CLASSES = [
   "reply",
   "booking",
@@ -511,34 +510,6 @@ function policyRules(policy, channel) {
   );
   return out;
 }
-var PolicyLimitsSchema = z3.object({
-  max_replies_day: z3.number().int().min(1).max(200).optional(),
-  pause_hours: z3.number().int().min(1).max(168).optional(),
-  /**
-   * How long the receptionist WAITS before its own reply goes out, in ms.
-   *
-   * Only meaningful when mode is 'veto'. A text channel is not a phone
-   * call — nobody expects an answer in under a second — so the delay costs
-   * the customer nothing and buys the business a window to redirect the bot
-   * before it speaks, rather than apologising for it afterwards.
-   */
-  reply_delay_ms: z3.number().int().min(5e3).max(6e5).optional(),
-  /**
-   * The confidence dial. Under 'auto', a reply the model is less sure about
-   * than this waits in the hold window (reply_delay_ms) for a person instead
-   * of going straight out — sure enough sends itself, not sure enough waits.
-   * 0 or absent means off.
-   */
-  min_confidence: z3.number().min(0).max(1).optional(),
-  /**
-   * The day's token budget: model tokens in and out over a rolling 24
-   * hours, read from the usage events every reply writes. Over it the
-   * receptionist stops and files a `budget` escalation, as it does at the
-   * reply cap. 0 or absent is off; a value is at least a thousand, because
-   * a budget of ten would be a mute button with a misleading name.
-   */
-  max_llm_tokens_day: z3.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
-}).strict();
 
 // src/consent/consent-channels.ts
 var CONSENT_CHANNELS = ["whatsapp", "sms", "email"];
@@ -693,688 +664,8 @@ function purposeOfPlaybook(policyClass) {
   return policyClass === "booking" || policyClass === "follow_up" ? "conversational" : "marketing";
 }
 
-// src/calendar/feed-url.ts
-var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
-var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
-var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
-function feedUrlOk(raw) {
-  if (!raw) return null;
-  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
-  let u;
-  try {
-    u = new URL(url);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  const h = u.hostname;
-  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
-    return null;
-  return u.toString();
-}
-var FEED_REDIRECTS_MAX = 3;
-async function fetchPublic(fetchImpl, raw, init = {}) {
-  let at3 = feedUrlOk(raw);
-  for (let hop = 0; at3 && hop <= FEED_REDIRECTS_MAX; hop += 1) {
-    const res = await fetchImpl(at3, { ...init, redirect: "manual" });
-    if (res.status >= 300 && res.status < 400) {
-      const next = res.headers.get("location");
-      await res.body?.cancel().catch(() => void 0);
-      at3 = next ? feedUrlOk(URL.canParse(next, at3) ? new URL(next, at3).toString() : null) : null;
-      continue;
-    }
-    return res;
-  }
-  return null;
-}
-var FEED_GUIDES = [
-  {
-    name: "Google Calendar",
-    steps: [
-      "On a computer, open Google Calendar and go to Settings.",
-      "Under \u201CSettings for my calendars\u201D, pick the calendar your appointments land in.",
-      "Open \u201CIntegrate calendar\u201D and copy \u201CSecret address in iCal format\u201D."
-    ]
-  },
-  {
-    name: "Apple Calendar (iCloud)",
-    steps: [
-      "In the Calendar app, open Calendars and press \u24D8 beside the calendar your appointments land in.",
-      "Turn on Public Calendar, then Share Link, and copy it."
-    ]
-  },
-  {
-    name: "Outlook",
-    steps: [
-      "In Outlook on the web, open Settings, then Calendar, then Shared calendars.",
-      "Under \u201CPublish a calendar\u201D, pick your calendar and \u201CCan view when I'm busy\u201D, then Publish.",
-      "Copy the ICS link."
-    ]
-  }
-];
-var FEED_CHECK_WORDS = {
-  guide: "Where do I find it?",
-  reading: "Reading it\u2026",
-  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new appointments as they land." : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`
-};
-var FEED_MAX_BYTES = 2e6;
-function feedProblemWords(reason, status) {
-  switch (reason) {
-    case "address":
-      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
-    case "unreachable":
-      return "The calendar could not be reached. Check the address and try again.";
-    case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
-    case "too_large":
-      return "That feed is too large to read (over 2 MB).";
-    case "not_ical":
-      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
-    case "settings":
-      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
-    default:
-      return null;
-  }
-}
-function feedBodyProblem(text) {
-  if (text.length > FEED_MAX_BYTES) return "too_large";
-  if (!/BEGIN:VCALENDAR/i.test(text)) return "not_ical";
-  return null;
-}
-function offeringHorizon(now, daysAhead) {
-  return { from: now.getTime() - DAY_MS, to: now.getTime() + (daysAhead + 1) * DAY_MS };
-}
-function seasonHorizon(now, daysAhead = 0) {
-  return { from: now.getTime() - DAY_MS * 90, to: now.getTime() + Math.max(daysAhead + 1, 90) * DAY_MS };
-}
-function previewHorizon(now) {
-  return { from: now.getTime() - DAY_MS, to: now.getTime() + 30 * DAY_MS };
-}
-
-// src/shared/email-address.ts
-var MAX_ADDRESS = 254;
-var MAX_LOCAL = 64;
-var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
-var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
-var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
-function normalizeEmail(raw) {
-  if (raw == null) return null;
-  const s = String(raw).trim().toLowerCase();
-  if (!s || s.length > MAX_ADDRESS) return null;
-  const m = SHAPE.exec(s);
-  if (!m || m[1].length > MAX_LOCAL) return null;
-  return s;
-}
-function whyNotAnEmail(raw) {
-  if (normalizeEmail(raw)) return null;
-  const s = String(raw ?? "").trim();
-  if (!s) return "An email address is needed.";
-  if (/[<>]/.test(s) || /\s/.test(s))
-    return "Only the address itself, like name@example.com, with no name or spaces around it.";
-  const at3 = s.split("@").length - 1;
-  if (at3 === 0) return "That is missing the @.";
-  if (at3 > 1) return "An address has one @.";
-  if (!/@[^@]*\./.test(s)) return "That needs a full domain after the @, like name@example.com.";
-  return "That is not an email address anyone can be reached at.";
-}
-var OWN_ADDRESS_WORDS = /\b(my|mine|it'?s|is|email|e-mail|mail|correo|mi|es|sure|here|aqu[ií])\b/i;
-function addressInMessage(body) {
-  const s = String(body ?? "").trim();
-  if (!s || s.length > 160) return null;
-  const tokens = s.split(/\s+/);
-  const found = /* @__PURE__ */ new Set();
-  for (const raw of tokens) {
-    const t = raw.replace(/^[("'<[]+|[)"'>\].,;:!?]+$/g, "");
-    if (!t.includes("@")) continue;
-    const e = normalizeEmail(t);
-    if (!e) return null;
-    found.add(e);
-  }
-  if (found.size !== 1) return null;
-  const alone = tokens.length === 1;
-  const theirs = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(s);
-  return alone || theirs ? [...found][0] : null;
-}
-
-// src/config/workspace-config/config-schema.ts
-import { z as z6 } from "zod";
-
-// src/config/unknown-keys.ts
-var isJsonObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-var isList = (v) => Array.isArray(v);
-function keysLeftOut(raw, kept, at3 = []) {
-  if (Array.isArray(raw) && Array.isArray(kept)) {
-    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut(v, kept[i], [...at3, i]) : []);
-  }
-  if (!isJsonObject(raw) || !isJsonObject(kept)) return [];
-  return Object.entries(raw).flatMap(([k, v]) => {
-    if (v === void 0) return [];
-    return Object.hasOwn(kept, k) ? keysLeftOut(v, kept[k], [...at3, k]) : [[...at3, k]];
-  });
-}
-function sameJson(a, b) {
-  if (Array.isArray(a) || Array.isArray(b)) {
-    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => sameJson(v, b[i]));
-  }
-  if (isJsonObject(a) && isJsonObject(b)) {
-    const ka = Object.keys(a).filter((k) => a[k] !== void 0);
-    const kb = Object.keys(b).filter((k) => b[k] !== void 0);
-    return ka.length === kb.length && ka.every((k) => Object.hasOwn(b, k) && sameJson(a[k], b[k]));
-  }
-  return Object.is(a, b);
-}
-function withKeysLeftOut(sent2, raw, kept) {
-  if (isList(sent2) && isList(raw) && isList(kept)) {
-    const taken = /* @__PURE__ */ new Set();
-    return sent2.map((el) => {
-      const i = kept.findIndex((k, n) => !taken.has(n) && n < raw.length && sameJson(k, el));
-      if (i < 0) return el;
-      taken.add(i);
-      return withKeysLeftOut(el, raw[i], kept[i]);
-    });
-  }
-  if (!isJsonObject(sent2) || !isJsonObject(raw) || !isJsonObject(kept)) return sent2;
-  const out = { ...sent2 };
-  for (const [k, v] of Object.entries(raw)) {
-    if (v === void 0) continue;
-    if (!Object.hasOwn(kept, k)) {
-      if (!Object.hasOwn(sent2, k)) out[k] = v;
-    } else if (Object.hasOwn(sent2, k)) {
-      out[k] = withKeysLeftOut(sent2[k], v, kept[k]);
-    }
-  }
-  return out;
-}
-function refuseUnknownFields(read, raw, ctx) {
-  const parsed = read.safeParse(raw);
-  if (!parsed.success) return;
-  const byObject = /* @__PURE__ */ new Map();
-  for (const where of keysLeftOut(raw, parsed.data)) {
-    if (where.length < 2) continue;
-    const path = where.slice(0, -1);
-    const id = JSON.stringify(path);
-    const held = byObject.get(id) ?? { path, keys: [] };
-    held.keys.push(String(where[where.length - 1]));
-    byObject.set(id, held);
-  }
-  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
-}
-
-// src/config/workspace-config/brain-config.ts
-import { z as z5 } from "zod";
-
-// src/config/workspace-config/business-profile.ts
-import { z as z4 } from "zod";
-var TIME = z4.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-var IntervalSchema = z4.object({ open: TIME, close: TIME });
-var HoursSchema = z4.object({
-  /** "09:00". Absent or null = closed that day, which is a real answer. */
-  open: TIME.nullable().optional(),
-  close: TIME.nullable().optional(),
-  /**
-   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
-   * actually keeps. Additive: a day that has always been one stretch keeps
-   * saying so with open/close, and no stored config is rewritten.
-   */
-  intervals: z4.array(IntervalSchema).optional()
-}).strip();
-var DATE = z4.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var ClosureSchema = z4.object({
-  date: DATE,
-  until: DATE.optional(),
-  note: z4.string().max(200).optional()
-});
+// src/config/workspace-config/config-rules.ts
 var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-var ServiceSchema = z4.object({
-  name: z4.string().min(1).max(80),
-  /** Minutes. The receptionist is asked "how long does it take" constantly. */
-  duration_min: z4.number().int().min(1).max(1440).optional(),
-  /**
-   * Free text, not a number, and deliberately so: "from $45", "quoted at
-   * consult", "varies by length". A price the business cannot state flatly
-   * must not be forced into a field that looks like it can.
-   */
-  price_note: z4.string().max(120).optional()
-}).strip();
-var GuardrailsSchema = z4.object({
-  never_quote_prices: z4.boolean().optional(),
-  never_confirm_booking: z4.boolean().optional(),
-  disclose_ai: z4.boolean().optional(),
-  /**
-   * OPT-IN, unlike the three above. Those default on because absent means
-   * "the safe reading"; this one arrived after prompts were live, and a
-   * rule that defaulted on would have changed every composed prompt in
-   * production the moment it deployed.
-   */
-  no_health_advice: z4.boolean().optional()
-}).strip();
-function guardrailsInForce(g) {
-  return {
-    never_quote_prices: g?.never_quote_prices !== false,
-    never_confirm_booking: g?.never_confirm_booking !== false,
-    disclose_ai: g?.disclose_ai !== false,
-    no_health_advice: g?.no_health_advice === true
-  };
-}
-var NoteSchema = z4.object({
-  title: z4.string().min(1).max(80),
-  text: z4.string().min(1).max(1200)
-}).strip();
-var BookingRulesSchema = z4.object({
-  /** Least notice for a slot, in hours. Absent = 2. */
-  lead_hours: z4.number().int().min(0).max(168).optional(),
-  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-  buffer_min: z4.number().int().min(0).max(120).optional(),
-  /** How far ahead open times are offered, in days. Absent = 14. */
-  max_days_ahead: z4.number().int().min(1).max(90).optional(),
-  /** The shortest window worth naming, in minutes. Absent = 30. */
-  slot_min: z4.number().int().min(15).max(240).optional(),
-  /** Services that need a consultation before they can be booked. */
-  consult_first: z4.array(z4.string().min(1).max(80)).max(20).optional(),
-  party_max: z4.number().int().min(1).max(20).optional(),
-  /**
-   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
-   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
-   */
-  ask_email: z4.boolean().optional(),
-  /** Anything else about booking, one short line each. */
-  notes: z4.array(z4.string().min(1).max(200)).max(10).optional()
-}).strip();
-var E164 = /^\+[1-9]\d{6,14}$/;
-var isE164 = (s) => typeof s === "string" && E164.test(s);
-var INSTRUCTIONS_MAX = 2e4;
-var BusinessProfileSchema = z4.object({
-  address: z4.string().max(300).optional(),
-  hours: z4.partialRecord(z4.enum(DAYS), HoursSchema).optional(),
-  /** Dates the business is shut regardless of the weekly grid. */
-  closures: z4.array(ClosureSchema).optional(),
-  services: z4.array(ServiceSchema).max(60).optional(),
-  languages: z4.array(z4.string().min(2).max(40)).max(8).optional(),
-  guardrails: GuardrailsSchema.optional(),
-  /** What must reach a person. One short line each. */
-  escalate_when: z4.array(z4.string().min(1).max(200)).max(20).optional(),
-  tone: z4.string().max(200).optional(),
-  /**
-   * The line a PERSON answers. The phone receptionist warm-transfers here
-   * during opening hours; absent, it takes a message instead. Never the
-   * receptionist's own line — that would ring itself.
-   */
-  handoff_number: z4.string().regex(E164, "E.164, like +12125550143").optional(),
-  website: z4.string().url().max(500).optional(),
-  notes: z4.array(NoteSchema).max(10).optional(),
-  booking_rules: BookingRulesSchema.optional(),
-  /**
-   * Anything the owner wants said that no field covers.
-   *
-   * The escape hatch that keeps this model honest — without it, structuring
-   * the facts would mean losing whatever did not fit, and the first migration
-   * would be a downgrade.
-   *
-   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
-   * the form carries that prompt into it.
-   */
-  extra_instructions: z4.string().max(INSTRUCTIONS_MAX).optional()
-}).strip();
-
-// src/shared/phone.ts
-function normalizePhone(raw) {
-  if (raw == null) return null;
-  const digits2 = String(raw).replace(/[^\d]/g, "");
-  if (!digits2) return null;
-  if (digits2.length === 10) return `+1${digits2}`;
-  if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
-  return null;
-}
-function samePhone(a, b) {
-  const x = normalizePhone(a);
-  const y = normalizePhone(b);
-  return !!x && !!y && x === y;
-}
-function shortCode(raw) {
-  const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
-  return digits2.length >= 3 && digits2.length <= 6;
-}
-function phoneDialable(raw) {
-  const e164 = normalizePhone(raw);
-  if (!e164) return false;
-  if (!e164.startsWith("+1")) return true;
-  const d = e164.slice(2);
-  if (d.length !== 10) return false;
-  const [area, exchange] = [d.slice(0, 3), d.slice(3, 6)];
-  const n11 = (x) => x[1] === "1" && x[2] === "1";
-  return /^[2-9]/.test(area) && /^[2-9]/.test(exchange) && !n11(area) && !n11(exchange);
-}
-function whyNotAPhone(raw) {
-  if (normalizePhone(raw)) return null;
-  const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
-  if (!digits2) return "A phone number is needed to add a person.";
-  if (shortCode(digits2)) {
-    return "That is a short code, not a phone number \u2014 nobody can be reached on one.";
-  }
-  if (digits2.length === 7) return "That looks like a local number. Add the area code.";
-  return "That is not a phone number anyone can be reached on.";
-}
-function whyNotAHandoff(raw, ownLine, keptLine) {
-  const typed = String(raw ?? "").trim();
-  if (!typed) return null;
-  const norm2 = "+" + typed.replace(/[^0-9]/g, "");
-  if (!(/^\+/.test(typed) && /^\+[1-9][0-9]{6,14}$/.test(norm2))) {
-    return "The transfer number needs the country code, like +1 212 555 0143.";
-  }
-  if (samePhone(norm2, ownLine)) {
-    return "That is the receptionist's own line \u2014 it would ring itself. Use a line a person answers.";
-  }
-  if (samePhone(norm2, keptLine)) return HANDOFF_FORWARDS_BACK;
-  return null;
-}
-var HANDOFF_FORWARDS_BACK = "That number sends the calls nobody picks up to your receptionist, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
-var FORWARD_IS_HANDOFF = "Your receptionist puts callers through to this number. Change the transfer number in Settings \u203A Business first \u2014 once this number forwards to the receptionist, a caller put through to it would come straight back.";
-function whyNotForward(number, handoff) {
-  return samePhone(number, handoff) ? FORWARD_IS_HANDOFF : null;
-}
-function handoffE164(raw) {
-  const typed = String(raw ?? "").trim();
-  if (!typed) return null;
-  return "+" + typed.replace(/[^0-9]/g, "");
-}
-function phoneTail(raw) {
-  const digits2 = (raw ?? "").replace(/\D/g, "");
-  return digits2 ? digits2.slice(-4) : null;
-}
-function formatPhoneDisplay(e164) {
-  if (!e164) return null;
-  const digits2 = String(e164).replace(/[^\d]/g, "");
-  if (digits2.length === 11 && digits2.startsWith("1")) {
-    return `+1 (${digits2.slice(1, 4)}) ${digits2.slice(4, 7)}-${digits2.slice(7)}`;
-  }
-  if (digits2.length < 7) return `+${digits2}`;
-  return `+${digits2.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
-}
-
-// src/config/facts.ts
-var trimmed = (v) => {
-  const s = typeof v === "string" ? v.trim() : "";
-  return s || null;
-};
-var activeChannel = (known, kind) => {
-  const rows = known?.channels ?? [];
-  const row2 = rows.find((c) => c.kind === kind && (c.status ?? "active") === "active");
-  return trimmed(row2?.number_e164);
-};
-var keptReaching = (known, line) => line ? trimmed((known?.forwarding ?? []).find((r2) => trimmed(r2.from_e164) && samePhone(r2.to_e164, line))?.from_e164) : null;
-function knownForwarding(rows) {
-  const out = [];
-  for (const r2 of rows) {
-    const from = trimmed(r2.e164);
-    if (r2.kind === "forwarded" && from) out.push({ from_e164: from, to_e164: r2.forwarding?.destination_e164 ?? null });
-  }
-  return out;
-}
-function sameAddress(a, b) {
-  const x = textKey(a).replace(/\b(usa|us|united states)\b/g, "").trim();
-  const y = textKey(b).replace(/\b(usa|us|united states)\b/g, "").trim();
-  if (!x || !y) return false;
-  return x === y || x.startsWith(y) || y.startsWith(x);
-}
-function sameName(a, b) {
-  const x = textKey(a);
-  const y = textKey(b);
-  return !!x && !!y && x === y;
-}
-function textKey(v) {
-  return String(v ?? "").toLowerCase().replace(/[’'.]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
-}
-function typedOverKnown(typed, known, knownSource, same2) {
-  if (typed && known) {
-    return same2(typed, known) ? { value: typed, source: "typed" } : { value: typed, source: "typed", disputed: { value: known, source: knownSource } };
-  }
-  if (typed) return { value: typed, source: "typed" };
-  if (known) return { value: known, source: knownSource };
-  return { value: null, source: "absent" };
-}
-function resolveFacts(typed, known) {
-  const p = typed?.profile ?? null;
-  const voice = activeChannel(known, "voice");
-  const whatsapp = activeChannel(known, "whatsapp");
-  const kept = keptReaching(known, voice);
-  const published = trimmed(typed?.phone_display);
-  const strEq = (a, b) => a === b;
-  return {
-    business_name: typedOverKnown(
-      trimmed(typed?.business_name),
-      trimmed(known?.listing?.name) ?? trimmed(known?.workspace?.name),
-      known?.listing?.name ? "verified" : "workspace",
-      sameName
-    ),
-    // The one that matters, and the one that should usually be absent.
-    //
-    // The fallback is FORMATTED, not raw E.164: this value is spoken and
-    // written to customers -- "Phone: +13085550109" in a prompt becomes a
-    // receptionist reading digits aloud -- so the provisioned line arrives as
-    // "+1 (308) 555-0109", the way a person says a number.
-    //
-    // The number the business keeps and forwards to THIS line is the one typed value that is not a disagreement
-    // with it: customers call the number they know, and when nobody picks up they reach the receptionist.
-    phone_display: published && samePhone(published, kept) ? { value: published, source: "typed" } : typedOverKnown(published, voice ? formatPhoneDisplay(voice) : null, "provisioned", samePhone),
-    booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
-    address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
-    website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),
-    // Human-only by nature: nothing provisions "the person to put a caller through to".
-    handoff_number: p?.handoff_number ? { value: p.handoff_number, source: "typed" } : { value: null, source: "absent" },
-    voice_line: voice ? { value: voice, source: "provisioned" } : { value: null, source: "absent" },
-    whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" },
-    kept_line: kept ? { value: kept, source: "provisioned" } : { value: null, source: "absent" }
-  };
-}
-function factConflicts(f) {
-  const out = [];
-  const phone = f.phone_display;
-  if (phone.disputed && phone.value) {
-    const isHandoff = samePhone(phone.value, f.handoff_number.value);
-    out.push({
-      fact: "phone_display",
-      severity: "serious",
-      used: phone.value,
-      known: phone.disputed.value,
-      knownSource: phone.disputed.source,
-      sentence: isHandoff ? `Your receptionist tells customers to call ${phone.value}, which is the number it transfers to \u2014 so they reach a person directly and never the receptionist answering on ${phone.disputed.value}.` : `Your receptionist tells customers to call ${phone.value}, but it answers on ${phone.disputed.value}. Anyone who calls the published number does not reach it.`,
-      to: "admin/workspace"
-    });
-  }
-  if (f.handoff_number.value && f.kept_line.value && samePhone(f.handoff_number.value, f.kept_line.value)) {
-    const kept = formatPhoneDisplay(f.kept_line.value) ?? f.kept_line.value;
-    out.push({
-      fact: "handoff_number",
-      severity: "serious",
-      used: f.handoff_number.value,
-      known: kept,
-      knownSource: f.kept_line.source,
-      sentence: `Your receptionist puts callers who ask for a person through to ${kept}, which forwards the calls nobody picks up back to it \u2014 they would come straight back. Give a mobile or another line a person answers.`,
-      to: "admin/workspace"
-    });
-  }
-  if (f.address.disputed && f.address.value) {
-    out.push({
-      fact: "address",
-      severity: "minor",
-      used: f.address.value,
-      known: f.address.disputed.value,
-      knownSource: f.address.disputed.source,
-      sentence: `Your receptionist gives ${f.address.value}; Google has you at ${f.address.disputed.value}.`,
-      to: "admin/workspace"
-    });
-  }
-  if (f.business_name.disputed && f.business_name.value) {
-    out.push({
-      fact: "business_name",
-      severity: "minor",
-      used: f.business_name.value,
-      known: f.business_name.disputed.value,
-      knownSource: f.business_name.disputed.source,
-      sentence: `Your receptionist introduces the business as ${f.business_name.value}; ${f.business_name.disputed.source === "verified" ? "Google lists it" : "this workspace is named"} ${f.business_name.disputed.value}.`,
-      to: "admin/workspace"
-    });
-  }
-  return out.sort((a, b) => a.severity === b.severity ? 0 : a.severity === "serious" ? -1 : 1);
-}
-var SOURCE_WORDS = {
-  provisioned: "your line",
-  verified: "from Google",
-  workspace: "this workspace",
-  typed: "you set this",
-  absent: "not set"
-};
-function changedConfigFields(before, after) {
-  const top = (v) => {
-    const cfg = v ?? {};
-    const brain = cfg.brain ?? {};
-    const { profile, ...rest } = brain;
-    return {
-      ...rest,
-      ...profile ?? {},
-      calendar: cfg.calendar ?? null,
-      notifications: cfg.notifications ?? null,
-      features: cfg.features ?? null
-    };
-  };
-  const a = top(before);
-  const b = top(after);
-  const keys = [.../* @__PURE__ */ new Set([...Object.keys(a), ...Object.keys(b)])].sort();
-  return keys.filter((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
-}
-
-// src/config/workspace-config/fallbacks.ts
-var FALLBACK_DETAILS = ["business", "booking link", "phone"];
-var FALLBACK_DEFAULTS = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
-  error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
-  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
-};
-var EARLIER_FALLBACK_DEFAULTS = /* @__PURE__ */ (() => ({
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
-  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
-  non_text: FALLBACK_DEFAULTS.non_text
-}))();
-function isProductFallback(key, text) {
-  const t = typeof text === "string" ? text.trim() : "";
-  return t === FALLBACK_DEFAULTS[key] || t === EARLIER_FALLBACK_DEFAULTS[key];
-}
-var DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
-var namesADetail = (text) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text);
-var detailOf = (raw) => raw.toLowerCase().replace(/\s+/g, " ");
-function fillDetails(text, values) {
-  if (!namesADetail(text)) return text;
-  return text.split("\n").map((line) => {
-    if (!namesADetail(line)) return line;
-    return line.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
-  }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
-}
-function fallbackMessages(brain, known) {
-  const facts = resolveFacts(brain, known);
-  const values = {
-    business: facts.business_name.value ?? brain.business_name,
-    "booking link": facts.booking_link.value ?? brain.booking_link ?? null,
-    phone: facts.phone_display.value
-  };
-  const own = (kind) => {
-    const stored = brain.fallbacks[kind];
-    return !values["booking link"] && stored.trim() === EARLIER_FALLBACK_DEFAULTS[kind] ? FALLBACK_DEFAULTS[kind] : stored;
-  };
-  const say2 = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
-  return { greeting: say2("greeting"), error: say2("error"), non_text: say2("non_text") };
-}
-function unknownDetails(text) {
-  return [...text.matchAll(/\{[^{}\n]{1,40}\}/g)].map((m) => m[0]).filter((name) => !namesADetail(name));
-}
-
-// src/config/workspace-config/brain-config.ts
-var BrainConfigSchema = z5.object({
-  business_name: z5.string().min(1).max(120),
-  /**
-   * The number the receptionist tells customers to call — an OVERRIDE, and
-   * optional because it should almost never be set.
-   *
-   * It was required, free text, and named the same as the line the
-   * receptionist answers, so every workspace typed something into it and
-   * nothing checked what. On the first live salon that produced a
-   * receptionist publishing the number it transfers to: customers who rang
-   * it reached a person's mobile and never the receptionist standing by,
-   * and the same string went to Google.
-   *
-   * Absent is now the right answer and the default: resolveFacts falls back
-   * to the provisioned voice line, formatted for speech, so the number
-   * published is the number answered by construction. A value here means a
-   * business deliberately publishes something else — a tracking line, a
-   * shopfront — and the pane says so in those words.
-   */
-  phone_display: z5.string().min(3).max(40).optional(),
-  /**
-   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
-   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
-   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
-   */
-  booking_link: z5.string().url().max(500).optional(),
-  /** The complete system prompt the model receives — the "AI memory" pane's
-   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z5.string().min(40).max(INSTRUCTIONS_MAX),
-  /**
-   * The business's facts, as fields.
-   *
-   * Optional: every config written before this existed stays valid, and
-   * nothing composes until a workspace actually fills it in. When present
-   * it REPLACES system_prompt as the source the prompt is built from.
-   */
-  profile: BusinessProfileSchema.optional(),
-  fallbacks: z5.object({
-    /** Sent when no model key is configured. */
-    greeting: z5.string().min(1).max(2e3),
-    /** Sent when the model call failed. */
-    error: z5.string().min(1).max(2e3),
-    /** Sent for voice notes / photos before escalating. */
-    non_text: z5.string().min(1).max(2e3)
-  }).strip()
-}).strip();
-function newReceptionistDefaults(businessName) {
-  return {
-    system_prompt: baselinePrompt(businessName),
-    // What a customer reads when the model cannot be reached: the product's
-    // wording, naming the business's details rather than copying them, so they
-    // are filled as each message goes out and follow the details from then on
-    // (fallbackMessages, S5). Copied, a workspace set up before its line existed
-    // told customers "call us at .", and a new booking link never reached them.
-    fallbacks: { ...FALLBACK_DEFAULTS }
-  };
-}
-var BASELINE_OPENING = "You are the assistant for ";
-var BASELINE_CLOSING = ", answering inbound customer messages. You are warm, concise and professional \u2014 a great front-desk person, in text form. If you do not know something, say so plainly and offer to have a person follow up.";
-function baselinePrompt(businessName) {
-  return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
-}
-function isBaselinePrompt(text) {
-  return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
-}
-
-// src/config/workspace-config/config-schema.ts
-var NotificationsConfigSchema = z6.object({
-  escalation_emails: z6.array(z6.string().email()).min(1).max(10),
-  from: z6.string().max(200).optional()
-}).strip();
-var CalendarConfigSchema = z6.object({
-  ical_url: z6.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
-}).strip();
-var FeaturesConfigSchema = z6.object({ vision: z6.boolean().optional() }).strip();
-var TenantConfigSchema = z6.object({
-  brain: BrainConfigSchema.optional(),
-  notifications: NotificationsConfigSchema.optional(),
-  calendar: CalendarConfigSchema.optional(),
-  features: FeaturesConfigSchema.optional()
-});
-var MAX_INTERVALS_PER_DAY = 4;
-var MAX_CLOSURES = 60;
-function isRealDate(key) {
-  const at3 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at3.getTime()) && at3.toISOString().slice(0, 10) === key;
-}
 var DAY_NAMES = {
   mon: "Monday",
   tue: "Tuesday",
@@ -1385,6 +676,12 @@ var DAY_NAMES = {
   sun: "Sunday"
 };
 var DAY_NAME = DAY_NAMES;
+function isRealDate(key) {
+  const at3 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at3.getTime()) && at3.toISOString().slice(0, 10) === key;
+}
+var MAX_INTERVALS_PER_DAY = 4;
+var MAX_CLOSURES = 60;
 function dayProblems(h, day) {
   const name = DAY_NAME[day] ?? day;
   const out = [];
@@ -1416,91 +713,58 @@ function dayProblems(h, day) {
   }
   return out;
 }
-function checkDay(h, day, ctx) {
-  for (const p of dayProblems(h, day)) {
-    ctx.addIssue({
-      code: z6.ZodIssueCode.custom,
-      path: ["brain", "profile", "hours", day, ...p.path],
-      message: p.message
-    });
-  }
-}
-function checkClosure(c, n, ctx) {
-  const at3 = (...rest) => ["brain", "profile", "closures", n, ...rest];
-  if (!isRealDate(c.date)) {
-    ctx.addIssue({
-      code: z6.ZodIssueCode.custom,
-      path: at3("date"),
-      message: `${c.date} is not a date on the calendar.`
-    });
-  }
-  if (c.until && !isRealDate(c.until)) {
-    ctx.addIssue({
-      code: z6.ZodIssueCode.custom,
-      path: at3("until"),
-      message: `${c.until} is not a date on the calendar.`
-    });
-  }
-  if (c.until && c.until < c.date) {
-    ctx.addIssue({
-      code: z6.ZodIssueCode.custom,
-      path: at3("until"),
-      message: "A closure cannot end before it starts."
-    });
-  }
-}
-var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
-  if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
-    ctx.addIssue({
-      code: z6.ZodIssueCode.custom,
-      path: ["calendar", "ical_url"],
-      message: feedProblemWords("address") ?? "Not an address the receptionist may read."
-    });
-  }
-  const p = cfg.brain?.profile;
-  if (!p) return;
-  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
-  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
-    ctx.addIssue({
-      code: z6.ZodIssueCode.custom,
-      path: ["brain", "profile", "closures"],
-      message: `At most ${MAX_CLOSURES} closures.`
-    });
-  }
-  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
-});
-var TenantConfigWriteSchema = z6.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
-function parseTenantConfigResult(raw) {
-  const r2 = TenantConfigSchema.safeParse(raw ?? {});
-  if (r2.success) return { ok: true, config: r2.data, ignored: keysLeftOut(raw, r2.data).map((p) => p.join(".")) };
+var E164 = /^\+[1-9]\d{6,14}$/;
+var isE164 = (s) => typeof s === "string" && E164.test(s);
+var INSTRUCTIONS_MAX = 2e4;
+var BOOKING_LINK_MAX = 500;
+var PROFILE_LIMITS = {
+  tone: 200,
+  services: 60,
+  serviceName: 80,
+  serviceMinutes: 1440,
+  servicePrice: 120,
+  languages: 8,
+  languageMin: 2,
+  languageMax: 40,
+  reasons: 20,
+  reason: 200,
+  consultFirst: 20,
+  consultFirstLine: 80,
+  ruleNotes: 10,
+  ruleNote: 200,
+  notes: 10,
+  noteTitle: 80,
+  noteText: 1200,
+  closureNote: 200,
+  closures: MAX_CLOSURES,
+  shifts: MAX_INTERVALS_PER_DAY,
+  instructions: INSTRUCTIONS_MAX,
+  message: 2e3
+};
+var BOOKING_RULE_BOUNDS = {
+  /** Least notice for a slot, in hours. */
+  lead_hours: { min: 0, max: 168 },
+  /** The shortest window worth naming, in minutes. */
+  slot_min: { min: 15, max: 240 },
+  /** Gap kept around each existing appointment, in minutes. */
+  buffer_min: { min: 0, max: 120 },
+  /** How far ahead open times are offered, in days. */
+  max_days_ahead: { min: 1, max: 90 },
+  party_max: { min: 1, max: 20 }
+};
+var GUARDRAIL_KEYS = [
+  "never_quote_prices",
+  "never_confirm_booking",
+  "disclose_ai",
+  "no_health_advice"
+];
+function guardrailsInForce(g) {
   return {
-    ok: false,
-    issues: r2.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+    never_quote_prices: g?.never_quote_prices !== false,
+    never_confirm_booking: g?.never_confirm_booking !== false,
+    disclose_ai: g?.disclose_ai !== false,
+    no_health_advice: g?.no_health_advice === true
   };
-}
-function withStoredKeysKept(sent2, stored) {
-  const read = TenantConfigSchema.safeParse(stored ?? {});
-  if (!read.success) return sent2;
-  return withKeysLeftOut(sent2, stored, read.data);
-}
-function receptionistOf(parsed) {
-  if (parsed && !parsed.ok) return "broken";
-  return parsed?.config.brain ? "set" : "none";
-}
-function parseTenantConfig(raw) {
-  const r2 = parseTenantConfigResult(raw);
-  return r2.ok ? r2.config : null;
-}
-function withFirstAlertAddress(config, email) {
-  const current = parseTenantConfigResult(config ?? {});
-  if (!current.ok || current.config.notifications) return null;
-  const address = normalizeEmail(email);
-  if (!address) return null;
-  const next = TenantConfigWriteSchema.safeParse({
-    ...current.config,
-    notifications: { escalation_emails: [address] }
-  });
-  return next.success ? withStoredKeysKept(next.data, config) : null;
 }
 
 // src/calendar/zone-math.ts
@@ -1754,6 +1018,126 @@ function isFreeMail(host) {
   return !!host && FREE_MAIL_DOMAINS.has(host.trim().toLowerCase());
 }
 
+// src/shared/email-address.ts
+var MAX_ADDRESS = 254;
+var MAX_LOCAL = 64;
+var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+function normalizeEmail(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim().toLowerCase();
+  if (!s || s.length > MAX_ADDRESS) return null;
+  const m = SHAPE.exec(s);
+  if (!m || m[1].length > MAX_LOCAL) return null;
+  return s;
+}
+function whyNotAnEmail(raw) {
+  if (normalizeEmail(raw)) return null;
+  const s = String(raw ?? "").trim();
+  if (!s) return "An email address is needed.";
+  if (/[<>]/.test(s) || /\s/.test(s))
+    return "Only the address itself, like name@example.com, with no name or spaces around it.";
+  const at3 = s.split("@").length - 1;
+  if (at3 === 0) return "That is missing the @.";
+  if (at3 > 1) return "An address has one @.";
+  if (!/@[^@]*\./.test(s)) return "That needs a full domain after the @, like name@example.com.";
+  return "That is not an email address anyone can be reached at.";
+}
+var OWN_ADDRESS_WORDS = /\b(my|mine|it'?s|is|email|e-mail|mail|correo|mi|es|sure|here|aqu[ií])\b/i;
+function addressInMessage(body) {
+  const s = String(body ?? "").trim();
+  if (!s || s.length > 160) return null;
+  const tokens = s.split(/\s+/);
+  const found = /* @__PURE__ */ new Set();
+  for (const raw of tokens) {
+    const t = raw.replace(/^[("'<[]+|[)"'>\].,;:!?]+$/g, "");
+    if (!t.includes("@")) continue;
+    const e = normalizeEmail(t);
+    if (!e) return null;
+    found.add(e);
+  }
+  if (found.size !== 1) return null;
+  const alone = tokens.length === 1;
+  const theirs = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(s);
+  return alone || theirs ? [...found][0] : null;
+}
+
+// src/shared/phone.ts
+function normalizePhone(raw) {
+  if (raw == null) return null;
+  const digits2 = String(raw).replace(/[^\d]/g, "");
+  if (!digits2) return null;
+  if (digits2.length === 10) return `+1${digits2}`;
+  if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
+  return null;
+}
+function samePhone(a, b) {
+  const x = normalizePhone(a);
+  const y = normalizePhone(b);
+  return !!x && !!y && x === y;
+}
+function shortCode(raw) {
+  const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
+  return digits2.length >= 3 && digits2.length <= 6;
+}
+function phoneDialable(raw) {
+  const e164 = normalizePhone(raw);
+  if (!e164) return false;
+  if (!e164.startsWith("+1")) return true;
+  const d = e164.slice(2);
+  if (d.length !== 10) return false;
+  const [area, exchange] = [d.slice(0, 3), d.slice(3, 6)];
+  const n11 = (x) => x[1] === "1" && x[2] === "1";
+  return /^[2-9]/.test(area) && /^[2-9]/.test(exchange) && !n11(area) && !n11(exchange);
+}
+function whyNotAPhone(raw) {
+  if (normalizePhone(raw)) return null;
+  const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
+  if (!digits2) return "A phone number is needed to add a person.";
+  if (shortCode(digits2)) {
+    return "That is a short code, not a phone number \u2014 nobody can be reached on one.";
+  }
+  if (digits2.length === 7) return "That looks like a local number. Add the area code.";
+  return "That is not a phone number anyone can be reached on.";
+}
+function whyNotAHandoff(raw, ownLine, keptLine) {
+  const typed = String(raw ?? "").trim();
+  if (!typed) return null;
+  const norm2 = "+" + typed.replace(/[^0-9]/g, "");
+  if (!(/^\+/.test(typed) && /^\+[1-9][0-9]{6,14}$/.test(norm2))) {
+    return "The transfer number needs the country code, like +1 212 555 0143.";
+  }
+  if (samePhone(norm2, ownLine)) {
+    return "That is the receptionist's own line \u2014 it would ring itself. Use a line a person answers.";
+  }
+  if (samePhone(norm2, keptLine)) return HANDOFF_FORWARDS_BACK;
+  return null;
+}
+var HANDOFF_FORWARDS_BACK = "That number sends the calls nobody picks up to your receptionist, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
+var FORWARD_IS_HANDOFF = "Your receptionist puts callers through to this number. Change the transfer number in Settings \u203A Business first \u2014 once this number forwards to the receptionist, a caller put through to it would come straight back.";
+function whyNotForward(number2, handoff) {
+  return samePhone(number2, handoff) ? FORWARD_IS_HANDOFF : null;
+}
+function handoffE164(raw) {
+  const typed = String(raw ?? "").trim();
+  if (!typed) return null;
+  return "+" + typed.replace(/[^0-9]/g, "");
+}
+function phoneTail(raw) {
+  const digits2 = (raw ?? "").replace(/\D/g, "");
+  return digits2 ? digits2.slice(-4) : null;
+}
+function formatPhoneDisplay(e164) {
+  if (!e164) return null;
+  const digits2 = String(e164).replace(/[^\d]/g, "");
+  if (digits2.length === 11 && digits2.startsWith("1")) {
+    return `+1 (${digits2.slice(1, 4)}) ${digits2.slice(4, 7)}-${digits2.slice(7)}`;
+  }
+  if (digits2.length < 7) return `+${digits2}`;
+  return `+${digits2.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
+}
+
 // src/google/booking-page.ts
 function onDomain(host, domain) {
   return host === domain || host.endsWith(`.${domain}`);
@@ -1791,7 +1175,6 @@ var PLATFORM_OWN = /* @__PURE__ */ new Set([
   "press",
   "legal"
 ]);
-var BOOKING_PAGE_MAX = /* @__PURE__ */ (() => BrainConfigSchema.shape.booking_link.unwrap().maxLength ?? Infinity)();
 function bookingPageOf(raw) {
   const s = String(raw ?? "").trim();
   if (!s) return null;
@@ -1812,7 +1195,7 @@ function bookingPageOf(raw) {
   u.protocol = "https:";
   u.hash = "";
   const page = u.toString();
-  return page.length <= BOOKING_PAGE_MAX ? page : null;
+  return page.length <= BOOKING_LINK_MAX ? page : null;
 }
 
 // src/leads/search/caps.ts
@@ -1837,7 +1220,6 @@ function leadMonth(zone, at3) {
 }
 
 // src/leads/search/plan.ts
-import { z as z7 } from "zod";
 var US_STATES = {
   alabama: "AL",
   alaska: "AK",
@@ -1894,62 +1276,6 @@ var US_STATES = {
 var US_CODES = new Set(Object.values(US_STATES));
 var KEY = /^[a-z][a-z0-9_]{0,39}$/;
 var stripUnsafe = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words = (min, max) => z7.string().transform((s) => stripUnsafe(s).trim()).pipe(z7.string().min(min).max(max));
-var LeadSearchPlanSchema = z7.object({
-  version: z7.number().int().min(1),
-  card: z7.literal("local_businesses"),
-  name: words(2, 80),
-  asked: words(1, 400),
-  terms: z7.array(words(2, 60)).min(1).max(5),
-  area: z7.object({
-    kind: z7.enum(["zip", "city", "radius"]),
-    label: words(2, 80),
-    state: z7.string().regex(/^[A-Z]{2}$/),
-    center: z7.object({ lat: z7.number().min(-90).max(90), lng: z7.number().min(-180).max(180) }).nullable(),
-    radius_m: z7.number().int().min(500).max(2e5),
-    zip: z7.string().regex(/^\d{5}$/).optional(),
-    query: words(2, 120)
-  }),
-  count: z7.number().int().min(1).max(LEAD_MAX_PLACES),
-  contact: z7.enum(["phone", "email"]),
-  criteria: z7.array(
-    z7.object({
-      key: z7.string().regex(KEY),
-      text: words(2, 120),
-      standard: z7.enum(["likely", "seen"]),
-      required: z7.boolean()
-    })
-  ).max(8),
-  exclusions: z7.array(
-    z7.object({
-      key: z7.string().regex(KEY),
-      text: words(2, 80),
-      origin: z7.enum(["claude", "you_said"]),
-      category_key: z7.string().regex(KEY).optional()
-    })
-  ).max(8)
-}).superRefine((p, ctx) => {
-  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
-  if (new Set(keys).size !== keys.length)
-    ctx.addIssue({
-      code: "custom",
-      message: "every criterion and exclusion has a key of its own",
-      path: ["criteria"]
-    });
-  const lowerTerms = p.terms.map((t) => t.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length)
-    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null)
-    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip)
-    ctx.addIssue({
-      code: "custom",
-      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
-      path: ["area", "zip"]
-    });
-  if (!US_CODES.has(p.area.state))
-    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
-});
 function stableStringify(v) {
   if (Array.isArray(v)) return `[${v.map(stableStringify).join(",")}]`;
   if (v && typeof v === "object") {
@@ -2301,9 +1627,6 @@ function durationWords(seconds) {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
-// src/reach-out/reach-out-words.ts
-import { z as z8 } from "zod";
-
 // src/email/email-subject.ts
 var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
 function posesAsReply(subject) {
@@ -2618,9 +1941,11 @@ var REPLY_DELAY_MIN_MS = 5e3;
 var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var REPLY_CAP_DEFAULT = 20;
 var PAUSE_HOURS_DEFAULT = 24;
+var PAUSE_HOURS_MIN = 1;
+var PAUSE_HOURS_MAX = 168;
 function pauseHoursOf(limits) {
-  const stored = PolicyLimitsSchema.shape.pause_hours.safeParse(limits?.pause_hours);
-  return stored.success && stored.data !== void 0 ? stored.data : PAUSE_HOURS_DEFAULT;
+  const stored = limits?.pause_hours;
+  return typeof stored === "number" && Number.isInteger(stored) && stored >= PAUSE_HOURS_MIN && stored <= PAUSE_HOURS_MAX ? stored : PAUSE_HOURS_DEFAULT;
 }
 function pauseMsOf(limits) {
   return pauseHoursOf(limits) * HOUR_MS;
@@ -3049,28 +2374,6 @@ function wordsIssueWords(i) {
       return "A line in capitals reads like spam.";
   }
 }
-var ReachOutStepSchema = z8.object({
-  /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z8.string().uuid().nullable().optional(),
-  subject: z8.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z8.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z8.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
-  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
-  hand: z8.object({ kind: z8.enum(HAND_KINDS), words: z8.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
-});
-var ReachOutChainSchema = z8.object({
-  name: z8.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z8.string().uuid(),
-  include_unconfirmed: z8.boolean(),
-  /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
-  gap_minutes: z8.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
-    message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
-  }),
-  /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z8.array(z8.string().uuid()).max(REACH_OUT_DOMAINS_MAX),
-  signed_by: z8.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z8.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
-});
 function validateReachOutChain(c, has3) {
   const out = [];
   c.steps.forEach((s, i) => {
@@ -3781,7 +3084,7 @@ function replyNoticeWords(p) {
 }
 
 // src/leads/lead-judge.ts
-import { z as z9 } from "zod";
+import { z as z2 } from "zod";
 
 // src/leads/search/class.ts
 var LEAD_KIND_KEY = "kind";
@@ -3959,15 +3262,15 @@ function judgeShadowCalls(plan, places) {
     questions
   }));
 }
-var AnswerSchema = z9.object({
-  places: z9.array(
-    z9.object({
-      ref: z9.number().int(),
-      criteria: z9.array(
-        z9.object({ key: z9.string(), answer: z9.enum(["pass", "fail", "unknown"]), facts: z9.array(z9.string()) })
+var AnswerSchema = z2.object({
+  places: z2.array(
+    z2.object({
+      ref: z2.number().int(),
+      criteria: z2.array(
+        z2.object({ key: z2.string(), answer: z2.enum(["pass", "fail", "unknown"]), facts: z2.array(z2.string()) })
       ),
-      email_index: z9.number().int().nullable(),
-      reason: z9.string()
+      email_index: z2.number().int().nullable(),
+      reason: z2.string()
     })
   )
 });
@@ -4542,12 +3845,6 @@ var FLAGS = [
   }
 ];
 
-// src/ask/ask.ts
-import { z as z11 } from "zod";
-
-// src/leads/lead-plan.ts
-import { z as z10 } from "zod";
-
 // src/leads/search/sentence.ts
 var isLowerLetter = (ch) => ch !== void 0 && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
 var lowerFirst = (s) => s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
@@ -5041,30 +4338,6 @@ function outcomeMove(o) {
 }
 
 // src/leads/lead-plan.ts
-var LeadsQuerySchema = z10.object({
-  list: z10.enum(LEAD_LISTS).default("all"),
-  search: z10.string().uuid().optional(),
-  class: z10.enum(LEAD_CLASSES).optional(),
-  sort: z10.enum(LEAD_SORTS).default("fit"),
-  dir: z10.enum(["asc", "desc"]).default("asc"),
-  after_key: z10.string().max(80).optional(),
-  after_id: z10.string().uuid().optional(),
-  limit: z10.coerce.number().int().min(1).max(500).default(500)
-});
-var LeadOneQuerySchema = z10.object({ search: z10.string().uuid().optional() });
-var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema = z10.discriminatedUnion("kind", [
-  z10.object({ kind: z10.literal("stage"), stage: z10.enum(["ready", "nurture", "converted"]) }),
-  z10.object({ kind: z10.literal("not_a_fit"), why: z10.enum(LEAD_NOT_A_FIT_WHYS) }),
-  z10.object({ kind: z10.literal("said_no") }),
-  z10.object({
-    kind: z10.literal("outcome"),
-    outcome: z10.enum(LEAD_CALL_OUTCOMES),
-    note: z10.string().trim().max(280).optional()
-  }),
-  /** "Did you send it?" Yes. */
-  z10.object({ kind: z10.literal("emailed") })
-]);
 function stageArgs(i) {
   const none = { p_stage: null, p_reason: null, p_fit_reason: null, p_outcome: null, p_note: null };
   switch (i.kind) {
@@ -5086,150 +4359,6 @@ function stageArgs(i) {
       return { ...none, p_stage: m.stage, p_reason: m.closedReason, p_outcome: i.outcome, p_note: i.note ?? null };
     }
   }
-}
-var LeadsBulkSchema = z10.discriminatedUnion("by", [
-  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z10.object({
-    by: z10.literal("ids"),
-    action: z10.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z10.array(z10.string().uuid()).min(1).max(500),
-    search_id: z10.string().uuid().optional()
-  }),
-  z10.object({ by: z10.literal("view"), action: z10.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
-]);
-var LeadsCheckAgainSchema = z10.object({ ids: z10.array(z10.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema = z10.object({
-  tone: z10.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z10.object({ subject: z10.string().max(200), body: z10.string().max(4e3) }).optional()
-});
-var LeadExportQuerySchema = LeadsViewSchema;
-var RenameLeadSearchSchema = z10.object({ name: z10.string().trim().min(1).max(80) });
-var BusinessLineSchema = z10.object({ business_line: z10.string().trim().min(3).max(160) });
-var planChip = (max) => z10.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema = z10.object({
-  looking_for: z10.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z10.string().trim().min(2).max(40),
-  count: z10.number().int().min(1).max(LEAD_MAX_PLACES),
-  /** Plural, as the sentence says it: "personal trainers". */
-  who: planChip(60),
-  /** One of them, for the question and the judge's rubric: "personal trainer". */
-  who_one: planChip(60),
-  category_key: z10.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z10.array(planChip(60)).min(1).max(5),
-  city: z10.string().trim().max(60).nullable().default(null),
-  region: z10.string().trim().min(2).max(40),
-  zip: z10.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z10.enum(["phone", "email"]),
-  criteria: z10.array(z10.object({ text: planChip(120), standard: z10.enum(["likely", "seen"]), required: z10.boolean() })).max(6).default([]),
-  leave_out: z10.array(z10.object({ words: planChip(40) })).max(6).default([]),
-  asked: z10.string().trim().min(1).max(400)
-});
-var US_NAMES2 = /* @__PURE__ */ new Set([
-  "us",
-  "usa",
-  "u.s.",
-  "u.s.a.",
-  "united states",
-  "united states of america",
-  "the united states",
-  "america",
-  "the us",
-  "the usa"
-]);
-var countryKey = (c) => c.trim().toLowerCase().replace(/\(.*?\)/g, "").replace(/\s+/g, " ").trim();
-function placeOf(input) {
-  const region = (input.region ?? "").trim();
-  const city = (input.city ?? "").trim();
-  const direct = stateCode(region);
-  if (direct) return { city: city || null, state: direct };
-  for (const packed of [region, city]) {
-    const m = packed.match(/^(.*?),\s*([A-Za-z .]+)$/);
-    if (m && stateCode(m[2])) return { city: m[1].trim() || city || null, state: stateCode(m[2]) };
-  }
-  if (stateCode(city) && !stateCode(region)) return { city: region || null, state: stateCode(city) };
-  return { city: city || null, state: null };
-}
-function planKey(text, fallback, taken) {
-  const base = text.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40).replace(/_+$/, "");
-  let key = /^[a-z]/.test(base) ? base : fallback;
-  let n = 2;
-  while (taken.has(key)) key = `${fallback}_${n++}`;
-  taken.add(key);
-  return key;
-}
-var titleWords = (s) => s.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
-function planArea2(input) {
-  const place = placeOf(input);
-  const state = place.state;
-  if (!state) return null;
-  if (input.zip)
-    return {
-      kind: "zip",
-      label: `near ${input.zip}`,
-      state,
-      center: null,
-      radius_m: 8e3,
-      zip: input.zip,
-      query: `${input.zip}, ${state}, USA`
-    };
-  const city = place.city ?? "";
-  if (city)
-    return {
-      kind: "city",
-      label: `${city}, ${state}`,
-      state,
-      center: null,
-      radius_m: 25e3,
-      query: `${city}, ${state}, USA`
-    };
-  const label = /^[A-Za-z]{2}$/.test(input.region.trim()) ? state : titleWords(input.region.trim());
-  return { kind: "city", label, state, center: null, radius_m: 2e5, query: `${label}, USA` };
-}
-function planLeadSearch(input) {
-  if (!US_NAMES2.has(countryKey(input.country)))
-    return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.country.trim() } };
-  if (input.looking_for === "people")
-    return { ok: false, refusal: { kind: "not_businesses", text: leadNotBusinessesLine(null), what: input.who } };
-  if (input.looking_for !== "local_businesses")
-    return { ok: false, refusal: { kind: "no_card", text: leadNoCardLine(input.who), what: input.who } };
-  const area = planArea2(input);
-  if (!area) return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.region } };
-  const taken = /* @__PURE__ */ new Set();
-  const plan = {
-    version: 1,
-    card: "local_businesses",
-    name: input.who,
-    asked: input.asked,
-    // Widest first, and at most the three the tool asks the model for.
-    terms: [...new Set(input.terms.map((t) => t.trim()).filter(Boolean))].slice(0, 3),
-    area,
-    count: input.count,
-    contact: input.contact,
-    criteria: input.criteria.map((c, i) => ({
-      key: planKey(c.text, `c${i + 1}`, taken),
-      text: c.text,
-      standard: c.standard,
-      required: c.required
-    })),
-    exclusions: input.leave_out.map((l, i) => ({
-      key: planKey(l.words, `x${i + 1}`, taken),
-      text: l.words,
-      origin: "claude"
-    }))
-  };
-  const checked = LeadSearchPlanSchema.safeParse(plan);
-  if (!checked.success) {
-    const issue = checked.error.issues[0];
-    return {
-      ok: false,
-      refusal: {
-        kind: "not_a_plan",
-        text: `the plan is not complete: ${issue?.path.join(".")} ${issue?.message}`,
-        what: null
-      }
-    };
-  }
-  return { ok: true, plan: checked.data, view: { title: `Find ${checked.data.count} ${checked.data.name}` } };
 }
 function leadsRoute(v) {
   const parts2 = ["clients/leads"];
@@ -5266,10 +4395,6 @@ var LEAD_DRAFT_JSON_SCHEMA = {
   required: ["subject", "body"],
   properties: { subject: { type: "string" }, body: { type: "string" } }
 };
-var LeadDraftAnswerSchema = z10.object({
-  subject: z10.string().trim().min(3).max(120),
-  body: z10.string().trim().min(20).max(2e3)
-});
 var LEAD_SUGGEST_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -5287,16 +4412,6 @@ var LEAD_SUGGEST_JSON_SCHEMA = {
     }
   }
 };
-var LeadSuggestAnswerSchema = z10.object({
-  line: z10.string().trim().min(3).max(160),
-  items: z10.array(
-    z10.object({
-      words: z10.string().trim().min(3).max(80),
-      who_for: z10.string().trim().min(3).max(120),
-      category_key: z10.string().regex(/^[a-z_]{2,40}$/)
-    })
-  ).min(1).max(4)
-});
 function leadDraftFooter(business, address) {
   return `
 
@@ -5743,12 +4858,6 @@ var ASK_CAPS = {
 };
 var ASK_THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"];
 var ASK_UNDO_MS = 10 * 6e4;
-var AskProposalOutcomeSchema = z11.object({
-  state: z11.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z11.string().max(300).catch(""),
-  atMs: z11.number().catch(0),
-  undo: z11.record(z11.string(), z11.unknown()).nullable().optional()
-});
 var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
 var UUID = /^[0-9a-f-]{36}$/;
 function scopeFromRoute(page, param, label) {
@@ -5793,16 +4902,8 @@ var ASK_SURFACES = [
   "other"
 ];
 
-// src/ask/ask-language.ts
-var ASK_LANGUAGES = ["en", "es", "other"];
-var ES_HINT = /[áéíóúñ¿¡]|\b(qué|que|quién|quien|cómo|como|cuándo|cuando|dónde|donde|hoy|mañana|hola|gracias|abierto|libre|cita|cliente|llam[oó]|llamaron|necesita|espera|por favor|el|la|los|las|una?|est[aá]n?)\b/i;
-var EN_HINT = /\b(what|who|when|where|how|did|does|is|are|open|today|tomorrow|call|called|needs|waiting|the|a|an|please|tell)\b/i;
-function detectLanguage(text) {
-  const es = (text.match(ES_HINT) || []).length;
-  const en = (text.match(EN_HINT) || []).length;
-  if (!es && !en) return "other";
-  return es > en ? "es" : "en";
-}
+// src/ask/ask-schemas.ts
+import { z as z4 } from "zod";
 
 // src/ask/answer-text.ts
 var TAG_CUT = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
@@ -5833,393 +4934,6 @@ var FOLLOWUP_ECHO = [
   [/transcript|recording|grabaci|transcripci|the call|la llamada/i, /^conversations\/cv-/],
   [/thread|hilo|conversation/i, /^inbox\/th-/]
 ];
-
-// src/ask/ask-jump.ts
-var ASK_PAGES = [
-  { label: "Today", to: "today", kind: "page" },
-  { label: "Inbox", to: "inbox", kind: "page" },
-  { label: "People", to: "clients", kind: "page" },
-  // Leads is the other scope of People, and it is its own place to an owner: the businesses
-  // a search found, worked. `leads` was the mockup's page and is not offered.
-  { label: "Leads", to: "clients/leads", kind: "page", sub: "businesses Claude found for you" },
-  // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
-  { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People", also: ["segments"] },
-  { label: "Conversations", to: "conversations", kind: "page" },
-  { label: "Calls", to: "live", kind: "page", sub: "live and recent" },
-  { label: "Calendar", to: "calendar", kind: "page", sub: "taken, open and closed times" },
-  // Campaigns' home (3 Oct 2026): the moments that go out on their own, and what is sent by hand. The old Playbooks list was
-  // `outbound`, which lands here; the name it went by still finds it.
-  {
-    label: "Campaigns",
-    to: "campaigns",
-    kind: "page",
-    sub: "what goes out on its own, and what you send yourself",
-    also: ["playbooks", "moments"]
-  },
-  // Campaigns' rooms: Sent (the runs, and the send screen) and the Library (the wording). Each is still found by the name it
-  // went by, which people learned and still type.
-  {
-    label: "Sent",
-    to: "broadcasts",
-    kind: "page",
-    sub: "one message to the people who said yes",
-    also: ["broadcasts"]
-  },
-  {
-    label: "Library",
-    to: "messages",
-    kind: "page",
-    sub: "the wording the receptionist and the campaigns send",
-    also: ["templates", "messages", "wording"]
-  },
-  { label: "Reports", to: "reports", kind: "page" },
-  { label: "Settings", to: "admin/workspace", kind: "page" },
-  {
-    label: "Setting up",
-    to: "start",
-    kind: "page",
-    sub: "the four steps to a receptionist that answers",
-    also: ["setup"]
-  },
-  { label: "Billing", to: "admin/billing", kind: "page" },
-  { label: "Activity", to: "admin/activity", kind: "page", sub: "who did what, for owners" },
-  { label: "Profile", to: "admin/profile", kind: "page", sub: "your name and how you sign in" },
-  { label: "Autonomy", to: "admin/autonomy", kind: "page", sub: "what the receptionist may do alone" },
-  { label: "Team", to: "admin/team", kind: "page", sub: "members and invitations" },
-  { label: "Notifications", to: "admin/notifications", kind: "page" },
-  { label: "Connections", to: "admin/integrations", kind: "page", sub: "WhatsApp, phone line, calendar" },
-  // A partner's account and link (0012): in every workspace's rail, beside Profile.
-  { label: "Partner", to: "admin/partner", kind: "page", sub: "bring a business to Chanlytics" },
-  // What the receptionist knows lives in Business details; the AI memory pane says it is not built and points here, so
-  // its name lands here too, never on that pane (#417).
-  {
-    label: "Receptionist memory",
-    to: "admin/workspace",
-    kind: "page",
-    sub: "hours, services and notes, in Business details",
-    also: ["ai memory"]
-  }
-];
-var PIPELINE = {
-  label: "Pipeline",
-  to: "clients/pipeline",
-  kind: "page",
-  sub: "your deals, by stage",
-  also: ["deals"]
-};
-var BACK_OFFICE = {
-  label: "Back office",
-  to: "admin/platform",
-  kind: "page",
-  sub: "every workspace, for Chanlytics staff"
-};
-function askPages(has3) {
-  const out = [];
-  for (const p of ASK_PAGES) {
-    out.push(p);
-    if (p.to === "clients/leads" && has3.dealsOn) out.push(PIPELINE);
-  }
-  if (has3.platformAdmin) out.push(BACK_OFFICE);
-  return out;
-}
-function askJump(query, index, limit = 6) {
-  const s = query.trim().toLowerCase();
-  if (s.length < 2 || s.split(/\s+/).length > 3 || /[?¿]$/.test(s)) return [];
-  const out = [];
-  const seen = /* @__PURE__ */ new Set();
-  const push = (e) => {
-    if (seen.has(e.to)) return;
-    seen.add(e.to);
-    out.push(e);
-  };
-  for (const p of index) if (p.kind === "page" && p.label.toLowerCase().startsWith(s)) push(p);
-  for (const p of index) if (p.kind === "page" && p.label.toLowerCase().includes(s)) push(p);
-  for (const p of index) if (p.kind === "page" && (p.also ?? []).some((w) => w.toLowerCase().includes(s))) push(p);
-  for (const p of index) if (p.kind !== "page" && p.label.toLowerCase().includes(s)) push(p);
-  return out.slice(0, limit);
-}
-
-// src/ask/ask-suggestions.ts
-var CHIPS_OF = {
-  pipeline: "people",
-  calendar: "other",
-  campaigns: "other"
-};
-var T = {
-  en: {
-    needs: "Who needs me right now?",
-    held: "What is the receptionist holding for me?",
-    calls: "Did anyone call while I was busy?",
-    live: "What is the call on the line about?",
-    openSat: "What's open Saturday?",
-    openTomorrow: "What's open tomorrow?",
-    week: "How did the week go?",
-    said: "What did the receptionist tell {name}?",
-    why: "Why was this reply held?",
-    who: "Who wrote today?",
-    rules: "What can the receptionist do on its own?",
-    hours: "What are our hours this week?",
-    brief: "Brief me on today",
-    proposals: "Who has a proposal out?",
-    setupLeft: "What is left to set up?",
-    moreLike: "Find more like: {asked}",
-    actLate: "Tell {name} we're running late",
-    actLateQ: "Tell {name} we're running about 15 minutes late today",
-    actDraft: "Draft a reply to {name}",
-    actDraftQ: "Draft a reply to {name}: ",
-    actRemember: "Remember something for the receptionist",
-    actRememberQ: "Remember that ",
-    actClose: "Close for a day",
-    actCloseQ: "Close on ",
-    actHours: "Change a day's hours",
-    actHoursQ: "Change Saturday's hours to ",
-    actInvite: "Invite a teammate",
-    actInviteQ: "Invite ",
-    actOffer: "Send an offer to a list",
-    actOfferQ: "Send the ",
-    actPlaybook: "Start a win-back playbook",
-    actPlaybookQ: "Start a win-back playbook for the quiet clients",
-    actHold: "Hold every reply for my review",
-    actHoldQ: "Hold every reply for my review before it sends"
-  },
-  es: {
-    needs: "\xBFQui\xE9n me necesita ahora?",
-    held: "\xBFQu\xE9 tiene retenido la recepcionista para m\xED?",
-    calls: "\xBFLlam\xF3 alguien mientras estaba ocupada?",
-    live: "\xBFDe qu\xE9 trata la llamada en curso?",
-    openSat: "\xBFQu\xE9 hay libre el s\xE1bado?",
-    openTomorrow: "\xBFQu\xE9 hay libre ma\xF1ana?",
-    week: "\xBFC\xF3mo fue la semana?",
-    said: "\xBFQu\xE9 le dijo la recepcionista a {name}?",
-    why: "\xBFPor qu\xE9 se retuvo esta respuesta?",
-    who: "\xBFQui\xE9n escribi\xF3 hoy?",
-    rules: "\xBFQu\xE9 puede hacer la recepcionista sola?",
-    hours: "\xBFCu\xE1l es nuestro horario esta semana?",
-    brief: "Res\xFAmeme el d\xEDa",
-    proposals: "\xBFQui\xE9n tiene una propuesta pendiente?",
-    setupLeft: "\xBFQu\xE9 falta por configurar?",
-    moreLike: "Encuentra m\xE1s como: {asked}",
-    actLate: "Dile a {name} que vamos con retraso",
-    actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
-    actDraft: "Redacta una respuesta a {name}",
-    actDraftQ: "Redacta una respuesta a {name}: ",
-    actRemember: "Recu\xE9rdale algo a la recepcionista",
-    actRememberQ: "Recuerda que ",
-    actClose: "Cerrar el sal\xF3n un d\xEDa",
-    actCloseQ: "Cierra el ",
-    actHours: "Cambiar el horario de un d\xEDa",
-    actHoursQ: "Cambia el horario del s\xE1bado a ",
-    actInvite: "Invitar a alguien del equipo",
-    actInviteQ: "Invita a ",
-    actOffer: "Enviar una oferta a una lista",
-    actOfferQ: "Env\xEDa la ",
-    actPlaybook: "Iniciar un playbook de recuperaci\xF3n",
-    actPlaybookQ: "Inicia un playbook de recuperaci\xF3n para los clientes inactivos",
-    actHold: "Retener cada respuesta para revisarla",
-    actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla"
-  }
-};
-function askQuestionWords(key, language) {
-  return (language === "es" ? T.es : T.en)[key];
-}
-var PAGE_QUESTIONS = {
-  today: [
-    ["brief", "sparkle"],
-    ["who", "users"]
-  ],
-  inbox: [
-    ["who", "users"],
-    ["rules", "shield"]
-  ],
-  people: [["who", "users"]],
-  reports: [["week", "trending-up"]],
-  settings: [
-    ["rules", "shield"],
-    ["hours", "clock"]
-  ],
-  start: [
-    ["setupLeft", "check"],
-    ["hours", "clock"]
-  ]
-};
-function clipWords(s, cap2) {
-  const w = s.replace(/\s+/g, " ").trim();
-  return w.length > cap2 ? `${w.slice(0, cap2 - 1).trimEnd()}\u2026` : w;
-}
-function buildAskSuggestions(input) {
-  const t = T[input.language === "es" ? "es" : "en"];
-  const at3 = CHIPS_OF[input.surface] ?? input.surface;
-  const out = [];
-  const add = (q, kind, icon, fast = false, label) => {
-    if (!out.some((s2) => s2.q === q)) out.push({ q, kind, icon, fast, ...label ? { label } : {} });
-  };
-  const s = input.scope;
-  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
-    add(t.said.replace("{name}", s.label), "ask", "chat");
-    if (s.kind === "thread") add(t.why, "ask", "sparkle");
-  }
-  if (s && s.kind === "call") add(t.live, "ask", "phone");
-  if (input.surface === "leads") {
-    const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
-    for (const w of ideas) add(w, "ask", "search");
-    if (!ideas.length)
-      for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
-        add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
-  }
-  if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
-  if (input.heldDrafts > 0) add(t.held, "ask", "clock");
-  if (input.liveNow > 0) add(t.live, "ask", "phone");
-  if (input.missedToday > 0) add(t.calls, "ask", "phone", true);
-  if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
-  for (const [key, icon] of PAGE_QUESTIONS[at3] ?? []) add(t[key], "ask", icon);
-  if (at3 === "live" || at3 === "conversations") add(t.calls, "ask", "phone", input.missedToday > 0);
-  if (input.dealsOn && (at3 === "people" || at3 === "other")) add(t.proposals, "ask", "trending-up");
-  if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
-  add(t.week, "ask", "trending-up");
-  add(t.rules, "ask", "shield");
-  const asks = out.slice(0, 7);
-  if (!input.canAct) return asks;
-  const acts = [];
-  const act2 = (label, q, icon, compose = false) => {
-    if (!acts.some((a) => a.q === q)) acts.push({ q, kind: "act", icon, label, compose });
-  };
-  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
-    act2(t.actLate.replace("{name}", s.label), t.actLateQ.replace("{name}", s.label), "chat");
-    act2(t.actDraft.replace("{name}", s.label), t.actDraftQ.replace("{name}", s.label), "edit", true);
-  }
-  act2(t.actRemember, t.actRememberQ, "sparkle", true);
-  if (input.surface === "settings" || input.surface === "today") act2(t.actClose, t.actCloseQ, "calendar", true);
-  if (input.surface === "settings") act2(t.actHours, t.actHoursQ, "clock", true);
-  if (input.surface === "settings") act2(t.actInvite, t.actInviteQ, "users", true);
-  if (input.surface === "inbox" || input.heldDrafts > 0) act2(t.actHold, t.actHoldQ, "shield");
-  if (at3 === "people" || at3 === "other") act2(t.actOffer, t.actOfferQ, "wave", true);
-  if (at3 === "people" || at3 === "other") act2(t.actPlaybook, t.actPlaybookQ, "bolt");
-  return [...asks, ...acts.slice(0, 4)];
-}
-
-// src/ask/ask-fast-paths.ts
-var NEEDS_RE = /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
-var CALLS_RE = /\b((did|has|have) (anyone|someone|anybody|somebody) (call|called|rang|phoned)|missed calls?|who called|any calls?|llam[oó] alguien|llamaron|llamadas? perdidas?|qui[eé]n llam[oó]|alguna llamada)\b/i;
-var OPEN_RE = /\b(what('s| is) open|what('s| is) free|openings?|availab|free (slot|slots|time)|any (slots?|room|space|time)|qu[eé] (hay|tengo) (libre|disponible)|disponibilidad|disponibles?|huecos?|espacios? libres?|cu[aá]ndo (hay|tienen) (libre|espacio))\b/i;
-var DAY_WORDS = [
-  [/\b(mon|monday|lunes)\b/i, "mon"],
-  [/\b(tue|tues|tuesday|martes)\b/i, "tue"],
-  [/\b(wed|wednesday|mi[eé]rcoles)\b/i, "wed"],
-  [/\b(thu|thur|thursday|jueves)\b/i, "thu"],
-  [/\b(fri|friday|viernes)\b/i, "fri"],
-  [/\b(sat|saturday|s[aá]bado)\b/i, "sat"],
-  [/\b(sun|sunday|domingo)\b/i, "sun"]
-];
-function dayKey(atMs, tz) {
-  try {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz || "UTC",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    }).format(new Date(atMs));
-  } catch {
-    return new Date(atMs).toISOString().slice(0, 10);
-  }
-}
-function dayFromQuestion(q, now, tz) {
-  if (/\b(tomorrow|mañana)\b/i.test(q)) {
-    try {
-      if (tz) return dayPlusInZone(tz, now, 1).key;
-    } catch {
-    }
-    return dayKey(now + 864e5, tz);
-  }
-  if (/\b(today|hoy)\b/i.test(q)) return dayKey(now, tz);
-  for (const [re, key] of DAY_WORDS) if (re.test(q)) return key;
-  return null;
-}
-function askIntent(question, now, tz) {
-  const q = question.trim();
-  if (!q || q.length > 160) return null;
-  if (NEEDS_RE.test(q)) return { kind: "needs" };
-  if (CALLS_RE.test(q)) return { kind: "calls" };
-  if (OPEN_RE.test(q)) return { kind: "openings", day: dayFromQuestion(q, now, tz), service: q };
-  return null;
-}
-function callsToday(calls, now, tz) {
-  const today = dayKey(now, tz);
-  return {
-    missed: calls.filter((c) => c.missed && c.startedAtMs && dayKey(c.startedAtMs, tz) === today),
-    live: calls.filter((c) => c.live)
-  };
-}
-
-// src/ask/ask-settings-change.ts
-import { z as z12 } from "zod";
-var AskSettingsChangeSchema = z12.discriminatedUnion("op", [
-  z12.object({
-    op: z12.literal("add_closure"),
-    date: z12.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z12.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z12.string().max(200).optional()
-  }),
-  z12.object({
-    op: z12.literal("set_hours"),
-    day: z12.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z12.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z12.string().regex(/^\d{2}:\d{2}$/).nullable()
-  }),
-  z12.object({ op: z12.literal("add_note"), title: z12.string().min(1).max(80), text: z12.string().min(1).max(1200) }),
-  z12.object({
-    op: z12.literal("add_service"),
-    name: z12.string().min(1).max(80),
-    duration_min: z12.number().int().min(1).max(1440).optional()
-  })
-]);
-function applySettingsChange(config, change) {
-  const brain = { ...config.brain ?? {} };
-  const profile = { ...brain.profile ?? {} };
-  switch (change.op) {
-    case "add_closure": {
-      const closures = [...profile.closures ?? []];
-      closures.push({
-        date: change.date,
-        ...change.until ? { until: change.until } : {},
-        ...change.note ? { note: change.note } : {}
-      });
-      profile.closures = closures;
-      break;
-    }
-    case "set_hours": {
-      const hours = { ...profile.hours ?? {} };
-      hours[change.day] = change.open && change.close ? { open: change.open, close: change.close } : { open: null, close: null };
-      profile.hours = hours;
-      break;
-    }
-    case "add_note": {
-      const notes = [...profile.notes ?? []];
-      notes.push({ title: change.title, text: change.text });
-      profile.notes = notes;
-      break;
-    }
-    case "add_service": {
-      const services = [...profile.services ?? []];
-      services.push({ name: change.name, ...change.duration_min ? { duration_min: change.duration_min } : {} });
-      profile.services = services;
-      break;
-    }
-  }
-  brain.profile = profile;
-  return { ...config, brain };
-}
-function describeSettingsChange(change) {
-  switch (change.op) {
-    case "add_closure":
-      return change.until ? `Closed ${change.date} to ${change.until}${change.note ? ` (${change.note})` : ""}` : `Closed on ${change.date}${change.note ? ` (${change.note})` : ""}`;
-    case "set_hours":
-      return change.open && change.close ? `${change.day}: ${change.open}\u2013${change.close}` : `${change.day}: closed`;
-    case "add_note":
-      return `Note for the receptionist: \u201C${change.title}\u201D`;
-    case "add_service":
-      return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
-  }
-}
 
 // src/ask/citations.ts
 var ASK_CITATION_KINDS = [
@@ -6299,24 +5013,6 @@ var OWN_ROUTES = {
 function citationRoute(c, read) {
   if (c.kind === "page") return c.id;
   return read?.[c.kind].get(c.id)?.route ?? OWN_ROUTES[c.kind]?.(c.id) ?? "";
-}
-
-// src/ask/ask-shape.ts
-function cacheHitOf(t) {
-  const fed = t.input + t.cache_read + t.cache_creation;
-  return fed > 0 ? t.cache_read / fed : null;
-}
-
-// src/ask/ask-model.ts
-var ASK_MODELS = [MODEL_ROUTES.ask.model, MODEL_ROUTES.ask.fallback];
-var ASK_MODEL_PROFILES = {
-  [MODELS.OPUS_5_5]: { id: MODELS.OPUS_5_5, effort: "low", forcedToolChoice: false, thinking: "always" },
-  [MODELS.SONNET_5]: { id: MODELS.SONNET_5, effort: "low", forcedToolChoice: true, thinking: "adaptive" }
-};
-var ASK_MODEL = MODEL_ROUTES.ask.model;
-function askModelProfile(name) {
-  const id = ASK_MODELS.includes(name ?? "") ? name : ASK_MODEL;
-  return ASK_MODEL_PROFILES[id];
 }
 
 // src/ask-proposals/spec.ts
@@ -7154,9 +5850,6 @@ function leadMapNote(plot, oneSearch) {
   return oneSearch ? "Where this search's leads are. It never measured a centre, so there is no area to draw." : "Every lead these searches placed on the ground.";
 }
 
-// src/leads/lead-import.ts
-import { z as z13 } from "zod";
-
 // src/shared/csv.ts
 function csvCell(v) {
   let s = v == null ? "" : typeof v === "boolean" ? v ? "yes" : "no" : String(v);
@@ -7402,25 +6095,6 @@ function leadImportPlanOf(text) {
     }
   };
 }
-var nullableText = (max) => z13.string().trim().max(max).nullable().optional();
-var LeadImportRowSchema = z13.object({
-  name: z13.string().trim().min(1).max(200),
-  email: z13.string().trim().min(3).max(254),
-  phone: nullableText(16),
-  website_host: nullableText(120),
-  city: nullableText(120),
-  region: nullableText(2),
-  category: nullableText(120)
-});
-var LeadImportSchema = z13.object({
-  name: z13.string().trim().min(1).max(120),
-  asked: z13.string().trim().max(400).optional(),
-  rows: z13.array(LeadImportRowSchema).min(1).max(LEAD_LIST_MAX)
-});
-var LeadChooseSchema = z13.object({
-  name: z13.string().trim().min(1).max(120),
-  lead_ids: z13.array(z13.string().uuid()).min(1).max(LEAD_LIST_MAX)
-});
 function leadImportEstimateUsd(addresses) {
   const each = LEAD_CARDS.find((c) => c.id === "local_businesses")?.checkPerEmailUsd ?? 89e-5;
   return Math.max(0.5, Math.round(Math.max(0, addresses) * each * LEAD_ESTIMATE_MARGIN * 100) / 100);
@@ -7849,11 +6523,8 @@ var leadSearchSpec = {
   }
 };
 
-// src/people/lists.ts
-import { z as z15 } from "zod";
-
-// src/people/list-rules.ts
-import { z as z14 } from "zod";
+// src/people/lists/list-rules.ts
+import * as z3 from "zod/mini";
 
 // src/people/person-words.ts
 var REPLY_VIA = {
@@ -7878,7 +6549,7 @@ var PERSON_CAME_FROM_WORDS = {
   lead: "A lead you found"
 };
 
-// src/people/list-rules.ts
+// src/people/lists/list-rules.ts
 var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS = [
   {
@@ -8006,36 +6677,36 @@ var LIST_DEAL_STAGES = ["consultation", "proposed", "won", "lost", "ended"];
 var LIST_RULE_MAX = 12;
 var LIST_ANY_MAX = 6;
 var DAY_OPS = ["more_than", "within", "never", "ever", "this_week"];
-var Days = { op: z14.enum(DAY_OPS), days: z14.number().int().min(1).max(3650).optional() };
-var YesNo = { op: z14.literal("is"), yes: z14.boolean() };
-var Count = { op: z14.enum(["at_least", "at_most"]), n: z14.number().int().min(0).max(1e4) };
-var IsOrNot = z14.enum(["is", "is_not"]);
-var Token = z14.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
-var fact = (shape) => z14.object(shape).strict();
-var ListFactSchema = z14.discriminatedUnion("field", [
-  fact({ field: z14.literal("last_visit"), ...Days }),
-  fact({ field: z14.literal("next_visit"), ...Days }),
-  fact({ field: z14.literal("booked"), ...YesNo }),
-  fact({ field: z14.literal("asked_not_booked"), ...YesNo }),
-  fact({ field: z14.literal("last_heard"), ...Days }),
-  fact({ field: z14.literal("first_contact"), ...Days }),
-  fact({ field: z14.literal("channel"), op: IsOrNot, channel: z14.enum(CHANNELS) }),
-  fact({ field: z14.literal("came_from"), op: IsOrNot, from: z14.enum(CAME_FROM) }),
-  fact({ field: z14.literal("calls"), ...Count }),
-  fact({ field: z14.literal("conversations"), ...Count }),
-  fact({ field: z14.literal("has_chat"), ...YesNo }),
-  fact({ field: z14.literal("said_yes"), ...YesNo, to: z14.enum(LIST_PURPOSES) }),
-  fact({ field: z14.literal("can_receive"), ...YesNo, to: z14.enum(LIST_PURPOSES) }),
-  fact({ field: z14.literal("stopped"), ...YesNo }),
-  fact({ field: z14.literal("standing"), op: IsOrNot, value: z14.enum(LIST_STANDINGS) }),
-  fact({ field: z14.literal("assigned"), op: IsOrNot, value: z14.enum(LIST_ASSIGNED) }),
-  fact({ field: z14.literal("deal_stage"), op: IsOrNot, value: z14.enum(LIST_DEAL_STAGES) }),
-  fact({ field: z14.literal("consultation"), ...YesNo }),
-  fact({ field: z14.literal("step_due"), ...YesNo }),
-  fact({ field: z14.literal("in_list"), op: IsOrNot, list: Token })
+var Days = { op: z3.enum(DAY_OPS), days: z3.optional(z3.int().check(z3.minimum(1), z3.maximum(3650))) };
+var YesNo = { op: z3.literal("is"), yes: z3.boolean() };
+var Count = { op: z3.enum(["at_least", "at_most"]), n: z3.int().check(z3.minimum(0), z3.maximum(1e4)) };
+var IsOrNot = z3.enum(["is", "is_not"]);
+var Token = z3.string().check(z3.regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i));
+var fact = (shape) => z3.strictObject(shape);
+var ListFactSchema = z3.discriminatedUnion("field", [
+  fact({ field: z3.literal("last_visit"), ...Days }),
+  fact({ field: z3.literal("next_visit"), ...Days }),
+  fact({ field: z3.literal("booked"), ...YesNo }),
+  fact({ field: z3.literal("asked_not_booked"), ...YesNo }),
+  fact({ field: z3.literal("last_heard"), ...Days }),
+  fact({ field: z3.literal("first_contact"), ...Days }),
+  fact({ field: z3.literal("channel"), op: IsOrNot, channel: z3.enum(CHANNELS) }),
+  fact({ field: z3.literal("came_from"), op: IsOrNot, from: z3.enum(CAME_FROM) }),
+  fact({ field: z3.literal("calls"), ...Count }),
+  fact({ field: z3.literal("conversations"), ...Count }),
+  fact({ field: z3.literal("has_chat"), ...YesNo }),
+  fact({ field: z3.literal("said_yes"), ...YesNo, to: z3.enum(LIST_PURPOSES) }),
+  fact({ field: z3.literal("can_receive"), ...YesNo, to: z3.enum(LIST_PURPOSES) }),
+  fact({ field: z3.literal("stopped"), ...YesNo }),
+  fact({ field: z3.literal("standing"), op: IsOrNot, value: z3.enum(LIST_STANDINGS) }),
+  fact({ field: z3.literal("assigned"), op: IsOrNot, value: z3.enum(LIST_ASSIGNED) }),
+  fact({ field: z3.literal("deal_stage"), op: IsOrNot, value: z3.enum(LIST_DEAL_STAGES) }),
+  fact({ field: z3.literal("consultation"), ...YesNo }),
+  fact({ field: z3.literal("step_due"), ...YesNo }),
+  fact({ field: z3.literal("in_list"), op: IsOrNot, list: Token })
 ]);
-var AnySchema = z14.object({ any: z14.array(ListFactSchema).min(2).max(LIST_ANY_MAX) }).strict();
-var ListConditionSchema = z14.union([AnySchema, ListFactSchema]);
+var AnySchema = z3.strictObject({ any: z3.array(ListFactSchema).check(z3.minLength(2), z3.maxLength(LIST_ANY_MAX)) });
+var ListConditionSchema = z3.union([AnySchema, ListFactSchema]);
 function factProblem(f) {
   if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
     return null;
@@ -8043,15 +6714,17 @@ function factProblem(f) {
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
   return null;
 }
-var ListRuleSchema = z14.object({
-  v: z14.literal(2).optional(),
-  all: z14.array(ListConditionSchema).min(1).max(LIST_RULE_MAX)
-}).strict().superRefine((r2, ctx) => {
-  for (const f of r2.all.flatMap((c) => "any" in c ? c.any : [c])) {
-    const p = factProblem(f);
-    if (p) ctx.addIssue({ code: z14.ZodIssueCode.custom, message: p });
-  }
-});
+var ListRuleSchema = z3.strictObject({
+  v: z3.optional(z3.literal(2)),
+  all: z3.array(ListConditionSchema).check(z3.minLength(1), z3.maxLength(LIST_RULE_MAX))
+}).check(
+  z3.superRefine((r2, ctx) => {
+    for (const f of r2.all.flatMap((c) => "any" in c ? c.any : [c])) {
+      const p = factProblem(f);
+      if (p) ctx.addIssue({ code: "custom", message: p });
+    }
+  })
+);
 function upgradeFact(raw) {
   if (!raw || typeof raw !== "object") return raw;
   const f = raw;
@@ -8101,8 +6774,8 @@ function draftListRule(all) {
     )
   });
 }
-function ruleFacts(rule) {
-  return rule.all.flatMap((c) => "any" in c ? c.any : [c]);
+function ruleFacts(rule2) {
+  return rule2.all.flatMap((c) => "any" in c ? c.any : [c]);
 }
 function factNeeds(f) {
   const needs = new Set(fieldOf(f.field).needs);
@@ -8114,12 +6787,12 @@ function factNeeds(f) {
   }
   return LIST_NEEDS.filter((n) => needs.has(n));
 }
-function ruleNeeds(rule) {
-  const needs = new Set(ruleFacts(rule).flatMap(factNeeds));
+function ruleNeeds(rule2) {
+  const needs = new Set(ruleFacts(rule2).flatMap(factNeeds));
   return LIST_NEEDS.filter((n) => needs.has(n));
 }
-function ruleLists(rule) {
-  return [...new Set(ruleFacts(rule).flatMap((f) => f.field === "in_list" ? [f.list] : []))];
+function ruleLists(rule2) {
+  return [...new Set(ruleFacts(rule2).flatMap((f) => f.field === "in_list" ? [f.list] : []))];
 }
 function dayHolds(days, op, n) {
   switch (op) {
@@ -8181,8 +6854,8 @@ function holds(f, v, inList) {
   }
 }
 var noLists = () => false;
-function listRuleMatches(rule, v, inList = noLists) {
-  return rule.all.every((c) => "any" in c ? c.any.some((f) => holds(f, v, inList)) : holds(c, v, inList));
+function listRuleMatches(rule2, v, inList = noLists) {
+  return rule2.all.every((c) => "any" in c ? c.any.some((f) => holds(f, v, inList)) : holds(c, v, inList));
 }
 var lower = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
 var STANDING_WORDS = {
@@ -8243,11 +6916,11 @@ function listFactWords(f, listName = () => null) {
 function listConditionWords(c, listName) {
   return "any" in c ? c.any.map((f) => listFactWords(f, listName)).join(", or ") : listFactWords(c, listName);
 }
-function listRuleParts(rule, listName) {
-  return rule.all.map((c) => listConditionWords(c, listName));
+function listRuleParts(rule2, listName) {
+  return rule2.all.map((c) => listConditionWords(c, listName));
 }
-function listRuleWhy(rule, v, listName) {
-  return rule.all.map((c) => "any" in c ? c.any.find((f) => holds(f, v, noLists)) ?? c.any[0] : c).map((f) => listFactWords(f, listName)).join(" \xB7 ");
+function listRuleWhy(rule2, v, listName) {
+  return rule2.all.map((c) => "any" in c ? c.any.find((f) => holds(f, v, noLists)) ?? c.any[0] : c).map((f) => listFactWords(f, listName)).join(" \xB7 ");
 }
 function listDraftFieldLines() {
   const ops = {
@@ -8303,11 +6976,6 @@ var LIST_DRAFT_JSON_SCHEMA = {
     }
   }
 };
-var ListDraftAnswerSchema = z14.object({
-  name: z14.string().trim().min(1).max(60),
-  cannot: z14.string().trim().max(200),
-  all: z14.array(z14.unknown()).max(LIST_RULE_MAX)
-});
 
 // src/deals/sells-by.ts
 var SELLS_BY = ["booking", "proposal"];
@@ -8354,7 +7022,7 @@ function sellsBySaved(was, now) {
   return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
 }
 
-// src/people/lists.ts
+// src/people/lists/lists.ts
 var SAVED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var BUILTIN_ID = /^[a-z_]{1,40}$/;
 function listToken(ref) {
@@ -8555,12 +7223,12 @@ function listMembers(list2, rows, ctx, lookup = () => null) {
     const on = new Set(list2.ids);
     return { state: "ok", ids: new Set(rows.filter((v) => on.has(v.id)).map((v) => v.id)) };
   }
-  const rule = asListRule(list2.rule);
-  if (!rule) return { state: "unknown", reason: "rule" };
-  const need = unmetNeed(ruleNeeds(rule), ctx);
+  const rule2 = asListRule(list2.rule);
+  if (!rule2) return { state: "unknown", reason: "rule" };
+  const need = unmetNeed(ruleNeeds(rule2), ctx);
   if (need) return { state: "unknown", reason: need };
   const read = /* @__PURE__ */ new Map();
-  for (const token2 of ruleLists(rule)) {
+  for (const token2 of ruleLists(rule2)) {
     const b = builtinByToken(token2);
     const other = b ? { rule: b.rule, ids: [], readable: true } : lookup(token2);
     if (!other || !other.readable) return { state: "unknown", reason: "list" };
@@ -8570,7 +7238,7 @@ function listMembers(list2, rows, ctx, lookup = () => null) {
     read.set(token2, m.ids);
   }
   const inList = (token2, id) => read.get(token2)?.has(id) ?? false;
-  return { state: "ok", ids: new Set(rows.filter((v) => listRuleMatches(rule, v, inList)).map((v) => v.id)) };
+  return { state: "ok", ids: new Set(rows.filter((v) => listRuleMatches(rule2, v, inList)).map((v) => v.id)) };
 }
 function savedListIds(list2, rows, ctx, lookup = () => null) {
   const m = listMembers(list2, rows, ctx, lookup);
@@ -8582,8 +7250,8 @@ function savedListLookup(saved) {
     if (!ref || ref.kind !== "saved") return null;
     const l = saved.find((s) => s.id.toLowerCase() === ref.id);
     if (!l) return null;
-    const rule = l.rule == null ? null : asListRule(l.rule);
-    return { rule, ids: l.ids, readable: l.rule == null || rule !== null };
+    const rule2 = l.rule == null ? null : asListRule(l.rule);
+    return { rule: rule2, ids: l.ids, readable: l.rule == null || rule2 !== null };
   };
 }
 function listNamer(saved) {
@@ -8593,10 +7261,10 @@ function listNamer(saved) {
     return ref.kind === "builtin" ? PEOPLE_LISTS.find((l) => l.id === ref.id)?.label ?? null : saved.find((l) => l.id === ref.id)?.name ?? null;
   };
 }
-function listNeeds(rule, lookup = () => null) {
-  if (!rule) return [];
-  const needs = new Set(ruleNeeds(rule));
-  for (const token2 of ruleLists(rule)) {
+function listNeeds(rule2, lookup = () => null) {
+  if (!rule2) return [];
+  const needs = new Set(ruleNeeds(rule2));
+  for (const token2 of ruleLists(rule2)) {
     const b = builtinByToken(token2);
     const other = b ? b.rule : lookup(token2)?.rule;
     if (other) for (const n of ruleNeeds(other)) needs.add(n);
@@ -8621,17 +7289,17 @@ function builtinDef(l) {
 }
 function savedDef(l, lookup) {
   const ref = { kind: "saved", id: l.id };
-  const rule = l.rule == null ? null : asListRule(l.rule);
+  const rule2 = l.rule == null ? null : asListRule(l.rule);
   return {
     ref,
     token: listToken(ref),
     label: l.name,
     group: "saved",
-    rule,
+    rule: rule2,
     byHand: l.rule == null,
-    readable: l.rule == null || rule !== null,
+    readable: l.rule == null || rule2 !== null,
     ids: l.rule == null ? l.ids : [],
-    needs: listNeeds(rule, lookup),
+    needs: listNeeds(rule2, lookup),
     onProfile: true,
     archived: !!l.archived_at
   };
@@ -8677,12 +7345,9 @@ function savedListTip(list2) {
   if (list2.byHand) return "A list kept by hand \u2014 add people from their profile";
   return `Keeps itself current: ${(list2.rule ?? []).join(" \xB7 ")}`;
 }
-var PeopleExportQuerySchema = z15.object({
-  list: z15.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
-});
-function ruleNeedsViewer(rule) {
-  if (rule == null) return false;
-  const r2 = asListRule(rule);
+function ruleNeedsViewer(rule2) {
+  if (rule2 == null) return false;
+  const r2 = asListRule(rule2);
   return !!r2 && ruleNeeds(r2).includes("viewer");
 }
 var viewerListWords = (name) => `${name} is about whoever is looking ("me"), and a playbook's run has no one looking. Pick a list that says who by what they did.`;
@@ -9097,7 +7762,7 @@ var PERSON_MODE_WORDS = {
 function asPersonMode(s) {
   return s && PERSON_MODES.includes(s) ? s : null;
 }
-function receptionistOf2(r2, tz, nowMs) {
+function receptionistOf(r2, tz, nowMs) {
   if (isOwned(r2, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
   if (r2.open_escalation_reason)
     return { tone: "escalated", label: `Escalated, ${reasonShort(r2.open_escalation_reason)}` };
@@ -9382,6 +8047,56 @@ var personDetailsSpec = {
   open: cardPersonRoute
 };
 
+// src/ask/ask-settings-change.ts
+function applySettingsChange(config2, change) {
+  const brain = { ...config2.brain ?? {} };
+  const profile = { ...brain.profile ?? {} };
+  switch (change.op) {
+    case "add_closure": {
+      const closures = [...profile.closures ?? []];
+      closures.push({
+        date: change.date,
+        ...change.until ? { until: change.until } : {},
+        ...change.note ? { note: change.note } : {}
+      });
+      profile.closures = closures;
+      break;
+    }
+    case "set_hours": {
+      const hours = { ...profile.hours ?? {} };
+      hours[change.day] = change.open && change.close ? { open: change.open, close: change.close } : { open: null, close: null };
+      profile.hours = hours;
+      break;
+    }
+    case "add_note": {
+      const notes = [...profile.notes ?? []];
+      notes.push({ title: change.title, text: change.text });
+      profile.notes = notes;
+      break;
+    }
+    case "add_service": {
+      const services = [...profile.services ?? []];
+      services.push({ name: change.name, ...change.duration_min ? { duration_min: change.duration_min } : {} });
+      profile.services = services;
+      break;
+    }
+  }
+  brain.profile = profile;
+  return { ...config2, brain };
+}
+function describeSettingsChange(change) {
+  switch (change.op) {
+    case "add_closure":
+      return change.until ? `Closed ${change.date} to ${change.until}${change.note ? ` (${change.note})` : ""}` : `Closed on ${change.date}${change.note ? ` (${change.note})` : ""}`;
+    case "set_hours":
+      return change.open && change.close ? `${change.day}: ${change.open}\u2013${change.close}` : `${change.day}: closed`;
+    case "add_note":
+      return `Note for the receptionist: \u201C${change.title}\u201D`;
+    case "add_service":
+      return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
+  }
+}
+
 // src/ask-proposals/workspace.ts
 var policyBody = (cls, mode, confidence) => {
   const body = { class: cls };
@@ -9418,11 +8133,11 @@ var settingsSpec = {
     const st = tab.settings;
     if (!st || !st.config || typeof st.version !== "number")
       return refuseWith("Settings are not loaded yet \u2014 open Settings once and try again.");
-    const config = applySettingsChange(
+    const config2 = applySettingsChange(
       st.config,
       p.payload.change
     );
-    return { route: "PUT settings", body: { config, version: st.version } };
+    return { route: "PUT settings", body: { config: config2, version: st.version } };
   },
   receipt: (p) => p.summary,
   undo: {
@@ -9748,7 +8463,7 @@ function openingsAnswer(o, language, day = null) {
 var C = ASK_ANSWER_CAPS;
 var asObj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : {};
 var asArr = (v) => Array.isArray(v) ? v : [];
-var words2 = (v, n) => clip(cleanAnswer(typeof v === "string" ? v : ""), n);
+var words = (v, n) => clip(cleanAnswer(typeof v === "string" ? v : ""), n);
 var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : Number.NaN;
 var UUID2 = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
@@ -9758,7 +8473,7 @@ function groundRef(v, read) {
   const kind = typeof r2.kind === "string" ? r2.kind : "none";
   const spelled = typeof r2.id === "string" ? r2.id.trim().replace(/^#?\/+/, "") : "";
   if (!spelled || !ASK_CITATION_KINDS.includes(kind)) return null;
-  const label = words2(r2.label, C.label) || spelled;
+  const label = words(r2.label, C.label) || spelled;
   const ids = spelled.match(UUID2);
   const row2 = ids?.[ids.length - 1]?.toLowerCase();
   const page = row2 || ROW_ROUTE.test(spelled) ? [] : [{ kind: "page", id: spelled, label }];
@@ -9781,7 +8496,7 @@ function normalizeAnswer(raw, read, fallback) {
   }
   const root = asObj(json);
   const say2 = asObj(root.say);
-  const headline = words2(say2.headline, C.headline);
+  const headline = words(say2.headline, C.headline);
   if (!headline) return { ok: false, error: "no headline" };
   const language = root.language === "en" || root.language === "es" ? root.language : fallback;
   let dropped = 0;
@@ -9794,23 +8509,23 @@ function normalizeAnswer(raw, read, fallback) {
   const show = asObj(root.show);
   const figures = [];
   for (const f of asArr(show.figures).map(asObj)) {
-    const value = words2(f.value, C.value);
+    const value = words(f.value, C.value);
     if (!value) continue;
-    figures.push({ value, label: words2(f.label, C.label), note: words2(f.note, C.note), source: ground(f.source) });
+    figures.push({ value, label: words(f.label, C.label), note: words(f.note, C.note), source: ground(f.source) });
     if (figures.length >= C.figures) break;
   }
   const items = [];
   for (const it of asArr(show.items).map(asObj)) {
-    const title = words2(it.title, C.title);
+    const title = words(it.title, C.title);
     const source = ground(it.source);
     if (!title || !source) continue;
-    items.push({ title, meta: words2(it.meta, C.meta), line: words2(it.line, C.line), source });
+    items.push({ title, meta: words(it.meta, C.meta), line: words(it.line, C.line), source });
     if (items.length >= C.items) break;
   }
   const b = asObj(show.breakdown);
-  const parts2 = asArr(b.parts).map(asObj).map((p) => ({ label: words2(p.label, C.label), value: num(p.value), warn: p.warn === true }));
+  const parts2 = asArr(b.parts).map(asObj).map((p) => ({ label: words(p.label, C.label), value: num(p.value), warn: p.warn === true }));
   const total = num(b.total);
-  const whole = words2(b.label, C.label);
+  const whole = words(b.label, C.label);
   const adds = !!whole && parts2.length >= 2 && parts2.length <= C.parts && parts2.every((p) => p.label && Number.isFinite(p.value) && p.value >= 0) && Number.isFinite(total) && Math.abs(parts2.reduce((s, p) => s + p.value, 0) - total) < 1e-9;
   const breakdown = adds ? { label: whole, total, parts: parts2, source: ground(b.source) } : null;
   const d = asObj(root.do);
@@ -9818,16 +8533,16 @@ function normalizeAnswer(raw, read, fallback) {
   const at3 = ground(o.source);
   const open = at3 ? {
     to: at3.to,
-    label: navigateLabel({ to: at3.to, label: words2(o.label, C.label) || at3.label }, language) ?? at3.label,
+    label: navigateLabel({ to: at3.to, label: words(o.label, C.label) || at3.label }, language) ?? at3.label,
     now: o.now === true
   } : null;
-  const next = asArr(d.next).map((q) => words2(q, C.question)).filter(Boolean).slice(0, C.next);
+  const next = asArr(d.next).map((q) => words(q, C.question)).filter(Boolean).slice(0, C.next);
   return {
     ok: true,
     answer: {
       v: 2,
       form: "structured",
-      say: { headline, detail: words2(say2.detail, C.detail) },
+      say: { headline, detail: words(say2.detail, C.detail) },
       show: { figures, items, breakdown },
       do: { open, next },
       language
@@ -9928,6 +8643,411 @@ function v1FromAnswer(a) {
     navigate: a.do.open ? { to: a.do.open.to, label: a.do.open.label, now: a.do.open.now } : null,
     followups: a.do.next
   };
+}
+
+// src/ask/ask-context.ts
+var ASK_CONTEXT_MAX_ROWS = 40;
+var ASK_CONTEXT_ROW_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+  "template"
+];
+var isRowFocus = (k) => k !== "page" && ASK_SCOPE_KINDS.includes(k);
+function itemFocus(m, n) {
+  const item = (m.answer ?? answerFromV1(m)).show.items[n - 1];
+  if (!item) return void 0;
+  const { kind: cited, id, label } = item.source;
+  const kind = cited === "broadcast" ? "run" : cited;
+  return isRowFocus(kind) ? { kind, id, label: label.slice(0, 80) || `this ${kind}` } : null;
+}
+
+// src/ask/ask-schemas.ts
+var Id = z4.string().min(1).max(120);
+var PageContextSchema = z4.object({
+  v: z4.literal(1),
+  surface: z4.enum(ASK_SURFACES),
+  route: z4.string().max(200),
+  view: z4.string().max(80).nullish(),
+  focus: z4.object({ kind: z4.enum(ASK_SCOPE_KINDS), id: Id, label: z4.string().max(80) }).strict().nullish(),
+  rows: z4.array(z4.object({ kind: z4.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
+  askedAt: z4.number().int().nonnegative()
+}).strict();
+var AskProposalOutcomeSchema = z4.object({
+  state: z4.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z4.string().max(300).catch(""),
+  atMs: z4.number().catch(0),
+  undo: z4.record(z4.string(), z4.unknown()).nullable().optional()
+});
+var AskSettingsChangeSchema = z4.discriminatedUnion("op", [
+  z4.object({
+    op: z4.literal("add_closure"),
+    date: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z4.string().max(200).optional()
+  }),
+  z4.object({
+    op: z4.literal("set_hours"),
+    day: z4.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z4.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z4.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
+  z4.object({ op: z4.literal("add_note"), title: z4.string().min(1).max(80), text: z4.string().min(1).max(1200) }),
+  z4.object({
+    op: z4.literal("add_service"),
+    name: z4.string().min(1).max(80),
+    duration_min: z4.number().int().min(1).max(1440).optional()
+  })
+]);
+
+// src/ask/ask-language.ts
+var ASK_LANGUAGES = ["en", "es", "other"];
+var ES_HINT = /[áéíóúñ¿¡]|\b(qué|que|quién|quien|cómo|como|cuándo|cuando|dónde|donde|hoy|mañana|hola|gracias|abierto|libre|cita|cliente|llam[oó]|llamaron|necesita|espera|por favor|el|la|los|las|una?|est[aá]n?)\b/i;
+var EN_HINT = /\b(what|who|when|where|how|did|does|is|are|open|today|tomorrow|call|called|needs|waiting|the|a|an|please|tell)\b/i;
+function detectLanguage(text) {
+  const es = (text.match(ES_HINT) || []).length;
+  const en = (text.match(EN_HINT) || []).length;
+  if (!es && !en) return "other";
+  return es > en ? "es" : "en";
+}
+
+// src/ask/ask-jump.ts
+var ASK_PAGES = [
+  { label: "Today", to: "today", kind: "page" },
+  { label: "Inbox", to: "inbox", kind: "page" },
+  { label: "People", to: "clients", kind: "page" },
+  // Leads is the other scope of People, and it is its own place to an owner: the businesses
+  // a search found, worked. `leads` was the mockup's page and is not offered.
+  { label: "Leads", to: "clients/leads", kind: "page", sub: "businesses Claude found for you" },
+  // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
+  { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People", also: ["segments"] },
+  { label: "Conversations", to: "conversations", kind: "page" },
+  { label: "Calls", to: "live", kind: "page", sub: "live and recent" },
+  { label: "Calendar", to: "calendar", kind: "page", sub: "taken, open and closed times" },
+  // Campaigns' home (3 Oct 2026): the moments that go out on their own, and what is sent by hand. The old Playbooks list was
+  // `outbound`, which lands here; the name it went by still finds it.
+  {
+    label: "Campaigns",
+    to: "campaigns",
+    kind: "page",
+    sub: "what goes out on its own, and what you send yourself",
+    also: ["playbooks", "moments"]
+  },
+  // Campaigns' rooms: Sent (the runs, and the send screen) and the Library (the wording). Each is still found by the name it
+  // went by, which people learned and still type.
+  {
+    label: "Sent",
+    to: "broadcasts",
+    kind: "page",
+    sub: "one message to the people who said yes",
+    also: ["broadcasts"]
+  },
+  {
+    label: "Library",
+    to: "messages",
+    kind: "page",
+    sub: "the wording the receptionist and the campaigns send",
+    also: ["templates", "messages", "wording"]
+  },
+  { label: "Reports", to: "reports", kind: "page" },
+  { label: "Settings", to: "admin/workspace", kind: "page" },
+  {
+    label: "Setting up",
+    to: "start",
+    kind: "page",
+    sub: "the four steps to a receptionist that answers",
+    also: ["setup"]
+  },
+  { label: "Billing", to: "admin/billing", kind: "page" },
+  { label: "Activity", to: "admin/activity", kind: "page", sub: "who did what, for owners" },
+  { label: "Profile", to: "admin/profile", kind: "page", sub: "your name and how you sign in" },
+  { label: "Autonomy", to: "admin/autonomy", kind: "page", sub: "what the receptionist may do alone" },
+  { label: "Team", to: "admin/team", kind: "page", sub: "members and invitations" },
+  { label: "Notifications", to: "admin/notifications", kind: "page" },
+  { label: "Connections", to: "admin/integrations", kind: "page", sub: "WhatsApp, phone line, calendar" },
+  // A partner's account and link (0012): in every workspace's rail, beside Profile.
+  { label: "Partner", to: "admin/partner", kind: "page", sub: "bring a business to Chanlytics" },
+  // What the receptionist knows lives in Business details; the AI memory pane says it is not built and points here, so
+  // its name lands here too, never on that pane (#417).
+  {
+    label: "Receptionist memory",
+    to: "admin/workspace",
+    kind: "page",
+    sub: "hours, services and notes, in Business details",
+    also: ["ai memory"]
+  }
+];
+var PIPELINE = {
+  label: "Pipeline",
+  to: "clients/pipeline",
+  kind: "page",
+  sub: "your deals, by stage",
+  also: ["deals"]
+};
+var BACK_OFFICE = {
+  label: "Back office",
+  to: "admin/platform",
+  kind: "page",
+  sub: "every workspace, for Chanlytics staff"
+};
+function askPages(has3) {
+  const out = [];
+  for (const p of ASK_PAGES) {
+    out.push(p);
+    if (p.to === "clients/leads" && has3.dealsOn) out.push(PIPELINE);
+  }
+  if (has3.platformAdmin) out.push(BACK_OFFICE);
+  return out;
+}
+function askJump(query, index, limit = 6) {
+  const s = query.trim().toLowerCase();
+  if (s.length < 2 || s.split(/\s+/).length > 3 || /[?¿]$/.test(s)) return [];
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const push = (e) => {
+    if (seen.has(e.to)) return;
+    seen.add(e.to);
+    out.push(e);
+  };
+  for (const p of index) if (p.kind === "page" && p.label.toLowerCase().startsWith(s)) push(p);
+  for (const p of index) if (p.kind === "page" && p.label.toLowerCase().includes(s)) push(p);
+  for (const p of index) if (p.kind === "page" && (p.also ?? []).some((w) => w.toLowerCase().includes(s))) push(p);
+  for (const p of index) if (p.kind !== "page" && p.label.toLowerCase().includes(s)) push(p);
+  return out.slice(0, limit);
+}
+
+// src/ask/ask-suggestions.ts
+var CHIPS_OF = {
+  pipeline: "people",
+  calendar: "other",
+  campaigns: "other"
+};
+var T = {
+  en: {
+    needs: "Who needs me right now?",
+    held: "What is the receptionist holding for me?",
+    calls: "Did anyone call while I was busy?",
+    live: "What is the call on the line about?",
+    openSat: "What's open Saturday?",
+    openTomorrow: "What's open tomorrow?",
+    week: "How did the week go?",
+    said: "What did the receptionist tell {name}?",
+    why: "Why was this reply held?",
+    who: "Who wrote today?",
+    rules: "What can the receptionist do on its own?",
+    hours: "What are our hours this week?",
+    brief: "Brief me on today",
+    proposals: "Who has a proposal out?",
+    setupLeft: "What is left to set up?",
+    moreLike: "Find more like: {asked}",
+    actLate: "Tell {name} we're running late",
+    actLateQ: "Tell {name} we're running about 15 minutes late today",
+    actDraft: "Draft a reply to {name}",
+    actDraftQ: "Draft a reply to {name}: ",
+    actRemember: "Remember something for the receptionist",
+    actRememberQ: "Remember that ",
+    actClose: "Close for a day",
+    actCloseQ: "Close on ",
+    actHours: "Change a day's hours",
+    actHoursQ: "Change Saturday's hours to ",
+    actInvite: "Invite a teammate",
+    actInviteQ: "Invite ",
+    actOffer: "Send an offer to a list",
+    actOfferQ: "Send the ",
+    actPlaybook: "Start a win-back playbook",
+    actPlaybookQ: "Start a win-back playbook for the quiet clients",
+    actHold: "Hold every reply for my review",
+    actHoldQ: "Hold every reply for my review before it sends"
+  },
+  es: {
+    needs: "\xBFQui\xE9n me necesita ahora?",
+    held: "\xBFQu\xE9 tiene retenido la recepcionista para m\xED?",
+    calls: "\xBFLlam\xF3 alguien mientras estaba ocupada?",
+    live: "\xBFDe qu\xE9 trata la llamada en curso?",
+    openSat: "\xBFQu\xE9 hay libre el s\xE1bado?",
+    openTomorrow: "\xBFQu\xE9 hay libre ma\xF1ana?",
+    week: "\xBFC\xF3mo fue la semana?",
+    said: "\xBFQu\xE9 le dijo la recepcionista a {name}?",
+    why: "\xBFPor qu\xE9 se retuvo esta respuesta?",
+    who: "\xBFQui\xE9n escribi\xF3 hoy?",
+    rules: "\xBFQu\xE9 puede hacer la recepcionista sola?",
+    hours: "\xBFCu\xE1l es nuestro horario esta semana?",
+    brief: "Res\xFAmeme el d\xEDa",
+    proposals: "\xBFQui\xE9n tiene una propuesta pendiente?",
+    setupLeft: "\xBFQu\xE9 falta por configurar?",
+    moreLike: "Encuentra m\xE1s como: {asked}",
+    actLate: "Dile a {name} que vamos con retraso",
+    actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
+    actDraft: "Redacta una respuesta a {name}",
+    actDraftQ: "Redacta una respuesta a {name}: ",
+    actRemember: "Recu\xE9rdale algo a la recepcionista",
+    actRememberQ: "Recuerda que ",
+    actClose: "Cerrar el sal\xF3n un d\xEDa",
+    actCloseQ: "Cierra el ",
+    actHours: "Cambiar el horario de un d\xEDa",
+    actHoursQ: "Cambia el horario del s\xE1bado a ",
+    actInvite: "Invitar a alguien del equipo",
+    actInviteQ: "Invita a ",
+    actOffer: "Enviar una oferta a una lista",
+    actOfferQ: "Env\xEDa la ",
+    actPlaybook: "Iniciar un playbook de recuperaci\xF3n",
+    actPlaybookQ: "Inicia un playbook de recuperaci\xF3n para los clientes inactivos",
+    actHold: "Retener cada respuesta para revisarla",
+    actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla"
+  }
+};
+function askQuestionWords(key, language) {
+  return (language === "es" ? T.es : T.en)[key];
+}
+var PAGE_QUESTIONS = {
+  today: [
+    ["brief", "sparkle"],
+    ["who", "users"]
+  ],
+  inbox: [
+    ["who", "users"],
+    ["rules", "shield"]
+  ],
+  people: [["who", "users"]],
+  reports: [["week", "trending-up"]],
+  settings: [
+    ["rules", "shield"],
+    ["hours", "clock"]
+  ],
+  start: [
+    ["setupLeft", "check"],
+    ["hours", "clock"]
+  ]
+};
+function clipWords(s, cap2) {
+  const w = s.replace(/\s+/g, " ").trim();
+  return w.length > cap2 ? `${w.slice(0, cap2 - 1).trimEnd()}\u2026` : w;
+}
+function buildAskSuggestions(input) {
+  const t = T[input.language === "es" ? "es" : "en"];
+  const at3 = CHIPS_OF[input.surface] ?? input.surface;
+  const out = [];
+  const add = (q, kind, icon, fast = false, label) => {
+    if (!out.some((s2) => s2.q === q)) out.push({ q, kind, icon, fast, ...label ? { label } : {} });
+  };
+  const s = input.scope;
+  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
+    add(t.said.replace("{name}", s.label), "ask", "chat");
+    if (s.kind === "thread") add(t.why, "ask", "sparkle");
+  }
+  if (s && s.kind === "call") add(t.live, "ask", "phone");
+  if (input.surface === "leads") {
+    const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
+    for (const w of ideas) add(w, "ask", "search");
+    if (!ideas.length)
+      for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
+        add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
+  }
+  if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
+  if (input.heldDrafts > 0) add(t.held, "ask", "clock");
+  if (input.liveNow > 0) add(t.live, "ask", "phone");
+  if (input.missedToday > 0) add(t.calls, "ask", "phone", true);
+  if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
+  for (const [key, icon] of PAGE_QUESTIONS[at3] ?? []) add(t[key], "ask", icon);
+  if (at3 === "live" || at3 === "conversations") add(t.calls, "ask", "phone", input.missedToday > 0);
+  if (input.dealsOn && (at3 === "people" || at3 === "other")) add(t.proposals, "ask", "trending-up");
+  if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
+  add(t.week, "ask", "trending-up");
+  add(t.rules, "ask", "shield");
+  const asks = out.slice(0, 7);
+  if (!input.canAct) return asks;
+  const acts = [];
+  const act2 = (label, q, icon, compose = false) => {
+    if (!acts.some((a) => a.q === q)) acts.push({ q, kind: "act", icon, label, compose });
+  };
+  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
+    act2(t.actLate.replace("{name}", s.label), t.actLateQ.replace("{name}", s.label), "chat");
+    act2(t.actDraft.replace("{name}", s.label), t.actDraftQ.replace("{name}", s.label), "edit", true);
+  }
+  act2(t.actRemember, t.actRememberQ, "sparkle", true);
+  if (input.surface === "settings" || input.surface === "today") act2(t.actClose, t.actCloseQ, "calendar", true);
+  if (input.surface === "settings") act2(t.actHours, t.actHoursQ, "clock", true);
+  if (input.surface === "settings") act2(t.actInvite, t.actInviteQ, "users", true);
+  if (input.surface === "inbox" || input.heldDrafts > 0) act2(t.actHold, t.actHoldQ, "shield");
+  if (at3 === "people" || at3 === "other") act2(t.actOffer, t.actOfferQ, "wave", true);
+  if (at3 === "people" || at3 === "other") act2(t.actPlaybook, t.actPlaybookQ, "bolt");
+  return [...asks, ...acts.slice(0, 4)];
+}
+
+// src/ask/ask-fast-paths.ts
+var NEEDS_RE = /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
+var CALLS_RE = /\b((did|has|have) (anyone|someone|anybody|somebody) (call|called|rang|phoned)|missed calls?|who called|any calls?|llam[oó] alguien|llamaron|llamadas? perdidas?|qui[eé]n llam[oó]|alguna llamada)\b/i;
+var OPEN_RE = /\b(what('s| is) open|what('s| is) free|openings?|availab|free (slot|slots|time)|any (slots?|room|space|time)|qu[eé] (hay|tengo) (libre|disponible)|disponibilidad|disponibles?|huecos?|espacios? libres?|cu[aá]ndo (hay|tienen) (libre|espacio))\b/i;
+var DAY_WORDS = [
+  [/\b(mon|monday|lunes)\b/i, "mon"],
+  [/\b(tue|tues|tuesday|martes)\b/i, "tue"],
+  [/\b(wed|wednesday|mi[eé]rcoles)\b/i, "wed"],
+  [/\b(thu|thur|thursday|jueves)\b/i, "thu"],
+  [/\b(fri|friday|viernes)\b/i, "fri"],
+  [/\b(sat|saturday|s[aá]bado)\b/i, "sat"],
+  [/\b(sun|sunday|domingo)\b/i, "sun"]
+];
+function dayKey(atMs, tz) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz || "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(new Date(atMs));
+  } catch {
+    return new Date(atMs).toISOString().slice(0, 10);
+  }
+}
+function dayFromQuestion(q, now, tz) {
+  if (/\b(tomorrow|mañana)\b/i.test(q)) {
+    try {
+      if (tz) return dayPlusInZone(tz, now, 1).key;
+    } catch {
+    }
+    return dayKey(now + 864e5, tz);
+  }
+  if (/\b(today|hoy)\b/i.test(q)) return dayKey(now, tz);
+  for (const [re, key] of DAY_WORDS) if (re.test(q)) return key;
+  return null;
+}
+function askIntent(question, now, tz) {
+  const q = question.trim();
+  if (!q || q.length > 160) return null;
+  if (NEEDS_RE.test(q)) return { kind: "needs" };
+  if (CALLS_RE.test(q)) return { kind: "calls" };
+  if (OPEN_RE.test(q)) return { kind: "openings", day: dayFromQuestion(q, now, tz), service: q };
+  return null;
+}
+function callsToday(calls, now, tz) {
+  const today = dayKey(now, tz);
+  return {
+    missed: calls.filter((c) => c.missed && c.startedAtMs && dayKey(c.startedAtMs, tz) === today),
+    live: calls.filter((c) => c.live)
+  };
+}
+
+// src/ask/ask-shape.ts
+function cacheHitOf(t) {
+  const fed = t.input + t.cache_read + t.cache_creation;
+  return fed > 0 ? t.cache_read / fed : null;
+}
+
+// src/ask/ask-model.ts
+var ASK_MODELS = [MODEL_ROUTES.ask.model, MODEL_ROUTES.ask.fallback];
+var ASK_MODEL_PROFILES = {
+  [MODELS.OPUS_5_5]: { id: MODELS.OPUS_5_5, effort: "low", forcedToolChoice: false, thinking: "always" },
+  [MODELS.SONNET_5]: { id: MODELS.SONNET_5, effort: "low", forcedToolChoice: true, thinking: "adaptive" }
+};
+var ASK_MODEL = MODEL_ROUTES.ask.model;
+function askModelProfile(name) {
+  const id = ASK_MODELS.includes(name ?? "") ? name : ASK_MODEL;
+  return ASK_MODEL_PROFILES[id];
 }
 
 // src/ask/answer-format.ts
@@ -10064,39 +9184,6 @@ var ASK_ANSWER_FORMAT = {
   required: ["say", "show", "do", "language"],
   additionalProperties: false
 };
-
-// src/ask/ask-context.ts
-import { z as z16 } from "zod";
-var ASK_CONTEXT_MAX_ROWS = 40;
-var ASK_CONTEXT_ROW_KINDS = [
-  "thread",
-  "conversation",
-  "call",
-  "person",
-  "lead",
-  "search",
-  "run",
-  "playbook",
-  "template"
-];
-var Id = z16.string().min(1).max(120);
-var PageContextSchema = z16.object({
-  v: z16.literal(1),
-  surface: z16.enum(ASK_SURFACES),
-  route: z16.string().max(200),
-  view: z16.string().max(80).nullish(),
-  focus: z16.object({ kind: z16.enum(ASK_SCOPE_KINDS), id: Id, label: z16.string().max(80) }).strict().nullish(),
-  rows: z16.array(z16.object({ kind: z16.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
-  askedAt: z16.number().int().nonnegative()
-}).strict();
-var isRowFocus = (k) => k !== "page" && ASK_SCOPE_KINDS.includes(k);
-function itemFocus(m, n) {
-  const item = (m.answer ?? answerFromV1(m)).show.items[n - 1];
-  if (!item) return void 0;
-  const { kind: cited, id, label } = item.source;
-  const kind = cited === "broadcast" ? "run" : cited;
-  return isRowFocus(kind) ? { kind, id, label: label.slice(0, 80) || `this ${kind}` } : null;
-}
 
 // src/templates/starter-templates.ts
 var STARTER_LANGUAGES = [
@@ -11995,8 +11082,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z28] = m;
-  if (z28) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z24] = m;
+  if (z24) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -12075,33 +11162,33 @@ function parseRule(value, fallbackTz) {
   }
   return { freq, interval, count: count2 && count2 > 0 ? count2 : null, until, byday, bymonthday };
 }
-function occurrences(start, durMs, rule, exdates, horizon) {
+function occurrences(start, durMs, rule2, exdates, horizon) {
   const out = [];
   const first = dayNumber(start.y, start.m, start.d);
   const firstDate = new Date(first * 864e5);
   const firstWeek = Math.floor((first - (firstDate.getUTCDay() + 6) % 7) / 7);
-  const wanted = rule.byday ?? [firstDate.getUTCDay()];
+  const wanted = rule2.byday ?? [firstDate.getUTCDay()];
   let produced = 0;
   for (let n = 0; n < 2e4; n++) {
     const day = first + n;
     const at3 = new Date(day * 864e5);
     const y = at3.getUTCFullYear(), m = at3.getUTCMonth() + 1, d = at3.getUTCDate();
     let hit = false;
-    if (rule.freq === "DAILY") hit = n % rule.interval === 0;
-    else if (rule.freq === "WEEKLY") {
+    if (rule2.freq === "DAILY") hit = n % rule2.interval === 0;
+    else if (rule2.freq === "WEEKLY") {
       const week = Math.floor((day - (at3.getUTCDay() + 6) % 7) / 7);
-      hit = wanted.includes(at3.getUTCDay()) && (week - firstWeek) % rule.interval === 0;
-    } else if (rule.freq === "MONTHLY") {
+      hit = wanted.includes(at3.getUTCDay()) && (week - firstWeek) % rule2.interval === 0;
+    } else if (rule2.freq === "MONTHLY") {
       const months = (y - start.y) * 12 + (m - start.m);
-      hit = d === (rule.bymonthday ?? start.d) && months % rule.interval === 0;
-    } else if (rule.freq === "YEARLY") {
-      hit = m === start.m && d === start.d && (y - start.y) % rule.interval === 0;
+      hit = d === (rule2.bymonthday ?? start.d) && months % rule2.interval === 0;
+    } else if (rule2.freq === "YEARLY") {
+      hit = m === start.m && d === start.d && (y - start.y) % rule2.interval === 0;
     }
     if (!hit) continue;
     const s = localToUtcMs(start.tz, y, m, d, start.hh, start.mm);
-    if (rule.until !== null && s > rule.until) break;
+    if (rule2.until !== null && s > rule2.until) break;
     produced++;
-    if (rule.count !== null && produced > rule.count) break;
+    if (rule2.count !== null && produced > rule2.count) break;
     if (s > horizon.to) break;
     if (exdates.has(s)) continue;
     if (s + durMs >= horizon.from) out.push({ start: s, end: s + durMs });
@@ -12198,18 +11285,18 @@ function parseIcs(text, fallbackTz, opts = {}) {
     const org = p.ORGANIZER?.value.trim() ?? "";
     const organizer = /^mailto:/i.test(org) ? org.slice(7).toLowerCase() : null;
     const isOverride = !!p["RECURRENCE-ID"];
-    const rule = p.RRULE && !isOverride ? parseRule(p.RRULE.value, fallbackTz) : null;
+    const rule2 = p.RRULE && !isOverride ? parseRule(p.RRULE.value, fallbackTz) : null;
     const local = p.RRULE && !isOverride ? localPartsOf(p.DTSTART.value, p.DTSTART.params, fallbackTz) : null;
     const dur = end - start;
     const push = (o) => {
       busy.push(o);
       items.push({ ...o, title, allDay, uid, description, location, attendees: guests, organizer });
     };
-    if (p.RRULE && !isOverride && rule && local) {
+    if (p.RRULE && !isOverride && rule2 && local) {
       const ex = new Set(instantsOf(r2.exdates, fallbackTz));
       for (const ms2 of uid ? overridden.get(uid) ?? [] : []) ex.add(ms2);
       const seen = /* @__PURE__ */ new Set();
-      const occ = occurrences(local, dur, rule, ex, horizon);
+      const occ = occurrences(local, dur, rule2, ex, horizon);
       for (const o of occ) {
         if (!seen.has(o.start)) {
           seen.add(o.start);
@@ -12456,6 +11543,104 @@ function offerLead(offer) {
     offer.minMinutes ? `about ${offer.minMinutes} minutes` : ""
   ].filter(Boolean).join(", ");
   return `${offer.service.name} needs a consultation before it can be booked, so offer a consultation instead. For a consultation${detail ? ` (${detail})` : ""}: `;
+}
+
+// src/calendar/feed-url.ts
+var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
+function feedUrlOk(raw) {
+  if (!raw) return null;
+  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
+    return null;
+  return u.toString();
+}
+var FEED_REDIRECTS_MAX = 3;
+async function fetchPublic(fetchImpl, raw, init = {}) {
+  let at3 = feedUrlOk(raw);
+  for (let hop = 0; at3 && hop <= FEED_REDIRECTS_MAX; hop += 1) {
+    const res = await fetchImpl(at3, { ...init, redirect: "manual" });
+    if (res.status >= 300 && res.status < 400) {
+      const next = res.headers.get("location");
+      await res.body?.cancel().catch(() => void 0);
+      at3 = next ? feedUrlOk(URL.canParse(next, at3) ? new URL(next, at3).toString() : null) : null;
+      continue;
+    }
+    return res;
+  }
+  return null;
+}
+var FEED_GUIDES = [
+  {
+    name: "Google Calendar",
+    steps: [
+      "On a computer, open Google Calendar and go to Settings.",
+      "Under \u201CSettings for my calendars\u201D, pick the calendar your appointments land in.",
+      "Open \u201CIntegrate calendar\u201D and copy \u201CSecret address in iCal format\u201D."
+    ]
+  },
+  {
+    name: "Apple Calendar (iCloud)",
+    steps: [
+      "In the Calendar app, open Calendars and press \u24D8 beside the calendar your appointments land in.",
+      "Turn on Public Calendar, then Share Link, and copy it."
+    ]
+  },
+  {
+    name: "Outlook",
+    steps: [
+      "In Outlook on the web, open Settings, then Calendar, then Shared calendars.",
+      "Under \u201CPublish a calendar\u201D, pick your calendar and \u201CCan view when I'm busy\u201D, then Publish.",
+      "Copy the ICS link."
+    ]
+  }
+];
+var FEED_CHECK_WORDS = {
+  guide: "Where do I find it?",
+  reading: "Reading it\u2026",
+  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new appointments as they land." : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`
+};
+var FEED_MAX_BYTES = 2e6;
+function feedProblemWords(reason, status) {
+  switch (reason) {
+    case "address":
+      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
+    case "unreachable":
+      return "The calendar could not be reached. Check the address and try again.";
+    case "http":
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
+    case "too_large":
+      return "That feed is too large to read (over 2 MB).";
+    case "not_ical":
+      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
+    default:
+      return null;
+  }
+}
+function feedBodyProblem(text) {
+  if (text.length > FEED_MAX_BYTES) return "too_large";
+  if (!/BEGIN:VCALENDAR/i.test(text)) return "not_ical";
+  return null;
+}
+function offeringHorizon(now, daysAhead) {
+  return { from: now.getTime() - DAY_MS, to: now.getTime() + (daysAhead + 1) * DAY_MS };
+}
+function seasonHorizon(now, daysAhead = 0) {
+  return { from: now.getTime() - DAY_MS * 90, to: now.getTime() + Math.max(daysAhead + 1, 90) * DAY_MS };
+}
+function previewHorizon(now) {
+  return { from: now.getTime() - DAY_MS, to: now.getTime() + 30 * DAY_MS };
 }
 
 // src/config/workspace-config/prompt-hours.ts
@@ -13677,6 +12862,37 @@ var ROLE_PERMS = {
   }
 };
 
+// src/config/workspace-config/policy-limits-schema.ts
+import { z as z5 } from "zod";
+var PolicyLimitsSchema = z5.object({
+  max_replies_day: z5.number().int().min(1).max(200).optional(),
+  pause_hours: z5.number().int().min(PAUSE_HOURS_MIN).max(PAUSE_HOURS_MAX).optional(),
+  /**
+   * How long the receptionist WAITS before its own reply goes out, in ms.
+   *
+   * Only meaningful when mode is 'veto'. A text channel is not a phone
+   * call — nobody expects an answer in under a second — so the delay costs
+   * the customer nothing and buys the business a window to redirect the bot
+   * before it speaks, rather than apologising for it afterwards.
+   */
+  reply_delay_ms: z5.number().int().min(REPLY_DELAY_MIN_MS).max(REPLY_DELAY_MAX_MS).optional(),
+  /**
+   * The confidence dial. Under 'auto', a reply the model is less sure about
+   * than this waits in the hold window (reply_delay_ms) for a person instead
+   * of going straight out — sure enough sends itself, not sure enough waits.
+   * 0 or absent means off.
+   */
+  min_confidence: z5.number().min(0).max(1).optional(),
+  /**
+   * The day's token budget: model tokens in and out over a rolling 24
+   * hours, read from the usage events every reply writes. Over it the
+   * receptionist stops and files a `budget` escalation, as it does at the
+   * reply cap. 0 or absent is off; a value is at least a thousand, because
+   * a budget of ten would be a mute button with a misleading name.
+   */
+  max_llm_tokens_day: z5.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+}).strict();
+
 // src/config/limits.ts
 var TOKENS_DAY_DEFAULT = 1e6;
 function tokenCapOf(limits) {
@@ -13685,6 +12901,540 @@ function tokenCapOf(limits) {
 function tokenBudgetSpent(limits, used) {
   const cap2 = tokenCapOf(limits);
   return cap2 > 0 && used >= cap2;
+}
+
+// src/config/workspace-config/business-profile.ts
+import { z as z6 } from "zod";
+var TIME = z6.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema = z6.object({ open: TIME, close: TIME });
+var HoursSchema = z6.object({
+  /** "09:00". Absent or null = closed that day, which is a real answer. */
+  open: TIME.nullable().optional(),
+  close: TIME.nullable().optional(),
+  /**
+   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+   * actually keeps. Additive: a day that has always been one stretch keeps
+   * saying so with open/close, and no stored config is rewritten.
+   */
+  intervals: z6.array(IntervalSchema).optional()
+}).strip();
+var DATE = z6.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema = z6.object({
+  date: DATE,
+  until: DATE.optional(),
+  note: z6.string().max(PROFILE_LIMITS.closureNote).optional()
+});
+var ServiceSchema = z6.object({
+  name: z6.string().min(1).max(PROFILE_LIMITS.serviceName),
+  /** Minutes. The receptionist is asked "how long does it take" constantly. */
+  duration_min: z6.number().int().min(1).max(PROFILE_LIMITS.serviceMinutes).optional(),
+  /**
+   * Free text, not a number, and deliberately so: "from $45", "quoted at
+   * consult", "varies by length". A price the business cannot state flatly
+   * must not be forced into a field that looks like it can.
+   */
+  price_note: z6.string().max(PROFILE_LIMITS.servicePrice).optional()
+}).strip();
+var GuardrailsSchema = z6.object({
+  never_quote_prices: z6.boolean().optional(),
+  never_confirm_booking: z6.boolean().optional(),
+  disclose_ai: z6.boolean().optional(),
+  /**
+   * OPT-IN, unlike the three above. Those default on because absent means
+   * "the safe reading"; this one arrived after prompts were live, and a
+   * rule that defaulted on would have changed every composed prompt in
+   * production the moment it deployed.
+   */
+  no_health_advice: z6.boolean().optional()
+}).strip();
+var NoteSchema = z6.object({
+  title: z6.string().min(1).max(PROFILE_LIMITS.noteTitle),
+  text: z6.string().min(1).max(PROFILE_LIMITS.noteText)
+}).strip();
+var rule = (key) => z6.number().int().min(BOOKING_RULE_BOUNDS[key].min).max(BOOKING_RULE_BOUNDS[key].max).optional();
+var BookingRulesSchema = z6.object({
+  /** Least notice for a slot, in hours. Absent = 2. */
+  lead_hours: rule("lead_hours"),
+  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
+  buffer_min: rule("buffer_min"),
+  /** How far ahead open times are offered, in days. Absent = 14. */
+  max_days_ahead: rule("max_days_ahead"),
+  /** The shortest window worth naming, in minutes. Absent = 30. */
+  slot_min: rule("slot_min"),
+  /** Services that need a consultation before they can be booked. */
+  consult_first: z6.array(z6.string().min(1).max(PROFILE_LIMITS.consultFirstLine)).max(PROFILE_LIMITS.consultFirst).optional(),
+  party_max: rule("party_max"),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z6.boolean().optional(),
+  /** Anything else about booking, one short line each. */
+  notes: z6.array(z6.string().min(1).max(PROFILE_LIMITS.ruleNote)).max(PROFILE_LIMITS.ruleNotes).optional()
+}).strip();
+var BusinessProfileSchema = z6.object({
+  address: z6.string().max(300).optional(),
+  hours: z6.partialRecord(z6.enum(DAYS), HoursSchema).optional(),
+  /** Dates the business is shut regardless of the weekly grid. */
+  closures: z6.array(ClosureSchema).optional(),
+  services: z6.array(ServiceSchema).max(PROFILE_LIMITS.services).optional(),
+  languages: z6.array(z6.string().min(PROFILE_LIMITS.languageMin).max(PROFILE_LIMITS.languageMax)).max(PROFILE_LIMITS.languages).optional(),
+  guardrails: GuardrailsSchema.optional(),
+  /** What must reach a person. One short line each. */
+  escalate_when: z6.array(z6.string().min(1).max(PROFILE_LIMITS.reason)).max(PROFILE_LIMITS.reasons).optional(),
+  tone: z6.string().max(PROFILE_LIMITS.tone).optional(),
+  /**
+   * The line a PERSON answers. The phone receptionist warm-transfers here
+   * during opening hours; absent, it takes a message instead. Never the
+   * receptionist's own line — that would ring itself.
+   */
+  handoff_number: z6.string().regex(E164, "E.164, like +12125550143").optional(),
+  website: z6.string().url().max(500).optional(),
+  notes: z6.array(NoteSchema).max(PROFILE_LIMITS.notes).optional(),
+  booking_rules: BookingRulesSchema.optional(),
+  /**
+   * Anything the owner wants said that no field covers.
+   *
+   * The escape hatch that keeps this model honest — without it, structuring
+   * the facts would mean losing whatever did not fit, and the first migration
+   * would be a downgrade.
+   *
+   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
+   * the form carries that prompt into it.
+   */
+  extra_instructions: z6.string().max(PROFILE_LIMITS.instructions).optional()
+}).strip();
+
+// src/config/facts.ts
+var trimmed = (v) => {
+  const s = typeof v === "string" ? v.trim() : "";
+  return s || null;
+};
+var activeChannel = (known, kind) => {
+  const rows = known?.channels ?? [];
+  const row2 = rows.find((c) => c.kind === kind && (c.status ?? "active") === "active");
+  return trimmed(row2?.number_e164);
+};
+var keptReaching = (known, line) => line ? trimmed((known?.forwarding ?? []).find((r2) => trimmed(r2.from_e164) && samePhone(r2.to_e164, line))?.from_e164) : null;
+function knownForwarding(rows) {
+  const out = [];
+  for (const r2 of rows) {
+    const from = trimmed(r2.e164);
+    if (r2.kind === "forwarded" && from) out.push({ from_e164: from, to_e164: r2.forwarding?.destination_e164 ?? null });
+  }
+  return out;
+}
+function sameAddress(a, b) {
+  const x = textKey(a).replace(/\b(usa|us|united states)\b/g, "").trim();
+  const y = textKey(b).replace(/\b(usa|us|united states)\b/g, "").trim();
+  if (!x || !y) return false;
+  return x === y || x.startsWith(y) || y.startsWith(x);
+}
+function sameName(a, b) {
+  const x = textKey(a);
+  const y = textKey(b);
+  return !!x && !!y && x === y;
+}
+function textKey(v) {
+  return String(v ?? "").toLowerCase().replace(/[’'.]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+function typedOverKnown(typed, known, knownSource, same2) {
+  if (typed && known) {
+    return same2(typed, known) ? { value: typed, source: "typed" } : { value: typed, source: "typed", disputed: { value: known, source: knownSource } };
+  }
+  if (typed) return { value: typed, source: "typed" };
+  if (known) return { value: known, source: knownSource };
+  return { value: null, source: "absent" };
+}
+function resolveFacts(typed, known) {
+  const p = typed?.profile ?? null;
+  const voice = activeChannel(known, "voice");
+  const whatsapp = activeChannel(known, "whatsapp");
+  const kept = keptReaching(known, voice);
+  const published = trimmed(typed?.phone_display);
+  const strEq = (a, b) => a === b;
+  return {
+    business_name: typedOverKnown(
+      trimmed(typed?.business_name),
+      trimmed(known?.listing?.name) ?? trimmed(known?.workspace?.name),
+      known?.listing?.name ? "verified" : "workspace",
+      sameName
+    ),
+    // The one that matters, and the one that should usually be absent.
+    //
+    // The fallback is FORMATTED, not raw E.164: this value is spoken and
+    // written to customers -- "Phone: +13085550109" in a prompt becomes a
+    // receptionist reading digits aloud -- so the provisioned line arrives as
+    // "+1 (308) 555-0109", the way a person says a number.
+    //
+    // The number the business keeps and forwards to THIS line is the one typed value that is not a disagreement
+    // with it: customers call the number they know, and when nobody picks up they reach the receptionist.
+    phone_display: published && samePhone(published, kept) ? { value: published, source: "typed" } : typedOverKnown(published, voice ? formatPhoneDisplay(voice) : null, "provisioned", samePhone),
+    booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
+    address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
+    website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),
+    // Human-only by nature: nothing provisions "the person to put a caller through to".
+    handoff_number: p?.handoff_number ? { value: p.handoff_number, source: "typed" } : { value: null, source: "absent" },
+    voice_line: voice ? { value: voice, source: "provisioned" } : { value: null, source: "absent" },
+    whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" },
+    kept_line: kept ? { value: kept, source: "provisioned" } : { value: null, source: "absent" }
+  };
+}
+function factConflicts(f) {
+  const out = [];
+  const phone = f.phone_display;
+  if (phone.disputed && phone.value) {
+    const isHandoff = samePhone(phone.value, f.handoff_number.value);
+    out.push({
+      fact: "phone_display",
+      severity: "serious",
+      used: phone.value,
+      known: phone.disputed.value,
+      knownSource: phone.disputed.source,
+      sentence: isHandoff ? `Your receptionist tells customers to call ${phone.value}, which is the number it transfers to \u2014 so they reach a person directly and never the receptionist answering on ${phone.disputed.value}.` : `Your receptionist tells customers to call ${phone.value}, but it answers on ${phone.disputed.value}. Anyone who calls the published number does not reach it.`,
+      to: "admin/workspace"
+    });
+  }
+  if (f.handoff_number.value && f.kept_line.value && samePhone(f.handoff_number.value, f.kept_line.value)) {
+    const kept = formatPhoneDisplay(f.kept_line.value) ?? f.kept_line.value;
+    out.push({
+      fact: "handoff_number",
+      severity: "serious",
+      used: f.handoff_number.value,
+      known: kept,
+      knownSource: f.kept_line.source,
+      sentence: `Your receptionist puts callers who ask for a person through to ${kept}, which forwards the calls nobody picks up back to it \u2014 they would come straight back. Give a mobile or another line a person answers.`,
+      to: "admin/workspace"
+    });
+  }
+  if (f.address.disputed && f.address.value) {
+    out.push({
+      fact: "address",
+      severity: "minor",
+      used: f.address.value,
+      known: f.address.disputed.value,
+      knownSource: f.address.disputed.source,
+      sentence: `Your receptionist gives ${f.address.value}; Google has you at ${f.address.disputed.value}.`,
+      to: "admin/workspace"
+    });
+  }
+  if (f.business_name.disputed && f.business_name.value) {
+    out.push({
+      fact: "business_name",
+      severity: "minor",
+      used: f.business_name.value,
+      known: f.business_name.disputed.value,
+      knownSource: f.business_name.disputed.source,
+      sentence: `Your receptionist introduces the business as ${f.business_name.value}; ${f.business_name.disputed.source === "verified" ? "Google lists it" : "this workspace is named"} ${f.business_name.disputed.value}.`,
+      to: "admin/workspace"
+    });
+  }
+  return out.sort((a, b) => a.severity === b.severity ? 0 : a.severity === "serious" ? -1 : 1);
+}
+var SOURCE_WORDS = {
+  provisioned: "your line",
+  verified: "from Google",
+  workspace: "this workspace",
+  typed: "you set this",
+  absent: "not set"
+};
+function changedConfigFields(before, after) {
+  const top = (v) => {
+    const cfg = v ?? {};
+    const brain = cfg.brain ?? {};
+    const { profile, ...rest } = brain;
+    return {
+      ...rest,
+      ...profile ?? {},
+      calendar: cfg.calendar ?? null,
+      notifications: cfg.notifications ?? null,
+      features: cfg.features ?? null
+    };
+  };
+  const a = top(before);
+  const b = top(after);
+  const keys = [.../* @__PURE__ */ new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+  return keys.filter((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
+}
+
+// src/config/workspace-config/fallbacks.ts
+var FALLBACK_DETAILS = ["business", "booking link", "phone"];
+var FALLBACK_DEFAULTS = {
+  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
+  error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
+  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
+};
+var EARLIER_FALLBACK_DEFAULTS = /* @__PURE__ */ (() => ({
+  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
+  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
+  non_text: FALLBACK_DEFAULTS.non_text
+}))();
+function isProductFallback(key, text) {
+  const t = typeof text === "string" ? text.trim() : "";
+  return t === FALLBACK_DEFAULTS[key] || t === EARLIER_FALLBACK_DEFAULTS[key];
+}
+var DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
+var namesADetail = (text) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text);
+var detailOf = (raw) => raw.toLowerCase().replace(/\s+/g, " ");
+function fillDetails(text, values) {
+  if (!namesADetail(text)) return text;
+  return text.split("\n").map((line) => {
+    if (!namesADetail(line)) return line;
+    return line.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
+  }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function fallbackMessages(brain, known) {
+  const facts = resolveFacts(brain, known);
+  const values = {
+    business: facts.business_name.value ?? brain.business_name,
+    "booking link": facts.booking_link.value ?? brain.booking_link ?? null,
+    phone: facts.phone_display.value
+  };
+  const own = (kind) => {
+    const stored = brain.fallbacks[kind];
+    return !values["booking link"] && stored.trim() === EARLIER_FALLBACK_DEFAULTS[kind] ? FALLBACK_DEFAULTS[kind] : stored;
+  };
+  const say2 = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+  return { greeting: say2("greeting"), error: say2("error"), non_text: say2("non_text") };
+}
+function unknownDetails(text) {
+  return [...text.matchAll(/\{[^{}\n]{1,40}\}/g)].map((m) => m[0]).filter((name) => !namesADetail(name));
+}
+
+// src/config/workspace-config/brain-config.ts
+function newReceptionistDefaults(businessName) {
+  return {
+    system_prompt: baselinePrompt(businessName),
+    // What a customer reads when the model cannot be reached: the product's
+    // wording, naming the business's details rather than copying them, so they
+    // are filled as each message goes out and follow the details from then on
+    // (fallbackMessages, S5). Copied, a workspace set up before its line existed
+    // told customers "call us at .", and a new booking link never reached them.
+    fallbacks: { ...FALLBACK_DEFAULTS }
+  };
+}
+var BASELINE_OPENING = "You are the assistant for ";
+var BASELINE_CLOSING = ", answering inbound customer messages. You are warm, concise and professional \u2014 a great front-desk person, in text form. If you do not know something, say so plainly and offer to have a person follow up.";
+function baselinePrompt(businessName) {
+  return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
+}
+function isBaselinePrompt(text) {
+  return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
+}
+
+// src/config/workspace-config/brain-config-schema.ts
+import { z as z7 } from "zod";
+var BrainConfigSchema = z7.object({
+  business_name: z7.string().min(1).max(120),
+  /**
+   * The number the receptionist tells customers to call — an OVERRIDE, and
+   * optional because it should almost never be set.
+   *
+   * It was required, free text, and named the same as the line the
+   * receptionist answers, so every workspace typed something into it and
+   * nothing checked what. On the first live salon that produced a
+   * receptionist publishing the number it transfers to: customers who rang
+   * it reached a person's mobile and never the receptionist standing by,
+   * and the same string went to Google.
+   *
+   * Absent is now the right answer and the default: resolveFacts falls back
+   * to the provisioned voice line, formatted for speech, so the number
+   * published is the number answered by construction. A value here means a
+   * business deliberately publishes something else — a tracking line, a
+   * shopfront — and the pane says so in those words.
+   */
+  phone_display: z7.string().min(3).max(40).optional(),
+  /**
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
+   */
+  booking_link: z7.string().url().max(BOOKING_LINK_MAX).optional(),
+  /** The complete system prompt the model receives — the "AI memory" pane's
+   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
+  system_prompt: z7.string().min(40).max(INSTRUCTIONS_MAX),
+  /**
+   * The business's facts, as fields.
+   *
+   * Optional: every config written before this existed stays valid, and
+   * nothing composes until a workspace actually fills it in. When present
+   * it REPLACES system_prompt as the source the prompt is built from.
+   */
+  profile: BusinessProfileSchema.optional(),
+  fallbacks: z7.object({
+    /** Sent when no model key is configured. */
+    greeting: z7.string().min(1).max(PROFILE_LIMITS.message),
+    /** Sent when the model call failed. */
+    error: z7.string().min(1).max(PROFILE_LIMITS.message),
+    /** Sent for voice notes / photos before escalating. */
+    non_text: z7.string().min(1).max(PROFILE_LIMITS.message)
+  }).strip()
+}).strip();
+
+// src/config/workspace-config/config-schema.ts
+import { z as z8 } from "zod";
+
+// src/config/unknown-keys.ts
+var isJsonObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+var isList = (v) => Array.isArray(v);
+function keysLeftOut(raw, kept, at3 = []) {
+  if (Array.isArray(raw) && Array.isArray(kept)) {
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut(v, kept[i], [...at3, i]) : []);
+  }
+  if (!isJsonObject(raw) || !isJsonObject(kept)) return [];
+  return Object.entries(raw).flatMap(([k, v]) => {
+    if (v === void 0) return [];
+    return Object.hasOwn(kept, k) ? keysLeftOut(v, kept[k], [...at3, k]) : [[...at3, k]];
+  });
+}
+function sameJson(a, b) {
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => sameJson(v, b[i]));
+  }
+  if (isJsonObject(a) && isJsonObject(b)) {
+    const ka = Object.keys(a).filter((k) => a[k] !== void 0);
+    const kb = Object.keys(b).filter((k) => b[k] !== void 0);
+    return ka.length === kb.length && ka.every((k) => Object.hasOwn(b, k) && sameJson(a[k], b[k]));
+  }
+  return Object.is(a, b);
+}
+function withKeysLeftOut(sent2, raw, kept) {
+  if (isList(sent2) && isList(raw) && isList(kept)) {
+    const taken = /* @__PURE__ */ new Set();
+    return sent2.map((el) => {
+      const i = kept.findIndex((k, n) => !taken.has(n) && n < raw.length && sameJson(k, el));
+      if (i < 0) return el;
+      taken.add(i);
+      return withKeysLeftOut(el, raw[i], kept[i]);
+    });
+  }
+  if (!isJsonObject(sent2) || !isJsonObject(raw) || !isJsonObject(kept)) return sent2;
+  const out = { ...sent2 };
+  for (const [k, v] of Object.entries(raw)) {
+    if (v === void 0) continue;
+    if (!Object.hasOwn(kept, k)) {
+      if (!Object.hasOwn(sent2, k)) out[k] = v;
+    } else if (Object.hasOwn(sent2, k)) {
+      out[k] = withKeysLeftOut(sent2[k], v, kept[k]);
+    }
+  }
+  return out;
+}
+function refuseUnknownFields(read, raw, ctx) {
+  const parsed = read.safeParse(raw);
+  if (!parsed.success) return;
+  const byObject = /* @__PURE__ */ new Map();
+  for (const where of keysLeftOut(raw, parsed.data)) {
+    if (where.length < 2) continue;
+    const path = where.slice(0, -1);
+    const id = JSON.stringify(path);
+    const held = byObject.get(id) ?? { path, keys: [] };
+    held.keys.push(String(where[where.length - 1]));
+    byObject.set(id, held);
+  }
+  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
+}
+
+// src/config/workspace-config/config-schema.ts
+var NotificationsConfigSchema = z8.object({
+  escalation_emails: z8.array(z8.string().email()).min(1).max(10),
+  from: z8.string().max(200).optional()
+}).strip();
+var CalendarConfigSchema = z8.object({
+  ical_url: z8.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
+}).strip();
+var FeaturesConfigSchema = z8.object({ vision: z8.boolean().optional() }).strip();
+var TenantConfigSchema = z8.object({
+  brain: BrainConfigSchema.optional(),
+  notifications: NotificationsConfigSchema.optional(),
+  calendar: CalendarConfigSchema.optional(),
+  features: FeaturesConfigSchema.optional()
+});
+function checkDay(h, day, ctx) {
+  for (const p of dayProblems(h, day)) {
+    ctx.addIssue({
+      code: z8.ZodIssueCode.custom,
+      path: ["brain", "profile", "hours", day, ...p.path],
+      message: p.message
+    });
+  }
+}
+function checkClosure(c, n, ctx) {
+  const at3 = (...rest) => ["brain", "profile", "closures", n, ...rest];
+  if (!isRealDate(c.date)) {
+    ctx.addIssue({
+      code: z8.ZodIssueCode.custom,
+      path: at3("date"),
+      message: `${c.date} is not a date on the calendar.`
+    });
+  }
+  if (c.until && !isRealDate(c.until)) {
+    ctx.addIssue({
+      code: z8.ZodIssueCode.custom,
+      path: at3("until"),
+      message: `${c.until} is not a date on the calendar.`
+    });
+  }
+  if (c.until && c.until < c.date) {
+    ctx.addIssue({
+      code: z8.ZodIssueCode.custom,
+      path: at3("until"),
+      message: "A closure cannot end before it starts."
+    });
+  }
+}
+var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
+  if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
+    ctx.addIssue({
+      code: z8.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords("address") ?? "Not an address the receptionist may read."
+    });
+  }
+  const p = cfg.brain?.profile;
+  if (!p) return;
+  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
+  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
+    ctx.addIssue({
+      code: z8.ZodIssueCode.custom,
+      path: ["brain", "profile", "closures"],
+      message: `At most ${MAX_CLOSURES} closures.`
+    });
+  }
+  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
+});
+var TenantConfigWriteSchema = z8.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
+function parseTenantConfigResult(raw) {
+  const r2 = TenantConfigSchema.safeParse(raw ?? {});
+  if (r2.success) return { ok: true, config: r2.data, ignored: keysLeftOut(raw, r2.data).map((p) => p.join(".")) };
+  return {
+    ok: false,
+    issues: r2.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+  };
+}
+function withStoredKeysKept(sent2, stored) {
+  const read = TenantConfigSchema.safeParse(stored ?? {});
+  if (!read.success) return sent2;
+  return withKeysLeftOut(sent2, stored, read.data);
+}
+function receptionistOf2(parsed) {
+  if (parsed && !parsed.ok) return "broken";
+  return parsed?.config.brain ? "set" : "none";
+}
+function parseTenantConfig(raw) {
+  const r2 = parseTenantConfigResult(raw);
+  return r2.ok ? r2.config : null;
+}
+function withFirstAlertAddress(config2, email) {
+  const current = parseTenantConfigResult(config2 ?? {});
+  if (!current.ok || current.config.notifications) return null;
+  const address = normalizeEmail(email);
+  if (!address) return null;
+  const next = TenantConfigWriteSchema.safeParse({
+    ...current.config,
+    notifications: { escalation_emails: [address] }
+  });
+  return next.success ? withStoredKeysKept(next.data, config2) : null;
 }
 
 // src/config/workspace-config/offers-ask.ts
@@ -14100,7 +13850,6 @@ function isBaselineInOwnersField(text) {
 }
 
 // src/config/business-tab/rule-strengths.ts
-var GUARDRAIL_KEYS = /* @__PURE__ */ (() => GuardrailsSchema.keyof().options)();
 var ABILITY_CHANNEL_WORDS = {
   whatsapp: { has: "in chat", not: "not in chat" },
   voice: { has: "on a call", not: "not on a call" }
@@ -14375,7 +14124,6 @@ function bookingRulesWords(rules) {
   };
 }
 function bookingRuleRefusal(key) {
-  const shape = BookingRulesSchema.shape;
   const words3 = {
     lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
     slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar\u2019s ${pluralGrouped(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
@@ -14383,14 +14131,14 @@ function bookingRuleRefusal(key) {
     max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
     party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`
   };
-  const say2 = Object.prototype.hasOwnProperty.call(words3, key) ? words3[key] : null;
-  const bound = say2 ? shape[key]?.unwrap?.() : null;
-  if (!say2 || !bound || bound.minValue == null || bound.maxValue == null) {
+  const known = Object.prototype.hasOwnProperty.call(words3, key);
+  if (!known) {
     throw new TypeError(
       `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words3).join(", ")}), not ${JSON.stringify(key)}.`
     );
   }
-  return say2(bound.minValue, bound.maxValue);
+  const bound = BOOKING_RULE_BOUNDS[key];
+  return words3[key](bound.min, bound.max);
 }
 var BOOKING_RULE_HINTS = /* @__PURE__ */ (() => ({
   lead_hours: `Empty uses ${pluralGrouped(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
@@ -14405,55 +14153,6 @@ var PROFILE_CROSSING_WORDS = {
   stops: "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
   starts: "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them."
 };
-var PROFILE_LIMITS = /* @__PURE__ */ (() => {
-  const cap2 = (schema) => {
-    const s = schema;
-    if (typeof s.maxLength === "number") return s.maxLength;
-    for (const c of s.def?.checks ?? []) {
-      const d = c?._zod?.def;
-      if (d?.check === "max_length" && typeof d.maximum === "number") return d.maximum;
-    }
-    throw new TypeError(
-      "PROFILE_LIMITS: the schema states no maximum, so the page would offer a size the save refuses."
-    );
-  };
-  const floor = (schema) => {
-    const s = schema;
-    if (typeof s.minLength !== "number") throw new TypeError("PROFILE_LIMITS: the schema states no minimum.");
-    return s.minLength;
-  };
-  const opt = (schema) => schema.unwrap();
-  const p = BusinessProfileSchema.shape;
-  const service = opt(p.services).element.shape;
-  const note = opt(p.notes).element.shape;
-  const rules = BookingRulesSchema.shape;
-  const minutes = opt(service.duration_min);
-  if (minutes.maxValue == null) throw new TypeError("PROFILE_LIMITS: a service's minutes state no maximum.");
-  return {
-    tone: cap2(opt(p.tone)),
-    services: cap2(opt(p.services)),
-    serviceName: cap2(service.name),
-    serviceMinutes: minutes.maxValue,
-    servicePrice: cap2(opt(service.price_note)),
-    languages: cap2(opt(p.languages)),
-    languageMin: floor(opt(p.languages).element),
-    languageMax: cap2(opt(p.languages).element),
-    reasons: cap2(opt(p.escalate_when)),
-    reason: cap2(opt(p.escalate_when).element),
-    consultFirst: cap2(opt(rules.consult_first)),
-    consultFirstLine: cap2(opt(rules.consult_first).element),
-    ruleNotes: cap2(opt(rules.notes)),
-    ruleNote: cap2(opt(rules.notes).element),
-    notes: cap2(opt(p.notes)),
-    noteTitle: cap2(note.title),
-    noteText: cap2(note.text),
-    closureNote: cap2(opt(ClosureSchema.shape.note)),
-    closures: MAX_CLOSURES,
-    shifts: MAX_INTERVALS_PER_DAY,
-    instructions: INSTRUCTIONS_MAX,
-    message: cap2(BrainConfigSchema.shape.fallbacks.shape.greeting)
-  };
-})();
 function profileRefusal(key, seen, of) {
   const L2 = PROFILE_LIMITS;
   const chars = (max) => `At most ${count(max)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
@@ -14579,8 +14278,8 @@ function handoffCallWords(i) {
 function handoffWords(reasons, transfer) {
   const list2 = (Array.isArray(reasons) ? reasons : []).filter((r2) => typeof r2 === "string" && r2.trim() !== "").map((r2) => r2.trim());
   const n = list2.length;
-  const number = typeof transfer === "string" ? transfer.trim() : "";
-  const phone = number ? `transfers to ${number}` : "takes a message";
+  const number2 = typeof transfer === "string" ? transfer.trim() : "";
+  const phone = number2 ? `transfers to ${number2}` : "takes a message";
   return {
     line: `${n ? `For ${pluralGrouped(n, "reason", "reasons")}` : `When ${HANDED_OVER_ANYWAY}`} \xB7 on a call, ${phone}`,
     phone
@@ -14753,7 +14452,6 @@ function cannotRows(i) {
 }
 
 // src/config/brain.ts
-import { z as z17 } from "zod";
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
@@ -14817,30 +14515,6 @@ var BRAIN_OUTPUT_JSON_SCHEMA = {
   required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
   additionalProperties: false
 };
-var BrainOutputSchema = z17.object({
-  reply: z17.string(),
-  intent: z17.enum(BRAIN_INTENTS).catch("other"),
-  escalate: z17.boolean().catch(false),
-  reason: z17.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z17.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z17.array(z17.string()).catch([]).transform(
-    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
-  ),
-  language: z17.enum(BRAIN_LANGUAGES).catch("other")
-});
-function parseBrainOutput(raw) {
-  let json;
-  try {
-    json = JSON.parse(raw);
-  } catch (e) {
-    return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
-  }
-  const r2 = BrainOutputSchema.safeParse(json);
-  if (!r2.success)
-    return { ok: false, error: r2.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
-  if (!r2.data.reply.trim()) return { ok: false, error: "empty reply" };
-  return { ok: true, value: r2.data };
-}
 function brainMetaOf(out, model, stamp) {
   return {
     intent: out.intent,
@@ -14873,6 +14547,33 @@ function replyWhy(meta) {
   };
 }
 var CONFIDENCE_STEPS = [0, 0.6, 0.75, 0.9];
+
+// src/config/brain-schema.ts
+import { z as z9 } from "zod";
+var BrainOutputSchema = z9.object({
+  reply: z9.string(),
+  intent: z9.enum(BRAIN_INTENTS).catch("other"),
+  escalate: z9.boolean().catch(false),
+  reason: z9.string().catch("").transform((s) => s.trim().slice(0, 300)),
+  confidence: z9.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
+  facts_used: z9.array(z9.string()).catch([]).transform(
+    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
+  ),
+  language: z9.enum(BRAIN_LANGUAGES).catch("other")
+});
+function parseBrainOutput(raw) {
+  let json;
+  try {
+    json = JSON.parse(raw);
+  } catch (e) {
+    return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
+  }
+  const r2 = BrainOutputSchema.safeParse(json);
+  if (!r2.success)
+    return { ok: false, error: r2.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
+  if (!r2.data.reply.trim()) return { ok: false, error: "empty reply" };
+  return { ok: true, value: r2.data };
+}
 
 // src/config/prompt-blocks.ts
 var PLATFORM_LABEL = "Chanlytics' own instructions";
@@ -14926,7 +14627,7 @@ var PROMPT = {
   // The second sentence is the rules fold's own, word for word (config.ts NO_FIELDS_COMPOSED_WORDS): the two notes
   // are on one page, and an owner who reads both should read the same thing twice, not two near-misses.
   //
-  // Marked pure for the reason business-tab.ts gives beside GUARDRAIL_KEYS: a substitution makes this an expression
+  // Marked pure for the reason rule-strengths.ts gives beside STRENGTHS: a substitution makes this an expression
   // the bundler keeps at the top level, and the prompt view is drawn on one tab of the dashboard and nowhere else.
   note: /* @__PURE__ */ (() => `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS}`)()
 };
@@ -16247,6 +15948,68 @@ function pausedVoiceFacts(businessName) {
   ].join("\n");
 }
 
+// src/shell/address.ts
+var ROUTE_WORDS = {
+  clients: "people",
+  segments: "lists",
+  outbound: "playbooks",
+  messages: "templates"
+};
+var headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
+function doorOf(route) {
+  const head = headOf(route);
+  const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
+  if (head === "broadcasts") {
+    return word && !word.startsWith("run:") && word !== "get-yes" ? `campaigns/new:to:${word}` : null;
+  }
+  if (head !== "outbound") return null;
+  return word ? `campaigns/moment:${word}` : "campaigns";
+}
+function shellRoute(route) {
+  const head = headOf(route);
+  const name = Object.keys(ROUTE_WORDS).find((n) => ROUTE_WORDS[n] === head);
+  return name === void 0 ? route : name + route.slice(head.length);
+}
+function pathRoute(route) {
+  const head = headOf(route);
+  const word = Object.hasOwn(ROUTE_WORDS, head) ? ROUTE_WORDS[head] : void 0;
+  return word === void 0 ? route : word + route.slice(head.length);
+}
+var WORKSPACE_PATH = /^\/w\/([^/?#]+)(?:\/([^?#]*))?$/;
+function routeOfPath(pathname) {
+  const m = WORKSPACE_PATH.exec(pathname ?? "");
+  return m ? shellRoute((m[2] ?? "").replace(/\/+$/, "")) : null;
+}
+function routeOfHash(hash) {
+  return typeof hash === "string" && hash.startsWith("#/") ? shellRoute(hash.slice(2)) : null;
+}
+function routeOfAddress(address) {
+  return routeOfPath(address.pathname) || routeOfHash(address.hash) || "today";
+}
+function movedAddress(address) {
+  const m = WORKSPACE_PATH.exec(address.pathname ?? "");
+  if (m?.[2]) {
+    const written = m[2].replace(/\/+$/, "");
+    const door = doorOf(shellRoute(written));
+    if (door !== null) return `/w/${m[1] ?? ""}/${door}${address.search ?? ""}${address.hash ?? ""}`;
+    if (Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
+      return `/w/${m[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
+    }
+  }
+  const route = routeOfHash(address.hash);
+  if (!m || route === null || m[2]) return null;
+  const at3 = route.indexOf("?");
+  const name = (at3 < 0 ? route : route.slice(0, at3)).replace(/\/+$/, "");
+  if (!name) return null;
+  const own = at3 < 0 ? "" : route.slice(at3 + 1);
+  const search = address.search ?? "";
+  const joined = own ? search ? `${search}&${own}` : `?${own}` : search;
+  return `/w/${m[1] ?? ""}/${pathRoute(doorOf(name) ?? name)}${joined}`;
+}
+function workspacePath(slug, route = "") {
+  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(doorOf(route) ?? route)}` : ""}`;
+}
+
 // src/shell/chrome.ts
 var THEME_OPTIONS = [
   { id: "light", label: "Light", icon: "sun" },
@@ -16331,6 +16094,25 @@ function inAppBootScript() {
 }
 var PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 var PREFETCH_SLOT = "__prefetched";
+var PREFETCH_READS = {
+  today: ["metrics?days=1", "conversations", "escalations?state=open", "calls", "lead-searches", "setup", "views"],
+  inbox: ["conversations", "escalations?state=open", "templates"],
+  conversations: ["conversations", "calls"],
+  // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
+  clients: ["contacts", "segments", "views"],
+  segments: ["contacts", "segments", "views"],
+  live: ["calls", "channels"],
+  // The Campaigns home reads what the offers earned over its 30 days (broadcasts/surface.ts HOME_REPORT_DAYS).
+  broadcasts: ["broadcasts", "contacts", "segments", "templates", "channels", "settings", "reports/campaigns?days=30"],
+  outbound: ["playbooks", "templates", "channels", "settings"],
+  // Templates and every pane of Settings are drawn from the settings surface.
+  messages: ["settings", "team", "policies", "channels", "templates?all=1"],
+  admin: ["settings", "team", "policies", "channels", "templates?all=1"],
+  start: ["setup", "views"]
+};
+var PREFETCH_ROUTE_OF_WORD = Object.fromEntries(
+  Object.entries(ROUTE_WORDS).map(([route, word]) => [word, route])
+);
 var PREFETCH_TIMEOUT_MS = 15e3;
 function routePrefetchScript() {
   return [
@@ -16339,10 +16121,13 @@ function routePrefetchScript() {
     "if(p){",
     "var w=encodeURIComponent(decodeURIComponent(p[1]));",
     'var u=["/api/v1/workspaces?workspace="+w];',
-    // The route is the path's, else the hash's: an address the frame has not moved yet (address.ts) still opens the person.
     'var r=p[2]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2):"");',
-    'var h=r.split("/");',
-    `if(h[0]==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(h[1]||""))u.push("/api/v1/contacts/"+h[1]+"?workspace="+w);`,
+    'var h=r.split("/"),l=h[1]||"";',
+    `var s=${JSON.stringify(PREFETCH_ROUTE_OF_WORD)}[h[0]]||h[0]||"today",t=${JSON.stringify(PREFETCH_READS)};`,
+    `if(s==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(l))u.push("/api/v1/contacts/"+l+"?workspace="+w);`,
+    // Leads is People's scope with a surface of its own, and opens on the view it remembers.
+    'else if(!(s==="clients"&&/^leads(:|$)/.test(l))&&Object.prototype.hasOwnProperty.call(t,s))',
+    'for(var j=0;j<t[s].length;j++)u.push("/api/v1/"+t[s][j]+(t[s][j].indexOf("?")<0?"?":"&")+"workspace="+w);',
     `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
     "var M=window.AbortController;",
     "var g=function(x){",
@@ -16620,12 +16405,12 @@ function consentFormMetadata(f) {
 function deskSignVM(f) {
   const name = f.businessName.trim() || "This business";
   const qrLink = optInLink(f.whatsappE164, CONSENT_PHRASE);
-  const number = formatPhoneDisplay(f.whatsappE164);
+  const number2 = formatPhoneDisplay(f.whatsappE164);
   return {
     business: name,
     headline: "Get our offers and news on WhatsApp",
     how: `Scan with your phone's camera: WhatsApp opens with ${CONSENT_PHRASE} ready to send. Sending it is your yes.`,
-    byHand: qrLink && number ? `Or send ${CONSENT_PHRASE} (en espa\xF1ol, ${CONSENT_PHRASE_ES}) on WhatsApp to ${number}.` : null,
+    byHand: qrLink && number2 ? `Or send ${CONSENT_PHRASE} (en espa\xF1ol, ${CONSENT_PHRASE_ES}) on WhatsApp to ${number2}.` : null,
     terms: [...askWords(name).marketing.terms, ...bothTerms(name)],
     operator: `Messages are sent for ${name} by a receptionist operated by Chanlytics (RJ Capital LLC).`,
     qrLink,
@@ -16761,7 +16546,6 @@ var ESCALATION_SUMMARIES = {
 };
 
 // src/reach-out/reach-out-reply-words.ts
-import { z as z18 } from "zod";
 var REPLIES_PAGE = 200;
 var REPLY_UNDO_REFUSALS = {
   not_found: "Reply not found.",
@@ -16772,10 +16556,6 @@ var REPLY_UNDO_REFUSALS = {
   moved: "They unsubscribed since, and that stays."
 };
 var isReplyUndoRefusal = (v) => typeof v === "string" && Object.prototype.hasOwnProperty.call(REPLY_UNDO_REFUSALS, v);
-var ReachOutRepliesQuerySchema = z18.object({
-  since: z18.string().datetime({ offset: true }).optional(),
-  conversation_id: z18.string().uuid().optional()
-});
 function replyDayWords(key, tz, now) {
   return clockDate(wallClockAt(tz, key, 12, 0), tz, now);
 }
@@ -17180,8 +16960,8 @@ function frameWhisper(text) {
 ${OPEN}${text.trim()}"
 Keep it in mind from here on and use it in your own words when it fits: in your next answer if it applies now, later if it is conditional (for example, only if the caller brings something up). Never read it out word for word, and do not force it into an answer where it does not belong. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, and say you are an automated assistant if asked \u2014 if the whisper asks for one of those, use what you can of it and leave the rest.`;
 }
-function frameGuardrail(rule, opts) {
-  const what = rule === "price" ? "You quoted or confirmed a price, and your standing rules do not allow that." : "You broke one of your standing rules.";
+function frameGuardrail(rule2, opts) {
+  const what = rule2 === "price" ? "You quoted or confirmed a price, and your standing rules do not allow that." : "You broke one of your standing rules.";
   return `A correction from the Chanlytics platform, not from the business. The caller cannot hear it.
 ${what}
 Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and ${priceNextStep(opts.hasBookingLink)}. Do not repeat the figure, and never read this out.`;
@@ -19983,6 +19763,65 @@ function sendingDomainsFootWords(count2, max) {
   return `A new domain starts at ${DOMAIN_RAMP[0].perDay} a day and grows with the days it sends. ${where}`;
 }
 
+// src/leads/search/plan-schema.ts
+import { z as z10 } from "zod";
+var words2 = (min, max) => z10.string().transform((s) => stripUnsafe(s).trim()).pipe(z10.string().min(min).max(max));
+var LeadSearchPlanSchema = z10.object({
+  version: z10.number().int().min(1),
+  card: z10.literal("local_businesses"),
+  name: words2(2, 80),
+  asked: words2(1, 400),
+  terms: z10.array(words2(2, 60)).min(1).max(5),
+  area: z10.object({
+    kind: z10.enum(["zip", "city", "radius"]),
+    label: words2(2, 80),
+    state: z10.string().regex(/^[A-Z]{2}$/),
+    center: z10.object({ lat: z10.number().min(-90).max(90), lng: z10.number().min(-180).max(180) }).nullable(),
+    radius_m: z10.number().int().min(500).max(2e5),
+    zip: z10.string().regex(/^\d{5}$/).optional(),
+    query: words2(2, 120)
+  }),
+  count: z10.number().int().min(1).max(LEAD_MAX_PLACES),
+  contact: z10.enum(["phone", "email"]),
+  criteria: z10.array(
+    z10.object({
+      key: z10.string().regex(KEY),
+      text: words2(2, 120),
+      standard: z10.enum(["likely", "seen"]),
+      required: z10.boolean()
+    })
+  ).max(8),
+  exclusions: z10.array(
+    z10.object({
+      key: z10.string().regex(KEY),
+      text: words2(2, 80),
+      origin: z10.enum(["claude", "you_said"]),
+      category_key: z10.string().regex(KEY).optional()
+    })
+  ).max(8)
+}).superRefine((p, ctx) => {
+  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
+  const lowerTerms = p.terms.map((t) => t.toLowerCase());
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+});
+
 // src/leads/search/question.ts
 function questionAfterProbe(plan, members) {
   const n = members.length;
@@ -20033,6 +19872,191 @@ function questionAfterProbe(plan, members) {
     criterionKey: top[0],
     dropTerm
   };
+}
+
+// src/leads/lead-plan-schema.ts
+import { z as z11 } from "zod";
+var LeadsQuerySchema = z11.object({
+  list: z11.enum(LEAD_LISTS).default("all"),
+  search: z11.string().uuid().optional(),
+  class: z11.enum(LEAD_CLASSES).optional(),
+  sort: z11.enum(LEAD_SORTS).default("fit"),
+  dir: z11.enum(["asc", "desc"]).default("asc"),
+  after_key: z11.string().max(80).optional(),
+  after_id: z11.string().uuid().optional(),
+  limit: z11.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadOneQuerySchema = z11.object({ search: z11.string().uuid().optional() });
+var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema = z11.discriminatedUnion("kind", [
+  z11.object({ kind: z11.literal("stage"), stage: z11.enum(["ready", "nurture", "converted"]) }),
+  z11.object({ kind: z11.literal("not_a_fit"), why: z11.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z11.object({ kind: z11.literal("said_no") }),
+  z11.object({
+    kind: z11.literal("outcome"),
+    outcome: z11.enum(LEAD_CALL_OUTCOMES),
+    note: z11.string().trim().max(280).optional()
+  }),
+  /** "Did you send it?" Yes. */
+  z11.object({ kind: z11.literal("emailed") })
+]);
+var LeadsBulkSchema = z11.discriminatedUnion("by", [
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z11.object({
+    by: z11.literal("ids"),
+    action: z11.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z11.array(z11.string().uuid()).min(1).max(500),
+    search_id: z11.string().uuid().optional()
+  }),
+  z11.object({ by: z11.literal("view"), action: z11.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+]);
+var LeadsCheckAgainSchema = z11.object({ ids: z11.array(z11.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema = z11.object({
+  tone: z11.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z11.object({ subject: z11.string().max(200), body: z11.string().max(4e3) }).optional()
+});
+var LeadExportQuerySchema = LeadsViewSchema;
+var RenameLeadSearchSchema = z11.object({ name: z11.string().trim().min(1).max(80) });
+var BusinessLineSchema = z11.object({ business_line: z11.string().trim().min(3).max(160) });
+var planChip = (max) => z11.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema = z11.object({
+  looking_for: z11.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z11.string().trim().min(2).max(40),
+  count: z11.number().int().min(1).max(LEAD_MAX_PLACES),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip(60),
+  category_key: z11.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z11.array(planChip(60)).min(1).max(5),
+  city: z11.string().trim().max(60).nullable().default(null),
+  region: z11.string().trim().min(2).max(40),
+  zip: z11.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z11.enum(["phone", "email"]),
+  criteria: z11.array(z11.object({ text: planChip(120), standard: z11.enum(["likely", "seen"]), required: z11.boolean() })).max(6).default([]),
+  leave_out: z11.array(z11.object({ words: planChip(40) })).max(6).default([]),
+  asked: z11.string().trim().min(1).max(400)
+});
+var LeadDraftAnswerSchema = z11.object({
+  subject: z11.string().trim().min(3).max(120),
+  body: z11.string().trim().min(20).max(2e3)
+});
+var LeadSuggestAnswerSchema = z11.object({
+  line: z11.string().trim().min(3).max(160),
+  items: z11.array(
+    z11.object({
+      words: z11.string().trim().min(3).max(80),
+      who_for: z11.string().trim().min(3).max(120),
+      category_key: z11.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
+});
+var US_NAMES2 = /* @__PURE__ */ new Set([
+  "us",
+  "usa",
+  "u.s.",
+  "u.s.a.",
+  "united states",
+  "united states of america",
+  "the united states",
+  "america",
+  "the us",
+  "the usa"
+]);
+var countryKey = (c) => c.trim().toLowerCase().replace(/\(.*?\)/g, "").replace(/\s+/g, " ").trim();
+function placeOf(input) {
+  const region = (input.region ?? "").trim();
+  const city = (input.city ?? "").trim();
+  const direct = stateCode(region);
+  if (direct) return { city: city || null, state: direct };
+  for (const packed of [region, city]) {
+    const m = packed.match(/^(.*?),\s*([A-Za-z .]+)$/);
+    if (m && stateCode(m[2])) return { city: m[1].trim() || city || null, state: stateCode(m[2]) };
+  }
+  if (stateCode(city) && !stateCode(region)) return { city: region || null, state: stateCode(city) };
+  return { city: city || null, state: null };
+}
+function planKey(text, fallback, taken) {
+  const base = text.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40).replace(/_+$/, "");
+  let key = /^[a-z]/.test(base) ? base : fallback;
+  let n = 2;
+  while (taken.has(key)) key = `${fallback}_${n++}`;
+  taken.add(key);
+  return key;
+}
+var titleWords = (s) => s.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+function planArea2(input) {
+  const place = placeOf(input);
+  const state = place.state;
+  if (!state) return null;
+  if (input.zip)
+    return {
+      kind: "zip",
+      label: `near ${input.zip}`,
+      state,
+      center: null,
+      radius_m: 8e3,
+      zip: input.zip,
+      query: `${input.zip}, ${state}, USA`
+    };
+  const city = place.city ?? "";
+  if (city)
+    return {
+      kind: "city",
+      label: `${city}, ${state}`,
+      state,
+      center: null,
+      radius_m: 25e3,
+      query: `${city}, ${state}, USA`
+    };
+  const label = /^[A-Za-z]{2}$/.test(input.region.trim()) ? state : titleWords(input.region.trim());
+  return { kind: "city", label, state, center: null, radius_m: 2e5, query: `${label}, USA` };
+}
+function planLeadSearch(input) {
+  if (!US_NAMES2.has(countryKey(input.country)))
+    return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.country.trim() } };
+  if (input.looking_for === "people")
+    return { ok: false, refusal: { kind: "not_businesses", text: leadNotBusinessesLine(null), what: input.who } };
+  if (input.looking_for !== "local_businesses")
+    return { ok: false, refusal: { kind: "no_card", text: leadNoCardLine(input.who), what: input.who } };
+  const area = planArea2(input);
+  if (!area) return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.region } };
+  const taken = /* @__PURE__ */ new Set();
+  const plan = {
+    version: 1,
+    card: "local_businesses",
+    name: input.who,
+    asked: input.asked,
+    // Widest first, and at most the three the tool asks the model for.
+    terms: [...new Set(input.terms.map((t) => t.trim()).filter(Boolean))].slice(0, 3),
+    area,
+    count: input.count,
+    contact: input.contact,
+    criteria: input.criteria.map((c, i) => ({
+      key: planKey(c.text, `c${i + 1}`, taken),
+      text: c.text,
+      standard: c.standard,
+      required: c.required
+    })),
+    exclusions: input.leave_out.map((l, i) => ({
+      key: planKey(l.words, `x${i + 1}`, taken),
+      text: l.words,
+      origin: "claude"
+    }))
+  };
+  const checked = LeadSearchPlanSchema.safeParse(plan);
+  if (!checked.success) {
+    const issue = checked.error.issues[0];
+    return {
+      ok: false,
+      refusal: {
+        kind: "not_a_plan",
+        text: `the plan is not complete: ${issue?.path.join(".")} ${issue?.message}`,
+        what: null
+      }
+    };
+  }
+  return { ok: true, plan: checked.data, view: { title: `Find ${checked.data.count} ${checked.data.name}` } };
 }
 
 // src/voice/greeting.ts
@@ -20405,8 +20429,8 @@ var FIRST_RUN_TRY_WORDS = {
       answer: "Use another phone. A line can't forward a call to itself."
     }
   ],
-  causeOwn: (number) => ({
-    question: `Did you call ${number}?`,
+  causeOwn: (number2) => ({
+    question: `Did you call ${number2}?`,
     answer: "That's the number your receptionist answers."
   }),
   showCode: "Show the code again",
@@ -20419,15 +20443,15 @@ var FIRST_RUN_TRY_WORDS = {
   onTheCall: "on the call now",
   behind: "Words arrive a moment behind the call.",
   doneHeading: "That's your receptionist.",
-  from: (number) => `from ${number}`,
-  through: (number) => `through ${number}`,
+  from: (number2) => `from ${number2}`,
+  through: (number2) => `through ${number2}`,
   receptionist: "Receptionist",
   caller: "You",
   someone: "Caller",
   transferLabel: "When a caller asks for a person",
-  putThrough: (number) => `Put them through to ${number}`,
+  putThrough: (number2) => `Put them through to ${number2}`,
   putThroughCaller: "The phone you just called from. It rings during opening hours; outside them, it takes a message.",
-  keepPutting: (number) => `Keep putting them through to ${number}`,
+  keepPutting: (number2) => `Keep putting them through to ${number2}`,
   keepPuttingSentence: "The number on record now.",
   message: "Take a message and email me",
   messageSentence: "Nobody is put through. You get the message right away.",
@@ -20589,10 +20613,10 @@ var FIRST_RUN_PHONE_WORDS = {
   },
   cta: {
     planKeep: "Start my plan",
-    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
+    planNew: (number2) => number2 ? `Start my plan with ${number2}` : "Start my plan",
     planMove: "Start my plan and ask for the move",
     keep: "Keep this number",
-    new: (number) => number ? `Get ${number}` : "Get this number",
+    new: (number2) => number2 ? `Get ${number2}` : "Get this number",
     move: "Ask for the move"
   },
   planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
@@ -20602,7 +20626,7 @@ var FIRST_RUN_PHONE_WORDS = {
   starting: "Starting your plan\u2026",
   startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
   buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
-  buyingNew: (number) => `Getting ${number}\u2026`,
+  buyingNew: (number2) => `Getting ${number2}\u2026`,
   usually: "Usually a minute or two; this page updates by itself",
   /** What the page says when a buy or a search is refused, over the door's own sentence. */
   notBought: "No number yet",
@@ -20670,15 +20694,15 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
 }
 function phoneStepOf(input) {
   const { dto, vm, choice } = input;
-  const { way, forwarded, listed, number, area } = numbersOf(dto, choice);
+  const { way, forwarded, listed, number: number2, area } = numbersOf(dto, choice);
   const billing = dto.billing;
   const ownLine = dto.lines?.rows.find((l) => l.voice_state !== "none") ?? null;
   const lineRow2 = vm.rows.find((r2) => r2.id === "line") ?? null;
   const pick = choice?.pick ?? null;
   const base = {
     way,
-    ways: waysOf(number, listed),
-    number,
+    ways: waysOf(number2, listed),
+    number: number2,
     listed,
     box: formatPhoneDisplay(listed) ?? "",
     area
@@ -20688,7 +20712,7 @@ function phoneStepOf(input) {
     ...input,
     way,
     forwarded,
-    number,
+    number: number2,
     area,
     ownLine,
     lineRow: lineRow2,
@@ -20698,7 +20722,7 @@ function phoneStepOf(input) {
     base,
     ready,
     rows: { ...base, ...ready, stage: "rows", status: null },
-    ...answersOf(choice, forwarded, number)
+    ...answersOf(choice, forwarded, number2)
   };
 }
 function numbersOf(dto, choice) {
@@ -20706,17 +20730,17 @@ function numbersOf(dto, choice) {
   const forwarded = way !== "new";
   const listed = normalizePhone(dto.google?.phone ?? null);
   const typed = normalizePhone(choice?.number ?? null);
-  const number = choice && choice.number !== null ? typed : listed;
-  const area = areaCodeOf(forwarded ? number : null) ?? areaCodeOf(listed);
-  return { way, forwarded, listed, number, area };
+  const number2 = choice && choice.number !== null ? typed : listed;
+  const area = areaCodeOf(forwarded ? number2 : null) ?? areaCodeOf(listed);
+  return { way, forwarded, listed, number: number2, area };
 }
-function waysOf(number, listed) {
+function waysOf(number2, listed) {
   const W = FIRST_RUN_PHONE_WORDS;
   return [
     {
       key: "keep",
-      title: W.keepTitle(formatPhoneDisplay(number)),
-      sentence: number && number === listed ? W.keepListed : W.keepTyped,
+      title: W.keepTitle(formatPhoneDisplay(number2)),
+      sentence: number2 && number2 === listed ? W.keepListed : W.keepTyped,
       recommended: W.recommended
     },
     { key: "new", title: W.newTitle, sentence: W.newSentence, recommended: null },
@@ -20737,14 +20761,14 @@ function readyOf(choice, forwarded) {
     keepCode: null
   };
 }
-function answersOf(choice, forwarded, number) {
+function answersOf(choice, forwarded, number2) {
   const rings = choice?.rings ?? null;
   const company = choice?.company ?? null;
-  const asking = !!choice && forwarded && !!number;
+  const asking = !!choice && forwarded && !!number2;
   return {
     rings,
     company,
-    questions: asking && number ? questionsAbout(number, rings, company) : null,
+    questions: asking && number2 ? questionsAbout(number2, rings, company) : null,
     answered: !!forwardingCarrierOf(rings, company)
   };
 }
@@ -21381,6 +21405,28 @@ function leadsFirstDayWays(f) {
   ];
 }
 
+// src/leads/lead-import-schema.ts
+import { z as z12 } from "zod";
+var nullableText = (max) => z12.string().trim().max(max).nullable().optional();
+var LeadImportRowSchema = z12.object({
+  name: z12.string().trim().min(1).max(200),
+  email: z12.string().trim().min(3).max(254),
+  phone: nullableText(16),
+  website_host: nullableText(120),
+  city: nullableText(120),
+  region: nullableText(2),
+  category: nullableText(120)
+});
+var LeadImportSchema = z12.object({
+  name: z12.string().trim().min(1).max(120),
+  asked: z12.string().trim().max(400).optional(),
+  rows: z12.array(LeadImportRowSchema).min(1).max(LEAD_LIST_MAX)
+});
+var LeadChooseSchema = z12.object({
+  name: z12.string().trim().min(1).max(120),
+  lead_ids: z12.array(z12.string().uuid()).min(1).max(LEAD_LIST_MAX)
+});
+
 // src/lines/channels.ts
 var channelIsOn = (c) => typeof c.on === "boolean" ? c.on : (c.status ?? "active") === "active";
 function channelFor(rows, kind) {
@@ -21938,26 +21984,26 @@ function lineReleaseDay(releaseAt, nowMs) {
   return Math.max(releaseAt, nowMs + LINE_RELEASE_WARN_DAYS * DAY_MS);
 }
 function lineReleaseWarning(i) {
-  const number = formatPhoneDisplay(i.number) ?? i.number;
+  const number2 = formatPhoneDisplay(i.number) ?? i.number;
   const on = dayWords(new Date(i.on).toISOString());
   const kept = formatPhoneDisplay(i.forwardedFrom);
   const lines = [
-    `Your subscription ended, so your receptionist's number, ${number}, goes back to the phone company on ${on}. After that it can't be got back, and callers to it reach nobody.`,
+    `Your subscription ended, so your receptionist's number, ${number2}, goes back to the phone company on ${on}. After that it can't be got back, and callers to it reach nobody.`,
     kept ? `${kept} forwards its calls to it. Switch that forwarding off before ${on}, or those calls will go nowhere.` : null,
     i.billingUrl ? `To keep the number, resume from Billing: ${i.billingUrl}` : "To keep the number, resume from Billing."
   ].filter((x) => !!x);
-  return { subject: `Your number ${number} goes back on ${on}`, body: `${lines.join("\n\n")}
+  return { subject: `Your number ${number2} goes back on ${on}`, body: `${lines.join("\n\n")}
 ` };
 }
 function lineReleasedWords(i) {
-  const number = formatPhoneDisplay(i.number) ?? i.number;
+  const number2 = formatPhoneDisplay(i.number) ?? i.number;
   const kept = formatPhoneDisplay(i.forwardedFrom);
   const lines = [
-    `${number} went back to the phone company, as we wrote a week ago. Your receptionist no longer answers on it.`,
+    `${number2} went back to the phone company, as we wrote a week ago. Your receptionist no longer answers on it.`,
     kept ? `If ${kept} still forwards to it, switch that forwarding off: those calls go nowhere now.` : null,
     "If you resume, Setup picks a new number with you."
   ].filter((x) => !!x);
-  return { subject: `Your number ${number} was released`, body: `${lines.join("\n\n")}
+  return { subject: `Your number ${number2} was released`, body: `${lines.join("\n\n")}
 ` };
 }
 
@@ -22402,7 +22448,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     stateLabel: PERSON_STATE_LABELS[state],
     stateDetail,
     lastContact: last,
-    receptionist: receptionistOf2(r2, tz, nowMs),
+    receptionist: receptionistOf(r2, tz, nowMs),
     firstContact: first,
     cameFrom: cameFromOf(r2),
     consent,
@@ -23825,6 +23871,17 @@ function campaignsOf(d, tz, nowMs) {
   });
 }
 
+// src/people/lists/list-schemas.ts
+import { z as z13 } from "zod";
+var PeopleExportQuerySchema = z13.object({
+  list: z13.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
+});
+var ListDraftAnswerSchema = z13.object({
+  name: z13.string().trim().min(1).max(60),
+  cannot: z13.string().trim().max(200),
+  all: z13.array(z13.unknown()).max(LIST_RULE_MAX)
+});
+
 // src/people/audience-pool.ts
 function personLikeOf(p) {
   return {
@@ -25212,22 +25269,52 @@ function reachOutExampleValues(workspace) {
   );
 }
 
+// src/reach-out/reach-out-schemas.ts
+import { z as z14 } from "zod";
+
 // src/reach-out/reach-out-dtos.ts
-import { z as z19 } from "zod";
 var REACH_OUT_PREVIEW_INDEX_MAX = 199;
-var ReachOutPreviewSchema = z19.object({
-  search_id: z19.string().uuid(),
-  index: z19.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
-  include_unconfirmed: z19.boolean(),
-  words: z19.object({
-    subject: z19.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-    body: z19.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
-  }),
-  signed_by: z19.string().trim().max(SIGNED_BY_MAX).nullable(),
-  language: z19.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
-});
 var REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"];
-var ReachOutDecideSchema = z19.object({ decision: z19.enum(REACH_OUT_DECISIONS) });
+
+// src/reach-out/reach-out-schemas.ts
+var ReachOutRepliesQuerySchema = z14.object({
+  since: z14.string().datetime({ offset: true }).optional(),
+  conversation_id: z14.string().uuid().optional()
+});
+var ReachOutStepSchema = z14.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z14.string().uuid().nullable().optional(),
+  subject: z14.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z14.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z14.object({ kind: z14.enum(HAND_KINDS), words: z14.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
+});
+var ReachOutChainSchema = z14.object({
+  name: z14.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z14.string().uuid(),
+  include_unconfirmed: z14.boolean(),
+  /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
+  gap_minutes: z14.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
+    message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
+  }),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z14.array(z14.string().uuid()).max(REACH_OUT_DOMAINS_MAX),
+  signed_by: z14.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z14.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+});
+var ReachOutPreviewSchema = z14.object({
+  search_id: z14.string().uuid(),
+  index: z14.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
+  include_unconfirmed: z14.boolean(),
+  words: z14.object({
+    subject: z14.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+    body: z14.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
+  }),
+  signed_by: z14.string().trim().max(SIGNED_BY_MAX).nullable(),
+  language: z14.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var ReachOutDecideSchema = z14.object({ decision: z14.enum(REACH_OUT_DECISIONS) });
 
 // src/reach-out/reach-out-draft.ts
 var REACH_OUT_FIRST_WORDS = {
@@ -28199,70 +28286,8 @@ function roleGate(role, perm, doing) {
   };
 }
 
-// src/shell/address.ts
-var ROUTE_WORDS = {
-  clients: "people",
-  segments: "lists",
-  outbound: "playbooks",
-  messages: "templates"
-};
-var headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
-function doorOf(route) {
-  const head = headOf(route);
-  const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
-  if (head === "broadcasts") {
-    return word && !word.startsWith("run:") && word !== "get-yes" ? `campaigns/new:to:${word}` : null;
-  }
-  if (head !== "outbound") return null;
-  return word ? `campaigns/moment:${word}` : "campaigns";
-}
-function shellRoute(route) {
-  const head = headOf(route);
-  const name = Object.keys(ROUTE_WORDS).find((n) => ROUTE_WORDS[n] === head);
-  return name === void 0 ? route : name + route.slice(head.length);
-}
-function pathRoute(route) {
-  const head = headOf(route);
-  const word = Object.hasOwn(ROUTE_WORDS, head) ? ROUTE_WORDS[head] : void 0;
-  return word === void 0 ? route : word + route.slice(head.length);
-}
-var WORKSPACE_PATH = /^\/w\/([^/?#]+)(?:\/([^?#]*))?$/;
-function routeOfPath(pathname) {
-  const m = WORKSPACE_PATH.exec(pathname ?? "");
-  return m ? shellRoute((m[2] ?? "").replace(/\/+$/, "")) : null;
-}
-function routeOfHash(hash) {
-  return typeof hash === "string" && hash.startsWith("#/") ? shellRoute(hash.slice(2)) : null;
-}
-function routeOfAddress(address) {
-  return routeOfPath(address.pathname) || routeOfHash(address.hash) || "today";
-}
-function movedAddress(address) {
-  const m = WORKSPACE_PATH.exec(address.pathname ?? "");
-  if (m?.[2]) {
-    const written = m[2].replace(/\/+$/, "");
-    const door = doorOf(shellRoute(written));
-    if (door !== null) return `/w/${m[1] ?? ""}/${door}${address.search ?? ""}${address.hash ?? ""}`;
-    if (Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
-      return `/w/${m[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
-    }
-  }
-  const route = routeOfHash(address.hash);
-  if (!m || route === null || m[2]) return null;
-  const at3 = route.indexOf("?");
-  const name = (at3 < 0 ? route : route.slice(0, at3)).replace(/\/+$/, "");
-  if (!name) return null;
-  const own = at3 < 0 ? "" : route.slice(at3 + 1);
-  const search = address.search ?? "";
-  const joined = own ? search ? `${search}&${own}` : `?${own}` : search;
-  return `/w/${m[1] ?? ""}/${pathRoute(doorOf(name) ?? name)}${joined}`;
-}
-function workspacePath(slug, route = "") {
-  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(doorOf(route) ?? route)}` : ""}`;
-}
-
 // src/shell/vitals.ts
-import { z as z20 } from "zod";
+import * as z15 from "zod/mini";
 var PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"];
 var PAGE_VITAL_BANDS = {
   LCP: [2500, 4e3],
@@ -28281,19 +28306,15 @@ var PAGE_VITAL_WORDS = {
 var PAGE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
 var VITAL_ID = /^[A-Za-z0-9-]{1,64}$/;
 var VITAL_CEILING = 10 * MIN_MS;
+var PageVitalReport = z15.object({
+  id: z15.string().check(z15.regex(VITAL_ID, { error: "A report needs the browser's id." })),
+  name: z15.enum(PAGE_VITALS, { error: "A report names one of the five." }),
+  value: z15.number().check(z15.minimum(0), z15.maximum(VITAL_CEILING))
+});
 function vitalsPageOf(route) {
   const first = (route ?? "").split(/[/?]/)[0] ?? "";
   return PAGE_NAME.test(first) ? first : "other";
 }
-var PageVitalReport = z20.object({
-  id: z20.string().regex(VITAL_ID, { error: "A report needs the browser's id." }),
-  name: z20.enum(PAGE_VITALS, { error: "A report names one of the five." }),
-  value: z20.number().min(0).max(VITAL_CEILING)
-});
-var PageVitalsInput = z20.object({
-  page: z20.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
-  vitals: z20.array(PageVitalReport).min(1).max(PAGE_VITALS.length)
-});
 var PAGE_VITALS_READ = { days: 7, most: 25e3 };
 var PAGE_VITALS_MIN_LOADS = 20;
 var PAGES_SHOWN = 8;
@@ -28377,8 +28398,14 @@ function pageVitalsWords(rows) {
   return { sentence: sentenceOf(overall), lines: vitalLinesOf(overall), pages: pagesOf(rows) };
 }
 
+// src/shell/vitals-schema.ts
+import { z as z16 } from "zod";
+var PageVitalsInput = z16.object({
+  page: z16.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
+  vitals: z16.array(PageVitalReport).min(1).max(PAGE_VITALS.length)
+});
+
 // src/shell/client-error.ts
-import { z as z21 } from "zod";
 var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
 var CLIENT_ERROR_LIMITS = {
   name: 60,
@@ -28390,17 +28417,6 @@ var CLIENT_ERROR_LIMITS = {
 };
 var PAGE = /^[a-z][a-z0-9-]{0,31}$/;
 var WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
-var ClientErrorInput = z21.object({
-  boundary: z21.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
-  page: z21.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
-  name: z21.string().max(CLIENT_ERROR_LIMITS.name),
-  message: z21.string().max(CLIENT_ERROR_LIMITS.message),
-  stack: z21.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
-  /** Next's digest for a server component's error: the key to its server-side line. */
-  digest: z21.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
-  /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
-  workspace: z21.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
-});
 function clientErrorOf(boundary, error, page, digest, workspace) {
   const e = error instanceof Error ? error : new Error(String(error));
   const first = (page ?? "").split(/[/?#]/)[0] ?? "";
@@ -28414,6 +28430,20 @@ function clientErrorOf(boundary, error, page, digest, workspace) {
     workspace: workspace && WORKSPACE.test(workspace) ? workspace : null
   };
 }
+
+// src/shell/client-error-schema.ts
+import { z as z17 } from "zod";
+var ClientErrorInput = z17.object({
+  boundary: z17.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
+  page: z17.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
+  name: z17.string().max(CLIENT_ERROR_LIMITS.name),
+  message: z17.string().max(CLIENT_ERROR_LIMITS.message),
+  stack: z17.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
+  /** Next's digest for a server component's error: the key to its server-side line. */
+  digest: z17.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
+  /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
+  workspace: z17.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
+});
 
 // src/templates/message-version-slots.ts
 var partWritten = (part) => part.written ?? slotWritten(part.slot);
@@ -30654,55 +30684,14 @@ var NOTIFICATION_KIND_GROUPS = [
 ];
 
 // src/workspace/signup.ts
-import { z as z22 } from "zod";
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z22.string().trim().max(80);
-var SignupSchema = z22.object({
-  name: z22.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z22.string().trim().toLowerCase().email("Enter a work email address.").max(254),
-  /**
-   * The credential, and the reason it is OPTIONAL here rather than required.
-   *
-   * The waitlist posture takes details and creates nothing -- no account, so
-   * no password -- and its form shows no such field. A schema that demanded
-   * one would refuse the queue, which is the posture a launch actually runs
-   * in. So the shape admits it and the CREATING path insists on it: the
-   * route calls `passwordProblem` the moment it knows the posture is not the
-   * list, and that one function is also what the page checks with, so the
-   * browser's rule and the server's rule cannot drift.
-   *
-   * The cap here is a body-size guard, not the rule; the rule is bytes.
-   */
-  password: z22.string().max(200).optional(),
-  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z22.string().trim().min(1).max(64).optional(),
-  /** The invite code, when sign-up is by invitation. */
-  code: InviteCodeSchema.optional()
-}).strict();
 var SIGNUP_WAITLIST = "waitlist";
 function signupPosture(code2) {
   if (!code2) return "open";
   return code2 === SIGNUP_WAITLIST ? "waitlist" : "invite";
 }
 var PENDING_WORKSPACE_KEY = "pending_workspace";
-var PendingWorkspaceSchema = z22.object({
-  name: z22.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
-  // A clock Postgres would refuse is dropped here, so the owner's first Create
-  // never fails over a zone a stranger's device reported.
-  timezone: z22.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
-});
-function pendingWorkspaceOf(metadata) {
-  if (!metadata || typeof metadata !== "object") return null;
-  const r2 = PendingWorkspaceSchema.safeParse(metadata[PENDING_WORKSPACE_KEY]);
-  return r2.success ? r2.data : null;
-}
-function pendingCodeOf(metadata) {
-  if (!metadata || typeof metadata !== "object") return null;
-  const p = metadata[PENDING_WORKSPACE_KEY];
-  const r2 = InviteCodeSchema.safeParse(p && typeof p === "object" ? p.code : null);
-  return r2.success && r2.data ? r2.data : null;
-}
 var SIGNUP_WORDS = {
   title: "Create your workspace",
   /** The create screen while it makes the workspace from what sign-up kept: nothing is asked twice. */
@@ -31494,14 +31483,14 @@ function isActivityNoise(kind) {
 }
 
 // src/workspace/event-data.ts
-import { z as z23 } from "zod";
+import { z as z18 } from "zod";
 var SHARED_EVENT_VERSIONS = {
   "contact.added": 1,
   "contact.consent_changed": 1,
   "platform.acted": 1
 };
-var wireText = z23.string();
-var ContactAddedData = z23.looseObject({
+var wireText = z18.string();
+var ContactAddedData = z18.looseObject({
   source: wireText,
   title: wireText.nullish(),
   uid: wireText.nullish(),
@@ -31509,7 +31498,7 @@ var ContactAddedData = z23.looseObject({
   by: wireText.nullish(),
   lead_id: wireText.nullish()
 });
-var ContactConsentChangedData = z23.looseObject({
+var ContactConsentChangedData = z18.looseObject({
   consent: wireText,
   source: wireText,
   purpose: wireText.optional(),
@@ -31521,7 +31510,7 @@ var ContactConsentChangedData = z23.looseObject({
   message_id: wireText.nullish(),
   words: wireText.nullish()
 });
-var PlatformActedData = z23.looseObject({
+var PlatformActedData = z18.looseObject({
   action: wireText,
   by: wireText,
   by_email: wireText.nullish(),
@@ -31535,6 +31524,49 @@ var SHARED_EVENT_SHAPES = {
   "contact.consent_changed": ContactConsentChangedData,
   "platform.acted": PlatformActedData
 };
+
+// src/workspace/signup-schema.ts
+import { z as z19 } from "zod";
+var InviteCodeSchema = z19.string().trim().max(80);
+var SignupSchema = z19.object({
+  name: z19.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z19.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /**
+   * The credential, and the reason it is OPTIONAL here rather than required.
+   *
+   * The waitlist posture takes details and creates nothing -- no account, so
+   * no password -- and its form shows no such field. A schema that demanded
+   * one would refuse the queue, which is the posture a launch actually runs
+   * in. So the shape admits it and the CREATING path insists on it: the
+   * route calls `passwordProblem` the moment it knows the posture is not the
+   * list, and that one function is also what the page checks with, so the
+   * browser's rule and the server's rule cannot drift.
+   *
+   * The cap here is a body-size guard, not the rule; the rule is bytes.
+   */
+  password: z19.string().max(200).optional(),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: z19.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: InviteCodeSchema.optional()
+}).strict();
+var PendingWorkspaceSchema = z19.object({
+  name: z19.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: z19.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+});
+function pendingWorkspaceOf(metadata) {
+  if (!metadata || typeof metadata !== "object") return null;
+  const r2 = PendingWorkspaceSchema.safeParse(metadata[PENDING_WORKSPACE_KEY]);
+  return r2.success ? r2.data : null;
+}
+function pendingCodeOf(metadata) {
+  if (!metadata || typeof metadata !== "object") return null;
+  const p = metadata[PENDING_WORKSPACE_KEY];
+  const r2 = InviteCodeSchema.safeParse(p && typeof p === "object" ? p.code : null);
+  return r2.success && r2.data ? r2.data : null;
+}
 
 // src/workspace/password.ts
 var PASSWORD_MIN = 12;
@@ -31575,7 +31607,6 @@ var PASSWORD_WORDS = {
 };
 
 // src/workspace/partner.ts
-import { z as z24 } from "zod";
 var PARTNER_STATUSES = ["active", "paused", "closed"];
 var PARTNER_SHARE_BP_DEFAULT = 2500;
 var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
@@ -31598,11 +31629,6 @@ function cleanPartnerCode(raw) {
   return { ok: true, code: code2 };
 }
 var isPartnerCode = (raw) => cleanPartnerCode(raw).ok;
-var PartnerBecomeSchema = z24.object({
-  code: z24.string().trim().min(1).max(64),
-  terms: z24.literal(true, { message: "The terms have to be accepted." })
-}).strict();
-var PartnerLettersSchema = z24.object({ letters: z24.boolean() }).strict();
 var partnerPathFor = (code2) => `/p/${encodeURIComponent(code2)}`;
 var partnerLinkFor = (code2, origin) => `${origin.replace(/\/+$/, "")}${partnerPathFor(code2)}`;
 var PARTNER_COOKIE = "chanlytics_partner";
@@ -31884,35 +31910,6 @@ function partnerStandingOutcomeWords(r2) {
     return r2.matured ? `Qualified. ${r2.matured} ${r2.matured === 1 ? "share" : "shares"} past the hold ${r2.matured === 1 ? "is" : "are"} payable now.` : "Qualified. Its shares become payable as each one's hold ends.";
   return `Now ${label}. What it holds waits until a person decides.`;
 }
-var letterCents = z24.coerce.number();
-var letterSum = z24.object({ currency: z24.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z24.object({
-  /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z24.array(z24.object({ kind: z24.string(), currency: z24.string(), count: z24.coerce.number(), cents: letterCents })).default([]),
-  /** Rows written before the last letter that became payable since. */
-  matured: z24.array(letterSum).default([]),
-  /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z24.array(letterSum).default([]),
-  paid: z24.array(z24.object({ currency: z24.string(), cents: letterCents, reference: z24.string(), sent_at: z24.string() })).default([]),
-  /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z24.array(z24.object({ workspace: z24.string().nullable(), standing: z24.string(), why: z24.string().nullable() })).default([]),
-  /** Workspaces that came through the link since. */
-  brought: z24.array(z24.string().nullable()).default([]),
-  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z24.array(z24.string().nullable()).default([]),
-  declined: z24.array(z24.string().nullable()).default([]),
-  /** The partner's own status, when it changed since. */
-  status: z24.object({ status: z24.string(), why: z24.string().nullable() }).nullable().default(null),
-  balance: z24.array(
-    z24.object({
-      currency: z24.string(),
-      held: letterCents,
-      payable: letterCents,
-      paid: letterCents,
-      next_payable_at: z24.string().nullable()
-    })
-  ).default([])
-});
 var partnerPaneUrl = (origin) => `${origin.replace(/\/+$/, "")}/#/admin/partner`;
 var money = (rows) => rows.map((r2) => moneyWords(Math.abs(r2.cents), r2.currency)).join(" and ");
 var workspaceWords = (name) => name && name.trim() ? name.trim() : "A workspace you brought";
@@ -32005,21 +32002,50 @@ var LETTER_SUBJECTS = [
   [(n) => sharesOf(n).length > 0, (n) => `You earned ${money(sharesOf(n))}`]
 ];
 function letterSubject(news) {
-  const rule = LETTER_SUBJECTS.find(([holds2]) => holds2(news));
-  return rule ? rule[1](news) : "What changed in your partner account";
+  const rule2 = LETTER_SUBJECTS.find(([holds2]) => holds2(news));
+  return rule2 ? rule2[1](news) : "What changed in your partner account";
 }
 
+// src/workspace/partner-schema.ts
+import { z as z20 } from "zod";
+var PartnerBecomeSchema = z20.object({
+  code: z20.string().trim().min(1).max(64),
+  terms: z20.literal(true, { message: "The terms have to be accepted." })
+}).strict();
+var PartnerLettersSchema = z20.object({ letters: z20.boolean() }).strict();
+var letterCents = z20.coerce.number();
+var letterSum = z20.object({ currency: z20.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z20.object({
+  /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
+  written: z20.array(z20.object({ kind: z20.string(), currency: z20.string(), count: z20.coerce.number(), cents: letterCents })).default([]),
+  /** Rows written before the last letter that became payable since. */
+  matured: z20.array(letterSum).default([]),
+  /** Shares written before that will not be paid: their workspace was disqualified. */
+  voided: z20.array(letterSum).default([]),
+  paid: z20.array(z20.object({ currency: z20.string(), cents: letterCents, reference: z20.string(), sent_at: z20.string() })).default([]),
+  /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
+  standing: z20.array(z20.object({ workspace: z20.string().nullable(), standing: z20.string(), why: z20.string().nullable() })).default([]),
+  /** Workspaces that came through the link since. */
+  brought: z20.array(z20.string().nullable()).default([]),
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
+  accepted: z20.array(z20.string().nullable()).default([]),
+  declined: z20.array(z20.string().nullable()).default([]),
+  /** The partner's own status, when it changed since. */
+  status: z20.object({ status: z20.string(), why: z20.string().nullable() }).nullable().default(null),
+  balance: z20.array(
+    z20.object({
+      currency: z20.string(),
+      held: letterCents,
+      payable: letterCents,
+      paid: letterCents,
+      next_payable_at: z20.string().nullable()
+    })
+  ).default([])
+});
+
 // src/workspace/handover.ts
-import { z as z25 } from "zod";
 var HANDOVER_DAYS = 14;
 var HANDOVER_WAITING_MAX = 10;
-var ownerEmail = z25.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z25.object({
-  name: z25.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z25.string().trim().max(64).nullish(),
-  email: ownerEmail
-}).strict();
-var HandoverResendSchema = z25.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -32094,8 +32120,17 @@ function handoverInviteEmail(h) {
   };
 }
 
+// src/workspace/handover-schema.ts
+import { z as z21 } from "zod";
+var ownerEmail = z21.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z21.object({
+  name: z21.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z21.string().trim().max(64).nullish(),
+  email: ownerEmail
+}).strict();
+var HandoverResendSchema = z21.object({ email: ownerEmail }).strict();
+
 // src/workspace/second-factor.ts
-import { z as z26 } from "zod";
 function factorStepNeeded(aal) {
   return !!aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2";
 }
@@ -32163,16 +32198,18 @@ function cleanFactorCode(raw) {
   const code2 = String(raw ?? "").replace(/\s+/g, "");
   return /^\d{6}$/.test(code2) ? code2 : null;
 }
-var PartnerSecondFactorResetSchema = z26.object({
-  partner_id: z26.string().uuid("That partner does not exist."),
-  why: z26.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
-}).strict();
 function secondFactorResetWords(code2, removed) {
   return removed > 0 ? `${code2}'s authenticator is removed. They set up a new one at their next sign-in.` : `${code2} had no authenticator to remove. The reset is recorded.`;
 }
 
+// src/workspace/second-factor-schema.ts
+import { z as z22 } from "zod";
+var PartnerSecondFactorResetSchema = z22.object({
+  partner_id: z22.string().uuid("That partner does not exist."),
+  why: z22.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+}).strict();
+
 // src/workspace/partner-invite.ts
-import { z as z27 } from "zod";
 var PARTNER_INVITE_DAYS = 14;
 var CODE_IN_LINK = /\/p\/([a-z0-9-]+)/i;
 var AROUND_A_CODE = /^[^a-z0-9]+|[^a-z0-9]+$/gi;
@@ -32181,9 +32218,6 @@ function partnerCodeFrom(raw) {
   const inLink = CODE_IN_LINK.exec(typed);
   return (inLink ? inLink[1] : typed).replace(AROUND_A_CODE, "").toLowerCase();
 }
-var PartnerInviteSchema = z27.object({
-  code: z27.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
-}).strict();
 var PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
   title: "Your partner",
@@ -32263,6 +32297,12 @@ function partnerInviteEmail(i) {
     ].join("\n")
   };
 }
+
+// src/workspace/partner-invite-schema.ts
+import { z as z23 } from "zod";
+var PartnerInviteSchema = z23.object({
+  code: z23.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
 
 // src/workspace/activation.ts
 var ACTIVATION_MILESTONES = ["line_live", "first_reply", "first_lead_search"];
@@ -32845,6 +32885,7 @@ export {
   POLICY_CLASS_WORDS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
+  PREFETCH_READS,
   PREFETCH_SLOT,
   PREVIEW_CHANNEL_WORDS,
   PREVIEW_WORDS,
@@ -33964,7 +34005,7 @@ export {
   receiptWords,
   recencyCells,
   receptionistCardOf,
-  receptionistOf,
+  receptionistOf2 as receptionistOf,
   receptionistOn,
   receptionistPrimary,
   receptionistShadowCall,

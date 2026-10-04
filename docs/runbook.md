@@ -108,7 +108,7 @@ looking at one while you change it.
 The lead map draws a square of pins from what the search found and asks nobody
 for anything. Streets under it come from a basemap the product hosts ITSELF --
 one PMTiles archive plus the fonts and sprites its style reads -- under one
-address, `NEXT_PUBLIC_LEAD_MAP_BASE` (`legacy-bridge/lead-map.ts`). Unset, the
+address, `NEXT_PUBLIC_LEAD_MAP_BASE` (`apps/dashboard/src/surfaces/leads/map/lead-map.ts`). Unset, the
 square stands. Set, the page draws streets wherever the archive has ground under
 the leads and the square everywhere else, so a metro extract is honest, not
 broken. Nothing reaches a map vendor: the browser reads byte ranges of the

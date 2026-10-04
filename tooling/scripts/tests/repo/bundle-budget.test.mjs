@@ -51,7 +51,11 @@ const CHUNKS = {
   "static/chunks/app.css": noise("css", 25_000),
 };
 
-function writeBuild({ loadable = { 33959: { id: 33959, files: ["static/chunks/shell.js"] } }, chunks = CHUNKS } = {}) {
+function writeBuild({
+  loadable = { 33959: { id: 33959, files: ["static/chunks/shell.js"] } },
+  chunks = CHUNKS,
+  pages = {},
+} = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bundle-budget-"));
   const put = (rel, text) => {
     fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
@@ -78,6 +82,15 @@ function writeBuild({ loadable = { 33959: { id: 33959, files: ["static/chunks/sh
       `globalThis.__RSC_MANIFEST["/(os)/w/[workspace]/[[...route]]/page"] = ${JSON.stringify(client)};\n`,
   );
   if (loadable) put(`${PAGE_DIR}/page/react-loadable-manifest.json`, JSON.stringify(loadable));
+  // Every other workspace page: its segments' chunks, as its own client manifest names them.
+  for (const [route, files] of Object.entries(pages)) {
+    const name = `(os)/w/[workspace]/${route}/page`;
+    put(
+      `server/app/${name}_client-reference-manifest.js`,
+      "globalThis.__RSC_MANIFEST = globalThis.__RSC_MANIFEST || {};\n" +
+        `globalThis.__RSC_MANIFEST["/${name}"] = ${JSON.stringify({ clientModules: {}, entryJSFiles: { [`[project]/apps/dashboard/app/${name}`]: files } })};\n`,
+    );
+  }
   for (const [rel, text] of Object.entries(chunks)) put(rel, text);
   return dir;
 }
@@ -227,4 +240,78 @@ test("a manifest naming a file the build did not write fails", () => {
   const r = run(writeBuild({ chunks }), "--raise");
   assert.equal(r.status, 2, r.out);
   assert.match(r.out, /static\/chunks\/page\.js/);
+});
+
+/* ----------------------------- the pages' own ------------------------------ */
+
+const PAGE_CHUNKS = {
+  ...CHUNKS,
+  "static/chunks/inbox.js": noise("inbox", 60_000),
+  "static/chunks/people.js": noise("people", 40_000),
+  "static/chunks/kit.js": noise("kit", 30_000),
+};
+const PAGES = {
+  // A page's own chunks, and the layout the route already counts, which is not counted again.
+  "inbox/[[...thread]]": ["static/chunks/layout.js", "static/chunks/inbox.js", "static/chunks/kit.js"],
+  // The kit both pages load is counted once.
+  "people/[[...param]]": ["static/chunks/layout.js", "static/chunks/people.js", "static/chunks/kit.js"],
+};
+const gzPages = (chunks, ...rels) => rels.reduce((a, rel) => a + gzText(chunks[rel]), 0);
+
+test("the pages' own JavaScript: what every other workspace page adds to the route, each chunk once, never what the route counts", () => {
+  const dir = writeBuild({ chunks: PAGE_CHUNKS, pages: PAGES });
+  const seeded = run(dir, "--raise");
+  assert.equal(seeded.status, 0, seeded.out);
+  assert.deepEqual(seeded.budget(), {
+    js: gz("static/chunks/runtime.js", "static/chunks/layout.js", "static/chunks/page.js", "static/chunks/shell.js"),
+    css: gz("static/chunks/app.css"),
+    pages: gzPages(PAGE_CHUNKS, "static/chunks/inbox.js", "static/chunks/people.js", "static/chunks/kit.js"),
+  });
+  assert.match(seeded.out, /PAGES' OWN JS/);
+});
+
+test("a page's chunk that grows past the band fails, though the route is unchanged: Base UI reached the pages before the route", () => {
+  const dir = writeBuild({ chunks: PAGE_CHUNKS, pages: PAGES });
+  run(dir, "--raise");
+  const grown = {
+    ...PAGE_CHUNKS,
+    "static/chunks/inbox.js": PAGE_CHUNKS["static/chunks/inbox.js"] + noise("base-ui", 40_000),
+  };
+  const later = writeBuild({ chunks: grown, pages: PAGES });
+  fs.copyFileSync(path.join(dir, "budget.json"), path.join(later, "budget.json"));
+  const r = run(later);
+  assert.equal(r.status, 1, r.out);
+  assert.match(r.out, /grew past its budget/);
+  assert.match(r.out, /PAGES' OWN JS .* ->/);
+  assert.doesNotMatch(r.out, /\n {2}JS .* ->/, "the route's own JS is not named");
+});
+
+test("a budget that names no pages is seeded with them by a plain --raise, its JS and CSS kept as they were", () => {
+  const before = writeBuild();
+  run(before, "--raise");
+  const was = JSON.parse(fs.readFileSync(path.join(before, "budget.json"), "utf8"));
+  const dir = writeBuild({ chunks: PAGE_CHUNKS, pages: PAGES });
+  fs.copyFileSync(path.join(before, "budget.json"), path.join(dir, "budget.json"));
+  const plain = run(dir);
+  assert.equal(plain.status, 2, plain.out);
+  assert.match(plain.out, /the budget names no pages/);
+  const seeded = run(dir, "--raise");
+  assert.equal(seeded.status, 0, seeded.out);
+  assert.deepEqual(seeded.budget(), {
+    ...was,
+    pages: gzPages(PAGE_CHUNKS, "static/chunks/inbox.js", "static/chunks/people.js", "static/chunks/kit.js"),
+  });
+  // Once named, a raise says by how much again.
+  const unargued = run(dir, "--raise");
+  assert.equal(unargued.status, 2, unargued.out);
+  assert.match(unargued.out, /a raise says by how much/);
+});
+
+test("--raise pages=<bytes> is read as the growth its row argues, as js= and css= are", () => {
+  assert.deepEqual(arguedGrowth(["--raise", "pages=4096", "js=1"]), { pages: 4096, js: 1 });
+  assert.deepEqual(
+    bankBudget({ js: 10, css: 5 }, { js: 10, css: 5, pages: 7 }),
+    { js: 10, css: 5, pages: 7 },
+    "a build with no pages keeps the budget's",
+  );
 });

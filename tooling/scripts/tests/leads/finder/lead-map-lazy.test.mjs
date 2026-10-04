@@ -1,14 +1,13 @@
 /**
- * The streets load when they are drawn, not at boot (lead-map.ts, lead-map-draw.ts; 25 Sep 2026).
+ * The streets load when they are drawn, not at boot (surfaces/leads/map: lead-map.ts, lead-map-draw.ts; 25 Sep 2026).
  *
  * MapLibre rode in the shell's boot chunk on every page, a person's included: 364 references in 2.65 MB, about a
- * quarter of a megabyte compressed, parsed for a map nobody had opened. The door the page walks through is published
- * at boot as before; the streets' own module is asked for on the first mount, once, and a handle the page can use at
+ * quarter of a megabyte compressed, parsed for a map nobody had opened. The door the page walks through (leadMapApi) is
+ * installed at boot as before; the streets' own module is asked for on the first mount, once, and a handle the page can use at
  * once keeps what it asked for until they land. Run against lead-map.ts with a loader that records, and no network.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { importSrc } from "../../_source.mjs";
 
 const win = { location: { origin: "https://app.example.com" } };
 globalThis.window = win;
@@ -16,7 +15,8 @@ globalThis.window = win;
 globalThis.fetch = async () => {
   throw new Error("no network in a test");
 };
-const { installLeadMap, deferredHandle } = await importSrc("apps/dashboard/src/legacy-bridge/lead-map.ts");
+const { installLeadMap, deferredHandle, leadMapApi } =
+  await import("../../../../../apps/dashboard/src/surfaces/leads/map/lead-map.ts");
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 /** A streets module that records: how often it was asked for, whether it was prepared, and every call on its handle. */
@@ -50,13 +50,13 @@ const fakeStreets = () => {
   return { calls, load, land: () => land(), loads: () => loads, prepared: () => prepared };
 };
 
-test("the door is published at boot and the streets' module is asked for on the first mount, once, prepared once", async () => {
+test("the door is installed at boot and the streets' module is asked for on the first mount, once, prepared once", async () => {
   const s = fakeStreets();
   installLeadMap("/maps/", s.load);
-  assert.ok(win.__LEAD_MAP, "the page's door");
+  assert.ok(leadMapApi(), "the page's door");
   assert.equal(s.loads(), 0, "nothing loaded at boot");
-  const a = win.__LEAD_MAP.mount({ id: "box-a" }, { onPick() {}, onOpen() {} });
-  const b = win.__LEAD_MAP.mount({ id: "box-b" }, { onPick() {}, onOpen() {} });
+  const a = leadMapApi().mount({ id: "box-a" }, { onPick() {}, onOpen() {} });
+  const b = leadMapApi().mount({ id: "box-b" }, { onPick() {}, onOpen() {} });
   assert.equal(typeof a.setPins, "function", "a handle at once");
   assert.equal(s.loads(), 1, "asked for once for both");
   a.setPins([{ id: "l1", lat: 1, lng: 2, tone: "ok", label: "L1" }], null);
@@ -83,7 +83,7 @@ test("the door is published at boot and the streets' module is asked for on the 
 test("a handle destroyed before the streets land destroys them on arrival and replays nothing", async () => {
   const s = fakeStreets();
   installLeadMap("/maps", s.load);
-  const h = win.__LEAD_MAP.mount({ id: "box" }, { onPick() {}, onOpen() {} });
+  const h = leadMapApi().mount({ id: "box" }, { onPick() {}, onOpen() {} });
   h.setPins([], null);
   h.destroy();
   h.setPins([{ id: "late", lat: 0, lng: 0, tone: "ok", label: "" }], null);
@@ -104,11 +104,10 @@ test("streets that never come leave the page on its square: every call is nothin
   assert.ok(true);
 });
 
-test("with no basemap nothing is published and nothing is asked for", () => {
-  delete win.__LEAD_MAP;
+test("with no basemap there are no streets and nothing is asked for", () => {
   const s = fakeStreets();
   installLeadMap("", s.load);
   installLeadMap(undefined, s.load);
-  assert.equal(win.__LEAD_MAP, undefined);
+  assert.equal(leadMapApi(), null);
   assert.equal(s.loads(), 0);
 });

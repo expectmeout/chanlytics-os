@@ -1,44 +1,33 @@
 /**
  * The plan panel, the plan card and the strip, drawn (release B, Tasks 9, 10; spec F5).
  *
- * Hookless components on the tests' stub React, as refusals-on-the-page does:
- * each is called with the props LeadsScope hands it, pressed, and read. The
- * page itself (Task 2) is proved in leads-honest.test.mjs; here the three
- * components are proved on their own props, so a change to one of them fails
- * here and not four files away. A fresh Find is Ask's, proved in
+ * Hookless components on the tests' stub React, as refusals-on-the-page does: each is imported from the Leads surface
+ * (surfaces/leads/finder: plan-panel.tsx, plan-card.tsx, strip-view.tsx, with strip.ts's view model and amend.ts's two
+ * acts), called with the props the page hands it, pressed, and read. Their words come from contracts by import, as the
+ * page's do; nothing here publishes a name on the window for them. The two acts that reach out are run against what they
+ * reach: Ask's door is a fake `window.__ask` (legacy-verbs.ts askCalls), and a search's answer is a fake `window.fetch`,
+ * so the request it makes is read as it would go over the wire (surface.ts answerSearch). The page itself is proved in leads-honest.test.mjs; here the three components are proved on their own
+ * props, so a change to one of them fails here and not four files away. A fresh Find is Ask's, proved in
  * ask-palette.test.mjs: nothing here composes one.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LeadSearchPlanSchema, planVersionOf } from "../../../../../packages/contracts/src/leads/search/plan.ts";
-import {
-  LEAD_COUNT_CHOICES,
-  planCeiling,
-  planMinutes,
-} from "../../../../../packages/contracts/src/leads/search/cards.ts";
-import { LEAD_ROUND_ENDINGS } from "../../../../../packages/contracts/src/leads/search/sets.ts";
-import {
-  planArea,
-  planSaid,
-  planSentence,
-  planWhere,
-  planWho,
-  planWords,
-} from "../../../../../packages/contracts/src/leads/search/sentence.ts";
 import {
   LEAD_QUESTION_WAIT_LINE,
+  LEAD_ROUND_ENDINGS,
+  LeadSearchPlanSchema,
   leadEndingLine,
-  leadPlanAsk,
-  leadPlanFacts,
-  leadPlanLikely,
-} from "../../../../../packages/contracts/src/leads/leads.ts";
+  planArea,
+  planSentence,
+  planVersionOf,
+  planWho,
+} from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
 const frames = hookFrames();
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -66,39 +55,26 @@ globalThis.React = {
   useCallback: (fn) => fn,
   useEffect: () => {},
 };
-globalThis.ReactDOM = { createPortal: (n) => n };
+// On a workspace page, so the typed client names the workspace on every request the way it does in the browser.
 globalThis.window = globalThis.window || {};
-// The derivations bag seed-globals.ts publishes: the card and the strip read
-// every word they say from it, never from a spelling of their own.
-Object.assign(globalThis.window, {
-  __LEAD_VM: {
-    planWords,
-    planSaid,
-    planWhere,
-    planWho,
-    planArea,
-    planMinutes,
-    planCeiling,
-    planSentence,
-    planVersionOf,
-    LEAD_COUNT_CHOICES,
-    leadEndingLine,
-    leadPlanLikely,
-    leadPlanFacts,
-    leadPlanAsk,
-    LEAD_QUESTION_WAIT_LINE,
-  },
-});
-// The real glyphs, the kit's now (surfaces/kit/icon): a page's icon draws as it did.
-globalThis.window.Icon = (await import("../../../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx")).Icon;
-await import("../../../../../apps/dashboard/src/legacy/pages/leads-finder.jsx");
-
-// Task 10's view model. The plan writes `leadStrip` in contracts (step 4) and
-// seeds it on `__LEAD_VM` (step 7a); on this branch neither is there, so it is
-// the page's own, published by leads-finder.jsx beside the strip that draws
-// it. Its NINE ENDING SENTENCES are still contracts' `leadEndingLine`, read off
-// the bag above -- which is what the last test in this file pins.
-const leadStrip = (...a) => globalThis.window.leadStrip(...a);
+globalThis.window.location = {
+  pathname: "/w/harbor",
+  hash: "",
+  origin: "https://app.chanlytics.com",
+  assign() {},
+  replace() {},
+};
+// The parts, imported where the page imports them (the stub React is in place first: their JSX compiles to it).
+const { LeadPlanPanel } = await import("../../../../../apps/dashboard/src/surfaces/leads/finder/plan-panel.tsx");
+const { LeadPlanCard } = await import("../../../../../apps/dashboard/src/surfaces/leads/finder/plan-card.tsx");
+const { LeadStrip } = await import("../../../../../apps/dashboard/src/surfaces/leads/finder/strip-view.tsx");
+const { leadStrip, LEAD_ROUND_MAKERS } =
+  await import("../../../../../apps/dashboard/src/surfaces/leads/finder/strip.ts");
+const { leadAnswerPlan, leadFinderApprove } =
+  await import("../../../../../apps/dashboard/src/surfaces/leads/finder/amend.ts");
+const { LEADS_GLOBALS } = await import("../../../../../apps/dashboard/src/surfaces/leads/globals.ts");
+// The real glyphs, the kit's (surfaces/kit/icon): the page imports it, so a page's icon draws as it does there.
+const { Icon } = await import("../../../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -238,7 +214,7 @@ const page = (over = {}) => {
 /** The panel as LeadsScope draws it. `answering` is the row's discriminator, so it is always said: null at rest. */
 const drawFinder = (st, over = {}) => {
   frames.begin();
-  return globalThis.window.LeadPlanPanel({
+  return LeadPlanPanel({
     open: st.open,
     stage: st.stage,
     words: st.words,
@@ -273,11 +249,11 @@ const drawFinder = (st, over = {}) => {
 
 /* ------------------------------------------------------------ the icons */
 
-// What leads-finder.jsx names (the card, the strip, the first day) and what the Leads scope's doors name
-// (leads-scope.jsx: the rail's menu, the controls, the band, the phone's bar). No sparkle: it means written by
-// Claude, and nothing on Leads presses it; no mic: hold-to-talk is Ask's.
+// What the finder names (surfaces/leads/finder: the card, the strip, the first day) and what the Leads scope's doors
+// name (surfaces/leads/scope: the rail's menu, the controls, the band, the phone's bar). No sparkle: it means written
+// by Claude, and nothing on Leads presses it; no mic: hold-to-talk is Ask's.
 test("every icon these three and the Leads doors name draws a shape of its own, not the fallback circle", () => {
-  const Real = globalThis.window.Icon;
+  const Real = Icon;
   const kids = (n) => (n.props.children || []).filter(Boolean);
   const fallback = (n) => kids(n).length === 1 && kids(n)[0].type === "circle" && kids(n)[0].props.r === "3";
   for (const name of [
@@ -301,6 +277,9 @@ test("every icon these three and the Leads doors name draws a shape of its own, 
     "plus",
     "star",
     "phone",
+    "eye",
+    "list",
+    "map",
   ]) {
     assert.ok(kids(Real({ name, size: 14 })).length >= 1, name);
     assert.equal(fallback(Real({ name, size: 14 })), false, `${name} falls through to the circle`);
@@ -312,7 +291,7 @@ test("every icon these three and the Leads doors name draws a shape of its own, 
 
 const drawCard = (st, over = {}) => {
   frames.begin();
-  return globalThis.window.LeadPlanCard({
+  return LeadPlanCard({
     plan: st.plan,
     view: { title: "Find 200 personal trainers" },
     facts: FACTS,
@@ -449,7 +428,7 @@ test("Find N leads commits the card through the route, and a refusal is said und
     },
   };
   const { st, set } = page({ stage: "plan", proposal: CARD, plan: PLAN });
-  await globalThis.window.leadFinderApprove(st.proposal, st.plan, set);
+  await leadFinderApprove(st.proposal, st.plan, set);
   assert.equal(committed.length, 1);
   assert.equal(committed[0].payload.plan.count, 200, "the plan the card holds, not the one the model first wrote");
   assert.deepEqual([st.stage, st.open], ["plan", true], "a refused start leaves the card where it was");
@@ -467,7 +446,7 @@ test("Find N leads commits the card through the route, and a refusal is said und
     }),
   };
   const ok = page({ stage: "plan", proposal: CARD, plan: PLAN, words: "x" });
-  const r = await globalThis.window.leadFinderApprove(ok.st.proposal, ok.st.plan, ok.set);
+  const r = await leadFinderApprove(ok.st.proposal, ok.st.plan, ok.set);
   assert.deepEqual(
     [r.ok, ok.st.open, ok.st.stage, ok.st.proposal, ok.st.words],
     [true, false, "compose", null, ""],
@@ -477,7 +456,7 @@ test("Find N leads commits the card through the route, and a refusal is said und
 
 /* ------------------------------------------ answering a search's question -- */
 
-/** What the page hands the finder when it opens under a waiting search's question (clients-a.jsx answerOf). */
+/** What the page hands the finder when it opens under a waiting search's question (page/search-acts.tsx answerOf). */
 const ANSWERING = {
   searchId: "s-b",
   purpose: "topup",
@@ -487,6 +466,22 @@ const ANSWERING = {
   asked: PLAN.asked,
   leavingOut: ["Chain gyms"],
   threadId: "t-planned",
+};
+
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+/**
+ * A fake `window.fetch` for the finder's doors to a search (surface.ts answerSearch, moreForSearch): it answers every
+ * request with `reply` (the route's envelope, a 200 by default) and keeps what was sent, each as the request line and the
+ * body the route would read.
+ */
+const wire = (reply = { status: 200, body: { ok: true, data: { round_id: "r2" } } }) => {
+  const sent = [];
+  globalThis.window.fetch = async (url, init = {}) => {
+    sent.push({ key: `${init.method ?? "GET"} ${String(url)}`, body: init.body ? JSON.parse(init.body) : undefined });
+    return json(reply.status, reply.body);
+  };
+  return { sent };
 };
 
 test("answering: the panel says the question, sends the owner's words as one turn on the Leads surface, naming the search and the thread it was planned in, and the card comes back carrying amends at the server's version and count", async () => {
@@ -513,7 +508,7 @@ test("answering: the panel says the question, sends the owner's words as one tur
   assert.equal(textOf(byTestId(tree, "plan-answering")), ANSWERING.question, "the question stays in view");
   assert.equal(byTestId(tree, "plan-answer-input").props.placeholder, "Tell Claude what you meant");
   assert.equal(byTestId(tree, "lead-plan-panel").props["aria-label"], "Change the search");
-  const card = await globalThis.window.leadAnswerPlan(st.words, set);
+  const card = await leadAnswerPlan(st.words, set);
   assert.equal(sent.length, 1, "one turn");
   assert.deepEqual(
     sent[0],
@@ -549,7 +544,7 @@ test("answering: the panel says the question, sends the owner's words as one tur
     };
     const fresh = page({ words: "include the chains too" });
     fresh.set.more = ANSWERING;
-    assert.equal(await globalThis.window.leadAnswerPlan(fresh.st.words, fresh.set), null);
+    assert.equal(await leadAnswerPlan(fresh.st.words, fresh.set), null);
     assert.deepEqual(
       [fresh.st.refusal, fresh.st.stage, fresh.st.proposal, fresh.st.plan],
       [refused, "compose", null, null],
@@ -566,7 +561,7 @@ test("answering: the panel says the question, sends the owner's words as one tur
   };
   const unthreaded = page({ words: "  include the chains too " });
   unthreaded.set.more = { ...ANSWERING, threadId: null };
-  await globalThis.window.leadAnswerPlan(unthreaded.st.words, unthreaded.set);
+  await leadAnswerPlan(unthreaded.st.words, unthreaded.set);
   assert.deepEqual(
     [sent[3].text, sent[3].threadId, sent[3].answering],
     ["include the chains too", null, { searchId: "s-b" }],
@@ -574,7 +569,7 @@ test("answering: the panel says the question, sends the owner's words as one tur
   sent.pop();
   // Nothing to answer: the panel never composes a fresh Find (that is Ask's), so it refuses rather than sending.
   const idle = page({ words: "gyms in Denver" });
-  assert.equal(await globalThis.window.leadAnswerPlan(idle.st.words, idle.set), null);
+  assert.equal(await leadAnswerPlan(idle.st.words, idle.set), null);
   assert.deepEqual([idle.st.refusal, idle.st.stage, sent.length], ["Nothing to answer here.", "compose", 3]);
 });
 
@@ -587,7 +582,7 @@ test("answering: a refusal is words under the input and no card, with what was t
   };
   const { st, set } = page({ words: "look in Toronto instead" });
   set.more = ANSWERING;
-  const card = await globalThis.window.leadAnswerPlan(st.words, set);
+  const card = await leadAnswerPlan(st.words, set);
   assert.deepEqual([card, st.stage, st.proposal], [null, "compose", null]);
   const tree = drawFinder(st, { answering: ANSWERING });
   const said = byTestId(tree, "plan-refusal");
@@ -602,7 +597,7 @@ test("answering: a refusal is words under the input and no card, with what was t
   globalThis.window.__ask = {
     send: async (input, on) => on({ t: "error", text: "Chanlytics didn't answer — ask again in a moment." }),
   };
-  await globalThis.window.leadAnswerPlan(st.words, set);
+  await leadAnswerPlan(st.words, set);
   assert.equal(
     st.refusal,
     "Chanlytics didn't answer — ask again in a moment.",
@@ -663,9 +658,7 @@ test("answering: the card's count is words, its button updates the search, an an
   // The card that came back from Ask carries amends: it commits as any card, and the page never posts the answer.
   const amends = { search_id: "s-b", name: "personal trainers", question: ANSWERING.question };
   const committed = [];
-  globalThis.window.__leadSearchAnswer = async () => {
-    throw new Error("an answer from Ask never posts from the page");
-  };
+  const never = wire();
   globalThis.window.__ask = {
     commit: async (p) => {
       committed.push(p);
@@ -683,40 +676,44 @@ test("answering: the card's count is words, its button updates the search, an an
     plan: approved,
     more: ANSWERING,
   });
-  const r = await globalThis.window.leadFinderApprove(s2.proposal, s2.plan, set);
+  const r = await leadFinderApprove(s2.proposal, s2.plan, set);
   assert.equal(r.ok, true);
   assert.equal(committed.length, 1, "one commit");
   assert.deepEqual(committed[0].payload.plan, approved, "the plan approved is the plan committed");
   assert.deepEqual(committed[0].payload.amends, amends, "with what it amends intact");
+  assert.deepEqual(
+    never.sent,
+    [],
+    "and nothing goes over the wire from the page: an answer from Ask never posts from it",
+  );
   assert.deepEqual(
     [s2.open, s2.stage, s2.more],
     [false, "compose", null],
     "started, the panel shuts the one way it shuts, and lets go of the round it answered",
   );
   // The page's Include (a strip's step, no card): the plan is sent as given and the route versions it.
-  const answered = [];
-  globalThis.window.__leadSearchAnswer = async (id, a, plan) => {
-    answered.push([id, a, plan.version]);
-    return { ok: true };
-  };
+  const posted = wire();
   globalThis.window.__ask = {
     commit: async () => {
       throw new Error("a plan opened on the page is not a card");
     },
   };
-  const { st: s3, set: set3 } = page({
-    stage: "plan",
-    proposal: null,
-    plan: { ...PLAN, version: 4, count: 50 },
-    more: ANSWERING,
-  });
-  assert.equal((await globalThis.window.leadFinderApprove(s3.proposal, s3.plan, set3)).ok, true);
-  assert.deepEqual(answered, [["s-b", "include", 4]], "the plan as given: the route versions it");
+  const given = { ...PLAN, version: 4, count: 50 };
+  const { st: s3, set: set3 } = page({ stage: "plan", proposal: null, plan: given, more: ANSWERING });
+  assert.equal((await leadFinderApprove(s3.proposal, s3.plan, set3)).ok, true);
+  assert.deepEqual(
+    posted.sent,
+    [{ key: "POST /api/v1/lead-searches/s-b/answer?workspace=harbor", body: { answer: "include", plan: given } }],
+    "the plan as given, to the search it answers: the route versions it",
+  );
   assert.deepEqual([s3.open, s3.stage, s3.more], [false, "compose", null]);
   // Refused, the card stays where it was, and so does the round it answers, for the next press.
-  globalThis.window.__leadSearchAnswer = async () => ({ ok: false, message: "That question was already answered." });
+  wire({
+    status: 409,
+    body: { ok: false, error: { code: "conflict", message: "That question was already answered." } },
+  });
   const { st: s4, set: set4 } = page({ stage: "plan", proposal: null, plan: PLAN, more: ANSWERING });
-  assert.equal((await globalThis.window.leadFinderApprove(s4.proposal, s4.plan, set4)).ok, false);
+  assert.equal((await leadFinderApprove(s4.proposal, s4.plan, set4)).ok, false);
   assert.deepEqual(
     [s4.open, s4.stage, s4.refusal, s4.more],
     [true, "plan", "That question was already answered.", ANSWERING],
@@ -751,6 +748,26 @@ test("near the month's limit the card offers what is left and says when the lead
     "the clamped count is what is approved, as a new version",
   );
   assert.equal(byTestId(drawCard(st), "plan-covers"), null, "nothing to say when nothing binds");
+});
+
+test("Ask draws the finder's own plan card by name until it moves: surfaces/leads/globals.ts publishes it, and called as a function, as Ask's palette calls it, it draws the plan", () => {
+  assert.equal(LEADS_GLOBALS.LeadPlanCard, LeadPlanCard, "the card the finder draws, not a second one");
+  frames.begin();
+  const tree = LEADS_GLOBALS.LeadPlanCard({
+    plan: PLAN,
+    view: { title: "Find 200 personal trainers" },
+    facts: FACTS,
+    busy: false,
+    refusal: null,
+    onChange() {},
+    onApprove() {},
+    onBack() {},
+  });
+  assert.equal(
+    textOf(byTestId(tree, "plan-sentence")),
+    "Find 200 personal trainers in Austin, TX with a website, reached by a checked email or a phone.",
+  );
+  assert.equal(textOf(byTestId(tree, "plan-approve")), "Find 200 leads");
 });
 
 /* --------------------------------------------------- Task 10: the strip */
@@ -801,7 +818,7 @@ const ended = (ending, over = {}) =>
 const ids = (vm) => vm.actions.map((a) => a.id);
 const drawStrip = (search, acted, extra = {}) => {
   frames.begin();
-  return globalThis.window.LeadStrip({
+  return LeadStrip({
     vm: leadStrip(search, NOW, extra),
     onAction: (id, arg) => acted.push([id, arg]),
   });
@@ -940,7 +957,7 @@ test("every ending is one strip with one next step, and each draws its own words
       leadStrip(
         withRound({ state: "ended", ending, counted: 61, ended_at: "2026-09-19T14:30:00Z" }),
         NOW,
-      ).actions.filter((a) => globalThis.window.LEAD_ROUND_MAKERS.includes(a.id)).length <= 1,
+      ).actions.filter((a) => LEAD_ROUND_MAKERS.includes(a.id)).length <= 1,
       `${ending} offers more than one next step`,
     );
     assert.equal(
@@ -1104,37 +1121,50 @@ test("an ending never re-sorts by itself: it offers Sort by fit, and says how ma
     null,
     "nothing waiting, nothing said",
   );
-  assert.equal(globalThis.window.LeadStrip({ vm: null, onAction() {} }), null);
+  assert.equal(LeadStrip({ vm: null, onAction() {} }), null);
 });
 
-test("the nine ending sentences are contracts' leadEndingLine, never the strip's own: with no leadEndingLine there is no ended strip", () => {
-  const bag = globalThis.window.__LEAD_VM;
-  try {
-    globalThis.window.__LEAD_VM = { ...bag, leadEndingLine: undefined };
-    assert.equal(
-      leadStrip(ended("target_reached"), NOW),
-      null,
-      "a word this file cannot read from contracts is a word it does not say",
+test("the nine ending sentences are contracts' leadEndingLine, never the strip's own: each ended strip says the line contracts writes for this round's numbers", () => {
+  for (const ending of LEAD_ROUND_ENDINGS) {
+    const search = ended(ending);
+    const r = search.round;
+    // The facts the strip reads off the round and its plan, written out here from the fixture, not from the strip.
+    const line = leadEndingLine(ending, {
+      name: planWho(PLAN),
+      area: planArea(PLAN.area),
+      counted: r.counted,
+      target: r.target,
+      emails: r.emails_checked,
+      phones: r.with_phone,
+      excluded: r.excluded,
+      checking: false,
+      foundBefore: r.counted,
+      nearby: [],
+      seen: r.qualified + r.review + r.excluded,
+      leftOutBy: "chain gyms",
+    });
+    const vm = leadStrip(search, NOW);
+    assert.deepEqual(
+      [vm.title, vm.parts],
+      [line.title, line.parts],
+      `${ending}: the strip's words are contracts' words`,
     );
-    assert.equal(globalThis.window.LeadStrip({ vm: leadStrip(ended("target_reached"), NOW), onAction() {} }), null);
-    const running = leadStrip(SEARCH, NOW);
-    assert.equal(
-      running.title,
-      "Finding personal trainers in Austin, TX",
-      "the running, checking and question lines are the strip's own and still draw",
-    );
-  } finally {
-    globalThis.window.__LEAD_VM = bag;
   }
+  const running = leadStrip(SEARCH, NOW);
+  assert.equal(
+    running.title,
+    "Finding personal trainers in Austin, TX",
+    "the running, checking and question lines are the strip's own",
+  );
 });
 
 test("holding the band, the strip drops its own ways into each pile -- the band's tabs are those doors -- and keeps its one next step", () => {
   const search = ended("target_reached", { qualified: 21, review: 14, excluded: 40 });
   frames.begin();
-  const alone = globalThis.window.LeadStrip({ vm: leadStrip(search, NOW), onAction: () => {} });
+  const alone = LeadStrip({ vm: leadStrip(search, NOW), onAction: () => {} });
   assert.ok(byTestId(alone, "strip-review"), "with no band, the strip is the way into the pile");
   frames.begin();
-  const held = globalThis.window.LeadStrip({ vm: leadStrip(search, NOW), onAction: () => {}, children: "the band" });
+  const held = LeadStrip({ vm: leadStrip(search, NOW), onAction: () => {}, children: "the band" });
   assert.equal(
     byTestId(held, "strip-review"),
     null,

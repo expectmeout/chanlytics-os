@@ -20,7 +20,7 @@ import {
 } from "../calendar/calendar-people";
 import type { ChannelsReady } from "../broadcasts/reach-for";
 import { isConsultationTitle } from "../deals/deal-consultations";
-import type { ListContext } from "./lists";
+import type { ListContext } from "./lists/lists";
 import type { PersonRowDto } from "./person-dto";
 import { toPersonRowVM, type PersonRowVM } from "./person-row";
 

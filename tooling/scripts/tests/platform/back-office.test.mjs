@@ -553,7 +553,11 @@ test("the nav's one bit rides on the payload the seam already fetches", () => {
     "apps/dashboard/app/api/v1/workspaces/route.ts",
     "apps/dashboard/src/server/workspace/workspace-list.ts",
   );
-  assert.match(route, /const platformAdmin = await isPlatformAdmin\(ctx\);/);
+  // Read beside the boot's other reads, not after them (2 Oct 2026): one of the answers the route awaits together.
+  assert.match(
+    route,
+    /\[tenants, profileRead, platformAdmin, [\s\S]*?\] = await Promise\.all\(\[[\s\S]*?isPlatformAdmin\(ctx\),/,
+  );
   assert.match(route, /platform_admin: platformAdmin/);
   // Both exits carry it: the one with workspaces and the one for somebody who
   // has none yet. A missing field reads as false and hides the tab from an

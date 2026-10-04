@@ -3,7 +3,7 @@
  * today's and the earlier one, each filled with the business's details as it goes out (fallbackMessages).
  */
 import { resolveFacts, type KnownFacts } from "../facts";
-import type { BrainConfig } from "./brain-config";
+import type { BrainConfig } from "./brain-config-schema";
 
 /** The details a message sent in the business's name may name, as the owner writes them. */
 export const FALLBACK_DETAILS = ["business", "booking link", "phone"] as const;

@@ -5,7 +5,7 @@
  * one function here, which calls the window's own where it is and does what the page did where it is not (the
  * standalone harness, a test's stand-in window). Today reads more of the shell than any surface: the nine it draws
  * from (`ROUTE_DRAWS.today`), the frame's doors, the toast, the role gate, and the pages of the shell that draw the
- * rows it borrows (the agenda, Setup's card rows). Each is a line to delete on the day its owner moves; nothing here
+ * rows it borrows (the agenda). Each is a line to delete on the day its owner moves; nothing here
  * is new behaviour.
  *
  * Reads are made when the page asks, never when this loads: a stand-in window a test builds later is the one read.
@@ -13,11 +13,10 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { ComponentType } from "react";
 import type { VoiceAction, VoiceStart } from "@/legacy-bridge/ask/voice";
-import type { GoogleSurface } from "@/legacy-bridge/google";
 import type { BellApi } from "@/legacy-bridge/notifications";
 import type { PageClock } from "@/legacy-bridge/zone";
-import type { FirstRunApi, SetupApi, SetupSurface } from "@/legacy-bridge/setup";
 import { surfaceHook } from "@/legacy-bridge/surface-status";
+import { bcWhenWords as whenWords } from "../campaigns/broadcasts/when-words";
 import type { SurfaceNames } from "@/legacy-bridge/surface-status";
 import { lookNow } from "../kit/look/look";
 import { askAbout, canDo, holdStill } from "../legacy-verbs";
@@ -136,31 +135,9 @@ interface BroadcastVerbs {
   approve(id: string, opts?: { onAccepted?: (data: NonNullable<VerbAnswer["data"]>) => void }): Promise<VerbAnswer>;
 }
 
-/** When a run really goes, in words (`window.bcWhenWords`, broadcasts-real.jsx): "sending now" where the shell has none. */
+/** When a run really goes, in words (campaigns/broadcasts/when-words.ts): the server moves a send outside 9:00-20:59 to nine. */
 export function bcWhenWords(data: unknown): string {
-  const words = fn<[unknown], string>("bcWhenWords");
-  return words ? words(data) : "sending now";
-}
-
-/** The first run's helpers (`window.__firstRun`) and Setup's payload and verbs, as the Today card draws them. */
-export function firstRun(): FirstRunApi | undefined {
-  return object<FirstRunApi>("__firstRun");
-}
-export function setupRead(): SetupSurface | null | undefined {
-  const v = windowValue("__SETUP");
-  return v === null ? null : object<SetupSurface>("__SETUP");
-}
-export function setupVerbs(): SetupApi | undefined {
-  return object<SetupApi>("__setup");
-}
-
-/** The Google surface as the bridge published it (`window.__GOOGLE`) and its view-model helper (`window.__google`). */
-export function googleRead(): GoogleSurface | undefined {
-  return object<GoogleSurface>("__GOOGLE");
-}
-export function googleVm():
-  { vm(dto: GoogleSurface["dto"], days: number): { todayLine: { text: string; to: string } | null } } | undefined {
-  return object("__google");
+  return whenWords(data && typeof data === "object" ? data : null);
 }
 
 /* -------------------------- what the pages of the shell draw -------------------------- */
@@ -170,10 +147,6 @@ function component<P>(name: string): ComponentType<P> | undefined {
   const v = windowValue(name);
   return typeof v === "function" ? (v as ComponentType<P>) : undefined;
 }
-
-/** Setup's card rows (setup.jsx `SetupCardRow`, `SetupRows`), which Today's card of what is left to set up draws. */
-export const setupCardRow = <P>(): ComponentType<P> | undefined => component<P>("SetupCardRow");
-export const setupRows = <P>(): ComponentType<P> | undefined => component<P>("SetupRows");
 
 /** The one row every list of appointments wears (components/day-agenda.jsx), which the day's card draws. */
 export const agendaItem = <P>(): ComponentType<P> | undefined => component<P>("AgendaItem");

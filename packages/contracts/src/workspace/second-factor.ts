@@ -6,7 +6,6 @@
  * reset say, and how the Auth server's refusals read to a person. Supabase Auth holds the factor; nothing here stores
  * or checks one.
  */
-import { z } from "zod";
 
 /** What Supabase Auth says about a session: the level it has, and the level its account can reach. */
 export interface AssuranceLevels {
@@ -113,14 +112,6 @@ export function cleanFactorCode(raw: unknown): string | null {
   const code = String(raw ?? "").replace(/\s+/g, "");
   return /^\d{6}$/.test(code) ? code : null;
 }
-
-/** `POST platform/partners/second-factor`: whose, and why. */
-export const PartnerSecondFactorResetSchema = z
-  .object({
-    partner_id: z.string().uuid("That partner does not exist."),
-    why: z.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters."),
-  })
-  .strict();
 
 /** The back office's answer, in words. */
 export function secondFactorResetWords(code: string, removed: number): string {

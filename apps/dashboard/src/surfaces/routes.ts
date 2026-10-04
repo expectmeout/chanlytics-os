@@ -10,9 +10,9 @@
  *
  * A route may take addresses under it (`clients/<id>`, `clients/pipeline:v-board`): `takes` says which of the
  * route's params the page draws, and `chrome` names the crumbs an address has, as the row's `draw` did. An address the
- * page does not take stays with the frame's table (People's Leads scope, until Leads leaves).
+ * page does not take stays with the frame's table, which draws its row or says it is not found.
  */
-import { CAMPAIGN_ROOMS } from "@chanlytics/contracts";
+import { CAMPAIGN_ROOMS, FIRST_RUN_WORDS } from "@chanlytics/contracts";
 import { broadcastsChrome, campaignsChrome } from "./campaigns/routes";
 import { calendarChrome } from "./calendar/chrome";
 import { conversationsCrumbs, conversationsNav, inboxCrumbs } from "./inbox/routes";
@@ -59,7 +59,7 @@ interface SurfaceRoute {
   pane: boolean;
   /** Every address under the route (`inbox/th-1`) is the route's page too: the page follows it and stays mounted across it. */
   params?: boolean;
-  /** Which params of the route the page draws, where not every one is (`clients/<id>` but not `clients/leads`); absent, the route alone. */
+  /** Which params of the route the page draws, where not every one is (`clients/<id>`, `clients/leads:…`); absent, the route alone. */
   takes?: (param: string) => boolean;
   /** What the frame keys the view's mount by, for a page that follows its address (the row's `mount`). */
   mount?: string;
@@ -133,8 +133,8 @@ export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
     takes: () => true,
     chrome: () => calendarChrome(),
   },
-  // People, the shell's `clients` (path word `people`): the list, its views, the New list door, the Pipeline and a person's
-  // page (people/chrome.ts). Leads stays with the frame's table until its surface moves.
+  // People, the shell's `clients` (path word `people`): the list, its views, the New list door, its Leads scope, the
+  // Pipeline and a person's page (people/chrome.ts).
   clients: {
     activeNav: "clients",
     crumbs: ["People"],
@@ -144,6 +144,9 @@ export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
   },
   // Lists (path word `lists`): a list's own address lands on People with that list picked (people/lists-route.tsx).
   segments: { activeNav: "clients", crumbs: ["People"], pane: true, takes: () => true },
+  // The first run (setup/first-run/): every step's address (`start/phone`) is its page, which the frame draws full screen,
+  // without its chrome; the crumb names the tab.
+  start: { activeNav: "home", crumbs: [FIRST_RUN_WORDS.title], pane: false, params: true, mount: "start" },
 };
 
 const pageOf = (route: string): string => (route.includes("/") ? route.slice(0, route.indexOf("/")) : route);
@@ -151,7 +154,7 @@ const paramOf = (route: string): string => (route.includes("/") ? route.slice(ro
 
 /**
  * Whether an address is one of these routes' page: the route alone, `reports`, or an address under it that the page
- * takes (`inbox/th-1`, `clients/c-1`). An address the page does not take (`reports/anything`, `clients/leads`) is the frame's
+ * takes (`inbox/th-1`, `clients/c-1`). An address the page does not take (`reports/anything`) is the frame's
  * table's, which draws its row, or says it is not found.
  */
 export function routeHasPage(route: string, routes: Readonly<Record<string, SurfaceRoute>> = SURFACE_ROUTES): boolean {

@@ -12,10 +12,10 @@
  *
  * So: no-store, everything, always. This serves a design review, not traffic.
  *
- * Five files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
+ * Six files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
  * `data/inbox-globals.js`, the Inbox's and Conversations' seeded rows and rules under the names the pages here still read,
- * `data/people-globals.js`, People's shared parts (the table, the rail kit, the list page's two hooks: TSX since decision 0015,
- * step 5) the Leads scope, the Pipeline and the person page still draw by name,
+ * `data/people-globals.js`, People's parts the shell still draws by name (the strip's scopes and the deal and step sheets:
+ * TSX since decision 0015, step 5), `data/leads-globals.js`, Leads' plan card, which Ask's palette draws by name,
  * `data/business-tab.js`, the Business tab's helpers, and `data/mascot.js`
  * (see SAMPLES below). Two are read from outside the tree: the kit's stylesheet and Campaigns' (OUTSIDE_CSS below).
  *
@@ -86,7 +86,7 @@ const SAMPLES = {
     atDashboard: true,
     watch: ["apps/dashboard/src/surfaces/people", "apps/dashboard/src/legacy-bridge"],
   },
-  // The lead peek's names (surfaces/leads/globals.ts), on the page's own React, for the Leads pages that have not moved.
+  // Leads' plan card (surfaces/leads/globals.ts), on the page's own React, which Ask's palette draws by name until it moves.
   "/data/leads-globals.js": {
     entry: path.join(REPO, "apps/dashboard/src/surfaces/leads/globals.ts"),
     globalName: "__LG",
@@ -115,7 +115,8 @@ const SAMPLES = {
   "/data/business-tab.js": {
     entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/business-tab.ts"),
     globalName: "__BT",
-    footer: "__BT.installBusinessTab();",
+    // And the save's own rules, which the page asks for as the tab mounts: bundled in, so here at once.
+    footer: "__BT.installBusinessTab(); __BT.loadSaveRules();",
   },
   // Not a sample either: the three (legacy-bridge/mascot), the character Ask's face draws (components/ask-face.jsx:
   // the top bar's button, the Stage and the phone's ✦), so the mockup's Ask has its face.
@@ -170,6 +171,8 @@ async function sampleBundle(route) {
     write: false,
     logLevel: "silent",
     alias: {
+      // The schemas a page asks for by import() (contracts' write-rules entry), bundled in, as the mockup has no chunks.
+      "@chanlytics/contracts/write-rules": path.join(REPO, "packages/contracts/dist/write-rules.js"),
       "@chanlytics/contracts": CONTRACTS,
       ...(s.atDashboard ? { "@": path.join(REPO, "apps/dashboard/src") } : {}),
     },

@@ -64,8 +64,6 @@ export {
 export type { SharedEventKind } from "./event-data";
 export {
   signupPosture,
-  pendingWorkspaceOf,
-  pendingCodeOf,
   sendFailureIsOurs,
   addressAlreadyKnown,
   emailNotConfirmed,
@@ -77,15 +75,20 @@ export {
   verifyCodeWords,
   SIGNUP_NAME_MIN,
   SIGNUP_NAME_MAX,
-  InviteCodeSchema,
-  SignupSchema,
   SIGNUP_WAITLIST,
   PENDING_WORKSPACE_KEY,
-  PendingWorkspaceSchema,
   SIGNUP_WORDS,
   SIGNIN_RESEND_COOLDOWN_S,
 } from "./signup";
-export type { SignupInput, SignupPosture, PendingWorkspace, FirstWorkspaceDoor } from "./signup";
+export {
+  pendingWorkspaceOf,
+  pendingCodeOf,
+  InviteCodeSchema,
+  SignupSchema,
+  PendingWorkspaceSchema,
+} from "./signup-schema";
+export type { SignupPosture, FirstWorkspaceDoor } from "./signup";
+export type { SignupInput, PendingWorkspace } from "./signup-schema";
 export { passwordProblem, isUsablePassword, PASSWORD_MIN, PASSWORD_MAX_BYTES, PASSWORD_WORDS } from "./password";
 export {
   receptionistOn,
@@ -148,7 +151,6 @@ export {
   PARTNER_CODES_RESERVED,
   cleanPartnerCode,
   isPartnerCode,
-  PartnerBecomeSchema,
   partnerPathFor,
   partnerLinkFor,
   PARTNER_COOKIE,
@@ -162,6 +164,7 @@ export {
   PARTNER_STANDING_WORDS,
   partnerWorkspacesVM,
 } from "./partner";
+export { PartnerBecomeSchema } from "./partner-schema";
 export type {
   PartnerDto,
   PartnerBalanceRow,
@@ -190,23 +193,22 @@ export type {
   PlatformPartnerRowVM,
   PlatformPartnerStandingVM,
 } from "./partner";
-export { PartnerLettersSchema, PartnerLetterNewsSchema, partnerPaneUrl, partnerLetter } from "./partner";
-export type { PartnerLetterNews } from "./partner";
+export { partnerPaneUrl, partnerLetter } from "./partner";
+export { PartnerLettersSchema, PartnerLetterNewsSchema } from "./partner-schema";
+export type { PartnerLetterNews } from "./partner-schema";
 export {
   HANDOVER_DAYS,
   HANDOVER_WAITING_MAX,
   HANDOVER_WORDS,
-  HandoverCreateSchema,
-  HandoverResendSchema,
   handoverInviteEmail,
   handoverRoom,
   handoverUntilWords,
   maskedEmail,
   partnerHandoverVM,
 } from "./handover";
+export { HandoverCreateSchema, HandoverResendSchema } from "./handover-schema";
 export type { HandoverState, OpenHandoverDto, PartnerHandoverDto, PartnerHandoverVM } from "./handover";
 export {
-  PartnerSecondFactorResetSchema,
   SECOND_FACTOR_LEVEL,
   SECOND_FACTOR_PATH,
   SECOND_FACTOR_REQUIRED_PATH,
@@ -219,17 +221,18 @@ export {
   secondFactorResetWords,
   secondFactorShown,
 } from "./second-factor";
+export { PartnerSecondFactorResetSchema } from "./second-factor-schema";
 export type { AssuranceLevels } from "./second-factor";
 export {
   PARTNER_INVITE_DAYS,
   PARTNER_INVITE_WORDS,
-  PartnerInviteSchema,
   partnerCodeFrom,
   partnerInvitationWords,
   partnerInviteEmail,
   partnerJoinedWords,
   workspacePartnerVM,
 } from "./partner-invite";
+export { PartnerInviteSchema } from "./partner-invite-schema";
 export type {
   PartnerInvitationDto,
   WorkspacePartnerDto,

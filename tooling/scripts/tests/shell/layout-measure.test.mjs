@@ -153,20 +153,11 @@ test("the focus ring is a default, not a list of names", () => {
   );
 });
 
-test("a settings control is named by the row it sits in", () => {
-  // Every switch rendered as an unlabelled role="switch": the words that say
-  // what it does live in the left column and nothing tied the two together, so
-  // a screen reader announced "switch, on" all the way down Notifications.
-  const settings = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(settings.includes("React.useId()"), "the row mints an id for its label");
-  assert.ok(settings.includes('aria-labelledby": labelId'), "and hands it to the control");
-  assert.ok(
-    settings.includes('!kid.props["aria-label"] && !kid.props["aria-labelledby"]'),
-    "a control that brings its own name keeps it",
-  );
-  // The controls have to forward it or the name never lands on the element:
-  // settings-words.test.mjs draws each row's control and reads it off the element.
-});
+// A settings control is named by the row it sits in: every switch rendered as an unlabelled role="switch", the words
+// that say what it does in the left column and nothing tying the two together, so a screen reader announced "switch,
+// on" all the way down Notifications. The row (surfaces/settings/autonomy/controls.tsx SetRow, decision 0015 step 11)
+// mints its label's id and hands it to the control it draws; settings-words.test.mjs ("a settings control is named by
+// the row it sits in") draws each row's control and reads the name off the element.
 
 test("on a phone a thread opens by coming in from the right, over where the list stood -- transform and opacity only, and none under reduced motion", () => {
   // The list cut to a pane fading up in place read as a jolt (Ruben, 22 Sep 2026). A page on a phone comes in from

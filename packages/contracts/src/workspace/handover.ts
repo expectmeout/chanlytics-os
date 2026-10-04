@@ -5,35 +5,11 @@
  * waiting row and the accept screen say. The fourteen days and the ten waiting are the database's (00214); they are
  * restated here only to be said, never enforced.
  */
-import { z } from "zod";
 import { dayWords } from "./partner";
 
 /** How long a handover is open, and how many workspaces a partner may have waiting for an owner (00214). */
 export const HANDOVER_DAYS = 14;
 export const HANDOVER_WAITING_MAX = 10;
-
-const ownerEmail = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .max(254, "That address is too long.")
-  .regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-
-/** `POST partner/workspaces`: the business's name, its zone, and its owner's address. */
-export const HandoverCreateSchema = z
-  .object({
-    name: z
-      .string()
-      .trim()
-      .min(2, "A workspace needs a name of at least 2 characters.")
-      .max(120, "That name is too long: 120 characters at most."),
-    timezone: z.string().trim().max(64).nullish(),
-    email: ownerEmail,
-  })
-  .strict();
-
-/** `POST partner/workspaces/[id]/resend`: the address, the same or another. */
-export const HandoverResendSchema = z.object({ email: ownerEmail }).strict();
 
 /** A handover waiting for the signed-in person, as `GET workspaces` carries it on the person. */
 export interface OpenHandoverDto {

@@ -152,7 +152,7 @@ const PROMPT: BlockMark = {
   // The second sentence is the rules fold's own, word for word (config.ts NO_FIELDS_COMPOSED_WORDS): the two notes
   // are on one page, and an owner who reads both should read the same thing twice, not two near-misses.
   //
-  // Marked pure for the reason business-tab.ts gives beside GUARDRAIL_KEYS: a substitution makes this an expression
+  // Marked pure for the reason rule-strengths.ts gives beside STRENGTHS: a substitution makes this an expression
   // the bundler keeps at the top level, and the prompt view is drawn on one tab of the dashboard and nowhere else.
   note: /* @__PURE__ */ (() => `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS}`)(),
 };

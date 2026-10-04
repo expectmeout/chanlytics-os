@@ -468,19 +468,20 @@ Object.assign(globalThis.window, {
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,
 });
-// People's shared parts, published under the names the pages that have not moved read them by (people-globals.ts: the
-// table, the rail kit, the list page's hooks, the words), on the window and as the bare names a classic script reads; and
-// the saved lists' verbs, which the person page reads as `window.__lists`. The page itself is TSX, imported here.
+// People's parts the shell still reads by name (people-globals.ts: the strip's scopes, the deal and step sheets), on the
+// window and as the bare names a classic script reads; and the saved lists' verbs, which the person page reads as
+// `window.__lists`. The page itself is TSX, imported here.
 Object.assign(globalThis.window, peoplePages);
 Object.assign(globalThis, peoplePages);
 installLists();
 const { PeopleReal } = await import("../../../../apps/dashboard/src/surfaces/people/page/people-real.tsx");
 const { PL_FIRST_ROWS, PL_WINDOW_ROWS, PL_WINDOW_STEP } =
   await import("../../../../apps/dashboard/src/surfaces/people/table/row-window.ts");
-// The Leads scope reads People's hooks (usePeople, usePlControls, usePlPlace) and its bar and rail kit by those names.
-await import("../../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
 // The person's lists are TSX (surfaces/people/person): they read People through the seam, which the override publishes.
 const { PersonLists } = await import("../../../../apps/dashboard/src/surfaces/people/person/lists.tsx");
+// The phone's sheets and their rows (surfaces/people/sheets/phone-sheet.tsx), which People and Leads import.
+const { PhoneSheet, PhoneSheetRow } =
+  await import("../../../../apps/dashboard/src/surfaces/people/sheets/phone-sheet.tsx");
 // The kit's Menu, which the phone's bulk bar draws for Add to list (a node is found by its type).
 const { Menu } = await import("../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
 /** A bar's menu by its words, as the old MoreMenu's props read: the kit's Menu draws it, its trigger the page's Button, its groups
@@ -1348,8 +1349,8 @@ test("Esc closes the phone's own sheet, and the page holds its keys while one is
   }));
 
 test("a phone sheet's list is rows of one shape, and a step inside a sheet has a way back", () => {
-  const Row = globalThis.window.PhoneSheetRow;
-  const Sheet = globalThis.window.PhoneSheet;
+  const Row = PhoneSheetRow;
+  const Sheet = PhoneSheet;
   let pressed = 0;
   const row = Row({
     icon: "edit",
@@ -2181,14 +2182,22 @@ test("a list's own route lands on People with that list picked -- Playbooks' lis
   assert.equal(route(null), "clients");
 });
 
-test("the Leads scope still loads over People's shared parts: it reads the list page's hooks, its phone bar and the rail's toggle by name, and the app publishes them from the TSX", () => {
-  // leads-real.jsx (People's other scope, drawn in leads-honest.test.mjs) is a classic script: it finds these on the window, by
-  // the names the JSX pages this file replaced gave them (surfaces/people/people-globals.ts).
-  assert.equal(typeof globalThis.window.LeadsReal, "function", "the Leads scope is loaded");
-  for (const name of ["usePeople", "usePlControls", "usePlPlace", "PeoplePhoneBar", "railToggle", "plScopeRoute"]) {
-    assert.equal(globalThis.window[name], peoplePages[name], `${name} is the one the TSX publishes`);
-    assert.notEqual(globalThis.window[name], undefined, `${name} is published`);
-  }
+test("the Leads scope imports People's parts: the list page's hooks, the table and the rail kit are on no window, and only what the shell still draws by name is", () => {
+  // Leads is TSX (surfaces/leads, decision 0015 step 9): it imports People's hooks, its phone bar and the rail's toggle, so
+  // the names the JSX read them by are published no more, and what was published kept them in the shell's chunk.
+  for (const name of [
+    "usePeople",
+    "usePlControls",
+    "usePlPlace",
+    "PeoplePhoneBar",
+    "railToggle",
+    "PeopleTable",
+    "PhoneSheet",
+  ])
+    assert.equal(peoplePages[name], undefined, `${name} is imported, not published`);
+  // The shell's strip draws People's scopes by name (components/surface-tabs.jsx) until it moves.
+  for (const name of ["plScopes", "plScopeRoute", "PeopleScopeTabs"])
+    assert.equal(typeof peoplePages[name], "function", name);
 });
 
 test("REGRESSION: on a list, the Offers column shows the answer about offers -- the Lists page showed the yes to messages under the Offers heading", async () => {

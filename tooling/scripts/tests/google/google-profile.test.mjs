@@ -771,10 +771,13 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   assert.ok(rate.includes("google_reply: {"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
   assert.ok(
-    bridge.includes('win.location.assign(api().url("GET google/connect"));') &&
+    bridge.includes('window.location.assign(api().url("GET google/connect"));') &&
       bridge.includes("outcomeWords: CONNECT_OUTCOME_WORDS"),
   );
-  const card = readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx");
+  // The card is TSX now: the pane (its note and its rows), the row (its verbs and its Confirm) and the location choice.
+  const card = ["pane", "row", "google-choose"]
+    .map((f) => readCode(`apps/dashboard/src/surfaces/settings/connections/${f}.tsx`))
+    .join("\n");
   for (const t of ["google-choose", "google-place-choose", "google-note"])
     assert.ok(card.includes(`data-testid="${t}"`), t);
   assert.ok(card.includes('testid="google-disconnect"'), "the disconnect asks through the one Confirm");

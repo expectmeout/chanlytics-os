@@ -94,7 +94,9 @@ test("F51: a cross-site GET of the workspaces reads and writes nothing", () => {
     "apps/dashboard/app/api/v1/workspaces/route.ts",
     "apps/dashboard/src/server/workspace/workspace-list.ts",
   );
-  assert.ok(route.includes("isSameOrigin(_req) && (await acceptOpenInvites(userId, email ?? null)) > 0"));
+  // The lookup and the acceptance both wait on the request being the app's own: a cross-site read reads no invitation.
+  assert.ok(route.includes("const invited = isSameOrigin(_req) ? openInvitesFor(email ?? null) : null;"));
+  assert.ok(route.includes("if (invited && (await acceptOpenInvites(userId, email ?? null, invited)) > 0) {"));
   assert.ok(route.includes('from "@/server/request-guards"'));
 });
 

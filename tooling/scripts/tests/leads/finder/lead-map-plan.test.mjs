@@ -1,15 +1,13 @@
 /**
- * The lead map's streets, the part with no browser in it (legacy-bridge/lead-map-plan.ts):
+ * The lead map's streets, the part with no browser in it (surfaces/leads/map/lead-map-plan.ts):
  * where the bundle lives, the style the streets are drawn in, what ground the archive
  * covers, and the arithmetic that puts contracts' square on the ground.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { importSrc } from "../../_source.mjs";
 
-const { leadMapBase, leadMapStyle, leadMapCovers, metresPerPixel, squareBounds, LEAD_MAP_ARCHIVE } = await importSrc(
-  "apps/dashboard/src/legacy-bridge/lead-map-plan.ts",
-);
+const { leadMapBase, leadMapStyle, leadMapCovers, metresPerPixel, squareBounds, LEAD_MAP_ARCHIVE } =
+  await import("../../../../../apps/dashboard/src/surfaces/leads/map/lead-map-plan.ts");
 
 test("the base: unset or blank means no streets; a trailing slash is not part of an address", () => {
   assert.equal(leadMapBase(undefined), null);

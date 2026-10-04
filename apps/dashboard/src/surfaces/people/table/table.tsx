@@ -12,7 +12,7 @@ import { EmptyState } from "../../kit/empty/empty";
 import type { TableColumn, TableCtx, TableEmpty, TableRow } from "../types";
 
 /** The table's default for a door its page does not pass: one function, one set, for the page's life. */
-export const PL_NO_SEL: ReadonlySet<string> = new Set();
+const PL_NO_SEL: ReadonlySet<string> = new Set();
 const PL_NOOP = (): void => undefined;
 
 /**
@@ -26,7 +26,7 @@ const PL_NOUNS: Record<string, { one: string; many: string; all: string }> = {
 };
 
 /** The rows in groups (the Pipeline's stages): each its own <tbody> under a header row that names it. */
-interface TableSection<R extends TableRow> {
+export interface TableSection<R extends TableRow> {
   key: string;
   label: ReactNode;
   meta?: ReactNode;

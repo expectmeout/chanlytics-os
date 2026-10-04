@@ -20,7 +20,8 @@ import {
   LEAD_JUDGE_BATCH,
   LEAD_ESTIMATE_MARGIN,
 } from "../../../../../packages/contracts/src/leads/search/caps.ts";
-import { LeadSearchPlanSchema, planVersionOf } from "../../../../../packages/contracts/src/leads/search/plan.ts";
+import { planVersionOf } from "../../../../../packages/contracts/src/leads/search/plan.ts";
+import { LeadSearchPlanSchema } from "../../../../../packages/contracts/src/leads/search/plan-schema";
 import {
   planSentence,
   planWords,

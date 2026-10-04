@@ -3,7 +3,7 @@ import { getTenantConfig, listPolicies } from "@chanlytics/db";
 import { tenantFacts } from "../tenant";
 import { sellsByOf } from "../people/deals";
 import { channelsReadyOrNull } from "../campaigns/channels-ready";
-import { load, stamp, type Reader, type ReaderContext } from "./index";
+import { FACTS_READER, load, stamp, type Reader, type ReaderContext } from "./index";
 import { type ChannelsReady, MIN_MS } from "@chanlytics/contracts";
 
 /**
@@ -18,7 +18,7 @@ import { type ChannelsReady, MIN_MS } from "@chanlytics/contracts";
  */
 
 export const facts: Reader<undefined, { name: string; timezone: string }> = {
-  name: "facts",
+  name: FACTS_READER,
   ttlMs: 5 * MIN_MS,
   async read(rc) {
     return { data: await tenantFacts(rc.ctx.supabase, rc.tenantId), rows: [], stamp: stamp() };

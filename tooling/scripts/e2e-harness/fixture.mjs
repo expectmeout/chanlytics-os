@@ -25,7 +25,12 @@ export async function buildFixture(record) {
     target: "es2020",
     write: false,
     logLevel: "warning",
-    alias: { "@chanlytics/contracts": "./packages/contracts/src/index.ts", "@": "./apps/dashboard/src" },
+    alias: {
+      // The schemas a page asks for by import() (contracts' write-rules entry), bundled in, as the fixture has no chunks.
+      "@chanlytics/contracts/write-rules": "./packages/contracts/src/write-rules.ts",
+      "@chanlytics/contracts": "./packages/contracts/src/index.ts",
+      "@": "./apps/dashboard/src",
+    },
     banner: {
       js:
         `window.__HX_SCENARIO = ${JSON.stringify(record)};` +

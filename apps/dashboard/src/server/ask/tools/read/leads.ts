@@ -111,7 +111,7 @@ function leadLine(vm: LeadRowVM, route: string) {
   };
 }
 
-/** The searches as the Leads page holds them, by id, to hand each row its own (legacy-bridge/leads.ts vmOf). */
+/** The searches as the Leads page holds them, by id, to hand each row its own (surfaces/leads/surface.ts vmOf). */
 const searchesById = async (t: ToolContext, why: string) =>
   new Map(
     ((await load(t.rc, searches, undefined).then((r) => r.data.searches, unread(t, why, "searches"))) ?? []).map(
