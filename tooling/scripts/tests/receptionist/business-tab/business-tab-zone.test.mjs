@@ -119,6 +119,8 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
   });
   installIdentity(W);
   installBusinessTab();
+  // The save's own rules, which the tab asks for as it mounts: what a fold will say is judged by them.
+  await W.__businessTab.loadSaveRules();
   const stop = startSurfaces([settingsOverride]);
   try {
     await quiet(async () => {

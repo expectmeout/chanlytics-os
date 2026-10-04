@@ -35,7 +35,7 @@ export interface Flash {
   undo?: (() => unknown) | null;
   ms?: number;
   links?: Array<{ label: string; to: string }>;
-  action?: { label: string; onClick: () => void };
+  action?: { label: string; onClick: () => unknown } | null;
 }
 
 /** The toast's node, to be drawn by the page, and the flash that raises one. */

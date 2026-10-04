@@ -23,7 +23,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
-import { readCode, readRaw } from "../_source.mjs";
+import { readCode, readRaw, importSrc } from "../_source.mjs";
 import {
   registrationPathOf,
   businessFieldsFor,
@@ -50,7 +50,7 @@ import {
   addressRequest,
 } from "@chanlytics/channels";
 import { registerLine } from "../../../../apps/edge/lib/lines/a2p-register.ts";
-import { kitPages } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, walk, byTestId, textOf, settle } from "../_legacy-react.mjs";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const LINE = "22222222-2222-2222-2222-222222222222";
@@ -306,130 +306,52 @@ test("what the narrow path gives up is said before the button, with the real num
 /* -------------------------------------------------------------------------- *
  * The page itself, rendered without a browser.
  *
- * No jsdom and no React: the four hooks below are the four this page uses, so
- * the component body runs for real -- real branching, real calls into the
- * contract -- and what comes back is the element tree. surface-seam.test.mjs
- * names the tradeoff for view properties it cannot reach without a renderer;
- * this one CAN be reached, so it is, because "does the form ask before it
- * renders" is exactly the property that was broken and exactly the property a
- * source scan answers badly.
+ * No jsdom: the form is TSX now (surfaces/settings/connections/record-form.tsx),
+ * drawn on the shared stub React (_legacy-react.mjs), so the component body runs
+ * for real -- real branching, real calls into the contract -- and what comes back
+ * is the element tree. surface-seam.test.mjs names the tradeoff for view
+ * properties it cannot reach without a renderer; this one CAN be reached, so it
+ * is, because "does the form ask before it renders" is exactly the property that
+ * was broken and exactly the property a source scan answers badly.
  *
- * One shared React global, so these mount one page at a time -- which node:test
- * does anyway for top-level tests.
+ * One shared React, so these mount one page at a time -- which node:test does
+ * anyway for top-level tests.
  * -------------------------------------------------------------------------- */
-globalThis.React = { Fragment: "Fragment" };
-globalThis.window = {
-  location: { origin: "https://app.chanlytics.com" },
-  __ME: { email: "ada@example.com" },
-  __WORKSPACES: [{ slug: "harbor" }],
-  canDo: () => true,
-  // The shell (data-bits, for the Confirm) registers listeners on the window it is given.
-  addEventListener() {},
-  removeEventListener() {},
-};
-// Filing is confirmed through the shared Confirm (data-bits.jsx): pure, so the
-// walker below expands it and finds the Yes inside.
-globalThis.document ??= {
-  body: {},
-  addEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
-};
-globalThis.ReactDOM ??= { createPortal: (node) => node };
+installLegacyReact();
+Object.assign(globalThis.window, { __ME: { email: "ada@example.com" }, __WORKSPACES: [{ slug: "harbor" }] });
+// Filing is confirmed through the kit's Confirm and a role is gated by the shell's `gate` (data-bits.jsx, which also
+// answers `canDo`): the stub draws the Confirm, and the walker below finds the Yes inside.
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-globalThis.Confirm = kitPages.Confirm;
-// The record's failed read is the kit's (surfaces/kit/empty), which the app publishes from seed-globals.
-Object.assign(globalThis.window, kitPages);
-await import("../../../../apps/dashboard/src/legacy/pages/business-record.jsx");
-const Page = globalThis.window.BusinessRecordForm;
+// The form talks to the record through the module's one object (record.ts), as the pane does, so the network is
+// stubbed by giving that object the answers of `api()` below: no window door stands between them any more.
+const { businessRecord } = await importSrc("apps/dashboard/src/surfaces/settings/connections/record.ts");
+const { BusinessRecordForm } = await importSrc("apps/dashboard/src/surfaces/settings/connections/record-form.tsx");
+const theRecordSays = (answers) => Object.assign(businessRecord, answers);
 
 function mount(props) {
-  const cells = [];
-  let seq = 0;
-  let effects = [];
-  Object.assign(globalThis.React, {
-    createElement: (type, p, ...kids) => ({ type, props: { ...(p || {}), children: kids.flat(Infinity) } }),
-    useMemo: (fn) => {
-      const k = seq++;
-      if (!(k in cells)) cells[k] = fn();
-      return cells[k];
-    },
-    useState: (init) => {
-      const k = seq++;
-      if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-      return [
-        cells[k],
-        (v) => {
-          cells[k] = typeof v === "function" ? v(cells[k]) : v;
-        },
-      ];
-    },
-    useEffect: (fn) => {
-      effects.push(fn);
-    },
-  });
-  const draw = () => {
-    seq = 0;
-    effects = [];
-    return Page(props);
-  };
+  fresh();
+  const draw = () => again(() => globalThis.React.createElement(BusinessRecordForm, props));
   let tree = draw();
   return {
     get tree() {
       return tree;
     },
+    // The load effect ran as the page was drawn; this waits for its answer and draws what it found.
     async flush() {
-      for (const e of effects) e();
-      await new Promise((r) => setImmediate(r));
+      await settle();
       tree = draw();
     },
     async act(node) {
       node.props.onClick();
       tree = draw();
-      await new Promise((r) => setImmediate(r));
+      await settle();
       tree = draw();
     },
   };
 }
 
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  fn(n);
-  // Nested components here are pure (the Confirm), so expanding them is safe.
-  if (typeof n.type === "function") walk(n.type(n.props), fn);
-  for (const k of n.props?.children ?? []) walk(k, fn);
-};
-const byId = (root, id) => {
-  let hit = null;
-  walk(root, (n) => {
-    if (!hit && n.props?.["data-testid"] === id) hit = n;
-  });
-  return hit;
-};
-const ids = (root) => {
-  const out = [];
-  walk(root, (n) => {
-    const t = n.props?.["data-testid"];
-    if (t) out.push(t);
-  });
-  return out;
-};
-const textOf = (n) => {
-  const out = [];
-  const rec = (x) => {
-    if (x == null || x === false || x === true) return;
-    if (typeof x === "string" || typeof x === "number") {
-      out.push(String(x));
-      return;
-    }
-    if (Array.isArray(x)) {
-      x.forEach(rec);
-      return;
-    }
-    if (typeof x === "object") rec(x.props?.children);
-  };
-  rec(n);
-  return out.join(" ");
-};
+const byId = byTestId;
+const ids = (root) => all(root, (n) => n.props?.["data-testid"]).map((n) => n.props["data-testid"]);
 
 /** The page's API: the network stubbed, every path-dependent answer the real contract's. */
 function api(read, saved = []) {
@@ -465,7 +387,7 @@ const boxes = (tree) =>
   );
 
 test("the form asks the question before it renders either registration", async () => {
-  globalThis.window.__businessRecord = api({ ok: true, record: null, path: null, problems: {} });
+  theRecordSays(api({ ok: true, record: null, path: null, problems: {} }));
   const page = mount({ line: null, flash: () => {} });
   // Frame one: nothing is known, so nothing is offered.
   assert.match(textOf(page.tree), /Reading what is on record/);
@@ -485,7 +407,7 @@ test("the form asks the question before it renders either registration", async (
 });
 
 test("answering picks the fields, and they are the contract's", async () => {
-  globalThis.window.__businessRecord = api({ ok: true, record: null, path: null, problems: {} });
+  theRecordSays(api({ ok: true, record: null, path: null, problems: {} }));
   const page = mount({ line: null, flash: () => {} });
   await page.flush();
 
@@ -511,7 +433,7 @@ test("answering picks the fields, and they are the contract's", async () => {
   assert.ok(byId(page.tree, "biz-path-change"), "and changeable");
 
   // The other answer, from the same fork.
-  globalThis.window.__businessRecord = api({ ok: true, record: null, path: null, problems: {} });
+  theRecordSays(api({ ok: true, record: null, path: null, problems: {} }));
   const std = mount({ line: null, flash: () => {} });
   await std.flush();
   await std.act(byId(std.tree, "biz-path-standard"));
@@ -534,7 +456,7 @@ test("an empty record guesses no website: left empty, the filing names this work
   ];
   globalThis.window.__ACTIVE_WORKSPACE = "w-h";
   try {
-    globalThis.window.__businessRecord = api({ ok: true, record: null, path: null, problems: {} });
+    theRecordSays(api({ ok: true, record: null, path: null, problems: {} }));
     const page = mount({ line: null, flash: () => {} });
     await page.flush();
     await page.act(byId(page.tree, "biz-path-standard"));
@@ -554,7 +476,7 @@ test("a record on file skips the question, and switching answer drops the tax id
   // The server said which registration this is, so the owner is not asked
   // something they have already answered.
   const saved = [];
-  globalThis.window.__businessRecord = api({ ok: true, record: { ...RECORD }, path: "standard", problems: {} }, saved);
+  theRecordSays(api({ ok: true, record: { ...RECORD }, path: "standard", problems: {} }, saved));
   const page = mount({ line: { id: LINE, sms_state: "none" }, flash: () => {} });
   await page.flush();
   assert.equal(byId(page.tree, "biz-fork"), null, "no question");
@@ -576,7 +498,7 @@ test("a record on file skips the question, and switching answer drops the tax id
 test("the price asked at the button is the price of the registration being filed", async () => {
   for (const path of REGISTRATION_PATHS) {
     const record = businessRecordForPath({ ...RECORD }, path);
-    globalThis.window.__businessRecord = api({ ok: true, record, path, problems: {} });
+    theRecordSays(api({ ok: true, record, path, problems: {} }));
     const page = mount({ line: { id: LINE, sms_state: "none" }, flash: () => {} });
     await page.flush();
     await page.act(byId(page.tree, "biz-file"));
@@ -592,7 +514,7 @@ test("a filing the carriers sent back offers no button that can only be refused"
   // straight after being told their filing came back. Saving corrections stays
   // theirs, and is what unblocks the resubmit.
   const record = businessRecordForPath({ ...RECORD }, "standard");
-  globalThis.window.__businessRecord = api({ ok: true, record, path: "standard", problems: {} });
+  theRecordSays(api({ ok: true, record, path: "standard", problems: {} }));
   const sentBack = mount({ line: { id: LINE, sms_state: "rejected" }, flash: () => {} });
   await sentBack.flush();
   assert.equal(byId(sentBack.tree, "biz-file"), null, "no File button on a line the carriers sent back");
@@ -603,7 +525,7 @@ test("a filing the carriers sent back offers no button that can only be refused"
   assert.ok(byId(sentBack.tree, "biz-save"), "and saving the corrections is still theirs");
 
   // Every other state keeps the button it had.
-  globalThis.window.__businessRecord = api({ ok: true, record, path: "standard", problems: {} });
+  theRecordSays(api({ ok: true, record, path: "standard", problems: {} }));
   const fresh = mount({ line: { id: LINE, sms_state: "none" }, flash: () => {} });
   await fresh.flush();
   assert.ok(byId(fresh.tree, "biz-file"));
@@ -611,7 +533,7 @@ test("a filing the carriers sent back offers no button that can only be refused"
 });
 
 test("a filing already with the carriers says so, because it cannot be withdrawn", async () => {
-  globalThis.window.__businessRecord = api({ ok: true, record: soleProp(), path: "sole_proprietor", problems: {} });
+  theRecordSays(api({ ok: true, record: soleProp(), path: "sole_proprietor", problems: {} }));
   const page = mount({ line: { id: LINE, sms_state: "active", reg_sole_prop: true }, flash: () => {} });
   await page.flush();
   await page.act(byId(page.tree, "biz-path-change"));
@@ -619,7 +541,7 @@ test("a filing already with the carriers says so, because it cannot be withdrawn
   assert.match(said, /already filed/, "an owner about to change their answer is told what that costs");
   assert.match(said, /second filing/);
   // Never said when nothing is filed: a warning that is always on is furniture.
-  globalThis.window.__businessRecord = api({ ok: true, record: soleProp(), path: "sole_proprietor", problems: {} });
+  theRecordSays(api({ ok: true, record: soleProp(), path: "sole_proprietor", problems: {} }));
   const fresh = mount({ line: { id: LINE, sms_state: "none" }, flash: () => {} });
   await fresh.flush();
   await fresh.act(byId(fresh.tree, "biz-path-change"));
@@ -629,7 +551,7 @@ test("a filing already with the carriers says so, because it cannot be withdrawn
 test("only an owner answers it", async () => {
   globalThis.window.canDo = () => false;
   try {
-    globalThis.window.__businessRecord = api({ ok: true, record: null, path: null, problems: {} });
+    theRecordSays(api({ ok: true, record: null, path: null, problems: {} }));
     const page = mount({ line: null, flash: () => {} });
     await page.flush();
     assert.equal(byId(page.tree, "biz-path-standard"), null, "no answer to press");
@@ -791,9 +713,8 @@ test("a working sole-proprietor line says what it can do, on both surfaces", () 
 });
 
 test("REGRESSION: a business record that could not be read says so, and Retry reads again -- it drew an empty form and the one-time question, as if nothing were on file", async () => {
-  globalThis.Icon ??= "Icon";
   let reads = 0;
-  globalThis.window.__businessRecord = {
+  theRecordSays({
     ...api({ ok: true, record: null, path: null, problems: {} }),
     read: async () => {
       reads += 1;
@@ -801,7 +722,7 @@ test("REGRESSION: a business record that could not be read says so, and Retry re
         ? { ok: false, record: null, path: null, problems: {}, message: "The record could not be read." }
         : { ok: true, record: null, path: null, problems: {} };
     },
-  };
+  });
   const page = mount({ line: null, flash: () => {} });
   await page.flush();
   assert.equal(reads, 1);

@@ -5,7 +5,8 @@
  * Which instructions a workspace is actually given is resolve.ts; the week's lines are prompt-hours.ts.
  */
 import { NO_LINK_DETAILS, offersBookingLink, priceNextStep } from "../no-booking-link";
-import { guardrailsInForce, type BookingRules, type BusinessProfile, type Closure } from "./business-profile";
+import type { BookingRules, BusinessProfile, Closure } from "./business-profile";
+import { guardrailsInForce } from "./config-rules";
 import { policyRules } from "./policy-classes";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
 import { offersAskRule } from "./offers-ask";

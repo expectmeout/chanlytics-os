@@ -1171,8 +1171,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 :where(.dash-a-v2) .tq .cl-attn-status { font-size: var(--text-sm); line-height: 1.45; color: var(--ink-muted); white-space: normal; overflow: visible; text-overflow: clip; }
 :where(.dash-a-v2) .tq .cl-attn-acts { justify-self: start; display: inline-flex; gap: 8px; padding-top: 2px; }
 :where(.dash-a-v2) .tq .cl-attn-cta { font-size: var(--text-sm); padding: 8px 12px; border-radius: var(--radius-md); }
-/* Today's card of what is left to set up (dashboard-a-brief.jsx TodaySetup, canvas R10), in the queue's card and its
-   column: the title with the count beside it and Hide at the right, then compact rows (setup.jsx SetupCardRow): the
+/* Today's card of what is left to set up (surfaces/today/pages/setup-card.tsx TodaySetup, canvas R10), in the queue's
+   card and its column: the title with the count beside it and Hide at the right, then compact rows
+   (surfaces/setup/rows/card-row.tsx SetupCardRow): the
    state's dot, the name over its sentence, the acts at the right -- the next one coral, the others outlined, Skip a
    quiet link. Setup's panels open under their row. Setup's own list rules (settings.css .setup-rows, loaded after
    these) keep a column at the prose measure; the card is as wide as the queue. */
@@ -1921,7 +1922,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   /* The brief draws its lines without the mark (above), so a door under the words lines up with the words themselves,
      not with the day card's 34px past a mark (mobile.css); the door's own padding is 6px. */
   .dash-a-v2 .tb-body .brief-beat-text { flex-basis: 100%; }
-  .dash-a-v2 .tb-body .brief-beat-text ~ .brief-door { margin-left: -6px; }
+  .dash-a-v2 .tb-body { --beat-door-indent: -6px; }
   /* The day's card: its name on its own row with the door to Reports at the right, what the day says under them. */
   :where([data-look="glass"]) .dash-a-v2 .tc-head { flex-wrap: wrap; }
   :where([data-look="glass"]) .dash-a-v2 .tc-line { flex: 1 1 100%; order: 2; }

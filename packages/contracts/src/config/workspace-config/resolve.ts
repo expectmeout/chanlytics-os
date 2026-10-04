@@ -5,7 +5,8 @@
  */
 import { resolveFacts, type KnownFacts } from "../facts";
 import { offersBookingLink } from "../no-booking-link";
-import { BASELINE_CLOSING, BASELINE_OPENING, isBaselinePrompt, type BrainConfig } from "./brain-config";
+import { BASELINE_CLOSING, BASELINE_OPENING, isBaselinePrompt } from "./brain-config";
+import type { BrainConfig } from "./brain-config-schema";
 import type { BusinessProfile } from "./business-profile";
 import { composeSystemPrompt, noLinkBooking, standingRules, PROMPT_OPENINGS } from "./compose";
 

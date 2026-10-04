@@ -28,14 +28,14 @@ const people = (over = {}) => ({
   ...over,
 });
 
-test("the page takes People's views, the New list door and a person; Leads stays with the frame", () => {
+test("the page takes People's views, the New list door, a person and every view of Leads (decision 0015, step 9)", () => {
   setSurfaceValue("people", people());
   for (const param of ["new-list", "seg:needs_you", "list:s1", "state:quiet", "state:waiting_on_you"])
     assert.equal(peopleTakes(param), true, param);
   // A person is any word that is not one of these: an id that only begins with a word of the page's is theirs.
   for (const param of ["c-1", "seg", "list", "new-listing", "leadsish", "state"])
     assert.equal(peopleTakes(param), true, param);
-  for (const param of ["leads", "leads:s-1"]) assert.equal(peopleTakes(param), false, param);
+  for (const param of ["leads", "leads:s-1", "leads:l-ready:c-review"]) assert.equal(peopleTakes(param), true, param);
 });
 
 test("the Pipeline's address is the page's, deals on or off: it draws the Pipeline where deals are on, People where they are off", () => {
@@ -60,7 +60,12 @@ test("the frame's rows for People: routeHasPage and onOnePage follow what the pa
   assert.equal(routeHasPage("clients"), true);
   assert.equal(routeHasPage("clients/list:s1"), true);
   assert.equal(routeHasPage("clients/c-1"), true, "a person is the page's too (people/person)");
-  assert.equal(routeHasPage("clients/leads"), false);
+  assert.equal(
+    routeHasPage("clients/leads"),
+    true,
+    "Leads is the page's too (surfaces/leads, drawn by people-route.tsx)",
+  );
+  assert.equal(onOnePage("clients/leads", "clients/leads:s-1"), true, "a search picked is a move inside the page");
   assert.equal(routeHasPage("segments/s1"), true, "a list's own route is a page: it replaces itself with People's");
   assert.equal(onOnePage("clients", "clients/list:s1"), true, "a pick is a move inside the page");
   assert.equal(onOnePage("clients/list:s1", "clients/seg:needs_you"), true);

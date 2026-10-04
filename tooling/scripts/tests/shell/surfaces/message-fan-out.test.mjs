@@ -62,7 +62,7 @@ const REAL = [
   (await importSrc("apps/dashboard/src/surfaces/today/surface.ts")).todayOverride,
   (await importSrc(`${S}/settings.ts`)).settingsOverride,
   (await importSrc("apps/dashboard/src/surfaces/people/surface.ts")).peopleOverride,
-  (await importSrc("apps/dashboard/src/legacy-bridge/leads.ts")).leadsOverride,
+  (await importSrc("apps/dashboard/src/surfaces/leads/surface.ts")).leadsOverride,
   (await importSrc("apps/dashboard/src/surfaces/reports/surface.ts")).reportsOverride,
   (await importSrc("apps/dashboard/src/surfaces/live/surface.ts")).liveOverride,
   (await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts")).broadcastsOverride,
@@ -72,9 +72,9 @@ const REAL = [
   (await importSrc("apps/dashboard/src/legacy-bridge/partner.ts")).partnerOverride,
   (await importSrc("apps/dashboard/src/surfaces/calendar/surface.ts")).calendarOverride,
   (await importSrc(`${S}/notifications.ts`)).notificationsOverride,
-  (await importSrc("apps/dashboard/src/legacy-bridge/setup.ts")).setupOverride,
+  (await importSrc("apps/dashboard/src/surfaces/setup/surface.ts")).setupOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/google.ts")).googleOverride,
-  (await importSrc("apps/dashboard/src/legacy-bridge/billing.ts")).billingOverride,
+  (await importSrc("apps/dashboard/src/surfaces/settings/billing/surface.ts")).billingOverride,
 ];
 
 /** The real overrides' routing, each read recorded rather than made, through a runner whose live feed this holds. */

@@ -430,6 +430,52 @@ test("a runner stopped before its boot is in never joins the feed, however late 
   assert.equal(feed.joins.length, 0);
 });
 
+test("the feed is joined once who is looking is known, not once the whole boot is in; what it says meanwhile is read once the boot's answers are let go of, and once", async () => {
+  // Realtime has no backfill: joined at the end of the boot, a message landing after the Inbox's read and before the
+  // join (the length of the boot, two seconds and more on a phone) was never heard.
+  win.location.pathname = "/w/acme";
+  win.location.hash = "";
+  win.__ACTIVE_WORKSPACE = "id-a";
+  const asked = [];
+  let finish = () => {};
+  const surfaces = [
+    { key: "workspace", apply: async () => void asked.push("workspace") },
+    {
+      key: "inbox",
+      refreshOnMessageInserts: true,
+      debounceMs: 1,
+      apply: () => {
+        asked.push("inbox");
+        // The boot's read is slow; a later read answers at once.
+        return asked.filter((k) => k === "inbox").length === 1
+          ? new Promise((r) => {
+              finish = r;
+            })
+          : Promise.resolve();
+      },
+    },
+  ];
+  const feed = liveFeed();
+  const stop = startSurfaces(surfaces, feed.join);
+  try {
+    await settle(10);
+    assert.equal(feed.joins.length, 1, "joined while the Inbox's boot read is still out");
+    assert.equal(feed.joins[0].opts.tenantId, "id-a");
+    feed.joins[0].onChange({ tenant_id: "id-a" }, "messages", "INSERT");
+    feed.joins[0].onChange({ tenant_id: "id-a" }, "messages", "INSERT");
+    await settle(10);
+    assert.deepEqual(asked, ["workspace", "inbox"], "held: a read now would be answered from what the boot holds");
+    finish();
+    await settle(20);
+    assert.deepEqual(asked, ["workspace", "inbox", "inbox"], "read once the boot is in, once for both");
+  } finally {
+    // The boot ends whatever failed above, so its hold on answers is let go of before the next test.
+    finish();
+    stop();
+    await settle(10);
+  }
+});
+
 test("surfaces that watch the feed, started with no feed to join, are refused at the call rather than when the boot ends", () => {
   const watching = { key: "inbox", refreshOnMessageInserts: true, apply: async () => {} };
   assert.throws(() => startSurfaces([watching]), /need a feed to join/);
@@ -496,10 +542,10 @@ test("what the page on screen draws from other surfaces follows its own surface,
         "../surfaces/reports/surface",
         "surfaces/notifications",
         "../surfaces/live/surface",
-        "setup",
-        "leads",
+        "../surfaces/setup/surface",
+        "../surfaces/leads/surface",
         "google",
-        "billing",
+        "../surfaces/settings/billing/surface",
         "reach-out/replies",
       ].map((m) => importSrc(`apps/dashboard/src/legacy-bridge/${m}.ts`)),
     );

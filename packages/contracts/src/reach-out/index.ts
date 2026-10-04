@@ -72,8 +72,6 @@ export {
   shoutingLine,
   validateReachOutWords,
   wordsIssueWords,
-  ReachOutStepSchema,
-  ReachOutChainSchema,
   validateReachOutChain,
   chainIssueWords,
   OPENING_FACT_KEYS,
@@ -92,11 +90,11 @@ export {
   holdDoors,
   HOLD_DOOR_WORDS,
 } from "./reach-out-words";
+export { ReachOutStepSchema, ReachOutChainSchema } from "./reach-out-schemas";
 export type {
   ReachOutSlot,
   WordsProblem,
   WordsIssue,
-  ReachOutChainInput,
   ChainProblem,
   ChainIssue,
   OpeningFactKey,
@@ -106,12 +104,9 @@ export type {
   ReachOutHold,
   HoldDoor,
 } from "./reach-out-words";
-export {
-  REACH_OUT_PREVIEW_INDEX_MAX,
-  ReachOutPreviewSchema,
-  REACH_OUT_DECISIONS,
-  ReachOutDecideSchema,
-} from "./reach-out-dtos";
+export type { ReachOutChainInput } from "./reach-out-schemas";
+export { REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_DECISIONS } from "./reach-out-dtos";
+export { ReachOutPreviewSchema, ReachOutDecideSchema } from "./reach-out-schemas";
 export type {
   ReachOutStepDto,
   ReachOutNextFacts,
@@ -123,11 +118,11 @@ export type {
   ReachOutPreviewDto,
   ReachOutStartDto,
   ReachOutSavedDto,
-  ReachOutPreviewInput,
   ReachOutDecision,
   ReachOutHeldSend,
   ReachOutRunDto,
 } from "./reach-out-dtos";
+export type { ReachOutPreviewInput } from "./reach-out-schemas";
 export {
   REACH_OUT_SHEET_WORDS,
   REACH_OUT_REFUSALS,
@@ -229,21 +224,21 @@ export {
   REPLIES_PAGE,
   REPLY_UNDO_REFUSALS,
   isReplyUndoRefusal,
-  ReachOutRepliesQuerySchema,
   replyStripOf,
   replyChipOf,
   replyFromLineOf,
   replyLeftAsOf,
 } from "./reach-out-reply-words";
+export { ReachOutRepliesQuerySchema } from "./reach-out-schemas";
 export type {
   ReplyUndoRefusal,
   ReplyFrom,
   ReachOutReplyDto,
-  ReachOutRepliesQuery,
   ReachOutRepliesDto,
   ReplyStrip,
   ReplyDoor,
 } from "./reach-out-reply-words";
+export type { ReachOutRepliesQuery } from "./reach-out-schemas";
 export { replyRowOf, withReplies, bellActionOf } from "./reach-out-reply-today";
 export type {
   ReplyIntent,

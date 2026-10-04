@@ -67,7 +67,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   "admin/autonomy": "real", // the policies table, live for the reply row
   "admin/notifications": "real", // who is alerted, from tenant_config
   "admin/integrations": "real", // the channels in tenant_channels, read-only
-  // Billing is real on every workspace (billing-real.jsx). Memory is not built,
+  // Billing is real on every workspace (surfaces/settings/billing). Memory is not built,
   // and says so IN the pane: falling through to the page's "demo" replaced all
   // of Settings with a bare card; the pane keeps the nav and states what exists
   // instead (settings.jsx PaneSoon). ⌘K's Memory jump lands on Business, where

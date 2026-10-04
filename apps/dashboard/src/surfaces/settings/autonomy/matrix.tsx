@@ -1,0 +1,218 @@
+/**
+ * Settings › Autonomy's policy matrix (moved from legacy/pages/settings.jsx, decision 0015 step 11): one row per action
+ * class and a column per mode, a table on a desktop and one line per class on a phone. The rows are the bridge's
+ * (policy-store.ts uiRows: contracts' classes, the modes each honours, and the workspace's stored mode); every word a
+ * mode says is contracts' POLICY_MODE_WORDS, through UI_MODE_WORDS.
+ */
+import { useEffect, useState } from "react";
+import { UI_MODES, UI_MODE_WORDS, type UiMode, type UiRow } from "@/legacy-bridge/policy-store";
+import { Icon } from "../../kit/icon/icon";
+import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { gate, showTip } from "../../legacy-verbs";
+
+/** A mode's words: its heading, the clause under it, and what it does. A row with no stored mode says nothing. */
+interface ModeWords {
+  head: string | null;
+  sub: string;
+  does: string | null;
+}
+
+/**
+ * A mode's words, said where they are needed rather than hidden in a hover. `Auto | Veto | Ask | Never` are filing
+ * words -- the plain sentence for each one existed only as a tip on the heading, which a phone cannot trigger at all.
+ * The heading is the sentence now: a verb and the one clause that tells it apart.
+ */
+export const polMode = (m: UiMode | null): ModeWords => (m ? UI_MODE_WORDS[m] : { head: m, sub: "", does: m });
+
+/** What a press of a mode asks for: the row, and the mode as the database spells it. */
+type PutMode = (r: UiRow, mode: string) => void;
+
+function PolModeHead({ m }: { m: UiMode }) {
+  const w = polMode(m);
+  return (
+    <span className="pol-mode-words">
+      <span className="pol-mode-head">{w.head}</span>
+      {w.sub && <span className="pol-mode-sub">{w.sub}</span>}
+    </span>
+  );
+}
+
+/**
+ * A locked row is not a row with one box ticked: it is a rule, and it says so. Money was three dashes and a grey tick
+ * under "Never" -- and once the headings say what a mode DOES, "Stays quiet · nothing happens" is the one thing that is
+ * not true of it. The charter's own words go across the columns instead, so there is nothing to press and nothing to
+ * misread.
+ */
+function PolLockedCells({ span, note }: { span: number; note: string }) {
+  return (
+    <td className="pol-fixed" colSpan={span}>
+      <span className="pol-fixed-words">
+        <Icon name="shield" size={12} />
+        <span>
+          <b>{note}</b> — locked by charter, enforced in the database.
+        </span>
+      </span>
+    </td>
+  );
+}
+
+/**
+ * Whether the pane is a phone's, at Settings' own breakpoint (mobile.css, 640px), kept current as the window changes
+ * size, as the record kit reads its own. Read whatever the pane draws, so a pane holds the same hooks at either width.
+ */
+const SET_PHONE_QUERY = "(max-width: 640px)";
+const phoneQuery = () => (typeof window.matchMedia === "function" ? window.matchMedia(SET_PHONE_QUERY) : null);
+export function useSetPhone(): boolean {
+  const [phone, setPhone] = useState(() => {
+    const m = phoneQuery();
+    return !!(m && m.matches);
+  });
+  useEffect(() => {
+    const m = phoneQuery();
+    if (!m || !m.addEventListener) return undefined;
+    const on = (e: MediaQueryListEvent) => setPhone(!!e.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return phone;
+}
+
+/**
+ * The matrix on a phone (24 Sep): one line per action class, its mode as a word that opens a menu of the modes the
+ * class takes, each saying what it does. The table of four columns collapsed into four captioned dots under every label
+ * there -- 107px a row, the four captions repeated seven times down the screen. A locked class says so and opens
+ * nothing. A desktop keeps the matrix, where four columns read at a glance.
+ */
+export function PolPhoneRows({ rows, put, busy }: { rows: UiRow[]; put: PutMode; busy: string | null }) {
+  return (
+    <div className="pol-phone" data-testid="pol-phone">
+      {rows.map((r) => {
+        const g = gate("autonomy");
+        const gated =
+          busy === r.cls ? "Saving — wait for this one to land." : g["aria-disabled"] ? g["data-tip"] : null;
+        return (
+          <div key={r.id} className="set-row pol-phone-row" data-testid={`pol-phone-${r.id}`}>
+            <div className="set-row-info">
+              <span className="set-row-label">
+                {r.label}
+                {r.note && !r.locked && (
+                  <button
+                    type="button"
+                    className="set-mark"
+                    data-tip={r.note}
+                    aria-label={`What each mode does for ${r.label}: ${r.note}`}
+                    onClick={(e) => showTip(e.currentTarget)}
+                  >
+                    <Icon name="info" size={12} />
+                  </button>
+                )}
+              </span>
+              {r.locked ? (
+                <span className="set-row-hint pol-phone-locked">
+                  <Icon name="shield" size={11} /> {r.note} — locked by charter
+                </span>
+              ) : null}
+            </div>
+            {r.locked ? null : (
+              <div className="set-row-control">
+                <MoreMenu
+                  items={UI_MODES.filter((m) => !r.modes || r.modes.includes(m)).map((m) => ({
+                    label: polMode(m).head,
+                    hint: (r.hints && r.hints[m]) || polMode(m).does,
+                    checked: r.mode === m,
+                    onClick: () => put(r, m.toLowerCase()),
+                  }))}
+                  label={polMode(r.mode).head}
+                  title={`${r.label}: ${String(polMode(r.mode).head)}`}
+                  btnClass="bt-link pol-phone-mode"
+                  align="right"
+                  escape
+                  gated={gated}
+                  testid={`pol-phone-mode-${r.id}`}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** One mode's cell of a row: a dash where the class cannot honour it, else the dot that sets it. */
+function modeCell(r: UiRow, m: UiMode, put: PutMode, busy: string | null) {
+  return (
+    <td key={m} className="pol-cell" data-mode={polMode(m).head ?? undefined}>
+      {r.modes && !r.modes.includes(m) ? (
+        <span
+          className="pol-dash"
+          title={
+            m === "Veto"
+              ? "Nothing to hold for review here"
+              : "Answered by the receptionist or by you — there is no never"
+          }
+        >
+          —
+        </span>
+      ) : (
+        <button
+          className={`pol-dot ${r.mode === m ? "on" : ""}`}
+          aria-label={`${r.label}: ${String(polMode(m).head)}`}
+          aria-pressed={r.mode === m}
+          title={(r.hints && r.hints[m]) || polMode(m).does || undefined}
+          disabled={busy === r.cls}
+          onClick={() => put(r, m.toLowerCase())}
+          {...gate("autonomy")}
+        >
+          {r.mode === m ? <Icon name="check" size={11} /> : ""}
+        </button>
+      )}
+    </td>
+  );
+}
+
+/** The matrix on a desktop: a column per mode, headed by what the mode does, and a row per class. */
+export function PolicyTable({ rows, put, busy }: { rows: UiRow[]; put: PutMode; busy: string | null }) {
+  return (
+    <table className="pol-table">
+      <thead>
+        <tr>
+          <th>Action class</th>
+          {UI_MODES.map((m) => (
+            <th key={m} className="pol-mode">
+              <PolModeHead m={m} />
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.id} className={r.locked ? "pol-locked" : ""}>
+            <td>
+              <span className="pol-label">
+                {r.label}
+                {/* A locked row carries its note across the columns instead — said once. */}
+                {r.note && !r.locked && (
+                  <button
+                    type="button"
+                    className="set-mark"
+                    data-tip={r.note}
+                    aria-label={`What each mode does for ${r.label}: ${r.note}`}
+                    onClick={(e) => showTip(e.currentTarget)}
+                  >
+                    <Icon name="info" size={12} />
+                  </button>
+                )}
+              </span>
+            </td>
+            {r.locked ? (
+              <PolLockedCells span={UI_MODES.length} note={r.note} />
+            ) : (
+              UI_MODES.map((m) => modeCell(r, m, put, busy))
+            )}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}

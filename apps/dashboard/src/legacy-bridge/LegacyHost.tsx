@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
-import { PrefetchKind } from "next/dist/client/components/router-reducer/router-reducer-types";
 import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { movedAddress, routeOfAddress, routeOfPath } from "@chanlytics/contracts";
 import { routeHasPage } from "@/surfaces/routes";
@@ -149,6 +148,16 @@ const Frame = memo(function Frame({ page }: { page: ReactNode }) {
  * query and the route riding along; only an account with no workspace stays here, where the app shows the create
  * screen.
  */
+/**
+ * A route warmed in full, page and all: every workspace route is dynamic, so a plain prefetch stops at nothing to keep.
+ * The kind is the value Next's own enum holds ("full"), typed from the router's public prefetch, so nothing of Next's
+ * internals is imported into the page: the value must be one the enum holds, so a release that renames it fails here
+ * at the type, not in a tab.
+ */
+type PrefetchOptions = NonNullable<Parameters<ReturnType<typeof useRouter>["prefetch"]>[1]>;
+const FULL: `${NonNullable<PrefetchOptions["kind"]>}` = "full";
+const FULL_PREFETCH = FULL as PrefetchOptions["kind"];
+
 export default function LegacyHost({ home = false, children }: { home?: boolean; children?: ReactNode }) {
   const [stay, setStay] = useState(!home);
   const router = useRouter();
@@ -162,8 +171,7 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
     setAppRouter({
       push: (href) => router.push(href),
       replace: (href) => router.replace(href),
-      prefetch: (href, options) =>
-        router.prefetch(href, { kind: PrefetchKind.FULL, onInvalidate: options?.onInvalidate }),
+      prefetch: (href, options) => router.prefetch(href, { kind: FULL_PREFETCH, onInvalidate: options?.onInvalidate }),
     });
     return () => setAppRouter(null);
   }, [router]);

@@ -3,7 +3,7 @@
  * business's website names (3c-4), and the lead finder reads a lead whose website or email address is on one as not
  * the business's own (leads/search/clean.ts): the platforms are named here, once.
  */
-import { BrainConfigSchema } from "../config/workspace-config/brain-config";
+import { BOOKING_LINK_MAX } from "../config/workspace-config/config-rules";
 
 /** Whether a host is a domain or on one of its subdomains: the one rule every list of hosts here is read by. */
 export function onDomain(host: string, domain: string): boolean {
@@ -52,9 +52,6 @@ const PLATFORM_OWN = new Set([
   "legal",
 ]);
 
-/** The longest booking page the config keeps: its booking link's own cap. */
-const BOOKING_PAGE_MAX = /* @__PURE__ */ (() => BrainConfigSchema.shape.booking_link.unwrap().maxLength ?? Infinity)();
-
 /**
  * The booking page an address is, as the https address the config keeps; null when it is not one. It is a business's
  * own page when it is on a subdomain of the platform (other than `www` and the platform's own help, news and hiring
@@ -81,5 +78,6 @@ export function bookingPageOf(raw: string | null | undefined): string | null {
   u.protocol = "https:";
   u.hash = "";
   const page = u.toString();
-  return page.length <= BOOKING_PAGE_MAX ? page : null;
+  // The longest booking page the config keeps is its booking link's own cap.
+  return page.length <= BOOKING_LINK_MAX ? page : null;
 }

@@ -73,6 +73,8 @@ const { TodayBriefPane } = await import("../../../../apps/dashboard/src/surfaces
 const { TodayStrip } = await import("../../../../apps/dashboard/src/surfaces/today/pages/strip.tsx");
 const { DashboardA } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-page.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+// When a run really goes, in the one sentence every receipt says (Today imports it from Campaigns).
+const { bcWhenWords } = await import("../../../../apps/dashboard/src/surfaces/campaigns/broadcasts/when-words.ts");
 const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
 // The seam's own signal, from the module the TSX reads it through (the stub's own copy is the shell pages'): a surface's rows landed.
 const { surfaceMoved: surfaceLanded } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-status.ts");
@@ -753,17 +755,14 @@ test("the calls read failed: the card says so under the figures, once", () => {
 
 test("the queue: no count badge over the rows, one primary verb, the runs in contracts' words, the approval toast too", async () => {
   clear();
+  const approved = { recipient_count: 3, scheduled_for: iso(3_600_000), moved_from: iso(0) };
   set({
     today: busy(),
     __BROADCASTS: broadcasts(),
     __broadcasts: {
-      approve: async () => ({
-        ok: true,
-        data: { recipient_count: 3, scheduled_for: iso(3_600_000), moved_from: iso(0) },
-      }),
+      approve: async () => ({ ok: true, data: approved }),
       cancel: async () => ({ ok: true, data: {} }),
     },
-    bcWhenWords: () => "scheduled for Mon 9:00 AM",
   });
   const tree = draw(AgentCommand);
   const queue = byTestId(tree, "today-queue");
@@ -799,10 +798,10 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   );
   assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 4, "the card is four rows");
   await press(buttons(waiting, "Approve")[0]);
-  const t = todayRunApproved("Win-back", 3, "scheduled for Mon 9:00 AM");
+  const t = todayRunApproved("Win-back", 3, bcWhenWords(approved));
+  assert.match(t.rest, /scheduled for/, "the server moved it, and the sentence says when");
   assert.equal(textOf(flashes.at(-1).msg), `${t.lead} ${t.rest}`);
   assert.ok(!textOf(flashes.at(-1).msg).includes("sending now"));
-  delete W.bcWhenWords;
   // The broadcasts read failed: the queue's rows are current, and it says the runs could not be read.
   set({ __BROADCASTS: undefined });
   failed.add("broadcasts");
@@ -874,7 +873,6 @@ test("a run's Approve from the queue is said the moment the server takes it, wit
   set({
     today: busy(),
     __BROADCASTS: broadcasts(),
-    bcWhenWords: () => "scheduled for Mon 9:00 AM",
     __broadcasts: {
       approve: (_id, opts = {}) => {
         if (opts.onAccepted) opts.onAccepted(accepted);
@@ -889,12 +887,11 @@ test("a run's Approve from the queue is said the moment the server takes it, wit
   const done = press(buttons(waiting, "Approve")[0]);
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(flashes.length, 1, "said at acceptance");
-  const t = todayRunApproved("Win-back", 3, "scheduled for Mon 9:00 AM");
+  const t = todayRunApproved("Win-back", 3, bcWhenWords(accepted));
   assert.equal(textOf(flashes[0].msg), `${t.lead} ${t.rest}`);
   reread();
   await done;
   assert.equal(flashes.length, 1, "and said once");
-  delete W.bcWhenWords;
 });
 
 test("four rows: people take three while a run wants the fourth, and all four when none does", () => {

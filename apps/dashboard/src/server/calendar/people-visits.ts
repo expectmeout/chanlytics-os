@@ -46,7 +46,10 @@ export type ZoneAndSettings = Lazy<{ timezone: string; config: unknown }>;
  * feed indexed once — the number first, the whole name second — so a list
  * of hundreds costs one read of the calendar, not hundreds. `known`: the
  * zone and the settings the turn holds (ZoneAndSettings), which the lookup
- * then reads neither of.
+ * then reads neither of. `stale`: the calendar's last good read may answer
+ * while a newer one is fetched behind it (openings.ts loadFeed), for a reader
+ * that says what was booked and decides nothing from it: never a pool that
+ * chooses who is sent something.
  */
 export async function peopleVisits(
   ctx: RouteContext,
@@ -54,6 +57,7 @@ export async function peopleVisits(
   rows: PersonRowDto[],
   now = new Date(),
   known?: ZoneAndSettings,
+  opts: { stale?: boolean } = {},
 ): Promise<PeopleVisits> {
   const { url, lostCalendar, timezone, source, bookingLink, own, profile } = await calendarOf(
     ctx,
@@ -73,7 +77,7 @@ export async function peopleVisits(
     };
   let feed: ParsedRead;
   try {
-    feed = await parsedFeedFor(tenantId, url, timezone, now);
+    feed = await parsedFeedFor(tenantId, url, timezone, now, { stale: opts.stale === true });
   } catch (e) {
     log.error("calendar_parse_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
@@ -89,7 +93,7 @@ export async function peopleVisits(
 /**
  * The rows with their appointments attached, the way the People list and the assistant read them. `known`: the zone
  * and the settings the turn holds, or how to read them from it (ZoneAndSettings), so the calendar's lookup reads
- * neither again; a read of them that fails costs the visits, never the list.
+ * neither again; a read of them that fails costs the visits, never the list. `stale` as peopleVisits takes it.
  */
 export async function withVisits(
   ctx: RouteContext,
@@ -97,6 +101,7 @@ export async function withVisits(
   rows: PersonRowDto[],
   now = new Date(),
   known?: ZoneAndSettings,
+  opts: { stale?: boolean } = {},
 ): Promise<{
   people: PersonRowDto[];
   calendar: PeopleVisits["calendar"];
@@ -104,7 +109,7 @@ export async function withVisits(
   /** The profile lists a consult-first service (0004): the Consultations list can be counted only then. */
   consult_first: boolean;
 }> {
-  const pv = await peopleVisits(ctx, tenantId, rows, now, known).catch((e: unknown) => {
+  const pv = await peopleVisits(ctx, tenantId, rows, now, known, opts).catch((e: unknown) => {
     log.error("people_visits_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     return null;
   });

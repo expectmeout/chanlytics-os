@@ -12,8 +12,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, toLiveVM, setupSteps, FIRST_RUN_HELPERS } from "@chanlytics/contracts";
+import { toTodayVM, toLiveVM, setupSteps } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, kitPages } from "../_legacy-react.mjs";
+import { importSrc } from "../_source.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-06T14:00:00Z");
@@ -157,14 +158,17 @@ for (const k of ["StatePill", "EmptyState", "FailedRead", "PolicyChip", "StatStr
   globalThis[k] = globalThis.window[k] || (({ children }) => children ?? null);
 globalThis.useHotkey = () => {};
 globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
-// Setup's rows are still the shell's (setup.jsx SetupCardRow, SetupRows): the card draws them by name off the window.
-await import("../../../../apps/dashboard/src/legacy/pages/setup.jsx");
-// Today's pages are TSX (surfaces/today/pages), drawn by import over the day the seam holds (surface-values.ts).
+// Today's pages are TSX (surfaces/today/pages), drawn by import over the day and Setup the seam holds (surface-values.ts).
+// Setup's rows are the surface's own (surfaces/setup/rows), imported by the card, not published on the window.
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
 const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
 const { TodaySetup } = await import("../../../../apps/dashboard/src/surfaces/today/pages/setup-card.tsx");
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
-const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+// The module instances the pages use: the seam's store, and the verbs the card's Skip and Hide press (`setupVerbs`).
+const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
+// When a run really goes, in the one sentence every receipt says (Today imports it from Campaigns).
+const { bcWhenWords } = await import("../../../../apps/dashboard/src/surfaces/campaigns/broadcasts/when-words.ts");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -301,28 +305,19 @@ test("REGRESSION: approving a waiting run the server moved to nine says so on To
       },
     ],
   };
-  globalThis.window.__broadcasts = {
-    approve: async () => ({
-      ok: true,
-      data: { recipient_count: 3, scheduled_for: "2026-09-15T13:00:00Z", moved_from: "2026-09-15T02:00:00Z" },
-    }),
-  };
-  // The one sentence for when a send really goes (broadcasts-real.jsx, run in the-pages-say-only-what-is-true.test.mjs).
-  globalThis.window.bcWhenWords = (d) =>
-    d && d.moved_from
-      ? "scheduled for Mon 9:00 AM — messages go out between 9:00 and 20:59 by your clock"
-      : "sending now";
+  const approved = { recipient_count: 3, scheduled_for: "2026-09-15T13:00:00Z", moved_from: "2026-09-15T02:00:00Z" };
+  globalThis.window.__broadcasts = { approve: async () => ({ ok: true, data: approved }) };
   try {
     const tree = mountQueue(toTodayVM(metrics(), [], [], [], NOW));
     const row = find(tree, (n) => n.props?.["data-testid"] === "brief-run-row");
     await buttonsSaying(row, "Approve")[0].props.onClick();
     const said = textOf(flashes.at(-1).msg);
     assert.ok(!said.includes("sending now"), `REGRESSION: ${said}`);
-    assert.ok(said.includes("scheduled for Mon 9:00 AM"), said);
+    // The one sentence for when a send really goes (campaigns/broadcasts/when.tsx): the server moved it to nine.
+    assert.ok(said.includes(bcWhenWords(approved)) && /messages go out/.test(said), said);
   } finally {
     delete globalThis.window.__BROADCASTS;
     delete globalThis.window.__broadcasts;
-    delete globalThis.window.bcWhenWords;
   }
 });
 
@@ -365,7 +360,7 @@ test("a quiet day shows its proof -- which lines are on -- and the way to the co
   assert.equal(went.at(-1), "conversations");
 });
 
-/** A workspace's Setup read, as the bridge publishes it: Setup's own view model over a DTO. */
+/** A workspace's Setup read, as the surface publishes it (surfaces/setup/surface.ts): Setup's own view model over a DTO. */
 const setupSurface = (over = {}) => {
   const dto = {
     business: {
@@ -390,11 +385,11 @@ const setupSurface = (over = {}) => {
   };
   return { dto, role: "owner", later: [], vm: setupSteps({ ...dto, later: [] }, NOW.getTime()) };
 };
-const firstRun = FIRST_RUN_HELPERS;
+/** Setup's value on the seam (what `useSurface("setup")` answers): the card reads it there, not off the window. */
+const feedSetup = (value) => setSurfaceValue("setup", value);
 
 test("REGRESSION: with no line connected, Today does not say the receptionist is answering -- one sentence, and one door to finishing setting up", () => {
-  globalThis.window.__SETUP = setupSurface();
-  globalThis.window.__firstRun = firstRun;
+  feedSetup(setupSurface());
   try {
     const vm = todayWith([]);
     const hero = mountHero(vm);
@@ -419,34 +414,35 @@ test("REGRESSION: with no line connected, Today does not say the receptionist is
     buttonsSaying(setup, "Continue setting up")[0].props.onClick();
     assert.equal(went.at(-1), "start");
   } finally {
-    delete globalThis.window.__SETUP;
-    delete globalThis.window.__firstRun;
+    feedSetup(undefined);
   }
 });
 
 test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts them all off for this person", async () => {
   const put = [];
-  globalThis.window.__SETUP = setupSurface({
-    business: {
-      name: "Harbor Moving",
-      hours: true,
-      services: 2,
-      bookingLink: true,
-      address: true,
-      handoff: null,
-      broken: false,
-    },
-    channels: {
-      whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-      voice: { present: true, active: true, number: "+13055550123", lastInboundAt: "2026-09-07T14:00:00Z" },
-    },
-  });
-  globalThis.window.__firstRun = firstRun;
-  globalThis.window.__setup = {
-    later: async (ids, on) => {
-      put.push([ids, on]);
-      return { ok: true, message: "" };
-    },
+  feedSetup(
+    setupSurface({
+      business: {
+        name: "Harbor Moving",
+        hours: true,
+        services: 2,
+        bookingLink: true,
+        address: true,
+        handoff: null,
+        broken: false,
+      },
+      channels: {
+        whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
+        voice: { present: true, active: true, number: "+13055550123", lastInboundAt: "2026-09-07T14:00:00Z" },
+      },
+    }),
+  );
+  // The put-off is the surface's own verb (surface.ts setupVerbs.later), which the card and its rows both press: stood in
+  // for here, on the one object they import, and given back after.
+  const realLater = setupVerbs.later;
+  setupVerbs.later = async (ids, on) => {
+    put.push([ids, on]);
+    return { ok: true, message: "" };
   };
   try {
     const card = mountSetup();
@@ -479,14 +475,30 @@ test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts 
     await flashes.at(-1).undo();
     assert.deepEqual(put.at(-1), [ids, false], "its Undo takes them all back");
   } finally {
-    delete globalThis.window.__SETUP;
-    delete globalThis.window.__firstRun;
-    delete globalThis.window.__setup;
+    setupVerbs.later = realLater;
+    feedSetup(undefined);
+  }
+});
+
+test("the card draws nothing before Setup is read, nor once its read failed -- the seam holds undefined, then null", () => {
+  for (const held of [undefined, null]) {
+    feedSetup(held);
+    try {
+      const card = mountSetup();
+      assert.equal(textOf(card), "", `nothing to say while Setup holds ${held}`);
+      assert.equal(
+        find(card, (n) => n.props?.["data-testid"] === "today-setup"),
+        undefined,
+        `no card while Setup holds ${held}`,
+      );
+    } finally {
+      feedSetup(undefined);
+    }
   }
 });
 
 test("REGRESSION: an email-only workspace is not told nothing can come in, nor that the receptionist is answering", () => {
-  globalThis.window.__SETUP = { vm: { line: null, readiness: { answering: false } } };
+  feedSetup({ vm: { line: null, readiness: { answering: false } } });
   try {
     const vm = todayWith([
       { kind: "email", status: "active", number: null, address: "bestmovers@mail.chanlytics.com" },
@@ -502,6 +514,6 @@ test("REGRESSION: an email-only workspace is not told nothing can come in, nor t
     assert.ok(!said.includes("nothing needs you"), `the heading does not reassure over a line nobody answers: ${said}`);
     assert.match(said, /every email waits for you in the Inbox/);
   } finally {
-    delete globalThis.window.__SETUP;
+    feedSetup(undefined);
   }
 });

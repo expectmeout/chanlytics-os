@@ -65,8 +65,11 @@ const DOMAIN = (over = {}) => ({
   sent_days: 0,
   ...over,
 });
+// Setup's read, through the seam (decision 0015 step 10: the sheet reads `setupDto()`, the seam's setup value).
 const setup = (domains = [DOMAIN()]) => {
-  W.__SETUP = { dto: { email: { mailbox: { address: "harbor@mail.example" }, sending: { ready: true, domains } } } };
+  setSurfaceValue("setup", {
+    dto: { email: { mailbox: { address: "harbor@mail.example" }, sending: { ready: true, domains } } },
+  });
 };
 
 /** The verbs, stubbed: each call recorded, each answered as the test says. */
@@ -386,7 +389,7 @@ test("the domains and the booking link unread are said as reading, never as none
   verbs();
   const keepSettings = { config: { brain: { business_name: "Harbor Moving Co" } }, broken: null };
   try {
-    W.__SETUP = undefined;
+    setSurfaceValue("setup", undefined);
     let s = sheet();
     await settle();
     let tree = s.draw();
@@ -410,7 +413,7 @@ test("the domains and the booking link unread are said as reading, never as none
     assert.equal(byTestId(tree, "ro-start").props.disabled, true);
     // Setup's read failed: said so, and Start waits.
     settingsRead(keepSettings);
-    W.__SETUP = null;
+    setSurfaceValue("setup", null);
     s = sheet();
     await settle();
     tree = s.draw();

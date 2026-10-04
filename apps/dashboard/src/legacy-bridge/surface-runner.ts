@@ -9,7 +9,7 @@
  * ./surface-status, which is pure and unit-tested; everything here is the
  * side-effecting half.
  */
-import type { subscribeWorkspaceChanges, SubscribeOptions } from "@chanlytics/db";
+import type { subscribeWorkspaceChanges, SubscribeOptions } from "@chanlytics/db/realtime";
 import { MIN_MS } from "@chanlytics/contracts";
 import { activateOverride, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
@@ -196,6 +196,11 @@ interface SurfaceRun {
   cancelled: boolean;
   /** Leaves the live feed, once it is joined. */
   unsubscribe: (() => void) | null;
+  /**
+   * While the boot is out: the surfaces the live feed said changed, read once the boot is in (refreshSoon). Null once
+   * it is in, when what the feed says is read as it comes.
+   */
+  held: Set<SurfaceOverride> | null;
 }
 
 function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
@@ -212,6 +217,7 @@ function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
     timers: new Map<string, ReturnType<typeof setTimeout>>(),
     realtime: overrides.filter(subscribesToRealtime),
     unsubscribe: null,
+    held: new Set(),
   };
 }
 
@@ -290,6 +296,15 @@ function scheduleSurfaceRefresh(run: SurfaceRun, o: SurfaceOverride): void {
 }
 
 /**
+ * A surface the live feed says changed: read soon, or, while the boot is out, once it is in. A read made during the
+ * boot is answered from what the boot holds (holdAnswers), which may be from before the change.
+ */
+function refreshSoon(run: SurfaceRun, o: SurfaceOverride): void {
+  if (run.held) run.held.add(o);
+  else scheduleSurfaceRefresh(run, o);
+}
+
+/**
  * What the live feed's own reports mean for the page (surface-realtime.ts):
  * a rejoin reads the gap, and a drop that outlasts the grace is the shell's
  * to say.
@@ -300,7 +315,7 @@ function watchLiveFeed(run: SurfaceRun): FeedWatch {
     onDown: (down) => setConnection({ realtimeDown: down }),
     // reconnect after sleep/offline: the feed replays nothing it missed, so
     // refetch to close the gap
-    onReconnect: () => run.realtime.forEach((o) => scheduleSurfaceRefresh(run, o)),
+    onReconnect: () => run.realtime.forEach((o) => refreshSoon(run, o)),
   });
 }
 
@@ -322,11 +337,21 @@ function tenantChangedSinceCache(run: SurfaceRun): boolean {
 interface SurfaceBoot {
   booted: Promise<void>;
   releaseAnswers: () => void;
+  /** Settled once the workspace surface's boot has: the workspace on screen is known (joinFeedEarly). */
+  whoIsLooking: Promise<void>;
 }
 
 function bootInPasses(run: SurfaceRun): SurfaceBoot {
   const { overrides } = run;
-  const boot = (o: SurfaceOverride) => bootSurface(run, o);
+  // Who is looking, known: the workspace surface's boot settled, which says the workspace on screen
+  // (__ACTIVE_WORKSPACE), the topic the live feed is joined on.
+  let knowWho = () => {};
+  const whoIsLooking = new Promise<void>((r) => (knowWho = r));
+  const boot = (o: SurfaceOverride) => {
+    const read = bootSurface(run, o);
+    if (o.key === "workspace") void read.finally(knowWho);
+    return read;
+  };
   // The boot. On a workspace page (/w/<slug>) the surfaces fire at once, the
   // name riding on every request. Off one — the home before it has sent the
   // tab on, the create screen — the workspace surface goes first and the rest
@@ -355,8 +380,7 @@ function bootInPasses(run: SurfaceRun): SurfaceBoot {
   // Surfaces read the same lists in turn -- the calls, the templates, the contacts, and on Leads the page the view
   // asks for again as it mounts. Measured on the salon's Leads page: 31 reads at boot, 20 distinct, because a read
   // that had settled was not shared with the one asking a moment later. Every answer is held until the last surface
-  // is in, and let go before the live feed is joined: nothing can change inside the hold without a write (which lets
-  // go of it) or an event the feed would not yet have delivered anyway.
+  // is in; what the live feed says meanwhile is held too (refreshSoon), and read once the answers are let go of.
   const releaseAnswers = api().holdAnswers();
   const firstPass = workspaceFirst
     ? boot(workspaceFirst).then(() =>
@@ -374,12 +398,27 @@ function bootInPasses(run: SurfaceRun): SurfaceBoot {
     () => undefined,
     () => undefined,
   );
-  return { booted, releaseAnswers };
+  // A run with no workspace surface (a test's) knows who is looking when its boot is in, as every run once did.
+  if (!overrides.some((o) => o.key === "workspace")) void booted.finally(knowWho);
+  return { booted, releaseAnswers, whoIsLooking };
 }
 
-function joinFeedOnceBooted(run: SurfaceRun, boot: SurfaceBoot, joinFeed: JoinLiveFeed, feed: FeedWatch): void {
+/**
+ * The live feed, joined as soon as who is looking is known rather than once the whole boot is in. It was joined at the
+ * end, and Realtime has no backfill: a message that landed after a surface's read and before the join -- the length
+ * of the boot, two seconds and more on a phone -- was never heard, and the Inbox went without it until the next event
+ * or a return to the tab. What the feed says while the boot is out is held (refreshSoon) and read once the boot's
+ * answers are let go of.
+ */
+function joinFeedEarly(run: SurfaceRun, boot: SurfaceBoot, joinFeed: JoinLiveFeed, feed: FeedWatch): void {
   void boot.booted.then(() => {
     boot.releaseAnswers();
+    const due = run.held;
+    run.held = null;
+    if (run.cancelled || !due) return;
+    for (const o of due) scheduleSurfaceRefresh(run, o);
+  });
+  void boot.whoIsLooking.then(() => {
     if (run.cancelled) return;
     if (tenantChangedSinceCache(run)) return;
     if (!run.realtime.length) return;
@@ -393,9 +432,7 @@ function joinFeedOnceBooted(run: SurfaceRun, boot: SurfaceBoot, joinFeed: JoinLi
       // Routed by table: a live call's transcript turns repaint Live, not the
       // five surfaces that never asked (three of them plpgsql aggregates).
       (row, table, event) =>
-        run.realtime
-          .filter((o) => wantsRefresh(o, table, { table, event, row }))
-          .forEach((o) => scheduleSurfaceRefresh(run, o)),
+        run.realtime.filter((o) => wantsRefresh(o, table, { table, event, row })).forEach((o) => refreshSoon(run, o)),
       {
         tenantId: ws ?? undefined,
         onStatus: (status) => {
@@ -452,7 +489,7 @@ function listenForReturns(run: SurfaceRun): () => void {
 }
 
 /**
- * Starts the surfaces: each one's first read (the boot), the live feed once the boot is in, and the reads again on a
+ * Starts the surfaces: each one's first read (the boot), the live feed once who is looking is known, and the reads again on a
  * return to the tab or to the network. Answers the stop, which undoes them in the same order.
  */
 export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFeed): () => void {
@@ -464,7 +501,7 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
   activeOverrides = overrides;
   const feed = watchLiveFeed(run);
   const boot = bootInPasses(run);
-  joinFeedOnceBooted(run, boot, joinFeed, feed);
+  joinFeedEarly(run, boot, joinFeed, feed);
   const stopListening = listenForReturns(run);
 
   return () => {

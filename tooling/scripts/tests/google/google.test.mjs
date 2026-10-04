@@ -857,11 +857,11 @@ test("the dashboard: owners and the partner link and search, operators read, mem
     ["google", "setup"],
     "a link repaints Setup too",
   );
-  assert.ok(
-    /setupOverride,\s*googleOverride,\s*billingOverride,?\s*\]/.test(
-      readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx"),
-    ) && readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installGoogle();"),
-  );
+  // The app lists Google's surface and installs nothing for it: its verbs are imported (`googleVerbs`), its value is the
+  // seam's alone, so no window door or `__GOOGLE` mirror is published.
+  const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
+  assert.ok(/setupOverride,\s*googleOverride,\s*billingOverride,?\s*\]/.test(app) && !app.includes("installGoogle"));
+  assert.ok(bridge.includes("export const googleVerbs: GoogleApi = {") && !bridge.includes("__GOOGLE"));
   assert.deepEqual([toldFor("google_listings"), toldFor("google_reviews")], [EVERY_EVENT, ["INSERT"]]);
   // The finder is the first run's Find (first-run-page.test.mjs runs it); Setup's row opens it.
   const reports = readCode("apps/dashboard/src/surfaces/reports/google.tsx");
@@ -876,7 +876,8 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   );
   const brief = readCode("apps/dashboard/src/surfaces/today/pages/card.tsx");
   assert.ok(brief.includes("<ReviewLine nav={nav} />") && brief.includes('data-testid="brief-review"'));
-  const settings = readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx");
+  assert.ok(brief.includes('useSurface("google")'), "Today's line reads the seam's Google, the one value there is");
+  const settings = readCode("apps/dashboard/src/surfaces/settings/connections/row.tsx");
   assert.ok(
     settings.includes('"verb:google-check": "google-check"') && settings.includes('data-testid="google-remove"'),
     "the listing row keeps its verbs' names",

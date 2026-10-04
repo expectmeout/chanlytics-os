@@ -25,9 +25,9 @@ test("AI memory is an honest pane that keeps the settings nav; Billing is real",
   );
   assert.ok(
     settings.includes(
-      '{active.id === "billing" && (window.__SETTINGS === undefined ? <PaneBilling flash={flash} /> : <window.PaneBillingReal flash={flash} />)}',
+      '{active.id === "billing" && window.PaneBillingReal && <window.PaneBillingReal flash={flash} />}',
     ),
-    "Billing is real on a workspace: billing-real.jsx",
+    "Billing is real on a workspace: surfaces/settings/billing, published under its old name",
   );
   assert.ok(settings.includes("data-testid={`soon-${which}`}"), "the pane is addressable by the e2e");
   assert.ok(settings.includes("does not learn rules on its own yet"), "AI memory says what is true");

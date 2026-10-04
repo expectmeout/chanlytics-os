@@ -18,7 +18,6 @@
  */
 import type { SchemaSet } from "../shared/schema-sets";
 import { MIN_MS } from "../shared/time";
-import { z } from "zod";
 import type { AskAnswer } from "./ask-answer";
 import type { AskCitation } from "./citations";
 import type { ProposalNeeds } from "../ask-proposals/spec";
@@ -148,13 +147,6 @@ export interface AskProposalOutcome {
 
 /** How long a committed card's undo stays open, for every verb whose route sets no window of its own (askUndoOpen). */
 export const ASK_UNDO_MS = 10 * 60_000;
-
-export const AskProposalOutcomeSchema = z.object({
-  state: z.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z.string().max(300).catch(""),
-  atMs: z.number().catch(0),
-  undo: z.record(z.string(), z.unknown()).nullable().optional(),
-});
 
 export interface AskMessageVM {
   id: string;

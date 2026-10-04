@@ -13,13 +13,13 @@
  *                            cold email's own
  *   validateReachOutWords    one step's words: its subject (the first step's only), its body, its slots, its length,
  *                            one link at most, no line in capitals
- *   ReachOutChainSchema,     a chain as the sheet saves it: its name, its search, its steps and their days, its pace,
- *   validateReachOutChain    its domains, and what its words ask the workspace to have
+ *   validateReachOutChain    a chain as the sheet saves it (reach-out-schemas.ts ReachOutChainSchema): its name, its
+ *                            search, its steps and their days, its pace, its domains, and what its words ask the
+ *                            workspace to have
  *   checkOpening             an opening as the writer wrote it, read by code (F2)
  *   chainOf, customerDomainOf    the check's two code holds (F4, F6); a business's own site is the lead cleaner's siteHost
  *   holdWords, holdDoors     what a held send says, and what its owner can do about it (F3)
  */
-import { z } from "zod";
 import { isFreeMail } from "../email/free-mail";
 import { posesAsReply } from "../email/email-subject";
 import { languageName } from "../templates/template-languages";
@@ -30,7 +30,8 @@ import { emailIssues } from "../templates/message-versions";
 import type { EmailIssue, EmailProblem, EmailRules } from "../templates/message-versions";
 import { namedSlots, slotCountIn, slotFault, slotMentions, slotsOut } from "../templates/slot-sets";
 import type { SlotSet } from "../templates/slot-sets";
-import { HAND_KINDS, HAND_WORDS_MAX } from "./reach-out-hand";
+import { HAND_WORDS_MAX } from "./reach-out-hand";
+import type { ReachOutChainInput } from "./reach-out-schemas";
 
 export const REACH_OUT_SLOTS = ["opening", "business", "city", "your name", "your business", "booking link"] as const;
 export type ReachOutSlot = (typeof REACH_OUT_SLOTS)[number];
@@ -252,40 +253,6 @@ export function wordsIssueWords(i: WordsIssue): string {
       return "A line in capitals reads like spam.";
   }
 }
-
-export const ReachOutStepSchema = z.object({
-  /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z.string().uuid().nullable().optional(),
-  subject: z
-    .string()
-    .max(REACH_OUT_SUBJECT_MAX * 2)
-    .nullable(),
-  body: z.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
-  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
-  hand: z
-    .object({ kind: z.enum(HAND_KINDS), words: z.string().max(HAND_WORDS_MAX * 2) })
-    .nullable()
-    .optional(),
-});
-
-export const ReachOutChainSchema = z.object({
-  name: z.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z.string().uuid(),
-  include_unconfirmed: z.boolean(),
-  /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
-  gap_minutes: z
-    .number()
-    .int()
-    .refine((g) => (REACH_OUT_GAP_MINUTES as readonly number[]).includes(g), {
-      message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`,
-    }),
-  /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z.array(z.string().uuid()).max(REACH_OUT_DOMAINS_MAX),
-  signed_by: z.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX),
-});
-export type ReachOutChainInput = z.infer<typeof ReachOutChainSchema>;
 
 export type ChainProblem =
   | WordsProblem

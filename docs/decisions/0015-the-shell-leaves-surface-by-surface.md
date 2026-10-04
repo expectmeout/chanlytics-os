@@ -454,3 +454,250 @@ family settled, for the surfaces after it:
 - **Two tests may not share what they fake.** Two stub worlds on one window clobber each other's `CHANLY.nav` (the later
   install wins), and a fetch double that is not put back answers the tests after it (`t.after`); both were found only when
   the pieces were folded into one file.
+
+## Built: Leads (3 October 2026, branch `perf/load-path`, uncommitted)
+
+Step 9 of the order. People's Leads scope is TSX in `apps/dashboard/src/surfaces/leads/` (`page/`, `scope/`, `cells/`,
+`bench/`, `map/`, `finder/`, `reach-out/`, beside the peek that moved first), drawn by People's own page for every
+`clients/leads…` address (`people/people-route.tsx`; `peopleTakes` takes them, `peopleChrome` names one mount,
+`clients/leads`, and the crumbs). Its row and `drawLeads` left `app-routes.jsx`. Seven JSX files (3,344 lines) are deleted:
+`leads-real`, `leads-scope`, `leads-cells`, `leads-bench`, `leads-map`, `leads-finder` and `reach-out/reach-out-leads`.
+
+- **The bridge modules only Leads used moved with it** (the amendment): `legacy-bridge/leads.ts` is `leads/surface.ts`
+  and the three `lead-map*.ts` are `leads/map/`, by `git mv`. The courier is gone: the surface publishes no `__lead…` name,
+  the page imports its acts, and the map's streets are a module's (`leadMapApi()`), not `__LEAD_MAP`. The seam holds the
+  value under `leads`; `__LEADS` stays as its mirror only for Ask (`ask/context.ts`, `ask/palette.ts`), a line to delete
+  at step 12.
+- **What only Leads read left the window.** seed-globals no longer publishes `__LEAD_WORDS`, `__LEAD_VM` or `__leadWays`,
+  the peek's names, Campaigns' `bcWhenWords`, `ReachOutDoor` and `ReachOutSheet` (Today imports the when-words now), or
+  People's table, hooks and rail kit: `people-globals.ts` keeps the nine names the shell itself draws (the strip's scopes,
+  the deal and step sheets, the demo Lists page's two). `installReachOuts` is gone with its one reader. The one Leads part
+  still published is `LeadPlanCard`, which Ask's palette calls by name (`leads/globals.ts`), until Ask moves.
+- **A page that follows its own address replaces through the address.** The shell's `CHANLY.nav` takes a route alone, so a
+  `navigate(to, { replace: true })` pushed: the peek walking its leads would have made an entry per lead. Leads, like the
+  Pipeline, moves through the route's own door (`people-route.tsx` `ownGo`: `addressReplace` for a replace).
+- **A list of your own is said by its search's `via`.** The JSX read `plan.list`, which the SQL writes (00242, 00272) and
+  the plan's type does not name; the TSX asks contracts' `isLeadList` (`via` import or chosen), the same searches.
+- **Proof.** A throwaway recorder drew the JSX at HEAD and the TSX over one world (the real surface loaded over a fake wire,
+  the JSX reading the courier names mapped to the same functions) and compared the host trees by value: 37 states, desk and
+  phone, Classic and Glass (all leads, a search, a waiting search and its answer row, Needs review as the bench and as a
+  phone's sections, a list, the first day and its line, a failed read, a lead open with its why and its photo, a
+  selection with its bar, its sheet and its whys, all that match, the map, Values, the Columns menu, rename, remove, Search
+  again, the Lists sheet, the import sheet), no difference; then deleted, with the JSX. The page's tests moved onto the TSX
+  and the wire: leads-honest, leads-peek, leads-finder, leads-bridge, leads-cold-boot, the map's, list-pages and back-pages.
+
+## Built: the first run and Setup (3 October 2026, branch `perf/load-path`, uncommitted)
+
+Step 10 of the order. The first run is TSX in `apps/dashboard/src/surfaces/setup/first-run/` on an App Router page of its
+own, `app/(os)/w/[workspace]/start/[[...param]]/page.tsx`: every `start/<step>` address is that one page, which reads its
+step from the path (`first-run/route.tsx`). Setup's rows, the line chooser, the forwarding card and the try card are
+`surfaces/setup/rows/`. The frame draws the route's page full screen in place of its chrome, beside Ask's palette
+(`app-shell.jsx` `firstRunScreen` draws `routePage`), and the `start` row left `app-routes.jsx` for `SURFACE_ROUTES.start`.
+The route word stays `start`, which is the product's word too. Two JSX files (1,758 lines) are deleted: `first-run.jsx` and
+`setup.jsx`.
+
+- **The bridge module moved with it** (the amendment): `legacy-bridge/setup.ts` is `surfaces/setup/surface.ts`, by
+  `git mv`. Setup's value is the seam's (`useSurface("setup")`, null when its read failed); `__SETUP` stays as its mirror
+  and `__setup` as its verbs only for the Settings panes that still read them (`settings.jsx`, `integrations-real.jsx`,
+  `business-can.jsx`), lines to delete at step 11. It no longer publishes `__firstRun` (the page imports contracts'
+  `FIRST_RUN_HELPERS`) or `__forwarding` (the card imports `FORWARDING_WORDS`).
+- **What it still borrows goes through one door module** (`surfaces/setup/shell.ts`): the Business tab's rows, its saver
+  and its doors, which Check and Live draw as that tab does so the two screens never disagree, and the billing and Google
+  verbs. Each line goes when its owner moves: the Business tab with Settings (step 11).
+- **Today imports the rows.** Today's card (`today/pages/setup-card.tsx`) draws `SetupRows` and `SetupCardRow` by import
+  and reads Setup through the seam; Today's door module lost its five Setup lines.
+- **A step's move replaces through the address, and tells the frame** (`first-run/route.tsx`: `addressReplace`), as the
+  shell's own replace did, so Back still leaves the first run: the shell's `CHANLY.nav` takes a route alone.
+- **Proof.** A throwaway recorder drew the JSX at HEAD and the TSX over one world (Setup, the settings read and Live through
+  the seam and their window names alike; the Business tab's rows as markers that draw the props they were handed) and
+  compared the host trees by value: 57 states, among them reading and failed, Check's press, a viewer's Check, Check
+  waiting, failed and drawn with its chips, Find with its matches, more, a pick, nothing found, a failure and the owner's
+  words, every stage of the phone step (choosing, a new number, a wrong area code, a number left, a trial, buying, back
+  from Stripe and cancelled, the two questions, the code with its help and asked again, an office system, a viewer's
+  questions), Try it listening, nudged, quiet, on the call and over with its transfer, Live for an owner and a viewer, and
+  Setup's rows as the first run and Today's card draw them, with the line chooser's three ways, the forwarding card's form,
+  its code while testing, an office's and a verified line, rows put off, a viewer's rows and the try card. No difference,
+  before the JSX left and again on the final code; a one-class change made it fail. Then it was deleted, with the JSX. The
+  page's tests moved onto the TSX and the seam (first-run-page, first-run-check, setup-page-activate, setup-later,
+  today-doors) and the source pins onto the files that hold them now (setup, billing, forwarding). On the real app
+  (`next start` over this tree, the test workspace, every write stopped before it left), `/start` draws the first run full
+  screen on a desk and on a phone, a step opened from the rail replaces the address so Back leaves, `#/start` and
+  `#/admin/setup` land on it, Finish later goes to Today, and Today's card opens it again.
+
+## Built: Settings › Billing, the first pane (3 October 2026, branch `perf/load-path`, uncommitted)
+
+Step 11 of the order moves Settings one pane at a time, and the panes go before the page that draws them. Settings' page
+(`settings.jsx` `SettingsPage`: the rail, the strip on a phone, the question before leaving unsaved work) stays in the
+shell until its last pane, and draws a pane that has moved by the name its JSX published, which `seed-globals.ts`
+publishes now (`surfaces/settings/globals.ts`), as a shared part does ("What is shared moves once"): the site moves from
+the JSX to the bridge, and the publishers count does not rise. The frame does not go first for two reasons: the panes
+private to `settings.jsx` would each need a name published for it, a rise per pane, and the e2e harness
+(`tooling/scripts/e2e-harness`, the local runner the Business tab's spec and its mutation runs use) draws Settings in the
+standalone mockup, which an App Router page leaves, as People did. The page, its route word (`settings`) and the
+harness's answer for the Business tab come with the last pane.
+
+- **Billing is TSX** (`surfaces/settings/billing/pane.tsx`), published as `PaneBillingReal`; `billing-real.jsx` (201
+  lines) is deleted, and so is the mockup's twin inside `settings.jsx` (`PaneBilling`, 126 lines: a seeded plan of agent
+  credits and top-ups the standalone mockup drew where no settings read existed; the sidebar and the demo's Agent Store,
+  which read its seed after a visit, keep their own defaults). The standalone mockup has no Billing pane now.
+- **The bridge module moved with it**: `legacy-bridge/billing.ts` is `surfaces/settings/billing/surface.ts`, by `git mv`.
+  Billing's value is the seam's (`useSurface("billing")`, null when its read failed); `__BILLING_ACCOUNT` stays as its
+  mirror and `__billing` as its verbs only for the frame's top bar (`topbar.jsx`, a paused workspace), lines to delete at
+  step 13. Setup's rows and the first run import the verbs (`billingVerbs`), and `setup/shell.ts` lost its billing door.
+- **The phone app's flag is the document's class.** The pane asked `window.__IN_APP`; it asks contracts' `IN_APP_CLASS`
+  on the document element, which the same boot script stamps before paint, as the app's bridge does (`app-bridge.ts`).
+- **Proof.** A throwaway recorder drew `billing-real.jsx` at HEAD and the TSX over one world (the seam's value and its
+  mirror, the module's verbs, which the window's `__billing` is) and compared the host trees by value: 25 states (reading,
+  failed, no subscription, not ready to charge, test mode, a trial and its start-now question, active with a card, the
+  invoices shown, none and refused, past due, paused, unpaid, canceled, incomplete, a direct arrangement, no account row,
+  no price, an operator, a viewer, inside the phone app, back from Stripe and dismissed). No difference, on the final
+  code too; a one-word change made it fail. Then it was deleted. The pane's tests moved onto the TSX and the seam
+  (settings-doors) and the source pins onto the files that hold them (billing, truth-pass).
+
+## Built: Settings › Connections, the second pane (3 October 2026, branch `perf/load-path`, uncommitted)
+
+The second pane of step 11, drawn by `settings.jsx` by its old name as Billing is. Three JSX files (808 lines) are TSX in
+`surfaces/settings/connections/`: the pane (`pane.tsx`, published as `PaneIntegrationsReal`) and its row, Google's
+location chooser and the email form; the business on record (`record-form.tsx`); the domains cold email is sent from
+(`domains-block.tsx`). The two forms are imported by the pane, so `BusinessRecordForm` and `SendingDomains` leave the
+window.
+
+- **The bridge modules only Connections used moved with it**, by `git mv`, each a module object the pane imports and
+  nothing on the window: `business-record.ts` (`record.ts`), `sending-domains.ts` (`domains.ts`), `mailbox.ts`,
+  `whatsapp-connect.ts` (`whatsapp.ts`, `waConnect`, without its four casts and its one lint warning); `connections.ts`, which
+  published two contracts names, is deleted. `LegacyApp.tsx` installs none of them.
+- **Google's verbs are a module object** (`legacy-bridge/google.ts` `googleVerbs`), which the pane, the first run's Find
+  and Reports import. Its last window readers moved with this pane, so `__google` and the `__GOOGLE` mirror are gone:
+  Today's review line reads the seam's `google` and contracts' `toGoogleVM`, and `setup/shell.ts` lost its Google door.
+  `google.ts` stays in the bridge, shared by four surfaces.
+- **The twin and its store retired, as the order said**: `PaneIntegrations` (the mockup's seven invented services) and
+  `INT_STORE` with its `integrations:changed` event, from `settings.jsx`, with the demo's two readers (the top bar's
+  Gmail nag overlay, the demo Tasks page's released nurture). The mockup's Gmail nag now stays as it is seeded.
+- **What fell with it.** The WhatsApp module's rejection was the tree's last `prefer-promise-reject-errors` finding, so
+  that rule left `HELD_TYPED` (`eslint.config.mjs`) and is an error from now on; `settings.jsx` no longer reads
+  `__CHANNELS`, so the e2e harness's excuse for not publishing it is gone (`e2e-harness.test.mjs` `NOT_PUBLISHED`).
+- **Proof.** A throwaway recorder drew the three JSX files at HEAD and the TSX over one world (the seam's settings, Setup and
+  Google values beside the window names the JSX read, the modules' objects as the names' values) and compared the host
+  trees by value: 32 states (the settings read failed or not yet in, a new workspace, channels on and off, WhatsApp to
+  connect, a listing and its menu and Remove, a profile, a location to choose with and without places, back from Google
+  and refused, the email form and a wrong address, a name to change, domains with their records, held, the add form and
+  its refusals, Remove, the business record and its question, a path chosen, Not right?, rejected, still reading and
+  failed, an operator and a viewer). No difference, on the final code too; a one-class change in either form or the pane
+  made it fail. Then it was deleted. The pane's tests moved onto the TSX and the seam (settings-doors,
+  refusals-on-the-page, registration-path, first-run-page) and the source pins onto the files that hold them
+  (connections, google, google-profile, a2p, reports-seam, starter-templates, whatsapp-connect).
+
+## Built: Settings › Notifications, the third pane (3 October 2026, branch `perf/load-path`, uncommitted)
+
+The real branch of `settings.jsx`'s Notifications (who is alerted, what they are alerted about, and how) is TSX in
+`surfaces/settings/notifications/pane.tsx`, published as `PaneNotificationsReal`, the name it had inside the file, and
+drawn by `settings.jsx` by that name as Billing and Connections are. It reads the settings read over the seam
+(`useSurface("settings")`, in place of `__SETTINGS` and its `surface:settings` listener), saves through the bridge's
+`saveSettings` by import (in place of `__saveSettings`), and lists contracts' `NOTIFICATION_KIND_GROUPS` (in place of
+`__today.notificationKinds`); its gate, its sentence and its tip are `legacy-verbs`' `canDo`, `gate`, `gateTitle` and
+`showTip`.
+
+- **The twin retired, as the order said.** `PaneNotifications`, the mockup's six switches kept in the browser
+  (`chanlytics-notif-prefs`) that nothing read, and its loader went, with `SetSectionHead`, whose last reader this pane
+  was, and `SetToggle`, whose last drawer the twin was (its window copy was for the demo Calendar, which left the shell
+  at step 2; `settings-words.test.mjs` names a row's control through the dials now). The standalone mockup has no
+  Notifications pane now. In the app the twin drew only where the settings read had never landed, which a real workspace
+  never shows: its route waits for that read. The switch's rules in `settings.css` (`.set-switch`, `.set-knob`) have
+  no drawer left; they are `kit-primitives.json`'s to empty with the rest of Settings' in Phase 4.
+- **What fell with it.** `settings.jsx` is 214 lines shorter (1,510) and publishes one name fewer (`SetToggle`); it no
+  longer reads `__today` or `__saveSettings` (window globals −2; the e2e harness's excuse for `__today` went, `e2e-harness.test.mjs` `NOT_PUBLISHED`), and its
+  `exhaustive-deps` warning on the pane's listener went (lint 367 → 366). The pane's `style={{ flex: 1 }}` moved with its
+  row (inline styles: +1 in `pane.tsx`, −1 in `settings.jsx`, under Rises in `docs/debt.md`).
+- **Proof.** A throwaway recorder drew HEAD's JSX branch and the TSX over one world (the settings read on the seam beside
+  `__SETTINGS`, the JSX's `__saveSettings` the same `saveSettings`, over a fetch that hangs, accepts or refuses) and
+  compared the host trees, every toast each raised, what each sent and the tips each showed: 20 states (two addresses,
+  one, none in three shapes, the workspace's own sending address, a broken config, an operator and a viewer, an address
+  typed, a wrong one, one already there, the eleventh, a save in flight, accepted by Enter, refused, a Remove accepted and
+  undone, a Remove in flight, an operator pressing the gated Add, a kind's tip). No difference, on the final code too; a
+  class or a toast's words changed in the TSX made it fail. Then it was deleted. `settings-owner-panes.test.mjs` draws
+  the TSX through Settings' page as the app publishes it, and now draws what `settings-truth.test.mjs` read from the
+  page's text: the card's "except the two marked for Chanlytics", and every write closed on a broken config (F32).
+
+## Built: Settings › Autonomy, the fourth pane (3 October 2026, branch `perf/load-path`, uncommitted)
+
+The real branch of `settings.jsx`'s Autonomy (the policy matrix, the reply row's three dials, the hard limits and their
+two dials) is TSX in `surfaces/settings/autonomy/`, published as `PaneAutonomyReal` and drawn by `settings.jsx` by that
+name: `pane.tsx` (the pane and its dials' steps), `matrix.tsx` (a mode's words, the desk's table, the phone's one line
+per class, Settings' breakpoint), `controls.tsx` (Settings' row, the segmented control and the dial) and `verbs.ts`.
+
+- **Its reads and its door.** The rows are the bridge's `uiRows` (policy-store.ts) over the settings read's policies,
+  which the seam's settings value now carries beside the globals it copies (`policies`, null where that read failed);
+  the JSX read `window.POLICY`, the store over `__POLICIES`. A mode's words are contracts' through `UI_MODE_WORDS`, the
+  hard limits contracts' `hardLimitsWords` by import (`__hardLimits` is no longer published: this was its last reader),
+  and the one door is `autonomyVerbs.setPolicy`, the bridge's `setPolicy`, an object a test stands a door in on.
+  `window.POLICY` and `__setPolicy` stay for their other readers (the policy chip beside every approval, Fleet).
+- **The row names its control by handing it the id.** `SetRow` cloned its child to add `aria-labelledby`; the TSX row
+  draws its control from a `control` function given the label's id, so the same attribute lands on the same element
+  with nothing cloned.
+- **The twin retired, as the order said.** `PaneAutonomy` (the mockup's own matrix, its four defaults and the
+  per-segment guardrails kept in `ST_STORE` and `SEG_GUARDRAILS`) with `PolicyMatrix` and `VetoModeRow`, and every
+  helper only the two panes used (`SetRow`, `SetSeg`, `SetDial`, `polMode`, `PolModeHead`, `PolLockedCells`,
+  `PolPhoneRows`, `useSetPhone`, the dials' steps). The standalone mockup has no Autonomy pane now; the guardrail chips on
+  its other pages keep their seeded values.
+- **What fell with it.** `settings.jsx` is 539 lines shorter (971, still over the 800 a file may hold until Profile, Team and the frame leave), and
+  its one function over the limits (`PaneAutonomyReal`, 183 lines) went; it reads `__POLICIES` and `__setPolicy` no
+  more (window globals −2, `__hardLimits` gone, the e2e harness's excuse for `__setPolicy` with it), `seed-globals.ts`
+  publishes one name fewer, an inline style and an `exhaustive-deps` warning went (lint 366 → 365). Nothing rose.
+- **Proof.** A throwaway recorder drew HEAD's JSX branch over the policy store and the TSX over the seam, both given the
+  same rows and the same door, and compared the host trees, every toast, every save asked for and every tip: 26 states
+  (the reply row alone, every class with deals on and off, no rows stored, every dial off its steps, the read failed,
+  an operator and a viewer, a phone in four of them with its mode menu and a dial's steps opened, a mode and a step
+  picked there, a mode pressed while saving, accepted and refused, each of the five dials accepted, a dial refused, a
+  row's tip). No difference, on the final code too; a class or a toast's words changed in any of the three files made
+  it fail. Then it was deleted. `settings-owner-panes.test.mjs` and `settings-words.test.mjs` draw the TSX through
+  Settings' page; what `settings-truth.test.mjs` and `brain-v2.test.mjs` read from the page's text (the autonomy gate on
+  every dot and dial, a dial edit sending itself alone and never the row's mode) is drawn and pressed there now, and
+  `layout-measure.test.mjs`' pins on the old row's source point at `settings-words.test.mjs`, which reads the name off
+  each control's element.
+- **A test step 10 left behind.** The reach-out sheet's two page tests (`reach-out-sheet-page`, `reach-out-rows`) still
+  handed Setup's read in as `window.__SETUP`, which the sheet stopped reading at step 10 (`setupDto()` is the seam's
+  setup value): they set the seam's value now, and pass.
+
+## Built: Settings › Profile and Team, the fifth pane (3 October 2026, branch `perf/load-path`, uncommitted)
+
+Profile and Team move together, because they shared the role words. `surfaces/settings/profile/pane.tsx` (your name,
+the address you signed in with, your role, sign out, delete your account) and `surfaces/settings/team/team.tsx` (the
+roster, its open invitations, View-as, invite, change a role, remove) are published as `PaneProfile` and `TeamSection`,
+the names `settings.jsx` published, so the page and the Partner pane's Team (`partner-real.jsx`, which draws
+`window.TeamSection` under its partner card) draw them unchanged. `surfaces/settings/shared.ts` holds what more than one
+pane says or checks: each role's name and what it may do, and the shape of an address (Notifications reads it too).
+
+- **Their reads and their doors.** The seam's settings value carries the team read beside the globals it copies (`team`,
+  `invites`, typed from the route's own answer), which Team reads; Profile reads who is looking (`meNow()`). Contracts'
+  `memberWords`, `personInitials`, `identityWords`, `inviteState` and `stateOf` are imported. The doors are module
+  objects a test stands a door in on: `meVerbs` (`identity.ts`: your name, your account; `__me` is no longer
+  published) and `teamVerbs` (`inbox-verbs.ts`: invite, change a role, remove; `__teamInvite`, `__teamSetRole`,
+  `__teamRemove` and `__inviteState` are no longer published). View-as and sign-out go through `legacy-verbs`
+  (`viewAsRole`, `setViewAs`, `onRolesChanged`, `shellSignOut`), the role store and the frame staying the shell's.
+- **The twin retired, as the order said.** `TeamSection` drew the mockup's seeded roster wherever no team read existed:
+  four invented colleagues with seats, an invite that sent nothing, a Resend, and undos on the seed. The TSX draws the
+  real roster and a failed read, and nothing else; the standalone mockup has no Profile or Team pane now.
+- **What fell with it.** `settings.jsx` is 500 lines (971 → 500, under the file limit: its entry in
+  `file-length.json` went), and its last function over the limits but the page itself (`TeamSection`, 289 lines) went;
+  it publishes two names fewer and reads eight window names fewer, `inbox-verbs.ts` four publishes fewer, `identity.ts`
+  two casts fewer, and an `exhaustive-deps` warning went (lint 365 → 364). Under Rises in `docs/debt.md`: the face's
+  hue and the invitation box's `autoFocus` moved with their rows, and `identity.ts`' write of the name to who is
+  looking is seen as a publish now that its casts are gone.
+- **Proof.** A throwaway recorder drew HEAD's `PaneProfile` and `TeamSection` and the TSX over one world (the roster
+  and invitations on the seam beside the window's names, the same doors as the window's verbs and the module objects)
+  and compared the host trees, every toast, every door asked and where View-as was left: 52 states (an owner, an
+  operator, a viewer; a failed team read for two roles; one member, a partner on the roster, a preview; View-as pressed;
+  Invite opened, cancelled, a role picked, a wrong address, one already there, sent by Enter, each of the server's four
+  answers, refused, in flight; a member's and an invitation's menu, a role changed, refused, the same one; Remove asked,
+  kept, done, an invitation revoked, refused, in flight; your name with and without one, nobody read, an operator and a
+  partner; Change opened, saved by Enter and by Save, cleared, refused, unchanged, in flight; Change password; Sign out
+  with and without the frame and in the demo; Delete asked, kept, refused, in flight, in the demo). No difference, on
+  the final code too; a class or a toast's words changed in either file, or a role's words, made it fail. Then it was
+  deleted. The tests that drew either pane off the window draw the TSX (`confirm`, `empty-failed`, `settings-doors`,
+  `settings-honest`, `settings-owner-panes`); `settings-truth`'s pins on the old source are drawn now (an invitation's
+  menu offers no role; your name is a row on Profile, never in the Team card), `team-audit-and-invites`' pins on the
+  seeded branches read the TSX (the card writes only through its doors, never the role store's roster, and offers no
+  undo), `surface-registry.test.mjs`' five pins on the old card are drawn (a team read that failed keeps the server's
+  role and invents nobody; You is the signed-in address), `identity.test.mjs` reads the roster's words from the TSX,
+  and the e2e harness's excuses for eight names `settings.jsx` no longer reads went. The role words are a lookup
+  (`roleWords`) that says a role it does not know as stored, so the card reads no index the compiler lets pass.

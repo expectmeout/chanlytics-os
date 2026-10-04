@@ -33,15 +33,8 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runTool, buildProposal, newToolContext, ACT_TOOL_NAMES, ACT_DEFS } = await import(
   at("apps/dashboard/src/server/ask/tools/index.ts")
 );
-const {
-  MOMENTS_RETIRED,
-  PERSON_STATE_LABELS,
-  PLAYBOOK_TRIGGERS,
-  PROPOSAL_SPECS,
-  isWinBack,
-  momentOffered,
-  roleAtLeast,
-} = await import("@chanlytics/contracts");
+const { MOMENTS_RETIRED, PERSON_STATE_LABELS, PLAYBOOK_TRIGGERS, PROPOSAL_SPECS, momentOffered, roleAtLeast } =
+  await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 beforeEach(() => readerCache.clear());
 
@@ -623,9 +616,10 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks" ? againstOffered(got.result, result) : [got.result, result];
     // 2 Oct 2026: a win-back proposed asks first whether a calendar is connected (check-playbook's calendarOn), from the
-    // zone and settings the turn reads once: the same reads as before, those two earlier. Held to the same reads, in any order.
-    const winBack = call.name === "propose_campaign" && isWinBack(String(call.input.trigger));
-    const inOrder = (r) => (winBack || proposes || readsReach ? [...r].sort() : r);
+    // zone and settings the turn reads once: the same reads as before, those two earlier.
+    // Reads asked at once land in any order: People's list has read the workspace beside its rows since e32aaf29c,
+    // so every call's reads are compared as a set of counts, the win-back's and the channels' among them.
+    const inOrder = (r) => [...r].sort();
     assert.deepEqual(
       { ...got, result: gotResult, reads: inOrder(got.reads) },
       { ...want, result: wantResult, reads: inOrder(reads) },

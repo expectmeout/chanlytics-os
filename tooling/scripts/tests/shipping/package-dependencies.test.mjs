@@ -107,8 +107,13 @@ test("no package's dist inlines a third-party module", () => {
 });
 
 test("each package's build inlines only the workspace's own packages", async () => {
+  // A package's config is one build or several (contracts builds its entries apart): each is held.
+  const builds = [];
   for (const p of PACKAGES) {
     const { default: config } = await import(pathToFileURL(path.join(ROOT, `packages/${p}/tsup.config.ts`)).href);
+    for (const one of [config].flat()) builds.push([p, one]);
+  }
+  for (const [p, config] of builds) {
     assert.equal(config.skipNodeModulesBundle, true, `${p}: every bare import but @chanlytics/* stays external`);
     // Every package but contracts imports a sibling, and its dist carries it: noExternal is what says so.
     if (p !== "contracts") assert.ok((config.noExternal ?? []).length > 0, `${p}: inlines the workspace's packages`);

@@ -13,10 +13,10 @@ export {
   ASK_CAPS,
   ASK_THREAD_VERBS,
   ASK_UNDO_MS,
-  AskProposalOutcomeSchema,
   ASK_SURFACES,
   ASK_SCOPE_KINDS,
 } from "./ask";
+export { AskProposalOutcomeSchema } from "./ask-schemas";
 export type {
   AskRole,
   AskThreadVerb,
@@ -36,7 +36,8 @@ export { buildAskSuggestions, askQuestionWords } from "./ask-suggestions";
 export type { AskSuggestion, SuggestionInput } from "./ask-suggestions";
 export { dayFromQuestion, askIntent, callsToday } from "./ask-fast-paths";
 export type { FastCall, AskIntent } from "./ask-fast-paths";
-export { applySettingsChange, describeSettingsChange, AskSettingsChangeSchema } from "./ask-settings-change";
+export { applySettingsChange, describeSettingsChange } from "./ask-settings-change";
+export { AskSettingsChangeSchema } from "./ask-schemas";
 export type { AskSettingsChange } from "./ask-settings-change";
 export {
   emptyReadSet,
@@ -86,6 +87,7 @@ export type {
   AskAnswerRead,
 } from "./ask-answer";
 export { ASK_ANSWER_FORMAT } from "./answer-format";
-export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, PageContextSchema, itemFocus } from "./ask-context";
+export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, itemFocus } from "./ask-context";
+export { PageContextSchema } from "./ask-schemas";
 export type { AskContextRowKind, PageContextRow, PageContext } from "./ask-context";
 export type { AskScopeKind } from "./ask";

@@ -68,6 +68,9 @@ const CreateWorkspace =
 const helper = await import(pathToFileURL(path.join(ROOT, "apps/dashboard/src/legacy-bridge/waitlist.ts")).href).catch(
   () => null,
 );
+// The list's own rule, which the screen asks for as its form appears (an effect, which this stand-in never runs), so a
+// press settles in the ticks the screen's own promises take.
+await helper?.loadWaitlistRule();
 const HAS = "the screen has a way to join the list itself";
 
 const walk = (n, fn) => {

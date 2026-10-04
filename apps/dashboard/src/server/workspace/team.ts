@@ -231,24 +231,50 @@ export async function removeMember(
   return removed.revoked_invite === true ? { revokedInvite: true as const } : { removed: true as const };
 }
 
+/** An invitation still open for an address: where it seats them, and as what. */
+interface InviteToAccept {
+  id: string;
+  tenant_id: string;
+  role: string;
+}
+
+/**
+ * The invitations still open for this address, none when there is no address or they cannot be read: looked up beside
+ * the workspaces route's other reads, and accepted (acceptOpenInvites) once the request may write. Never rejects.
+ */
+export async function openInvitesFor(email: string | null): Promise<InviteToAccept[]> {
+  if (!email) return [];
+  try {
+    const { data, error } = await serviceDb()
+      .from("invitations")
+      .select("id, tenant_id, role")
+      .eq("email", email.toLowerCase())
+      .is("accepted_at", null)
+      .is("revoked_at", null)
+      .gt("expires_at", new Date().toISOString());
+    return error ? [] : (data ?? []);
+  } catch {
+    return [];
+  }
+}
+
 /** A sign-in completes any open invites for this email: membership rows
  *  appear at the invited role and the invite is stamped accepted. Called from
  *  the workspaces route on every same-origin read, not only when a session has
  *  no memberships yet: a person already in one workspace can be invited to
- *  another. Self-healing, no separate accept endpoint to get wrong. */
-export async function acceptOpenInvites(userId: string, email: string | null): Promise<number> {
+ *  another. Self-healing, no separate accept endpoint to get wrong. `open`: the
+ *  lookup already started (openInvitesFor); without it, it is made here. */
+export async function acceptOpenInvites(
+  userId: string,
+  email: string | null,
+  open: Promise<InviteToAccept[]> = openInvitesFor(email),
+): Promise<number> {
   if (!email) return 0;
+  const invites = await open;
+  if (!invites.length) return 0;
   const db = serviceDb();
-  const { data: open, error } = await db
-    .from("invitations")
-    .select("id, tenant_id, role")
-    .eq("email", email.toLowerCase())
-    .is("accepted_at", null)
-    .is("revoked_at", null)
-    .gt("expires_at", new Date().toISOString());
-  if (error || !open?.length) return 0;
   let n = 0;
-  for (const inv of open) {
+  for (const inv of invites) {
     const { error: mErr } = await db
       .from("memberships")
       .insert({ tenant_id: inv.tenant_id, user_id: userId, role: inv.role });
