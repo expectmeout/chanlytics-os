@@ -111,6 +111,7 @@ export function bcSheetOf({
       playbook: pb,
       template,
       businessName: data.businessName || "",
+      businessAddress: data.businessAddress ?? null,
       armed: armId === row.id,
       onArm: (on: boolean) => setArmId(on ? row.id : null),
       stopping: stopping === row.id,
@@ -220,6 +221,8 @@ export function bcRunSolo({
 }: SoloIn) {
   return (
     <BroadcastDetail
+      // One run's filter and expanded rows are state of that run: keyed by it, the next run opens fresh.
+      key={openId}
       id={openId}
       name={openRow ? openRow.name : null}
       onClose={() => openRun(null)}

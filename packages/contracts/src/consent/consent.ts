@@ -73,6 +73,16 @@ export type SendPurpose = "conversational" | "marketing" | "outreach";
 /** The two questions a person is asked, and answers (the consent page, their profile, an audience). Outreach asks nobody. */
 export type AskedPurpose = Exclude<SendPurpose, "outreach">;
 
+/**
+ * What a message that starts a conversation is about (decision D1 of the Campaigns code review, 4 Oct 2026, keeping the
+ * campaigns spec's decision 11): `theirs` is about something the person set going themselves (a visit they booked, the
+ * proposal their deal waits on, the call they are on, a thread they wrote in); `ours` is news the business chose to send
+ * (a broadcast, whatever its template's category). Only email asks it: a visit reminder by email needs no yes, but an
+ * email of the business's own choosing needs the person's yes covering email, or a relationship on record, as an offer
+ * does. Required at every send, so a sender cannot forget which it is.
+ */
+export type MessageAbout = "theirs" | "ours";
+
 export interface PurposeBearing extends ConsentBearing {
   marketing_consent?: string | null;
   /**
@@ -133,7 +143,7 @@ export type PurposeRefusal = "opted_out" | "no_marketing_consent" | "not_opted_i
 export function mayMessageFor(
   c: PurposeBearing,
   purpose: SendPurpose,
-  opts: { proactive?: boolean; channel: string },
+  opts: { proactive?: boolean; channel: string; about: MessageAbout },
 ): { ok: true; reason: null } | { ok: false; reason: PurposeRefusal } {
   if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
   // Cold email to a business: US law lets a business write until it is told to stop (CAN-SPAM), so no recorded yes
@@ -151,7 +161,19 @@ export function mayMessageFor(
     // is not enough. An unsubscribe ends it, and a row read without the answer cannot tell whether they pressed it, so
     // it sends nothing. Whether the deployment may send an offer by email at all is the door's (deliver.ts: a verified
     // campaigns domain, the workspace's offers not paused) and the pick's (reach-for.ts channelRefuses).
-    if (purpose !== "marketing") return { ok: true, reason: null };
+    if (purpose !== "marketing") {
+      // A reply, or a message about something of theirs (a visit they booked, their proposal, the call they are on):
+      // no yes asked, as decision 11 says.
+      if (!opts.proactive || opts.about === "theirs") return { ok: true, reason: null };
+      // DECISION D1 (4 Oct 2026): news the business chose to send is not a visit reminder because its WhatsApp twin is
+      // a utility template. It goes by email as an offer would: not to someone who pressed Unsubscribe, and only to
+      // someone whose yes covers email or who has dealt with the business. An address alone is not enough.
+      if (c.email_marketing === "opted_out") return { ok: false, reason: "unsubscribed" };
+      const saidYes = c.consent === "opted_in" && yesCovers(c.consent_channels, "email");
+      return saidYes || c.has_relationship === true
+        ? { ok: true, reason: null }
+        : { ok: false, reason: "not_opted_in" };
+    }
     const answer = c.email_marketing;
     if (answer === "opted_out") return { ok: false, reason: "unsubscribed" };
     // DECISION (3 Oct 2026, the conservative reading): a recorded no to offers elsewhere bars an offer by email too. Someone
@@ -258,15 +280,6 @@ export const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, 
   sending_domain_at_cap:
     "The domain this email was to leave from has sent its day's share. It goes when there is room.",
 };
-
-/**
- * Said once on the Broadcasts page, where an owner picks an offer to send.
- * The refusal above is per customer, at the wire; this is the rule, for the
- * page, so a customer who only ever texted being absent from an offer's count
- * reads as the rule it is and not as a bug.
- */
-export const OFFERS_BY_WHATSAPP_NOTE =
-  "Offers and news go by WhatsApp only. The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text; someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
 
 /**
  * One change to one of the two answers, as the ledger recorded it.

@@ -284,6 +284,11 @@
   flex: 1 1 200px;
   min-width: 0;
 }
+/* What keeps the send from going, on a line of its own over the name and the acts: the first thing, in one sentence. */
+.bc-foot .bc-foot-say {
+  flex: 1 1 100%;
+  min-width: 0;
+}
 .bc-row-label {
   font-size: 10px;
   font-weight: 500;
@@ -1341,6 +1346,12 @@ html.legacy-on .tpl-fresh {
   color: var(--ink);
   box-shadow: var(--focus-ring);
 }
+/* Who the run reaches, said where it is read: the guardrails' own line, under the row's other parts. */
+.pb-guard-words {
+  flex: 1 1 100%;
+  min-width: 0;
+  text-wrap: pretty;
+}
 /* What is missing where the message would be: dashed, as an unset moment is on the page. */
 .pb-empty {
   display: flex;
@@ -2144,11 +2155,12 @@ html.legacy-on .bc-run-line .bc-run-link {
   padding: 0 15px;
   border-radius: var(--radius-md);
 }
-.bc-send .bc-send-later {
+/* The foot's two acts by their part, not their name: Send now is the main one until a time is picked, and then Schedule it is. */
+.bc-send .bc-act-second {
   border-color: var(--line-strong);
   color: var(--ink-muted);
 }
-.bc-send .bc-send-now {
+.bc-send .bc-act-main {
   padding: 0 17px;
   font-size: var(--text-base);
   gap: 8px;
@@ -2696,6 +2708,22 @@ html.legacy-on .bc-run-line .bc-run-link {
   line-height: 1.5;
   color: var(--ink-muted);
   overflow-wrap: anywhere;
+}
+/* An email's subject over the words it opens with, and what the sender adds under a text's (its STOP line), or why the
+   reader's own channel could not be drawn: the same words the composers' previews carry (parts/preview-by.ts). */
+.bc-approval-subject {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.bc-approval-says {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
 }
 .bc-sheet-slot {
   padding: 0 3px;
@@ -4003,6 +4031,28 @@ html.legacy-on .msg-use-link {
   text-decoration: underline dotted;
   text-underline-offset: 3px;
 }
+/* Why a channel is closed, as a line under the row where there is no pointer: the kit's tooltip never shows to a finger. A
+   screen reader has the same words as each switch's description, so the line is hidden from it. */
+.cm-via-whys {
+  display: none;
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.cm-via-why-word {
+  color: var(--ink-muted);
+}
+@media (hover: none) {
+  .cm-via-whys {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+}
 /* A row's word is one line: "Send by" is the longest of them. */
 .bc-grow-word,
 .pb-grow-word {
@@ -4157,11 +4207,11 @@ html.legacy-on .cm-pane-sub .bc-run-link {
   padding: 0 var(--space-4);
   border-radius: var(--control-radius);
 }
-.bc-pane .cm-pane-foot .bc-send-later {
+.bc-pane .cm-pane-foot .bc-act-second {
   border-color: var(--line-strong);
   color: var(--ink-muted);
 }
-.bc-pane .cm-pane-foot .bc-send-now {
+.bc-pane .cm-pane-foot .bc-act-main {
   gap: var(--space-2);
   font-size: var(--text-base);
 }

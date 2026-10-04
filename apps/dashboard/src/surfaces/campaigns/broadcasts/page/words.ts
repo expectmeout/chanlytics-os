@@ -3,7 +3,7 @@
  * decision 0015): a row's key, its title and language in a person's words, the library's order and default, and what
  * each slot of a template may take on a broadcast.
  */
-import type { ParamSourceKind } from "@chanlytics/contracts";
+import type { AskedPurpose, ParamSourceKind } from "@chanlytics/contracts";
 import type { BroadcastTemplate } from "../surface";
 import { starters } from "../../templates/verbs";
 
@@ -40,3 +40,18 @@ export const bcFooter = (t: BroadcastTemplate | null | undefined) => (t ? starte
 export const BC_TEXT: ParamSourceKind[] = ["text"];
 export const bcSlots = (t: BroadcastTemplate, bookingLink: boolean) =>
   starters.slots(t, { visits: false, bookingLink, proposal: false });
+
+/**
+ * What the send screen's foot says it is waiting for (reach.ts bcStopOf), as the playbook composer's foot says its own: one
+ * short sentence for the first thing missing, since on a phone the foot is docked away from the columns that explain it. The
+ * number's and the day's limit's own sentences are the number's (contracts numberHealth, overLimitRefusal).
+ */
+export const BC_SAYS = {
+  pickMessage: "Pick the message to send.",
+  pickList: "Pick who it goes to.",
+  fill: (label: string): string => `Fill in “${label}” to send it.`,
+  nobody: (list: string, purpose: AskedPurpose): string =>
+    `Nobody on “${list}” can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet.`,
+  /** A send by WhatsApp has no number to go from: said here, and by the When column's number line. */
+  noNumber: "No WhatsApp number connected — connect one in Settings › Connections.",
+} as const;

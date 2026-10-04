@@ -403,6 +403,7 @@ type Database = {
             };
             broadcast_recipients: {
                 Row: {
+                    attempt: number;
                     broadcast_id: string;
                     channel: string | null;
                     contact_id: string;
@@ -414,6 +415,7 @@ type Database = {
                     tenant_id: string;
                 };
                 Insert: {
+                    attempt?: number;
                     broadcast_id: string;
                     channel?: string | null;
                     contact_id: string;
@@ -425,6 +427,7 @@ type Database = {
                     tenant_id: string;
                 };
                 Update: {
+                    attempt?: number;
                     broadcast_id?: string;
                     channel?: string | null;
                     contact_id?: string;

@@ -1624,7 +1624,14 @@ test("a person's page names the runs that reached them and what came of each -- 
       ["b-win", "Win-back", "Playbook · Replied", "ok", "broadcasts/run:b-win"],
       ["b-spring", "Spring offer", "Broadcast · Sent", "plain", "broadcasts/run:b-spring"],
       ["b-held", "Summer offer", "Broadcast · Held — no yes to offers", "warn", "broadcasts/run:b-held"],
-      ["b-refused", "May offer", "Broadcast · Didn't send — WhatsApp refused", "warn", "broadcasts/run:b-refused"],
+      // A person's page does not carry the channel a run went by, so a refusal is the provider's, never WhatsApp's by default.
+      [
+        "b-refused",
+        "May offer",
+        "Broadcast · Didn't send — the provider refused it",
+        "warn",
+        "broadcasts/run:b-refused",
+      ],
     ],
     "newest first; a reply inside the window is a reply, one four days later is not",
   );

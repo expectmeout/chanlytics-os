@@ -70,7 +70,7 @@
   "apps/edge/lib/whatsapp/meta-templates.ts": 2,
   "apps/edge/lib/whatsapp/ports.ts": 1,
   "apps/edge/lib/whatsapp/waba-events.ts": 1,
-  "packages/channels/src/email/email-resend.ts": 2,
+  "packages/channels/src/email/email-resend.ts": 1,
   "packages/channels/src/google/google-oauth.ts": 4,
   "packages/channels/src/google/google-places.ts": 2,
   "packages/channels/src/google/google-profile.ts": 3,

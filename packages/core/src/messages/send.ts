@@ -7,6 +7,7 @@ import {
   type WireUnavailableError,
 } from "../wire-senders";
 import type { SendQueuedCommand, SendQueuedPorts } from "./ports";
+import { pageTheProvider } from "./provider-page";
 
 export type { SendQueuedCommand } from "./ports";
 
@@ -82,6 +83,9 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
       sender: (msg.sender ?? "human") as "ai" | "human" | "system",
       purpose,
       proactive: p.proactive === true,
+      // One message to one person in their own thread (a reply, the receptionist's, a person's written one): theirs.
+      // A campaign's news goes by the broadcast's batch, which says ours (contracts MessageAbout, decision D1).
+      about: "theirs",
       body: p.body ?? msg.body ?? "",
       template: p.template,
       // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
@@ -159,7 +163,8 @@ interface FailedSend {
 async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, f: FailedSend): Promise<void> {
   const p = cmd.payload;
   const { msg, channel, to, out } = f;
-  await pageTheProvider(ports, cmd, f);
+  // A provider's limit or a refused key is the platform's to hear, never one thread's (provider-page.ts, as a broadcast's).
+  await pageTheProvider(ports, f, `Tenant ${cmd.tenantId}, message ${p.message_id}`);
   // A campaign's email that failed (a reach-out, a broadcast) is its run's to report, once, and its row already says
   // it: never a flag on a thread nobody there wrote on, or an owner alert per email of a run. The one predicate the
   // receipt and a job that died ask too (contracts isCampaignEmail).
@@ -188,41 +193,6 @@ async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, f: Fa
     subject: `Reply delivery failed: ${to}`,
     body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`,
   });
-}
-
-/** A provider's limit or a refused key is the platform's to hear, never one thread's. */
-async function pageTheProvider(ports: SendQueuedPorts, cmd: SendQueuedCommand, f: FailedSend): Promise<void> {
-  const p = cmd.payload;
-  const { channel, purpose, out } = f;
-  // A limit at the mail provider (named by the door, deliver.ts) is not this thread's fault either. A used-up day or
-  // month stops every workspace's email on the key, so it is recorded for the platform (provider_quota:email, shown on
-  // /api/diag); the page's own mail rides the same key and cannot leave until the quota resets. "Slow down" is one
-  // second's problem, and a try still in flight may yet arrive: neither pages anyone.
-  const limit = out.limit ?? null;
-  // Cold email leaves through an account of its own (wire-senders.ts emailSender), so its limits and its key are paged
-  // under their own name, and say what they do not stop.
-  const outreach = channel === "email" && purpose === "outreach";
-  if (limit === "daily" || limit === "monthly") {
-    await ports.page?.(
-      outreach ? "provider_quota:email_outreach" : "provider_quota:email",
-      `${outreach ? "cold email" : "email"}: the ${limit} sending limit is used up`,
-      outreach
-        ? `Tenant ${cmd.tenantId}, message ${p.message_id}. Cold email is refused until it resets. Replies and reminders are not affected.`
-        : `Tenant ${cmd.tenantId}, message ${p.message_id}. Every workspace's email is refused until it resets or the plan grows.`,
-    );
-  }
-  // A 401 or 403 from the provider is the platform's problem, not this
-  // thread's: the credentials are wrong for every send on this wire.
-  // A 403 that names a domain is the provider refusing to send from one that stopped verifying at its end: the domain's
-  // fact, which the domains sweep holds, never our credentials.
-  const domainRefused = outreach && out.status === 403 && /domain/i.test(out.errorBody ?? "");
-  if (out.reason === "provider" && (out.status === 401 || (out.status === 403 && !domainRefused))) {
-    await ports.page?.(
-      `provider_auth:${outreach ? "email_outreach" : channel}`,
-      `${channel} rejected a send with ${out.status}`,
-      `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`,
-    );
-  }
 }
 
 /** Why it did not leave, in words for the owner: a number with no credentials is not "HTTP 503". */

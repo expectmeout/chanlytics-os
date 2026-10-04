@@ -22,11 +22,12 @@ import type {
 } from "@chanlytics/contracts";
 import type { SettingsRecord } from "@/legacy-bridge/surfaces/settings";
 import { gate, navigate, setupDto, setupFailed, surfaceFailed } from "../../legacy-verbs";
-import { recordSheetPart, unsavedAskPart } from "../../legacy-parts";
-import type { UnsavedWork } from "../../legacy-parts";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
+import { RecordSheet } from "../../kit/record/sheet";
+import { UnsavedAsk } from "../../kit/record/work";
+import type { UnsavedWork } from "../../kit/record/work";
 import { useSurface } from "../../use-surface";
 import { useReachOutDraft } from "./sheet-draft";
 import { RoThen, RoWhat, RoWho } from "./sheet-fields";
@@ -94,7 +95,6 @@ interface FootProps {
 
 /** The foot: what the chain will do, Cancel, and Start it (or Save, changing one); the one question first when asked. */
 function RoFoot({ W, work, say, ready, busy, editing, onStart, saved, onClose, onGo }: FootProps) {
-  const UnsavedAsk = unsavedAskPart();
   const P = W.REACH_OUT_SHEET_PARTS;
   if (saved)
     return (
@@ -273,7 +273,6 @@ interface SheetProps {
  * run did (R14), with Close and the one door on; `onClose` closes it.
  */
 export function ReachOutSheet({ search, chain = null, includeUnconfirmed = false, onClose, onDone, onGo }: SheetProps) {
-  const RecordSheet = recordSheetPart();
   const W = reachOuts.words;
   const st = useReachOutDraft(W, { search, chain, includeUnconfirmed, onClose });
   const [busy, setBusy] = useState(false);

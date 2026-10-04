@@ -121,6 +121,7 @@ export const LOG_EVENTS = [
   "calls_sweep_row_failed",
   "calls_sweep_unknown_to_provider",
   "campaign_hold_unwritten",
+  "campaign_step_failed",
   "campaigns_domain_unchecked",
   "campaigns_secret_missing",
   "cancel_jobs_failed",

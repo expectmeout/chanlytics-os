@@ -22,6 +22,7 @@ import {
   emailFoot,
   emailFootHtml,
   heldByAllowance,
+  messageAboutOfTrigger,
   renderOwnVersion,
   renderTemplate,
   versionWords,
@@ -29,7 +30,7 @@ import {
   type SendPurpose,
   type VersionWords,
 } from "@chanlytics/contracts";
-import { uuidV5 } from "../uuid-v5";
+import { broadcastEmailId } from "../campaigns/reach-out-ids";
 import type { Channel, Delivery } from "../deliver";
 import type {
   BroadcastBatchCommand,
@@ -146,10 +147,10 @@ type Prepared = { held: string } | { delivery: Delivery; queue?: QueuedEmail };
 
 /**
  * The email, frozen: the version's subject and body with the slots filled, the foot, the request the hosted mailbox
- * sends, and the queued row it will be written as, under an id derived from the run, the person and how long the run has
- * waited, so a batch that resumes meets the same row and one that waited writes a fresh one (a send the provider did not
- * take has its row withdrawn, broadcast.ts). The row is written after the claim, by `queueEmailRow`; one already there
- * that is no longer queued has had its say.
+ * sends, and the queued row it will be written as, under the id `broadcastEmailId` derives (campaigns/reach-out-ids.ts) from
+ * the run, the person and their attempt, so a batch that resumes meets the same row and a person tried again writes a fresh one (a send the
+ * provider did not take has its row withdrawn, broadcast.ts). The row is written after the claim, by `queueEmailRow`;
+ * one already there that is no longer queued has had its say.
  */
 async function emailDelivery(
   w: Work,
@@ -160,7 +161,13 @@ async function emailDelivery(
   if (!version) return { held: "no_channel" };
   const said = renderOwnVersion("email", version, i.params, w.b.template_language);
   if (!said.subject) return { held: "no_channel" };
-  const messageId = await uuidV5(`broadcast_email:${w.b.id}:${i.c.id}:${w.cmd.waits ?? 0}:${w.cmd.stalls ?? 0}`);
+  const messageId = await broadcastEmailId({
+    broadcastId: w.b.id,
+    contactId: i.c.id,
+    attempt: i.r.attempt,
+    waits: w.cmd.waits ?? 0,
+    stalls: w.cmd.stalls ?? 0,
+  });
   const { businessName, address } = w.facts;
   let foot: Foot;
   if (w.purpose === "marketing") {
@@ -175,10 +182,13 @@ async function emailDelivery(
       unsubscribeUrl,
     };
     foot = {
-      footer: emailFoot(businessName, address, offer),
-      offer: { unsubscribeUrl, footerHtml: emailFootHtml(businessName, address, offer) },
+      footer: emailFoot(businessName, address, offer, w.b.template_language),
+      offer: { unsubscribeUrl, footerHtml: emailFootHtml(businessName, address, offer, w.b.template_language) },
     };
-  } else foot = { footer: emailFoot(businessName, address, { kind: "visit", facts: rowFacts(i.r) }) };
+  } else
+    foot = {
+      footer: emailFoot(businessName, address, { kind: "visit", facts: rowFacts(i.r) }, w.b.template_language),
+    };
   const request = await w.ports.emailRequest({ messageId, to: i.to, subject: said.subject, body: said.body, ...foot });
   if (!request) return { held: "no_channel" };
   return {
@@ -222,6 +232,10 @@ export async function prepare(
     kind: "broadcast" as const,
     purpose: w.purpose,
     proactive: true,
+    // A visit's or a follow-up's run is about something of theirs, any other run (a broadcast) the business's news, which by
+    // email asks a yes covering email or a relationship (contracts messageAboutOfTrigger, decision D1): the run's moment,
+    // read as the enrolment read it, so the two cannot disagree about anyone.
+    about: messageAboutOfTrigger(w.trigger),
     // A send the provider provably did not take (a connection that never opened, its "not now") is handed back rather
     // than written as failed: this person waits in the queue, and the run waits with them (00282).
     holdIfNotTaken: true,

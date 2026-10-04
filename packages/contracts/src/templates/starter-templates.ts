@@ -23,6 +23,7 @@
  * template-slots.ts, template-titles.ts, message-languages.ts, inbox-templates.ts and template-order.ts.
  */
 import type { PlaybookTrigger } from "../playbooks/playbook-triggers";
+import { SENDER_WORDS } from "./sender-words";
 import type { ParamSourceKind } from "./templates";
 
 /** What a starter's slot takes: one of the sources a campaign fills a slot from (templates.ts). */
@@ -101,8 +102,9 @@ const OFFER_ES = {
   label: "La oferta",
   example: "20% de descuento en cualquier servicio reservado antes del viernes.",
 };
-const STOP_EN = "Reply STOP to opt out";
-const STOP_ES = "Responde STOP para darte de baja";
+// The footer under every WhatsApp message of the set is the line a text carries (sender-words.ts), said once.
+const STOP_EN = SENDER_WORDS.en.textStop;
+const STOP_ES = SENDER_WORDS.es.textStop;
 
 export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
   /* ---- The set (2 Oct 2026), in the order a composer opens on ---- */

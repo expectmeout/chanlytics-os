@@ -7,7 +7,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { REPLY_INTENTS, parseReplyReading, readingPlan, replyTextOf } from "@chanlytics/contracts";
-import { incomingEmailOf } from "../../../../packages/jobs/src/handlers.ts";
+import { incomingEmailOf as incomingEmail } from "../../../../packages/jobs/src/handlers.ts";
+
+/** The email as the intake takes it, with no authserv-id configured: these read its claim and its words, never its sender's proof. */
+const incomingEmailOf = (e) => incomingEmail(e, null);
 import { loadFixtures, readerInputOf, judgeReading } from "../../evals/reply-intents.mjs";
 
 const set = loadFixtures();

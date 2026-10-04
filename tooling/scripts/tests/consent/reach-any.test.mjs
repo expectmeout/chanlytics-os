@@ -113,6 +113,17 @@ test("an email-only person can be sent a message where email is set up, and is n
     [false, true],
     "an email about a visit asks no yes",
   );
+  // A row's "can get your messages" is the visit and proposal moments' (theirs, decision D1). The business's own news by
+  // email, a broadcast's, asks more of the same person, a yes covering email or dealings with the business, and says so.
+  const byEmail = { channels: ["email"], ready: ready({ email: true }) };
+  assert.deepEqual(contracts.reachFor(asked, "conversational", { ...byEmail, about: "theirs" }), {
+    channel: "email",
+    held: null,
+  });
+  assert.deepEqual(contracts.reachFor(asked, "conversational", { ...byEmail, about: "ours" }), {
+    channel: null,
+    held: "no_yes",
+  });
   const stopped = personRow(emailOnly({ consent: "opted_out", dnc: true }), { ready: ready({ email: true }) });
   assert.deepEqual([stopped.canReceive.messages, stopped.whyNot.messages], [false, "stopped"]);
 });
@@ -216,13 +227,19 @@ test("People's lists count the rows' facts: who can be sent an offer moves with 
 test("the empty-audience refusal says a yes was given by what they said, on any channel: a text-only yes is a yes, with no number to send to", () => {
   const dto = (over) => personRow(over, { ready: ready({ text: true }) });
   assert.equal(
-    emptyAudienceRefusal("conversational", "Regulars", [dto(TEXT_YES)]),
+    emptyAudienceRefusal("conversational", "Regulars", [dto(TEXT_YES)], { channels: ["whatsapp"], about: "ours" }),
     noNumberWords("“Regulars”", "conversational"),
     "somebody said yes: what is missing is a way to reach them (it was WhatsApp's yes alone before)",
   );
-  assert.match(emptyAudienceRefusal("conversational", "Regulars", [dto({ consent: "unknown" })]), /yes to messages/i);
   assert.match(
-    emptyAudienceRefusal("marketing", "Regulars", [dto(TEXT_YES)]),
+    emptyAudienceRefusal("conversational", "Regulars", [dto({ consent: "unknown" })], {
+      channels: ["whatsapp"],
+      about: "ours",
+    }),
+    /yes to messages/i,
+  );
+  assert.match(
+    emptyAudienceRefusal("marketing", "Regulars", [dto(TEXT_YES)], { channels: ["whatsapp"], about: "ours" }),
     /yes to offers/i,
     "a yes to messages is not one to offers",
   );

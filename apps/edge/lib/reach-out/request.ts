@@ -21,6 +21,7 @@ import {
 import {
   emailFoot,
   emailFootHtml,
+  REACH_OUT_LANGUAGE,
   reachOutEmailOf,
   reachOutSlotFault,
   slotCount,
@@ -137,8 +138,9 @@ export function reachOutRequest(
       actor: "human",
       campaign: {
         unsubscribeUrl: url,
-        footer: emailFoot(business, address, foot),
-        footerHtml: emailFootHtml(business, address, foot),
+        // In the language every reach-out email is filed in, the one its words are filled under (reachOutEmailOf).
+        footer: emailFoot(business, address, foot, REACH_OUT_LANGUAGE),
+        footerHtml: emailFootHtml(business, address, foot, REACH_OUT_LANGUAGE),
       },
       messageId: i.messageId,
       tenantId: i.tenantId,

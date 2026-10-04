@@ -1,16 +1,22 @@
 /**
  * Broadcasts count what they say they count.
  *
- * Two numbers on the Broadcasts page were not what they said they were:
+ * Three numbers on the Broadcasts page were not what they said they were:
  *
  * - the header's Sent, Delivered and Replies summed the newest fifty broadcasts
  *   the route returns, and read as everything (the 12 September audit's D12);
  * - an audience's "N people said yes" was counted over the first thousand
- *   people the People read returns, while the send enrols everyone.
+ *   people the People read returns, while the send enrols everyone;
+ * - a run's own sent, delivered and replied were counted from the first
+ *   thousand recipient rows PostgREST answered for up to two hundred runs at
+ *   once, and from the first thousand messages of their threads (the 4 October
+ *   review's finding 14; first found on 20 September, and not landed then).
  *
- * The route now says when more than fifty exist, and the surface reads every
- * page of people before it counts. Both run here: the route's list over a
- * database double, the surface over a fake wire.
+ * The route now says when more than fifty exist and reads a run's people and
+ * their replies a page at a time, and the surface reads every page of people
+ * before it counts. All of it runs here: the route's reads over a database
+ * double that answers at most a thousand rows, as PostgREST does, and the
+ * surface over a fake wire.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -20,7 +26,8 @@ const TID = "t-salon";
 
 /* ----------------------------- the route's fifty ----------------------------- */
 
-const { listBroadcasts } = await import("../../../../apps/dashboard/src/server/campaigns/broadcasts.ts");
+const { listBroadcasts, listRuns, getBroadcast } =
+  await import("../../../../apps/dashboard/src/server/campaigns/broadcasts.ts");
 
 const bRow = (i) => ({
   id: `b${String(i).padStart(3, "0")}`,
@@ -56,6 +63,192 @@ test("REGRESSION (D12): past fifty broadcasts the list says more exist -- the pa
   const few = await listBroadcasts({ supabase: fakeDb(world(3)) }, TID);
   assert.equal(few.broadcasts.length, 3);
   assert.equal(few.more, false);
+});
+
+/* ------------------------- a run's people, past a thousand ------------------------- */
+
+/** PostgREST's `api.max_rows` (supabase/config.toml), which the double keeps by default: a select answers at most a thousand rows, and says nothing. */
+const capped = (tables) => fakeDb(tables);
+const pad = (i) => String(i).padStart(4, "0");
+const SENT = Date.UTC(2026, 8, 1, 14);
+const at = (ms) => new Date(SENT + ms).toISOString();
+const broadcast = (id, over = {}) => ({ ...bRow(0), id, name: id, ...over });
+
+/**
+ * One run's people, the way its job leaves them: `held` held back (they asked to stop), then `sent` sent a second apart,
+ * every one delivered. The first `read` of those read it, and the first `replied` wrote back ten minutes after theirs
+ * went, `wrote` times: their inbound messages are `inbound`, their ids in thread order (so a read cut at a thousand rows
+ * loses whole threads, never a message here and there).
+ */
+function peopleOf(id, { sent, held = 0, read = 0, replied = 0, wrote = 1 }) {
+  const recipients = [];
+  const inbound = [];
+  for (let i = 0; i < held; i++) {
+    recipients.push({
+      tenant_id: TID,
+      broadcast_id: id,
+      contact_id: `${id}-h${pad(i)}`,
+      state: "skipped",
+      reason: "opted_out",
+      sent_at: null,
+      messages: null,
+    });
+  }
+  for (let i = 0; i < sent; i++) {
+    const conversation_id = `cv-${id}-${pad(i)}`;
+    recipients.push({
+      tenant_id: TID,
+      broadcast_id: id,
+      contact_id: `${id}-s${pad(i)}`,
+      state: "sent",
+      reason: null,
+      sent_at: at(i * 1000),
+      messages: { conversation_id, status: i < read ? "read" : "delivered", meta: {} },
+    });
+    if (i < replied)
+      for (let w = 0; w < wrote; w++)
+        inbound.push({
+          id: `m-${id}-${pad(i)}-${w}`,
+          tenant_id: TID,
+          conversation_id,
+          direction: "inbound",
+          created_at: at(i * 1000 + 600_000 + w * 1000),
+        });
+  }
+  return { recipients, inbound };
+}
+
+/**
+ * The order each read of a table asked for. PostgreSQL promises none without one, so pages under an order that is not
+ * unique can repeat one person across a boundary and skip another; the table's key is unique.
+ */
+const ordersOf = (db, table) => [
+  ...new Set(db.seen.filter((q) => q.table === table).map((q) => q.orders.map((o) => o.col).join(", "))),
+];
+/** The reads of customers' messages the double saw. */
+const inboundReads = (db) =>
+  db.seen.filter((q) => q.table === "messages" && q.filters.some((f) => f[1] === "direction" && f[2] === "inbound"));
+
+test("REGRESSION: a run counts every person on it past PostgREST's thousand rows -- one read for up to two hundred runs stopped at the first thousand people", async () => {
+  // Two runs of one playbook, 700 and 600 people: 1,300 rows, and one chunk of runs.
+  const r1 = peopleOf("r1", { sent: 650, held: 50, read: 400, replied: 70 });
+  const r2 = peopleOf("r2", { sent: 560, held: 40, read: 300, replied: 60 });
+  const tables = () => ({
+    broadcasts: [
+      broadcast("r1", { playbook_id: "pb1", run_for: "2026-09-01" }),
+      broadcast("r2", { playbook_id: "pb1", run_for: "2026-09-02" }),
+    ],
+    broadcast_recipients: [...r1.recipients, ...r2.recipients],
+    messages: [...r1.inbound, ...r2.inbound],
+  });
+  const whole = {
+    r1: { queued: 0, sent: 650, skipped: 50, failed: 0, delivered: 650, read: 400, replied: 70 },
+    r2: { queued: 0, sent: 560, skipped: 40, failed: 0, delivered: 560, read: 300, replied: 60 },
+  };
+  const db = capped(tables());
+  const runs = await listRuns({ supabase: db }, TID);
+  assert.deepEqual(
+    Object.fromEntries(runs.map((b) => [b.id, b.counts])),
+    whole,
+    "a playbook card's totals, from every person on every run",
+  );
+  const { broadcasts } = await listBroadcasts({ supabase: capped(tables()) }, TID);
+  assert.deepEqual(
+    Object.fromEntries(broadcasts.map((b) => [b.id, b.counts])),
+    whole,
+    "and the Broadcasts page's rows, from the same people",
+  );
+  assert.deepEqual(
+    ordersOf(db, "broadcast_recipients"),
+    ["broadcast_id, contact_id"],
+    "every page under the table's key",
+  );
+});
+
+test("a run's replies are read together, once for every run: the reads were one for each run with a thread", async () => {
+  // Three runs of forty people, each with some who wrote back: 120 threads, which one read of two hundred holds.
+  const runs = [
+    peopleOf("r1", { sent: 40, replied: 10 }),
+    peopleOf("r2", { sent: 40, replied: 25 }),
+    peopleOf("r3", { sent: 40, replied: 0 }),
+  ];
+  const db = capped({
+    broadcasts: ["r1", "r2", "r3"].map((id) => broadcast(id, { playbook_id: "pb1" })),
+    broadcast_recipients: runs.flatMap((r) => r.recipients),
+    messages: runs.flatMap((r) => r.inbound),
+  });
+  const counted = await listRuns({ supabase: db }, TID);
+  assert.deepEqual(Object.fromEntries(counted.map((b) => [b.id, b.counts.replied])), { r1: 10, r2: 25, r3: 0 });
+  assert.equal(inboundReads(db).length, 1, "one read for every run's threads, not one for each run");
+  assert.deepEqual(ordersOf(db, "messages"), ["id"], "paged under the table's key");
+});
+
+test("REGRESSION: a run's replies count every thread past a thousand messages -- the read answered the first thousand, and the threads after them read as unanswered", async () => {
+  // 150 people, each of whom wrote back eight times: 1,200 messages on 150 threads, which are one chunk of threads.
+  const { recipients, inbound } = peopleOf("r1", { sent: 150, replied: 150, wrote: 8 });
+  const db = capped({
+    broadcasts: [broadcast("r1", { playbook_id: "pb1" })],
+    broadcast_recipients: recipients,
+    messages: inbound,
+  });
+  const [run] = await listRuns({ supabase: db }, TID);
+  assert.equal(run.counts.replied, 150, "every thread that answered, not the 125 the first thousand messages cover");
+  assert.equal(inboundReads(db).length, 2, "two pages of the one read");
+});
+
+test("a person on two runs answers each by its own send: the one read is judged run by run, thread by thread", async () => {
+  // The same person (and thread) was sent r1 on the 1st and r2 on the 5th. They wrote on the 2nd and on the 6th.
+  const day = 24 * 3_600_000;
+  const thread = (id, over = {}) => ({
+    tenant_id: TID,
+    broadcast_id: id,
+    contact_id: "pam",
+    state: "sent",
+    reason: null,
+    messages: { conversation_id: "cv-pam", status: "delivered", meta: {} },
+    ...over,
+  });
+  const wrote = (id, ms) => ({
+    id,
+    tenant_id: TID,
+    conversation_id: "cv-pam",
+    direction: "inbound",
+    created_at: at(ms),
+  });
+  const world = (writing) => ({
+    broadcasts: [broadcast("r1", { playbook_id: "pb1" }), broadcast("r2", { playbook_id: "pb1" })],
+    broadcast_recipients: [thread("r1", { sent_at: at(0) }), thread("r2", { sent_at: at(4 * day) })],
+    messages: writing,
+  });
+  const repliedBy = async (writing) =>
+    Object.fromEntries(
+      (await listRuns({ supabase: capped(world(writing)) }, TID)).map((b) => [b.id, b.counts.replied]),
+    );
+  assert.deepEqual(await repliedBy([wrote("m1", day)]), { r1: 1, r2: 0 }, "the 2nd answers the first send only");
+  assert.deepEqual(await repliedBy([wrote("m1", 5 * day)]), { r1: 0, r2: 1 }, "the 6th is past the first window");
+  assert.deepEqual(await repliedBy([wrote("m1", day), wrote("m2", 5 * day)]), { r1: 1, r2: 1 });
+  assert.deepEqual(await repliedBy([]), { r1: 0, r2: 0 });
+});
+
+test("REGRESSION: a broadcast's detail lists every person on it -- it stopped at a thousand", async () => {
+  const { recipients, inbound } = peopleOf("b1", { sent: 1150, held: 50, read: 700, replied: 90 });
+  const db = capped({
+    broadcasts: [broadcast("b1", { recipient_count: 1200 })],
+    broadcast_recipients: recipients,
+    messages: inbound,
+  });
+  const d = await getBroadcast({ supabase: db }, TID, "b1");
+  assert.equal(d.recipients.length, 1200, "everyone on it: the detail's \"N enrolled\" is this list's length");
+  assert.deepEqual(d.broadcast.counts, {
+    queued: 0,
+    sent: 1150,
+    skipped: 50,
+    failed: 0,
+    delivered: 1150,
+    read: 700,
+    replied: 90,
+  });
+  assert.equal(d.recipients.filter((r) => r.replied).length, 90, "each one who wrote back says so on their own line");
 });
 
 /* ------------------------ the surface's people, every page ------------------------ */

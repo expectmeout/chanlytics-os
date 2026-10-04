@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MIN_MS, campaignsHomeOf } from "@chanlytics/contracts";
 import type { LifecycleHome } from "@chanlytics/contracts";
-import { tabDraft } from "../../legacy-parts";
+import { tabDraft } from "../../kit/record/work";
 import { demoSession, navigate, replaceRoute } from "../../legacy-verbs";
 import { useSurface, useSurfaceFailed } from "../../use-surface";
 import { broadcastsSample } from "../broadcasts/sample";

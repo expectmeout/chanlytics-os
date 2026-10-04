@@ -111,46 +111,85 @@ function countRecipients(
 
 // A reply is an inbound within the contracts' reply window of the send (isReplyTo); the SQL series keeps the same one.
 
+/** A message the customer wrote, as the reply reads need it: its thread and its time, and its words where the detail asks. */
+interface Inbound {
+  conversation_id: string;
+  created_at: string;
+  body?: string | null;
+}
+
 /**
- * Which threads heard from the customer within the reply window after the broadcast reached them, and when the first
- * reply came -- and, when the detail passes somewhere to keep them, that reply's words on one line (a list only
- * counts replies, and reads no bodies).
+ * What the customers on these threads wrote since `since`, a thread's messages together. The thread ids go two hundred
+ * at a time so the URL stays short, and each chunk's messages a page at a time under the table's key: two hundred
+ * threads hold far more than the thousand rows one read answers, and a run's replies counted from the first thousand
+ * read short on exactly the runs that were answered most. The words are read only where the detail asks for them (a
+ * list only counts replies).
  */
+async function inboundOn(
+  ctx: RouteContext,
+  tenantId: string,
+  convIds: string[],
+  since: string,
+  withWords: boolean,
+): Promise<Map<string, Inbound[]>> {
+  const byThread = new Map<string, Inbound[]>();
+  for (let i = 0; i < convIds.length; i += IN_CHUNK) {
+    const chunk = convIds.slice(i, i + IN_CHUNK);
+    // A select chosen at run time is past the client's typed parser: the rows are the columns named above.
+    const inbound = (await readAllRows("inbound messages", (from, to) =>
+      ctx.supabase
+        .from("messages")
+        .select(withWords ? "conversation_id, created_at, body" : "conversation_id, created_at")
+        .eq("tenant_id", tenantId)
+        .eq("direction", "inbound")
+        .in("conversation_id", chunk)
+        .gt("created_at", since)
+        .order("id")
+        .range(from, to),
+    )) as unknown as Inbound[];
+    for (const m of inbound) {
+      const had = byThread.get(m.conversation_id);
+      if (had) had.push(m);
+      else byThread.set(m.conversation_id, [m]);
+    }
+  }
+  return byThread;
+}
+
+/**
+ * Which of a run's threads heard from the customer within the reply window after the run reached them, and when the first
+ * reply came -- and, when the detail passes somewhere to keep them, that reply's words on one line. `inbound` is read
+ * once for every run asked about (inboundOn): a thread on two runs is answered, or not, by each run's own send.
+ */
+function firstReplies(
+  threads: Map<string, string>,
+  inbound: Map<string, Inbound[]>,
+  words: Map<string, string | null> | null = null,
+): Map<string, string> {
+  const replied = new Map<string, string>();
+  for (const [conversationId, sentAt] of threads) {
+    for (const m of inbound.get(conversationId) ?? []) {
+      if (!isReplyTo(sentAt, m.created_at)) continue;
+      const first = replied.get(m.conversation_id);
+      if (!first || m.created_at < first) {
+        replied.set(m.conversation_id, m.created_at);
+        words?.set(m.conversation_id, previewLine(m.body));
+      }
+    }
+  }
+  return replied;
+}
+
+/** One run's threads that heard from the customer within the reply window after it reached them, and when (see firstReplies). */
 async function repliedThreads(
   ctx: RouteContext,
   tenantId: string,
   threads: Map<string, string>,
   words: Map<string, string | null> | null = null,
 ): Promise<Map<string, string>> {
-  const convIds = [...threads.keys()];
   const since = [...threads.values()].sort()[0];
-  const replied = new Map<string, string>();
-  for (let i = 0; i < convIds.length; i += IN_CHUNK) {
-    const { data: inbound, error } = await ctx.supabase
-      .from("messages")
-      .select(words ? "conversation_id, created_at, body" : "conversation_id, created_at")
-      .eq("tenant_id", tenantId)
-      .eq("direction", "inbound")
-      .in("conversation_id", convIds.slice(i, i + IN_CHUNK))
-      .gt("created_at", since);
-    if (error) throw new Error(error.message);
-    // A select chosen at run time is past the client's typed parser: the rows are the columns named above.
-    for (const m of (inbound ?? []) as unknown as {
-      conversation_id: string;
-      created_at: string;
-      body?: string | null;
-    }[]) {
-      const sentAt = threads.get(m.conversation_id);
-      if (sentAt && isReplyTo(sentAt, m.created_at)) {
-        const first = replied.get(m.conversation_id);
-        if (!first || m.created_at < first) {
-          replied.set(m.conversation_id, m.created_at);
-          words?.set(m.conversation_id, previewLine(m.body));
-        }
-      }
-    }
-  }
-  return replied;
+  if (since === undefined) return new Map();
+  return firstReplies(threads, await inboundOn(ctx, tenantId, [...threads.keys()], since, words !== null), words);
 }
 
 /** A reply's words as a list line shows them: the whitespace folded, cut at a length no row needs more of. Null for none. */
@@ -234,23 +273,50 @@ function toDto(r: BroadcastRow, counts: BroadcastCounts): BroadcastDto {
   };
 }
 
-/** The rows with the numbers their people earned, read in chunks so a playbook's whole history fits in one call. */
+/**
+ * Every person on these runs, a page at a time under the table's key (broadcast_id, then contact_id, the order touches.ts
+ * pages this table in). The run ids go two hundred at a time so a playbook's whole history fits in the URL, and each
+ * chunk's people a page at a time: two hundred runs hold far more than the thousand rows one read answers, and the runs
+ * past them counted short. The key is unique, so a page boundary cannot repeat one person and skip another, and a send in
+ * progress does not move it, as it would under sent_at.
+ */
+async function peopleOnRuns(ctx: RouteContext, tenantId: string, ids: string[]): Promise<RecipientRow[]> {
+  const out: RecipientRow[] = [];
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const chunk = ids.slice(i, i + IN_CHUNK);
+    const people = (await readAllRows("run recipients", (from, to) =>
+      ctx.supabase
+        .from("broadcast_recipients")
+        .select("broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta)")
+        .eq("tenant_id", tenantId)
+        .in("broadcast_id", chunk)
+        .order("broadcast_id")
+        .order("contact_id")
+        .range(from, to),
+    )) as unknown as RecipientRow[];
+    // Pushed one at a time: spread into one push, a long history throws past about 120,000 rows.
+    for (const person of people) out.push(person);
+  }
+  return out;
+}
+
+/**
+ * The rows with the numbers their people earned: every person on every run (peopleOnRuns), and the replies of all their
+ * threads in one read (inboundOn) where there was one query for each run with a thread.
+ */
 async function withCounts(ctx: RouteContext, tenantId: string, rows: BroadcastRow[]): Promise<BroadcastDto[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
-  const recipients: RecipientRow[] = [];
-  for (let i = 0; i < ids.length; i += IN_CHUNK) {
-    const { data, error: rErr } = await ctx.supabase
-      .from("broadcast_recipients")
-      .select("broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta)")
-      .eq("tenant_id", tenantId)
-      .in("broadcast_id", ids.slice(i, i + IN_CHUNK));
-    if (rErr) throw new Error(rErr.message);
-    recipients.push(...((data ?? []) as unknown as RecipientRow[]));
-  }
-  const { counts, threadsOf } = countRecipients(recipients, ids);
-  for (const [broadcastId, threads] of threadsOf) {
-    counts.get(broadcastId)!.replied = (await repliedThreads(ctx, tenantId, threads)).size;
+  const { counts, threadsOf } = countRecipients(await peopleOnRuns(ctx, tenantId, ids), ids);
+  // Every thread any run reached, read once from the oldest send: each run then reads its own threads off the one read.
+  const sends = [...threadsOf.values()].flatMap((threads) => [...threads.values()]).sort();
+  const since = sends[0];
+  if (since !== undefined) {
+    const convIds = [...new Set([...threadsOf.values()].flatMap((threads) => [...threads.keys()]))];
+    const inbound = await inboundOn(ctx, tenantId, convIds, since, false);
+    for (const [broadcastId, threads] of threadsOf) {
+      counts.get(broadcastId)!.replied = firstReplies(threads, inbound).size;
+    }
   }
   return rows.map((r) => toDto(r, counts.get(r.id) ?? emptyCounts()));
 }

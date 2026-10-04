@@ -18,7 +18,7 @@ import { VERSION_CHANNELS, VERSION_CHANNEL_WORDS } from "@chanlytics/contracts";
 import type { VersionChannel } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { statePillPart } from "../../legacy-parts";
+import { StatePill } from "../../kit/pill/state-pill";
 import { Segmented } from "../../kit/segmented/segmented";
 import { CmPane } from "../parts/split";
 import type { TemplateMade } from "./composer-acts";
@@ -28,7 +28,7 @@ import { langBar, openRow, paneMenu, tplMark } from "./message-row-parts";
 import type { LineCtx, RowCtx } from "./message-row-parts";
 import { VersionView } from "./version-view";
 import type { StarterLibrary, VersionDraft } from "./verbs";
-import { isOffer, messageName, startingWords, versionFills, versionRowOf } from "./versions";
+import { messageName, neverCarried, startingWords, versionFills, versionRowOf } from "./versions";
 import { TPL_VERSION_WORDS } from "./words";
 
 interface PaneProps {
@@ -143,7 +143,6 @@ export function TemplatePane(p: PaneProps) {
     pick,
     cancelNew,
   };
-  const StatePill = statePillPart();
   const says = sendsWords(usage.use);
   // The language control keeps its place; the switch is beside it, and picks what the body below shows.
   const bar = (
@@ -171,7 +170,7 @@ export function TemplatePane(p: PaneProps) {
         start={startingWords({ channel, g, language: view, whatsapp: words.body })}
         slots={fills.slots}
         values={fills.values}
-        offer={isOffer(g, row, present)}
+        neverCarried={neverCarried(channel, g, row, present)}
         starterHas={!!(channel === "email" ? g.starter?.email?.[view] : g.starter?.sms?.[view])}
         filed={g.rows.some((r) => r.row)}
         canWrite={canWrite}

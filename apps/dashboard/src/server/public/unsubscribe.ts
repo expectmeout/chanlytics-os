@@ -19,15 +19,17 @@ import "server-only";
  * from an email, and it must not depend on the app's bundle to say "you're unsubscribed".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { setEmailUnsubscribed, stopAllMessages, type Database } from "@chanlytics/db";
+import { offerLanguageOf, setEmailUnsubscribed, stopAllMessages, type Database } from "@chanlytics/db";
 import { addressOf, verifyUnsubscribeToken } from "@chanlytics/channels";
 import {
   escapeHtml,
   offerUnsubscribeWords,
+  senderLanguage,
   STOP_ALL_REFUSALS,
   UNSUBSCRIBE_PAGE_HEADER,
   unsubscribePageWords,
   type OfferUnsubscribeView,
+  type SenderLanguage,
   type UnsubscribeView,
   MIN_MS,
 } from "@chanlytics/contracts";
@@ -151,8 +153,8 @@ interface PageWords {
   foot: string | null;
 }
 
-/** The page every view is drawn on: the product's paper and ink, one card, no script, whatever the words. */
-function draw(status: number, kind: string, w: PageWords): Response {
+/** The page every view is drawn on: the product's paper and ink, one card, no script, whatever the words, in the language of its `<html>`. */
+function draw(status: number, kind: string, w: PageWords, lang: SenderLanguage): Response {
   const forms = w.buttons
     .map(
       (b) =>
@@ -162,7 +164,7 @@ function draw(status: number, kind: string, w: PageWords): Response {
     .join("");
   const foot = w.foot ? `<p class="foot">${escapeHtml(w.foot)}</p>` : "";
   const html = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow"><title>${escapeHtml(w.title)}</title><style>${STYLE}</style></head>
 <body><main><div class="card"><h1>${escapeHtml(w.lead)}</h1><p>${escapeHtml(w.body)}</p>${forms}</div>${foot}</main></body></html>`;
   // Which view this is, so the edge can tell the page answering from anything else answering at its address. The words
@@ -176,15 +178,23 @@ function draw(status: number, kind: string, w: PageWords): Response {
 /** A view of the reach-out's cold email's page, and every view that is the same for both: a bad link, a press that failed. */
 function page(status: number, view: UnsubscribeView): Response {
   const w = unsubscribePageWords(view);
-  return draw(status, view.kind, {
-    ...w,
-    buttons: w.button ? [{ label: w.button, name: "unsubscribe", value: "yes" }] : [],
-  });
+  return draw(
+    status,
+    view.kind,
+    {
+      ...w,
+      buttons: w.button ? [{ label: w.button, name: "unsubscribe", value: "yes" }] : [],
+    },
+    "en",
+  );
 }
 
-/** A view of the page an offer's link opens: to a customer, in their words (contracts offerUnsubscribeWords). */
-function offerPage(status: number, view: OfferUnsubscribeView): Response {
-  return draw(status, view.kind, offerUnsubscribeWords(view));
+/**
+ * A view of the page an offer's link opens: to a customer, in their words (contracts offerUnsubscribeWords) and in the
+ * language of the offer they pressed it in (null where that could not be read: English).
+ */
+function offerPage(status: number, view: OfferUnsubscribeView, language: string | null): Response {
+  return draw(status, view.kind, offerUnsubscribeWords(view, language), senderLanguage(language));
 }
 
 function plainText(status: number, body: string): Response {
@@ -201,6 +211,37 @@ async function businessName(db: SupabaseClient<Database>, tenantId: string): Pro
   }
 }
 
+/** What an email a link came in was, as the page needs it: who it left as, which kind it was, and for an offer, the language it was written in. */
+interface LinkedEmail {
+  sender: string | null;
+  lane: "offer" | "reach_out" | "unread";
+  /** An offer's language (its broadcast's message); null for any other email, and where it could not be read: the page says English. */
+  language: string | null;
+}
+
+/**
+ * The language an offer was sent in, from the broadcast its email names. A broadcast that cannot be read leaves the page in
+ * English, said in the log: the customer still gets the page that stops the offers, which is what they pressed.
+ */
+async function offerLanguage(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  messageId: string,
+  broadcastId: unknown,
+): Promise<string | null> {
+  if (typeof broadcastId !== "string") return null;
+  try {
+    return await offerLanguageOf(db, { tenantId, broadcastId });
+  } catch (e) {
+    log.warn("unsubscribe_language_unread", {
+      tenant_id: tenantId,
+      message: messageId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return null;
+  }
+}
+
 /**
  * What the email this link came in was: the address it left from (its frozen request's From), so the page can name it, and
  * which kind of email it was. An OFFER to a customer is a broadcast's email (its row's source); any other email is a
@@ -208,11 +249,7 @@ async function businessName(db: SupabaseClient<Database>, tenantId: string): Pro
  * page then says only what is true of both kinds, and a press of "Stop all messages" is refused in words that say why,
  * never answered as the cold email's page by default. A read that fails is said in the log.
  */
-async function emailOf(
-  db: SupabaseClient<Database>,
-  tenantId: string,
-  messageId: string,
-): Promise<{ sender: string | null; lane: "offer" | "reach_out" | "unread" }> {
+async function emailOf(db: SupabaseClient<Database>, tenantId: string, messageId: string): Promise<LinkedEmail> {
   try {
     const { data, error } = await db
       .from("messages")
@@ -221,12 +258,18 @@ async function emailOf(
       .eq("tenant_id", tenantId)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    if (!data) return { sender: null, lane: "unread" };
-    const meta = data.meta as { source?: unknown; email?: { request?: { from?: unknown } } } | null;
+    if (!data) return { sender: null, lane: "unread", language: null };
+    const meta = data.meta as {
+      source?: unknown;
+      broadcast_id?: unknown;
+      email?: { request?: { from?: unknown } };
+    } | null;
     const from = meta?.email?.request?.from;
+    const offer = meta?.source === "broadcast";
     return {
       sender: typeof from === "string" ? (addressOf(from)?.address ?? null) : null,
-      lane: meta?.source === "broadcast" ? "offer" : "reach_out",
+      lane: offer ? "offer" : "reach_out",
+      language: offer ? await offerLanguage(db, tenantId, messageId, meta?.broadcast_id) : null,
     };
   } catch (e) {
     log.warn("unsubscribe_lane_unread", {
@@ -234,17 +277,13 @@ async function emailOf(
       message: messageId,
       error: e instanceof Error ? e.message : String(e),
     });
-    return { sender: null, lane: "unread" };
+    return { sender: null, lane: "unread", language: null };
   }
 }
 
 /** The page for a link, by what its email was: an offer's words to a customer, a reach-out's to a business, and words true of both where that is not known. */
-function pageFor(
-  email: { sender: string | null; lane: "offer" | "reach_out" | "unread" },
-  business: string | null,
-  view: "ask" | "done",
-): Response {
-  if (email.lane === "offer") return offerPage(200, { kind: view, business });
+function pageFor(email: LinkedEmail, business: string | null, view: "ask" | "done"): Response {
+  if (email.lane === "offer") return offerPage(200, { kind: view, business }, email.language);
   if (email.lane === "unread")
     return page(200, view === "ask" ? { kind: "ask_either", business } : { kind: "done_either", business });
   return page(200, { kind: view, business, sender: email.sender });
@@ -369,14 +408,15 @@ async function stopAllMessagesPage(
   // read is not known to be either, so nothing is changed and the press can be made again.
   if (email.lane === "unread") return plainText(503, STOP_ALL_REFUSALS.unread);
   if (email.lane !== "offer") return plainText(400, STOP_ALL_REFUSALS.not_an_offer);
-  if (!confirmed) return offerPage(200, { kind: "stop_ask", business: await businessName(db, claims.tenantId) });
+  if (!confirmed)
+    return offerPage(200, { kind: "stop_ask", business: await businessName(db, claims.tenantId) }, email.language);
   try {
     const stopped = await stopAllMessages(db, {
       tenantId: claims.tenantId,
       contactId: claims.contactId,
       messageId: claims.messageId,
     });
-    return offerPage(200, { kind: "stopped", business: stopped.business });
+    return offerPage(200, { kind: "stopped", business: stopped.business }, email.language);
   } catch (e) {
     log.error("unsubscribe_not_recorded", {
       tenant_id: claims.tenantId,

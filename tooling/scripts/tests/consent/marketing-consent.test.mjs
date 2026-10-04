@@ -505,12 +505,15 @@ test("UNDER-BLOCKING, pinned: the voice path asks the one predicate, with the me
   // the message." The broadcast wire was moved to `mayMessageFor`; this was not, so
   // for a while the product had two bars again. Nothing in this file read it.
   const gate = readCode("apps/edge/lib/receptionist/outbound-gate.ts");
-  assert.match(gate, /import \{ mayMessageFor/, "the gate asks the one predicate rather than holding a copy");
-  // Asked on the channel the message goes out on (step 2): a yes covers the channels it was given for.
+  assert.match(gate, /import \{\s*mayMessageFor/, "the gate asks the one predicate rather than holding a copy");
+  // Asked on the channel the message goes out on (step 2): a yes covers the channels it was given for. And with what the
+  // message is about (decision D1), a fact the caller states: by email the business's own news asks for a yes, a visit's
+  // message does not.
   assert.match(
     gate,
-    /const may = mayMessageFor\(f\.contact, f\.purpose, \{ proactive: f\.proactive, channel: f\.channel \}\);/,
+    /const may = mayMessageFor\(f\.contact, f\.purpose, \{\s*proactive: f\.proactive,\s*channel: f\.channel,\s*about: f\.about,?\s*\}\);/,
   );
+  assert.match(gate, /about: MessageAbout;/, "required of every caller, as the purpose is");
   assert.ok(!/optedOut: boolean/.test(gate), "REGRESSION: a pre-decided boolean cannot answer a per-purpose question");
 
   // The voice path itself is run in retell-fn-door.test.mjs. Its purpose is STATED
@@ -653,6 +656,21 @@ test("every reason the wire can write has words the owner can read", () => {
       }
     }
   }
+  // And by email, where what a message is about decides the rule (decision D1): the business's own news refuses with
+  // "unsubscribed" or "not_opted_in", and each of them has words as well.
+  for (const about of ["theirs", "ours"])
+    for (const email_marketing of ["unknown", "opted_in", "opted_out"])
+      for (const has_relationship of [true, false])
+        for (const purpose of ["conversational", "marketing"])
+          for (const proactive of [true, false]) {
+            const r = mayMessageFor(
+              { consent: "unknown", dnc: false, marketing_consent: "unknown", email_marketing, has_relationship },
+              purpose,
+              { proactive, channel: "email", about },
+            ).reason;
+            if (r) reasons.add(r);
+          }
+  assert.ok(reasons.has("not_opted_in") && reasons.has("unsubscribed"), "the business's news by email refuses in both");
   assert.ok(reasons.size >= 3, "the predicate refuses for at least three distinct reasons");
   for (const r of reasons) {
     assert.ok(HELD_REASONS[r], `HELD_REASONS is missing "${r}" — the owner would read the enum`);

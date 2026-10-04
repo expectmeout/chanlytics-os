@@ -10,7 +10,13 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { buildEmailRequest, campaignsIdentity, resendWebhookSignature, signEdgeToken } from "@chanlytics/channels";
+import {
+  buildEmailRequest,
+  campaignsIdentity,
+  resendWebhookSignature,
+  resetBreakers,
+  signEdgeToken,
+} from "@chanlytics/channels";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -40,13 +46,18 @@ const WIRED = {
   DASHBOARD_ORIGIN: "https://app.example.com",
 };
 
-const { campaignsDomain, campaignsDomainVerified, campaignsLane } = await import(
+const { campaignsDomain, campaignsDomainVerified, campaignsBinding } = await import(
   at("apps/edge/lib/email/campaigns-domain.ts")
 );
+/** The lane a job that sends offers is bound with, or null: what the binding says when it is open. */
+const campaignsLane = async (o) => {
+  const b = await campaignsBinding(o);
+  return b.state === "open" ? b.lane : null;
+};
 const { judgeMailDomain, checkMailDomain, describeCampaignsDomainTrouble } = await import(
   at("apps/edge/lib/email/mail-domain.ts")
 );
-const { emailWireFor, emailIntake } = await import(at("apps/edge/lib/email/email.ts"));
+const { emailWireFor, emailIntake, emailBoundFor } = await import(at("apps/edge/lib/email/email.ts"));
 const { judgeOfferGates } = await import(at("apps/edge/lib/email/offer-gates.ts"));
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const readiness = await import(at("apps/edge/api/admin/email/wire.ts"));
@@ -84,8 +95,9 @@ const listing = (...domains) =>
     }),
     { status: 200, headers: { "content-type": "application/json" } },
   );
-/** Stub the provider for one case; counts what it was asked. */
+/** Stub the provider for one case; counts what it was asked. Each starts with the breaker closed: a case of failures must not hold the next. */
 function provider(answer) {
+  resetBreakers();
   const asked = [];
   globalThis.fetch = async (url, init) => {
     asked.push(String(url));
@@ -185,7 +197,7 @@ test("the deployment can send offers only with every piece: the domain named (an
   assert.equal(asked[0], "https://api.resend.com/domains");
 });
 
-test("the answer is kept five minutes when yes, a minute when no, half a minute when the provider could not be asked, and a failed read is no answer at all", async () => {
+test("the answer is kept five minutes when yes and a minute when no; a failed ask is no answer, and never takes a good answer's place", async () => {
   setEnv(WIRED);
   const MIN = 60_000;
   let asked = provider(listing(domain({ status: "pending" })));
@@ -198,23 +210,93 @@ test("the answer is kept five minutes when yes, a minute when no, half a minute 
   assert.equal(await campaignsDomainVerified({ now: 5 * MIN }), true);
   assert.equal(asked.length, 1, "a yes is kept");
   assert.equal(await campaignsDomainVerified({ now: 6.2 * MIN + 0.1 * MIN }), true);
-  assert.equal(asked.length, 2, "and asked again after its five minutes");
-  // The provider could not be asked: not an answer (null), kept half a minute so every job does not ask it at once.
+  assert.equal(asked.length, 2, "and asked again after its five minutes (kept from 6.3)");
+
+  // The provider could not be asked. A fresh ask is the provider's word or nothing: null, and the answer it gave stands.
   asked = provider(() => Promise.reject(new Error("connect timeout")));
-  assert.equal(await campaignsDomainVerified({ now: 0, fresh: true }), null);
-  assert.equal(await campaignsLane({ now: 0.1 * MIN }), null, "no lane on no answer");
-  assert.equal(asked.length >= 1, true);
-  const before = asked.length;
-  await campaignsDomainVerified({ now: 0.2 * MIN });
-  assert.equal(asked.length, before, "not asked again inside the half minute");
-  await campaignsDomainVerified({ now: 0.6 * MIN });
-  assert.ok(asked.length > before, "asked again after it");
+  assert.equal(await campaignsDomainVerified({ now: 7 * MIN, fresh: true }), null);
+  let calls = asked.length;
+  assert.ok(calls >= 1, "the provider was asked (and the wire's own retry may have asked twice)");
+  assert.equal(
+    await campaignsDomainVerified({ now: 7.1 * MIN }),
+    true,
+    "a failed ask did not overwrite the yes it kept",
+  );
+  assert.equal(asked.length, calls, "the kept yes answered, nothing was asked");
+  // Past its five minutes the refresh fails, and the last yes stands in for it, for half an hour: a provider that stopped
+  // answering the domains read has not unverified the domain.
+  assert.equal(
+    await campaignsDomainVerified({ now: 12 * MIN }),
+    true,
+    "6.3 + 5 minutes are up: asked, failed, the yes stands",
+  );
+  assert.ok(asked.length > calls, "it was asked");
+  calls = asked.length;
+  await campaignsDomainVerified({ now: 12.2 * MIN });
+  assert.equal(
+    asked.length,
+    calls,
+    "not asked again inside the half minute, so every job does not ask a down provider at once",
+  );
+  assert.equal(await campaignsDomainVerified({ now: 12.6 * MIN }), true);
+  assert.ok(asked.length > calls, "asked again after it");
+  assert.equal(
+    (await campaignsBinding({ now: 12.7 * MIN })).state,
+    "open",
+    "the lane stays bound while the yes stands",
+  );
+  // After the half hour it no longer does: nothing is known, and a job is told so, never "no lane".
+  assert.equal(
+    await campaignsDomainVerified({ now: 37 * MIN }),
+    null,
+    "a yes stands in for half an hour, not for ever",
+  );
+  assert.equal((await campaignsBinding({ now: 37.1 * MIN })).state, "unread");
+  assert.equal(await campaignsLane({ now: 37.2 * MIN }), null);
+  // A no is never stood in for: a run waits on a guess, it does not stop on one.
+  provider(listing(domain({ status: "pending" })));
+  assert.equal(await campaignsDomainVerified({ now: 40 * MIN, fresh: true }), false);
+  provider(() => Promise.reject(new Error("down")));
+  assert.equal(await campaignsDomainVerified({ now: 45 * MIN }), null, "a refresh that failed after a no is no answer");
   // A provider that answers something that is not a list is also not an answer.
   provider(new Response("<html>oops</html>", { status: 200 }));
-  assert.equal(await campaignsDomainVerified({ now: 0, fresh: true }), null);
+  assert.equal(await campaignsDomainVerified({ now: 50 * MIN, fresh: true }), null);
   // A refusal (a revoked key) is the same: never "verified".
   provider(new Response("{}", { status: 401 }));
-  assert.equal(await campaignsDomainVerified({ now: 0, fresh: true }), null);
+  assert.equal(await campaignsDomainVerified({ now: 50 * MIN, fresh: true }), null);
+});
+
+test("what a broadcast's batch is told of the campaigns domain is one of four, and never 'no lane' for a domain the deployment names: none named, open, closed (named and not verified), unread (could not be asked)", async () => {
+  const MIN = 60_000;
+  const T0 = 100 * MIN; // after every kept answer of the cases above, which counted from nothing
+  // No campaigns domain named: nothing changes for the deployment, and the provider is not asked.
+  setEnv({ ...WIRED, EMAIL_CAMPAIGNS_DOMAIN: undefined });
+  let asked = provider(listing(domain()));
+  assert.deepEqual(await campaignsBinding({ now: T0, fresh: true }), { state: "none" });
+  assert.equal(asked.length, 0);
+  // Verified: the lane.
+  setEnv(WIRED);
+  provider(listing(domain()));
+  assert.deepEqual(await campaignsBinding({ now: T0, fresh: true }), {
+    state: "open",
+    lane: { domain: CAMPAIGNS, unsubscribeSecret: "unsub-secret", unsubscribeOrigin: "https://app.example.com" },
+  });
+  // Named and the provider says it is not verified: closed, with the domain in the reason the platform reads.
+  provider(listing(domain({ status: "pending" })));
+  const closed = await campaignsBinding({ now: T0 + MIN, fresh: true });
+  assert.equal(closed.state, "closed");
+  assert.match(closed.why, /campaigns\.example\.com is not verified for sending/);
+  // Named and the deployment lacks what an offer needs (the secret): closed too, without asking the provider.
+  setEnv({ ...WIRED, UNSUBSCRIBE_SECRET: undefined });
+  asked = provider(listing(domain()));
+  assert.equal((await campaignsBinding({ now: T0 + 2 * MIN, fresh: true })).state, "closed");
+  assert.equal(asked.length, 0);
+  // Named and the provider could not be asked: unread, which the tick binds as the email wire not bound.
+  setEnv(WIRED);
+  provider(() => Promise.reject(new Error("timeout")));
+  const unread = await campaignsBinding({ now: T0 + 3 * MIN, fresh: true });
+  assert.equal(unread.state, "unread");
+  assert.match(unread.why, /campaigns\.example\.com could not be checked with the mail provider/);
 });
 
 /* -------------------------------------------------------- the readiness door */
@@ -251,9 +333,57 @@ test("the readiness door says whether email can send and whether OFFERS can: fal
   await campaignsDomainVerified({ fresh: true });
   assert.deepEqual(
     await status(),
+    [200, { ok: true, ready: true, offers: true }],
+    "a failed ask does not take the place of the yes the provider gave a minute ago",
+  );
+  // A domain the provider has never answered for: no yes and no no.
+  setEnv({ ...WIRED, EMAIL_CAMPAIGNS_DOMAIN: "campaigns-two.example.com" });
+  await campaignsDomainVerified({ fresh: true });
+  assert.deepEqual(
+    await status(),
     [200, { ok: true, ready: true, offers: null }],
     "a provider that could not be asked is no yes and no no",
   );
+});
+
+test("a job is bound with email by what the campaigns domain came to: the lane when open, the reason it could not be asked when unread (a run of offers waits, a visit's email goes), the reason when closed (the run stops), and nothing of it for a job that sends no offer", async () => {
+  setEnv(WIRED);
+  const db = fakeDb({ mailboxes: [MAILBOX], sending_domains: [] });
+  const said = [];
+  const L = { error: (event, fields) => said.push([event, fields]) };
+  const lane = { domain: CAMPAIGNS, unsubscribeSecret: "unsub-secret", unsubscribeOrigin: "https://app.example.com" };
+  /** What the tick binds: the wire, and the intake as it is handed what the campaigns domain came to. */
+  const bound = async (offers, database = db) => {
+    const b = await emailBoundFor(database, T, offers, L);
+    return { ...b, intake: emailIntake(database, b.campaigns, b.closed, b.unread) };
+  };
+  // Open: the wire gains the campaigns route, and the intake carries the lane.
+  const open = await bound({ state: "open", lane });
+  assert.equal(typeof open.email, "function");
+  assert.deepEqual(open.intake.campaigns, lane);
+  assert.equal("campaignsClosed" in open.intake, false);
+  // Unread: the wire is bound as ever, so a visit's email (from the mail domain, not in question) goes; the intake says the
+  // campaigns domain could not be asked about, so a run of offers waits and asks again (core offersUnread) instead of
+  // holding each offer person as having no channel, for good.
+  const unread = await bound({ state: "unread", why: "the campaigns domain could not be checked" });
+  assert.equal(typeof unread.email, "function", "a visit's email is not held for it");
+  assert.equal(unread.intake.campaignsUnread, "the campaigns domain could not be checked");
+  assert.equal("campaigns" in unread.intake, false);
+  assert.equal("campaignsClosed" in unread.intake, false);
+  // Closed: the wire is the plain one (a visit message goes from the mail domain, which is not in question), and the intake
+  // says why offers cannot leave.
+  const closed = await bound({ state: "closed", why: "the campaigns domain is not verified" });
+  assert.equal(typeof closed.email, "function");
+  assert.equal(closed.intake.campaignsClosed, "the campaigns domain is not verified");
+  assert.equal("campaigns" in closed.intake, false);
+  // None named, or a job that sends no offer: as it always was, and nothing of the campaigns domain in either.
+  const none = await bound({ state: "none" });
+  assert.equal(typeof none.email, "function");
+  assert.equal("campaigns" in none.intake || "campaignsClosed" in none.intake, false);
+  // A workspace with no mailbox has no email line at all, as before.
+  const noMailbox = await bound({ state: "none" }, fakeDb({ mailboxes: [], sending_domains: [] }));
+  assert.equal(noMailbox.email, null);
+  assert.deepEqual(said, []);
 });
 
 /* ------------------------------------------------------------- the wire's route */

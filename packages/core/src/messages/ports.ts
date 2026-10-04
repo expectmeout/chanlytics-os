@@ -104,6 +104,11 @@ export interface RecipientRow {
   facts: unknown;
   /** The channel the run picked for them at enrolment (contracts reachFor); null or absent on a run made before: WhatsApp. */
   channel?: string | null;
+  /**
+   * How many times this person was claimed and given back (00301: the guard adds one on every release): what a broadcast's
+   * email to them is named by. Absent from the read of a database that has not reached that migration.
+   */
+  attempt?: number;
 }
 export interface ContactRow {
   id: string;
@@ -242,6 +247,23 @@ export interface BroadcastBatchPorts {
    * A number that is ABSENT is not this port's to say: the door answers that per person, as it always did.
    */
   wireUnavailable(channel: Channel): Promise<string | null>;
+  /**
+   * Why an OFFER by email cannot leave from this runtime right now though the deployment is meant to send them (it names
+   * a campaigns domain, and the mail provider says the domain is not verified for sending), or null when it can, and for a
+   * deployment that names none (an offer is then held person by person at enrolment and the door, as it always was).
+   * Asked BEFORE anyone is claimed, for a run whose message is an offer and whose batch has anyone going by email: the
+   * run stops with the reason said, rather than skip each of them as having no channel, a skip that is final. A domain
+   * that could not be read at all is not this port's: that is the email wire not bound (`wireUnavailable`), and the run waits.
+   */
+  offersClosed(): Promise<string | null>;
+  /**
+   * Why it cannot yet be known whether an OFFER by email may leave: the deployment names a campaigns domain and the mail
+   * provider could not be asked about it (a failed or slow read), or null. Asked where offersClosed is, before anyone is
+   * claimed: the run waits a minute and asks again (a stall), as a wire that could not be bound does. Only an offer asks
+   * it: a visit's email leaves from the mail domain, which is not in question, so a domain that could not be read holds
+   * no reminder back.
+   */
+  offersUnread(): Promise<string | null>;
   /** The platform's own pager, for a wire that could not be bound: said once per six hours by the pager's own quiet. */
   page?(key: string, subject: string, body: string): Promise<unknown>;
   /** How many are still queued; throws when it cannot be counted. */

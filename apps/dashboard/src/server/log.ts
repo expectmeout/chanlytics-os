@@ -163,6 +163,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "translation_malformed",
   "unsubscribe_bad_link",
   "unsubscribe_lane_unread",
+  "unsubscribe_language_unread",
   "unsubscribe_not_recorded",
   "unsubscribe_unavailable",
   "waitlist_join",

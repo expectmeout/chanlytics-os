@@ -36,6 +36,7 @@ import {
 } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type ClaimedJob, type JobContext, must } from "./context";
+import { sendByAt } from "./ledger";
 
 /** The broadcast_send job's own lines, by name: an email it could not build or sign for a person. */
 const sendLog = logger();
@@ -86,9 +87,20 @@ function wireUnbound(ctx: JobContext, channel: Channel): string | null {
   return isWireUnavailable(wire) ? wire.error : null;
 }
 
-/** The wire's ports: why a channel's wire could not be bound, and the platform's pager when this runtime holds one. */
-function wirePorts(ctx: JobContext): Pick<BroadcastBatchPorts, "wireUnavailable" | "page"> {
-  return { wireUnavailable: async (channel) => wireUnbound(ctx, channel), ...(ctx.page ? { page: ctx.page } : {}) };
+/**
+ * The wire's ports: why a channel's wire could not be bound, whether offers by email are closed on this runtime (the edge
+ * says so when the deployment names a campaigns domain the provider does not verify), and the platform's pager when this
+ * runtime holds one.
+ */
+function wirePorts(
+  ctx: JobContext,
+): Pick<BroadcastBatchPorts, "wireUnavailable" | "offersClosed" | "offersUnread" | "page"> {
+  return {
+    wireUnavailable: async (channel) => wireUnbound(ctx, channel),
+    offersClosed: () => Promise.resolve(ctx.email?.campaignsClosed ?? null),
+    offersUnread: () => Promise.resolve(ctx.email?.campaignsUnread ?? null),
+    ...(ctx.page ? { page: ctx.page } : {}),
+  };
 }
 
 /**
@@ -386,8 +398,11 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         ),
       facts: () => workspaceFacts(db, job.tenant_id),
       ...peoplePorts(ctx, job.tenant_id),
-      // Offers by email go only where this runtime holds a verified campaigns domain (the edge binds it for this job).
-      deliver: (d) => deliver({ db, wire: ctx.wire, emailOffers: !!ctx.email?.campaigns }, d),
+      // Offers by email go only where this runtime holds a verified campaigns domain (the edge binds it for this job). An
+      // email is sent by the time this tick can still wait for it (ledger sendByAt), so one started late is bounded by
+      // what is left of the function rather than by the wire's own, longer deadline.
+      deliver: (d) =>
+        deliver({ db, wire: ctx.wire, emailOffers: !!ctx.email?.campaigns }, { ...d, sendBy: sendByAt(ctx.deadline) }),
       ...wirePorts(ctx),
       remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),
       // Read by the verb as "is this broadcast still wanted"; null is how a

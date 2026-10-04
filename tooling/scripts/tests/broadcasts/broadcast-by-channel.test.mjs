@@ -17,6 +17,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { sendsAs } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
+import { middayZone } from "../shared/_midday-zone.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = (pkg) => pathToFileURL(path.join(here, `../../../../packages/${pkg}/dist/index.js`)).href;
@@ -105,15 +106,17 @@ const world = ({ contacts = people(), ...over } = {}) => ({
       template_language: "en_US",
       params: [{ kind: "first_name" }, { kind: "visit_when" }],
       recipient_count: 3,
-      playbook_id: null,
-      audience: null,
+      // A visit's run, as run-playbook writes it: the playbook, its moment (the send reads what the message is about there).
+      playbook_id: "p1",
+      audience: { kind: "playbook", id: "p1", label: "Visit reminder", trigger: "visit_tomorrow" },
       channels: ["whatsapp", "sms", "email"],
       started_at: null,
       finished_at: null,
       failure: null,
     },
   ],
-  tenants: [{ id: TID, name: "Marisa's Salon", status: "active", timezone: "UTC" }],
+  // The batch asks the day's sending hours on the machine's clock: this workspace's noon is now, whenever the suite runs.
+  tenants: [{ id: TID, name: "Marisa's Salon", status: "active", timezone: middayZone() }],
   tenant_config: [
     {
       tenant_id: TID,
@@ -277,6 +280,32 @@ test("one batch, three channels: WhatsApp's template, the text version with its 
   assert.equal(new Set(t.messages.map((m) => m.conversation_id)).size, 3);
 });
 
+test("an email is sent by the time the tick can still wait for it: a batch that starts late hands the provider call what is left of the function, not the wire's own 32 seconds", async () => {
+  const askedOf = async (deadline) => {
+    const t = world({ broadcast_recipients: [recipient("k3", "email")] });
+    const w = context(t);
+    const asked = [];
+    const realTimeout = AbortSignal.timeout;
+    AbortSignal.timeout = (ms) => (asked.push(ms), realTimeout.call(AbortSignal, ms));
+    w.ctx.deadline = deadline;
+    try {
+      await dispatchJob(w.ctx, JOB);
+    } finally {
+      w.restore();
+      AbortSignal.timeout = realTimeout;
+    }
+    assert.equal(w.posted.length, 1, "the email left");
+    assert.equal(t.broadcast_recipients[0].state, "sent");
+    return asked[0];
+  };
+  // The yield point a second away: the ceiling's room beyond it, less what the settle needs (jobs sendByAt: ten seconds), is
+  // all this send has, so its one request is bounded by about eleven, and so are a second try and a wait.
+  const late = await askedOf(Date.now() + 1_000);
+  assert.ok(late > 9_000 && late <= 11_000, `a send begun at the yield point is given about 11 s, was ${late}`);
+  // A tick with room to spare gives the provider call its own bound.
+  assert.equal(await askedOf(Date.now() + 40_000), 15_000);
+});
+
 test("a resumed run never sends an email twice: the row it already sent is found by the run's id, and the person is marked from it", async () => {
   const t = world({ broadcast_recipients: [recipient("k3", "email")] });
   const first = context(t);
@@ -357,7 +386,16 @@ test("the door holds a text until the line is approved, an email to an address t
     [500, ["k2"]],
     [2000, ["k3"]],
   ]) {
-    const t = world();
+    // A broadcast's run, which the month counts (a visit's message that offers nothing is not held by it: heldByAllowance).
+    // Cy's yes covers email: a broadcast's email of the business's news asks it (decision D1), and this case is the month's.
+    const t = world({
+      contacts: people().map((c) => (c.id === "k3" ? { ...c, consent_channels: ["whatsapp", "sms", "email"] } : c)),
+    });
+    t.broadcasts[0] = {
+      ...t.broadcasts[0],
+      playbook_id: null,
+      audience: { kind: "everyone", id: null, label: "Everyone" },
+    };
     const c = context(t, { monthSent: month });
     try {
       await dispatchJob(c.ctx, JOB);

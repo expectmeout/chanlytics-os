@@ -774,6 +774,34 @@ var REPLY_DELAY_MIN_MS = 5e3;
 var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var PAUSE_HOURS_MIN = 1;
 var PAUSE_HOURS_MAX = 168;
+var SENDER_WORDS = {
+  en: {
+    textStop: "Reply STOP to opt out",
+    emailStop: "Reply STOP to stop these emails.",
+    marketing: "This is a marketing email.",
+    noThanks: `Not interested? Reply "no thanks" and I won't write again`,
+    unsubscribe: "Unsubscribe",
+    us: "us",
+    offerAsked: (who) => `You asked for offers from ${who}.`,
+    offerCustomer: (who) => `You're a customer of ${who}.`,
+    visitProposal: (who) => `You're getting this about your proposal from ${who}.`,
+    visitBooked: (who) => `You're getting this because of your visit with ${who}.`,
+    visitInTouch: (who) => `You're getting this because you've been in touch with ${who}.`
+  },
+  es: {
+    textStop: "Responde STOP para darte de baja",
+    emailStop: "Responde STOP para dejar de recibir estos correos.",
+    marketing: "Este es un correo de marketing.",
+    noThanks: `\xBFNo te interesa? Responde "no, gracias" y no volver\xE9 a escribirte`,
+    unsubscribe: "Darme de baja",
+    us: "nosotros",
+    offerAsked: (who) => `Pediste recibir ofertas de ${who}.`,
+    offerCustomer: (who) => `Eres cliente de ${who}.`,
+    visitProposal: (who) => `Recibes esto sobre tu propuesta de ${who}.`,
+    visitBooked: (who) => `Recibes esto por tu visita con ${who}.`,
+    visitInTouch: (who) => `Recibes esto porque has estado en contacto con ${who}.`
+  }
+};
 function namedSlots(names3, labels = names3) {
   return { kind: "named", keys: names3, labels };
 }
@@ -1501,18 +1529,18 @@ function ruleFacts(rule2) {
   return rule2.all.flatMap((c) => "any" in c ? c.any : [c]);
 }
 function factNeeds(f) {
-  const needs = new Set(fieldOf(f.field).needs);
-  if (f.field === "standing" && f.value === "waiting_on_you") needs.add("viewer");
-  if (f.field === "assigned" && f.value !== "nobody") needs.add("viewer");
+  const needs2 = new Set(fieldOf(f.field).needs);
+  if (f.field === "standing" && f.value === "waiting_on_you") needs2.add("viewer");
+  if (f.field === "assigned" && f.value !== "nobody") needs2.add("viewer");
   if (f.field === "deal_stage" && f.value === "consultation") {
-    needs.add("calendar");
-    needs.add("consult");
+    needs2.add("calendar");
+    needs2.add("consult");
   }
-  return LIST_NEEDS.filter((n) => needs.has(n));
+  return LIST_NEEDS.filter((n) => needs2.has(n));
 }
 function ruleNeeds(rule2) {
-  const needs = new Set(ruleFacts(rule2).flatMap(factNeeds));
-  return LIST_NEEDS.filter((n) => needs.has(n));
+  const needs2 = new Set(ruleFacts(rule2).flatMap(factNeeds));
+  return LIST_NEEDS.filter((n) => needs2.has(n));
 }
 function dayHolds(days, op, n) {
   switch (op) {
@@ -1788,13 +1816,13 @@ var BUILTIN_LISTS = [
   }
 ];
 var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
-  const needs = ruleNeeds(l.rule);
+  const needs2 = ruleNeeds(l.rule);
   return {
     ...l,
-    ...needs.includes("calendar") ? { needsCalendar: true } : {},
-    ...needs.includes("consult") ? { needsConsultFirst: true } : {},
-    ...needs.includes("deals") ? { needsDeals: true } : {},
-    ...needs.includes("viewer") ? { needsViewer: true } : {},
+    ...needs2.includes("calendar") ? { needsCalendar: true } : {},
+    ...needs2.includes("consult") ? { needsConsultFirst: true } : {},
+    ...needs2.includes("deals") ? { needsDeals: true } : {},
+    ...needs2.includes("viewer") ? { needsViewer: true } : {},
     test: (vm) => listRuleMatches(l.rule, vm)
   };
 });
@@ -2037,6 +2065,16 @@ var PROPOSAL = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+var STOP_EN = SENDER_WORDS.en.textStop;
+var STOP_ES = SENDER_WORDS.es.textStop;
+var UNASKED = {
+  consent: "unknown",
+  dnc: false,
+  marketing_consent: "unknown",
+  email_marketing: "unknown",
+  has_relationship: false
+};
+var DEALT = { ...UNASKED, has_relationship: true };
 var OFFERS_BY_EMAIL_WORDS = {
   /** The deployment's campaigns domain is not set up or not verified yet. */
   noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
@@ -2061,6 +2099,18 @@ var CHANNEL_WORDS = {
   /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
   unchecked: "This could not be checked just now."
 };
+var HELD_ORDER = {
+  stopped: 0,
+  unsubscribed: 1,
+  no_yes: 2,
+  no_number: 3,
+  no_address: 4,
+  address_stopped: 5,
+  no_channel: 6
+};
+var HELD_ON = Object.keys(HELD_ORDER).sort(
+  (a, b) => HELD_ORDER[a] - HELD_ORDER[b]
+);
 var READY_WHATSAPP_ALONE = {
   whatsapp: { ready: true, why: null },
   sms: { ready: false, why: CHANNEL_WORDS.unchecked },
@@ -2086,11 +2136,11 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   30 * MIN_MS
 ];
 var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-var capitalised = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+var capitalised2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var PREVIEW_CHANNEL_WORDS = {
-  whatsapp: capitalised(CONSENT_CHANNEL_WORDS.whatsapp),
-  sms: capitalised(CONSENT_CHANNEL_WORDS.sms),
-  email: capitalised(CONSENT_CHANNEL_WORDS.email)
+  whatsapp: capitalised2(CONSENT_CHANNEL_WORDS.whatsapp),
+  sms: capitalised2(CONSENT_CHANNEL_WORDS.sms),
+  email: capitalised2(CONSENT_CHANNEL_WORDS.email)
 };
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
@@ -2986,8 +3036,8 @@ var LeadSuggestAnswerSchema = z11.object({
   ).min(1).max(4)
 });
 function greetingFor(name) {
-  const who2 = name ? ` ${name}` : "";
-  return `Thank you for calling${who2}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
+  const who = name ? ` ${name}` : "";
+  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
 }
 var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
 var FORWARDING_TEST_WINDOW_MS = 30 * MIN_MS;
@@ -6389,6 +6439,16 @@ function headersOf(v) {
     for (const [k, val] of Object.entries(v)) put(k, Array.isArray(val) ? val[0] : val);
   return out;
 }
+function allValuesOf(v, name) {
+  const out = [];
+  const take = (k, val) => {
+    if (typeof k !== "string" || k.toLowerCase() !== name) return;
+    for (const x of Array.isArray(val) ? val : [val]) if (typeof x === "string") out.push(x);
+  };
+  if (Array.isArray(v)) for (const h of v) take(h?.name, h?.value);
+  else if (v && typeof v === "object") for (const [k, val] of Object.entries(v)) take(k, val);
+  return out;
+}
 function receivedEmailFrom(body) {
   const b = body;
   if (!b || typeof b !== "object" || typeof b.id !== "string") return null;
@@ -6403,6 +6463,7 @@ function receivedEmailFrom(body) {
     text: str2(b.text),
     html: str2(b.html),
     headers: headers2,
+    authResults: allValuesOf(b.headers, "authentication-results"),
     messageId: messageIdHeader(str2(b.message_id) ?? headers2["message-id"]),
     createdAt: str2(b.created_at),
     attachments: (Array.isArray(b.attachments) ? b.attachments : []).map((a) => {
@@ -6418,13 +6479,19 @@ function receivedEmailFrom(body) {
 function messageIdsIn(header) {
   return (header ?? "").split(/\s+/).map(messageIdHeader).filter((x) => x !== null);
 }
-function authResultsOf(header) {
+function withoutComments(header) {
   let said = header.toLowerCase().replace(/"[^"]*"/g, '""');
   for (let before = ""; before !== said; ) {
     before = said;
     said = said.replace(/\([^()]*\)/g, " ");
   }
-  return said.split(";").slice(1).flatMap((clause) => {
+  return said;
+}
+function authservIdOf(header) {
+  return withoutComments(header).split(";")[0]?.trim().split(/\s+/)[0] ?? "";
+}
+function authResultsOf(header) {
+  return withoutComments(header).split(";").slice(1).flatMap((clause) => {
     const [head, ...rest] = clause.trim().split(/\s+/);
     const m = /^([a-z0-9-]+)(?:\/\d+)?=([a-z]+)$/.exec(head ?? "");
     if (!m) return [];
@@ -6440,10 +6507,14 @@ var domainOf = (identity) => {
   const d = identity?.slice(identity.lastIndexOf("@") + 1).trim();
   return d || null;
 };
-function senderAuthenticated(e) {
+function senderAuthenticated(e, authservId) {
+  const expected = authservId?.trim().toLowerCase();
+  if (!expected) return false;
   const from = domainOf(e.from?.address.toLowerCase());
   if (!from) return false;
-  const results = authResultsOf(e.headers["authentication-results"] ?? "");
+  const own = (e.authResults ?? []).filter((h) => authservIdOf(h) === expected);
+  if (own.length !== 1) return false;
+  const results = authResultsOf(own[0] ?? "");
   const dmarc = results.filter((r2) => r2.method === "dmarc");
   if (dmarc.some((r2) => r2.result === "fail")) return false;
   const alignedDmarc = dmarc.some((r2) => r2.result === "pass" && domainOf(r2.props.get("header.from")) === from);
@@ -6569,6 +6640,7 @@ function emailPlainText(e) {
 var RESEND_API = "https://api.resend.com";
 var SEND_TIMEOUT_MS2 = 15e3;
 var SEND_DEADLINE_MS = 32e3;
+var SEND_MIN_MS = 3e3;
 var RETRY_NEEDS_MS = 5e3;
 var LIMIT_WAIT_MAX_MS = 2e3;
 var LIMIT_WAIT_DEFAULT_MS = 1e3;
@@ -6649,7 +6721,7 @@ async function postEmail(cfg, request, timeoutMs) {
 async function sendEmail(cfg, request, opts = {}) {
   const wait = opts.wait ?? sleep;
   const now = opts.now ?? Date.now;
-  const deadline = now() + (opts.deadlineMs ?? SEND_DEADLINE_MS);
+  const deadline = now() + Math.min(opts.deadlineMs ?? SEND_DEADLINE_MS, SEND_DEADLINE_MS);
   const left = () => Math.max(0, deadline - now());
   const paced = async (p) => {
     if (p.result.ok && p.paceMs) await wait(Math.min(p.paceMs, LIMIT_WAIT_MAX_MS, left()));
@@ -8375,6 +8447,7 @@ export {
   RETELL_ORIGINATION,
   REVIEW_BELL_MAX,
   SEND_DEADLINE_MS,
+  SEND_MIN_MS,
   SEND_TIMEOUT_MS2 as SEND_TIMEOUT_MS,
   SMS_FOOTER,
   SMS_HELD_DETAILS,

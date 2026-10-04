@@ -29,17 +29,21 @@ import { clockDate, clockWhen } from "../shared/clock";
 import { noNumberWords } from "../people/people-lists";
 import type { PersonRowVM } from "../people/person-row";
 import type { ParamSpec } from "../templates/templates";
-import type { AskedPurpose } from "../consent/consent";
+import type { AskedPurpose, MessageAbout } from "../consent/consent";
+import { consentGuardWords } from "../consent/consent-asks";
+import { CONSENT_CHANNELS } from "../consent/consent-channels";
 import type { Audience } from "./broadcast-audience";
 import { broadcastFailureWords } from "./broadcast-failures";
 import { answeredYes } from "./reach-any";
 export {
   AUDIENCE_KINDS,
   EVERYONE_LABEL,
+  EVERYONE_HINT,
   eligibleFor,
   enrolFor,
   saidYesOnAny,
   heldWords,
+  heldBackWords,
   audienceMembers,
   heardWords,
   audiencePreview,
@@ -50,8 +54,10 @@ export {
   DEFAULT_CAMPAIGN_CHANNELS,
   CHANNEL_WORDS,
   CAMPAIGN_MONTH_ALLOWANCE,
+  HELD_ON,
   channelRefuses,
   channelNeverCarries,
+  offersNote,
   channelsReady,
   channelChoices,
   reachFor,
@@ -66,11 +72,14 @@ export {
 } from "./reach-for";
 export type { ChannelReady, ChannelsReady, HeldOn, MonthSent, ReachRow, ReachSplit } from "./reach-for";
 export {
+  BROADCAST_FAILURES,
   BROADCAST_FAILURE_WORDS,
   BROADCAST_FAILURE_FIX,
   broadcastFailureFix,
   broadcastFailureWords,
+  wireFailure,
 } from "./broadcast-failures";
+export type { BroadcastFailure, WireFailure } from "./broadcast-failures";
 export { LIMIT_TIERS, dailyLimit, numberHealth, overLimitRefusal } from "./broadcast-number";
 export type { NumberHealthInput, NumberHealth } from "./broadcast-number";
 export { RUN_REPORT_STEPS, RUN_FILTERS, consentAnswerWords, receiptWords, toRunReportVM } from "./run-report";
@@ -270,12 +279,20 @@ export const OUTCOME_UNKNOWN = "outcome_unknown";
  * The QR is in Sent, the ledger's "Get their yes" card since #758. These
  * words are read in a toast on the send screen, which has no QR, and in Ask,
  * which is no page at all -- so they say where it is rather than "on this page".
+ *
+ * A send that ticks email is said by what each channel it ticks asks of a person (consent-asks.ts, read from the one
+ * predicate): by email the business's news asks a yes covering email or a relationship on record and an address that
+ * works (decision D1), never "a number". WhatsApp and a text ask what they always did, in the words below.
  */
 export function emptyAudienceRefusal(
   purpose: AskedPurpose,
   label: string,
   pool: readonly Pick<PersonRowVM, "consent">[],
+  how: { channels: readonly string[]; about: MessageAbout },
 ): string {
+  const ticked = CONSENT_CHANNELS.filter((c) => how.channels.includes(c));
+  if (ticked.includes("email"))
+    return `Nobody on “${label}” can be sent this yet. ${consentGuardWords(ticked, purpose, how.about).join(" ")}`;
   // Said, as every page reads the answer (reach-any.ts answeredYes: the row's saidYes is the same call).
   if (pool.some((r) => answeredYes(r, purpose))) return noNumberWords(`“${label}”`, purpose);
   return purpose === "marketing"

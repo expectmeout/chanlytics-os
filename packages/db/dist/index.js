@@ -656,6 +656,34 @@ var REPLY_DELAY_MIN_MS = 5e3;
 var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var PAUSE_HOURS_MIN = 1;
 var PAUSE_HOURS_MAX = 168;
+var SENDER_WORDS = {
+  en: {
+    textStop: "Reply STOP to opt out",
+    emailStop: "Reply STOP to stop these emails.",
+    marketing: "This is a marketing email.",
+    noThanks: `Not interested? Reply "no thanks" and I won't write again`,
+    unsubscribe: "Unsubscribe",
+    us: "us",
+    offerAsked: (who) => `You asked for offers from ${who}.`,
+    offerCustomer: (who) => `You're a customer of ${who}.`,
+    visitProposal: (who) => `You're getting this about your proposal from ${who}.`,
+    visitBooked: (who) => `You're getting this because of your visit with ${who}.`,
+    visitInTouch: (who) => `You're getting this because you've been in touch with ${who}.`
+  },
+  es: {
+    textStop: "Responde STOP para darte de baja",
+    emailStop: "Responde STOP para dejar de recibir estos correos.",
+    marketing: "Este es un correo de marketing.",
+    noThanks: `\xBFNo te interesa? Responde "no, gracias" y no volver\xE9 a escribirte`,
+    unsubscribe: "Darme de baja",
+    us: "nosotros",
+    offerAsked: (who) => `Pediste recibir ofertas de ${who}.`,
+    offerCustomer: (who) => `Eres cliente de ${who}.`,
+    visitProposal: (who) => `Recibes esto sobre tu propuesta de ${who}.`,
+    visitBooked: (who) => `Recibes esto por tu visita con ${who}.`,
+    visitInTouch: (who) => `Recibes esto porque has estado en contacto con ${who}.`
+  }
+};
 function namedSlots(names3, labels = names3) {
   return { kind: "named", keys: names3, labels };
 }
@@ -1283,18 +1311,18 @@ function ruleFacts(rule2) {
   return rule2.all.flatMap((c) => "any" in c ? c.any : [c]);
 }
 function factNeeds(f) {
-  const needs = new Set(fieldOf(f.field).needs);
-  if (f.field === "standing" && f.value === "waiting_on_you") needs.add("viewer");
-  if (f.field === "assigned" && f.value !== "nobody") needs.add("viewer");
+  const needs2 = new Set(fieldOf(f.field).needs);
+  if (f.field === "standing" && f.value === "waiting_on_you") needs2.add("viewer");
+  if (f.field === "assigned" && f.value !== "nobody") needs2.add("viewer");
   if (f.field === "deal_stage" && f.value === "consultation") {
-    needs.add("calendar");
-    needs.add("consult");
+    needs2.add("calendar");
+    needs2.add("consult");
   }
-  return LIST_NEEDS.filter((n) => needs.has(n));
+  return LIST_NEEDS.filter((n) => needs2.has(n));
 }
 function ruleNeeds(rule2) {
-  const needs = new Set(ruleFacts(rule2).flatMap(factNeeds));
-  return LIST_NEEDS.filter((n) => needs.has(n));
+  const needs2 = new Set(ruleFacts(rule2).flatMap(factNeeds));
+  return LIST_NEEDS.filter((n) => needs2.has(n));
 }
 function dayHolds(days, op, n) {
   switch (op) {
@@ -1573,13 +1601,13 @@ var BUILTIN_LISTS = [
   }
 ];
 var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
-  const needs = ruleNeeds(l.rule);
+  const needs2 = ruleNeeds(l.rule);
   return {
     ...l,
-    ...needs.includes("calendar") ? { needsCalendar: true } : {},
-    ...needs.includes("consult") ? { needsConsultFirst: true } : {},
-    ...needs.includes("deals") ? { needsDeals: true } : {},
-    ...needs.includes("viewer") ? { needsViewer: true } : {},
+    ...needs2.includes("calendar") ? { needsCalendar: true } : {},
+    ...needs2.includes("consult") ? { needsConsultFirst: true } : {},
+    ...needs2.includes("deals") ? { needsDeals: true } : {},
+    ...needs2.includes("viewer") ? { needsViewer: true } : {},
     test: (vm) => listRuleMatches(l.rule, vm)
   };
 });
@@ -1823,6 +1851,16 @@ var PROPOSAL = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+var STOP_EN = SENDER_WORDS.en.textStop;
+var STOP_ES = SENDER_WORDS.es.textStop;
+var UNASKED = {
+  consent: "unknown",
+  dnc: false,
+  marketing_consent: "unknown",
+  email_marketing: "unknown",
+  has_relationship: false
+};
+var DEALT = { ...UNASKED, has_relationship: true };
 var OFFERS_BY_EMAIL_WORDS = {
   /** The deployment's campaigns domain is not set up or not verified yet. */
   noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
@@ -1855,6 +1893,18 @@ var CHANNEL_WORDS = {
   /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
   unchecked: "This could not be checked just now."
 };
+var HELD_ORDER = {
+  stopped: 0,
+  unsubscribed: 1,
+  no_yes: 2,
+  no_number: 3,
+  no_address: 4,
+  address_stopped: 5,
+  no_channel: 6
+};
+var HELD_ON = Object.keys(HELD_ORDER).sort(
+  (a, b) => HELD_ORDER[a] - HELD_ORDER[b]
+);
 var READY_WHATSAPP_ALONE = {
   whatsapp: { ready: true, why: null },
   sms: { ready: false, why: CHANNEL_WORDS.unchecked },
@@ -1896,11 +1946,11 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   15 * MIN_MS,
   30 * MIN_MS
 ];
-var capitalised = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+var capitalised2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var PREVIEW_CHANNEL_WORDS = {
-  whatsapp: capitalised(CONSENT_CHANNEL_WORDS.whatsapp),
-  sms: capitalised(CONSENT_CHANNEL_WORDS.sms),
-  email: capitalised(CONSENT_CHANNEL_WORDS.email)
+  whatsapp: capitalised2(CONSENT_CHANNEL_WORDS.whatsapp),
+  sms: capitalised2(CONSENT_CHANNEL_WORDS.sms),
+  email: capitalised2(CONSENT_CHANNEL_WORDS.email)
 };
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
@@ -4007,11 +4057,17 @@ function noChannelColumns(error) {
 function noRelationshipColumn(error) {
   return !!error && /\bhas_relationship\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
 }
+var UNDEFINED_COLUMN = "42703";
 async function queuedRecipients(db, p) {
-  const first = await db.from("broadcast_recipients").select("contact_id, facts, channel").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").limit(p.limit);
-  const { data, error } = noChannelColumns(first.error) ? await db.from("broadcast_recipients").select("contact_id, facts").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").limit(p.limit) : first;
-  if (error) throw new Error(`queued_recipients: ${error.message}`);
-  return data ?? [];
+  const withAttempt = await db.from("broadcast_recipients").select("contact_id, facts, channel, attempt").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
+  if (!withAttempt.error) return withAttempt.data ?? [];
+  if (withAttempt.error.code !== UNDEFINED_COLUMN) throw new Error(`queued_recipients: ${withAttempt.error.message}`);
+  const withChannel = await db.from("broadcast_recipients").select("contact_id, facts, channel").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
+  if (!withChannel.error) return withChannel.data ?? [];
+  if (withChannel.error.code !== UNDEFINED_COLUMN) throw new Error(`queued_recipients: ${withChannel.error.message}`);
+  const bare = await db.from("broadcast_recipients").select("contact_id, facts").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
+  if (bare.error) throw new Error(`queued_recipients: ${bare.error.message}`);
+  return bare.data ?? [];
 }
 async function runGoesByOthers(db, tenantId, broadcastId) {
   const { count, error } = await db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId).in("channel", ["sms", "email"]);
@@ -4348,6 +4404,11 @@ async function setEmailOffersYes(db, p) {
   const said = data ?? null;
   if (said?.changed === true) return "recorded";
   return said?.refused === "unsubscribed" ? "unsubscribed" : "unchanged";
+}
+async function offerLanguageOf(db, p) {
+  const { data, error } = await db.from("broadcasts").select("template_language").eq("tenant_id", p.tenantId).eq("id", p.broadcastId).maybeSingle();
+  if (error) throw new Error(`cannot read the language the offer was sent in: ${error.message}`);
+  return data?.template_language ?? null;
 }
 async function setEmailUnsubscribed(db, p) {
   const { data, error } = await db.rpc("set_email_marketing", {
@@ -6907,6 +6968,7 @@ export {
   namesOfPeople,
   notesForReceptionist,
   observeDb,
+  offerLanguageOf,
   offersEmailReach,
   outreachFactsOf,
   outreachModeOf,

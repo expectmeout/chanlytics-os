@@ -24,7 +24,7 @@ what the script writes.
 | [`billing_card_marks`](#billing_card_marks) | none | on, no policy, so only the service role reaches it |
 | [`billing_events`](#billing_events) | none | on, no policy, so only the service role reaches it |
 | [`broadcast_recipients`](#broadcast_recipients) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/touches.ts` | on, 2 policies |
-| [`broadcasts`](#broadcasts) | `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts` | on, 3 policies |
+| [`broadcasts`](#broadcasts) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts` | on, 3 policies |
 | [`business_records`](#business_records) | `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`calls`](#calls) | `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
@@ -326,6 +326,7 @@ Foreign keys:
 | `sent_at` | timestamp with time zone | yes |  |  |
 | `facts` | jsonb | yes |  | Per-person words a run resolved when it was made (a visit's time and service); the send fills the template's slots from them. |
 | `channel` | text | yes |  | The channel this person is reached on, picked once at enrolment (contracts' reachFor) from the run's channels. NULL: a recipient written before the channels, which is WhatsApp (00298). |
+| `attempt` | integer | no | `0` | How many times this person was claimed and given back (throttled, not_taken): the guard adds one on every release. A broadcast's email to them is named by it (core broadcast-channels.ts), so a person tried again is sent under a new id and a resumed run, which releases nobody, finds the email it was sending (00301). |
 
 Foreign keys:
 
@@ -341,7 +342,7 @@ Foreign keys:
 
 ### broadcasts
 
-- Owned by: `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`
+- Owned by: `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`
 - Primary key: `id`
 - Row-level security: on, 3 policies
 

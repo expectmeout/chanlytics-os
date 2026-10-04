@@ -12,17 +12,18 @@ import type { Dispatch, SetStateAction } from "react";
 import {
   PREVIEW_WORDS,
   allowanceBeforeSend,
+  messageAboutOfTrigger,
   noMessageWords,
   purposeOfTemplate,
   type ConsentChannel,
 } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { policyChipPart } from "../../legacy-parts";
 import { navigate } from "../../legacy-verbs";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Picker } from "../../kit/picker/picker";
+import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { CM_VIA_WORDS, cmTick } from "../parts/channels";
 import { MessagePreview, PreviewStepper } from "../parts/message-preview";
 import { CmLangGlyph } from "../parts/picker";
@@ -48,6 +49,7 @@ import {
   pbListSub,
   pbShort,
   pbTitle,
+  pbWhoWords,
   pbWith,
 } from "./words";
 
@@ -491,10 +493,14 @@ function whenSentence(x: SectionCtx) {
   );
 }
 
-/** The row of Autonomy it runs under, and the guardrails every run keeps. */
+/**
+ * The row of Autonomy it runs under, and the guardrails every run keeps: who it reaches, said where it is read and not only
+ * in the shield's tooltip (which a finger never opens), for the channels it goes by.
+ */
 export function underLine(x: SectionCtx) {
-  const { trig, runsUnder } = x;
-  const PolicyChip = policyChipPart();
+  const { trig, runsUnder, kept, purpose } = x;
+  const about = messageAboutOfTrigger(trig ? trig.id : null);
+  const guard = pbGuardWords(trig ? trig.kind : "", kept, purpose, about);
   return (
     <div className="pb-rules-line">
       {runsUnder && (
@@ -507,11 +513,14 @@ export function underLine(x: SectionCtx) {
         className="pb-guard"
         // eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex -- as the JSX drew it (decision 0015)
         tabIndex={0}
-        data-tip={pbGuardWords(trig ? trig.kind : "")}
-        aria-description={pbGuardWords(trig ? trig.kind : "")}
+        data-tip={guard}
+        aria-description={guard}
         data-testid="pb-guard"
       >
         <Icon name="shield" size={12} /> Guardrails
+      </span>
+      <span className="pb-guard-words" data-testid="pb-guard-who">
+        {pbWhoWords(kept, purpose, about)}
       </span>
     </div>
   );

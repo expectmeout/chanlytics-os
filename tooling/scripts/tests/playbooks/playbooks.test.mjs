@@ -38,6 +38,7 @@ import {
   playbookRunReach,
   followUpRunAt,
   followUpStandOf,
+  messageAboutOfTrigger,
   policyClassOffered,
   poolWords,
   reachLines,
@@ -986,4 +987,24 @@ test("a reach-out's step reaches nobody among People: its run is its own, and it
     );
     assert.deepEqual([drawn.eligible, drawn.reach.pool], [[], 0], trigger);
   }
+});
+
+test("what a moment's message is about (decision D1): a visit's and a proposal's are theirs, every other moment's the business's own news", () => {
+  // The visit they booked, and the proposal their deal waits on: by email these ask an address and no yes.
+  for (const trigger of ["visit_tomorrow", "visited", "proposal_waiting"])
+    assert.equal(messageAboutOfTrigger(trigger), "theirs", trigger);
+  // Everything else is news the business chose to send, by whatever list or cadence.
+  for (const trigger of ["everyone_monthly", "lapsed", "saved_list", "quiet_30", "new_week", "phoned_only"])
+    assert.equal(messageAboutOfTrigger(trigger), "ours", trigger);
+  // A reach-out's steps are no moment of People's; and a moment this build does not know, or none at all, reads as the
+  // stricter, the business's own news.
+  for (const trigger of ["lead_first", "after_step", "a_moment_nobody_made", "", null, undefined])
+    assert.equal(messageAboutOfTrigger(trigger), "ours", String(trigger));
+  // Every moment the product knows says one of the two, and only the booking and follow-up classes' say theirs.
+  for (const t of PLAYBOOK_TRIGGERS)
+    assert.equal(
+      messageAboutOfTrigger(t.id),
+      t.kind === "visit" || t.kind === "deal" ? "theirs" : "ours",
+      `${t.id} (${t.kind})`,
+    );
 });

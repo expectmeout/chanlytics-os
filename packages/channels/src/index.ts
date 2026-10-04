@@ -217,6 +217,7 @@ export {
   RESEND_API,
   SEND_TIMEOUT_MS,
   SEND_DEADLINE_MS,
+  SEND_MIN_MS,
 } from "./email/email-resend";
 export type { ResendConfig, ResendAnswer, SendEmailOptions } from "./email/email-resend";
 export {
