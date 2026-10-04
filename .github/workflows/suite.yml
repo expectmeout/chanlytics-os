@@ -1,0 +1,49 @@
+name: Suite on the label
+
+# Adding the `suite` label to a pull request runs the whole node suite once, in both zones (ci.yml, above its
+# `pnpm test` step, says why the suite is asked for and not run on every push). Its own workflow, so a label starts
+# these two jobs alone: ci.yml used to run again on any label, its required checks included, and cancel the run in
+# flight, which every Dependabot pull request's two labels did as it opened. A later push to a labelled pull request
+# runs the suite in ci.yml, as before. Neither job is a required check.
+on:
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: suite-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  utc:
+    name: Node suite on the label, UTC
+    if: github.event.label.name == 'suite'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+  auckland:
+    name: Node suite on the label, Pacific/Auckland
+    if: github.event.label.name == 'suite'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+        env:
+          TZ: Pacific/Auckland
+          TEST_TZ: Pacific/Auckland

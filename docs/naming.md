@@ -43,9 +43,13 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
   `GET`); constants and closed sets CONSTANT_CASE; no `enum`: a closed set is an `as const` array.
   `@typescript-eslint/naming-convention` in `eslint.config.mjs` (owed).
 - **Files** are kebab-case and say what they hold; `index.ts` only lists a folder's names; PascalCase only for a
-  component's file; a leading underscore only for a shared test helper at the tests' root. A framework's own names
-  are its own: Next's `route.ts`, `page.tsx`, `[id]` and `(os)`, Expo Router's `_layout.tsx`, `(tabs)` and
-  `+native-intent.tsx`. CSS tokens and classes are kebab-case. A file-name test (owed).
+  component's file; a leading underscore only for a test helper, at the tests' root or in a domain's test folder. A
+  file's kind may follow its name: `.test.mjs`, `.db.test.mjs`, `.type-test.ts`, `.generated.ts`, `.config.ts`,
+  Supabase's `database.types.ts`, Metro's `widget.ios.ts`. A role a folder repeats keeps one name in every folder:
+  `surface.ts` (a surface's data, decision 0015), `verbs.ts` (what its page or domain does), `ports.ts` (a core verb's
+  world, `packages/core/src/conversations/ports.ts`), `sample.ts` (its seed). A framework's own names are its own:
+  Next's `route.ts`, `page.tsx`, `[id]` and `(os)`, Expo Router's `_layout.tsx`, `(tabs)` and `+native-intent.tsx`.
+  CSS tokens and classes are kebab-case. `tooling/scripts/tests/docs/file-names.test.mjs` holds the files.
 
 ## Closed sets
 
