@@ -202,11 +202,14 @@ type Database = {
             };
             ask_voice_sessions: {
                 Row: {
+                    connect_ms: number | null;
                     context: Json | null;
                     conversation_id: string | null;
                     created_at: string;
                     duration_s: number | null;
+                    end_reason: string | null;
                     ended_at: string | null;
+                    first_audio_ms: number | null;
                     id: string;
                     language: string;
                     scope: Json | null;
@@ -220,11 +223,14 @@ type Database = {
                     user_id: string;
                 };
                 Insert: {
+                    connect_ms?: number | null;
                     context?: Json | null;
                     conversation_id?: string | null;
                     created_at?: string;
                     duration_s?: number | null;
+                    end_reason?: string | null;
                     ended_at?: string | null;
+                    first_audio_ms?: number | null;
                     id: string;
                     language?: string;
                     scope?: Json | null;
@@ -238,11 +244,14 @@ type Database = {
                     user_id: string;
                 };
                 Update: {
+                    connect_ms?: number | null;
                     context?: Json | null;
                     conversation_id?: string | null;
                     created_at?: string;
                     duration_s?: number | null;
+                    end_reason?: string | null;
                     ended_at?: string | null;
+                    first_audio_ms?: number | null;
                     id?: string;
                     language?: string;
                     scope?: Json | null;

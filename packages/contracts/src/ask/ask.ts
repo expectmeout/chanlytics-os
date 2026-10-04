@@ -55,6 +55,30 @@ export const ASK_VOICE_CLAIM_STALE_MS = MIN_MS;
  */
 export const ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
 /**
+ * Ask's one voice, wherever it speaks: the agent's conversation (tooling/scripts/voice/elevenlabs-agent-config.mjs)
+ * and the speech route that reads a brief or an answer aloud (apps/edge/lib/voice/ask-voice.ts). Ruben's pick, 4 Oct
+ * 2026: "Mark - Natural Conversations", from the account's library. One constant, so the two never drift.
+ */
+export const ASK_VOICE_ID = "UgBBYS2sOqTuMpoF3BR0";
+/**
+ * The model Ask's voice speaks on, in both pipes (the agent's conversation and the one-way speech): Turbo v2, the
+ * one of the two the vendor allows an English agent (Turbo v2 or Flash v2) that this voice is high quality on. One
+ * model, so a brief and a spoken answer sound the same. The vendor marks Turbo v2 deprecated (4 Oct 2026) and still
+ * serves it, and holds the agent to it regardless; a move is one constant, after a listen.
+ */
+export const ASK_VOICE_MODEL = "eleven_turbo_v2";
+/** The most one speech request reads aloud: a brief runs 400 to 800 characters, an answer's say under 600. */
+export const ASK_SPEECH_MAX_CHARS = 1500;
+/**
+ * How a voice conversation ended, the browser's word, one of a closed set the row keeps (00300): End pressed, typing,
+ * a new conversation in its place, the Line closing, the far side ending it, or a start that never came up. The
+ * voice doctor groups by it; "stopped" said nothing.
+ */
+export const VOICE_END_REASONS = ["button", "typed", "superseded", "navigated", "vendor", "start"] as const;
+export type VoiceEndReason = (typeof VOICE_END_REASONS)[number];
+/** The longest a browser's timing may claim on a session's end: ten minutes, the conversation's own ceiling. */
+export const ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
+/**
  * The most one round may write: its thinking, its tool calls and its answer
  * together. One number, read by the loop's request and by the edge's clamp on
  * Ask, so the two cannot drift again: the loop asked for 2400 while the edge

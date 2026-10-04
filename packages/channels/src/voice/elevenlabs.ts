@@ -12,6 +12,12 @@ import { answerObject, providerFetch, type ProviderReply } from "../provider-fet
 const ELEVENLABS_API = "https://api.elevenlabs.io";
 /** One round trip to the vendor, bounded: a mint while a person waits for the first word, or an erase after the call. */
 const ELEVENLABS_TIMEOUT_MS = 10_000;
+/**
+ * A clip's whole transfer, bounded: the fetch's bound ends the body too (provider-fetch `stream`), so this is how
+ * long the vendor, the edge, the dashboard and the browser together have for the longest clip (ASK_SPEECH_MAX_CHARS,
+ * about 1.6 MB of MP3) on a slow link; under the dashboard route's own thirty seconds.
+ */
+const ELEVENLABS_SPEECH_TIMEOUT_MS = 25_000;
 /** How far a webhook delivery's clock may be from ours, in seconds: the vendor's own window for a replayed delivery. */
 export const ELEVENLABS_WEBHOOK_TOLERANCE_S = 30 * 60;
 /** The header the post-call webhook's signature rides in: `t=<unix seconds>,v0=<hex>`. */
@@ -63,6 +69,40 @@ export async function mintConversationToken(cfg: ElevenLabsConfig, deps?: Deps):
   const conversationId = typeof j?.conversation_id === "string" ? j.conversation_id : "";
   if (!token || !conversationId) return { outcome: "rejected", status: a.status, error: "no token in the answer" };
   return { outcome: "ok", token, conversationId };
+}
+
+export type SpeechStream =
+  | { outcome: "ok"; body: ReadableStream<Uint8Array>; contentType: string }
+  | { outcome: "rejected" | "unreachable"; status: number; error: string };
+
+/**
+ * Words spoken, as they are made (`POST /v1/text-to-speech/{voice_id}/stream` with the key): the one-way speech, a
+ * brief or an answer read aloud, in Ask's one voice. The vendor's own normaliser reads the figures ("3:30", "12%") as
+ * the agent's does (`apply_text_normalization: "on"`); MP3 at 44.1 kHz and 128 kb/s is the format every plan may ask
+ * for and every browser plays. The body comes back unread, for the door to hand on as it arrives; the vendor's first
+ * byte came in 300 to 550 ms on this account (4 Oct 2026, both models, `apply_text_normalization: on` accepted), so a
+ * person hears the first word about when the connection is up.
+ */
+export async function speakText(
+  cfg: Pick<ElevenLabsConfig, "apiKey">,
+  input: { voiceId: string; modelId: string; text: string },
+  deps?: Deps,
+): Promise<SpeechStream> {
+  const url = `${ELEVENLABS_API}/v1/text-to-speech/${encodeURIComponent(input.voiceId)}/stream?output_format=mp3_44100_128`;
+  const a = await providerFetch(
+    "elevenlabs",
+    url,
+    {
+      method: "POST",
+      headers: { "xi-api-key": cfg.apiKey, "content-type": "application/json", accept: "audio/mpeg" },
+      body: JSON.stringify({ text: input.text, model_id: input.modelId, apply_text_normalization: "on" }),
+      timeoutMs: ELEVENLABS_SPEECH_TIMEOUT_MS,
+      stream: true,
+    },
+    deps,
+  );
+  if (a.outcome !== "ok" || !a.body) return notOk(a);
+  return { outcome: "ok", body: a.body, contentType: a.headers?.get("content-type") || "audio/mpeg" };
 }
 
 /** The vendor's record of a conversation, erased (`DELETE /v1/convai/conversations/{id}`): what door D does once the minutes are written. */

@@ -64,6 +64,8 @@ export const RATE = {
   call_control: { limit: 20, windowMs: MIN_MS, noun: "call controls" },
   /** A voice conversation started on the agent (spec 2026-10-03-ask-spoken-design.md, §3.1): each one mints a token. */
   voice: { limit: 30, windowMs: HOUR_MS, noun: "voice conversations" },
+  /** A brief or an answer read aloud in Ask's voice (spec §3.5, amended 4 Oct 2026): each one is a vendor call. */
+  speech: { limit: 60, windowMs: HOUR_MS, noun: "spoken briefs" },
   /**
    * metrics_summary, report_series, the campaign series and the calendar
    * feed: the plpgsql aggregates and the one outside read. One load of Today

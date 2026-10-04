@@ -13,8 +13,9 @@ import type {
   AskSurface,
   AskThreadVM,
   PageContext,
+  VoiceEndReason,
 } from "@chanlytics/contracts";
-import { refusalOf } from "@chanlytics/contracts";
+import { MIN_MS, refusalOf } from "@chanlytics/contracts";
 import { api } from "../api";
 import { unwrap, type Api, type ApiOptions, type ApiResult, type Output, type RouteKey } from "../../client/api";
 
@@ -71,20 +72,28 @@ export async function readLines(body: ReadableStream<Uint8Array>, on: (line: str
 /** The stream lasts as long as the turn: the server's own ceiling ends it, not the client's write timeout. */
 const TURN_MS = 300_000;
 
+export type { VoiceEndReason };
+/** What the browser measured, from the tap: to the connection, and to the first audio it heard (null: none came). */
+export interface VoiceEndTiming {
+  connectMs: number | null;
+  firstAudioMs: number | null;
+}
+
 /**
  * The voice conversation's three calls (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.1), spread into
  * the Ask calls: a conversation begins (the thread it runs on, the agent's token, the session the browser hands the
  * agent; a refusal is thrown in the server's words, unwrap, for the Line to say), the page under the Line moves (the
- * next spoken turn reads it), and the person ends it (the row is ended, so the brain door opens it no more).
+ * next spoken turn reads it), and the person ends it (the row is ended, so the brain door opens it no more, and keeps
+ * how it went: the reason and the two timings, 00300).
  */
 function voiceCalls(client: Api) {
   return {
+    /** A conversation begun; the agent's language is the agent's own, so none is sent (the route reads none as English). */
     voiceStart: async (input: {
       threadId: string | null;
       scope: AskScope | null;
       surface: AskSurface | null;
       context: PageContext | null;
-      language: "en" | "es";
     }): Promise<{ session: string; token: string; conversation_id: string | null; thread_id: string; title: string }> =>
       unwrap(
         await client("POST ask/voice", {
@@ -93,7 +102,6 @@ function voiceCalls(client: Api) {
             scope: input.scope,
             surface: input.surface,
             context: input.context,
-            language: input.language,
           },
         }),
       ),
@@ -104,11 +112,14 @@ function voiceCalls(client: Api) {
         /* the next turn reads its page itself */
       }
     },
-    /** The conversation over, and why (the person, the agent, a start that failed): the row is ended with the reason on its log line. */
-    voiceEnd: async (session: string, reason?: string): Promise<void> => {
+    voiceEnd: async (session: string, reason: VoiceEndReason, timing?: VoiceEndTiming): Promise<void> => {
       try {
         await client.raw("POST ask/voice/end", {
-          body: { session, ...(reason ? { reason: reason.slice(0, 80) } : {}) },
+          body: {
+            session,
+            reason,
+            ...(timing ? { connect_ms: timing.connectMs, first_audio_ms: timing.firstAudioMs } : {}),
+          },
         });
       } catch {
         /* the row expires on its own */
@@ -116,6 +127,31 @@ function voiceCalls(client: Api) {
     },
   };
 }
+
+/**
+ * Words read aloud in Ask's one voice (the spec's §3.5 as amended 4 Oct 2026: the one-way speech): the route answers
+ * the audio itself, MP3, as the vendor makes it. The whole clip is read before it plays (a brief is 15 to 25 KB and
+ * arrives in about a second), so the player needs no media-source plumbing; a refusal is thrown in the server's
+ * words, for the button to say.
+ */
+function speechCalls(client: Api) {
+  return {
+    speech: async (text: string, purpose: "brief" | "answer"): Promise<Blob> => {
+      const res = await client.raw("POST ask/speech", { body: { text, purpose }, timeoutMs: SPEECH_MS });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+        // A clip asked for and refused changed nothing: a read, for the refusal's words.
+        throw new Error(
+          refusalOf({ code: j?.error?.code, status: res.status, message: j?.error?.message, write: false }).message,
+        );
+      }
+      return res.blob();
+    },
+  };
+}
+
+/** The clip's whole wait: the route's own ceiling is a minute; a brief streams in well under ten seconds. */
+const SPEECH_MS = MIN_MS;
 
 /** The Ask calls, on the client for their window: the tab's own, or a test's stand-in (`apiFor`). */
 export function askApi(client: Api = api()) {
@@ -172,6 +208,7 @@ export function askApi(client: Api = api()) {
       }
     },
     ...voiceCalls(client),
+    ...speechCalls(client),
     send: async (
       input: {
         text: string;

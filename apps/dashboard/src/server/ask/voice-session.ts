@@ -15,6 +15,7 @@ import {
   readVoiceSession as readRow,
   type Database,
   type Json,
+  type VoiceEndReason,
   type VoiceSessionRow,
 } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -161,11 +162,20 @@ export const contextOf = (row: VoiceSessionRow): PageContext | null => {
 export const claimTurn = (service: Db, hash: string, turnKey: string, now = new Date()): Promise<boolean> =>
   claimVoiceTurn(service, hash, turnKey, now, ASK_VOICE_CLAIM_STALE_MS);
 
-/** The conversation over, as the member (the browser's end) or as the service (the webhook's, with its minutes). */
+/**
+ * The conversation over, as the member (the browser's end, with how it went: the reason and its two timings, 00300) or
+ * as the service (the webhook's, with its minutes).
+ */
 export const endVoiceSession = (
   db: Db,
   hash: string,
-  fields: { endedAt: string; durationS?: number },
+  fields: {
+    endedAt: string;
+    durationS?: number;
+    endReason?: VoiceEndReason;
+    connectMs?: number | null;
+    firstAudioMs?: number | null;
+  },
 ): Promise<boolean> => endRow(db, hash, fields);
 
 /** The page under the Line changed: the row keeps the new one for the next spoken turn (the member's own row). */

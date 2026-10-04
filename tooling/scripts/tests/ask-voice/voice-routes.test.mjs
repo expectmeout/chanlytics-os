@@ -358,3 +358,39 @@ test("the end: the member's row is ended, and ending it again, or one already go
   assert.deepEqual(await end.POST.run(send("POST", { session: "cd".repeat(32) }, inA), ctxFor(tables)), { ok: true });
   await refused(end.POST.run(send("POST", { session: "nope" }, inA), ctxFor(tables)), "validation", 400);
 });
+
+test("the end keeps how it went (00300): the reason, one of the row's set, and the two timings from the tap; a word outside the set (an older bundle's, the vendor's) ends the row all the same and keeps no reason, so either app may deploy first; a timing past the conversation's ceiling is refused", async () => {
+  const tables = tablesFor({ ask_threads: [threadRow(T1, A)], ask_voice_sessions: [sessionRow()] });
+  assert.deepEqual(
+    await end.POST.run(
+      send("POST", { session: S, reason: "button", connect_ms: 2100, first_audio_ms: 3000 }, inA),
+      ctxFor(tables),
+    ),
+    { ok: true },
+  );
+  const row = tables.ask_voice_sessions[0];
+  assert.ok(row.ended_at);
+  assert.equal(row.end_reason, "button");
+  assert.equal(row.connect_ms, 2100);
+  assert.equal(row.first_audio_ms, 3000);
+  // The far side ended it before any audio: the timing says so.
+  const again = tablesFor({ ask_threads: [threadRow(T1, A)], ask_voice_sessions: [sessionRow()] });
+  await end.POST.run(
+    send("POST", { session: S, reason: "vendor", connect_ms: 1800, first_audio_ms: null }, inA),
+    ctxFor(again),
+  );
+  assert.equal(again.ask_voice_sessions[0].end_reason, "vendor");
+  assert.equal(again.ask_voice_sessions[0].first_audio_ms, null);
+  // An older bundle's word: the row is ended, no reason kept, nothing refused.
+  const older = tablesFor({ ask_threads: [threadRow(T1, A)], ask_voice_sessions: [sessionRow()] });
+  assert.deepEqual(await end.POST.run(send("POST", { session: S, reason: "stopped" }, inA), ctxFor(older)), {
+    ok: true,
+  });
+  assert.ok(older.ask_voice_sessions[0].ended_at, "ended all the same");
+  assert.ok(!older.ask_voice_sessions[0].end_reason, "and no reason outside the set is kept");
+  await refused(
+    end.POST.run(send("POST", { session: S, connect_ms: 700_000 }, inA), ctxFor(tables)),
+    "validation",
+    400,
+  );
+});

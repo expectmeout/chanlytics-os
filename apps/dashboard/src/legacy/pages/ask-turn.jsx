@@ -521,11 +521,13 @@ const AskReads = ({ traces, t }) => {
 
 // An answer's two acts (D14): Copy its words and Read them aloud. A desktop draws them at the field's end beside Clear;
 // a phone under the newest answer, never under an earlier one and never while one is written. `words` are the
-// answer's plain words (contracts answerText); `speech` is the Line's (AskHooks.useAskSpeech). Where the device can
-// talk with Ask (`voice.can`, AskHooks.useAskVoice), Read aloud is Ask's own voice: the answer as the agent's first
-// words, and a follow-up by voice after it (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5); the
-// device's voice reads where it cannot.
-const AskActs = ({ words, lang, speech, voice, flash, t }) => {
+// answer's say, its headline then its detail (contracts answerText), written for the ear: what Copy takes and what
+// Read aloud speaks in Ask's one voice (the one-way speech, legacy-bridge/ask/speech.ts through AskHooks.useAskSpeech;
+// docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5 as amended 4 Oct 2026); the figures and rows are
+// drawn, never read. Nobody speaks back: a follow-up is typed, or the mic's tap. Between the press and the first word
+// the button says it is getting the voice, and a press then stops the wait; where the clip could not be made the
+// button says why, in the server's words.
+const AskActs = ({ words, speech, flash, t }) => {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(words);
@@ -534,38 +536,28 @@ const AskActs = ({ words, lang, speech, voice, flash, t }) => {
       flash({ tone: "danger", msg: <>{t.copyFailed}</> });
     }
   };
-  const talking = !!(voice && voice.can);
-  // Reading: the agent in its conversation, or the device's own voice (where there is no agent, or it could not start).
-  const reading = !!(voice && voice.on) || speech.speakingId === "line";
+  const reading = speech.speakingId === "line";
+  const loading = speech.loading === "line";
   const read = () => {
-    if (reading) {
-      if (voice && voice.on) voice.stop();
-      else speech.toggle("line", words, lang);
-      return;
-    }
-    if (talking) {
-      // The agent reads where it can start; where it cannot (the mint refused, the connection lost), the device's own
-      // voice reads the same words, and a device without one says why the agent did not.
-      voice.read(words).then((why) => {
-        if (why && !speech.toggle("line", words, lang)) flash({ tone: "danger", msg: <>{why}</> });
-      });
-      return;
-    }
-    if (!speech.toggle("line", words, lang)) flash({ msg: <>{t.noSpeech}</> });
+    speech.toggle(words, "answer").then((why) => {
+      if (why !== null) flash({ tone: "danger", msg: <>{why || t.readFailed}</> });
+    });
   };
+  const word = reading ? t.stop : loading ? t.reading : t.read;
   return (
     <span className="ask-acts" data-testid="ask-acts">
       <button type="button" className="ask-line-btn quiet" onClick={copy} aria-label={t.copy} title={t.copy} data-testid="ask-copy">
         <Icon name="content" size={14} />
       </button>
-      {talking || speech.canSpeak ? (
+      {speech.canSpeak ? (
         <button
           type="button"
-          className={`ask-line-btn quiet${reading ? " on" : ""}`}
+          className={`ask-line-btn quiet${reading || loading ? " on" : ""}`}
           onClick={read}
-          aria-label={reading ? t.stop : t.read}
+          aria-label={word}
           aria-pressed={reading}
-          title={reading ? t.stop : t.read}
+          aria-busy={loading || undefined}
+          title={word}
           data-testid="ask-read"
         >
           <Icon name={reading ? "pause" : "headphones"} size={14} />
