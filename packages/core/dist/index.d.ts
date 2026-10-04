@@ -1635,6 +1635,8 @@ interface CreateBroadcastCommand {
 interface ApproveRunPorts {
     /** The business's clock, for the hours a send may go out in. */
     timezone(): Promise<string>;
+    /** Whether the workspace is paused (`tenants.status = 'paused'`): nothing is approved while it is. Throws when it cannot be read. */
+    paused(): Promise<boolean>;
     /** pending_approval → scheduled for `at`, only while pending. True iff a row changed. The row carries the time the job carries (00119). */
     release(broadcastId: string, at: Date): Promise<boolean>;
     /** Back to waiting, when the job could not be made. */
@@ -1810,7 +1812,8 @@ interface ApproveReceipt {
  * Under the ask mode a playbook's run is made as pending_approval: the
  * recipients are enrolled, nothing is scheduled. Approving schedules the
  * send now and records the decision as the approver's; skipping is the
- * cancel. A job the ledger refused leaves the run waiting, as it was.
+ * cancel. A job the ledger refused leaves the run waiting, as it was. A
+ * paused workspace sends nothing, so nothing is approved in it.
  */
 declare function approveRun(ports: ApproveRunPorts, cmd: {
     row: BroadcastRef;

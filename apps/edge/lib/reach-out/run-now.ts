@@ -17,17 +17,18 @@
  *   it sends now unless the class is set to never, at nine if now is outside the hours a send may go out in, and the
  *   ledger names them. One run per local day, so a playbook that already ran today answers that in its outcome.
  *
- * A run that failed is a 500 with its reason in `detail`; one that was decided (sent, held, empty or off) is a 200.
+ * A run that failed is a 500 with its reason in `detail`; one that was decided (sent, held, empty or off) is a 200. A
+ * paused workspace is a 402 `payment_required` with the words for it: nothing is sent from one, so nothing is run in it.
  */
 import { json, refuse } from "../http.js";
 import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
 import { pg } from "../pg.js";
-import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../playbooks.js";
+import { CONTEXT_PAUSED, loadTenantRunContext, runPlaybook, type PlaybookRow } from "../playbooks.js";
 import { logger } from "../log.js";
 import { runReachOutStep } from "./run-step.js";
 import { tenantZoneOf } from "../packages/db.js";
 import type { ReachOutRow } from "./run-context.js";
-import { UUID } from "../packages/contracts.js";
+import { UUID, WORKSPACE_PAUSED_SENDS } from "../packages/contracts.js";
 
 export async function runPlaybookNow(
   auth: Admitted,
@@ -85,6 +86,9 @@ export async function runPlaybookNow(
   }
 
   const ctx = await loadTenantRunContext(db, tenantId, new Date());
+  // A paused workspace is a refusal a person can act on (Billing), not a failure to read the workspace: 402, as Ask and
+  // the voice doors answer a paused one.
+  if ("error" in ctx && ctx.error === CONTEXT_PAUSED) return refuse(402, "payment_required", WORKSPACE_PAUSED_SENDS);
   if ("error" in ctx) return refuse(500, "context_failed", ctx.error);
   const r = await runPlaybook(ctx, p as PlaybookRow, { by: { kind: "user", userId } });
   if (r.outcome === "failed") return refuse(500, "run_failed", r.error);

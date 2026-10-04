@@ -2,6 +2,7 @@
  * The approval a run waits on: its view model, the pool it drew from and the lines that say who it reaches. Moved
  * whole from playbooks.ts (Reach out Part 2.5), which re-exports it.
  */
+import { audienceTrigger } from "../broadcasts/broadcast-audience";
 import type { BroadcastDto, BroadcastRecipientDto } from "../broadcasts/broadcasts";
 import { purposeOfPlaybook } from "../consent/consent";
 import { consentRuleWords } from "../consent/consent-asks";
@@ -53,9 +54,12 @@ export interface ApprovalVM {
   readerChannel: ConsentChannel;
   /** How many a greeting by name reaches with no name on file: they get "Hi there" (resolveParams). */
   hiThere: number;
-  /** The act: "Approve — 186 now", or "at 9:00" after hours (approveRun sends at the next open moment). Null when its day has passed. */
+  /** The act: "Approve — 186 now", or "at 9:00" after hours (approveRun sends at the next open moment). Null when approveRun would refuse it. */
   approve: string | null;
-  /** Why it cannot be approved: a playbook's run is a day's run, and approveRun refuses it on a later day. */
+  /**
+   * Why it cannot be approved: a playbook's run is a day's run, and approveRun refuses it on a later day, and a visit's
+   * run that would go out on a later day than the one it was made for (runApprovalRefusal).
+   */
   expired: string | null;
   /** When it goes, for the line under its name. */
   goes: string;
@@ -217,9 +221,44 @@ export function runDayPassed(
   run: { playbook_id: string | null; run_for?: string | null },
   today: string,
 ): string | null {
-  return run.playbook_id && run.run_for && run.run_for !== today
-    ? `This run was made for ${run.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`
-    : null;
+  return run.playbook_id && run.run_for && run.run_for !== today ? dayGoneWords(run.run_for) : null;
+}
+
+/** The sentence a run is refused in when its day is gone: the route's, Ask's run card's, and the sheet's for a visit's run that waited past the day. */
+function dayGoneWords(runFor: string): string {
+  return `This run was made for ${runFor} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`;
+}
+
+/** When an approval would send a run: the business's day now, and the day of the next open moment (nextOpenMoment), "2026-09-21". */
+interface ApprovalDays {
+  today: string;
+  sendsOn: string;
+}
+
+/**
+ * Whether a visit's run, made for today, would go out on a later day than the one it was made for: approved after the
+ * last sending hour it waits for nine the next morning, and its words (the visit's time as the calendar said it when the
+ * run was made, "tomorrow at 2:00 PM") are that day's, so they would reach the customer on the morning of the visit. Any
+ * other moment's words do not name a day.
+ */
+function visitRunTooLate(run: { run_for?: string | null; audience?: unknown }, days: ApprovalDays): boolean {
+  const moment = triggerOf(audienceTrigger(run.audience) ?? "");
+  return moment?.kind === "visit" && !!run.run_for && days.sendsOn > run.run_for;
+}
+
+/**
+ * Why a waiting playbook's run cannot be approved now, in one sentence, or null: its day has passed (runDayPassed), or it
+ * is a visit's run that an approval now would send on a later day than the one it was made for (visitRunTooLate). THE
+ * predicate for both the verb (core approveRun, Ask's run card) and the sheet (toApprovalVM), so the sheet never offers a
+ * button the verb refuses.
+ */
+export function runApprovalRefusal(
+  run: { playbook_id: string | null; run_for?: string | null; audience?: unknown },
+  days: ApprovalDays,
+): string | null {
+  const gone = runDayPassed(run, days.today);
+  if (gone) return gone;
+  return run.playbook_id && run.run_for && visitRunTooLate(run, days) ? dayGoneWords(run.run_for) : null;
 }
 
 /**
@@ -231,7 +270,7 @@ export function runDayPassed(
 export function toApprovalVM(
   d: {
     broadcast: Pick<BroadcastDto, "recipient_count" | "run_for" | "params"> & {
-      audience?: { reach?: RunReach } | null;
+      audience?: { reach?: RunReach; trigger?: string } | null;
     };
     recipients: ReadonlyArray<
       Pick<BroadcastRecipientDto, "name" | "first_name"> &
@@ -243,8 +282,11 @@ export function toApprovalVM(
     businessName: string;
     /** The business's day now, "2026-09-21". */
     today: string;
-    /** When an approval now would send: the clock's next open moment, and whether it moved past the hours. */
-    open: { time: string; moved: boolean };
+    /**
+     * When an approval now would send: the clock's next open moment, whether it moved past the hours, and the business's
+     * day it falls on ("2026-09-21": a visit's run made for today does not go on a later one, runApprovalRefusal).
+     */
+    open: { time: string; moved: boolean; on: string };
     /** A run's day in words. */
     day: (ymd: string) => string;
   },
@@ -301,7 +343,11 @@ export function toApprovalVM(
     }
   });
   const greets = params.some((p) => p.kind === "first_name");
-  const late = !!b.run_for && b.run_for !== opts.today;
+  // The verb's own rule (runApprovalRefusal): its day has passed, or a visit's run would go out on a later day than it was made for.
+  const dayPassed = !!b.run_for && b.run_for !== opts.today;
+  const tooLate = !dayPassed && visitRunTooLate(b, { today: opts.today, sendsOn: opts.open.on });
+  const late = dayPassed || tooLate;
+  const runFor = b.run_for ?? "";
   return {
     will,
     byChannel: by
@@ -318,11 +364,13 @@ export function toApprovalVM(
     readerChannel: channelOfRecipient(reader),
     hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,
     approve: late ? null : `Approve — ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
-    expired: late
-      ? `Made for ${opts.day(b.run_for!)}, and that day has passed — its people and its words were that day's. Skip it; the next run starts over.`
-      : null,
+    expired: dayPassed
+      ? `Made for ${opts.day(runFor)}, and that day has passed — its people and its words were that day's. Skip it; the next run starts over.`
+      : tooLate
+        ? dayGoneWords(runFor)
+        : null,
     goes: late
-      ? `made for ${opts.day(b.run_for!)}`
+      ? `made for ${opts.day(runFor)}`
       : opts.open.moved
         ? `goes at ${opts.open.time} once you approve it`
         : "goes the moment you approve it",

@@ -5476,6 +5476,11 @@ async function forgetNotification(db, p) {
   const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
   if (error) throw new Error(`cannot take the notification back: ${error.message}`);
 }
+async function noticeKept(db, p) {
+  const { data, error } = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("kind", p.kind).eq("subject_type", p.subjectType).eq("subject_id", p.subjectId).limit(1);
+  if (error) throw new Error(`cannot read what the workspace was told: ${error.message}`);
+  return (data ?? []).length > 0;
+}
 async function activityTokensOf(db, tenantId, roles) {
   const { data: members, error: me } = await db.from("memberships").select("user_id").eq("tenant_id", tenantId).in("role", [...roles]);
   if (me) throw new Error(`cannot read who is in the workspace: ${me.message}`);
@@ -5489,6 +5494,13 @@ async function forgetActivityTokens(db, tokens) {
   if (!tokens.length) return;
   const { error } = await db.from("push_devices").update({ activity_token: null }).in("activity_token", [...tokens]);
   if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
+}
+
+// src/repositories/campaigns/workspace.ts
+async function workspacePaused(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  return data?.status === "paused";
 }
 
 // src/repositories/routing.ts
@@ -6979,6 +6991,7 @@ export {
   namedFetch,
   namesOfPeople,
   notesForReceptionist,
+  noticeKept,
   observeDb,
   offerLanguageOf,
   offersEmailReach,
@@ -7121,6 +7134,7 @@ export {
   workspaceMaySpend,
   workspaceMayUseModels,
   workspaceNameAndConfig,
+  workspacePaused,
   writtenEmail,
   writtenEmails,
   yesesSince

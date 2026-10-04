@@ -7954,6 +7954,7 @@ function hoursLines(hours) {
 }
 var SHORT2 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
 var LONG2 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
+var escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 var ms = (t) => typeof t === "number" ? t : Date.parse(t);
 function visitStartTime(v, tz) {
   if (v.allDay || v.all_day) return "all day";
@@ -9027,6 +9028,7 @@ var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * DAY_MS2;
 var REVIEW_NEWS_MS2 = 36 * HOUR_MS2;
 var REVIEW_NEWS_MAX_AGE_MS2 = 14 * DAY_MS2;
 var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
+var WORKSPACE_PAUSED_SENDS = "This workspace is paused, so nothing is sent from it. Resume it from Billing, then try again.";
 var DATE_FMT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS2 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
@@ -9154,6 +9156,40 @@ var LEAD_MAP_STATE_WORDS2 = {
   ready: LEAD_STAGE_WORDS2.ready,
   out: `${LEAD_STAGE_WORDS2.archived} or ${LEAD_LEFT_OUT_WORD2.toLowerCase()}`
 };
+function fullNameKey(name) {
+  const n = (name ?? "").trim();
+  if (!n || /^[+\d(]/.test(n) || n.includes("@")) return null;
+  const words3 = n.split(/\s+/);
+  const first = words3.at(0);
+  const last = words3.at(-1);
+  const letters = (w) => (w.match(/\p{L}/gu) ?? []).length;
+  if (words3.length < 2 || !first || !last || letters(first) < 2 || letters(last) < 2) return null;
+  return words3.join(" ").toLowerCase();
+}
+var SERVICE_TAIL = /(?:^|[^\p{L}])(?:with|for|and|w\/)\s*$|[\s·•|:,/&+\-–—([{]+$/iu;
+var SERVICE_HEAD = /^[\s·•|:,./&+\-–—)\]}]+/u;
+function seamed(before, after) {
+  let left = before;
+  for (let prev = ""; prev !== left; ) {
+    prev = left;
+    left = left.replace(SERVICE_TAIL, "");
+  }
+  const right = after.replace(SERVICE_HEAD, "");
+  return left && right ? `${left} \xB7 ${right}` : left || right;
+}
+function visitServiceOf(title, names3) {
+  let service = title.trim();
+  for (const raw of names3) {
+    const name = (raw ?? "").trim();
+    if (name.length < 3 || /^[+\d(]/.test(name) || name.includes("@")) continue;
+    const edge = "[^\\p{L}\\p{N}'\u2019]";
+    const re = new RegExp(`(?<=^|${edge})${escapeRe(name)}(?=$|${edge})`, "iu");
+    for (let m = re.exec(service); m; m = re.exec(service)) {
+      service = seamed(service.slice(0, m.index), service.slice(m.index + m[0].length));
+    }
+  }
+  return service;
+}
 function planRun(mode, now) {
   switch (mode) {
     case "auto":
@@ -9242,6 +9278,33 @@ function messageFitsMoment(policyClass, category) {
   const why = moment === "conversational" ? "offer_on_texts" : "texts_on_offers";
   return { ok: false, why, words: MESSAGE_MOMENT_WORDS[why] };
 }
+function touchesAfterRun(touches, run, people) {
+  const byThis = new Map(touches.byThis);
+  const mine = new Map(byThis.get(run.playbookId));
+  const byAny = new Map(touches.byAny);
+  const followUps = new Map(touches.followUps);
+  for (const id of people) {
+    mine.set(id, Math.max(mine.get(id) ?? 0, run.at));
+    byAny.set(id, Math.max(byAny.get(id) ?? 0, run.at));
+    if (run.followUp) followUps.set(id, Math.max(followUps.get(id) ?? 0, run.at));
+  }
+  byThis.set(run.playbookId, mine);
+  return { byThis, byAny, followUps };
+}
+var savedNameOf = (r22) => r22.givenName ?? r22.waName;
+function fullNameHolders(rows) {
+  const holders = /* @__PURE__ */ new Map();
+  for (const r22 of rows) {
+    const key = fullNameKey(savedNameOf(r22));
+    if (key !== null) holders.set(key, (holders.get(key) ?? 0) + 1);
+  }
+  return holders;
+}
+function visitIsTheirs(r22, via, holders) {
+  if (via !== "name") return true;
+  const key = fullNameKey(savedNameOf(r22));
+  return key !== null && holders.get(key) === 1;
+}
 function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   const reach = {
     pool: 0,
@@ -9265,13 +9328,15 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   if (t.kind === "reach_out") return none;
   const purpose = enrolPurpose(t.cls, p.message);
   const how = { channels: p.channels, ready: p.ready, about: messageAboutOfTrigger(p.trigger) };
+  const holders = t.kind === "visit" ? fullNameHolders(rows) : /* @__PURE__ */ new Map();
   const named = t.kind === "visit" ? (
-    // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
+    // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow. And a visit that is surely
+    // theirs (visitIsTheirs).
     rows.filter((r22) => {
       if (!r22.calendarTz) return false;
       if (p.trigger === "visit_tomorrow")
-        return r22.nextVisitDate !== null && r22.nextVisitDate === localDate(r22.calendarTz, new Date(nowMs + DAY_MS2));
-      return r22.lastVisitDate !== null && r22.lastVisitDate === localDate(r22.calendarTz, new Date(nowMs - DAY_MS2)) && !r22.booked;
+        return r22.nextVisitDate !== null && r22.nextVisitDate === localDate(r22.calendarTz, new Date(nowMs + DAY_MS2)) && visitIsTheirs(r22, r22.nextVisitVia, holders);
+      return r22.lastVisitDate !== null && r22.lastVisitDate === localDate(r22.calendarTz, new Date(nowMs - DAY_MS2)) && !r22.booked && visitIsTheirs(r22, r22.lastVisitVia, holders);
     })
   ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : t.kind === "deal" ? rows.filter((r22) => followUpNames(r22, nowMs, pace)) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
@@ -9335,7 +9400,19 @@ var PLAYBOOK_CLASS_LABEL2 = {
   outreach: POLICY_CLASS_WORDS2.outreach.short
 };
 function runDayPassed(run, today) {
-  return run.playbook_id && run.run_for && run.run_for !== today ? `This run was made for ${run.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.` : null;
+  return run.playbook_id && run.run_for && run.run_for !== today ? dayGoneWords(run.run_for) : null;
+}
+function dayGoneWords(runFor) {
+  return `This run was made for ${runFor} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`;
+}
+function visitRunTooLate(run, days) {
+  const moment = triggerOf2(audienceTrigger(run.audience) ?? "");
+  return moment?.kind === "visit" && !!run.run_for && days.sendsOn > run.run_for;
+}
+function runApprovalRefusal(run, days) {
+  const gone = runDayPassed(run, days.today);
+  if (gone) return gone;
+  return run.playbook_id && run.run_for && visitRunTooLate(run, days) ? dayGoneWords(run.run_for) : null;
 }
 function playbookListRef(p) {
   if (triggerOf2(p.trigger)?.kind !== "saved") return null;
@@ -9349,12 +9426,12 @@ function proposalFactsFor(trigger, row2) {
   const url = row2?.deal?.proposal?.url ?? null;
   return t && t.kind === "deal" && url ? { proposal_link: url } : null;
 }
-function visitFactsFor(trigger, visit, tz, sendAt) {
+function visitFactsFor(trigger, visit, tz, names3, sendAt) {
   const t = triggerOf2(trigger);
   if (!t || t.kind !== "visit" || !visit) return null;
   return {
     visit_when: trigger === "visit_tomorrow" ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}` : visitDayWord(visit, tz, sendAt, "yesterday"),
-    visit_service: visit.title.trim() || "your appointment"
+    visit_service: visitServiceOf(visit.title, names3) || "your appointment"
   };
 }
 function visitDayWord(visit, tz, sendAt, assumed) {
@@ -16040,6 +16117,9 @@ async function readMessage(r4) {
   }
 }
 var templateHolds = (r4, m, drawn) => drawn === 0 && !m.approved && r4.channels.includes("whatsapp");
+async function withoutCalendar(r4) {
+  return r4.ctx.calendar === "unavailable" ? { outcome: "failed", error: "calendar: could not be read" } : r4.off("no_calendar");
+}
 async function allowed(r4, tpl) {
   const { p, ctx } = r4;
   const stop = playbookStopBy({
@@ -16051,7 +16131,7 @@ async function allowed(r4, tpl) {
   if (await r4.ports.alreadyRan(p.id, r4.runFor)) return { ended: await r4.off("already_ran_today", { record: false }) };
   const trig = triggerOf2(p.trigger);
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok")
-    return { ended: await r4.off("no_calendar") };
+    return { ended: await withoutCalendar(r4) };
   let listIds = null;
   let kept;
   if (trig?.kind === "saved") {
@@ -16059,7 +16139,7 @@ async function allowed(r4, tpl) {
     const m = ref ? ctx.listMembers(ref) : null;
     if (!m || !ref) return { ended: await r4.off("no_list") };
     if (m.state === "unknown")
-      return { ended: await r4.off(m.reason === "calendar" ? "no_calendar" : "list_uncounted") };
+      return { ended: m.reason === "calendar" ? await withoutCalendar(r4) : await r4.off("list_uncounted") };
     listIds = m.ids;
     kept = { token: listToken(ref), rule: m.rule ?? null, counted_at: ctx.now.toISOString() };
   }
@@ -16122,9 +16202,18 @@ function recipientFacts(r4, goesAt) {
       p.trigger,
       p.trigger === "visit_tomorrow" ? v?.next ?? null : v?.last ?? null,
       ctx.tz,
+      [person.givenName, person.waName],
       goesAt
     );
   };
+}
+function touchEnrolled(r4, goesAt, eligible, held) {
+  const skipped = new Set(held);
+  r4.ctx.touches = touchesAfterRun(
+    r4.ctx.touches,
+    { playbookId: r4.p.id, at: goesAt.getTime(), followUp: triggerOf2(r4.p.trigger)?.kind === "deal" },
+    eligible.filter((person) => !skipped.has(person.id)).map((person) => person.id)
+  );
 }
 async function runPlaybook(ports, cmd) {
   const { playbook: p, ctx, by } = cmd;
@@ -16200,6 +16289,7 @@ async function runPlaybook(ports, cmd) {
     held: past.held
   });
   if (!made.ok) return { outcome: "failed", error: made.error };
+  touchEnrolled(run, goesAt, eligible, past.held);
   if (open) {
     await ports.decide({
       broadcastId: made.id,
@@ -16458,11 +16548,12 @@ var approveLog = logger();
 async function approveRun(ports, cmd) {
   const b = cmd.row;
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
+  if (await ports.paused()) throw new AppError("payment_required", WORKSPACE_PAUSED_SENDS, 402);
   if (isReachOutRun(b.audience)) return approveReachOut(ports, b, cmd.now);
   const tz = await ports.timezone();
-  const late = runDayPassed(b, localDate(tz, cmd.now));
-  if (late) throw new AppError("conflict", late, 409);
   const open = nextOpenMoment(tz, cmd.now);
+  const late = runApprovalRefusal(b, { today: localDate(tz, cmd.now), sendsOn: localDate(tz, open.at) });
+  if (late) throw new AppError("conflict", late, 409);
   const at = open.at;
   if (!await ports.release(b.id, at)) throw new AppError("conflict", "This run just changed state; look again.", 409);
   try {

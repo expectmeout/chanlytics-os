@@ -271,6 +271,8 @@ export interface CreateBroadcastCommand {
 export interface ApproveRunPorts {
   /** The business's clock, for the hours a send may go out in. */
   timezone(): Promise<string>;
+  /** Whether the workspace is paused (`tenants.status = 'paused'`): nothing is approved while it is. Throws when it cannot be read. */
+  paused(): Promise<boolean>;
   /** pending_approval → scheduled for `at`, only while pending. True iff a row changed. The row carries the time the job carries (00119). */
   release(broadcastId: string, at: Date): Promise<boolean>;
   /** Back to waiting, when the job could not be made. */

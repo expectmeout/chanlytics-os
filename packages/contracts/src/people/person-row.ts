@@ -30,7 +30,7 @@ import {
 import { isOptedOutContact } from "../consent/consent";
 import { replyWindow } from "../config/policy";
 import type { FollowUpStand } from "../playbooks/playbooks";
-import { visitAnswersAsk, visitDateKey, visitDay, visitLine } from "../calendar/calendar-people";
+import { visitAnswersAsk, visitDateKey, visitDay, visitLine, type MatchVia } from "../calendar/calendar-people";
 import { nextStepOf, stepIsDue, type PersonNextStepVM } from "../notes/steps";
 import { initialsOf, isIdentifierName } from "../conversations/thread-contact";
 import { dealOf, type DealVM } from "../deals/deal-vm";
@@ -207,6 +207,13 @@ export interface PersonRowVM {
   /** "2026-09-08": the day of the next / last visit by the calendar's own clock — what a day-keyed playbook reads. */
   nextVisitDate: string | null;
   lastVisitDate: string | null;
+  /**
+   * How the calendar found the next / last visit to be theirs, surest first: a number or an address is exact, a name is a
+   * guess (calendar-people.ts MatchVia). What a playbook that writes to them judges the visit by (playbook-reach.ts); null
+   * without a visit.
+   */
+  nextVisitVia: MatchVia | null;
+  lastVisitVia: MatchVia | null;
   /** The calendar's zone; null without a calendar. */
   calendarTz: string | null;
   /** Their deal, as the page says it (0004); null where none was recorded. */
@@ -252,6 +259,23 @@ export function visitTitleFor(title: string, name: string): string {
     if (m) return m[1].trim();
   }
   return title;
+}
+
+/**
+ * What a day-keyed playbook reads of a row's visits (playbook-reach.ts): the calendar's day of the next and the last, how
+ * each was found to be theirs (a number and an address are exact, a name is a guess: MatchVia), and the calendar's zone.
+ * All null without a calendar read.
+ */
+function visitKeysOf(
+  v: PersonRowDto["visits"],
+): Pick<PersonRowVM, "nextVisitDate" | "lastVisitDate" | "nextVisitVia" | "lastVisitVia" | "calendarTz"> {
+  return {
+    nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
+    lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
+    nextVisitVia: v?.next?.via ?? null,
+    lastVisitVia: v?.last?.via ?? null,
+    calendarTz: v?.timezone ?? null,
+  };
 }
 
 /** A channel a message was written on, as a campaign may reach them on it; null for a call or nothing. */
@@ -401,9 +425,7 @@ export function toPersonRowVM(
           ? "me"
           : "teammate",
     stopped: isOptedOutContact({ consent: r.consent, dnc: r.dnc }),
-    nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
-    lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
-    calendarTz: v?.timezone ?? null,
+    ...visitKeysOf(v),
     deal: dealOf(r, tz, nowMs),
     consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
     consultedMs: v?.last?.consultation ? ts(v.last.end) : null,

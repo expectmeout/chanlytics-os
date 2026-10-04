@@ -12,7 +12,13 @@
  * act is recorded as a decision.
  */
 import { AppError, parseTenantConfig } from "@chanlytics/contracts";
-import { assembleBroadcast, campaignMonthSent, holdRecipients, ownVersionsFiled } from "@chanlytics/db";
+import {
+  assembleBroadcast,
+  campaignMonthSent,
+  holdRecipients,
+  ownVersionsFiled,
+  workspacePaused,
+} from "@chanlytics/db";
 import type {
   ApproveRunPorts,
   AssemblePorts,
@@ -138,6 +144,8 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string, o: { f
 export function approveRunPorts(ctx: RouteContext, tenantId: string): ApproveRunPorts {
   return {
     timezone: async () => (await tenantFacts(ctx.supabase, tenantId)).timezone,
+    // Under the session's own RLS, as the zone above is: a member reads their own workspace's row.
+    paused: () => workspacePaused(ctx.supabase, tenantId),
     release: (id, at) =>
       changed(
         ctx.supabase

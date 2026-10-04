@@ -25,7 +25,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { signEdgeToken } from "@chanlytics/channels";
-import { localDate } from "@chanlytics/contracts";
+import { WORKSPACE_PAUSED_SENDS, localDate } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { withoutRequestId } from "../_log-lines.mjs";
 
@@ -514,7 +514,7 @@ test("the class set to never: a person's press runs nothing and says so; the run
   );
 });
 
-test("what else makes a person's run off, each recorded with its reason: a template Meta has not approved, a number WhatsApp flagged, nobody eligible; a paused workspace and a database that refuses are 500s that name themselves", async () => {
+test("what else makes a person's run off, each recorded with its reason: a template Meta has not approved, a number WhatsApp flagged, nobody eligible; a paused workspace is a 402 in its own words, and a database that refuses is a 500 that names itself", async () => {
   const today = localDate(TZ, new Date());
   const off = (w, skipped) => {
     nothingMade(w.tables, skipped);
@@ -564,8 +564,8 @@ test("what else makes a person's run off, each recorded with its reason: a templ
   w.tables.playbooks.push(playbook(A, P));
   assert.deepEqual(
     await answer(await knock(press)),
-    [500, { ok: false, error: "context_failed", detail: "paused" }],
-    "billing paused the workspace: the context refuses before the run",
+    [402, { ok: false, error: "payment_required", detail: WORKSPACE_PAUSED_SENDS }],
+    "billing paused the workspace: a refusal in its own words (payment_required, as Ask and the voice doors answer a paused workspace), before the run",
   );
   nothingMade(w.tables);
   assert.deepEqual(w.tables.events, [], "no run recorded: there was none");

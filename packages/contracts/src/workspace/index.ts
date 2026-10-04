@@ -96,6 +96,7 @@ export {
   maySpend,
   mayUseModels,
   whyCannotSpend,
+  WORKSPACE_PAUSED_SENDS,
   tenantStatusFor,
   planBilling,
   dayWords,

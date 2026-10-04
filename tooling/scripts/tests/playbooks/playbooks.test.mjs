@@ -206,28 +206,28 @@ test("the reminder's words are relative to the moment it goes: tomorrow, today, 
   const sep6 = new Date("2026-09-06T15:00:00Z");
   const sep7 = new Date("2026-09-07T13:00:00Z"); // nine in the morning, the moment a night's run-now goes
   const sep5 = new Date("2026-09-05T15:00:00Z");
-  assert.deepEqual(visitFacts("visit_tomorrow", visit, TZ, sep6), {
+  assert.deepEqual(visitFacts("visit_tomorrow", visit, TZ, [], sep6), {
     visit_when: "tomorrow at 2:00 PM",
     visit_service: "Balayage",
   });
   assert.deepEqual(
-    visitFacts("visit_tomorrow", visit, TZ, sep7),
+    visitFacts("visit_tomorrow", visit, TZ, [], sep7),
     { visit_when: "today at 2:00 PM", visit_service: "Balayage" },
     "moved to nine the next morning, the visit is today",
   );
   assert.equal(
-    visitFacts("visit_tomorrow", visit, TZ, sep5).visit_when,
+    visitFacts("visit_tomorrow", visit, TZ, [], sep5).visit_when,
     "on Monday at 2:00 PM",
     "further off, the day's name",
   );
   assert.equal(
-    visitFacts("visit_tomorrow", visit, TZ).visit_when,
+    visitFacts("visit_tomorrow", visit, TZ, []).visit_when,
     "tomorrow at 2:00 PM",
     "without a moment, as the run assumes",
   );
-  assert.equal(visitFacts("visited", visit, TZ, new Date("2026-09-08T15:00:00Z")).visit_when, "yesterday");
+  assert.equal(visitFacts("visited", visit, TZ, [], new Date("2026-09-08T15:00:00Z")).visit_when, "yesterday");
   assert.equal(
-    visitFacts("visited", visit, TZ, new Date("2026-09-09T15:00:00Z")).visit_when,
+    visitFacts("visited", visit, TZ, [], new Date("2026-09-09T15:00:00Z")).visit_when,
     "on Monday",
     "a thank-you moved a day still names the day",
   );

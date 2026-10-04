@@ -2511,3 +2511,31 @@ test("a caller's appointment, told to a receptionist with no booking link, is ch
     forgetFeeds();
   }
 });
+
+test("the receptionist's match by name is what it was: a first name of four letters finds the visit and says so; only a message that is sent judges it by the full name (fullNameKey)", async () => {
+  const { indexFeed, visitsIn } = await import("@chanlytics/contracts");
+  const { fullNameKey, visitServiceOf } = await importSrc("packages/contracts/src/calendar/visit-service.ts");
+  const index = indexFeed(guestFeed().items, NO_OWN);
+  const first = visitsIn(index, { id: "p-first", name: "Daniela", phone: null, email: null }, NOW);
+  assert.deepEqual([first.next?.title, first.next?.via], ["Daniela Ruiz · Colour", "name"]);
+  assert.ok(describeVisits(first, TZ, NOW, { hasBookingLink: true }).includes("Matched by name only"));
+  // What a message may rest on: two words or more, first and last of two letters, written the one way; nothing else.
+  assert.deepEqual(
+    [
+      "Maria",
+      "Maria L.",
+      "  maria   LOPEZ ",
+      "Maria Lopez",
+      "Mary Ann Lee",
+      "+1 305 555 0100",
+      "x@y.com",
+      "",
+      "   ",
+      null,
+      undefined,
+    ].map(fullNameKey),
+    [null, null, "maria lopez", "maria lopez", "mary ann lee", null, null, null, null, null, null],
+  );
+  // The service, without the name the title carries.
+  assert.equal(visitServiceOf("Daniela Ruiz · Colour", ["Daniela Ruiz"]), "Colour");
+});

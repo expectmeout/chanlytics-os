@@ -5,6 +5,8 @@
 import { audienceMembers, type CampaignHow, saidYesOnAny } from "../broadcasts/broadcast-audience";
 import { reachFor } from "../broadcasts/reach-for";
 import { POLICY_CLASS_WORDS } from "../config/workspace-config/policy-classes";
+import type { MatchVia } from "../calendar/calendar-people";
+import { fullNameKey } from "../calendar/visit-service";
 import { purposeOfPlaybook } from "../consent/consent";
 import type { DealPaceVM } from "../deals/deal-waits";
 import { GET_YES_ROUTE, saidYesWords } from "../people/people-lists";
@@ -33,6 +35,39 @@ export interface Touches {
   byThis: Map<string, number>;
   byAny: Map<string, number>;
   followUps: Map<string, number>;
+}
+
+/** A workspace's touches as a run reads them: by each playbook (its gap), by any (the week's breath), and the proposal follow-ups. */
+interface WorkspaceTouches {
+  byThis: Map<string, Map<string, number>>;
+  byAny: Map<string, number>;
+  followUps: Map<string, number>;
+}
+
+/**
+ * The touches once a run has been assembled: its people were touched from the moment it goes (`at`, epoch ms), by the
+ * playbook, by any, and, for a proposal's follow-up, as one had. The database's own reading of a run (packages/db
+ * touchesSince) says the same; this is the same fold for the run just made, so the next playbook run against the same
+ * read of the workspace -- the hourly sweep runs every due playbook of a workspace against one -- sees them, and the
+ * week's breath ("one a week per person, across every moment") holds between two moments in the same hour. New maps; the
+ * touches given are left as they were.
+ */
+export function touchesAfterRun(
+  touches: WorkspaceTouches,
+  run: { playbookId: string; at: number; followUp: boolean },
+  people: Iterable<string>,
+): WorkspaceTouches {
+  const byThis = new Map(touches.byThis);
+  const mine = new Map(byThis.get(run.playbookId));
+  const byAny = new Map(touches.byAny);
+  const followUps = new Map(touches.followUps);
+  for (const id of people) {
+    mine.set(id, Math.max(mine.get(id) ?? 0, run.at));
+    byAny.set(id, Math.max(byAny.get(id) ?? 0, run.at));
+    if (run.followUp) followUps.set(id, Math.max(followUps.get(id) ?? 0, run.at));
+  }
+  byThis.set(run.playbookId, mine);
+  return { byThis, byAny, followUps };
 }
 
 /**
@@ -117,6 +152,37 @@ export type RunPlaybook = Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_day
   message: RunMessage;
 } & Omit<CampaignHow, "about">;
 
+/** The name a person is saved under, as the calendar matches it (calendar-people.ts personLikeOf): the one a human gave, else their WhatsApp name. */
+const savedNameOf = (r: Pick<PersonRowVM, "givenName" | "waName">): string | null => r.givenName ?? r.waName;
+
+/** How many of the rows hold each full saved name, by its key (calendar-people.ts fullNameKey); a name that is not a full one is not counted. */
+function fullNameHolders(rows: readonly Pick<PersonRowVM, "givenName" | "waName">[]): Map<string, number> {
+  const holders = new Map<string, number>();
+  for (const r of rows) {
+    const key = fullNameKey(savedNameOf(r));
+    if (key !== null) holders.set(key, (holders.get(key) ?? 0) + 1);
+  }
+  return holders;
+}
+
+/**
+ * Whether the visit a row was matched to is surely theirs, for a message that goes to them about it. A number or an address
+ * on the event is exact: they are the person, or nobody. A name is a guess: any name of four letters or more matched, so a
+ * client saved as "Maria" was sent a reminder for another Maria's appointment, with the event's whole title in it. A run
+ * enrols a visit found by name alone only when the event carries the person's FULL saved name (two words or more, first and
+ * last) and no one else in the workspace is saved under it; a first name alone never enrols. The receptionist says "Matched
+ * by name only -- make sure it is them" (calendar-people.ts) and a person reads it; a message sent on its own cannot.
+ */
+function visitIsTheirs(
+  r: Pick<PersonRowVM, "givenName" | "waName">,
+  via: MatchVia | null,
+  holders: ReadonlyMap<string, number>,
+): boolean {
+  if (via !== "name") return true;
+  const key = fullNameKey(savedNameOf(r));
+  return key !== null && holders.get(key) === 1;
+}
+
 /**
  * The run as drawn: who it reaches, its reach, and `saidYes` -- how many the
  * moment names who said the yes its messages need, a number to send to or not.
@@ -167,18 +233,26 @@ export function playbookRunReach(
   // How it goes: the ticks and the channels now, and what the moment's message is about (a visit's or a follow-up's is
   // theirs, which by email asks no yes; any other moment's is the business's news: decision D1).
   const how: CampaignHow = { channels: p.channels, ready: p.ready, about: messageAboutOfTrigger(p.trigger) };
+  // Who holds each full saved name in the workspace, for a visit found by name alone (visitIsTheirs).
+  const holders = t.kind === "visit" ? fullNameHolders(rows) : new Map<string, number>();
   // Who the moment names, before anyone is left out.
   const named =
     t.kind === "visit"
-      ? // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
+      ? // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow. And a visit that is surely
+        // theirs (visitIsTheirs).
         rows.filter((r) => {
           if (!r.calendarTz) return false;
           if (p.trigger === "visit_tomorrow")
-            return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS));
+            return (
+              r.nextVisitDate !== null &&
+              r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS)) &&
+              visitIsTheirs(r, r.nextVisitVia, holders)
+            );
           return (
             r.lastVisitDate !== null &&
             r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS)) &&
-            !r.booked
+            !r.booked &&
+            visitIsTheirs(r, r.lastVisitVia, holders)
           );
         })
       : t.kind === "saved"

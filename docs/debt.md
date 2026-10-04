@@ -183,7 +183,7 @@ window publishers                   202   sites in 69 files
 copies                               73   of 21 names
 as unknown as                       146
 as never                             13
-non-null assertions, x!             118
+non-null assertions, x!             116
 index reads the compiler lets pass  484   in 128 files
 table names outside packages/db     487
 SQL functions outside packages/db   133   called by .rpc

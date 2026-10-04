@@ -185,7 +185,8 @@ export type {
   HeldNoticeRun,
   HandItem,
 } from "./repositories/reach-out-sheet";
-export { forgetNotification, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
+export { forgetNotification, noticeKept, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
+export { workspacePaused } from "./repositories/campaigns/workspace";
 export { resolveChannelDetailed, resolveChannel } from "./repositories/routing";
 export {
   whatsappChannelConfig,

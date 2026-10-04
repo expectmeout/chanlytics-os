@@ -5,7 +5,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PLAYBOOK_VETO_DELAY_MS, channelsReady, numberHealth, toPersonRowVM } from "@chanlytics/contracts";
+import {
+  PLAYBOOK_VETO_DELAY_MS,
+  channelsReady,
+  numberHealth,
+  toPersonRowVM,
+  touchesAfterRun,
+} from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 
 const { runPlaybook } = await importSrc("packages/core/src/campaigns/run-playbook.ts");
@@ -273,16 +279,59 @@ test("off before a single row: a template Meta withdrew, a flagged number, a run
     skipped: "already_ran_today",
   });
   assert.deepEqual(twice.ops(), [], "the day's run stands; nothing is recorded again");
+  // No calendar connected is a final answer for the day: said, and recorded.
   const noCalendar = fakes();
   const p = playbook({ trigger: "visit_tomorrow", policy_class: "booking" });
   assert.deepEqual(
     await runPlaybook(
       noCalendar.ports,
-      cmd({ playbook: p, ctx: context({ modes: new Map([["booking", "auto"]]), calendar: "unavailable" }) }),
+      cmd({ playbook: p, ctx: context({ modes: new Map([["booking", "auto"]]), calendar: "none" }) }),
     ),
     { outcome: "off", mode: "auto", skipped: "no_calendar" },
   );
   assert.deepEqual(noCalendar.ops(), ["record"]);
+});
+
+test("a calendar that could not be READ is the run failing, not the day done: nothing is recorded, so the next sweep asks again -- as a template that could not be read is", async () => {
+  const modes = new Map([["booking", "auto"]]);
+  // Every moment that reads the calendar: the visit's two, and Lapsed's.
+  for (const trigger of ["visit_tomorrow", "visited", "lapsed"]) {
+    const blip = fakes();
+    const p = playbook({ trigger, policy_class: trigger === "lapsed" ? "reengage" : "booking" });
+    const ctx = context({ modes: new Map([...modes, ["reengage", "auto"]]), calendar: "unavailable" });
+    assert.deepEqual(
+      await runPlaybook(blip.ports, cmd({ playbook: p, ctx })),
+      { outcome: "failed", error: "calendar: could not be read" },
+      trigger,
+    );
+    assert.deepEqual(
+      blip.ops(),
+      [],
+      `${trigger}: nothing recorded, so the day stays open and the next tick asks again`,
+    );
+  }
+  // The same run, the calendar back: it goes, and the day is recorded as the run's own.
+  const next = visit("2026-09-07T18:00:00Z", "Balayage");
+  const row = toPersonRowVM(
+    dto("a", { visits: { timezone: TZ, source: "calendar", state: "ok", next, last: null } }),
+    TZ,
+    NOW,
+  );
+  const back = fakes();
+  const r = await runPlaybook(
+    back.ports,
+    cmd({
+      playbook: playbook({ trigger: "visit_tomorrow", policy_class: "booking", params: [{ kind: "visit_when" }] }),
+      ctx: context({
+        modes,
+        calendar: "ok",
+        people: [row],
+        visits: new Map([["a", { timezone: TZ, source: "calendar", state: "ok", next, last: null }]]),
+      }),
+    }),
+  );
+  assert.equal(r.outcome, "sent");
+  assert.deepEqual(back.ops(), ["assemble", "decide", "record"]);
 });
 
 test("a template that could not be read is the run failing, not the template withdrawn: nothing is recorded, so the next sweep asks again", async () => {
@@ -551,6 +600,142 @@ test("a visit run keeps each person's words on their row, from the visit the run
       channel: "whatsapp",
     },
   ]);
+});
+
+test("a visit's service slot carries the service alone: the person's name comes out of the event's title, and a title that was only their name says \"your appointment\"", async () => {
+  const run = async (title, over = {}) => {
+    const next = visit("2026-09-07T18:00:00Z", title);
+    const row = toPersonRowVM(
+      dto("a", {
+        display_name: "Maria Lopez",
+        visits: { timezone: TZ, source: "calendar", state: "ok", next, last: null },
+        ...over,
+      }),
+      TZ,
+      NOW,
+    );
+    const { ports, of } = fakes();
+    const r = await runPlaybook(
+      ports,
+      cmd({
+        playbook: playbook({
+          trigger: "visit_tomorrow",
+          policy_class: "booking",
+          template_name: "visit_reminder",
+          params: [{ kind: "visit_when" }, { kind: "visit_service" }],
+        }),
+        ctx: context({
+          modes: new Map([["booking", "auto"]]),
+          calendar: "ok",
+          people: [row],
+          visits: new Map([["a", { timezone: TZ, source: "calendar", state: "ok", next, last: null }]]),
+        }),
+      }),
+    );
+    assert.equal(r.outcome, "sent", title);
+    return of("assemble")[0][2][0].facts;
+  };
+  assert.deepEqual(await run("Balayage · Maria Lopez"), {
+    visit_when: "tomorrow at 2:00 PM",
+    visit_service: "Balayage",
+  });
+  assert.equal((await run("Maria Lopez - Balayage")).visit_service, "Balayage");
+  assert.equal((await run("Haircut with Maria Lopez")).visit_service, "Haircut");
+  assert.equal((await run("Maria Lopez")).visit_service, "your appointment", "nothing left: no service words at all");
+  assert.equal((await run("Balayage")).visit_service, "Balayage", "a title without a name is the service as it stands");
+  // By their WhatsApp name, when no human gave one: the calendar matched it by that name, so that is the name that comes out.
+  assert.equal(
+    (await run("Gloss · Mari Lopez", { display_name: null, wa_profile_name: "Mari Lopez" })).visit_service,
+    "Gloss",
+  );
+});
+
+test("the people a run enrols are touched for the next run against the same read of the workspace: the week's breath holds between two moments in one hour", async () => {
+  // The sweep reads the workspace once and runs every due playbook against it; its touches never changed between the runs,
+  // so a second moment judged the breath from a snapshot that did not have the first one's people in it.
+  const ctx = context({ people: [person("a"), person("b")], modes: new Map([["reengage", "auto"]]) });
+  const first = fakes();
+  const one = await runPlaybook(first.ports, cmd({ playbook: playbook({ id: "p1" }), ctx }));
+  assert.deepEqual([one.outcome, one.eligible], ["sent", 2]);
+  // The same two people, the same morning, another moment: the week's breath holds them.
+  const second = fakes();
+  const two = await runPlaybook(second.ports, cmd({ playbook: playbook({ id: "p2", name: "Lapsed" }), ctx }));
+  assert.deepEqual(two, { outcome: "empty", eligible: 0, mode: "auto" });
+  assert.equal(second.of("record")[0][4].reach.heardAny, 2, "left out for the breath, and counted so");
+  assert.deepEqual(second.ops(), ["record"], "nobody enrolled: no run, no job");
+  // At the moment the first run goes, by any playbook and by the first.
+  assert.deepEqual(
+    [...ctx.touches.byAny],
+    [
+      ["a", NOW.getTime()],
+      ["b", NOW.getTime()],
+    ],
+  );
+  assert.deepEqual(
+    [...ctx.touches.byThis.get("p1")],
+    [
+      ["a", NOW.getTime()],
+      ["b", NOW.getTime()],
+    ],
+  );
+  assert.deepEqual([...ctx.touches.followUps], [], "not a proposal's follow-up");
+  // A reminder for a visit is owed whatever else they heard (the run is daily and a visit is on one day): still reaches them.
+  const next = visit("2026-09-07T18:00:00Z", "Balayage");
+  const rows = ["a", "b"].map((id) =>
+    toPersonRowVM(dto(id, { visits: { timezone: TZ, source: "calendar", state: "ok", next, last: null } }), TZ, NOW),
+  );
+  const reminder = fakes();
+  const visitCtx = {
+    ...ctx,
+    people: rows,
+    calendar: "ok",
+    visits: new Map(rows.map((r) => [r.id, { timezone: TZ, source: "calendar", state: "ok", next, last: null }])),
+    modes: new Map([["booking", "auto"]]),
+  };
+  const r = await runPlaybook(
+    reminder.ports,
+    cmd({ playbook: playbook({ id: "p3", trigger: "visit_tomorrow", policy_class: "booking" }), ctx: visitCtx }),
+  );
+  assert.deepEqual([r.outcome, r.eligible], ["sent", 2]);
+});
+
+test("a run that was not made touches nobody, and one made to wait for a person touches its people from the moment it was made", async () => {
+  // A run that failed to be assembled enrolled nobody: its people are free for the next playbook, and for tomorrow.
+  const failedCtx = context({ people: [person("a")] });
+  const failed = await runPlaybook(fakes({ assemble: new Error("insert refused") }).ports, cmd({ ctx: failedCtx }));
+  assert.equal(failed.outcome, "failed");
+  assert.deepEqual([...failedCtx.touches.byAny], []);
+  // Ask mode: the run waits for a person, and its people are enrolled all the same.
+  const askCtx = context({ people: [person("a")], modes: new Map([["reengage", "ask"]]) });
+  const asked = await runPlaybook(fakes().ports, cmd({ ctx: askCtx }));
+  assert.equal(asked.outcome, "held");
+  assert.deepEqual([...askCtx.touches.byAny], [["a", NOW.getTime()]]);
+});
+
+test("the touches a run adds are new maps, the latest touch stands, and only a proposal's follow-up is one", () => {
+  const given = { byThis: new Map(), byAny: new Map(), followUps: new Map() };
+  const after = touchesAfterRun(given, { playbookId: "pf", at: 5, followUp: true }, ["a", "b"]);
+  assert.deepEqual(
+    [...after.followUps],
+    [
+      ["a", 5],
+      ["b", 5],
+    ],
+  );
+  assert.deepEqual(
+    [...given.byAny, ...given.followUps, ...given.byThis],
+    [],
+    "the touches handed in are left as they were",
+  );
+  const earlier = touchesAfterRun(after, { playbookId: "pf", at: 3, followUp: true }, ["a"]);
+  assert.deepEqual(
+    [...earlier.byAny],
+    [
+      ["a", 5],
+      ["b", 5],
+    ],
+  );
+  assert.deepEqual([...touchesAfterRun(given, { playbookId: "pg", at: 5, followUp: false }, ["a"]).followUps], []);
 });
 
 test('a reminder run asked for at night goes at nine and says "today": the words are relative to the moment the send goes; every visit is reminded, whatever the cap', async () => {
@@ -945,6 +1130,18 @@ test("a run counts the month before it enrolls: whoever is past the room is enro
   );
   assert.equal(f.of("record")[0][4].held_for_allowance, 2, "and the run's record says how many");
   assert.equal("hold_unwritten" in f.of("record")[0][4], false);
+});
+
+test("a proposal's follow-up touches its people as one had, and not those the month's allowance holds: the next run against the same read neither follows the proposal up twice nor breathes on them", async () => {
+  const ctx = context(followUpCtx(proposals(FOLLOW_UPS)));
+  const f = fakes({ template: UTILITY, versions: ["email"], monthSent: 1999 });
+  assert.equal((await runPlaybook(f.ports, cmd({ playbook: followUp(), ctx }))).outcome, "sent");
+  assert.deepEqual(
+    [...ctx.touches.followUps.keys()].sort(),
+    ["e1", "w"],
+    "e2 and e3 are held for the month: skipped, touched by nothing",
+  );
+  assert.deepEqual([...ctx.touches.byAny.keys()].sort(), ["e1", "w"]);
 });
 
 test("a hold that could not be written leaves the people queued: the run is made, and its record says so", async () => {

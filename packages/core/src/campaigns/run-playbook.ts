@@ -10,6 +10,7 @@ import {
   enrolPurpose,
   messageAboutOfTrigger,
   proposalFactsFor,
+  touchesAfterRun,
   triggerOf,
   triggerOffered,
   visitFactsFor,
@@ -77,6 +78,18 @@ const templateHolds = (r: Run, m: Message, drawn: number): boolean =>
   drawn === 0 && !m.approved && r.channels.includes("whatsapp");
 
 /**
+ * A moment that reads the calendar, run with none it can read. No calendar connected is a final answer: the run says so
+ * and the day is recorded. A calendar that could not be READ is a failure, like a template that could not be: nothing is
+ * recorded, so the hourly sweep asks again. Recorded as "off", the day was done as far as the sweep knew (runDueNow
+ * asks the row's last run), and one failed read of a feed lost the whole day's reminders for good.
+ */
+async function withoutCalendar(r: Run): Promise<RunOutcome> {
+  return r.ctx.calendar === "unavailable"
+    ? { outcome: "failed", error: "calendar: could not be read" }
+    : r.off("no_calendar");
+}
+
+/**
  * Whether the run may go on, and over whom: the run's own stops (contracts playbookStopBy, which the follow-up's words
  * on People and Today ask too), the day's run already made, a calendar a visit moment reads, the list a playbook on a
  * list runs on, and a moment this workspace has no use for. Each ends the run with its reason (`off`).
@@ -101,7 +114,7 @@ async function allowed(
   // A visit playbook, or Lapsed's, without a calendar has nothing to read: off, and the run says so.
   const trig = triggerOf(p.trigger);
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok")
-    return { ended: await r.off("no_calendar") };
+    return { ended: await withoutCalendar(r) };
   // A playbook on a list (decision 0009): who is on it now, one of People's or one of the workspace's own. A list
   // deleted under it runs nobody, and one that can't be counted here -- a calendar not read, a rule this build can't
   // read -- runs nobody either; each says so.
@@ -112,7 +125,7 @@ async function allowed(
     const m = ref ? ctx.listMembers(ref) : null;
     if (!m || !ref) return { ended: await r.off("no_list") };
     if (m.state === "unknown")
-      return { ended: await r.off(m.reason === "calendar" ? "no_calendar" : "list_uncounted") };
+      return { ended: m.reason === "calendar" ? await withoutCalendar(r) : await r.off("list_uncounted") };
     listIds = m.ids;
     kept = { token: listToken(ref), rule: m.rule ?? null, counted_at: ctx.now.toISOString() };
   }
@@ -209,13 +222,31 @@ function recipientFacts(r: Run, goesAt: Date): (person: PersonRowVM) => Record<s
   return (person) => {
     if (trig?.kind === "deal") return proposalFactsFor(p.trigger, person);
     const v = ctx.visits.get(person.id);
+    // The service alone: the person's own name comes out of the event's title (visitFactsFor).
     return visitFactsFor(
       p.trigger,
       p.trigger === "visit_tomorrow" ? (v?.next ?? null) : (v?.last ?? null),
       ctx.tz,
+      [person.givenName, person.waName],
       goesAt,
     );
   };
+}
+
+/**
+ * The people a run has just enrolled are touched from the moment it goes: the context's touches are one read of the
+ * workspace, and the sweep runs every due playbook of a workspace against it, so without this a second moment in the same
+ * hour judged the week's breath ("one a week per person, across every moment") from a snapshot that never changed, and
+ * one person could be sent two moments the same morning. Those the month's allowance held are skipped, and touched by
+ * nothing (touchesAfterRun, which the database's own reading of a run agrees with).
+ */
+function touchEnrolled(r: Run, goesAt: Date, eligible: readonly PersonRowVM[], held: readonly string[]): void {
+  const skipped = new Set(held);
+  r.ctx.touches = touchesAfterRun(
+    r.ctx.touches,
+    { playbookId: r.p.id, at: goesAt.getTime(), followUp: triggerOf(r.p.trigger)?.kind === "deal" },
+    eligible.filter((person) => !skipped.has(person.id)).map((person) => person.id),
+  );
 }
 
 /**
@@ -335,6 +366,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     held: past.held,
   });
   if (!made.ok) return { outcome: "failed", error: made.error };
+  touchEnrolled(run, goesAt, eligible, past.held);
 
   if (open) {
     // The ledger: a run the sweep sends is the system's decision under the

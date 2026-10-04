@@ -1,5 +1,12 @@
 import { errField, logger } from "@chanlytics/channels";
-import { AppError, isReachOutRun, localDate, nextOpenMoment, runDayPassed } from "@chanlytics/contracts";
+import {
+  AppError,
+  WORKSPACE_PAUSED_SENDS,
+  isReachOutRun,
+  localDate,
+  nextOpenMoment,
+  runApprovalRefusal,
+} from "@chanlytics/contracts";
 import type { ApproveRunPorts, BroadcastRef } from "./ports";
 
 /** An approval's own lines, by name: what a job ledger said when it refused the send is the log's, never the answer's. */
@@ -20,7 +27,8 @@ export interface ApproveReceipt {
  * Under the ask mode a playbook's run is made as pending_approval: the
  * recipients are enrolled, nothing is scheduled. Approving schedules the
  * send now and records the decision as the approver's; skipping is the
- * cancel. A job the ledger refused leaves the run waiting, as it was.
+ * cancel. A job the ledger refused leaves the run waiting, as it was. A
+ * paused workspace sends nothing, so nothing is approved in it.
  */
 export async function approveRun(
   ports: ApproveRunPorts,
@@ -28,6 +36,9 @@ export async function approveRun(
 ): Promise<ApproveReceipt> {
   const b = cmd.row;
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
+  // A paused workspace sends nothing (the wire holds every person of a run, each for good): refused before anything
+  // moves, in the words Run now answers in. A read that fails throws: "could not check" is not "may".
+  if (await ports.paused()) throw new AppError("payment_required", WORKSPACE_PAUSED_SENDS, 402);
   // A reach-out's run (Part 3) is its planned sends, each at its own time in its lead's hours: the reach-out clock
   // claims them, and plans again any that went stale while the run waited. Approved on a later day it still goes, and
   // it is released with no broadcast job, which would find no recipients and end the run as sent.
@@ -36,11 +47,12 @@ export async function approveRun(
   // Read BEFORE the row moves: a clock that cannot be read leaves the run
   // waiting, as it was, rather than scheduled with no job to send it.
   const tz = await ports.timezone();
-  // A playbook's run is a day's run: approved on a later day it is refused (contracts runDayPassed, the words Ask's run
-  // card refuses in too).
-  const late = runDayPassed(b, localDate(tz, cmd.now));
-  if (late) throw new AppError("conflict", late, 409);
   const open = nextOpenMoment(tz, cmd.now);
+  // A playbook's run is a day's run: approved on a later day it is refused, and so is a visit's run that would go out on
+  // a later day than it was made for (approved after the last sending hour it waits for nine, with the day before's
+  // words): contracts runApprovalRefusal, the words Ask's run card refuses in and the sheet says instead of a button.
+  const late = runApprovalRefusal(b, { today: localDate(tz, cmd.now), sendsOn: localDate(tz, open.at) });
+  if (late) throw new AppError("conflict", late, 409);
   const at = open.at;
   if (!(await ports.release(b.id, at))) throw new AppError("conflict", "This run just changed state; look again.", 409);
   try {

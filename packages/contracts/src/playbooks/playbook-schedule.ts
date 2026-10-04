@@ -84,6 +84,14 @@ export function runDueNow(p: Pick<PlaybookDto, "state" | "run_hour" | "last_run_
   return hour >= p.run_hour && hour <= PLAYBOOK_HOURS.max && p.last_run_for !== date;
 }
 
+/**
+ * Whether this is the last hour a playbook's day is still asked for (`runDueNow` stops after PLAYBOOK_HOURS.max): a
+ * run that fails now is the day's last chance, and tomorrow's run is the next try.
+ */
+export function inLastSendingHour(tz: string, now: Date): boolean {
+  return parts(tz, now).hour >= PLAYBOOK_HOURS.max;
+}
+
 const two = (n: number) => String(n).padStart(2, "0");
 
 /** "Daily 10:00 · up to 25 · once per person, again after 90 days". */

@@ -358,9 +358,6 @@
   "packages/contracts/src/people/person-timeline.ts": {
     "nonNull": 1
   },
-  "packages/contracts/src/playbooks/playbook-approval.ts": {
-    "nonNull": 2
-  },
   "packages/contracts/src/reach-out/reach-out-draft.ts": {
     "nonNull": 1
   },

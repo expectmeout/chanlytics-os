@@ -102,7 +102,12 @@ export const broadcasts = {
       playbook,
       businessName,
       today: clock ? clock.dayKey(now) : new Date(now).toISOString().slice(0, 10),
-      open: { time: clock ? clock.time(open.at) : "", moved: open.moved },
+      // The day it would send on (a visit's run made for today does not go on a later one: toApprovalVM says so, as approveRun does).
+      open: {
+        time: clock ? clock.time(open.at) : "",
+        moved: open.moved,
+        on: clock ? clock.dayKey(open.at) : new Date(open.at).toISOString().slice(0, 10),
+      },
       day: (ymd) => (clock ? clock.dayWords(ymd) : ymd),
     });
   },

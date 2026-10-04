@@ -221,6 +221,14 @@ export function whyCannotSpend(
   return `Billing needs attention before this workspace can ${doing.can}. Open Billing to sort it out.`;
 }
 
+/**
+ * What a campaign is refused in while its workspace is paused (`tenants.status = 'paused'`: billing stopped, or a person
+ * paused it): nothing leaves a paused workspace, so a run approved or started now would be held at the wire person by
+ * person, and each held for good. Said as Today says the pause ("This workspace is paused"), for what it stops here.
+ */
+export const WORKSPACE_PAUSED_SENDS =
+  "This workspace is paused, so nothing is sent from it. Resume it from Billing, then try again.";
+
 /** The switch the runtime reads, for a stripe-mode workspace. A direct one is never touched. */
 export function tenantStatusFor(mode: BillingMode, status: BillingStatus): "active" | "paused" | null {
   if (mode !== "stripe") return null;

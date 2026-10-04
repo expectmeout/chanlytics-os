@@ -13157,6 +13157,7 @@ function whyCannotSpend(mode, status, doing = SPEND_NUMBER) {
   }
   return `Billing needs attention before this workspace can ${doing.can}. Open Billing to sort it out.`;
 }
+var WORKSPACE_PAUSED_SENDS = "This workspace is paused, so nothing is sent from it. Resume it from Billing, then try again.";
 function tenantStatusFor(mode, status) {
   if (mode !== "stripe") return null;
   return receptionistOn(status) ? "active" : "paused";
@@ -17023,6 +17024,42 @@ function leadMapLegend(rows) {
   }));
 }
 
+// src/calendar/visit-service.ts
+function fullNameKey(name) {
+  const n = (name ?? "").trim();
+  if (!n || /^[+\d(]/.test(n) || n.includes("@")) return null;
+  const words2 = n.split(/\s+/);
+  const first = words2.at(0);
+  const last = words2.at(-1);
+  const letters = (w) => (w.match(/\p{L}/gu) ?? []).length;
+  if (words2.length < 2 || !first || !last || letters(first) < 2 || letters(last) < 2) return null;
+  return words2.join(" ").toLowerCase();
+}
+var SERVICE_TAIL = /(?:^|[^\p{L}])(?:with|for|and|w\/)\s*$|[\s·•|:,/&+\-–—([{]+$/iu;
+var SERVICE_HEAD = /^[\s·•|:,./&+\-–—)\]}]+/u;
+function seamed(before, after) {
+  let left = before;
+  for (let prev = ""; prev !== left; ) {
+    prev = left;
+    left = left.replace(SERVICE_TAIL, "");
+  }
+  const right = after.replace(SERVICE_HEAD, "");
+  return left && right ? `${left} \xB7 ${right}` : left || right;
+}
+function visitServiceOf(title, names3) {
+  let service = title.trim();
+  for (const raw of names3) {
+    const name = (raw ?? "").trim();
+    if (name.length < 3 || /^[+\d(]/.test(name) || name.includes("@")) continue;
+    const edge = "[^\\p{L}\\p{N}'\u2019]";
+    const re = new RegExp(`(?<=^|${edge})${escapeRe(name)}(?=$|${edge})`, "iu");
+    for (let m = re.exec(service); m; m = re.exec(service)) {
+      service = seamed(service.slice(0, m.index), service.slice(m.index + m[0].length));
+    }
+  }
+  return service;
+}
+
 // src/playbooks/playbook-schedule.ts
 function planRun(mode, now) {
   switch (mode) {
@@ -17072,6 +17109,9 @@ function runDueNow(p, tz, now) {
   if (p.state !== "running") return false;
   const { date, hour } = parts(tz, now);
   return hour >= p.run_hour && hour <= PLAYBOOK_HOURS.max && p.last_run_for !== date;
+}
+function inLastSendingHour(tz, now) {
+  return parts(tz, now).hour >= PLAYBOOK_HOURS.max;
 }
 var two2 = (n) => String(n).padStart(2, "0");
 function scheduleLine(p) {
@@ -17192,8 +17232,35 @@ function messageFitsMoment(policyClass, category) {
 
 // src/playbooks/playbook-reach.ts
 var playbookPoolKey = (id) => `playbook:${id}`;
+function touchesAfterRun(touches, run, people) {
+  const byThis = new Map(touches.byThis);
+  const mine = new Map(byThis.get(run.playbookId));
+  const byAny = new Map(touches.byAny);
+  const followUps = new Map(touches.followUps);
+  for (const id of people) {
+    mine.set(id, Math.max(mine.get(id) ?? 0, run.at));
+    byAny.set(id, Math.max(byAny.get(id) ?? 0, run.at));
+    if (run.followUp) followUps.set(id, Math.max(followUps.get(id) ?? 0, run.at));
+  }
+  byThis.set(run.playbookId, mine);
+  return { byThis, byAny, followUps };
+}
 function eligibleForPlaybook(rows, p, touches, nowMs, pace, listIds = null) {
   return playbookRunReach(rows, p, touches, nowMs, pace, listIds).eligible;
+}
+var savedNameOf = (r2) => r2.givenName ?? r2.waName;
+function fullNameHolders(rows) {
+  const holders = /* @__PURE__ */ new Map();
+  for (const r2 of rows) {
+    const key = fullNameKey(savedNameOf(r2));
+    if (key !== null) holders.set(key, (holders.get(key) ?? 0) + 1);
+  }
+  return holders;
+}
+function visitIsTheirs(r2, via, holders) {
+  if (via !== "name") return true;
+  const key = fullNameKey(savedNameOf(r2));
+  return key !== null && holders.get(key) === 1;
 }
 function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   const reach = {
@@ -17218,13 +17285,15 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   if (t.kind === "reach_out") return none;
   const purpose = enrolPurpose(t.cls, p.message);
   const how = { channels: p.channels, ready: p.ready, about: messageAboutOfTrigger(p.trigger) };
+  const holders = t.kind === "visit" ? fullNameHolders(rows) : /* @__PURE__ */ new Map();
   const named = t.kind === "visit" ? (
-    // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
+    // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow. And a visit that is surely
+    // theirs (visitIsTheirs).
     rows.filter((r2) => {
       if (!r2.calendarTz) return false;
       if (p.trigger === "visit_tomorrow")
-        return r2.nextVisitDate !== null && r2.nextVisitDate === localDate(r2.calendarTz, new Date(nowMs + DAY_MS));
-      return r2.lastVisitDate !== null && r2.lastVisitDate === localDate(r2.calendarTz, new Date(nowMs - DAY_MS)) && !r2.booked;
+        return r2.nextVisitDate !== null && r2.nextVisitDate === localDate(r2.calendarTz, new Date(nowMs + DAY_MS)) && visitIsTheirs(r2, r2.nextVisitVia, holders);
+      return r2.lastVisitDate !== null && r2.lastVisitDate === localDate(r2.calendarTz, new Date(nowMs - DAY_MS)) && !r2.booked && visitIsTheirs(r2, r2.lastVisitVia, holders);
     })
   ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : t.kind === "deal" ? rows.filter((r2) => followUpNames(r2, nowMs, pace)) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
@@ -17418,7 +17487,19 @@ function channelOfRecipient(r2) {
   return r2?.channel === "sms" || r2?.channel === "email" ? r2.channel : "whatsapp";
 }
 function runDayPassed(run, today) {
-  return run.playbook_id && run.run_for && run.run_for !== today ? `This run was made for ${run.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.` : null;
+  return run.playbook_id && run.run_for && run.run_for !== today ? dayGoneWords(run.run_for) : null;
+}
+function dayGoneWords(runFor) {
+  return `This run was made for ${runFor} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`;
+}
+function visitRunTooLate(run, days) {
+  const moment = triggerOf(audienceTrigger(run.audience) ?? "");
+  return moment?.kind === "visit" && !!run.run_for && days.sendsOn > run.run_for;
+}
+function runApprovalRefusal(run, days) {
+  const gone = runDayPassed(run, days.today);
+  if (gone) return gone;
+  return run.playbook_id && run.run_for && visitRunTooLate(run, days) ? dayGoneWords(run.run_for) : null;
 }
 function toApprovalVM(d, opts) {
   const b = d.broadcast;
@@ -17467,7 +17548,10 @@ function toApprovalVM(d, opts) {
     }
   });
   const greets = params.some((p) => p.kind === "first_name");
-  const late = !!b.run_for && b.run_for !== opts.today;
+  const dayPassed = !!b.run_for && b.run_for !== opts.today;
+  const tooLate = !dayPassed && visitRunTooLate(b, { today: opts.today, sendsOn: opts.open.on });
+  const late = dayPassed || tooLate;
+  const runFor = b.run_for ?? "";
   return {
     will,
     byChannel: by ? {
@@ -17482,8 +17566,8 @@ function toApprovalVM(d, opts) {
     readerChannel: channelOfRecipient(reader),
     hiThere: greets ? d.recipients.filter((r2) => !r2.first_name).length : 0,
     approve: late ? null : `Approve \u2014 ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
-    expired: late ? `Made for ${opts.day(b.run_for)}, and that day has passed \u2014 its people and its words were that day's. Skip it; the next run starts over.` : null,
-    goes: late ? `made for ${opts.day(b.run_for)}` : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
+    expired: dayPassed ? `Made for ${opts.day(runFor)}, and that day has passed \u2014 its people and its words were that day's. Skip it; the next run starts over.` : tooLate ? dayGoneWords(runFor) : null,
+    goes: late ? `made for ${opts.day(runFor)}` : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
     skip: "Skipping loses this run only \u2014 the playbook keeps running."
   };
 }
@@ -17501,12 +17585,12 @@ function proposalFactsFor(trigger, row2) {
   const url = row2?.deal?.proposal?.url ?? null;
   return t && t.kind === "deal" && url ? { proposal_link: url } : null;
 }
-function visitFactsFor(trigger, visit, tz, sendAt) {
+function visitFactsFor(trigger, visit, tz, names3, sendAt) {
   const t = triggerOf(trigger);
   if (!t || t.kind !== "visit" || !visit) return null;
   return {
     visit_when: trigger === "visit_tomorrow" ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}` : visitDayWord(visit, tz, sendAt, "yesterday"),
-    visit_service: visit.title.trim() || "your appointment"
+    visit_service: visitServiceOf(visit.title, names3) || "your appointment"
   };
 }
 function visitDayWord(visit, tz, sendAt, assumed) {
@@ -21576,6 +21660,15 @@ function visitTitleFor(title, name) {
   }
   return title;
 }
+function visitKeysOf(v) {
+  return {
+    nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
+    lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
+    nextVisitVia: v?.next?.via ?? null,
+    lastVisitVia: v?.last?.via ?? null,
+    calendarTz: v?.timezone ?? null
+  };
+}
 function lastChannelOf(c) {
   return c === "whatsapp" || c === "sms" || c === "email" ? c : null;
 }
@@ -21664,9 +21757,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     standing: state === "needs_you" || state === "waiting_on_you" ? state : null,
     assigned: !r2.latest_assignee_user_id ? "nobody" : !viewerId ? "someone" : r2.latest_assignee_user_id === viewerId ? "me" : "teammate",
     stopped: isOptedOutContact({ consent: r2.consent, dnc: r2.dnc }),
-    nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
-    lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
-    calendarTz: v?.timezone ?? null,
+    ...visitKeysOf(v),
     deal: dealOf(r2, tz, nowMs),
     consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
     consultedMs: v?.last?.consultation ? ts(v.last.end) : null,
@@ -24031,6 +24122,20 @@ function campaignsHomeOf(input) {
     coming: lifecycleComing(input, stages),
     results: lifecycleResults(input),
     failed: failedOf(input)
+  };
+}
+
+// src/playbooks/playbook-failed.ts
+function playbookFailedAbout(playbookId, runFor) {
+  return { type: "playbook_day", id: `${playbookId}:${runFor}` };
+}
+function playbookFailedWords(name) {
+  const label = name.trim() || "A playbook";
+  return {
+    title: `\u201C${label}\u201D could not run today`,
+    body: `\u201C${label}\u201D could not run today, so nobody was sent it. Tomorrow's run will try again.
+
+It kept trying through the day. If today's message matters, you can send it yourself from Campaigns.`
   };
 }
 
@@ -32019,6 +32124,7 @@ export {
   WHATSAPP_LANGUAGES,
   WHY_FROM_MAPS,
   WIN_BACK_WORDS,
+  WORKSPACE_PAUSED_SENDS,
   abandonedCall,
   abilityRows,
   activityTone,
@@ -32402,6 +32508,7 @@ export {
   importRowsOf,
   inAppBootScript,
   inAppFrom,
+  inLastSendingHour,
   inLocalWeek,
   inboxSlots,
   inboxTemplates,
@@ -32776,6 +32883,8 @@ export {
   platformQueue,
   platformRows,
   platformSummary,
+  playbookFailedAbout,
+  playbookFailedWords,
   playbookListRef,
   playbookName,
   playbookNoNumberWords,
@@ -32945,6 +33054,7 @@ export {
   rulesKept,
   rulesLine,
   rulesWithoutFieldsWords,
+  runApprovalRefusal,
   runDayPassed,
   runDueNow,
   runningTotal,
@@ -33137,6 +33247,7 @@ export {
   tokenBudgetSpent,
   tokenCapOf,
   tomorrowAtIn,
+  touchesAfterRun,
   trialOffer,
   trialWords,
   triggerOf,

@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   BROADCAST_MAX_RECIPIENTS,
+  WORKSPACE_PAUSED_SENDS,
   EVERYONE_LABEL,
   FOLLOW_UP_NEEDS_DEALS,
   REACH_OUT_IS_NOT_A_MOMENT,
@@ -129,6 +130,8 @@ function fakes(over = {}) {
     versions: [],
     // 14:00 UTC is 10:00 in New York: inside the hours a send may go out in.
     timezone: "America/New_York",
+    // Whether the workspace is paused (tenants.status): not, unless a test says so.
+    paused: false,
     assemble: "b1",
     // The month's allowance, counted before anyone is enrolled: the emails and texts this workspace's campaigns have sent
     // this month. None here; a test gives the count, or a refusal to read it.
@@ -961,6 +964,77 @@ test("approve: a playbook's run is a day's run: approved on a later day it is re
     "scheduled",
     "a broadcast made by hand has no day",
   );
+});
+
+test("approve: a visit's run made for today is refused when approving would send it on a later day: approved after the last sending hour it waits for nine, with the day before's words", async () => {
+  const night = new Date("2026-09-07T03:00:00Z"); // 11 PM in New York on 6 September: the next open moment is 9 AM on the 7th
+  const made = {
+    id: "b1",
+    tenant_id: "t1",
+    state: "pending_approval",
+    name: "Visit reminder · 2026-09-06",
+    recipient_count: 3,
+    playbook_id: "p1",
+    run_for: "2026-09-06",
+    audience: { kind: "playbook", trigger: "visit_tomorrow" },
+  };
+  const words =
+    "This run was made for 2026-09-06 and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.";
+  for (const trigger of ["visit_tomorrow", "visited"]) {
+    const f = fakes();
+    await refused(
+      approveRun(f.ports, { row: { ...made, audience: { kind: "playbook", trigger } }, now: night }),
+      "conflict",
+      409,
+      words,
+    );
+    assert.deepEqual(f.ops(), [], `${trigger}: refused before anything moves`);
+  }
+  // Inside the hours it goes now; before nine on the morning of the day it was made for, it goes at nine that morning.
+  const noon = await approveRun(fakes().ports, { row: made, now: NOW });
+  assert.deepEqual([noon.state, noon.scheduled_for, noon.moved_from], ["scheduled", NOW.toISOString(), null]);
+  const early = new Date("2026-09-06T10:00:00Z"); // 6 AM in New York
+  const dawn = await approveRun(fakes().ports, { row: made, now: early });
+  assert.deepEqual([dawn.scheduled_for, dawn.moved_from], ["2026-09-06T13:00:00.000Z", early.toISOString()]);
+  // Another moment's words name no day, and a run that kept no moment is as it was: approved at night, it goes at nine.
+  for (const audience of [{ kind: "playbook", trigger: "quiet_30" }, { kind: "playbook" }, null]) {
+    const r = await approveRun(fakes().ports, { row: { ...made, audience }, now: night });
+    assert.deepEqual([r.state, r.scheduled_for], ["scheduled", "2026-09-07T13:00:00.000Z"], JSON.stringify(audience));
+  }
+});
+
+test("approve: a paused workspace approves nothing: refused in the pause's words before anything moves, for a playbook's run, a broadcast's and a reach-out's; one that was not waiting is still said so first", async () => {
+  const waiting = {
+    id: "b1",
+    tenant_id: "t1",
+    state: "pending_approval",
+    name: "Win-back · 2026-09-06",
+    recipient_count: 3,
+    playbook_id: "p1",
+    run_for: "2026-09-06",
+  };
+  for (const row of [
+    waiting,
+    { ...waiting, playbook_id: null, run_for: null },
+    { ...waiting, audience: { kind: "reach_out", root_id: "r1" } },
+  ]) {
+    const f = fakes({ paused: true });
+    await refused(approveRun(f.ports, { row, now: NOW }), "payment_required", 402, WORKSPACE_PAUSED_SENDS);
+    assert.deepEqual(f.ops(), [], "nothing was released, scheduled or recorded");
+  }
+  assert.match(WORKSPACE_PAUSED_SENDS, /paused/);
+  await refused(
+    approveRun(fakes({ paused: true }).ports, { row: { ...waiting, state: "sending" }, now: NOW }),
+    "conflict",
+    409,
+    "This run is not waiting for approval.",
+  );
+  // A pause that could not be read is not a workspace that is not paused: the approval fails, and moves nothing.
+  const unreadable = fakes({ paused: new Error("cannot read the workspace") });
+  await assert.rejects(approveRun(unreadable.ports, { row: waiting, now: NOW }), /cannot read the workspace/);
+  assert.deepEqual(unreadable.ops(), []);
+  // Not paused, it goes.
+  assert.equal((await approveRun(fakes().ports, { row: waiting, now: NOW })).state, "scheduled");
 });
 
 test("approve: a run not waiting is refused; one that changed under the approver says so; a job the ledger refused leaves it waiting; else the send now and the approver's decision", async () => {

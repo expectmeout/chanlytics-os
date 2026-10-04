@@ -1,4 +1,10 @@
-import { AppError, FOLLOW_UP_NEEDS_DEALS, REACH_OUT_IS_NOT_A_MOMENT, triggerOf } from "@chanlytics/contracts";
+import {
+  AppError,
+  FOLLOW_UP_NEEDS_DEALS,
+  REACH_OUT_IS_NOT_A_MOMENT,
+  WORKSPACE_PAUSED_SENDS,
+  triggerOf,
+} from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { playbookScope } from "@/server/verbs";
 import { runPlaybookNow } from "@/server/campaigns/playbook-run";
@@ -22,6 +28,10 @@ const SAID: Record<string, string> = {
   number_flagged: "WhatsApp flagged this number's quality; wait for it to recover.",
   already_ran_today: "It already ran today. It runs again tomorrow at its hour.",
   deals_off: FOLLOW_UP_NEEDS_DEALS,
+  // A paused workspace sends nothing (the edge's 402 payment_required): the pause's own words, the ones approving a run says.
+  payment_required: WORKSPACE_PAUSED_SENDS,
+  // The run could not be made this once -- a read it needs (the template, the calendar) did not answer -- and the hourly run tries again.
+  run_failed: "The run could not be made just now: something it reads did not answer. Try again in a minute.",
 };
 
 export const POST = write({
@@ -37,6 +47,8 @@ export const POST = write({
     const r = await runPlaybookNow(p.tenant_id, id, ctx.userId);
     if (!r.ok) {
       const said = SAID[r.reason] ?? `The run did not happen (${r.reason}).`;
+      // A paused workspace is the workspace's to fix, not an upstream's: 402, as every other refusal to spend is.
+      if (r.reason === "payment_required") throw new AppError("payment_required", said, 402);
       throw new AppError(
         r.reason === "not_found" ? "not_found" : "upstream_meta",
         said,

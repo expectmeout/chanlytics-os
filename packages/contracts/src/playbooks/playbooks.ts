@@ -10,6 +10,7 @@
  */
 import type { ParamSpec } from "../templates/templates";
 import { visitStartTime, type VisitDto } from "../calendar/calendar-people";
+import { visitServiceOf } from "../calendar/visit-service";
 import type { ListRef } from "../people/lists/lists";
 import { localDate } from "./playbook-schedule";
 import { DAY_MS } from "./playbook-time";
@@ -55,6 +56,7 @@ export type { FollowUpFactsDto, FollowUpStand } from "./playbook-follow-ups";
 export {
   eligibleForPlaybook,
   playbookRunReach,
+  touchesAfterRun,
   playbookReach,
   playbookReachDoor,
   playbookNoNumberWords,
@@ -69,12 +71,13 @@ export {
   localHour,
   nextOpenMoment,
   runDueNow,
+  inLastSendingHour,
   scheduleLine,
   runsWords,
   nextRunLabel,
 } from "./playbook-schedule";
 export type { RunPlan } from "./playbook-schedule";
-export { poolWords, reachLines, runDayPassed, toApprovalVM } from "./playbook-approval";
+export { poolWords, reachLines, runDayPassed, runApprovalRefusal, toApprovalVM } from "./playbook-approval";
 export type { ApprovalVM } from "./playbook-approval";
 
 export interface PlaybookDto {
@@ -137,11 +140,17 @@ export function proposalFactsFor(
  * The words a visit playbook's slots take for one person — when, and what
  * for — from the visit the run read. Resolved when the run is made and kept
  * on the recipient row, so the send says what the calendar said then.
+ *
+ * The service is the title's service alone (calendar-people.ts visitServiceOf): an event's title names the person it is
+ * for ("Balayage · Maria Lopez"), and a message must never carry a name, theirs or anyone's. A title with nothing left
+ * once the person's name is out says "your appointment".
  */
 export function visitFactsFor(
   trigger: string,
   visit: Pick<VisitDto, "start" | "title" | "all_day"> | null,
   tz: string,
+  /** The names the person is saved under (their given name, their WhatsApp name): what comes out of the title. Required: no caller may carry a title whole. */
+  names: readonly (string | null | undefined)[],
   /** When the words will be read: the send's moment. Absent, they are read now, as the run assumes. */
   sendAt?: Date,
 ): { visit_when: string; visit_service: string } | null {
@@ -152,7 +161,7 @@ export function visitFactsFor(
       trigger === "visit_tomorrow"
         ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}`
         : visitDayWord(visit, tz, sendAt, "yesterday"),
-    visit_service: visit.title.trim() || "your appointment",
+    visit_service: visitServiceOf(visit.title, names) || "your appointment",
   };
 }
 

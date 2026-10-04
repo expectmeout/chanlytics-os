@@ -29,7 +29,7 @@ const opts = (over = {}) => ({
   playbook: { trigger: "everyone_monthly", cap_per_run: 250, gap_days: 90, cadence_days: 30 },
   businessName: "Marisa Studio",
   today: "2026-09-21",
-  open: { time: "10:00", moved: false },
+  open: { time: "10:00", moved: false, on: "2026-09-21" },
   day: (ymd) => `day ${ymd}`,
   ...over,
 });
@@ -93,7 +93,7 @@ test("the act says when the send goes -- now, or at the next open hour -- and a 
   );
   const late = C.toApprovalVM(
     { broadcast: run({ recipient_count: 186 }), recipients: people },
-    opts({ open: { time: "9:00", moved: true } }),
+    opts({ open: { time: "9:00", moved: true, on: "2026-09-21" } }),
   );
   assert.equal(late.approve, "Approve — 186 at 9:00");
   assert.equal(
@@ -108,6 +108,75 @@ test("the act says when the send goes -- now, or at the next open hour -- and a 
   assert.equal(
     C.toApprovalVM({ broadcast: run(), recipients: people }, opts()).skip,
     "Skipping loses this run only — the playbook keeps running.",
+  );
+});
+
+test("a visit's run that approving now would send on a later day says why instead of offering the button, in approveRun's own words: a reminder for tomorrow's visit does not go out on the morning of it", () => {
+  const visitRun = (trigger = "visit_tomorrow") => run({ run_for: "2026-09-21", audience: { trigger } });
+  const after = opts({ open: { time: "9:00", moved: true, on: "2026-09-22" } });
+  for (const trigger of ["visit_tomorrow", "visited"]) {
+    const vm = C.toApprovalVM({ broadcast: visitRun(trigger), recipients: people }, after);
+    assert.equal(vm.approve, null, `${trigger}: no button the verb refuses`);
+    assert.equal(
+      vm.expired,
+      C.runApprovalRefusal(
+        { playbook_id: "pb1", run_for: "2026-09-21", audience: { trigger } },
+        { today: "2026-09-21", sendsOn: "2026-09-22" },
+      ),
+      "the sheet says the refusal's words, the verb's",
+    );
+    assert.ok(vm.expired.startsWith("This run was made for 2026-09-21 and that day has passed"), vm.expired);
+    assert.equal(vm.goes, "made for day 2026-09-21");
+  }
+  // Inside the hours, or before nine the same morning: it goes on the day it was made for, and the button is offered.
+  const evening = opts({ open: { time: "7:30 PM", moved: false, on: "2026-09-21" } });
+  assert.equal(C.toApprovalVM({ broadcast: visitRun(), recipients: people }, evening).approve, "Approve — 3 now");
+  const early = opts({ open: { time: "9:00", moved: true, on: "2026-09-21" } });
+  assert.equal(C.toApprovalVM({ broadcast: visitRun(), recipients: people }, early).approve, "Approve — 3 at 9:00");
+  // Another moment's words name no day: approved at night, it goes at nine, as it always did. So does a run that kept no moment.
+  for (const audience of [{ trigger: "quiet_30" }, { trigger: "everyone_monthly" }, {}, null, undefined]) {
+    const vm = C.toApprovalVM({ broadcast: run({ audience }), recipients: people }, after);
+    assert.equal(vm.approve, "Approve — 3 at 9:00", JSON.stringify(audience));
+    assert.equal(vm.expired, null);
+  }
+});
+
+test("the verb's refusal and the sheet's are one predicate: a run made for a day that has passed, a visit's run that would go out on a later one, and nothing else", () => {
+  const day = (today, sendsOn) => ({ today, sendsOn });
+  const visit = { playbook_id: "pb1", run_for: "2026-09-21", audience: { trigger: "visit_tomorrow" } };
+  const sentence = (d) =>
+    `This run was made for ${d} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`;
+  // The day has passed: runDayPassed's sentence, for every kind of run.
+  assert.equal(
+    C.runApprovalRefusal({ ...visit, run_for: "2026-09-20" }, day("2026-09-21", "2026-09-21")),
+    sentence("2026-09-20"),
+  );
+  assert.equal(
+    C.runApprovalRefusal({ playbook_id: "pb1", run_for: "2026-09-20" }, day("2026-09-21", "2026-09-21")),
+    C.runDayPassed({ playbook_id: "pb1", run_for: "2026-09-20" }, "2026-09-21"),
+  );
+  // A visit's run that would go on a later day: the same sentence, about the day it was made for.
+  assert.equal(C.runApprovalRefusal(visit, day("2026-09-21", "2026-09-22")), sentence("2026-09-21"));
+  assert.equal(
+    C.runApprovalRefusal({ ...visit, audience: { trigger: "visited" } }, day("2026-09-21", "2026-09-22")),
+    sentence("2026-09-21"),
+  );
+  // Nothing else is refused: the day it was made for, another moment, a broadcast with no day, a run that kept no moment.
+  assert.equal(C.runApprovalRefusal(visit, day("2026-09-21", "2026-09-21")), null);
+  assert.equal(
+    C.runApprovalRefusal({ ...visit, audience: { trigger: "quiet_30" } }, day("2026-09-21", "2026-09-22")),
+    null,
+  );
+  assert.equal(
+    C.runApprovalRefusal({ playbook_id: "pb1", run_for: "2026-09-21" }, day("2026-09-21", "2026-09-22")),
+    null,
+  );
+  assert.equal(
+    C.runApprovalRefusal(
+      { playbook_id: null, run_for: null, audience: { trigger: "visit_tomorrow" } },
+      day("2026-09-21", "2026-09-22"),
+    ),
+    null,
   );
 });
 
