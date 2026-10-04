@@ -444,11 +444,11 @@
 
   /* The page: its ground, and the light, three soft pools where the canvases put them. */
   --surface-page-light:
-    radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), oklch(0.821 0.089 265 / 0.34), transparent),
+    radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), oklch(0.821 0.089 265 / 0.14), transparent),
     radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), oklch(0.98 0.013 64 / 0.95), transparent),
-    radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), oklch(0.841 0.088 295 / 0.23), transparent);
+    radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), oklch(0.841 0.088 295 / 0.09), transparent);
   /* How much of its own ink a phone's page name lays over the page light, which tints its letters (kit.css, the page head):
-     the light side is strong, and the canvases' name is faded by it into a slate (the pool is 34% blue there), so this
+     the light side is strong, and the canvases' name is faded by it into a slate (the pool is 14% blue there), so this
      lets most of the tint through; the dark side's pools are faint, so it keeps more. */
   --title-veil: 0.04;
   --title-fill: 0.72;
