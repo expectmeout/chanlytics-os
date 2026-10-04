@@ -10,16 +10,15 @@
  * three times in twenty-one seconds to a person saying nothing), a normal eagerness split a paused question into two
  * Opus turns, room talk ran turns of its own, and nothing ever ended a forgotten call before its thirty minutes. So:
  *
- *   - the agent speaks first ("I'm listening."), protected from interruption, so the audio path proves itself before
- *     the person says a thing; the first message was empty and the browser overrode it for Read aloud, which is the
- *     one-way speech now and never a conversation;
- *   - `turn_eagerness: patient`: a pause is a pause. A silent call ends after twenty seconds
- *     (`silence_end_call_timeout` 20) BEFORE the agent would ask the brain again (`turn_timeout` 25), so the door's
- *     "I'm here." is never said to an empty room; the two were a tie at 20, and which fires first the vendor does
- *     not say. Whether the end's clock counts the agent's own speaking is unstated too: the dev agent's first mic run
- *     measures it (a `vendor` end with a short life while the agent was still talking is the sign to raise it).
- *     `max_duration_seconds_after_last_agent_message` 60 ends one nobody followed up (a field the live agent carries
- *     and the public schema does not name; the vendor refusing it is the signal to drop it); ten minutes in all;
+ *   - the agent says nothing on connect (`first_message` empty): the session connects during the hold, while the
+ *     person is still talking, and the words heard go to it as a text turn (the hold is the one mic, 4 Oct evening);
+ *     a greeting would talk over them. The agent spoke first ("I'm listening.") while the mic was the agent's own;
+ *   - `turn_eagerness: patient`: a pause is a pause. The session's microphone is muted, so the vendor hears silence
+ *     and at its turn timeout asks the brain with "...": the timeout at its longest (30) so that is rare, the door
+ *     answering with the buffer words (voiced as nothing), and the silence end OFF (-1), or a muted session would end
+ *     before a follow-up; the browser ends an idle session after a minute itself (contracts ASK_VOICE_IDLE_MS).
+ *     `max_duration_seconds_after_last_agent_message` 60 is the vendor's backstop (a field the live agent carries and
+ *     the public schema does not name; the vendor refusing it is the signal to drop it); ten minutes in all;
  *   - `background_voice_detection` on, and the vendor's default ignore terms merged with the backchannel words a
  *     person says while listening, so an "okay" never cuts the answer;
  *   - the voice and its model are contracts' one pair (ASK_VOICE_ID, Ruben's pick "Mark - Natural Conversations";
@@ -40,8 +39,8 @@ export const PRODUCTION_AGENT_NAME = "chanlytics-ask";
 /** The laptop's agent, pointed at a tunnel: the same body, its own secret. */
 export const DEV_AGENT_NAME = "chanlytics-ask-dev";
 
-/** What the agent says on connect, before the person does: the audio path proving itself. */
-export const AGENT_FIRST_MESSAGE = "I'm listening.";
+/** What the agent says on connect: nothing. The session comes up during the hold, and the first words are the person's. */
+export const AGENT_FIRST_MESSAGE = "";
 
 /** Backchannel words a listener says that must never cut the answer; merged with the vendor's own defaults. */
 export const INTERRUPTION_IGNORE_TERMS = [
@@ -81,7 +80,7 @@ export function agentConfig({
     conversation_config: {
       agent: {
         first_message: AGENT_FIRST_MESSAGE,
-        disable_first_message_interruptions: true,
+        disable_first_message_interruptions: false,
         language: "en",
         prompt: {
           prompt:
@@ -119,8 +118,12 @@ export function agentConfig({
       },
       turn: {
         turn_eagerness: "patient",
-        turn_timeout: 25,
-        silence_end_call_timeout: 20,
+        // The session's microphone is muted (the hold is the one mic, 4 Oct evening): the vendor hears silence, and at
+        // its turn timeout asks the brain with "...", which the door answers with nothing. The timeout at its longest,
+        // so that happens rarely; the silence end OFF, or the muted session would end before a follow-up; the browser
+        // ends an idle session itself after a minute (contracts ASK_VOICE_IDLE_MS).
+        turn_timeout: 30,
+        silence_end_call_timeout: -1,
         speculative_turn: false,
         turn_model: "turn_v3",
         interruption_ignore_terms: INTERRUPTION_IGNORE_TERMS,

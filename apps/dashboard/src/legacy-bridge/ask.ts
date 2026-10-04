@@ -81,23 +81,23 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
   const palette = askPalette(win, storage);
   const api = askApi(apiFor(win));
   // Reading aloud in Ask's voice (ask/speech.ts: the clip from the speech route, played by one element of the module's)
-  // and a voice conversation on the agent (ask/voice.ts: the vendor's client is loaded on the first tap, not here).
-  // One voice at a time, held here where the two are composed: a clip ends the conversation it would talk over (an
-  // open microphone would hear the brief and the agent would answer it), and a conversation ends the clip.
+  // and the agent's session the hold speaks to (ask/voice.ts: the vendor's client is loaded on the first press, not
+  // here). One voice at a time, held here where the two are composed: a clip ends the session it would talk over, and
+  // a hold ends the clip.
   const clip = askSpeech(win, { api });
   const conversation = installVoice(win, { api, freshen: freshSession });
   const speech = {
     ...clip,
     speak: async (text: string, purpose: SpeechPurpose): Promise<void> => {
-      if (conversation.voiceOn() || conversation.voiceConnecting()) await conversation.stopVoice("superseded");
+      if (conversation.voiceUp() || conversation.voiceConnecting()) await conversation.stopVoice("superseded");
       return clip.speak(text, purpose);
     },
   };
   const voice = {
     ...conversation,
-    startVoice: (...args: Parameters<typeof conversation.startVoice>) => {
+    ensureVoice: (...args: Parameters<typeof conversation.ensureVoice>) => {
       clip.stopSpeaking();
-      return conversation.startVoice(...args);
+      return conversation.ensureVoice(...args);
     },
   };
   // The page under a running conversation follows the member: the next spoken turn reads the page they moved to
@@ -105,7 +105,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
   // Line reads its own (ask-real.jsx arRoute): the page, then the rest as its param.
   if (typeof win.addEventListener === "function") {
     hearAddress(() => {
-      if (!voice.voiceOn()) return;
+      if (!voice.voiceUp()) return;
       const [page, ...rest] = routeOnScreen(win).split("/");
       voice.pageMoved(pageContext(win, { page: page || "today", param: rest.length ? rest.join("/") : null }));
     }, win);

@@ -219,12 +219,12 @@ test("no user message speaks a refusal, never a 400, and nothing is stored; a sp
   assert.equal(w.tables.ask_messages.length, 0);
 });
 
-test("silence (the vendor's \"...\" after turn_timeout, or a transcript with no word in it) hears that the agent is here, in the person's language; no turn runs and nothing is stored", async () => {
+test("silence (the vendor's \"...\" after turn_timeout, or a transcript with no word in it) is answered with the buffer words, which the vendor voices as nothing: the session's mic is muted, so this is the vendor's re-engage and not a person; no turn runs and nothing is stored", async () => {
   const w = await world({ session: { language: "es" } });
   const asked = model();
   for (const content of ["...", "…", " . , ! "]) {
     assert.deepEqual(spoken(await frames(await knock(w, body(w.S, { messages: [{ role: "user", content }] })))), [
-      "Aquí estoy.",
+      "... ",
     ]);
   }
   assert.deepEqual(asked, [], "the model was not asked");

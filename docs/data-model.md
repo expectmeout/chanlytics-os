@@ -225,7 +225,7 @@ One row per voice conversation of Ask: whose it is, its thread, the member's acc
 | `duration_s` | integer | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `ended_at` | timestamp with time zone | yes |  |  |
-| `end_reason` | text | yes |  | The browser's word for how it ended: button, typed, superseded, navigated, vendor, start. Null while it runs. |
+| `end_reason` | text | yes |  | The browser's word for how it ended: button, typed, superseded, navigated, vendor, start, idle (a minute with nothing asked). Null while it runs. |
 | `connect_ms` | integer | yes |  | From the tap to the connection up, in ms, as the browser measured it. |
 | `first_audio_ms` | integer | yes |  | From the tap to the first audio heard, in ms, as the browser measured it; null when none came. |
 
