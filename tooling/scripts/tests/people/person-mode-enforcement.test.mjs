@@ -23,7 +23,7 @@ import { readCode, readRaw } from "../_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { outboundGate } = await import(
-  pathToFileURL(path.join(here, "../../../../apps/edge/lib/receptionist/outbound-gate.ts")).href
+  pathToFileURL(path.join(here, "../../../../packages/core/src/messages/outbound-gate.ts")).href
 );
 
 // The acknowledgement's rule (unreadable.ts) and the person's hold (reply-gates.ts).

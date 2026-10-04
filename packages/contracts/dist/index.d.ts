@@ -15143,7 +15143,7 @@ interface AbilityInputs {
      * On "ask" or "never" the WhatsApp receptionist composes no reply
      * (packages/core/src/inbound/reply-posture.ts, which every inbound message asks) and a
      * call's booking-link send is refused as a policy_hold
-     * (apps/edge/lib/receptionist/outbound-gate.ts). So every chat ability on the card is
+     * (packages/core/src/messages/outbound-gate.ts). So every chat ability on the card is
      * held at once, by one cause with one fix on another tab -- which is why the words for
      * it come back beside the rows, to be said ONCE, and not on each of six rows.
      *

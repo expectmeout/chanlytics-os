@@ -181,7 +181,8 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
 
 ## Where new code goes
 
-- A rule the product enforces: `packages/core`, or a SQL door when it needs the service role.
+- A rule the product enforces: `packages/core`, or a SQL door when it needs the service role; the app that asks it
+  wires and words it (`docs/decisions/0027-where-a-rule-lives.md`).
 - A provider's wire: `packages/channels`.
 - A type, a schema, an enum, a view model: `packages/contracts`, in its domain's folder, named in the folder's
   barrel, `packages/contracts/src/<domain>/index.ts` (never `export *`; a module imports another by its path, never

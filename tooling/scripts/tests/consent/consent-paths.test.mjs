@@ -56,7 +56,7 @@ const offersMany = await import(at("apps/dashboard/app/api/v1/contacts/marketing
 const { toApiTools, ACT_TOOL_NAMES } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 // Sorted by name, the acts among the reads (D11): told apart by the act names the loop itself tells apart.
 const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
-const { outboundGate, refusalScript } = await import(at("apps/edge/lib/receptionist/outbound-gate.ts"));
+const { outboundGate, refusalScript } = await import(at("packages/core/src/messages/outbound-gate.ts"));
 const { deliver } = await import(at("packages/core/src/deliver.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));

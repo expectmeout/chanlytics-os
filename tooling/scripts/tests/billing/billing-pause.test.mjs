@@ -15,7 +15,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 test("the gate: a paused workspace sends nothing, after consent and before the policy; the script takes a message", async () => {
   const mod = await import(
-    pathToFileURL(path.join(here, "../../../../apps/edge/lib/receptionist/outbound-gate.ts")).href
+    pathToFileURL(path.join(here, "../../../../packages/core/src/messages/outbound-gate.ts")).href
   );
   const base = {
     contact: { consent: "unknown", dnc: false, marketing_consent: "unknown" },
