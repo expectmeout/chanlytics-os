@@ -13,7 +13,7 @@ import { agentFor, writtenChannelOf, threadChannelOf } from "./thread-channel";
 import { contactName, isIdentifierName, initialsOf } from "./thread-contact";
 import { shortTime, bubbleTime } from "./thread-clock";
 import { mediaVM, type MediaVM } from "./message-media";
-import { messageStatusLabel, reachedCustomer, messageWords, isChatMessage } from "./message-words";
+import { sentFactsOf, reachedCustomer, messageWords, isChatMessage } from "./message-words";
 import { messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "./message-author";
 import { standingOf, type Standing } from "./standing";
 import type { EscalationDto } from "./escalations";
@@ -37,6 +37,8 @@ export interface ConversationMessageVM {
   /** "Canceled before sending", "Sending…" — absent when there is nothing to
    *  say, which for an ordinary sent message is the honest answer. */
   statusLabel?: string;
+  /** Why a failed message did not arrive, in one sentence for the owner (sendFailureWords); absent when the row does not say. */
+  failedWhy?: string;
   /** False when these words never reached the customer. The bubble must not
    *  read as part of the conversation, because it was not. */
   reachedCustomer?: boolean;
@@ -110,12 +112,7 @@ export function toConversationVM(
     ...(messageAuthor(m) ? { by: (messageAuthor(m) as MessageAuthor).words } : {}),
     // Only for OUR messages. A customer's inbound message has no send status,
     // and labelling it would be inventing one.
-    ...(m.sender !== "customer"
-      ? {
-          ...(messageStatusLabel(m.status, m.channel) ? { statusLabel: messageStatusLabel(m.status, m.channel) } : {}),
-          reachedCustomer: reachedCustomer(m.status),
-        }
-      : {}),
+    ...(m.sender !== "customer" ? sentFactsOf(m) : {}),
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   // A call has its OWN row on this surface, so the chat row must summarise the

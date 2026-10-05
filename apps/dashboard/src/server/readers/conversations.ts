@@ -1,5 +1,6 @@
 import "server-only";
 import { contactName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
+import { failedMessageErrors } from "@chanlytics/db";
 import { CONVERSATION_COLUMNS, groupMessages, messageRowsOf, toConversationDto } from "../dto";
 import { stamp, type Reader, type RowRef } from "./index";
 
@@ -45,6 +46,13 @@ export const conversations: Reader<{ ids: string[] | null }, { conversations: Co
       });
       if (merr) throw new Error(merr.message);
       byConv = groupMessages(messageRowsOf(data));
+      // newest_messages answers twelve columns and messages.error is not one of them: the few failed messages in the
+      // answer are asked for theirs, so a failed bubble can say why (contracts sendFailureWords). None failed, no read.
+      const failed = [...byConv.values()].flatMap((list) => list.filter((m) => m.status === "failed").map((m) => m.id));
+      if (failed.length) {
+        const said = new Map((await failedMessageErrors(supabase, tenantId, failed)).map((r) => [r.id, r.error]));
+        for (const list of byConv.values()) for (const m of list) if (said.has(m.id)) m.error = said.get(m.id);
+      }
     }
     const conversations: ConversationDto[] = (convs ?? []).map((c) =>
       toConversationDto(c, byConv.get(c.id) ?? [], userId),

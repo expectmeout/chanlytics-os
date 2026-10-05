@@ -2313,6 +2313,17 @@ async function searchMessages(db, tenantId, words, since, limit) {
     snippet: r.snippet ?? ""
   }));
 }
+async function failedMessageErrors(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db.from("messages").select("id, error").eq("tenant_id", tenantId).eq("status", "failed").in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`failedMessageErrors: ${error.message}`);
+    for (const r of data ?? [])
+      if (r.error !== null && typeof r.error === "object" && !Array.isArray(r.error))
+        out.push({ id: r.id, error: r.error });
+  }
+  return out;
+}
 async function messageSenders(db, tenantId, ids) {
   const out = [];
   for (let i = 0; i < ids.length; i += IDS_PER_READ) {
@@ -3436,6 +3447,7 @@ export {
   endVoiceSession,
   erasureDigests,
   everyoneIn,
+  failedMessageErrors,
   finishableRuns,
   followUpTouchesSince,
   forgetActivityTokens,

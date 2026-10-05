@@ -630,6 +630,33 @@ export interface MessageSender {
 }
 
 /**
+ * What the provider (or the ledger) said about these FAILED messages: `messages.error`, by id, for the ones that say
+ * something. newest_messages (00258), the Inbox's read of every thread's messages, answers twelve columns and error is
+ * not one of them, so the reader asks for the few failed rows' errors here, in one read for a hundred ids or fewer
+ * (IDS_PER_READ), under the caller's row security and the workspace's own filter. A read that fails THROWS.
+ */
+export async function failedMessageErrors(
+  db: Db,
+  tenantId: string,
+  ids: readonly string[],
+): Promise<Array<{ id: string; error: Record<string, unknown> }>> {
+  const out: Array<{ id: string; error: Record<string, unknown> }> = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db
+      .from("messages")
+      .select("id, error")
+      .eq("tenant_id", tenantId)
+      .eq("status", "failed")
+      .in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`failedMessageErrors: ${error.message}`);
+    for (const r of data ?? [])
+      if (r.error !== null && typeof r.error === "object" && !Array.isArray(r.error))
+        out.push({ id: r.id, error: r.error as Record<string, unknown> });
+  }
+  return out;
+}
+
+/**
  * Who sent these messages and what became of them, by id, in one read for a hundred ids or fewer (IDS_PER_READ), under
  * the caller's row security and the workspace's own filter: a message the caller cannot read is not answered. A read
  * that fails THROWS.

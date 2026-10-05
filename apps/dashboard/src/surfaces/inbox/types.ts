@@ -134,6 +134,8 @@ export interface MsgEntry {
   via?: { kind: "broadcast" | "playbook"; name: string };
   status?: string;
   statusLabel?: string;
+  /** Why a failed message did not arrive: one sentence for the owner, under "Didn't send". */
+  failedWhy?: string;
   reachedCustomer?: boolean;
   messageId?: string;
   pending?: true;

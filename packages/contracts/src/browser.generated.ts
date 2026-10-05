@@ -94,7 +94,7 @@ export { threadStanding, conversationWaitsOnYou, toInboxThreadVM } from "./conve
 export { isAutomatedSend, isPersonsWords, messageVia, messageAuthor, messageWhy } from "./conversations/message-author";
 export { emailLeftOutOf, splitQuotedReply } from "./conversations/message-email";
 export { mediaKind, mediaVM } from "./conversations/message-media";
-export { messageStatusLabel, reachedCustomer, isHeldDraft, isChatMessage, draftSendsAtMs, messageWords, messageText, clipAtWord } from "./conversations/message-words";
+export { messageStatusLabel, sendFailureWords, reachedCustomer, isHeldDraft, isChatMessage, draftSendsAtMs, messageWords, messageText, clipAtWord } from "./conversations/message-words";
 export { standingOf, replyWaitsOnYou } from "./conversations/standing";
 export { agentFor, isFromTheirSide, isTheirOwnWords, lastWroteOn, writtenChannelOf, threadChannelOf, threadChannelWords, THREAD_CHANNEL_WORDS } from "./conversations/thread-channel";
 export { shortTime, formatWaited } from "./conversations/thread-clock";

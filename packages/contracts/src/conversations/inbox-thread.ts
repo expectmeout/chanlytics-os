@@ -16,7 +16,7 @@ import { mediaVM } from "./message-media";
 import { emailSubjectOf, emailLeftOutOf, splitQuotedReply } from "./message-email";
 import { replyLeftAsOf } from "../reach-out/reach-out-reply-words";
 import {
-  messageStatusLabel,
+  sentFactsOf,
   reachedCustomer,
   isHeldDraft,
   isChatMessage,
@@ -180,19 +180,10 @@ export function toInboxThreadVM(
       // The words Conversations says too (messageAuthor): a person's reply is the team's.
       ...(m.sender === "human" && messageAuthor(m) ? { byWords: (messageAuthor(m) as MessageAuthor).words } : {}),
       ...(messageVia(m) ? { via: messageVia(m)! } : {}),
-      ...(m.sender !== "customer" && m.status
-        ? {
-            status: m.status,
-            // The words themselves live in messageStatusLabel, so this pane and
-            // the Conversations pane cannot describe the same message
-            // differently — which is exactly what they were doing.
-            ...(messageStatusLabel(m.status, m.channel)
-              ? { statusLabel: messageStatusLabel(m.status, m.channel) }
-              : {}),
-            // Whether the words left: the receptionist's failed reply was drawn as a sent bubble (I1).
-            reachedCustomer: reachedCustomer(m.status),
-          }
-        : {}),
+      // What became of it: the words for its status, why it failed (one sentence for the owner, drawn under "Didn't send"),
+      // and whether the words left (the receptionist's failed reply was drawn as a sent bubble, I1). Said in message-words.ts,
+      // so this pane and the Conversations pane cannot describe the same message differently.
+      ...(m.sender !== "customer" && m.status ? { status: m.status, ...sentFactsOf(m) } : {}),
       // A held draft is not a sent message and must not read as one.
       ...(isHeldDraft(m) ? { pending: true as const, sendsAtMs: draftSendsAtMs(m) } : {}),
     };

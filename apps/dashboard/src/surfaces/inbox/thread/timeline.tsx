@@ -311,6 +311,12 @@ const TlMsgEntry = (props: TlMsgEntryProps) => {
             <Icon name="info" size={11} /> {entry.leftOut}
           </div>
         )}
+        {/* Why a send failed, in the provider's own terms made plain (contracts sendFailureWords): for the owner, under the words that never left. */}
+        {entry.failedWhy && (
+          <div className="tl-msg-note" data-testid="tl-msg-failed-why">
+            <Icon name="alert" size={11} /> {entry.failedWhy}
+          </div>
+        )}
         {/* What became of words that did not reach them is said on their own bubble, whatever follows. */}
         {!isClient && (!lines || lines.by || held || entry.reachedCustomer === false) && (
           <div className="tl-msg-by">

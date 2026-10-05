@@ -1,6 +1,6 @@
 import "server-only";
 import { AppError, memberMetaOf, personName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
-import { mediaPublic } from "../dto";
+import { failedErrorOf, mediaPublic } from "../dto";
 import { loadConversation, type VerbConversation } from "../verbs";
 import { load, stamp, type Reader, type RowRef } from "./index";
 
@@ -18,7 +18,7 @@ export const messagesOf: Reader<{ id: string; before: string | null }, MessageDt
     const { supabase } = rc.ctx;
     let q = supabase
       .from("messages")
-      .select("id, direction, sender, type, body, media, meta, created_at, status, channel_ts, channel")
+      .select("id, direction, sender, type, body, media, meta, created_at, status, error, channel_ts, channel")
       .eq("conversation_id", id)
       .order("created_at", { ascending: false })
       .limit(100);
@@ -34,6 +34,7 @@ export const messagesOf: Reader<{ id: string; before: string | null }, MessageDt
       media: mediaPublic(m.media),
       meta: memberMetaOf(m.meta),
       status: m.status,
+      ...failedErrorOf(m.status, m.error),
       created_at: m.created_at,
       channel_ts: m.channel_ts,
       channel: m.channel,

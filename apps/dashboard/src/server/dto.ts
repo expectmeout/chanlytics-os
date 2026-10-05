@@ -64,6 +64,18 @@ interface MessageRow {
   channel_ts: string | null;
   /** The wire it travelled: whatsapp, sms or voice. A text thread read as WhatsApp without it (I5). */
   channel: string | null;
+  /** What the provider said when it failed (messages.error), on a row read with it: newest_messages does not answer it. */
+  error?: unknown;
+}
+
+/**
+ * A failed message's error as the DTO carries it: the object the row keeps, for a message that failed and nothing for
+ * any other, so the owner's thread can say why (contracts sendFailureWords) and a message that arrived carries none.
+ */
+export function failedErrorOf(status: string, error: unknown): Pick<MessageDto, "error"> {
+  return status === "failed" && error !== null && typeof error === "object" && !Array.isArray(error)
+    ? { error: error as Record<string, unknown> }
+    : {};
 }
 
 interface CallRow {
@@ -153,6 +165,7 @@ export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {
       media: mediaPublic(m.media),
       meta: memberMetaOf(m.meta),
       status: m.status,
+      ...failedErrorOf(m.status, m.error),
       created_at: m.created_at,
       channel_ts: m.channel_ts,
     });

@@ -6,6 +6,7 @@
 import type { MessageDto } from "./thread-dto";
 import { MEDIA_LABEL, mediaKind } from "./message-media";
 import { splitQuotedReply } from "./message-email";
+import { writtenChannelOf } from "./thread-channel";
 
 /** What an email's `delivered` receipt says: their mail server took it, which is as far as an email can be followed. */
 const EMAIL_DELIVERED = "Reached their mail server";
@@ -38,6 +39,163 @@ export function messageStatusLabel(status: string | undefined, channel?: string 
     default:
       return undefined;
   }
+}
+
+/* ---- why it did not arrive ---- */
+
+/**
+ * What a WhatsApp error code means, in the owner's words. Each is the meaning Meta documents for the code (WhatsApp Cloud
+ * API, "Error codes", read 5 Oct 2026), or one this repository already says of it (channels whatsapp.ts: 130429, 131048
+ * and 131056). A code that is not here is never given a meaning: it is said by its number (sendFailureWords).
+ */
+const WHATSAPP_FAILURES: Readonly<Record<number, string>> = {
+  130429: "Your number has reached WhatsApp's message limit for now",
+  131026:
+    "WhatsApp couldn't deliver it: their number may not be on WhatsApp, or they haven't accepted its latest terms or updated the app",
+  131031: "Your WhatsApp Business account is restricted or disabled, or WhatsApp couldn't verify its details",
+  131042: "WhatsApp reports a problem with your payment method",
+  131047:
+    "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now",
+  131048:
+    "WhatsApp is limiting how many messages your number can send, because earlier ones were blocked or flagged as spam",
+  131049:
+    "WhatsApp chose not to deliver it, to maintain healthy engagement, and advises waiting at least 24 hours before sending again",
+  131050: "They've chosen to stop receiving marketing messages from your business on WhatsApp",
+  131053: "WhatsApp couldn't upload the attachment, for a reason such as a file type it doesn't support",
+  131056:
+    "Your number sent them too many messages in a short while, and WhatsApp asks you to wait before sending more to them",
+  132000: "The template's variable values didn't match the ones it defines",
+  132001: "That template doesn't exist in this language, or hasn't been approved",
+  132012: "The template's variable values were formatted wrongly",
+  132015: "That template is paused because of its low quality",
+  132016: "That template was permanently disabled for low quality",
+};
+
+/**
+ * What a Twilio error code means for a text, in the owner's words: the meaning Twilio documents for the code (twilio.com
+ * "Error and warning dictionary", read 5 Oct 2026), or one this repository already says of it (channels sms.ts: 21610, 30003,
+ * 30007 and 30034). Any other code is said by its number.
+ */
+const SMS_FAILURES: Readonly<Record<number, string>> = {
+  21211: "That isn't a valid phone number",
+  21408: "Texts to that region are turned off for your account",
+  21610: "They've opted out of texts from your number",
+  21614: "That number isn't a valid mobile number",
+  30003: "Their phone couldn't be reached: it may be off, out of signal, or unable to receive texts",
+  30004: "The text was blocked from reaching this number",
+  30005: "The carrier says this number is unknown and may no longer exist",
+  30006: "This number can't receive texts, which is typical of a landline",
+  30007: "The text was filtered as a possible policy violation",
+  30008: "The carrier gave no reason for not delivering it",
+  30034: "Your texting line isn't registered with the carriers yet, so they blocked it",
+};
+
+/** The provider's own word for a text's fate when it gives no code (Twilio's message statuses). */
+const SMS_STATUS_WORDS: Readonly<Record<string, string>> = {
+  undelivered: "The carrier didn't deliver it.",
+  failed: "The text couldn't be sent.",
+  canceled: "The text was canceled before it left.",
+};
+
+/** Why an email did not arrive, by what the provider's receipt was (`messages.error.provider`: the email door's own words). */
+const EMAIL_FAILURES: Readonly<Record<string, string>> = {
+  bounced: "The email bounced: their address didn't accept it.",
+  failed: "The mail provider couldn't send it.",
+  suppressed: "The mail provider has stopped sending to this address after an earlier bounce or complaint.",
+};
+
+/** Why a send that never went out says so, by the reason the ledger settled it with (jobs settle.ts, edge unfinished.ts). */
+const SETTLED_FAILURES: Readonly<Record<string, string>> = {
+  never_delivered: "It was never sent: the job that would have sent it never ran.",
+  run_interrupted: "It may not have gone: the run that was sending it did not finish.",
+  orphaned: "It was never sent: no job was left to send it.",
+};
+
+const record = (v: unknown): Record<string, unknown> | null =>
+  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+
+/** A code as a number: a number, or digits in a string; nothing else is one. */
+function codeOf(v: unknown): number | null {
+  if (typeof v === "number") return Number.isInteger(v) && v > 0 ? v : null;
+  return typeof v === "string" && /^\d{3,6}$/.test(v.trim()) ? Number(v.trim()) : null;
+}
+
+/**
+ * The provider's error code on a failed row, wherever the writer put it: a receipt's `errors` list (WhatsApp), a
+ * receipt's `code` (a text's status callback), or the answer to the send itself, as `body`: Graph's JSON, cut at two
+ * hundred characters so read for its `"code"` rather than parsed, or "Twilio 30034".
+ */
+function providerCodeOf(error: Record<string, unknown>): number | null {
+  const listed = Array.isArray(error.errors) ? record(error.errors[0]) : null;
+  const direct = codeOf(listed?.code) ?? codeOf(error.code);
+  if (direct !== null) return direct;
+  const body = error.body;
+  if (typeof body === "string") {
+    const graph = /"code"\s*:\s*(\d{3,6})/.exec(body);
+    if (graph) return Number(graph[1]);
+    const twilio = /^Twilio (\d{5})$/.exec(body.trim());
+    return twilio ? Number(twilio[1]) : null;
+  }
+  return codeOf(record(record(body)?.error)?.code);
+}
+
+/**
+ * ONE sentence on why a message did not arrive, from what its row's `error` says (the provider's code and words, kept
+ * by the receipt or the send that failed), for the owner and never for a customer: the thread draws it under "Didn't
+ * send", and the hold a late failure raises says it. A code whose meaning is documented (above) is said in plain words
+ * with its number after it; any other code is said by the provider and the number, never a guess ("WhatsApp didn't
+ * deliver it (error 131000)."). Null when the row says nothing it can be read by, which is the honest answer.
+ */
+export function sendFailureWords(error: unknown, channel: string | null | undefined): string | null {
+  const e = record(error);
+  if (!e) return null;
+  const wire = writtenChannelOf(channel);
+  if (wire === "email") {
+    const provider = typeof e.provider === "string" ? e.provider : "";
+    return EMAIL_FAILURES[provider] ?? settledWords(e);
+  }
+  const code = providerCodeOf(e);
+  const sms = wire === "sms";
+  if (code !== null) {
+    const meaning = (sms ? SMS_FAILURES : WHATSAPP_FAILURES)[code];
+    if (meaning) return `${meaning} (${sms ? "Twilio" : "WhatsApp"} error ${code}).`;
+    return sms ? `Twilio didn't deliver it (error ${code}).` : `WhatsApp didn't deliver it (error ${code}).`;
+  }
+  const carrier = typeof e.carrier === "string" ? SMS_STATUS_WORDS[e.carrier] : undefined;
+  return carrier ?? settledWords(e);
+}
+
+/** Why this message did not arrive, when it failed and its row says why (sendFailureWords); null for any other message. */
+function messageFailedWhy(m: Pick<MessageDto, "status" | "error" | "channel">): string | null {
+  return m.status === "failed" ? sendFailureWords(m.error, m.channel) : null;
+}
+
+/**
+ * What became of one of our messages, as a bubble says it: the words for its status, why it failed when its row says,
+ * and whether it reached them. The words themselves live here (messageStatusLabel, sendFailureWords), so the Inbox's thread
+ * and Conversations cannot describe the same message differently -- which is exactly what they were doing.
+ */
+export function sentFactsOf(m: Pick<MessageDto, "status" | "error" | "channel">): {
+  statusLabel?: string;
+  failedWhy?: string;
+  reachedCustomer: boolean;
+} {
+  const statusLabel = messageStatusLabel(m.status, m.channel);
+  const failedWhy = messageFailedWhy(m);
+  return {
+    ...(statusLabel ? { statusLabel } : {}),
+    ...(failedWhy ? { failedWhy } : {}),
+    reachedCustomer: reachedCustomer(m.status),
+  };
+}
+
+/** The words for a failure that carries no provider's code: the ledger's own reasons, or a send whose outcome is not known. */
+function settledWords(e: Record<string, unknown>): string | null {
+  const settled = typeof e.reason === "string" ? SETTLED_FAILURES[e.reason] : undefined;
+  if (settled) return settled;
+  return e.outcome === "unknown"
+    ? "The provider didn't answer in time, so it may have gone: check the thread before sending it again."
+    : null;
 }
 
 /**
