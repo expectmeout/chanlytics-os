@@ -77,6 +77,7 @@ const TABLES = [
   "ai_usage",
   "ask_messages",
   "ask_threads",
+  "ask_voice_sessions",
   "billing_accounts",
   "billing_card_marks",
   "billing_events",
