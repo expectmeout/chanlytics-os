@@ -46,7 +46,9 @@ export const ixSending = (t: Thread | null | undefined, nowMs: number = Date.now
 
 /**
  * What waits on you now: a real thread nobody has taken, or a reply about to send. A seeded thread keeps the
- * mockup's rule, since "needs" is a state no real thread holds.
+ * mockup's rule, since "needs" is a state no real thread holds. The same two facts read off the wire, for a page that
+ * holds the conversations and not these rows, are contracts' `conversationWaitsOnYou` (Today's badge): the two are one
+ * count, and inbox-counts.test.mjs holds them to it.
  */
 export const ixWaitsOnYou = (t: Thread | null | undefined, nowMs: number = Date.now()): boolean =>
   t && t.real

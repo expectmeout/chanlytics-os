@@ -41,7 +41,7 @@ export {
 } from "./escalations";
 export type { EscalationDto } from "./escalations";
 export type { InboxThreadVM } from "./inbox-thread-vm";
-export { threadStanding, toInboxThreadVM } from "./inbox-thread";
+export { threadStanding, conversationWaitsOnYou, toInboxThreadVM } from "./inbox-thread";
 export { toConversationVM } from "./conversation-vm";
 export type { ConversationMessageVM, ConversationVM } from "./conversation-vm";
 export { ABANDONED_MS, abandonedCall, callAttemptWords, DISCONNECTION_LABELS } from "./call-dto";
