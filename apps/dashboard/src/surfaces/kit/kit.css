@@ -1087,6 +1087,8 @@ a.more-item {
   flex: none;
   position: relative;
 }
+/* A tab is a link (surface-tabs.jsx: a door is a link), drawn as the tab it was when it was a button: a button's line
+   height, no underline of the link's own, and no flash where a thumb presses it. */
 .stabs-tab {
   display: inline-flex;
   align-items: center;
@@ -1095,9 +1097,19 @@ a.more-item {
   padding: 0 12px;
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
+  line-height: normal;
   color: var(--ink-dim);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
   border-bottom: 2px solid transparent;
   transition: color 110ms;
+}
+/* Under a thumb a tab is the 44px every button is (legacy-bridge/legacy.css, the touch floor): a link, which that
+   floor does not name, keeps it here. */
+@media (pointer: coarse) {
+  .stabs-tab {
+    min-height: 44px;
+  }
 }
 .stabs-tab:hover {
   color: var(--ink);

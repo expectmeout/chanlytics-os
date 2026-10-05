@@ -512,7 +512,7 @@ const useViewFade = ({ page, param }, mountKey, routeLoading) => {
       slide,
     };
   }
-  return { viewKey, routeStay: viewRef.current.stay, routeSlide: viewRef.current.slide };
+  return { viewKey, routeStay: viewRef.current.stay, routeSlide: viewRef.current.slide, routeStrip: place ? place.strip : null };
 };
 
 // ---- The chrome ---------------------------------------------------------------
@@ -582,7 +582,7 @@ const glassHead = ({ glass, pane, where, page, param, views, navigate, primaryAc
 
 const appChrome = (s) => {
   const { theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace } = s;
-  const { page, param, views, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeLoading, surfaceUnavailable } = s;
+  const { page, param, views, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeStrip, routeLoading, surfaceUnavailable } = s;
   const glass = look === "glass";
   return (
     <div className="app-root" data-theme={theme} data-look={look}>
@@ -634,6 +634,7 @@ const appChrome = (s) => {
           id="main"
           key={viewKey}
           className={`main-scroll route-view ${pane ? "pane" : ""} ${routeStay ? "route-stay" : ""} ${routeSlide ? `route-slide-${routeSlide}` : ""}`}
+          data-strip={routeStrip || undefined}
           aria-busy={routeLoading ? "true" : undefined}
           {...(window.stripSwipe ? window.stripSwipe() : {})}
         >

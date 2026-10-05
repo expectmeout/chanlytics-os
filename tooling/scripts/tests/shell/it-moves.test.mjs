@@ -443,3 +443,53 @@ test("nothing leaves from a frame mounted and let go of at once, under reduced m
   leaveOverlay(node("sb-sheet"));
   assert.ok(true, "a node already taken off the page is left alone");
 });
+
+test("People's strip is walked to 900px, where its page is one column; any other strip only on a phone (720px)", async () => {
+  // Between 721 and 900px People drew a phone's rows and no swipe crossed its strip (5 Oct 2026). The view says whose
+  // strip it stands on (app-shell.jsx data-strip), and the strip's pager answers for it (surface-tabs.jsx stripPhoneFor).
+  await import("../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
+  const keep = globalThis.window.matchMedia;
+  let width = 800;
+  globalThis.window.matchMedia = (q) => {
+    const m = /max-width: (\d+)px/.exec(q);
+    return { matches: q.includes("reduce") ? false : m ? width <= Number(m[1]) : false };
+  };
+  const walked = (strip) => {
+    const pressed = [];
+    const tab = (active, name) => ({
+      style: {},
+      offsetLeft: active ? 0 : 90,
+      offsetWidth: 80,
+      isConnected: true,
+      classList: { contains: (c) => c === "active" && active },
+      click: () => pressed.push(name),
+    });
+    const tabs = [tab(true, "people"), tab(false, "leads")];
+    const bar = {
+      style: { setProperty() {}, removeProperty() {} },
+      offsetWidth: 300,
+      getClientRects: () => [1],
+      querySelectorAll: () => tabs,
+      setAttribute() {},
+      removeAttribute() {},
+      hasAttribute: () => false,
+    };
+    const view = element({
+      parentElement: { querySelector: () => bar },
+      dataset: strip ? { strip } : {},
+      contains: () => false,
+    });
+    drag(globalThis.window.stripSwipe(), view, [300, 300], [200, 300], [100, 300]);
+    return pressed;
+  };
+  try {
+    assert.deepEqual(walked("people"), ["leads"], "at 800px People's strip is walked");
+    assert.deepEqual(walked("inbox"), [], "and the Inbox's, two panes there, is not");
+    width = 600;
+    assert.deepEqual(walked("inbox"), ["leads"], "on a phone every strip is walked");
+    width = 1000;
+    assert.deepEqual(walked("people"), [], "past 900px nothing is");
+  } finally {
+    globalThis.window.matchMedia = keep;
+  }
+});

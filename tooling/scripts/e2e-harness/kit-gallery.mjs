@@ -982,21 +982,21 @@ export const FAMILIES = [
         id: "stabs",
         html:
           `<nav class="stabs stabs-inbox" aria-label="Section views">` +
-          `<button class="stabs-tab active">Needs you <span class="stabs-badge tally tally-warn" data-tone="warn">3</span></button>` +
-          `<button class="stabs-tab">Conversations</button><button class="stabs-tab">Live</button></nav>`,
+          `<a class="stabs-tab active" href="#">Needs you <span class="stabs-badge tally tally-warn" data-tone="warn">3</span></a>` +
+          `<a class="stabs-tab" href="#">Conversations</a><a class="stabs-tab" href="#">Live</a></nav>`,
       },
       {
         id: "stabs-campaigns",
         html:
-          `<nav class="stabs stabs-campaigns" aria-label="Section views"><button class="stabs-tab">Playbooks</button>` +
-          `<button class="stabs-tab active">Broadcasts</button><button class="stabs-tab">Templates</button></nav>`,
+          `<nav class="stabs stabs-campaigns" aria-label="Section views"><a class="stabs-tab" href="#">Playbooks</a>` +
+          `<a class="stabs-tab active" href="#">Broadcasts</a><a class="stabs-tab" href="#">Templates</a></nav>`,
       },
       {
         id: "stabs-glide",
         html:
           `<nav class="stabs stabs-inbox" aria-label="Section views" data-glide="ease" style="--glide-w: 98px; --glide-x: 110px;">` +
-          `<button class="stabs-tab active">Needs you</button><button class="stabs-tab">Conversations</button>` +
-          `<button class="stabs-tab">Live</button></nav>`,
+          `<a class="stabs-tab active" href="#">Needs you</a><a class="stabs-tab" href="#">Conversations</a>` +
+          `<a class="stabs-tab" href="#">Live</a></nav>`,
       },
     ],
   },

@@ -662,6 +662,12 @@
   .route-slide-next .stabs { animation: route-slide-prev 220ms var(--ease-out); }
   .route-slide-prev .stabs { animation: route-slide-next 220ms var(--ease-out); }
 }
+/* People's page is one column to 900px (its rows are a phone's there, PL_PHONE_QUERY), so its strip is walked and a
+   view comes in from its side to there too (surface-tabs.jsx stripPhoneFor; the view says its strip, data-strip). */
+@media (min-width: 721px) and (max-width: 900px) and (prefers-reduced-motion: no-preference) {
+  .route-view[data-strip="people"].route-slide-next { animation: route-slide-next 220ms var(--ease-out); }
+  .route-view[data-strip="people"].route-slide-prev { animation: route-slide-prev 220ms var(--ease-out); }
+}
 @keyframes route-slide-next { from { translate: 40px 0; } }
 @keyframes route-slide-prev { from { translate: -40px 0; } }
 
