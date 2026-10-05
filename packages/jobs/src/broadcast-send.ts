@@ -24,6 +24,7 @@ import {
 import {
   type Database,
   campaignMonthSent,
+  emitEvent,
   insertQueuedEmail,
   mailboxOfTenant,
   queuedRecipients,
@@ -354,14 +355,23 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
       // approval ask.
       workspacePaused: () => workspacePaused(db, job.tenant_id),
       fail: async (id, failure) => {
-        must(
+        // Not over a run already failed: two chains of one run (settle.ts names the case) each meeting a stop would write
+        // its reason twice and its event twice. The first stop is the run's.
+        const moved = must(
           "broadcast_send: cannot mark the broadcast failed",
           await db
             .from("broadcasts")
             .update({ state: "failed", failure, finished_at: new Date().toISOString() })
             .eq("id", id)
-            .eq("tenant_id", job.tenant_id),
+            .eq("tenant_id", job.tenant_id)
+            .neq("state", "failed")
+            .select("id"),
         );
+        if (!moved?.length) return;
+        // On the ledger beside the finished runs (broadcast.sent), best effort: the owner's alert comes next, and a count
+        // that cannot be read is said as none rather than stop the run from saying why it stopped.
+        const sent = await countRecipients(db, job.tenant_id, id, "sent").catch(() => null);
+        await emitEvent(db, job.tenant_id, "broadcast.stopped", "broadcast", id, { failure, sent });
       },
       startSending: async (id) => {
         const rows = must(

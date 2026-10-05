@@ -13,6 +13,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isReachOutRun } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
+import { emitEvent } from "../../events";
 
 type Db = SupabaseClient<Database>;
 
@@ -80,5 +81,8 @@ export async function failStrandedRun(db: Db, p: { tenantId: string; id: string 
     .eq("state", "scheduled")
     .select("id");
   if (error) throw new Error(`stranded runs: cannot mark run ${p.id} not sent: ${error.message}`);
-  return (data ?? []).length > 0;
+  if (!(data ?? []).length) return false;
+  // On the ledger as every stopped run is (broadcast.stopped), best effort. Nobody got it: it never left `scheduled`.
+  await emitEvent(db, p.tenantId, "broadcast.stopped", "broadcast", p.id, { failure: "run_interrupted", sent: 0 });
+  return true;
 }

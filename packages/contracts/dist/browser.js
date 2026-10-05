@@ -12541,6 +12541,12 @@ var EVENT_KINDS = [
   "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
+  /**
+   * A broadcast stopped before it was done, or never went (state `failed`): its failure code and how many it reached
+   * first (contracts BROADCAST_FAILURES), from every place a run is failed. A finished run was on the ledger and a
+   * stopped one was not (the 4 Oct wiring review, P2 5).
+   */
+  "broadcast.stopped",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
@@ -30902,6 +30908,7 @@ var WORDS2 = {
   "call.transferred": "A call was passed to a person",
   "booking_link.sent": "The booking link was sent",
   "broadcast.sent": "A broadcast finished",
+  "broadcast.stopped": "A broadcast stopped",
   "playbook.run": "A playbook ran",
   "channel.quality_rating": "A WhatsApp number's quality rating changed",
   "setup.requested": "Setup was requested",
@@ -30991,7 +30998,23 @@ function offersPausedWords(p, base) {
   const why = OFFERS_PAUSED_WHY[textAt(p, "reason") ?? ""];
   return why ? `${base} \xB7 ${why}` : base;
 }
+function runEndWords(kind, p, base) {
+  const bits2 = [];
+  const sent2 = numberAt(p, "sent");
+  if (kind === "broadcast.sent") {
+    const held = numberAt(p, "held");
+    if (sent2 !== null) bits2.push(`${sent2} got it`);
+    if (held) bits2.push(`${held} held`);
+  } else {
+    const failure = textAt(p, "failure");
+    if (failure) bits2.push(broadcastFailureWords(failure));
+    if (sent2 !== null) bits2.push(sent2 ? `${sent2} got it first` : "nobody got it");
+  }
+  return [base, ...bits2].join(" \xB7 ");
+}
 var WHOLE_SENTENCE = /* @__PURE__ */ new Map([
+  ["broadcast.sent", (p, base) => runEndWords("broadcast.sent", p, base)],
+  ["broadcast.stopped", (p, base) => runEndWords("broadcast.stopped", p, base)],
   ["import", (p) => importWords(p)],
   ["lead.converted", (p, base) => readingWords("lead.converted", p, base)],
   ["reach_out.replied", (p, base) => readingWords("reach_out.replied", p, base)],
@@ -31059,13 +31082,6 @@ function activityWords(kind, payload) {
       if (p.approved === true) bits2.push("approved by hand");
       break;
     }
-    case "broadcast.sent": {
-      const sent2 = numberAt(p, "sent");
-      const held = numberAt(p, "held");
-      if (sent2 !== null) bits2.push(`${sent2} got it`);
-      if (held) bits2.push(`${held} held`);
-      break;
-    }
     case "settings.changed": {
       const fields = Array.isArray(p.fields) ? p.fields.filter((f) => typeof f === "string") : [];
       if (fields.length) bits2.push(fields.slice(0, 4).join(", "));
@@ -31128,6 +31144,7 @@ var TONES2 = {
   "message.send_failed": "danger",
   "message.send_blocked": "danger",
   "line.failed": "danger",
+  "broadcast.stopped": "danger",
   "line.texting_rejected": "danger",
   "contact.erased": "danger",
   "contact.blob_erased": "danger",

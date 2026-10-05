@@ -8526,6 +8526,11 @@ interface TableData {
     "billing.resumed": BillingData;
     "billing.updated": BillingData;
     "broadcast.sent": Open;
+    /** Why the run stopped (a BROADCAST_FAILURES code, with its channel where it names one) and how many it reached first. */
+    "broadcast.stopped": {
+        failure: string;
+        sent: number | null;
+    };
     "business.recorded": {
         legal_name: string | null;
         path: string;
