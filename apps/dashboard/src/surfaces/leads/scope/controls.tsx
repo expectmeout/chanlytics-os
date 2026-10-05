@@ -3,13 +3,12 @@
  * Values ⁄ Signals, which columns show, the file, Reach out's door and Ask's (spec F1: the three's still mark, never a
  * second live canvas). The canvas (L1) folds the map, Values ⁄ Signals and the file under one ⋯ beside Columns.
  */
+import type { ReactNode, RefObject } from "react";
 import type { LeadSearchDto } from "@chanlytics/contracts";
 import { ReachOutDoor } from "../../campaigns/reach-out/door";
 import { Icon } from "../../kit/icon/icon";
-import { Menu } from "../../kit/menu/menu";
+import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { gate } from "../../legacy-verbs";
-import { MenuInPlace, menuGroups, moreButton } from "../../people/menu-groups";
-import type { ColumnOption } from "../../people/table/columns";
 import { PeopleColumnsMenu } from "../../people/table/columns-menu";
 
 interface ControlsProps {
@@ -20,8 +19,11 @@ interface ControlsProps {
   onMap: (on: boolean) => void;
   values: boolean;
   onValues: (on: boolean) => void;
-  colOptions: readonly ColumnOption[];
+  colsOpen: boolean;
+  onColsOpen: (open: boolean) => void;
+  colOptions: readonly { key: string; label: ReactNode; on: boolean; locked: boolean }[];
   onPickColumn: (key: string) => void;
+  colsButton: RefObject<HTMLButtonElement | null> | null;
   onFind: () => void;
 }
 
@@ -38,29 +40,31 @@ export const LeadsControlsRight = ({ p, search }: { p: ControlsProps; search: Le
     : { label: "Export", icon: "external", gate: gate("export", "export these leads") };
   return (
     <div className="cl-controls-right">
-      <PeopleColumnsMenu options={p.colOptions} onPick={p.onPickColumn} />
-      {/* The kit's Menu, as People's ⋯ beside it is (people/page/screen.tsx). */}
-      <MenuInPlace>
-        <Menu
-          label="More"
-          trigger={moreButton({ title: "More", testid: "leads-file-menu" })}
-          groups={menuGroups([
-            {
-              label: p.mapOpen ? "Table" : "Map",
-              icon: p.mapOpen ? "list" : "map",
-              title: "See these leads on the ground",
-              onClick: () => p.onMap(!p.mapOpen),
-            },
-            {
-              label: p.values ? "Signals" : "Values",
-              icon: "eye",
-              title: "Show the numbers and addresses in the rows",
-              onClick: () => p.onValues(!p.values),
-            },
-            exportItem,
-          ])}
-        />
-      </MenuInPlace>
+      <PeopleColumnsMenu
+        open={p.colsOpen}
+        onOpenChange={p.onColsOpen}
+        options={p.colOptions}
+        onPick={p.onPickColumn}
+        buttonRef={p.colsButton}
+      />
+      <MoreMenu
+        testid="leads-file-menu"
+        items={[
+          {
+            label: p.mapOpen ? "Table" : "Map",
+            icon: p.mapOpen ? "list" : "map",
+            title: "See these leads on the ground",
+            onClick: () => p.onMap(!p.mapOpen),
+          },
+          {
+            label: p.values ? "Signals" : "Values",
+            icon: "eye",
+            title: "Show the numbers and addresses in the rows",
+            onClick: () => p.onValues(!p.values),
+          },
+          exportItem,
+        ]}
+      />
       <ReachOutDoor search={search} />
       <button
         type="button"

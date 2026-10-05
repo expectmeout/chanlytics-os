@@ -25,7 +25,7 @@ import { ldScroller } from "./scroller";
 /** How long a scroll is left to settle before the view's place is kept. */
 const PLACE_SAVE_DELAY_MS = 200;
 
-/** What the page's one hook of controls hands this hook: the words in the box, the selection and the scrolling pane. */
+/** What the page's one hook of controls hands this hook: the words in the box, the selection, the menu and the scrolling pane. */
 export interface PlaceControls {
   phone: boolean;
   setSearchOpen: Dispatch<SetStateAction<boolean>>;
@@ -37,6 +37,9 @@ export interface PlaceControls {
   toggleSel: (id: string) => void;
   setAllMatching: Dispatch<SetStateAction<boolean>>;
   clearSelection: () => void;
+  colsOpen: boolean;
+  setColsOpen: Dispatch<SetStateAction<boolean>>;
+  colsButton: RefObject<HTMLButtonElement | null>;
   q: string;
   setQ: Dispatch<SetStateAction<string>>;
   searchRef: RefObject<HTMLInputElement | null>;
@@ -212,8 +215,20 @@ function usePlaceKeeper(
 
 export function usePlPlace(args: PlaceArgs) {
   const { controls, page, view, ids, noun, landed, selectionOf, extra, onPlace, windowed } = args;
-  const { phone, setSearchOpen, selectMode, sel, setSel, toggleSel, setAllMatching, clearSelection, searchRef } =
-    controls;
+  const {
+    phone,
+    setSearchOpen,
+    selectMode,
+    sel,
+    setSel,
+    toggleSel,
+    setAllMatching,
+    clearSelection,
+    colsOpen,
+    setColsOpen,
+    colsButton,
+    searchRef,
+  } = controls;
   useSelectionResets(controls, selectionOf);
   const cursor = useCursor({ page, view, ids, noun, windowed });
   usePlaceKeeper({ controls, page, view, landed, extra, onPlace }, cursor);
@@ -242,6 +257,11 @@ export function usePlPlace(args: PlaceArgs) {
       focusSearch: () => {
         if (phone) setSearchOpen(true);
         if (searchRef.current) searchRef.current.focus();
+      },
+      menuOpen: colsOpen,
+      closeMenu: () => {
+        setColsOpen(false);
+        if (colsButton.current) colsButton.current.focus();
       },
       ...own,
     };

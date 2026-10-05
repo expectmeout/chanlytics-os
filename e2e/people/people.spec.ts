@@ -585,12 +585,11 @@ test.describe("People on a real workspace", () => {
         .filter(Boolean);
     expect(await headers()).not.toContain("came from");
     await page.getByTestId("people-columns").click();
-    // The kit's Menu of switches, drawn on the body (people/table/columns-menu.tsx).
-    const menu = page.getByRole("menu", { name: "Columns" });
+    const menu = page.getByTestId("people-columns-menu");
     await expect(menu).toBeVisible();
-    await expect(menu.getByRole("menuitemcheckbox", { name: "Person" })).toHaveAttribute("aria-disabled", "true");
-    await menu.getByRole("menuitemcheckbox", { name: "Came from" }).click();
-    await expect(menu, "the menu stays open while a switch flips").toBeVisible();
+    await expect(page.getByTestId("column-name")).toHaveAttribute("aria-disabled", "true");
+    await page.getByTestId("column-came_from").click();
+    await expect(menu).toBeVisible();
     await expect.poll(headers).toContain("came from");
     // A write the catch-all stopped is the answer the poll shows, so a save that moved fails saying where it went.
     await expect

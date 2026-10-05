@@ -37,7 +37,8 @@ const format = {
 };
 
 test("the purposes, and every one may name an output format: the lead purposes answer as records, and Ask's turn in its answer schema (the Line, D3)", () => {
-  assert.deepEqual([...GATEWAY_PURPOSES], ["ask", "lead_draft", "lead_suggest", "list_draft"]);
+  // `ask_warm` is a turn's head sent ahead of its question (the dashboard's server/ask/warm.ts): Ask's, counted apart.
+  assert.deepEqual([...GATEWAY_PURPOSES], ["ask", "ask_warm", "lead_draft", "lead_suggest", "list_draft"]);
   const draft = validateGatewayRequest({ ...base, output_config: { effort: "low", format } }, "lead_draft");
   assert.deepEqual(draft.request.output_config, { effort: "low", format });
   const ask = validateGatewayRequest({ ...base, output_config: { effort: "low", format } }, "ask");

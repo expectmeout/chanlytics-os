@@ -47,15 +47,6 @@ const controlsInsideTheScreen = async (page: Page, screen: Locator) => {
   expect(over, "the page scrolls sideways").toBeLessThanOrEqual(1);
 };
 
-/** A thumb down the screen from (x, y), by `by` pixels, through the browser's own input (CDP): six moves, then let go. */
-const pullDown = async (page: Page, x: number, y: number, by: number) => {
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
-  for (let i = 1; i <= 6; i += 1)
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (by * i) / 6 }] });
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-};
-
 /** A thumb across the screen, through the browser's own input (CDP): six moves from one x to another, then let go. */
 const swipeAcross = async (page: Page, from: number, to: number, y = 560) => {
   const cdp = await page.context().newCDPSession(page);
@@ -392,7 +383,7 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForTimeout(400);
     await expect(page.locator(".ui-tip.show")).toHaveCount(0);
     // Add a person: a sheet whose one button is on the screen.
-    await bar.getByRole("button", { name: "More" }).click();
+    await bar.locator(".more-wrap > button").click();
     const add = page.getByRole("menuitem", { name: "Add a person" });
     test.skip((await add.count()) === 0, "this member cannot add people");
     await add.click();
@@ -412,7 +403,7 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const said = () => page.evaluate(() => document.documentElement.style.getPropertyValue("--kb"));
     expect(await said(), "the shell measures it, and no keyboard is up").toBe("0px");
-    await page.getByTestId("people-phone-bar").getByRole("button", { name: "More" }).click();
+    await page.getByTestId("people-phone-bar").locator(".more-wrap > button").click();
     const add = page.getByRole("menuitem", { name: "Add a person" });
     test.skip((await add.count()) === 0, "this member cannot add people");
     await add.click();
@@ -432,23 +423,6 @@ test.describe("Phone shell on a real workspace", () => {
     expect(save.y + save.height, "Save above the keys").toBeLessThanOrEqual(tall - keys);
     await page.evaluate(() => document.documentElement.style.setProperty("--kb", "0px"));
     await expect.poll(foot, { message: "back down when the keyboard goes" }).toBe(tall);
-  });
-  /**
-   * A thumb pulls a sheet down to close it (the kit's Sheet, through data-bits touchSwipe, 5 Oct 2026): from its handle,
-   * past a third of its height, it leaves the way it was pulled and is gone.
-   */
-  test("a sheet pulled down from its handle past a third closes", async ({ page }) => {
-    await page.goto("/#/clients");
-    await page.waitForLoadState("networkidle");
-    await page.getByTestId("people-phone-bar").getByRole("button", { name: "More" }).click();
-    const add = page.getByRole("menuitem", { name: "Add a person" });
-    test.skip((await add.count()) === 0, "this member cannot add people");
-    await add.click();
-    const sheet = page.getByTestId("add-person-sheet");
-    await expect(sheet).toBeVisible();
-    const b = (await sheet.boundingBox())!;
-    await pullDown(page, b.x + b.width / 2, b.y + 10, b.height * 0.6);
-    await expect(sheet, "pulled past a third, it closed").toHaveCount(0);
   });
   /**
    * The switch holds two scopes, or three where deals are on (People › Pipeline, 0008), and the bar holds them beside

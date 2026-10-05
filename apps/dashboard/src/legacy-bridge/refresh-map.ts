@@ -247,6 +247,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   // Ask keeps its own thread and its cards; a card's own call goes through its verb's route, and that route's refresh.
   "POST ask": "a question: Ask draws its answer from the turn it streams",
   "POST ask/warm": "a warm read of the page before a question; it changes nothing",
+  "POST ask/warm/model": "the model's cache, written before a question; it changes nothing a page shows",
   "POST ask/speech": "a clip of the words the page already shows, read aloud in Ask's voice; nothing on screen moves",
   // The spoken conversation (ask-spoken design, §3): its row and the vendor's session are the Line's own state; what it
   // writes into the thread arrives through the turn's own stream, as a typed question's does.

@@ -1,11 +1,11 @@
 /**
  * The page's one keyboard listener's rule (moved whole from legacy/pages/people.jsx usePlPlace, decision 0015). A
  * keyboard walks the rows the way the Inbox walks threads: J/K or ↓/↑ move the cursor, x or Space selects the row under
- * it, Enter opens it, / goes to the search, Esc clears the selection. Never while typing,
+ * it, Enter opens it, / goes to the search, Esc closes the Columns menu and then clears the selection. Never while typing,
  * never with a modifier, never behind a menu or a sheet. The cursor's row shows its actions, as a hovered row does
  * (clients.css).
  */
-import { PL_CONTROL, PL_OVERLAY, plTyping } from "../words";
+import { PL_CONTROL, PL_OVERLAY, plPhoneNow, plTyping } from "../words";
 
 /** What the listener reads, left by the view as its draw ends: this draw's rows, cursor and doors, and the view's own. */
 export interface KeyDoors {
@@ -16,6 +16,8 @@ export interface KeyDoors {
   selected: boolean;
   clearSel: () => void;
   focusSearch: () => void;
+  menuOpen: boolean;
+  closeMenu: () => void;
   /** What Enter opens. */
   open?: (id: string) => void;
   /** Whether a row may be selected. */
@@ -32,10 +34,7 @@ export interface KeyDoors {
   call?: ((id: string) => void) | null;
 }
 
-/**
- * The page's own overlays first, in the order Esc closes them: the peek, the plan panel, the sheets. The Columns menu is
- * the kit's (table/columns-menu.tsx), in PL_OVERLAY while it is open, and closes on its own Esc.
- */
+/** The page's own overlays first, in the order Esc closes them: the peek, the plan panel, the Columns menu, the sheets. */
 function ownOverlayKey(k: KeyDoors, e: KeyboardEvent): boolean {
   // The peek holds only Esc -- J and K keep walking the rows behind it, and the peek follows the cursor -- so it is not
   // in PL_OVERLAY either.
@@ -52,8 +51,18 @@ function ownOverlayKey(k: KeyDoors, e: KeyboardEvent): boolean {
     }
     return true;
   }
-  // The page's own sheets hold every key: the Lists sheet, which closes on its own Esc listener, and on a desk the
-  // Pipeline's New proposal. The kit's sheets (a phone's small jobs) are in PL_OVERLAY and close on their own Esc.
+  // The Columns menu: Esc closes it, and the rows hold still behind it. At a phone's width the stylesheet hides it
+  // (clients.css, 900px and under), so one left open as the window narrowed is closed and the key is the page's as ever.
+  // Asked at the key, not from the last draw: the window may have narrowed since, and this is the one moment it matters.
+  if (k.menuOpen && plPhoneNow()) k.closeMenu();
+  else if (k.menuOpen) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      k.closeMenu();
+    }
+    return true;
+  }
+  // The phone's sheets hold every key; the Lists sheet closes on its own Esc listener, People's own two on this one.
   if (k.sheetOpen) {
     if (e.key === "Escape" && k.closeSheet) {
       e.preventDefault();
