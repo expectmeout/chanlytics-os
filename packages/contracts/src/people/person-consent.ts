@@ -76,7 +76,7 @@ export const CONSENT_RESET_SOURCE = "operator";
 export const CARRIER_CONSENT_SOURCE = "carrier";
 
 /**
- * How a yes to offers ended when the person said stop to every message (00322): the answer about offers goes back to
+ * How a yes to offers ended when the person said stop to every message (00323): the answer about offers goes back to
  * not asked with this source, whichever door recorded the stop, and only a new yes of their own turns offers on again.
  * A source the database writes (contact_stop_ends_offers_yes), never one a member is offered.
  */

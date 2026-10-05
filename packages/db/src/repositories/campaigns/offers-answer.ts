@@ -1,6 +1,6 @@
 /**
  * A person's answer about offers, where the edge reads and records it outside the inbound door: the one row a START's
- * confirmation on WhatsApp reads to say a STOP ended their yes (00322; contracts offersAfterStart), and WhatsApp's
+ * confirmation on WhatsApp reads to say a STOP ended their yes (00323; contracts offersAfterStart), and WhatsApp's
  * report of a no we never heard (Meta's 131050 on a message of ours). A yes or a no the person texts is the inbound
  * door's (ingest.ts), and a member's is set_marketing_consent's. Nothing here is how a person is judged: that is
  * contracts' mayMessageFor, which reads what these keep.
@@ -15,7 +15,7 @@ type Db = SupabaseClient<Database>;
 /**
  * One person's answer about offers and how it was given (contacts.marketing_consent and its source), or null where
  * there is no such person. Read by the edge when a START arrives on WhatsApp, to say whether a STOP ended their yes to
- * offers (00322; contracts offersAfterStart): one row on the primary key, by the id the ingest answered.
+ * offers (00323; contracts offersAfterStart): one row on the primary key, by the id the ingest answered.
  */
 export async function offersAnswerOf(
   db: Db,

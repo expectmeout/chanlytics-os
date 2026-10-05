@@ -5,7 +5,7 @@
  * migration's consent_channels_of is that function case by case; each contact.consent_changed event, written by the
  * doors it is written by, leaves the person's two lists as the table says; the backfill gives every yes already on a
  * row the channels its events give it; the receptionist's ask is stamped by the database, once; and people_list
- * answers the three new columns. And the rule that leans on that trigger (00322, at the foot): a stop to every message
+ * answers the three new columns. And the rule that leans on that trigger (00323, at the foot): a stop to every message
  * ends the yes to offers, whichever door records the stop, and the channels it covered go with it. A function body is
  * exactly what reading source cannot prove, so these run against
  * Postgres. Skipped without a local database (the member's doors also need SUPABASE_ANON_KEY); never production.
@@ -30,7 +30,7 @@ import { ingestInbound, recordCarrierOptOut } from "../../../../packages/db/src/
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const MIGRATION = path.join(ROOT, "supabase", "migrations", "00297_a_yes_covers_the_channels_it_was_given_for.sql");
-const STOP_MIGRATION = path.join(ROOT, "supabase", "migrations", "00322_a_stop_ends_the_yes_to_offers.sql");
+const STOP_MIGRATION = path.join(ROOT, "supabase", "migrations", "00323_a_stop_ends_the_yes_to_offers.sql");
 const CLI = process.env.SUPABASE_CLI || "supabase";
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -853,7 +853,7 @@ test("people_list answers the two lists and the ask beside the consent columns",
   }
 });
 
-/* ------------------------------------------------------------------ a stop ends the yes to offers (00322) -- */
+/* ------------------------------------------------------------------ a stop ends the yes to offers (00323) -- */
 
 // The 4 Oct wiring review's decision D3. The rule is a trigger on the change itself, so it is proved where it lives: each
 // of the four doors that record a no to every message (their own STOP through ingest_inbound, the unsubscribe page's
@@ -1050,7 +1050,7 @@ test(
     );
     const said = await endings(id);
     assert.equal(said.length, 1);
-    assert.equal(said[0].via, "migration_00322");
+    assert.equal(said[0].via, "migration_00323");
 
     // Re-runnable: a second run finds nobody.
     replay();

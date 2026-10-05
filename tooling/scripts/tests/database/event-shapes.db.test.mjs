@@ -13,7 +13,7 @@
  *     someone already opted in), set_contact_consent, set_marketing_consent, set_email_marketing (a no, and a reply's
  *     no taken back), set_email_offers_yes (a yes to offers by email, 00299), stop_all_messages (the unsubscribe page's
  *     second act: a STOP, and the email unsubscribe with it) and contact_stop_ends_offers_yes (the trigger that ends a
- *     yes to offers when a stop is recorded, 00322);
+ *     yes to offers when a stop is recorded, 00323);
  *   - platform.acted <- partner_status_set, partner_standing_set, partner_second_factor_reset (a platform admin's).
  * And the list of writers is not this file's word for it: the catalog is asked which functions insert into events with
  * one of the three kinds named in them, and the answer must be the list above, so a new SQL writer fails here until it
@@ -596,7 +596,7 @@ test(
 );
 
 test(
-  "contact_stop_ends_offers_yes (00322): a stop to every message ends the yes to offers, as its own entry",
+  "contact_stop_ends_offers_yes (00323): a stop to every message ends the yes to offers, as its own entry",
   { skip },
   async () => {
     const c = await contact(w.t, {

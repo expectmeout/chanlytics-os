@@ -8,7 +8,7 @@
  * opt-in words (contracts optInConfirmation), as a system message: never a model call, sent whatever the reply mode,
  * and not held back by a thread a person holds. A marketing yes (YES OFFERS) that arrives by text is recorded, not
  * confirmed, because offers go by WhatsApp. A START on WhatsApp from a person whose yes to offers ended with their STOP
- * (00322) says so after the filed words, with the phrase that turns offers on again (contracts offersAfterStart); a
+ * (00323) says so after the filed words, with the phrase that turns offers on again (contracts offersAfterStart); a
  * text's confirmation is the filed words alone. A yes whose confirmation did not go out is escalated and told, never
  * only logged.
  *

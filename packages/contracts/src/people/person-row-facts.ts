@@ -96,7 +96,7 @@ export function firstContactOf(r: PersonRowDto, tz: string, nowMs: number): Pers
 /** One line for the person's profile about offers: how and when they said yes and on which channels, or what they said. */
 function offersSub(r: PersonRowDto, marketing: PersonConsent["marketing"], tz: string, nowMs: number): string {
   if (marketing === "opted_out") return "no offers";
-  // A yes a stop ended (00322) is not "never asked": they said yes once, and took everything back.
+  // A yes a stop ended (00323) is not "never asked": they said yes once, and took everything back.
   if (marketing !== "opted_in")
     return r.marketing_consent_source === STOP_ENDED_OFFERS_SOURCE
       ? "their yes ended when they said stop"

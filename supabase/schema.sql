@@ -1282,7 +1282,7 @@ end $$;
 -- Name: FUNCTION contact_stop_ends_offers_yes(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.contact_stop_ends_offers_yes() IS 'After a person''s consent becomes opted_out while an answer about offers is a yes (00322): marketing_consent and email_marketing, where opted_in, go back to unknown with the source stop, and a contact.consent_changed entry with the purpose named says so for each (00297''s trigger then empties marketing_channels). A no to offers and an unsubscribe are left as they are. Whichever door recorded the stop: ingest_inbound, stop_all_messages, set_contact_consent or the carrier''s report. A failure warns and never refuses the stop.';
+COMMENT ON FUNCTION public.contact_stop_ends_offers_yes() IS 'After a person''s consent becomes opted_out while an answer about offers is a yes (00323): marketing_consent and email_marketing, where opted_in, go back to unknown with the source stop, and a contact.consent_changed entry with the purpose named says so for each (00297''s trigger then empties marketing_channels). A no to offers and an unsubscribe are left as they are. Whichever door recorded the stop: ingest_inbound, stop_all_messages, set_contact_consent or the carrier''s report. A failure warns and never refuses the stop.';
 
 
 --

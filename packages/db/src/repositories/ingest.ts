@@ -65,7 +65,7 @@ export interface IngestResult {
  * They have said stop, and it stands: a yes to offers that arrives now is not recorded (stoppedNow, read from the
  * ingest's own answer, which is the row after this message was applied). The way back in from a STOP is START, never
  * YES OFFERS (one word opening both programs is what the carriers refuse, 30913), and a yes stored under a stop would
- * be a yes nobody confirmed and no later stop could end (00322 ends a yes when the stop is RECORDED, and a second STOP
+ * be a yes nobody confirmed and no later stop could end (00323 ends a yes when the stop is RECORDED, and a second STOP
  * from a person already stopped records nothing). After START, the confirmation on WhatsApp says how to get offers.
  */
 export function stoppedNow(r: Pick<IngestResult, "consent" | "dnc"> | null | undefined): boolean {

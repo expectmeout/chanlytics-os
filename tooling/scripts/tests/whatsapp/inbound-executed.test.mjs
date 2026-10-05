@@ -513,7 +513,7 @@ test("YES OFFERS is not the way back in from a STOP: an opted-out person gets no
 });
 
 test("a START does not bring back a yes to offers a STOP ended: WhatsApp says how to get them again, a text says the filed words alone", async () => {
-  // A STOP ends the yes to offers (00322), and a START is a yes to messages about their visit and nothing more. The
+  // A STOP ends the yes to offers (00323), and a START is a yes to messages about their visit and nothing more. The
   // person is told once, after the filed words, on WhatsApp alone: the texting line's confirmation is the campaign's
   // filed opt-in message word for word, and offers are never offered there (30896).
   const filed = optInConfirmation("Harbor Nails", "conversational");

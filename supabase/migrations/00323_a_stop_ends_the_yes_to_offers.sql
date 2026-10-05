@@ -1,4 +1,4 @@
--- 00322 · A stop ends the yes to offers.
+-- 00323 · A stop ends the yes to offers.
 --
 -- A person's yes to offers (00095) outlived their STOP. The STOP held every message back through do-not-contact, and
 -- the yes to offers stayed on the row: a START, which is a yes to messages about their own visit and nothing more,
@@ -63,7 +63,7 @@ end $$;
 revoke execute on function public.contact_stop_ends_offers_yes() from public, anon, authenticated;
 grant execute on function public.contact_stop_ends_offers_yes() to service_role;
 comment on function public.contact_stop_ends_offers_yes() is
-  'After a person''s consent becomes opted_out while an answer about offers is a yes (00322): marketing_consent and email_marketing, where opted_in, go back to unknown with the source stop, and a contact.consent_changed entry with the purpose named says so for each (00297''s trigger then empties marketing_channels). A no to offers and an unsubscribe are left as they are. Whichever door recorded the stop: ingest_inbound, stop_all_messages, set_contact_consent or the carrier''s report. A failure warns and never refuses the stop.';
+  'After a person''s consent becomes opted_out while an answer about offers is a yes (00323): marketing_consent and email_marketing, where opted_in, go back to unknown with the source stop, and a contact.consent_changed entry with the purpose named says so for each (00297''s trigger then empties marketing_channels). A no to offers and an unsubscribe are left as they are. Whichever door recorded the stop: ingest_inbound, stop_all_messages, set_contact_consent or the carrier''s report. A failure warns and never refuses the stop.';
 
 drop trigger if exists contacts_stop_ends_offers_yes on public.contacts;
 create trigger contacts_stop_ends_offers_yes
@@ -89,7 +89,7 @@ with ended as (
 insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
 select e.tenant_id, 'contact.consent_changed', 'contact', 'contact', e.id,
        jsonb_build_object('purpose', 'marketing', 'consent', 'unknown', 'previous', 'opted_in',
-                          'source', 'stop', 'stopped_by', e.consent_source, 'via', 'migration_00322')
+                          'source', 'stop', 'stopped_by', e.consent_source, 'via', 'migration_00323')
   from ended e;
 
 with ended as (
@@ -106,5 +106,5 @@ insert into public.events (tenant_id, kind, category, subject_type, subject_id, 
 select e.tenant_id, 'contact.consent_changed', 'contact', 'contact', e.id,
        jsonb_build_object('purpose', 'email_marketing', 'consent', 'unknown', 'previous', 'opted_in',
                           'source', 'stop', 'stopped_by', e.consent_source, 'channel', 'email',
-                          'via', 'migration_00322')
+                          'via', 'migration_00323')
   from ended e;

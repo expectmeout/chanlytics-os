@@ -141,7 +141,7 @@ test("the words say what was answered and how we know, for every kind of change"
     consentChangeWords(change({ purpose: "marketing", consent: "unknown", source: CONSENT_RESET_SOURCE })).text,
     "Offers: back to not asked",
   );
-  // The entry the database writes when a stop ends a yes to offers (00322): what happened and what it takes to undo,
+  // The entry the database writes when a stop ends a yes to offers (00323): what happened and what it takes to undo,
   // never "reset by staff" (nobody on the team did it) and never the bare source.
   assert.deepEqual(
     consentChangeWords(

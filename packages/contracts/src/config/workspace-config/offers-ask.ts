@@ -84,7 +84,7 @@ export function offersFacts(
 }
 
 /**
- * What a START's confirmation adds for a person whose yes to offers ended with their STOP (00322), or null.
+ * What a START's confirmation adds for a person whose yes to offers ended with their STOP (00323), or null.
  *
  * A START is a yes to messages about their own visit and nothing more, so a person who had offers before they stopped
  * would otherwise wait for news that no longer comes. The confirmation says so, with the phrase that turns offers

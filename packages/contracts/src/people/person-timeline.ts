@@ -103,7 +103,7 @@ function howKnown(c: ConsentChange): string {
  * ones the page has, so an owner reads "how do we know" without a database.
  */
 export function consentChangeWords(c: ConsentChange): { who: string; text: string; sub?: string } {
-  // A stop to every message ended a yes to offers (00322): the database's own entry, beside the stop's. Either yes:
+  // A stop to every message ended a yes to offers (00323): the database's own entry, beside the stop's. Either yes:
   // the one for offers, or email's own.
   if (c.source === STOP_ENDED_OFFERS_SOURCE && c.purpose !== "conversational")
     return {

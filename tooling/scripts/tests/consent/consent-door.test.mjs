@@ -85,7 +85,7 @@ test("sources: four a person can pick, one reset that is never offered, words fo
   assert.equal(CARRIER_CONSENT_SOURCE, "carrier");
   assert.ok(!CONSENT_SOURCES.some((s) => s.id === CARRIER_CONSENT_SOURCE), "never offered to a member");
   assert.equal(consentSourceLabel(CARRIER_CONSENT_SOURCE), "Reported by the carrier");
-  // A yes to offers a stop ended (00322): the database's own source, never a member's to pick, and the person's row
+  // A yes to offers a stop ended (00323): the database's own source, never a member's to pick, and the person's row
   // says what happened in place of "never asked", which would be untrue of someone who said yes once.
   assert.equal(STOP_ENDED_OFFERS_SOURCE, "stop");
   assert.ok(!CONSENT_SOURCES.some((s) => s.id === STOP_ENDED_OFFERS_SOURCE), "never offered to a member");
