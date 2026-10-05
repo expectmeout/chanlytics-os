@@ -1820,15 +1820,21 @@ test("the peek's reach and history, once the person is read: the person page's o
     history: [],
   });
   // What a reply may be, one sentence for the person page and the peek.
-  assert.equal(repliesWords("Email", null), "Any time, by email");
-  assert.equal(repliesWords("Text", null), "Any time, by text");
+  assert.equal(repliesWords("Email", null, { optedOut: false, who: "Wes" }), "Any time, by email");
+  assert.equal(repliesWords("Text", null, { optedOut: false, who: "Wes" }), "Any time, by text");
   assert.equal(
-    repliesWords("WhatsApp", { open: false, hoursLeft: 0 }),
+    repliesWords("WhatsApp", { open: false, hoursLeft: 0 }, { optedOut: false, who: "Wes" }),
     "Approved messages only, until they write again",
   );
-  assert.equal(repliesWords("WhatsApp", { open: true, hoursLeft: 1 }), "Any message, for 1 more hour");
-  assert.equal(repliesWords("WhatsApp", { open: true, hoursLeft: 0 }), "Any message, for less than an hour");
-  assert.equal(repliesWords(null, null), null);
+  assert.equal(
+    repliesWords("WhatsApp", { open: true, hoursLeft: 1 }, { optedOut: false, who: "Wes" }),
+    "Any message, for 1 more hour",
+  );
+  assert.equal(
+    repliesWords("WhatsApp", { open: true, hoursLeft: 0 }, { optedOut: false, who: "Wes" }),
+    "Any message, for less than an hour",
+  );
+  assert.equal(repliesWords(null, null, { optedOut: false, who: "Wes" }), null);
   // A board column holds twenty, then says how many more.
   assert.deepEqual([PIPELINE_BOARD_CAP, pipelineBoardMore(4)], [20, "Show 4 more"]);
 });

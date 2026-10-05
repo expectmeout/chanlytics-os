@@ -32,6 +32,16 @@ export function messageStatusLabel(status: string | undefined): string | undefin
   }
 }
 
+/**
+ * A message that is part of the conversation: words said on a wire. A call's note and a system note are not --
+ * the first is the call's own row, the second a line the platform wrote on the thread, which read as "by WhatsApp
+ * Receptionist · Delivered" and flipped the row's pill until the 2 Oct 2026 audit. The thread's "last word", its
+ * channels and Conversations' preview all ask this one question.
+ */
+export function isChatMessage(m: Pick<MessageDto, "type">): boolean {
+  return m.type !== "call_summary" && m.type !== "note";
+}
+
 /** Did the customer actually receive these words? */
 export function reachedCustomer(status: string | undefined): boolean {
   return status !== "queued" && status !== "failed" && status !== "canceled";

@@ -67,7 +67,7 @@ test("the gate: Veto sends a caller's link, Never and Ask hold it", () => {
 test("the reason exists everywhere a reason is read", () => {
   assert.ok(ESCALATION_REASONS.includes("person_hold"));
   assert.equal(ESCALATION_REASON_LABELS.person_hold, "You handle this person — the receptionist stays out");
-  assert.equal(reasonShort("person_hold"), "held for you");
+  assert.equal(reasonShort("person_hold"), "you handle this person");
   // The workspace hold no longer masquerades as a pricing question either.
   assert.equal(ESCALATION_REASON_LABELS.policy_block, "Held by your reply setting — nothing was sent");
   assert.equal(reasonShort("policy_block"), "held by your reply setting");

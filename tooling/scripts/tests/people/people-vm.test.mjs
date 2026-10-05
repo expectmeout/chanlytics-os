@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import {
   personStateFor,
   toPersonRowVM,
+  repliesWords,
   toPersonVM,
   peopleAggregates,
   recencyCells,
@@ -233,9 +234,13 @@ test("last contact says who and how long ago, and the newer of message vs call w
     ).lastContact.label,
     "You replied · 3d ago",
   );
-  const called = toPersonRowVM(row({ last_call_at: iso(H) }), ZONE, NOW).lastContact;
+  const called = toPersonRowVM(row({ last_call_at: iso(H), last_inbound_call_at: iso(H) }), ZONE, NOW).lastContact;
   assert.equal(called.kind, "call");
   assert.equal(called.label, "Phoned · 1h ago");
+  // A call the receptionist placed is the last contact too, but nobody phoned us (the 2 Oct 2026 audit).
+  const weCalled = toPersonRowVM(row({ last_call_at: iso(H), last_inbound_call_at: null }), ZONE, NOW).lastContact;
+  assert.equal(weCalled.label, "We called · 1h ago");
+  assert.equal(weCalled.who, "system");
   assert.match(
     toPersonRowVM(row({ last_message_at: iso(20 * D) }), ZONE, NOW).lastContact.label,
     /^They wrote · [A-Z][a-z]{2} \d{1,2}$/,
@@ -1017,4 +1022,18 @@ test("the proposal's send is a deal's: a workspace whose customers book is never
   assert.ok(!acts(false).includes("proposal"), "REGRESSION: a salon's More menu offered to send a proposal");
   assert.ok(!acts(undefined).includes("proposal"), "an older read says nothing about deals: off");
   assert.equal(acts(false)[0], "booking", "the booking link's send stays where it was");
+});
+
+/* ---- the person page is honest about a stop, the reason, the team and the attempts (the 2 Oct 2026 audit) ---- */
+test("Replies says nothing can be sent to a person who asked to stop, in the composer's own words", () => {
+  assert.equal(
+    repliesWords("Text", null, { optedOut: true, who: "Ben Example" }),
+    "Ben Example asked to stop receiving messages. Nothing can be sent — they can text START to opt back in.",
+  );
+  assert.equal(repliesWords("Text", null, { optedOut: false, who: "Ben Example" }), "Any time, by text");
+  assert.equal(repliesWords("Email", null, { optedOut: false, who: "x" }), "Any time, by email");
+  assert.equal(
+    repliesWords("WhatsApp", { open: true, hoursLeft: 5 }, { optedOut: false, who: "x" }),
+    "Any message, for 5 more hours",
+  );
 });

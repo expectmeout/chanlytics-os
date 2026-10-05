@@ -103,10 +103,15 @@ export function proposalAction(
  * of time; a text or an email goes any time. It said "Reply window · Closed · template only", and before it was
  * channel-aware it said so to a person who had only ever emailed. Null with no wire a reply goes out on.
  */
+import { optOutWords } from "../consent/consent";
+
 export function repliesWords(
   via: "WhatsApp" | "Text" | "Email" | null,
   window: { open: boolean; hoursLeft: number } | null,
+  /** Whether they asked to stop: required, because a reader that forgets it says "Any time" over a STOP. */
+  stop: { optedOut: boolean; who: string },
 ): string | null {
+  if (stop.optedOut) return optOutWords(stop.who);
   if (via === "Email") return "Any time, by email";
   if (via === "Text") return "Any time, by text";
   if (via !== "WhatsApp" || !window) return null;

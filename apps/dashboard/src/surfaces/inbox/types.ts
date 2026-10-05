@@ -7,7 +7,7 @@
  * other's fields as absent, so a field either draws is read off the thread as it always was, and the page narrows by
  * `t.real` where it must.
  */
-import type { CallVM, InboxThreadVM, MediaVM, ReplyWhyVM } from "@chanlytics/contracts";
+import type { CallVM, InboxThreadVM, MediaVM, ReplyWhyVM, Standing } from "@chanlytics/contracts";
 
 /** The states a seeded thread is in; a real thread is only ever escalated, snoozed or done. */
 export type ThreadState = "needs" | "watching" | "drafts" | "escalated" | "snoozed" | "done";
@@ -313,6 +313,8 @@ export interface ConversationRow {
   agent: { glyph: string; name: string };
   at: string;
   outcome: string;
+  /** Who has the thread, by the one rule (contracts standingOf): the pill reads it before `outcome`. A call's row has none. */
+  standing?: Standing;
   snippet: string;
   threadId?: string;
   duration?: string;

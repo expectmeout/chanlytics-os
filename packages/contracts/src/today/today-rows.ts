@@ -6,7 +6,7 @@
 import { standingOf } from "../conversations/standing";
 import { abandonedCall, DISCONNECTION_LABELS, type CallDto } from "../conversations/call-dto";
 import { toCallVM, spokenDuration } from "../conversations/call-vm";
-import { ESCALATION_REASON_LABELS } from "../conversations/escalations";
+import { reasonLabelOf } from "../conversations/escalations";
 import { messageText } from "../conversations/message-words";
 import { threadChannelWords } from "../conversations/thread-channel";
 import { formatWaited } from "../conversations/thread-clock";
@@ -28,7 +28,7 @@ function todayNeedsRows(f: TodayFacts): TodayNeedsRowVM[] {
     conversationId: r.e.conversation_id,
     escalationId: r.e.id,
     who: r.who,
-    reason: ESCALATION_REASON_LABELS[r.e.reason] ?? r.e.reason,
+    reason: reasonLabelOf(r.e.reason),
     waited: formatWaited(r.waitedMs),
     warn: r.warn,
     // The customer's words; for a call-back with none, the to-do the phone receptionist left.

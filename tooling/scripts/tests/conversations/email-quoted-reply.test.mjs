@@ -162,13 +162,13 @@ test("a Conversations row previews and is searched by what they wrote, not the c
       },
     ],
   };
-  const row = toConversationVM(dto, ZONE, NOW);
+  const row = toConversationVM(dto, null, ZONE, NOW);
   assert.equal(row.snippet, "Got it, thanks!", "REGRESSION: the list previewed the quoted chain");
   assert.equal(row.summary.headline, "Got it, thanks!");
   assert.equal(row.messages[0].text, "Got it, thanks!", "search reads their words, not ours quoted back");
 
   // WhatsApp keeps every character, as it does in the thread.
-  const wa = toConversationVM({ ...dto, messages: [{ ...dto.messages[0], channel: "whatsapp" }] }, ZONE, NOW);
+  const wa = toConversationVM({ ...dto, messages: [{ ...dto.messages[0], channel: "whatsapp" }] }, null, ZONE, NOW);
   assert.equal(wa.snippet, body.slice(0, 110));
 });
 

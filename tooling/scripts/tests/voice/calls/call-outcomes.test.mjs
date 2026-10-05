@@ -9,6 +9,8 @@ import assert from "node:assert/strict";
 import {
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
+  callAttemptWords,
+  reasonShort,
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,
   POLICY_COVERS,
@@ -411,14 +413,73 @@ test("a caller who needs a call back lands on Needs you: the reason exists every
   const enums = readCode("packages/contracts/src/shared/enums.ts");
   assert.ok(enums.includes('"callback",'), "the reason is declared");
   assert.ok(readRaw("supabase/migrations/00062_callback_reason.sql").includes("'callback'"), "and the CHECK admits it");
-  assert.ok(
-    readCode("packages/contracts/src/people/person-row-facts.ts").includes('callback: "needs a call back",'),
-    "the strip's words",
-  );
+  assert.equal(reasonShort("callback"), "needs a call back", "the strip's words, from the one vocabulary");
   const vm = readCode("packages/contracts/src/conversations/escalations.ts");
   assert.ok(
     vm.includes('callback: "Needs a call back — the phone receptionist could not finish it",') &&
       vm.includes('callback: "They phoned and the receptionist couldn\'t finish it.",'),
     "the Inbox's label and the operator's first sentence",
   );
+});
+
+/* ---- a dial's direction, a voicemail and a fault each have their own word (the 2 Oct 2026 audit) ---- */
+const attempt = (over = {}) => ({
+  id: "k9",
+  retell_call_id: "c9",
+  direction: "inbound",
+  call_type: "phone_call",
+  status: "ended",
+  from_e164: "+13055550134",
+  from_raw: null,
+  to_e164: "+13055550199",
+  started_at: iso(2 * H),
+  ended_at: iso(2 * H - 30_000),
+  duration_ms: 30_000,
+  disconnection_reason: "user_hangup",
+  sentiment: "Neutral",
+  call_successful: true,
+  in_voicemail: false,
+  summary: "Asked about hours.",
+  transcript_object: null,
+  recording: null,
+  conversation_id: null,
+  contact_id: "c1",
+  message_id: null,
+  contact: { display_name: "Zed", wa_profile_name: null, phone_e164: "+13055550134" },
+  ...over,
+});
+
+test("a dial WE placed that never connected is not a missed call, and the words say which way it went", () => {
+  const out = toCallVM(
+    attempt({
+      direction: "outbound",
+      status: "not_connected",
+      duration_ms: 0,
+      from_e164: "+13055550199",
+      to_e164: "+13055550134",
+    }),
+    ZONE,
+    NOW,
+  );
+  assert.equal(out.outcome, "missed");
+  assert.equal(out.missed, true);
+  assert.equal(out.direction, "outbound");
+  assert.equal(callAttemptWords("outbound"), "Call didn't connect");
+  assert.equal(callAttemptWords("inbound"), "Missed call");
+});
+
+test("a voicemail and an errored call have their own outcome, never 'handled'", () => {
+  assert.equal(
+    toCallVM(
+      attempt({ in_voicemail: true, outcome: "voicemail", disconnection_reason: "voicemail_reached" }),
+      ZONE,
+      NOW,
+    ).outcome,
+    "voicemail",
+  );
+  assert.equal(
+    toCallVM(attempt({ status: "error", duration_ms: 0, disconnection_reason: "dial_failed" }), ZONE, NOW).outcome,
+    "failed",
+  );
+  assert.equal(toCallVM(attempt(), ZONE, NOW).outcome, "handled");
 });

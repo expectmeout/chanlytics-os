@@ -261,7 +261,9 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     who,
     whoShort,
     initials: withheld ? "–" : initialsOf(who),
-    number: withheld ? null : (phone ?? dto.from_raw),
+    // The CUSTOMER's number: on a call the receptionist placed, that is the one it dialled. The bell's missed-call
+    // row named the business's own line under an outbound dial that never connected (the 2 Oct 2026 audit).
+    number: withheld ? null : dto.direction === "outbound" ? formatPhoneDisplay(dto.to_e164) : (phone ?? dto.from_raw),
     from: withheld ? null : dto.from_e164,
     direction: dto.direction,
     status: dto.status,

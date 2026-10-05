@@ -5,7 +5,7 @@
  * The composer is a function per box, called by `Composer` and not drawn as a component of its own, so the tree is the
  * tree it was; its hooks stay in `Composer`, in the order they were, and each effect's body is a function beside it.
  */
-import { inboxTemplates } from "@chanlytics/contracts";
+import { inboxTemplates, optOutWords } from "@chanlytics/contracts";
 import { useEffect, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -402,9 +402,7 @@ function optedOutComposer(thread: Thread) {
     <div className="ix-composer">
       <div className="ix-composer-banner">
         <Icon name="shield" size={11} />
-        <span>
-          {thread.who} asked to stop receiving messages. Nothing can be sent — they can text START to opt back in.
-        </span>
+        <span>{optOutWords(thread.who)}</span>
       </div>
     </div>
   );

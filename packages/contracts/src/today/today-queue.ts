@@ -3,7 +3,7 @@
  * ear, a search waiting on its owner) in one row grammar, longest wait first. The facts are today-facts.ts's; the
  * calls worth an ear are today-rows.ts's.
  */
-import { ESCALATION_REASON_LABELS } from "../conversations/escalations";
+import { reasonLabelOf } from "../conversations/escalations";
 import { messageWords, clipAtWord } from "../conversations/message-words";
 import { threadChannelWords } from "../conversations/thread-channel";
 import { formatWaited } from "../conversations/thread-clock";
@@ -65,7 +65,7 @@ function handoffRow(r: EscalationRecord): TodayQueueRowVM {
     initials: initialsOf(r.who),
     channel: r.conv ? threadChannelWords(r.conv.messages) : "WhatsApp",
     when: `waited ${formatWaited(r.waitedMs)}`,
-    sentence: r.quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason),
+    sentence: r.quote || reasonLabelOf(e.reason),
     quoted: !!r.quote,
     status: [
       "Escalated",

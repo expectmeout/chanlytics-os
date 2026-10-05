@@ -219,7 +219,7 @@ test("the Inbox and the viewer carry the why; a held draft says why it waits", (
   assert.equal(thread.veto.why.heldFor, "low_confidence");
   assert.equal(thread.veto.why.confidence, 41);
   assert.equal(thread.veto.why.reason, "Not sure the Saturday hours are current.");
-  const conv = toConversationVM(dto, ZONE, now);
+  const conv = toConversationVM(dto, null, ZONE, now);
   assert.equal(conv.messages.find((m) => m.text === "hi" && m.from === "agent").why.summary, "Hours · 88% sure");
 });
 

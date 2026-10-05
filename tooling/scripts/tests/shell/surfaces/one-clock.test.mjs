@@ -188,6 +188,7 @@ test("REGRESSION (D5): the Inbox and Conversations print a message's time by the
   assert.equal(snoozed.wake, "6:00 PM", "the wake: 09:00 UTC is 6 PM in Tokyo");
   const earlier = toConversationVM(
     conv([msg({ created_at: "2026-09-06T14:00:00Z" }), msg({ id: "m2", created_at: WROTE })]),
+    null,
     TOKYO,
     NOW,
   );

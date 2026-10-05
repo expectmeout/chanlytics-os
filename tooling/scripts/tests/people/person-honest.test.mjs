@@ -979,9 +979,11 @@ test("a long record folds past twenty rows, and a fold of three is not worth a p
 test("Right now says the state once: the pill wears the standing's word, the sentence gives the reason, and the receptionist is named once", async () => {
   const vm = toPersonVM(detail(), ZONE, new Date(NOW));
   assert.equal(vm.rightNow.tone, "escalated");
+  // The operator's first sentence for the reason (contracts ESCALATION_SUMMARIES), after when it began: "Paused until
+  // someone answers" was said for every reason, over a person who had asked to stop (the 2 Oct 2026 audit).
   assert.match(
     vm.rightNow.detail,
-    /^Asked for a person · since .*\. Paused until someone answers\.$/,
+    /^Since .*\. They asked for a person\. A holding message went out — they're waiting on you\.$/,
     vm.rightNow.detail,
   );
   const draw = await profile(vm);

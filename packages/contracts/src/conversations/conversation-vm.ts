@@ -13,8 +13,10 @@ import { agentFor, writtenChannelOf, threadChannelOf } from "./thread-channel";
 import { contactName, isIdentifierName, initialsOf } from "./thread-contact";
 import { shortTime, bubbleTime } from "./thread-clock";
 import { mediaVM, type MediaVM } from "./message-media";
-import { messageStatusLabel, reachedCustomer, messageWords } from "./message-words";
+import { messageStatusLabel, reachedCustomer, messageWords, isChatMessage } from "./message-words";
 import { messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "./message-author";
+import { standingOf, type Standing } from "./standing";
+import type { EscalationDto } from "./escalations";
 
 /* ---- the mockup's conversation shape ---- */
 
@@ -55,6 +57,13 @@ export interface ConversationVM {
   channel: "whatsapp" | "sms" | "email" | "phone";
   agent: { glyph: string; name: string };
   at: string;
+  /**
+   * Who has the thread, by the one rule (standingOf) the Inbox, People and Today read: needs_you, yours, theirs,
+   * snoozed or quiet. The pill reads this first. The row used to decide "escalated" from the state column and a
+   * pause alone, so a thread with an open escalation read "Receptionist replied" here and "Needs you" in the Inbox,
+   * and one you had taken over read the reverse (the 2 Oct 2026 audit).
+   */
+  standing: Standing;
   outcome: "escalated" | "handled" | "open";
   snippet: string;
   summary: { headline: string; bullets: string[] };
@@ -69,7 +78,13 @@ export interface ConversationVM {
   hasChat: boolean;
 }
 
-export function toConversationVM(dto: ConversationDto, tz: string, now = new Date()): ConversationVM {
+export function toConversationVM(
+  dto: ConversationDto,
+  /** The thread's open escalation, when it has one: required, because a row that is never told reads as quiet. */
+  escalation: EscalationDto | null,
+  tz: string,
+  now = new Date(),
+): ConversationVM {
   const who = contactName(dto);
   // An identifier is not split: "+1" is nobody's first name. The viewer
   // read "Latest from +1" for a person known only by number.
@@ -109,7 +124,7 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
   // and, because a call note is direction:"inbound", it also flipped the pill
   // to "open" ("they spoke last, you owe a reply") for a customer who had
   // merely phoned and been handled.
-  const chat = dto.messages.filter((m) => m.type !== "call_summary");
+  const chat = dto.messages.filter(isChatMessage);
   const callNotes = dto.messages.length - chat.length;
   // The last thing that actually happened between them: a queued or cancelled
   // draft is not the thread's last word, and previewing it read "handled".
@@ -117,9 +132,21 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
   // Who had that last word, when it was ours: the receptionist, the team, or a run. The row said
   // "Answered by the receptionist" whoever answered, and when the customer had spoken last.
   const lastAuthor = last && last.direction === "outbound" ? messageAuthor(last) : null;
-  const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
-  const needsHuman = dto.state === "needs_human" || paused;
-  // Honest pills: escalated when a human has it; open while the last word is
+  // ONE rule for who has the thread (standing.ts), the Inbox's own: flagged is an open escalation, the needs_human
+  // state or a live pause, whoever holds it. The row read only the state and the pause, so an open escalation on an
+  // open thread was invisible here.
+  const v = standingOf(
+    {
+      state: dto.state,
+      paused_until: dto.paused_until,
+      assignee_user_id: dto.assignee_user_id,
+      assignee_is_me: dto.assignee_is_me,
+      open_escalation: !!escalation,
+    },
+    now.getTime(),
+  );
+  const needsHuman = v.flagged;
+  // Honest pills: escalated when a person is needed or has it; open while the last word is
   // the customer's; handled only when the thread is actually answered/closed.
   const outcome: ConversationVM["outcome"] = needsHuman
     ? "escalated"
@@ -143,6 +170,7 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
     // last_message_at ignored call notes, so a row read "3:22 AM" beside a
     // preview imported at 2:15 PM.
     at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
+    standing: v.standing,
     outcome,
     snippet: last ? messageWords(last).slice(0, 110) : "",
     hasChat: chat.length > 0,

@@ -400,3 +400,27 @@ test("the demo keeps its cards over its story, with no status row", () => {
     "with its flag",
   );
 });
+
+test("a snoozed thread's band names the request still standing in its own words, not 'asked for a person' for every reason", () => {
+  const snoozed = chat({
+    state: "snoozed",
+    snooze_until: later,
+    messages: [wrote("m1", "Any slots Friday?", 400), ours("m2", "Friday at 3.", 399, "failed")],
+  });
+  const failed = {
+    id: "e2",
+    reason: "send_failed",
+    details: "WhatsApp refused it",
+    state: "open",
+    created_at: ago(398),
+  };
+  const pane = paneOf(vmOf(snoozed, failed));
+  const band = find(pane, byTestId("ix-snoozed"));
+  assert.ok(band, "the snoozed band is drawn");
+  const said = textOf(band);
+  assert.match(said, /Reply failed to deliver — that's still waiting for you\./);
+  assert.doesNotMatch(said, /asked for a person/i);
+  // With nothing open, nothing is said to be waiting.
+  const quiet = textOf(find(paneOf(vmOf(snoozed, null)), byTestId("ix-snoozed")));
+  assert.doesNotMatch(quiet, /still waiting for you/);
+});
