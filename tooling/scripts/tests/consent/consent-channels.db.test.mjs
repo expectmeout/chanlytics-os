@@ -23,11 +23,10 @@ import {
   WHATSAPP_CONSENT_SOURCE,
 } from "../../../../packages/contracts/src/people/person-consent.ts";
 import {
-  ingestInbound,
   offersAnswerOf,
-  recordCarrierOptOut,
   recordWhatsAppOffersStop,
-} from "../../../../packages/db/src/repositories/ingest.ts";
+} from "../../../../packages/db/src/repositories/campaigns/offers-answer.ts";
+import { ingestInbound, recordCarrierOptOut } from "../../../../packages/db/src/repositories/ingest.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const MIGRATION = path.join(ROOT, "supabase", "migrations", "00297_a_yes_covers_the_channels_it_was_given_for.sql");

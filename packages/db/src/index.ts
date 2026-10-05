@@ -21,8 +21,6 @@ export type { ServiceClientConfig } from "./service-client";
 export {
   ingestInbound,
   recordCarrierOptOut,
-  recordWhatsAppOffersStop,
-  offersAnswerOf,
   markProcessed,
   stampHandled,
   recordOutbound,
@@ -67,6 +65,7 @@ export {
   offersEmailReach,
 } from "./repositories/campaigns/email-offers";
 export type { Unsubscribed } from "./repositories/campaigns/email-offers";
+export { offersAnswerOf, recordWhatsAppOffersStop } from "./repositories/campaigns/offers-answer";
 export {
   sendingDomainsOf,
   sendingDomainOf,
