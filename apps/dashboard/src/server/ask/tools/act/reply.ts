@@ -53,14 +53,18 @@ async function draftReply(
   } as Parameters<typeof contactName>[0]);
   // The one consent rule (mayMessageFor): a person who texted STOP (consent opted_out) is refused as a do-not-contact is,
   // here at the draft, not at the commit (defect 32). A reply answers them, so it is conversational.
+  // The channel it will go out on: where they last wrote (the reply route's own rule).
+  const channel = await replyChannelOf(t.ctx, conv);
   const may = mayMessageFor(
     { consent: conv.contacts?.consent ?? null, dnc: conv.contacts?.dnc ?? null },
     "conversational",
+    // A reply in the thread they wrote in: theirs (contracts MessageAbout).
+    { channel, about: "theirs" },
   );
   if (!may.ok) return refuse(`${who} opted out; nothing can be sent to them`);
   // The window the reply route will enforce, on the channel it will send on:
   // a texting thread has none, and this card used to call one closed.
-  const win = replyWindow(await replyChannelOf(t.ctx, conv), conv.last_wa_inbound_at, t.now);
+  const win = replyWindow(channel, conv.last_wa_inbound_at, t.now);
   // Layer two, said on the card: a price or money (a refund, a discount, a payment term) in a reply is the person's to
   // send knowingly, never the receptionist's to promise (the charter).
   const price = violatesNoPrices(text) || namesMoney(text);

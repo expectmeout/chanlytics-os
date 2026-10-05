@@ -197,7 +197,7 @@ async function collectHeld(
         plan,
         toJudge.map((t) => factsOf(t.ref, t.prep.clean)),
         opIdFor(run.id, from, 0),
-        round.tenant_id,
+        round,
       );
       if (judged.refused && judged.why) judgeRefused = judged.why;
     }

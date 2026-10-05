@@ -300,7 +300,7 @@ test("a surface still being read is not a surface that failed", () => {
   // On a cold boot the settings surface lands before Setup (the boot queue ranks the tab's own
   // surface first, and setupOverride is 14th of 16), so a healthy workspace read "Couldn't read the
   // connections" with a Retry until it arrived. The house says it the other way round
-  // (pages/setup.jsx, pages/settings.jsx): null is a failure, undefined is still on its way.
+  // (surfaces/setup, pages/settings.jsx): null is a failure, undefined is still on its way.
   for (const global of ["__SETUP", "__POLICIES", "__TEMPLATES_ALL"]) {
     drawTab({ profile: marisa });
     const was = W[global];

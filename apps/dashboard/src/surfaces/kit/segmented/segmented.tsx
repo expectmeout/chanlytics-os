@@ -23,8 +23,18 @@ import type { Ref } from "react";
 import { useId } from "react";
 import { cx } from "../variants";
 
-/** An option: the value the page keeps, its words, and the sentence of what choosing it means, or none. */
-export type SegmentedOption<V extends string> = { value: V; label: string; hint?: string };
+/**
+ * An option: the value the page keeps, its words, and the sentence of what choosing it means, or none; the id a test
+ * finds it by (a page's tests and the browser's specs), on the option's button; and a line on hover (`title`) where
+ * the words alone do not say what choosing it does and a sentence under each would crowd the track.
+ */
+export type SegmentedOption<V extends string> = {
+  value: V;
+  label: string;
+  hint?: string;
+  testid?: string;
+  title?: string;
+};
 
 /** What names the group: its own words, or the words on the page that already say it. */
 type SegmentedName = { label: string; labelledBy?: undefined } | { labelledBy: string; label?: undefined };
@@ -70,6 +80,8 @@ export function Segmented<V extends string>(props: SegmentedProps<V>) {
             className="rec-seg-btn"
             nativeButton
             render={<button type="button" />}
+            data-testid={option.testid}
+            title={option.title}
             aria-labelledby={ids?.label}
             aria-describedby={ids?.hint}
           >

@@ -12,5 +12,13 @@ export async function tenantFacts(
 ): Promise<{ name: string; timezone: string }> {
   const { data, error } = await supabase.from("tenants").select("name, timezone").eq("id", tenantId).maybeSingle();
   if (error) throw new Error(error.message);
-  return { name: data?.name ?? "Workspace", timezone: data?.timezone ?? "America/New_York" };
+  return tenantFactsOf(data);
+}
+
+/** The two facts as a tenant's row says them, wherever the row was read: by itself, or with the membership. */
+export function tenantFactsOf(row: { name?: string | null; timezone?: string | null } | null | undefined): {
+  name: string;
+  timezone: string;
+} {
+  return { name: row?.name ?? "Workspace", timezone: row?.timezone ?? "America/New_York" };
 }

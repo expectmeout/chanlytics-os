@@ -2,6 +2,7 @@
 export {
   isOptedOutContact,
   mayMessageFor,
+  relationshipOnRecord,
   consentChangeOf,
   purposeOfTemplate,
   purposeOfPlaybook,
@@ -9,12 +10,12 @@ export {
   stopRequestQuestion,
   DELIVERY_REFUSALS,
   PURPOSE_REFUSALS,
-  OFFERS_BY_WHATSAPP_NOTE,
 } from "./consent";
 export type {
   ConsentBearing,
   SendPurpose,
   AskedPurpose,
+  MessageAbout,
   PurposeBearing,
   PurposeRefusal,
   DeliveryRefusal,
@@ -45,3 +46,16 @@ export type {
   ConsentFormVM,
   DeskSignVM,
 } from "./consent-page";
+export {
+  CONSENT_CHANNELS,
+  CONSENT_CHANNEL_WORDS,
+  channelsOfYes,
+  yesCovers,
+  coveredChannels,
+  channelsWords,
+} from "./consent-channels";
+export type { ConsentChannel } from "./consent-channels";
+export { yesAsked, consentGuardWords, consentRuleWords } from "./consent-asks";
+export type { YesAsk } from "./consent-asks";
+export { offerUnsubscribeWords, STOP_ALL_REFUSALS } from "./offers-unsubscribe";
+export type { OfferUnsubscribeView, OfferPageWords, OfferPageButton } from "./offers-unsubscribe";

@@ -196,7 +196,7 @@ export function RptReachOuts({ R }: { R: ReportsSurface | null }) {
           glyph="wave"
           title="Nothing written"
           body={ro.lines.empty}
-          action={{ label: "Open Playbooks", to: "outbound" }}
+          action={{ label: "Open Campaigns", to: "outbound" }}
           testid="ro-report-empty"
         />
       ) : (

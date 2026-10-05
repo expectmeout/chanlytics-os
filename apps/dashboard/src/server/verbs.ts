@@ -143,7 +143,7 @@ async function loadMessage(ctx: RouteContext, id: string): Promise<VerbMessage> 
 }
 export const messageScope = row((ctx, params) => loadMessage(ctx, String(params.id ?? "")));
 
-interface VerbCall {
+export interface VerbCall {
   id: string;
   tenant_id: string;
   retell_call_id: string;

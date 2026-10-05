@@ -637,6 +637,8 @@ const peopleLoaded = (over = {}) => ({
   consultFirst: false,
   dealPace: null,
   followUp: null,
+  // The workspace's channels as People read them: none read, so counted by WhatsApp alone, as before the channels.
+  channelsReady: null,
   views: {},
   viewsRead: true,
   ...over,
@@ -1374,7 +1376,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     }
   };
   const whole = await reportOf();
-  assert.deepEqual(Object.keys(whole.out), ["report", "booking", "deals"]);
+  assert.deepEqual(Object.keys(whole.out), ["report", "booking", "deals", "profile"]);
   assert.deepEqual(whole.out.booking, { calendar: "none", days: 30, asked: 0, booked: 0 });
   assert.equal(whole.asked.filter((x) => x === "people_list").length, 1, "People read once for the whole report");
   assert.ok(
@@ -1555,8 +1557,15 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
 });
 
 test("the journey from visits: Booked this week and Lapsed, in three groups; each list's next step waits for a recorded yes", async () => {
-  const { toPersonRowVM, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, peopleListAction, GET_YES_ROUTE } =
-    await import("@chanlytics/contracts");
+  const {
+    toPersonRowVM,
+    PEOPLE_LISTS,
+    PEOPLE_LIST_GROUPS,
+    peopleListAction,
+    GET_YES_ROUTE,
+    channelsReady,
+    noChannelWords,
+  } = await import("@chanlytics/contracts");
   const now = new Date(NOW);
   const cal = (v) => ({ timezone: TZ, source: "Google Calendar", state: "ok", next: null, last: null, ...v });
   const soon = {
@@ -1642,8 +1651,12 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   // composer on a promotional send. Counting the conversational answer promised an
   // audience the composer would then refuse -- the same mismatch, one screen
   // earlier. A person who said yes to messages and not to offers is NOT counted.
-  const yes = { ...lapsed, consent: { ...lapsed.consent, state: "opted_in", marketing: "opted_in" } };
-  const talkOnly = { ...lapsed, consent: { ...lapsed.consent, state: "opted_in", marketing: "unknown" } };
+  // Who can be sent what is a fact of the row as it is built (against the workspace's channels: reach-any.ts), so each of
+  // these is built from its answers, not changed after it.
+  const lapsedWith = (over, ready = null) =>
+    toPersonRowVM({ ...ROW, id: "x", visits: cal({ last: old }), ...over }, TZ, now, null, ready);
+  const yes = lapsedWith({ consent: "opted_in", marketing_consent: "opted_in" });
+  const talkOnly = lapsedWith({ consent: "opted_in", marketing_consent: null });
   assert.deepEqual(peopleListAction("lapsed", [lapsed, yes]), {
     text: "1 of 2 on this list said yes to offers — a broadcast reaches them.",
     cta: "Bring them back",
@@ -1670,11 +1683,22 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   assert.equal(peopleListAction("lapsed", []).enabled, false, "an empty list has nothing to fix, so no door");
   // Someone here DID say yes to offers and simply has no number: asking them to "get their yes" would ask for an
   // answer they already gave. The list keeps its own step, waiting, and says what is actually missing.
-  const yesNoNumber = { ...yes, phone: null };
+  const yesNoNumber = lapsedWith({ consent: "opted_in", marketing_consent: "opted_in", phone_e164: null });
   const waiting = peopleListAction("lapsed", [yesNoNumber]);
   assert.equal(waiting.to, "broadcasts/lapsed");
   assert.equal(waiting.enabled, false);
   assert.match(waiting.text, /a recorded yes with a number to send to/);
+  // Someone DID say yes and has a number, and the workspace has no channel to send an offer on now (its WhatsApp number is
+  // not connected: a text carries none): what is missing is the channel, and the step says so (reach-any.ts).
+  const noWhatsApp = channelsReady({
+    whatsapp: null,
+    textLine: { sms_state: "active", reg_mock: false },
+    email: { mailbox: false, domain: false },
+  });
+  const noChannel = peopleListAction("lapsed", [
+    lapsedWith({ consent: "opted_in", marketing_consent: "opted_in" }, noWhatsApp),
+  ]);
+  assert.deepEqual([noChannel.enabled, noChannel.text], [false, noChannelWords("this list", "marketing")]);
   // The two doors that said "Broadcasts" and meant the QR go to the QR.
   assert.equal(peopleListAction("opted_in", [talkOnly]).to, GET_YES_ROUTE);
   assert.equal(peopleListAction("new_week", [talkOnly]).to, GET_YES_ROUTE);
@@ -1686,7 +1710,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   assert.deepEqual(
     peopleListAction("new_week", []),
     {
-      text: "Their yes to offers is the phrase and the QR on Broadcasts.",
+      text: "Their yes to offers is the phrase and the QR under Get their yes in Sent.",
       cta: "Get their yes",
       to: GET_YES_ROUTE,
       enabled: false,
@@ -1802,7 +1826,7 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
   for (const param of ["seg:needs_you", "list:sample-regulars", "state:quiet"])
     assert.equal(peopleTakes(param), true, param);
   assert.equal(peopleTakes("c-1"), true, "a person is the page's too, but not a view of People: it draws their page");
-  assert.equal(peopleTakes("leads:s-1"), false, "Leads stays with the frame");
+  assert.equal(peopleTakes("leads:s-1"), true, "Leads is the page's too: its other scope (decision 0015, step 9)");
   assert.match(textOf(byTestId(routed("/w/studio/people/list:sample-regulars"), "saved-filter")), /Regulars/);
   assert.ok(byTestId(routed("/w/studio/people/seg:needs_you"), "smart-filter"));
   assert.ok(byTestId(routed("/w/studio/people/state:quiet"), "state-filter"));
@@ -1835,7 +1859,7 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
   assert.ok(
     // The pool (audience.ts) is everyone with their appointments; ask-turn.test.mjs counts past a thousand through it.
     ports.includes("people: async (now) => (await poolAt(now)).rows,") &&
-      ports.includes("(pool ??= audiencePool(ctx, tenantId, await zone(), now))"),
+      ports.includes("(pool ??= audiencePool(ctx, tenantId, await zone(), now, "),
     "the enrol path counts what the page counted, every page of it",
   );
 });
@@ -1937,14 +1961,24 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   const bar = byTestId(picking.draw(), "bulk-bar");
   for (const id of ["bulk-export", "bulk-clear"]) assert.ok(byTestId(bar, id), id);
   // Add to a list, or make one: the box that takes the new list's name.
-  const menuOf = (label) => find(bar, (n) => n.props?.label === label && Array.isArray(n.props.items));
+  // The bar's menus are the kit's Menu, found by the words on their button; a group's heading is a `header` item here.
+  const { Menu } = await importSrc("apps/dashboard/src/surfaces/kit/menu/menu.tsx");
+  const menuOf = (words) => {
+    const m = find(bar, (n) => n.type === Menu && textOf(n.props.trigger).trim() === words);
+    return {
+      items: m.props.groups.flatMap((g) => [
+        ...(g.header ? [{ header: g.header }] : []),
+        ...g.items.map((i) => ({ ...i, onClick: i.onSelect })),
+      ]),
+    };
+  };
   menuOf("Add to list")
-    .props.items.find((i) => i.label === "New list…")
+    .items.find((i) => i.label === "New list…")
     .onClick();
   assert.ok(byTestId(picking.draw(), "bulk-list-name"), "a new list is named where it is made");
   // WHICH yes, and how it was given. The bulk action was titled for offers and wrote the conversational column, so a
   // salon recording thirty signed marketing consents changed the one field that does not authorise a promotion.
-  const yes = menuOf("Record a yes").props.items;
+  const yes = menuOf("Record a yes").items;
   assert.deepEqual(
     yes.filter((i) => i.header).map((i) => i.header),
     ["Yes to messages about their visit…", "Yes to offers and news…"],
@@ -2160,7 +2194,7 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   const unnamed = toPersonRowVM({ ...ROW, display_name: null }, TZ, now);
   const bare = cellOf("name", unnamed);
   assert.ok(
-    all(bare, (n) => classes(n).includes("cl-row-avatar-glyph")).length && byTestId(bare, "row-name-them"),
+    all(bare, (n) => classes(n).includes("face-glyph")).length && byTestId(bare, "row-name-them"),
     "a number is not initials; it can be named",
   );
   assert.equal(byTestId(cellOf("name", row), "row-name-them"), null, "somebody named has initials and nothing to name");

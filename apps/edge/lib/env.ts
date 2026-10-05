@@ -123,6 +123,23 @@ export const env = {
   get EMAIL_DOMAIN() {
     return trimmedEnv(process.env.EMAIL_DOMAIN);
   },
+  /**
+   * The domain OFFERS by email leave from (One message, every channel, step 4): a sending subdomain on the platform's
+   * Resend account (campaigns.chanlytics.com), verified there, so a complaint about an offer never touches the domain
+   * replies and visit messages leave from. Blank, or not yet verified: offers by email stay refused, as they were.
+   */
+  get EMAIL_CAMPAIGNS_DOMAIN() {
+    return trimmedEnv(process.env.EMAIL_CAMPAIGNS_DOMAIN);
+  },
+  /**
+   * The name Resend's receiving side writes at the start of the Authentication-Results header it adds to every email it
+   * hands over (RFC 8601's authserv-id), read off a real received email. A yes by email is recorded only when the header
+   * that proves the sender carries this name, so a header a sender wrote into its own mail proves nothing. Blank: no yes
+   * by email is recorded at all (the check fails closed); a no (STOP, UNSUBSCRIBE) never asks it.
+   */
+  get EMAIL_AUTHSERV_ID() {
+    return trimmedEnv(process.env.EMAIL_AUTHSERV_ID);
+  },
   get RESEND_WEBHOOK_SECRET() {
     return trimmedEnv(process.env.RESEND_WEBHOOK_SECRET);
   },
@@ -185,6 +202,24 @@ export const env = {
   // LLM
   get ANTHROPIC_API_KEY() {
     return trimmedEnv(process.env.ANTHROPIC_API_KEY);
+  },
+
+  // Ask spoken (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.2, §3.6): the voice agent's key and id,
+  // which mint a conversation's token for a member, and the secret its post-call webhook is signed with.
+  /** The ElevenLabs API key: mints the voice agent's conversation tokens and deletes its conversations; never logged. */
+  get ELEVENLABS_API_KEY() {
+    return trimmedEnv(process.env.ELEVENLABS_API_KEY);
+  },
+  /**
+   * The voice agent this edge mints conversations on, provisioned from code (tooling/scripts/voice/elevenlabs-agent.mjs):
+   * production's (`chanlytics-ask`) on production, a laptop's (`chanlytics-ask-dev`, pointed at a tunnel) elsewhere.
+   */
+  get ELEVENLABS_AGENT_ID() {
+    return trimmedEnv(process.env.ELEVENLABS_AGENT_ID);
+  },
+  /** The secret the vendor signs its post-call webhook with (elevenlabs-signature). */
+  get ELEVENLABS_WEBHOOK_SECRET() {
+    return trimmedEnv(process.env.ELEVENLABS_WEBHOOK_SECRET);
   },
   /** TypeSafe's key for the second model asked in shadow (decision 0023): never a literal, never logged. */
   get TYPESAFE_API_KEY() {

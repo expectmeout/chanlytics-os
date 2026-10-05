@@ -53,8 +53,15 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 const PAGE = "(os)/w/[workspace]/[[...route]]/page";
 /** How far a build may sit from the budget, either way, before it must be banked or raised. */
 export const BAND = 0.01;
-/** The sums a budget holds, each banked on its own. */
-const KINDS = ["js", "css"];
+/**
+ * The sums a budget holds, each banked on its own: the route's JavaScript and CSS, and `pages`, the JavaScript every
+ * other workspace page adds on top of them when it is opened (its own segments' chunks, less what the route already
+ * counts). The route alone let a page's chunk grow unseen: Base UI's 156 KB raw reached the Inbox's, People's and
+ * Conversations' pages before it reached the route (2 Oct 2026). `pages` is held once a build has pages and the budget
+ * names it.
+ */
+const KINDS = ["js", "css", "pages"];
+const LABELS = { js: "JS", css: "CSS", pages: "PAGES' OWN JS" };
 /** How a person runs this, for the messages that name a flag. */
 const COMMAND = "corepack pnpm check:bundle";
 
@@ -67,10 +74,16 @@ const COMMAND = "corepack pnpm check:bundle";
  * was just banked changes nothing.
  */
 export function bankBudget(measured, budget, { raise = false, argued = {} } = {}) {
-  if (!budget) return raise ? Object.fromEntries(KINDS.map((k) => [k, measured[k]])) : null;
+  const held = KINDS.filter((k) => typeof measured[k] === "number");
+  if (!budget) return raise ? Object.fromEntries(held.map((k) => [k, measured[k]])) : null;
   const out = {};
   for (const k of KINDS) {
     const was = budget[k];
+    // A sum this build does not measure (a build with no pages of their own) keeps what the budget says of it.
+    if (!held.includes(k)) {
+      if (typeof was === "number") out[k] = was;
+      continue;
+    }
     // A sum the budget does not name is new: a raise seeds it, as it seeds a missing budget.
     if (typeof was !== "number") {
       if (raise) out[k] = measured[k];
@@ -85,7 +98,7 @@ export function bankBudget(measured, budget, { raise = false, argued = {} } = {}
 export function arguedGrowth(args) {
   const out = {};
   for (const a of args) {
-    const m = /^(js|css)=(\d+)$/.exec(a);
+    const m = /^(js|css|pages)=(\d+)$/.exec(a);
     if (m) out[m[1]] = Number(m[2]);
   }
   return out;
@@ -157,16 +170,57 @@ function main() {
     return { files: files.size, raw, gzip };
   }
 
-  const now = { js: measure(js), css: measure(css) };
-  const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
-  const line = (k) => `${k.toUpperCase()} ${kb(now[k].gzip)} gzipped (${kb(now[k].raw)} raw, ${now[k].files} files)`;
-  console.log(`/w/[workspace]: ${line("js")}; ${line("css")}`);
+  // Every other workspace page, as it loads when opened: its segments' chunks and what `next/dynamic` loads under it,
+  // each counted once across the pages, less what the route above already counts.
+  const pages = new Set();
+  const PAGES_DIR = path.join(NEXT, "server/app/(os)/w/[workspace]");
+  const manifests = [];
+  (function walk(dir) {
+    if (!fs.existsSync(dir)) return;
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name === "page_client-reference-manifest.js") manifests.push(p);
+    }
+  })(PAGES_DIR);
+  for (const p of manifests) {
+    const page = path
+      .relative(path.join(NEXT, "server/app"), p)
+      .split(path.sep)
+      .join("/")
+      .replace(/_client-reference-manifest\.js$/, "");
+    if (page === PAGE) continue;
+    const context = {};
+    vm.runInNewContext(fs.readFileSync(p, "utf8"), context);
+    const m = context.__RSC_MANIFEST?.[`/${page}`];
+    if (!m?.entryJSFiles) fail(`${path.relative(NEXT, p)} names no entry files for /${page}`, 2);
+    for (const files of Object.values(m.entryJSFiles)) for (const f of files) pages.add(f);
+    for (const mod of Object.values(m.clientModules ?? {}))
+      for (const chunk of mod.chunks ?? []) pages.add(chunk.replace(/^\/_next\//, ""));
+    const own = path.join(NEXT, `server/app/${page}/react-loadable-manifest.json`);
+    if (fs.existsSync(own))
+      for (const entry of Object.values(JSON.parse(fs.readFileSync(own, "utf8"))))
+        for (const f of entry.files ?? []) if (f.endsWith(".js")) pages.add(f);
+  }
+  for (const f of js) pages.delete(f);
+  for (const f of [...pages]) if (!f.endsWith(".js")) pages.delete(f);
 
-  const measured = { js: now.js.gzip, css: now.css.gzip };
+  const now = { js: measure(js), css: measure(css), ...(manifests.length > 1 ? { pages: measure(pages) } : {}) };
+  const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
+  const line = (k) => `${LABELS[k]} ${kb(now[k].gzip)} gzipped (${kb(now[k].raw)} raw, ${now[k].files} files)`;
+  console.log(
+    `/w/[workspace]: ${KINDS.filter((k) => now[k])
+      .map(line)
+      .join("; ")}`,
+  );
+
+  const measured = Object.fromEntries(KINDS.filter((k) => now[k]).map((k) => [k, now[k].gzip]));
   if (update || raise) {
     const was = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, "utf8")) : null;
     const argued = arguedGrowth(args);
-    if (raise && was && Object.keys(argued).length === 0)
+    // A raise with nothing argued may only seed a sum the budget does not name yet; what it names rises by argument.
+    const seedsOnly = was && Object.keys(measured).some((k) => typeof was[k] !== "number");
+    if (raise && was && Object.keys(argued).length === 0 && !seedsOnly)
       fail(
         `a raise says by how much: ${COMMAND} -- --raise js=<bytes> css=<bytes>, the gzipped growth its row under ` +
           `"Rises" in docs/debt.md argues (measured now: ${JSON.stringify(measured)}, budget: ${JSON.stringify(was)})`,
@@ -184,17 +238,18 @@ function main() {
   const rose = [];
   const fell = [];
   for (const k of KINDS) {
+    if (typeof measured[k] !== "number") continue;
     const was = budget[k];
     if (typeof was !== "number") fail(`the budget names no ${k}: write it with ${COMMAND} -- --raise after a build`, 2);
-    const change = `${k.toUpperCase()} ${kb(was)} -> ${kb(measured[k])} gzipped`;
+    const change = `${LABELS[k]} ${kb(was)} -> ${kb(measured[k])} gzipped`;
     if (measured[k] > was * (1 + BAND)) rose.push(change);
     else if (measured[k] < was * (1 - BAND)) fell.push(change);
   }
   if (rose.length) {
     fail(
-      `the workspace route grew past its budget (${BAND * 100}% band):\n  ${rose.join("\n  ")}\n\n` +
+      `the workspace route or its pages grew past its budget (${BAND * 100}% band):\n  ${rose.join("\n  ")}\n\n` +
         `Find what grew it, and keep it off the route (a dynamic import, a lighter module). A budget that must ` +
-        `rise is raised by the growth it argues, ${COMMAND} -- --raise js=<bytes> css=<bytes> after a build, in the ` +
+        `rise is raised by the growth it argues, ${COMMAND} -- --raise js=<bytes> css=<bytes> pages=<bytes> after a build, in the ` +
         `same diff as its row under "Rises" in docs/debt.md, with the reason in the pull request.`,
     );
   }
@@ -204,7 +259,11 @@ function main() {
         `${JSON.stringify(bankBudget(measured, budget))} to baselines/bundle-budget.json):\n  ${fell.join("\n  ")}`,
     );
   }
-  console.log(`within ${BAND * 100}% of the budget: JS ${kb(budget.js)}, CSS ${kb(budget.css)} gzipped`);
+  console.log(
+    `within ${BAND * 100}% of the budget: ${KINDS.filter((k) => typeof measured[k] === "number")
+      .map((k) => `${LABELS[k]} ${kb(budget[k])}`)
+      .join(", ")} gzipped`,
+  );
 }
 
 // Run as a script, not when a test imports bankBudget.

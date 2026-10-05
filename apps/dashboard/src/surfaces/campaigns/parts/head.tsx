@@ -10,9 +10,11 @@
  * message. This is 22px and 12.5px, about fifty pixels, and it wraps rather than grows.
  */
 import type { MouseEvent, ReactNode } from "react";
+import { allowanceLines } from "@chanlytics/contracts";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import { useLook } from "../../kit/look/look";
+import { useSurface } from "../../use-surface";
 
 interface CmHeadProps {
   title: string;
@@ -38,9 +40,35 @@ interface CmHeadProps {
  * "Campaigns", with the head's line beside it and its act on the row of views, and a page that names one thing (an
  * opened run, the send screen) opens on that name. This says the head's parts to the frame and draws nothing of its
  * own there; the strip above still says which door this is.
+ *
+ * Every tab's line also says the month's allowance, quietly, once half of it is used and not before (contracts
+ * allowanceLine: "1,240 of 2,000 emails used this month"): the same words after the page's own, in the same quiet text,
+ * never a banner. It is read from whichever of Broadcasts and Playbooks has the month (`month_sent`), which the frame loads for
+ * its tab counts; a month that could not be read says nothing.
  */
-export function CmHead({ title, badge = null, sub = null, right = null, quiet = false, testid = null }: CmHeadProps) {
+export function CmHead({
+  title,
+  badge = null,
+  sub: said = null,
+  right = null,
+  quiet = false,
+  testid = null,
+}: CmHeadProps) {
   const glass = useLook() === "glass";
+  // Both are read, never one only when the other has nothing: a hook is called every time.
+  const broadcasts = useSurface("broadcasts");
+  const playbooks = useSurface("playbooks");
+  const used = allowanceLines(broadcasts?.month_sent ?? playbooks?.month_sent ?? null);
+  const sub =
+    used.length === 0 ? (
+      said
+    ) : (
+      <>
+        {said}
+        {said ? <CmDot /> : null}
+        <span data-testid="cm-month">{used.join(" · ")}</span>
+      </>
+    );
   useStanding(
     glass
       ? {

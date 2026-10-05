@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import {
   posesAsReply,
   REACH_OUT_SLOTS,
-  slotsNamed,
+  REACH_OUT_SLOT_SET,
   emailWordCount,
   linkCount,
   shoutingLine,
@@ -18,9 +18,16 @@ import {
   chainIssueWords,
   linksIn,
   wordCount,
-  reachOutSlots,
+  reachOutEmailOf,
+  reachOutSlotFault,
   customerDomainOf,
 } from "@chanlytics/contracts";
+
+// A step's body filled for one lead (the one fill every email takes), as the words alone: the reach-out's own old door.
+const fill = (words, lead, workspace, opening = null) => {
+  const r = reachOutEmailOf({ subject: null, body: words }, lead, workspace, opening);
+  return r.ok ? { ok: true, text: r.body } : r;
+};
 
 test("a first email a program sends never poses as a reply or a forward, in any of the languages' prefixes", () => {
   for (const s of ["Re: your studio", "RE:hello", "Fwd: a note", "fw: x", "AW: Termin", "SV: tid", "Antw: vraag"])
@@ -34,12 +41,17 @@ const BODY =
 
 test("the six slots, named in any case and spacing, and a brace without its pair", () => {
   assert.deepEqual([...REACH_OUT_SLOTS], ["opening", "business", "city", "your name", "your business", "booking link"]);
-  assert.deepEqual(slotsNamed("Hi {{ Business }}, {{city}} and {{business}}"), {
-    names: ["business", "city"],
-    stray: false,
-  });
-  assert.equal(slotsNamed("Hi {{business").stray, true);
-  assert.equal(slotsNamed("Hi business}}").stray, true);
+  // The six are a slot set, read by the one reader every email's slots take (templates/slot-sets.ts).
+  assert.deepEqual(REACH_OUT_SLOT_SET.keys, [...REACH_OUT_SLOTS]);
+  assert.equal(REACH_OUT_SLOT_SET.kind, "named");
+  assert.equal(
+    reachOutSlotFault("Hi {{ Business }}, {{city}} and {{business}}"),
+    false,
+    "named in any case and spacing",
+  );
+  assert.equal(reachOutSlotFault("Hi {{first name}}"), true, "a name that is none of the six");
+  assert.equal(reachOutSlotFault("Hi {{business"), true, "a brace with no end");
+  assert.equal(reachOutSlotFault("Hi business}}"), true, "a brace with no start");
 });
 
 test("a business reads the opening as forty words at most, and each other slot as one", () => {
@@ -92,7 +104,7 @@ test("a later step answers the one before: its subject is never read, whatever i
 test("each problem is said in the owner's words", () => {
   assert.equal(
     wordsIssueWords({ field: "body", problem: "unknown_slot", slot: "first name" }),
-    "{{first name}} isn't one of the slots. Use the chips below.",
+    "{{first name}} isn't one of the slots. Use one of the six.",
   );
   assert.equal(
     wordsIssueWords({ field: "body", problem: "too_many_words" }),
@@ -167,11 +179,11 @@ test("a brace a business would read is refused at the save, and holds the send",
       body,
     );
   const lead = { business_name: "Austin Movers", city: "Austin" };
-  assert.deepEqual(reachOutSlots("Hi {{{business}}}.", lead, { businessName: "Harbor" }), {
+  assert.deepEqual(fill("Hi {{{business}}}.", lead, { businessName: "Harbor" }), {
     ok: false,
     reason: "missing_value",
   });
-  assert.deepEqual(reachOutSlots("Hi {{ Business }} in {{city}}.", lead, { businessName: "Harbor" }), {
+  assert.deepEqual(fill("Hi {{ Business }} in {{city}}.", lead, { businessName: "Harbor" }), {
     ok: true,
     text: "Hi Austin Movers in Austin.",
   });

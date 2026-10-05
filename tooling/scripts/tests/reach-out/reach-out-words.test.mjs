@@ -4,13 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  campaignFooter,
-  campaignFooterHtml,
-  unsubscribePageWords,
-  whyFrom,
-  WHY_FROM_MAPS,
-} from "@chanlytics/contracts";
+import { emailFoot, emailFootHtml, unsubscribePageWords, whyFrom, WHY_FROM_MAPS } from "@chanlytics/contracts";
 import { buildEmailRequest, hostedIdentity } from "@chanlytics/channels";
 
 const URL_ =
@@ -21,10 +15,14 @@ const FOOT = {
   address: "410 Baylor St, Austin, TX 78703",
   unsubscribeUrl: URL_,
 };
+/** The cold foot, as the one builder makes it (templates/email-foot.ts, kind "cold"): text, and its HTML twin. */
+const cold = (f) => emailFoot(f.business, f.address, { kind: "cold", why: f.why, unsubscribeUrl: f.unsubscribeUrl });
+const coldHtml = (f) =>
+  emailFootHtml(f.business, f.address, { kind: "cold", why: f.why, unsubscribeUrl: f.unsubscribeUrl });
 
 test("the foot says why, that it is marketing, who and where, and the two ways to say no, in five lines", () => {
   assert.equal(
-    campaignFooter(FOOT),
+    cold(FOOT),
     [
       "I found your business on Google Maps.",
       "This is a marketing email.",
@@ -34,14 +32,14 @@ test("the foot says why, that it is marketing, who and where, and the two ways t
     ].join("\n"),
   );
   assert.equal(
-    campaignFooter({ ...FOOT, business: "  Chanlytics  " }).split("\n")[2],
+    cold({ ...FOOT, business: "  Chanlytics  " }).split("\n")[2],
     "Chanlytics · 410 Baylor St, Austin, TX 78703",
   );
 });
 
 test("a foot missing any part the law asks for is never made", () => {
   for (const k of ["why", "business", "address", "unsubscribeUrl"])
-    assert.throws(() => campaignFooter({ ...FOOT, [k]: "  " }), /why, who, where and how to stop/, k);
+    assert.throws(() => cold({ ...FOOT, [k]: "  " }), /why, who, where and how to stop/, k);
 });
 
 test("the foot is the last thing a campaign email says, after the signature", () => {
@@ -56,11 +54,11 @@ test("the foot is the last thing a campaign email says, after the signature", ()
     body: "A 4.9 from 212 reviews says people find you.",
     signature: "Ruben",
     actor: "ai",
-    campaign: { unsubscribeUrl: URL_, footer: campaignFooter(FOOT) },
+    campaign: { unsubscribeUrl: URL_, footer: cold(FOOT) },
     messageId: "11111111-1111-4111-8111-111111111111",
     tenantId: "22222222-2222-4222-8222-222222222222",
   });
-  assert.ok(r.text.endsWith(campaignFooter(FOOT)));
+  assert.ok(r.text.endsWith(cold(FOOT)));
   assert.ok(r.text.indexOf("Ruben") < r.text.indexOf(WHY_FROM_MAPS));
 });
 
@@ -89,7 +87,7 @@ test("the page's words: only the page that asks has a button, and nothing reads 
 });
 
 test("in HTML the foot is the canvas's: one line to say no, the link reading Unsubscribe; the text keeps the address", () => {
-  const html = campaignFooterHtml(FOOT);
+  const html = coldHtml(FOOT);
   // CAN-SPAM asks a commercial email to say it is one: both forms of the foot say it, in the same words.
   assert.match(html, /<p>I found your business on Google Maps\.<br>This is a marketing email\.<br>Chanlytics · /);
   assert.match(
@@ -97,7 +95,7 @@ test("in HTML the foot is the canvas's: one line to say no, the link reading Uns
     /Not interested\? Reply &quot;no thanks&quot; and I won&#39;t write again · <a href="https:\/\/app\.chanlytics\.com\/u\/[^"]+">Unsubscribe<\/a>/,
   );
   assert.doesNotMatch(html.replace(/href="[^"]+"/, ""), /app\.chanlytics\.com/, "the address shows only as the link");
-  assert.match(campaignFooterHtml({ ...FOOT, business: "Best <Movers>" }), /Best &lt;Movers&gt;/, "escaped");
+  assert.match(coldHtml({ ...FOOT, business: "Best <Movers>" }), /Best &lt;Movers&gt;/, "escaped");
   const r = buildEmailRequest({
     identity: hostedIdentity(
       { local_part: "chanlytics", reply_token: "abcdefghijklmnopqrstuvwx", from_name: "Ruben" },
@@ -109,12 +107,12 @@ test("in HTML the foot is the canvas's: one line to say no, the link reading Uns
     body: "A 4.9 from 212 reviews says people find you.",
     signature: null,
     actor: "ai",
-    campaign: { unsubscribeUrl: URL_, footer: campaignFooter(FOOT), footerHtml: campaignFooterHtml(FOOT) },
+    campaign: { unsubscribeUrl: URL_, footer: cold(FOOT), footerHtml: coldHtml(FOOT) },
     messageId: "11111111-1111-4111-8111-111111111111",
     tenantId: "22222222-2222-4222-8222-222222222222",
   });
-  assert.ok(r.html.endsWith(campaignFooterHtml(FOOT)), "the HTML ends with the foot as the canvas draws it");
-  assert.ok(r.text.endsWith(campaignFooter(FOOT)), "the text keeps the address, which plain text needs");
+  assert.ok(r.html.endsWith(coldHtml(FOOT)), "the HTML ends with the foot as the canvas draws it");
+  assert.ok(r.text.endsWith(cold(FOOT)), "the text keeps the address, which plain text needs");
   assert.throws(
     () =>
       buildEmailRequest({
@@ -128,7 +126,7 @@ test("in HTML the foot is the canvas's: one line to say no, the link reading Uns
         body: "x",
         signature: null,
         actor: "ai",
-        campaign: { unsubscribeUrl: URL_, footer: campaignFooter(FOOT), footerHtml: "<p>no link</p>" },
+        campaign: { unsubscribeUrl: URL_, footer: cold(FOOT), footerHtml: "<p>no link</p>" },
         messageId: "11111111-1111-4111-8111-111111111111",
         tenantId: "22222222-2222-4222-8222-222222222222",
       }),

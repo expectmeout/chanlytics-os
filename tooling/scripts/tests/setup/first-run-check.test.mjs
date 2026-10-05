@@ -1,28 +1,34 @@
 /**
  * The first run's Check (canvas R2, V2, P2), EXECUTED on the stub React over the Business tab's own harness: the first
- * run's page drawn beside every file the tab draws, so what Check draws is the tab's own rows, saving through the tab's
- * one saver and the workspace's door. Every claim below is something the page drew, or something a press on it sent.
+ * run's page (surfaces/setup/first-run, TSX since decision 0015 step 10) drawn beside every file the tab draws, so what
+ * Check draws is the tab's own rows, saving through the tab's one saver and the workspace's door. Every claim below is
+ * something the page drew, or something a press on it sent.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { FIRST_RUN_HELPERS, setupSteps, PROFILE_LIMITS, profileRefusal } from "@chanlytics/contracts";
 import { again, unmount, settle, all, byTestId, textOf, press } from "../_legacy-react.mjs";
+import { importSrc } from "../_source.mjs";
 import { W, saving, settings, facts, typeInto, saveRow } from "../_business-tab-harness.mjs";
 
 // The last page this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
 
-// The first run's own globals, beside the tab's: its helpers as the bridge publishes them, the tab's memory of landing,
-// and a toast that remembers what it said.
+// The first run's own globals, beside the tab's: the tab's memory of landing, and a toast that remembers what it said.
+// The page's helpers (FIRST_RUN_HELPERS) and the tab's state of a row are imported by the TSX, not read off the window.
 const flashes = [];
 Object.assign(W, {
-  __firstRun: FIRST_RUN_HELPERS,
-  sessionStorage: { getItem: () => null, setItem() {} },
+  sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
   usePPToast: () => [null, (m) => flashes.push(m)],
-  __setup: { refresh: async () => {}, later: async () => ({ ok: true, message: "" }) },
 });
-await import("../../../../apps/dashboard/src/legacy/pages/setup.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/first-run.jsx");
+// Setup's verbs are the module object the TSX calls; stubbed in place, and `window.__setup` is the same object.
+const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
+Object.assign(setupVerbs, { refresh: async () => {}, later: async () => ({ ok: true, message: "" }) });
+W.__setup = setupVerbs;
+// The seam the page reads Setup and the settings read from, and the kit's registry of open folds it asks before a move.
+const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+const { recFolds } = await importSrc("apps/dashboard/src/surfaces/kit/record/registry.ts");
+const { FirstRun } = await importSrc("apps/dashboard/src/surfaces/setup/first-run/page.tsx");
 
 /* ------------------------------------ the workspace ------------------------------------ */
 
@@ -84,33 +90,51 @@ const surface = (d, later = []) => ({
 let param = null;
 const replaced = [];
 const page = () =>
-  W.React.createElement(W.FirstRun, {
+  W.React.createElement(FirstRun, {
     param,
     onNavigate: (to, o) => {
       if (o && o.replace) replaced.push(to);
     },
   });
 /**
+ * The settings read as the settings override lands it (legacy-bridge/surfaces/settings.ts): the window globals the
+ * Business tab's rows and its saver still read (`__SETTINGS`, `__FACTS`), and the seam's value the first run reads.
+ */
+const landSettings = (record, known) => {
+  W.__SETTINGS = record;
+  W.__FACTS = known;
+  setSurfaceValue("settings", {
+    settings: record,
+    facts: known,
+    channels: null,
+    templatesAll: null,
+    templateUse: null,
+    templateSent: null,
+  });
+};
+/**
  * Draw the first run over a workspace, as React replaces a tree: the last one unmounted, the fold registry told nothing
  * is open, and the tab's saver and doors reset, since they outlive every page drawn in the tab (the harness says why).
  */
 const draw = ({ setup = dto(), sellsBy = null, at = null, later = [], link = undefined, profile = HARBOR } = {}) => {
   param = at;
-  W.__SETUP = surface(setup, later);
-  W.__SETTINGS = settings(profile, {}, { business_name: "Harbor Moving", booking_link: link });
-  W.__FACTS = facts({
-    facts: {
-      business_name: { value: "Harbor Moving", source: "typed" },
-      address: { value: HARBOR.address, source: "typed" },
-      website: { value: HARBOR.website, source: "typed" },
-      booking_link: { value: null, source: "absent" },
-      voice_line: { value: null, source: "absent" },
-    },
-  });
+  setSurfaceValue("setup", surface(setup, later));
+  landSettings(
+    settings(profile, {}, { business_name: "Harbor Moving", booking_link: link }),
+    facts({
+      facts: {
+        business_name: { value: "Harbor Moving", source: "typed" },
+        address: { value: HARBOR.address, source: "typed" },
+        website: { value: HARBOR.website, source: "typed" },
+        booking_link: { value: null, source: "absent" },
+        voice_line: { value: null, source: "absent" },
+      },
+    }),
+  );
   W.__WORKSPACES = [{ id: "t-harbor", name: "Harbor Moving", timezone: "America/New_York", sells_by: sellsBy }];
   W.__ACTIVE_WORKSPACE = "t-harbor";
   unmount();
-  W.__recordFolds.reset();
+  recFolds.reset();
   W.__businessTabSave.saver.reset();
   W.__businessTabSave.zone.reset();
   W.__businessTabSave.sellsBy.reset();
@@ -146,7 +170,7 @@ test("Check draws the Business tab's own rows over the settings read's brain, an
   assert.equal(byTestId(tree, "fr-rows"), null, "not Setup's rows");
 });
 
-/** Past the page's wait for a radiogroup's keys to settle (first-run.jsx FR_SETTLE_MS). */
+/** Past the page's wait for a radiogroup's keys to settle (first-run/settle.ts FIRST_RUN_SETTLE_MS, 600 ms). */
 const pastTheSettle = () => new Promise((r) => setTimeout(r, 650));
 
 test("a tap on how customers buy saves through the workspace's door, and the booking link follows the answer", async () => {
@@ -217,7 +241,7 @@ test("Check stays on screen once its last fact lands, and Looks right goes on: t
     let tree = draw();
     assert.equal(textOf(byTestId(tree, "fr-held")), "Still missing: services.");
     // A service saved in the sheet: Setup reads again, and the business step is done.
-    W.__SETUP = surface(dto({ services: 1 }));
+    setSurfaceValue("setup", surface(dto({ services: 1 })));
     tree = redraw();
     assert.equal(textOf(byTestId(tree, "fr-heading")), "Here's what we found", "still Check, not the phone");
     assert.equal(byTestId(tree, "fr-held"), null, "and Looks right is not held");
@@ -284,7 +308,8 @@ test("(D) the step's heading takes focus when the step changes -- so a screen re
 });
 
 test("(D) a move while a row holds typing never saved asks first: Stay keeps the typing, Yes goes -- and a save on its way is asked about in its own words", () => {
-  const was = W.__settingsSaving;
+  // The registry's own answer to "is a save out" (the page asks `recFolds.saving()`), stood in for where a save is on its way.
+  const was = recFolds.saving;
   try {
     let tree = draw({ setup: dto({ services: 2 }), sellsBy: "booking", at: "business" });
     press(byTestId(tree, "rec-row-act-website"));
@@ -319,13 +344,13 @@ test("(D) a move while a row holds typing never saved asks first: Stay keeps the
     tree = redraw();
     typeInto(tree, "website", "harbor-moving.example");
     tree = redraw();
-    W.__settingsSaving = () => true;
+    recFolds.saving = () => true;
     byTestId(tree, "fr-onward").props.onClick();
     tree = redraw();
     assert.match(textOf(byTestId(tree, "fr-leave-confirm")), /Leave while this saves\?/);
     assert.match(textOf(byTestId(tree, "fr-leave-confirm")), new RegExp(words.savingDetail.slice(0, 30)));
   } finally {
-    W.__settingsSaving = was;
+    recFolds.saving = was;
     delete W.__workspace;
   }
 });

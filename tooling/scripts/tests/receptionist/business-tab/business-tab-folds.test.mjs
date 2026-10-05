@@ -49,10 +49,12 @@ await import("../../../../../apps/dashboard/src/legacy/pages/business-tab-folds.
 const W = globalThis.window;
 const S = W.__businessTabSave;
 // What each fold's "It will say" is asked of: every fold here must be one consequenceOf knows by name.
-const { FOLD_BLOCK, installBusinessTab } =
+const { FOLD_BLOCK, installBusinessTab, loadSaveRules } =
   await import("../../../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
-// And what the save's own schema refuses, which schemaProblems puts under the fold's fields.
+// And what the save's own schema refuses, which schemaProblems puts under the fold's fields: its rules here, as the tab
+// has them by the time a fold is open.
 installBusinessTab();
+await loadSaveRules();
 
 /* ------------------------------------ the record ------------------------------------ */
 

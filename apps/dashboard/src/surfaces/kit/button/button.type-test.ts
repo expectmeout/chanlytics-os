@@ -29,7 +29,7 @@ function _buttonTakes(
     // Its props are the type the kit names for them, and its kinds, sizes and tone its map's, each optional.
     Holds<Exactly<ComponentProps<typeof Button>, ButtonProps>>,
     Holds<Exactly<ButtonProps["variant"], "primary" | "secondary" | "quiet" | "danger" | undefined>>,
-    Holds<Exactly<ButtonProps["size"], "sm" | "md" | undefined>>,
+    Holds<Exactly<ButtonProps["size"], "sm" | "md" | "lg" | undefined>>,
     Holds<Exactly<ButtonProps["tone"], "danger" | undefined>>,
   ];
   Button({ children: "Export" });
@@ -50,8 +50,10 @@ function _buttonTakes(
 
   // @ts-expect-error a kind the map lacks draws no class
   Button({ variant: "loud", children: "Save" });
-  // @ts-expect-error the kit draws two sizes: a large one waits for the look that reads --control-h-lg
-  Button({ size: "lg", children: "Save" });
+  // The large one is Glass's, a page's head act (a person's thread and More).
+  Button({ size: "lg", variant: "primary", children: "Open the thread" });
+  // @ts-expect-error the kit draws the sizes it names: another comes with its first reader
+  Button({ size: "xl", children: "Save" });
   // @ts-expect-error danger is the words' one tone
   Button({ tone: "warn", children: "Save" });
   // @ts-expect-error red words on a filled button: the act that destroys is the danger kind, and primary keeps its ink

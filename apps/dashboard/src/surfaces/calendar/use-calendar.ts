@@ -5,17 +5,35 @@
  */
 import { useEffect, useRef, useState, type RefObject } from "react";
 import type { CalendarVM, CalendarView } from "@chanlytics/contracts";
-import { askOnScreenKey, setAskOnScreen, useLegacyToast } from "../legacy-verbs";
+import { askOnScreenKey, demoSession, setAskOnScreen, useLegacyToast } from "../legacy-verbs";
 import { crPhone, crTyping } from "./board-dom";
 import { calendar } from "./verbs";
-import { CR_OVERLAY, CR_REFRESH_MS } from "./words";
+import { CR_OVERLAY, CR_REFRESH_MS, CR_WARM_MS } from "./words";
 
 type Span = { from: string; days: number };
 
+const VIEWS: readonly CalendarView[] = ["week", "day", "month", "agenda"];
+
+/** The view the member last chose on this board, kept in the tab (tab-memory.ts, the loading standard's place), or null. */
+function rememberedView(): CalendarView | null {
+  const mem = typeof window === "undefined" ? undefined : window.__tabMemory;
+  const was = mem?.place("calendar", "board")?.view;
+  return VIEWS.find((v) => v === was) ?? null;
+}
+
 /** The view and the day it looks at, and everything else the page keeps: the open appointment, a read on its way, the service picked. */
 export function useCalendarState(initialDay: string | null) {
-  // A link can name a day (calendar/<YYYY-MM-DD>), which opens in Day view; a phone opens on the agenda.
-  const [view, setView] = useState<CalendarView>(() => (initialDay ? "day" : crPhone() ? "agenda" : "week"));
+  // A link can name a day (calendar/<YYYY-MM-DD>), which opens in Day view; else the view last chosen in this tab, else a
+  // phone opens on the agenda and a desk on the week.
+  const [view, setView] = useState<CalendarView>(
+    () => (initialDay ? "day" : rememberedView()) ?? (crPhone() ? "agenda" : "week"),
+  );
+  // The view picked from the bar is kept for a refresh or a trip to another page; a day opened from the month, or from a
+  // link, is a place the board went to, not a choice, and is not.
+  const pickView = (next: CalendarView) => {
+    setView(next);
+    if (typeof window !== "undefined") window.__tabMemory?.keepPlace("calendar", "board", { view: next });
+  };
   const [anchorKey, setAnchorKey] = useState<string | null>(initialDay);
   const [openId, setOpenId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -42,6 +60,7 @@ export function useCalendarState(initialDay: string | null) {
   return {
     view,
     setView,
+    pickView,
     anchorKey,
     setAnchorKey,
     openId,
@@ -131,6 +150,19 @@ function useWindowRead(p: ReadAsk) {
   return read;
 }
 
+/**
+ * Once the board has stood still on a view for a second with the days it needs, the windows a few moves on that the loaded
+ * weeks do not cover are read and held (warm.ts), so stepping to them paints at once. A demo has no calendar to read.
+ */
+function useWarmAhead(p: ReadAsk & { vm: CalendarVM }) {
+  const { view, anchor, covered, vm } = p;
+  useEffect(() => {
+    if (!covered || demoSession()) return undefined;
+    const id = setTimeout(() => calendar.warmAround(view, anchor), CR_WARM_MS);
+    return () => clearTimeout(id);
+  }, [view, anchor, covered, vm.days]);
+}
+
 /** What the latest draw left for the one key listener: whether an appointment is open, and how to move and to close it. */
 interface BoardKeys {
   open: boolean;
@@ -185,6 +217,7 @@ function useBoardKeys(): RefObject<BoardKeys | null> {
 export function useBoardEffects(p: ReadAsk & { span: Span; vm: CalendarVM }) {
   useAskOnScreen(p.span, p.vm);
   const read = useWindowRead(p);
+  useWarmAhead(p);
   // The board keeps itself current while it is open: every five minutes, in a visible tab, the loaded window is read
   // again, so the now line, the next open time and the open times follow the clock.
   useEffect(() => {

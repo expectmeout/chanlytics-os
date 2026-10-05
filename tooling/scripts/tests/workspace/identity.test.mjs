@@ -103,7 +103,10 @@ test("the wiring: one profile row per account, written by its owner only, read b
   assert.ok(!route.includes("memberContext("), "your name needs no workspace");
   assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes("profile_set: {"));
 
-  const ws = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
+  const ws = readCode(
+    "apps/dashboard/app/api/v1/workspaces/route.ts",
+    "apps/dashboard/src/server/workspace/workspace-list.ts",
+  );
   assert.ok(
     /from\("profiles"\)\s*\.select\("display_name"\)\s*\.eq\("user_id", userId\)\s*\.maybeSingle\(\)/.test(ws),
     "the identity the seam fetches at boot carries the name",
@@ -123,7 +126,7 @@ test("the wiring: one profile row per account, written by its owner only, read b
   assert.ok(
     bridge.includes("win.__identity = { words: identityWords, member: memberWords, initials: personInitials };"),
   );
-  assert.ok(bridge.includes('win.dispatchEvent(new CustomEvent("me:changed"));'), "the chrome hears a change");
+  assert.ok(bridge.includes('window.dispatchEvent(new CustomEvent("me:changed"));'), "the chrome hears a change");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installIdentity();"));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes("display_name?: string | null"));
 
@@ -132,14 +135,12 @@ test("the wiring: one profile row per account, written by its owner only, read b
   assert.ok(sidebar.includes('window.addEventListener("me:changed", bump);'));
   assert.ok(!sidebar.includes('split("@")[0]'), "never the email's local part as a name");
 
-  const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  // A person names themselves on Profile: drawn in settings-owner-panes.test.mjs ("your name is a row on Profile"). The
+  // Team card is TSX (surfaces/settings/team, decision 0015 step 11), and reads the same words as the chip.
+  const team = readCode("apps/dashboard/src/surfaces/settings/team/team.tsx");
   assert.ok(
-    settings.includes("const YourName = ") && settings.includes('data-testid="set-you-name"'),
-    "a person names themselves on the team card",
-  );
-  assert.ok(
-    settings.includes("window.__identity.member({ email: m.email, display_name: m.displayName })"),
+    team.includes("memberWords({ email: m.email, display_name: m.displayName })"),
     "the roster reads the same words",
   );
-  assert.ok(!settings.includes('name: (m.email || "").split("@")[0]'), "never the local part dressed as a name");
+  assert.ok(!team.includes('split("@")[0]'), "never the local part dressed as a name");
 });

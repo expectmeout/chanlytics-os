@@ -7,7 +7,7 @@
  * (00255). The back office reads the 75th percentile of each, over every page and over each page a load landed on.
  * A report names a page, a metric and a number: nobody's person, nobody's workspace.
  */
-import { z } from "zod";
+import * as z from "zod/mini";
 import { MIN_MS } from "../shared/time";
 import type { Tone } from "./tone";
 
@@ -37,11 +37,25 @@ export const PAGE_VITAL_WORDS: Readonly<Record<PageVital, string>> = {
 };
 
 /** A page's name as the table keeps it (page_vitals.page): a route's first segment, in lower case. */
-const PAGE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
+export const PAGE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
 /** The browser's id for one metric of one load (web-vitals: "v4-1727430000000-8123456789012"). */
 const VITAL_ID = /^[A-Za-z0-9-]{1,64}$/;
 /** No report is larger: ten minutes, in milliseconds (page_vitals.value). */
 const VITAL_CEILING = 10 * MIN_MS;
+
+/**
+ * One metric of one load, as the browser reported it. The shell drops a report this refuses before it sends (a
+ * background tab's LCP can outlast the ceiling), so one odd number never costs the load its other four; the route
+ * reads the same report inside what the shell sends (vitals-schema.ts PageVitalsInput).
+ *
+ * In zod/mini, which the browser's contracts carry (decision 0024, the browser's entry): every page reports its load,
+ * so this check is on every page, and the classic API it was written in was 89 KB of every page's script.
+ */
+export const PageVitalReport = z.object({
+  id: z.string().check(z.regex(VITAL_ID, { error: "A report needs the browser's id." })),
+  name: z.enum(PAGE_VITALS, { error: "A report names one of the five." }),
+  value: z.number().check(z.minimum(0), z.maximum(VITAL_CEILING)),
+});
 
 /**
  * The page a load landed on, from the shell's route (address.ts routeOfAddress): "clients" for
@@ -51,23 +65,6 @@ export function vitalsPageOf(route: string): string {
   const first = (route ?? "").split(/[/?]/)[0] ?? "";
   return PAGE_NAME.test(first) ? first : "other";
 }
-
-/**
- * One metric of one load, as the browser reported it. The shell drops a report this refuses before it sends (a
- * background tab's LCP can outlast the ceiling), so one odd number never costs the load its other four.
- */
-export const PageVitalReport = z.object({
-  id: z.string().regex(VITAL_ID, { error: "A report needs the browser's id." }),
-  name: z.enum(PAGE_VITALS, { error: "A report names one of the five." }),
-  value: z.number().min(0).max(VITAL_CEILING),
-});
-
-/** What the shell sends: the page a load landed on, and what its metrics came to so far, each at most once. */
-export const PageVitalsInput = z.object({
-  page: z.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
-  vitals: z.array(PageVitalReport).min(1).max(PAGE_VITALS.length),
-});
-export type PageVitalsInputDto = z.infer<typeof PageVitalsInput>;
 
 /**
  * How much of the table the back office reads: the latest `most` reports of the last `days`, so the read costs the

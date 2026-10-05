@@ -374,7 +374,7 @@ const ASK_JUMP_PAGES = [
   { label: "Leads", to: "clients/leads" }, { label: "Segments", to: "segments" }, { label: "Pipeline", to: "pipeline" },
   { label: "Calendar", to: "calendar" }, { label: "Conversations", to: "conversations" }, { label: "Live Monitor", to: "live" },
   { label: "Fleet", to: "fleet" }, { label: "Agent Store", to: "store" }, { label: "Tasks", to: "tasks" },
-  { label: "Reports", to: "reports" }, { label: "Broadcasts", to: "broadcasts" }, { label: "Outbound", to: "outbound" },
+  { label: "Reports", to: "reports" }, { label: "Sent", to: "broadcasts" }, { label: "Campaigns", to: "campaigns" },
   { label: "Content", to: "content" }, { label: "Settings", to: "admin" },
 ];
 const askJumpMatches = (q) => {

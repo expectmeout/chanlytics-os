@@ -33,7 +33,7 @@ export const reports: Provider = async (rc, ctx) => {
   const asked = Number(ctx.view);
   const days = REPORT_RANGES.some((r) => r.days === asked) ? asked : 30;
   const r = (await load(rc, reportReader, { days })).data;
-  const vm = toReportVM(r.report);
+  const vm = toReportVM(r.report, { profile: r.profile });
   const booking = r.booking ? toBookingReportVM(r.booking) : null;
   return {
     rows: [],

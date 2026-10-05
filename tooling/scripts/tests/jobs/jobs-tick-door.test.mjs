@@ -585,12 +585,14 @@ test("a texting workspace's job leaves on its own line: the subaccount's token f
   assert.match(bare.message.external_id, /^SM/, "the row keeps the id Twilio gave");
   assert.deepEqual(
     [refused.message.status, refused.message.error],
-    ["failed", { http_status: 503, body: "no_credentials" }],
-    "no line is a refusal at the wire, never another wire",
+    // Step 3: the door asks for an approved line before it asks the wire, so no line is refused there, in its words.
+    ["canceled", { reason: "sms_line_not_active" }],
+    "no line is a refusal at the door, never another wire",
   );
+  // A refusal is the door's answer, not a send that failed: nobody is flagged (step 3: the line is asked for at the door).
   assert.deepEqual(
     L.tables.escalations.map((e) => [e.tenant_id, e.reason]),
-    [[lineless.T, "send_failed"]],
+    [],
   );
   assert.deepEqual(
     L.tables.jobs.map((j) => [j.kind, j.state ?? "scheduled"]),
@@ -598,11 +600,9 @@ test("a texting workspace's job leaves on its own line: the subaccount's token f
       ["outbound_send", "done"],
       ["outbound_send", "done"],
       ["outbound_send", "done"],
-      ["push_send", "scheduled"],
     ],
-    "the three ran; the lineless one's kept row leaves one push job for its owner's phone, for the next heartbeat",
+    "the three ran; a refused text flags nobody, so there is no push for its owner's phone",
   );
-  assert.equal(L.tables.jobs[3].tenant_id, lineless.T, "that workspace's, nobody else's");
 });
 
 test("two replies waiting on one unreadable vault page the platform once: the pager's quiet holds per channel", async () => {

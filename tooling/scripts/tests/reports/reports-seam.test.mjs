@@ -28,9 +28,8 @@ globalThis.__ACTIVE_WORKSPACE = "t-salon";
 const S = "../../../../apps/dashboard/src";
 const values = await import(`${S}/surfaces/surface-values.ts`);
 const cache = await import(`${S}/legacy-bridge/surface-cache.ts`);
-// Importing the overrides declares the mirrors, as the app's boot does.
+// Importing the override declares the mirror, as the app's boot does. Google's declares none: its pages have all moved.
 await import(`${S}/surfaces/reports/surface.ts`);
-await import(`${S}/legacy-bridge/google.ts`);
 // The surface's signal, from the module the surface reads it through (the stub's own copy is the shell pages').
 const { surfaceMoved: surfaceLanded } = await import(`${S}/legacy-bridge/surface-status.ts`);
 const { useSurface } = await import(`${S}/surfaces/use-surface.ts`);
@@ -46,8 +45,14 @@ test("a value is held under its key and mirrored under the name the pages that h
   assert.equal(values.surfaceValue("reports"), undefined);
   assert.equal(globalThis.__REPORTS, undefined, "the mirror goes with the value");
   values.setSurfaceValue("google", { dto: { ready: {} }, fetchedAt: 2 });
-  assert.equal(globalThis.__GOOGLE.fetchedAt, 2, "Google's is mirrored too, for Today's line and Setup");
+  assert.equal(
+    values.surfaceValue("google").fetchedAt,
+    2,
+    "Google's is held under its key, for Today's line and Setup",
+  );
+  assert.equal(globalThis.__GOOGLE, undefined, "and under no other name: every page that read it has moved");
   values.setSurfaceValue("google", undefined);
+  assert.equal(values.surfaceValue("google"), undefined);
 });
 
 test("the tab's cache keeps the value beside the globals a surface owns, and gives it back before React draws", () => {

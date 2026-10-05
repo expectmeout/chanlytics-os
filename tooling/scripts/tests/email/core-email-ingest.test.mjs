@@ -27,6 +27,8 @@ const email = (over = {}) => ({
   receivedAt: "2026-09-17T11:59:00Z",
   claim: "person",
   attachments: [],
+  // The receiving side proved the sender (channels senderAuthenticated): a normal email here; a case that says no overrides it.
+  senderAuthenticated: true,
   ...over,
 });
 
@@ -203,4 +205,135 @@ test("a thread keeps a bounded amount of one email's words and attachments, and 
   assert.equal(kept.meta.email.attachments.length, 5);
   assert.equal(kept.meta.email.more_attachments, 3);
   assert.equal(w.call("tell")[2].preview.length, 280);
+});
+
+test("a STOP by email is passed to the ingest as the opt-out, as a text's is: judged on the reply's own words, never the history under them", async () => {
+  const optOutOf = async (text) => {
+    const w = world({ fetch: email({ text }) });
+    await run(w);
+    return w.call("record")[1].optOut;
+  };
+  const history = "On Tue, Sep 16, 2026 at 10:44 AM Best Movers <bestmovers@mail.chanlytics.com> wrote:";
+
+  for (const [words, text] of [
+    ["STOP alone", "STOP"],
+    ["any case, with a full stop", "  Stop. "],
+    ["BAJA, the Spanish word", "baja"],
+    ["ALTO", "alto"],
+    ["above the quoted appointment email", `STOP\n\n${history}\n> Your appointment is tomorrow at 9.`],
+    ["above a signature", "STOP\n\nSent from my iPhone"],
+    ["above a sign-off rule", "STOP\n-- \nAna Reyes"],
+    ["above Outlook's divider", "STOP\n\n-----Original Message-----\nFrom: Best Movers\nYour appointment is tomorrow."],
+  ])
+    assert.equal(await optOutOf(text), true, words);
+
+  for (const [words, text] of [
+    ["a booking sentence", "stop by at 4?"],
+    ["words around it", "Please stop"],
+    ["a thank-you over a quoted STOP: the quote is not theirs", `Thanks!\n\n${history}\n> STOP`],
+    ["a quote line alone is nobody's words", "> STOP"],
+    ["CANCEL and END are a text line's words; by email they are a booking", "Cancel"],
+    ["UNSUBSCRIBE is not a STOP: it ends offers, and nothing else (the spec's decision 12)", "Unsubscribe"],
+    ["no words", ""],
+    ["no text at all", null],
+  ])
+    assert.equal(await optOutOf(text), false, words);
+});
+
+/** What the intake handed the ingest for an email's words: the three answers it may carry, and the words quoted. */
+const saidOf = async (text, over = {}) => {
+  const w = world({ fetch: email({ text, ...over }) });
+  await run(w);
+  const { optOut, unsubscribe, optInOffers, words } = w.call("record")[1];
+  return { optOut, unsubscribe, optInOffers, words };
+};
+const HISTORY = "On Tue, Sep 16, 2026 at 10:44 AM Best Movers <bestmovers@mail.chanlytics.com> wrote:";
+
+test("an UNSUBSCRIBE by email ends offers through the unsubscribe door, and is no STOP: the reply's own words only, quoted as they were", async () => {
+  for (const [words, text, quoted] of [
+    ["alone", "Unsubscribe", "Unsubscribe"],
+    ["politely", "  Please unsubscribe me. ", "Please unsubscribe me."],
+    ["in Spanish", "desuscribirme", "desuscribirme"],
+    ["above the quoted offer", `unsubscribe\n\n${HISTORY}\n> Our October offer`, "unsubscribe"],
+  ])
+    assert.deepEqual(
+      await saidOf(text),
+      { optOut: false, unsubscribe: true, optInOffers: false, words: quoted },
+      words,
+    );
+  // A sentence about something else, a quote of an earlier unsubscribe, and no words at all are no unsubscribe.
+  for (const [words, text] of [
+    ["a question", "Can I unsubscribe from the monthly one only?"],
+    ["a quote line", "> unsubscribe"],
+    ["a thank-you over a quoted unsubscribe", `Thanks!\n\n${HISTORY}\n> unsubscribe`],
+    ["no words", ""],
+  ])
+    assert.equal((await saidOf(text)).unsubscribe, false, words);
+  // A STOP is the all-channel stop, alone: it says nothing of offers.
+  const stop = await saidOf("STOP");
+  assert.deepEqual([stop.optOut, stop.unsubscribe, stop.optInOffers], [true, false, false]);
+});
+
+test("YES OFFERS by email is the yes to offers by email, from a person and nobody else: not a list, not a program, not a From the receiving side did not PROVE (failed, absent or unreadable); never a START", async () => {
+  for (const text of ["YES OFFERS", "  yes offers. ", "SÍ OFERTAS", "si ofertas"])
+    assert.equal((await saidOf(text)).optInOffers, true, text);
+  assert.equal(
+    (await saidOf(`YES OFFERS\n\n${HISTORY}\n> Reply YES OFFERS for our deals`)).optInOffers,
+    true,
+    "above the quoted offer",
+  );
+  // Their words only: a quoted invitation, a sentence, a bare yes, or a START is no yes to offers.
+  for (const [words, text] of [
+    ["the quoted invitation under their thanks", `Thanks\n\n${HISTORY}\n> Reply YES OFFERS for our deals`],
+    ["a sentence", "yes offers please"],
+    ["a bare yes", "yes"],
+    ["START, which a header anyone can forge does not give", "START"],
+  ])
+    assert.equal((await saidOf(text)).optInOffers, false, words);
+  // From a person only, and never from an address whose authentication failed: a yes widens what may be sent.
+  assert.equal((await saidOf("YES OFFERS", { claim: "automated" })).optInOffers, false, "a list or a program");
+  assert.equal((await saidOf("YES OFFERS", { claim: "auto_reply" })).optInOffers, false);
+  assert.equal(
+    (await saidOf("YES OFFERS", { senderAuthenticated: false })).optInOffers,
+    false,
+    "a From the receiving side did not prove: failed, or nothing said",
+  );
+  assert.equal(
+    (await saidOf("YES OFFERS", { senderAuthenticated: undefined })).optInOffers,
+    false,
+    "FAILS CLOSED: an email with no proof recorded is not a proven one",
+  );
+  assert.equal((await saidOf("YES OFFERS", { senderAuthenticated: true })).optInOffers, true);
+  // A no only narrows, so it is taken whoever the sender claims to be, proved or not.
+  assert.equal((await saidOf("Unsubscribe", { senderAuthenticated: false })).unsubscribe, true);
+  assert.equal((await saidOf("Unsubscribe", { claim: "automated" })).unsubscribe, true);
+  assert.equal((await saidOf("STOP", { senderAuthenticated: false })).optOut, true);
+});
+
+test("a yes that is not recorded for want of a proven sender is said in the log, once, by name; a proven one, a no and plain mail say nothing", async () => {
+  const said = [];
+  const warn = console.warn;
+  console.warn = (...args) => said.push(args);
+  try {
+    const run1 = (text, over) => {
+      said.length = 0;
+      return saidOf(text, over).then(() => said.map((a) => JSON.parse(a[0])));
+    };
+    const unproven = await run1("YES OFFERS", { senderAuthenticated: false });
+    assert.deepEqual(
+      unproven.map((l) => [l.event, l.tenant_id, l.message_id]),
+      [["email_yes_unauthenticated", T, "m1"]],
+    );
+    assert.deepEqual(await run1("YES OFFERS", { senderAuthenticated: true }), [], "a proven yes is recorded, quietly");
+    assert.deepEqual(await run1("Unsubscribe", { senderAuthenticated: false }), [], "a no is never refused for it");
+    assert.deepEqual(await run1("Can you do Saturday?", { senderAuthenticated: false }), [], "plain mail says no yes");
+    assert.deepEqual(
+      await run1("YES OFFERS", { claim: "automated", senderAuthenticated: false }),
+      [],
+      "a program's mail is not a yes",
+    );
+    assert.deepEqual(await run1("STOP", { senderAuthenticated: false }), []);
+  } finally {
+    console.warn = warn;
+  }
 });

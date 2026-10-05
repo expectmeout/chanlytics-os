@@ -253,12 +253,13 @@ test("a view from the tab beside comes in from that side: the strip's own order,
   const at = (page) => win.stripPlace(page, null);
   assert.deepEqual(at("inbox"), { strip: "inbox", at: 0 });
   assert.deepEqual(at("live"), { strip: "inbox", at: 2 });
-  assert.deepEqual(at("messages"), { strip: "campaigns", at: 2 });
+  assert.equal(at("messages"), null, "Campaigns has no strip: its rooms are reached from its home");
+  assert.equal(at("outbound"), null);
   assert.equal(at("today"), null);
   assert.equal(at("content"), null, "a demo-only tab is on no real workspace's strip");
   assert.equal(win.stripSlide(at("inbox"), at("conversations")), "next");
   assert.equal(win.stripSlide(at("live"), at("inbox")), "prev");
   assert.equal(win.stripSlide(at("inbox"), at("inbox")), null, "a thread opened on the same tab is not a move");
-  assert.equal(win.stripSlide(at("live"), at("outbound")), null, "another strip is somewhere else");
+  assert.equal(win.stripSlide(at("live"), at("outbound")), null, "a page off every strip is somewhere else");
   assert.equal(win.stripSlide(null, at("inbox")), null);
 });

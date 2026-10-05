@@ -40,7 +40,8 @@ export {
   LEAD_ASK_MAX_FACTOR,
   leadMonth,
 } from "./search/caps";
-export { LeadSearchPlanSchema, planVersionOf } from "./search/plan";
+export { planVersionOf } from "./search/plan";
+export { LeadSearchPlanSchema } from "./search/plan-schema";
 export type {
   LeadContactStandard,
   LeadCriterionStandard,
@@ -141,7 +142,6 @@ export {
   LEAD_OUTSIDE_US_LINE,
   LEAD_PAUSED_TITLE,
   stageArgs,
-  planLeadSearch,
   leadsRoute,
   parseLeadsRoute,
   leadDraftFooter,
@@ -149,21 +149,8 @@ export {
   leadPlanLikely,
   leadPlanFacts,
   leadPlanAsk,
-  LeadsQuerySchema,
-  LeadOneQuerySchema,
-  LeadsViewSchema,
-  LeadStageInputSchema,
-  LeadsBulkSchema,
-  LeadsCheckAgainSchema,
-  LeadDraftInputSchema,
-  LeadExportQuerySchema,
-  RenameLeadSearchSchema,
-  BusinessLineSchema,
-  ProposeLeadSearchSchema,
   LEAD_DRAFT_JSON_SCHEMA,
-  LeadDraftAnswerSchema,
   LEAD_SUGGEST_JSON_SCHEMA,
-  LeadSuggestAnswerSchema,
   leadQuestionTitle,
   LEAD_QUESTION_WAIT_LINE,
   leadQuestionRoute,
@@ -208,6 +195,29 @@ export {
   LEAD_MARKS_BUCKET,
   LEAD_MARK_PATH,
 } from "./leads";
+export {
+  planLeadSearch,
+  LeadsQuerySchema,
+  LeadOneQuerySchema,
+  LeadsViewSchema,
+  LeadStageInputSchema,
+  LeadsBulkSchema,
+  LeadsCheckAgainSchema,
+  LeadDraftInputSchema,
+  LeadExportQuerySchema,
+  RenameLeadSearchSchema,
+  BusinessLineSchema,
+  ProposeLeadSearchSchema,
+  LeadDraftAnswerSchema,
+  LeadSuggestAnswerSchema,
+} from "./lead-plan-schema";
+export type {
+  LeadsQuery,
+  LeadStageInput,
+  LeadsBulkInput,
+  LeadsCheckAgainInput,
+  ProposeLeadSearch,
+} from "./lead-plan-schema";
 export type {
   LeadEmailState,
   LeadFit,
@@ -222,11 +232,6 @@ export type {
   LeadNotAFitWhy,
   LeadEndingFacts,
   LeadEndingLine,
-  LeadsQuery,
-  LeadStageInput,
-  LeadsBulkInput,
-  LeadsCheckAgainInput,
-  ProposeLeadSearch,
   LeadPlanView,
   LeadPlanRefusalKind,
   LeadPlanned,
@@ -260,9 +265,6 @@ export {
   LEAD_LIST_MAX,
   LEAD_LIST_VIAS,
   LEAD_IMPORT_WORDS,
-  LeadChooseSchema,
-  LeadImportRowSchema,
-  LeadImportSchema,
   isLeadList,
   leadChooseAnswerWords,
   leadChooseNameOf,
@@ -280,15 +282,9 @@ export {
   regionOf,
   websiteHostOf,
 } from "./lead-import";
-export type {
-  LeadChooseAnswer,
-  LeadChooseInput,
-  LeadImportAnswer,
-  LeadImportColumns,
-  LeadImportInput,
-  LeadImportRow,
-  LeadListVia,
-} from "./lead-import";
+export { LeadChooseSchema, LeadImportRowSchema, LeadImportSchema } from "./lead-import-schema";
+export type { LeadChooseAnswer, LeadImportAnswer, LeadImportColumns, LeadImportRow, LeadListVia } from "./lead-import";
+export type { LeadChooseInput, LeadImportInput } from "./lead-import-schema";
 export {
   judgeQuestions,
   judgeShadowCalls,

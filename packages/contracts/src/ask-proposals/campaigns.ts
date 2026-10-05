@@ -1,6 +1,7 @@
 /**
  * Campaigns' cards: a broadcast, a playbook that sends on its own, and a playbook's run that waits for a person.
  */
+import { CONSENT_CHANNEL_WORDS, channelsWords, type ConsentChannel } from "../consent/consent-channels";
 import { SENDING_HOURS_WORDS } from "../playbooks/playbook-triggers";
 import { clockWhen } from "../shared/clock";
 import { plural } from "../shared/words";
@@ -17,6 +18,28 @@ import {
 
 /** What a member does with a playbook's run that waits for them (the Phase 4 plan, D11): send it, or end it unsent. */
 export const RUN_VERBS = ["approve", "skip"] as const;
+
+/**
+ * Where a campaign card says it goes (a proposal that names channels): "on WhatsApp and by email", and, where more than one
+ * carries people, how many on each: "on WhatsApp and by email (52 on WhatsApp, 32 by email)". `byChannel` is who each
+ * channel reaches (reachSplit's, a run's reach): a tick nobody is on is still said, in the first half.
+ */
+export function proposalChannelsWords(
+  channels: readonly ConsentChannel[],
+  byChannel: Readonly<Record<ConsentChannel, number>>,
+): string {
+  const goes = channelsWords(channels);
+  const carrying = channels.filter((c) => byChannel[c] > 0);
+  if (carrying.length < 2) return goes;
+  return `${goes} (${carrying.map((c) => `${byChannel[c].toLocaleString("en-US")} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ")})`;
+}
+
+/**
+ * The channels a card's payload names, as the commit hands them to its route: only when the proposal named some, so a
+ * card that named none commits the body it always did and the route reads WhatsApp alone.
+ */
+const channelsNamed = (pl: Record<string, unknown>): { channels?: unknown } =>
+  Array.isArray(pl.channels) ? { channels: pl.channels } : {};
 
 /** A broadcast's cancel: the undo of a broadcast sent from a card, and of a run approved from one. */
 const cancelCall = (u: Record<string, unknown>): ProposalCall => ({
@@ -38,6 +61,7 @@ export const broadcastSpec: ProposalSpec = {
       audience: { kind: pl.audience_kind, id: pl.audience_id ?? null },
       scheduled_for: pl.scheduled_for ?? null,
       name: pl.name ?? null,
+      ...channelsNamed(pl),
     },
   }),
   // The count and the name are the route's answer where it gave them, the card's where it did not.
@@ -72,10 +96,11 @@ export const playbookSpec: ProposalSpec = {
       cap_per_run: pl.cap_per_run,
       gap_days: pl.gap_days,
       cadence_days: pl.cadence_days,
+      ...channelsNamed(pl),
     },
   }),
   receipt: ({ payload: pl }, data) =>
-    `Playbook “${rec(data).name ?? asText(pl.name)}” is running — its next run is on the card in Campaigns › Playbooks`,
+    `Playbook “${rec(data).name ?? asText(pl.name)}” is running — its next run is under Coming up in Campaigns`,
   undo: {
     label: () => "Delete it — nothing will run",
     window: "ten_minutes",

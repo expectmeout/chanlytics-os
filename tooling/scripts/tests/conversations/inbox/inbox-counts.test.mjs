@@ -155,6 +155,7 @@ await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx"
 const landsARead = () => globalThis.dispatchEvent({ type: "surface:inbox" });
 
 const findAll = all;
+const takesOver = (n) => !!n.props?.["data-takeover"];
 const hasClass = (cls) => (n) => typeof n.props?.className === "string" && n.props.className.split(" ").includes(cls);
 const buttonNamed = (tree, words) => find(tree, (n) => n.type === "button" && textOf(n).trim() === words);
 
@@ -211,12 +212,12 @@ test("REGRESSION: a bucket picked is a list, never a conversation -- on a phone 
   const { seen, render } = page([rosa, unsent]);
   // A tap is what opens a thread over the list: that is what a phone's one screen is for.
   seen.list.onSelectThread(rosa.id);
-  assert.ok(hasClass("phone-thread")(render()), "a tap opens the thread over the list");
+  assert.ok(takesOver(render()), "a tap opens the thread over the list");
 
   // Handled: its rows, and the list back on the screen.
   seen.list.onBucketChange("done");
   assert.equal(
-    hasClass("phone-thread")(render()),
+    takesOver(render()),
     false,
     "REGRESSION: picking the bucket opened its first thread over the rows -- the list was gone and a customer nobody asked for was on the phone",
   );
@@ -230,10 +231,10 @@ test("REGRESSION: a bucket picked is a list, never a conversation -- on a phone 
   // A bucket with nothing in it is an empty list, never a blank screen: the pane is hidden on a phone, so leaving
   // the thread open showed the rows of no list and no thread either.
   seen.list.onSelectThread(unsent.id);
-  assert.ok(hasClass("phone-thread")(render()));
+  assert.ok(takesOver(render()));
   seen.list.onBucketChange("snoozed");
   assert.equal(
-    hasClass("phone-thread")(render()),
+    takesOver(render()),
     false,
     "REGRESSION: an empty bucket left the thread open with nothing in it -- neither the list nor a conversation was on the screen",
   );

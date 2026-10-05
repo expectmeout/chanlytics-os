@@ -36,6 +36,7 @@ import {
   PURPOSE_REFUSALS,
   audiencePreview,
   eligibleFor,
+  channelsReady,
   eligibleForPlaybook,
   mayMessageFor,
   mayReceive,
@@ -275,23 +276,38 @@ const walkedIn = (over = {}) =>
   });
 
 test("a converted lead with no yes is refused by the one predicate, as any person with no yes is", () => {
-  assert.deepEqual(mayMessageFor(NO_YES, "marketing", { proactive: true }), {
+  assert.deepEqual(mayMessageFor(NO_YES, "marketing", { proactive: true, channel: "whatsapp" }), {
     ok: false,
     reason: "no_marketing_consent",
   });
-  assert.deepEqual(mayMessageFor(NO_YES, "conversational", { proactive: true }), { ok: false, reason: "not_opted_in" });
+  assert.deepEqual(mayMessageFor(NO_YES, "conversational", { proactive: true, channel: "whatsapp" }), {
+    ok: false,
+    reason: "not_opted_in",
+  });
   // Answering one who wrote to you is not starting a conversation, and that is
   // the same for everybody: a lead who replies is replied to.
-  assert.deepEqual(mayMessageFor(NO_YES, "conversational"), { ok: true, reason: null });
-  assert.equal(mayReceive(leadRow(), "marketing"), false);
-  assert.equal(mayReceive(walkedIn(), "marketing"), true);
+  assert.deepEqual(mayMessageFor(NO_YES, "conversational", { channel: "whatsapp" }), { ok: true, reason: null });
+  assert.equal(mayReceive(leadRow(), "marketing", "whatsapp"), false);
+  assert.equal(mayReceive(walkedIn(), "marketing", "whatsapp"), true);
 });
 
+/**
+ * How a send goes (step 3, contracts reachFor): by WhatsApp alone, which the workspace can send on, as every campaign went
+ * before it ticked channels.
+ */
+const HOW = {
+  channels: ["whatsapp"],
+  ready: channelsReady({
+    whatsapp: { canSend: true, refusal: null },
+    textLine: null,
+    email: { mailbox: false, domain: false },
+  }),
+};
 test("a broadcast's audience leaves the converted lead out, and says why in the owner's words", () => {
   const rows = [leadRow(), walkedIn()];
   for (const purpose of ["marketing", "conversational"]) {
     assert.deepEqual(
-      eligibleFor(rows, "everyone", null, null, purpose).map((r) => r.id),
+      eligibleFor(rows, "everyone", null, null, purpose, HOW).map((r) => r.id),
       ["p-walkin"],
       purpose,
     );
@@ -299,10 +315,10 @@ test("a broadcast's audience leaves the converted lead out, and says why in the 
   // Picked by hand into a saved list, they are still not sent to: a list
   // chooses who is considered, never who may be reached.
   assert.deepEqual(
-    eligibleFor(rows, "saved", "l1", new Set(["p-lead", "p-walkin"]), "marketing").map((r) => r.id),
+    eligibleFor(rows, "saved", "l1", new Set(["p-lead", "p-walkin"]), "marketing", HOW).map((r) => r.id),
     ["p-walkin"],
   );
-  const preview = audiencePreview(rows, "everyone", null, null, "marketing");
+  const preview = audiencePreview(rows, "everyone", null, null, "marketing", HOW);
   assert.deepEqual([preview.sending, preview.held], [1, 1]);
   assert.deepEqual(
     preview.people.map((p) => [p.id, p.refusal]),
@@ -323,7 +339,7 @@ test("a playbook's run passes the converted lead over, though the trigger's list
     rows.filter(quiet.test).map((r) => r.id),
     ["p-lead", "p-walkin"],
   );
-  const p = { trigger: "quiet_30", cap_per_run: 25, gap_days: 90, cadence_days: 30 };
+  const p = { trigger: "quiet_30", cap_per_run: 25, gap_days: 90, cadence_days: 30, ...HOW };
   const touches = { byThis: new Map(), byAny: new Map() };
   const now = Date.parse("2026-09-20T12:00:00Z");
   assert.deepEqual(
@@ -401,6 +417,7 @@ test("the phone receptionist will not text a converted lead off its own bat, and
   const facts = {
     contact: NO_YES,
     purpose: "conversational",
+    channel: "whatsapp",
     proactive: true,
     paused: false,
     pausedUntilMs: null,

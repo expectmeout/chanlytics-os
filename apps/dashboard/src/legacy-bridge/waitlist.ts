@@ -1,4 +1,5 @@
-import { SIGNUP_WORDS, SignupSchema } from "@chanlytics/contracts";
+import { SIGNUP_WORDS } from "@chanlytics/contracts";
+import type { SignupSchema } from "@chanlytics/contracts";
 
 /**
  * Joining the waitlist from the first-workspace screen (the wiring audit's N1).
@@ -11,12 +12,31 @@ import { SIGNUP_WORDS, SignupSchema } from "@chanlytics/contracts";
  */
 export type WaitlistJoin = { ok: true; sentence: string } | { ok: false; message: string };
 
+let signupRule: typeof SignupSchema | null = null;
+
+/**
+ * The list's own rule (contracts SignupSchema), loaded once. It comes by import() from contracts' write-rules entry,
+ * never with the page, since the browser's contracts carry no classic zod (decision 0024); the screen asks for it as
+ * the list's form appears (CreateWorkspace.tsx), so a press seldom waits on it.
+ */
+export async function loadWaitlistRule(): Promise<typeof SignupSchema> {
+  signupRule ??= (await import("@chanlytics/contracts/write-rules")).SignupSchema;
+  return signupRule;
+}
+
 export async function joinWaitlistFrom(
   win: Pick<Window, "fetch">,
   input: { name: string; email: string },
 ): Promise<WaitlistJoin> {
-  // The list's own rule, said before anything is sent, in the words the route would answer with.
-  const parsed = SignupSchema.safeParse({ name: input.name, email: input.email });
+  // The list's own rule, said before anything is sent, in the words the route would answer with. One that cannot load
+  // is the network the post would have needed too.
+  let rule: typeof SignupSchema;
+  try {
+    rule = signupRule ?? (await loadWaitlistRule());
+  } catch {
+    return { ok: false, message: SIGNUP_WORDS.unreachable };
+  }
+  const parsed = rule.safeParse({ name: input.name, email: input.email });
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? SIGNUP_WORDS.waitlistNotJoined };
   const { name, email } = parsed.data;
   let res: Response;

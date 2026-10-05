@@ -2,8 +2,9 @@ import "server-only";
 import { getTenantConfig, listPolicies } from "@chanlytics/db";
 import { tenantFacts } from "../tenant";
 import { sellsByOf } from "../people/deals";
-import { load, stamp, type Reader, type ReaderContext } from "./index";
-import { MIN_MS } from "@chanlytics/contracts";
+import { channelsReadyOrNull } from "../campaigns/channels-ready";
+import { FACTS_READER, load, stamp, type Reader, type ReaderContext } from "./index";
+import { type ChannelsReady, MIN_MS } from "@chanlytics/contracts";
 
 /**
  * The workspace's facts, read once.
@@ -17,7 +18,7 @@ import { MIN_MS } from "@chanlytics/contracts";
  */
 
 export const facts: Reader<undefined, { name: string; timezone: string }> = {
-  name: "facts",
+  name: FACTS_READER,
   ttlMs: 5 * MIN_MS,
   async read(rc) {
     return { data: await tenantFacts(rc.ctx.supabase, rc.tenantId), rows: [], stamp: stamp() };
@@ -28,6 +29,18 @@ export const sellsBy: Reader<undefined, Awaited<ReturnType<typeof sellsByOf>>> =
   name: "sellsBy",
   async read(rc) {
     return { data: await sellsByOf(rc.ctx, rc.tenantId), rows: [], stamp: stamp() };
+  },
+};
+
+/**
+ * What the workspace can send on now, channel by channel (campaigns/channels-ready.ts), read once a turn: who can be sent
+ * what is judged against it wherever People's rows are built, on the page and in Ask (contracts reach-any.ts). A read
+ * that fails is said in the log and is null: counted as before the channels were, by WhatsApp alone, never as nothing.
+ */
+export const channelsReady: Reader<undefined, ChannelsReady | null> = {
+  name: "channelsReady",
+  async read(rc) {
+    return { data: await channelsReadyOrNull(rc.ctx, rc.tenantId), rows: [], stamp: stamp() };
   },
 };
 

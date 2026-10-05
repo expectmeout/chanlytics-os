@@ -201,6 +201,13 @@ declare
   v_id uuid;
   v_asked int := jsonb_array_length(coalesce(p_recipients, '[]'::jsonb));
   v_enrolled int;
+  v_off int;
+  -- The channels the run ticks, as given; none given is WhatsApp alone, as every run was before. A list that is not the
+  -- three channels, each once, is the column's CHECK to refuse, and a value that is no list raises here.
+  v_channels text[] := case
+    when coalesce(jsonb_typeof(p_run->'channels'), 'null') = 'null' then array['whatsapp']
+    else array(select jsonb_array_elements_text(p_run->'channels'))
+  end;
 begin
   if (p_run->>'template_id') is not null and not exists (
        select 1 from public.templates t where t.id = (p_run->>'template_id')::uuid and t.tenant_id = p_tenant) then
@@ -211,16 +218,26 @@ begin
     raise exception 'assemble_broadcast: the playbook is not workspace %''s', p_tenant using errcode = '42501';
   end if;
   insert into public.broadcasts (tenant_id, name, template_id, template_name, template_language, params, audience,
-                                 state, scheduled_for, recipient_count, created_by, playbook_id, run_for)
+                                 state, scheduled_for, recipient_count, created_by, playbook_id, run_for, channels)
   values (p_tenant, p_run->>'name', (p_run->>'template_id')::uuid, p_run->>'template_name',
           p_run->>'template_language', coalesce(p_run->'params', '[]'::jsonb), coalesce(p_run->'audience', '{}'::jsonb),
           p_run->>'state', (p_run->>'scheduled_for')::timestamptz, (p_run->>'recipient_count')::int,
-          (p_run->>'created_by')::uuid, (p_run->>'playbook_id')::uuid, (p_run->>'run_for')::date)
+          (p_run->>'created_by')::uuid, (p_run->>'playbook_id')::uuid, (p_run->>'run_for')::date, v_channels)
   returning id into v_id;
 
-  insert into public.broadcast_recipients (broadcast_id, contact_id, tenant_id, facts)
-  select v_id, x.contact_id, p_tenant, x.facts
-    from jsonb_to_recordset(coalesce(p_recipients, '[]'::jsonb)) as x(contact_id uuid, facts jsonb)
+  -- Each person is on a channel the run ticks. None named is WhatsApp (a recipient written before the channels), so a run
+  -- that does not tick WhatsApp refuses a person with none, as it refuses one on a channel it did not tick.
+  select count(*)::int into v_off
+    from jsonb_to_recordset(coalesce(p_recipients, '[]'::jsonb)) as x(contact_id uuid, facts jsonb, channel text)
+   where coalesce(x.channel, 'whatsapp') <> all (v_channels);
+  if v_off > 0 then
+    raise exception 'assemble_broadcast: % of the % people are on a channel the run does not tick', v_off, v_asked
+      using errcode = '22023';
+  end if;
+
+  insert into public.broadcast_recipients (broadcast_id, contact_id, tenant_id, facts, channel)
+  select v_id, x.contact_id, p_tenant, x.facts, x.channel
+    from jsonb_to_recordset(coalesce(p_recipients, '[]'::jsonb)) as x(contact_id uuid, facts jsonb, channel text)
    where exists (select 1 from public.contacts c
                   where c.id = x.contact_id and c.tenant_id = p_tenant and c.erased_at is null);
   get diagnostics v_enrolled = row_count;
@@ -241,7 +258,20 @@ end $$;
 -- Name: FUNCTION assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_send_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_send_at timestamp with time zone) IS 'A broadcast''s run, its people and its send job (when p_send_at is set) in one transaction (core assembleRun): all or none. The service role''s alone: the route''s role check and the sweep are the doors. Every person must be the workspace''s and not erased, and so must its template and its playbook. Returns the run''s id.';
+COMMENT ON FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_send_at timestamp with time zone) IS 'A broadcast''s run, its people and its send job (when p_send_at is set) in one transaction (core assembleRun): all or none. The service role''s alone: the route''s role check and the sweep are the doors. Every person must be the workspace''s and not erased, and so must its template and its playbook. The run carries the channels it ticks (p_run.channels, a JSON array of whatsapp, sms, email, each once; absent is whatsapp alone) and each person the channel they are reached on (a person''s `channel`, one the run ticks; none is whatsapp, so a run that does not tick it takes none without one): a channel the run did not tick refuses the whole run (22023). Returns the run''s id.';
+
+
+--
+-- Name: automated_send(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.automated_send(p_meta jsonb) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  -- A send written as 'human' that no person made; it lists every source packages/core/src/deliver.ts treats as automated.
+  select coalesce(p_meta->>'source', '') in ('broadcast', 'reach_out')
+$$;
 
 
 --
@@ -259,6 +289,32 @@ $$;
 
 
 --
+-- Name: billing_event_keep_amount(text, integer, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.billing_event_keep_amount(p_id text, p_amount_cents integer, p_currency text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+begin
+  if p_amount_cents is null or p_amount_cents < 0 or p_currency is null or p_currency !~ '^[a-z]{3}$' then
+    return false;
+  end if;
+  update public.billing_events
+     set amount_cents = p_amount_cents, currency = p_currency
+   where id = p_id and amount_cents is null;
+  return found;
+end $_$;
+
+
+--
+-- Name: FUNCTION billing_event_keep_amount(p_id text, p_amount_cents integer, p_currency text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.billing_event_keep_amount(p_id text, p_amount_cents integer, p_currency text) IS 'Keeps what an invoice event moved on its ledger row (K8), once: the first answer stands. False, writing nothing, for an amount that is null or negative or a currency that is not three lowercase letters, and for an event that already has an amount or is not on record. The Stripe door''s, best-effort, after the claim (apps/edge/lib/billing/invoice-amount.ts noteInvoiceAmount).';
+
+
+--
 -- Name: broadcast_recipients_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -273,9 +329,10 @@ begin
       return NEW;
     end if;
     -- Or released, when WhatsApp did not take the send -- too many, too fast, or never reached at all: nothing was
-    -- taken, and the release says which.
+    -- taken, and the release says which. Its next try is a new attempt (00301).
     if OLD.state = 'failed' and OLD.reason = 'outcome_unknown' and NEW.state = 'queued'
        and NEW.reason in ('throttled', 'not_taken') then
+      NEW.attempt := OLD.attempt + 1;
       return NEW;
     end if;
     if OLD.state in ('sent', 'skipped', 'failed') then
@@ -291,7 +348,7 @@ end $$;
 -- Name: FUNCTION broadcast_recipients_guard(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.broadcast_recipients_guard() IS 'queued -> sent|skipped|failed, once; a claim (failed, outcome_unknown) -> sent|skipped, or back to queued as throttled or not_taken when WhatsApp did not take it; sent, skipped and other failures are final. A same-state update is not a move.';
+COMMENT ON FUNCTION public.broadcast_recipients_guard() IS 'queued -> sent|skipped|failed, once; a claim (failed, outcome_unknown) -> sent|skipped, or back to queued as throttled or not_taken when WhatsApp did not take it, which counts a new attempt (00301); sent, skipped and other failures are final. A same-state update is not a move.';
 
 
 --
@@ -356,6 +413,43 @@ COMMENT ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_li
 
 
 --
+-- Name: call_connected(text, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.call_connected(p_status text, p_duration_ms integer) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  -- Someone spoke: the call is under way or ended, or it errored after it had a length.
+  select coalesce(p_status in ('ongoing', 'ended') or (p_status = 'error' and coalesce(p_duration_ms, 0) > 0), false)
+$$;
+
+
+--
+-- Name: call_cost_usd(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.call_cost_usd(p_cost jsonb) RETURNS numeric
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  -- Retell's call_cost.combined_cost is in cents (its get-call reference). Not a number, below nothing, or past a hundred
+  -- thousand dollars for one call is no cost: never an error and never a zero that is not the call's.
+  select case when jsonb_typeof(p_cost -> 'combined_cost') = 'number'
+              then case when (p_cost ->> 'combined_cost')::numeric between 0 and 9999900
+                        then round((p_cost ->> 'combined_cost')::numeric / 100, 6) end
+         end
+$$;
+
+
+--
+-- Name: FUNCTION call_cost_usd(p_cost jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.call_cost_usd(p_cost jsonb) IS 'A call''s cost in dollars from the provider''s own call_cost (K8): combined_cost, in cents, divided by a hundred; null for anything that is not a plausible cost. The one place the product says it.';
+
+
+--
 -- Name: call_status_rank(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -369,6 +463,29 @@ CREATE FUNCTION public.call_status_rank(p_status text) RETURNS integer
            else 2   -- ended, error, not_connected: terminal
          end
 $$;
+
+
+--
+-- Name: call_transfer_answered(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.call_transfer_answered(p_reason text) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  -- null: not a transfer. true: a person picked up (call_transfer, and transfer_bridged for a warm one). false: it did not go through.
+  select case
+           when p_reason in ('call_transfer', 'transfer_bridged') then true
+           when p_reason = 'transfer_cancelled' then false
+         end
+$$;
+
+
+--
+-- Name: FUNCTION call_transfer_answered(p_reason text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.call_transfer_answered(p_reason text) IS 'Whether a call''s ending (calls.disconnection_reason) was a transfer and a person picked up (K7): true for call_transfer and transfer_bridged, false for transfer_cancelled, null for any other ending or none. Held to the product''s own words for the endings (call-dto.ts DISCONNECTION_LABELS) by a database test.';
 
 
 --
@@ -393,6 +510,89 @@ $$;
 --
 
 COMMENT ON FUNCTION public.caller_has_permission(p_tenant_id uuid, p_permission text) IS 'has_permission for the calling session: whether the caller may do this in this workspace, a partner only on a session that showed its second factor (0013). Answers only about the caller, which is why every session may ask.';
+
+
+--
+-- Name: calls_note_first_touch(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.calls_note_first_touch() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  perform public.person_set_first_touch(NEW.tenant_id, NEW.contact_id, 'call', NEW.channel_id::text, NEW.created_at);
+  return null;
+exception when others then
+  raise warning 'calls_note_first_touch: %', sqlerrm;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION calls_note_first_touch(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.calls_note_first_touch() IS 'The first touch of the person an inbound call made (K3): a call, on the line it rang (calls.channel_id), at the moment the call is one public.call_connected counts (ongoing or ended, or an error after it had a length): its first row, or the update that first makes it so. Never fails the write: a failure is a warning.';
+
+
+--
+-- Name: calls_note_transfer(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.calls_note_transfer() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (NEW.tenant_id, 'call.transferred', 'call', 'call', NEW.id,
+          jsonb_build_object('answered', public.call_transfer_answered(NEW.disconnection_reason)));
+  return null;
+exception when others then
+  raise warning 'calls_note_transfer: %', sqlerrm;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION calls_note_transfer(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.calls_note_transfer() IS 'Writes call.transferred { answered } when a call''s ending becomes a transfer (K7), once per call: on its first row when it arrives ending in one, or on the update that first makes the ending one. Never fails the call''s writer: a failure is a warning.';
+
+
+--
+-- Name: campaign_month_sent(uuid, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone DEFAULT now()) RETURNS integer
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with zone as (
+    select public.safe_zone(coalesce(nullif(btrim(t.timezone), ''), 'America/New_York')) as tz
+      from public.tenants t where t.id = p_tenant_id
+  ), month as (
+    select date_trunc('month', p_at at time zone zone.tz) at time zone zone.tz as since,
+           (date_trunc('month', p_at at time zone zone.tz) + interval '1 month') at time zone zone.tz as until
+      from zone
+  )
+  select count(*)::int
+    from public.messages m, month
+   where m.tenant_id = p_tenant_id and m.created_at >= month.since and m.created_at < month.until
+     and m.meta->>'source' = 'broadcast' and m.channel = p_channel and m.direction = 'outbound'
+     and (public.email_left(m.status, m.error)
+          or m.status = 'queued'
+          or (m.status = 'failed' and coalesce(m.error->>'outcome', '') = 'unknown'))
+$$;
+
+
+--
+-- Name: FUNCTION campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone) IS 'The campaign messages (a broadcast''s or a playbook run''s: meta.source broadcast) a workspace sent on a channel this calendar month in its own zone that left, may have left, or wait to go: what its month''s allowance on that channel has spent (00298; reach_out_month_sent counts the cold emails the same way). Service role only.';
 
 
 --
@@ -539,6 +739,48 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies, yeses and stops (not an unsubscribe from email, 00174) — day by day over two periods, and the current period by playbook or broadcast. Invoker''s RLS.';
+
+
+--
+-- Name: channel_keep_quality(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.channel_keep_quality(p_tenant_id uuid, p_channel_id uuid, p_rating text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_prev text;
+begin
+  -- Meta's words are capital letters (GREEN, YELLOW, RED, NA, UNKNOWN); what is kept is a word, never a sentence.
+  if p_rating is null or p_rating !~ '^[A-Z]{2,12}$' then
+    raise exception 'channel_keep_quality: not a rating word' using errcode = '22023';
+  end if;
+  select c.config ->> 'quality_read' into v_prev
+    from public.tenant_channels c
+   where c.id = p_channel_id and c.tenant_id = p_tenant_id and c.kind = 'whatsapp'
+     for update;
+  if not found then
+    return 'gone';
+  end if;
+  update public.tenant_channels
+     set config = config || jsonb_build_object('quality_read', p_rating, 'quality_read_at', now())
+   where id = p_channel_id and tenant_id = p_tenant_id;
+  if v_prev is not distinct from p_rating then
+    return 'same';
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'channel.quality_rating', 'system', 'channel', p_channel_id,
+          jsonb_strip_nulls(jsonb_build_object('from', v_prev, 'to', p_rating)));
+  return case when v_prev is null then 'first' else 'changed' end;
+end $_$;
+
+
+--
+-- Name: FUNCTION channel_keep_quality(p_tenant_id uuid, p_channel_id uuid, p_rating text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.channel_keep_quality(p_tenant_id uuid, p_channel_id uuid, p_rating text) IS 'Keeps the rating Meta holds for a workspace''s WhatsApp number (K9): merges quality_read and quality_read_at into the channel''s config beside quality_rating, never over it, and writes channel.quality_rating { from, to } when the word changed (no from on the first read), in one transaction. Answers first, changed, same, or gone (not this workspace''s WhatsApp channel); refuses (22023) a word that is not 2 to 12 capital letters. The channel-quality sweep''s door (readNumberQualities in apps/edge/lib/whatsapp/number-quality.ts).';
 
 
 --
@@ -821,6 +1063,82 @@ COMMENT ON FUNCTION public.cold_receipts_owed(p_from timestamp with time zone, p
 
 
 --
+-- Name: consent_channels_of(text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.consent_channels_of(p_purpose text, p_source text, p_channel text) RETURNS text[]
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO ''
+    AS $$
+  -- contracts' channelsOfYes, row by row of its table. A purpose that is not 'marketing' is the conversational one.
+  select case
+    -- A yes to offers in their own message, by text or email, covers WhatsApp too: offers go by WhatsApp alone, and the
+    -- confirmation they are sent says so. (Their own message on WhatsApp is WhatsApp alone, below.)
+    when p_purpose = 'marketing' and p_source = 'customer_message' and p_channel in ('sms', 'email')
+      then array['whatsapp', p_channel]
+    when p_source = 'customer_message' and p_channel in ('whatsapp', 'sms', 'email') then array[p_channel]
+    when p_purpose = 'marketing' then
+      case when p_source in ('form', 'customer_message') then array['whatsapp'] else '{}'::text[] end
+    when p_source in ('form', 'phone') then array['whatsapp', 'sms']
+    else array['whatsapp']
+  end
+$$;
+
+
+--
+-- Name: FUNCTION consent_channels_of(p_purpose text, p_source text, p_channel text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.consent_channels_of(p_purpose text, p_source text, p_channel text) IS 'The channels one yes covers (One message, every channel, step 2): contracts'' channelsOfYes, case by case, which consent-channels.db.test.mjs holds equal. p_purpose is marketing or anything else (conversational); p_source how the yes was given (the source every consent event records); p_channel the channel of the message it came in, where it came in one. Their own message covers its channel, and for offers by text or email WhatsApp too (offers go by WhatsApp); the sign-up page or the form, WhatsApp and text for visit messages and WhatsApp for offers; the phone, WhatsApp and text for visit messages and never offers; anything else, WhatsApp for visit messages and never offers.';
+
+
+--
+-- Name: consent_channels_on_erase(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.consent_channels_on_erase() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.erased_at is not null and old.erased_at is null then
+    new.consent_channels := null;
+    new.marketing_channels := null;
+    new.offers_asked_at := null;
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION consent_channels_on_erase(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.consent_channels_on_erase() IS 'Before a person is erased (00101''s rule: an erased row holds no answer about anybody): the channels their yeses covered and when offers were asked go with the yes.';
+
+
+--
+-- Name: consent_channels_union(text[], text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.consent_channels_union(p_have text[], p_add text[]) RETURNS text[]
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO ''
+    AS $$
+  select coalesce(array_agg(c.channel order by c.ord), '{}'::text[])
+    from unnest(array['whatsapp', 'sms', 'email']) with ordinality as c(channel, ord)
+   where c.channel = any (coalesce(p_have, '{}'::text[]) || coalesce(p_add, '{}'::text[]))
+$$;
+
+
+--
+-- Name: FUNCTION consent_channels_union(p_have text[], p_add text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.consent_channels_union(p_have text[], p_add text[]) IS 'The channels of both lists, each once, in the order whatsapp, sms, email; anything that is not one of the three is dropped, and a NULL list is an empty one.';
+
+
+--
 -- Name: contact_email_change_clears_suppression(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -869,6 +1187,31 @@ begin
   end if;
   return new;
 end $$;
+
+
+--
+-- Name: contact_first_moments(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contact_first_moments(p_tenant_id uuid) RETURNS TABLE(contact_id uuid, first_at timestamp with time zone)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- Each person's first word or connected call, whichever came first. Absent: the erased (a deletion is never
+  -- growth, 00026), a person whose history was imported (no true first moment), and a person with neither (00254).
+  -- Each aggregate runs once per contact, in its own lateral, so the first moment is read once and filtered on.
+  select c.id as contact_id, least(msg.at, call.at) as first_at
+    from contacts c
+    left join lateral (select min(m.channel_ts) as at from messages m where m.contact_id = c.id) msg on true
+    left join lateral (select min(k.started_at) as at from calls k
+                        where k.contact_id = c.id and public.call_connected(k.status, k.duration_ms)) call on true
+   where c.tenant_id = p_tenant_id
+     and c.erased_at is null
+     and least(msg.at, call.at) is not null
+     and not exists (select 1 from messages b
+                      where b.contact_id = c.id
+                        and coalesce(b.meta->>'backfill', 'false') = 'true')
+$$;
 
 
 --
@@ -1617,6 +1960,46 @@ end $$;
 
 
 --
+-- Name: email_offer_counts(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.email_offer_counts(p_tenant_id uuid, p_host text) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with ours as (
+    select m.status, m.error, m.meta, m.created_at
+      from public.messages m
+     where m.tenant_id = p_tenant_id and m.channel = 'email' and m.direction = 'outbound'
+       and public.email_from_host(m.meta) = lower(p_host)
+       and m.created_at >= now() - interval '90 days'
+       and m.created_at > coalesce(
+             (select b.offers_resumed_at from public.mailboxes b where b.tenant_id = p_tenant_id),
+             '-infinity'::timestamptz)
+       and public.email_left(m.status, m.error)
+  ), complaint_window as (
+    select o.* from ours o order by o.created_at desc limit 1000
+  ), bounce_window as (
+    select o.* from ours o order by o.created_at desc limit 500
+  )
+  select jsonb_build_object(
+    'complaint_sample', (select count(*) from complaint_window),
+    'complaints', (select count(*) from complaint_window where meta->'email' ? 'complained_at'),
+    'bounce_sample', (select count(*) from bounce_window),
+    -- A permanent bounce only: a full mailbox or a greylisting server says nothing about the list (00179).
+    'bounces', (select count(*) from bounce_window where status = 'failed' and error->>'provider' = 'bounced'
+                  and lower(coalesce(error->>'kind', '')) = 'permanent'))
+$$;
+
+
+--
+-- Name: FUNCTION email_offer_counts(p_tenant_id uuid, p_host text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.email_offer_counts(p_tenant_id uuid, p_host text) IS 'What the gates on offers by email are judged by (contracts'' OFFER_GATES): of the emails that left from this host in the last 90 days and since the workspace''s last resume (mailboxes.offers_resumed_at), the last 1,000 (complaint_sample) and the complaints among them, and the last 500 (bounce_sample) and the hard (permanent) bounces among them (00301). Service role only.';
+
+
+--
 -- Name: email_sent_at(jsonb, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2185,6 +2568,211 @@ COMMENT ON FUNCTION public.escalations_guard() IS 'open -> resolved, once. A res
 
 
 --
+-- Name: escalations_note_change(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.escalations_note_change() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (NEW.tenant_id, 'escalation.changed', 'conversation', 'escalation', NEW.id,
+          jsonb_build_object('from', OLD.reason, 'to', NEW.reason));
+  return null;
+exception when others then
+  raise warning 'escalations_note_change: %', sqlerrm;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION escalations_note_change(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.escalations_note_change() IS 'Writes escalation.changed { from, to } when a reason replaces another on an escalation (K4). Never fails the update: a failure is a warning.';
+
+
+--
+-- Name: escalations_stamp_resolved(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.escalations_stamp_resolved() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if OLD.state = 'open' and NEW.state = 'resolved' and NEW.resolved_at is null then
+    NEW.resolved_at := now();
+  end if;
+  return NEW;
+end $$;
+
+
+--
+-- Name: FUNCTION escalations_stamp_resolved(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.escalations_stamp_resolved() IS 'Stamps resolved_at once, when state goes from open to resolved, whoever writes it (K4).';
+
+
+--
+-- Name: events_complete_deal(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.events_complete_deal() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_deal record;
+begin
+  if jsonb_typeof(NEW.data) = 'object' then
+    select d.amount_cents, d.lost_reason into v_deal
+      from public.deals d
+     where d.id = NEW.subject_id and d.tenant_id = NEW.tenant_id;
+    if found then
+      -- strip_nulls drops what the deal does not have (never 0: an amount of 0 is kept); the writer's own keys come last, so they stand.
+      NEW.data := jsonb_strip_nulls(jsonb_build_object('amount_cents', v_deal.amount_cents, 'lost_reason', v_deal.lost_reason))
+                  || NEW.data;
+    end if;
+  end if;
+  return NEW;
+exception when others then
+  raise warning 'events_complete_deal: %', sqlerrm;
+  return NEW;
+end $$;
+
+
+--
+-- Name: FUNCTION events_complete_deal(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.events_complete_deal() IS 'Adds amount_cents and lost_reason, as the deal holds them, to a deal.* event (K6): only what the deal has (an amount of 0 is an amount), a writer''s own key standing, never a note, a link, a per or a currency. Never fails the insert: a failure is a warning.';
+
+
+--
+-- Name: events_complete_lead_stage(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.events_complete_lead_stage() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_from text;
+begin
+  if jsonb_typeof(NEW.data) = 'object' and not (NEW.data ? 'from') then
+    select l.stage_from into v_from
+      from public.leads l
+     where l.id = NEW.subject_id and l.tenant_id = NEW.tenant_id
+       and l.stage_at = now() and l.stage = NEW.data ->> 'stage';
+    if v_from is not null then
+      NEW.data := NEW.data || jsonb_build_object('from', v_from);
+    end if;
+  end if;
+  return NEW;
+exception when others then
+  raise warning 'events_complete_lead_stage: %', sqlerrm;
+  return NEW;
+end $$;
+
+
+--
+-- Name: FUNCTION events_complete_lead_stage(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.events_complete_lead_stage() IS 'Adds `from` to a lead.stage event when the lead moved into the event''s stage in this transaction (K5), whoever wrote the event. A writer''s own from stands; an event for a lead that did not just move is left as written. Never fails the insert: a failure is a warning.';
+
+
+--
+-- Name: events_keep_consent_channels(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.events_keep_consent_channels() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_purpose text := coalesce(new.data->>'purpose', 'conversational');
+  v_consent text := new.data->>'consent';
+  v_covers  text[];
+begin
+  if new.subject_id is null or v_purpose not in ('conversational', 'marketing') then
+    return null;
+  end if;
+  if v_consent = 'opted_in' then
+    -- A yes adds what it covers to what the person's earlier yeses cover. NULL is no yes kept ('{}'), never WhatsApp: a
+    -- person's first yes by text covers text alone, and the backfill below has given every earlier yes its list.
+    v_covers := public.consent_channels_of(v_purpose, new.data->>'source', new.data->>'channel');
+    if v_purpose = 'marketing' then
+      update public.contacts c
+         set marketing_channels = public.consent_channels_union(c.marketing_channels, v_covers)
+       where c.id = new.subject_id and c.tenant_id = new.tenant_id and c.erased_at is null;
+    else
+      update public.contacts c
+         set consent_channels = public.consent_channels_union(c.consent_channels, v_covers)
+       where c.id = new.subject_id and c.tenant_id = new.tenant_id and c.erased_at is null;
+    end if;
+  elsif v_consent in ('opted_out', 'unknown') then
+    -- A no, or a reset, empties the answer it is about. STOP and do-not-contact stay all-channel through dnc.
+    if v_purpose = 'marketing' then
+      update public.contacts c set marketing_channels = '{}'::text[]
+       where c.id = new.subject_id and c.tenant_id = new.tenant_id and c.erased_at is null;
+    else
+      update public.contacts c set consent_channels = '{}'::text[]
+       where c.id = new.subject_id and c.tenant_id = new.tenant_id and c.erased_at is null;
+    end if;
+  end if;
+  return null;
+exception when others then
+  -- The consent write is the person's word, and the event is its evidence; the channels are read from them, never
+  -- a reason to refuse them. A row left without its list reads as WhatsApp alone.
+  raise warning 'events_keep_consent_channels: %', sqlerrm;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION events_keep_consent_channels(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.events_keep_consent_channels() IS 'After a contact.consent_changed event is written (One message, every channel, step 2): a yes adds the channels it covers (consent_channels_of, by the event''s purpose, source and channel) to the person''s consent_channels or marketing_channels, and a no or a reset empties it. A failure warns and never refuses the consent write.';
+
+
+--
+-- Name: events_note_first_touch(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.events_note_first_touch() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_word text := NEW.data ->> 'source';
+  v_via  text := case when v_word in ('calendar', 'lead', 'import') then v_word else 'manual' end;
+begin
+  perform public.person_set_first_touch(
+    NEW.tenant_id,
+    NEW.subject_id,
+    v_via,
+    case when v_via = 'lead' then NEW.data ->> 'lead_id' end
+  );
+  return null;
+exception when others then
+  raise warning 'events_note_first_touch: %', sqlerrm;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION events_note_first_touch(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.events_note_first_touch() IS 'The first touch of a person added at a door (K3): the source of the contact.added event beside them (calendar, lead, import, any other word or none is manual), through person_set_first_touch, with the lead''s id as the ref where the event names one. The mapping is people_list''s came_from for a door, written once. Never fails the event''s writer: a failure is a warning.';
+
+
+--
 -- Name: expire_stale_pauses(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2229,7 +2817,7 @@ COMMENT ON FUNCTION public.expire_stale_pauses() IS 'Ends what has run out on a 
 -- Name: first_replies(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with time zone) RETURNS TABLE(asked_at timestamp with time zone, conversation_id uuid, ai_at timestamp with time zone, human_at timestamp with time zone, who text, ai_seconds numeric)
+CREATE FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with time zone) RETURNS TABLE(asked_at timestamp with time zone, conversation_id uuid, ai_at timestamp with time zone, human_at timestamp with time zone, who text, ai_seconds numeric, ai_hold_s numeric)
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
@@ -2244,35 +2832,44 @@ CREATE FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with ti
      where m.created_at >= p_start
        and m.direction = 'inbound' and m.sender = 'customer'
   ),
-  -- when each outbound row actually LEFT: the send event for the queued path,
-  -- the row itself for an immediate send
+  -- when each outbound row actually LEFT: the send event for the queued path, the row itself for an immediate send
   sent as not materialized (
     select o.id, o.conversation_id, o.sender, o.created_at,
            coalesce((select min(e.created_at) from events e
                       where e.tenant_id = p_tenant_id
                         and e.kind = 'message.sent'
                         and e.subject_type = 'message'
-                        and e.subject_id = o.id), o.created_at) as sent_at
+                        and e.subject_id = o.id), o.created_at) as sent_at,
+           -- the hold the owner set, as the reply was queued (draft-queue.ts); none for a reply sent at once
+           case when jsonb_typeof(o.meta->'delay_ms') = 'number'
+                then (o.meta->>'delay_ms')::numeric / 1000.0 else 0 end as hold_s,
+           -- written as 'human' and nobody's answer (00303)
+           public.automated_send(o.meta) as automated
       from real_msgs o
      where o.direction = 'outbound'
        and o.status in ('sent', 'delivered', 'read')
   ),
   firsts as (
-    select a.asked_at, a.conversation_id,
+    select a.asked_at, a.conversation_id, ai.sent_at as ai_at, ai.hold_s,
            (select min(s.sent_at) from sent s
-             where s.conversation_id = a.conversation_id and s.sender = 'ai'
-               and s.created_at > a.asked_at) as ai_at,
-           (select min(s.sent_at) from sent s
-             where s.conversation_id = a.conversation_id and s.sender = 'human'
+             where s.conversation_id = a.conversation_id and s.sender = 'human' and not s.automated
                and s.created_at > a.asked_at) as human_at
       from asks a
+      left join lateral (
+        select s.sent_at, s.hold_s from sent s
+         where s.conversation_id = a.conversation_id and s.sender = 'ai' and s.created_at > a.asked_at
+         order by s.sent_at
+         limit 1
+      ) ai on true
   )
   select asked_at, conversation_id, ai_at, human_at,
          case when ai_at is not null and (human_at is null or ai_at <= human_at) then 'ai'
               when human_at is not null then 'you'
               else 'none' end as who,
          case when ai_at is not null and (human_at is null or ai_at <= human_at)
-              then extract(epoch from (ai_at - asked_at)) end as ai_seconds
+              then extract(epoch from (ai_at - asked_at)) end as ai_seconds,
+         case when ai_at is not null and (human_at is null or ai_at <= human_at)
+              then hold_s end as ai_hold_s
     from firsts
 $$;
 
@@ -2531,6 +3128,203 @@ $$;
 --
 
 COMMENT ON FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_permission text) IS 'Whether this user may do this in this workspace, by role: contracts'' ROLE_PERMS, restated once in SQL. A partner (0012) sets the workspace up: settings, disconnect and find beside what an operator has; billing, team and export stay the owner''s.';
+
+
+--
+-- Name: contacts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.contacts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    phone_e164 text,
+    display_name text,
+    wa_profile_name text,
+    consent text DEFAULT 'unknown'::text NOT NULL,
+    consent_source text,
+    consent_updated_at timestamp with time zone,
+    dnc boolean DEFAULT false NOT NULL,
+    merged_into_contact_id uuid,
+    first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    erased_at timestamp with time zone,
+    notes text,
+    marketing_consent text DEFAULT 'unknown'::text NOT NULL,
+    marketing_consent_source text,
+    marketing_consent_updated_at timestamp with time zone,
+    erasing_since timestamp with time zone,
+    erased_phone_hash text,
+    email text,
+    erased_email_hash text,
+    email_suppressed_at timestamp with time zone,
+    email_suppressed_reason text,
+    proposal_url text,
+    email_marketing text DEFAULT 'unknown'::text NOT NULL,
+    email_marketing_source text,
+    email_marketing_updated_at timestamp with time zone,
+    consent_channels text[],
+    marketing_channels text[],
+    offers_asked_at timestamp with time zone,
+    acquired_via text,
+    acquired_ref text,
+    CONSTRAINT contacts_acquired_ref_check CHECK (((acquired_ref IS NULL) OR ((acquired_via IS NOT NULL) AND ((char_length(acquired_ref) >= 1) AND (char_length(acquired_ref) <= 200))))),
+    CONSTRAINT contacts_acquired_via_check CHECK (((acquired_via IS NULL) OR (acquired_via = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text, 'call'::text, 'ad'::text, 'calendar'::text, 'import'::text, 'lead'::text, 'manual'::text])))),
+    CONSTRAINT contacts_consent_check CHECK ((consent = ANY (ARRAY['unknown'::text, 'opted_in'::text, 'opted_out'::text]))),
+    CONSTRAINT contacts_email_check CHECK (((email IS NULL) OR ((email = lower(btrim(email))) AND ((char_length(email) >= 3) AND (char_length(email) <= 254)) AND (email ~ '^[^[:space:]@<>]+@[^[:space:]@<>]+\.[^[:space:]@<>]+$'::text)))),
+    CONSTRAINT contacts_email_marketing_check CHECK ((email_marketing = ANY (ARRAY['unknown'::text, 'opted_in'::text, 'opted_out'::text]))),
+    CONSTRAINT contacts_email_suppressed_check CHECK ((((email_suppressed_at IS NULL) = (email_suppressed_reason IS NULL)) AND ((email_suppressed_reason IS NULL) OR (email_suppressed_reason = ANY (ARRAY['hard_bounce'::text, 'complaint'::text, 'provider'::text]))))),
+    CONSTRAINT contacts_marketing_consent_check CHECK ((marketing_consent = ANY (ARRAY['unknown'::text, 'opted_in'::text, 'opted_out'::text]))),
+    CONSTRAINT contacts_notes_check CHECK (((notes IS NULL) OR ((char_length(notes) >= 1) AND (char_length(notes) <= 600)))),
+    CONSTRAINT contacts_proposal_url_check CHECK (((proposal_url IS NULL) OR ((proposal_url = btrim(proposal_url)) AND ((char_length(proposal_url) >= 10) AND (char_length(proposal_url) <= 500)) AND (proposal_url ~ '^https?://[^[:space:]]+$'::text))))
+);
+
+
+--
+-- Name: COLUMN contacts.erased_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.erased_at IS 'Set by erase_contact(). The row is a tombstone: no phone, no names, no identities. It exists so decisions.subject_id and events.subject_id still resolve, and so a repeat request is a no-op rather than a second destruction.';
+
+
+--
+-- Name: COLUMN contacts.notes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.notes IS 'Superseded by person_notes (0007): moved there by 00157 and no longer read by the receptionist or the page. Kept for a page loaded before that deploy.';
+
+
+--
+-- Name: COLUMN contacts.marketing_consent; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.marketing_consent IS 'Whether this person said yes to OFFERS specifically -- separate from public.contacts.consent, which is their answer about conversation and appointments. Never implied: only a text from their own handset or an operator recording a signed form sets it. Carrier error 30913 is what a single combined answer earns.';
+
+
+--
+-- Name: COLUMN contacts.marketing_consent_source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.marketing_consent_source IS 'How the marketing answer was given: the same vocabulary consent_source uses. "customer_message" is a text from their own handset, which is the express WRITTEN consent the carriers require for promotional messages.';
+
+
+--
+-- Name: COLUMN contacts.erasing_since; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.erasing_since IS 'A deletion request, written before anything is destroyed: from this moment the wire refuses the person. erased_at is the completion.';
+
+
+--
+-- Name: COLUMN contacts.erased_phone_hash; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.erased_phone_hash IS 'sha256 hex of "<tenant_id>:<E.164>", written when the erasure begins and the number still exists, so the calendar import and a late call event do not bring the person back.';
+
+
+--
+-- Name: COLUMN contacts.email; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.email IS 'The person''s email address as normalizeEmail stores it: trimmed, lower-cased. One per workspace. A person may have this and no number.';
+
+
+--
+-- Name: COLUMN contacts.erased_email_hash; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.erased_email_hash IS 'sha256 hex of "<tenant_id>:<address>", written when an erasure begins and the address still exists, so mail arriving from it later does not bring the person back.';
+
+
+--
+-- Name: COLUMN contacts.email_suppressed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.email_suppressed_at IS 'When this address stopped being sent to: a permanent bounce, a complaint, or the provider''s own suppression. The wire refuses it from then on (deliver: email_suppressed).';
+
+
+--
+-- Name: COLUMN contacts.proposal_url; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.proposal_url IS 'The owner''s proposal for this person, as a web address (normalizeLink stores it). The receptionist sends the address when they ask about price or the proposal, and states none of its figures. Never a file.';
+
+
+--
+-- Name: COLUMN contacts.email_marketing; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.email_marketing IS 'Whether this person may be sent marketing email (a reach-out, an offer): unknown until they say, opted_out once they unsubscribe. Apart from consent and marketing_consent, which are the texting and WhatsApp answers.';
+
+
+--
+-- Name: COLUMN contacts.consent_channels; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.consent_channels IS 'The channels the yes about messages on their own visit covers (whatsapp, sms, email, in that order), kept by events_keep_consent_channels from each contact.consent_changed event by consent_channels_of''s rule. NULL: none kept, a yes recorded before the channels were, which covers WhatsApp alone; empty: no yes.';
+
+
+--
+-- Name: COLUMN contacts.marketing_channels; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.marketing_channels IS 'The channels the yes to offers covers (whatsapp, sms, email, in that order), kept the same way from the events that name purpose marketing. NULL: none kept, which reads as WhatsApp alone; empty: no yes.';
+
+
+--
+-- Name: COLUMN contacts.offers_asked_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.offers_asked_at IS 'When the receptionist first asked this person for the yes to offers: the first outbound message that says YES OFFERS or SI OFERTAS, in any case and with or without the accent (messages_stamp_offers_asked). It asks once.';
+
+
+--
+-- Name: COLUMN contacts.acquired_via; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.acquired_via IS 'How the person first reached the workspace, written once (person_set_first_touch): whatsapp, sms, email or call for the wire of the message or call that made them, ad for a WhatsApp click-to-chat ad (a referral whose source_type is ad; a post or any other referral is the wire''s), calendar, import, lead or manual for the door that added them (00307). Null for a person from before it was kept, and wherever nothing says: unknown, never a guess.';
+
+
+--
+-- Name: COLUMN contacts.acquired_ref; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.acquired_ref IS 'The line (tenant_channels.id) or the ad (Meta''s source id) the person first came through; null where nothing says. Never the person.';
+
+
+--
+-- Name: has_relationship(public.contacts); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.has_relationship(c public.contacts) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select exists (
+           -- They wrote: a message of theirs the customer could see or say, with words in it and a moment (people_list's
+           -- last_inbound_at: message_moment, 00259), and the words a person's own: not an automatic reply or a list's mail.
+           select 1
+             from public.messages m
+            cross join lateral public.message_moment(m.meta, m.channel_ts, m.created_at, m.type, m.status) e
+            where m.tenant_id = c.tenant_id and m.contact_id = c.id
+              and m.direction = 'inbound' and e.spoken and e.at is not null and m.body is not null
+              and public.message_is_a_persons_words(m.meta))
+      -- They called: a call they placed that connected, with a start (last_inbound_call_at, max(started_at), 00301).
+      or exists (
+           select 1 from public.calls k
+            where k.contact_id = c.id and k.direction = 'inbound' and k.status <> 'not_connected'
+              and k.started_at is not null)
+      -- They have a deal, in any stage (deal_id).
+      or exists (select 1 from public.deals d where d.contact_id = c.id)
+$$;
+
+
+--
+-- Name: FUNCTION has_relationship(c public.contacts); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.has_relationship(c public.contacts) IS 'Whether a person has a relationship with the business on record (spec 4.1): they wrote (a spoken message of theirs, with words and a moment, that a person wrote: not an automatic reply or a list''s mail), they called (a call they placed that connected), or they have a deal. What contracts'' relationshipOnRecord reads of People''s columns, in SQL, for the rows the send door reads. A function of the contacts row, so PostgREST serves it as a column.';
 
 
 --
@@ -4070,6 +4864,26 @@ $$;
 --
 
 COMMENT ON FUNCTION public.lead_in_list(p_stage text, p_closed_reason text, p_list text) IS 'The rail''s lists as one rule (§6.1): all, ready, nurture (Contacted), converted (Talking), said_no, not_a_fit (which holds "Already a customer" too). leads_page, lead_list_counts and lead_bulk all ask it, so the lists cannot drift apart.';
+
+
+--
+-- Name: lead_is_set_aside(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_is_set_aside(p_stage text, p_closed_reason text) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  -- The purge's word for an untouched lead (purge_leads, 00140): archived, and closed stale.
+  select coalesce(p_stage = 'archived' and p_closed_reason = 'stale', false)
+$$;
+
+
+--
+-- Name: FUNCTION lead_is_set_aside(p_stage text, p_closed_reason text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_is_set_aside(p_stage text, p_closed_reason text) IS 'A lead is set aside when it is archived and closed stale: the nightly purge''s word for a lead nobody worked, and what a hand that sets a lead to stale makes it too (K5). leads_note_set_aside asks it of the old row and the new.';
 
 
 --
@@ -6369,6 +7183,33 @@ COMMENT ON FUNCTION public.leads_erase_on_contact() IS 'When a person is erased,
 
 
 --
+-- Name: leads_note_set_aside(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.leads_note_set_aside() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (NEW.tenant_id, 'lead.set_aside', 'lead', 'lead', NEW.id,
+          jsonb_build_object('stage', NEW.stage, 'reason', NEW.closed_reason,
+                             'from', case when OLD.stage is distinct from NEW.stage then NEW.stage_from end));
+  return null;
+exception when others then
+  raise warning 'leads_note_set_aside: %', sqlerrm;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION leads_note_set_aside(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.leads_note_set_aside() IS 'Writes lead.set_aside { stage, reason, from } when a lead moves into the set-aside, by the nightly purge or by hand (K5); from is the row''s stage_from when the stage moved, and null when it did not (a lead already archived, closed stale). Never fails the update: a failure is a warning.';
+
+
+--
 -- Name: leads_page(uuid, uuid, text, text, text, integer, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6439,6 +7280,28 @@ $$;
 --
 
 COMMENT ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid) IS 'A page of members of one class (qualified: the counted ones; review; excluded) joined to their leads, narrowed to one of the rail''s lists (lead_in_list), keyset-paged on the sort key in either direction, under the caller''s row security. Six sorts: found, fit, distance, business, rating, stage. Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here, so a caller that names only A''s six arguments pages exactly as it did. Which memberships show is lead_member_shown (00212).';
+
+
+--
+-- Name: leads_stamp_stage(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.leads_stamp_stage() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  NEW.stage_at := now();
+  NEW.stage_from := OLD.stage;
+  return NEW;
+end $$;
+
+
+--
+-- Name: FUNCTION leads_stamp_stage(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.leads_stamp_stage() IS 'Stamps stage_at and stage_from when a lead''s stage changes, whoever writes it (K5). Reads and writes only its own row.';
 
 
 --
@@ -6761,6 +7624,89 @@ COMMENT ON FUNCTION public.memberships_keep_an_owner() IS 'A workspace keeps an 
 
 
 --
+-- Name: message_carries_link(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.message_carries_link(p_body text, p_link text) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  -- The words hold the link without its scheme, as stored (case kept). One rule in several spellings, named by file and
+  -- function: layerTwo in packages/core/src/inbound/steps.ts (the receptionist's own check, with the scheme),
+  -- writtenOutDetail in packages/contracts/src/config/business-tab/fold-limits.ts (a written-out link), and the two
+  -- senders that strip the scheme before they fill the slot: sendBookingLinkOnCall in apps/edge/lib/voice/call-booking-link.ts
+  -- (the voice tool) and queueReply in packages/core/src/conversations/reply.ts (the Inbox's template).
+  -- A link that is null, empty, or nothing but a scheme or spaces carries nothing, never everything.
+  select btrim(l.bare) <> '' and strpos(coalesce(p_body, ''), l.bare) > 0
+    from (select regexp_replace(coalesce(p_link, ''), '^https?://', '') as bare) l
+$$;
+
+
+--
+-- Name: FUNCTION message_carries_link(p_body text, p_link text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.message_carries_link(p_body text, p_link text) IS 'Whether these words carry this link (K7): they hold the link without its scheme (^https?://), as stored, in the same case, anywhere in the words. False for no words, and for a link that is null, empty, or nothing but a scheme or spaces. The twins of this rule, by file and function: layerTwo in packages/core/src/inbound/steps.ts, writtenOutDetail in packages/contracts/src/config/business-tab/fold-limits.ts, and the scheme-stripping senders sendBookingLinkOnCall in apps/edge/lib/voice/call-booking-link.ts and queueReply in packages/core/src/conversations/reply.ts.';
+
+
+--
+-- Name: message_is_a_persons_words(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.message_is_a_persons_words(p_meta jsonb) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO ''
+    AS $$
+  select coalesce(p_meta->'email'->>'claim', 'person') not in ('automated', 'auto_reply', 'report')
+$$;
+
+
+--
+-- Name: FUNCTION message_is_a_persons_words(p_meta jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.message_is_a_persons_words(p_meta jsonb) IS 'Whether an inbound message''s words are a person''s own: false for an email read as automated mail, an automatic reply or a delivery report (meta.email.claim), true for everything else, a message with no claim included. The one statement of it: has_relationship and people_list''s last_wrote_at read it.';
+
+
+--
+-- Name: message_keep_cost(uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.message_keep_cost(p_tenant_id uuid, p_external_id text, p_pricing jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_kept jsonb;
+begin
+  if jsonb_typeof(p_pricing) is distinct from 'object' then
+    return false;
+  end if;
+  select jsonb_object_agg(e.key, e.value) into v_kept
+    from jsonb_each(p_pricing) e
+   where (e.key = 'billable' and jsonb_typeof(e.value) = 'boolean')
+      or (e.key in ('pricing_model', 'category', 'type')
+          and jsonb_typeof(e.value) = 'string'
+          and (e.value #>> '{}') ~ '^[A-Za-z0-9_-]{1,40}$');
+  if v_kept is null or not (v_kept ? 'category') then
+    return false;
+  end if;
+  update public.messages
+     set meta = meta || jsonb_build_object('pricing', v_kept)
+   where tenant_id = p_tenant_id and external_id = p_external_id and direction = 'outbound'
+     and not (meta ? 'pricing');
+  return found;
+end $_$;
+
+
+--
+-- Name: FUNCTION message_keep_cost(p_tenant_id uuid, p_external_id text, p_pricing jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.message_keep_cost(p_tenant_id uuid, p_external_id text, p_pricing jsonb) IS 'Keeps what a message cost to send on its outbound row (K8): Meta''s pricing, checked key by key (billable a boolean; pricing_model, category and type words of letters, digits, _ and -, at most 40 characters; nothing else kept), merged into meta once, by the provider''s id in this workspace. False, writing nothing, for an answer without a valid category (the key the cost is priced by), an id that is not an outbound message of this workspace, and a message that already has a pricing; never touches the status or any other key. The WhatsApp receipt door''s, best-effort (apps/edge lib whatsapp receipts).';
+
+
+--
 -- Name: message_moment(jsonb, timestamp with time zone, timestamp with time zone, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6784,6 +7730,30 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.message_moment(p_meta jsonb, p_channel_ts timestamp with time zone, p_created_at timestamp with time zone, p_type text, p_status text, OUT at timestamp with time zone, OUT spoken boolean, OUT moved_in boolean) IS 'When a message happened, whether it was spoken, and whether it came in with a history moved in, from its meta, channel_ts, created_at, type and status: people_list''s ev (00170) in one place. Its columns, not its row: a function of a table''s row is a column PostgREST serves.';
+
+
+--
+-- Name: message_stamp_handled(uuid, uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.message_stamp_handled(p_tenant_id uuid, p_message_id uuid, p_handled text, p_intent text DEFAULT NULL::text) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  update messages
+     set meta = meta || jsonb_strip_nulls(jsonb_build_object('handled', left(p_handled, 20), 'intent', left(p_intent, 20)))
+   where id = p_message_id
+     and tenant_id = p_tenant_id
+     and direction = 'inbound'
+     and not (meta ? 'handled');
+$$;
+
+
+--
+-- Name: FUNCTION message_stamp_handled(p_tenant_id uuid, p_message_id uuid, p_handled text, p_intent text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.message_stamp_handled(p_tenant_id uuid, p_message_id uuid, p_handled text, p_intent text) IS 'What a customer''s message became (K1): meta.handled (ai, held, handoff or blocked: contracts HANDLED_OUTCOMES) and meta.intent where the model read it, merged beside processed_at, the first answer standing, inbound rows of the workspace named only. The edge calls it best-effort beside mark_processed.';
 
 
 --
@@ -6848,6 +7818,103 @@ end $$;
 
 
 --
+-- Name: messages_note_booking_link(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.messages_note_booking_link() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_link text;
+begin
+  select c.config #>> '{brain,booking_link}' into v_link
+    from public.tenant_config c
+   where c.tenant_id = NEW.tenant_id;
+  if public.message_carries_link(NEW.body, v_link) then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (NEW.tenant_id, 'booking_link.sent', 'message', 'message', NEW.id,
+            jsonb_build_object('channel', NEW.channel, 'sender', NEW.sender));
+  end if;
+  return null;
+exception when others then
+  raise warning 'messages_note_booking_link: %', sqlerrm;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION messages_note_booking_link(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.messages_note_booking_link() IS 'Writes booking_link.sent { channel, sender } when an outbound chat message has left carrying the workspace''s booking link (K7), once: when its row becomes sent. Never fails the message''s writer: a failure is a warning.';
+
+
+--
+-- Name: messages_note_first_touch(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.messages_note_first_touch() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ad text := case when NEW.meta #>> '{referral,source_type}' = 'ad'
+                    then nullif(btrim(NEW.meta #>> '{referral,source_id}'), '') end;
+begin
+  perform public.person_set_first_touch(
+    NEW.tenant_id,
+    NEW.contact_id,
+    case when v_ad is not null then 'ad' else NEW.channel end,
+    case when v_ad is not null then v_ad else NEW.meta ->> 'line' end,
+    NEW.created_at
+  );
+  return null;
+exception when others then
+  raise warning 'messages_note_first_touch: %', sqlerrm;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION messages_note_first_touch(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.messages_note_first_touch() IS 'The first touch of the person an inbound customer message made (K3): its wire, or the ad it came from (meta.referral.source_id, when meta.referral.source_type is ad; a post or any other referral is the wire''s), with the line it came in on (meta.line). Never fails the insert: a failure is a warning.';
+
+
+--
+-- Name: messages_stamp_offers_asked(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.messages_stamp_offers_asked() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- The first ask stands: a later one finds the stamp and leaves it. The person is the conversation's.
+  update public.contacts c
+     set offers_asked_at = coalesce(new.channel_ts, new.created_at)
+   where c.tenant_id = new.tenant_id
+     and c.offers_asked_at is null
+     and c.id = (select cv.contact_id from public.conversations cv
+                  where cv.id = new.conversation_id and cv.tenant_id = new.tenant_id);
+  return null;
+exception when others then
+  -- The message is already on its way; the stamp is a note about it, never a reason to lose it.
+  raise warning 'messages_stamp_offers_asked: %', sqlerrm;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION messages_stamp_offers_asked(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.messages_stamp_offers_asked() IS 'After an outbound message that says YES OFFERS or SI OFERTAS is SENT (One message, every channel, step 2): written with the status sent, delivered or read, or moved to one of them, never a held or cancelled draft or a failure. In any case, with or without the accent on the i (precomposed or with a combining acute), as a word of its own: the first one stamps its person''s offers_asked_at with the message''s time, and a later one leaves it. A failure warns and never refuses the message.';
+
+
+--
 -- Name: metrics_summary(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6895,25 +7962,13 @@ begin
   replies as (select * from public.first_replies(p_tenant_id, v_start)),
   calls_win as (
     select * from calls where tenant_id = p_tenant_id and started_at >= v_start
-       and status <> 'not_connected'   -- ADDED (00031): a dial that never connected is not a call
+       and public.call_connected(status, duration_ms)   -- 00304: a call someone spoke on, one rule with Reports (00303)
   ),
+  -- Each person's first moment, one rule with report_series (00303): never the erased, never a person with neither.
   fresh_contacts as (
-    select c.id from contacts c
-     where c.tenant_id = p_tenant_id
-       -- ADDED (00026): a deletion must never be reported as growth.
-       and c.erased_at is null
-       and not exists (select 1 from messages b
-                        where b.contact_id = c.id
-                          and coalesce(b.meta->>'backfill', 'false') = 'true')
-       -- Their first word or call, whichever came first: least() passes over
-       -- the one they never had. A person with neither has no first moment, so
-       -- no window holds it (00254); they scored 'infinity' and were new in
-       -- every window.
-       and least(
-             (select min(m.channel_ts) from messages m where m.contact_id = c.id),
-             (select min(k.started_at) from calls k
-               where k.contact_id = c.id and k.status <> 'not_connected')   -- ADDED (00031)
-           ) >= v_start
+    select f.contact_id as id
+      from public.contact_first_moments(p_tenant_id) f
+     where f.first_at >= v_start
   ),
   -- live state: whose turn is it? the last thing said in the thread was theirs.
   awaiting as (
@@ -6959,7 +8014,8 @@ begin
     'period', jsonb_build_object(
       'messages_in',  (select count(*) from msgs where direction = 'inbound' and sender = 'customer'),
       'messages_out_ai',  (select count(*) from out_sent where sender = 'ai'),
-      'messages_out_you', (select count(*) from out_sent where sender = 'human'),
+      'messages_out_you', (select count(*) from out_sent where sender = 'human'
+                             and not public.automated_send(meta)),
       'conversations_active',
         (select count(distinct conversation_id) from msgs
           where direction = 'inbound' and sender = 'customer'),
@@ -7268,6 +8324,56 @@ COMMENT ON FUNCTION public.note_sweep_backlog(p_sweep text, p_remaining integer)
 
 
 --
+-- Name: note_yes_on_channel(uuid, uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_contact public.contacts%rowtype;
+begin
+  if p_tenant_id is null or p_contact_id is null or p_channel is null or p_channel not in ('whatsapp', 'sms', 'email') then
+    return false;
+  end if;
+  -- Locked, so two texts of START at once write one event, not two.
+  select * into v_contact from public.contacts c
+   where c.id = p_contact_id and c.tenant_id = p_tenant_id and c.erased_at is null
+     for update;
+  if not found or v_contact.consent is distinct from 'opted_in' then
+    return false;
+  end if;
+  -- NULL is a yes recorded before the channels were kept, which covers WhatsApp alone.
+  if public.consent_channels_of('conversational', 'customer_message', p_channel)
+       <@ coalesce(v_contact.consent_channels, array['whatsapp']) then
+    return false;
+  end if;
+  if v_contact.consent_channels is null then
+    update public.contacts set consent_channels = array['whatsapp'] where id = v_contact.id;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'contact.consent_changed', 'contact', 'contact', p_contact_id,
+          jsonb_build_object('consent', 'opted_in', 'source', 'customer_message', 'channel', p_channel,
+                             'message_external_id', p_message_external_id,
+                             'words', nullif(left(coalesce(p_words, ''), 80), ''),
+                             'covers_another_channel', true));
+  return true;
+exception when others then
+  -- The customer has been answered; the channel they asked for is repaired, never a reason to refuse the message.
+  raise warning 'note_yes_on_channel: %', sqlerrm;
+  return false;
+end $$;
+
+
+--
+-- Name: FUNCTION note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text) IS 'The edge''s door, right after ingest_inbound for a START (One message, every channel, step 2): when the person''s answer is a yes and its consent_channels does not hold the channel the START came on (NULL holds WhatsApp), writes the contact.consent_changed event ingest_inbound leaves out for a yes already given, carrying the channel, the message, the words and covers_another_channel, so events_keep_consent_channels adds the channel and the ledger shows the yes. Answers whether it wrote one. A repeat finds the channel held and writes nothing. Never raises. Service role only.';
+
+
+--
 -- Name: notification_mark(uuid, boolean, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7400,6 +8506,34 @@ $_$;
 --
 
 COMMENT ON FUNCTION public.number_drift() IS 'Where lines and tenant_channels disagree in a way that is actually wrong: a route naming a deleted line, a route publishing a number the workspace has no line for, a line answering with nothing routing to it, a line texting with nothing routing to it. A channel row with no line at all is NOT drift -- Retell-bought voice numbers and Meta WhatsApp numbers legitimately have none. Read by /api/diag.';
+
+
+--
+-- Name: offers_email_reach(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.offers_email_reach(p_tenant_id uuid) RETURNS integer
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select count(*)::int
+    from public.contacts c
+   where c.tenant_id = p_tenant_id
+     and c.erased_at is null and c.erasing_since is null and c.merged_into_contact_id is null
+     and c.email is not null and c.email_suppressed_at is null
+     and c.dnc = false and c.consent is distinct from 'opted_out'
+     -- A recorded no to offers elsewhere (on WhatsApp) bars an offer by email too: the conservative reading, contracts'
+     -- mayMessageFor, which holds it even over a yes to offers by email.
+     and c.marketing_consent is distinct from 'opted_out'
+     and (c.email_marketing = 'opted_in' or (c.email_marketing = 'unknown' and public.has_relationship(c)))
+$$;
+
+
+--
+-- Name: FUNCTION offers_email_reach(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.offers_email_reach(p_tenant_id uuid) IS 'How many people an offer by email would reach in this workspace (Setup): an address that has not bounced or complained, no STOP, do-not-contact, unsubscribe or recorded no to offers (on WhatsApp), and their own yes to offers by email or a relationship on record (has_relationship). Contracts'' mayMessageFor for (email, marketing), in SQL.';
 
 
 --
@@ -8920,10 +10054,47 @@ COMMENT ON FUNCTION public.partner_workspace_money() IS 'For each workspace the 
 
 
 --
+-- Name: pause_email_offers(uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.pause_email_offers(p_tenant_id uuid, p_reason text, p_counts jsonb DEFAULT NULL::jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_mailbox uuid;
+begin
+  if p_reason is null or p_reason not in ('complaints', 'bounces') then
+    raise exception 'pause_email_offers: the reason is complaints or bounces' using errcode = '22023';
+  end if;
+  -- Once: a pause already in force keeps its first moment and reason, and writes no second event.
+  update public.mailboxes
+     set offers_paused_at = now(), offers_paused_reason = p_reason
+   where tenant_id = p_tenant_id and offers_paused_at is null
+  returning id into v_mailbox;
+  if v_mailbox is null then
+    return false;
+  end if;
+  -- The workspace's ledger says it, with what the gate judged by (the counts, when the caller gave them).
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'mailbox.offers_paused', 'system', 'mailbox', v_mailbox,
+          coalesce(p_counts, '{}'::jsonb) || jsonb_build_object('reason', p_reason));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION pause_email_offers(p_tenant_id uuid, p_reason text, p_counts jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.pause_email_offers(p_tenant_id uuid, p_reason text, p_counts jsonb) IS 'Pauses a workspace''s offers by email (the gates, contracts'' OFFER_GATES): true when this call paused them, false when they were already paused or the workspace has no mailbox. Writes a mailbox.offers_paused event with the reason and the counts it was judged by. Service role only: the edge''s receipts judge the gates.';
+
+
+--
 -- Name: people_list(uuid, uuid, text, integer, integer, timestamp with time zone, timestamp with time zone, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT NULL::uuid, p_query text DEFAULT NULL::text, p_limit integer DEFAULT 1000, p_offset integer DEFAULT 0, p_after_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_added timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, display_name text, wa_profile_name text, phone_e164 text, email text, consent text, consent_source text, consent_updated_at timestamp with time zone, dnc boolean, marketing_consent text, marketing_consent_source text, marketing_consent_updated_at timestamp with time zone, channels text[], conversation_count integer, escalation_count integer, needs_human boolean, open_escalation_reason text, open_escalation_since timestamp with time zone, latest_conversation_id uuid, latest_state text, latest_paused_until timestamp with time zone, latest_assignee_user_id uuid, latest_snooze_until timestamp with time zone, latest_wa_inbound_at timestamp with time zone, last_message_at timestamp with time zone, last_message_direction text, last_message_sender text, last_inbound_text text, last_inbound_at timestamp with time zone, last_call_at timestamp with time zone, last_inbound_call_at timestamp with time zone, last_inbound_call_summary text, call_count integer, call_seconds integer, first_contact_at timestamp with time zone, earliest_row_at timestamp with time zone, has_backfill boolean, has_chat boolean, message_channels text[], queued_reply_at timestamp with time zone, came_from text, deal_id uuid, deal_stage text, deal_service text, deal_proposed_at timestamp with time zone, deal_decided_at timestamp with time zone, deal_ended_at timestamp with time zone, deal_amount_cents integer, deal_per text, deal_proposal_url text, deal_valid_until date, deal_lost_reason text, step_id uuid, step_body text, step_due_on date, step_for_user_id uuid, step_deal_id uuid, in_touch_at timestamp with time zone, added_at timestamp with time zone)
+CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT NULL::uuid, p_query text DEFAULT NULL::text, p_limit integer DEFAULT 1000, p_offset integer DEFAULT 0, p_after_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_added timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, display_name text, wa_profile_name text, phone_e164 text, email text, email_suppressed_at timestamp with time zone, consent text, consent_source text, consent_updated_at timestamp with time zone, dnc boolean, marketing_consent text, marketing_consent_source text, marketing_consent_updated_at timestamp with time zone, consent_channels text[], marketing_channels text[], offers_asked_at timestamp with time zone, email_marketing text, email_marketing_source text, email_marketing_updated_at timestamp with time zone, channels text[], conversation_count integer, escalation_count integer, needs_human boolean, open_escalation_reason text, open_escalation_since timestamp with time zone, latest_conversation_id uuid, latest_state text, latest_paused_until timestamp with time zone, latest_assignee_user_id uuid, latest_snooze_until timestamp with time zone, latest_wa_inbound_at timestamp with time zone, last_message_at timestamp with time zone, last_message_direction text, last_message_sender text, last_inbound_text text, last_inbound_at timestamp with time zone, last_inbound_channel text, last_wrote_at timestamp with time zone, last_call_at timestamp with time zone, last_inbound_call_at timestamp with time zone, last_inbound_call_summary text, call_count integer, call_seconds integer, first_contact_at timestamp with time zone, earliest_row_at timestamp with time zone, has_backfill boolean, has_chat boolean, message_channels text[], queued_reply_at timestamp with time zone, came_from text, deal_id uuid, deal_stage text, deal_service text, deal_proposed_at timestamp with time zone, deal_decided_at timestamp with time zone, deal_ended_at timestamp with time zone, deal_amount_cents integer, deal_per text, deal_proposal_url text, deal_valid_until date, deal_lost_reason text, step_id uuid, step_body text, step_due_on date, step_for_user_id uuid, step_deal_id uuid, in_touch_at timestamp with time zone, added_at timestamp with time zone)
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
@@ -8938,7 +10109,9 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
   ),
   ev as not materialized (
     select m.contact_id, m.direction, m.sender, m.type, m.channel, m.body, m.status, m.created_at,
-           e.at, e.moved_in as backfill, e.spoken
+           e.at, e.moved_in as backfill, e.spoken,
+           -- Whether the words are a person's own, not an automatic reply or a list's mail (00299).
+           public.message_is_a_persons_words(m.meta) as persons_words
       from messages m
       -- When it happened, whether the customer saw or said it, and whether it came with a history moved in: the one
       -- statement of the three (00259), which the kept moments read too.
@@ -8948,9 +10121,11 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
        and (p_contact_id is null or m.contact_id = p_contact_id)
   )
   select
-    c.id, c.display_name, c.wa_profile_name, c.phone_e164, c.email,
+    c.id, c.display_name, c.wa_profile_name, c.phone_e164, c.email, ch.email_suppressed_at,
     c.consent, c.consent_source, c.consent_updated_at, c.dnc,
     c.marketing_consent, c.marketing_consent_source, c.marketing_consent_updated_at,
+    ch.consent_channels, ch.marketing_channels, ch.offers_asked_at,
+    ch.email_marketing, ch.email_marketing_source, ch.email_marketing_updated_at,
     coalesce(ids.channels, '{}'::text[]),
     coalesce(cvs.n, 0),
     coalesce(esc.n, 0),
@@ -8959,7 +10134,8 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     oe.created_at,
     lc.id, lc.state, lc.paused_until, lc.assignee_user_id, lc.snooze_until, lc.last_wa_inbound_at,
     lm.at, lm.direction, lm.sender,
-    li.body, li.at,
+    li.body, li.at, li.channel,
+    ma.last_wrote_at,
     lk.last_at,
     lk.last_inbound_at,
     lks.summary,
@@ -8987,6 +10163,14 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     st.id, st.body, st.due_on, st.for_user_id, st.deal_id,
     c.in_touch_at, c.added_at
   from page c
+  left join lateral (
+    -- What each yes covers, when offers were asked for (00297), and when their address stopped being sent to (00126):
+    -- read for the page's people alone, by their key.
+    select k.consent_channels, k.marketing_channels, k.offers_asked_at, k.email_suppressed_at,
+           k.email_marketing, k.email_marketing_source, k.email_marketing_updated_at
+      from contacts k
+     where k.id = c.id and k.tenant_id = p_tenant_id
+  ) ch on true
   left join lateral (
     -- How they were added, when a door added them: their first contact.added
     -- event, should a door ever write two.
@@ -9034,7 +10218,7 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
      limit 1
   ) lm on true
   left join lateral (
-    select e.at, e.body
+    select e.at, e.body, e.channel
       from ev e
      where e.contact_id = c.id and e.at is not null
        and e.direction = 'inbound' and e.spoken and e.body is not null
@@ -9049,6 +10233,9 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
            -- Which wires those words travelled: a person who only ever wrote by email has not used WhatsApp.
            array_agg(distinct e.channel order by e.channel) filter (where e.type in ('text', 'template', 'media')) as channels,
            max(e.created_at) filter (where e.direction = 'outbound' and e.status = 'queued') as queued_at,
+           -- When they last wrote words of their own (00299), the statement has_relationship makes of "they wrote".
+           max(e.at) filter (where e.direction = 'inbound' and e.spoken and e.at is not null and e.body is not null
+                               and e.persons_words) as last_wrote_at,
            -- The wire of their first spoken message, for came_from.
            (array_agg(e.channel order by e.at, e.created_at) filter (where e.spoken and e.at is not null))[1] as first_channel,
            -- The first row of a history moved in, in the order it was written: a call's note is a call, anything else its wire.
@@ -9110,7 +10297,7 @@ $$;
 -- Name: FUNCTION people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written.';
+COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00297; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent (whatsapp, sms or email; null when they have sent none): the channel a campaign reaches them on first (00298, contracts'' reachFor). `last_wrote_at` is when they last wrote words that were a person''s own, an automatic reply, a list''s mail or a delivery report left out (00299, message_is_a_persons_words): the fact of "they wrote" that contracts'' relationshipOnRecord reads. `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it. `email_marketing`, `email_marketing_source` and `email_marketing_updated_at` are the person''s own answer about offers by email (00174, 00299): an offer by email goes to someone who has not unsubscribed and who asked for offers by email or has a relationship with the business on record (contracts'' mayMessageFor).';
 
 
 --
@@ -9939,6 +11126,33 @@ COMMENT ON FUNCTION public.person_notes_erase_on_contact() IS 'When a person is 
 
 
 --
+-- Name: person_set_first_touch(uuid, uuid, text, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_set_first_touch(p_tenant_id uuid, p_contact_id uuid, p_via text, p_ref text DEFAULT NULL::text, p_made_at timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  update contacts
+     set acquired_via = p_via,
+         acquired_ref = nullif(btrim(p_ref), '')
+   where id = p_contact_id
+     and tenant_id = p_tenant_id
+     and acquired_via is null
+     and (p_made_at is null or created_at = p_made_at);
+  return found;
+end $$;
+
+
+--
+-- Name: FUNCTION person_set_first_touch(p_tenant_id uuid, p_contact_id uuid, p_via text, p_ref text, p_made_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_set_first_touch(p_tenant_id uuid, p_contact_id uuid, p_via text, p_ref text, p_made_at timestamp with time zone) IS 'A person''s first touch (K3), written once: sets acquired_via and acquired_ref where acquired_via is null and, when p_made_at is given, only where the person''s created_at is that instant (the row that made them was written in the same transaction). True when it wrote. Called by the message, call and contact.added triggers; the closed set is contacts_acquired_via_check.';
+
+
+--
 -- Name: person_step_from_playbook(uuid, uuid, date, text, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10090,7 +11304,9 @@ declare
   v_t0 timestamptz := p_day::timestamp at time zone 'utc';
   v_t1 timestamptz := (p_day + 1)::timestamp at time zone 'utc';
   v_n  integer;
+  v_new integer;
 begin
+  -- The first statement is 00277's, byte for byte in what it counts.
   with
   -- Workspace by workspace, so each read is its (tenant_id, created_at) index's day (00016), never the whole table.
   msg_counts as (
@@ -10187,6 +11403,92 @@ begin
     returning 1
   )
   select count(*)::integer into v_n from written;
+
+  -- The second keeps what the lenses read, and fails alone.
+  begin
+    with
+    stamped as (
+      select t.id as tenant_id, m.meta ->> 'handled' as handled, count(*) as n
+        from public.tenants t
+        join public.messages m on m.tenant_id = t.id and m.created_at >= v_t0 and m.created_at < v_t1
+       where m.direction = 'inbound' and m.sender = 'customer'
+         and coalesce(m.meta ->> 'backfill', 'false') <> 'true'
+         and m.meta ->> 'handled' in ('ai', 'held', 'handoff', 'blocked')
+       group by t.id, m.meta ->> 'handled'
+    ),
+    handled as (
+      select s.tenant_id, jsonb_object_agg(s.handled, s.n) as counts from stamped s group by s.tenant_id
+    ),
+    asked_about as (
+      select t.id as tenant_id, m.meta ->> 'intent' as topic, count(*) as n
+        from public.tenants t
+        join public.messages m on m.tenant_id = t.id and m.created_at >= v_t0 and m.created_at < v_t1
+       where m.direction = 'inbound' and m.sender = 'customer'
+         and coalesce(m.meta ->> 'backfill', 'false') <> 'true'
+         and m.meta ->> 'intent' in ('booking', 'pricing', 'money', 'hours', 'services', 'location', 'complaint', 'smalltalk', 'other')
+       group by t.id, m.meta ->> 'intent'
+      union all
+      select t.id, c.analysis ->> 'topic', count(*)
+        from public.tenants t
+        join public.calls c on c.tenant_id = t.id and c.started_at >= v_t0 and c.started_at < v_t1
+       where c.direction = 'inbound' and public.call_connected(c.status, c.duration_ms)
+         and c.analysis ->> 'topic' in ('booking', 'pricing', 'money', 'hours', 'services', 'location', 'complaint', 'smalltalk', 'other')
+       group by t.id, c.analysis ->> 'topic'
+    ),
+    topics as (
+      select a.tenant_id, jsonb_object_agg(a.topic, a.n) as counts
+        from (select tenant_id, topic, sum(n)::bigint as n from asked_about group by tenant_id, topic) a
+       group by a.tenant_id
+    ),
+    ledger as (
+      select u.tenant_id, u.purpose,
+             sum(u.input_tokens::bigint + u.output_tokens + u.cache_read_tokens + u.cache_write_tokens)::bigint as tokens,
+             sum(u.usd) as usd
+        from public.ai_usage u
+       where u.created_at >= v_t0 and u.created_at < v_t1 and not u.shadow
+       group by u.tenant_id, u.purpose
+    ),
+    ai as (
+      select l.tenant_id,
+             sum(l.tokens)::bigint as tokens,
+             jsonb_object_agg(l.purpose, l.tokens) as tokens_by,
+             jsonb_object_agg(l.purpose, round(l.usd, 6)) filter (where l.usd is not null) as usd_by
+        from ledger l
+       group by l.tenant_id
+    ),
+    voice as (
+      select t.id as tenant_id, round(sum(public.call_cost_usd(c.cost)), 6) as usd
+        from public.tenants t
+        join public.calls c on c.tenant_id = t.id and c.started_at >= v_t0 and c.started_at < v_t1
+       where public.call_cost_usd(c.cost) is not null
+       group by t.id
+    ),
+    lenses as (
+      select tenant_id from handled union select tenant_id from topics
+      union select tenant_id from ai union select tenant_id from voice
+    ),
+    kept as (
+      insert into public.platform_metrics as pm (tenant_id, day, handled, topics, ai_tokens, ai_usd, voice_usd, tokens, rolled_at)
+      select l.tenant_id, p_day, h.counts, tp.counts, ai.tokens_by, ai.usd_by, vc.usd, coalesce(ai.tokens, 0), now()
+        from lenses l
+        left join handled h on h.tenant_id = l.tenant_id
+        left join topics tp on tp.tenant_id = l.tenant_id
+        left join ai on ai.tenant_id = l.tenant_id
+        left join voice vc on vc.tenant_id = l.tenant_id
+       where exists (select 1 from public.tenants x where x.id = l.tenant_id)
+      on conflict (tenant_id, day) do update
+         set handled = excluded.handled, topics = excluded.topics, ai_tokens = excluded.ai_tokens,
+             ai_usd = excluded.ai_usd, voice_usd = excluded.voice_usd,
+             -- the ledger's total where it holds the day, the events' count (the first statement's) where it does not
+             tokens = case when excluded.ai_tokens is not null then excluded.tokens else pm.tokens end,
+             rolled_at = excluded.rolled_at
+      returning (xmax = 0) as inserted
+    )
+    select count(*) filter (where inserted)::integer into v_new from kept;
+    v_n := v_n + coalesce(v_new, 0);
+  exception when others then
+    raise warning 'platform_metrics_roll: the lenses'' columns were not kept for %: %', p_day, sqlerrm;
+  end;
   return v_n;
 end $_$;
 
@@ -10195,7 +11497,7 @@ end $_$;
 -- Name: FUNCTION platform_metrics_roll(p_day date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_metrics_roll(p_day date) IS 'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277). Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day.';
+COMMENT ON FUNCTION public.platform_metrics_roll(p_day date) IS 'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read: how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00316), in a block that fails alone. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty.';
 
 
 --
@@ -11689,7 +12991,7 @@ CREATE FUNCTION public.reach_out_month_sent(p_tenant_id uuid, p_at timestamp wit
     SET search_path TO 'public'
     AS $$
   with zone as (
-    select coalesce(nullif(btrim(t.timezone), ''), 'America/New_York') as tz
+    select public.safe_zone(coalesce(nullif(btrim(t.timezone), ''), 'America/New_York')) as tz
       from public.tenants t where t.id = p_tenant_id
   ), month as (
     select date_trunc('month', p_at at time zone zone.tz) at time zone zone.tz as since,
@@ -13405,6 +14707,47 @@ COMMENT ON FUNCTION public.release_conversation_control(p_tenant_id uuid, p_conv
 
 
 --
+-- Name: remove_template_version(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.remove_template_version(p_template_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_row  public.templates%rowtype;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select * into v_row from public.templates t where t.id = p_template_id;
+  -- Only an email or a text a member wrote, in a workspace the caller acts for: anything else is not a version to them.
+  if v_row.id is null
+     or not public.is_acting_member(v_row.tenant_id)
+     or v_row.channel not in ('email', 'sms')
+     or v_row.source <> 'chanlytics'
+     or left(v_row.name, 10) = 'reach_out_' then
+    raise exception 'Version not found.' using errcode = 'P0002';
+  end if;
+  begin
+    delete from public.templates where id = v_row.id;
+  exception when foreign_key_violation then
+    -- A playbook or a broadcast still names it (their template_id keys are not cascading): the owner moves them first.
+    raise exception 'A playbook or broadcast still uses this version.' using errcode = 'P0001';
+  end;
+  return jsonb_build_object('id', v_row.id, 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language);
+end $$;
+
+
+--
+-- Name: FUNCTION remove_template_version(p_template_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.remove_template_version(p_template_id uuid) IS 'Owner or operator removes an email or text version they wrote. Never a WhatsApp template (Meta''s, deleted through the edge) and never a reach-out''s email.';
+
+
+--
 -- Name: rename_mailbox(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -13487,46 +14830,29 @@ begin
     select * from msgs
      where direction = 'outbound' and status in ('sent', 'delivered', 'read')
   ),
-  -- ONE definition of "who answered" and "how fast", shared with metrics_summary (00035).
+  -- ONE definition of "who answered" and "how fast", shared with metrics_summary (00035, 00303).
   answered as (
     select r.*, (r.asked_at at time zone v_tz)::date as day
       from public.first_replies(p_tenant_id, v_start) r
   ),
+  -- A call someone spoke on (00303).
   calls_w as (
     select k.*, (k.started_at at time zone v_tz)::date as day
       from calls k
      where k.tenant_id = p_tenant_id and k.started_at >= v_start
-       and k.status <> 'not_connected'
+       and public.call_connected(k.status, k.duration_ms)
   ),
   escs as (
     select e.*, (e.created_at at time zone v_tz)::date as day
       from escalations e
      where e.tenant_id = p_tenant_id and e.created_at >= v_start
   ),
-  firsts as (
-    select c.id,
-           least(
-             coalesce((select min(m.channel_ts) from messages m
-                        where m.contact_id = c.id
-                          and coalesce(m.meta->>'backfill', 'false') <> 'true'),
-                      'infinity'::timestamptz),
-             coalesce((select min(k.started_at) from calls k
-                        where k.contact_id = c.id and k.status <> 'not_connected'),
-                      'infinity'::timestamptz)
-           ) as first_at
-      from contacts c
-     where c.tenant_id = p_tenant_id
-       and not exists (select 1 from messages b
-                        where b.contact_id = c.id
-                          and coalesce(b.meta->>'backfill', 'false') = 'true')
-  ),
+  -- Each person's first moment, one rule with metrics_summary (00303).
   fresh as (
-    select (first_at at time zone v_tz)::date as day
-      from firsts
-     where first_at >= v_start and first_at < 'infinity'::timestamptz
+    select (f.first_at at time zone v_tz)::date as day
+      from public.contact_first_moments(p_tenant_id) f
+     where f.first_at >= v_start
   ),
-  -- Each day from one pass over each source, grouped by the day (00251). A scalar subquery per day and per count
-  -- scanned every source again for every day, and ran the contacts pass (firsts, fresh) once a day.
   per_day as (
     select d.day,
            coalesce(i.messages_in, 0)   as messages_in,
@@ -13549,22 +14875,24 @@ begin
                         count(*) filter (where a.who = 'none') as unanswered
                    from answered a group by a.day) a on a.day = d.day
       left join (select o.day,
-                        count(*) filter (where o.sender = 'ai')    as out_ai,
-                        count(*) filter (where o.sender = 'human') as out_you
+                        count(*) filter (where o.sender = 'ai') as out_ai,
+                        -- the owner's own sends; a broadcast's, a playbook's or a reach-out's are not (00304)
+                        count(*) filter (where o.sender = 'human' and not public.automated_send(o.meta)) as out_you
                    from out_sent o group by o.day) o on o.day = d.day
       left join (select e.day, count(*) as escalations from escs e group by e.day) e on e.day = d.day
       left join (select k.day, count(*) as calls, round(sum(k.duration_ms) / 1000.0) as call_seconds
                    from calls_w k group by k.day) k on k.day = d.day
       left join (select f.day, count(*) as new_contacts from fresh f group by f.day) f on f.day = d.day
   ),
-  -- v3: when people reached the business, this period, in the tenant's zone.
+  -- When people reached the business this period, on the tenant's clock: one source for the hours and the arrivals.
+  arrivals_now as (
+    select (i.created_at at time zone v_tz) as t from inbound i where i.day > v_today - v_days
+    union all
+    select (k.started_at at time zone v_tz) as t from calls_w k where k.day > v_today - v_days
+  ),
   hour_counts as (
     select extract(isodow from x.t)::int as dow, extract(hour from x.t)::int as hr, count(*)::int as n
-      from (
-        select (i.created_at at time zone v_tz) as t from inbound i where i.day > v_today - v_days
-        union all
-        select (k.started_at at time zone v_tz) as t from calls_w k where k.day > v_today - v_days
-      ) x
+      from arrivals_now x
      group by 1, 2
   ),
   hour_grid as (
@@ -13573,6 +14901,14 @@ begin
      cross join generate_series(0, 23) as h(hr)
       left join hour_counts hc on hc.dow = d.dow and hc.hr = h.hr
      group by d.dow
+  ),
+  -- 00304: each local day and quarter hour something came in, for the page's while-you-were-closed (openAt).
+  arrival_counts as (
+    select to_char(x.t::date, 'YYYY-MM-DD') as d,
+           (extract(hour from x.t)::int * 4 + floor(extract(minute from x.t) / 15)::int) as q,
+           count(*)::int as n
+      from arrivals_now x
+     group by 1, 2
   )
   select jsonb_build_object(
     'timezone', v_tz,
@@ -13604,25 +14940,27 @@ begin
                      where day > v_today - v_days
                      group by sentiment) s), '{}'::jsonb),
     'voicemail', (select count(*) from calls_w where day > v_today - v_days and in_voicemail),
-    -- v3
-    'replies', coalesce((select jsonb_agg(jsonb_build_object('day', to_char(a.day, 'YYYY-MM-DD'), 's', round(a.ai_seconds))
-                                          order by a.asked_at)
+    'replies', coalesce((select jsonb_agg(jsonb_build_object(
+                                  'day', to_char(a.day, 'YYYY-MM-DD'),
+                                  's', round(a.ai_seconds),
+                                  'hold', round(coalesce(a.ai_hold_s, 0)))
+                                order by a.asked_at)
                            from answered a
                           where a.day > v_today - v_days and a.ai_seconds is not null), '[]'::jsonb),
     'channels', jsonb_build_object(
       'current', jsonb_build_object(
-        'whatsapp',  (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'whatsapp'),
-        'sms',       (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'sms'),
-        'email',     (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'email'),
-        'instagram', (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'instagram'),
-        'voice',     (select count(*) from calls_w k where k.day > v_today - v_days)),
+        'whatsapp', (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'whatsapp'),
+        'sms',      (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'sms'),
+        'email',    (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'email'),
+        'voice',    (select count(*) from calls_w k where k.day > v_today - v_days)),
       'previous', jsonb_build_object(
-        'whatsapp',  (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'whatsapp'),
-        'sms',       (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'sms'),
-        'email',     (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'email'),
-        'instagram', (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'instagram'),
-        'voice',     (select count(*) from calls_w k where k.day <= v_today - v_days))),
-    'hours', (select jsonb_agg(g.cells order by g.dow) from hour_grid g)
+        'whatsapp', (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'whatsapp'),
+        'sms',      (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'sms'),
+        'email',    (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'email'),
+        'voice',    (select count(*) from calls_w k where k.day <= v_today - v_days))),
+    'hours', (select jsonb_agg(g.cells order by g.dow) from hour_grid g),
+    'arrivals', coalesce((select jsonb_agg(jsonb_build_object('d', a.d, 'q', a.q, 'n', a.n) order by a.d, a.q)
+                            from arrival_counts a), '[]'::jsonb)
   ) into v_result;
 
   return v_result;
@@ -13698,6 +15036,44 @@ COMMENT ON FUNCTION public.request_sweep(p_sweep text, p_path text, p_timeout_ms
 
 
 --
+-- Name: resume_email_offers(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.resume_email_offers(p_tenant_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_mailbox uuid;
+  v_since   timestamptz;
+  v_reason  text;
+begin
+  select m.id, m.offers_paused_at, m.offers_paused_reason into v_mailbox, v_since, v_reason
+    from public.mailboxes m
+   where m.tenant_id = p_tenant_id and m.offers_paused_at is not null
+     for update;
+  if not found then
+    return false;
+  end if;
+  -- The gates are judged afresh from here: only the offers sent after this moment count (email_offer_counts).
+  update public.mailboxes
+     set offers_paused_at = null, offers_paused_reason = null, offers_resumed_at = now()
+   where id = v_mailbox;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'mailbox.offers_resumed', 'system', 'mailbox', v_mailbox,
+          jsonb_build_object('reason', v_reason, 'paused_at', v_since));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION resume_email_offers(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.resume_email_offers(p_tenant_id uuid) IS 'The back office''s: turns a workspace''s offers by email back on, once its list is fixed, stamps offers_resumed_at (the gates are then judged over the offers sent after it) and writes a mailbox.offers_resumed event. True when they were paused. Service role only.';
+
+
+--
 -- Name: runtime_stamp(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -13737,6 +15113,110 @@ end $_$;
 --
 
 COMMENT ON FUNCTION public.safe_zone(p text) IS 'The zone name as given when it is spelled Area/Location (or UTC) and Postgres knows it, UTC otherwise: how the sweeps'' pages (00245) read a workspace''s timezone, so one unknown name never fails a tick for every workspace.';
+
+
+--
+-- Name: save_template_version(uuid, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_template_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_user    uuid := auth.uid();
+  v_subject text := nullif(btrim(regexp_replace(coalesce(p_subject, ''), '\s+', ' ', 'g')), '');
+  -- Trimmed of every kind of white space, as contracts' clean() does (btrim alone takes only spaces).
+  v_body    text := regexp_replace(replace(coalesce(p_body, ''), E'\r\n', E'\n'), '^\s+|\s+$', '', 'g');
+  v_source  public.templates%rowtype;
+  v_parts   jsonb;
+  v_row     public.templates%rowtype;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or p_name is null or p_name = ''
+     or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Message not found.' using errcode = 'P0002';
+  end if;
+  if p_channel is null or p_channel not in ('email', 'sms') then
+    raise exception 'A version is written for email or text.' using errcode = '22023';
+  end if;
+  if left(p_name, 10) = 'reach_out_' then
+    raise exception 'A reach-out''s email is edited in the reach-out.' using errcode = '22023';
+  end if;
+  -- Meta's own codes: two or three letters, and a region in capitals where there is one (en_US, es, pt_BR, fil).
+  if p_language is null or p_language !~ '^[a-z]{2,3}(_[A-Z]{2})?$' then
+    raise exception 'Pick a language from the list.' using errcode = '22023';
+  end if;
+  if p_channel = 'email' then
+    if v_subject is null then
+      raise exception 'Give the email a subject.' using errcode = '22023';
+    end if;
+    if char_length(v_subject) > 60 then
+      raise exception 'A subject is at most 60 characters.' using errcode = '22023';
+    end if;
+    if v_body = '' then
+      raise exception 'Write the email.' using errcode = '22023';
+    end if;
+    if char_length(v_body) > 2000 then
+      raise exception 'An email is at most 2000 characters.' using errcode = '22023';
+    end if;
+  else
+    v_subject := null;
+    if v_body = '' then
+      raise exception 'Write the text.' using errcode = '22023';
+    end if;
+    if char_length(v_body) > 1600 then
+      raise exception 'A text is at most 1600 characters.' using errcode = '22023';
+    end if;
+  end if;
+
+  -- The message: a row of this name, WhatsApp's first, then the one in this language. Its purpose and its slots are
+  -- the version's, and its title the version starts with.
+  select * into v_source
+    from public.templates t
+   where t.tenant_id = p_tenant_id and t.name = p_name
+   order by (t.channel = 'whatsapp') desc, (t.language = p_language) desc, t.created_at
+   limit 1;
+  if v_source.id is null then
+    raise exception 'Message not found.' using errcode = 'P0002';
+  end if;
+
+  v_parts := case
+    when p_channel = 'email' then
+      jsonb_build_array(
+        jsonb_build_object('type', 'HEADER', 'format', 'TEXT', 'text', v_subject),
+        jsonb_build_object('type', 'BODY', 'text', v_body))
+    else
+      jsonb_build_array(jsonb_build_object('type', 'BODY', 'text', v_body))
+  end;
+
+  -- A rewrite keeps what the workspace did to the row since (its title, hiding it) and takes the message's purpose and
+  -- slots again, which are the message's to change.
+  insert into public.templates
+    (tenant_id, channel, name, language, meta_status, source, category, variables, title, components, body_preview, created_by)
+  values
+    (p_tenant_id, p_channel, p_name, p_language, 'approved', 'chanlytics', v_source.category, v_source.variables,
+     v_source.title, v_parts, v_body, v_user)
+  on conflict (tenant_id, channel, name, language) do update
+     set meta_status  = 'approved',
+         source       = 'chanlytics',
+         category     = excluded.category,
+         variables    = excluded.variables,
+         components   = excluded.components,
+         body_preview = excluded.body_preview
+  returning * into v_row;
+
+  return jsonb_build_object('id', v_row.id, 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language);
+end $_$;
+
+
+--
+-- Name: FUNCTION save_template_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.save_template_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text) IS 'Owner or operator writes the email or text version of a message in a language (a templates row of that name on that channel, in Meta''s component shape, approved at once). The message must exist: its category, slots and title come from its WhatsApp row, else another of its rows. Never a reach-out''s email. Rewrites the version when it is on file.';
 
 
 --
@@ -14090,6 +15570,43 @@ $$;
 
 
 --
+-- Name: sending_domain_days_keep(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sending_domain_days_keep() RETURNS integer
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_day date := (now() at time zone 'utc')::date - 1;
+  v_n   integer;
+begin
+  with written as (
+    insert into public.sending_domain_days
+      (tenant_id, domain_id, day, host, state, held_why, sent, bounced, complaints, sent_days, checked_at, kept_at)
+    select s.tenant_id, s.id, v_day, s.host, s.state, s.held_why, s.sent_recent, s.bounced_recent, s.complaints,
+           s.sent_days, s.checked_at, now()
+      from public.sending_domains s
+     where s.state in ('verified', 'held')
+    on conflict (domain_id, day) do update
+       set host = excluded.host, state = excluded.state, held_why = excluded.held_why, sent = excluded.sent,
+           bounced = excluded.bounced, complaints = excluded.complaints, sent_days = excluded.sent_days,
+           checked_at = excluded.checked_at, kept_at = excluded.kept_at
+    returning 1
+  )
+  select count(*)::integer into v_n from written;
+  return v_n;
+end $$;
+
+
+--
+-- Name: FUNCTION sending_domain_days_keep(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sending_domain_days_keep() IS 'Keeps every verified or held sending domain''s state and counters, as the last check left them, under the UTC day that has just ended (K9); replaces that day''s row when run again; answers how many rows it wrote. The nightly clock''s (sending-domain-days, 00:23), and the service role''s to run.';
+
+
+--
 -- Name: sending_domains_within_limit(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14380,6 +15897,66 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.set_email_marketing(p_tenant_id uuid, p_contact_id uuid, p_state text, p_source text, p_message_id uuid, p_evidence jsonb) IS 'The door a no from email goes through: an unsubscribe pressed, a complaint the provider reported (00177), or a reply read as no (00220). Records opted_out once (an unsubscribe or a complaint after a reply''s no makes it theirs), puts the address and the one the email went to on the never-again list, closes the leads still being written to as said no. A reply''s no records the answer it found (previous). With source reply_undone it takes a reply''s no back to exactly that answer, the answer only: refused moved once anything but a reply''s no holds it, refused not_previous for any other answer. Service role only.';
+
+
+--
+-- Name: set_email_offers_yes(uuid, uuid, text, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_email_offers_yes(p_tenant_id uuid, p_contact_id uuid, p_source text, p_message_id uuid DEFAULT NULL::uuid, p_evidence jsonb DEFAULT NULL::jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_contact  public.contacts%rowtype;
+  v_previous text;
+begin
+  -- A yes to offers is in writing and only in writing (00100): their own message, or a form they signed.
+  if p_source is null or p_source not in ('customer_message', 'form') then
+    raise exception 'set_email_offers_yes records a yes given in writing: customer_message or form' using errcode = '22023';
+  end if;
+  select * into v_contact from public.contacts c
+   where c.id = p_contact_id and c.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    return jsonb_build_object('changed', false, 'found', false);
+  end if;
+  -- A person who asked to be forgotten, or is being, is written nothing.
+  if v_contact.erased_at is not null or v_contact.erasing_since is not null then
+    return jsonb_build_object('changed', false, 'found', true);
+  end if;
+  -- An unsubscribe is the person's no, and a yes in an email NEVER overwrites it: the message that says YES OFFERS may be
+  -- forged, mis-sent or old, and nothing but the person's own act (the owner's, on their page, or a form they sign afresh:
+  -- neither of which writes through this function) may put offers back on for someone who pressed Unsubscribe. A refusal,
+  -- said by name so the caller can log it.
+  if v_contact.email_marketing = 'opted_out' then
+    return jsonb_build_object('changed', false, 'found', true, 'refused', 'unsubscribed');
+  end if;
+  -- Once: a yes already given writes no second event.
+  if v_contact.email_marketing = 'opted_in' then
+    return jsonb_build_object('changed', false, 'found', true);
+  end if;
+  v_previous := v_contact.email_marketing;
+  update public.contacts
+     set email_marketing = 'opted_in', email_marketing_source = p_source, email_marketing_updated_at = now()
+   where id = p_contact_id and tenant_id = p_tenant_id;
+  -- The door's own facts are written last, so no evidence handed in can say another purpose or answer; the channel is
+  -- email, whatever the evidence says (a yes by email is a yes on that channel).
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'contact.consent_changed', 'contact', 'contact', p_contact_id,
+          coalesce(p_evidence, '{}'::jsonb)
+          || jsonb_build_object('purpose', 'email_marketing', 'consent', 'opted_in', 'source', p_source,
+                                'previous', v_previous, 'channel', 'email')
+          || case when p_message_id is null then '{}'::jsonb else jsonb_build_object('message_id', p_message_id) end);
+  return jsonb_build_object('changed', true, 'found', true);
+end $$;
+
+
+--
+-- Name: FUNCTION set_email_offers_yes(p_tenant_id uuid, p_contact_id uuid, p_source text, p_message_id uuid, p_evidence jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.set_email_offers_yes(p_tenant_id uuid, p_contact_id uuid, p_source text, p_message_id uuid, p_evidence jsonb) IS 'The email yes: a person who asked for offers by email in writing (YES OFFERS in their own message, or a form they signed) is opted_in to them (contacts.email_marketing), once, with a contact.consent_changed event of purpose email_marketing and the channel email as its evidence. A person erased or being erased is left alone, and so is one who unsubscribed (email_marketing opted_out): a yes never overwrites that no, and the answer says refused: unsubscribed. The caller proves the sender before it asks (the receiving side''s authentication of the From domain: channels senderAuthenticated). Service role only.';
 
 
 --
@@ -14925,6 +16502,54 @@ $$;
 
 
 --
+-- Name: stop_all_messages(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.stop_all_messages(p_tenant_id uuid, p_contact_id uuid, p_message_id uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_contact  public.contacts%rowtype;
+  v_changed  boolean := false;
+  v_business text;
+begin
+  select t.name into v_business from public.tenants t where t.id = p_tenant_id;
+  select * into v_contact from public.contacts c
+   where c.id = p_contact_id and c.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    return jsonb_build_object('changed', false, 'found', false, 'business', v_business);
+  end if;
+  if v_contact.erased_at is not null then
+    return jsonb_build_object('changed', false, 'found', true, 'business', v_business);
+  end if;
+  if v_contact.consent is distinct from 'opted_out' or v_contact.dnc is not true then
+    update public.contacts
+       set consent = 'opted_out', dnc = true, consent_source = 'customer_message', consent_updated_at = now()
+     where id = p_contact_id and tenant_id = p_tenant_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'contact.consent_changed', 'contact', 'contact', p_contact_id,
+            jsonb_build_object('consent', 'opted_out', 'previous', v_contact.consent, 'source', 'customer_message',
+                               'channel', 'email', 'words', 'Stop all messages', 'via', 'unsubscribe_page')
+            || case when p_message_id is null then '{}'::jsonb else jsonb_build_object('message_id', p_message_id) end);
+    v_changed := true;
+  end if;
+  -- They said no to emails too: the same door the link's first press writes through (a repeat changes nothing).
+  perform public.set_email_marketing(p_tenant_id, p_contact_id, 'opted_out', 'unsubscribe', p_message_id,
+                                     jsonb_build_object('channel', 'email', 'via', 'stop_all'));
+  return jsonb_build_object('changed', v_changed, 'found', true, 'business', v_business);
+end $$;
+
+
+--
+-- Name: FUNCTION stop_all_messages(p_tenant_id uuid, p_contact_id uuid, p_message_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.stop_all_messages(p_tenant_id uuid, p_contact_id uuid, p_message_id uuid) IS 'The unsubscribe page''s second, confirmed act: STOP for everything, recorded as ingest_inbound records one (consent opted_out and do-not-contact, source customer_message, channel email, a contact.consent_changed event), and the email unsubscribe through set_email_marketing. Once: a repeat writes nothing. Service role only.';
+
+
+--
 -- Name: sweep_health(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -15146,6 +16771,41 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.sweep_status_registered() IS 'A sweep name that has no row must arrive with its cron job name; the upserts the sweeps themselves make land on rows that exist. Replaces the CHECK on the name that 00083 to 00097 kept widening.';
+
+
+--
+-- Name: sweep_voice_sessions(interval); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sweep_voice_sessions(p_after interval DEFAULT '1 day'::interval) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET lock_timeout TO '3s'
+    AS $$
+declare
+  v_total integer := 0;
+  v_n     integer;
+begin
+  loop
+    delete from public.ask_voice_sessions s
+     where s.id in (
+       select c.id from public.ask_voice_sessions c
+        where c.token_expires_at < now() - p_after
+        limit 1000
+     );
+    get diagnostics v_n = row_count;
+    v_total := v_total + v_n;
+    exit when v_n < 1000;
+  end loop;
+  return v_total;
+end $$;
+
+
+--
+-- Name: FUNCTION sweep_voice_sessions(p_after interval); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sweep_voice_sessions(p_after interval) IS 'Nightly. Deletes voice sessions a day after their token expired, a thousand at a time (00288). Numbers: contracts'' RETENTION_DAYS (ask_voice_sessions).';
 
 
 --
@@ -15539,6 +17199,31 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.trigger_call_reconcile() IS 'Asks the edge (api/cron/calls) to sweep when the calls table owes it work: a call still marked ongoing, a recording copy still pending, a thread still owed its call line, or audio past its retention. Asks through request_sweep(), which records the request so sweep_health() judges the answer, and waits 65 s, past the sweep''s own 60. With nothing owed, clears the note and records nothing else.';
+
+
+--
+-- Name: trigger_channel_quality_sweep(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trigger_channel_quality_sweep() RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+begin
+  if exists (select 1 from public.tenant_channels c where c.kind = 'whatsapp' and c.status = 'active') then
+    return public.request_sweep('channel_quality', '/api/cron/channel-quality');
+  end if;
+  insert into public.sweep_status (sweep, requested_at) values ('channel_quality', now())
+  on conflict (sweep) do update set requested_at = excluded.requested_at;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION trigger_channel_quality_sweep(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trigger_channel_quality_sweep() IS 'The channel-quality sweep''s clock (K9). Calls the edge (/api/cron/channel-quality) only when an active WhatsApp channel exists; otherwise records that it looked.';
 
 
 --
@@ -15967,6 +17652,43 @@ COMMENT ON FUNCTION public.wake_stale_snoozes() IS 'Reopens conversations whose 
 
 
 --
+-- Name: workspace_days(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to date) RETURNS TABLE(day date, messages_in jsonb, messages_out jsonb, asks integer, answered integer, handled jsonb, topics jsonb, ai_tokens jsonb)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- THE guard. A definer function that reads a table no member may read and does not check who is asking is a read of
+  -- every workspace at once.
+  if auth.uid() is null or not exists (
+    select 1 from public.memberships m
+     where m.tenant_id = p_tenant_id and m.user_id = auth.uid()
+       and (m.role <> 'partner' or public.session_shows_second_factor())
+  ) then
+    raise exception 'Not a member of this workspace.' using errcode = '42501';
+  end if;
+  if p_from is null or p_to is null or p_to - p_from > 799 then
+    raise exception 'workspace_days: a range of at most 800 days, with both dates' using errcode = '22023';
+  end if;
+  -- Every reference is qualified: the OUT parameters are in scope for the whole body.
+  return query
+    select pm.day, pm.messages_in, pm.messages_out, pm.asks, pm.answered, pm.handled, pm.topics, pm.ai_tokens
+      from public.platform_metrics pm
+     where pm.tenant_id = p_tenant_id and pm.day >= p_from and pm.day <= p_to
+     order by pm.day;
+end $$;
+
+
+--
+-- Name: FUNCTION workspace_days(p_tenant_id uuid, p_from date, p_to date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to date) IS 'A workspace''s rolled days between two dates, oldest first, for a member of that workspace (K10): the messages in and out by channel, the asks and how many were answered, how each customer message ended, what they asked about, and the model''s tokens by purpose. Never the operator''s columns (dollars, latency, provider failures). Checks membership itself (a partner''s seat only with its second factor shown); refuses a session with no user and a range over 800 days. A day rolled before 00316 reads null in the last three.';
+
+
+--
 -- Name: workspace_partner(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -16186,6 +17908,64 @@ CREATE TABLE public.ask_threads (
 
 
 --
+-- Name: ask_voice_sessions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ask_voice_sessions (
+    id text NOT NULL,
+    tenant_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    thread_id uuid NOT NULL,
+    conversation_id text,
+    token_cipher text NOT NULL,
+    token_expires_at timestamp with time zone NOT NULL,
+    surface text,
+    scope jsonb,
+    context jsonb,
+    language text DEFAULT 'en'::text NOT NULL,
+    turn_key text,
+    turn_started_at timestamp with time zone,
+    duration_s integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    ended_at timestamp with time zone,
+    end_reason text,
+    connect_ms integer,
+    first_audio_ms integer,
+    CONSTRAINT ask_voice_sessions_end_reason_check CHECK (((end_reason IS NULL) OR (end_reason = ANY (ARRAY['button'::text, 'typed'::text, 'superseded'::text, 'navigated'::text, 'vendor'::text, 'start'::text, 'idle'::text])))),
+    CONSTRAINT ask_voice_sessions_id_is_sha256 CHECK ((id ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ask_voice_sessions_language_check CHECK ((language = ANY (ARRAY['en'::text, 'es'::text, 'other'::text])))
+);
+
+
+--
+-- Name: TABLE ask_voice_sessions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ask_voice_sessions IS 'One row per voice conversation of Ask: whose it is, its thread, the member''s access token sealed under the dashboard''s key, and the turn the brain door claims. The member''s own under RLS; the brain door reads it on the service role (apps/dashboard/src/server/ask/voice-session.ts).';
+
+
+--
+-- Name: COLUMN ask_voice_sessions.end_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ask_voice_sessions.end_reason IS 'The browser''s word for how it ended: button, typed, superseded, navigated, vendor, start, idle (a minute with nothing asked). Null while it runs.';
+
+
+--
+-- Name: COLUMN ask_voice_sessions.connect_ms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ask_voice_sessions.connect_ms IS 'From the tap to the connection up, in ms, as the browser measured it.';
+
+
+--
+-- Name: COLUMN ask_voice_sessions.first_audio_ms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ask_voice_sessions.first_audio_ms IS 'From the tap to the first audio heard, in ms, as the browser measured it; null when none came.';
+
+
+--
 -- Name: billing_accounts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -16241,8 +18021,26 @@ CREATE TABLE public.billing_events (
     received_at timestamp with time zone DEFAULT now() NOT NULL,
     state text DEFAULT 'applied'::text NOT NULL,
     lease_until timestamp with time zone,
+    amount_cents integer,
+    currency text,
+    CONSTRAINT billing_events_amount_cents_check CHECK (((amount_cents IS NULL) OR (amount_cents >= 0))),
+    CONSTRAINT billing_events_currency_check CHECK (((currency IS NULL) OR (currency ~ '^[a-z]{3}$'::text))),
     CONSTRAINT billing_events_state_check CHECK ((state = ANY (ARRAY['claimed'::text, 'applied'::text])))
 );
+
+
+--
+-- Name: COLUMN billing_events.amount_cents; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.billing_events.amount_cents IS 'What the invoice behind this event moved, in the smallest unit of its currency (K8): the amount paid on invoice.paid, the amount due on invoice.payment_failed. Kept once by billing_event_keep_amount; null for an event from before 00318 or that named no amount. A real zero is a zero.';
+
+
+--
+-- Name: COLUMN billing_events.currency; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.billing_events.currency IS 'The invoice''s currency as Stripe spells it, three lowercase letters (K8); null where amount_cents is.';
 
 
 --
@@ -16258,6 +18056,9 @@ CREATE TABLE public.broadcast_recipients (
     message_id uuid,
     sent_at timestamp with time zone,
     facts jsonb,
+    channel text,
+    attempt integer DEFAULT 0 NOT NULL,
+    CONSTRAINT broadcast_recipients_channel_check CHECK (((channel IS NULL) OR (channel = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text])))),
     CONSTRAINT broadcast_recipients_state_check CHECK ((state = ANY (ARRAY['queued'::text, 'sent'::text, 'skipped'::text, 'failed'::text])))
 );
 
@@ -16267,6 +18068,20 @@ CREATE TABLE public.broadcast_recipients (
 --
 
 COMMENT ON COLUMN public.broadcast_recipients.facts IS 'Per-person words a run resolved when it was made (a visit''s time and service); the send fills the template''s slots from them.';
+
+
+--
+-- Name: COLUMN broadcast_recipients.channel; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.broadcast_recipients.channel IS 'The channel this person is reached on, picked once at enrolment (contracts'' reachFor) from the run''s channels. NULL: a recipient written before the channels, which is WhatsApp (00298).';
+
+
+--
+-- Name: COLUMN broadcast_recipients.attempt; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.broadcast_recipients.attempt IS 'How many times this person was claimed and given back (throttled, not_taken): the guard adds one on every release. A broadcast''s email to them is named by it (core broadcast-channels.ts), so a person tried again is sent under a new id and a resumed run, which releases nobody, finds the email it was sending (00301).';
 
 
 --
@@ -16293,10 +18108,19 @@ CREATE TABLE public.broadcasts (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     playbook_id uuid,
     run_for date,
+    channels text[] DEFAULT '{whatsapp}'::text[] NOT NULL,
+    CONSTRAINT broadcasts_channels_check CHECK (((channels <@ ARRAY['whatsapp'::text, 'sms'::text, 'email'::text]) AND ((cardinality(channels) >= 1) AND (cardinality(channels) <= 3)) AND (cardinality(channels) = ((((channels @> ARRAY['whatsapp'::text]))::integer + ((channels @> ARRAY['sms'::text]))::integer) + ((channels @> ARRAY['email'::text]))::integer)))),
     CONSTRAINT broadcasts_name_check CHECK (((length(name) >= 1) AND (length(name) <= 80))),
     CONSTRAINT broadcasts_state_check CHECK ((state = ANY (ARRAY['pending_approval'::text, 'scheduled'::text, 'sending'::text, 'sent'::text, 'canceled'::text, 'failed'::text]))),
     CONSTRAINT broadcasts_template_or_hand CHECK (COALESCE((((template_id IS NOT NULL) AND (template_name IS NOT NULL) AND (template_language IS NOT NULL)) OR ((template_id IS NULL) AND (template_name IS NULL) AND (template_language IS NULL) AND ((audience ->> 'kind'::text) = 'reach_out'::text) AND ((audience ->> 'hand'::text) = ANY (ARRAY['call'::text, 'note'::text])))), false))
 );
+
+
+--
+-- Name: COLUMN broadcasts.channels; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.broadcasts.channels IS 'The channels this run ticked (whatsapp, sms, email, each once, at least one), written whole with its people by assemble_broadcast. WhatsApp alone by default, as every run was before (00298).';
 
 
 --
@@ -16500,127 +18324,6 @@ CREATE TABLE public.contact_identities (
 
 
 --
--- Name: contacts; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.contacts (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    phone_e164 text,
-    display_name text,
-    wa_profile_name text,
-    consent text DEFAULT 'unknown'::text NOT NULL,
-    consent_source text,
-    consent_updated_at timestamp with time zone,
-    dnc boolean DEFAULT false NOT NULL,
-    merged_into_contact_id uuid,
-    first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
-    last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    erased_at timestamp with time zone,
-    notes text,
-    marketing_consent text DEFAULT 'unknown'::text NOT NULL,
-    marketing_consent_source text,
-    marketing_consent_updated_at timestamp with time zone,
-    erasing_since timestamp with time zone,
-    erased_phone_hash text,
-    email text,
-    erased_email_hash text,
-    email_suppressed_at timestamp with time zone,
-    email_suppressed_reason text,
-    proposal_url text,
-    email_marketing text DEFAULT 'unknown'::text NOT NULL,
-    email_marketing_source text,
-    email_marketing_updated_at timestamp with time zone,
-    CONSTRAINT contacts_consent_check CHECK ((consent = ANY (ARRAY['unknown'::text, 'opted_in'::text, 'opted_out'::text]))),
-    CONSTRAINT contacts_email_check CHECK (((email IS NULL) OR ((email = lower(btrim(email))) AND ((char_length(email) >= 3) AND (char_length(email) <= 254)) AND (email ~ '^[^[:space:]@<>]+@[^[:space:]@<>]+\.[^[:space:]@<>]+$'::text)))),
-    CONSTRAINT contacts_email_marketing_check CHECK ((email_marketing = ANY (ARRAY['unknown'::text, 'opted_in'::text, 'opted_out'::text]))),
-    CONSTRAINT contacts_email_suppressed_check CHECK ((((email_suppressed_at IS NULL) = (email_suppressed_reason IS NULL)) AND ((email_suppressed_reason IS NULL) OR (email_suppressed_reason = ANY (ARRAY['hard_bounce'::text, 'complaint'::text, 'provider'::text]))))),
-    CONSTRAINT contacts_marketing_consent_check CHECK ((marketing_consent = ANY (ARRAY['unknown'::text, 'opted_in'::text, 'opted_out'::text]))),
-    CONSTRAINT contacts_notes_check CHECK (((notes IS NULL) OR ((char_length(notes) >= 1) AND (char_length(notes) <= 600)))),
-    CONSTRAINT contacts_proposal_url_check CHECK (((proposal_url IS NULL) OR ((proposal_url = btrim(proposal_url)) AND ((char_length(proposal_url) >= 10) AND (char_length(proposal_url) <= 500)) AND (proposal_url ~ '^https?://[^[:space:]]+$'::text))))
-);
-
-
---
--- Name: COLUMN contacts.erased_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.contacts.erased_at IS 'Set by erase_contact(). The row is a tombstone: no phone, no names, no identities. It exists so decisions.subject_id and events.subject_id still resolve, and so a repeat request is a no-op rather than a second destruction.';
-
-
---
--- Name: COLUMN contacts.notes; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.contacts.notes IS 'Superseded by person_notes (0007): moved there by 00157 and no longer read by the receptionist or the page. Kept for a page loaded before that deploy.';
-
-
---
--- Name: COLUMN contacts.marketing_consent; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.contacts.marketing_consent IS 'Whether this person said yes to OFFERS specifically -- separate from public.contacts.consent, which is their answer about conversation and appointments. Never implied: only a text from their own handset or an operator recording a signed form sets it. Carrier error 30913 is what a single combined answer earns.';
-
-
---
--- Name: COLUMN contacts.marketing_consent_source; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.contacts.marketing_consent_source IS 'How the marketing answer was given: the same vocabulary consent_source uses. "customer_message" is a text from their own handset, which is the express WRITTEN consent the carriers require for promotional messages.';
-
-
---
--- Name: COLUMN contacts.erasing_since; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.contacts.erasing_since IS 'A deletion request, written before anything is destroyed: from this moment the wire refuses the person. erased_at is the completion.';
-
-
---
--- Name: COLUMN contacts.erased_phone_hash; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.contacts.erased_phone_hash IS 'sha256 hex of "<tenant_id>:<E.164>", written when the erasure begins and the number still exists, so the calendar import and a late call event do not bring the person back.';
-
-
---
--- Name: COLUMN contacts.email; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.contacts.email IS 'The person''s email address as normalizeEmail stores it: trimmed, lower-cased. One per workspace. A person may have this and no number.';
-
-
---
--- Name: COLUMN contacts.erased_email_hash; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.contacts.erased_email_hash IS 'sha256 hex of "<tenant_id>:<address>", written when an erasure begins and the address still exists, so mail arriving from it later does not bring the person back.';
-
-
---
--- Name: COLUMN contacts.email_suppressed_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.contacts.email_suppressed_at IS 'When this address stopped being sent to: a permanent bounce, a complaint, or the provider''s own suppression. The wire refuses it from then on (deliver: email_suppressed).';
-
-
---
--- Name: COLUMN contacts.proposal_url; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.contacts.proposal_url IS 'The owner''s proposal for this person, as a web address (normalizeLink stores it). The receptionist sends the address when they ask about price or the proposal, and states none of its figures. Never a file.';
-
-
---
--- Name: COLUMN contacts.email_marketing; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.contacts.email_marketing IS 'Whether this person may be sent marketing email (a reach-out, an offer): unknown until they say, opted_out once they unsubscribe. Apart from consent and marketing_consent, which are the texting and WhatsApp answers.';
-
-
---
 -- Name: conversations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -16791,6 +18494,7 @@ CREATE TABLE public.escalations (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     deadman_alerted_at timestamp with time zone,
+    resolved_at timestamp with time zone,
     CONSTRAINT escalations_reason_check CHECK ((reason = ANY (ARRAY['human_token'::text, 'non_text'::text, 'refusal'::text, 'rate_cap'::text, 'policy_block'::text, 'send_failed'::text, 'deadman'::text, 'brain_error'::text, 'manual'::text, 'opt_out'::text, 'state_unavailable'::text, 'stale'::text, 'person_hold'::text, 'budget'::text, 'policy_ask'::text, 'callback'::text, 'paused'::text, 'carriers'::text, 'email_review'::text]))),
     CONSTRAINT escalations_state_check CHECK ((state = ANY (ARRAY['open'::text, 'resolved'::text])))
 );
@@ -16801,6 +18505,13 @@ CREATE TABLE public.escalations (
 --
 
 COMMENT ON COLUMN public.escalations.deadman_alerted_at IS 'When the watchdog flagged this as unanswered. Set once; NULL means never flagged.';
+
+
+--
+-- Name: COLUMN escalations.resolved_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.escalations.resolved_at IS 'When the escalation was resolved (K4), stamped once by escalations_stamp_resolved when state goes from open to resolved. Null while open, and for every row resolved before 00308: unknown, never zero.';
 
 
 --
@@ -17419,6 +19130,8 @@ CREATE TABLE public.leads (
     website_root boolean,
     booked_at timestamp with time zone,
     reach_out_stopped_at timestamp with time zone,
+    stage_at timestamp with time zone DEFAULT now(),
+    stage_from text,
     CONSTRAINT leads_closed_reason_check CHECK ((closed_reason = ANY (ARRAY['said_no'::text, 'not_a_fit'::text, 'customer'::text, 'stale'::text, 'search_removed'::text]))),
     CONSTRAINT leads_email_state_check CHECK ((email_state = ANY (ARRAY['none'::text, 'checking'::text, 'ok'::text, 'catch_all'::text, 'unknown'::text, 'invalid'::text]))),
     CONSTRAINT leads_mark_path_shape CHECK (((mark_path IS NULL) OR (mark_path ~ '^[0-9a-f]{64}\.(png|jpg|webp|gif|ico)$'::text))),
@@ -17522,6 +19235,20 @@ COMMENT ON COLUMN public.leads.booked_at IS 'When the first appointment the cale
 --
 
 COMMENT ON COLUMN public.leads.reach_out_stopped_at IS 'When its owner stopped a reach-out writing to this lead (Reach out Part 6, H10; reach_out_lead_stop). The send door refuses its email (outreach_lead_facts.stopped, outreach_stopped) and no later step reaches it (reach_out_followers). The lead is not closed: stopping is not a no.';
+
+
+--
+-- Name: COLUMN leads.stage_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.leads.stage_at IS 'When the lead entered the stage it is in (K5): its birth for a new row, the move for any later one, stamped by leads_stamp_stage whoever writes the stage. Null for a lead from before 00309: unknown, never now.';
+
+
+--
+-- Name: COLUMN leads.stage_from; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.leads.stage_from IS 'The stage the lead was in before the move that stamped stage_at (K5); null until it moves. The one place a lead''s "from" is said: lead.set_aside and 00310''s lead.stage event read it.';
 
 
 --
@@ -17736,9 +19463,13 @@ CREATE TABLE public.mailboxes (
     last_error text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    offers_paused_at timestamp with time zone,
+    offers_paused_reason text,
+    offers_resumed_at timestamp with time zone,
     CONSTRAINT mailboxes_from_name_check CHECK (((char_length(btrim(from_name)) >= 1) AND (char_length(btrim(from_name)) <= 80))),
     CONSTRAINT mailboxes_local_part_check CHECK ((local_part ~ '^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$'::text)),
     CONSTRAINT mailboxes_local_part_check1 CHECK ((local_part <> ALL (ARRAY['r'::text, 'postmaster'::text, 'abuse'::text, 'mailer-daemon'::text, 'noreply'::text, 'no-reply'::text, 'admin'::text, 'administrator'::text, 'support'::text, 'security'::text, 'billing'::text, 'hello'::text, 'hi'::text]))),
+    CONSTRAINT mailboxes_offers_paused_reason_check CHECK (((offers_paused_reason IS NULL) OR (offers_paused_reason = ANY (ARRAY['complaints'::text, 'bounces'::text])))),
     CONSTRAINT mailboxes_reply_mode_check CHECK ((reply_mode = ANY (ARRAY['draft'::text, 'veto'::text, 'auto'::text]))),
     CONSTRAINT mailboxes_reply_token_check CHECK ((reply_token ~ '^[a-z2-7]{24}$'::text)),
     CONSTRAINT mailboxes_reply_token_prev_check CHECK (((reply_token_prev IS NULL) OR (reply_token_prev ~ '^[a-z2-7]{24}$'::text)))
@@ -17750,6 +19481,27 @@ CREATE TABLE public.mailboxes (
 --
 
 COMMENT ON TABLE public.mailboxes IS 'A workspace''s email address on the platform''s mail domain, its reply route, and how much the receptionist may do with an email. Members read; the service role writes.';
+
+
+--
+-- Name: COLUMN mailboxes.offers_paused_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mailboxes.offers_paused_at IS 'When a gate paused this workspace''s offers by email (complaints or bounces over their limits, contracts'' OFFER_GATES), or NULL while they are not paused. Offers hold; reminders and replies by email go on. Cleared by resume_email_offers.';
+
+
+--
+-- Name: COLUMN mailboxes.offers_paused_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mailboxes.offers_paused_reason IS 'Which gate paused them: complaints or bounces.';
+
+
+--
+-- Name: COLUMN mailboxes.offers_resumed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mailboxes.offers_resumed_at IS 'When the back office last turned this workspace''s offers by email back on (resume_email_offers), or NULL if it never has. The gates are judged over the offers sent after it, so the offers that paused them are not counted again.';
 
 
 --
@@ -18261,13 +20013,23 @@ CREATE TABLE public.platform_metrics (
     provider_failures jsonb DEFAULT '{}'::jsonb NOT NULL,
     tokens bigint DEFAULT 0 NOT NULL,
     rolled_at timestamp with time zone DEFAULT now() NOT NULL,
+    handled jsonb,
+    topics jsonb,
+    ai_tokens jsonb,
+    ai_usd jsonb,
+    voice_usd numeric(12,6),
+    CONSTRAINT platform_metrics_ai_tokens_check CHECK (((ai_tokens IS NULL) OR (jsonb_typeof(ai_tokens) = 'object'::text))),
+    CONSTRAINT platform_metrics_ai_usd_check CHECK (((ai_usd IS NULL) OR (jsonb_typeof(ai_usd) = 'object'::text))),
     CONSTRAINT platform_metrics_answered_check CHECK ((answered >= 0)),
     CONSTRAINT platform_metrics_asks_check CHECK ((asks >= 0)),
     CONSTRAINT platform_metrics_brain_p95_ms_check CHECK ((brain_p95_ms >= 0)),
+    CONSTRAINT platform_metrics_handled_check CHECK (((handled IS NULL) OR (jsonb_typeof(handled) = 'object'::text))),
     CONSTRAINT platform_metrics_replies_answered_check CHECK ((replies_answered >= 0)),
     CONSTRAINT platform_metrics_replies_handed_off_check CHECK ((replies_handed_off >= 0)),
     CONSTRAINT platform_metrics_replies_held_check CHECK ((replies_held >= 0)),
-    CONSTRAINT platform_metrics_tokens_check CHECK ((tokens >= 0))
+    CONSTRAINT platform_metrics_tokens_check CHECK ((tokens >= 0)),
+    CONSTRAINT platform_metrics_topics_check CHECK (((topics IS NULL) OR (jsonb_typeof(topics) = 'object'::text))),
+    CONSTRAINT platform_metrics_voice_usd_check CHECK (((voice_usd IS NULL) OR (voice_usd >= (0)::numeric)))
 );
 
 
@@ -18276,6 +20038,41 @@ CREATE TABLE public.platform_metrics (
 --
 
 COMMENT ON TABLE public.platform_metrics IS 'One UTC day of one workspace, counted (00277): messages in and out by channel, customers'' messages (asks) and how many got an answer from anyone, the receptionist''s replies answered, held and handed off, its 95th-percentile latency, sends that failed by outcome, and model tokens. Rolled up nightly (platform_metrics_roll); service role only, read by the back office.';
+
+
+--
+-- Name: COLUMN platform_metrics.handled; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.platform_metrics.handled IS 'How the day''s customer messages ended (K10): counts of meta.handled (ai, held, handoff, blocked) on inbound customer messages, a key only where its count is above zero. Null where no message of the day was stamped (a day before K1 included).';
+
+
+--
+-- Name: COLUMN platform_metrics.topics; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.platform_metrics.topics IS 'What the day''s customers asked about (K10): counts by the nine BRAIN_INTENTS words, from texts'' meta.intent and connected inbound calls'' analysis.topic. Null where nothing said.';
+
+
+--
+-- Name: COLUMN platform_metrics.ai_tokens; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.platform_metrics.ai_tokens IS 'The model''s tokens of the day by purpose (K10), all four kinds, from the ledger (ai_usage), the workspace''s own calls and never a shadow''s. Null where the ledger holds none.';
+
+
+--
+-- Name: COLUMN platform_metrics.ai_usd; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.platform_metrics.ai_usd IS 'The same by purpose in list-price dollars (K10): the operator''s, never an owner''s. A purpose with no priced call is left out; null where none was priced.';
+
+
+--
+-- Name: COLUMN platform_metrics.voice_usd; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.platform_metrics.voice_usd IS 'What the day''s calls cost in dollars (K8): the sum of call_cost_usd over calls.cost of the calls that started that day, whatever their direction or ending. The operator''s. Null where no call carried a cost.';
 
 
 --
@@ -18313,8 +20110,10 @@ CREATE TABLE public.playbooks (
     signed_by text,
     include_unconfirmed boolean DEFAULT false NOT NULL,
     hand jsonb,
+    channels text[] DEFAULT '{whatsapp}'::text[] NOT NULL,
     CONSTRAINT playbooks_cadence_days_check CHECK (((cadence_days >= 1) AND (cadence_days <= 90))),
     CONSTRAINT playbooks_cap_per_run_check CHECK (((cap_per_run >= 1) AND (cap_per_run <= 500))),
+    CONSTRAINT playbooks_channels_check CHECK (((channels <@ ARRAY['whatsapp'::text, 'sms'::text, 'email'::text]) AND ((cardinality(channels) >= 1) AND (cardinality(channels) <= 3)) AND (cardinality(channels) = ((((channels @> ARRAY['whatsapp'::text]))::integer + ((channels @> ARRAY['sms'::text]))::integer) + ((channels @> ARRAY['email'::text]))::integer)))),
     CONSTRAINT playbooks_gap_days_check CHECK (((gap_days >= 7) AND (gap_days <= 365))),
     CONSTRAINT playbooks_kind_check CHECK ((kind = ANY (ARRAY['moment'::text, 'reach_out'::text]))),
     CONSTRAINT playbooks_list_key_shape CHECK (((list_key IS NULL) OR (list_key ~ '^[a-z_]{1,40}$'::text))),
@@ -18363,6 +20162,13 @@ COMMENT ON COLUMN public.playbooks.list_key IS 'The People list a saved_list pla
 --
 
 COMMENT ON COLUMN public.playbooks.hand IS 'A reach-out''s last step that hands each lead it reaches to the team (Reach out Part 5, G20): {kind: call | note, words}. Such a step has no template.';
+
+
+--
+-- Name: COLUMN playbooks.channels; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.playbooks.channels IS 'The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer''s ticks. Each person is reached once, on one of them (contracts'' reachFor). WhatsApp alone by default, as every campaign was before (00298).';
 
 
 --
@@ -18583,6 +20389,40 @@ COMMENT ON COLUMN public.segments.rule IS 'A smart list''s rule, in contracts li
 --
 
 COMMENT ON COLUMN public.segments.archived_at IS 'When the list was archived: it leaves People''s rail and still resolves for the playbooks that name it. Null for a live list.';
+
+
+--
+-- Name: sending_domain_days; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sending_domain_days (
+    tenant_id uuid NOT NULL,
+    domain_id uuid NOT NULL,
+    day date NOT NULL,
+    host text NOT NULL,
+    state text NOT NULL,
+    held_why text,
+    sent integer,
+    bounced integer,
+    complaints integer,
+    sent_days integer,
+    checked_at timestamp with time zone,
+    kept_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT sending_domain_days_bounced_check CHECK (((bounced IS NULL) OR (bounced >= 0))),
+    CONSTRAINT sending_domain_days_complaints_check CHECK (((complaints IS NULL) OR (complaints >= 0))),
+    CONSTRAINT sending_domain_days_held_why_check CHECK (((held_why IS NULL) OR (char_length(held_why) <= 40))),
+    CONSTRAINT sending_domain_days_host_check CHECK (((char_length(host) >= 4) AND (char_length(host) <= 253))),
+    CONSTRAINT sending_domain_days_sent_check CHECK (((sent IS NULL) OR (sent >= 0))),
+    CONSTRAINT sending_domain_days_sent_days_check CHECK (((sent_days IS NULL) OR (sent_days >= 0))),
+    CONSTRAINT sending_domain_days_state_check CHECK ((state = ANY (ARRAY['verified'::text, 'held'::text])))
+);
+
+
+--
+-- Name: TABLE sending_domain_days; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.sending_domain_days IS 'One row per sending domain per UTC day: its state and counters as the domains sweep''s last check left them (K9), written by sending_domain_days_keep at 00:23 for the day that ended. Null where the domain had no count; checked_at says how stale. Members read their workspace''s; the service role writes.';
 
 
 --
@@ -19023,6 +20863,14 @@ ALTER TABLE ONLY public.ask_threads
 
 ALTER TABLE ONLY public.ask_threads
     ADD CONSTRAINT ask_threads_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: ask_voice_sessions ask_voice_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_voice_sessions
+    ADD CONSTRAINT ask_voice_sessions_pkey PRIMARY KEY (id);
 
 
 --
@@ -19810,6 +21658,14 @@ ALTER TABLE ONLY public.segments
 
 
 --
+-- Name: sending_domain_days sending_domain_days_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sending_domain_days
+    ADD CONSTRAINT sending_domain_days_pkey PRIMARY KEY (domain_id, day);
+
+
+--
 -- Name: sending_domains sending_domains_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -19953,6 +21809,20 @@ CREATE INDEX ask_messages_thread ON public.ask_messages USING btree (thread_id, 
 --
 
 CREATE INDEX ask_threads_user_recent ON public.ask_threads USING btree (user_id, tenant_id, last_at DESC);
+
+
+--
+-- Name: ask_voice_sessions_expiry_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_voice_sessions_expiry_idx ON public.ask_voice_sessions USING btree (token_expires_at);
+
+
+--
+-- Name: ask_voice_sessions_thread_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_voice_sessions_thread_idx ON public.ask_voice_sessions USING btree (thread_id);
 
 
 --
@@ -20551,6 +22421,13 @@ CREATE INDEX messages_body_words ON public.messages USING gin (to_tsvector('simp
 
 
 --
+-- Name: messages_broadcast_month; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX messages_broadcast_month ON public.messages USING btree (tenant_id, created_at) WHERE ((meta ->> 'source'::text) = 'broadcast'::text);
+
+
+--
 -- Name: messages_contact_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -20978,6 +22855,13 @@ CREATE UNIQUE INDEX segments_live_name ON public.segments USING btree (tenant_id
 
 
 --
+-- Name: sending_domain_days_tenant_day; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sending_domain_days_tenant_day ON public.sending_domain_days USING btree (tenant_id, day DESC);
+
+
+--
 -- Name: sending_domains_due; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -21083,6 +22967,34 @@ CREATE TRIGGER business_records_set_updated_at BEFORE UPDATE ON public.business_
 
 
 --
+-- Name: calls calls_note_first_touch; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER calls_note_first_touch AFTER INSERT ON public.calls FOR EACH ROW WHEN (((new.direction = 'inbound'::text) AND (new.contact_id IS NOT NULL) AND public.call_connected(new.status, new.duration_ms))) EXECUTE FUNCTION public.calls_note_first_touch();
+
+
+--
+-- Name: calls calls_note_first_touch_on_connect; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER calls_note_first_touch_on_connect AFTER UPDATE OF status, duration_ms ON public.calls FOR EACH ROW WHEN (((new.direction = 'inbound'::text) AND (new.contact_id IS NOT NULL) AND public.call_connected(new.status, new.duration_ms) AND (NOT public.call_connected(old.status, old.duration_ms)))) EXECUTE FUNCTION public.calls_note_first_touch();
+
+
+--
+-- Name: calls calls_note_transfer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER calls_note_transfer AFTER INSERT ON public.calls FOR EACH ROW WHEN ((public.call_transfer_answered(new.disconnection_reason) IS NOT NULL)) EXECUTE FUNCTION public.calls_note_transfer();
+
+
+--
+-- Name: calls calls_note_transfer_on_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER calls_note_transfer_on_update AFTER UPDATE OF disconnection_reason ON public.calls FOR EACH ROW WHEN (((public.call_transfer_answered(new.disconnection_reason) IS NOT NULL) AND (public.call_transfer_answered(old.disconnection_reason) IS NULL))) EXECUTE FUNCTION public.calls_note_transfer();
+
+
+--
 -- Name: calls calls_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -21108,6 +23020,13 @@ CREATE TRIGGER contacts_erase_blanks_deals AFTER UPDATE OF erased_at ON public.c
 --
 
 CREATE TRIGGER contacts_erase_blanks_leads AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.leads_erase_on_contact();
+
+
+--
+-- Name: contacts contacts_erase_clears_consent_channels; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_clears_consent_channels BEFORE UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.consent_channels_on_erase();
 
 
 --
@@ -21209,10 +23128,52 @@ CREATE TRIGGER escalations_guard BEFORE UPDATE ON public.escalations FOR EACH RO
 
 
 --
+-- Name: escalations escalations_note_change; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER escalations_note_change AFTER UPDATE OF reason ON public.escalations FOR EACH ROW WHEN ((old.reason IS DISTINCT FROM new.reason)) EXECUTE FUNCTION public.escalations_note_change();
+
+
+--
 -- Name: escalations escalations_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER escalations_set_updated_at BEFORE UPDATE ON public.escalations FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: escalations escalations_stamp_resolved; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER escalations_stamp_resolved BEFORE UPDATE OF state ON public.escalations FOR EACH ROW EXECUTE FUNCTION public.escalations_stamp_resolved();
+
+
+--
+-- Name: events events_complete_deal; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER events_complete_deal BEFORE INSERT ON public.events FOR EACH ROW WHEN (((new.kind = ANY (ARRAY['deal.proposed'::text, 'deal.won'::text, 'deal.lost'::text, 'deal.ended'::text])) AND (new.subject_type = 'deal'::text) AND (new.subject_id IS NOT NULL))) EXECUTE FUNCTION public.events_complete_deal();
+
+
+--
+-- Name: events events_complete_lead_stage; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER events_complete_lead_stage BEFORE INSERT ON public.events FOR EACH ROW WHEN (((new.kind = 'lead.stage'::text) AND (new.subject_type = 'lead'::text) AND (new.subject_id IS NOT NULL))) EXECUTE FUNCTION public.events_complete_lead_stage();
+
+
+--
+-- Name: events events_keep_consent_channels; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER events_keep_consent_channels AFTER INSERT ON public.events FOR EACH ROW WHEN (((new.kind = 'contact.consent_changed'::text) AND (new.subject_type = 'contact'::text))) EXECUTE FUNCTION public.events_keep_consent_channels();
+
+
+--
+-- Name: events events_note_first_touch; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER events_note_first_touch AFTER INSERT ON public.events FOR EACH ROW WHEN (((new.kind = 'contact.added'::text) AND (new.subject_type = 'contact'::text) AND (new.subject_id IS NOT NULL))) EXECUTE FUNCTION public.events_note_first_touch();
 
 
 --
@@ -21272,6 +23233,20 @@ CREATE TRIGGER lead_suppressions_erasure_digest_keyed BEFORE INSERT OR UPDATE OF
 
 
 --
+-- Name: leads leads_note_set_aside; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER leads_note_set_aside AFTER UPDATE OF stage, closed_reason ON public.leads FOR EACH ROW WHEN ((public.lead_is_set_aside(new.stage, new.closed_reason) AND (NOT public.lead_is_set_aside(old.stage, old.closed_reason)))) EXECUTE FUNCTION public.leads_note_set_aside();
+
+
+--
+-- Name: leads leads_stamp_stage; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER leads_stamp_stage BEFORE UPDATE OF stage ON public.leads FOR EACH ROW WHEN ((old.stage IS DISTINCT FROM new.stage)) EXECUTE FUNCTION public.leads_stamp_stage();
+
+
+--
 -- Name: lines lines_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -21318,6 +23293,34 @@ CREATE CONSTRAINT TRIGGER memberships_keep_an_owner AFTER DELETE OR UPDATE OF ro
 --
 
 CREATE TRIGGER messages_guard BEFORE UPDATE ON public.messages FOR EACH ROW EXECUTE FUNCTION public.messages_guard();
+
+
+--
+-- Name: messages messages_note_booking_link; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER messages_note_booking_link AFTER INSERT ON public.messages FOR EACH ROW WHEN (((new.direction = 'outbound'::text) AND (new.status = 'sent'::text) AND (new.channel = ANY (ARRAY['whatsapp'::text, 'sms'::text])) AND (NOT public.automated_send(new.meta)) AND (COALESCE((new.meta ->> 'backfill'::text), 'false'::text) <> 'true'::text))) EXECUTE FUNCTION public.messages_note_booking_link();
+
+
+--
+-- Name: messages messages_note_booking_link_on_send; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER messages_note_booking_link_on_send AFTER UPDATE OF status ON public.messages FOR EACH ROW WHEN (((new.direction = 'outbound'::text) AND (new.status = 'sent'::text) AND (old.status IS DISTINCT FROM 'sent'::text) AND (new.channel = ANY (ARRAY['whatsapp'::text, 'sms'::text])) AND (NOT public.automated_send(new.meta)) AND (COALESCE((new.meta ->> 'backfill'::text), 'false'::text) <> 'true'::text))) EXECUTE FUNCTION public.messages_note_booking_link();
+
+
+--
+-- Name: messages messages_note_first_touch; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER messages_note_first_touch AFTER INSERT ON public.messages FOR EACH ROW WHEN (((new.direction = 'inbound'::text) AND (new.sender = 'customer'::text) AND (new.contact_id IS NOT NULL) AND (new.channel = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text])) AND (COALESCE((new.meta ->> 'backfill'::text), 'false'::text) <> 'true'::text))) EXECUTE FUNCTION public.messages_note_first_touch();
+
+
+--
+-- Name: messages messages_stamp_offers_asked; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER messages_stamp_offers_asked AFTER INSERT OR UPDATE OF status ON public.messages FOR EACH ROW WHEN (((new.direction = 'outbound'::text) AND (new.status = ANY (ARRAY['sent'::text, 'delivered'::text, 'read'::text])) AND (new.body ~* '(^|[^[:alpha:]])(yes\s+offers|s[iíÍ]\u0301?\s+ofertas)([^[:alpha:]]|$)'::text))) EXECUTE FUNCTION public.messages_stamp_offers_asked();
 
 
 --
@@ -22011,6 +24014,22 @@ ALTER TABLE ONLY public.ask_threads
 
 ALTER TABLE ONLY public.ask_threads
     ADD CONSTRAINT ask_threads_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ask_voice_sessions ask_voice_sessions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_voice_sessions
+    ADD CONSTRAINT ask_voice_sessions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ask_voice_sessions ask_voice_sessions_thread_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_voice_sessions
+    ADD CONSTRAINT ask_voice_sessions_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -23158,6 +25177,14 @@ ALTER TABLE ONLY public.segments
 
 
 --
+-- Name: sending_domain_days sending_domain_days_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sending_domain_days
+    ADD CONSTRAINT sending_domain_days_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: sending_domains sending_domains_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -23310,6 +25337,44 @@ CREATE POLICY ask_threads_own_select ON public.ask_threads FOR SELECT TO authent
 --
 
 CREATE POLICY ask_threads_own_update ON public.ask_threads FOR UPDATE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: ask_voice_sessions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ask_voice_sessions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ask_voice_sessions ask_voice_sessions_own_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_voice_sessions_own_delete ON public.ask_voice_sessions FOR DELETE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: ask_voice_sessions ask_voice_sessions_own_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_voice_sessions_own_insert ON public.ask_voice_sessions FOR INSERT TO authenticated WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
+   FROM public.ask_threads t
+  WHERE ((t.id = ask_voice_sessions.thread_id) AND (t.user_id = ( SELECT auth.uid() AS uid)) AND (t.tenant_id = ask_voice_sessions.tenant_id))))));
+
+
+--
+-- Name: ask_voice_sessions ask_voice_sessions_own_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_voice_sessions_own_select ON public.ask_voice_sessions FOR SELECT TO authenticated USING (((user_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
+   FROM public.memberships m
+  WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.tenant_id = ask_voice_sessions.tenant_id))))));
+
+
+--
+-- Name: ask_voice_sessions ask_voice_sessions_own_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_voice_sessions_own_update ON public.ask_voice_sessions FOR UPDATE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
 
 
 --
@@ -24375,6 +26440,21 @@ CREATE POLICY segments_member_select ON public.segments FOR SELECT TO authentica
 
 
 --
+-- Name: sending_domain_days; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.sending_domain_days ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: sending_domain_days sending_domain_days_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY sending_domain_days_member_select ON public.sending_domain_days FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: sending_domains; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -24535,11 +26615,28 @@ GRANT ALL ON FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_re
 
 
 --
+-- Name: FUNCTION automated_send(p_meta jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.automated_send(p_meta jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.automated_send(p_meta jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.automated_send(p_meta jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION billing_card_mark(p_tenant_id uuid, p_fingerprint text); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.billing_card_mark(p_tenant_id uuid, p_fingerprint text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.billing_card_mark(p_tenant_id uuid, p_fingerprint text) TO service_role;
+
+
+--
+-- Name: FUNCTION billing_event_keep_amount(p_id text, p_amount_cents integer, p_currency text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.billing_event_keep_amount(p_id text, p_amount_cents integer, p_currency text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.billing_event_keep_amount(p_id text, p_amount_cents integer, p_currency text) TO service_role;
 
 
 --
@@ -24569,12 +26666,39 @@ GRANT ALL ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_
 
 
 --
+-- Name: FUNCTION call_connected(p_status text, p_duration_ms integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.call_connected(p_status text, p_duration_ms integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.call_connected(p_status text, p_duration_ms integer) TO authenticated;
+GRANT ALL ON FUNCTION public.call_connected(p_status text, p_duration_ms integer) TO service_role;
+
+
+--
+-- Name: FUNCTION call_cost_usd(p_cost jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.call_cost_usd(p_cost jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.call_cost_usd(p_cost jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.call_cost_usd(p_cost jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION call_status_rank(p_status text); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.call_status_rank(p_status text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.call_status_rank(p_status text) TO authenticated;
 GRANT ALL ON FUNCTION public.call_status_rank(p_status text) TO service_role;
+
+
+--
+-- Name: FUNCTION call_transfer_answered(p_reason text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.call_transfer_answered(p_reason text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.call_transfer_answered(p_reason text) TO authenticated;
+GRANT ALL ON FUNCTION public.call_transfer_answered(p_reason text) TO service_role;
 
 
 --
@@ -24587,12 +26711,44 @@ GRANT ALL ON FUNCTION public.caller_has_permission(p_tenant_id uuid, p_permissio
 
 
 --
+-- Name: FUNCTION calls_note_first_touch(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.calls_note_first_touch() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.calls_note_first_touch() TO service_role;
+
+
+--
+-- Name: FUNCTION calls_note_transfer(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.calls_note_transfer() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.calls_note_transfer() TO service_role;
+
+
+--
+-- Name: FUNCTION campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone) TO service_role;
+
+
+--
 -- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) TO authenticated;
 GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) TO service_role;
+
+
+--
+-- Name: FUNCTION channel_keep_quality(p_tenant_id uuid, p_channel_id uuid, p_rating text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.channel_keep_quality(p_tenant_id uuid, p_channel_id uuid, p_rating text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.channel_keep_quality(p_tenant_id uuid, p_channel_id uuid, p_rating text) TO service_role;
 
 
 --
@@ -24643,6 +26799,32 @@ GRANT ALL ON FUNCTION public.cold_receipts_owed(p_from timestamp with time zone,
 
 
 --
+-- Name: FUNCTION consent_channels_of(p_purpose text, p_source text, p_channel text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.consent_channels_of(p_purpose text, p_source text, p_channel text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.consent_channels_of(p_purpose text, p_source text, p_channel text) TO authenticated;
+GRANT ALL ON FUNCTION public.consent_channels_of(p_purpose text, p_source text, p_channel text) TO service_role;
+
+
+--
+-- Name: FUNCTION consent_channels_on_erase(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.consent_channels_on_erase() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.consent_channels_on_erase() TO service_role;
+
+
+--
+-- Name: FUNCTION consent_channels_union(p_have text[], p_add text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.consent_channels_union(p_have text[], p_add text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.consent_channels_union(p_have text[], p_add text[]) TO authenticated;
+GRANT ALL ON FUNCTION public.consent_channels_union(p_have text[], p_add text[]) TO service_role;
+
+
+--
 -- Name: FUNCTION contact_email_change_clears_suppression(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -24666,6 +26848,15 @@ GRANT ALL ON FUNCTION public.contact_email_on_erase() TO service_role;
 
 REVOKE ALL ON FUNCTION public.contact_events_on_erase() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.contact_events_on_erase() TO service_role;
+
+
+--
+-- Name: FUNCTION contact_first_moments(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contact_first_moments(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contact_first_moments(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.contact_first_moments(p_tenant_id uuid) TO service_role;
 
 
 --
@@ -24797,6 +26988,14 @@ GRANT ALL ON FUNCTION public.email_marketing_on_erase() TO service_role;
 
 
 --
+-- Name: FUNCTION email_offer_counts(p_tenant_id uuid, p_host text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.email_offer_counts(p_tenant_id uuid, p_host text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_offer_counts(p_tenant_id uuid, p_host text) TO service_role;
+
+
+--
 -- Name: FUNCTION email_sent_at(p_meta jsonb, p_status_updated_at timestamp with time zone, p_created_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
@@ -24904,6 +27103,55 @@ GRANT ALL ON FUNCTION public.escalations_guard() TO service_role;
 
 
 --
+-- Name: FUNCTION escalations_note_change(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.escalations_note_change() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.escalations_note_change() TO service_role;
+
+
+--
+-- Name: FUNCTION escalations_stamp_resolved(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.escalations_stamp_resolved() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.escalations_stamp_resolved() TO authenticated;
+GRANT ALL ON FUNCTION public.escalations_stamp_resolved() TO service_role;
+
+
+--
+-- Name: FUNCTION events_complete_deal(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.events_complete_deal() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.events_complete_deal() TO service_role;
+
+
+--
+-- Name: FUNCTION events_complete_lead_stage(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.events_complete_lead_stage() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.events_complete_lead_stage() TO service_role;
+
+
+--
+-- Name: FUNCTION events_keep_consent_channels(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.events_keep_consent_channels() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.events_keep_consent_channels() TO service_role;
+
+
+--
+-- Name: FUNCTION events_note_first_touch(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.events_note_first_touch() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.events_note_first_touch() TO service_role;
+
+
+--
 -- Name: FUNCTION expire_stale_pauses(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -24985,6 +27233,30 @@ GRANT ALL ON FUNCTION public.handovers_mine() TO service_role;
 
 REVOKE ALL ON FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_permission text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_permission text) TO service_role;
+
+
+--
+-- Name: TABLE contacts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contacts TO authenticated;
+GRANT ALL ON TABLE public.contacts TO service_role;
+
+
+--
+-- Name: COLUMN contacts.notes; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(notes) ON TABLE public.contacts TO authenticated;
+
+
+--
+-- Name: FUNCTION has_relationship(c public.contacts); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.has_relationship(c public.contacts) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.has_relationship(c public.contacts) TO authenticated;
+GRANT ALL ON FUNCTION public.has_relationship(c public.contacts) TO service_role;
 
 
 --
@@ -25185,6 +27457,15 @@ GRANT ALL ON FUNCTION public.lead_export_mark(p_tenant_id uuid, p_ids uuid[]) TO
 REVOKE ALL ON FUNCTION public.lead_in_list(p_stage text, p_closed_reason text, p_list text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_in_list(p_stage text, p_closed_reason text, p_list text) TO authenticated;
 GRANT ALL ON FUNCTION public.lead_in_list(p_stage text, p_closed_reason text, p_list text) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_is_set_aside(p_stage text, p_closed_reason text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_is_set_aside(p_stage text, p_closed_reason text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_is_set_aside(p_stage text, p_closed_reason text) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_is_set_aside(p_stage text, p_closed_reason text) TO service_role;
 
 
 --
@@ -25559,12 +27840,28 @@ GRANT ALL ON FUNCTION public.leads_erase_on_contact() TO service_role;
 
 
 --
+-- Name: FUNCTION leads_note_set_aside(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.leads_note_set_aside() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.leads_note_set_aside() TO service_role;
+
+
+--
 -- Name: FUNCTION leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION leads_stamp_stage(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.leads_stamp_stage() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.leads_stamp_stage() TO service_role;
 
 
 --
@@ -25645,6 +27942,32 @@ GRANT ALL ON FUNCTION public.memberships_keep_an_owner() TO service_role;
 
 
 --
+-- Name: FUNCTION message_carries_link(p_body text, p_link text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.message_carries_link(p_body text, p_link text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.message_carries_link(p_body text, p_link text) TO authenticated;
+GRANT ALL ON FUNCTION public.message_carries_link(p_body text, p_link text) TO service_role;
+
+
+--
+-- Name: FUNCTION message_is_a_persons_words(p_meta jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.message_is_a_persons_words(p_meta jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.message_is_a_persons_words(p_meta jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.message_is_a_persons_words(p_meta jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION message_keep_cost(p_tenant_id uuid, p_external_id text, p_pricing jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.message_keep_cost(p_tenant_id uuid, p_external_id text, p_pricing jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.message_keep_cost(p_tenant_id uuid, p_external_id text, p_pricing jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION message_moment(p_meta jsonb, p_channel_ts timestamp with time zone, p_created_at timestamp with time zone, p_type text, p_status text, OUT at timestamp with time zone, OUT spoken boolean, OUT moved_in boolean); Type: ACL; Schema: public; Owner: -
 --
 
@@ -25654,12 +27977,44 @@ GRANT ALL ON FUNCTION public.message_moment(p_meta jsonb, p_channel_ts timestamp
 
 
 --
+-- Name: FUNCTION message_stamp_handled(p_tenant_id uuid, p_message_id uuid, p_handled text, p_intent text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.message_stamp_handled(p_tenant_id uuid, p_message_id uuid, p_handled text, p_intent text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.message_stamp_handled(p_tenant_id uuid, p_message_id uuid, p_handled text, p_intent text) TO service_role;
+
+
+--
 -- Name: FUNCTION messages_guard(); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.messages_guard() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.messages_guard() TO authenticated;
 GRANT ALL ON FUNCTION public.messages_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION messages_note_booking_link(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.messages_note_booking_link() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.messages_note_booking_link() TO service_role;
+
+
+--
+-- Name: FUNCTION messages_note_first_touch(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.messages_note_first_touch() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.messages_note_first_touch() TO service_role;
+
+
+--
+-- Name: FUNCTION messages_stamp_offers_asked(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.messages_stamp_offers_asked() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.messages_stamp_offers_asked() TO service_role;
 
 
 --
@@ -25729,6 +28084,14 @@ GRANT ALL ON FUNCTION public.note_sweep_backlog(p_sweep text, p_remaining intege
 
 
 --
+-- Name: FUNCTION note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text) TO service_role;
+
+
+--
 -- Name: FUNCTION notification_mark(p_id uuid, p_read boolean, p_dismissed boolean); Type: ACL; Schema: public; Owner: -
 --
 
@@ -25752,6 +28115,15 @@ GRANT ALL ON FUNCTION public.notifications_seen(p_tenant_id uuid) TO service_rol
 
 REVOKE ALL ON FUNCTION public.number_drift() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.number_drift() TO service_role;
+
+
+--
+-- Name: FUNCTION offers_email_reach(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.offers_email_reach(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.offers_email_reach(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.offers_email_reach(p_tenant_id uuid) TO service_role;
 
 
 --
@@ -25978,6 +28350,14 @@ GRANT ALL ON FUNCTION public.partner_workspace_money() TO service_role;
 
 
 --
+-- Name: FUNCTION pause_email_offers(p_tenant_id uuid, p_reason text, p_counts jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.pause_email_offers(p_tenant_id uuid, p_reason text, p_counts jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.pause_email_offers(p_tenant_id uuid, p_reason text, p_counts jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -26142,6 +28522,14 @@ GRANT ALL ON FUNCTION public.person_note_suggest(p_tenant_id uuid, p_contact_id 
 
 REVOKE ALL ON FUNCTION public.person_notes_erase_on_contact() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.person_notes_erase_on_contact() TO service_role;
+
+
+--
+-- Name: FUNCTION person_set_first_touch(p_tenant_id uuid, p_contact_id uuid, p_via text, p_ref text, p_made_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_set_first_touch(p_tenant_id uuid, p_contact_id uuid, p_via text, p_ref text, p_made_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_set_first_touch(p_tenant_id uuid, p_contact_id uuid, p_via text, p_ref text, p_made_at timestamp with time zone) TO service_role;
 
 
 --
@@ -26723,6 +29111,15 @@ GRANT ALL ON FUNCTION public.release_conversation_control(p_tenant_id uuid, p_co
 
 
 --
+-- Name: FUNCTION remove_template_version(p_template_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.remove_template_version(p_template_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.remove_template_version(p_template_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.remove_template_version(p_template_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION rename_mailbox(p_mailbox_id uuid, p_from_name text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -26758,6 +29155,14 @@ GRANT ALL ON FUNCTION public.request_sweep(p_sweep text, p_path text, p_timeout_
 
 
 --
+-- Name: FUNCTION resume_email_offers(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.resume_email_offers(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.resume_email_offers(p_tenant_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION runtime_stamp(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -26771,6 +29176,15 @@ GRANT ALL ON FUNCTION public.runtime_stamp(p_tenant_id uuid) TO service_role;
 
 REVOKE ALL ON FUNCTION public.safe_zone(p text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.safe_zone(p text) TO service_role;
+
+
+--
+-- Name: FUNCTION save_template_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.save_template_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.save_template_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text) TO authenticated;
+GRANT ALL ON FUNCTION public.save_template_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text) TO service_role;
 
 
 --
@@ -26833,6 +29247,14 @@ GRANT ALL ON FUNCTION public.sending_domain_counts(p_tenant_id uuid, p_host text
 
 
 --
+-- Name: FUNCTION sending_domain_days_keep(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sending_domain_days_keep() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sending_domain_days_keep() TO service_role;
+
+
+--
 -- Name: FUNCTION sending_domains_within_limit(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -26873,6 +29295,14 @@ GRANT ALL ON FUNCTION public.set_contact_consent(p_contact_id uuid, p_consent te
 
 REVOKE ALL ON FUNCTION public.set_email_marketing(p_tenant_id uuid, p_contact_id uuid, p_state text, p_source text, p_message_id uuid, p_evidence jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.set_email_marketing(p_tenant_id uuid, p_contact_id uuid, p_state text, p_source text, p_message_id uuid, p_evidence jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION set_email_offers_yes(p_tenant_id uuid, p_contact_id uuid, p_source text, p_message_id uuid, p_evidence jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.set_email_offers_yes(p_tenant_id uuid, p_contact_id uuid, p_source text, p_message_id uuid, p_evidence jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.set_email_offers_yes(p_tenant_id uuid, p_contact_id uuid, p_source text, p_message_id uuid, p_evidence jsonb) TO service_role;
 
 
 --
@@ -26972,6 +29402,14 @@ GRANT ALL ON FUNCTION public.stamp_email_sent(p_tenant_id uuid, p_message_id uui
 
 
 --
+-- Name: FUNCTION stop_all_messages(p_tenant_id uuid, p_contact_id uuid, p_message_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.stop_all_messages(p_tenant_id uuid, p_contact_id uuid, p_message_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.stop_all_messages(p_tenant_id uuid, p_contact_id uuid, p_message_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION sweep_health(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -27010,6 +29448,14 @@ GRANT ALL ON FUNCTION public.sweep_schedules() TO service_role;
 REVOKE ALL ON FUNCTION public.sweep_status_registered() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sweep_status_registered() TO authenticated;
 GRANT ALL ON FUNCTION public.sweep_status_registered() TO service_role;
+
+
+--
+-- Name: FUNCTION sweep_voice_sessions(p_after interval); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sweep_voice_sessions(p_after interval) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sweep_voice_sessions(p_after interval) TO service_role;
 
 
 --
@@ -27107,6 +29553,14 @@ GRANT ALL ON FUNCTION public.trigger_calendar_sweep() TO service_role;
 
 REVOKE ALL ON FUNCTION public.trigger_call_reconcile() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.trigger_call_reconcile() TO service_role;
+
+
+--
+-- Name: FUNCTION trigger_channel_quality_sweep(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.trigger_channel_quality_sweep() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.trigger_channel_quality_sweep() TO service_role;
 
 
 --
@@ -27219,6 +29673,15 @@ GRANT ALL ON FUNCTION public.trigger_sweep_health() TO service_role;
 
 REVOKE ALL ON FUNCTION public.wake_stale_snoozes() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.wake_stale_snoozes() TO service_role;
+
+
+--
+-- Name: FUNCTION workspace_days(p_tenant_id uuid, p_from date, p_to date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to date) TO authenticated;
+GRANT ALL ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to date) TO service_role;
 
 
 --
@@ -27338,6 +29801,119 @@ GRANT INSERT(scope),UPDATE(scope) ON TABLE public.ask_threads TO authenticated;
 --
 
 GRANT UPDATE(last_at) ON TABLE public.ask_threads TO authenticated;
+
+
+--
+-- Name: TABLE ask_voice_sessions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.ask_voice_sessions TO service_role;
+GRANT SELECT,DELETE ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(id) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.user_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(user_id) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.thread_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(thread_id) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.conversation_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(conversation_id) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.token_cipher; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(token_cipher) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.token_expires_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(token_expires_at) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.surface; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(surface),UPDATE(surface) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.scope; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(scope),UPDATE(scope) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.context; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(context),UPDATE(context) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.language; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(language) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.ended_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(ended_at) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.end_reason; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(end_reason) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.connect_ms; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(connect_ms) ON TABLE public.ask_voice_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_voice_sessions.first_audio_ms; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(first_audio_ms) ON TABLE public.ask_voice_sessions TO authenticated;
 
 
 --
@@ -27569,21 +30145,6 @@ GRANT INSERT(note) ON TABLE public.capability_activations TO authenticated;
 
 GRANT ALL ON TABLE public.contact_identities TO authenticated;
 GRANT ALL ON TABLE public.contact_identities TO service_role;
-
-
---
--- Name: TABLE contacts; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.contacts TO authenticated;
-GRANT ALL ON TABLE public.contacts TO service_role;
-
-
---
--- Name: COLUMN contacts.notes; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT(notes) ON TABLE public.contacts TO authenticated;
 
 
 --
@@ -28331,6 +30892,13 @@ GRANT INSERT(list_key),UPDATE(list_key) ON TABLE public.playbooks TO authenticat
 
 
 --
+-- Name: COLUMN playbooks.channels; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(channels),UPDATE(channels) ON TABLE public.playbooks TO authenticated;
+
+
+--
 -- Name: TABLE policies; Type: ACL; Schema: public; Owner: -
 --
 
@@ -28502,6 +31070,14 @@ GRANT INSERT(rule),UPDATE(rule) ON TABLE public.segments TO authenticated;
 --
 
 GRANT UPDATE(archived_at) ON TABLE public.segments TO authenticated;
+
+
+--
+-- Name: TABLE sending_domain_days; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.sending_domain_days TO service_role;
+GRANT SELECT ON TABLE public.sending_domain_days TO authenticated;
 
 
 --

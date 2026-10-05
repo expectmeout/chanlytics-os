@@ -1,64 +1,10 @@
 /**
  * The brain section: the receptionist's name, booking link, stored prompt, profile and fallback messages, and what
- * a new receptionist starts with, beside the schema it has to satisfy. Whose words stand in the owner's place is
- * resolve.ts; the messages' wording is fallbacks.ts.
+ * a new receptionist starts with. The schema it has to satisfy is brain-config-schema.ts; whose words stand in the
+ * owner's place is resolve.ts; the messages' wording is fallbacks.ts.
  */
-import { z } from "zod";
-import { BusinessProfileSchema, INSTRUCTIONS_MAX } from "./business-profile";
 import { FALLBACK_DEFAULTS } from "./fallbacks";
-
-export const BrainConfigSchema = z
-  .object({
-    business_name: z.string().min(1).max(120),
-    /**
-     * The number the receptionist tells customers to call — an OVERRIDE, and
-     * optional because it should almost never be set.
-     *
-     * It was required, free text, and named the same as the line the
-     * receptionist answers, so every workspace typed something into it and
-     * nothing checked what. On the first live salon that produced a
-     * receptionist publishing the number it transfers to: customers who rang
-     * it reached a person's mobile and never the receptionist standing by,
-     * and the same string went to Google.
-     *
-     * Absent is now the right answer and the default: resolveFacts falls back
-     * to the provisioned voice line, formatted for speech, so the number
-     * published is the number answered by construction. A value here means a
-     * business deliberately publishes something else — a tracking line, a
-     * shopfront — and the pane says so in those words.
-     */
-    phone_display: z.string().min(3).max(40).optional(),
-    /**
-     * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
-     * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
-     * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
-     */
-    booking_link: z.string().url().max(500).optional(),
-    /** The complete system prompt the model receives — the "AI memory" pane's
-     *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-    system_prompt: z.string().min(40).max(INSTRUCTIONS_MAX),
-    /**
-     * The business's facts, as fields.
-     *
-     * Optional: every config written before this existed stays valid, and
-     * nothing composes until a workspace actually fills it in. When present
-     * it REPLACES system_prompt as the source the prompt is built from.
-     */
-    profile: BusinessProfileSchema.optional(),
-    fallbacks: z
-      .object({
-        /** Sent when no model key is configured. */
-        greeting: z.string().min(1).max(2000),
-        /** Sent when the model call failed. */
-        error: z.string().min(1).max(2000),
-        /** Sent for voice notes / photos before escalating. */
-        non_text: z.string().min(1).max(2000),
-      })
-      .strip(),
-  })
-  .strip();
-
-export type BrainConfig = z.infer<typeof BrainConfigSchema>;
+import type { BrainConfig } from "./brain-config-schema";
 
 /**
  * The parts of a brand-new receptionist nobody should have to write.

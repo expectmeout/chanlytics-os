@@ -1,9 +1,10 @@
 /**
  * The business's facts as fields (E4): the profile's schema and its parts (hours, closures, services, guardrails,
- * notes, booking rules), with the guardrails' defaults. The brain that holds the profile is brain-config.ts; the
+ * notes, booking rules), built from config-rules.ts's caps. The brain that holds the profile is brain-config.ts; the
  * prompt composed from it is compose.ts.
  */
 import { z } from "zod";
+import { BOOKING_RULE_BOUNDS, DAYS, E164, PROFILE_LIMITS as L, type BookingRuleKey } from "./config-rules";
 
 /* --------------------------------------------------------------- E4 config */
 
@@ -71,22 +72,20 @@ const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export const ClosureSchema = z.object({
   date: DATE,
   until: DATE.optional(),
-  note: z.string().max(200).optional(),
+  note: z.string().max(L.closureNote).optional(),
 });
-
-export const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 
 export const ServiceSchema = z
   .object({
-    name: z.string().min(1).max(80),
+    name: z.string().min(1).max(L.serviceName),
     /** Minutes. The receptionist is asked "how long does it take" constantly. */
-    duration_min: z.number().int().min(1).max(1440).optional(),
+    duration_min: z.number().int().min(1).max(L.serviceMinutes).optional(),
     /**
      * Free text, not a number, and deliberately so: "from $45", "quoted at
      * consult", "varies by length". A price the business cannot state flatly
      * must not be forced into a field that looks like it can.
      */
-    price_note: z.string().max(120).optional(),
+    price_note: z.string().max(L.servicePrice).optional(),
   })
   .strip();
 
@@ -114,26 +113,6 @@ export const GuardrailsSchema = z
   .strip();
 
 /**
- * Which rules are in force, with each rule's default applied.
- *
- * Read here by whoever says what the receptionist follows, because two readings
- * drifted: the composer took the health rule as opt-in and Ask took it as on
- * when absent, so Ask told an owner "gives no health advice" on a workspace
- * whose receptionist was never given that line. Typed over the schema's keys:
- * a fifth rule fails to compile until its default is said here.
- */
-export type GuardrailsInForce = Record<keyof z.infer<typeof GuardrailsSchema>, boolean>;
-
-export function guardrailsInForce(g: z.infer<typeof GuardrailsSchema> | null | undefined): GuardrailsInForce {
-  return {
-    never_quote_prices: g?.never_quote_prices !== false,
-    never_confirm_booking: g?.never_confirm_booking !== false,
-    disclose_ai: g?.disclose_ai !== false,
-    no_health_advice: g?.no_health_advice === true,
-  };
-}
-
-/**
  * A thing the receptionist should know that fits no field — the academy, the
  * chair rental, the parking. One topic each, said by BOTH receptionists. The
  * long tail that a knowledge base would hold later; never the hours or the
@@ -141,11 +120,15 @@ export function guardrailsInForce(g: z.infer<typeof GuardrailsSchema> | null | u
  */
 export const NoteSchema = z
   .object({
-    title: z.string().min(1).max(80),
-    text: z.string().min(1).max(1200),
+    title: z.string().min(1).max(L.noteTitle),
+    text: z.string().min(1).max(L.noteText),
   })
   .strip();
 export type Note = z.infer<typeof NoteSchema>;
+
+/** A booking rule's whole number, in its range (BOOKING_RULE_BOUNDS). */
+const rule = (key: BookingRuleKey) =>
+  z.number().int().min(BOOKING_RULE_BOUNDS[key].min).max(BOOKING_RULE_BOUNDS[key].max).optional();
 
 /**
  * How bookings may be OFFERED — never made. The receptionist sends the link;
@@ -154,42 +137,26 @@ export type Note = z.infer<typeof NoteSchema>;
 export const BookingRulesSchema = z
   .object({
     /** Least notice for a slot, in hours. Absent = 2. */
-    lead_hours: z.number().int().min(0).max(168).optional(),
+    lead_hours: rule("lead_hours"),
     /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-    buffer_min: z.number().int().min(0).max(120).optional(),
+    buffer_min: rule("buffer_min"),
     /** How far ahead open times are offered, in days. Absent = 14. */
-    max_days_ahead: z.number().int().min(1).max(90).optional(),
+    max_days_ahead: rule("max_days_ahead"),
     /** The shortest window worth naming, in minutes. Absent = 30. */
-    slot_min: z.number().int().min(15).max(240).optional(),
+    slot_min: rule("slot_min"),
     /** Services that need a consultation before they can be booked. */
-    consult_first: z.array(z.string().min(1).max(80)).max(20).optional(),
-    party_max: z.number().int().min(1).max(20).optional(),
+    consult_first: z.array(z.string().min(1).max(L.consultFirstLine)).max(L.consultFirst).optional(),
+    party_max: rule("party_max"),
     /**
      * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
      * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
      */
     ask_email: z.boolean().optional(),
     /** Anything else about booking, one short line each. */
-    notes: z.array(z.string().min(1).max(200)).max(10).optional(),
+    notes: z.array(z.string().min(1).max(L.ruleNote)).max(L.ruleNotes).optional(),
   })
   .strip();
 export type BookingRules = z.infer<typeof BookingRulesSchema>;
-
-/** E.164: a plus, then 7–15 digits, no leading zero. */
-export const E164 = /^\+[1-9]\d{6,14}$/;
-
-/** Whether a value is a number written in E.164, by that pattern. */
-export const isE164 = (s: unknown): s is string => typeof s === "string" && E164.test(s);
-
-/**
- * The most either set of the receptionist's instructions holds: the prompt a
- * workspace wrote before it had fields, and the owner's own instructions that
- * prompt is carried into. One number, so a carried prompt always fits. The
- * owner's held 8,000 characters against the prompt's 20,000, and a longer
- * prompt failed every save of the form on a box nobody had touched (the
- * wiring audit's S4).
- */
-export const INSTRUCTIONS_MAX = 20_000;
 
 export const BusinessProfileSchema = z
   .object({
@@ -197,12 +164,12 @@ export const BusinessProfileSchema = z
     hours: z.partialRecord(z.enum(DAYS), HoursSchema).optional(),
     /** Dates the business is shut regardless of the weekly grid. */
     closures: z.array(ClosureSchema).optional(),
-    services: z.array(ServiceSchema).max(60).optional(),
-    languages: z.array(z.string().min(2).max(40)).max(8).optional(),
+    services: z.array(ServiceSchema).max(L.services).optional(),
+    languages: z.array(z.string().min(L.languageMin).max(L.languageMax)).max(L.languages).optional(),
     guardrails: GuardrailsSchema.optional(),
     /** What must reach a person. One short line each. */
-    escalate_when: z.array(z.string().min(1).max(200)).max(20).optional(),
-    tone: z.string().max(200).optional(),
+    escalate_when: z.array(z.string().min(1).max(L.reason)).max(L.reasons).optional(),
+    tone: z.string().max(L.tone).optional(),
     /**
      * The line a PERSON answers. The phone receptionist warm-transfers here
      * during opening hours; absent, it takes a message instead. Never the
@@ -210,7 +177,7 @@ export const BusinessProfileSchema = z
      */
     handoff_number: z.string().regex(E164, "E.164, like +12125550143").optional(),
     website: z.string().url().max(500).optional(),
-    notes: z.array(NoteSchema).max(10).optional(),
+    notes: z.array(NoteSchema).max(L.notes).optional(),
     booking_rules: BookingRulesSchema.optional(),
     /**
      * Anything the owner wants said that no field covers.
@@ -222,7 +189,7 @@ export const BusinessProfileSchema = z
      * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
      * the form carries that prompt into it.
      */
-    extra_instructions: z.string().max(INSTRUCTIONS_MAX).optional(),
+    extra_instructions: z.string().max(L.instructions).optional(),
   })
   .strip();
 

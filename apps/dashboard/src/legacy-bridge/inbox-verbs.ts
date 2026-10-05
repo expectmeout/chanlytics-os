@@ -2,7 +2,7 @@
  * The bridge's couriers that no surface has taken yet: the Live Monitor's calls (whisper, end, hand over), Settings' saves
  * and the policy row, the team's, and the address builder every download reads. The Inbox's own verbs (a thread's take-over,
  * snooze, reply and the bulk bar) moved with it to src/surfaces/inbox/verbs.ts (decision 0015, step 3). Business logic
- * stays server-side: this is a courier.
+ * stays server-side: this is a courier. The team's three doors are Settings › Team's (`teamVerbs`), by import.
  */
 import { liveOverride } from "@/surfaces/live/surface";
 import { settingsOverride } from "./surfaces/settings";
@@ -14,7 +14,6 @@ import {
   INSTRUCTIONS_MAX,
   fallbackMessages,
   instructionsDraft,
-  inviteState,
   newReceptionistDefaults,
   unknownDetails,
 } from "@chanlytics/contracts";
@@ -108,6 +107,9 @@ async function teamRemove(id: string): Promise<VerbResult> {
   return api()("DELETE team/[id]", { params: { id } });
 }
 
+/** The Team card's three doors (Settings › Team, which imports them): an object a test stands a door in on. */
+export const teamVerbs = { invite: teamInvite, setRole: teamSetRole, remove: teamRemove };
+
 /** Live: re-read the calls in progress. The page calls this every 8 s while
  *  a call is up, as insurance beside the realtime channel. */
 export async function refreshLive(): Promise<void> {
@@ -126,9 +128,6 @@ declare global {
     __refreshSettings?: () => Promise<void>;
     __refreshLive?: () => Promise<void>;
     __href: typeof href;
-    __teamInvite: typeof teamInvite;
-    __teamSetRole: typeof teamSetRole;
-    __teamRemove: typeof teamRemove;
     __whisperCall: typeof whisperCall;
     __endCall: typeof endCall;
     __handOverCall: typeof handOverCall;
@@ -142,8 +141,6 @@ declare global {
     __fallbackMessages: typeof fallbackMessages;
     __fallbackDefaults: typeof FALLBACK_DEFAULTS;
     __unknownDetails: typeof unknownDetails;
-    /** An open invitation's state for the Team card: pending with its expiry, or expired. */
-    __inviteState: (expiresAt: string | null | undefined) => { expired: boolean; words: string };
   }
 }
 
@@ -210,9 +207,6 @@ export function installInboxVerbs(): void {
   window.__setPolicy = setPolicy;
   window.__refreshSettings = refreshSettings;
   window.__refreshLive = refreshLive;
-  window.__teamInvite = teamInvite;
-  window.__teamSetRole = teamSetRole;
-  window.__teamRemove = teamRemove;
   // A call's recording is no verb: the thread's <audio> points at the route (window.__href), which redirects to a
   // link signed for each request.
   window.__whisperCall = whisperCall;
@@ -230,7 +224,6 @@ export function installInboxVerbs(): void {
   window.__fallbackMessages = fallbackMessages;
   window.__fallbackDefaults = FALLBACK_DEFAULTS;
   window.__unknownDetails = unknownDetails;
-  window.__inviteState = (expiresAt) => inviteState(expiresAt, Date.now());
 }
 
 /**

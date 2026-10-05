@@ -3,19 +3,25 @@
  * 6): who gets it, what you'd say, and the steps that follow. Each part is a component of the sheet's own, as the JSX drew
  * them, over the draft the sheet holds (sheet-draft.ts) and contracts' words (`reachOuts.words`).
  */
-import type { SyntheticEvent } from "react";
+import { REACH_OUT_SLOTS, REACH_OUT_SLOT_SET, REACH_OUT_SLOT_WORDS } from "@chanlytics/contracts";
 import type {
   HandKind,
   ReachOutDraft,
   ReachOutDraftIssues,
   ReachOutDraftStep,
   ReachOutReachDto,
-  ReachOutSlot,
   StepHand,
 } from "@chanlytics/contracts";
 import { setupDto } from "../../legacy-verbs";
+import { Button } from "../../kit/button/button";
+import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
-import { PbTok } from "../playbooks/words";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { Picker } from "../../kit/picker/picker";
+import { cmChevron, cmNumbers } from "../parts/picks";
+import { useSlotSeats } from "../templates/slots/slot-seats";
+import type { SlotSeats } from "../templates/slots/slot-seats";
+import { WordsField } from "../templates/slots/words-field";
 import type { reachOuts } from "./surface";
 
 type Words = typeof reachOuts.words;
@@ -38,36 +44,6 @@ function RoIssues({ lines, testid }: { lines: string[]; testid: string }) {
       ))}
     </ul>
   ) : null;
-}
-
-/** The six slots as chips: each puts its slot in at the caret of the field last focused. */
-function RoSlots({
-  W,
-  onSlot,
-  testid = "ro-slots",
-}: {
-  W: Words;
-  onSlot: (slot: ReachOutSlot) => void;
-  testid?: string;
-}) {
-  return (
-    <div className="em-slots" data-testid={testid}>
-      {W.REACH_OUT_SLOTS.map((s) => (
-        <button
-          key={s}
-          type="button"
-          className="chip em-slot"
-          title={W.REACH_OUT_SLOT_WORDS[s]}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => onSlot(s)}
-          data-testid={`ro-slot-${s.replace(/ /g, "-")}`}
-        >
-          {s}
-        </button>
-      ))}
-      <span className="em-slots-hint">{W.REACH_OUT_SHEET_WORDS.slotsHint}</span>
-    </div>
-  );
 }
 
 interface WhoProps {
@@ -111,14 +87,9 @@ export function RoWho({ W, search, reach, include, onInclude }: WhoProps) {
                 <span className="cm-reach-dot" data-tone={w.tone} />
                 {w.text}
                 {w.door && (
-                  <button
-                    type="button"
-                    className="cm-reach-door"
-                    onClick={() => onInclude(!include)}
-                    data-testid="ro-include"
-                  >
+                  <LinkButton className="cm-reach-door" onClick={() => onInclude(!include)} data-testid="ro-include">
                     {w.door}
-                  </button>
+                  </LinkButton>
                 )}
               </li>
             ))}
@@ -129,53 +100,76 @@ export function RoWho({ W, search, reach, include, onInclude }: WhoProps) {
   );
 }
 
-/** A field a step's words are typed in: where its caret was when it took focus or a selection. */
-type WordsField = "subject" | "body";
-
 interface StepWordsProps {
   W: Words;
   step: ReachOutDraftStep;
   n: number;
   issues: ReachOutDraftIssues["steps"][number];
   onEdit: (n: number, patch: Partial<ReachOutDraftStep>) => void;
-  onFocus: (n: number, field: WordsField, at: number | null) => void;
 }
 
-/** One step's words: the subject for the first only, the words, and each field's problems under it. */
-function RoStepWords({ W, step, n, issues, onEdit, onFocus }: StepWordsProps) {
+/**
+ * The six slots as buttons, each by its name: each puts its slot in the box last used, at the caret it had as it lost
+ * focus to the press (the editor's own seats). They are buttons and not the Templates page's menu because the sheet is
+ * modal: Tab stays in it, and a menu's popup opens outside it, where the sheet's trap holds nothing.
+ */
+function RoSlots({ W, n, seats }: { W: Words; n: number; seats: SlotSeats }) {
+  return (
+    <div className="em-slots" data-testid={n === 0 ? "ro-slots" : `ro-slots-${n}`}>
+      {REACH_OUT_SLOTS.map((slot, i) => (
+        <Button
+          key={slot}
+          size="sm"
+          className="em-slot"
+          title={REACH_OUT_SLOT_WORDS[slot]}
+          onClick={() => seats.add(slot)}
+          data-testid={`ro-slot-${slot.replace(/ /g, "-")}`}
+        >
+          {REACH_OUT_SLOT_SET.labels[i]}
+        </Button>
+      ))}
+      <span className="em-slots-hint">{W.REACH_OUT_SHEET_WORDS.slotsHint}</span>
+    </div>
+  );
+}
+
+/**
+ * One step's words, written in the box every email is written in (templates/slots/words-field.tsx, the Templates page's
+ * too): the subject for the first only, the words with each slot a chip by its name, the six slots to put in at the
+ * caret, and each field's problems under it. The stored words keep their named slots ({{business}}).
+ */
+function RoStepWords({ W, step, n, issues, onEdit }: StepWordsProps) {
   const P = W.REACH_OUT_SHEET_PARTS;
-  // A focus or a selection is on the field itself: its target is the box the caret is in.
-  const at = (field: WordsField) => (e: SyntheticEvent) =>
-    onFocus(n, field, (e.target as HTMLInputElement | HTMLTextAreaElement).selectionStart);
+  const subject = n === 0 ? (step.subject ?? "") : "";
+  const seats = useSlotSeats({ subject, body: step.body }, (to, words) => onEdit(n, { [to]: words }));
+  const box = { slots: REACH_OUT_SLOT_SET, readOnly: false, seats };
   return (
     <div className="ro-words" data-testid={`ro-words-${n}`}>
       {n === 0 && (
-        <label className="ro-field">
-          <span className="ro-field-k">{P.subject}</span>
-          <input
-            className="bc-subject"
-            value={step.subject || ""}
-            onChange={(e) => onEdit(n, { subject: e.target.value })}
-            onFocus={at("subject")}
-            onSelect={at("subject")}
-            data-testid="ro-subject"
+        <>
+          <WordsField
+            {...box}
+            name="subject"
+            label={P.subject}
+            lines={1}
+            value={subject}
+            onType={(words) => onEdit(n, { subject: words })}
+            testid="ro-subject"
           />
           <RoIssues lines={issues.subject} testid="ro-subject-issues" />
-        </label>
+        </>
       )}
-      <label className="ro-field">
-        <span className="ro-field-k">{P.body}</span>
-        <textarea
-          className="ro-body"
-          rows={n === 0 ? 7 : 4}
-          value={step.body}
-          onChange={(e) => onEdit(n, { body: e.target.value })}
-          onFocus={at("body")}
-          onSelect={at("body")}
-          data-testid={n === 0 ? "ro-body" : `ro-step-body-${n}`}
-        />
-        <RoIssues lines={issues.body} testid={`ro-body-issues-${n}`} />
-      </label>
+      <WordsField
+        {...box}
+        name="body"
+        label={P.body}
+        lines={n === 0 ? 8 : 4}
+        value={step.body}
+        onType={(words) => onEdit(n, { body: words })}
+        testid={n === 0 ? "ro-body" : `ro-step-body-${n}`}
+      />
+      <RoIssues lines={issues.body} testid={`ro-body-issues-${n}`} />
+      <RoSlots W={W} n={n} seats={seats} />
     </div>
   );
 }
@@ -185,21 +179,18 @@ interface WhatProps {
   draft: ReachOutDraft;
   issues: ReachOutDraftIssues;
   onEdit: (n: number, patch: Partial<ReachOutDraftStep>) => void;
-  onFocus: (n: number, field: WordsField, at: number | null) => void;
-  onSlot: (slot: ReachOutSlot) => void;
   onSigned: (name: string) => void;
   from: string | null;
 }
 
 /** What you'd say: the first email, the slots, the opening's note, the fills, and the name it signs with. */
-export function RoWhat({ W, draft, issues, onEdit, onFocus, onSlot, onSigned, from }: WhatProps) {
+export function RoWhat({ W, draft, issues, onEdit, onSigned, from }: WhatProps) {
   const S = W.REACH_OUT_SHEET_WORDS;
   const mailbox = roMailbox();
   return (
     <section className="pb-sec" data-testid="ro-what">
       <span className="pb-sec-k">{W.REACH_OUT_SHEET_PARTS.words}</span>
-      <RoStepWords W={W} step={draft.steps[0]} n={0} issues={issues.steps[0]} onEdit={onEdit} onFocus={onFocus} />
-      <RoSlots W={W} onSlot={onSlot} />
+      <RoStepWords W={W} step={draft.steps[0]} n={0} issues={issues.steps[0]} onEdit={onEdit} />
       <p className="pb-note">{S.opening}</p>
       <div className="pb-fills">
         {from && (
@@ -227,17 +218,16 @@ export function RoWhat({ W, draft, issues, onEdit, onFocus, onSlot, onSigned, fr
           </div>
         )}
       </div>
-      <label className="ro-field">
-        <span className="ro-field-k">{W.REACH_OUT_SHEET_PARTS.signAs}</span>
-        <input
-          className="bc-subject"
+      <div className="ro-stack">
+        <Field
+          label={W.REACH_OUT_SHEET_PARTS.signAs}
           value={draft.signed_by}
           maxLength={60}
-          onChange={(e) => onSigned(e.target.value)}
+          onValueChange={onSigned}
           data-testid="ro-signed"
         />
         <RoIssues lines={issues.signed_by} testid="ro-signed-issues" />
-      </label>
+      </div>
       <RoIssues lines={issues.chain} testid="ro-chain-issues" />
       <p className="pb-note" data-testid="ro-stop-one">
         {S.stopOne}
@@ -262,20 +252,19 @@ interface HandWordsProps {
 function RoHandWords({ W, step, n, issues, onHand }: HandWordsProps) {
   const S = W.REACH_OUT_SHEET_WORDS;
   return (
-    <label className="ro-field" data-testid={`ro-hand-${n}`}>
-      <span className="ro-field-k">{S.handWords}</span>
-      <textarea
-        className="ro-body"
+    <div className="ro-stack" data-testid={`ro-hand-${n}`}>
+      <Field
+        label={S.handWords}
+        hint={S.handHint}
         rows={2}
         maxLength={W.HAND_WORDS_MAX}
         value={step.hand.words}
         placeholder={S.handPlaceholder}
-        onChange={(e) => onHand(n, e.target.value)}
+        onValueChange={(words) => onHand(n, words)}
         data-testid={`ro-hand-words-${n}`}
       />
-      <span className="dim">{S.handHint}</span>
       <RoIssues lines={issues.body} testid={`ro-body-issues-${n}`} />
-    </label>
+    </div>
   );
 }
 
@@ -284,8 +273,6 @@ interface ThenProps {
   draft: ReachOutDraft;
   issues: ReachOutDraftIssues;
   onEdit: (n: number, patch: Partial<ReachOutDraftStep>) => void;
-  onFocus: (n: number, field: WordsField, at: number | null) => void;
-  onSlot: (slot: ReachOutSlot) => void;
   onAfter: (n: number, days: number) => void;
   onAdd: () => void;
   onAddHand: (kind: HandKind) => void;
@@ -294,19 +281,7 @@ interface ThenProps {
 }
 
 /** Then: the chain as steps, each later one after its days with nothing back, up to five; the last may be taken off. */
-export function RoThen({
-  W,
-  draft,
-  issues,
-  onEdit,
-  onFocus,
-  onSlot,
-  onAfter,
-  onAdd,
-  onAddHand,
-  onHand,
-  onDrop,
-}: ThenProps) {
+export function RoThen({ W, draft, issues, onEdit, onAfter, onAdd, onAddHand, onHand, onDrop }: ThenProps) {
   const P = W.REACH_OUT_SHEET_PARTS;
   const S = W.REACH_OUT_SHEET_WORDS;
   const days = W.reachOutAfterDayChoices().map((n) => ({ v: n, t: `${n} days` }));
@@ -325,42 +300,40 @@ export function RoThen({
               <span className="pb-chain-k">{W.stepLabelOf({ n, hand: s.hand })}</span>
               <span>
                 {P.after}{" "}
-                <PbTok
-                  value={s.after_days as number}
-                  options={days}
-                  onChange={(v) => onAfter(n, Number(v))}
+                <Picker
                   label={`${P.after} how many days`}
-                  testid={`ro-after-${n}`}
+                  value={String(s.after_days)}
+                  onValueChange={(v) => onAfter(n, Number(v))}
+                  groups={cmNumbers(days)}
+                  chevron={cmChevron()}
+                  data-testid={`ro-after-${n}`}
                 />{" "}
                 {P.afterTail}
               </span>
               {isHandStep(s) ? (
                 <RoHandWords W={W} step={s} n={n} issues={issues.steps[n]} onHand={onHand} />
               ) : (
-                <>
-                  <RoStepWords W={W} step={s} n={n} issues={issues.steps[n]} onEdit={onEdit} onFocus={onFocus} />
-                  <RoSlots W={W} onSlot={onSlot} testid={`ro-slots-${n}`} />
-                </>
+                <RoStepWords W={W} step={s} n={n} issues={issues.steps[n]} onEdit={onEdit} />
               )}
               {n === draft.steps.length - 1 && (
-                <button type="button" className="cl-bucket-link" onClick={onDrop} data-testid="ro-remove">
+                <LinkButton onClick={onDrop} data-testid="ro-remove">
                   {P.remove}
-                </button>
+                </LinkButton>
               )}
             </div>
           );
         })}
         {W.reachOutMayAddStep(draft) && (
           <>
-            <button type="button" className="pb-chain-add" onClick={onAdd} data-testid="ro-add">
+            <LinkButton className="pb-chain-add" onClick={onAdd} data-testid="ro-add">
               <Icon name="plus" size={12} /> {S.anotherStep} <span className="dim">{S.anotherStepHint}</span>
-            </button>
-            <button type="button" className="pb-chain-add" onClick={() => onAddHand("call")} data-testid="ro-add-call">
+            </LinkButton>
+            <LinkButton className="pb-chain-add" onClick={() => onAddHand("call")} data-testid="ro-add-call">
               <Icon name="plus" size={12} /> {S.anotherCall}
-            </button>
-            <button type="button" className="pb-chain-add" onClick={() => onAddHand("note")} data-testid="ro-add-note">
+            </LinkButton>
+            <LinkButton className="pb-chain-add" onClick={() => onAddHand("note")} data-testid="ro-add-note">
               <Icon name="plus" size={12} /> {S.anotherNote}
-            </button>
+            </LinkButton>
           </>
         )}
       </div>

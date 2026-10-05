@@ -48,18 +48,20 @@ export {
   OFFERS_YES_SOURCES,
   OWN_MESSAGE_REFUSALS,
 } from "./person-consent";
-export type { PersonConsent, NotReceived } from "./person-consent";
+export type { PersonConsent, NotReceived, ReceiveRow } from "./person-consent";
 export { personNotesVM, NOTE_MAX, NOTE_WORDS, NOTE_REFUSALS } from "../notes/person-notes";
 export type { PersonNoteDto, PersonNoteTeamDto, PersonNoteVM } from "../notes/person-notes";
 export {
   peopleListAction,
   savedListAction,
   noNumberWords,
+  noChannelWords,
   saidYesWords,
   peopleAggregates,
   recencyCells,
   GET_YES_ROUTE,
   NO_NUMBER_REACH,
+  NO_CHANNEL_REACH,
 } from "./people-lists";
 export type { PeopleListAction, PeopleAggregates } from "./people-lists";
 export { attentionRow } from "./person-attention";
@@ -94,9 +96,10 @@ export {
   ListConditionSchema,
   ListRuleSchema,
   LIST_DRAFT_JSON_SCHEMA,
-  ListDraftAnswerSchema,
-} from "./list-rules";
-export type { ListNeed, ListFact, ListAny, ListCondition, ListRule, InList, ListDraftAnswer } from "./list-rules";
+} from "./lists/list-rules";
+export { ListDraftAnswerSchema, PeopleExportQuerySchema } from "./lists/list-schemas";
+export type { ListNeed, ListFact, ListAny, ListCondition, ListRule, InList } from "./lists/list-rules";
+export type { ListDraftAnswer } from "./lists/list-schemas";
 export {
   listToken,
   parseListToken,
@@ -118,10 +121,9 @@ export {
   PEOPLE_LIST_GROUPS,
   BUILTIN_LISTS,
   PEOPLE_LISTS,
-  PeopleExportQuerySchema,
   viewerListWords,
   TODAY_PINS_MAX,
-} from "./lists";
+} from "./lists/lists";
 export type {
   ListRef,
   PeopleListGroup,
@@ -133,7 +135,7 @@ export type {
   ListDef,
   SavedListRowLike,
   TodayPin,
-} from "./lists";
+} from "./lists/lists";
 export {
   personLikeOf,
   peopleVisitsOf,

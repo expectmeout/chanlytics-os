@@ -4,7 +4,7 @@
  */
 import { slotToWrite } from "./inbox-templates";
 import { languageLabels } from "./message-languages";
-import { starterByKey, starterForTrigger } from "./starter-lookup";
+import { starterByKey, startersForTrigger } from "./starter-lookup";
 import { STARTER_TEMPLATES } from "./starter-templates";
 import { defaultSlotKinds } from "./template-slots";
 import { templateTitle } from "./template-titles";
@@ -53,9 +53,16 @@ export function compareTemplates(
 export function defaultTemplate<
   T extends { name: string; category?: string | null; source?: string | null; language?: string | null },
 >(list: readonly T[], trigger: string | null): T | null {
-  const s = trigger ? starterForTrigger(trigger) : starterByKey("quick_note");
   const sorted = list.slice().sort(compareTemplates);
-  return (s ? sorted.find((t) => t.name === s.name) : undefined) ?? sorted[0] ?? null;
+  // The set's own starter first; else one it replaced that the workspace still holds (a win-back added before 2 Oct
+  // 2026 is still that workspace's win-back), else the first in the library's order.
+  const quick = starterByKey("quick_note");
+  const names = (trigger ? startersForTrigger(trigger) : quick ? [quick] : []).map((x) => x.name);
+  for (const name of names) {
+    const held = sorted.find((t) => t.name === name);
+    if (held) return held;
+  }
+  return sorted[0] ?? null;
 }
 
 /** One entry per template NAME, in the library's order, with its rows by language. */
@@ -114,7 +121,13 @@ export function bookingTemplate<
     (t) => t.meta_status === "approved" && !slotToWrite(t) && defaultSlotKinds(t).includes("booking_link"),
   );
   // The starter first when the workspace has it, so a business that took the
-  // one we wrote gets the words we wrote; otherwise their own, in the order
-  // the rest of the product lists templates.
-  return usable.find((t) => t.name === "booking_link") ?? usable.slice().sort(compareTemplates)[0] ?? null;
+  // one we wrote gets the words we wrote: the call's text, else the booking
+  // link it replaced (2 Oct 2026); otherwise their own, in the order the rest
+  // of the product lists templates.
+  return (
+    usable.find((t) => t.name === "call_text") ??
+    usable.find((t) => t.name === "booking_link") ??
+    usable.slice().sort(compareTemplates)[0] ??
+    null
+  );
 }

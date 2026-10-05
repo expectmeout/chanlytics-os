@@ -8,6 +8,7 @@ import type { IngestResult } from "@chanlytics/db";
 import { effectiveReplyMode } from "./reply-posture";
 import { resolveConsent } from "./consent";
 import { isThreadUnknown } from "./thread";
+import { handledOf, processedAfter, SET_ASIDE } from "./handled";
 import { GO, type Answering, type InboundContext, type ModeInForce } from "./context";
 
 /** The mode in force for this one message: the workspace's posture, or this person's own setting where one is set. */
@@ -48,17 +49,18 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // guessing; the customer's message is already persisted above.
   if (isThreadUnknown(thread)) {
     L.error("wa_state_unavailable");
+    const asked = sink.escalate(
+      "state_unavailable",
+      "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
+    );
     await Promise.all([
-      sink.escalate(
-        "state_unavailable",
-        "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
-      ),
+      asked,
       tell(
         n.body ?? `[${raw.type}]`,
         "(no reply sent — the receptionist could not read the thread state)",
         "state unavailable",
       ),
-      sink.processed(),
+      processedAfter(sink, asked, "none"),
     ]);
     return;
   }
@@ -89,21 +91,20 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   const optedOut = consent.optedOut;
 
   if (optedOut) {
-    const post: Promise<unknown>[] = [sink.processed()];
-    if (n.optOut) {
-      // Only on the opt-out message itself. upsertEscalation keeps ONE open
-      // escalation per conversation, so a repeated STOP updates rather than
-      // piles up — but a customer leaving is a business event the owner should
-      // see once, not a log line.
-      post.push(
-        sink.escalate(
+    // Only on the opt-out message itself. upsertEscalation keeps ONE open
+    // escalation per conversation, so a repeated STOP updates rather than
+    // piles up — but a customer leaving is a business event the owner should
+    // see once, not a log line. A later message from the same person asks nobody.
+    const asked = n.optOut
+      ? sink.escalate(
           "opt_out",
           "Customer asked to stop receiving messages. Automatic replies are off for this contact until they text START.",
-        ),
-        tell(n.body ?? `[${raw.type}]`, "(no reply sent — the customer opted out)", "opt-out"),
-      );
-    }
-    await Promise.all(post);
+        )
+      : null;
+    await Promise.all([
+      processedAfter(sink, asked, "none"),
+      ...(asked ? [asked, tell(n.body ?? `[${raw.type}]`, "(no reply sent — the customer opted out)", "opt-out")] : []),
+    ]);
     // `decided_by` matters after the fact: which of the two sources held them out.
     L.info("wa_skip_opt_out", {
       this_message: n.optOut,
@@ -118,14 +119,15 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // answered until the line is approved. After consent, which outranks it;
   // before every branch that can speak.
   if (carrier?.held) {
+    const asked = sink.escalate(carrier.held.reason, carrier.held.details);
     await Promise.all([
-      sink.escalate(carrier.held.reason, carrier.held.details),
+      asked,
       tell(
         n.body ?? `[${raw.type}]`,
         "(no reply sent — the carriers have not approved this line for texting yet)",
         "carriers",
       ),
-      sink.processed(),
+      processedAfter(sink, asked, "none"),
     ]);
     L.info("sms_held_for_carriers");
     return;
@@ -144,7 +146,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // that we handled them and stop.
   if (n.kind === "reaction" || n.kind === "system") {
     L.info("wa_skip_no_request", { kind: n.kind });
-    await sink.processed();
+    await sink.processed(handledOf(SET_ASIDE));
     return;
   }
 
@@ -155,10 +157,11 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // customer we did not receive what they plainly sent. So this escalates like
   // the branch below, without the ack and without muting the receptionist.
   if (n.kind === "location" || n.kind === "contacts") {
+    const asked = sink.escalate("non_text", `${n.body} — needs a person.`);
     await Promise.all([
-      sink.escalate("non_text", `${n.body} — needs a person.`),
+      asked,
       tell(n.body ?? `[${raw.type}]`, "(no reply sent — passed to a human)", n.kind),
-      sink.processed(),
+      processedAfter(sink, asked, "none"),
     ]);
     L.info("wa_escalate_readable_nontext", { kind: n.kind });
     return;

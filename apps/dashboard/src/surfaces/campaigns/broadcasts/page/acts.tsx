@@ -7,7 +7,7 @@ import { starterWords } from "../../templates/composer";
 import { templates } from "../../templates/verbs";
 import { broadcasts } from "../verbs";
 import type { SendBody } from "../verbs";
-import { bcWhenWords } from "../when";
+import { bcWhenWords } from "../when-words";
 import type { BcActRow, BcApproving, BcBase, BcReach, BcRunActs, BcSendActs, BcSlotWords } from "./types";
 
 // Stop and approve, on a run: each said the moment the server takes it.
@@ -94,6 +94,7 @@ export function bcSendActs({
   tpl,
   specs,
   active,
+  on,
   whenAt,
   name,
   setArmed,
@@ -121,7 +122,7 @@ export function bcSendActs({
   | "setAddingStarters"
 > &
   Pick<BcSlotWords, "ready" | "specs"> &
-  Pick<BcReach, "tpl" | "active"> &
+  Pick<BcReach, "tpl" | "active" | "on"> &
   Pick<BcRunActs, "cancel">): BcSendActs {
   const submit = async (scheduled: boolean) => {
     // `ready` says both are there (bcSlotWordsOf); the two are named again for the compiler.
@@ -131,6 +132,8 @@ export function bcSendActs({
       template_id: tpl.id,
       params: specs as SendBody["params"],
       audience: { kind: active.kind, id: active.id },
+      // The channels it goes by: the ones on, which the workspace can send on and the message has a version for.
+      channels: on,
       scheduled_for: scheduled && whenAt !== null ? new Date(whenAt).toISOString() : null,
       name: name.trim() || null,
     });

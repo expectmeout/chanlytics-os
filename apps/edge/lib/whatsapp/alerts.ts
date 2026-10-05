@@ -1,7 +1,14 @@
 /**
- * The people who are told: the workspace (a handoff that names the thread)
- * and the platform (traffic for a channel nobody routes). The customer is
- * texted through the one door, deliver() in packages/core, from the sink.
+ * The people who are told: the workspace (a handoff that names the thread: alertStaff, in the words handoffMessage
+ * decides) and the platform (traffic for a channel nobody routes: alertUnroutable). The customer is texted through the
+ * one door, deliver() in packages/core, from the sink.
+ *
+ * The customer's own words travel in a handoff's email, so it goes only to an address we know belongs to THIS tenant.
+ * `notify` decides that; a workspace we cannot address gets a redacted platform notice rather than someone else's
+ * mailbox. A platform notice carries no customer content, only a number, a count and the reason. It is one of four
+ * kinds (WhatsApp unreadable, WhatsApp switched off, a text that could not be handled, a voice channel switched
+ * off), sent at most once in fifteen minutes for each kind and number in a lambda instance, and only a delivered
+ * notice earns the quiet.
  */
 import { notify, type NotifyTarget, type NotifyMessage } from "../ops/notify.js";
 import { formatPhoneDisplay, MIN_MS } from "../packages/contracts.js";
@@ -13,11 +20,6 @@ import { formatPhoneDisplay, MIN_MS } from "../packages/contracts.js";
  */
 type InboundChannel = "whatsapp" | "sms";
 
-/**
- * The customer's own words travel in this email, so it goes only to an address
- * we know belongs to THIS tenant. `notify` decides that; a workspace we cannot
- * address gets a redacted platform notice rather than someone else's mailbox.
- */
 /** The reasons the handler names, in the owner's words. Anything else is said as it came. */
 const REASON_WORDS: Record<string, string> = {
   "passed to a human": "asked for a person",

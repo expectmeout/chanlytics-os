@@ -13,6 +13,10 @@
  * dropped after the request left, a 5xx: `unknown`) is never thrown: a retry
  * would tell the phones a second time, so it is said in the receipts and
  * logged, as a later batch's failure always was once a batch had left.
+ *
+ * Messages go a hundred to a request (PUSH_BATCH) and receipts a thousand (RECEIPTS_BATCH). A refused batch whose tokens
+ * belong to more than one app (PUSH_TOO_MANY_EXPERIENCE_IDS) is sent again, one request per app: this app's tokens get
+ * through, and a phone whose token is another app's is forgotten by its receipt like any other dead one.
  */
 import type { PushMessage } from "../packages/contracts.js";
 import type { PushPort, PushReceipt } from "../packages/jobs.js";

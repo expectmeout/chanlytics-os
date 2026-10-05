@@ -3,16 +3,33 @@
  * receptionist would offer, the board (hours down, days across), the month's counts and the agenda's rows. Each draws what
  * it is handed, and reads nothing itself: the days are the page's frames (types.ts), and the words are the view model's.
  */
+import { useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import type { CalendarBlockVM, CalendarServiceVM, CalendarVM, CalendarWindowVM } from "@chanlytics/contracts";
 import { AgendaItem, AgendaItems, AgendaOpen } from "../kit/agenda/agenda";
 import { EmptyState } from "../kit/empty/empty";
 import { calendar } from "./verbs";
+import { crPhone } from "./board-dom";
 import type { CalendarFrame } from "./types";
 import { CR_HOUR_PX } from "./words";
 
 type Hours = CalendarVM["hours"];
 type Fit = (w: CalendarWindowVM) => boolean;
+
+/**
+ * Where a block stands against the clock, on today's column and list only: past, now, next (the first still to come), else
+ * later. Any other day has no clock, so its blocks are all "later".
+ */
+function phaseOf(b: CalendarBlockVM, d: CalendarFrame, now: number | null): string {
+  if (!d.today || now === null) return "later";
+  if (b.t + b.dur / 60 <= now) return "past";
+  if (b.t <= now) return "now";
+  const soonest = d.blocks.reduce<CalendarBlockVM | null>(
+    (first, x) => (x.t > now && (!first || x.t < first.t) ? x : first),
+    null,
+  );
+  return soonest && soonest.id === b.id ? "next" : "later";
+}
 
 /** One taken block from the feed. Neutral, never an agent's colour: the calendar did not say who booked it, only that the time is taken. */
 function CrBlock({
@@ -21,12 +38,14 @@ function CrBlock({
   onOpen,
   wide,
   dayLong,
+  phase,
 }: {
   b: CalendarBlockVM;
   hours: Hours;
   onOpen: (b: CalendarBlockVM) => void;
   wide: boolean;
   dayLong: string;
+  phase: string;
 }) {
   const y = (Math.max(hours.start, b.t) - hours.start) * CR_HOUR_PX;
   const h = Math.max(22, (Math.min(hours.end, b.t + b.dur / 60) - Math.max(hours.start, b.t)) * CR_HOUR_PX - 2);
@@ -47,6 +66,7 @@ function CrBlock({
       title={`${b.title} · ${b.time}`}
       aria-label={`${b.title}, ${b.time}, ${dayLong}`}
       data-testid="cal-block"
+      data-phase={phase}
       data-lane={b.lanes > 1 ? `${b.lane + 1}/${b.lanes}` : undefined}
     >
       <span className="cal-appt-line1">
@@ -157,7 +177,15 @@ function dayColumn(p: {
         <CrWindow key={i} w={w} hours={hours} />
       ))}
       {d.blocks.map((b) => (
-        <CrBlock key={b.id} b={b} hours={hours} onOpen={onOpen} wide={wide} dayLong={d.long} />
+        <CrBlock
+          key={b.id}
+          b={b}
+          hours={hours}
+          onOpen={onOpen}
+          wide={wide}
+          dayLong={d.long}
+          phase={phaseOf(b, d, now)}
+        />
       ))}
       {d.today && now !== null && now >= hours.start && now <= hours.end && (
         <div className="cal-nowline" style={{ top: (now - hours.start) * CR_HOUR_PX }}>
@@ -189,8 +217,21 @@ export function CrBoard({
   const gridH = (hours.end - hours.start) * CR_HOUR_PX;
   const ticks: number[] = [];
   for (let h = hours.start; h < hours.end; h++) ticks.push(h);
+  const scroller = useRef<HTMLDivElement>(null);
+  const firstKey = frames.at(0)?.key;
+  const todayKey = frames.find((d) => d.today)?.key;
+  // A week is wider than a phone: it opens with today's column beside the hours, and any other week at its first day.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || wide || !crPhone()) return;
+    const head = el.querySelector<HTMLElement>(".cal-dayhead.today");
+    const hoursWidth = el.querySelector<HTMLElement>(".cal-gutter")?.offsetWidth ?? 0;
+    el.scrollLeft = head
+      ? Math.max(0, head.getBoundingClientRect().left - el.getBoundingClientRect().left + el.scrollLeft - hoursWidth)
+      : 0;
+  }, [firstKey, todayKey, wide]);
   return (
-    <div className="cal-scroll">
+    <div className="cal-scroll" ref={scroller}>
       <div className={`cal-grid ${wide ? "cal-grid-day" : ""}`}>
         <div className="cal-corner" />
         {frames.map((d) => dayHead({ d, wide, onDay, onOpen }))}
@@ -334,9 +375,10 @@ function agendaDay(p: {
   fit: Fit;
   service: CalendarServiceVM | null;
   offer: CalendarVM["offer"];
+  now: number | null;
   onOpen: (b: CalendarBlockVM) => void;
 }) {
-  const { d, feedOk, fit, service, offer, onOpen } = p;
+  const { d, feedOk, fit, service, offer, now, onOpen } = p;
   const windows = d.windows.filter(fit);
   const items: Array<[CalendarBlockVM, boolean]> = [
     ...d.allDay.map((b): [CalendarBlockVM, boolean] => [b, true]),
@@ -364,6 +406,7 @@ function agendaDay(p: {
               dur={allDay ? null : calendar.durationLabel(b.dur)}
               onOpen={() => onOpen(b)}
               hint={b.time}
+              phase={allDay ? "later" : phaseOf(b, d, now)}
               testid="cal-agenda-item"
             />
           ))}
@@ -400,6 +443,7 @@ export function CrAgenda({
   fit,
   service,
   offer,
+  now,
   onOpen,
 }: {
   frames: CalendarFrame[];
@@ -407,11 +451,12 @@ export function CrAgenda({
   fit: Fit;
   service: CalendarServiceVM | null;
   offer: CalendarVM["offer"];
+  now: number | null;
   onOpen: (b: CalendarBlockVM) => void;
 }) {
   return (
     <div className="cal-agenda" data-testid="cal-agenda">
-      {frames.map((d) => agendaDay({ d, feedOk, fit, service, offer, onOpen }))}
+      {frames.map((d) => agendaDay({ d, feedOk, fit, service, offer, now, onOpen }))}
     </div>
   );
 }

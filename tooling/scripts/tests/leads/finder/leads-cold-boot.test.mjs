@@ -39,12 +39,6 @@ globalThis.window = {
   },
   __WORKSPACES: [{ id: "ws-harbor", timezone: "America/Chicago" }],
   __ACTIVE_WORKSPACE: "ws-harbor",
-  // What the surface cache put back before anything mounted: the view this tab read last, in its order.
-  __LEADS: {
-    route: `clients/leads:s-${SEARCH_ID}:c-review`,
-    rows: [],
-    view: { searchId: SEARCH_ID, list: "all", cls: "review", chips: {}, sort: "rating", dir: "desc" },
-  },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
   addEventListener() {},
@@ -61,7 +55,15 @@ globalThis.window = {
 };
 globalThis.document = { addEventListener() {}, removeEventListener() {} };
 
-const { leadsOverride, leadsView } = await import("../../../../../apps/dashboard/src/legacy-bridge/leads.ts");
+const { leadsOverride, leadsView } = await import("../../../../../apps/dashboard/src/surfaces/leads/surface.ts");
+const { restoreSurfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
+// What the surface cache put back before anything mounted (surface-cache.ts, through the seam): the view this tab read
+// last, in its order.
+restoreSurfaceValue("leads", {
+  route: `clients/leads:s-${SEARCH_ID}:c-review`,
+  rows: [],
+  view: { searchId: SEARCH_ID, list: "all", cls: "review", chips: {}, sort: "rating", dir: "desc" },
+});
 
 test("a refresh on a view reads that view, in the order the tab last read it: the page's own read, never all leads first", async () => {
   await leadsOverride.apply();

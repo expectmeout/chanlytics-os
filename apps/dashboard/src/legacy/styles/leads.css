@@ -1417,8 +1417,9 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   :where([data-look="glass"]) .main-scroll .pl-table tbody tr.ld-row-talking > td:first-child::before {
     background: var(--ok);
   }
-  /* The card a name or a rating opens under the pointer is the pop layer: the look's own fill, corners and depth. */
-  :where([data-look="glass"]) .main-scroll :is(.cl-row-name-block, .ld-rated-cell) > :last-child {
+  /* The card a name or a rating opens under the pointer is the pop layer: the look's own fill, corners and depth. It is
+     the hover's alone (.ld-hover): People's name block ends in their words, which this laid on a pop's white ground. */
+  :where([data-look="glass"]) .main-scroll .ld-hover > :last-child {
     border: 0;
     border-radius: var(--surface-pop-radius);
     background: var(--surface-pop-fill);

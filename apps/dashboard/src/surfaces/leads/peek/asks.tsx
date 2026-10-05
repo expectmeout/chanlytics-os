@@ -6,7 +6,7 @@
 import { LEAD_WORDS as W } from "@chanlytics/contracts";
 import type { LeadPeekVM } from "@chanlytics/contracts";
 import { confirmPart } from "../../legacy-parts";
-import { moreMenuPart } from "./doors";
+import { MoreMenu } from "../../kit/more-menu/more-menu";
 import type { Armed, Deck, PeekActs, PeekMode } from "./types";
 
 /** "What makes it not a fit?" -- five whys, one tap each (PRD 9.5). It teaches nothing in this release. */
@@ -35,7 +35,6 @@ export const LeadNotFitWhy = ({ busy, on }: { busy?: boolean; on: Pick<PeekActs,
  * the peek, which scrolls and would cut it off.
  */
 export const LeadPeekMore = ({ on }: { on: Pick<PeekActs, "menu" | "onEraseAsk"> }) => {
-  const MoreMenu = moreMenuPart();
   return on.menu && on.menu.length ? (
     <MoreMenu
       escape

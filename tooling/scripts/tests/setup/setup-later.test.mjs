@@ -1,13 +1,15 @@
 /**
  * A row put off is the member's, on every device: the Setup surface reads their saved view beside the workspace's
  * facts (GET views), and Later or Skip saves the whole list through the door People's own view goes through
- * (PUT views/setup), one save at a time. Run here: the bridge's own installSetup and setupOverride, over a fetch
- * that answers as the routes do -- with the landing on the first run, and the helpers the bridge publishes for the
- * pages that draw it.
+ * (PUT views/setup), one save at a time. Run here: the surface's own installSetup, setupOverride and setupVerbs
+ * (surfaces/setup/surface.ts), over a fetch that answers as the routes do -- with the landing on the first run, and
+ * what the surface no longer publishes for the pages that draw it (the first run reads contracts' helpers itself).
+ * The value is the seam's (surface-values.ts), and `window.__SETUP` its mirror.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FIRST_RUN_HELPERS, FIRST_RUN_LANDED_KEY, SETUP_LATER_REFUSED } from "@chanlytics/contracts";
+import { FIRST_RUN_LANDED_KEY, SETUP_LATER_REFUSED } from "@chanlytics/contracts";
+import { importSrc } from "../_source.mjs";
 
 /* ------------------------------- the window ------------------------------ */
 
@@ -101,7 +103,9 @@ globalThis.window = {
 };
 globalThis.document = { addEventListener() {}, removeEventListener() {} };
 
-const { installSetup, setupOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/setup.ts");
+const { installSetup, setupOverride, setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
+// The seam's own store, the module instance the surface writes (surface-values.ts): a first read is "no value yet".
+const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 installSetup(globalThis.window);
 const w = globalThis.window;
 
@@ -113,8 +117,9 @@ const settle = async (until = () => false) => {
 
 test("the surface reads the member's put-off rows with the workspace's facts, and the rows say so", async () => {
   await setupOverride.apply();
-  assert.deepEqual(w.__SETUP.later, ["calendar"]);
-  assert.equal(w.__SETUP.vm.rows.find((r) => r.id === "calendar").later, true);
+  assert.deepEqual(surfaceValue("setup").later, ["calendar"]);
+  assert.equal(surfaceValue("setup").vm.rows.find((r) => r.id === "calendar").later, true);
+  assert.equal(w.__SETUP, surfaceValue("setup"), "and the window's __SETUP is the seam's value, mirrored");
   assert.ok(
     asked.some(([m, p]) => m === "GET" && p === "/api/v1/views"),
     "read through the views door",
@@ -122,23 +127,23 @@ test("the surface reads the member's put-off rows with the workspace's facts, an
 });
 
 test("Later saves the member's whole list through the views door; taking one back saves the rest", async () => {
-  const r = await w.__setup.later("team", true);
+  const r = await setupVerbs.later("team", true);
   assert.equal(r.ok, true);
   assert.deepEqual(asked.at(-1), ["PUT", "/api/v1/views/setup", { view: { later: ["calendar", "team"] } }]);
-  assert.deepEqual(w.__SETUP.later, ["calendar", "team"]);
-  await w.__setup.later(["calendar"], false);
+  assert.deepEqual(surfaceValue("setup").later, ["calendar", "team"]);
+  await setupVerbs.later(["calendar"], false);
   assert.deepEqual(asked.at(-1)[2], { view: { later: ["team"] } });
-  assert.deepEqual(w.__SETUP.later, ["team"]);
+  assert.deepEqual(surfaceValue("setup").later, ["team"]);
 });
 
 test("a save the server refuses puts the rows back as they were, and says why", async () => {
   wire.putOk = false;
   try {
-    const before = [...w.__SETUP.later];
-    const r = await w.__setup.later("keep", true);
+    const before = [...surfaceValue("setup").later];
+    const r = await setupVerbs.later("keep", true);
     assert.equal(r.ok, false);
     assert.match(r.message, /try again/);
-    assert.deepEqual(w.__SETUP.later, before, "not put off, since it was not kept");
+    assert.deepEqual(surfaceValue("setup").later, before, "not put off, since it was not kept");
   } finally {
     wire.putOk = true;
   }
@@ -149,9 +154,9 @@ test("two presses save one at a time, each with the list as it stands, and a ref
   wire.gate = () => new Promise((r) => gates.push(r));
   try {
     const sent = saves().length;
-    const first = w.__setup.later("keep", true);
-    const second = w.__setup.later("google", true);
-    assert.deepEqual(w.__SETUP.later, ["team", "keep", "google"], "both rows go at once");
+    const first = setupVerbs.later("keep", true);
+    const second = setupVerbs.later("google", true);
+    assert.deepEqual(surfaceValue("setup").later, ["team", "keep", "google"], "both rows go at once");
     await settle(() => gates.length > 0);
     await settle();
     assert.equal(saves().length, sent + 1, "the second waits while the first is out");
@@ -159,18 +164,18 @@ test("two presses save one at a time, each with the list as it stands, and a ref
 
     // A re-read while a save is out keeps the list on screen: the read cannot know what is on its way.
     await setupOverride.apply();
-    assert.deepEqual(w.__SETUP.later, ["team", "keep", "google"]);
+    assert.deepEqual(surfaceValue("setup").later, ["team", "keep", "google"]);
 
     wire.putOk = false;
     gates[0]();
     assert.equal((await first).ok, false);
-    assert.deepEqual(w.__SETUP.later, ["team", "google"], "the refused press alone comes back");
+    assert.deepEqual(surfaceValue("setup").later, ["team", "google"], "the refused press alone comes back");
     wire.putOk = true;
     await settle(() => gates.length > 1);
     assert.deepEqual(saves().at(-1)[2], { view: { later: ["team", "google"] } }, "the next save sends what stands");
     gates[1]();
     assert.equal((await second).ok, true);
-    assert.deepEqual(w.__SETUP.later, ["team", "google"]);
+    assert.deepEqual(surfaceValue("setup").later, ["team", "google"]);
   } finally {
     wire.gate = null;
     wire.putOk = true;
@@ -178,34 +183,36 @@ test("two presses save one at a time, each with the list as it stands, and a ref
 });
 
 test("a re-read whose views read fails keeps the rows the member put off", async () => {
-  const before = [...w.__SETUP.later];
+  const before = [...surfaceValue("setup").later];
   wire.viewsFail = true;
   try {
     await setupOverride.apply();
-    assert.deepEqual(w.__SETUP.later, before);
-    assert.equal((await w.__setup.later("team", false)).ok, true, "and a press still saves, the list being known");
+    assert.deepEqual(surfaceValue("setup").later, before);
+    assert.equal((await setupVerbs.later("team", false)).ok, true, "and a press still saves, the list being known");
   } finally {
     wire.viewsFail = false;
   }
 });
 
 test("a first read without the member's view puts nothing off, and refuses to save over what it could not read", async () => {
-  w.__SETUP = undefined;
+  // Nothing read yet: the seam holds no value (and its mirror, __SETUP, is cleared with it).
+  setSurfaceValue("setup", undefined);
+  assert.equal(w.__SETUP, undefined);
   wire.viewsFail = true;
   try {
     await setupOverride.apply();
-    assert.deepEqual(w.__SETUP.later, []);
-    assert.ok(w.__SETUP.vm.rows.length > 0, "the rows are Setup's all the same");
+    assert.deepEqual(surfaceValue("setup").later, []);
+    assert.ok(surfaceValue("setup").vm.rows.length > 0, "the rows are Setup's all the same");
     const sent = saves().length;
-    const r = await w.__setup.later("keep", true);
+    const r = await setupVerbs.later("keep", true);
     assert.deepEqual(r, { ok: false, message: SETUP_LATER_REFUSED.unread });
     assert.equal(saves().length, sent, "nothing saved: the save would have replaced the member's list with less");
-    assert.deepEqual(w.__SETUP.later, []);
+    assert.deepEqual(surfaceValue("setup").later, []);
   } finally {
     wire.viewsFail = false;
   }
   await setupOverride.apply();
-  assert.equal((await w.__setup.later("keep", true)).ok, true, "read again, the list is known");
+  assert.equal((await setupVerbs.later("keep", true)).ok, true, "read again, the list is known");
 });
 
 test("an owner whose receptionist answers nowhere lands on the first run, once a session", async () => {
@@ -230,25 +237,25 @@ test("an owner whose receptionist answers nowhere lands on the first run, once a
   }
 });
 
-test("the first run's helpers are published for the pages that draw it", () => {
-  assert.deepEqual(
-    Object.keys(w.__firstRun).sort(),
-    Object.keys(FIRST_RUN_HELPERS).sort(),
-    "contracts' helpers, all of them",
-  );
-  assert.equal(w.__firstRun.words.title, "Setting up");
+// Was "the first run's helpers are published for the pages that draw it" (window.__firstRun = contracts' helpers). The
+// first run and Today's card import FIRST_RUN_HELPERS and FORWARDING_WORDS themselves now, so the surface publishes
+// neither; what it still hands the Settings JSX is its verbs, as the module's own object.
+test("the surface publishes its verbs for Settings, and no longer the first run's helpers or the forwarding words", () => {
+  assert.equal(w.__setup, setupVerbs, "the verbs, as the module's object (the Settings panes still read __setup)");
+  assert.equal(w.__firstRun, undefined, "the first run reads contracts' helpers by import");
+  assert.equal(w.__forwarding, undefined, "the forwarding card imports its words");
 });
 
 test("the first run asks for the receptionist through its route: written, nothing to add, or refused in the route's words; and what a settings save reads again is read again", async () => {
-  assert.deepEqual(await w.__setup.receptionist(), { ok: true, wrote: true, message: "" });
+  assert.deepEqual(await setupVerbs.receptionist(), { ok: true, wrote: true, message: "" });
   assert.deepEqual(
     asked.find(([, p]) => p === "/api/v1/settings/receptionist"),
     ["POST", "/api/v1/settings/receptionist", {}],
   );
   wire.receptionist = ok({ wrote: false });
-  assert.deepEqual(await w.__setup.receptionist(), { ok: true, wrote: false, message: "" });
+  assert.deepEqual(await setupVerbs.receptionist(), { ok: true, wrote: false, message: "" });
   wire.receptionist = refused(403, "forbidden", "Only an owner can do this.");
-  assert.deepEqual(await w.__setup.receptionist(), { ok: false, wrote: false, message: "Only an owner can do this." });
+  assert.deepEqual(await setupVerbs.receptionist(), { ok: false, wrote: false, message: "Only an owner can do this." });
   wire.receptionist = null;
   const { AFTER } = await import("../../../../apps/dashboard/src/legacy-bridge/refresh-map.ts");
   assert.deepEqual(

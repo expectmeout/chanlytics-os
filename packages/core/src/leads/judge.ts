@@ -12,8 +12,10 @@
  *     and why the runner's margin (rules.ts JUDGE_MARGIN_MS) leaves room for it in a tick.
  *
  * The call itself is channels' leadJudge over the edge's model port (apps/edge/lib/leads/lead-wires.ts), which writes each
- * call to the usage ledger for the search's workspace (`tenantId`) and, while the switch is on, puts each place's criteria
- * to a second model in shadow (decision 0023). Nothing of that is seen here: the verb takes a LeadJudge and returns answers.
+ * call to the usage ledger for the search's workspace (the round's `tenant_id`), names the round it is paid in as the row's
+ * subject (`subject_id`: the judge's cost per search is the ledger's lead_judge rows joined to their round), and, while the
+ * switch is on, puts each place's criteria to a second model in shadow (decision 0023), its rows naming the same round.
+ * Nothing of that is seen here: the verb takes a LeadJudge and the round, and returns answers.
  */
 import {
   judgeOpId,
@@ -93,13 +95,13 @@ export async function judgeBatch(
   plan: LeadSearchPlan,
   places: PlaceFacts[],
   opId: string,
-  /** The search's workspace: the usage ledger's row for each call. */
-  tenantId?: string,
+  /** The round the batch is paid in: its workspace is the usage ledger's row for each call, and its id the row's subject. */
+  round?: { id: string; tenant_id: string },
 ): Promise<JudgedBatch> {
   if (!places.length) return { answers: new Map(), judgment: null, model: null, refused: false, why: null };
   let last: { refused: true; why: string } | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const a = await judge.judge(plan, places, tenantId);
+    const a = await judge.judge(plan, places, round?.tenant_id, round?.id);
     if ("refused" in a) {
       last = a;
       continue;

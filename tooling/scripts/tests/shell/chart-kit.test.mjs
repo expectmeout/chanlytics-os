@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reportHourWords } from "@chanlytics/contracts";
+import { durationWords, reportHourWords } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../_legacy-react.mjs";
 
 installLegacyReact();
@@ -91,6 +91,28 @@ test("seconds step the way people count them, and say themselves in minutes when
   assert.deepEqual(ckNiceSeconds(47).ticks, [0, 30, 60]);
   assert.deepEqual(ckNiceSeconds(400).ticks, [0, 300, 600]);
   assert.deepEqual([30, 60, 90, 120, 3600].map(ckSecondsLabel), ["30s", "1m", "1m 30s", "2m", "1h"]);
+});
+
+test("an axis tick says a duration in contracts' words, at every step the axis takes from 5 seconds to 4 hours", () => {
+  assert.equal(ckSecondsLabel(0), "0s", "the axis's baseline still reads 0s");
+  assert.equal(ckSecondsLabel(0), durationWords(0));
+  assert.deepEqual([5, 75, 600, 2700, 5400, 14400].map(ckSecondsLabel), ["5s", "1m 15s", "10m", "45m", "1h 30m", "4h"]);
+  // Off the ticks the axis's old words parted from contracts' ("10m 30s" against "11m"): this pin is what proves the
+  // axis says contracts' words; the sweep below proves they agree at every tick it draws.
+  assert.equal(ckSecondsLabel(630), "11m");
+  const steps = new Set();
+  let ticks = 0;
+  // Every maximum from 5 s to 4 h, so every step in the axis's list, and every top it makes of them, is drawn once.
+  for (let max = 5; max <= 4 * 3600; max += max < 600 ? 1 : 37) {
+    const { step, ticks: axis } = ckNiceSeconds(max);
+    steps.add(step);
+    for (const tick of axis) {
+      assert.equal(ckSecondsLabel(tick), durationWords(tick), `${tick} s on an axis of ${max} s`);
+      ticks += 1;
+    }
+  }
+  assert.ok(steps.size >= 11, `the range reaches every step of the axis's list (${[...steps].join(", ")})`);
+  assert.ok(ticks > 1000, "and draws many ticks");
 });
 
 test("the curve never leaves its data's range: a count of 0 is never drawn below the baseline", () => {

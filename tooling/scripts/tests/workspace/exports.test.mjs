@@ -334,8 +334,14 @@ test("the wrapper passes a Response through under the no-store rule", () => {
 });
 
 test("the three routes keep their doors: rate bucket, a named workspace, owner only for everyone", () => {
-  const conv = readCode("apps/dashboard/app/api/v1/conversations/[id]/export/route.ts");
-  const call = readCode("apps/dashboard/app/api/v1/calls/[id]/export/route.ts");
+  const conv = readCode(
+    "apps/dashboard/app/api/v1/conversations/[id]/export/route.ts",
+    "apps/dashboard/src/server/export/conversation-export.ts",
+  );
+  const call = readCode(
+    "apps/dashboard/app/api/v1/calls/[id]/export/route.ts",
+    "apps/dashboard/src/server/export/call-export.ts",
+  );
   const people = readCode("apps/dashboard/app/api/v1/contacts/export/route.ts");
   for (const [name, src] of [
     ["conversation", conv],
@@ -367,7 +373,10 @@ test("the three routes keep their doors: rate bucket, a named workspace, owner o
     conv.includes('.order("created_at", { ascending: true })') && conv.includes('.order("id", { ascending: true })'),
     "created_at then id: a total order",
   );
-  assert.ok(conv.includes(".range(page * PAGE, page * PAGE + PAGE - 1)"), "and offset paging under it");
+  assert.ok(
+    conv.includes(".range(page * THREAD_EXPORT_PAGE, page * THREAD_EXPORT_PAGE + THREAD_EXPORT_PAGE - 1)"),
+    "and offset paging under it",
+  );
   assert.deepEqual(
     [ROLE_PERMS.owner.export, ROLE_PERMS.operator.export, ROLE_PERMS.viewer.export],
     [true, false, false],

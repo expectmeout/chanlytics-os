@@ -46,10 +46,10 @@ const BUILDERS = new Map([
  */
 const FORWARDED = {
   // A case's result, nested in the answer's `results`: the model's failure, in its words.
-  "apps/edge/api/admin/eval.ts": ["String(e instanceof Error ? e.message : e).slice(0, 200)"],
-  "apps/edge/api/admin/llm.ts": ["v.error"], // validateGatewayRequest's (ask-gateway.ts)
+  "apps/edge/lib/receptionist/eval.ts": ["String(e instanceof Error ? e.message : e).slice(0, 200)"],
+  "apps/edge/lib/ops/ask-turn.ts": ["v.error"], // validateGatewayRequest's (ask-gateway.ts)
   "apps/edge/lib/admin-auth.ts": ["`token_${v.reason}`"], // the token family (TOKEN, below)
-  "apps/edge/lib/email/sending-domains.ts": ["error"], // say()'s code
+  "apps/edge/lib/email/sending-domain-ports.ts": ["error"], // say()'s code
   // connectAnswer's, chosenLocation's and bindFailedAnswer's, from profile-connection.ts
   "apps/edge/lib/google/google-ops.ts": ["r.error", "r.error", "bound.error"],
   "apps/edge/lib/google/listing-check.ts": ["error"], // a listing's read (CheckResult): Google's words
@@ -97,7 +97,7 @@ const NOT_ANSWERS = {
     "r.error",
   ],
   // Meta's answer stood in for a template never synced: a 404, which the door reads as a delete already done.
-  "apps/edge/api/admin/whatsapp/templates-delete.ts": ['"not synced: no template id on file, so Meta was not asked"'],
+  "apps/edge/lib/whatsapp/template-admin.ts": ['"not synced: no template id on file, so Meta was not asked"'],
 };
 
 /**

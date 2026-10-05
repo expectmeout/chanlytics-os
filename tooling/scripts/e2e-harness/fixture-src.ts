@@ -146,9 +146,8 @@ w.__instructionsMax = C.INSTRUCTIONS_MAX;
 w.__fallbackMessages = C.fallbackMessages;
 w.__fallbackDefaults = C.FALLBACK_DEFAULTS;
 w.__unknownDetails = C.unknownDetails;
-// A broken configuration in Setup's words, and Autonomy's hard limits (seed-globals.ts publishes both).
+// A broken configuration in Setup's words (seed-globals.ts publishes it).
 w.__brokenConfigWords = C.BROKEN_CONFIG_WORDS;
-w.__hardLimits = C.hardLimitsWords;
 // The workspace's zone is saved through PATCH workspaces, never the settings saver. Refused here.
 w.__workspace = { setTimezone: async () => ({ ok: false, tz: "", message: "The harness never saves." }) };
 w.__saveSettings = () => Promise.resolve({ ok: false, code: "refused", message: "The harness never saves." });
@@ -183,7 +182,7 @@ const resolved = C.resolveFacts(S.config.brain, S.known);
 w.__FACTS = { facts: resolved, conflicts: C.factConflicts(resolved) };
 
 /* ---- the three surfaces What it can do reads beside the settings read ---- */
-// The Setup payload as legacy-bridge/setup.ts publishes it, the Autonomy matrix a provisioned workspace starts with
+// The Setup payload as surfaces/setup/surface.ts publishes it (its `__SETUP` mirror), the Autonomy matrix a provisioned workspace starts with
 // (00017_provision_tenant) and the workspace's approved messages. Built from THIS scenario's own channels, brain and
 // templates, so the card the page draws is the card the record earns: the nightly has nothing filled in and no
 // approved message, the salon answers on both lines and has the booking-link message a call sends the link as.
@@ -227,8 +226,6 @@ w.__SETUP = {
   vm: C.setupSteps({ ...(setupDto as any), later: [] }),
   fetchedAt: Date.now(),
 };
-// The first run's rules and words, which setup.ts publishes beside Setup: without them #/start draws its empty root.
-w.__firstRun = C.FIRST_RUN_HELPERS;
 w.__POLICIES = {
   rows: [
     { class: "faq", mode: "auto", limits: {} },

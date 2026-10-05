@@ -858,18 +858,25 @@ test("with no fields, the prompt is the workspace's own, and the only rules are 
 });
 
 test("the rules block says which of its lines are not the owner's", () => {
-  // The composer writes three kinds of line under "Rules you must follow": the rules this row
+  // The composer writes four kinds of line under "Rules you must follow": the rules this row
   // switches, Chanlytics' line for a customer who replies YES OFFERS, which every workspace
-  // carries, and under "ask" the Autonomy tab's rules. The block is the row's, so it says so.
+  // carries, the line that asks a customer once for that yes (on WhatsApp, where there is a WhatsApp
+  // number), and under "ask" the Autonomy tab's rules. The block is the row's, so it says so.
+  const withNumber = { ...brain, whatsapp_line: "+15550100145" };
   for (const channel of ["whatsapp", "voice"]) {
-    const rules = promptBlocks(composeSystemPrompt(brain, profile, channel, tz, NOW, ASK), channel, { profile }).find(
-      (b) => b.row === "guardrails",
-    );
+    const rules = promptBlocks(composeSystemPrompt(withNumber, profile, channel, tz, NOW, ASK), channel, {
+      profile,
+    }).find((b) => b.row === "guardrails");
     assert.match(rules.text, /YES OFFERS/, `${channel}: the line is there`);
     assert.match(rules.text, /^- Booking: /m, `${channel}: and so is Autonomy's`);
     assert.equal(
+      /Want our offers and news here too\?/.test(rules.text),
+      channel === "whatsapp",
+      `${channel}: the ask for the yes is the WhatsApp prompt's alone`,
+    );
+    assert.equal(
       rules.note,
-      "Beside the rules on this row: a line Chanlytics writes for every workspace, for a customer who replies YES OFFERS, and any rule your Autonomy tab adds.",
+      "Beside the rules on this row: a line Chanlytics writes for every workspace, for a customer who replies YES OFFERS; where there is a WhatsApp number, a line that asks each customer once for that yes; and any rule your Autonomy tab adds.",
       channel,
     );
   }

@@ -10,10 +10,15 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./realtime": {
+      "types": "./dist/realtime.d.ts",
+      "import": "./dist/realtime.js",
+      "default": "./dist/realtime.js"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --no-splitting",
+    "build": "tsup src/index.ts --format esm --no-splitting && tsup src/realtime.ts --format esm --no-splitting",
     "typecheck": "tsc --noEmit",
     "gen:types": "node ../../tooling/scripts/gen/db-types.mjs"
   },

@@ -1,6 +1,7 @@
 /**
- * A list of your own, drawn (Reach out Part 7: J4, J5, J7, J12), on the stub React over the bridge's own words
- * (surfaces/campaigns/reach-out/surface.ts over contracts lead-import.ts). The two doors are the only things stubbed, so
+ * A list of your own, drawn (Reach out Part 7: J4, J5, J7, J12; surfaces/leads/reach-out/lists.tsx, TSX since decision 0015
+ * step 9), on the stub React over the bridge's own words (surfaces/campaigns/reach-out/surface.ts over contracts
+ * lead-import.ts). The two doors are the only things stubbed, so
  * what is proved is what each piece draws and what it asks of the bridge: the import sheet reads pasted rows, says what
  * it read, and hands the door the rows it can take; *Write to them* hands the door the chosen ids, lands the page on
  * the list and opens the reach-out sheet on it, or says the refusal; the rail's foot carries *Import leads*; the bar
@@ -15,28 +16,28 @@ installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome:
 const W = globalThis;
 const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
-await import(`${L}/pages/reach-out/reach-out-leads.jsx`);
-await import(`${L}/pages/leads-scope.jsx`);
-const bridge = await import("../../../../apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts");
+const S = "../../../../apps/dashboard/src/surfaces";
+const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
+const { LeadImportSheet, useLeadLists } =
+  await import("../../../../apps/dashboard/src/surfaces/leads/reach-out/lists.tsx");
+const { LeadsRailRows } = await import(`${S}/leads/scope/rail.tsx`);
+const { LeadsBulkBar } = await import(`${S}/leads/scope/bulk-bar.tsx`);
+// What the sheets are drawn with, imported as the page imports them: a node is found by its type.
+const { RecordSheet } = await import(`${S}/kit/record/sheet.tsx`);
+const { FieldError } = await import(`${S}/kit/field-error/field-error.tsx`);
+const { ReachOutSheet } = await import(`${S}/campaigns/reach-out/sheet.tsx`);
+const { PhoneSheetRow } = await import(`${S}/people/sheets/phone-sheet.tsx`);
 
 const went = [];
 const flashed = [];
-const sheets = [];
 Object.assign(W, {
   CHANLY: { nav: (to) => went.push(to), R: {} },
   canDo: () => true,
   gate: () => ({}),
-  Icon: () => null,
-  FieldError: () => null,
-  RecordSheet: (p) => p.children,
-  ReachOutSheet: (p) => (sheets.push(p), null),
-  PhoneSheetRow: () => null,
-  RailSection: (p) => p.children,
-  RailRow: () => null,
-  RailEmpty: () => null,
-  __leadsRouteOf: ({ searchId }) => `clients/leads:s-${searchId}`,
   __clock: { zone: () => "America/Chicago" },
 });
+/** The reach-out sheets drawn in a tree, by their props. */
+const sheetsIn = (tree) => all(tree, (n) => n.type === ReachOutSheet).map((n) => n.props);
 
 const IMPORTED = {
   search_id: "s-list",
@@ -51,15 +52,11 @@ const world = ({ imported = { ok: true, data: IMPORTED }, chosen = null } = {}) 
   const asked = [];
   went.length = 0;
   flashed.length = 0;
-  sheets.length = 0;
-  W.__reachOuts = {
-    ...bridge.reachOuts,
-    lists: {
-      ...bridge.reachOuts.lists,
-      importLeads: async (body) => (asked.push(["import", body]), imported),
-      chooseLeads: async (body) => (asked.push(["choose", body]), chosen),
-    },
-  };
+  // The page reads the doors off the bridge's own object (reachOuts.lists) as it draws: the two are replaced in place.
+  Object.assign(bridge.reachOuts.lists, {
+    importLeads: async (body) => (asked.push(["import", body]), imported),
+    chooseLeads: async (body) => (asked.push(["choose", body]), chosen),
+  });
   return asked;
 };
 
@@ -76,13 +73,13 @@ test("the import sheet reads pasted rows, says what it read, and hands the door 
   const done = [];
   fresh();
   const draw = () =>
-    W.React.createElement(W.LeadImportSheet, {
+    W.React.createElement(LeadImportSheet, {
       onClose: () => {},
       onDone: (id) => done.push(id),
       flash: (m) => flashed.push(m),
     });
   let tree = again(draw);
-  const sheet = () => all(tree, (n) => n.type === W.RecordSheet)[0];
+  const sheet = () => all(tree, (n) => n.type === RecordSheet)[0];
   assert.equal(sheet().props.onSave, null, "nothing to save before anything is read");
   byTestId(tree, "lead-import-paste").props.onChange({ target: { value: CSV } });
   tree = again(draw);
@@ -155,16 +152,16 @@ test("the import sheet reads pasted rows, says what it read, and hands the door 
 test("an import the door refuses says so by the Save, and a file over the limit is never sent", async () => {
   const asked = world({ imported: { ok: false, message: "This month's 500 leads are used." } });
   fresh();
-  const draw = () => W.React.createElement(W.LeadImportSheet, { onClose: () => {} });
+  const draw = () => W.React.createElement(LeadImportSheet, { onClose: () => {} });
   let tree = again(draw);
   byTestId(tree, "lead-import-paste").props.onChange({ target: { value: CSV } });
   tree = again(draw);
   press(byTestId(tree, "lead-import-read"));
   tree = again(draw);
-  await all(tree, (n) => n.type === W.RecordSheet)[0].props.onSave();
+  await all(tree, (n) => n.type === RecordSheet)[0].props.onSave();
   tree = again(draw);
   // Said in the sheet's foot, by the Save.
-  const problem = all(all(tree, (n) => n.type === W.RecordSheet)[0].props.foot, (n) => n.type === W.FieldError)[0];
+  const problem = all(all(tree, (n) => n.type === RecordSheet)[0].props.foot, (n) => n.type === FieldError)[0];
   assert.equal(problem.props.message, "This month's 500 leads are used.");
   assert.equal(asked.length, 1);
 
@@ -176,10 +173,10 @@ test("an import the door refuses says so by the Save, and a file over the limit 
   big = again(draw);
   press(byTestId(big, "lead-import-read"));
   big = again(draw);
-  const sheet = all(big, (n) => n.type === W.RecordSheet)[0];
+  const sheet = all(big, (n) => n.type === RecordSheet)[0];
   assert.equal(sheet.props.onSave, null, "501 rows: no Save");
   assert.equal(
-    all(sheet.props.foot, (n) => n.type === W.FieldError)[0].props.message,
+    all(sheet.props.foot, (n) => n.type === FieldError)[0].props.message,
     contracts.LEAD_IMPORT_WORDS.tooMany,
   );
 });
@@ -196,9 +193,9 @@ test("REGRESSION (G:1): a file past the sheet's size is refused before it is rea
   try {
     world();
     fresh();
-    const draw = () => W.React.createElement(W.LeadImportSheet, { onClose: () => {} });
+    const draw = () => W.React.createElement(LeadImportSheet, { onClose: () => {} });
     const problem = (tree) =>
-      all(all(tree, (n) => n.type === W.RecordSheet)[0].props.foot, (n) => n.type === W.FieldError)[0]?.props.message;
+      all(all(tree, (n) => n.type === RecordSheet)[0].props.foot, (n) => n.type === FieldError)[0]?.props.message;
     let tree = again(draw);
     const choose = (file) => byTestId(tree, "lead-import-file").props.onChange({ target: { files: [file] } });
     choose({ name: "export.csv", size: contracts.LEAD_IMPORT_MAX_BYTES + 1 });
@@ -221,7 +218,7 @@ test("REGRESSION (G:1): a file past the sheet's size is refused before it is rea
     readers[1].onload();
     tree = again(draw);
     assert.equal(problem(tree), undefined, "read again: the rows, and no word of the failure");
-    assert.equal(all(tree, (n) => n.type === W.RecordSheet)[0].props.onSave !== null, true);
+    assert.equal(all(tree, (n) => n.type === RecordSheet)[0].props.onSave !== null, true);
   } finally {
     delete W.FileReader;
   }
@@ -232,7 +229,7 @@ const hooked = () => {
   let got;
   const draw = () =>
     W.React.createElement(() => {
-      got = W.useLeadLists({ flash: (m) => flashed.push(m) });
+      got = useLeadLists({ flash: (m) => flashed.push(m) });
       return got.node;
     });
   fresh();
@@ -259,8 +256,11 @@ test("Write to them hands the door the chosen ids, lands on the list and opens t
   assert.match(body.name, /^Chosen on [A-Z][a-z]{2} \d{1,2}$/);
   assert.deepEqual(went, ["clients/leads:s-chosen1"]);
   assert.equal(textOf(flashed.at(-1).msg), "2 leads on the list. Left out: 1 not yet counted: keep them first.");
-  h.draw();
-  assert.deepEqual(sheets.at(-1).search, { id: "chosen1", name: body.name }, "the reach-out's sheet opens on the list");
+  assert.deepEqual(
+    sheetsIn(h.draw()).at(-1).search,
+    { id: "chosen1", name: body.name },
+    "the reach-out's sheet opens on the list",
+  );
 });
 
 test("Write to them refused says the door's words and goes nowhere; on a phone it is a row of the bar's sheet", async () => {
@@ -272,7 +272,7 @@ test("Write to them refused says the door's words and goes nowhere; on a phone i
   assert.deepEqual([flashed.at(-1).tone, textOf(flashed.at(-1).msg)], ["warn", "None of these can be written to yet."]);
   const shut = [];
   const row = h.got().writeAct({ ids: ["l1"], phone: true, shut: () => shut.push(1) });
-  assert.equal(row.type, W.PhoneSheetRow);
+  assert.equal(row.type, PhoneSheetRow);
   assert.equal(row.props.testid, "leads-bulk-write");
 });
 
@@ -280,7 +280,7 @@ test("the rail's foot carries Import leads, which opens the sheet", () => {
   world();
   const h = hooked();
   const door = h.got().importDoor;
-  const rail = W.LeadsRailRows({
+  const rail = LeadsRailRows({
     rail: { lists: [], searches: [] },
     list: "all",
     searchId: null,
@@ -296,12 +296,12 @@ test("the rail's foot carries Import leads, which opens the sheet", () => {
   assert.equal(textOf(byTestId(rail, "leads-import")).trim(), "Import leads");
   press(door);
   const tree = h.draw();
-  assert.ok(all(tree, (n) => n.type === W.RecordSheet && n.props.testid === "lead-import-sheet").length === 1);
+  assert.ok(all(tree, (n) => n.type === RecordSheet && n.props.testid === "lead-import-sheet").length === 1);
 });
 
 test("the bulk bar carries Write to them after Copy emails", () => {
   const write = W.React.createElement("button", { "data-testid": "leads-bulk-write" }, "Write to them");
-  const bar = W.LeadsBulkBar({
+  const bar = LeadsBulkBar({
     sel: new Set(["l1"]),
     rows: [{ id: "l1", cls: "qualified" }],
     total: 1,

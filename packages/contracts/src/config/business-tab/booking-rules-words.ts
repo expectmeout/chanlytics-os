@@ -1,8 +1,8 @@
 /**
  * The booking rules at rest, and what a rule's box says: the refusal when a number is out of the save's range,
- * and what an empty box uses, both from the schema's bounds and the calendar's own defaults.
+ * and what an empty box uses, both from the bounds the schema is built from and the calendar's own defaults.
  */
-import { BookingRulesSchema } from "../workspace-config/business-profile";
+import { BOOKING_RULE_BOUNDS, type BookingRuleKey } from "../workspace-config/config-rules";
 import { BOOKING_DEFAULTS } from "../../calendar/availability";
 import { count, pluralGrouped } from "./counts";
 
@@ -74,23 +74,16 @@ export function bookingRulesWords(rules: BookingRulesWordsInput | null | undefin
   };
 }
 
-/** The five booking rules a box holds a number for, by the key the schema stores each under. */
-export type BookingRuleKey = "lead_hours" | "slot_min" | "buffer_min" | "max_days_ahead" | "party_max";
-
 /**
  * What a booking rule's box says when what is typed is not a whole number in the rule's range: the range, and what an
- * empty box uses, each with its unit, in the hint's place under the box. The range is the save's own schema's
- * (BookingRulesSchema's bounds, so a check never refuses what the save would take), and what empty uses is the defaults
- * the openings are made with (BOOKING_DEFAULTS), which the box's hint says too (BOOKING_RULE_HINTS). The old form said
+ * empty box uses, each with its unit, in the hint's place under the box. The range is the one BookingRulesSchema is
+ * built from (BOOKING_RULE_BOUNDS, so a check never refuses what the save would take), and what empty uses is the
+ * defaults the openings are made with (BOOKING_DEFAULTS), which the box's hint says too (BOOKING_RULE_HINTS). The old form said
  * "leave it empty for no rule" of the least notice and of the days ahead, each of which has a default; the party size has
  * none, and the composer says nothing of a party when none is set, so its "no rule" is true. A key that is not one of the
  * five is a TypeError, since the page is untyped.
  */
 export function bookingRuleRefusal(key: BookingRuleKey): string {
-  const shape = BookingRulesSchema.shape as unknown as Record<
-    string,
-    { unwrap?: () => { minValue: number | null; maxValue: number | null } } | undefined
-  >;
   const words: Record<BookingRuleKey, (lo: number, hi: number) => string> = {
     lead_hours: (lo, hi) =>
       `Least notice is ${lo} to ${hi} hours; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
@@ -102,14 +95,14 @@ export function bookingRuleRefusal(key: BookingRuleKey): string {
       `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
     party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`,
   };
-  const say = Object.prototype.hasOwnProperty.call(words, key) ? words[key] : null;
-  const bound = say ? shape[key]?.unwrap?.() : null;
-  if (!say || !bound || bound.minValue == null || bound.maxValue == null) {
+  const known = Object.prototype.hasOwnProperty.call(words, key);
+  if (!known) {
     throw new TypeError(
       `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words).join(", ")}), not ${JSON.stringify(key)}.`,
     );
   }
-  return say(bound.minValue, bound.maxValue);
+  const bound = BOOKING_RULE_BOUNDS[key];
+  return words[key](bound.min, bound.max);
 }
 
 /**
@@ -118,8 +111,8 @@ export function bookingRuleRefusal(key: BookingRuleKey): string {
  * the least notice, and an empty least notice is two hours'. The gap has no hint: empty is none. The party size has
  * no default at all, and its hint says what the composer tells the receptionist of a larger group.
  *
- * Built inside a call marked pure, as GUARDRAIL_KEYS is: a top-level call is a side effect to the bundler, which would
- * keep this in the four dists that bundle contracts and never use it.
+ * Built inside a call marked pure: a top-level call is a side effect to the bundler, which would keep this in the four
+ * dists that bundle contracts and never use it.
  */
 export const BOOKING_RULE_HINTS: Readonly<
   Record<"lead_hours" | "slot_min" | "buffer_min" | "max_days_ahead" | "party_max", string | null>

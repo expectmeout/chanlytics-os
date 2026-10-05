@@ -144,6 +144,8 @@ export const EVENT_KINDS = [
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00313): { channel, sender }. */
+  "booking_link.sent",
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
@@ -187,6 +189,8 @@ export const EVENT_KINDS = [
   "billing.resumed",
   /** A call: the row (00007) and the seconds it cost. */
   "call.recorded",
+  /** A call ended in a transfer to a person (00312): { answered }, whether they picked up. */
+  "call.transferred",
   "usage.voice_seconds",
   /** The assistant's model usage, per turn (ask-gateway). */
   "usage.ask_tokens",
@@ -217,14 +221,21 @@ export const EVENT_KINDS = [
   "policy.veto_window_skipped",
   /** The sweep woke a snooze whose time had passed (00082). */
   "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00308): { from, to }, reasons only, never the words. */
+  "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00315): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
+  "mailbox.offers_paused",
+  "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
    * removed. The host and the reason, never the provider's id. */
   "sending_domain.added",
@@ -244,6 +255,15 @@ export const EVENT_KINDS = [
   "lead.call",
   "lead.converted",
   "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00309): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",
@@ -280,6 +300,20 @@ export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 export const OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
+
+/**
+ * What stops EVERYTHING when a person writes it by email: the same STOP words, but not UNSUBSCRIBE. An unsubscribe is
+ * not a STOP (the spec's decision 12): by email it ends offers by email and leaves their visit messages
+ * (EMAIL_UNSUBSCRIBE_PATTERN), exactly as the link's page does. A WhatsApp message keeps OPT_OUT_PATTERN, which reads it
+ * as a STOP there.
+ */
+export const EMAIL_STOP_PATTERN = /^\s*(stop|baja|alto)\s*[.!]?\s*$/i;
+
+/**
+ * An email that asks to stop the offers and nothing more: "unsubscribe", "please unsubscribe me", "desuscribirme", the
+ * whole of the words they wrote. It goes through the same door as the unsubscribe link (set_email_marketing).
+ */
+export const EMAIL_UNSUBSCRIBE_PATTERN = /^\s*(?:please\s+)?(?:unsubscribe(?:\s+me)?|desuscribir(?:me)?)\s*[.!]?\s*$/i;
 
 /**
  * The carriers' opt-out words, for a TEXTING LINE only.

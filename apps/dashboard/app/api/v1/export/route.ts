@@ -62,6 +62,8 @@ export const GET = read({
           type: m.type,
           body: m.body,
           media: mediaPublic(m.media),
+          // A message's meta as stored, not through memberMetaOf: this is the owner's own copy of their data, and the
+          // `pricing` a receipt keeps there (K8) holds the provider's category words and no amount.
           meta: m.meta as MessageDto["meta"],
           status: m.status,
           created_at: m.created_at,

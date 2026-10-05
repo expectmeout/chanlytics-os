@@ -109,8 +109,9 @@ test("the dashboard route: owner only, the settings rate bucket, the sign-up ids
 });
 
 test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.com, a cancel is a cancel, the code goes to the app's own route", async () => {
+  // Moved from legacy-bridge/whatsapp-connect.ts with Settings › Connections (decision 0015 step 11).
   const mod = await import(
-    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/legacy-bridge/whatsapp-connect.ts")).href
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/surfaces/settings/connections/whatsapp.ts")).href
   );
   assert.deepEqual(
     mod.parseSignupMessage(
@@ -141,7 +142,7 @@ test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.
   );
   assert.equal(mod.parseSignupMessage("https://www.facebook.com", "not json"), null);
   assert.equal(mod.parseSignupMessage("https://www.facebook.com", { type: "OTHER" }), null);
-  const src = readCode("apps/dashboard/src/legacy-bridge/whatsapp-connect.ts");
+  const src = readCode("apps/dashboard/src/surfaces/settings/connections/whatsapp.ts");
   assert.ok(src.includes('const SDK_SRC = "https://connect.facebook.net/en_US/sdk.js";'));
   assert.ok(
     /response_type: "code",\s*override_default_response_type: true/.test(src),
@@ -149,7 +150,11 @@ test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.
   );
   assert.ok(src.includes('api()("POST channels/whatsapp/connect"'));
   assert.ok(!src.includes("access_token"), "no credential passes through the browser");
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installWhatsAppConnect();"));
+  // The pane imports the flow's object (`waConnect`); nothing publishes it on the window, so the app installs nothing.
+  assert.ok(src.includes("export const waConnect = { config: signupConfig, start: () => startSignup() };"));
+  assert.deepEqual(Object.keys(mod.waConnect).sort(), ["config", "start"]);
+  assert.ok(!src.includes("installWhatsAppConnect"));
+  assert.ok(!readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installWhatsAppConnect"));
 });
 
 test("the account's own news: routed by WABA, kept as an event, alerted when it changes what the business can do", async () => {
@@ -235,7 +240,8 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
 });
 
 test("the Integrations pane offers the connection to an owner or says exactly why it cannot start", () => {
-  const s = readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx");
+  // The pane is TSX now (moved from integrations-real.jsx): the row's test ids and the pane's verbs.
+  const s = ["pane", "row"].map((f) => readCode(`apps/dashboard/src/surfaces/settings/connections/${f}.tsx`)).join(" ");
   assert.ok(
     s.includes('"verb:whatsapp-connect": "connect-whatsapp-btn"') && s.includes('case "verb:whatsapp-connect": {'),
   );

@@ -127,7 +127,13 @@ const BusinessTab = ({ flash = () => {} }) => {
     const bump = () => setTick((n) => n + 1);
     const stops = [saver.subscribe(bump), zone ? zone.subscribe(bump) : null, buys ? buys.subscribe(bump) : null];
     window.addEventListener("surface:settings", bump);
+    // The save's own rules come with this tab, never with the page (the bridge's loadSaveRules): drawn again when they
+    // land, so a fold open by then says what they judge.
+    let live = true;
+    const rules = window.__businessTab && window.__businessTab.loadSaveRules;
+    if (typeof rules === "function") rules().then(() => { if (live) bump(); }, () => {});
     return () => {
+      live = false;
       stops.forEach((stop) => { if (stop) stop(); });
       window.removeEventListener("surface:settings", bump);
     };

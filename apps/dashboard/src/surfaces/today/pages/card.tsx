@@ -11,24 +11,23 @@
  */
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import type { BroadcastVM, ReportsLike, TodayFigureId, TodayFigureVM, TodayVM } from "@chanlytics/contracts";
+import {
+  toGoogleVM,
+  type BroadcastVM,
+  type ReportsLike,
+  type TodayFigureId,
+  type TodayFigureVM,
+  type TodayVM,
+} from "@chanlytics/contracts";
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import type { PageClock } from "@/legacy-bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { useLook } from "../../kit/look/look";
 import { surfaceValue } from "../../surface-values";
+import { useSurface } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
-import {
-  appNavigate,
-  doorGlyph,
-  borrowed,
-  workspaceClock,
-  googleRead,
-  googleVm,
-  surfaceFailed,
-  useMoved,
-} from "../shell";
+import { appNavigate, doorGlyph, borrowed, workspaceClock, surfaceFailed, useMoved } from "../shell";
 import { Button } from "../../kit/button/button";
 
 /** A door to a route: the frame's move. */
@@ -73,7 +72,7 @@ const RunsDone = ({ nav }: { nav: Nav }) => {
           {timeOf(r.started_at)}: {w.counts}
           {w.still ? " · still sending" : ""}
         </span>
-        <button className="brief-chip" onClick={() => nav(`broadcasts/run:${r.id}`)}>
+        <button className="brief-chip brief-door" onClick={() => nav(`broadcasts/run:${r.id}`)}>
           Open <Icon name={doorGlyph()} size={10} />
         </button>
       </div>
@@ -85,11 +84,9 @@ const RunsDone = ({ nav }: { nav: Nav }) => {
 // first read (contracts/google.ts reviewIsNew). From the Google surface, which boots with the rest. Gone once it is
 // old news.
 const ReviewLine = ({ nav }: { nav: Nav }) => {
-  useMoved("google");
-  const G = googleRead();
-  const google = googleVm();
-  if (!G || !G.dto.listing || !google) return null;
-  const line = google.vm(G.dto, 30).todayLine;
+  const G = useSurface("google");
+  if (!G || !G.dto.listing) return null;
+  const line = toGoogleVM(G.dto, 30).todayLine;
   if (!line) return null;
   return (
     <div className="brief-beat" data-testid="brief-review">
@@ -97,7 +94,7 @@ const ReviewLine = ({ nav }: { nav: Nav }) => {
         <Icon name="star" size={13} />
       </span>
       <span className="brief-beat-text">{line.text}</span>
-      <button className="brief-chip" onClick={() => nav(line.to)}>
+      <button className="brief-chip brief-door" onClick={() => nav(line.to)}>
         Open Reports <Icon name={doorGlyph()} size={10} />
       </button>
     </div>
@@ -229,7 +226,7 @@ function quietProofBeat(quiet: NonNullable<TodayVM["quiet"]>, nav: Nav) {
           .join(" · ")}
       </span>
       {launchpad && (
-        <button className="brief-chip" onClick={() => nav(launchpad.to)}>
+        <button className="brief-chip brief-door" onClick={() => nav(launchpad.to)}>
           {launchpad.label}
         </button>
       )}
@@ -259,7 +256,7 @@ export function recapBeats(vm: TodayVM, nav: Nav) {
               {sn.text}
             </span>
             {sn.warn && (
-              <button className="brief-chip" onClick={() => nav(sn.to || "inbox")}>
+              <button className="brief-chip brief-door" onClick={() => nav(sn.to || "inbox")}>
                 See the thread <Icon name={doorGlyph()} size={10} />
               </button>
             )}
@@ -283,7 +280,7 @@ export function recapBeats(vm: TodayVM, nav: Nav) {
           <span className="brief-beat-text">
             {r.at}: {r.text}
           </span>
-          <button className="brief-chip" onClick={() => nav(r.to)}>
+          <button className="brief-chip brief-door" onClick={() => nav(r.to)}>
             Open <Icon name={doorGlyph()} size={10} />
           </button>
         </div>
@@ -312,9 +309,9 @@ export const TodayCard = ({ beats = true }: { beats?: boolean } = {}) => {
   if (!vm) return null;
   const { recap, quiet } = vm;
   // Glass draws the tile whole (canvas E3): on a quiet day the four figures are zeros, each with what is true under it
-  // (contracts quietFigures), and so is a day with people waiting but nothing counted (vm.zeroFigures); Classic keeps
+  // (contracts quietFigures), and so is a day with people waiting but nothing counted (vm.zero_figures); Classic keeps
   // the quiet sentence in the head instead.
-  const figures = vm.figures ?? (glass ? (quiet?.figures ?? vm.zeroFigures ?? null) : null);
+  const figures = vm.figures ?? (glass ? (quiet?.figures ?? vm.zero_figures ?? null) : null);
   const nav: Nav = (to) => appNavigate(to);
   const R = borrowed<ReportsLike>("__REPORTS");
   const period = R ? TODAY_HELPERS.periodLine(R) : null;

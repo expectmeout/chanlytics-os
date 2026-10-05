@@ -4,13 +4,18 @@
  *   outreachRefusalOf   the lead's own facts, as the send door reads them (deliver.ts) and as the clock reads them
  *                       before it claims a send: one mapping, so the two never disagree about who may be written to.
  *   OUTREACH_WAIT_REFUSALS   the door's refusals that mean "not now": the send is planned again, never canceled (C5).
- *   reachOutSlots       a step's words with the lead's, the workspace's and the send's values in (§4.3's six slots); a
- *                       slot with no value holds the email (missing_value, the reason that exists: broadcast.ts).
+ *   reachOutEmailOf     a step's words with the lead's, the workspace's and the send's values in (§4.3's six slots), by
+ *                       the one fill every email takes (templates/slot-sets.ts); a slot with no value holds the email
+ *                       (missing_value, the reason that exists: broadcast.ts). The send, the sheet's preview and the
+ *                       approval's first email read it.
+ *   reachOutExampleValues  the same six, made up for what changes from business to business: the Templates page's preview.
  *   REACH_OUT_MONTH_EMAILS   the month's allowance per workspace (§4.8's number; the price is Ruben's to set).
  *   REACH_OUT_CHECKS_PER_DAY the check's daily ceiling per workspace (Part 4, R12).
  */
 import type { DeliveryRefusal } from "../consent/consent";
-import { isReachOutSlot, replaceSlots, slotsNamed, type ReachOutSlot } from "./reach-out-words";
+import { renderOwnVersion } from "../templates/message-versions";
+import { slotHoles, slotValues } from "../templates/slot-sets";
+import { REACH_OUT_SLOT_SET } from "./reach-out-words";
 
 export interface OutreachLeadFacts {
   leadStage: string | null;
@@ -72,6 +77,9 @@ export function isReachOutRun(audience: unknown): boolean {
   return !!audience && typeof audience === "object" && (audience as { kind?: unknown }).kind === "reach_out";
 }
 
+/** The language a reach-out's emails are filed in: the one spelling it has always used (00211), kept as it is stored. */
+export const REACH_OUT_LANGUAGE = "en";
+
 export interface SlotLead {
   business_name: string | null;
   city: string | null;
@@ -82,25 +90,55 @@ export interface SlotWorkspace {
   yourName?: string | null;
   bookingLink?: string | null;
 }
-export function reachOutSlots(
-  words: string,
+
+/** The six slots' values, in the slot set's order, from the lead's, the workspace's and the send's: a blank one is a hole. */
+function reachOutValues(lead: SlotLead, workspace: SlotWorkspace, opening: string | null): Array<string | undefined> {
+  return slotValues(REACH_OUT_SLOT_SET, {
+    business: lead.business_name,
+    city: lead.city,
+    "your business": workspace.businessName,
+    "your name": workspace.yourName,
+    "booking link": workspace.bookingLink,
+    opening,
+  });
+}
+
+/**
+ * A step's email for one lead: its words with the six slots filled, by the one fill every email's slots take
+ * (renderOwnVersion over the six as a slot set), or why not. Any {{…}} is a slot, named in any case and spacing (the one
+ * slot rule, the sheet's and the editor's too). One that has no value here, or is no slot at all ({{first name}},
+ * {{business_name}}), holds the email, and so does a brace left once the slots are out: braces never reach a business.
+ * A step after the first has no subject (`null`): it answers the email before it.
+ */
+export function reachOutEmailOf(
+  words: { subject: string | null; body: string },
   lead: SlotLead,
   workspace: SlotWorkspace,
   opening: string | null = null,
-): { ok: true; text: string } | { ok: false; reason: "missing_value" } {
-  const values: Record<ReachOutSlot, string | null> = {
-    business: lead.business_name?.trim() || null,
-    city: lead.city?.trim() || null,
-    "your business": workspace.businessName?.trim() || null,
-    "your name": workspace.yourName?.trim() || null,
-    "booking link": workspace.bookingLink?.trim() || null,
-    opening: opening?.trim() || null,
-  };
-  // Any {{…}} is a slot, named in any case and spacing (reach-out-words: the one slot rule, the sheet's too). One this
-  // does not fill, whether it has no value here or is no slot at all ({{first name}}, {{business_name}}), holds the
-  // email, and so does a brace left once the slots are out: braces never reach a business.
-  const named = slotsNamed(words);
-  const missing = named.stray || named.names.some((k) => !isReachOutSlot(k) || values[k] === null);
-  const text = replaceSlots(words, (k) => (isReachOutSlot(k) ? values[k] : null));
-  return missing ? { ok: false, reason: "missing_value" } : { ok: true, text };
+): { ok: true; subject: string | null; body: string } | { ok: false; reason: "missing_value" } {
+  const values = reachOutValues(lead, workspace, opening);
+  const texts = words.subject === null ? [words.body] : [words.subject, words.body];
+  if (texts.some((t) => slotHoles(REACH_OUT_SLOT_SET, t, values))) return { ok: false, reason: "missing_value" };
+  const email = renderOwnVersion("email", words, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
+  return { ok: true, subject: words.subject === null ? null : email.subject, body: email.body };
+}
+
+/** What the slots a business changes hold in a preview made before any business is chosen: made-up, and said to be. */
+const EXAMPLE_LEAD = {
+  business_name: "Lakeside Bakery",
+  city: "Springfield",
+  opening: "Your 4.8 stars from 212 reviews caught my eye.",
+} as const;
+
+/**
+ * The six slots' values in a preview of a step's email as one business would read it: made-up ones for what changes from
+ * business to business, and the workspace's own for what it knows; a slot the workspace has nothing for is a hole, said
+ * by its name, as the send would hold it.
+ */
+export function reachOutExampleValues(workspace: SlotWorkspace): Array<string | undefined> {
+  return reachOutValues(
+    { business_name: EXAMPLE_LEAD.business_name, city: EXAMPLE_LEAD.city },
+    workspace,
+    EXAMPLE_LEAD.opening,
+  );
 }

@@ -129,8 +129,8 @@ test("reply time: median and slowest tenth from the raw seconds, bucketed on fix
     ],
   );
   assert.equal(quantile([], 0.5), null);
-  assert.equal(fmtSeconds(65), "1m 05s");
-  assert.equal(fmtSeconds(3900), "1h 05m");
+  assert.equal(fmtSeconds(65), "1m 5s");
+  assert.equal(fmtSeconds(3900), "1h 5m");
   assert.equal(fmtSeconds(null), "—");
 });
 

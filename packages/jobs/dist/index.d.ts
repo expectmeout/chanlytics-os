@@ -340,6 +340,36 @@ interface JobContext {
     email?: {
         /** The deployment's mail domain: what a mailbox's local part is an address on. */
         domain: string;
+        /**
+         * Where an OFFER by email leaves from (One message, every channel, step 4), bound by the edge only for a job that sends one
+         * (a broadcast's batch) and only while the deployment's campaigns domain is verified: that domain, and what seals the
+         * unsubscribe link every offer carries (the secret, and the origin its page answers on). Absent: this runtime sends no
+         * offer by email, and the door refuses one (core deliver `emailOffers`).
+         */
+        campaigns?: {
+            domain: string;
+            unsubscribeSecret: string;
+            unsubscribeOrigin: string;
+        } | null;
+        /**
+         * Why offers by email are closed on this runtime although the deployment names a campaigns domain: the provider says it
+         * is not verified for sending (bound with `campaigns` null, for a broadcast's batch only). The run stops with this said
+         * rather than hold each offer person as having no channel (core BroadcastBatchPorts.offersClosed). Absent: nothing of the
+         * kind to say, which is also what a deployment that names no campaigns domain reads as.
+         */
+        campaignsClosed?: string | null;
+        /**
+         * Why it is not known whether offers by email may leave: the deployment names a campaigns domain and the provider could
+         * not be asked about it (bound for a broadcast's batch only, the email wire itself bound as ever, so a visit's email
+         * goes). An offer's run waits and asks again (core BroadcastBatchPorts.offersUnread). Absent: nothing of the kind.
+         */
+        campaignsUnread?: string | null;
+        /**
+         * The name the provider's own receiving side writes into the Authentication-Results header of every email it hands over
+         * (RFC 8601's authserv-id: channels senderAuthenticated). A yes by email is believed only from a header that names it, so
+         * one a sender wrote into its own mail, which names anything else, proves nothing. Absent: no yes by email is recorded.
+         */
+        authservId?: string | null;
         /** One received email by the provider's id; null when the provider has none such. Throws when it cannot be asked. */
         fetch: (receivedId: string) => Promise<ReceivedEmail | null>;
         /** Was this email received before a person with this address asked to be forgotten (00125's digest)? */
@@ -418,9 +448,11 @@ interface ClaimedJob {
 /**
  * The provider's email, as the verb takes it: what it claims to be, its words
  * as plain text, and its thread ids read out of its headers. The parsing is
- * here, in the adapter, so the verb knows no provider (hygiene.test.mjs).
+ * here, in the adapter, so the verb knows no provider (hygiene.test.mjs). `authservId` is the name the provider's receiving
+ * side writes into the Authentication-Results header it adds (channels senderAuthenticated); null where none is configured,
+ * and then no sender is proved.
  */
-declare function incomingEmailOf(e: ReceivedEmail): IncomingEmail;
+declare function incomingEmailOf(e: ReceivedEmail, authservId: string | null): IncomingEmail;
 declare function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind">;
 
 interface TerminalJob {

@@ -25,8 +25,12 @@ import { publicEnv } from "@/lib/public-env";
 
 // Storage slot name (not a credential — the secret scanner reads "KEY" as one).
 const CACHE_NAME = "chanlytics.surfaces.v1";
-/** Where a surface's typed value (surface-values.ts) sits in its snapshot, beside the window globals it also owns. */
-const VALUE_SLOT = "$value";
+/**
+ * Where a surface's typed value (surface-values.ts) sits in its snapshot, beside the window globals it also owns: what a
+ * surface's own trim (`trimSnapshot`, Leads' first hundred rows) reads and rewrites.
+ */
+export const SURFACE_VALUE_SLOT = "$value";
+const VALUE_SLOT = SURFACE_VALUE_SLOT;
 const BUILD = publicEnv.NEXT_PUBLIC_BUILD_SHA;
 /** A payload larger than this isn't worth the main-thread cost to parse. */
 const MAX_BYTES = 2_000_000;
