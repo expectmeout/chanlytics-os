@@ -29,7 +29,6 @@ import { canDo } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
-import { useLook } from "../../kit/look/look";
 import { UnsavedAsk, tabDraft, useUnsavedWork } from "../../kit/record/work";
 import type { UnsavedWork } from "../../kit/record/work";
 import { useSurface } from "../../use-surface";
@@ -38,7 +37,7 @@ import { CmPane } from "../parts/split";
 import { composerActs } from "./composer-acts";
 import { composerModel, composerOffered, composerOpened } from "./composer-model";
 import type { Fields } from "./composer-model";
-import { clockSection, messageSection, underLine, viaSection, whenOnly, whoSection } from "./composer-sections";
+import { messageSection, underLine, viaSection, whenOnly, whoSection } from "./composer-sections";
 import type { SectionCtx } from "./composer-sections";
 import type { PlaybookCardVM, PlaybooksSurface } from "./surface";
 
@@ -117,19 +116,6 @@ function numberWarning({ data, f }: SectionCtx) {
   );
 }
 
-/** The sheet's body: the sections, and what stops a run from sending from the number. */
-function sheetBodyClassic(x: SectionCtx) {
-  return (
-    <div className="pb-compose">
-      {whoSection(x)}
-      {messageSection(x)}
-      {viaSection(x)}
-      {clockSection(x)}
-      {numberWarning(x)}
-    </div>
-  );
-}
-
 /**
  * The same sections under Glass stand as the canvas's four rows (the compact composer, C2): To, Says, When, and Under,
  * which is the row of Autonomy it runs under and its guardrails, drawn apart from the sentence they follow. A row is its
@@ -149,7 +135,6 @@ function sheetBodyGlass(x: SectionCtx) {
 }
 
 export function PlaybookComposer({ data, editing, initialTrigger = null, onDone, onCancel }: ComposerProps) {
-  const glass = useLook() === "glass";
   // As on Broadcasts: a template this product cannot put on the wire is not
   // offered, rather than offered and refused by Meta for every recipient.
   const offered = useMemo(() => composerOffered(data.templates), [data.templates]);
@@ -254,18 +239,11 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
           <Icon name="pencil" size={13} />
         </span>
       }
-      sub={
-        glass
-          ? undefined
-          : editing
-            ? "A change counts from its next run."
-            : "One approved message, to the people a moment names who said yes — each on its own clock. Replies land in the Inbox."
-      }
       onClose={work.leave}
       closeLabel="Cancel"
       foot={sheetFoot({ x, work, editing, busy, error, save: acts.save })}
     >
-      {glass ? sheetBodyGlass(x) : sheetBodyClassic(x)}
+      {sheetBodyGlass(x)}
     </CmPane>
   );
 }

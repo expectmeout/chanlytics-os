@@ -1,17 +1,16 @@
 /**
- * What Glass puts above the Inbox (surfaces/inbox/pages/inbox-head.tsx and the kit's look/look.tsx, the plan's step 5.4):
+ * What the Inbox puts above itself (surfaces/inbox/pages/inbox-head.tsx, the plan's step 5.4):
  * the sentence that says where the Inbox stands, said from the same rules as the sidebar's badge; the date in the
- * business's zone; and the look's one door: what only Glass draws is drawn in Glass and is nothing in Classic.
+ * business's zone.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fresh, installLegacyReact } from "../_legacy-react.mjs";
+import { installLegacyReact } from "../_legacy-react.mjs";
 
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 const { inboxStanding } = await import("../../../../apps/dashboard/src/surfaces/inbox/pages/inbox-head.tsx");
 const { pageDateline, pageDatelineParts } =
   await import("../../../../apps/dashboard/src/surfaces/kit/head/dateline.ts");
-const { Glass, useLook } = await import("../../../../apps/dashboard/src/surfaces/kit/look/look.tsx");
 const { PageHead } = await import("../../../../apps/dashboard/src/surfaces/kit/head/page-head.tsx");
 
 // Friday 2 October 2026, 4:02 PM in New York (20:02 UTC).
@@ -58,25 +57,6 @@ test("nothing waiting is said plainly, and a thread with no wait yet says no hou
   assert.equal(inboxStanding([handled("e")], NOW, ZONE), "Nothing needs you");
   assert.equal(inboxStanding([], NOW, ZONE), "Nothing needs you");
   assert.equal(inboxStanding([waiting("a", 0)], NOW, ZONE), "1 need you");
-});
-
-/** The page's own draw of the head, on the stub: what it puts on the page for a look. */
-function drawLook(look, child) {
-  fresh();
-  globalThis.document = {
-    documentElement: { getAttribute: (name) => (name === "data-look" ? look : null) },
-  };
-  return Glass({ children: child });
-}
-
-test("what only Glass draws is nothing in Classic, and its children in Glass", () => {
-  const child = { type: "p", props: {} };
-  assert.equal(drawLook("classic", child), null);
-  assert.equal(drawLook(null, child), null, "a document with no look stamped is Classic");
-  assert.equal(drawLook("glass", child), child);
-  delete globalThis.document;
-  fresh();
-  assert.equal(useLook(), "classic", "with no document (a server), Classic");
 });
 
 test("the page head is its date, its name as the page's heading and its sentence, and only what it has", () => {

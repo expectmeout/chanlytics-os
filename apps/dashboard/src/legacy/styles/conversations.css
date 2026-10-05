@@ -225,12 +225,12 @@
    inside :where(); none matches in Classic.
    ==================================================================== */
 @media (width > 900px) {
-  :where([data-look="glass"]) .main-scroll > .conversations {
+  .main-scroll > .conversations {
     padding: 0 var(--gutter-page) 16px;
     column-gap: 14px;
     overflow: visible;
   }
-  :where([data-look="glass"]) .cv-list {
+  .cv-list {
   position: relative;
   border: 0;
   border-radius: var(--surface-pane-radius);
@@ -238,7 +238,7 @@
   box-shadow: var(--surface-pane-depth);
   overflow: hidden;
 }
-  :where([data-look="glass"]) .cv-list::after {
+  .cv-list::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -259,26 +259,26 @@
    ==================================================================== */
 @media (max-width: 900px) {
   /* 4px under the strip, as the Inbox's tabs are (its slot has 16 of padding under the strip). */
-  :where([data-look="glass"]) .main:has(> .main-scroll > .conversations:not([data-takeover])) .pg-slot {
+  .main:has(> .main-scroll > .conversations:not([data-takeover])) .pg-slot {
     padding-bottom: 4px;
   }
   /* The list is the page itself: the pools show through, no ground of its own. */
-  :where([data-look="glass"]) .conversations .cv-list {
+  .conversations .cv-list {
     border: 0;
     background: transparent;
   }
   /* The tabs come first, as the Inbox's buckets do; the search is drawn under them. */
-  :where([data-look="glass"]) .conversations .cv-filters {
+  .conversations .cv-filters {
     order: -1;
   }
   .conversations .cv-filters {
     margin: 0 16px;
   }
   /* The search under the tabs, 38px tall, at the strip's sides. */
-  :where([data-look="glass"]) .conversations .cv-list-head {
+  .conversations .cv-list-head {
     padding: 6px 12px 8px;
   }
-  :where([data-look="glass"]) .conversations .cv-list-head > div {
+  .conversations .cv-list-head > div {
     gap: 9px;
     height: 38px;
     padding: 0 12px;
@@ -290,29 +290,29 @@
       var(--surface-inset-depth);
     color: var(--ink-dim);
   }
-  :where([data-look="glass"]) .conversations .cv-list-head > div:focus-within {
+  .conversations .cv-list-head > div:focus-within {
     box-shadow:
       var(--focus-ring),
       var(--surface-inset-depth);
   }
-  :where([data-look="glass"]) .conversations .cv-list-head > div > .icon {
+  .conversations .cv-list-head > div > .icon {
     width: 15px;
     height: 15px;
     color: var(--ink-dim);
   }
-  :where([data-look="glass"]) .conversations .cv-list-head > div > input {
+  .conversations .cv-list-head > div > input {
     font-size: var(--text-base);
   }
   /* The rows straight on the page, no hairline between them and none marked: the open one takes the screen. */
-  :where([data-look="glass"]) .conversations .cv-rows {
+  .conversations .cv-rows {
     padding: 2px 4px;
   }
-  :where([data-look="glass"]) .conversations .cv-row {
+  .conversations .cv-row {
     border-bottom-color: transparent;
     border-radius: var(--surface-row-radius);
   }
-  :where([data-look="glass"]) .conversations .cv-row.active,
-  :where([data-look="glass"]) .conversations .cv-row.is-live.active {
+  .conversations .cv-row.active,
+  .conversations .cv-row.is-live.active {
     background: transparent;
     box-shadow: none;
   }

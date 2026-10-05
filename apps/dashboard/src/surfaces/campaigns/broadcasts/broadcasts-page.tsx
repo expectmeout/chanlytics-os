@@ -17,7 +17,6 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ConsentChannel } from "@chanlytics/contracts";
 import { canDo, demoSession, replaceRoute, useLegacyToast } from "../../legacy-verbs";
-import { useLook } from "../../kit/look/look";
 import { useUnsavedWork } from "../../kit/record/work";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
@@ -27,7 +26,7 @@ import { bcAgainOf, bcLedgerOf, bcRunSolo, bcSheetOf } from "./page/runs";
 import { bcRunActs, bcSendActs } from "./page/acts";
 import { bcLedger } from "./page/ledger-screen";
 import { bcPeopleOf, bcPreviewOf, bcReachOf, bcSlotChoicesOf, bcSlotWordsOf } from "./page/reach";
-import { bcComposer, bcComposerGlass } from "./page/send-screen";
+import { bcComposerGlass } from "./page/send-screen";
 import { useBcList, useBcNow, useBcOffered, useBcRunLanding, useBcWords, useBcYes } from "./page/state";
 import type { BcApproving, BcBase, BcV, Flash } from "./page/types";
 import { bcDefault, bcIsStarter } from "./page/words";
@@ -96,7 +95,6 @@ function useBroadcastsPage({
   flash: hosted,
   onYes,
 }: BroadcastsPageState) {
-  const glass = useLook() === "glass";
   const [ownToast, ownFlash]: [ReactNode, Flash] = useLegacyToast();
   const flash = hosted ?? ownFlash;
   const toastNode = hosted ? null : ownToast;
@@ -231,19 +229,19 @@ function useBroadcastsPage({
   const approvingRef = useRef<string | null>(null);
   const [approving, setApproving] = useState<string | null>(null);
   const v = bcWorked(base, { approvingRef, approving, setApproving });
-  return { v, glass, toastNode, writing, openId, leftByDoor };
+  return { v, toastNode, writing, openId, leftByDoor };
 }
 
 function BroadcastsReal(props: BroadcastsRealProps) {
-  const { v, glass, toastNode, writing, openId } = useBroadcastsPage(props);
+  const { v, toastNode, writing, openId } = useBroadcastsPage(props);
   // The ledger is always the list; beside it, in a pane, what is open (parts/split.tsx): a run, whether the list holds it
   // or it is older than the list, else the send. The send is three questions -- who, what, when -- and the one act that
   // cannot be taken back alone at the foot: the audience, the words and the send button on one screen, never an owner
   // scrolling past the preview to reach Send.
-  const open = openId ? bcRunSolo({ ...v, openId }) : writing ? (glass ? bcComposerGlass(v) : bcComposer(v)) : null;
+  const open = openId ? bcRunSolo({ ...v, openId }) : writing ? bcComposerGlass(v) : null;
   return (
     <>
-      <CmSplit className="bc-page" testid="broadcasts-real" list={bcLedger(v, glass)} open={open} />
+      <CmSplit className="bc-page" testid="broadcasts-real" list={bcLedger(v)} open={open} />
       {toastNode}
     </>
   );
@@ -271,7 +269,7 @@ export function BroadcastSend({
   onDone: () => void;
   onYes: (route: string) => void;
 }) {
-  const { v, glass, writing, leftByDoor } = useBroadcastsPage({ data, initialSegment, opened: true, flash, onYes });
+  const { v, writing, leftByDoor } = useBroadcastsPage({ data, initialSegment, opened: true, flash, onYes });
   const seen = useRef(false);
   useEffect(() => {
     if (writing) {
@@ -279,7 +277,7 @@ export function BroadcastSend({
       leftByDoor.current = false;
     } else if (seen.current && !leftByDoor.current) onDone();
   }, [writing]); // eslint-disable-line react-hooks/exhaustive-deps -- told when the send screen is left, not when its host re-draws
-  return glass ? bcComposerGlass(v) : bcComposer(v);
+  return bcComposerGlass(v);
 }
 
 export function BroadcastsPage(props: BroadcastsPageProps) {

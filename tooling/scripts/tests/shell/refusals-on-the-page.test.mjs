@@ -373,7 +373,7 @@ const conversation = (id, name) => ({
   ],
 });
 
-test("REGRESSION (A13): a refused snooze or approve on Today toasts in the danger tone, saying what did not happen -- they wore the green check", async () => {
+test("REGRESSION (A13): a refused approve on Today toasts in the danger tone, saying what did not happen -- it wore the green check", async () => {
   const flashes = [];
   const wire = [];
   Object.assign(globalThis.window, {
@@ -444,15 +444,11 @@ test("REGRESSION (A13): a refused snooze or approve on Today toasts in the dange
   walk(tree, (n) => {
     if (n.type === AttnRow) rows.push(n.props);
   });
-  const handoff = rows.find((p) => p.also && p.also.testid === "queue-snooze");
-  assert.ok(handoff, "a handoff row offers Snooze");
-  await handoff.also.onClick();
-  assert.deepEqual(wire, ["POST /api/v1/conversations/cv1/snooze"], "the ask went to the server, for this thread");
-  assert.equal(flashes.at(-1).tone, "danger", "REGRESSION: the refusal wore the green check");
-  assert.equal(
-    say(flashes.at(-1).msg),
-    "Not snoozed — Too many conversation changes in a short time — try again in 20 seconds.",
-  );
+  // A row carries its one verb since canvas E3: snooze and resolve are the thread's, in the Inbox (inbox/verbs.ts), and
+  // their refusals are said there. The handoff row stands, with no second verb to refuse.
+  const handoff = rows.find((p) => p.testid === "queue-handoff");
+  assert.ok(handoff && !handoff.also, "the handoff row stands, with its one verb");
+  assert.deepEqual(wire, [], "nothing asked yet");
   const run = rows.find((p) => p.testid === "brief-run-row");
   assert.ok(run, "the run waiting for approval");
   await run.cta.onClick();

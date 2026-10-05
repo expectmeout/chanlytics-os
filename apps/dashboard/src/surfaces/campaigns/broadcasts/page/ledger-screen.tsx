@@ -109,8 +109,8 @@ function bcOptIn({ data, yesOpen, setYesOpen, flash }: Pick<BcBase, "data" | "ye
 }
 
 // The ledger, the page's list: its head (the runs by state, what went, the week ahead), the runs, and the section that gets a yes.
-/** `glass`: the page's act as the canvas draws it in Glass, a capsule of the control layer; coral is the composer's. */
-export function bcLedger(v: BcV, glass = false) {
+/** The page's act as the canvas draws it, a capsule of the control layer; coral is the composer's. */
+export function bcLedger(v: BcV) {
   const { rows, band, setBand, data, origin, setOrigin, now, runs, runCard, sentN, recent } = v;
   // New message is the home's one door to the composer, at its address (`campaigns/new`): the same sheet, the same name, and Back
   // closes it, whichever room it is pressed in.
@@ -127,12 +127,7 @@ export function bcLedger(v: BcV, glass = false) {
         title="Sent"
         testid="bc-head"
         right={
-          <Button
-            variant={glass ? "secondary" : "primary"}
-            onClick={write}
-            data-testid="bc-new"
-            {...gate("approve", "send a message")}
-          >
+          <Button variant="secondary" onClick={write} data-testid="bc-new" {...gate("approve", "send a message")}>
             <Icon name="plus" size={12} /> <NewMessageLabel />
           </Button>
         }

@@ -60,7 +60,7 @@ test("People says its name and the standing line's counts in words to the frame'
   assert.equal(headOf("people").sentence, null, "before People has landed the head is the name and no sentence");
 });
 
-test("the Pipeline's head is the line over its table: every part it draws, in its order; its act is Glass's alone", () => {
+test("the Pipeline's head is the line over its table: every part it draws, in its order; and its act, New proposal", () => {
   // The e2e harness's pipeline record: a studio that sells by proposal, with someone in every group. The page says its
   // own standing (pipeline/standing.tsx), handed the line its table draws and the New proposal press.
   const record = scenario("pipeline", NOW.getTime());
@@ -78,7 +78,11 @@ test("the Pipeline's head is the line over its table: every part it draws, in it
   assert.equal(said.title, "Pipeline");
   assert.equal(said.sentence, line.map((part) => part.words).join(" · "));
   assert.equal(said.back, null, "a scope picked in the page's own strip has no way back");
-  assert.equal(said.act, undefined, "on the stub's document, Classic: the button stays in the controls row");
+  assert.equal(
+    said.act?.props?.["data-testid"],
+    "pipeline-new-open",
+    "the act is the head's: New proposal at the right of the row of views (canvas D1)",
+  );
 });
 
 test("a person's page is its own head: a null title, and its way back to People where the frame draws the date", () => {

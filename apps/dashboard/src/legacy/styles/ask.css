@@ -237,8 +237,8 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
      B9). The tap is 44px; the disc is 40 inside it, so the rim runs close to the three. */
   .phone-ask {
     display: grid; place-items: center;
-    position: fixed; right: 10px; bottom: calc(6px + env(safe-area-inset-bottom));
-    width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+    position: fixed; 
+    border-radius: 50%; border: 0; padding: 0; cursor: pointer;
     background: none; color: var(--ink); z-index: 121;
   }
   /* The three in the ✦ (components/ask-face.jsx, on the raised ground), over the disc: the canvas is the disc's width
@@ -261,14 +261,14 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
      (Ruben, 25 Sep: "let's go with 4", then "the dot only past 80%, amber then red; if something needs attention the
      three stay in colour at rest"); the beam it replaces is B3 to B5 of the spec. */
   .phone-ask .ask-disc {
-    position: absolute; inset: 2px; border-radius: 50%; pointer-events: none;
-    background: var(--bg-raised); box-shadow: var(--shadow-md);
+    position: absolute; border-radius: 50%; pointer-events: none;
+    background: var(--bg-raised); 
     --dot: var(--warn); --dot-on: 0;
   }
   .phone-ask .ask-disc[data-usage="warned"] { --dot: var(--warn); --dot-on: 1; }
   .phone-ask .ask-disc[data-usage="over"] { --dot: var(--danger); --dot-on: 1; }
   .phone-ask .ask-disc::before {
-    content: ""; position: absolute; top: 1px; right: 1px; width: 7px; height: 7px; border-radius: 50%;
+    content: ""; position: absolute; width: 7px; height: 7px; border-radius: 50%;
     background: var(--dot); box-shadow: 0 0 0 2px var(--bg-raised);
     opacity: var(--dot-on); transition: opacity 0.5s ease;
     animation: ask-dot-breathe 2.6s ease-in-out infinite;
@@ -370,7 +370,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   /* The delete question sits under the middle, over the foot. */
   .ask-line .ask-confirm { order: 8; margin: 8px 12px 0; }
   /* The foot: the band as the field, last in the column, the one button inside it (spec 5.1). */
-  .ask-line .ask-stage { order: 9; margin: 8px 12px 10px; padding: 0 8px 0 16px; border: 1px solid var(--line); border-radius: var(--radius-xl); grid-template-rows: auto; }
+  .ask-line .ask-stage { order: 9; margin: 8px 12px 10px; padding: 0 8px 0 16px; border-radius: var(--radius-xl); grid-template-rows: auto; }
   /* While it listens the band stays drawn under the pill, hidden: the button in it holds the finger until the lift. */
   .ask-line .ask-stage.listening { display: none; }
   .ask-stage-row { min-height: 56px; gap: 8px; }
@@ -460,24 +460,24 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
    depth, and its usage dot riding the circle's rim. The bar and the room the page keeps for both are mobile.css's.
    Each rule names the look inside :where() and comes after the rule it restyles; none matches in Classic. */
 @media (max-width: 720px) {
-  :where([data-look="glass"]) .phone-ask {
+  .phone-ask {
     right: 14px;
     bottom: max(14px, env(safe-area-inset-bottom));
     width: 62px;
     height: 62px;
   }
-  :where([data-look="glass"]) .phone-ask .ask-disc {
+  .phone-ask .ask-disc {
     inset: 0;
     background-color: var(--surface-control-fill);
     background-image: var(--surface-control-sheen);
     box-shadow: var(--surface-control-depth);
     backdrop-filter: var(--surface-control-blur);
   }
-  :where([data-look="glass"]) .phone-ask .ask-disc::before {
+  .phone-ask .ask-disc::before {
     top: 6px;
     right: 6px;
   }
-  :where([data-look="glass"]) .phone-ask .ask-disc::after {
+  .phone-ask .ask-disc::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -505,25 +505,25 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
    The window (the overlay's one child: the ratchet counts a class named modal, so it is reached as that) is a pop of the
    control layer over the page's wash: its radius, its edge and its depth; what Ask says of right now an inset, and the
    questions it offers capsules of the inset's fill. Each rule names the look inside :where(); none matches in Classic. */
-:where([data-look="glass"]) .ask-overlay > * {
+.ask-overlay > * {
   border: 1px solid var(--surface-pop-edge);
   border-radius: var(--surface-pop-radius);
   background: var(--surface-pop-fill);
   backdrop-filter: var(--surface-control-blur);
   box-shadow: var(--surface-pop-depth);
 }
-:where([data-look="glass"]) .ask-now {
+.ask-now {
   border-radius: var(--surface-inset-radius);
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
 }
-:where([data-look="glass"]) .ask-suggestion {
+.ask-suggestion {
   border-color: transparent;
   border-radius: var(--radius-full);
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
 }
-:where([data-look="glass"]) .ask-suggestion:hover {
+.ask-suggestion:hover {
   background: var(--surface-control-fill);
 }
 
@@ -536,24 +536,24 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
    the foot is the inset's capsule, not a dark pill. The window is reached as the overlay's child, since a class named
    modal is a primitive's word to the ratchet. */
 @media (max-width: 720px) {
-  :where([data-look="glass"]) .ask-overlay.ask-line-scrim {
+  .ask-overlay.ask-line-scrim {
     background: color-mix(in oklab, var(--surface-scrim) 55%, transparent);
     backdrop-filter: var(--surface-control-blur);
   }
-  :where([data-look="glass"]) .ask-overlay > .ask-line {
+  .ask-overlay > .ask-line {
     border: 0;
     border-radius: 0;
     background: transparent;
     backdrop-filter: none;
     box-shadow: none;
   }
-  :where([data-look="glass"]) .ask-line .ask-stage {
+  .ask-line .ask-stage {
     border: 0;
     background: var(--surface-inset-fill);
     box-shadow: var(--surface-inset-depth);
   }
   /* What Ask says of right now stands on the glass itself, with no panel of its own behind the three. */
-  :where([data-look="glass"]) .ask-line .ask-now {
+  .ask-line .ask-now {
     background: transparent;
     box-shadow: none;
   }

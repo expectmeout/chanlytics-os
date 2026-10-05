@@ -26,7 +26,7 @@ import {
 export type Nav = (to: string) => void;
 
 /** The shell's one toast, raised. */
-export type Say = (flash: Flash) => void;
+type Say = (flash: Flash) => void;
 
 /** The kind the next verb is drawn as: the page's one primary verb is the first row's, every other is quiet. */
 export type VerbKind = () => "primary" | "ghost";

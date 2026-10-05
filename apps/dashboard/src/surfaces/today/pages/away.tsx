@@ -8,7 +8,6 @@ import { useEffect, useState } from "react";
 import type { BellApi, BellRow } from "@/legacy-bridge/notifications";
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import { Icon } from "../../kit/icon/icon";
-import { useLook } from "../../kit/look/look";
 import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, bell, borrowed, holdStill } from "../shell";
@@ -41,7 +40,6 @@ export const TodayAway = () => {
     return api.onChange(refresh);
   }, [api]);
   // E3's rows carry no dismiss of their own: a group is read when it is opened, and Mark all read clears the rest.
-  const glass = useLook() === "glass";
   if (!api) return null;
   const T = surfaceValue("today");
   // What each queue row is about: its thread, its call, or both (contracts AwayQueueRef), a waiting search by its
@@ -60,12 +58,12 @@ export const TodayAway = () => {
     ...runsDrawn.map((r) => ({ runLabel: r.audience.label })),
   ];
   const { groups, total, foot, empty } = TODAY_HELPERS.awayGrouped(rows, inQueue, 5);
-  // A group is read and dismissed whole: its rows say one thing, so they go together.
+  // A group is read whole as it is opened: its rows say one thing, so they go together (E3: no dismiss of its own;
+  // Mark all read clears the rest).
   const open = (g: AwayGroupVM<AwayBellRow>, to: string) => {
     g.ids.forEach((id) => api.read(id));
     appNavigate(to);
   };
-  const drop = (g: AwayGroupVM<AwayBellRow>) => g.ids.forEach((id) => api.dismiss(id));
   return (
     <section className="tsec ta" data-testid="today-away">
       <div className="tsec-head">
@@ -99,16 +97,6 @@ export const TodayAway = () => {
                   </span>
                   <span className="ta-msg">{g.count > 1 ? `newest: ${n.title}` : n.message}</span>
                 </button>
-                {!glass && (
-                  <button
-                    className="ta-x"
-                    onClick={(e) => holdStill(e && e.currentTarget, () => drop(g))}
-                    title={g.count > 1 ? `Dismiss all ${g.count}` : "Dismiss"}
-                    aria-label={g.count > 1 ? `Dismiss all ${g.count}` : "Dismiss"}
-                  >
-                    <Icon name="x" size={12} />
-                  </button>
-                )}
               </div>
             );
           })}

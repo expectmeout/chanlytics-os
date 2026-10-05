@@ -162,6 +162,7 @@ globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
 // Setup's rows are the surface's own (surfaces/setup/rows), imported by the card, not published on the window.
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
 const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
+const { TodayBriefPane } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief-pane.tsx");
 const { TodaySetup } = await import("../../../../apps/dashboard/src/surfaces/today/pages/setup-card.tsx");
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
 // The module instances the pages use: the seam's store, and the verbs the card's Skip and Hide press (`setupVerbs`).
@@ -206,11 +207,17 @@ const mountHero = (vm) => {
   fresh();
   return again(() => HeroBrief());
 };
-// The day's lines (its receipts, the proof, a reply that failed) sit in the day's card under the work (TodayCard).
+// The day's figures are the day's card (TodayCard); its lines (the receipts, the proof, a reply that failed) are the
+// brief's, beside the queue (TodayBriefPane, canvas E3).
 const mountCard = (vm) => {
   setSurfaceValue("today", vm);
   fresh();
   return again(() => TodayCard());
+};
+const mountBrief = (vm) => {
+  setSurfaceValue("today", vm);
+  fresh();
+  return again(() => TodayBriefPane());
 };
 // What is left to set up, one card above the queue (TodaySetup): it reads Setup's surface, not the day's.
 const mountSetup = () => {
@@ -241,7 +248,7 @@ test("REGRESSION (A21): a reply that failed to deliver opens its thread -- 'See 
   const vm = toTodayVM(metrics({ period: { ...busyPeriod, send_failures: 1 } }), [failed], [], [], NOW);
   const warn = vm.recap.sentences.find((s) => s.warn);
   assert.equal(warn.to, "inbox/th-cv9", "REGRESSION: the failed send's sentence carried no thread");
-  buttonsSaying(mountCard(vm), "See the thread")[0].props.onClick();
+  buttonsSaying(mountBrief(vm), "See the thread")[0].props.onClick();
   assert.equal(went.at(-1), "inbox/th-cv9");
 });
 
@@ -270,7 +277,7 @@ test("REGRESSION: Today's first screen is the work -- above it stood a greeting,
     "the day's figures",
   );
   const beats = findAll(
-    card,
+    mountBrief(vm),
     (n) => typeof n.props?.className === "string" && n.props.className.includes("brief-beat-text"),
   ).map(textOf);
   assert.ok(
@@ -339,7 +346,7 @@ test("the day's receipts are all drawn -- the view model kept three and the hero
   );
   const vm = toTodayVM(metrics(), convs, [], [], NOW);
   assert.equal(vm.recap.receipts.length, 3, "the fixture is a day with three replies");
-  const receipts = findAll(mountCard(vm), (n) => n.props?.["data-testid"] === "brief-receipt");
+  const receipts = findAll(mountBrief(vm), (n) => n.props?.["data-testid"] === "brief-receipt");
   assert.equal(receipts.length, 3, "REGRESSION: two of the three receipts were never drawn");
   buttonsSaying(receipts[2], "Open")[0].props.onClick();
   assert.equal(went.at(-1), vm.recap.receipts[2].to);
@@ -349,7 +356,7 @@ test("a quiet day shows its proof -- which lines are on -- and the way to the co
   const yesterday = conversation("cv1", "Rosa Díaz", [msg({ created_at: "2026-09-05T12:00:00Z" })]);
   const vm = toTodayVM(metrics({ now: zeroNow, period: quietPeriod }), [yesterday], [], [], NOW);
   assert.ok(vm.quiet && vm.quiet.launchpad, "the fixture is a quiet day with an earlier conversation");
-  const hero = mountCard(vm);
+  const hero = mountBrief(vm);
   const proof = find(hero, (n) => n.props?.["data-testid"] === "brief-quiet-proof");
   assert.ok(proof, "REGRESSION: the quiet day's proof was never drawn");
   assert.match(textOf(proof), /WhatsApp/);

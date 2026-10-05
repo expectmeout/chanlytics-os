@@ -120,19 +120,19 @@
 .rpt-inner { width: 100%; max-width: var(--measure-wide); margin: 0; padding: 0 var(--gutter-page) 56px; display: flex; flex-direction: column; }
 
 /* The one row above everything; it stays while the page scrolls, with a hairline so cards pass under an edge. */
-.rpt-head { position: sticky; top: 0; z-index: 8; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 12px 0 10px; background: var(--bg); box-shadow: 0 1px 0 var(--line); }
-.rpt-range { display: inline-flex; padding: 3px; gap: 2px; border-radius: 9px; background: var(--bg-sunken); border: 1px solid var(--line); }
-.rpt-range button { font-size: var(--text-sm); line-height: 1; padding: 7px 12px; border-radius: var(--radius-sm); color: var(--ink-dim); transition: background var(--duration-fast), color var(--duration-fast); }
+.rpt-head { position: sticky; top: 0; z-index: 8; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
+.rpt-range { display: inline-flex; }
+.rpt-range button { font-size: var(--text-sm); line-height: 1; padding: 7px 12px; color: var(--ink-dim); transition: background var(--duration-fast), color var(--duration-fast); }
 .rpt-range button:hover { color: var(--ink); }
-.rpt-range button.on { background: var(--bg-raised); color: var(--ink); box-shadow: var(--shadow-sm); font-weight: 500; }
+.rpt-range button.on { color: var(--ink); font-weight: 500; }
 .rpt-range button[aria-disabled="true"] { cursor: progress; }
 .rpt-range button:focus-visible, .rpt-ask:focus-visible, .rpt-fact-row:focus-visible, .rpt-src:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .rpt-dates { font-size: var(--text-sm); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .rpt-failed { font-size: 12px; color: var(--warn-ink); }
-.rpt-ask { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: var(--radius-md); font-size: var(--text-sm); color: var(--ink-muted); border: 1px solid var(--line); background: var(--bg-raised); transition: color var(--duration-fast), border-color var(--duration-fast); }
+.rpt-ask { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; font-size: var(--text-sm); color: var(--ink-muted); border: 1px solid var(--line); transition: color var(--duration-fast), border-color var(--duration-fast); }
 .rpt-ask:hover { color: var(--ink); border-color: var(--line-strong); }
 
-.rpt-body { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; transition: opacity var(--duration-base) var(--ease-out); }
+.rpt-body { display: flex; flex-direction: column; padding-top: 12px; transition: opacity var(--duration-base) var(--ease-out); }
 /* A period on its way: the one rule (components.css [data-loading] [data-dims]). */
 
 /* Twelve columns; the page places each card (the kit knows no grid). */
@@ -284,12 +284,12 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
    frame's head, its range a capsule of the control layer and Ask's door another; the tiles are one pane with hairlines
    between them, and every card of the grid a pane. Each rule names the look inside :where(); none matches in Classic.
    ==================================================================== */
-:where([data-look="glass"]) .rpt-head {
+.rpt-head {
   background: transparent;
   box-shadow: none;
   padding: 2px 0 12px;
 }
-:where([data-look="glass"]) .rpt-range {
+.rpt-range {
   padding: 3px;
   gap: 2px;
   border: 0;
@@ -297,35 +297,35 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
   background: var(--surface-control-fill);
   box-shadow: var(--surface-control-depth);
 }
-:where([data-look="glass"]) .rpt-range button {
+.rpt-range button {
   border-radius: var(--radius-full);
 }
-:where([data-look="glass"]) .rpt-range button.on {
+.rpt-range button.on {
   background: var(--selected-fill);
   box-shadow: var(--selected-depth);
 }
-:where([data-look="glass"]) .rpt-ask {
+.rpt-ask {
   border-color: var(--surface-inset-edge);
   border-radius: var(--radius-full);
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
 }
-:where([data-look="glass"]) .rpt :is(.rpt-grid, .rpt-top) > * {
+.rpt :is(.rpt-grid, .rpt-top) > * {
   border: 0;
   border-radius: var(--surface-pane-radius);
   background: var(--surface-pane-fill);
   box-shadow: var(--surface-pane-depth);
 }
 /* Google's strip of numbers sits inside its card: an inset there, not glass on glass. */
-:where([data-look="glass"]) .rp2-strip-google {
+.rp2-strip-google {
   border: 0;
   border-radius: var(--surface-inset-radius);
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
 }
-:where([data-look="glass"]) .rpt-body {
+.rpt-body {
   gap: 14px;
 }
-:where([data-look="glass"]) .rpt :is(.rpt-grid, .rpt-top) {
+.rpt :is(.rpt-grid, .rpt-top) {
   gap: 14px;
 }

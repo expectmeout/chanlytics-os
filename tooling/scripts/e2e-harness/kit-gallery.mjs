@@ -2,7 +2,7 @@
  * The kit's gallery (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4 and step 2.3): one page that draws
  * every class of the kit in the app's own stylesheets, for e2e/kit/kit.spec.ts to check and for a person to review.
  *
- *   node tooling/scripts/e2e-harness/server.mjs 3210 kit        # http://localhost:3210/ ; t turns the theme, l the look
+ *   node tooling/scripts/e2e-harness/server.mjs 3210 kit        # http://localhost:3210/ ; t turns the theme
  *   corepack pnpm e2e:local -- e2e/kit/kit.spec.ts --scenario=kit   # the gallery's checks
  *
  * The harness serves it as the `kit` record's page (scenarios.mjs), and production never does (decision 7). It is
@@ -988,7 +988,7 @@ export const FAMILIES = [
       {
         id: "stabs-campaigns",
         html:
-          `<nav class="stabs stabs-campaigns" aria-label="Section views"><button class="stabs-tab">Playbooks</button>` +
+          `<nav class="stabs" aria-label="Section views"><button class="stabs-tab">Playbooks</button>` +
           `<button class="stabs-tab active">Broadcasts</button><button class="stabs-tab">Templates</button></nav>`,
       },
       {
@@ -1770,8 +1770,9 @@ const GALLERY_CSS = `
 `;
 
 /**
- * The theme and the look: from `?theme=light|dark&look=classic|glass` (dark and Classic otherwise); `t` turns the
- * theme, as the mockup's document does (style-equality.mjs presses it), and `l` turns the look. And an entry bound to
+ * The theme from `?theme=light|dark` (dark otherwise), and the look stamped as the app stamps it (Glass, the one look
+ * since Classic retired: contracts LOOK_OPTIONS); `t` turns the theme, as the mockup's document does
+ * (style-equality.mjs presses it). And an entry bound to
  * a width leaves the page at the other, as it loads, at the kit's one breakpoint.
  */
 const GALLERY_SCRIPT = `
@@ -1779,7 +1780,7 @@ const GALLERY_SCRIPT = `
       var root = document.documentElement;
       var asked = new URLSearchParams(location.search);
       root.setAttribute("data-theme", asked.get("theme") === "light" ? "light" : "dark");
-      root.setAttribute("data-look", asked.get("look") === "glass" ? "glass" : "classic");
+      root.setAttribute("data-look", "glass");
       var phone = window.matchMedia("(max-width: 900px)").matches;
       document.querySelectorAll(".gx-entry[data-width]").forEach(function (entry) {
         if ((entry.getAttribute("data-width") === "phone") !== phone) entry.remove();
@@ -1788,7 +1789,6 @@ const GALLERY_SCRIPT = `
         var tag = ((e.target && e.target.tagName) || "").toLowerCase();
         if (e.metaKey || e.ctrlKey || e.altKey || tag === "input" || tag === "textarea") return;
         if (e.key === "t") root.setAttribute("data-theme", root.getAttribute("data-theme") === "dark" ? "light" : "dark");
-        if (e.key === "l") root.setAttribute("data-look", root.getAttribute("data-look") === "glass" ? "classic" : "glass");
       });
     })();
 `;
@@ -1825,7 +1825,7 @@ const familyHtml = (f) =>
  */
 export function galleryDocument(families = FAMILIES) {
   return `<!doctype html>
-<html lang="en" data-theme="dark" data-look="classic" class="legacy-on">
+<html lang="en" data-theme="dark" data-look="glass" class="legacy-on">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -1838,7 +1838,7 @@ export function galleryDocument(families = FAMILIES) {
   <div id="root"><main class="gx">
     <header class="gx-head"><h1 class="gx-title">The kit</h1>
       <p class="gx-lede">Every class in apps/dashboard/src/surfaces/kit/classes.json, drawn by the app's own stylesheets in the
-      app's order, a family at a time. Press t for the other theme and l for the other look.</p>
+      app's order, a family at a time. Press t for the other theme.</p>
     </header>
 ${families.map(familyHtml).join("\n")}
   </main></div>
@@ -1860,7 +1860,7 @@ const BEHAVES_CSS = `
  */
 export function behavesDocument(bundle = "/_hx/kit-behaves.js") {
   return `<!doctype html>
-<html lang="en" data-theme="dark" data-look="classic" class="legacy-on">
+<html lang="en" data-theme="dark" data-look="glass" class="legacy-on">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />

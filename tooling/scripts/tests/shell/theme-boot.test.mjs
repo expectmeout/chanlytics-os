@@ -167,7 +167,7 @@ test("a device that has chosen nothing opens in the app's default, not its own s
   assert.equal(themePrefOf("system"), "system");
 });
 
-test("the look is the default, Glass, until the device keeps another, and each attribute is read on its own: a value one does not know leaves the other standing", () => {
+test("the look is Glass, the one look, a kept Classic included, and each attribute is read on its own: a value one does not know leaves the other standing", () => {
   assert.equal(
     DEFAULT_LOOK_PREF,
     "glass",
@@ -175,7 +175,11 @@ test("the look is the default, Glass, until the device keeps another, and each a
   );
   assert.equal(lookPrefOf(undefined), DEFAULT_LOOK_PREF);
   assert.equal(lookPrefOf("junk"), DEFAULT_LOOK_PREF);
-  assert.equal(lookPrefOf("classic"), "classic", "a member who chose Classic keeps it");
+  assert.equal(
+    lookPrefOf("classic"),
+    DEFAULT_LOOK_PREF,
+    "a device that kept Classic wears Glass: Classic retired (step 5.7)",
+  );
   const stamped = (stored) => {
     const { theme, look } = boot({ stored, systemDark: false });
     return { theme, look };
@@ -184,13 +188,13 @@ test("the look is the default, Glass, until the device keeps another, and each a
   assert.deepEqual(stamped(null), { theme, look: DEFAULT_LOOK_PREF }, "a device that has chosen nothing");
   assert.deepEqual(
     stamped('{"theme":"light","look":"classic"}'),
-    { theme: "light", look: "classic" },
-    "one that chose",
+    { theme: "light", look: DEFAULT_LOOK_PREF },
+    "one that kept Classic, which this build no longer knows",
   );
   assert.deepEqual(
     stamped('{"theme":"junk","look":"classic"}'),
-    { theme, look: "classic" },
-    "a theme it does not know",
+    { theme, look: DEFAULT_LOOK_PREF },
+    "a theme it does not know, and a look it no longer knows",
   );
   assert.deepEqual(
     stamped('{"theme":"light","look":"junk"}'),

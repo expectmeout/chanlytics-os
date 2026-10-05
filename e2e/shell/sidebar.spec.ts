@@ -33,15 +33,12 @@ test.describe("sidebar on a real workspace", () => {
       await expect(page.locator(".app-root")).toHaveAttribute("data-theme", "light");
       await me.getByTestId("sb-theme-dark").click();
       await expect(page.locator(".app-root")).toHaveAttribute("data-theme", "dark");
-      // The look travels as the theme does: Glass, the default (contracts DEFAULT_LOOK_PREF, the interface kit's step
-      // 5.6), on a device that has chosen none, on the document and on the shell's root alike. The menu offers the Look
-      // under the theme (LOOK_OFFERED, step 5.5): Glass checked, Classic there to press; nothing is pressed here, so this
-      // device keeps the default.
+      // The look travels as the theme does: Glass, the one look since Classic retired (contracts DEFAULT_LOOK_PREF, the
+      // interface kit's steps 5.6 and 5.7), on the document and on the shell's root alike. With one look the menu offers
+      // no Look under the theme (LOOK_OFFERED): a second look turns it on again.
       await expect(page.locator("html")).toHaveAttribute("data-look", "glass");
       await expect(page.locator(".app-root")).toHaveAttribute("data-look", "glass");
-      await expect(me.getByRole("radiogroup", { name: "Look" })).toHaveCount(1);
-      await expect(me.getByTestId("sb-look-glass")).toHaveAttribute("aria-checked", "true");
-      await expect(me.getByTestId("sb-look-classic")).toBeVisible();
+      await expect(me.getByRole("radiogroup", { name: "Look" })).toHaveCount(0);
       await page.keyboard.press("Escape");
       await expect(me).toHaveCount(0);
 
