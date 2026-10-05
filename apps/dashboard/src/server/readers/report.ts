@@ -13,6 +13,7 @@ import {
   type ReportDto,
   type ReportProfile,
 } from "@chanlytics/contracts";
+import { reportSeries } from "@chanlytics/db";
 import { everyone } from "../people/people";
 import { bookingReport } from "../calendar/people-visits";
 import { dealReport } from "../people/deals";
@@ -38,9 +39,7 @@ export const report: Reader<
   async read(rc, { days }) {
     const ctx = rc.ctx;
     const tenantId = rc.tenantId;
-    const { data, error } = await ctx.supabase.rpc("report_series", { p_tenant_id: tenantId, p_days: days });
-    if (error) throw new Error(error.message);
-    const report = data as unknown as ReportDto;
+    const report = (await reportSeries(ctx.supabase, tenantId, days)) as unknown as ReportDto;
     if (!report || report.error) throw new AppError("not_found", "No workspace found for this report.", 404);
     // Asked, then booked — the one conversion line, from the calendar. Never
     // fatal: a feed that cannot be read costs this line, not the report.

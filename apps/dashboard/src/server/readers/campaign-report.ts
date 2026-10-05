@@ -1,5 +1,6 @@
 import "server-only";
 import { AppError, type CampaignReportDto } from "@chanlytics/contracts";
+import { campaignSeries } from "@chanlytics/db";
 import { stamp, type Reader } from "./index";
 
 /**
@@ -14,9 +15,7 @@ export const campaignReport: Reader<{ days: number }, { report: CampaignReportDt
   async read(rc, { days }) {
     const ctx = rc.ctx;
     const tenantId = rc.tenantId;
-    const { data, error } = await ctx.supabase.rpc("campaign_series", { p_tenant_id: tenantId, p_days: days });
-    if (error) throw new Error(error.message);
-    const report = data as unknown as CampaignReportDto;
+    const report = (await campaignSeries(ctx.supabase, tenantId, days)) as unknown as CampaignReportDto;
     if (!report || report.error) throw new AppError("not_found", "No workspace found for this report.", 404);
     return { data: { report }, rows: [], stamp: stamp() };
   },

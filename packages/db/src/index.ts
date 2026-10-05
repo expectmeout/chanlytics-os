@@ -192,6 +192,7 @@ export type {
   HeldNoticeRun,
   HandItem,
 } from "./repositories/reach-out-sheet";
+export { reportSeries, campaignSeries, reachOutReport } from "./repositories/reports";
 export { forgetNotification, noticeKept, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
 export { workspacePaused } from "./repositories/campaigns/workspace";
 export { resolveChannelDetailed, resolveChannel } from "./repositories/routing";
