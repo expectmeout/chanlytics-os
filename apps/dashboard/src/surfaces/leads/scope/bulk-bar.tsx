@@ -15,8 +15,7 @@ import {
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { gate } from "../../legacy-verbs";
-import { Sheet } from "../../kit/sheet/sheet";
-import { JOB_CANCEL, PhoneSheetRow, jobBack } from "../../people/sheets/phone-sheet";
+import { PhoneSheet, PhoneSheetRow } from "../../people/sheets/phone-sheet";
 import type { ReviewDoors } from "../bench/types";
 import { LeadNotFitWhy } from "../peek/asks";
 
@@ -90,114 +89,118 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
     onSheet(null);
     fn();
   };
-  // One sheet, its two steps: the acts, and Not a fit's whys with the way back to them. It stays drawn as it leaves.
-  const why = sheet === "why";
   return (
-    <Sheet
-      open={sheet === "more" || why}
-      shape="job"
-      title={why ? W.notFitTitle || "Not a fit" : `${count.toLocaleString()} selected`}
-      close={JOB_CANCEL}
-      back={why ? jobBack(() => onSheet("more")) : null}
-      onClose={() => onSheet(null)}
-      testid={why ? "leads-bulk-why" : "leads-bulk-sheet"}
-    >
-      {why ? (
-        <div className="pp-sheet-rows">
-          {(W.whys || []).map((w) => (
+    <>
+      {sheet === "more" && (
+        <PhoneSheet
+          title={`${count.toLocaleString()} selected`}
+          onClose={() => onSheet(null)}
+          testid="leads-bulk-sheet"
+        >
+          <div className="pp-sheet-rows">
+            {!allMatching && total > rows.length ? (
+              <PhoneSheetRow
+                icon="check"
+                label={`Select all ${total.toLocaleString()} that match`}
+                onClick={shut(p.onSelectAllMatching)}
+                testid="leads-select-matching"
+              />
+            ) : null}
+            {acts.includes("check_again") && review.canCheckAgain ? (
+              <PhoneSheetRow
+                icon="refresh"
+                label={`Check ${ids.length} again`}
+                meta={`about ${leadCheckAgainCents(ids.length)}¢`}
+                disabled={busy}
+                onClick={shut(() => review.onCheckAgain(ids))}
+                testid="leads-bulk-check-again"
+                gate={canFind ? null : gateWork}
+              />
+            ) : null}
+            {acts.includes("keep") ? (
+              <PhoneSheetRow
+                icon="check"
+                label={`Keep ${ids.length}`}
+                disabled={busy}
+                onClick={shut(() => review.onKeep(ids))}
+                testid="leads-bulk-keep"
+                gate={canFind ? null : gateWork}
+              />
+            ) : null}
+            {acts.includes("exclude") ? (
+              <PhoneSheetRow
+                icon="x"
+                label={`Exclude ${ids.length}`}
+                disabled={busy}
+                onClick={shut(() => review.onExclude(ids))}
+                testid="leads-bulk-exclude"
+                gate={canFind ? null : gateWork}
+              />
+            ) : null}
             <PhoneSheetRow
-              key={w.id}
-              label={w.label}
+              icon="copy"
+              label="Copy emails"
               disabled={busy}
-              onClick={shut(() => p.onNotAFit(w.id, scope("not_a_fit")))}
-              testid={`leads-bulk-why-${w.id}`}
+              onClick={shut(() => p.onCopyEmails(picked))}
+              testid="leads-bulk-copy"
             />
-          ))}
-        </div>
-      ) : (
-        <div className="pp-sheet-rows">
-          {!allMatching && total > rows.length ? (
+            {p.write}
             <PhoneSheetRow
-              icon="check"
-              label={`Select all ${total.toLocaleString()} that match`}
-              onClick={shut(p.onSelectAllMatching)}
-              testid="leads-select-matching"
-            />
-          ) : null}
-          {acts.includes("check_again") && review.canCheckAgain ? (
-            <PhoneSheetRow
-              icon="refresh"
-              label={`Check ${ids.length} again`}
-              meta={`about ${leadCheckAgainCents(ids.length)}¢`}
+              icon="ban"
+              label="Not a fit"
+              next
               disabled={busy}
-              onClick={shut(() => review.onCheckAgain(ids))}
-              testid="leads-bulk-check-again"
-              gate={canFind ? null : gateWork}
+              onClick={() => onSheet("why")}
+              testid="leads-bulk-not-a-fit"
+              gate={canFind ? null : gate("find", "mark these leads not a fit")}
             />
-          ) : null}
-          {acts.includes("keep") ? (
-            <PhoneSheetRow
-              icon="check"
-              label={`Keep ${ids.length}`}
-              disabled={busy}
-              onClick={shut(() => review.onKeep(ids))}
-              testid="leads-bulk-keep"
-              gate={canFind ? null : gateWork}
-            />
-          ) : null}
-          {acts.includes("exclude") ? (
-            <PhoneSheetRow
-              icon="x"
-              label={`Exclude ${ids.length}`}
-              disabled={busy}
-              onClick={shut(() => review.onExclude(ids))}
-              testid="leads-bulk-exclude"
-              gate={canFind ? null : gateWork}
-            />
-          ) : null}
-          <PhoneSheetRow
-            icon="copy"
-            label="Copy emails"
-            disabled={busy}
-            onClick={shut(() => p.onCopyEmails(picked))}
-            testid="leads-bulk-copy"
-          />
-          {p.write}
-          <PhoneSheetRow
-            icon="ban"
-            label="Not a fit"
-            next
-            disabled={busy}
-            onClick={() => onSheet("why")}
-            testid="leads-bulk-not-a-fit"
-            gate={canFind ? null : gate("find", "mark these leads not a fit")}
-          />
-          {canExport ? (
-            <a
-              className="pp-sheet-row"
-              href={exportHref || undefined}
-              download
-              onClick={() => onSheet(null)}
-              data-testid="leads-bulk-export"
-            >
-              <Icon name="external" size={16} />
-              <span className="pp-sheet-row-words">Export</span>
-              <span className="pp-sheet-row-meta">CSV</span>
-            </a>
-          ) : (
-            <PhoneSheetRow
-              icon="external"
-              label="Export"
-              meta="CSV"
-              onClick={() => undefined}
-              gate={gate("export", "export these leads")}
-              testid="leads-bulk-export"
-            />
-          )}
-          {whyNot ? <p className="pp-sheet-hint pp-sheet-rows-note">{whyNot}</p> : null}
-        </div>
+            {canExport ? (
+              <a
+                className="pp-sheet-row"
+                href={exportHref || undefined}
+                download
+                onClick={() => onSheet(null)}
+                data-testid="leads-bulk-export"
+              >
+                <Icon name="external" size={16} />
+                <span className="pp-sheet-row-words">Export</span>
+                <span className="pp-sheet-row-meta">CSV</span>
+              </a>
+            ) : (
+              <PhoneSheetRow
+                icon="external"
+                label="Export"
+                meta="CSV"
+                onClick={() => undefined}
+                gate={gate("export", "export these leads")}
+                testid="leads-bulk-export"
+              />
+            )}
+            {whyNot ? <p className="pp-sheet-hint pp-sheet-rows-note">{whyNot}</p> : null}
+          </div>
+        </PhoneSheet>
       )}
-    </Sheet>
+      {sheet === "why" && (
+        <PhoneSheet
+          title={W.notFitTitle || "Not a fit"}
+          onBack={() => onSheet("more")}
+          onClose={() => onSheet(null)}
+          testid="leads-bulk-why"
+        >
+          <div className="pp-sheet-rows">
+            {(W.whys || []).map((w) => (
+              <PhoneSheetRow
+                key={w.id}
+                label={w.label}
+                disabled={busy}
+                onClick={shut(() => p.onNotAFit(w.id, scope("not_a_fit")))}
+                testid={`leads-bulk-why-${w.id}`}
+              />
+            ))}
+          </div>
+        </PhoneSheet>
+      )}
+    </>
   );
 }
 

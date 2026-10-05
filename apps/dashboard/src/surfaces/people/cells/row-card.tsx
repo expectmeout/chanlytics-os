@@ -50,13 +50,7 @@ export function plRowCard({
 }): ReactElement<{ className?: string }> {
   const holds = face.glyph ? { glyph: <Icon name={face.glyph} size={12} /> } : { initials: face.initials ?? "" };
   return (
-    // A row that slides takes its own touch: the strip of views over the page is not walked by it (surface-tabs.jsx).
-    <td
-      key="card"
-      className="pl-card-cell"
-      data-swipe={grounds ? "" : undefined}
-      data-own-drag={grounds ? "" : undefined}
-    >
+    <td key="card" className="pl-card-cell" data-swipe={grounds ? "" : undefined}>
       {grounds}
       <ListRow
         {...(swipe || {})}

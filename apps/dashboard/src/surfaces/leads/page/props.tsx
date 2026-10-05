@@ -3,7 +3,6 @@
  * head and the table; the band, the map, the bench and the list's empty state; the selection and its bulk bar, and the
  * rail's doors; a kept search's acts, the plan panel and the peek; the strip, the next page and the first day.
  */
-import type { RefObject } from "react";
 import {
   isLeadList,
   type leadBand,
@@ -50,8 +49,6 @@ export type LeadsPage = Controls &
   Place & {
     people: PeopleRead;
     leads: LeadsSurface;
-    /** The table's element for the kit's swap rise (kit/motion): the rows rise as a view's rows land. */
-    swap: RefObject<HTMLTableElement | null>;
     nav: LeadsNav;
     onOpenProfile: (id: string) => void;
     leadView: LeadView;
@@ -113,7 +110,6 @@ export const leadsListProps = (p: LeadsPage) => {
       (!isOwnList(openSearch) ? p.ldStrip(openSearch, new Date(), { offered: leads.offered }) : null),
     reachOutStrip: openSearch && reachOut ? <ReachOutLeadsStrip leads={reachOut} /> : null,
     rows: leadShown,
-    swapRef: p.swap,
     rowBudget: p.rowBudget,
     phone: p.phone,
     // The rows drawn are the last view's, or its last order, until the surface holds the one the address names in the
@@ -123,6 +119,9 @@ export const leadsListProps = (p: LeadsPage) => {
     total: leads.counts[leadView.list] ?? leads.counts.all,
     columns: p.columns,
     colOptions: p.colOptions,
+    colsOpen: p.colsOpen,
+    colsButton: p.colsButton,
+    onColsOpen: p.setColsOpen,
     onPickColumn: p.pickColumn,
     cellCtx: p.cellCtxLeads,
     sortBy: p.sortBy,

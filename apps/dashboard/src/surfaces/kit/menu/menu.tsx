@@ -59,22 +59,9 @@ export type MenuChoice = {
   options: readonly { value: string; label: string }[];
 };
 
-/**
- * A set of switches the menu stays open over while each is flipped (a table's columns): each ticked while it is on. One
- * the page keeps on (`locked`, the word said in place of a flip: "Always") is drawn on, and refuses a press.
- */
-export type MenuToggles = {
-  items: readonly { value: string; label: string; on: boolean; locked?: string }[];
-  onToggle: (value: string) => void;
-  /** The tick (the Icon's `check`, at 13px): drawn on every switch, and seen beside each one that is on (kit.css). */
-  tick: ReactElement;
-};
-
-/** A group of the menu: its items, a set to choose from, or a set of switches, under a heading or none. A line parts two groups. */
+/** A group of the menu: its items, or a set to choose from, under a heading or none. A line parts two groups. */
 export type MenuGroup = { header?: string } & (
-  | { items: readonly MenuItem[]; choose?: undefined; toggles?: undefined }
-  | { choose: MenuChoice; items?: undefined; toggles?: undefined }
-  | { toggles: MenuToggles; items?: undefined; choose?: undefined }
+  { items: readonly MenuItem[]; choose?: undefined } | { choose: MenuChoice; items?: undefined }
 );
 
 /** A menu: what opens it, its groups, the edge it hangs from, and its name where its control's words are not. */
@@ -151,37 +138,9 @@ function Choice({ choose }: { choose: MenuChoice }) {
   );
 }
 
-/**
- * A set of switches: a checkbox item each, which flips as it is pressed and leaves the menu open, so the next can be
- * flipped; a locked one is disabled, drawn on, its word at its end.
- */
-function Toggles({ toggles }: { toggles: MenuToggles }) {
-  return (
-    <>
-      {toggles.items.map((t) => (
-        <BaseMenu.CheckboxItem
-          key={t.value}
-          className={itemClasses()}
-          nativeButton
-          render={<button type="button" />}
-          label={t.label}
-          checked={t.on}
-          disabled={t.locked !== undefined}
-          closeOnClick={false}
-          onCheckedChange={() => toggles.onToggle(t.value)}
-        >
-          {itemContent({ label: t.label, glyph: toggles.tick, meta: t.locked })}
-        </BaseMenu.CheckboxItem>
-      ))}
-    </>
-  );
-}
-
-/** A group: its heading, which names it, over its items, its set, or its switches. */
+/** A group: its heading, which names it, over its items or its set. */
 function Group({ group }: { group: MenuGroup }) {
-  const body = group.toggles ? (
-    <Toggles toggles={group.toggles} />
-  ) : group.choose ? (
+  const body = group.choose ? (
     <Choice choose={group.choose} />
   ) : (
     group.items.map((item, at) => <Item key={at} item={item} />)

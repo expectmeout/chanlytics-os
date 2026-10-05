@@ -130,12 +130,12 @@ const pageRouteOf = (pathname: string): string => {
 };
 
 /**
- * The frame, drawn once and again for each route: `page` is the children while the address is a route with a page of
- * its own, and nothing otherwise; `route` is the route of the router's pathname, the one the pages read, so the frame
- * and the page move in the same render (app-shell.jsx `routeNow`). Null on the home, which has no route.
+ * The frame, drawn once: the layout's children change with every route, and the frame does not draw again for a
+ * route it follows itself. `page` is the children while the address is a route with a page of its own, and nothing
+ * otherwise, so a move between the shell's own routes changes no prop of the frame.
  */
-const Frame = memo(function Frame({ page, route }: { page: ReactNode; route: string | null }) {
-  return <LegacyApp routePage={page} route={route} />;
+const Frame = memo(function Frame({ page }: { page: ReactNode }) {
+  return <LegacyApp routePage={page} />;
 });
 
 /**
@@ -219,10 +219,7 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
         </Suspense>
       )}
       {!home && <AddressFollower />}
-      <Frame
-        page={!home && routeHasPage(pageRouteOf(pathname)) ? children : null}
-        route={home ? null : routeOfPath(pathname) || "today"}
-      />
+      <Frame page={!home && routeHasPage(pageRouteOf(pathname)) ? children : null} />
     </>
   );
 }

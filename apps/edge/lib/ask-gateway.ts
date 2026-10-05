@@ -20,6 +20,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   ASK_MAX_TOKENS,
+  ASK_WARM_MAX_TOKENS,
   MODELS,
   MODEL_EFFORTS,
   MODEL_ROUTES,
@@ -170,16 +171,24 @@ export interface GatewayRequest {
 
 const EFFORTS: ReadonlySet<string> = new Set(MODEL_EFFORTS);
 
-/** What the gateway spends the key on. Every purpose counts in Ask's own daily budget (ASK_USAGE_KIND). */
-export const GATEWAY_PURPOSES = ["ask", "lead_draft", "lead_suggest", "list_draft"] as const;
+/**
+ * What the gateway spends the key on. Every purpose counts in Ask's own daily budget (ASK_USAGE_KIND). A warm
+ * (`ask_warm`) is Ask's turn in everything but what it is for: the head of a turn's first request, sent ahead of the
+ * question so the model's cache is written before it arrives (the dashboard's server/ask/warm.ts). It is held to what a
+ * turn is held to, may write next to nothing (ASK_WARM_MAX_TOKENS), and its usage row says `ask_warm`, so what counts
+ * Ask's rounds by `purpose: "ask"` (ops/ask-day.mjs, the eval) counts no round of it.
+ */
+export const GATEWAY_PURPOSES = ["ask", "ask_warm", "lead_draft", "lead_suggest", "list_draft"] as const;
 export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];
+/** Whether a purpose is Ask's own: its turn, or a turn's warm. */
+const isAsk = (purpose: GatewayPurpose): boolean => purpose === "ask" || purpose === "ask_warm";
 
 /**
  * The registry's purpose a gateway purpose is asked as (contracts ai/models.ts): Ask's turn is Ask's route (the template
  * drafter's rounds come as Ask's too), the lead and list drafts the small JSON route. The route names the fallback.
  */
 export function modelPurposeOf(purpose: GatewayPurpose): ModelPurpose {
-  return purpose === "ask" ? "ask" : "lead_json";
+  return isAsk(purpose) ? "ask" : "lead_json";
 }
 /** What Ask's daily budget counts: the gateway's purposes, and the reach-out sheet's preview (its own door, R12). */
 type AskUsagePurpose = GatewayPurpose | "reach_out_preview";
@@ -235,7 +244,11 @@ export const GATEWAY_MAX_BODY = 700_000;
 
 /** Whether a purpose's request may name this model: Ask any that reads as one, a small draft the list's. */
 const mayName = (purpose: GatewayPurpose, model: string): boolean =>
-  purpose === "ask" ? readsAsModel(model) : GATEWAY_MODELS.includes(model);
+  isAsk(purpose) ? readsAsModel(model) : GATEWAY_MODELS.includes(model);
+
+/** The most a purpose's request may write: Ask's turn its own ceiling, a warm next to nothing, a draft the drafts'. */
+const ceilingOf = (purpose: GatewayPurpose): number =>
+  purpose === "ask" ? ASK_MAX_TOKENS : purpose === "ask_warm" ? ASK_WARM_MAX_TOKENS : GATEWAY_MAX_TOKENS;
 
 /** A request the gateway will not send: `bad_request`, with the rule it broke in `detail`. */
 const badRequest = (detail: string) => ({ ok: false as const, error: "bad_request" as const, detail });
@@ -248,8 +261,7 @@ export function validateGatewayRequest(
   if (!r || typeof r !== "object") return badRequest("request required");
   const model = typeof r.model === "string" ? r.model : GATEWAY_FALLBACK_MODEL;
   if (!mayName(purpose, model)) return badRequest("unknown model");
-  const cap = purpose === "ask" ? ASK_MAX_TOKENS : GATEWAY_MAX_TOKENS;
-  const maxTokens = Math.min(cap, Math.max(64, Math.round(num(r.max_tokens) || 800)));
+  const maxTokens = Math.min(ceilingOf(purpose), Math.max(64, Math.round(num(r.max_tokens) || 800)));
   if (!Array.isArray(r.messages) || !r.messages.length || r.messages.length > GATEWAY_MAX_MESSAGES) {
     return badRequest(`messages: 1-${GATEWAY_MAX_MESSAGES} turns`);
   }

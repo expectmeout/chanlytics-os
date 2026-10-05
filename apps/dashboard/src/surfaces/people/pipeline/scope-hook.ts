@@ -42,8 +42,7 @@ export function usePipelineState(props: PipelineScopeProps) {
   place.keysWith({
     open: doors.openPeek,
     canSelect: r.selectable,
-    // New proposal on a phone is the kit's sheet, in PL_OVERLAY while open and closed on its own Esc.
-    sheetOpen: ui.listsOpen || (ui.newOpen && !f.controls.phone),
+    sheetOpen: ui.listsOpen || ui.newOpen,
     closeSheet: closeSheets,
     peekOpen: !!ui.peekId,
     closePeek: doors.closePeek,

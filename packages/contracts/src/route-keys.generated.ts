@@ -95,6 +95,7 @@ export const ROUTE_KEYS = [
   "POST ask/voice/end",
   "POST ask/voice/page",
   "POST ask/warm",
+  "POST ask/warm/model",
   "POST billing/checkout",
   "POST billing/portal",
   "POST billing/resume",

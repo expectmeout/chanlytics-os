@@ -2,6 +2,7 @@
  * The table's columns, for any rows (moved whole from legacy/pages/people-table.jsx, decision 0015): every helper takes
  * the column list, so People's PL_COLUMNS and the Leads scope's own go through the same rules.
  */
+import type { ReactNode } from "react";
 import type { ColCtx, TableColumn } from "../types";
 
 /** A column of any rows: what a scope hands the table. */
@@ -48,21 +49,12 @@ export const plColumnChoices = (columns: readonly ColumnLike[], raw: unknown): R
   return out;
 };
 
-/** A row of the Columns menu: the column's key, its heading's words, whether it shows, and whether it always does. */
-export type ColumnOption = { key: string; label: string; on: boolean; locked: boolean };
-
-/**
- * The Columns menu's rows: every column this workspace can show, whether it shows, and Person, which always does. A
- * switch is named by its words, which typing finds, so a column headed by no words (the Pipeline's chip and acts, a
- * screen reader's alone) is not one: each such column is fixed as well.
- */
+/** The Columns menu's rows: every column this workspace can show, whether it shows, and Person, which always does. */
 export const plColumnOptions = (
   columns: readonly ColumnLike[],
   choices: Record<string, boolean>,
   x: ColCtx,
-): ColumnOption[] =>
-  columns.flatMap((c) =>
-    !c.fixed && (!c.needs || c.needs(x)) && typeof c.label === "string"
-      ? [{ key: c.key, label: c.label, on: plShows(c, choices, x), locked: !!c.pinned }]
-      : [],
-  );
+): { key: string; label: ReactNode; on: boolean; locked: boolean }[] =>
+  columns
+    .filter((c) => !c.fixed && (!c.needs || c.needs(x)))
+    .map((c) => ({ key: c.key, label: c.label, on: plShows(c, choices, x), locked: !!c.pinned }));
