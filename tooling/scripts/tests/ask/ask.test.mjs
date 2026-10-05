@@ -1489,8 +1489,31 @@ test("the cross-page reads: what a question names plainly of another page is rea
   assert.deepEqual(names("any drafts held?", "inbox"), []);
   assert.deepEqual(names("what's on the calendar tomorrow?", "calendar"), []);
   assert.deepEqual(names("what playbooks are running right now?", "campaigns"), []);
-  for (const surface of ["today", "conversations", "live"])
-    assert.deepEqual(names("any missed calls today?", surface), []);
+  for (const surface of ["conversations", "live"]) assert.deepEqual(names("any missed calls today?", surface), []);
+  // Today counts the day's calls and lists none of them: a question about them reads the list there too.
+  assert.deepEqual(names("Were there any calls today?", "today"), ['calls {"action":"list","filter":"recent"}']);
+  // The questions that cost a second round in production (the week to 5 Oct 2026), each read ahead now. How things
+  // stand, asked in the open: Today's own read and the week's report; on Today the page is the context already.
+  assert.deepEqual(names("Hey how's the business", "calendar"), ["today {}", 'report {"days":7}']);
+  assert.deepEqual(names("¿cómo va el negocio?", "inbox"), ["today {}", 'report {"days":7}']);
+  assert.deepEqual(names("catch me up"), ["today {}", 'report {"days":7}']);
+  assert.deepEqual(names("What should I do next?", "today"), ['report {"days":7}']);
+  // What is booked, however it is asked.
+  assert.deepEqual(names("What do I have tomorrow?", "today"), ['calendar {"action":"week","day":"tomorrow"}']);
+  assert.deepEqual(names("Who are the upcoming bookings", "today"), ['calendar {"action":"week","day":"today"}']);
+  assert.deepEqual(names("who do I have on friday?"), ['calendar {"action":"week","day":"fri"}']);
+  assert.deepEqual(names("¿qué tengo mañana?"), ['calendar {"action":"week","day":"tomorrow"}']);
+  assert.deepEqual(names("what's my schedule on saturday?"), ['calendar {"action":"week","day":"sat"}']);
+  assert.deepEqual(names("What do I have tomorrow?", "calendar"), []);
+  // Where the deals stand, off the Pipeline.
+  assert.deepEqual(names("Who has a proposal out?", "calendar"), ['people {"action":"pipeline"}']);
+  assert.deepEqual(names("how is the pipeline looking?", "today"), ['people {"action":"pipeline"}']);
+  assert.deepEqual(names("Who has a proposal out?", "pipeline"), []);
+  // Who wrote, off the Inbox; a held draft asked for in the same breath is the one list read.
+  assert.deepEqual(names("Who wrote today?", "today"), ['inbox {"action":"list","filter":"recent"}']);
+  assert.deepEqual(names("any new messages?"), ['inbox {"action":"list","filter":"recent"}']);
+  assert.deepEqual(names("any new messages?", "inbox"), []);
+  assert.deepEqual(names("any new messages or drafts held?"), ['inbox {"action":"list","filter":"held"}']);
   // On Reports a report is read only for a period other than the one on screen.
   assert.deepEqual(names("how did the last 30 days go?", "reports", "30"), []);
   assert.deepEqual(names("how did the last 7 days go?", "reports", "30"), ['report {"days":7}']);
@@ -1501,6 +1524,10 @@ test("the cross-page reads: what a question names plainly of another page is rea
     "close the salon this coming Friday for a family matter",
     "invite maria.reception@example.com as a viewer",
     "let the receptionist decide refunds on its own",
+    "send Maria the booking link",
+    "schedule the reminder for 9am",
+    "what should I do about the refund she asked for?",
+    "how is Maria doing?",
   ]) {
     assert.deepEqual(names(q), [], q);
   }

@@ -250,6 +250,34 @@ deployment's profile (Opus 5.5 by default, low effort); the gate re-runs with sp
 
 ### 3.5 The Line, listening
 
+> **Amended 5 Oct 2026, later: a spoken turn is a turn.** The Line drew a turn twice: a typed one from the stream's
+> events (`thread`, `trace`, `say`, `final`), a spoken one from the voice module's actions, by code of its own
+> that missed what the typed path had (a turn a later question had replaced still drew; a turn that failed vanished as
+> the voice stopped). Now:
+>
+> - **The bridge runs the spoken turn** (`legacy-bridge/ask/spoken.ts`, the Line's `A.sendSpoken`): it waits the
+>   lift's patience for the session, hands it the words, and tells the Line the stream's own events: `thread` as the
+>   session takes the words, `trace` and `say` as the agent speaks, `final` with the stored answer read off the
+>   thread when the turn lands or the session ends under it. The thread is read as the words go, too, so only an
+>   answer it did not already hold is this turn's. A turn that ended with nothing new stored says the agent's own
+>   words as what went wrong (a refusal the door speaks is never stored); it answers false, having told nothing, when
+>   the words must go the typed way.
+> - **Who hears what in the voice module:** a turn's listener is given with its words (`sayVoice(text, on)`); whoever
+>   follows the session itself, the mic's ring and the three, watches it (`watchVoice`: the agent's mode, every end, a
+>   start that failed). A press and a lift give no listener. The module no longer tells a `question`: whoever asked
+>   drew it.
+> - **The agent's client is fetched as the Line opens** (`warmVoice`), not on the first press, and the member's token
+>   is refreshed before a session only when it has less than fifteen minutes left (the session's ten and a margin; it
+>   was thirty-five, from when a conversation could run thirty), so a press rarely waits on either.
+> - **A page that dies under a session says so when it comes back.** The session leaves a mark in the tab while it
+>   runs; a clean end takes it away; a page that finds one tells the row `died:<how the page loaded>:<device>`, a
+>   word outside the closed set that the end route keeps on its log line (5 Oct: a phone reloaded the page mid-answer
+>   and the row could say nothing of why).
+> - **Unchanged, and measured on production the same day:** `agent_response_complete` arrives when the agent has
+>   finished SPEAKING (26 s after the model finished, for a long answer), not when it finished generating. So a turn
+>   is live for as long as the agent speaks, the recogniser does not listen meanwhile, and "the next hold cuts it off"
+>   below has never held. Cutting in needs the vendor's behaviour on an interrupted turn measured first.
+>
 > **Amended 5 Oct 2026, after a review of the hold as built.** Seven things the evening's design said and the code
 > did not do, or did not say at all; each is held by a test now (voice-module, speech-module, one-voice, voice-door,
 > elevenlabs-agent, ask-palette):

@@ -15,10 +15,10 @@
  * made, `speak` rejects with the server's words and the caller says them; where the device would not play it, with
  * words that say to tap again; nothing else speaks.
  */
-import { ASK_SPEECH_MAX_CHARS } from "@chanlytics/contracts";
+import { ASK_SPEECH_MAX_CHARS, type SpeechPurpose } from "@chanlytics/contracts";
 import type { AskApiCalls } from "./api";
 
-export type SpeechPurpose = "brief" | "answer";
+export type { SpeechPurpose };
 export type SpeechState = "idle" | "loading" | "speaking";
 
 interface SpeechWindow {

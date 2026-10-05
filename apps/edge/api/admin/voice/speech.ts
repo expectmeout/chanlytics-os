@@ -16,13 +16,13 @@ import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/admin-auth
 import { readBody } from "../../../lib/admin-door.js";
 import { mayUseModelFor } from "../../../lib/model.js";
 import { askSpeechConfigured, speakAskVoice } from "../../../lib/voice/ask-voice.js";
-import { ASK_SPEECH_MAX_CHARS, UUID } from "../../../lib/packages/contracts.js";
+import { ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES, UUID } from "../../../lib/packages/contracts.js";
 import { logger, adminDoor } from "../../../lib/log.js";
 
 const L = logger();
 
 const AUD = "/api/admin/voice/speech";
-const PURPOSES = new Set(["brief", "answer"]);
+const PURPOSES = new Set<string>(SPEECH_PURPOSES);
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const t0 = Date.now();

@@ -50,10 +50,12 @@ export const ASK_VOICE_FIRST_WORDS_MS = 2_500;
  */
 export const ASK_VOICE_CLAIM_STALE_MS = MIN_MS;
 /**
- * The least life the member's token must have when a conversation starts (the agent's conversation may run thirty
- * minutes): the browser refreshes a shorter one first, so the brain door opens the member to the end.
+ * The least life the member's token must have when a voice session starts: the session's own ceiling (ten minutes,
+ * the agent's `max_duration_seconds`; elevenlabs-agent.test.mjs holds the two together) and a margin. The browser
+ * refreshes a shorter one first, so the brain door opens the member to the end. It was thirty-five minutes while a
+ * conversation could run thirty, which put a refresh's round trip before most presses of a one-hour token.
  */
-export const ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
+export const ASK_VOICE_TOKEN_MIN_MS = 15 * MIN_MS;
 /**
  * Ask's one voice, wherever it speaks: the agent's conversation (tooling/scripts/voice/elevenlabs-agent-config.mjs)
  * and the speech route that reads a brief or an answer aloud (apps/edge/lib/voice/ask-voice.ts). Ruben's pick, 4 Oct
@@ -69,14 +71,20 @@ export const ASK_VOICE_ID = "UgBBYS2sOqTuMpoF3BR0";
 export const ASK_VOICE_MODEL = "eleven_turbo_v2";
 /** The most one speech request reads aloud: a brief runs 400 to 800 characters, an answer's say under 600. */
 export const ASK_SPEECH_MAX_CHARS = 1500;
+/** What a clip read aloud is: Today's brief, or an answer's say. For the log alone; both are read the same way. */
+export const SPEECH_PURPOSES = ["brief", "answer"] as const;
+export type SpeechPurpose = (typeof SPEECH_PURPOSES)[number];
 /**
- * How a voice conversation ended, the browser's word, one of a closed set the row keeps (00300, 00302): a press
- * (Clear; End, while the mic had a tap), typing, a new conversation in its place, the Line closing, the far side
+ * How a voice session ended, the browser's word, one of a closed set the row keeps (00300, 00302): a press
+ * (Clear), a typed question, another use of the voice in its place, the Line closing, the far side
  * ending it, a start that never came up, or a minute with nothing asked (`idle`, since the hold is the one mic and the
  * session waits silently between questions). The voice doctor groups by it; "stopped" said nothing.
  */
 export const VOICE_END_REASONS = ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"] as const;
 export type VoiceEndReason = (typeof VOICE_END_REASONS)[number];
+/** Whether a word is one of the set: an older bundle's, or the vendor's own, is not, and is kept on a log line alone. */
+export const isVoiceEndReason = (word: string | null | undefined): word is VoiceEndReason =>
+  (VOICE_END_REASONS as readonly string[]).includes(word ?? "");
 /**
  * How long a voice session waits with nothing asked before the browser ends it (`idle`): a minute, long enough for a
  * follow-up, short enough that a session left open costs a minute of the vendor's and not ten. The agent's own

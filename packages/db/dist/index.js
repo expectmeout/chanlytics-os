@@ -2273,11 +2273,10 @@ async function messageSenders(db, tenantId, ids) {
 }
 
 // src/ask-voice-session.ts
-import { VOICE_END_REASONS } from "../../contracts/dist/index.js";
+import { isVoiceEndReason } from "../../contracts/dist/index.js";
 var VOICE_SESSION_COLUMNS = "id, tenant_id, user_id, thread_id, conversation_id, token_cipher, token_expires_at, surface, scope, context, language, turn_key, turn_started_at, duration_s, created_at, ended_at, end_reason, connect_ms, first_audio_ms";
 function voiceRowOf(r) {
-  const ended = VOICE_END_REASONS.includes(r.end_reason ?? "") ? r.end_reason : null;
-  return { ...r, end_reason: ended };
+  return { ...r, end_reason: isVoiceEndReason(r.end_reason) ? r.end_reason : null };
 }
 async function insertVoiceSession(db, row) {
   const { error } = await db.from("ask_voice_sessions").insert(row);

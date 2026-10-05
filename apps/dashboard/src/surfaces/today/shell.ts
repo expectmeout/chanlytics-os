@@ -12,6 +12,7 @@
  */
 import { useCallback, useSyncExternalStore } from "react";
 import type { ComponentType } from "react";
+import type { SpeechPurpose } from "@chanlytics/contracts";
 import type { BellApi } from "@/legacy-bridge/notifications";
 import type { PageClock } from "@/legacy-bridge/zone";
 import { surfaceHook } from "@/legacy-bridge/surface-status";
@@ -59,7 +60,7 @@ interface AskSpeech {
   /** Hear every change of state; answers the stop. */
   watchSpeech(on: () => void): () => void;
   /** Read these words; resolves once the clip plays (or was stopped first); rejects, in the server's words, when it could not be made. */
-  speak(text: string, purpose: "brief" | "answer"): Promise<void>;
+  speak(text: string, purpose: SpeechPurpose): Promise<void>;
   /** Stop reading, or stop waiting for the clip. */
   stopSpeaking(): void;
 }

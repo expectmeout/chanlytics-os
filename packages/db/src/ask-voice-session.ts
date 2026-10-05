@@ -11,7 +11,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 // The closed set is contracts' (ask/ask.ts VOICE_END_REASONS): the route takes it from there, the row type reads it
 // from here, and 00300's CHECK holds the table to the same words.
-import { VOICE_END_REASONS, type VoiceEndReason } from "@chanlytics/contracts";
+import { isVoiceEndReason, type VoiceEndReason } from "@chanlytics/contracts";
 import type { Database, Json } from "./database.types";
 
 type Db = SupabaseClient<Database>;
@@ -68,10 +68,7 @@ type StoredRow = Omit<VoiceSessionRow, "end_reason"> & { end_reason: string | nu
 
 /** The row as stored, with its closed set read as the set (00300's CHECK holds it; a value outside is read as none). */
 function voiceRowOf(r: StoredRow): VoiceSessionRow {
-  const ended = (VOICE_END_REASONS as readonly string[]).includes(r.end_reason ?? "")
-    ? (r.end_reason as VoiceEndReason)
-    : null;
-  return { ...r, end_reason: ended };
+  return { ...r, end_reason: isVoiceEndReason(r.end_reason) ? r.end_reason : null };
 }
 
 /** The row, as the member (RLS: their own, on a thread of their own in the workspace). */

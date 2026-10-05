@@ -58,6 +58,7 @@ import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "../playbooks/playbooks"
 import type { TEMPLATE_CATEGORIES } from "../templates/templates";
 import type { PUSH_PLATFORMS } from "../today/push";
 import type { PAGE_VITALS } from "../shell/vitals";
+import type { VOICE_END_REASONS } from "../ask/ask";
 import type { DMARC_STATES, DOMAIN_HOLDS, DOMAIN_RESUMERS, SENDING_DOMAIN_STATES } from "../email/sending-domains";
 import type {
   LEAD_CLOSED_REASONS,
@@ -213,4 +214,6 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof DOMAIN_RESUMERS>, SchemaSet<"sending_domains.resume_by">>>,
   // Field data (00255): the five numbers a page load reports.
   Holds<Exactly<Of<typeof PAGE_VITALS>, SchemaSet<"page_vitals.metric">>>,
+  // How a voice session ended (00300, 00302): the browser's word, kept on the row.
+  Holds<Exactly<Of<typeof VOICE_END_REASONS>, SchemaSet<"ask_voice_sessions.end_reason">>>,
 ];
