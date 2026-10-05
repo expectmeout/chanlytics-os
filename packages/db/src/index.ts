@@ -98,6 +98,8 @@ export {
   replyUndoableOf,
   undoReplyReading,
   markReplyTold,
+  resolveEscalationByReason,
+  archiveConversation,
   reachOutDayDue,
 } from "./repositories/outreach";
 export type {

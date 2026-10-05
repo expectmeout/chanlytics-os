@@ -19,6 +19,11 @@
  *     waiting, hands it to a job of its own (stage "draft"), and tells without it; that job tells nobody.
  *   - The notice, in two phases (B2): the claim, then the telling, then the mark only once the owner was told. A
  *     telling that failed throws, so the ledger tries again once the claim has gone stale; told is never marked before.
+ *   - What the intake opened, the reading closes (closeWhatTheIntakeOpened): the intake flags every reach-out reply
+ *     that is not an automatic one for a person (email_review), since until it is read nobody knows what it means. A
+ *     no resolves that flag and archives the thread; a wrong person and a not now resolve the flag; the rest leave it
+ *     to a person. An automatic reply was never flagged, so its reading closes nothing. The applying run's, after the
+ *     apply and before the notice.
  *
  * It sends nothing to the business. The pages (PRs 7 and 8) come later.
  */
@@ -139,8 +144,19 @@ export interface ReplyReadPorts {
   markDraft(tenantId: string, messageId: string, mark: DraftMark): Promise<boolean>;
   /** This message's next read, or its draft, at most once per stage. */
   scheduleOnce(at: number, payload: { message_id: string; stage: string }): Promise<"scheduled" | "already_scheduled">;
+  /**
+   * The thread's open flag of this reason resolved as the platform's own close: no member is named as resolving it and
+   * no decision is recorded. True iff a row changed; false when none was open for that reason (a person resolved it
+   * first, or it was replaced by another). A write that fails throws.
+   */
+  resolveEscalation(tenantId: string, conversationId: string, reason: typeof INTAKE_FLAG): Promise<boolean>;
+  /** The thread archived (contracts' archive move, whole), unless it is archived already. True iff a row changed. A write that fails throws. */
+  archiveConversation(tenantId: string, conversationId: string): Promise<boolean>;
   now(): number;
 }
+
+/** The flag the intake raises on a reach-out reply's thread (email-ingest.ts flagForAPerson): what a reading may close. */
+const INTAKE_FLAG = "email_review" as const;
 
 export interface ReadReplyCommand {
   tenantId: string;
@@ -246,6 +262,31 @@ async function draftStage(
   return (await ports.reading(cmd.tenantId, cmd.messageId))?.draftText ?? null;
 }
 
+/**
+ * What the intake opened, the reading closes. The intake flags every reach-out reply but an automatic one for a person
+ * (email_review, "They wrote back to your reach-out..."), since until it is read nobody knows what it means; a reading
+ * that leaves a person nothing to do on the thread closes the flag, or the Inbox says "Said no" and "Needs you" of one
+ * thread. A no closes the thread too: archived, contracts' archive move, and their next email reopens it as ingest's
+ * reopen does any closed thread. A wrong person and a not now resolve the flag alone: the step on Today is what is left
+ * to do. An interested, a question, an away and an other leave the flag: a person answers, or reads. An automatic
+ * reply's reading closes nothing, since the intake opened nothing for it: a flag on its thread is another email's, a
+ * person's, and a robot's "remove us" is not the answer to it. The platform's own close, so no decision is recorded
+ * and no member is named, as settle.ts flags and 00222 applies. Each write is counted and guarded in the repository,
+ * so a thread archived or a flag resolved already changes nothing.
+ */
+async function closeWhatTheIntakeOpened(
+  ports: Pick<ReplyReadPorts, "resolveEscalation" | "archiveConversation">,
+  tenantId: string,
+  conversationId: string,
+  read: { intent: ReplyIntent; claim: ReplyClaim },
+): Promise<void> {
+  const { intent, claim } = read;
+  if (claim === "auto_reply") return;
+  if (intent !== "no" && intent !== "wrong_person" && intent !== "not_now") return;
+  await ports.resolveEscalation(tenantId, conversationId, INTAKE_FLAG);
+  if (intent === "no") await ports.archiveConversation(tenantId, conversationId);
+}
+
 /** The draft's own job: drafts a reading still waiting, and tells nobody (the first job told the owner without it). */
 async function draftLater(ports: ReplyReadPorts, cmd: ReadReplyCommand): Promise<ReadReplyOutcome> {
   const facts = await ports.reply(cmd.tenantId, cmd.messageId);
@@ -266,6 +307,8 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
   const facts = await ports.reply(tenantId, messageId);
   if (!facts) return "not_a_reply";
   let kept = await ports.reading(tenantId, messageId);
+  // Whether THIS run applied the reading: the close below is that run's and no other's.
+  let applied = false;
 
   if (isDue(kept, n)) {
     const { reading, unread, now } = await readNow(ports, cmd, facts);
@@ -281,7 +324,7 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
       reread: n > 0,
       readAt: now,
     });
-    await ports.apply(tenantId, messageId, { reading: reading ?? UNREAD_READING, unread, plan, reread: n });
+    applied = await ports.apply(tenantId, messageId, { reading: reading ?? UNREAD_READING, unread, plan, reread: n });
     kept = await ports.reading(tenantId, messageId);
     if (!kept) throw new Error("reply_read: the reading was applied and is not there");
   }
@@ -293,6 +336,16 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
     const at = rereadAt(kept.unread, n, facts.receivedAt, ports.now());
     if (at !== null) await ports.scheduleOnce(at, { message_id: messageId, stage: `reread-${n + 1}` });
   }
+
+  // The applying run's alone, and before the notice, so the thread the notice brings the owner to is closed already.
+  // A later run (the ledger's retry of a notice that failed, a second webhook) finds the reading kept and closes
+  // nothing again: by then the business may have written once more, under a flag of its own, and a close that ran
+  // on every pass would resolve that one. A run that dies between the apply and here leaves the flag to a person.
+  if (applied)
+    await closeWhatTheIntakeOpened(ports, tenantId, facts.conversationId, {
+      intent: kept.intent,
+      claim: facts.claim,
+    });
 
   // Tried once, before the notice, so the notice carries it (G16). A re-read's plan never drafts.
   const draft = await draftStage(ports, cmd, facts, kept);

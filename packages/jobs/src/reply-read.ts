@@ -13,11 +13,13 @@ import {
 import { readReply, type DraftMark, type DraftState, type KeptReading, type ReplyFacts } from "@chanlytics/core";
 import {
   applyReplyReading,
+  archiveConversation,
   claimReplyTell,
   markReplyDraft,
   markReplyTold,
   reachOutReplyOf,
   replyReadingOf,
+  resolveEscalationByReason,
   type Json,
   type ReachOutReplyOf,
   type ReplyReadingRow,
@@ -122,6 +124,11 @@ export async function replyRead(ctx: JobContext, job: ClaimedJob): Promise<void>
       markDraft: (tenantId, id, mark) => markReplyDraft(db, { ...where(tenantId, id), ...draftMarkOf(mark) }),
       told: (tenantId, id, claim) => markReplyTold(db, { ...where(tenantId, id), claim }),
       scheduleOnce: (at, payload) => ctx.scheduleOnce("reply_read", new Date(at), payload),
+      // What the intake opened, the reading closes: the flag by its reason, the thread whole, on the service role (the
+      // platform's own close, so the rows are counted there rather than trusted).
+      resolveEscalation: (tenantId, conversationId, reason) =>
+        resolveEscalationByReason(db, { tenantId, conversationId, reason }),
+      archiveConversation: (tenantId, conversationId) => archiveConversation(db, { tenantId, conversationId }),
       now: Date.now,
     },
     // A claim on the notice is stale once no run that could hold it is still alive: the lease less the function's
