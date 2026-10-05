@@ -40,12 +40,12 @@ test.describe("People's list is a page of its own", () => {
     const slug = await slugOfHome(page);
     await loadFresh(page, `/w/${slug}/people`);
     await expectPeopleFrame(page);
-    await expect(page.getByTestId("people-standing")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(".pg-head .pg-sentence")).toContainText(/\d+ (person|people)\b/, { timeout: 30_000 });
     await expect(page.getByTestId("people-table-scroll")).toBeVisible();
     expect(routeOf(page.url())).toBe("clients");
     await page.reload();
     await expectPeopleFrame(page);
-    await expect(page.getByTestId("people-standing")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(".pg-head .pg-sentence")).toContainText(/\d+ (person|people)\b/, { timeout: 30_000 });
     expect(new URL(page.url()).pathname, "the reload kept the path").toBe(`/w/${slug}/people`);
   });
 
@@ -64,7 +64,7 @@ test.describe("People's list is a page of its own", () => {
     const slug = await slugOfHome(page);
     await loadFresh(page, `/w/${slug}/people`);
     await expectPeopleFrame(page);
-    await expect(page.getByTestId("people-standing")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(".pg-head .pg-sentence")).toContainText(/\d+ (person|people)\b/, { timeout: 30_000 });
     await page.evaluate(() => {
       (window as unknown as { __peopleSpec?: boolean }).__peopleSpec = true;
     });

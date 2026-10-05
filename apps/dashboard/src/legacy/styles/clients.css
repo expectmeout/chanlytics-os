@@ -2756,6 +2756,12 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
   .main-scroll .cl-section {
     padding: 4px 18px 12px;
   }
+  /* The section keeps its 12px under the list's name, as Leads' list head does: the head's own 8px stood in for the
+     section's bottom when that was 0 (the desk's head rules above), and on top of the 12px it set People's table 8px
+     after Leads' (e2e/people/people.spec.ts holds the two heads alike). */
+  .main-scroll .cl-section > .cl-section-head {
+    margin-bottom: 0;
+  }
   .main-scroll .cl-section-title {
     font-size: var(--text-md);
     font-weight: var(--weight-semibold);
@@ -2814,8 +2820,10 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
   .main-scroll .cl-table :is(th, td).cl-sel {
     width: 24px;
   }
+  /* Pinned after the select column's whole width: its 24px and the 18px the table's first cell pads. At 24px the Person
+     column slid 18px under the boxes as the table scrolled sideways. */
   .main-scroll .pl-table .cl-sel + .pl-pin {
-    left: 24px;
+    left: 42px;
   }
   .main-scroll .pl-table tbody tr:is(:hover, .focused) > td {
     background: var(--pl-hover);

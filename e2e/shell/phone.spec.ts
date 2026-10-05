@@ -130,9 +130,11 @@ test.describe("Phone shell on a real workspace", () => {
     await page.getByTestId("phone-tabs").getByRole("button", { name: "Menu" }).click();
     await expect(page.getByRole("dialog", { name: "Navigation" })).toHaveCount(1);
     await expect(sidebar).toBeVisible();
+    // In Glass the drawer is the desk's card, standing at its own margin from the screen's edge.
+    const edge = await sidebar.evaluate((el) => Number.parseFloat(getComputedStyle(el).marginLeft));
     await expect
       .poll(async () => (await sidebar.boundingBox())?.x, { message: "the drawer slides in to the edge" })
-      .toBe(0);
+      .toBe(edge);
     const scrim = page.locator(".nav-backdrop");
     await expect(scrim).toBeVisible();
     expect(await scrim.evaluate((el) => getComputedStyle(el).position)).toBe("fixed");
@@ -159,11 +161,13 @@ test.describe("Phone shell on a real workspace", () => {
     const sidebar = page.locator(".side-wrap .sidebar");
     const x = async () => Math.round((await sidebar.boundingBox())?.x ?? -999);
     await page.getByTestId("phone-tabs").getByRole("button", { name: "Menu" }).click();
-    await expect.poll(x, { message: "the drawer slides in to the edge" }).toBe(0);
+    // In Glass the drawer is the desk's card, standing at its own margin from the screen's edge.
+    const edge = Math.round(await sidebar.evaluate((el) => Number.parseFloat(getComputedStyle(el).marginLeft)));
+    await expect.poll(x, { message: "the drawer slides in to the edge" }).toBe(edge);
     expect(Math.round((await sidebar.boundingBox())!.width), "the desk's 248px").toBe(248);
 
     await swipeAcross(page, 200, 170, 420);
-    await expect.poll(x, { message: "30px: it settles back" }).toBe(0);
+    await expect.poll(x, { message: "30px: it settles back" }).toBe(edge);
     await expect(nav).toHaveCount(1);
 
     await swipeAcross(page, 200, 60, 420);
@@ -211,7 +215,7 @@ test.describe("Phone shell on a real workspace", () => {
       const chip = page.locator(".subtab", { hasText: name }).first();
       if ((await chip.count()) === 0) continue;
       await chip.click();
-      await expect(chip, `${name} is the bucket on screen`).toHaveAttribute("aria-pressed", "true");
+      await expect(chip, `${name} is the bucket on screen`).toHaveAttribute("aria-selected", "true");
       await expect(page.locator(".ix-list"), `${name} shows its list`).toBeVisible();
       await expect(page.locator(".ix-thread-pane"), `${name} opens no conversation`).toBeHidden();
     }
@@ -369,10 +373,10 @@ test.describe("Phone shell on a real workspace", () => {
       (await row.boundingBox())!.y,
       "the first person is on the first screen, under the Inbox's tiers (the strip, the list, the search) and one line",
     ).toBeLessThan(300);
-    const face = (await row.locator(".pl-card-face").boundingBox())!;
+    const face = (await row.locator(".list-row-face").boundingBox())!;
     expect(Math.abs(face.width - face.height), "a face is round").toBeLessThanOrEqual(1);
     expect(
-      (await row.locator(".pl-card > .pill").boundingBox())!.height,
+      (await row.locator(".pl-card > .list-row-end").boundingBox())!.height,
       "a state is a pill, not a 36px button",
     ).toBeLessThanOrEqual(22);
     // Search: the bar becomes the field, at 16px (a phone zooms into anything smaller), and Cancel gives it back.
@@ -393,6 +397,8 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(page.locator(".ui-tip.show")).toHaveCount(0);
     // Add a person: a sheet whose one button is on the screen.
     await bar.getByRole("button", { name: "More" }).click();
+    // The menu is the kit's (Base UI), which opens a beat after the press: what it holds is read once it is open.
+    await expect(page.getByRole("menu")).toBeVisible();
     const add = page.getByRole("menuitem", { name: "Add a person" });
     test.skip((await add.count()) === 0, "this member cannot add people");
     await add.click();
@@ -413,6 +419,8 @@ test.describe("Phone shell on a real workspace", () => {
     const said = () => page.evaluate(() => document.documentElement.style.getPropertyValue("--kb"));
     expect(await said(), "the shell measures it, and no keyboard is up").toBe("0px");
     await page.getByTestId("people-phone-bar").getByRole("button", { name: "More" }).click();
+    // The menu is the kit's (Base UI), which opens a beat after the press: what it holds is read once it is open.
+    await expect(page.getByRole("menu")).toBeVisible();
     const add = page.getByRole("menuitem", { name: "Add a person" });
     test.skip((await add.count()) === 0, "this member cannot add people");
     await add.click();
@@ -441,6 +449,8 @@ test.describe("Phone shell on a real workspace", () => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     await page.getByTestId("people-phone-bar").getByRole("button", { name: "More" }).click();
+    // The menu is the kit's (Base UI), which opens a beat after the press: what it holds is read once it is open.
+    await expect(page.getByRole("menu")).toBeVisible();
     const add = page.getByRole("menuitem", { name: "Add a person" });
     test.skip((await add.count()) === 0, "this member cannot add people");
     await add.click();
@@ -564,8 +574,9 @@ test.describe("Phone shell on a real workspace", () => {
     };
     await read("inbox", ".ix-thread", ".ix-thread-avatar", ".ix-thread-who", "a thread");
     await read("conversations", ".cv-row", ".cv-row-avatar", ".cv-row-who", "a conversation");
-    await read("clients", ".pl-table tbody tr.pl-card-row", ".pl-card-face", ".pl-card-name", "a person");
-    await read("clients/leads", ".pl-table tbody tr.pl-card-row", ".pl-card-face", ".pl-card-name", "a lead");
+    // People's and Leads' rows are the kit's list row (kit/list-row/list-row.tsx).
+    await read("clients", ".pl-table tbody tr.pl-card-row", ".list-row-face", ".list-row-name", "a person");
+    await read("clients/leads", ".pl-table tbody tr.pl-card-row", ".list-row-face", ".list-row-name", "a lead");
     const seen = Object.entries(shapes);
     test.skip(seen.length < 2, "this workspace has fewer than two lists with anything in them");
     const [first, firstShape] = seen[0];
@@ -651,12 +662,19 @@ test.describe("Phone shell on a real workspace", () => {
       return colour;
     });
     const [first, firstShape] = shapes[0];
-    for (const [label, shape] of shapes.slice(1))
-      expect(shape, `the strip on ${label} is the one on ${first}`).toEqual(firstShape);
-    expect(firstShape.side, "the strip starts at the rows' gutter (--row-pad-x)").toBe(16);
-    expect(firstShape.middle, "a tab's words sit in the middle of it, over its 2px underline").toBe(
-      Math.round((firstShape.tab - 2) / 2),
-    );
+    // The Inbox's and People's strips stand beside the page's act and give 4px of each tab's side to it (components.css,
+    // "Beside the act the strip has 44px less"); Settings' has no act beside it. So a tab's words sit 4px further in
+    // there, and that one measure is held between the two that share the row.
+    const { words: firstWords, ...firstRest } = firstShape;
+    for (const [label, shape] of shapes.slice(1)) {
+      const { words, ...rest } = shape;
+      expect(rest, `the strip on ${label} is the one on ${first}`).toEqual(firstRest);
+      if (label === "People") expect(words, `a tab's words on ${label} start where ${first}'s do`).toBe(firstWords);
+    }
+    expect(
+      Math.abs(firstShape.middle - firstShape.tab / 2),
+      "a tab's words sit in the middle of it (Glass draws the strip as one capsule)",
+    ).toBeLessThanOrEqual(1);
     expect(firstShape.underline, "the tab picked is underlined in the accent").toBe(accent);
     expect(firstShape.inScroller, "the strip stands over what scrolls: a pull down moves the rows, never it").toBe(
       false,
@@ -681,7 +699,8 @@ test.describe("Phone shell on a real workspace", () => {
       ["clients", ".cl-main-scroll"],
       ["clients/leads", ".cl-main-scroll"],
       ["clients/pipeline", ".cl-main-scroll"],
-      ["broadcasts", ".route-view:has(> .bc-page)"],
+      // Sent's list is the pane that scrolls itself, as the Library's is (parts/split.tsx CmSplit).
+      ["broadcasts", ".bc-page > .cm-list"],
       // The Library's list is the pane that scrolls itself (parts/split.tsx CmSplit: .cm-list), where .rp-body is its failed state.
       ["messages", ".tpl-page > .cm-list"],
     ] as const) {
@@ -1049,7 +1068,8 @@ test.describe("Phone shell on a real workspace", () => {
       if (tabs > 2) break;
     }
     await expect(page.locator(".cl-prof-back")).toBeHidden();
-    await expect(page.locator(".crumbs .crumb-link").first()).toHaveText("People");
+    // In Glass the way back stands where the date does, in the top bar's row (kit/head/frame-head.tsx): ‹ People.
+    await expect(page.locator(".pg-back")).toContainText("People");
     const face = (await page.locator(".cl-prof-id .face").first().boundingBox())!;
     expect(face.x, "the face stands at the page's gutter, not after an arrow of its own").toBeLessThanOrEqual(17);
     test.skip(tabs <= 2, "no one here has a History with more than one kind in it");
@@ -1066,7 +1086,7 @@ test.describe("Phone shell on a real workspace", () => {
       await expect(tab).toHaveAttribute("aria-selected", "true");
       expect(Math.abs((await top()) - start), `${word} moved the tabs from under the thumb`).toBeLessThanOrEqual(1);
     }
-    await page.locator(".crumbs .crumb-link").first().click();
+    await page.locator(".pg-back").click();
     await expect.poll(() => routeOf(page.url())).toBe("clients");
   });
 
@@ -1080,11 +1100,21 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(page.locator(".ix-th-head").first()).toBeVisible();
     const who = page.getByTestId("ix-th-person").first();
     test.skip((await who.count()) === 0, "the first thread is with no one in People");
-    await expect(who).toHaveAttribute("href", /^#\/clients\/[\w-]+$/);
-    expect(
-      (await who.boundingBox())!.height,
-      "the face, the name and the line under it, a thumb tall",
-    ).toBeGreaterThanOrEqual(40);
+    await expect(who).toHaveAttribute("href", /\/people\/[\w-]+$/);
+    // In Glass the header is one 52px pill and who it is stands 36px tall inside it, the face and two lines at its
+    // height; a thumb's press reaches the pill's edges (inbox.css). So the press is measured where a finger lands: the
+    // rows down the link's middle whose press is the link's.
+    const press = await who.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2;
+      let rows = 0;
+      for (let y = Math.floor(r.top) - 20; y <= Math.ceil(r.bottom) + 20; y++) {
+        const hit = document.elementFromPoint(x, y);
+        if (hit && (hit === el || el.contains(hit))) rows++;
+      }
+      return rows;
+    });
+    expect(press, "the face, the name and the line under it, a thumb tall").toBeGreaterThanOrEqual(40);
     await who.click();
     await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/[\w-]+$/);
     await expect(page.locator(".cl-profile")).toBeVisible();
