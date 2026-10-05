@@ -5406,6 +5406,7 @@ export type Database = {
         }
         Returns: string
       }
+      automated_send: { Args: { p_meta: Json }; Returns: boolean }
       billing_card_mark: {
         Args: { p_fingerprint: string; p_tenant_id: string }
         Returns: undefined
@@ -5418,6 +5419,10 @@ export type Database = {
           tenant_id: string
           timezone: string
         }[]
+      }
+      call_connected: {
+        Args: { p_duration_ms: number; p_status: string }
+        Returns: boolean
       }
       call_status_rank: { Args: { p_status: string }; Returns: number }
       caller_has_permission: {
@@ -5487,6 +5492,13 @@ export type Database = {
       consent_channels_union: {
         Args: { p_add: string[]; p_have: string[] }
         Returns: string[]
+      }
+      contact_first_moments: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          contact_id: string
+          first_at: string
+        }[]
       }
       create_mailbox: {
         Args: { p_from_name: string; p_local_part: string; p_tenant_id: string }
@@ -5626,6 +5638,7 @@ export type Database = {
         Args: { p_start: string; p_tenant_id: string }
         Returns: {
           ai_at: string
+          ai_hold_s: number
           ai_seconds: number
           asked_at: string
           conversation_id: string

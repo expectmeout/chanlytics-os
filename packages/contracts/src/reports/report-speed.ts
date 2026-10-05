@@ -57,7 +57,7 @@ function classOf(r: HoldReply): HoldClass {
 
 /**
  * Every finite reply with its class and hold. Null where the payload carries no hold at all (a report from before
- * 00286) or no reply waited one: the sentences and the bars then say speed as they did.
+ * 00304) or no reply waited one: the sentences and the bars then say speed as they did.
  */
 function classified(replies: readonly HoldReply[] | undefined): { hold: number; c: HoldClass }[] | null {
   const rs = (replies ?? []).filter((r) => Number.isFinite(r.s));
@@ -122,7 +122,7 @@ export function holdBuckets(replies: readonly HoldReply[] | undefined): [string,
   ];
 }
 
-/** The bars on the seconds a reply took, for a report with no hold (from before 00286, or none waited one). */
+/** The bars on the seconds a reply took, for a report with no hold (from before 00304, or none waited one). */
 export const absoluteBuckets = (sortedReply: readonly number[]): [string, string, number][] =>
   spanCounts(REPLY_BUCKETS, sortedReply);
 

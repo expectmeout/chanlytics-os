@@ -304,6 +304,8 @@
     "00299_an_offer_by_email_goes_only_where_it_is_owed.sql": "945f3a84807f0dc6b7b47c060508ce69199c7412d4a63493c0b76c9d15599a3f",
     "00300_a_voice_session_says_how_it_went.sql": "a2a727ebbeeb7757a81cf010d278aa2337815d56c0998d85a8590a6008b4c6b1",
     "00301_a_released_person_is_tried_again_under_a_new_attempt.sql": "8bafa7920769883ddc5df494841530dca0a5047af8e617a3713ff2da47430b27",
-    "00302_a_voice_session_may_end_idle.sql": "6bf8d4c1ca558884c460da93eb0168c0d346cc277c96ba8f4cf5a463258cb141"
+    "00302_a_voice_session_may_end_idle.sql": "6bf8d4c1ca558884c460da93eb0168c0d346cc277c96ba8f4cf5a463258cb141",
+    "00303_a_connected_call_a_first_moment_and_an_answer_are_each_said_once.sql": "049d664f77def6e797cfe0dbb4b8abe148fe44293d05bbb0b4052120b3450fce",
+    "00304_a_report_counts_only_what_it_says.sql": "83e11cf6df824386b7ae3e9ddeca7503e127d76d4093b3e0a1fe302ffe8a4497"
   }
 }
