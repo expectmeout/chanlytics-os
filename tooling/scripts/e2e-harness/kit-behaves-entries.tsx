@@ -19,6 +19,7 @@ import {
   Combobox,
   DatePicker,
   Field,
+  Figure as KitFigure,
   Menu,
   Picker,
   Popover,
@@ -422,6 +423,23 @@ function TooltipKit() {
   );
 }
 
+/** A figure whose label carries a definition: the kit's Tooltip over the term. */
+function FigureDefined() {
+  return (
+    <Figure id="figure-defined" about="the kit's Figure, its label carrying a definition">
+      <dl className="gx-figs">
+        <KitFigure
+          label="Customer messages"
+          value="17"
+          meta="on 6 of 7 days"
+          definition="What customers wrote or phoned in. Your replies and your campaigns are not counted."
+          data-testid="figure-kit"
+        />
+      </dl>
+    </Figure>
+  );
+}
+
 /** The select, in a field. */
 function SelectKit() {
   const [service, setService] = useState<Service>("consult");
@@ -642,6 +660,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "menu-kit-switches", Draw: MenuKitSwitches, closed: false },
   { id: "popover-kit", Draw: PopoverKit, closed: false },
   { id: "tooltip-kit", Draw: TooltipKit, closed: false },
+  { id: "figure-defined", Draw: FigureDefined, closed: false },
   { id: "select-kit", Draw: SelectKit, closed: false },
   { id: "combobox-kit", Draw: ComboboxKit, closed: false },
   { id: "switch-kit", Draw: SwitchKit, closed: true },
