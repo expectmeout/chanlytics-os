@@ -351,6 +351,8 @@ globalThis.window.fetch = async (url, init) => {
     world.pending -= 1;
   }
 };
+/** The wire as this file installs it: a test that puts its own in front of it gives it back, or the next test reads nothing. */
+const worldFetch = globalThis.window.fetch;
 /** The People read over a fake wire: these people, a calendar that reads, one saved list. */
 const wire = (people, lists = []) => {
   world.people = people;
@@ -491,6 +493,8 @@ await import("../../../../apps/dashboard/src/legacy-bridge/refresh-map.ts");
 const { StatePill } = kitPages;
 // The person's More is the kit's Menu (surfaces/kit/menu): its trigger is the page's Button, its items in groups.
 const { Menu } = await import(`${P}/../kit/menu/menu.tsx`);
+const { Picker } = await import(`${P}/../kit/picker/picker.tsx`);
+const { Confirm: KitConfirm } = await import(`${P}/../kit/confirm/confirm.tsx`);
 const { SubTabs } = await import(`${P}/../kit/sub-tabs/sub-tabs.tsx`);
 const itemsIn = (menu) => menu.props.groups.flatMap((g) => g.items);
 /** The kit Menu's items as the page built them: an item's act is `onSelect`, given here as `onClick` too. */
@@ -3148,5 +3152,87 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
     globalThis.window.openStepSheet = keep.sheet;
     globalThis.window.__ME = keep.me;
     globalThis.window.fetch = keep.fetch;
+  }
+});
+
+test("Merge with another record (0028): the owner's act opens the picker over People and the typed confirmation, and the merge is the kept record's request", async () => {
+  const { MERGE_WORDS } = contracts;
+  const vm = toPersonVM(detail(), ZONE, new Date(NOW));
+  const other = toPersonRowVM(
+    row({
+      id: "p2",
+      display_name: "Daniela by email",
+      phone_e164: null,
+      email: "daniela@example.com",
+      channels: ["email"],
+    }),
+    ZONE,
+    new Date(NOW),
+  );
+  const saved = surfaceValue("people");
+  const me = globalThis.window.__ME;
+  globalThis.window.__ME = { role: "owner" };
+  // People as the tab holds it: this person and the other record. The page offers every other row.
+  setSurfaceValue("people", {
+    ...(saved ?? {}),
+    lists: saved?.lists ?? [],
+    rows: [toPersonRowVM(row(), ZONE, new Date(NOW)), other],
+  });
+  try {
+    globalThis.window.fetch = worldFetch;
+    world.holding.clear();
+    const draw = await profile(vm);
+    await settle();
+    const more = find(
+      find(draw(), (n) => n.props?.className === "cl-prof-queue-actions"),
+      (n) => n.type === Menu,
+    );
+    const act = actsIn(more).find((i) => i.label === MERGE_WORDS.act);
+    assert.ok(act, "the owner's menu offers the merge");
+    assert.equal(act.title, MERGE_WORDS.actHint);
+    assert.equal(byTestId(draw(), "merge"), null, "nothing is drawn until the act is pressed");
+
+    act.onSelect();
+    let box = byTestId(draw(), "merge");
+    assert.ok(box, "the merge box");
+    const picker = find(box, (n) => n.type === Picker);
+    assert.deepEqual(
+      picker.props.groups.flatMap((g) => g.options).map((o) => [o.value, o.label, o.sub]),
+      [["p2", "Daniela by email", "daniela@example.com"]],
+      "the other records of People, this person left out",
+    );
+    assert.equal(picker.props.placeholder, MERGE_WORDS.pickNone);
+    let confirm = find(box, (n) => n.type === KitConfirm);
+    assert.equal(confirm.props.ready, false, "nothing chosen, nothing typed");
+    assert.equal(textOf(confirm.props.question), MERGE_WORDS.question(vm.name, "the other record"));
+
+    picker.props.onValueChange("p2");
+    box = byTestId(draw(), "merge");
+    confirm = find(box, (n) => n.type === KitConfirm);
+    assert.equal(textOf(confirm.props.question), MERGE_WORDS.question(vm.name, "Daniela by email"));
+    assert.equal(confirm.props.ready, false, "chosen, but the kept name is not typed");
+    confirm.props.onType(vm.name);
+    box = byTestId(draw(), "merge");
+    confirm = find(box, (n) => n.type === KitConfirm);
+    assert.equal(confirm.props.ready, true);
+    assert.equal(textOf(confirm.props.yes), MERGE_WORDS.yes);
+
+    const before = world.seen.length;
+    confirm.props.onYes();
+    await settle();
+    const sent = world.seen.slice(before).find((r) => r.method === "POST");
+    assert.deepEqual(
+      [sent?.path, sent?.body],
+      ["/api/v1/contacts/p1/merge", { merge: "p2" }],
+      "the kept record's route, the other in the body",
+    );
+    assert.ok(
+      world.seen.slice(before).some((r) => r.method === "GET" && r.path === "/api/v1/contacts/p1"),
+      "and the page is read again, whole",
+    );
+    assert.equal(byTestId(draw(), "merge"), null, "the box closes");
+  } finally {
+    globalThis.window.__ME = me;
+    setSurfaceValue("people", saved);
   }
 });

@@ -147,5 +147,25 @@ interface MergedPeople {
 export async function mergePeople(db: Db, keep: string, merge: string): Promise<MergedPeople> {
   const { data, error } = await db.rpc("merge_people", { p_keep: keep, p_merge: merge });
   if (error) throw error;
-  return data as unknown as MergedPeople;
+  return mergedOf(data);
+}
+
+/** The door's answer read key by key: a word where it said one, the counts as it gave them, never a cast. */
+function mergedOf(v: unknown): MergedPeople {
+  const o = v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  const word = (k: string): string => (typeof o[k] === "string" ? o[k] : "");
+  const counts =
+    o.counts && typeof o.counts === "object" && !Array.isArray(o.counts) ? (o.counts as Record<string, unknown>) : {};
+  const out: Record<string, number | string> = {};
+  for (const [k, n] of Object.entries(counts)) if (typeof n === "number" || typeof n === "string") out[k] = n;
+  return {
+    contact_id: word("contact_id"),
+    merged: word("merged"),
+    tenant_id: word("tenant_id"),
+    decision_id: word("decision_id"),
+    consent: word("consent"),
+    marketing_consent: word("marketing_consent"),
+    email_marketing: word("email_marketing"),
+    counts: out,
+  };
 }
