@@ -1,8 +1,7 @@
 /**
  * The kit's page head (kit.css, "Page head"): what a canvas puts above a page in Glass, the date and time in the
  * business's zone in the mono face, the page's name, and beside it the one sentence that says where the page stands
- * ("4 need you · the oldest since 2:26 PM"). A page draws it inside `<Glass>` (look/look.tsx), so Classic, whose top bar
- * carries the name, draws none of it. The name is the page's h1: the frame's focus goes to it as a page opens.
+ * ("4 need you · the oldest since 2:26 PM"). The name is the page's h1: the frame's focus goes to it as a page opens.
  *
  * It draws what the gallery's Page head family draws (tooling/scripts/e2e-harness/kit-gallery.mjs). `className` is for
  * the page's layout, and comes last.

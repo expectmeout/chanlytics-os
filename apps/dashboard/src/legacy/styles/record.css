@@ -105,7 +105,6 @@ html.legacy-on .rec-row-act { min-height: 0; }
   /* The sheet rises from the bottom, stands on the keyboard (--kb, data-bits watchKeyboard), and its foot clears the
      home indicator. */
   .rec-sheet { top: auto; bottom: var(--kb, 0px); left: 0; width: auto; height: calc(88vh - var(--kb, 0px)); height: calc(88dvh - var(--kb, 0px)); border-left: none; border-top: 1px solid var(--line-strong); border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
-  .rec-sheet-foot { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
   /* The deal sheet holds a few fields, so it is as tall as they are, as a fold's sheet is, never 88% of blank. */
   .rec-sheet.deal-sheet { height: auto; max-height: calc(88vh - var(--kb, 0px)); max-height: calc(88dvh - var(--kb, 0px)); }
   .rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -141,10 +140,10 @@ html.legacy-on .rec-row-act { min-height: 0; }
 /* ---------- Glass: the deal sheet as its canvas's one composer (D3), the rows the playbook composer wears (C2) ----------
    The word at the left in the third ink, what the row holds beside it, a hairline between rows; a field's own label
    goes where the row's word says it. Each rule names the look inside :where(); none matches in Classic. */
-:where([data-look="glass"]) .ds-rows {
+.ds-rows {
   gap: 0;
 }
-:where([data-look="glass"]) .ds-grow {
+.ds-grow {
   display: grid;
   grid-template-columns: var(--space-12) minmax(0, 1fr);
   column-gap: var(--space-3);
@@ -152,16 +151,16 @@ html.legacy-on .rec-row-act { min-height: 0; }
   padding: var(--space-4) 0;
   border-bottom: 1px solid var(--line);
 }
-:where([data-look="glass"]) .ds-grow:last-of-type {
+.ds-grow:last-of-type {
   border-bottom: 0;
 }
-:where([data-look="glass"]) .ds-grow-word {
+.ds-grow-word {
   padding-top: var(--space-1);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   color: var(--ink-dim);
 }
-:where([data-look="glass"]) .ds-grow-body {
+.ds-grow-body {
   min-width: 0;
   display: flex;
   flex-direction: column;

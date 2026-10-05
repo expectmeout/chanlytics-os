@@ -536,6 +536,13 @@ recorded.set(LeadPlanPanel, panels);
 recorded.set(LeadStrip, strips);
 /** A kept search's menu, as the rail drew it. */
 const menuOf = (name) => menus.find((m) => m.title === `More for ${name}`);
+/** The desk's map switch: Map (or Table) in the ⋯ beside Columns, as the last draw made it (the phone's is its bar's). */
+const mapToggle = () => {
+  const file = menus.findLast((m) => m.testid === "leads-file-menu");
+  const item = file?.items.find((i) => i.label === "Map" || i.label === "Table");
+  assert.ok(item, "the file menu offers the map");
+  return { props: { onClick: item.onClick } };
+};
 // Find leads is Ask's (spec F1, F7): every door on the page hands Ask a detail, and that detail is what is pinned.
 const asks = [];
 // Every way a page could record or upload, and Ask's own doors: each one a recorder, so "the page asks nothing
@@ -2048,7 +2055,7 @@ test("the search box's words, the row the cursor was on and the map come back wi
   assert.deepEqual(names(tree), ["Zilker Strength Lab", "Lamar Strength Co."], "and the rows are the ones they found");
   assert.equal(cursorRow(tree), "lead-l3", "the cursor is on the row it was on");
   // The map stands where the table stood, so it is its own trip: left open, it is open on the way back.
-  click(byTestId(tree, "leads-map-toggle"));
+  click(mapToggle());
   draw();
   tree = comeBack();
   assert.ok(byTestId(tree, "lead-map"), "the map is open, as it was left");
@@ -2163,9 +2170,9 @@ test("a view starts clean of the view before it: its fit filter and its open map
     draw({ leadsRoute: route });
     return draw({ leadsRoute: route });
   };
+  at(`leads:s-${SEARCH_A}`);
+  click(mapToggle());
   let tree = at(`leads:s-${SEARCH_A}`);
-  click(byTestId(tree, "leads-map-toggle"));
-  tree = at(`leads:s-${SEARCH_A}`);
   assert.ok(byTestId(tree, "lead-map"));
   tree = at("leads:l-ready");
   assert.equal(byTestId(tree, "lead-map"), null, "the list picked next draws its table");
@@ -3495,7 +3502,7 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
   const at = () => draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   let tree = at();
   assert.equal(byTestId(tree, "lead-map"), null, "a page opens on the rows");
-  click(byTestId(tree, "leads-map-toggle"));
+  click(mapToggle());
   tree = at();
   const map = byTestId(tree, "lead-map");
   assert.ok(map, "the map stands where the table stood");
@@ -3574,13 +3581,13 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
   assert.equal(peeks.at(-1).vm.id, "l1", "a pin opens its lead, as a row does");
 
   click(byTestId(tree, "map-widen"));
-  tree = at();
+  at();
   assert.deepEqual(
     [panels.at(-1).stage, panels.at(-1).plan.area.radius_m],
     ["plan", 50000],
     "Search wider opens the plan with twice the ground, and starts nothing until it is approved",
   );
-  click(byTestId(tree, "leads-map-toggle"));
+  click(mapToggle());
   tree = at();
   assert.equal(byTestId(tree, "lead-map"), null, "and the rows come back");
 });
@@ -4079,8 +4086,8 @@ test("a list of your own draws with no round and no area, reaches no finder stri
     "the strip is the list's own (J8), never the finder's: a list has no round to narrate, and nothing on it searches again",
   );
   // No map: a list has no area to draw or to widen, though its leads were placed.
-  const tree = draw({ leadsRoute: `leads:s-${LIST}` });
-  click(byTestId(tree, "leads-map-toggle"));
+  draw({ leadsRoute: `leads:s-${LIST}` });
+  click(mapToggle());
   assert.equal(byTestId(draw({ leadsRoute: `leads:s-${LIST}` }), "lead-map"), null);
   const items = menuOf("Expo gyms")
     .items.filter((i) => i.label)

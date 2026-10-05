@@ -28,7 +28,6 @@ installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
 const { TODAY_HELPERS, installToday } = await import("../../../../apps/dashboard/src/surfaces/today/helpers.ts");
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
 const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
-const { TodayDay } = await import("../../../../apps/dashboard/src/surfaces/today/pages/day.tsx");
 const { DashboardA } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-page.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
@@ -418,15 +417,9 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     assert.ok(!parts.includes("CalendarLine") && !parts.includes("DayFacts"), parts.join(", "));
   }
   assert.ok(!("dayLine" in TODAY_HELPERS), "no helper says the day's numbers as a sentence");
-  // The core: the queue, then the day; and the day is the module this file imports (what the manifest's load order
-  // held of the JSX pages is an import now).
-  const core = draw(DashboardA);
-  const drawn = all(core, (n) => typeof n.type === "function").map((n) => n.type);
-  assert.ok(drawn.indexOf(TodayDay) > -1, "the core draws the day's module");
-  assert.ok(
-    drawn.map((t) => t.name).indexOf("AgentCommand") < drawn.indexOf(TodayDay),
-    "the queue, then the day, in the core",
-  );
+  // The page draws no day pane since canvas E3 (the strip's Next cell says the day); the module stays for the Calendar's
+  // own card, which the calendar tests draw.
+  assert.equal(byTestId(draw(DashboardA), "today-day"), null, "no day pane on the page");
   delete globalThis.__CALENDAR;
   setSurfaceValue("today", undefined);
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");

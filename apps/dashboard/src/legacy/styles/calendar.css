@@ -202,7 +202,6 @@
   flex-shrink: 0;
 }
 
-
 /* ---------- Sync bar ---------- */
 .cal-sync {
   display: flex;
@@ -286,7 +285,6 @@
 /* Cancelled blocks */
 .cal-appt.is-cancelled { opacity: 0.5; border-style: dashed; }
 .cal-appt.is-cancelled .cal-appt-who { text-decoration: line-through; color: var(--ink-dim); }
-
 
 /* ---------- Power calendar: drag, availability, agent chips ---------- */
 .cal-appt.movable { touch-action: none; }
@@ -373,7 +371,6 @@
   font-size: var(--text-xs);
   color: var(--ink-dim);
 }
-
 
 /* Per-calendar sync selection */
 .cal-pick-wrap { position: relative; }
@@ -639,43 +636,43 @@
    circle beside them, then the range and the steps, then the first day. Each rule names the look inside :where(); none
    matches in Classic. A class that carries a primitive's word (btn, rec-seg-btn) is reached by position.
    ==================================================================== */
-:where([data-look="glass"]) .main-scroll > .calendar {
+.main-scroll > .calendar {
   --cal-gutter: 0px;
   padding: 0 var(--gutter-page) var(--space-4);
 }
 
 /* ---- The bar ---- */
-:where([data-look="glass"]) .main-scroll > .calendar .cal-head {
+.main-scroll > .calendar .cal-head {
   padding: 0 0 var(--space-3);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-bar {
+.main-scroll > .calendar .cal-bar {
   gap: var(--space-2) var(--space-3);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-steps {
+.main-scroll > .calendar .cal-steps {
   padding: 2px;
   border: 0;
   border-radius: var(--radius-full);
   background: var(--surface-control-fill);
   box-shadow: var(--surface-control-depth);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-steps > * {
+.main-scroll > .calendar .cal-steps > * {
   height: var(--control-h-md);
   border-radius: var(--radius-full);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-steps > * + * {
+.main-scroll > .calendar .cal-steps > * + * {
   border-left: 0;
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-title {
+.main-scroll > .calendar .cal-title {
   min-height: var(--control-h-lg);
   margin-left: 0;
   padding: 0 var(--space-2) 0 var(--space-3);
   border-radius: var(--radius-full);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-title-range {
+.main-scroll > .calendar .cal-title-range {
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-views {
+.main-scroll > .calendar .cal-views {
   gap: 2px;
   padding: 4px;
   border: 0;
@@ -683,21 +680,21 @@
   background: var(--surface-control-fill);
   box-shadow: var(--surface-control-depth);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-views > * {
+.main-scroll > .calendar .cal-views > * {
   height: var(--control-h-sm);
   padding: 0 14px;
   border-radius: var(--radius-full);
   font-size: var(--text-base);
   color: var(--ink-muted);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-views > [aria-checked="true"] {
+.main-scroll > .calendar .cal-views > [aria-checked="true"] {
   color: var(--ink);
 }
 
-:where([data-look="glass"]) .main-scroll > .calendar .cal-tools {
+.main-scroll > .calendar .cal-tools {
   margin-left: auto;
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-tools .cal-service {
+.main-scroll > .calendar .cal-tools .cal-service {
   height: var(--control-h-lg);
   padding-left: var(--space-4);
   border: 0;
@@ -709,7 +706,7 @@
 }
 
 /* ---- The notices over the board (a card is a primitive's word, so they are reached by their place and their ids) ---- */
-:where([data-look="glass"]) .main-scroll > .calendar .cal-pane > :is([data-testid^="cal-feed"], [data-testid="cal-consult-note"]) {
+.main-scroll > .calendar .cal-pane > :is([data-testid^="cal-feed"], [data-testid="cal-consult-note"]) {
   border: 0;
   border-radius: var(--radius-xl);
   background: var(--surface-inset-fill);
@@ -717,14 +714,14 @@
 }
 
 /* ---- The week and the day: one clear pane ---- */
-:where([data-look="glass"]) .main-scroll > .calendar .cal-body:has(> .cal-scroll) {
+.main-scroll > .calendar .cal-body:has(> .cal-scroll) {
   position: relative;
   border-radius: var(--surface-pane-radius);
   background: var(--surface-pane-fill);
   box-shadow: var(--surface-pane-depth);
   overflow: hidden;
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-body:has(> .cal-scroll)::after {
+.main-scroll > .calendar .cal-body:has(> .cal-scroll)::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -736,36 +733,36 @@
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-scroll {
+.main-scroll > .calendar .cal-scroll {
   padding: 0 var(--space-3) var(--space-3);
 }
 /* The day heads and the hours stand over the days as clear glass, not a solid band: what scrolls under them blurs. */
-:where([data-look="glass"]) .main-scroll > .calendar :is(.cal-corner, .cal-dayhead, .cal-gutter) {
+.main-scroll > .calendar :is(.cal-corner, .cal-dayhead, .cal-gutter) {
   background: transparent;
 }
 /* On a desk alone: a phone scrolls its days sideways under the heads, and a blur redrawn on every frame of that is the
    one cost the board's motion could not spare, so there they take the pane's solid (the phone block below). */
 @media (min-width: 721px) {
-  :where([data-look="glass"]) .main-scroll > .calendar :is(.cal-corner, .cal-dayhead) {
+  .main-scroll > .calendar :is(.cal-corner, .cal-dayhead) {
     backdrop-filter: blur(var(--blur-md));
   }
 }
 
 /* Seven days across a narrower desk: the columns give up 16px each before the board scrolls sideways. */
 @media (min-width: 721px) {
-  :where([data-look="glass"]) .main-scroll > .calendar .cal-grid:not(.cal-grid-day) {
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) {
     grid-template-columns: 56px repeat(7, minmax(104px, 1fr));
     min-width: 784px;
   }
 }
 
 /* ---- The foot ---- */
-:where([data-look="glass"]) .main-scroll > .calendar .cal-foot {
+.main-scroll > .calendar .cal-foot {
   padding: var(--space-3) 0 0;
   border-top: 0;
 }
 /* The hours, the rules and the calendar it reads: one inset under the legend rather than a hairline and loose words. */
-:where([data-look="glass"]) .main-scroll > .calendar .cal-rules {
+.main-scroll > .calendar .cal-rules {
   margin-top: var(--space-2);
   padding: var(--space-4) var(--space-5);
   border: 0;
@@ -777,7 +774,7 @@
 /* ---- The options button, at the bar's end ----
    One menu holds what the calendar offers its owner (the booking link, a read now, the hours and rules, its settings):
    a glass circle the height of the capsules beside it. */
-:where([data-look="glass"]) .main-scroll > .calendar .cal-options {
+.main-scroll > .calendar .cal-options {
   flex: none;
   width: var(--control-h-lg);
   height: var(--control-h-lg);
@@ -788,60 +785,60 @@
   box-shadow: var(--surface-control-depth);
   color: var(--ink-muted);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-options:hover,
-:where([data-look="glass"]) .main-scroll > .calendar .cal-options[aria-expanded="true"] {
+.main-scroll > .calendar .cal-options:hover,
+.main-scroll > .calendar .cal-options[aria-expanded="true"] {
   background: var(--selected-fill);
   color: var(--ink);
 }
 
 /* ---- The blocks, the open times, the days ---- */
-:where([data-look="glass"]) .main-scroll > .calendar .cal-appt.feed {
+.main-scroll > .calendar .cal-appt.feed {
   padding: 4px 10px;
   border: 0;
   border-radius: var(--radius-lg);
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-appt.feed:hover {
+.main-scroll > .calendar .cal-appt.feed:hover {
   background: var(--selected-fill);
 }
 /* Today's column against the clock: a booking that is over stands back, the one under way is ringed in the accent. */
-:where([data-look="glass"]) .main-scroll > .calendar .cal-appt.feed[data-phase="past"] {
+.main-scroll > .calendar .cal-appt.feed[data-phase="past"] {
   opacity: 0.6;
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-appt.feed[data-phase="now"] {
+.main-scroll > .calendar .cal-appt.feed[data-phase="now"] {
   outline: 1px solid var(--accent);
   outline-offset: -1px;
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-appt-who {
+.main-scroll > .calendar .cal-appt-who {
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-appt-service {
+.main-scroll > .calendar .cal-appt-service {
   font-size: var(--text-xs);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-open {
+.main-scroll > .calendar .cal-open {
   padding: 3px 10px;
   border-radius: var(--radius-lg);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-open-label {
+.main-scroll > .calendar .cal-open-label {
   font-size: var(--text-xs);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-dayhead {
+.main-scroll > .calendar .cal-dayhead {
   padding: var(--space-3) var(--space-3) var(--space-2);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-dow {
+.main-scroll > .calendar .cal-dow {
   font-size: var(--text-xs);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-date {
+.main-scroll > .calendar .cal-date {
   font-size: var(--text-sm);
 }
 
 /* ---- The agenda: each day a pane ---- */
-:where([data-look="glass"]) .main-scroll > .calendar .cal-agenda {
+.main-scroll > .calendar .cal-agenda {
   gap: var(--space-3);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-agenda-day {
+.main-scroll > .calendar .cal-agenda-day {
   position: relative;
   gap: var(--space-2);
   padding: var(--space-4) var(--space-5) var(--space-3);
@@ -850,8 +847,8 @@
   background: var(--surface-pane-fill);
   box-shadow: var(--surface-pane-depth);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-agenda-day::after,
-:where([data-look="glass"]) .main-scroll > .calendar .cal-month::after {
+.main-scroll > .calendar .cal-agenda-day::after,
+.main-scroll > .calendar .cal-month::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -864,40 +861,40 @@
   pointer-events: none;
 }
 /* A day with nothing under its name (closed) is a slim row, not a pane's worth of room. */
-:where([data-look="glass"]) .main-scroll > .calendar .cal-agenda-day:has(> .cal-agenda-head:only-child) {
+.main-scroll > .calendar .cal-agenda-day:has(> .cal-agenda-head:only-child) {
   padding-block: var(--space-3);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-agenda-head {
+.main-scroll > .calendar .cal-agenda-head {
   align-items: baseline;
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-agenda-head .cal-date {
+.main-scroll > .calendar .cal-agenda-head .cal-date {
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
 }
 /* The rail's dots were ringed in the card's ground; a pane's ground is the page's. The one happening now keeps its ring. */
-:where([data-look="glass"]) .main-scroll > .calendar .cal-agenda-day [data-phase]:not([data-phase="now"]) .ag-item-rail::after {
+.main-scroll > .calendar .cal-agenda-day [data-phase]:not([data-phase="now"]) .ag-item-rail::after {
   box-shadow: none;
 }
 /* Today's list reads against the clock: what is over stands back, what comes next is said in ink. */
-:where([data-look="glass"]) .main-scroll > .calendar .cal-agenda-day [data-phase="next"] .ag-item-time {
+.main-scroll > .calendar .cal-agenda-day [data-phase="next"] .ag-item-time {
   color: var(--ink);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-agenda-day [data-phase="next"] .ag-item-name {
+.main-scroll > .calendar .cal-agenda-day [data-phase="next"] .ag-item-name {
   font-weight: var(--weight-semibold);
 }
 
 /* ---- The month: one pane ---- */
-:where([data-look="glass"]) .main-scroll > .calendar .cal-month {
+.main-scroll > .calendar .cal-month {
   position: relative;
   border: 0;
   border-radius: var(--surface-pane-radius);
   background: var(--surface-pane-fill);
   box-shadow: var(--surface-pane-depth);
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-month-head {
+.main-scroll > .calendar .cal-month-head {
   background: transparent;
 }
-:where([data-look="glass"]) .main-scroll > .calendar .cal-month-cell.today .cal-month-num {
+.main-scroll > .calendar .cal-month-cell.today .cal-month-num {
   display: inline-grid;
   place-items: center;
   min-width: var(--space-6);
@@ -910,26 +907,26 @@
 /* ---- A phone ---- */
 @media (max-width: 720px) {
   /* The views stand under the name with the options button beside them; then the range and the steps; then the first day. */
-  :where([data-look="glass"]) .main-scroll > .calendar .cal-tools {
+  .main-scroll > .calendar .cal-tools {
     order: -1;
   }
-  :where([data-look="glass"]) .main-scroll > .calendar .cal-views > * {
+  .main-scroll > .calendar .cal-views > * {
     height: var(--control-h-lg);
     padding: 0 var(--space-2);
   }
-  :where([data-look="glass"]) .main-scroll > .calendar .cal-options {
+  .main-scroll > .calendar .cal-options {
     width: 44px;
     height: 44px;
   }
-  :where([data-look="glass"]) .main-scroll > .calendar :is(.cal-pane, .cal-scroll) {
+  .main-scroll > .calendar :is(.cal-pane, .cal-scroll) {
     scrollbar-width: none;
   }
   /* The hours stick to the pane's own edge: a gutter inside the scroller's padding left a strip of the days beside them. */
-  :where([data-look="glass"]) .main-scroll > .calendar .cal-scroll {
+  .main-scroll > .calendar .cal-scroll {
     padding-inline: 0;
   }
   /* The hours, the corner and the day heads stand over the days as they scroll across, so they take the pane's solid, not clear glass. */
-  :where([data-look="glass"]) .main-scroll > .calendar :is(.cal-corner, .cal-dayhead, .cal-gutter) {
+  .main-scroll > .calendar :is(.cal-corner, .cal-dayhead, .cal-gutter) {
     background: var(--surface-pane-solid);
   }
 }

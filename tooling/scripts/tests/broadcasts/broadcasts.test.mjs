@@ -644,6 +644,7 @@ await import(`${SRC}/legacy/components/data-bits.jsx`);
 const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
+const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 const { SURFACE_ROUTES, routeHasPage } = await import(`${SRC}/surfaces/routes.ts`);
 
 const marketing = {
@@ -792,7 +793,10 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
     const demo = BroadcastsPage({});
     assert.ok(byTestId(demo, "broadcasts-real"), "the demo draws the page");
     assert.ok(textOf(byTestId(demo, "bc-runs")).includes("A quick note"), "over the sample's runs");
-    assert.ok(byTestId(demo, "bc-new"), "on its ledger, one press from a send");
+    assert.ok(
+      find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "bc-new"),
+      "on its ledger, one press from a send",
+    );
   } finally {
     globalThis.__DEMO_MODE = false;
   }

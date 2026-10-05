@@ -40,26 +40,27 @@ test("the theme: a choice, or the device's; unknown values fall back; the sideba
   for (const t of THEME_OPTIONS) assert.ok(t.label && t.icon, t.id);
 });
 
-test("the look: Classic or Glass, Glass by default and for anything unknown, and offered to members", () => {
+test("the look: Glass, the one look since Classic retired, for anything unknown too, and not offered while it is alone", () => {
   assert.deepEqual(
     LOOK_OPTIONS.map((l) => [l.id, l.label]),
-    [
-      ["classic", "Classic"],
-      ["glass", "Glass"],
-    ],
+    [["glass", "Glass"]],
   );
-  assert.ok(isLookPref("classic") && isLookPref("glass") && !isLookPref("Glass") && !isLookPref(null));
+  assert.ok(isLookPref("glass") && !isLookPref("classic") && !isLookPref("Glass") && !isLookPref(null));
   assert.equal(
     DEFAULT_LOOK_PREF,
     "glass",
     "the canvases' look, the default since 1 October 2026 (the plan's step 5.6)",
   );
-  assert.equal(lookPrefOf("classic"), "classic", "a member who chose Classic keeps it");
+  assert.equal(
+    lookPrefOf("classic"),
+    DEFAULT_LOOK_PREF,
+    "a device that kept Classic wears Glass: Classic retired (step 5.7)",
+  );
   assert.equal(lookPrefOf("neon"), DEFAULT_LOOK_PREF, "an unknown look is the default, as an unknown theme is");
   assert.equal(
     LOOK_OFFERED,
-    true,
-    "the account menu offers the Look: Glass is drawn on every canvas (the plan's step 5.5)",
+    false,
+    "the account menu offers no Look while there is one: a second look turns it on again (the plan's step 5.7)",
   );
 });
 
@@ -281,7 +282,7 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   assert.ok(/\},\s*\[initialThreadId\],\s*\)/.test(inbox), "the Inbox follows a later deep-link");
 });
 
-test("the account menu offers the look only once contracts does: none while it is not offered, then Classic and Glass under the theme, a press handing it to the shell", async () => {
+test("the account menu offers the look only once contracts does: none while it is not offered, then the looks under the theme, a press handing it to the shell", async () => {
   // The real sidebar on the stub React, its account menu opened as a person opens it. The chrome's words are what
   // the bridge publishes (shell.ts installShell), with the flag as contracts has it and then turned on.
   installLegacyReact({ usePPToast: () => [null, () => {}] });
@@ -295,7 +296,7 @@ test("the account menu offers the look only once contracts does: none while it i
       globalThis.React.createElement(globalThis.window.Sidebar, {
         themePref: "dark",
         onTheme: (v) => themed.push(v),
-        look: "classic",
+        look: "glass",
         onLook: (v) => picked.push(v),
       });
     press(byTestId(again(sidebar), "sb-account"));
@@ -313,13 +314,10 @@ test("the account menu offers the look only once contracts does: none while it i
   const looks = LOOK_OPTIONS.map((l) => byTestId(offered, `sb-look-${l.id}`));
   assert.deepEqual(
     looks.map((b) => [textOf(b), b.props["aria-checked"]]),
-    [
-      ["Classic", true],
-      ["Glass", false],
-    ],
+    [["Glass", true]],
     "the look in force is the one checked",
   );
-  press(looks[1]);
+  press(looks[0]);
   assert.deepEqual(picked, ["glass"], "a press hands the look to the shell, as the theme's does");
   assert.deepEqual(themed, [], "and leaves the theme as it was");
 });

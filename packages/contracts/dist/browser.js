@@ -13654,22 +13654,17 @@ function resolveTheme(pref, systemDark) {
 }
 var DEFAULT_THEME_PREF = "dark";
 var themePrefOf = (stored) => isThemePref(stored) ? stored : DEFAULT_THEME_PREF;
-var LOOK_OPTIONS = [
-  { id: "classic", label: "Classic" },
-  { id: "glass", label: "Glass" }
-];
-var isLookPref = (v) => v === "classic" || v === "glass";
+var LOOK_OPTIONS = [{ id: "glass", label: "Glass" }];
+var isLookPref = (v) => v === "glass";
 var DEFAULT_LOOK_PREF = "glass";
 var lookPrefOf = (stored) => isLookPref(stored) ? stored : DEFAULT_LOOK_PREF;
-var LOOK_OFFERED = true;
+var LOOK_OFFERED = false;
 var DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
 var LOOK_THEME_COLORS = {
-  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
   glass: { light: "#f1f2f6", dark: "#0f1014" }
 };
 var THEME_COLORS = LOOK_THEME_COLORS[DEFAULT_LOOK_PREF];
 var LOOK_THEME_INK = {
-  classic: { light: "#161616", dark: "#fbfaf8" },
   glass: { light: "#1b1c20", dark: "#f4f4f6" }
 };
 var THEME_INK = LOOK_THEME_INK[DEFAULT_LOOK_PREF];
@@ -29729,7 +29724,7 @@ function daySentence(day) {
 function cameIn(vm) {
   const line = vm.recap?.line;
   if (!line) return [];
-  return vm.quiet ? [[plain(line)], [plain(vm.proof)]] : [[plain(line)]];
+  return vm.quiet || vm.zero_figures ? [[plain(line)], [plain(vm.proof)]] : [[plain(line)]];
 }
 var runSentence = (r2) => [
   bold(r2.label),

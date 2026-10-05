@@ -1,7 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
-import { apiGet } from "../workspace";
 import { expectAwayAddsUp, expectLeaksWellFormed, expectNoQueueRepeat, expectWarningsFirst } from "../signals";
 import { WAITING_PLACES, WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, waitingSearch } from "../waiting-search";
 
@@ -96,37 +95,9 @@ test.describe("Today on a real workspace", () => {
     );
   });
 
-  test("the day beside the queue: at most five rows and a line to the Calendar; nothing without a feed", async ({
-    page,
-  }) => {
-    const day = page.getByTestId("today-day");
-    // Glass, the default look, draws no day pane: canvas E3 folds the day into the strip's Next cell, and the Calendar
-    // has the rest (today-page.tsx GlassPage, 1 Oct 2026). The pane is Classic's.
-    if ((await page.locator("html").getAttribute("data-look")) === "glass") {
-      await expect(day).toHaveCount(0);
-      return;
-    }
-    await day.waitFor({ state: "attached", timeout: 15_000 }).catch(() => {});
-    if ((await day.count()) === 0) {
-      const res = await apiGet(page, "/api/v1/calendar");
-      const cal = ((await res.json()).data?.calendar as { feed?: { state?: string } } | undefined)?.feed;
-      expect(cal?.state, "no day module, so the feed must not be readable").not.toBe("ok");
-      return;
-    }
-    await expect(day).toBeVisible();
-    const frames = day.getByTestId("today-day-frame");
-    await expect(frames).toHaveCount(2);
-    await expect(frames.first()).toContainText(/^Today · /);
-    for (const frame of await frames.all()) {
-      const items = await frame.getByTestId("today-day-item").count();
-      expect(items).toBeLessThanOrEqual(5);
-      const more = frame.getByTestId("today-day-more");
-      if ((await more.count()) > 0) {
-        await expect(more).toHaveText(/^\d+ more on the Calendar$/);
-        expect(items).toBe(5);
-      }
-    }
-    await expect(day.getByRole("button", { name: /Open Calendar/ })).toBeVisible();
+  test("no day pane beside the queue: the strip says the day, and the Calendar has the rest", async ({ page }) => {
+    // Canvas E3 folds the day into the strip's Next cell (today-page.tsx DashboardA, 1 Oct 2026).
+    await expect(page.getByTestId("today-day")).toHaveCount(0);
   });
 
   test("worth a look: every row a claim with its arithmetic, a word for its tone, an Ask door that asks the row's own sentence", async ({

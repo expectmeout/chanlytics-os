@@ -23,7 +23,6 @@ import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface"
 import type { PageClock } from "@/legacy-bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
-import { useLook } from "../../kit/look/look";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
@@ -289,8 +288,7 @@ export function recapBeats(vm: TodayVM, nav: Nav) {
   );
 }
 
-/** `beats`: whether the lines that are not numbers are drawn here (Classic) or by the brief (Glass). */
-export const TodayCard = ({ beats = true }: { beats?: boolean } = {}) => {
+export const TodayCard = () => {
   useMoved(["today", "reports"]);
   const [open, setOpen] = useState<TodayFigureId | null>(null);
   // An open receipt closes on Escape wherever the focus is, as every other dialog does: the phone app's Back hands the
@@ -303,15 +301,12 @@ export const TodayCard = ({ beats = true }: { beats?: boolean } = {}) => {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
-  // In Glass the door to Reports stands in the head as words with its arrow (E3); in Classic it is the foot's button.
-  const glass = useLook() === "glass";
   const vm = surfaceValue("today");
   if (!vm) return null;
   const { recap, quiet } = vm;
-  // Glass draws the tile whole (canvas E3): on a quiet day the four figures are zeros, each with what is true under it
-  // (contracts quietFigures), and so is a day with people waiting but nothing counted (vm.zero_figures); Classic keeps
-  // the quiet sentence in the head instead.
-  const figures = vm.figures ?? (glass ? (quiet?.figures ?? vm.zero_figures ?? null) : null);
+  // The tile whole (canvas E3): on a quiet day the four figures are zeros, each with what is true under it (contracts
+  // quietFigures), and so is a day with people waiting but nothing counted (vm.zero_figures).
+  const figures = vm.figures ?? quiet?.figures ?? vm.zero_figures ?? null;
   const nav: Nav = (to) => appNavigate(to);
   const R = borrowed<ReportsLike>("__REPORTS");
   const period = R ? TODAY_HELPERS.periodLine(R) : null;
@@ -331,14 +326,13 @@ export const TodayCard = ({ beats = true }: { beats?: boolean } = {}) => {
             {quiet ? quiet.headline : recap ? recap.line : "Nothing has come in yet today."} {vm.proof}
           </span>
         )}
-        {glass && period && (
+        {period && (
           <Button variant="quiet" size="sm" aria-label="Open Reports" onClick={() => nav(period.to)}>
             Reports <Icon name={doorGlyph()} size={11} />
           </Button>
         )}
       </div>
       {figures && figuresRow(figures, { open, setOpen, nav })}
-      {beats && recapBeats(vm, nav)}
       {(period || reportsFailed) && (
         <div className="tc-foot">
           {period ? (
@@ -346,11 +340,6 @@ export const TodayCard = ({ beats = true }: { beats?: boolean } = {}) => {
               <span className="tc-foot-text" data-testid="today-period">
                 {period.text}
               </span>
-              {!glass && (
-                <Button variant="quiet" size="sm" onClick={() => nav(period.to)}>
-                  Open Reports <Icon name={doorGlyph()} size={11} />
-                </Button>
-              )}
             </>
           ) : (
             <FailedRead

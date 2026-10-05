@@ -127,6 +127,7 @@ const { CampaignsHome } = await import(`${SRC}/surfaces/campaigns/home/home-page
 const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sample.ts`);
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 const winback = (over = {}) => ({
   id: "pb-1",
   name: "Win-back",
@@ -488,7 +489,10 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
     off.every((s) => find(s, (n) => n.props?.["data-testid"] === "cmh-turn-on")),
     "and says Turn on",
   );
-  assert.ok(byTestId(none, "cmh-new"), "New message at the head");
+  assert.ok(
+    find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "cmh-new"),
+    "New message at the head: said to the frame's, which draws it",
+  );
   // The home says no number the schema has no column for: the sample's runs, with every figure they carry, and a playbook's
   // own detail beside them (the drawer), draw no money and no attribution.
   const money = /\$[\d,]+|revenue|Attributed|booked/;

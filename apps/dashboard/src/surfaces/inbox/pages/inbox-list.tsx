@@ -25,7 +25,6 @@ import { askOnScreenKey, demoSession, gate, setAskOnScreen, surfaceState } from 
 import { inboxData } from "../store";
 import type { InboxBucket, InboxView, Thread } from "../types";
 import { Button } from "../../kit/button/button";
-import { useLook } from "../../kit/look/look";
 
 /** How much of a row the desk draws: the phone ignores it. */
 export type Density = "compact" | "medium" | "rich";
@@ -123,8 +122,6 @@ export interface ListCtx extends ReturnType<typeof listProps> {
   inNeedsBucket: boolean;
   tabStopId: string | undefined;
   onRowKey: (e: KeyboardEvent<HTMLDivElement>, i: number) => void;
-  /** The Glass look (canvas I1): a bucket with nothing in it says no count. Classic says every count, as it did. */
-  glass: boolean;
 }
 
 /** Whether an event's target is an `<input>`: judged by its tag, as the row's key handler always judged it. */
@@ -275,7 +272,6 @@ export function InboxList(props: InboxListProps) {
 
   const tabStopId = visible.some((t) => t.id === activeThreadId) ? activeThreadId : visible[0]?.id;
   const onRowKey = rowKeys({ visible, onSelectThread, onToggleSelect });
-  const look = useLook();
   const L: ListCtx = {
     ...base,
     query,
@@ -290,7 +286,6 @@ export function InboxList(props: InboxListProps) {
     inNeedsBucket,
     tabStopId,
     onRowKey,
-    glass: look === "glass",
   };
 
   return (
@@ -324,7 +319,7 @@ export function InboxList(props: InboxListProps) {
  * I1), and on a phone only the bucket that needs you says its figure.
  */
 function bucketTabs(L: ListCtx) {
-  const { buckets, activeBucket, onBucketChange, glass } = L;
+  const { buckets, activeBucket, onBucketChange } = L;
   return (
     <SubTabs
       label="Conversations by status"
@@ -338,7 +333,7 @@ function bucketTabs(L: ListCtx) {
         hint: b.hint,
         tone: b.accent ? ("warn" as const) : undefined,
         glyph: buckets.length > 3 ? <Icon name={b.icon} size={13} /> : undefined,
-        count: !glass || (b.count ?? 0) > 0 ? b.count : undefined,
+        count: (b.count ?? 0) > 0 ? b.count : undefined,
       }))}
     />
   );

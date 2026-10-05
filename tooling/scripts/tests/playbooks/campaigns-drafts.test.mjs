@@ -105,6 +105,7 @@ const { broadcasts } = await import(`${SRC}/surfaces/campaigns/broadcasts/verbs.
 const { playbooks } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
 const { templates } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 
 /* ---------------------------------- walking a tree ---------------------------------- */
 
@@ -828,7 +829,8 @@ test("the send screen's door to their yes, pressed in the home's sheet, replaces
     fresh();
     // New message pushes the composer's address; its screen says nobody on the list has said yes, with the door to get it.
     let tree = redraw(() => home());
-    press(byTestId(tree, "cmh-new"));
+    // The home says its acts to the frame's head (kit/head/standing.ts): New message is pressed where it stands.
+    press(find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "cmh-new"));
     assert.deepEqual(went, ["campaigns/new"]);
     tree = redraw(() => home("new"));
     press(byTestId(tree, "bc-nobody-door"));

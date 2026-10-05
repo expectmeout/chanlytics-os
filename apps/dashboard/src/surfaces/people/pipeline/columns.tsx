@@ -31,7 +31,7 @@ type PipelineColumn = TableColumn<PipelineRowVM, PipelineCellCtx>;
 
 // Made once, from contracts' headings, so the list page's memo sees one list from one draw to the next.
 let PIPE_COLUMNS: PipelineColumn[] | null = null;
-export const pipeColumns = (): PipelineColumn[] => {
+const pipeColumns = (): PipelineColumn[] => {
   if (PIPE_COLUMNS) return PIPE_COLUMNS;
   const w = P.words.columns;
   PIPE_COLUMNS = [

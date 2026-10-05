@@ -378,7 +378,11 @@ test("REGRESSION (C17, C21): a viewer on Templates finds New message where it al
     });
     fresh();
     const tree = TemplatesPage();
-    const write = byTestId(tree, "template-new");
+    // The page's act is the frame's head's (CmHead says it to the standing), gated there the same way.
+    const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
+    const write =
+      byTestId(tree, "template-new") ??
+      find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "template-new");
     assert.ok(write, "REGRESSION: New message was hidden from a viewer, with no word why");
     assert.equal(write.props["data-tip"], "Only an owner or operator can write a template.");
     assert.ok(!listening.includes("messages:new"), "REGRESSION: a listener for an event nothing dispatches");

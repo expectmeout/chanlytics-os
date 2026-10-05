@@ -63,19 +63,8 @@ test.describe("Today on its path", () => {
     ).toBeVisible();
   });
 
-  test("in Glass Today opens under its greeting and the day's standing, and in Classic it has none", async ({
-    page,
-  }) => {
+  test("Today opens under its greeting and the day's standing", async ({ page }) => {
     const slug = await slugOfHome(page);
-    // The look this device chose (device-prefs.ts): Glass is drawn and not offered, so a spec asks for it as a device would.
-    const chooseLook = (look: string) =>
-      page.evaluate((chosen) => {
-        const key = "chanlytics-os-prefs";
-        const kept = JSON.parse(localStorage.getItem(key) ?? "{}") as Record<string, unknown>;
-        localStorage.setItem(key, JSON.stringify({ ...kept, look: chosen }));
-      }, look);
-    await page.goto("/api/version");
-    await chooseLook("glass");
     await page.goto(`/w/${slug}/today`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     const head = page.locator(".pg-head");
@@ -85,12 +74,5 @@ test.describe("Today on its path", () => {
     // The page stands under it, and the top bar leaves the name to the head.
     await expect(page.locator(".dash-a-v2")).toBeVisible();
     await expect(page.locator(".topbar .crumbs")).toBeHidden();
-
-    await page.goto("/api/version");
-    await chooseLook("classic");
-    await page.goto(`/w/${slug}/today`);
-    await expect(page.locator(".dash-a-v2")).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator(".pg-head")).toHaveCount(0);
-    await expect(page.locator(".topbar .crumbs")).toBeVisible();
   });
 });

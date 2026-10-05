@@ -2510,12 +2510,10 @@ var ROUTE_WORDS = {
 };
 var DEFAULT_LOOK_PREF = "glass";
 var LOOK_THEME_COLORS = {
-  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
   glass: { light: "#f1f2f6", dark: "#0f1014" }
 };
 var THEME_COLORS = LOOK_THEME_COLORS[DEFAULT_LOOK_PREF];
 var LOOK_THEME_INK = {
-  classic: { light: "#161616", dark: "#fbfaf8" },
   glass: { light: "#1b1c20", dark: "#f4f4f6" }
 };
 var THEME_INK = LOOK_THEME_INK[DEFAULT_LOOK_PREF];
@@ -6520,12 +6518,10 @@ var ROUTE_WORDS2 = {
 };
 var DEFAULT_LOOK_PREF2 = "glass";
 var LOOK_THEME_COLORS2 = {
-  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
   glass: { light: "#f1f2f6", dark: "#0f1014" }
 };
 var THEME_COLORS2 = LOOK_THEME_COLORS2[DEFAULT_LOOK_PREF2];
 var LOOK_THEME_INK2 = {
-  classic: { light: "#161616", dark: "#fbfaf8" },
   glass: { light: "#1b1c20", dark: "#f4f4f6" }
 };
 var THEME_INK2 = LOOK_THEME_INK2[DEFAULT_LOOK_PREF2];
@@ -10179,12 +10175,10 @@ var ROUTE_WORDS3 = {
 };
 var DEFAULT_LOOK_PREF3 = "glass";
 var LOOK_THEME_COLORS3 = {
-  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
   glass: { light: "#f1f2f6", dark: "#0f1014" }
 };
 var THEME_COLORS3 = LOOK_THEME_COLORS3[DEFAULT_LOOK_PREF3];
 var LOOK_THEME_INK3 = {
-  classic: { light: "#161616", dark: "#fbfaf8" },
   glass: { light: "#1b1c20", dark: "#f4f4f6" }
 };
 var THEME_INK3 = LOOK_THEME_INK3[DEFAULT_LOOK_PREF3];
@@ -14148,12 +14142,10 @@ var ROUTE_WORDS4 = {
 };
 var DEFAULT_LOOK_PREF4 = "glass";
 var LOOK_THEME_COLORS4 = {
-  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
   glass: { light: "#f1f2f6", dark: "#0f1014" }
 };
 var THEME_COLORS4 = LOOK_THEME_COLORS4[DEFAULT_LOOK_PREF4];
 var LOOK_THEME_INK4 = {
-  classic: { light: "#161616", dark: "#fbfaf8" },
   glass: { light: "#1b1c20", dark: "#f4f4f6" }
 };
 var THEME_INK4 = LOOK_THEME_INK4[DEFAULT_LOOK_PREF4];
@@ -18543,12 +18535,10 @@ var ROUTE_WORDS22 = {
 };
 var DEFAULT_LOOK_PREF22 = "glass";
 var LOOK_THEME_COLORS22 = {
-  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
   glass: { light: "#f1f2f6", dark: "#0f1014" }
 };
 var THEME_COLORS22 = LOOK_THEME_COLORS22[DEFAULT_LOOK_PREF22];
 var LOOK_THEME_INK22 = {
-  classic: { light: "#161616", dark: "#fbfaf8" },
   glass: { light: "#1b1c20", dark: "#f4f4f6" }
 };
 var THEME_INK22 = LOOK_THEME_INK22[DEFAULT_LOOK_PREF22];
@@ -22027,12 +22017,10 @@ var ROUTE_WORDS32 = {
 };
 var DEFAULT_LOOK_PREF32 = "glass";
 var LOOK_THEME_COLORS32 = {
-  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
   glass: { light: "#f1f2f6", dark: "#0f1014" }
 };
 var THEME_COLORS32 = LOOK_THEME_COLORS32[DEFAULT_LOOK_PREF32];
 var LOOK_THEME_INK32 = {
-  classic: { light: "#161616", dark: "#fbfaf8" },
   glass: { light: "#1b1c20", dark: "#f4f4f6" }
 };
 var THEME_INK32 = LOOK_THEME_INK32[DEFAULT_LOOK_PREF32];
