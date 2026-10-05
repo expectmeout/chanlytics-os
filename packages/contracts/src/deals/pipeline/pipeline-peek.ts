@@ -94,7 +94,7 @@ export function pipelinePeekDetail(p: PersonVM): PipelinePeekDetailVM {
     reach.push({ id: "phone", label: W.phone, words: p.phone, call: dial ? `tel:${dial}` : null, copy: p.phone });
   }
   if (p.email) reach.push({ id: "email", label: W.email, words: p.email, call: null, copy: p.email });
-  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow) : null;
+  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name }) : null;
   if (replies) reach.push({ id: "replies", label: W.replies, words: replies, call: null, copy: null });
   const history = p.timeline
     .filter((t) => t.kind === "deal" && !t.ahead)

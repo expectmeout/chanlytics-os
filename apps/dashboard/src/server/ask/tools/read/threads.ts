@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import {
   ASK_CAPS,
-  ESCALATION_REASON_LABELS,
+  reasonLabelOf,
   PERSON_CHANNEL_WORDS,
   clockStamp,
   messageText,
@@ -128,9 +128,7 @@ async function getThread(t: ToolContext, input: { conversation_id: string; more?
     who: r.rows[0].label,
     channel: vm.replyVia,
     state: threadState(vm),
-    escalation: esc
-      ? { id: esc.id, reason: ESCALATION_REASON_LABELS[esc.reason] ?? esc.reason, details: esc.details }
-      : null,
+    escalation: esc ? { id: esc.id, reason: reasonLabelOf(esc.reason), details: esc.details } : null,
     window_open: vm.windowOpen,
     held_draft: vm.veto
       ? {

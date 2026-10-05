@@ -534,7 +534,26 @@ function withoutPersonState(old, got) {
   const rest = { ...said };
   delete rest.state;
   delete rest.state_detail;
+  // 5 Oct 2026 (the 2 Oct audit, C3): the right-now line of an escalation says when and why in the person page's own
+  // sentence, and no longer appends "Paused until someone answers." to every reason; its title is held as frozen.
+  if (rest.right_now?.detail) {
+    assert.ok(
+      typeof rest.right_now.detail === "string" && rest.right_now.detail.length > 0,
+      "a right-now line says one",
+    );
+    rest.right_now = { ...rest.right_now };
+    delete rest.right_now.detail;
+  }
   return { ...got, result: JSON.stringify(rest) };
+}
+
+/** The frozen answer's side of the right-now change withoutPersonState makes (the 2 Oct audit, C3). */
+function withoutRightNowDetail(frozen) {
+  const said = JSON.parse(frozen);
+  if (!said.right_now?.detail) return frozen;
+  const right_now = { ...said.right_now };
+  delete right_now.detail;
+  return JSON.stringify({ ...said, right_now });
 }
 
 /**
@@ -618,7 +637,9 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       counted.includes("rpc:people_list");
     const reads = readsReach ? [...counted, "tenant_channels.select", "lines.select"] : counted;
     const [gotResult, wantResult] =
-      NAMES[old] === "campaigns.playbooks" ? againstOffered(got.result, result) : [got.result, result];
+      NAMES[old] === "campaigns.playbooks"
+        ? againstOffered(got.result, result)
+        : [got.result, NAMES[old] === "people.get" ? withoutRightNowDetail(result) : result];
     // 2 Oct 2026: a win-back proposed asks first whether a calendar is connected (check-playbook's calendarOn), from the
     // zone and settings the turn reads once: the same reads as before, those two earlier.
     // Reads asked at once land in any order: People's list has read the workspace beside its rows since e32aaf29c,

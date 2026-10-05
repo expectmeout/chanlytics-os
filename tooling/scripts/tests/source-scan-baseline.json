@@ -102,7 +102,7 @@
     "today/today-queue.test.mjs": 6,
     "voice/agent-settings.test.mjs": 2,
     "voice/calls/call-lifecycle.test.mjs": 3,
-    "voice/calls/call-outcomes.test.mjs": 8,
+    "voice/calls/call-outcomes.test.mjs": 7,
     "voice/calls/calls-hardening.test.mjs": 6,
     "voice/live/whisper.test.mjs": 3,
     "voice/voice-pipeline.test.mjs": 3,

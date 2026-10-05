@@ -29,7 +29,7 @@ what the script writes.
 | [`calls`](#calls) | `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
 | [`contact_identities`](#contact_identities) | `packages/db/src/repositories/email.ts` | on, 1 policy |
-| [`contacts`](#contacts) | `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
+| [`contacts`](#contacts) | `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`conversations`](#conversations) | `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/thread.ts` | on, 2 policies |
 | [`deals`](#deals) | `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`decisions`](#decisions) | none | on, 2 policies |
@@ -60,7 +60,7 @@ what the script writes.
 | [`lines`](#lines) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email.ts` | on, 1 policy |
 | [`memberships`](#memberships) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notifications.ts` | on, 2 policies |
-| [`messages`](#messages) | `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
+| [`messages`](#messages) | `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
 | [`notification_marks`](#notification_marks) | none | on, 1 policy |
 | [`notification_reads`](#notification_reads) | none | on, 1 policy |
 | [`notifications`](#notifications) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
@@ -544,7 +544,7 @@ Foreign keys:
 
 ### contacts
 
-- Owned by: `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`
+- Owned by: `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1543,7 +1543,7 @@ Foreign keys:
 
 ### messages
 
-- Owned by: `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 3 policies
 

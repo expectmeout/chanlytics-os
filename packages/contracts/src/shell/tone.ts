@@ -106,6 +106,9 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
   thread: {
     escalated: "warn",
     needs_you: "warn",
+    // Flagged and held: yours is in hand, a teammate's is theirs to answer -- neither is a warning to this reader.
+    yours: "info",
+    theirs: "plain",
     snoozed: "info",
     done: "plain",
     open: "plain",
@@ -117,11 +120,14 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
   call: {
     live: "accent",
     missed: "plain",
+    // The provider could not place or keep the call: a fault, not a customer's choice.
+    failed: "warn",
     handled: "plain",
     stale: "plain",
     ended: "plain",
     abandoned: "warn",
     callback: "warn",
+    voicemail: "plain",
   },
   person: {
     needs_you: "warn",
@@ -179,6 +185,8 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
   thread: {
     escalated: "Needs you",
     needs_you: "Needs you",
+    yours: "You have it",
+    theirs: "A teammate has it",
     snoozed: "Snoozed",
     done: "Done",
     open: "Customer wrote last",
@@ -197,11 +205,13 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
   call: {
     live: "Live",
     missed: "Never connected",
+    failed: "Call failed",
     handled: "Handled",
     stale: "No word from the provider",
     ended: "Ended",
     abandoned: "Hung up early",
     callback: "Asked for a call back",
+    voicemail: "Reached voicemail",
   },
   person: PERSON_STATE_LABELS,
   consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },

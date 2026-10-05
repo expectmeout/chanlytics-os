@@ -24,9 +24,10 @@ import { addedBy, ts } from "./person-helpers";
 import { capitalize } from "../shared/words";
 import { callLength } from "../shared/clock";
 import { isIdentifierName } from "../conversations/thread-contact";
+import { callAttemptWords } from "../conversations/call-dto";
 import { type MessageAuthor, messageAuthor } from "../conversations/message-author";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
-import { messageWords } from "../conversations/message-words";
+import { clipAtWord, messageWords } from "../conversations/message-words";
 import type { PersonCardContext } from "./person-cards";
 import { reachOutPersonOf, type ReachOutPersonVM } from "../reach-out/reach-out-leads";
 import { leadsRoute } from "../leads/lead-plan";
@@ -262,7 +263,7 @@ function callItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[
       ...stamp(t),
       kind: "call",
       who: missed
-        ? "Missed call"
+        ? callAttemptWords(k.direction)
         : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""}`,
       text: sentence,
       sub: missed
@@ -282,15 +283,27 @@ function escalationItems({ profile, stamp }: PersonCardContext): PersonTimelineI
   for (const e of profile.escalations) {
     const t = ts(e.created_at);
     if (t === null) continue;
+    // The details say more (a call back's to-do, why a send failed): the page dropped them, and said "Resolved" with
+    // no when (the 2 Oct 2026 audit). A call back's details are its whole sentence, so they are not repeated as a quote.
+    // Details that only repeat the reason's own words ("asked for a person") say nothing more, and are left out.
+    const said = e.details?.trim();
+    const details = said && said.toLowerCase() !== reasonShort(e.reason).toLowerCase() ? clipAtWord(said, 120) : null;
+    const resolvedAt = e.state === "resolved" ? ts(e.updated_at) : null;
     items.push({
       id: `e-${e.id}`,
       ts: t,
       ...stamp(t),
       kind: "escalation",
       who: "Escalated",
-      text: capitalize(reasonShort(e.reason)) || "The receptionist stopped",
+      text:
+        e.reason === "callback" && details
+          ? details
+          : `${capitalize(reasonShort(e.reason)) || "The receptionist stopped"}${details ? ` · “${details}”` : ""}`,
       // "Open" beside a row that opens something read as the verb; the state is what it says.
-      sub: e.state === "resolved" ? "Resolved" : "Still open",
+      sub:
+        e.state === "resolved"
+          ? `Resolved${resolvedAt !== null ? ` · ${stamp(resolvedAt).time} ${stamp(resolvedAt).day}` : ""}${e.resolved_by_user_id ? " · by a person" : ""}`
+          : "Still open",
       link: { label: "Open the thread", to: `inbox/th-${e.conversation_id}` },
     });
   }

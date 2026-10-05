@@ -30,9 +30,11 @@ export interface CallVM {
   at: string;
   duration?: string;
   ts: number;
-  /** live: in progress under the heartbeat rule · missed: the dial never
-   *  connected (Retell's not_connected) · handled: everything else. */
-  outcome: "live" | "handled" | "missed" | "callback" | "abandoned";
+  /** live: in progress under the heartbeat rule · missed: the dial never connected (Retell's not_connected) ·
+   *  failed: the provider could not place or keep it (status error) · abandoned · callback · voicemail: they
+   *  reached the voicemail · handled: everything else. A voicemail and an errored call read "Receptionist
+   *  handled it" until the 2 Oct 2026 audit. */
+  outcome: "live" | "handled" | "missed" | "failed" | "callback" | "abandoned" | "voicemail";
   live?: boolean;
   snippet: string;
   summary: { headline: string; bullets: string[] };
@@ -197,11 +199,15 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
       ? "live"
       : missed
         ? "missed"
-        : abandonedCall(dto)
-          ? "abandoned"
-          : callOutcomeOf(dto.outcome) === "callback_needed"
-            ? "callback"
-            : "handled",
+        : dto.status === "error"
+          ? "failed"
+          : abandonedCall(dto)
+            ? "abandoned"
+            : callOutcomeOf(dto.outcome) === "callback_needed"
+              ? "callback"
+              : dto.in_voicemail
+                ? "voicemail"
+                : "handled",
     ...(live ? { live: true } : {}),
     snippet: withheld
       ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — caller ID withheld, so this call isn't linked to a customer.`

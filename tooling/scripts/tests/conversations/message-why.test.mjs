@@ -66,6 +66,7 @@ test("Conversations draws a why beside the reply and none beside the customer's 
         }),
       ],
     },
+    null,
     ZONE,
     NOW,
   );

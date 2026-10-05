@@ -1,4 +1,5 @@
 import { agoShort as spanAgo, DAY_MS, MIN_MS } from "../shared/time";
+import { callAttemptWords } from "../conversations/call-dto";
 import { FINISH_SETTING_UP } from "../setup/first-run";
 import { firstLine } from "./push";
 import type { JobKind } from "../shared/enums";
@@ -42,6 +43,8 @@ export interface FeedThread {
   needsYou?: boolean;
   who: string;
   preview?: string;
+  /** The customer's own words beside the decision (InboxThreadVM.ask): what a needs-you row quotes. */
+  ask?: { kind: "call" | "wrote" | "sent"; label: string; text: string; quoted: boolean } | null;
   waitingMin?: number;
   /** Absolute times, when the view-model carries them. */
   lastAtMs?: number;
@@ -61,6 +64,8 @@ export interface FeedCall {
   cvId: string;
   who: string;
   number?: string | null;
+  /** Who dialled: a customer's dial that never connected is missed; one we placed is not (callAttemptWords). */
+  direction?: "inbound" | "outbound";
   missed: boolean;
   live: boolean;
   startedAtMs: number | null;
@@ -96,7 +101,9 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
         kind: "needs_you",
         at,
         title: `${t.who} needs you`,
-        message: t.preview ? `They wrote: “${t.preview}”` : "Flagged for a person.",
+        // The customer's own words (the thread's `ask`), never the thread's last message: that was the
+        // receptionist's holding reply on every handoff, quoted as if the customer had written it.
+        message: t.ask ? `${t.ask.label}: ${t.ask.quoted ? `“${t.ask.text}”` : t.ask.text}` : "Flagged for a person.",
         to: `inbox/${t.id}`,
         icon: "inbox",
         tone: "warn",
@@ -127,7 +134,7 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
       key: `call:${c.callId}`,
       kind: "missed_call",
       at: c.startedAtMs,
-      title: `Missed call · ${c.who}`,
+      title: `${callAttemptWords(c.direction ?? "inbound")} · ${c.who}`,
       message: c.number ? `${c.number} — the call never connected.` : "The call never connected.",
       to: `conversations/${c.cvId}`,
       icon: "phone",

@@ -124,7 +124,7 @@ test("REGRESSION: an email thread credits the team, not a WhatsApp receptionist 
   assert.deepEqual(agentFor("sms"), { glyph: "T", name: "Text Receptionist" });
   assert.deepEqual(agentFor("phone"), { glyph: "P", name: "Phone Receptionist" });
 
-  const row = toConversationVM(dto(), TZ, NOW);
+  const row = toConversationVM(dto(), null, TZ, NOW);
   assert.equal(row.channel, "email");
   assert.equal(row.agent.name, "Your team");
   assert.equal(row.who, ADDRESS);

@@ -12,37 +12,9 @@ import { consentSourceLabel, STOP_ENDED_OFFERS_SOURCE, type PersonConsent } from
 import { fmtDate, ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";
 
-/**
- * The escalation reasons in the words an owner uses across a table row.
- * ESCALATION_REASON_LABELS in conversations/escalations.ts are sentences for Today's headlines;
- * these are clauses that follow "Escalated, …".
- */
-const REASON_SHORT: Record<string, string> = {
-  human_token: "asked for a person",
-  non_text: "sent something the receptionist can't read",
-  refusal: "the receptionist declined to answer",
-  rate_cap: "reply limit reached",
-  policy_block: "held by your reply setting",
-  policy_ask: "a booking or a question set to Ask me first",
-  person_hold: "held for you",
-  carriers: "waiting on carriers",
-  email_review: "wrote by email",
-  send_failed: "a reply failed to send",
-  deadman: "no answer in time",
-  brain_error: "the receptionist hit an error",
-  manual: "flagged by you",
-  opt_out: "asked to stop",
-  state_unavailable: "memory was unavailable",
-  stale: "message arrived late",
-  callback: "needs a call back",
-  budget: "the day’s model budget is spent",
-  paused: "billing is paused",
-};
-
-export function reasonShort(reason: string | null | undefined): string {
-  if (!reason) return "";
-  return REASON_SHORT[reason] ?? reason.replace(/_/g, " ");
-}
+// The reason's clause, "Escalated, …", is the one vocabulary in conversations/escalations.ts; every reader here
+// kept this import path, so the map's move left no caller to change.
+export { reasonShort } from "../conversations/escalations";
 
 /** "just now" · "5m ago" · "3h ago" · "2d ago", the business's date past a week — the one family (time.ts, clock.ts). */
 export function ago(ms: number, tz: string, nowMs: number): string {
@@ -65,7 +37,16 @@ export function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): Perso
   const k = ts(r.last_call_at);
   if (m === null && k === null) return { ts: null, at: null, kind: null, who: null, label: "No contact recorded" };
   if (k !== null && (m === null || k > m)) {
-    return { ts: k, at: r.last_call_at, kind: "call", who: "they", label: `Phoned · ${ago(k, tz, nowMs)}` };
+    // "Phoned" only when THEY did: last_call_at holds the receptionist's own outbound calls too, and the row said
+    // "Phoned" over a call we placed (the 2 Oct 2026 audit). heardAt (person-state.ts) already reads it this way.
+    const theirs = ts(r.last_inbound_call_at) === k;
+    return {
+      ts: k,
+      at: r.last_call_at,
+      kind: "call",
+      who: theirs ? "they" : "system",
+      label: `${theirs ? "Phoned" : "We called"} · ${ago(k, tz, nowMs)}`,
+    };
   }
   const who: PersonLastContact["who"] =
     r.last_message_direction === "inbound"
