@@ -6585,6 +6585,13 @@ type Database = {
                 };
                 Returns: Json;
             };
+            merge_people: {
+                Args: {
+                    p_keep: string;
+                    p_merge: string;
+                };
+                Returns: Json;
+            };
             message_carries_link: {
                 Args: {
                     p_body: string;

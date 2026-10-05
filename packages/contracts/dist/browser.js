@@ -2938,6 +2938,47 @@ function purposeOfPlaybook(policyClass) {
   return policyClass === "booking" || policyClass === "follow_up" ? "conversational" : "marketing";
 }
 
+// src/people/person-merge.ts
+var MERGE_CONSENT_SOURCE = "merge";
+var MERGE_REFUSALS = {
+  same: "Choose two different records to merge.",
+  owner: "Only an owner can merge two records.",
+  deleted: "One of these people was deleted, so there is nothing to merge.",
+  merged: "One of these records was already merged into another.",
+  phones: "These two records have different phone numbers, so they may be two people. They can't be merged.",
+  emails: "These two records have different email addresses, so they may be two people. They can't be merged.",
+  deals: "Both records have an open deal for the same service. Close or move one of them first."
+};
+var MERGE_WORDS = {
+  act: "Merge with another record\u2026",
+  actHint: "Two records of one person become one",
+  pick: "Which record is the same person?",
+  pickPlaceholder: "Search by name, number or email",
+  pickEmpty: "Nobody else matches",
+  pickNone: "Choose the other record",
+  pickReading: "People is still being read; the other records are offered once it lands.",
+  question: (kept, other) => `Merge ${other} into ${kept}?`,
+  detail: (kept, other) => `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. Their answers about messages and offers become the more careful of the two. ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
+  typed: (kept) => `Type ${kept} to confirm.`,
+  yes: "Merge the two records",
+  busy: "Merging\u2026",
+  done: (kept, other) => `${other} merged into ${kept}`
+};
+function offersAnswer(a, b, stopped) {
+  if (a === "opted_out" || b === "opted_out") return "opted_out";
+  if (stopped) return "unknown";
+  return a === "opted_in" || b === "opted_in" ? "opted_in" : "unknown";
+}
+function mergedAnswers(a, b) {
+  const stopped = a.consent === "opted_out" || a.dnc || b.consent === "opted_out" || b.dnc;
+  return {
+    consent: stopped ? "opted_out" : a.consent === "opted_in" || b.consent === "opted_in" ? "opted_in" : "unknown",
+    dnc: stopped,
+    marketing: offersAnswer(a.marketing, b.marketing, stopped),
+    emailMarketing: offersAnswer(a.emailMarketing, b.emailMarketing, stopped)
+  };
+}
+
 // src/people/person-consent.ts
 var CONSENT_SOURCES = [
   { id: "in_person", label: "In person" },
@@ -2977,6 +3018,7 @@ function consentSourceLabel(source) {
   if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
   if (source === STOP_ENDED_OFFERS_SOURCE) return "Ended when they said stop";
   if (source === WHATSAPP_CONSENT_SOURCE) return "Reported by WhatsApp";
+  if (source === MERGE_CONSENT_SOURCE) return "From a merged record";
   return source === CONSENT_RESET_SOURCE ? null : source;
 }
 function mayReceive(r2, purpose, channel, about) {
@@ -12266,6 +12308,8 @@ var EVENT_KINDS = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
+  /** Two records of one person became one (00326, decision 0028): on the kept record, with what moved. */
+  "contact.merged",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -12501,6 +12545,11 @@ var DECISION_VERBS = [
    * were gone — the storage sweep.
    */
   "erase",
+  /**
+   * Two records of one person became one (merge_people, 00326; decision 0028). On subject_type 'contact', the kept
+   * record; the payload names the merged one and counts what moved. Owner only, and never undone.
+   */
+  "merge",
   /**
    * A sentence handed to the phone receptionist mid-call, heard by it alone
    * and worked into its next answer (Retell update-live-call). Subject
@@ -23201,6 +23250,9 @@ function howKnown(c) {
   if (c.source === WHATSAPP_CONSENT_SOURCE) {
     return "Reported by WhatsApp: they chose there to stop marketing messages from your business, so a message to them was not delivered";
   }
+  if (c.source === MERGE_CONSENT_SOURCE) {
+    return "Two records of this person were merged, and the more careful answer stands";
+  }
   return `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` \xB7 ${c.note}` : ""}`;
 }
 function consentChangeWords(c) {
@@ -23507,6 +23559,7 @@ function personActs(p) {
     acts.push({ id: "copy-phone", label: "Copy number", hint: null, group: "reach", needs: "any" });
   }
   if (p.email) acts.push({ id: "copy-email", label: "Copy email", hint: null, group: "reach", needs: "any" });
+  acts.push({ id: "merge", label: MERGE_WORDS.act, hint: MERGE_WORDS.actHint, group: "delete", needs: "owner" });
   acts.push({ id: "delete", label: "Delete person\u2026", hint: null, group: "delete", needs: "owner", danger: true });
   return acts;
 }
@@ -25915,6 +25968,7 @@ var ROUTE_KEYS = [
   "POST client-errors",
   "POST contacts",
   "POST contacts/[id]/deal",
+  "POST contacts/[id]/merge",
   "POST contacts/[id]/notes",
   "POST contacts/[id]/notes/decide",
   "POST contacts/[id]/notes/done",
@@ -26136,7 +26190,8 @@ var SCHEMA_SETS = {
     "restore_list",
     "delete_list",
     "import",
-    "open_recording"
+    "open_recording",
+    "merge"
   ],
   "escalations.reason": [
     "human_token",
@@ -30547,6 +30602,7 @@ var WORDS2 = {
   change_role: "Changed a member's role",
   remove_member: "Removed a member",
   erase: "Erased a person",
+  merge: "Merged two records of one person",
   whisper: "Whispered to the phone receptionist",
   connect_channel: "Connected a channel",
   consent_change: "Recorded a consent answer",
@@ -30594,6 +30650,7 @@ var WORDS2 = {
   "deal.ended": "An engagement ended",
   "contact.email_suppressed": "A person's email address stopped being sent to",
   "contact.erased": "A person was erased",
+  "contact.merged": "Two records of one person became one",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
@@ -32433,6 +32490,9 @@ export {
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
   MEMBERSHIP_ROLES,
+  MERGE_CONSENT_SOURCE,
+  MERGE_REFUSALS,
+  MERGE_WORDS,
   MESSAGE_CHANNELS,
   MESSAGE_DIRECTIONS,
   MESSAGE_MOMENT_WORDS,
@@ -33388,6 +33448,7 @@ export {
   memberMetaOf,
   memberWords,
   membersOf,
+  mergedAnswers,
   messageAboutOfTrigger,
   messageAt,
   messageAuthor,

@@ -58,6 +58,8 @@ export const RATE = {
   thread_state: { limit: 120, windowMs: MIN_MS, noun: "conversation changes" },
   /** Irreversible, and a job per erasure. */
   erase: { limit: 5, windowMs: HOUR_MS, noun: "erasures" },
+  /** Irreversible too (0028), and refused pairs spend a turn: an owner tidying a list of duplicates stays under this. */
+  merge: { limit: 20, windowMs: HOUR_MS, noun: "merges" },
   /** A sentence into a live call. */
   whisper: { limit: 20, windowMs: MIN_MS, noun: "whispers" },
   /** Ending a call, or passing it to the business. */

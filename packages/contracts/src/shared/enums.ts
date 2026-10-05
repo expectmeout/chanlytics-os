@@ -149,6 +149,8 @@ export const EVENT_KINDS = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
+  /** Two records of one person became one (00326, decision 0028): on the kept record, with what moved. */
+  "contact.merged",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -475,6 +477,11 @@ export const DECISION_VERBS = [
    * were gone — the storage sweep.
    */
   "erase",
+  /**
+   * Two records of one person became one (merge_people, 00326; decision 0028). On subject_type 'contact', the kept
+   * record; the payload names the merged one and counts what moved. Owner only, and never undone.
+   */
+  "merge",
   /**
    * A sentence handed to the phone receptionist mid-call, heard by it alone
    * and worked into its next answer (Retell update-live-call). Subject

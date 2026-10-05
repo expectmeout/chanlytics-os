@@ -21,6 +21,7 @@ import {
   WHATSAPP_CONSENT_SOURCE,
 } from "./person-consent";
 import { addedBy, ts } from "./person-helpers";
+import { MERGE_CONSENT_SOURCE } from "./person-merge";
 import { capitalize } from "../shared/words";
 import { callLength } from "../shared/clock";
 import { isIdentifierName } from "../conversations/thread-contact";
@@ -92,6 +93,11 @@ function howKnown(c: ConsentChange): string {
     // WhatsApp's report of a no to offers we never heard (131050 on a message Meta counts as marketing): their own
     // choice, made in WhatsApp, said by WhatsApp. Neither their words to us nor a member's record.
     return "Reported by WhatsApp: they chose there to stop marketing messages from your business, so a message to them was not delivered";
+  }
+  if (c.source === MERGE_CONSENT_SOURCE) {
+    // Two records of this person were merged, and the more careful of their two answers stands (00326). Nobody on the
+    // team recorded an answer, and the person said nothing new.
+    return "Two records of this person were merged, and the more careful answer stands";
   }
   return `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` · ${c.note}` : ""}`;
 }

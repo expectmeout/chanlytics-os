@@ -98,6 +98,7 @@ const FRESH = [
   "GET contacts/export",
   "GET leads/export",
   "DELETE contacts/[id]",
+  "POST contacts/[id]/merge",
   "DELETE leads/[id]",
   "POST billing/checkout",
   "POST billing/portal",
