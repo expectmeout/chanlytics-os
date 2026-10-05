@@ -466,6 +466,8 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   // The old Playbooks list (`outbound`) is Campaigns' home now, and Sent and the Library its rooms: the door says the name.
   [/^outbound/, "Open Campaigns"],
   [/^campaigns/, "Open Campaigns"],
+  // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
+  [/^broadcasts\/run:/, "Open the run"],
   [/^broadcasts/, "Open Sent"],
   // The route is still `messages`; the page is the Library (a room of Campaigns), and the door says the page's name.
   [/^messages/, "Open Library"],

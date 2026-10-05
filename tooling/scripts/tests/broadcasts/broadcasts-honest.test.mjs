@@ -1703,6 +1703,8 @@ test("an approve or a stop is said the moment the server takes it, with what it 
     started_at: null,
     finished_at: null,
     scheduled_for: iso(-H),
+    // Today's run: one made for an earlier day is refused by the verb, and no page offers to approve it.
+    run_for: globalThis.window.__clock.dayKey(Date.now()),
     counts: quiet,
   });
   setSurfaceValue("broadcasts", broadcastsSurface({ rows: [waiting].map((b) => toBroadcastVM(b, ZONE)) }));
@@ -1757,6 +1759,8 @@ test("REGRESSION (C14): a send in flight draws its progress, Approve says it is 
     started_at: null,
     finished_at: null,
     scheduled_for: iso(-H),
+    // Today's run: one made for an earlier day is refused by the verb, and no page offers to approve it.
+    run_for: globalThis.window.__clock.dayKey(Date.now()),
     counts: quiet,
   });
   setSurfaceValue(
@@ -5014,4 +5018,77 @@ test("the send says under the To line when the month's emails cannot carry every
     null,
     "a month that could not be counted says nothing it cannot support",
   );
+});
+
+test("a waiting run whose day has passed is not offered an Approve the route refuses: the button says why, and approves nothing", async () => {
+  // approveRun refuses a playbook's run on a later day than the one it was made for (contracts runApprovalRefusal). The
+  // run's sheet said so; the run's card offered Approve all the same, and the route answered 409.
+  const stale = dto({
+    id: "b-stale",
+    name: "Win-back · 2026-09-10",
+    state: "pending_approval",
+    started_at: null,
+    finished_at: null,
+    scheduled_for: iso(-H),
+    counts: quiet,
+  });
+  assert.equal(stale.run_for, "2026-09-10", "the fixture's day is long gone");
+  setSurfaceValue("broadcasts", broadcastsSurface({ rows: [stale].map((b) => toBroadcastVM(b, ZONE)) }));
+  const keep = broadcasts.approve;
+  const approvals = [];
+  broadcasts.approve = async (id) => {
+    approvals.push(id);
+    return { ok: true, data: {} };
+  };
+  const props = { initialSegment: null, initialRun: null };
+  try {
+    // Where the shell gates a control (data-bits gatedProps), the button carries the verb's own sentence.
+    globalThis.window.gatedProps = (reason) => ({ "aria-disabled": true, "data-tip": reason, onClick() {} });
+    let approve = byTestId(page(props), "bc-approve");
+    assert.equal(approve.props["aria-disabled"], true);
+    assert.match(
+      approve.props["data-tip"],
+      /^This run was made for .+ and that day has passed: .+ Skip it; the next run reads the calendar again\.$/,
+    );
+    press(approve);
+    await settle();
+    assert.deepEqual(approvals, [], "REGRESSION: Approve on a run the verb refuses");
+    // And where it does not (the standalone page), the press still approves nothing.
+    delete globalThis.window.gatedProps;
+    approve = byTestId(page(props), "bc-approve");
+    press(approve);
+    await settle();
+    assert.deepEqual(approvals, [], "no gate, and still no approve");
+
+    // A reach-out's run has no day to pass: approveRun takes it to its own verb before it asks the day (decision D6), so
+    // the same card on a later day approves it. The page's rule is the verb's, exemption and all (runApprovalRefusal).
+    const reach = dto({
+      id: "b-reach",
+      name: "Dentists · 2026-09-10",
+      state: "pending_approval",
+      started_at: null,
+      finished_at: null,
+      scheduled_for: iso(-H),
+      audience: { kind: "reach_out", root_id: "pb-1", step_id: "pb-1", label: "Dentists" },
+      counts: quiet,
+    });
+    const { runApprovalRefusal } = await import("@chanlytics/contracts");
+    const days = { today: "2026-10-05", sendsOn: "2026-10-05" };
+    assert.equal(runApprovalRefusal(reach, days), null, "the predicate itself");
+    assert.match(runApprovalRefusal(stale, days), /that day has passed/);
+    setSurfaceValue("broadcasts", broadcastsSurface({ rows: [reach].map((b) => toBroadcastVM(b, ZONE)) }));
+    globalThis.window.gatedProps = (reason) => ({ "aria-disabled": true, "data-tip": reason, onClick() {} });
+    approve = byTestId(page(props), "bc-approve");
+    assert.notEqual(
+      approve.props["aria-disabled"],
+      true,
+      "REGRESSION-IN-WAITING: a reach-out's Approve gated by a day",
+    );
+    press(approve);
+    await settle();
+    assert.deepEqual(approvals, ["b-reach"]);
+  } finally {
+    delete globalThis.window.gatedProps;
+    broadcasts.approve = keep;
+  }
 });

@@ -10377,11 +10377,16 @@ var RUN_STOP_AGAIN = {
 };
 var isRunStop = (code2) => code2 in RUN_STOP_REMEDY;
 function stoppedRunFix(why, run) {
-  if (!run.playbook_id) return RUN_STOP_AGAIN[why];
-  if (triggerOf(run.trigger ?? "")?.kind === "visit")
-    return `${RUN_STOP_REMEDY[why]}. It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.`;
-  return `${RUN_STOP_REMEDY[why]}. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.`;
+  const next = playbookRunNext(run, "tomorrow");
+  return next ? `${RUN_STOP_REMEDY[why]}. ${next}` : RUN_STOP_AGAIN[why];
 }
+function playbookRunNext(run, by) {
+  if (!run.playbook_id) return null;
+  if (triggerOf(run.trigger ?? "")?.kind === "visit")
+    return "It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.";
+  return by === "tomorrow" ? "It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice." : "It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
+}
+var OUTLASTS_TOMORROW = /* @__PURE__ */ new Set(["provider_limit", "template_not_approved"]);
 var WIRE_FAILURES = ["wire_unavailable", "throttled", "stalled"];
 var isFailure = (code2) => BROADCAST_FAILURES.includes(code2);
 var isWireFailure = (code2) => WIRE_FAILURES.includes(code2);
@@ -10459,11 +10464,38 @@ var BROADCAST_FAILURE_FIX_AFTER = {
   campaigns_domain_unverified: (n) => `The first ${n === 1 ? "one" : n} got it, then the domain offers by email leave from stopped being verified. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
   email_offers_paused: (n) => `The first ${n === 1 ? "one" : n} got it, then the workspace's offers by email were paused. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
 };
+var PLAYBOOK_RUN_REMEDY = {
+  template_not_approved: "Open it in the Library \u2014 it can be resubmitted.",
+  wire_unavailable: null,
+  run_interrupted: null,
+  throttled: {
+    whatsapp: "WhatsApp lifts these limits on its own.",
+    sms: "The texting provider lifts these limits on its own.",
+    email: "The mail provider lifts these limits on its own."
+  },
+  stalled: {
+    whatsapp: "Nothing is wrong with the number.",
+    sms: "Nothing is wrong with the line.",
+    email: "Nothing is wrong with the mailbox."
+  },
+  people_unreadable: "Nothing is wrong with your channels.",
+  after_hours: null,
+  provider_limit: "The mail provider's limit resets on its own."
+};
+function playbookRunFix(read, reached, next) {
+  const remedy = PLAYBOOK_RUN_REMEDY[read.code];
+  const got = reached > 0 ? `The first ${reached === 1 ? "one" : reached} got it.` : "Nobody got it.";
+  return [got, remedy ? wordsFor(remedy, read.channel) : null, next].filter(Boolean).join(" ");
+}
 function broadcastFailureFix(failure, reached = 0, run) {
   if (!failure) return null;
   const read = readFailure(failure);
   if (!read) return null;
-  if (isRunStop(read.code) && run?.playbook_id) return stoppedRunFix(read.code, run);
+  const next = run ? playbookRunNext(run, OUTLASTS_TOMORROW.has(read.code) ? "when_it_can" : "tomorrow") : null;
+  if (run && next) {
+    const { code: code2, channel } = read;
+    return isRunStop(code2) ? stoppedRunFix(code2, run) : playbookRunFix({ code: code2, channel }, reached, next);
+  }
   const after = reached > 0 ? BROADCAST_FAILURE_FIX_AFTER[read.code] : void 0;
   return after ? after(reached, read.channel) : wordsFor(BROADCAST_FAILURE_FIX[read.code], read.channel) || null;
 }
@@ -19254,6 +19286,61 @@ var PLAYBOOK_CLASS_LABEL = {
   outreach: POLICY_CLASS_WORDS.outreach.short
 };
 
+// src/reach-out/reach-out-rules.ts
+function outreachRefusalOf(f) {
+  if (!f.leadStage) return "outreach_not_a_lead";
+  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
+  if (f.suppressed) return "outreach_suppressed";
+  if (f.wroteBack) return "outreach_wrote_back";
+  if (f.away) return "outreach_away";
+  if (f.stopped) return "outreach_stopped";
+  return null;
+}
+var OUTREACH_WAIT_REFUSALS = [
+  "sending_domain_at_cap",
+  "sending_domain_not_ready",
+  "outreach_needs_own_domain",
+  "paused"
+];
+function isWaitRefusal(reason) {
+  return OUTREACH_WAIT_REFUSALS.includes(reason ?? "");
+}
+var REACH_OUT_MONTH_EMAILS = 2e3;
+var REACH_OUT_CHECKS_PER_DAY = 400;
+function isReachOutRun(audience) {
+  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
+}
+var REACH_OUT_LANGUAGE = "en";
+function reachOutValues(lead, workspace, opening) {
+  return slotValues(REACH_OUT_SLOT_SET, {
+    business: lead.business_name,
+    city: lead.city,
+    "your business": workspace.businessName,
+    "your name": workspace.yourName,
+    "booking link": workspace.bookingLink,
+    opening
+  });
+}
+function reachOutEmailOf(words3, lead, workspace, opening = null) {
+  const values = reachOutValues(lead, workspace, opening);
+  const texts = words3.subject === null ? [words3.body] : [words3.subject, words3.body];
+  if (texts.some((t) => slotHoles(REACH_OUT_SLOT_SET, t, values))) return { ok: false, reason: "missing_value" };
+  const email = renderOwnVersion("email", words3, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
+  return { ok: true, subject: words3.subject === null ? null : email.subject, body: email.body };
+}
+var EXAMPLE_LEAD = {
+  business_name: "Lakeside Bakery",
+  city: "Springfield",
+  opening: "Your 4.8 stars from 212 reviews caught my eye."
+};
+function reachOutExampleValues(workspace) {
+  return reachOutValues(
+    { business_name: EXAMPLE_LEAD.business_name, city: EXAMPLE_LEAD.city },
+    workspace,
+    EXAMPLE_LEAD.opening
+  );
+}
+
 // src/playbooks/playbook-approval.ts
 function poolWords(trigger) {
   const t = triggerOf(trigger);
@@ -19374,6 +19461,7 @@ function visitRunTooLate(run, days) {
   return moment?.kind === "visit" && !!run.run_for && days.sendsOn > run.run_for;
 }
 function runApprovalRefusal(run, days) {
+  if (isReachOutRun(run.audience)) return null;
   const day = dayHasPassed(run, days.today) ?? (run.playbook_id && run.run_for && visitRunTooLate(run, days) ? run.run_for : null);
   return day ? dayGoneWords(day, days.say) : null;
 }
@@ -26310,61 +26398,6 @@ function timetable(input) {
   return { placed, unplaced };
 }
 
-// src/reach-out/reach-out-rules.ts
-function outreachRefusalOf(f) {
-  if (!f.leadStage) return "outreach_not_a_lead";
-  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
-  if (f.suppressed) return "outreach_suppressed";
-  if (f.wroteBack) return "outreach_wrote_back";
-  if (f.away) return "outreach_away";
-  if (f.stopped) return "outreach_stopped";
-  return null;
-}
-var OUTREACH_WAIT_REFUSALS = [
-  "sending_domain_at_cap",
-  "sending_domain_not_ready",
-  "outreach_needs_own_domain",
-  "paused"
-];
-function isWaitRefusal(reason) {
-  return OUTREACH_WAIT_REFUSALS.includes(reason ?? "");
-}
-var REACH_OUT_MONTH_EMAILS = 2e3;
-var REACH_OUT_CHECKS_PER_DAY = 400;
-function isReachOutRun(audience) {
-  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
-}
-var REACH_OUT_LANGUAGE = "en";
-function reachOutValues(lead, workspace, opening) {
-  return slotValues(REACH_OUT_SLOT_SET, {
-    business: lead.business_name,
-    city: lead.city,
-    "your business": workspace.businessName,
-    "your name": workspace.yourName,
-    "booking link": workspace.bookingLink,
-    opening
-  });
-}
-function reachOutEmailOf(words3, lead, workspace, opening = null) {
-  const values = reachOutValues(lead, workspace, opening);
-  const texts = words3.subject === null ? [words3.body] : [words3.subject, words3.body];
-  if (texts.some((t) => slotHoles(REACH_OUT_SLOT_SET, t, values))) return { ok: false, reason: "missing_value" };
-  const email = renderOwnVersion("email", words3, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
-  return { ok: true, subject: words3.subject === null ? null : email.subject, body: email.body };
-}
-var EXAMPLE_LEAD = {
-  business_name: "Lakeside Bakery",
-  city: "Springfield",
-  opening: "Your 4.8 stars from 212 reviews caught my eye."
-};
-function reachOutExampleValues(workspace) {
-  return reachOutValues(
-    { business_name: EXAMPLE_LEAD.business_name, city: EXAMPLE_LEAD.city },
-    workspace,
-    EXAMPLE_LEAD.opening
-  );
-}
-
 // src/reach-out/reach-out-schemas.ts
 import { z as z14 } from "zod";
 
@@ -30960,6 +30993,7 @@ function todayRunWords(r2) {
       sentence: `${people}. Nothing sends until you say so.`,
       status: ["Waiting for your approval"]
     },
+    late: { meta: `${kind} \xB7 too late to approve`, status: ["Too late to approve"] },
     soon: {
       meta: `${kind} \xB7 sends ${r2.when}`,
       sentence: `${people}. Stop it if you'd rather not.`,
@@ -31187,6 +31221,9 @@ var PUSH_KINDS = [
   "leads_question",
   "broadcast_sent",
   "broadcast_stopped",
+  // A playbook's run that waits for a word, or goes by itself unless it is stopped: the one notice with a deadline (a
+  // waiting run is refused once its day has passed, contracts runApprovalRefusal), and the phone never heard it.
+  "playbook",
   "job_failed",
   "billing",
   "number",
@@ -31427,6 +31464,8 @@ var ROUTE_VERBS = [
   // The old Playbooks list (`outbound`) is Campaigns' home now, and Sent and the Library its rooms: the door says the name.
   [/^outbound/, "Open Campaigns"],
   [/^campaigns/, "Open Campaigns"],
+  // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
+  [/^broadcasts\/run:/, "Open the run"],
   [/^broadcasts/, "Open Sent"],
   // The route is still `messages`; the page is the Library (a room of Campaigns), and the door says the page's name.
   [/^messages/, "Open Library"],
@@ -31725,8 +31764,8 @@ var NOTIFICATION_KIND_GROUPS = [
         kinds: ["broadcast_sent", "broadcast_stopped"]
       },
       {
-        title: "A playbook could not run",
-        what: "It could not run for the day, or could not read your calendar, so nobody was sent it. Tomorrow's run tries again.",
+        title: "A playbook's run needs you, or could not run",
+        what: "When a run waits for your approval, or is about to go unless you stop it, with how many people it reaches. And when a playbook could not run for the day, or could not read your calendar, so nobody was sent it: tomorrow's run tries again.",
         kinds: ["playbook"]
       },
       {
@@ -35139,6 +35178,7 @@ export {
   playbookPoolKey,
   playbookReach,
   playbookReachDoor,
+  playbookRunNext,
   playbookRunReach,
   playbookRunStop,
   playbookStopBy,

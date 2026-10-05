@@ -1262,7 +1262,7 @@ import {
   BROADCAST_THROTTLE_WAITS_MS,
   finishedRunHeldWhy,
   OUTCOME_UNKNOWN,
-  audienceTrigger as audienceTrigger2,
+  audienceTrigger as audienceTrigger3,
   firstNameOf as firstNameOf2,
   isOfferByEmail as isOfferByEmail5,
   isReachOutRun,
@@ -1430,7 +1430,7 @@ async function prepare(w, i) {
 // src/messages/broadcast-stops.ts
 import {
   BROADCAST_HOLD_WAIT_MS,
-  audienceTrigger,
+  audienceTrigger as audienceTrigger2,
   emailRunStop,
   jittered as jittered2,
   nextOpenMoment,
@@ -1440,6 +1440,7 @@ import {
 import { errField as errField2, logger as logger3 } from "../../channels/dist/index.js";
 
 // src/messages/broadcast-words.ts
+import { audienceTrigger, playbookRunNext } from "../../contracts/dist/index.js";
 var WIRE_WORDS = {
   whatsapp: {
     credentials: "This workspace's WhatsApp credentials",
@@ -1479,7 +1480,7 @@ var WIRE_WORDS = {
     // The key every workspace's email goes out on is the deployment's, so a 401 or 403 is not the mailbox's.
     platformKey: {
       down: "Email could not be sent: the mail provider refused the platform's key",
-      fix: "The platform has been told, and nothing in your mailbox needs changing. Send it again later."
+      told: "The platform has been told, and nothing in your mailbox needs changing"
     },
     limiting: "The mail provider kept limiting how fast this workspace may send",
     lifts: "It lifts these limits on its own",
@@ -1504,13 +1505,23 @@ function stoppedRunCause(why, sent) {
 var LIMIT_WORDS = {
   daily: {
     reached: "The mail provider's limit for the day was reached",
-    again: "It resets on its own; send it again tomorrow."
+    resets: "It resets on its own",
+    again: "It resets on its own; send it again tomorrow.",
+    next: "tomorrow"
   },
+  // The month's limit outlasts tomorrow: a playbook's run is promised the next run that can go, never tomorrow's.
   monthly: {
     reached: "The mail provider's limit for the month was reached",
-    again: "It resets with the new month; send it again then."
+    resets: "It resets with the new month",
+    again: "It resets with the new month; send it again then.",
+    next: "when_it_can"
   }
 };
+function thenWhat(b, remedy, again, by) {
+  const next = playbookRunNext({ playbook_id: b.playbook_id, trigger: audienceTrigger(b.audience) }, by);
+  if (!next) return again;
+  return remedy ? `${remedy}. ${next}` : next;
+}
 
 // src/messages/broadcast-stops.ts
 var stopLog = logger3();
@@ -1537,7 +1548,7 @@ async function stopForTheWorkspace(ports, b, why) {
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D ${why === "paused" && sent === 0 ? "not sent" : "stopped"}`,
-    body: `${stoppedRunCause(why, sent)} ${stoppedRunFix(why, { playbook_id: b.playbook_id, trigger: audienceTrigger(b.audience) })}`
+    body: `${stoppedRunCause(why, sent)} ${stoppedRunFix(why, { playbook_id: b.playbook_id, trigger: audienceTrigger2(b.audience) })}`
   });
 }
 async function emailAlone(w) {
@@ -1720,7 +1731,7 @@ async function sendBroadcastBatch(ports, cmd) {
     return;
   }
   const purpose = purposeOfTemplate3(tpl?.category);
-  const trigger = audienceTrigger2(b.audience);
+  const trigger = audienceTrigger3(b.audience);
   const offers = isOfferByEmail5({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger2(trigger) });
   const head = await offersAtTheHead(ports, { b, cmd, batch, offers });
   if (head === "wait" || head === "stopped") return;
@@ -1793,7 +1804,7 @@ function finishedNews(b, { sent, held, emailHeld }) {
   const why = finishedRunHeldWhy(emailHeld);
   const people = (n) => `${n} ${n === 1 ? "person" : "people"}`;
   return {
-    kind: "broadcast_sent",
+    kind: sent > 0 ? "broadcast_sent" : "broadcast_stopped",
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
     subject: sent > 0 ? `Broadcast \u201C${b.name}\u201D sent` : `Broadcast \u201C${b.name}\u201D reached nobody`,
@@ -1804,7 +1815,7 @@ async function outsideTheHours(ports, b, cmd, timezone) {
   const open = nextOpenMoment2(timezone, new Date(ports.now()));
   if (!open.moved) return false;
   const waited = (cmd.waits ?? 0) > 0 || (cmd.stalls ?? 0) > 0;
-  const dayBound = triggerOf(audienceTrigger2(b.audience) ?? "")?.kind === "visit";
+  const dayBound = triggerOf(audienceTrigger3(b.audience) ?? "")?.kind === "visit";
   if (waited || dayBound) await stopAfterHours(ports, b, waited);
   else await ports.scheduleNext(b.id, open.at);
   return true;
@@ -1844,6 +1855,7 @@ async function stall(ports, b, cmd, what) {
     (t) => t.sent,
     () => null
   );
+  const fine = what === "people" ? "Nothing is wrong with your channels" : WIRE_WORDS[what].fine;
   await ports.fail(b.id, what === "people" ? "people_unreadable" : wireFailure("stalled", what));
   await ports.alert({
     kind: "broadcast_stopped",
@@ -1853,7 +1865,7 @@ async function stall(ports, b, cmd, what) {
     body: [
       `${what === "people" ? "The people on it" : WIRE_WORDS[what].credentials} could not be read for about half an hour, so the rest was not sent.`,
       gotIt(sent),
-      `${what === "people" ? "Nothing is wrong with your channels" : WIRE_WORDS[what].fine}; send it again later.`
+      thenWhat(b, fine, `${fine}; send it again later.`, "tomorrow")
     ].filter(Boolean).join(" ")
   });
   return "stopped";
@@ -1872,7 +1884,7 @@ async function stopAfterHours(ports, b, waited) {
     body: [
       waited ? "It was waiting to go on when the day's sending hours ran out, so the rest was not sent." : "The day's sending hours ran out before it was done, so the rest was not sent.",
       gotIt(sent),
-      "Send it again tomorrow."
+      thenWhat(b, null, "Send it again tomorrow.", "tomorrow")
     ].filter(Boolean).join(" ")
   });
 }
@@ -1895,7 +1907,7 @@ async function stopForTheWire(w, out, channel) {
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
-    body: theirs ? `${theirs.down} (HTTP ${out.status}), so the rest was not sent. ${theirs.fix}` : `${words.down} (${cause}), so the rest was not sent. ${words.reconnect} and send it again.`
+    body: theirs ? `${theirs.down} (HTTP ${out.status}), so the rest was not sent. ${thenWhat(b, theirs.told, `${theirs.told}. Send it again later.`, "when_it_can")}` : `${words.down} (${cause}), so the rest was not sent. ${thenWhat(b, words.reconnect, `${words.reconnect} and send it again.`, "tomorrow")}`
   });
 }
 async function stopForTheLimit(w, contactId, out, limit) {
@@ -1912,7 +1924,11 @@ async function stopForTheLimit(w, contactId, out, limit) {
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
-    body: [`${words.reached}, so the rest was not sent.`, gotIt(sent), words.again].filter(Boolean).join(" ")
+    body: [
+      `${words.reached}, so the rest was not sent.`,
+      gotIt(sent),
+      thenWhat(b, words.resets, words.again, words.next)
+    ].filter(Boolean).join(" ")
   });
   await pageForTheRun(w, out, "email");
 }
@@ -1947,7 +1963,7 @@ async function backOff(ports, b, cmd, how) {
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
-    body: why === "throttled" ? `${words.limiting} ${until}, so the rest was not sent. ${gotIt(sent)} ${words.lifts}; send it again later.` : `${words.reach} ${until}, so the rest was not sent. ${gotIt(sent)} ${words.fine}; send it again later.`
+    body: why === "throttled" ? `${words.limiting} ${until}, so the rest was not sent. ${gotIt(sent)} ${thenWhat(b, words.lifts, `${words.lifts}; send it again later.`, "tomorrow")}` : `${words.reach} ${until}, so the rest was not sent. ${gotIt(sent)} ${thenWhat(b, words.fine, `${words.fine}; send it again later.`, "tomorrow")}`
   });
 }
 
@@ -2223,7 +2239,8 @@ async function sayTheRun(run, made) {
   if (!at) {
     await ports.notify(
       `Playbook \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
-      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`
+      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`,
+      made.madeId
     );
     return;
   }
@@ -2243,7 +2260,7 @@ async function sayTheRun(run, made) {
   });
   if (mode === "veto" && by.kind !== "user") {
     const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
-    await ports.notify(told.subject, told.body).catch(() => void 0);
+    await ports.notify(told.subject, told.body, made.madeId).catch(() => void 0);
   }
 }
 async function runPlaybook(ports, cmd) {

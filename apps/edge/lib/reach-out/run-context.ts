@@ -228,7 +228,8 @@ export async function reachOutRunContext(
         { tenantId, notifications: target.notifications, isEnvDefault: target.isEnvDefault },
         {
           kind: "playbook",
-          route: "broadcasts",
+          // The row opens the run it is about, where its emails are approved (as a playbook's does, playbooks.ts notify).
+          route: `broadcasts/run:${runId}`,
           about: { type: "broadcast", id: runId },
           subject: `A reach-out waits for you: ${row.name}`,
           body: `${planned} ${planned === 1 ? "email" : "emails"} to businesses your search found, from ${firstWords(tz, firstAt)}. Approve them in Sent, or skip the run.`,

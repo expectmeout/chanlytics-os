@@ -712,12 +712,16 @@ test("a playbook's run that a billing pause stopped is told its own next step on
     win.fix,
     "however far it got",
   );
-  // Another stop is worded as ever, for a playbook's run too: only the pause is the owner's to resume.
+  // Any other stop says the same next step of a playbook's run: nobody sends a run again, whatever stopped it (it said
+  // "sending it again reaches nobody twice").
   const wire = C.toRunReportVM(
     { broadcast: { state: "failed", failure: "run_interrupted", params: [], playbook_id: "p1" }, recipients: [] },
     { windowMs: C.REPLY_WINDOW_MS, nowMs: T0 },
   ).stop;
-  assert.equal(wire.fix, C.broadcastFailureFix("run_interrupted"));
+  assert.equal(
+    wire.fix,
+    "Nobody got it. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
+  );
 });
 
 test("each part of a run's report says its own words: the span its bars cover, why the unreached were not reached, who answered, and each figure when nothing came back", () => {

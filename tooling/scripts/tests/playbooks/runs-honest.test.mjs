@@ -601,6 +601,8 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
     started_at: null,
     finished_at: null,
     scheduled_for: iso(-H),
+    // Today's run: one made for an earlier day is refused by the verb, and no page offers to approve it.
+    run_for: globalThis.window.__clock.dayKey(Date.now()),
     counts: quiet,
   });
   const soon = dto({
@@ -1112,5 +1114,42 @@ test("a proposal follow-up's detail (0006): where deals are on, who it reaches w
     );
   } finally {
     globalThis.fetch = kept;
+  }
+});
+
+test("a playbook's card does not approve a run whose day has passed: the verb would refuse it, and Skip is the act left", async () => {
+  const approved = [];
+  const keep = playbooks.approveRun;
+  playbooks.approveRun = async (id) => {
+    approved.push(id);
+    return { ok: true, data: { recipient_count: 3, scheduled_for: iso(0), moved_from: null } };
+  };
+  setSurfaceValue("playbooks", playbooksSurface());
+  // The list read carries the waiting run's own day and moment (server playbooks.ts): what the verb's rule reads.
+  const waitingFor = (run_for) =>
+    playbook({
+      totals: {
+        ...playbook().totals,
+        waiting: { id: "b-wait", recipient_count: 3, name: "Win-back · 2026-09-15", run_for, trigger: "quiet_30" },
+      },
+    });
+  try {
+    let tree = pane(waitingFor("2026-09-10"));
+    press(byTestId(tree, "pb-approve"));
+    await settle();
+    assert.deepEqual(approved, [], "REGRESSION: Approve on a run made for a day that has passed, answered 409");
+    assert.ok(byTestId(tree, "pb-skip"), "Skip is still offered");
+    tree = pane(waitingFor(globalThis.window.__clock.dayKey(Date.now())));
+    press(byTestId(tree, "pb-approve"));
+    await settle();
+    assert.deepEqual(approved, ["b-wait"], "today's run is approved as ever");
+    // A read from before the list carried the run's day says nothing of it, and is approved as it was.
+    approved.length = 0;
+    tree = pane(waitingFor(undefined));
+    press(byTestId(tree, "pb-approve"));
+    await settle();
+    assert.deepEqual(approved, ["b-wait"]);
+  } finally {
+    playbooks.approveRun = keep;
   }
 });

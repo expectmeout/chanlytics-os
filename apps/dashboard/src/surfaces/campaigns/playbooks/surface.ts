@@ -46,8 +46,17 @@ export interface PlaybookTotalsVM {
   replied: number;
   held: number;
   lastRun: { id: string; state: string; run_for: string | null; recipient_count: number } | null;
-  /** A run waiting for a person: the broadcast to approve or skip. */
-  waiting: { id: string; recipient_count: number; name: string } | null;
+  /**
+   * A run waiting for a person: the broadcast to approve or skip, with the day it was made for and the moment it kept
+   * (what says whether an approval now would be refused, bcLateWords). A read from before the list carried them has none.
+   */
+  waiting: {
+    id: string;
+    recipient_count: number;
+    name: string;
+    run_for?: string | null;
+    trigger?: string | null;
+  } | null;
   /** The most recent runs, newest first; the totals above are over every run. */
   history: {
     id: string;

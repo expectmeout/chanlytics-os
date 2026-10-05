@@ -753,6 +753,79 @@ test("a run that reached nobody is not said to be sent: the finish says none of 
   const news = log.at(-1)[1];
   assert.equal(news.subject, "Broadcast “Spring offer” reached nobody");
   assert.match(news.body, /^None of the 3 people on it got it: each was held back/);
+  // Nor is it KEPT as sent: the kind is what the bell draws (a green tick for broadcast_sent) and what Today counts as
+  // "1 broadcast finished". A run that reached nobody did not go out.
+  assert.equal(
+    news.kind,
+    "broadcast_stopped",
+    "REGRESSION: reached nobody under the kind of a broadcast that was sent",
+  );
+  const some = fakes({ remaining: 0, tally: { sent: 2, held: 1 } });
+  await sendBroadcastBatch(some.ports, cmd());
+  assert.deepEqual(
+    [some.log.at(-1)[1].kind, some.log.at(-1)[1].subject],
+    ["broadcast_sent", "Broadcast “Spring offer” sent"],
+    "one that reached anyone is a broadcast that finished",
+  );
+});
+
+test("a playbook's run that stops is never told to send it again: every stop says what becomes of it, as the workspace's own stops do", async () => {
+  // A playbook's run was made for today, one run to a local day: Run now answers that it already ran, and nothing on any
+  // page sends a run again. The stops for the workspace said so (stoppedRunFix); the wire's, the limit's and the day's
+  // hours' told its owner to "send it again later".
+  const NEXT =
+    "It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.";
+  const moment = () =>
+    broadcast({
+      playbook_id: "p1",
+      audience: { kind: "playbook", id: "p1", label: "Win-back", trigger: "everyone_monthly" },
+    });
+  // The wire stayed unreachable past the last wait.
+  const wire = fakes({ broadcast: moment(), facts: facts("UTC"), deliver: notTaken(0), tally: { sent: 4, held: 0 } });
+  await sendBroadcastBatch(wire.ports, cmd({ waits: WAITS.length }));
+  assert.equal(
+    call(wire.log, "alert")[1].body,
+    `WhatsApp could not be reached for about an hour, so the rest was not sent. 4 people got it. Nothing is wrong with the number. ${NEXT}`,
+  );
+  // The same stop of a broadcast the owner made keeps its words (the test above): theirs is sent again.
+  const { broadcastFailureFix, playbookRunNext } = await import("@chanlytics/contracts");
+  assert.equal(
+    playbookRunNext({ playbook_id: null, trigger: null }, "tomorrow"),
+    null,
+    "a broadcast has no tomorrow's run",
+  );
+  assert.equal(playbookRunNext({ playbook_id: "p1", trigger: "everyone_monthly" }, "tomorrow"), NEXT);
+  assert.match(
+    playbookRunNext({ playbook_id: "p1", trigger: "visit_tomorrow" }, "tomorrow"),
+    /a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later\.$/,
+  );
+  // The run's own page, for every failure a run can stop with: how many got it, what there is to do, what becomes of it.
+  const { BROADCAST_FAILURES } = await import("@chanlytics/contracts");
+  // A stop that may outlast tomorrow and is nobody's to end promises no tomorrow: the month's limit met tomorrow's run too.
+  const LATER =
+    "It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
+  assert.equal(playbookRunNext({ playbook_id: "p1", trigger: "everyone_monthly" }, "when_it_can"), LATER);
+  const outlasts = new Set(["provider_limit", "template_not_approved"]);
+  for (const code of BROADCAST_FAILURES) {
+    for (const reached of [0, 3]) {
+      const fix = broadcastFailureFix(code, reached, { playbook_id: "p1", trigger: "everyone_monthly" });
+      assert.ok(fix.endsWith(outlasts.has(code) ? LATER : NEXT), `${code} (${reached}): ${fix}`);
+      assert.doesNotMatch(fix, /send it again|sending it again|try again/i, `${code} (${reached}): ${fix}`);
+    }
+  }
+  assert.equal(
+    broadcastFailureFix("throttled:email", 3, { playbook_id: "p1", trigger: "everyone_monthly" }),
+    `The first 3 got it. The mail provider lifts these limits on its own. ${NEXT}`,
+  );
+  assert.equal(
+    broadcastFailureFix("after_hours", 0, { playbook_id: "p1", trigger: "everyone_monthly" }),
+    `Nobody got it. ${NEXT}`,
+  );
+  // A broadcast's words are as they were.
+  assert.equal(
+    broadcastFailureFix("after_hours", 0, { playbook_id: null, trigger: null }),
+    "Nobody got it. Send it again tomorrow, inside the day's sending hours.",
+  );
 });
 
 test("a run that keeps stalling carries the count, and past the cap it stops and tells the owner instead of waiting for ever", async () => {
@@ -909,6 +982,13 @@ test("a wait is drawn a little longer at random, so the runs one outage held do 
 });
 
 /* ------------------------- One message, every channel (step 3): a batch goes by each person's channel -- */
+
+/**
+ * What a visit's run says of itself when it stops (contracts playbookRunNext): the runs below are a visit reminder's, a
+ * playbook's, which nobody sends again. Each said "send it again" after its cause.
+ */
+const VISIT_RUN_NEXT =
+  "It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.";
 
 /** A message about their visit: Meta's row, and the text and email versions beside it, each filling the same slots. */
 const VISIT_WORDS = "Hi {{1}}, your visit is {{2}}.";
@@ -1344,7 +1424,9 @@ test("a send the provider did not take goes back and the run waits, in the chann
   await sendBroadcastBatch(spent.f.ports, cmd({ waits: BROADCAST_THROTTLE_WAITS_MS.length }));
   assert.match(
     call(spent.f.log, "alert")[1].body,
-    /^The mail provider could not be reached for about an hour, so the rest was not sent\. 4 people got it\. Nothing is wrong with the mailbox; send it again later\.$/,
+    new RegExp(
+      `^The mail provider could not be reached for about an hour, so the rest was not sent\\. 4 people got it\\. Nothing is wrong with the mailbox\\. ${VISIT_RUN_NEXT}$`,
+    ),
   );
   const limited = world({ batch: [on("sms")], deliver: notTaken(429), tally: { sent: 1, held: 0 } });
   await sendBroadcastBatch(limited.f.ports, cmd({ waits: BROADCAST_THROTTLE_WAITS_MS.length }));
@@ -1366,7 +1448,9 @@ test("a wire that is down stops the run and says which: the mailbox, the texting
   assert.deepEqual(call(email.f.log, "fail").slice(1), ["b1", "wire_unavailable:email"]);
   assert.match(
     call(email.f.log, "alert")[1].body,
-    /^Email could not be sent from this workspace's mailbox \(the mailbox is not set up\), so the rest was not sent\. Check the mailbox in Settings › Connections and send it again\.$/,
+    new RegExp(
+      `^Email could not be sent from this workspace's mailbox \\(the mailbox is not set up\\), so the rest was not sent\\. Check the mailbox in Settings › Connections\\. ${VISIT_RUN_NEXT}$`,
+    ),
   );
   assert.equal(email.f.ops().filter((o) => o === "deliver").length, 1);
   const text = world({ batch: [on("sms")], deliver: { ...down, reason: "provider", status: 401 } });
@@ -1410,7 +1494,7 @@ test("a provider's 401 or 403 on a broadcast's email pages the platform, as a re
     const said = call(f.log, "alert")[1].body;
     assert.equal(
       said,
-      `Email could not be sent: the mail provider refused the platform's key (HTTP ${status}), so the rest was not sent. The platform has been told, and nothing in your mailbox needs changing. Send it again later.`,
+      `Email could not be sent: the mail provider refused the platform's key (HTTP ${status}), so the rest was not sent. The platform has been told, and nothing in your mailbox needs changing. ${VISIT_RUN_NEXT}`,
     );
     assert.doesNotMatch(said, /Check the mailbox/);
     assert.deepEqual(call(f.log, "fail").slice(1), ["b1", "wire_unavailable:email"]);
@@ -1426,7 +1510,10 @@ test("a provider's 401 or 403 on a broadcast's email pages the platform, as a re
   f.ports.page = async (key) => pages.push(key);
   await sendBroadcastBatch(f.ports, cmd());
   assert.deepEqual(pages, ["provider_auth:sms"]);
-  assert.match(call(f.log, "alert")[1].body, /Check the line in Settings › Channels and send it again\.$/);
+  assert.ok(
+    call(f.log, "alert")[1].body.endsWith(`Check the line in Settings › Channels. ${VISIT_RUN_NEXT}`),
+    call(f.log, "alert")[1].body,
+  );
   // A pager that throws does not turn a run that stopped for it into one that failed to say so.
   const broken = world({
     batch: [on("email")],
@@ -1496,11 +1583,15 @@ test("the mail provider's day or month used up gives the claim back and stops th
   for (const [limit, said] of [
     [
       "daily",
-      /^The mail provider's limit for the day was reached, so the rest was not sent\. 4 people got it\. It resets on its own; send it again tomorrow\.$/,
+      new RegExp(
+        `^The mail provider's limit for the day was reached, so the rest was not sent\\. 4 people got it\\. It resets on its own\\. ${VISIT_RUN_NEXT}$`,
+      ),
     ],
     [
       "monthly",
-      /^The mail provider's limit for the month was reached, so the rest was not sent\. 4 people got it\. It resets with the new month; send it again then\.$/,
+      new RegExp(
+        `^The mail provider's limit for the month was reached, so the rest was not sent\\. 4 people got it\\. It resets with the new month\\. ${VISIT_RUN_NEXT}$`,
+      ),
     ],
   ]) {
     const pages = [];
@@ -1532,6 +1623,30 @@ test("the mail provider's day or month used up gives the claim back and stops th
         "Tenant t1, broadcast b1, everyone not yet sent still queued. Every workspace's email is refused until it resets or the plan grows.",
       ],
     ]);
+  }
+  // A playbook's run that is not a visit's: the day's limit is over by tomorrow's run; the month's is not, and its alert
+  // promised a run that would meet the same limit.
+  for (const [limit, end] of [
+    [
+      "daily",
+      "It resets on its own. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
+    ],
+    [
+      "monthly",
+      "It resets with the new month. It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.",
+    ],
+  ]) {
+    const { f } = world({
+      broadcast: forMoment("everyone_monthly"),
+      batch: [on("email"), on("email", "k3")],
+      deliver: quota(limit),
+      remaining: 2,
+      tally: { sent: 4, held: 0 },
+    });
+    await sendBroadcastBatch(f.ports, cmd());
+    const said = call(f.log, "alert")[1].body;
+    assert.ok(said.endsWith(end), `${limit}: ${said}`);
+    assert.doesNotMatch(said, /send it again/i);
   }
   const { BROADCAST_FAILURE_WORDS } = await import("@chanlytics/contracts");
   assert.ok("provider_limit" in BROADCAST_FAILURE_WORDS, "the page has words for it");

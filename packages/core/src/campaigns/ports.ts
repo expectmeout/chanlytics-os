@@ -193,8 +193,11 @@ export interface RunPlaybookPorts extends AssemblePorts {
   record(playbookId: string, runFor: string, at: Date, data: Record<string, unknown>): Promise<void>;
   /** The ledger: whose decision the send was. */
   decide(d: { broadcastId: string; by: RunBy; payload: Record<string, unknown> }): Promise<void>;
-  /** The owner told that a run waits for them. */
-  notify(subject: string, body: string): Promise<void>;
+  /**
+   * The owner told that a run waits for them, or goes by itself unless they stop it, with the run it is about: the bell's
+   * row and the phone open THAT run, where its Approve, Skip and Stop are. It named none, and opened Campaigns' home.
+   */
+  notify(subject: string, body: string, runId: string): Promise<void>;
 }
 export interface RunPlaybookCommand {
   playbook: PlaybookRow;

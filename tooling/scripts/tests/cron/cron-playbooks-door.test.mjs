@@ -837,12 +837,17 @@ test("a reach-out's first run waits for its owner: one pending run, its sends pl
   assert.equal(w.tables.reach_out_sends.length, 3);
   for (const s of w.tables.reach_out_sends)
     assert.deepEqual([s.state, s.broadcast_id, s.root_id, s.domain_id], ["planned", run.id, R, `dom-${A.slice(0, 8)}`]);
-  assert.deepEqual(w.tables.jobs, [], "no broadcast job: the reach-out clock claims its sends");
+  // The one job is the phone's: a run that waits for a person is told to their phone too (contracts PUSH_KINDS).
+  assert.deepEqual(
+    w.tables.jobs.map((j) => j.kind),
+    ["push_send"],
+    "no broadcast job: the reach-out clock claims its sends",
+  );
   assert.deepEqual(w.tables.broadcast_recipients, []);
-  assert.equal(
-    w.tables.notifications.filter((n) => n.route === "broadcasts").length,
-    1,
-    "its owner is told where to approve it",
+  assert.deepEqual(
+    w.tables.notifications.map((n) => [n.route, n.subject_type, n.subject_id]),
+    [[`broadcasts/run:${run.id}`, "broadcast", run.id]],
+    "its owner is told where to approve it: the row opens the run itself",
   );
   assert.equal(w.tables.playbooks[0].last_run_for, today, "the step remembers the day");
 
@@ -877,7 +882,7 @@ test("a moment and a reach-out in one workspace each run through their own verb:
   assert.equal(byPlaybook[P].state, "scheduled");
   assert.equal(byPlaybook[R].state, "pending_approval");
   assert.deepEqual(
-    w.tables.jobs.map((j) => j.payload.broadcast_id),
+    w.tables.jobs.filter((j) => j.kind !== "push_send").map((j) => j.payload.broadcast_id),
     [byPlaybook[P].id],
     "one send job, the moment's",
   );
@@ -973,7 +978,7 @@ test("a veto run goes on the record: the system's decision under the mode its ow
   );
   assert.ok(w.tables.events.some((e) => e.kind === "playbook.run" && e.subject_id === R));
   assert.deepEqual(
-    w.tables.notifications.filter((n) => n.route === "broadcasts"),
+    w.tables.notifications.filter((n) => String(n.route).startsWith("broadcasts")),
     [],
     "nobody is asked",
   );
@@ -991,6 +996,28 @@ const tellOwner = (w, id) => {
 };
 const mailTo = (line, who) => line.mail().filter((m) => m.to.includes(who));
 const bellOf = (w, id) => w.tables.notifications.filter((n) => n.tenant_id === id);
+
+test("a run that waits for a person tells them WHICH run: the bell's row is about it and opens it, where Approve and Skip are", async () => {
+  const w = world({ people: { [A]: [person("c1"), person("c2")] } });
+  workspace(w.tables, A, OPEN, "ask");
+  w.tables.playbooks.push(playbook(A, "pb-1", { name: "Win-back", last_run_at: iso(2 * H) }));
+  const [, body] = await answer(await w.tick());
+  assert.deepEqual(body, counts({ tenants: 1, due: 1, held: 1 }));
+  const [run] = w.tables.broadcasts;
+  assert.equal(run.state, "pending_approval");
+  const [notice] = bellOf(w, A);
+  assert.deepEqual(
+    [notice.kind, notice.title, notice.route, notice.subject_type, notice.subject_id],
+    ["playbook", "Playbook “Win-back” is ready: 2 people", `broadcasts/run:${run.id}`, "broadcast", run.id],
+    "REGRESSION: the row named no run and opened Campaigns' home (route outbound)",
+  );
+  // And their phone hears it: a waiting run is refused once its day has passed, and the bell alone was the only word.
+  assert.deepEqual(
+    w.tables.jobs.map((j) => [j.kind, j.payload.notification_id]),
+    [["push_send", notice.id]],
+    "REGRESSION: a run waiting for approval never reached a phone",
+  );
+});
 
 test("two playbooks due in the same hour keep the week's breath between them: the second leaves out whoever the first just enrolled, and keeps whoever it did not (P1 3)", async () => {
   // The first reaches one person (its cap); the second would reach all three, and is left with the two the first did not.
