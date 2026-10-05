@@ -482,11 +482,13 @@ const usePageFocus = (page, routeLoading) => {
 };
 
 /**
- * How the route view comes in. A move that stays on the page -- People to Leads or the Pipeline and back -- is still
- * a remount (each scope is a mount of its own), and the route fade played on every one, on top of the rows' own
- * draw: the switch read as a wait. The fade is for arriving somewhere else, and for a page landing where the reading
- * pane stood; a view that follows another of the same page draws at once. A person's profile is somewhere else,
- * though its route starts with the list's word.
+ * How the route view comes in. A move between two views of one strip -- the Inbox's Needs you to Conversations, People
+ * to Leads or the Pipeline -- arrives as a tab does: the route fade on a desk, from the side its tab stands on on a
+ * phone (components.css route-slide-*). People's scopes once drew at once instead, when a switch drew the whole scope
+ * before anything answered and a fade on top read as a wait; the press answers first now and the page is drawn once
+ * (5 Oct 2026). A view that follows another of the same family and is no strip's move (one person's page to the next)
+ * draws at once; a page landing where the reading pane stood fades in. A person's profile is somewhere else, though
+ * its route starts with the list's word.
  * Decided as the view changes, in the draw that mounts it, and kept for that view's life: decided after the mount
  * (an effect, a state) it re-drew the same element with the class, which cancelled the fade on every page one
  * frame in. `mountKey` is what the view is mounted under, the route table's answer (drawRoute).
@@ -500,13 +502,14 @@ const useViewFade = ({ page, param }, mountKey, routeLoading) => {
   const viewRef = useShellRef({ key: null, family: null, reading: false, stay: false, place: null, slide: null });
   if (viewRef.current.key !== viewKey) {
     const prev = viewRef.current;
+    const slide = prev.key !== null && !prev.reading && window.stripSlide ? window.stripSlide(prev.place, place) : null;
     viewRef.current = {
       key: viewKey,
       family,
       reading: routeLoading,
       place,
-      stay: !routeLoading && prev.key !== null && prev.family === family && !prev.reading,
-      slide: prev.key !== null && !prev.reading && window.stripSlide ? window.stripSlide(prev.place, place) : null,
+      stay: !routeLoading && prev.key !== null && prev.family === family && !prev.reading && !slide,
+      slide,
     };
   }
   return { viewKey, routeStay: viewRef.current.stay, routeSlide: viewRef.current.slide };

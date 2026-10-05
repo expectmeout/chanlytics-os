@@ -940,6 +940,16 @@ test("a fresh mount of Leads draws its first rows and the next draw every row", 
   assert.equal(rowsOf(draw()), 40, "the next draw carries every row");
 });
 
+test("Leads' rows swap in with the kit's rise as a view's rows land, as People's and the Inbox's lists do", async () => {
+  // A rail pick came in at once while People's lists rose (5 Oct 2026): the page hands its table the swap's ref
+  // (kit/motion/use-swap-motion.ts, keyed on the view the surface's rows are of).
+  const { PeopleTable } = await import("../../../../../apps/dashboard/src/surfaces/people/table/table.tsx");
+  await fresh();
+  const table = find(draw(), (n) => n.type === PeopleTable);
+  assert.ok(table, "the Leads scope draws People's table");
+  assert.ok(table.props.swapRef && "current" in table.props.swapRef, "and hands it the swap's ref");
+});
+
 /* ---------------------------------- the rows ---------------------------------- */
 
 const rowOf = (tree, id) => find(tree, (n) => n.type === "tr" && n.props?.id === `lead-${id}`);

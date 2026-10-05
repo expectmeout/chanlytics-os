@@ -183,6 +183,7 @@ function rowsView(s: PipelineState) {
       onToggleAll={toggleAll}
       rows={shown}
       sections={sections}
+      swapRef={f.swap}
       total={viewCount}
       sortBy={sortBy}
       sortDir={sortDir}

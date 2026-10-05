@@ -1789,10 +1789,16 @@ test("Today waits for the card it draws above its queue, and once its own read i
   }
 });
 
-test("a move that stays on the page -- People to Leads and back -- draws without the route fade; a move to another page keeps it", () => {
-  // The two scopes are two mounts, and the shell's 240ms route fade played on every switch between them, on top of
-  // the rows' own draw: the switch read as a wait. The fade is for arriving somewhere else.
+test("a move between two views of one strip arrives as the Inbox's tabs do -- People to Leads and back -- and a move within one family that is no strip's draws at once", async () => {
+  // The fade was taken off People's scopes when a switch drew the whole scope before anything answered, and the fade
+  // on top read as a wait. With the press answered first and the page drawn once (5 Oct 2026), People's scopes arrive
+  // as the Inbox's Needs you, Conversations and Live do: the route fade on a desk, the slide on a phone. One person's
+  // page to the next is the same family and no strip's move, and draws at once.
   shell.installShell(win);
+  // Where a view stands on a strip is the strip's (surface-tabs.jsx stripPlace), over People's scope words (people-globals.ts).
+  await import("../../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
+  const words = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
+  Object.assign(win, { plScopes: words.plScopes, plScopeRoute: words.plScopeRoute });
   const view = (t) =>
     find(t, (n) => typeof n.props?.className === "string" && n.props.className.includes("route-view"));
   const stays = (t) => view(t).props.className.split(/\s+/).includes("route-stay");
@@ -1812,15 +1818,21 @@ test("a move that stays on the page -- People to Leads and back -- draws without
     deep = true;
     return t;
   };
+  const slides = (t) => view(t).props.className.match(/route-slide-(next|prev)/)?.[1] ?? null;
   const { tree } = mount("#/clients");
   assert.equal(stays(tree), false, "a page opened cold fades in");
-  assert.equal(stays(go("#/clients/leads")), true, "Leads beside People is the same page: no fade");
-  assert.equal(stays(go("#/clients")), true, "and back");
+  const leads = go("#/clients/leads");
+  assert.equal(stays(leads), false, "Leads beside People arrives, as Conversations beside Needs you does");
+  assert.equal(slides(leads), "next", "from the side its tab stands on");
+  const back = go("#/clients");
+  assert.equal(stays(back), false, "and back");
+  assert.equal(slides(back), "prev");
   assert.equal(
     stays(go("#/clients/c-aisha")),
     false,
     "a person's profile is somewhere else, though its route starts with the list's word",
   );
+  assert.equal(stays(go("#/clients/c-bob")), true, "the next person's page is the same family and no strip's move");
   assert.equal(stays(go("#/clients")), false, "and so is the list, coming back from it");
   assert.equal(stays(go("#/inbox")), false, "another page fades in");
   // A page landing where the reading pane stood fades in, even on the page the reading pane was for.

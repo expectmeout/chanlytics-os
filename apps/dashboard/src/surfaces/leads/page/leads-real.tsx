@@ -7,6 +7,8 @@
  */
 import { leadBand, leadRail, leadsStanding, type LeadRowVM } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
+import { useSwapMotion } from "../../kit/motion/use-swap-motion";
+import { TABLE_BODIES } from "../../people/table/table";
 import { usePlControls } from "../../people/hooks/use-controls";
 import { usePeople } from "../../people/hooks/use-people";
 import { usePlPlace } from "../../people/hooks/use-place";
@@ -62,6 +64,9 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
   // about the calendar and the people.
   const people = usePeople();
   const leads = useLeads();
+  // A rail pick swaps the rows in with the kit's rise, as People's and the Inbox's lists do: when the rows of the view
+  // land (the surface's `route` is the view its rows are of), not when the pick is made over the last view's rows.
+  const swap = useSwapMotion<HTMLTableElement>(leads.route, TABLE_BODIES);
   const nav: LeadsNav = onNavigate || ((to, opts) => navigate(to, opts));
   const { leadView, viewRoute, addrPeek, leadList } = leadsViewAt(leadsRoute);
   const hasCenter = leads.searches.some((s) => s.plan && s.plan.area && !!s.plan.area.center);
@@ -130,7 +135,7 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
     setDraft: st.setDraft,
     nav,
   });
-  return { people, leads, nav, leadView, viewRoute, hasCenter, controls, st, read, rows, place, deckMove };
+  return { people, leads, swap, nav, leadView, viewRoute, hasCenter, controls, st, read, rows, place, deckMove };
 }
 
 /**
@@ -138,7 +143,7 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
  * line, the open search's reach-out and the lists of one's own, the cells' context, and the strip's steps.
  */
 function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: string) => void): LeadsPage {
-  const { people, leads, nav, leadView, hasCenter, controls, st, read, rows, place, deckMove } = v;
+  const { people, leads, swap, nav, leadView, hasCenter, controls, st, read, rows, place, deckMove } = v;
   const { phone, bulkSheet, setBulkSheet, canExport, plFlash, setSel, setAllMatching, setSortBy, setSortDir, columns } =
     controls;
   const { listsOpen, peekId, setPeekId, finder, closeFinder, peekMode, setPeekMode, armed, setArmed } = st;
@@ -226,6 +231,7 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     toggleAll: place.toggleAll,
     people,
     leads,
+    swap,
     nav,
     onOpenProfile,
     leadView,

@@ -2704,6 +2704,14 @@ test("a row's menu: the deal's own acts where the member may record one, then th
   }
 });
 
+test("the Pipeline's groups swap in with the kit's rise on a rail pick, the table and its heads holding still", async () => {
+  // People's lists rose on a pick and the Pipeline's groups came in at once (5 Oct 2026): the scope hands its table the
+  // swap's ref, which rises the table's row groups (kit/motion/use-swap-motion.ts with TABLE_BODIES).
+  await fresh();
+  const table = find(draw(), (n) => n.type === PeopleTable);
+  assert.ok(table.props.swapRef && "current" in table.props.swapRef, "the table carries the swap's ref");
+});
+
 test("a selection: People's bar leads with Mark as passed · N; why is asked once, the bridge records them, what it came to is said once, and only those who passed leave the selection", async () => {
   const seen = await fresh();
   const flashes = [];
