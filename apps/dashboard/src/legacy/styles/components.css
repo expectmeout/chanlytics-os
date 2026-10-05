@@ -2168,7 +2168,9 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .pg-act-slot:has(> #pg-act:not(:empty)) > a:not(#pg-act) {
   display: none;
 }
-/* The way back above the name (a person's People): the quiet link, in the muted ink. */
+/* The way back above the name (a person's People): the quiet link, in the muted ink. It takes a press wherever it stands:
+   in the date's place it stood in a slot that lets presses through to the bar, and on a desk a person's ‹ People was the
+   bar's, so it did nothing (5 Oct 2026). */
 .pg-back {
   display: inline-flex;
   align-items: center;
@@ -2182,6 +2184,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   font-weight: var(--weight-medium);
   color: var(--ink-muted);
   cursor: pointer;
+  pointer-events: auto;
 }
 .pg-back:hover {
   color: var(--ink);
@@ -2263,7 +2266,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     box-shadow: var(--surface-control-depth);
     font-size: var(--text-base);
     color: var(--ink);
-    pointer-events: auto;
   }
   .pg-act-slot {
     grid-column: 1;
