@@ -70,7 +70,10 @@ export interface PersonRowDto {
   last_message_sender: string | null;
   last_inbound_text: string | null;
   last_inbound_at: string | null;
-  /** The channel of their last written message to the business (whatsapp | sms | email), or null: reachFor's first pick. */
+  /**
+   * The channel of the last message they wrote to the business themselves (whatsapp | sms | email), or null: reachFor's
+   * first pick. Their own words: not a call's note, an automatic reply or a list's mail (00320; contracts lastWroteOn).
+   */
   last_inbound_channel?: string | null;
   /**
    * When they last wrote words that were a person's own (00299): last_inbound_at less an automatic reply, a list's mail and a

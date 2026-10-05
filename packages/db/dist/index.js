@@ -1613,6 +1613,58 @@ var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
     test: (vm) => listRuleMatches(l.rule, vm)
   };
 });
+var BRAIN_INTENTS = [
+  "booking",
+  "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var BRAIN_LANGUAGES = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS],
+      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
 var MONTH_MS = 30 * DAY_MS;
 var CARRIER_CONSENT_SOURCE = "carrier";
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
@@ -2560,58 +2612,6 @@ function offersFacts(p, channel, now, tz) {
   }
   return out;
 }
-var BRAIN_INTENTS = [
-  "booking",
-  "pricing",
-  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
-  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
-  "money",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var BRAIN_LANGUAGES = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS],
-      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
 var BrainOutputSchema = z9.object({
   reply: z9.string(),
   intent: z9.enum(BRAIN_INTENTS).catch("other"),
@@ -4528,6 +4528,13 @@ async function ingestInboundEmail(db, p) {
     );
     if (error) throw new Error(`ingest_email: cannot name the person this address belongs to: ${error.message}`);
   }
+  let optIn = p.optIn ?? false;
+  if (optIn) {
+    const held = await db.from("messages").select("id").eq("tenant_id", p.tenantId).eq("external_id", p.receivedId).limit(1);
+    if (held.error)
+      throw new Error(`ingest_email: cannot read whether the email is already held: ${held.error.message}`);
+    optIn = (held.data ?? []).length === 0;
+  }
   const out = await ingestInbound(db, {
     tenantId: p.tenantId,
     channel: "email",
@@ -4539,13 +4546,18 @@ async function ingestInboundEmail(db, p) {
     body: p.body,
     channelTs: p.channelTs,
     meta: p.meta,
-    optOut: p.optOut ?? false
+    optOut: p.optOut ?? false,
+    optIn
   });
   if (!known.data) {
     const { error } = await db.from("contacts").update({ email: p.address }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).is("email", null);
     if (error && error.code !== "23505")
       throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
     if (error) dbLog().error("ingest_email_address_taken", { tenant_id: p.tenantId, contact_id: out.contact_id });
+  }
+  if (p.fromThemProven && !out.processed) {
+    const { error } = await db.from("contacts").update({ email_suppressed_at: null, email_suppressed_reason: null }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).eq("email", p.address).eq("email_suppressed_reason", "hard_bounce");
+    if (error) throw new Error(`ingest_email: cannot lift the bounce from the address: ${error.message}`);
   }
   const evidence = { channel: "email", message_external_id: p.receivedId, words: (p.words ?? "").slice(0, 80) || null };
   if (p.unsubscribe && !out.processed)
@@ -5724,20 +5736,21 @@ function assembleHistory(rows, limit) {
 var HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
 async function readThreadState(db, tenantId, conversationId, pausedUntilIso, historyLimit = 16) {
   const since = new Date(Date.now() - DAY_MS).toISOString();
-  const [recent, replies] = await Promise.all([
+  const [recent, replies, texted] = await Promise.all([
     db.from("messages").select(HISTORY_COLUMNS).eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(historyLimit * 3),
     // headroom: duplicates and blanks drop out below
-    db.from("messages").select("created_at, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("sender", "ai").eq("direction", "outbound").in("status", DELIVERED).gte("created_at", since)
+    db.from("messages").select("created_at, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("sender", "ai").eq("direction", "outbound").in("status", DELIVERED).gte("created_at", since),
+    // One row is the answer: a text of ours that left, at any time. Not read off `recent`, which is the last few
+    // rows of every wire: a long thread's first text would fall out of it, and a campaign by WhatsApp or email is in it.
+    db.from("messages").select("id").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").eq("channel", "sms").in("status", DELIVERED).limit(1)
   ]);
   if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
   if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
+  if (texted.error) throw new Error(`readThreadState/texted: ${texted.error.message}`);
   const history = assembleHistory(recent.data ?? [], historyLimit);
-  const repliedBefore = (recent.data ?? []).some(
-    (m) => m.direction === "outbound" && DELIVERED.includes(String(m.status))
-  );
   return {
     history,
-    repliedBefore,
+    textedBefore: (texted.data ?? []).length > 0,
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
     // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
     // them would let a backfill silence the bot for a day against a cap it

@@ -94,7 +94,7 @@ test("a workspace cannot read another's conversation even by naming it", async (
   const crossed = await pgThread(world(), TENANT_B, ing(CONV_A));
   assert.deepEqual(crossed.history, [], "a conversation was read outside its workspace");
   assert.deepEqual(crossed.replies, []);
-  assert.equal(crossed.repliedBefore, false);
+  assert.equal(crossed.textedBefore, false);
 });
 
 test("the inbound-call endpoint refuses to read without a resolved tenant", () => {

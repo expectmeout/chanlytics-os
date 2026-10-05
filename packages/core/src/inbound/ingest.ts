@@ -141,14 +141,15 @@ export async function ingestMessage(cx: InboundContext): Promise<Ingested | unde
   // One door out: the carrier shapes the words for its wire (the footer on
   // the first reply to a person), and the sink's door sends them -- re-reading
   // consent, the pause and the workspace's status the moment before.
-  // Whether anything of ours has ever reached this person — which on a text
-  // decides the rates/STOP/HELP footer the campaign filing promises on a first
-  // reply. Postgres answers it outright, and the history could not: a voice
-  // call note is an inbound row whose sender is "system", assembleHistory maps
-  // that to an assistant turn, and a customer who phoned and then texted for
-  // the first time had their first reply sent without the disclosure.
-  const repliedBefore = thread.repliedBefore ?? thread.history.some((h) => h.role === "assistant");
-  const firstReply = thread.replies.length === 0 && !repliedBefore;
+  // Whether a TEXT of ours has ever reached this person, which decides the rates/STOP/HELP footer the campaign filing
+  // promises on a first text. Postgres answers it outright (ThreadState.textedBefore), and nothing else here could: the
+  // history reads a voice call note as an assistant turn, and the day's replies and "anything ever left" count every
+  // wire, so a person a WhatsApp or email campaign had reached, or the receptionist had answered on WhatsApp that day,
+  // got their first text without the disclosure. A thread that does not say falls back to what this asked before.
+  const firstReply =
+    thread.textedBefore === undefined
+      ? thread.replies.length === 0 && !thread.history.some((h) => h.role === "assistant")
+      : !thread.textedBefore;
   const wire = (text: string) => (carrier ? carrier.body(text, firstReply) : text);
   const send = (text: string, meta?: Record<string, Json>, purpose?: SendPurpose, kind?: "system") =>
     sink.deliver(from, wire(text), meta, purpose, kind);

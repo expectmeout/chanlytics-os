@@ -376,12 +376,77 @@ test("people_list says the channel a person last wrote on, which is not the chan
   assert.equal(row(people.byText).last_inbound_text, "then, by text", "the same message as the text the row carries");
   assert.equal(row(people.byWhatsApp).last_inbound_channel, "whatsapp");
   assert.equal(row(people.silent).last_inbound_channel, null, "nothing written, no channel");
+  // Their OWN words (00320): their mailbox answering for them, and a call's note, are rows that came in after and
+  // are not where they last wrote. The row's text is still the last thing that came in, as it was.
+  ok(
+    await db.from("messages").insert([
+      {
+        ...message(texted, people.byText, "email", "inbound", "2026-09-10T13:00:00Z", "I am out of the office."),
+        meta: { email: { claim: "auto_reply" } },
+      },
+      {
+        ...message(wrote, people.byWhatsApp, "voice", "inbound", "2026-09-10T13:00:00Z", "They phoned about Saturday."),
+        sender: "system",
+        type: "call_summary",
+        // Named on both rows: one insert of rows with different keys writes null where a row names none.
+        meta: {},
+      },
+    ]),
+  );
+  const after = ok(await db.rpc("people_list", { p_tenant_id: A }), "people_list");
+  const now = (id) => after.find((p) => p.id === id);
+  assert.equal(now(people.byText).last_inbound_channel, "sms", "an out-of-office does not make email where they wrote");
+  assert.equal(
+    now(people.byText).last_inbound_text,
+    "I am out of the office.",
+    "the last thing that came in, as before",
+  );
+  assert.equal(now(people.byWhatsApp).last_inbound_channel, "whatsapp", "a call's note is not their writing");
   // One person's row alone, by the same door.
   const alone = ok(await db.rpc("people_list", { p_tenant_id: A, p_contact_id: people.byText }), "one person");
   assert.deepEqual(
     alone.map((p) => p.last_inbound_channel),
     ["sms"],
   );
+});
+
+test("the two rules a message's meta decides are said the same way in TypeScript and in SQL: an automated send, and a person's own words", async (t) => {
+  if (skip) return t.skip(skip);
+  const { isAutomatedSend, isPersonsWords } = await import("@chanlytics/contracts");
+  // Every shape the column holds or could: the sources a run stamps, the claims the email intake keeps, and what is
+  // absent, empty or of the wrong kind. A pair that disagrees on one of them counts one way on a page and another in
+  // a report.
+  const metas = [
+    {},
+    { source: "broadcast" },
+    { source: "reach_out" },
+    { source: "voice" },
+    { source: null },
+    { source: 7 },
+    { email: { claim: "person" } },
+    { email: { claim: "auto_reply" } },
+    { email: { claim: "automated" } },
+    { email: { claim: "report" } },
+    { email: { claim: null } },
+    { email: {} },
+    { email: "not an object" },
+    { email: { claim: "auto_reply" }, source: "broadcast" },
+  ];
+  for (const meta of metas) {
+    const what = JSON.stringify(meta);
+    assert.equal(
+      ok(await db.rpc("automated_send", { p_meta: meta }), what),
+      isAutomatedSend(meta),
+      `automated: ${what}`,
+    );
+    assert.equal(
+      ok(await db.rpc("message_is_a_persons_words", { p_meta: meta }), what),
+      isPersonsWords(meta),
+      `a person's words: ${what}`,
+    );
+  }
+  // No meta at all, as a caller may hold it: nobody's campaign, and a person's words.
+  assert.deepEqual([isAutomatedSend(null), isPersonsWords(null), isPersonsWords(undefined)], [false, true, true]);
 });
 
 test("people_list says when an address stopped being sent to, so the pick can leave email for another channel", async (t) => {

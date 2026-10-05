@@ -352,7 +352,7 @@ export interface BroadcastRecipientDto {
   consent_after: "opted_in" | "opted_out" | null;
   consent_at: string | null;
   /** Which answer that was: to offers (the offers door names its purpose, 00095), or to hearing from the business at all. */
-  consent_purpose: "marketing" | "conversational" | null;
+  consent_purpose: "marketing" | "email_marketing" | "conversational" | null;
   /** Their first reply's words, on one line. Null when it had none -- a photo, a voice note -- or there was no reply. */
   reply_words: string | null;
   /** Who answered that reply first, and when: the receptionist, or someone on the team. A note or a later template is not an answer. */
