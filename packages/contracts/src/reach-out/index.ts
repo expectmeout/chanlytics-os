@@ -239,7 +239,7 @@ export type {
   ReplyDoor,
 } from "./reach-out-reply-words";
 export type { ReachOutRepliesQuery } from "./reach-out-schemas";
-export { replyRowOf, withReplies, bellActionOf } from "./reach-out-reply-today";
+export { replyRowOf, withReplies, withoutWrongPerson, bellActionOf } from "./reach-out-reply-today";
 export type {
   ReplyIntent,
   ReplyReading,

@@ -204,17 +204,7 @@ export const PREFETCH_SLOT = "__prefetched";
  * route-prefetch.test.mjs, which runs each one.
  */
 export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
-  // The readings of replies to reach-outs say whom nobody waits on (a wrong person): the brief reads them with the rest.
-  today: [
-    "metrics?days=1",
-    "conversations",
-    "escalations?state=open",
-    "calls",
-    "lead-searches",
-    "reach-out-replies",
-    "setup",
-    "views",
-  ],
+  today: ["metrics?days=1", "conversations", "escalations?state=open", "calls", "lead-searches", "setup", "views"],
   inbox: ["conversations", "escalations?state=open", "templates"],
   // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
   conversations: ["conversations", "calls", "escalations?state=open"],

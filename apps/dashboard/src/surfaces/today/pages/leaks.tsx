@@ -70,7 +70,7 @@ export const TodayLeaks = () => {
     );
   }
   if (!R || !P) return null;
-  const { rows, moreLine } = TODAY_HELPERS.leaks(R, P, T ? T.noReply : []);
+  const { rows, moreLine } = TODAY_HELPERS.leaks(R, P, TODAY_HELPERS.withoutWrongPerson(T ? T.noReply : []));
   if (!rows.length) return null;
   const phone = twPhone();
   return (

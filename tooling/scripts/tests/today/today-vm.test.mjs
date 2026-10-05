@@ -3,7 +3,7 @@
  *  Run: corepack pnpm test, or node --test tooling/scripts/tests/today/today-vm.test.mjs */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM } from "@chanlytics/contracts";
+import { toTodayVM, withoutWrongPerson } from "@chanlytics/contracts";
 
 const NOW = new Date("2026-08-27T15:00:00Z"); // 11:00 America/New_York
 
@@ -1174,7 +1174,9 @@ test("who is waiting with nothing back: the customer wrote last an hour ago or m
 });
 
 test("a reply to a reach-out read as a wrong person is not someone waiting with nothing back: nobody there is to answer, and a not-now still is one", () => {
-  const waiting = (readings) => toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW, null, readings).noReply;
+  // The day's view model lists who waits; the readings (the Inbox's surface holds them) take out whom nobody is there to answer.
+  const waiting = (readings) =>
+    withoutWrongPerson(toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW).noReply, readings);
   const reading = (conversation_id, intent, over = {}) => ({
     conversation_id,
     intent,
@@ -1184,8 +1186,16 @@ test("a reply to a reach-out read as a wrong person is not someone waiting with 
   });
   const names = (readings) => waiting(readings).map((r) => r.who);
 
-  assert.deepEqual(names(null), ["Dulce Amaro"], "a Today that did not read the readings takes nobody for gone");
-  assert.deepEqual(names([]), ["Dulce Amaro"]);
+  assert.deepEqual(
+    names([]),
+    ["Dulce Amaro"],
+    "a reading that was not read (a failed read is none) takes nobody for gone",
+  );
+  assert.deepEqual(
+    toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW).noReply.map((r) => r.who),
+    ["Dulce Amaro"],
+    "and the view model itself is as it was: the readings are laid over it where they are held",
+  );
   assert.deepEqual(names([reading("cv-d", "wrong_person")]), [], "they are not the one to ask: nobody waits");
   assert.deepEqual(
     names([reading("cv-d", "wrong_person", { claim: "auto_reply" })]),

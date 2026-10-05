@@ -13806,17 +13806,7 @@ function inAppBootScript() {
 var PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 var PREFETCH_SLOT = "__prefetched";
 var PREFETCH_READS = {
-  // The readings of replies to reach-outs say whom nobody waits on (a wrong person): the brief reads them with the rest.
-  today: [
-    "metrics?days=1",
-    "conversations",
-    "escalations?state=open",
-    "calls",
-    "lead-searches",
-    "reach-out-replies",
-    "setup",
-    "views"
-  ],
+  today: ["metrics?days=1", "conversations", "escalations?state=open", "calls", "lead-searches", "setup", "views"],
   inbox: ["conversations", "escalations?state=open", "templates"],
   // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
   conversations: ["conversations", "calls", "escalations?state=open"],
@@ -25134,10 +25124,10 @@ function newestReadings(readings) {
   for (const r2 of readings) if (!newest.has(r2.conversation_id)) newest.set(r2.conversation_id, r2);
   return newest;
 }
-function threadsNobodyAnswersAt(readings) {
+function withoutWrongPerson(waiting, readings) {
   const gone = /* @__PURE__ */ new Set();
   for (const [thread, r2] of newestReadings(readings)) if (r2.intent === "wrong_person" && !r2.undone) gone.add(thread);
-  return gone;
+  return gone.size ? waiting.filter((w) => !gone.has(w.conversationId)) : [...waiting];
 }
 function withReplies(rows, readings) {
   const newest = newestReadings(readings);
@@ -29286,7 +29276,6 @@ function todayFacts(input) {
     needsYouCount: openEsc.length,
     escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),
     escSet,
-    gone: threadsNobodyAnswersAt(input.readings ?? []),
     closingConvs: closingConversations(conversations, escSet, now),
     sinceMs,
     callsInWindow: callDtos.filter((c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs),
@@ -29656,10 +29645,10 @@ function todayWindowClosing(f) {
 }
 var NO_REPLY_AFTER_MS = HOUR_MS;
 function todayNoReply(f) {
-  const { conversations, escSet, gone, closingConvs, now } = f;
+  const { conversations, escSet, closingConvs, now } = f;
   const closingSet = new Set(closingConvs.map((c) => c.id));
   return conversations.flatMap((c) => {
-    if (escSet.has(c.id) || closingSet.has(c.id) || gone.has(c.id) || c.state === "archived") return [];
+    if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "archived") return [];
     const { standing } = standingOf(
       {
         state: c.state,
@@ -29904,8 +29893,8 @@ function todayQueue(f, callRows, empty) {
 }
 
 // src/today/today-brief.ts
-function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date(), searches = null, readings = null) {
-  const f = todayFacts({ metrics: m, conversations, escalations, calls, now, searches, readings });
+function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date(), searches = null) {
+  const f = todayFacts({ metrics: m, conversations, escalations, calls, now, searches });
   const { chips, lines, alert } = todayStanding(f);
   const eyebrow = `${f.datePart} \xB7 ${f.clock} \xB7 ${m.workspace.name}`;
   const proof = todayProof(f.live, f.tz, now);
@@ -33902,6 +33891,7 @@ export {
   wireFailure,
   withReplies,
   withVisitsOf,
+  withoutWrongPerson,
   wordCount,
   wordsIssueWords,
   wordsNeedOpening,

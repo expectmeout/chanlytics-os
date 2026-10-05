@@ -41,14 +41,19 @@ function newestReadings(readings: readonly ReachOutReplyDto[]): Map<string, Reac
 }
 
 /**
- * The threads where nobody is there to answer: the newest reading of the reply on them is a wrong person (they are not
- * the one to ask, and may say who is), and it stands. A customer who "wrote last" there is waiting on nobody, so Today
- * does not list them as waiting with nothing back. A not-now is not here: they are still the one to ask, later.
+ * Who is waiting with nothing back (Today's `noReply`), less the threads where nobody is there to answer: the newest
+ * reading of the reply on them is a wrong person (they are not the one to ask, and may say who is), and it stands. A
+ * customer who "wrote last" there is waiting on nobody. A not-now stays: they are still the one to ask, later. Over the
+ * readings the Inbox's surface holds (`__REPLIES`), as withReplies is, so Today asks the replies of nobody twice: a
+ * reading that has not been read is none, and nobody is then taken for gone.
  */
-export function threadsNobodyAnswersAt(readings: readonly ReachOutReplyDto[]): Set<string> {
+export function withoutWrongPerson<W extends { conversationId: string }>(
+  waiting: readonly W[],
+  readings: readonly ReachOutReplyDto[],
+): W[] {
   const gone = new Set<string>();
   for (const [thread, r] of newestReadings(readings)) if (r.intent === "wrong_person" && !r.undone) gone.add(thread);
-  return gone;
+  return gone.size ? waiting.filter((w) => !gone.has(w.conversationId)) : [...waiting];
 }
 
 /**
