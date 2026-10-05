@@ -33593,6 +33593,7 @@ export {
   lensAnswerOf,
   lensEmpty,
   lensIsShown,
+  lensOf,
   lensOfRoute,
   lensRoute,
   lensesFor,

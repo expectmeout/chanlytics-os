@@ -6,7 +6,7 @@ import type { DealReportVM } from "@chanlytics/contracts";
 import { BarList } from "../../kit/charts/bar";
 import { ChartCard } from "../../kit/charts/card";
 import { RptSection } from "../blocks";
-import type { LensProps } from "./shared";
+import { LensEmpty, type LensProps } from "./shared";
 
 // Deals (0004, 0008): one cohort, the proposals of the period, and beside it the stock. The headline says how many
 // went out; the card draws what became of them in the kit's bars, each outcome's count and its share of the cohort,
@@ -53,5 +53,5 @@ function dealsSection(deals: DealReportVM | null | undefined) {
 }
 
 export function PipelineLens({ R }: LensProps) {
-  return dealsSection(R.deals);
+  return R.deals && R.deals.present ? dealsSection(R.deals) : <LensEmpty lens="pipeline" vm={R.vm} />;
 }

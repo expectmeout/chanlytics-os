@@ -206,7 +206,7 @@ export { REACH_OUT_SLOTS, REACH_OUT_SLOT_SET, REACH_OUT_SLOT_WORDS, REACH_OUT_SU
 export { zoneOfRegion, US_STATE_ZONES } from "./reach-out/us-zones";
 export { toCampaignReportVM } from "./reports/campaign-report";
 export { lensAnswerOf } from "./reports/lens-answer";
-export { REPORT_LENSES, LENS_ROUTES, lensRoute, isLensParam, lensOfRoute, lensesFor, lensIsShown, lensEmpty } from "./reports/lenses";
+export { REPORT_LENSES, LENS_ROUTES, lensRoute, isLensParam, lensOfRoute, lensOf, lensesFor, lensIsShown, lensEmpty } from "./reports/lenses";
 export { toReachOutReportVM, reachOutDayWords } from "./reports/reach-out-report";
 export { closedOf } from "./reports/report-closed";
 export { reportFacts } from "./reports/report-facts";

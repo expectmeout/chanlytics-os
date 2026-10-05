@@ -152,8 +152,8 @@ export function lensesFor(who: LensWho): LensRow[] {
 /** Whether a lens is shown to this person here. */
 export const lensIsShown = (id: LensId, who: LensWho): boolean => lensesFor(who).some((l) => l.id === id);
 
-/** A lens's row. */
-function lensOf(id: LensId): LensRow {
+/** A lens's row (the frame's crumb names a lens by it). */
+export function lensOf(id: LensId): LensRow {
   const found = REPORT_LENSES.find((l) => l.id === id);
   if (!found) throw new Error(`Reports has no lens ${id}`);
   return found;

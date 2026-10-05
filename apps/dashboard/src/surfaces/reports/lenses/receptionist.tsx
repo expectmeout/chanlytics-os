@@ -9,7 +9,7 @@ import { EmptyState } from "../../kit/empty/empty";
 import { RptBooked, RptSection } from "../blocks";
 import { RPT_ANSWERED, RPT_CALLS, RPT_REPLY, rptMood, rptPlural, rptSpread } from "../series";
 import type { ReportsSurface } from "../surface";
-import type { LensProps } from "./shared";
+import { nothingCameIn, type LensProps } from "./shared";
 
 /** Who answered, day by day: the receptionist, you, and nobody, as one stack a day. */
 function answeredCard(vm: ReportVM, days: number) {
@@ -219,6 +219,6 @@ function receptionistSection(R: ReportsSurface, phone: boolean) {
   );
 }
 
-export function ReceptionistLens({ R, phone }: LensProps) {
-  return R.vm.empty ? null : receptionistSection(R, phone);
+export function ReceptionistLens({ R, pick, phone }: LensProps) {
+  return R.vm.empty ? nothingCameIn(R.vm, R.period, pick) : receptionistSection(R, phone);
 }

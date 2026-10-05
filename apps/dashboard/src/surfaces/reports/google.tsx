@@ -10,9 +10,9 @@
  * of days wants width; the reviews want a readable measure, which reports.css gives them in columns.
  */
 import { useState } from "react";
-import { toGoogleVM } from "@chanlytics/contracts";
-import type { GoogleReviewVM, GoogleVM } from "@chanlytics/contracts";
-import { draftReply, replyToReview } from "@/legacy-bridge/google";
+import { lensEmpty, toGoogleVM } from "@chanlytics/contracts";
+import type { GoogleReviewVM, GoogleVM, LensRange } from "@chanlytics/contracts";
+import { draftReply, replyToReview, type GoogleSurface } from "@/legacy-bridge/google";
 import { canDo, useLegacyToast } from "../legacy-verbs";
 import { BarChart } from "../kit/charts/bar";
 import { ChartCard } from "../kit/charts/card";
@@ -218,22 +218,27 @@ function latestCard(vm: GoogleVM, mapsUri: string | null, operator: boolean) {
   );
 }
 
-export function GoogleSection({ days }: { days: number }) {
+/** Whether Reviews has anything to draw: this deployment can look listings up, or a listing is kept (the one predicate: the lens and the section ask it). */
+export const googleReadable = (G: GoogleSurface | undefined): G is GoogleSurface =>
+  !!G && (G.dto.ready.places || G.dto.ready.profile || !!G.dto.listing);
+
+export function GoogleSection({ days, range }: { days: number; range: LensRange }) {
   const G = useSurface("google");
-  if (!G || (!G.dto.ready.places && !G.dto.ready.profile && !G.dto.listing)) return null;
+  if (!googleReadable(G)) return null;
   const vm = toGoogleVM(G.dto, days);
   const operator = canDo("approve");
   const L = vm.listing;
   if (!L) {
+    const none = lensEmpty("reviews", range);
     return (
       <RptSection title="Google reviews">
         <div className="rpt-grid">
           <ChartCard className="rpt-span-12" title="Your listing on Google" testid="google-none">
             <EmptyState
               kind="line"
-              title="Find your business on Google once."
-              body="Its rating, its count and its newest reviews show here for the period, with a line on Today and a row on the bell when one lands."
-              action={{ label: "Find it", to: "start/find" }}
+              title={none.title}
+              body={none.body}
+              action={none.door ? { label: none.door.label, to: none.door.to } : null}
             />
           </ChartCard>
         </div>

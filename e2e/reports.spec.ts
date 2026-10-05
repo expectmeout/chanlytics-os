@@ -30,7 +30,7 @@ test.describe("Reports on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the headline, five tiles, one period control above everything, cards with table twins, no money", async ({
+  test("the Overview: the headline, five tiles, one period control above everything, no money; each lens its own cards with table twins", async ({
     page,
   }) => {
     await page.goto("/#/reports");
@@ -56,10 +56,9 @@ test.describe("Reports on a real workspace", () => {
     }
 
     const ranges = report.locator(".rpt-range button");
-    await expect(ranges).toHaveCount(3);
+    await expect(ranges).toHaveCount(4);
     await expect(ranges.filter({ hasText: "30 days" })).toHaveAttribute("aria-pressed", "true");
     await expect(report.getByRole("button", { name: "Ask about this period" })).toBeVisible();
-    await expect(report.getByTestId("chart-campaigns")).toBeVisible();
 
     // A workspace nobody reached in the period has one honest card instead of the charts, and no Worth knowing.
     if (await report.getByTestId("reports-empty").count()) {
@@ -67,7 +66,10 @@ test.describe("Reports on a real workspace", () => {
       return;
     }
     await expect(report.getByTestId("reports-facts")).toContainText("Worth knowing");
+    // The receptionist's lens: who answered, with a table twin.
+    await page.getByTestId("lens-receptionist").click();
     const main = report.getByTestId("chart-answered");
+    await expect(main).toBeVisible();
     if (await main.locator(".empty").count()) {
       await expect(main.getByText("No customer messages in this period")).toBeVisible();
     } else {
@@ -78,18 +80,16 @@ test.describe("Reports on a real workspace", () => {
     // Either way it has a table twin.
     await main.hover();
     await main.getByTestId("card-table").click();
-    await expect(main.locator("table thead th")).toHaveCount(8);
-    for (const id of [
-      "chart-reply",
-      "chart-reasons",
-      "chart-calls",
-      "chart-booking",
-      "chart-channels",
-      "chart-rhythm",
-      "chart-people",
-    ]) {
+    await expect(main.locator("table")).toBeVisible();
+    for (const id of ["chart-reply", "chart-reasons", "chart-calls", "chart-booking"]) {
       await expect(report.getByTestId(id), id).toBeVisible();
     }
+    await page.getByTestId("lens-people").click();
+    for (const id of ["chart-channels", "chart-rhythm", "chart-people"]) {
+      await expect(report.getByTestId(id), id).toBeVisible();
+    }
+    await page.getByTestId("lens-campaigns").click();
+    await expect(report.getByTestId("chart-campaigns")).toBeVisible();
   });
 
   test("Reports is a page of its own on its path: it boots there, the frame around it, and the router walks it", async ({
@@ -124,10 +124,43 @@ test.describe("Reports on a real workspace", () => {
     await expect(page.getByTestId("reports-real")).toBeVisible();
     await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Reports");
 
-    // Reports has one address: an address under it is not a report.
+    // A lens is an address on this one page: the strip's tabs are links, and a press moves the address without a request for a page.
+    const documents: string[] = [];
+    page.on("request", (r) => {
+      if (r.resourceType() === "document") documents.push(r.url());
+    });
+    await expect(page.getByTestId("reports-lenses")).toBeVisible();
+    await page.getByTestId("lens-receptionist").click();
+    await expect.poll(() => routeOf(page.url())).toBe("reports/receptionist");
+    await expect(page.getByTestId("chart-answered")).toBeVisible();
+    await expect(page.getByTestId("reports-hero")).toHaveCount(0);
+    await page.getByTestId("lens-people").click();
+    await expect.poll(() => routeOf(page.url())).toBe("reports/people");
+    await expect(page.getByTestId("chart-channels")).toBeVisible();
+    await page.goBack();
+    await expect.poll(() => routeOf(page.url())).toBe("reports/receptionist");
+    await expect(page.getByTestId("chart-answered")).toBeVisible();
+    await page.getByTestId("lens-overview").click();
+    await expect.poll(() => routeOf(page.url())).toBe("reports");
+    await expect(page.getByTestId("reports-hero")).toBeVisible();
+    expect(documents, "a move between lenses is never a page request").toEqual([]);
+
+    // A lens address loads on its own, the frame around it; the Overview is `reports` and `reports/overview` is no address.
+    await page.goto(`/w/${slug}/reports/campaigns`);
+    await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("chart-campaigns")).toBeVisible();
+    await expect(page.getByTestId("lens-campaigns")).toHaveAttribute("aria-current", "page");
+    await page.goto(`/w/${slug}/reports/overview`);
+    await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("reports-real")).toHaveCount(0);
     await page.goto(`/w/${slug}/reports/anything`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("reports-real")).toHaveCount(0);
+
+    // The Pipeline's address is a lens even where deals are off: its empty state, never a not-found.
+    await page.goto(`/w/${slug}/reports/pipeline`);
+    await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("rpt-deals").or(page.getByTestId("lens-empty"))).toBeVisible();
   });
 
   test("changing the period asks the API for that window and keeps the frame while it loads", async ({ page }) => {

@@ -47,6 +47,7 @@ export {
   lensRoute,
   isLensParam,
   lensOfRoute,
+  lensOf,
   lensesFor,
   lensIsShown,
   lensEmpty,

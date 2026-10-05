@@ -1,22 +1,37 @@
 /**
- * Chanlytics, Reports: the page shell (moved from legacy/pages/reports.jsx, decision 0015). One row above everything
- * (the period, its days and the Ask door), then the lenses (lenses/), the reach-outs under Campaigns and Google's reviews last.
- * A real workspace draws the bridge's own numbers (`useSurface("reports")`); a demo session draws the same page from the
- * contracts sample (sample.ts); without either, the page says what Reports reads.
+ * Chanlytics, Reports: the page on its App Router route (`reports/[[...lens]]`, decision 0015, and the lenses spec). One page of
+ * lenses, each at its own address (`/w/<slug>/reports/<lens>`, the Overview at `/w/<slug>/reports`). The page follows its own
+ * address, as People's does (the path the App Router page hands it), so a move between two lenses is a pushed or replaced entry and
+ * never a request for a page, and every lens draws from the one read the surface holds, so a move asks for nothing and never
+ * blanks the body. The frame draws the strip of lenses (chrome.ts, its `views`) and the head (head.ts); the page draws one row above
+ * everything (the period, its days and the Ask door) and the lens's body (lenses/). A real workspace draws the bridge's own numbers
+ * (`useSurface("reports")`); a demo session draws the same page from the contracts sample (sample.ts); without either, the page says
+ * what Reports reads.
  */
 import { useEffect, useState } from "react";
-import { REPORT_PERIOD_DEFAULT, REPORT_RANGES, type ReportPeriodId } from "@chanlytics/contracts";
+import {
+  REPORT_PERIOD_DEFAULT,
+  REPORT_RANGES,
+  lensIsShown,
+  lensOfRoute,
+  routeOfPath,
+  type LensId,
+  type ReportPeriodId,
+} from "@chanlytics/contracts";
+import { workspaceOverride } from "@/legacy-bridge/surface-data";
 import { askAbout, demoSession } from "../legacy-verbs";
 import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
 import { useSurface } from "../use-surface";
 import { useRptPhone } from "./blocks";
+import { useReportsStanding } from "./head";
 import { CampaignsLens } from "./lenses/campaigns";
 import { OverviewLens } from "./lenses/overview";
 import { PeopleLens } from "./lenses/people";
 import { PipelineLens } from "./lenses/pipeline";
 import { ReceptionistLens } from "./lenses/receptionist";
 import { ReviewsLens } from "./lenses/reviews";
+import { LensEmpty, type LensProps } from "./lenses/shared";
 import { setReportRange } from "./period";
 import { reportsSample } from "./sample";
 import type { ReportsSurface } from "./surface";
@@ -84,7 +99,29 @@ function periodRow(p: {
   );
 }
 
-export function ReportsPage() {
+/** The lens's body, or what it says where this workspace has no use for it. */
+function lensBody(lens: LensId, props: LensProps, shown: boolean) {
+  if (!shown) return <LensEmpty lens={lens} vm={props.R.vm} />;
+  switch (lens) {
+    case "overview":
+      return <OverviewLens {...props} />;
+    case "receptionist":
+      return <ReceptionistLens {...props} />;
+    case "people":
+      return <PeopleLens {...props} />;
+    case "pipeline":
+      return <PipelineLens {...props} />;
+    case "campaigns":
+      return <CampaignsLens {...props} />;
+    case "reviews":
+      return <ReviewsLens {...props} />;
+  }
+}
+
+export function ReportsPage({ pathname }: { pathname: string | null }) {
+  // The lens the address names; the frame hands the page only the addresses it takes (surfaces/routes.ts), so an address that is no
+  // lens is not drawn here at all.
+  const lens = lensOfRoute(routeOfPath(pathname) ?? "reports") ?? "overview";
   const phone = useRptPhone();
   const live = useSurface("reports");
   // A demo's own period: the sample answers at once, so the tabs switch it here.
@@ -98,6 +135,7 @@ export function ReportsPage() {
     setBusy(false);
   }, [fetchedAt]);
   const R = live || (demoSession() ? reportsSample(samplePeriod) : null);
+  useReportsStanding(lens, R);
   if (!R) return readsAWorkspace();
   const pick = async (period: ReportPeriodId) => {
     // One period at a time: while one loads the tabs hold, rather than start a second load over the first.
@@ -114,21 +152,22 @@ export function ReportsPage() {
       setFailed(period);
     }
   };
+  const ws = workspaceOverride.current();
+  const shown = lensIsShown(lens, { sellsBy: ws?.sells_by, role: ws?.role });
   return (
     // A period on its way dims by the one rule every page uses (components.css [data-loading] [data-dims]).
-    <div className="rpt" data-testid={live ? "reports-real" : "reports-sample"} data-loading={busy ? "" : undefined}>
+    <div
+      className="rpt"
+      data-testid={live ? "reports-real" : "reports-sample"}
+      data-lens={lens}
+      data-loading={busy ? "" : undefined}
+    >
       <div className="rpt-inner">
-        {/* One row above everything: the period, the days it covers, and a door to ask about them. The top bar says
-            Reports; the page does not title itself. */}
+        {/* One row above everything: the period, the days it covers, and a door to ask about them. The frame's head says
+            Reports and the lens's answer; the page does not title itself. */}
         {periodRow({ R, busy, failed, pick })}
         <div className="rpt-body" data-dims aria-busy={busy ? "true" : "false"}>
-          {/* Task 11 draws one of these by the address; until then the page draws them all, in the order it always did. */}
-          <OverviewLens R={R} pick={pick} phone={phone} />
-          <ReceptionistLens R={R} pick={pick} phone={phone} />
-          <PipelineLens R={R} pick={pick} phone={phone} />
-          <PeopleLens R={R} pick={pick} phone={phone} />
-          <CampaignsLens R={R} pick={pick} phone={phone} />
-          <ReviewsLens R={R} pick={pick} phone={phone} />
+          {lensBody(lens, { R, pick, phone }, shown)}
         </div>
       </div>
     </div>

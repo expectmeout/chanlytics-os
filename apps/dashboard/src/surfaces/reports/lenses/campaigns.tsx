@@ -6,7 +6,7 @@ import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { RptSection, RptSources } from "../blocks";
 import { RptReachOuts } from "../reach-outs";
 import { RPT_SENT } from "../series";
-import type { LensProps } from "./shared";
+import { LensEmpty, type LensProps } from "./shared";
 
 /** From sent to replied: the campaigns' funnel, each step a share of what went out. */
 function funnelCard(cm: CampaignReportVM) {
@@ -83,17 +83,7 @@ function campaignsBody(vm: ReportVM, cm: CampaignReportVM | null, days: number) 
         testid="chart-campaigns"
       />
     );
-  if (cm.empty)
-    return (
-      <EmptyState
-        kind="card"
-        glyph="wave"
-        title="Nothing went out"
-        testid="chart-campaigns"
-        body={`No broadcast or playbook run reached anyone between ${vm.since} and ${vm.until}, and nobody said yes or asked to stop.`}
-        action={{ label: "Open Sent", to: "broadcasts" }}
-      />
-    );
+  if (cm.empty) return <LensEmpty lens="campaigns" vm={vm} testid="chart-campaigns" />;
   return (
     <div className="rpt-grid">
       {funnelCard(cm)}

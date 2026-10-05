@@ -873,7 +873,8 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   // The page draws the section under the period (executed: reports-page.test.mjs, Google's reviews under the period).
   assert.ok(
     reports.includes('useSurface("google")') &&
-      reports.includes("if (!G || (!G.dto.ready.places && !G.dto.ready.profile && !G.dto.listing)) return null;"),
+      reports.includes("export const googleReadable = ") &&
+      reports.includes("if (!googleReadable(G)) return null;"),
   );
   assert.ok(
     reports.includes("vm.reply.words ? `${vm.source} · ${vm.reply.words}` : vm.source"),

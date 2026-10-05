@@ -3242,13 +3242,13 @@ git commit -m "Today's sections are one file per lens, drawn on the page in the 
 
 **Files:**
 - Move: `apps/dashboard/app/(os)/w/[workspace]/reports/page.tsx` to `apps/dashboard/app/(os)/w/[workspace]/reports/[[...lens]]/page.tsx`
-- Create: `apps/dashboard/src/surfaces/reports/chrome.ts`, `apps/dashboard/src/surfaces/reports/head.ts`, `tooling/scripts/tests/reports/reports-address.test.mjs`, `tooling/scripts/tests/reports/reports-lens-page.test.mjs`
+- Create: `apps/dashboard/src/surfaces/reports/chrome.ts`, `apps/dashboard/src/surfaces/reports/head.ts`, `tooling/scripts/tests/reports/lenses/reports-address.test.mjs`, `tooling/scripts/tests/reports/lenses/reports-lens-page.test.mjs`
 - Modify: `apps/dashboard/src/surfaces/routes.ts`, `apps/dashboard/src/legacy-bridge/surface-registry.ts`, `apps/dashboard/src/surfaces/reports/reports-page.tsx`, `apps/dashboard/src/surfaces/reports/google.tsx`, `apps/dashboard/src/surfaces/reports/lenses/{shared,receptionist,people,pipeline,campaigns,reviews}.tsx`, `CLAUDE.md`
 - Modify (tests): `tooling/scripts/tests/shell/surfaces/route-waits.test.mjs`, `tooling/scripts/tests/google/google.test.mjs`, `tooling/scripts/tests/reports/reports-page.test.mjs`, `e2e/reports.spec.ts`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `tooling/scripts/tests/reports/reports-address.test.mjs`:
+Create `tooling/scripts/tests/reports/lenses/reports-address.test.mjs`:
 
 ```js
 /**
@@ -3258,8 +3258,8 @@ Create `tooling/scripts/tests/reports/reports-address.test.mjs`:
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact } from "../_legacy-react.mjs";
-import { importSrc } from "../_source.mjs";
+import { installLegacyReact } from "../../_legacy-react.mjs";
+import { importSrc } from "../../_source.mjs";
 
 installLegacyReact();
 const { SURFACE_ROUTES, routeHasPage, onOnePage } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
@@ -3326,7 +3326,7 @@ test("Pipeline is a tab where deals are on, in its place, and nowhere else; the 
 });
 ```
 
-Create `tooling/scripts/tests/reports/reports-lens-page.test.mjs`:
+Create `tooling/scripts/tests/reports/lenses/reports-lens-page.test.mjs`:
 
 ```js
 /**
@@ -3337,8 +3337,8 @@ Create `tooling/scripts/tests/reports/reports-lens-page.test.mjs`:
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, all, byTestId, textOf, classes, find } from "../_legacy-react.mjs";
-import { DEALS, NO_DEALS, quiet, surface } from "./_report-world.mjs";
+import { installLegacyReact, fresh, all, byTestId, textOf, classes, find } from "../../_legacy-react.mjs";
+import { DEALS, NO_DEALS, quiet, surface } from "../_report-world.mjs";
 
 const reads = [];
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
@@ -3346,7 +3346,7 @@ globalThis.window.fetch = async (url) => {
   reads.push(String(url));
   return new Response(JSON.stringify({ ok: false, error: { code: "internal", message: "not read here" } }), { status: 500 });
 };
-const S = "../../../../apps/dashboard/src";
+const S = "../../../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { standingSaid, forgetStanding } = await import(`${S}/surfaces/kit/head/standing.ts`);
@@ -3470,8 +3470,8 @@ with
 - [ ] **Step 2: Run them to verify they fail**
 
 ```bash
-node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/reports-address.test.mjs
-node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/reports-lens-page.test.mjs
+node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/lenses/reports-address.test.mjs
+node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/lenses/reports-lens-page.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/shell/surfaces/route-waits.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/google/google.test.mjs
 ```
@@ -4063,8 +4063,8 @@ and delete the old comment and the two assertions it kept (`// Reports has one a
 
 ```bash
 corepack pnpm exec prettier --write apps/dashboard/src/surfaces apps/dashboard/src/legacy-bridge/surface-registry.ts "apps/dashboard/app/(os)/w/[workspace]/reports" tooling/scripts/tests/reports tooling/scripts/tests/shell/surfaces/route-waits.test.mjs tooling/scripts/tests/google/google.test.mjs e2e/reports.spec.ts CLAUDE.md
-node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/reports-address.test.mjs
-node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/reports-lens-page.test.mjs
+node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/lenses/reports-address.test.mjs
+node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/lenses/reports-lens-page.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/reports-page.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/shell/surfaces/route-waits.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/shell/surfaces/surface-registry.test.mjs

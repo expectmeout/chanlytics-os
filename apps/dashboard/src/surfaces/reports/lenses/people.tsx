@@ -8,7 +8,7 @@ import { RadarChart } from "../../kit/charts/radar";
 import { EmptyState } from "../../kit/empty/empty";
 import { RptSection } from "../blocks";
 import { RPT_CHANNELS, rptPeriods, rptPlural } from "../series";
-import type { LensProps } from "./shared";
+import { nothingCameIn, type LensProps } from "./shared";
 
 /** Where they reach you: the split by channel, and the same split the period before, in the same colours. */
 function channelsCard(vm: ReportVM) {
@@ -170,6 +170,6 @@ function customersSection(vm: ReportVM, days: number) {
   );
 }
 
-export function PeopleLens({ R }: LensProps) {
-  return R.vm.empty ? null : customersSection(R.vm, R.days);
+export function PeopleLens({ R, pick }: LensProps) {
+  return R.vm.empty ? nothingCameIn(R.vm, R.period, pick) : customersSection(R.vm, R.days);
 }

@@ -41,6 +41,18 @@ const went = [];
 const asked = [];
 const flashed = [];
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+globalThis.__WORKSPACES = [
+  {
+    id: "w1",
+    slug: "harbor",
+    name: "Harbor Studio",
+    status: "active",
+    timezone: "America/New_York",
+    sells_by: "proposal",
+    role: "owner",
+  },
+];
+globalThis.__ACTIVE_WORKSPACE = "w1";
 const S = "../../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { RPT_CHANNELS } = await import(`${S}/surfaces/reports/series.ts`);
@@ -109,13 +121,45 @@ const inPeriodTest = async (mode, run) => {
   }
 };
 
-const draw = () => ReportsPage();
-const page = (opts) => {
-  setSurfaceValue("reports", surface(opts));
+/** Reports' lenses' addresses, in the strip's order: the page's old whole is these six drawn one after another. */
+const LENS_PATHS = ["", "/receptionist", "/people", "/pipeline", "/campaigns", "/reviews"].map(
+  (l) => `/w/harbor/reports${l}`,
+);
+/** The lens the address names: the Overview, unless a test says another. */
+let lensAt = LENS_PATHS[0];
+const draw = () => ReportsPage({ pathname: lensAt });
+/** One lens drawn over what `set` puts in the surface, as a person at its address sees it. */
+const drawOnce = (set) => {
+  set();
   fresh();
   went.length = 0;
   asked.length = 0;
   return draw();
+};
+const pageOnce = (opts) => drawOnce(() => setSurfaceValue("reports", surface(opts)));
+/**
+ * Every lens's body in one tree, for what a test reads across the old page (a card, a row, a sentence). The Overview is drawn
+ * last, so the frame the stub keeps (what `redraw` draws again, and where a press's state lands) is the Overview's, whose period
+ * row the tests press.
+ */
+const across = (set) => {
+  const trees = new Map();
+  for (const path of [...LENS_PATHS].reverse()) {
+    lensAt = path;
+    trees.set(path, drawOnce(set));
+  }
+  lensAt = LENS_PATHS[0];
+  return { type: "Fragment", props: { children: LENS_PATHS.map((path) => trees.get(path)) } };
+};
+const page = (opts) => across(() => setSurfaceValue("reports", surface(opts)));
+/** A test that presses a card of one lens: that lens is the page the stub keeps, so a press's state lands where it is drawn again. */
+const inLens = (n, run) => {
+  lensAt = LENS_PATHS[n];
+  try {
+    return run();
+  } finally {
+    lensAt = LENS_PATHS[0];
+  }
 };
 const redraw = () => again(draw);
 const card = (tree, id) => byTestId(tree, id);
@@ -424,17 +468,18 @@ test("the channels are contracts' words, in contracts' order, each in the colour
   });
 });
 
-test("when they reach you, as a table: the seven days, then the twenty-four hours", () => {
-  let tree = page();
-  press(byTestId(card(tree, "chart-rhythm"), "card-table"));
-  tree = redraw();
-  const rows = all(card(tree, "chart-rhythm"), (n) => n.type === "tr")
-    .slice(1)
-    .map((r) => all(r, (c) => c.type === "td").map(textOf));
-  assert.equal(rows.length, 31);
-  assert.deepEqual(rows[1], ["Tuesday", "7", "1"]);
-  assert.deepEqual(rows[7 + 10], ["10am to 11am", "7", "—"], "an hour has no period before to set beside it");
-});
+test("when they reach you, as a table: the seven days, then the twenty-four hours", () =>
+  inLens(2, () => {
+    let tree = pageOnce();
+    press(byTestId(card(tree, "chart-rhythm"), "card-table"));
+    tree = redraw();
+    const rows = all(card(tree, "chart-rhythm"), (n) => n.type === "tr")
+      .slice(1)
+      .map((r) => all(r, (c) => c.type === "td").map(textOf));
+    assert.equal(rows.length, 31);
+    assert.deepEqual(rows[1], ["Tuesday", "7", "1"]);
+    assert.deepEqual(rows[7 + 10], ["10am to 11am", "7", "—"], "an hour has no period before to set beside it");
+  }));
 
 /* ------------------------------------------ states ------------------------------------------ */
 
@@ -532,9 +577,7 @@ test("where they reach you: the same split the period before, under the donut, i
 test("a v2 payload still draws: what it cannot know is said, never invented", () => {
   const v2 = reportDto();
   for (const k of ["replies", "channels", "hours"]) delete v2[k];
-  setSurfaceValue("reports", { ...surface(), vm: toReportVM(v2) });
-  fresh();
-  const tree = draw();
+  const tree = across(() => setSurfaceValue("reports", { ...surface(), vm: toReportVM(v2) }));
   assert.ok(textOf(card(tree, "chart-channels")).includes("Not counted for this period yet."));
   assert.equal(takeaway(tree, "chart-channels"), "", "and no sentence about channels it never counted");
   assert.equal(plot(tree, "chart-reply"), null, "no speed line without the replies");
@@ -693,9 +736,15 @@ test("a demo draws the same page from the sample, its tabs switch the sample; wi
     fresh();
     let tree = draw();
     assert.ok(
-      byTestId(tree, "reports-sample") && byTestId(tree, "reports-hero") && byTestId(tree, "chart-channels"),
+      byTestId(tree, "reports-sample") && byTestId(tree, "reports-hero"),
       "the one Reports page, on the sample",
     );
+    lensAt = LENS_PATHS[2];
+    fresh();
+    assert.ok(byTestId(draw(), "chart-channels"), "and its People lens");
+    lensAt = LENS_PATHS[0];
+    fresh();
+    tree = draw();
     assert.equal(tabOf(tree, "30 days").props["aria-pressed"], true);
     press(tabOf(tree, "90 days"));
     tree = redraw();
@@ -730,32 +779,33 @@ test("REGRESSION (C25): the period before is drawn where it reads -- beside the 
     assert.ok(textOf(card(tree, id)).includes("The 7 days before"), `${id}: the legend names it`);
 });
 
-test("REGRESSION (C26): a chart is one keyboard stop whose arrows read each day aloud -- its day areas answered focus no key could reach", () => {
-  let tree = page();
-  const answered = () => card(tree, "chart-answered");
-  assert.equal(plot(tree, "chart-answered").props.tabIndex, 0, "one stop for the chart");
-  assert.equal(all(answered(), (n) => n.props && "tabIndex" in n.props).length, 1, "and none per day");
-  const live = () => textOf(find(answered(), (n) => n.props?.["aria-live"] === "polite"));
-  plot(tree, "chart-answered").props.onFocus();
-  tree = redraw();
-  assert.equal(
-    live(),
-    "Sep 4: 2 customer messages, 2 answered by the receptionist, 0 by you, 0 unanswered",
-    "focus lands on the latest day",
-  );
-  const key = (k) => {
-    plot(tree, "chart-answered").props.onKeyDown({ key: k, preventDefault() {} });
+test("REGRESSION (C26): a chart is one keyboard stop whose arrows read each day aloud -- its day areas answered focus no key could reach", () =>
+  inLens(1, () => {
+    let tree = pageOnce();
+    const answered = () => card(tree, "chart-answered");
+    assert.equal(plot(tree, "chart-answered").props.tabIndex, 0, "one stop for the chart");
+    assert.equal(all(answered(), (n) => n.props && "tabIndex" in n.props).length, 1, "and none per day");
+    const live = () => textOf(find(answered(), (n) => n.props?.["aria-live"] === "polite"));
+    plot(tree, "chart-answered").props.onFocus();
     tree = redraw();
-  };
-  key("Home");
-  assert.equal(live(), "Aug 29: 4 customer messages, 3 answered by the receptionist, 1 by you, 0 unanswered");
-  key("ArrowLeft");
-  assert.match(live(), /^Aug 29:/, "held at the first day");
-  key("ArrowRight");
-  assert.match(live(), /^Aug 30:/);
-  key("End");
-  assert.match(live(), /^Sep 4:/);
-});
+    assert.equal(
+      live(),
+      "Sep 4: 2 customer messages, 2 answered by the receptionist, 0 by you, 0 unanswered",
+      "focus lands on the latest day",
+    );
+    const key = (k) => {
+      plot(tree, "chart-answered").props.onKeyDown({ key: k, preventDefault() {} });
+      tree = redraw();
+    };
+    key("Home");
+    assert.equal(live(), "Aug 29: 4 customer messages, 3 answered by the receptionist, 1 by you, 0 unanswered");
+    key("ArrowLeft");
+    assert.match(live(), /^Aug 29:/, "held at the first day");
+    key("ArrowRight");
+    assert.match(live(), /^Aug 30:/);
+    key("End");
+    assert.match(live(), /^Sep 4:/);
+  }));
 
 test("REGRESSION (C27): the period tabs hold while a period loads -- a second press started a second load", async () => {
   await inPeriodTest("hold", async () => {
@@ -966,4 +1016,13 @@ test("REGRESSION: recording a deal re-reads Reports as well as People -- an open
     AFTER["POST contacts/[id]/deal"]().map((o) => o.key),
     ["people", "reports", "broadcasts", "playbooks"],
   );
+});
+
+test("the page's head row stands over every lens, once, and the lens alone is drawn under it", () => {
+  for (const path of LENS_PATHS) {
+    lensAt = path;
+    const tree = pageOnce();
+    assert.equal(all(tree, (n) => classes(n).includes("rpt-head")).length, 1, `${path}: the period row, once`);
+  }
+  lensAt = LENS_PATHS[0];
 });
