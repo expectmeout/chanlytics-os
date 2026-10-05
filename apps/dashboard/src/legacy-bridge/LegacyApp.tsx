@@ -298,6 +298,8 @@ type ChanlyticsAppComponent = React.ComponentType<{
   showInboxAgentRail: boolean;
   /** The page of a route that has left the shell, which the layout drew (src/surfaces/routes.ts). */
   routePage: ReactNode;
+  /** The route of the router's pathname, the one the page reads: the frame moves when the page does (app-shell.jsx). */
+  routeNow: string | null;
   surfaceRoutes: typeof SURFACE_ROUTES;
   /** What the shared viewer shows: the Reports page, in a chunk of its own that only that viewer loads. */
   sharedPage: ReactNode;
@@ -325,6 +327,7 @@ function useShellApp(
   look: LookPref,
   choose: (key: ChosenPref, v: string) => void,
   routePage: ReactNode,
+  route: string | null,
 ) {
   const onTheme = useCallback((v: string) => choose("theme", v), [choose]);
   const onLook = useCallback((v: string) => choose("look", v), [choose]);
@@ -346,6 +349,7 @@ function useShellApp(
             inboxDensity={inboxDensity}
             showInboxAgentRail={showInboxAgentRail}
             routePage={routePage}
+            routeNow={route}
             surfaceRoutes={SURFACE_ROUTES}
             sharedPage={SHARED_PAGE}
           />
@@ -365,6 +369,7 @@ function useShellApp(
       inboxDensity,
       showInboxAgentRail,
       routePage,
+      route,
     ],
   );
 }
@@ -372,9 +377,10 @@ function useShellApp(
 /**
  * `routePage`: the page of the route on screen, when that route has one of its own (src/surfaces/routes.ts): the layout's
  * children, which LegacyHost hands over only while the address is such a route, so a move between the shell's own routes
- * draws this frame no more than it did.
+ * draws this frame no more than it did. `route`: the route of the router's pathname (LegacyHost), or null where there is
+ * none (the home), and then the frame hears the address itself.
  */
-export default function LegacyApp({ routePage }: { routePage?: ReactNode }) {
+export default function LegacyApp({ routePage, route }: { routePage?: ReactNode; route: string | null }) {
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs(browserStorage));
   // Another workspace, asked for from the workspace menu (shell.createWorkspace).
   const [creating, setCreating] = useState(false);
@@ -407,7 +413,7 @@ export default function LegacyApp({ routePage }: { routePage?: ReactNode }) {
     (key: ChosenPref, v: string) => setPrefs((p) => choosePref(browserStorage, p, key, v)),
     [],
   );
-  const shellApp = useShellApp(prefs, theme, look, choose, routePage);
+  const shellApp = useShellApp(prefs, theme, look, choose, routePage, route);
 
   useDocumentStamps(theme, look);
   // Viewport scoping, exactly what the inline boot script did.

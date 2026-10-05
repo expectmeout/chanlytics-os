@@ -280,10 +280,6 @@
   "apps/dashboard/src/surfaces/people/sheets/list-sheets.tsx": {
     "jsx-a11y-x/no-autofocus": 2
   },
-  "apps/dashboard/src/surfaces/people/table/columns-menu.tsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/interactive-supports-focus": 1
-  },
   "apps/dashboard/src/surfaces/settings/business/gestures/editor.tsx": {
     "react-hooks/exhaustive-deps": 1
   },

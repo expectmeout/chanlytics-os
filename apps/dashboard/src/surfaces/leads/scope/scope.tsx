@@ -80,6 +80,7 @@ const tableOf = (p: P, phone: boolean, sections: Sections) => (
     columns={p.columns}
     ctx={sections ? { ...p.cellCtx, sectioned: true } : p.cellCtx}
     rows={p.rows}
+    swapRef={p.swapRef}
     rowClass={phone ? ldCardRowClass : ldRowClass}
     sections={sections}
     total={p.total}

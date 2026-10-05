@@ -8,6 +8,8 @@ import type { PersonVM, PipelineGroupKey, PipelineRowVM } from "@chanlytics/cont
 import { pageClock } from "@/legacy-bridge/zone";
 import { askOnScreenKey, navigate, setAskOnScreen } from "../../legacy-verbs";
 import type { FocusOn } from "../../kit/record/focus";
+import { useSwapMotion } from "../../kit/motion/use-swap-motion";
+import { TABLE_BODIES } from "../table/table";
 import { usePlControls } from "../hooks/use-controls";
 import { usePeople } from "../hooks/use-people";
 import { usePlPlace } from "../hooks/use-place";
@@ -54,6 +56,8 @@ export function usePipelineFrame({ onNavigate = null, pipelineRoute = null }: Pi
   const addr = P.parse(pipelineRoute || "clients/pipeline") || { view: "all" as const, peek: null };
   const view = addr.view;
   const addrPeek = addr.peek;
+  // A rail pick swaps the groups in with the kit's rise, as People's lists do: the table holds still, its groups rise.
+  const swap = useSwapMotion<HTMLTableElement>(view, TABLE_BODIES);
   // The workspace's zone, as every day on People is said (legacy-bridge/zone.ts).
   const tz = pageClock().zone();
   // One clock with the rows: the surface said each row's wait, its "since" and its valid-until at the moment it
@@ -72,7 +76,7 @@ export function usePipelineFrame({ onNavigate = null, pipelineRoute = null }: Pi
     sortFirst: PIPE_SORT,
     extraDefaults: { layout: firstLayout },
   });
-  return { people, nav, view, addrPeek, tz, nowMs, controls };
+  return { people, nav, view, addrPeek, swap, tz, nowMs, controls };
 }
 export type PipelineFrame = ReturnType<typeof usePipelineFrame>;
 

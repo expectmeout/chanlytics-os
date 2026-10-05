@@ -328,3 +328,90 @@ test("sections with nobody in them are the one body with the page's empty words"
   assert.equal(heads(t).length, 0);
   assert.match(textOf(t), /No deals yet\.Start a proposal from someone's page\./);
 });
+
+/* ------------------------------------- how the rows move ------------------------------------- */
+
+// By their paths, so the dead-export check sees who reads them (an importSrc string is not an import it can follow).
+const { riseRows } = await import("../../../../apps/dashboard/src/surfaces/kit/motion/use-rows-arrive.ts");
+const { swapRise } = await import("../../../../apps/dashboard/src/surfaces/kit/motion/use-swap-motion.ts");
+
+/** An element that records what it was asked to animate. */
+const moving = (name) => {
+  const runs = [];
+  return {
+    name,
+    runs,
+    animate(frames, timing) {
+      runs.push({ frames, timing });
+      return { cancel() {} };
+    },
+    getAnimations: () => [],
+  };
+};
+/** The browser's answer to `prefers-reduced-motion`, for the length of `fn`. */
+const withMotion = (reduce, fn) => {
+  const keep = globalThis.matchMedia;
+  globalThis.matchMedia = (q) => ({ matches: reduce && q.includes("reduce") });
+  try {
+    return fn();
+  } finally {
+    globalThis.matchMedia = keep;
+  }
+};
+
+test("a table's first twelve rows rise in as it arrives, a beat apart, as the Inbox's rows do; the rest come as they are", () => {
+  // People's, Leads' and the Pipeline's rows came in at once while the Inbox's tabs drew theirs in (5 Oct 2026).
+  const rows = Array.from({ length: 20 }, (_, i) => moving(`row-${i}`));
+  const asked = [];
+  const table = {
+    querySelectorAll: (sel) => {
+      asked.push(sel);
+      return rows;
+    },
+  };
+  assert.equal(
+    withMotion(false, () => riseRows(table)),
+    12,
+  );
+  assert.deepEqual(asked, [":scope > tbody > tr"], "the rows of the table's own groups, never a nested table's");
+  assert.deepEqual(
+    rows.slice(0, 12).map((r) => r.runs[0].timing.delay),
+    [0, 30, 60, 90, 120, 150, 180, 210, 240, 240, 240, 240],
+  );
+  assert.equal(rows[0].runs[0].timing.fill, "backwards", "a row waits unseen for its turn and keeps nothing after");
+  assert.deepEqual(rows[0].runs[0].frames[0], { opacity: 0, transform: "translateY(4px)" });
+  assert.ok(
+    rows.slice(12).every((r) => r.runs.length === 0),
+    "rows past the twelfth come as they are",
+  );
+  const still = Array.from({ length: 3 }, (_, i) => moving(`still-${i}`));
+  assert.equal(
+    withMotion(true, () => riseRows({ querySelectorAll: () => still })),
+    0,
+  );
+  assert.ok(
+    still.every((r) => r.runs.length === 0),
+    "nothing moves where less motion is asked",
+  );
+});
+
+test("a list drawn in groups rises group by group as its view changes, and the table with its heads holds still", () => {
+  const groups = [moving("tbody-1"), moving("tbody-2")];
+  const table = { ...moving("table"), querySelectorAll: (sel) => (sel === ":scope > tbody" ? groups : []) };
+  assert.equal(
+    withMotion(false, () => swapRise(table, ":scope > tbody")),
+    2,
+  );
+  assert.equal(table.runs.length, 0, "the table itself holds still");
+  assert.ok(groups.every((g) => g.runs.length === 1));
+  const list = moving("list");
+  assert.equal(
+    withMotion(false, () => swapRise(list)),
+    1,
+    "a list in one piece rises whole, as it always did",
+  );
+  assert.equal(
+    withMotion(true, () => swapRise(list)),
+    0,
+  );
+});

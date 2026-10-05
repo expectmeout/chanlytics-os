@@ -1789,10 +1789,16 @@ test("Today waits for the card it draws above its queue, and once its own read i
   }
 });
 
-test("a move that stays on the page -- People to Leads and back -- draws without the route fade; a move to another page keeps it", () => {
-  // The two scopes are two mounts, and the shell's 240ms route fade played on every switch between them, on top of
-  // the rows' own draw: the switch read as a wait. The fade is for arriving somewhere else.
+test("a move between two views of one strip arrives as the Inbox's tabs do -- People to Leads and back -- and a move within one family that is no strip's draws at once", async () => {
+  // The fade was taken off People's scopes when a switch drew the whole scope before anything answered, and the fade
+  // on top read as a wait. With the press answered first and the page drawn once (5 Oct 2026), People's scopes arrive
+  // as the Inbox's Needs you, Conversations and Live do: the route fade on a desk, the slide on a phone. One person's
+  // page to the next is the same family and no strip's move, and draws at once.
   shell.installShell(win);
+  // Where a view stands on a strip is the strip's (surface-tabs.jsx stripPlace), over People's scope words (people-globals.ts).
+  await import("../../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
+  const words = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
+  Object.assign(win, { plScopes: words.plScopes, plScopeRoute: words.plScopeRoute });
   const view = (t) =>
     find(t, (n) => typeof n.props?.className === "string" && n.props.className.includes("route-view"));
   const stays = (t) => view(t).props.className.split(/\s+/).includes("route-stay");
@@ -1812,15 +1818,21 @@ test("a move that stays on the page -- People to Leads and back -- draws without
     deep = true;
     return t;
   };
+  const slides = (t) => view(t).props.className.match(/route-slide-(next|prev)/)?.[1] ?? null;
   const { tree } = mount("#/clients");
   assert.equal(stays(tree), false, "a page opened cold fades in");
-  assert.equal(stays(go("#/clients/leads")), true, "Leads beside People is the same page: no fade");
-  assert.equal(stays(go("#/clients")), true, "and back");
+  const leads = go("#/clients/leads");
+  assert.equal(stays(leads), false, "Leads beside People arrives, as Conversations beside Needs you does");
+  assert.equal(slides(leads), "next", "from the side its tab stands on");
+  const back = go("#/clients");
+  assert.equal(stays(back), false, "and back");
+  assert.equal(slides(back), "prev");
   assert.equal(
     stays(go("#/clients/c-aisha")),
     false,
     "a person's profile is somewhere else, though its route starts with the list's word",
   );
+  assert.equal(stays(go("#/clients/c-bob")), true, "the next person's page is the same family and no strip's move");
   assert.equal(stays(go("#/clients")), false, "and so is the list, coming back from it");
   assert.equal(stays(go("#/inbox")), false, "another page fades in");
   // A page landing where the reading pane stood fades in, even on the page the reading pane was for.
@@ -1832,6 +1844,44 @@ test("a move that stays on the page -- People to Leads and back -- draws without
   } finally {
     delete win.__surfaceGate;
   }
+});
+
+test("given the router's route, the frame draws that route and no other: an address heard before the router lands moves nothing", () => {
+  // The frame and the page read one clock (LegacyHost hands the frame the route of Next's pathname, the page reads the
+  // same pathname): a pushed entry the router has not drawn yet must not remount the view with the page it is leaving,
+  // which on a phone slid People in under Leads' tab before Leads arrived (5 Oct 2026).
+  shell.installShell(win);
+  const view = (t) =>
+    find(t, (n) => typeof n.props?.className === "string" && n.props.className.includes("route-view"));
+  const draw = (routeNow) => {
+    deep = false;
+    frames.begin();
+    const t = win.ChanlyticsApp({
+      ...PAGES,
+      theme: "dark",
+      themePref: "dark",
+      sidebar: "open",
+      onSidebar() {},
+      onTheme() {},
+      routeNow,
+    });
+    deep = true;
+    return t;
+  };
+  cells = [];
+  placeAt("#/clients");
+  assert.equal(view(draw("clients")).props.key, "clients");
+  // The address moves first, as a pushed entry does before the router draws it.
+  placeAt("#/clients/leads");
+  fire("popstate");
+  assert.equal(view(draw("clients")).props.key, "clients", "the heard address does not move the view");
+  // The router lands: Leads, under its own mount.
+  assert.equal(view(draw("clients/leads")).props.key, "clients/leads");
+  // And Back, as the router says it.
+  placeAt("#/clients");
+  fire("popstate");
+  assert.equal(view(draw("clients/leads")).props.key, "clients/leads", "nor does Back before the router has it");
+  assert.equal(view(draw("clients")).props.key, "clients");
 });
 
 test("People › Pipeline is an address of People's route (clients/pipeline): the route takes it, deals on or off, its crumbs name the view, and the whole family is one mount -- and where deals are off it says People", async () => {

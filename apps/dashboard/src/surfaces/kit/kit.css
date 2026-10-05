@@ -508,6 +508,15 @@ a.chip:focus-visible {
 .more-item[aria-checked="false"] .icon {
   visibility: hidden;
 }
+/* A switch the page keeps on (the Menu's `toggles`, `locked`: Person, which always shows): drawn on, in the dim ink,
+   and nothing lit under a pointer, since a press does nothing. */
+.more-item[role="menuitemcheckbox"][aria-disabled="true"] {
+  cursor: default;
+  color: var(--ink-dim);
+}
+.more-item[role="menuitemcheckbox"][aria-disabled="true"]:hover {
+  background: none;
+}
 .more-item .icon {
   color: var(--ink-dim);
   flex-shrink: 0;
@@ -1032,11 +1041,23 @@ a.more-item {
   flex: none;
   position: relative;
 }
+/* A tab is a link (surface-tabs.jsx: a door is a link), drawn as the tab it was when it was a button: a button's line
+   height, no underline of the link's own, and no flash where a thumb presses it. */
 .stabs-tab {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   font-weight: var(--weight-medium);
+  line-height: normal;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Under a thumb a tab is the 44px every button is (legacy-bridge/legacy.css, the touch floor): a link, which that
+   floor does not name, keeps it here. */
+@media (pointer: coarse) {
+  .stabs-tab {
+    min-height: 44px;
+  }
 }
 .stabs-tab.active {
   border-bottom-color: var(--accent);
@@ -2794,6 +2815,82 @@ a.list-row {
 }
 .sheet-handle {
   display: none;
+}
+/* A phone's small job (Sheet's `shape="job"`: Add a person, a list's name, what a selection can become): a short head
+   with a step's way back, the title and one word to close it, then the job, its fields stacked and one wide button.
+   People's phone sheet drew it (PhoneSheet, 5 Oct 2026), which the gallery's twin holds it equal to. */
+.sheet-job-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 8px 4px 16px;
+}
+.sheet-job-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  color: var(--ink);
+}
+.sheet-job-close {
+  flex: none;
+  height: 44px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+/* A step's way back, before its title: the chevron, turned. */
+.sheet-job-back {
+  flex: none;
+  width: 36px;
+  height: 44px;
+  margin-left: -10px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.sheet-job-back .icon {
+  transform: scaleX(-1);
+}
+.sheet-job-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 16px 8px;
+}
+/* A question the job asks (Delete the list): the sheet's width, the words a step up, its two buttons 48px tall. */
+.sheet-job-body .confirm-block {
+  max-width: none;
+  margin: 0;
+  padding: 14px;
+  background: var(--bg);
+}
+.sheet-job-body .confirm-block .confirm-q {
+  font-size: var(--text-md);
+  color: var(--ink);
+}
+.sheet-job-body .confirm-block .confirm-acts {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+.sheet-job-body .confirm-block .confirm-acts .btn {
+  height: 48px;
+  justify-content: center;
+  font-size: var(--text-md);
 }
 /* A toast while a sheet is open clears the sheet's foot, where its Save is (the record sheet's, above, and
    record.css:23-26). */

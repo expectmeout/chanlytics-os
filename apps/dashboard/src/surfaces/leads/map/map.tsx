@@ -200,7 +200,12 @@ const pickedCard = (l: LeadRowVM | undefined, x: LeadCellCtx) =>
         <div className="s">{l.sub}</div>
       </div>
       {l.slots.phone.value ? (
-        <LeadCallMenu {...ldCallProps(l, x)} btnClass="btn btn-sm btn-primary" label="Call" testid="map-card-call" />
+        <LeadCallMenu
+          {...ldCallProps(l, x)}
+          look={{ variant: "primary", size: "sm", iconOnly: false }}
+          label="Call"
+          testid="map-card-call"
+        />
       ) : null}
     </div>
   ) : null;

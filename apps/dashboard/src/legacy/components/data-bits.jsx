@@ -265,8 +265,8 @@ const keyPress = (fn) => (e) => {
 // asked once, as a touch is taken across (never from 24px of either edge, which is the phone's own back), with where
 // the touch began: `{ prev, next, moving, follow(progress, step, how), go(step) }`, or null for no page. The page moves
 // with the finger both ways; toward a side with no page it gives a quarter of the drag, 48px at most. `moving` names
-// what moves when it is not the element itself (People's strip is inside its page: all around it moves, it stays). Let go past a third (160px at most) or with a flick toward a page, it
-// leaves that way and then `go(step)`; otherwise it settles. `follow` hears every move ("move") and the end ("leave",
+// what moves when it is not the element itself (People's strip is inside its page: all around it moves, it stays). Let go past a third (160px at most) or with a flick toward a page, `go(step)`
+// at once and it leaves that way while the next draws (it waited the leave out, 5 Oct 2026); otherwise it settles. `follow` hears every move ("move") and the end ("leave",
 // "settle"). The answer is kept with the touch, so a page drawn again mid-gesture loses nothing. `back` goes first.
 // A page that `stays` (the Calendar's days: the same element shows the next ones) comes back in after `go`, from the
 // side it is going to, 40px, as a new view slides in (components.css route-slide-*).
@@ -366,16 +366,15 @@ const swipeArrive = (g) => {
     }
   }, SETTLE_MS + 20);
 };
-// Away the way it was pulled, then the close; still on screen after it (the page asked first), it settles back.
+// Away the way it was pulled, then the close (a page walked across closes as it starts); still on screen after it, it settles back.
 const swipeLeave = (g, close) => {
   const { el, wash, way } = g;
   const them = (g.moving || [el]).filter((m) => m && m.style);
+  const early = way === "page" && !(g.pages && g.pages.stays);
+  if (early) close();
   const done = () => {
-    close();
-    if (way === "page" && g.pages && g.pages.stays) {
-      swipeArrive(g);
-      return;
-    }
+    if (!early) close();
+    if (way === "page" && g.pages && g.pages.stays) { swipeArrive(g); return; }
     if (way === "away") {
       setTimeout(() => {
         if (g.onGrab) g.onGrab(el, false);
@@ -387,14 +386,13 @@ const swipeLeave = (g, close) => {
       return;
     }
     setTimeout(() => {
+      // One still on the page while it plays its leaving (the kit's Sheet: Base UI lets it go after) stays where it went.
+      if (el.dataset && el.dataset.leaving === "true") return;
       const shown = el.isConnected !== false && (!el.getClientRects || el.getClientRects().length > 0);
       if (shown) { swipeSettle(g); return; }
       if (g.onGrab) g.onGrab(el, false);
       if (!el.style) return;
-      for (const m of them) {
-        m.style.transition = "";
-        m.style.transform = "";
-      }
+      for (const m of them) { m.style.transition = ""; m.style.transform = ""; }
       if (wash && wash.style) { wash.style.transition = ""; wash.style.opacity = ""; }
     }, way === "page" ? PAGE_KEPT_MS : KEPT_AFTER_MS);
   };

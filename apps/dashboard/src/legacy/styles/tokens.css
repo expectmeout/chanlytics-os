@@ -235,14 +235,6 @@
    and depth, the control layer's fill, the island, the count, the solid fills) are set here alone, and only rules of
    this look read them.
    ============================================================ */
-/* Where the three pools of light stand (the canvases' glow): registered, so the app's root can move them (components.css,
-   pg-drift); a browser without @property keeps them still. */
-@property --pool-a-x { syntax: "<percentage>"; inherits: true; initial-value: 23%; }
-@property --pool-a-y { syntax: "<percentage>"; inherits: true; initial-value: 6%; }
-@property --pool-b-x { syntax: "<percentage>"; inherits: true; initial-value: 89%; }
-@property --pool-b-y { syntax: "<percentage>"; inherits: true; initial-value: 40%; }
-@property --pool-c-x { syntax: "<percentage>"; inherits: true; initial-value: 39%; }
-@property --pool-c-y { syntax: "<percentage>"; inherits: true; initial-value: 91%; }
 :root, [data-theme] {
   /* A badge's height and its round ends: a pill, a chip. */
   --chip-h: 20px;
@@ -260,6 +252,9 @@
   /* The ink's wash, behind what takes the screen: a sheet from a phone's bottom edge, the bell's panel on a phone, a
      dialog. --surface-scrim fades the page behind a desk's side sheet. */
   --surface-scrim-modal: oklch(from var(--ink) l c h / 0.35);
+  /* Where the three pools of light stand (the canvases' glow). They stand still here; on a desk each is a layer of its
+     own that a transform moves (components.css, .pg-light): moving these, which every element inherits, styled the
+     whole page again on every frame. */
   --pool-a-x: 23%;
   --pool-a-y: 6%;
   --pool-b-x: 89%;
@@ -346,11 +341,15 @@
   --danger-ink: oklch(0.45 0.17 27);
   --info-ink: oklch(0.43 0.1 235);
 
-  /* The page: its ground, and the light, three soft pools where the canvases put them. */
+  /* The page: its ground, and the light, three soft pools where the canvases put them, each its tint (a desk's layers
+     paint one each, components.css .pg-light). */
+  --pool-a-tint: oklch(0.821 0.089 265 / 0.14);
+  --pool-b-tint: oklch(0.98 0.013 64 / 0.95);
+  --pool-c-tint: oklch(0.841 0.088 295 / 0.09);
   --surface-page-light:
-    radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), oklch(0.821 0.089 265 / 0.14), transparent),
-    radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), oklch(0.98 0.013 64 / 0.95), transparent),
-    radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), oklch(0.841 0.088 295 / 0.09), transparent);
+    radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), var(--pool-a-tint), transparent),
+    radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), var(--pool-b-tint), transparent),
+    radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), var(--pool-c-tint), transparent);
   /* The page's top on a phone: plain paper under the phone's own bar (the clock, the battery), and the light coming in
      under it (Ruben, 4 Oct 2026). Safari runs the page under the bar, so the paper holds through the inset and fades
      over the 64px after it; the phone app pads the bar itself and starts the page under it, where the inset reads 0,
@@ -496,10 +495,13 @@
   --danger-ink: oklch(0.74 0.15 27);
   --info-ink: oklch(0.72 0.12 235);
 
+  --pool-a-tint: oklch(0.737 0.103 267 / 0.17);
+  --pool-b-tint: oklch(0.955 0.026 55 / 0.05);
+  --pool-c-tint: oklch(0.76 0.135 293 / 0.1);
   --surface-page-light:
-    radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), oklch(0.737 0.103 267 / 0.17), transparent),
-    radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), oklch(0.955 0.026 55 / 0.05), transparent),
-    radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), oklch(0.76 0.135 293 / 0.1), transparent);
+    radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), var(--pool-a-tint), transparent),
+    radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), var(--pool-b-tint), transparent),
+    radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), var(--pool-c-tint), transparent);
   --title-veil: 0.4;
   --title-fill: 0.9;
 
