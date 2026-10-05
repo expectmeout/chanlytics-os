@@ -25,6 +25,22 @@ const plScrollParent = (el: HTMLElement): HTMLElement | null => {
   return null;
 };
 
+/** Run `fn` once the next frame is painted (a frame, then a task); at once where there are no frames. The answer cancels it. */
+const plAfterPaint = (fn: () => void): (() => void) => {
+  if (typeof requestAnimationFrame !== "function") {
+    fn();
+    return () => undefined;
+  }
+  let task: ReturnType<typeof setTimeout> | null = null;
+  const frame = requestAnimationFrame(() => {
+    task = setTimeout(fn, 0);
+  });
+  return () => {
+    cancelAnimationFrame(frame);
+    if (task !== null) clearTimeout(task);
+  };
+};
+
 /** What a page kept of a view: a cursor and a scroll, to be put back. */
 interface Placed {
   top?: unknown;
@@ -82,14 +98,23 @@ export function usePlRowWindow({
       return undefined;
     }
     // Watched from inside the box that scrolls it, whose clip a margin on the page's own viewport does not widen.
-    const watch = new IntersectionObserver(
-      (seen) => {
-        if (seen.some((s) => s.isIntersecting)) setBudget((b) => b + PL_WINDOW_STEP);
-      },
-      { root: plScrollParent(foot), rootMargin: "800px 0px" },
-    );
-    watch.observe(foot);
-    return () => watch.disconnect();
+    let watch: IntersectionObserver | null = null;
+    const start = () => {
+      watch = new IntersectionObserver(
+        (seen) => {
+          if (seen.some((s) => s.isIntersecting)) setBudget((b) => b + PL_WINDOW_STEP);
+        },
+        { root: plScrollParent(foot), rootMargin: "800px 0px" },
+      );
+      watch.observe(foot);
+    };
+    // Once the rows just drawn are painted: finding the box that scrolls reads each ancestor's style, which right after
+    // three hundred new rows styled the whole page again first (84 ms of a switch to Leads at 4x CPU, 5 Oct 2026).
+    const later = plAfterPaint(start);
+    return () => {
+      later();
+      if (watch) watch.disconnect();
+    };
   }, [budget, count]);
   // The cursor's row is drawn wherever the cursor came from: a sort that moved it, a view's kept place, a deep link.
   useEffect(() => {
