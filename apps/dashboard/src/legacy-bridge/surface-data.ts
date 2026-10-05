@@ -21,7 +21,7 @@ import { ApiError } from "../client/api";
 import { read } from "./api";
 import { addressInWorkspace, getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
 import type { RealtimeChange } from "./surface-realtime";
-import type { MembershipRole, PendingWorkspace } from "@chanlytics/contracts";
+import type { MembershipRole, MessageStatus, PendingWorkspace } from "@chanlytics/contracts";
 import { peopleLoaded, publishPeople } from "@/surfaces/people/surface";
 import type { SurfaceKey } from "../surfaces/surface-values";
 export { getActiveWorkspace } from "./workspace";
@@ -54,6 +54,8 @@ export interface SurfaceOverride {
   refreshOnTables?: string[];
   /** A finer rule per event on top of the table list — see surface-realtime. */
   refreshWhen?: (change: RealtimeChange) => boolean;
+  /** The statuses a message's UPDATE re-applies this surface for; none when absent — see surface-realtime. */
+  refreshOnMessageStatuses?: readonly MessageStatus[];
   /** Debounce for realtime-triggered re-applies (default 400ms). */
   debounceMs?: number;
   /**

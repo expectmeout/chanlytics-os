@@ -11,7 +11,16 @@
  *
  * Pure, so the rule is tested without a browser.
  */
+import type { MessageStatus } from "@chanlytics/contracts";
+
 export const DEFAULT_REFRESH_TABLES: readonly string[] = ["messages", "conversations", "escalations"];
+
+/**
+ * What a thread has to draw of a message once it has left the queue: the ticks (sent, delivered, read) and the two
+ * ends (failed, canceled). Not `received`, an inbound row's meta stamped after the fact, which no tick follows, and not
+ * `queued`, a row still waiting.
+ */
+export const LEFT_THE_QUEUE: readonly MessageStatus[] = ["sent", "delivered", "read", "failed", "canceled"];
 
 /** One realtime event, as the rule sees it. */
 export interface RealtimeChange {
@@ -32,6 +41,13 @@ export interface RefreshPreference {
    * between — those are UPDATEs that leave the status ongoing.
    */
   refreshWhen?: (change: RealtimeChange) => boolean;
+  /**
+   * The statuses a message's UPDATE re-applies this surface for (00327). A message's update is told for every receipt
+   * a provider sends, and the default tables were an arrival's before it, so a surface hears an update only by naming
+   * what it draws of it: the Inbox and Conversations their ticks, Today a send that failed. Absent, it hears none, as
+   * before. An update's notice carries the statuses its statement left, each a change of its own.
+   */
+  refreshOnMessageStatuses?: readonly MessageStatus[];
 }
 
 export function wantsRefresh(o: RefreshPreference, table: string, change?: RealtimeChange): boolean {
@@ -39,6 +55,9 @@ export function wantsRefresh(o: RefreshPreference, table: string, change?: Realt
     ? o.refreshOnTables.includes(table)
     : !!o.refreshOnMessageInserts && DEFAULT_REFRESH_TABLES.includes(table);
   if (!wanted) return false;
+  // A message's update, heard only for the statuses the surface named (refreshOnMessageStatuses).
+  if (change && table === "messages" && change.event === "UPDATE")
+    if (!o.refreshOnMessageStatuses?.some((s) => s === change.row.status)) return false;
   return o.refreshWhen && change ? o.refreshWhen(change) : true;
 }
 
