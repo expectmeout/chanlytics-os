@@ -20,7 +20,7 @@ A conversation is not one table. It is five, and knowing which one owns which fa
 | --------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
 | `contacts`      | the person: number, address, consent, erasure    | one per workspace per identity; `contacts_tenant_phone_uq` is **partial**, on `where phone_e164 is not null`   |
 | `conversations` | the thread: its state, who holds it, until when  | `unique (tenant_id, contact_id)` — **one thread per person per workspace, for ever, across every channel**     |
-| `messages`      | what was said, both directions                   | `(tenant_id, external_id)` is the replay gate; `meta.processed_at` is the "we finished with this" stamp        |
+| `messages`      | what was said, both directions                   | `(tenant_id, external_id)` is the replay gate; `meta.processed_at` and `meta.handled` say it is done, and how  |
 | `escalations`   | the hold: a thread waiting for a person, and why | `escalations_one_open` — **one open row per thread**; a second reason overwrites the first                     |
 | `jobs`          | the outbox: everything that happens later        | one insert, a lease, a heartbeat; a kind arrives with its handler, its caller, its CHECK and its lane together |
 

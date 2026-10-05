@@ -1912,6 +1912,21 @@
       "where": null
     },
     {
+      "table": "sending_domain_days",
+      "name": "sending_domain_days_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "domain_id"
+        },
+        {
+          "column": "day"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "sending_domains",
       "name": "sending_domains_host_uq",
       "primary": false,

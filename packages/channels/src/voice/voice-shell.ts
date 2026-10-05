@@ -27,7 +27,14 @@
  * sending "".
  */
 
-import { CALL_OUTCOMES, greetingFor, GREETING_DEFAULT } from "@chanlytics/contracts";
+import {
+  BRAIN_INTENTS,
+  BRAIN_LANGUAGES,
+  CALL_OUTCOMES,
+  greetingFor,
+  GREETING_DEFAULT,
+  POLICY_COVERS,
+} from "@chanlytics/contracts";
 
 /** The opening line and its unnamed default: contracts' (greeting.ts), so the first run can show it; said here too. */
 export { greetingFor, GREETING_DEFAULT };
@@ -319,12 +326,14 @@ const RETELL_DEFAULT_EVENTS = ["call_started", "call_ended", "call_analyzed"];
 /**
  * What the agent's post-call analysis fills in after every call, in the
  * caller's own terms: what they wanted, how it ended, what a person should
- * do next, the name they gave, the email address they spelled out. The
- * provider's default summary ("The user called Marisa's Beauty Salon to
- * inquire about…") is kept beside it; these are what the strip, the profile
- * and the call card say. The webhook files them through ingest_call
- * (migration 00061): the first four as columns, the address inside the
- * analysis it keeps whole. The name and the address are suggestions for the
+ * do next, the name they gave, the email address they spelled out, what the
+ * call was mainly about and the language it was spoken in (Reports read both,
+ * as the receptionist's texts carry the same two: contracts BRAIN_INTENTS,
+ * BRAIN_LANGUAGES). The provider's default summary ("The user called Marisa's
+ * Beauty Salon to inquire about…") is kept beside it; these are what the strip,
+ * the profile and the call card say. The webhook files them through ingest_call
+ * (migration 00061): the first four as columns, the rest inside the analysis it
+ * keeps whole (calls.analysis). The name and the address are suggestions for the
  * person's page, never applied to the contact by themselves.
  */
 export const CALL_ANALYSIS_FIELDS = [
@@ -365,6 +374,20 @@ export const CALL_ANALYSIS_FIELDS = [
     description:
       "The email address the caller gave, exactly as they spelled it out. Leave empty if they did not give one.",
     examples: ["ana.ruiz@example.com", "daniela.r@example.net"],
+  },
+  {
+    type: "enum",
+    name: "topic",
+    // The classes a rule covers are said in the words the receptionist's prompt and its texts' intent say them
+    // (POLICY_COVERS), so a call and a text read one meaning; only what no rule covers is said here.
+    description: `What the call was mainly about. booking: ${POLICY_COVERS.booking}. pricing: ${POLICY_COVERS.faq}, when it is about what something costs. services: ${POLICY_COVERS.faq}, when it is about what the business offers. money: ${POLICY_COVERS.money}. hours: when the business is open. location: where it is or how to get there. complaint: they were unhappy about something. smalltalk: a greeting or a chat with no request. other: none of these.`,
+    choices: [...BRAIN_INTENTS],
+  },
+  {
+    type: "enum",
+    name: "language",
+    description: "The language the caller mostly spoke. en: English. es: Spanish. other: any other language.",
+    choices: [...BRAIN_LANGUAGES],
   },
 ] as const;
 
@@ -444,7 +467,7 @@ export function planAgentSettings(live: LiveAgentSettings, opts: { retentionDays
   const missingFields = CALL_ANALYSIS_FIELDS.filter((f) => !liveFields.some((l) => sameAnalysisField(l, f)));
   if (missingFields.length) {
     drift.push(
-      `post_call_analysis_data lacks ${missingFields.map((f) => f.name).join(", ")} (the strip, the profile and the call card read what the caller wanted)`,
+      `post_call_analysis_data lacks ${missingFields.map((f) => f.name).join(", ")} (the strip, the profile, the call card and Reports read what the call was about)`,
     );
     patch.post_call_analysis_data = [
       ...liveFields.filter((l) => !CALL_ANALYSIS_FIELDS.some((f) => f.name === l.name)),

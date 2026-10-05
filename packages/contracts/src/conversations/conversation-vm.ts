@@ -7,14 +7,14 @@
  * inbox-thread.ts and a call's row call-vm.ts; the wire they read is thread-dto.ts, and the words they share
  * are the thread-* and message-* modules beside them.
  */
-import { replyWhy, type ReplyWhyVM } from "../config/brain";
+import type { ReplyWhyVM } from "../config/brain";
 import { messageAt, type ConversationDto } from "./thread-dto";
 import { agentFor, writtenChannelOf, threadChannelOf } from "./thread-channel";
 import { contactName, isIdentifierName, initialsOf } from "./thread-contact";
 import { shortTime, bubbleTime } from "./thread-clock";
 import { mediaVM, type MediaVM } from "./message-media";
 import { messageStatusLabel, reachedCustomer, messageWords } from "./message-words";
-import { messageAuthor, lastWordLine, type MessageAuthor } from "./message-author";
+import { messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "./message-author";
 
 /* ---- the mockup's conversation shape ---- */
 
@@ -91,7 +91,7 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
     at: bubbleTime(messageAt(m), tz, now),
     text: messageWords(m),
     ...(mediaVM(m) ? { media: mediaVM(m) as MediaVM } : {}),
-    ...(m.sender === "ai" && replyWhy(m.meta) ? { why: replyWhy(m.meta) as ReplyWhyVM } : {}),
+    ...(messageWhy(m) ? { why: messageWhy(m) as ReplyWhyVM } : {}),
     ...(messageAuthor(m) ? { by: (messageAuthor(m) as MessageAuthor).words } : {}),
     // Only for OUR messages. A customer's inbound message has no send status,
     // and labelling it would be inventing one.

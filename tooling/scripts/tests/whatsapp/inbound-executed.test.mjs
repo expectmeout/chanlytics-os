@@ -20,12 +20,12 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { optInConfirmation, formatPhoneDisplay } from "@chanlytics/contracts";
+import { optInConfirmation, formatPhoneDisplay, HANDLED_OUTCOMES, HOUR_MS } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { handleInbound } = await import(at("apps/edge/lib/whatsapp/inbound.ts"));
-const { IngestFailed } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
+const { IngestFailed, pgSink } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
 
 const GREETING = "Thanks for writing to Harbor Nails. A person will be with you shortly.";
 const NOTIFICATIONS = () => ({
@@ -95,21 +95,30 @@ function world(over = {}) {
     alerts: [],
     pages: [],
     pauses: [],
+    // Asked and landed (opened, changed or refreshed); an escalation the database refused is `refused`, nobody was asked.
+    refused: [],
+    // Messages marked processed, and every stamp: one a way out wrote beside processed_at (`marked`), or alone (noteHandled).
     processed: 0,
+    handled: [],
+    queued: [],
     usage: [],
     unreachable: 0,
     media: 0,
     purposes: [],
     emails: [],
+    // The line each message was ingested on (the verb's fifth argument), for the first touch the database stamps (K3).
+    lines: [],
   };
   const rt = over.rt ?? runtime();
   const recordIngest = over.ingest ?? (async (_db, _tenant, n) => ingested(n));
+  // The workspace's model tokens in the last 24 hours, for the day's budget (reply-gates.ts heldForThePerson).
+  const tokensUsed = over.tokensUsed ?? 0;
   const ports = {
     db: () => fakeDb({}),
     runtime: async () => rt,
     leads: { read: async () => ({ name: null }), personReplyMode: async () => null },
     calendar: { openings: async () => null, visits: async () => null },
-    budget: { tokensLast24h: async () => 0 },
+    budget: { tokensLast24h: async () => tokensUsed },
     persist: {
       // What readThreadState returns for the conversation the ingest named,
       // or an UNKNOWN thread when there is nothing to read it against.
@@ -141,8 +150,18 @@ function world(over = {}) {
           }
           return out;
         },
-        processed: async () => {
-          seen.processed += 1;
+        // What the real sink does with it is sink-says-what-a-message-became.test.mjs's; a case may hand in the real one.
+        processed: over.realProcessed
+          ? over.realProcessed(ing)
+          : async (how, intent) => {
+              seen.processed += 1;
+              seen.handled.push({ how: how ?? null, intent: intent ?? null, marked: true });
+              await over.forwardTo?.(ing).processed(how, intent);
+            },
+        // The stamp alone, for the way out that leaves its message unprocessed on purpose (a send that failed).
+        noteHandled: async (how, intent) => {
+          seen.handled.push({ how: how ?? null, intent: intent ?? null, marked: false });
+          await over.forwardTo?.(ing).noteHandled(how, intent);
         },
         allowlistSkip: async () => {},
         unreachableSender: async () => {
@@ -159,16 +178,23 @@ function world(over = {}) {
         usage: async (u) => {
           seen.usage.push(u);
         },
+        // How the write landed, as upsertEscalation answers it; "failed" is a write the database refused.
         escalate: async (reason, details) => {
-          seen.escalations.push({ reason, details });
-          return "opened";
+          const how = over.escalateAnswer ?? "opened";
+          (how === "failed" ? seen.refused : seen.escalations).push({ reason, details });
+          return how;
         },
         media: async () => {
           seen.media += 1;
           return over.media ?? null;
         },
       }),
-      queueReply: async () => false,
+      // A hold that can be written, when a case asks for one (`queue: true`): the draft's id, as queueDraft answers.
+      queueReply: async (_db, _tenant, _ing, _to, body, delayMs, _L, source) => {
+        if (!over.queue) return false;
+        seen.queued.push({ body, delayMs, source });
+        return "m-queued";
+      },
       // The thread's reply turn (00284), when a case models one.
       ...(over.turn ? { turn: over.turn } : {}),
     },
@@ -202,7 +228,8 @@ function world(over = {}) {
     delivered.add(key);
     const body = m.text?.body ?? null;
     if (isNew && body) memory.history.push({ role: "user", content: body });
-    ports.persist.ingest = async (db, tenant, n, channel) => {
+    ports.persist.ingest = async (db, tenant, n, channel, line) => {
+      seen.lines.push(line ?? null);
       const rec = await recordIngest(db, tenant, n, channel);
       return (
         rec && {
@@ -212,7 +239,37 @@ function world(over = {}) {
         }
       );
     };
-    return handleInbound(m, value, "t1", routed, !!over.isEnvDefault, over.carrier ?? null, { ...ports, ...extra });
+    const before = {
+      handled: seen.handled.length,
+      escalations: seen.escalations.length,
+      processed: seen.processed,
+    };
+    const out = await handleInbound(m, value, "t1", routed, !!over.isEnvDefault, over.carrier ?? null, {
+      ...ports,
+      ...extra,
+    });
+    // The rule behind every stamp (contracts HANDLED_OUTCOMES), in both directions, over EVERY message the world
+    // processed or escalated for: it carries a stamp, one of the four words, and the stamp is a handoff exactly when an
+    // escalation LANDED for it (a write the database refused asked nobody). A way out that marks the message or asks a
+    // person and says nothing fails here, as one that says the wrong word does. A message the world neither processed nor
+    // escalated for (a redelivery, a failed send whose escalation was refused) is owed no stamp. A rejection
+    // (IngestFailed) propagates before the check.
+    const asked = seen.escalations.length > before.escalations;
+    const marked = seen.processed > before.processed;
+    const stamps = seen.handled.slice(before.handled);
+    if (asked || marked) {
+      assert.ok(stamps.length > 0, `${m.id}: processed or escalated, and it never said what the message became`);
+    }
+    assert.ok(stamps.length <= 1, `${m.id}: said what the message became more than once`);
+    for (const s of stamps) {
+      assert.ok(HANDLED_OUTCOMES.includes(s.how), `${m.id}: a way out that says nothing of what the message became`);
+      assert.equal(
+        s.how === "handoff",
+        asked,
+        `${m.id}: handed to a person exactly when an escalation landed (stamped ${s.how})`,
+      );
+    }
+    return out;
   };
   const thread = () => structuredClone(memory);
   return { run, seen, thread };
@@ -975,6 +1032,388 @@ test("a message with a photo the receptionist looks at takes no part in the turn
     "and answered, whoever else holds the thread",
   );
   assert.equal(w.seen.processed, 1);
+});
+
+/* ------------------------------------- what each message became (K1) -------------------------------------- */
+
+const handledOf = (w) => w.seen.handled.map((s) => [s.how, s.intent]);
+const reply = (words, meta = sure, escalate = false) => ({
+  brain: async () => ({ generateReply: async () => ({ text: words, escalate, meta, usage: { input_tokens: 40 } }) }),
+});
+const never = {
+  brain: async () => {
+    throw new Error("the model must not be asked");
+  },
+};
+const refused = { outcome: "refused", reason: "paused", messageId: null };
+const failed = { outcome: "failed", reason: "provider", status: 500, errorBody: null, messageId: null };
+const voice = (id = "wamid.vn") => ({
+  from: FROM,
+  id,
+  type: "audio",
+  timestamp: String(Math.floor(Date.now() / 1000)),
+  audio: { id: "a1", mime_type: "audio/ogg" },
+});
+const veto = runtime({ policy: { reply: { mode: "veto", limits: { reply_delay_ms: 60_000 } } } });
+const floor = runtime({ policy: { reply: { mode: "auto", limits: { min_confidence: 0.7, reply_delay_ms: 60_000 } } } });
+const onAsk = runtime({ policy: { reply: { mode: "ask", limits: {} } } });
+const unsure = { ...sure, confidence: 0.3 };
+// A first delivery that reached us three hours after it was sent: past the two the receptionist may still answer in.
+const lateText = (id = "wamid.late") => ({
+  ...text("when do you open?", id),
+  timestamp: String(Math.floor((Date.now() - 3 * HOUR_MS) / 1000)),
+});
+// A texting line the carriers have not approved: every message on it is held for a person.
+const carriersHold = {
+  channel: "sms",
+  send: async () => ({ ok: true, wamid: "s1", status: 200 }),
+  body: (t) => t,
+  held: { reason: "carriers", details: "The line is not approved for texting yet." },
+  consent: null,
+};
+// A day's model budget of a thousand tokens, and (in the world's `tokensUsed`) more than that spent.
+const overBudget = runtime({ policy: { reply: { mode: "auto", limits: { max_llm_tokens_day: 1000 } } } });
+
+test("each way out says what the message became, and what it was about where the model read it; every outcome the set declares is reached and none it does not", async () => {
+  const live = { env: { modelKey: "sk-test" } };
+  const cases = [
+    ["a reply that left", world(live), text("when do you open?"), reply("We open at 9."), [["ai", "hours"]]],
+    [
+      "a reply that left and handed over",
+      world(live),
+      text("I want to speak to someone"),
+      reply("A person will be in touch.", sure, true),
+      [["handoff", "hours"]],
+    ],
+    [
+      "a reply waiting out the veto window",
+      world({ ...live, rt: veto, queue: true }),
+      text("when do you open?"),
+      reply("We open at 9."),
+      [["held", "hours"]],
+    ],
+    [
+      "a held reply that asks for a person",
+      world({ ...live, rt: veto, queue: true }),
+      text("I want to speak to someone"),
+      reply("A person will be in touch.", sure, true),
+      [["handoff", "hours"]],
+    ],
+    [
+      "a reply the confidence floor holds",
+      world({ ...live, rt: floor, queue: true }),
+      text("when do you open?"),
+      reply("We open at 9.", unsure),
+      [["held", "hours"]],
+    ],
+    [
+      "a floor hold that could not be written",
+      world({ ...live, rt: floor }),
+      text("when do you open?"),
+      reply("We open at 9.", unsure),
+      [["handoff", "hours"]],
+    ],
+    [
+      "a reply the wire refused",
+      world({ ...live, delivered: refused }),
+      text("when do you open?"),
+      reply("We open at 9."),
+      [["blocked", "hours"]],
+    ],
+    [
+      // An escalation landed, so a person was asked: the message says so. It is NOT marked processed (the deadman finishes it).
+      "a reply that could not be delivered is a handoff, and the message stays unprocessed",
+      world({ ...live, delivered: failed }),
+      text("when do you open?"),
+      reply("We open at 9."),
+      [["handoff", "hours"]],
+      "unprocessed",
+    ],
+    ["no model key: the holding message and a person", world(), text("hi"), {}, [["handoff", null]]],
+    [
+      "a thumbs-up",
+      world(),
+      {
+        from: FROM,
+        id: "wamid.like",
+        type: "reaction",
+        timestamp: String(Math.floor(Date.now() / 1000)),
+        reaction: { message_id: "wamid.1", emoji: "\u{1F44D}" },
+      },
+      {},
+      [["blocked", null]],
+    ],
+    ["a short code", world(), text("Your code is 482913", "wamid.3", "12345"), {}, [["blocked", null]]],
+    [
+      "a sender off the pilot allowlist",
+      world({ isEnvDefault: true, env: { allowlist: "+13055550999" } }),
+      text("hi"),
+      {},
+      [["blocked", null]],
+    ],
+    ["STOP", world(), text("STOP"), {}, [["handoff", null]]],
+    ["a yes, confirmed", world(), text("START"), {}, [["ai", null]]],
+    ["a yes whose confirmation did not go", world({ delivered: failed }), text("START"), {}, [["handoff", null]]],
+    ["a workspace on ask", world({ rt: onAsk }), text("can I book Friday?"), {}, [["handoff", null]]],
+    ["a voice note, acknowledged and handed over", world(), voice(), {}, [["handoff", null]]],
+    [
+      "a photo it meant to read and could not",
+      world({ rt: runtime({ features: { vision: true } }), media: null }),
+      photo("wamid.pic2", "is this shade too dark?"),
+      {},
+      [["handoff", null]],
+    ],
+    [
+      "the thread's turn is a newer message's",
+      world({ ...live, turn: { claim: async () => false, holds: async () => true } }),
+      text("when do you open?"),
+      never,
+      [["ai", null]],
+    ],
+    [
+      "the turn was taken while the model answered",
+      world({ ...live, turn: { claim: async () => true, holds: async () => false } }),
+      text("when do you open?"),
+      reply("We open at 9."),
+      [["ai", "hours"]],
+    ],
+    [
+      "the carriers' hold: a line not approved for texting",
+      world({ carrier: carriersHold }),
+      text("hi"),
+      {},
+      [["handoff", null]],
+    ],
+    ["a message that arrived too late to answer", world(), lateText(), {}, [["handoff", null]]],
+    [
+      "the day's model budget is spent",
+      world({ rt: overBudget, tokensUsed: 5000 }),
+      text("when do you open?"),
+      never,
+      [["handoff", null]],
+    ],
+  ];
+  const reached = new Set();
+  for (const [name, w, message, extra, want, unprocessed] of cases) {
+    await w.run(message, extra);
+    assert.deepEqual(handledOf(w), want, name);
+    assert.equal(
+      w.seen.processed,
+      unprocessed ? 0 : want.length,
+      `${name}: marked processed exactly where the way out finishes the message`,
+    );
+    for (const [how] of want) reached.add(how);
+  }
+  assert.deepEqual(
+    [...reached].sort(),
+    [...HANDLED_OUTCOMES].sort(),
+    "every declared outcome is stamped by some way out, and none that is not declared",
+  );
+});
+
+test("a handoff is an escalation that LANDED: one the database refused asked nobody, and the message says what else became of it", async () => {
+  const live = { env: { modelKey: "sk-test" }, escalateAnswer: "failed" };
+  const cases = [
+    // The reply's own fate decides it when nobody was asked.
+    [
+      "a reply that left and asked for a person, the escalation refused: the receptionist answered and nobody was asked",
+      world(live),
+      text("I want to speak to someone"),
+      reply("A person will be in touch.", sure, true),
+      [["ai", "hours"]],
+    ],
+    [
+      "a held reply that asks for a person, the escalation refused: it waits and nobody was asked",
+      world({ ...live, rt: veto, queue: true }),
+      text("I want to speak to someone"),
+      reply("A person will be in touch.", sure, true),
+      [["held", "hours"]],
+    ],
+    [
+      "a floor hold that could not be written and an escalation that could not either: nothing went out and nobody was asked",
+      world({ ...live, rt: floor }),
+      text("when do you open?"),
+      reply("We open at 9.", unsure),
+      [["blocked", "hours"]],
+    ],
+    [
+      "no model key, the escalation refused: the holding message left and nobody was asked",
+      world({ escalateAnswer: "failed" }),
+      text("hi"),
+      {},
+      [["ai", null]],
+    ],
+    [
+      "STOP, the escalation refused: nothing went out and nobody was asked",
+      world({ escalateAnswer: "failed" }),
+      text("STOP"),
+      {},
+      [["blocked", null]],
+    ],
+    [
+      "a workspace on ask, the escalation refused",
+      world({ rt: onAsk, escalateAnswer: "failed" }),
+      text("can I book Friday?"),
+      {},
+      [["blocked", null]],
+    ],
+    [
+      "a voice note acknowledged, the escalation refused: the receptionist spoke and nobody was asked",
+      world({ escalateAnswer: "failed" }),
+      voice(),
+      {},
+      [["ai", null]],
+    ],
+    [
+      "a yes whose confirmation did not go and whose escalation was refused: nothing went out and nobody was asked",
+      world({ delivered: failed, escalateAnswer: "failed" }),
+      text("START"),
+      {},
+      [["blocked", null]],
+    ],
+    [
+      "a reply that could not be delivered, the escalation refused: nobody was asked, so nothing is stamped and the message stays unfinished",
+      world({ ...live, delivered: failed }),
+      text("when do you open?"),
+      reply("We open at 9."),
+      [],
+      "unprocessed",
+    ],
+    [
+      "the carriers' hold, the escalation refused: nothing was said and nobody was asked",
+      world({ carrier: carriersHold, escalateAnswer: "failed" }),
+      text("hi"),
+      {},
+      [["blocked", null]],
+    ],
+    [
+      "a message that arrived too late, the escalation refused",
+      world({ escalateAnswer: "failed" }),
+      lateText(),
+      {},
+      [["blocked", null]],
+    ],
+    [
+      "the day's model budget is spent, the escalation refused",
+      world({ rt: overBudget, tokensUsed: 5000, escalateAnswer: "failed" }),
+      text("when do you open?"),
+      never,
+      [["blocked", null]],
+    ],
+    // A hold already open is still a person asked, and so is a changed one.
+    [
+      "a workspace on ask, the hold refreshed",
+      world({ rt: onAsk, escalateAnswer: "refreshed" }),
+      text("hi"),
+      {},
+      [["handoff", null]],
+    ],
+    [
+      "a workspace on ask, the hold changed",
+      world({ rt: onAsk, escalateAnswer: "changed" }),
+      text("hi"),
+      {},
+      [["handoff", null]],
+    ],
+  ];
+  for (const [name, w, message, extra, want, unprocessed] of cases) {
+    await w.run(message, extra);
+    assert.deepEqual(handledOf(w), want, name);
+    assert.equal(
+      w.seen.processed,
+      unprocessed ? 0 : want.length,
+      `${name}: marked processed exactly where the way out finishes the message`,
+    );
+    assert.equal(
+      w.seen.escalations.length,
+      want.filter(([how]) => how === "handoff").length,
+      `${name}: a person is asked exactly where the message is a handoff`,
+    );
+  }
+});
+
+test("a thread a person holds sets a message aside, and a voice note on it: nobody is asked, so the stamp is blocked", async () => {
+  const w = world();
+  await w.run(text("hi, do you have time tomorrow?"));
+  await w.run(text("hello?", "wamid.2"));
+  await w.run(voice("wamid.vn3"));
+  assert.deepEqual(handledOf(w), [
+    ["handoff", null],
+    ["blocked", null],
+    ["blocked", null],
+  ]);
+  assert.equal(w.seen.escalations.length, 1, "one hold, and nobody asked twice");
+});
+
+test("a stamp the database refuses never costs the customer their reply: the real sink's processed, over a database without the door", async () => {
+  const doors = [];
+  const db = fakeDb(
+    {},
+    {},
+    {
+      mark_processed: () => {
+        doors.push("mark_processed");
+        return null;
+      },
+      message_stamp_handled: () => {
+        doors.push("message_stamp_handled");
+        throw new Error("connection reset");
+      },
+    },
+  );
+  const w = world({ env: { modelKey: "sk-test" }, realProcessed: (ing) => pgSink(db, "t1", ing).processed });
+  await w.run(text("when do you open?"), reply("We open at 9."));
+  assert.deepEqual(
+    w.seen.sent.map((m) => m.body),
+    ["We open at 9."],
+    "the reply left",
+  );
+  assert.deepEqual(
+    doors,
+    ["mark_processed", "message_stamp_handled"],
+    "processed_at was written, and the stamp was tried",
+  );
+});
+
+test("a reply that could not be delivered, over the real sink: the stamp is written and processed_at is not, so the deadman sweep still finds the message", async () => {
+  const doors = [];
+  const db = fakeDb(
+    {},
+    {},
+    {
+      mark_processed: () => {
+        doors.push("mark_processed");
+        return null;
+      },
+      message_stamp_handled: (a) => {
+        doors.push(["message_stamp_handled", a.p_handled, a.p_intent ?? null]);
+        return null;
+      },
+    },
+  );
+  const w = world({ env: { modelKey: "sk-test" }, delivered: failed, forwardTo: (ing) => pgSink(db, "t1", ing) });
+  await w.run(text("when do you open?"), reply("We open at 9."));
+  assert.deepEqual(
+    w.seen.sent.map((m) => m.body),
+    ["We open at 9."],
+    "the send was tried, and failed",
+  );
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["send_failed"],
+    "a person was asked",
+  );
+  assert.deepEqual(
+    doors,
+    [["message_stamp_handled", "handoff", "hours"]],
+    "the message says it was handed over, and was never marked processed: processed_at stays unwritten",
+  );
+});
+
+test("the line a message came in on travels with its ingest, for the first touch the database stamps (K3)", async () => {
+  const w = world();
+  await w.run(text("hi"));
+  assert.deepEqual(w.seen.lines, ["c1"], "the routed channel's id: the line that took the message");
 });
 
 /* ------------------------------------------ the ask for the yes to offers: the conversation's channel reaches the note */

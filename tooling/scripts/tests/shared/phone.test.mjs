@@ -127,7 +127,10 @@ test("the receptionist records a short code and does not answer it", () => {
   const body = guard.slice(0, guard.indexOf("return;") + "return;".length);
   assert.ok(body.includes("await recordOrSay()"), "the message is still recorded");
   assert.ok(body.includes("await sink.unreachableSender()"), "with a reason of its own");
-  assert.ok(body.includes("await sink.processed()"), "and marked handled, so nothing retries it");
+  assert.ok(
+    body.includes("await sink.processed(handledOf(SET_ASIDE))"),
+    "and marked handled, so nothing retries it, and says it was set aside",
+  );
   assert.ok(body.includes("return;"), "and no reply is composed");
 
   // Before the allowlist, which is the other reply-only gate, so the two

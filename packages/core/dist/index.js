@@ -2051,6 +2051,8 @@ var EVENT_KINDS = [
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00313): { channel, sender }. */
+  "booking_link.sent",
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
@@ -2094,6 +2096,8 @@ var EVENT_KINDS = [
   "billing.resumed",
   /** A call: the row (00007) and the seconds it cost. */
   "call.recorded",
+  /** A call ended in a transfer to a person (00312): { answered }, whether they picked up. */
+  "call.transferred",
   "usage.voice_seconds",
   /** The assistant's model usage, per turn (ask-gateway). */
   "usage.ask_tokens",
@@ -2124,11 +2128,15 @@ var EVENT_KINDS = [
   "policy.veto_window_skipped",
   /** The sweep woke a snooze whose time had passed (00082). */
   "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00308): { from, to }, reasons only, never the words. */
+  "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00315): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
@@ -2154,6 +2162,15 @@ var EVENT_KINDS = [
   "lead.call",
   "lead.converted",
   "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00309): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",
@@ -3810,6 +3827,20 @@ var CALL_ANALYSIS_FIELDS = [
     name: "caller_email",
     description: "The email address the caller gave, exactly as they spelled it out. Leave empty if they did not give one.",
     examples: ["ana.ruiz@example.com", "daniela.r@example.net"]
+  },
+  {
+    type: "enum",
+    name: "topic",
+    // The classes a rule covers are said in the words the receptionist's prompt and its texts' intent say them
+    // (POLICY_COVERS), so a call and a text read one meaning; only what no rule covers is said here.
+    description: `What the call was mainly about. booking: ${POLICY_COVERS.booking}. pricing: ${POLICY_COVERS.faq}, when it is about what something costs. services: ${POLICY_COVERS.faq}, when it is about what the business offers. money: ${POLICY_COVERS.money}. hours: when the business is open. location: where it is or how to get there. complaint: they were unhappy about something. smalltalk: a greeting or a chat with no request. other: none of these.`,
+    choices: [...BRAIN_INTENTS]
+  },
+  {
+    type: "enum",
+    name: "language",
+    description: "The language the caller mostly spoke. en: English. es: Spanish. other: any other language.",
+    choices: [...BRAIN_LANGUAGES]
   }
 ];
 var VOICE_LLM_DEFAULTS = {
@@ -7974,6 +8005,8 @@ var EVENT_KINDS2 = [
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00313): { channel, sender }. */
+  "booking_link.sent",
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
@@ -8017,6 +8050,8 @@ var EVENT_KINDS2 = [
   "billing.resumed",
   /** A call: the row (00007) and the seconds it cost. */
   "call.recorded",
+  /** A call ended in a transfer to a person (00312): { answered }, whether they picked up. */
+  "call.transferred",
   "usage.voice_seconds",
   /** The assistant's model usage, per turn (ask-gateway). */
   "usage.ask_tokens",
@@ -8047,11 +8082,15 @@ var EVENT_KINDS2 = [
   "policy.veto_window_skipped",
   /** The sweep woke a snooze whose time had passed (00082). */
   "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00308): { from, to }, reasons only, never the words. */
+  "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00315): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
@@ -8077,6 +8116,15 @@ var EVENT_KINDS2 = [
   "lead.call",
   "lead.converted",
   "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00309): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",
@@ -12540,6 +12588,8 @@ var EVENT_KINDS3 = [
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00313): { channel, sender }. */
+  "booking_link.sent",
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
@@ -12583,6 +12633,8 @@ var EVENT_KINDS3 = [
   "billing.resumed",
   /** A call: the row (00007) and the seconds it cost. */
   "call.recorded",
+  /** A call ended in a transfer to a person (00312): { answered }, whether they picked up. */
+  "call.transferred",
   "usage.voice_seconds",
   /** The assistant's model usage, per turn (ask-gateway). */
   "usage.ask_tokens",
@@ -12613,11 +12665,15 @@ var EVENT_KINDS3 = [
   "policy.veto_window_skipped",
   /** The sweep woke a snooze whose time had passed (00082). */
   "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00308): { from, to }, reasons only, never the words. */
+  "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00315): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
@@ -12643,6 +12699,15 @@ var EVENT_KINDS3 = [
   "lead.call",
   "lead.converted",
   "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00309): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",
@@ -50241,11 +50306,11 @@ function factsOf(ref, p) {
 function opIdFor(runId, fromOffset, batch) {
   return judgeOpId(runId, fromOffset, batch);
 }
-async function judgeBatch(judge, plan, places, opId, tenantId) {
+async function judgeBatch(judge, plan, places, opId, round) {
   if (!places.length) return { answers: /* @__PURE__ */ new Map(), judgment: null, model: null, refused: false, why: null };
   let last = null;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const a = await judge.judge(plan, places, tenantId);
+    const a = await judge.judge(plan, places, round?.tenant_id, round?.id);
     if ("refused" in a) {
       last = a;
       continue;
@@ -50871,7 +50936,7 @@ async function rejudgeProbe(p, round) {
         0,
         0
       ),
-      round.tenant_id
+      round
     );
     if (judged.refused) continue;
     const places = batch.map(
@@ -51239,7 +51304,7 @@ async function collectHeld(p, round, run, owner, gen) {
         plan,
         toJudge.map((t) => factsOf(t.ref, t.prep.clean)),
         opIdFor(run.id, from, 0),
-        round.tenant_id
+        round
       );
       if (judged.refused && judged.why) judgeRefused = judged.why;
     }
@@ -51589,6 +51654,7 @@ async function openInbound(input, ports) {
     n,
     raw,
     tenantId,
+    routed,
     isEnvDefault,
     carrier,
     from,
@@ -51608,11 +51674,30 @@ async function openInbound(input, ports) {
   };
 }
 
+// src/inbound/handled.ts
+var SET_ASIDE = { escalation: "none", reply: "none" };
+function handledOf({ escalation, reply }) {
+  if (escalation === "landed") return "handoff";
+  if (reply === "queued") return "held";
+  return reply === "sent" || reply === "covered" ? "ai" : "blocked";
+}
+function escalationOf(answer) {
+  return answer === void 0 || answer === "failed" ? "failed" : "landed";
+}
+async function processedAfter(sink, asked2, reply, intent = null) {
+  const escalation = asked2 ? escalationOf(await asked2.catch(() => void 0)) : "none";
+  return sink.processed(handledOf({ escalation, reply }), intent);
+}
+async function noteHandledAfter(sink, asked2, reply, intent = null) {
+  const escalation = escalationOf(await asked2.catch(() => void 0));
+  return escalation === "landed" ? sink.noteHandled(handledOf({ escalation, reply }), intent) : void 0;
+}
+
 // src/inbound/ingest.ts
 async function ingestOrSay(cx) {
   const { ports, db, tenantId, n, channel, from, raw, notifyTarget, L: L4 } = cx;
   try {
-    return await ports.persist.ingest(db, tenantId, n, channel);
+    return await ports.persist.ingest(db, tenantId, n, channel, cx.routed?.channelId ?? null);
   } catch (e) {
     if (e instanceof IngestFailed) {
       try {
@@ -51637,7 +51722,7 @@ async function ingestMessage(cx) {
     const ing2 = await recordOrSay();
     const sink2 = ports.persist.sink(db, tenantId, ing2, rt, channel);
     await sink2.unreachableSender();
-    await sink2.processed();
+    await sink2.processed(handledOf(SET_ASIDE));
     return;
   }
   const digits = (s) => s.replace(/\D/g, "");
@@ -51646,7 +51731,7 @@ async function ingestMessage(cx) {
     const ing2 = await recordOrSay();
     const sink2 = ports.persist.sink(db, tenantId, ing2, rt, channel);
     await sink2.allowlistSkip();
-    await sink2.processed();
+    await sink2.processed(handledOf(SET_ASIDE));
     return;
   }
   const ing = await recordOrSay();
@@ -51699,17 +51784,18 @@ async function firstGates(at) {
   const { thread, L: L4, sink, tell, n, raw, ing, carrier } = at;
   if (isThreadUnknown(thread)) {
     L4.error("wa_state_unavailable");
+    const asked2 = sink.escalate(
+      "state_unavailable",
+      "The receptionist could not read this thread's history, so it did not reply. Please answer this one."
+    );
     await Promise.all([
-      sink.escalate(
-        "state_unavailable",
-        "The receptionist could not read this thread's history, so it did not reply. Please answer this one."
-      ),
+      asked2,
       tell(
         n.body ?? `[${raw.type}]`,
         "(no reply sent \u2014 the receptionist could not read the thread state)",
         "state unavailable"
       ),
-      sink.processed()
+      processedAfter(sink, asked2, "none")
     ]);
     return;
   }
@@ -51724,17 +51810,14 @@ async function firstGates(at) {
   });
   const optedOut = consent.optedOut;
   if (optedOut) {
-    const post = [sink.processed()];
-    if (n.optOut) {
-      post.push(
-        sink.escalate(
-          "opt_out",
-          "Customer asked to stop receiving messages. Automatic replies are off for this contact until they text START."
-        ),
-        tell(n.body ?? `[${raw.type}]`, "(no reply sent \u2014 the customer opted out)", "opt-out")
-      );
-    }
-    await Promise.all(post);
+    const asked2 = n.optOut ? sink.escalate(
+      "opt_out",
+      "Customer asked to stop receiving messages. Automatic replies are off for this contact until they text START."
+    ) : null;
+    await Promise.all([
+      processedAfter(sink, asked2, "none"),
+      ...asked2 ? [asked2, tell(n.body ?? `[${raw.type}]`, "(no reply sent \u2014 the customer opted out)", "opt-out")] : []
+    ]);
     L4.info("wa_skip_opt_out", {
       this_message: n.optOut,
       on_record: ing?.consent ?? null,
@@ -51743,28 +51826,30 @@ async function firstGates(at) {
     return;
   }
   if (carrier?.held) {
+    const asked2 = sink.escalate(carrier.held.reason, carrier.held.details);
     await Promise.all([
-      sink.escalate(carrier.held.reason, carrier.held.details),
+      asked2,
       tell(
         n.body ?? `[${raw.type}]`,
         "(no reply sent \u2014 the carriers have not approved this line for texting yet)",
         "carriers"
       ),
-      sink.processed()
+      processedAfter(sink, asked2, "none")
     ]);
     L4.info("sms_held_for_carriers");
     return;
   }
   if (n.kind === "reaction" || n.kind === "system") {
     L4.info("wa_skip_no_request", { kind: n.kind });
-    await sink.processed();
+    await sink.processed(handledOf(SET_ASIDE));
     return;
   }
   if (n.kind === "location" || n.kind === "contacts") {
+    const asked2 = sink.escalate("non_text", `${n.body} \u2014 needs a person.`);
     await Promise.all([
-      sink.escalate("non_text", `${n.body} \u2014 needs a person.`),
+      asked2,
       tell(n.body ?? `[${raw.type}]`, "(no reply sent \u2014 passed to a human)", n.kind),
-      sink.processed()
+      processedAfter(sink, asked2, "none")
     ]);
     L4.info("wa_escalate_readable_nontext", { kind: n.kind });
     return;
@@ -51777,7 +51862,7 @@ function seeingOf(at) {
   const { n, rt, brainCfg, replyMode, thread, send, fallbacks, personMode, pauseMs, sink, raw, tell, pauseHours, L: L4 } = at;
   const maySee = n.type === "media" && !!n.media && !!rt?.features?.vision && isVisionMime(n.media.mime_type) && !!brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil;
   const sayUnreadable = async (pausedUntilNow) => {
-    if (Date.now() <= pausedUntilNow) return 0;
+    if (Date.now() <= pausedUntilNow) return { pausedUntil: 0, way: SET_ASIDE };
     const mayAck = !!brainCfg && (replyMode === "auto" || replyMode === "veto");
     const acked = mayAck ? (
       // A courtesy, not an answer: marked so it does not spend the daily cap.
@@ -51785,13 +51870,14 @@ function seeingOf(at) {
     ) : false;
     const pausedUntil = acked ? Date.now() + pauseMs : 0;
     const why = acked ? "auto-acknowledged, bot paused" : mayAck ? "the acknowledgement could not be sent \u2014 the customer has heard nothing back" : !brainCfg ? "no auto-reply configured" : personMode ? `no acknowledgement \u2014 this person is set to '${replyMode}'` : `no acknowledgement \u2014 reply mode is '${replyMode}'`;
+    const asked2 = sink.escalate("non_text", `Customer sent a ${raw.type} message \u2014 ${why}.`);
     await Promise.all([
       ...pausedUntil ? [sink.pause(new Date(pausedUntil).toISOString())] : [],
-      sink.escalate("non_text", `Customer sent a ${raw.type} message \u2014 ${why}.`),
+      asked2,
       tell(`[${raw.type} message]`, `(${why})`, "non-text message", pausedUntil ? pauseHours : null)
     ]);
     L4.info("wa_nontext", { acked, may_ack: mayAck, mode: replyMode, person_mode: personMode });
-    return pausedUntil;
+    return { pausedUntil, way: { escalation: escalationOf(await asked2), reply: acked ? "sent" : "none" } };
   };
   return { maySee, sayUnreadable };
 }
@@ -51800,8 +51886,8 @@ async function unreadableGate(at, seen) {
   const { maySee, sayUnreadable } = seen;
   if (!maySee && (n.type !== "text" || !n.body)) {
     const media = sink.media(n);
-    await sayUnreadable(thread.pausedUntil);
-    await Promise.all([media, sink.processed()]);
+    const said = await sayUnreadable(thread.pausedUntil);
+    await Promise.all([media, sink.processed(handledOf(said.way))]);
     return;
   }
   return GO;
@@ -51823,8 +51909,8 @@ async function photoOf(at, seen) {
       L4.info("wa_photo_seen", { bytes: got.bytes.byteLength, mime: got.mime });
     } else {
       L4.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
-      await sayUnreadable(thread.pausedUntil);
-      await sink.processed();
+      const said = await sayUnreadable(thread.pausedUntil);
+      await sink.processed(handledOf(said.way));
       return;
     }
   }
@@ -51836,13 +51922,14 @@ async function lateOrConfirmed(at, bodyText) {
   const { raw, sink, tell, n, L: L4, channel, brainCfg, rt, send } = at;
   const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? void 0);
   if (age === "stale") {
+    const asked2 = sink.escalate(
+      "stale",
+      `Message arrived ${Math.round(ageMs / 6e4)} minutes late \u2014 too old to answer automatically.`
+    );
     await Promise.all([
-      sink.escalate(
-        "stale",
-        `Message arrived ${Math.round(ageMs / 6e4)} minutes late \u2014 too old to answer automatically.`
-      ),
+      asked2,
       tell(n.body ?? `[${raw.type}]`, "(no reply sent \u2014 arrived too late to answer automatically)", "late message"),
-      sink.processed()
+      processedAfter(sink, asked2, "none")
     ]);
     L4.info("wa_stale_escalated", { age_ms: ageMs });
     return;
@@ -51852,17 +51939,19 @@ async function lateOrConfirmed(at, bodyText) {
     const purpose = n.optInMarketing ? "marketing" : "conversational";
     const words = optInConfirmation(brainCfg?.business_name ?? rt?.known?.workspace?.name ?? "", purpose);
     const confirmed = await send(words, { ack: true, confirmation: purpose }, purpose, "system");
+    let asked2 = null;
     if (confirmed.outcome !== "sent") {
       const why = confirmed.outcome === "failed" ? `${confirmed.reason}, HTTP ${confirmed.status}` : confirmed.reason;
+      asked2 = sink.escalate(
+        "send_failed",
+        `The customer said yes and their confirmation did not go out (${why}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`
+      );
       await Promise.all([
-        sink.escalate(
-          "send_failed",
-          `The customer said yes and their confirmation did not go out (${why}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`
-        ),
+        asked2,
         tell(bodyText, `(the confirmation of their yes was not delivered \u2014 ${why})`, "opt-in not confirmed")
       ]);
     }
-    await sink.processed();
+    await processedAfter(sink, asked2, confirmed.outcome === "sent" ? "sent" : "none");
     L4.info("wa_opt_in_confirmed", {
       purpose,
       channel,
@@ -51892,18 +51981,19 @@ async function heldForThePerson(at, bodyText) {
   const gate = threadVerdict(thread, maxRepliesDay);
   if (gate === "paused") {
     L4.info("wa_skip_paused", { paused_until: thread.pausedUntil });
-    await sink.processed();
+    await sink.processed(handledOf(SET_ASIDE));
     return;
   }
   if (gate === "ratecap") {
     L4.info("wa_skip_ratecap", { cap: maxRepliesDay, used: thread.replies.length });
+    const asked2 = sink.escalate(
+      "rate_cap",
+      `Thread hit ${maxRepliesDay} automatic replies today \u2014 the receptionist stopped and is waiting for a human.`
+    );
     await Promise.all([
-      sink.escalate(
-        "rate_cap",
-        `Thread hit ${maxRepliesDay} automatic replies today \u2014 the receptionist stopped and is waiting for a human.`
-      ),
+      asked2,
       tell(bodyText, "(no reply sent \u2014 daily automatic-reply limit reached)", "rate cap"),
-      sink.processed()
+      processedAfter(sink, asked2, "none")
     ]);
     return;
   }
@@ -51912,26 +52002,28 @@ async function heldForThePerson(at, bodyText) {
     const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
     if (tokenBudgetSpent(replyLimits, used)) {
       L4.info("wa_skip_budget", { cap: tokenCap, used });
+      const asked2 = sink.escalate(
+        "budget",
+        `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours \u2014 the receptionist stopped and is waiting for a human.`
+      );
       await Promise.all([
-        sink.escalate(
-          "budget",
-          `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours \u2014 the receptionist stopped and is waiting for a human.`
-        ),
+        asked2,
         tell(bodyText, "(no reply sent \u2014 the day's model budget is used up)", "budget"),
-        sink.processed()
+        processedAfter(sink, asked2, "none")
       ]);
       return;
     }
   }
   if (rt?.paused) {
     L4.info("wa_skip_workspace_paused");
+    const asked2 = sink.escalate(
+      "paused",
+      "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself."
+    );
     await Promise.all([
-      sink.escalate(
-        "paused",
-        "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself."
-      ),
+      asked2,
       tell(bodyText, "(no reply sent \u2014 the workspace is paused until billing resumes)", "paused"),
-      sink.processed()
+      processedAfter(sink, asked2, "none")
     ]);
     return;
   }
@@ -51945,7 +52037,10 @@ async function heldForThePerson(at, bodyText) {
     });
     const outcome = await sink.escalate(hold.reason, hold.details);
     const alertNeeded = !hold.personHold || outcome !== "refreshed";
-    await Promise.all([...alertNeeded ? [tell(bodyText, hold.botText, hold.why)] : [], sink.processed()]);
+    await Promise.all([
+      ...alertNeeded ? [tell(bodyText, hold.botText, hold.why)] : [],
+      sink.processed(handledOf({ escalation: escalationOf(outcome), reply: "none" }))
+    ]);
     L4.info("wa_held_by_policy", {
       mode: replyMode,
       person_mode: personMode,
@@ -52114,12 +52209,11 @@ async function heldOrKept(at, turn, hold, bodyText) {
     const post = [];
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality, escalate: true }));
     post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-    post.push(
-      sink.escalate(
-        "policy_block",
-        `the receptionist was not sure enough to answer on its own (confidence ${brainMeta?.confidence ?? "unknown"}, floor ${plan.minConfidence}) and the hold for a person could not be written, so nothing was sent \u2014 "${bodyText}"`
-      )
+    const asked2 = sink.escalate(
+      "policy_block",
+      `the receptionist was not sure enough to answer on its own (confidence ${brainMeta?.confidence ?? "unknown"}, floor ${plan.minConfidence}) and the hold for a person could not be written, so nothing was sent \u2014 "${bodyText}"`
     );
+    post.push(asked2);
     post.push(
       tell(
         bodyText,
@@ -52129,27 +52223,27 @@ async function heldOrKept(at, turn, hold, bodyText) {
       )
     );
     await Promise.all(post);
-    await sink.processed();
+    await processedAfter(sink, asked2, "none", brainMeta?.intent ?? null);
     L4.warn("wa_hold_unscheduled_kept", { confidence: brainMeta?.confidence, min: plan.minConfidence });
     return;
   }
   if (queued) {
     const post = [];
+    let asked2 = null;
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
     if (escalate) {
       post.push(
         sink.pause(new Date(Date.now() + pauseMs).toISOString(), typeof queued === "string" ? queued : void 0)
       );
-      post.push(
-        sink.escalate(
-          escalationReason,
-          fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} \u2014 "${bodyText}"` : bodyText
-        )
+      asked2 = sink.escalate(
+        escalationReason,
+        fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} \u2014 "${bodyText}"` : bodyText
       );
+      post.push(asked2);
       post.push(tell(bodyText, replyText, "assistant flagged handoff (reply held for review)", pauseHours));
     }
     await Promise.all(post);
-    await sink.processed();
+    await processedAfter(sink, asked2, "queued", brainMeta?.intent ?? null);
     L4.info("wa_reply_queued", { delay_ms: delayMs, escalate });
     return;
   }
@@ -52166,30 +52260,29 @@ async function sendNow(at, turn, hold, bodyText) {
   const tSent = Date.now();
   if (sent4.outcome === "sent") {
     const post = [];
+    let asked2 = null;
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
     if (escalate) {
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-      post.push(
-        sink.escalate(
-          escalationReason,
-          fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} \u2014 "${bodyText}"` : bodyText
-        )
+      asked2 = sink.escalate(
+        escalationReason,
+        fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} \u2014 "${bodyText}"` : bodyText
       );
+      post.push(asked2);
       post.push(tell(bodyText, replyText, fallback ? fallback.alertReason : "assistant flagged handoff", pauseHours));
     }
     await Promise.all(post);
-    await sink.processed();
+    await processedAfter(sink, asked2, "sent", brainMeta?.intent ?? null);
   } else if (sent4.outcome === "refused") {
     L4.info("wa_refused_at_wire", { reason: sent4.reason });
-    await sink.processed();
+    await sink.processed(handledOf(SET_ASIDE), brainMeta?.intent ?? null);
   } else {
-    await Promise.all([
-      tell(bodyText, "(send failed \u2014 the customer received no reply)", "wa_send_failed"),
-      sink.escalate(
-        "send_failed",
-        sent4.reason === "wire_unreadable" ? "Auto-reply could not be sent: the thread could not be read at the wire. Customer got no answer." : `Auto-reply could not be delivered (HTTP ${sent4.status}). Customer got no answer.`
-      )
-    ]);
+    const asked2 = sink.escalate(
+      "send_failed",
+      sent4.reason === "wire_unreadable" ? "Auto-reply could not be sent: the thread could not be read at the wire. Customer got no answer." : `Auto-reply could not be delivered (HTTP ${sent4.status}). Customer got no answer.`
+    );
+    await Promise.all([tell(bodyText, "(send failed \u2014 the customer received no reply)", "wa_send_failed"), asked2]);
+    await noteHandledAfter(sink, asked2, "none", brainMeta?.intent ?? null);
   }
   L4.info("wa_replied", {
     escalate,
@@ -52210,7 +52303,7 @@ async function claimTheTurn(at, photo) {
   });
   if (held) return GO;
   L4.info("wa_superseded", { at: "claim", conversation_id: ing.conversation_id });
-  await sink.processed();
+  await sink.processed(handledOf({ escalation: "none", reply: "covered" }));
   return void 0;
 }
 async function stillOurs(at, t, photo) {
@@ -52224,7 +52317,7 @@ async function stillOurs(at, t, photo) {
   if (held) return GO;
   L4.info("wa_superseded", { at: "wire", conversation_id: ing.conversation_id });
   if (t.usage) await sink.usage({ ...t.usage, held: "superseded" });
-  await sink.processed();
+  await sink.processed(handledOf({ escalation: "none", reply: "covered" }), t.brainMeta?.intent ?? null);
   return void 0;
 }
 

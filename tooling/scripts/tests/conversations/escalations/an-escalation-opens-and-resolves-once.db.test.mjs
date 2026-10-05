@@ -76,7 +76,7 @@ const escalationsOf = async (conversationId) =>
   ok(
     await db
       .from("escalations")
-      .select("id, reason, details, state, resolved_by_user_id, decision_id")
+      .select("id, reason, details, state, resolved_by_user_id, decision_id, resolved_at")
       .eq("conversation_id", conversationId)
       .order("created_at"),
   );
@@ -135,6 +135,7 @@ test(
   "handed to a person, taken over, handed back: one row opens, changes its reason, and resolves once; a stale resolve is refused and a new concern is a new row",
   { skip },
   async () => {
+    const startedAt = Date.now() - 5_000;
     const digits = "12135550111";
     let ing = await customerWrites("Can I talk to a real person please?", digits);
     const sink = persist.pgSink(db, T, ing);
@@ -147,6 +148,7 @@ test(
       rows.map((r) => [r.reason, r.state]),
       [["human_token", "open"]],
     );
+    assert.equal(rows[0].resolved_at, null, "an open hold has not ended");
     assert.equal((await threadOf(ing.conversation_id)).state, "needs_human");
 
     // The customer writes again: a different reason replaces the first on the same open row, then says itself again.
@@ -161,6 +163,27 @@ test(
       "one hold per thread",
     );
     const first = rows[0];
+    const changes = async () =>
+      ok(
+        await db
+          .from("events")
+          .select("subject_type, subject_id, category, data")
+          .eq("tenant_id", T)
+          .eq("kind", "escalation.changed")
+          .order("created_at"),
+      );
+    assert.deepEqual(
+      await changes(),
+      [
+        {
+          subject_type: "escalation",
+          subject_id: first.id,
+          category: "conversation",
+          data: { from: "human_token", to: "policy_ask" },
+        },
+      ],
+      "the opening and the refresh wrote none; the replacement wrote one, with what it replaced",
+    );
 
     // The owner takes the thread over (the dashboard's take-over route): the hold stays open while they have it.
     const thread = await threadOf(ing.conversation_id);
@@ -182,6 +205,8 @@ test(
       rows.map((r) => [r.id, r.state, r.resolved_by_user_id, r.decision_id]),
       [[first.id, "resolved", owner.userId, back.decision_id]],
     );
+    const resolvedAt = rows[0].resolved_at;
+    assert.ok(Date.parse(resolvedAt) >= startedAt, "the hand-back stamped when the hold ended");
     const open = await threadOf(ing.conversation_id);
     assert.deepEqual([open.state, open.paused_until, open.assignee_user_id], ["open", null, null]);
 
@@ -194,6 +219,37 @@ test(
       (await escalationsOf(ing.conversation_id)).map((r) => [r.state, r.decision_id]),
       [["resolved", back.decision_id]],
       "the resolved row is the hand-back's, as it left it",
+    );
+    ok(await db.from("escalations").update({ deadman_alerted_at: new Date().toISOString() }).eq("id", first.id));
+    assert.equal(
+      (await escalationsOf(ing.conversation_id))[0].resolved_at,
+      resolvedAt,
+      "once: a refused resolve and a later update leave the first moment",
+    );
+
+    // The guard itself, which the update above never reaches (it does not name `state`): the same state written again
+    // is a move the state machine allows, and the stamp must still leave the first moment. A stamp that wrote whenever
+    // the row says resolved would move it here.
+    ok(await db.from("escalations").update({ state: "resolved" }).eq("id", first.id));
+    assert.equal(
+      (await escalationsOf(ing.conversation_id))[0].resolved_at,
+      resolvedAt,
+      "once: resolving what is already resolved keeps the first moment",
+    );
+    // A resolved -> open -> resolved cycle is not one the state machine has (escalations_guard, 00106: a resolved row is
+    // terminal, a new concern is a new row), so it cannot move the moment either: the reopening is refused, and the row,
+    // moment included, is as it was.
+    const reopened = await db.from("escalations").update({ state: "open" }).eq("id", first.id);
+    assert.match(
+      reopened.error?.message ?? "",
+      /terminal/,
+      "a resolved hold does not reopen, so it cannot be resolved twice",
+    );
+    const kept = (await escalationsOf(ing.conversation_id))[0];
+    assert.deepEqual(
+      [kept.state, kept.resolved_at],
+      ["resolved", resolvedAt],
+      "and the refused reopening moved nothing",
     );
 
     // The customer asks for a person again: a new concern, a new row; the old one stays resolved.
@@ -219,6 +275,11 @@ test(
         ["resolved", owner.userId, done.decision_id],
       ],
     );
+    assert.ok(
+      rows.every((r) => Date.parse(r.resolved_at) >= startedAt),
+      "both writers stamp: the hand-back's and the explicit resolve",
+    );
+    assert.equal((await changes()).length, 1, "and no resolve wrote a change");
     const verbs = ok(
       await db.from("decisions").select("verb, subject_type").eq("tenant_id", T).order("created_at"),
     ).map((d) => `${d.subject_type}:${d.verb}`);

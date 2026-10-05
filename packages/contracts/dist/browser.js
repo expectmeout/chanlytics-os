@@ -12021,6 +12021,8 @@ var EVENT_KINDS = [
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00313): { channel, sender }. */
+  "booking_link.sent",
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
@@ -12064,6 +12066,8 @@ var EVENT_KINDS = [
   "billing.resumed",
   /** A call: the row (00007) and the seconds it cost. */
   "call.recorded",
+  /** A call ended in a transfer to a person (00312): { answered }, whether they picked up. */
+  "call.transferred",
   "usage.voice_seconds",
   /** The assistant's model usage, per turn (ask-gateway). */
   "usage.ask_tokens",
@@ -12094,11 +12098,15 @@ var EVENT_KINDS = [
   "policy.veto_window_skipped",
   /** The sweep woke a snooze whose time had passed (00082). */
   "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00308): { from, to }, reasons only, never the words. */
+  "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00315): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
@@ -12124,6 +12132,15 @@ var EVENT_KINDS = [
   "lead.call",
   "lead.converted",
   "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00309): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",
@@ -14292,6 +14309,13 @@ function conversationMoveAllowed(move, state) {
 function messageAt(m) {
   return m.channel_ts ?? m.created_at;
 }
+var OPERATOR_META_KEYS = ["pricing"];
+function memberMetaOf(meta) {
+  if (meta === null || typeof meta !== "object" || Array.isArray(meta)) return null;
+  const kept = { ...meta };
+  for (const key of OPERATOR_META_KEYS) delete kept[key];
+  return kept;
+}
 function isOptedOut(dto) {
   return isOptedOutContact(dto.contact);
 }
@@ -14446,6 +14470,9 @@ function lastWordLine(needsHuman, last, author) {
   if (author.kind === "team") return "Answered by your team";
   return `Last message: ${author.words}`;
 }
+function messageWhy(m) {
+  return m.sender === "ai" ? replyWhy(m.meta) : null;
+}
 
 // src/conversations/conversation-vm.ts
 function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
@@ -14462,7 +14489,7 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     at: bubbleTime(messageAt(m), tz, now),
     text: messageWords(m),
     ...mediaVM(m) ? { media: mediaVM(m) } : {},
-    ...m.sender === "ai" && replyWhy(m.meta) ? { why: replyWhy(m.meta) } : {},
+    ...messageWhy(m) ? { why: messageWhy(m) } : {},
     ...messageAuthor(m) ? { by: messageAuthor(m).words } : {},
     // Only for OUR messages. A customer's inbound message has no send status,
     // and labelling it would be inventing one.
@@ -14553,6 +14580,12 @@ var ESCALATION_SUMMARIES = {
   carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
   email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
 };
+
+// src/conversations/first-touch.ts
+var REFERRAL_ID_MAX = 200;
+
+// src/conversations/handled.ts
+var HANDLED_OUTCOMES = ["ai", "held", "handoff", "blocked"];
 
 // src/email/email-subject.ts
 var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
@@ -15581,7 +15614,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
   const timeline = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
-    const why = m.sender === "ai" ? replyWhy(m.meta) : null;
+    const why = messageWhy(m);
     const subject = m.channel === "email" ? emailSubjectOf(m) : null;
     const leftOut2 = m.channel === "email" ? emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta) : null;
     const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
@@ -25373,6 +25406,7 @@ var SCHEMA_SETS = {
   "calls.status": ["registered", "ongoing", "ended", "error", "not_connected"],
   "capability_activations.capability": ["voice", "whatsapp", "sms"],
   "contact_identities.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
+  "contacts.acquired_via": ["whatsapp", "sms", "email", "call", "ad", "calendar", "import", "lead", "manual"],
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
   "contacts.email_marketing": ["unknown", "opted_in", "opted_out"],
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],
@@ -25631,6 +25665,7 @@ var SCHEMA_SETS = {
   "reach_out_replies.intent": ["interested", "question", "not_now", "no", "wrong_person", "away", "other"],
   "reach_out_replies.unread": ["no_model", "may_not_spend", "day_spent", "model_failed"],
   "reach_out_sends.state": ["planned", "held", "claimed", "queued", "sent", "skipped", "failed", "handed"],
+  "sending_domain_days.state": ["verified", "held"],
   "sending_domains.dmarc": ["found", "missing"],
   "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"],
   "sending_domains.resume_by": ["owner", "platform"],
@@ -29788,6 +29823,13 @@ var ACTIVATION_MILESTONES = ["line_live", "first_reply", "first_lead_search"];
 
 // src/workspace/activity.ts
 var ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
+var ACTIVITY_NOISE_KINDS = [
+  "escalation.changed",
+  "lead.set_aside",
+  "call.transferred",
+  "booking_link.sent",
+  "channel.quality_rating"
+];
 var isActivityMoney = (row2) => row2.category === "billing";
 var WORDS2 = {
   // decisions
@@ -29861,9 +29903,13 @@ var WORDS2 = {
   "conversation.reopened": "A thread reopened",
   "conversation.pause_expired": "A pause ended",
   "conversation.snooze_expired": "A snooze ended",
+  "escalation.changed": "A handover's reason changed",
   "call.recorded": "A call was recorded",
+  "call.transferred": "A call was passed to a person",
+  "booking_link.sent": "The booking link was sent",
   "broadcast.sent": "A broadcast finished",
   "playbook.run": "A playbook ran",
+  "channel.quality_rating": "A WhatsApp number's quality rating changed",
   "setup.requested": "Setup was requested",
   "voice.provisioned": "The phone receptionist was provisioned",
   "line.answering": "A line started answering",
@@ -29894,6 +29940,7 @@ var WORDS2 = {
   "lead.round": "A search for businesses",
   "lead.no_card": "An ask no source covers yet",
   "lead.converted": "A lead is Talking",
+  "lead.set_aside": "A lead was set aside",
   // A reply to a reach-out, read (Reach out Part 5): the case below says who and what it meant.
   "reach_out.replied": "A business wrote back to a reach-out",
   "reach_out.reply_undone": "A reply read as no was undone",
@@ -30143,7 +30190,7 @@ function activityTone(kind) {
 }
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 function isActivityNoise(kind) {
-  return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p));
+  return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p)) || ACTIVITY_NOISE_KINDS.includes(kind);
 }
 
 // src/workspace/platform.ts
@@ -31313,6 +31360,7 @@ export {
   ABOUT_MIN,
   ACTIVATION_MILESTONES,
   ACTIVITY_KINDS,
+  ACTIVITY_NOISE_KINDS,
   ACTIVITY_NOISE_PREFIXES,
   ACTOR_TYPES,
   ALERT_KINDS,
@@ -31520,6 +31568,7 @@ export {
   GOOGLE_SHOWN_REVIEWS,
   GREETING_DEFAULT,
   GUARDRAIL_KEYS,
+  HANDLED_OUTCOMES,
   HANDOFF_FORWARDS_BACK,
   HANDOVER_DAYS,
   HANDOVER_WAITING_MAX,
@@ -31806,6 +31855,7 @@ export {
   POLICY_CLASSES,
   POLICY_CLASS_MODES,
   POLICY_CLASS_WORDS,
+  POLICY_COVERS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
   PREFETCH_READS,
@@ -31872,6 +31922,7 @@ export {
   RECIPIENT_STATES,
   RECORDING_PURGED_WORDS,
   RECORDING_RETENTION_DAYS,
+  REFERRAL_ID_MAX,
   REGISTRATION_COST_WORDS,
   REGISTRATION_PATHS,
   REGISTRATION_PATH_WORDS,
@@ -32597,6 +32648,7 @@ export {
   mediaKind,
   mediaVM,
   medianWait,
+  memberMetaOf,
   memberWords,
   membersOf,
   messageAboutOfTrigger,
@@ -32607,6 +32659,7 @@ export {
   messageStatusLabel,
   messageText,
   messageVia,
+  messageWhy,
   messageWords,
   modelRoute,
   momentOffered,

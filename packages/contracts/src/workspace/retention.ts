@@ -43,7 +43,9 @@ export const RATE_HITS_RETENTION_HOURS = 2;
  * delivery logs, unplaced messages, and the model-usage rows the two budgets
  * read over a rolling day. Purged after RETENTION_DAYS.events_evidence; the
  * activity log hides the same families unless asked by name
- * (ACTIVITY_NOISE_PREFIXES). usage.voice_seconds and usage.wa_conversation
+ * (ACTIVITY_NOISE_PREFIXES), and the kinds named in ACTIVITY_NOISE_KINDS beside them:
+ * a record, kept, that no owner reads as activity.
+ * usage.voice_seconds and usage.wa_conversation
  * are NOT here: a call's cost and a WhatsApp conversation's opening are the
  * record, and the reports read them.
  */
