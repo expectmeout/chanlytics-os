@@ -651,7 +651,7 @@ export async function failedMessageErrors(
     if (error) throw new Error(`failedMessageErrors: ${error.message}`);
     for (const r of data ?? [])
       if (r.error !== null && typeof r.error === "object" && !Array.isArray(r.error))
-        out.push({ id: r.id, error: r.error as Record<string, unknown> });
+        out.push({ id: r.id, error: r.error });
   }
   return out;
 }
