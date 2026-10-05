@@ -960,6 +960,7 @@ const { plLoadedWords } = await import("../../../../apps/dashboard/src/surfaces/
 const { PipelineScope } = await import("../../../../apps/dashboard/src/surfaces/people/pipeline/scope.tsx");
 // The kit's Menu, which a row and a card draw their acts with.
 const { Menu } = await import("../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
+const { Sheet } = await import("../../../../apps/dashboard/src/surfaces/kit/sheet/sheet.tsx");
 const { standingSaid } = await import("../../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
 /** The page's one filled button: in the frame's head on a desk (what the page says to it, standing.tsx), the bar's + on a phone. */
 const newOpen = (tree) =>
@@ -1613,16 +1614,17 @@ test("on a phone: one bar with the switch, the view's list button, search and Ne
     );
     click(lists);
     const sheetTree = draw();
-    const sheet = byTestId(sheetTree, "people-lists-sheet");
+    // The kit's Sheet (kit/sheet/sheet.tsx), read by what the page hands it while it is open: its title names it.
+    const sheet = find(sheetTree, (n) => n.type === Sheet && n.props.testid === "people-lists-sheet" && n.props.open);
     assert.ok(sheet, "the rail's rows, as a sheet");
-    assert.deepEqual(
-      [sheet.props["aria-label"], textOf(byClass(sheet, "sb-sheet-title"))],
-      ["Show", "Show"],
-      "named for what it holds: the Pipeline's views, not People's lists",
-    );
+    assert.equal(sheet.props.title, "Show", "named for what it holds: the Pipeline's views, not People's lists");
     click(byTestId(sheet, "pipeline-rail-row-clients"));
     assert.equal(went.at(-1), "clients/pipeline:v-clients");
-    assert.equal(byTestId(draw(), "people-lists-sheet"), null, "a pick closes it");
+    assert.equal(
+      find(draw(), (n) => n.type === Sheet && n.props.testid === "people-lists-sheet" && n.props.open),
+      null,
+      "a pick closes it",
+    );
     // New proposal's picker is a phone's sheet, whose search takes focus as it opens: that sheet has no focus rule.
     click(newOpen(draw()));
     const picker = draw();

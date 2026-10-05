@@ -438,48 +438,51 @@ function listsSheet(s: PeopleState) {
     createList,
     restoreList,
     newListSignal,
+    listsOpen,
     setListsOpen,
     agg,
     setListId,
     setSavedId,
   } = s;
   return (
-    <PeopleListsSheet onClose={() => setListsOpen(false)}>
-      <PeopleRail
-        compact
-        scope="people"
-        everyone={{
-          count: agg.total,
-          active: !listId && !savedId,
-          onPick: () => {
-            setListId(null);
+    <PeopleListsSheet open={listsOpen} onClose={() => setListsOpen(false)}>
+      {listsOpen ? (
+        <PeopleRail
+          compact
+          scope="people"
+          everyone={{
+            count: agg.total,
+            active: !listId && !savedId,
+            onPick: () => {
+              setListId(null);
+              setSavedId(null);
+              setListsOpen(false);
+            },
+          }}
+          lists={lists}
+          groups={people.groups || PL_DEFAULT_GROUPS}
+          active={listId}
+          // In the sheet a press opens the list and closes the sheet, never toggles back to Everyone (Leads' too).
+          onPick={(id) => {
             setSavedId(null);
+            setListId(id);
             setListsOpen(false);
-          },
-        }}
-        lists={lists}
-        groups={people.groups || PL_DEFAULT_GROUPS}
-        active={listId}
-        // In the sheet a press opens the list and closes the sheet, never toggles back to Everyone (Leads' too).
-        onPick={(id) => {
-          setSavedId(null);
-          setListId(id);
-          setListsOpen(false);
-        }}
-        saved={saved}
-        activeSaved={savedId}
-        onPickSaved={(id) => {
-          setListId(null);
-          setSavedId(id);
-          setListsOpen(false);
-        }}
-        canEdit={canEditLists}
-        onCreateList={createList}
-        savedRead={people.savedRead !== false}
-        archived={people.archived || PL_NO_LISTS}
-        onRestore={restoreList}
-        newListSignal={newListSignal}
-      />
+          }}
+          saved={saved}
+          activeSaved={savedId}
+          onPickSaved={(id) => {
+            setListId(null);
+            setSavedId(id);
+            setListsOpen(false);
+          }}
+          canEdit={canEditLists}
+          onCreateList={createList}
+          savedRead={people.savedRead !== false}
+          archived={people.archived || PL_NO_LISTS}
+          onRestore={restoreList}
+          newListSignal={newListSignal}
+        />
+      ) : null}
     </PeopleListsSheet>
   );
 }
@@ -583,7 +586,7 @@ export function peopleScreen(s: PeopleState) {
         )}
         {/* The phone's rail, as a sheet (the rail itself is not drawn at 900px and under), last in the tree. Its switch is
             the bar's; its first row is Everyone. */}
-        {listsOpen && listsSheet(s)}
+        {phone ? listsSheet(s) : null}
         {/* People's own two sheets on a phone, the kit's: drawn while open, and on their way out. */}
         <PeopleAddSheet
           open={phone && addOpen}

@@ -4121,14 +4121,14 @@ test("at a phone's width a list picked in the Lists sheet opens and the sheet cl
     let tree = draw({ leadsRoute: "leads" });
     click(byTestId(tree, "leads-phone-lists"));
     tree = draw({ leadsRoute: "leads" });
-    assert.ok(byTestId(tree, "people-lists-sheet"), "the sheet is open");
-    click(byTestId(byTestId(tree, "people-lists-sheet"), "leads-list-ready"));
+    assert.ok(openSheet(tree, "people-lists-sheet"), "the sheet is open");
+    click(byTestId(openSheet(tree, "people-lists-sheet"), "leads-list-ready"));
     assert.equal(went.at(-1), leadsRoute({ list: "ready" }), "the list opens");
     tree = draw({ leadsRoute: "leads:l-ready" });
-    assert.equal(byTestId(tree, "people-lists-sheet"), null, "and the sheet has closed on it");
+    assert.equal(openSheet(tree, "people-lists-sheet"), null, "and the sheet has closed on it");
     click(byTestId(tree, "leads-phone-lists"));
     tree = draw({ leadsRoute: "leads:l-ready" });
-    click(byTestId(byTestId(tree, "people-lists-sheet"), "leads-list-ready"));
+    click(byTestId(openSheet(tree, "people-lists-sheet"), "leads-list-ready"));
     assert.equal(went.at(-1), leadsRoute({ list: "ready" }), "pressed again, it stays that list, never all leads");
   } finally {
     globalThis.__phone = false;

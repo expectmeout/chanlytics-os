@@ -63,7 +63,7 @@ export function usePeopleState({
   });
   const { phone, selectMode, canExport, plFlash, sel, toggleSel, sortBy, sortDir, q } = controls;
   const sheets = usePeopleSheets(newList, savedId);
-  const { listsOpen, setListsOpen } = sheets;
+  const { setListsOpen } = sheets;
   // The roles ROLE_PERMS gives `approve`: owner, operator, and the partner (0012).
   const canEditLists = mayAtLeast("operator");
   usePeopleAddress(listId, savedId, tab);
@@ -99,14 +99,12 @@ export function usePeopleState({
     plFlash,
     onOpenProfile,
   });
-  // What the keyboard's one listener reads (usePlPlace): Enter opens the person, and People's own sheets.
+  // What the keyboard's one listener reads (usePlPlace): Enter opens the person.
   place.keysWith({
     open: onOpenProfile,
     canSelect: canEditLists || canExport,
-    // The Lists sheet is the page's own, and closes on its own Esc. People's small jobs and the selection's sheet are the
-    // kit's: in PL_OVERLAY while open, so the keys hold still behind them, and each closes on its own Esc (Base UI's).
-    sheetOpen: listsOpen,
-    closeSheet: null,
+    // People's sheets on a phone are the kit's, the Lists sheet, its small jobs and the selection's: in PL_OVERLAY while open,
+    // so the keys hold still behind them, and each closes on its own Esc (Base UI's). None is the page's own.
   });
   // Whether anyone shown is selected, or a phone's Select people is on: the bar shows then, and on a phone a tap on a row
   // selects it rather than opening the person (Gmail's way; the face is the checkbox, clients.css).

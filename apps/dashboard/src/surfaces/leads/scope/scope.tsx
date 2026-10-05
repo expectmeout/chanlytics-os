@@ -413,11 +413,15 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
       {p.sel.size > 0 && p.rows.some((l) => p.sel.has(l.id)) && bulkBarOf(p, phone)}
       {peekOf(p, phone)}
       {/* The phone's rail, as a sheet from the bar's list button: the same rows, the same counts, the same searches and
-          the same New search. People's own sheet, which owns its Esc, so the page's one listener holds still while it is
-          open (keys.sheetOpen). Last in the tree, after everything whose state a stub React keys by order. The photo,
+          the same New search. People's, the kit's Sheet, in PL_OVERLAY while it is open, so the page's one listener holds
+          still behind it. Last in the tree, after everything whose state a stub React keys by order. The photo,
           expanded (D5): the peek's own view model, drawn large with the facts about the place beside it. */}
       {p.lightbox ? <LeadLightbox vm={p.lightbox} onClose={p.onCloseLightbox} /> : null}
-      {phone && p.listsOpen && <PeopleListsSheet onClose={p.onCloseLists}>{railRows}</PeopleListsSheet>}
+      {phone ? (
+        <PeopleListsSheet open={!!p.listsOpen} onClose={p.onCloseLists}>
+          {p.listsOpen ? railRows : null}
+        </PeopleListsSheet>
+      ) : null}
       {p.toastNode}
       {/* The rows' one Call menu, opened by a row's Call with its lead (cells/call-menu.tsx): it draws nothing here, and
           on the body while open. Last, so nothing before it moves for the stub React. */}
