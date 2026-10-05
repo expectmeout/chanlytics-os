@@ -43,10 +43,48 @@ test("REGRESSION: a contact's edit re-reads the threads with them -- their name 
     "PUT contacts/consent",
     "PUT contacts/marketing-consent",
     "DELETE contacts/[id]",
-  ])
-    assert.deepEqual(keysOf(route).sort(), ["conversations", "inbox", "people", "today"], route);
+  ]) {
+    const keys = keysOf(route);
+    for (const key of ["conversations", "inbox", "people", "today"]) assert.ok(keys.includes(key), `${route}: ${key}`);
+  }
+  assert.deepEqual(keysOf("PUT contacts/[id]/details").sort(), ["conversations", "inbox", "people", "today"]);
   // What a thread does not carry re-reads People alone.
   assert.deepEqual(keysOf("PUT contacts/[id]/receptionist"), ["people"]);
+});
+
+test("REGRESSION: a write that changes who a campaign reaches re-reads the pages that count it -- a yes recorded, then New message, showed the old audience", () => {
+  // Who a broadcast or a playbook reaches is counted from people's answers and from who exists (the composers' audience
+  // counts, the playbooks' "N will get it"), and Reports counts the yeses and stops. Each write that moves one of those
+  // re-reads the surfaces that count by it, with whatever it re-read before.
+  const counted = ["broadcasts", "playbooks"];
+  const answers = [
+    "PUT contacts/[id]/consent",
+    "PUT contacts/[id]/marketing-consent",
+    "PUT contacts/consent",
+    "PUT contacts/marketing-consent",
+  ];
+  for (const route of answers) {
+    const keys = keysOf(route);
+    for (const key of [...counted, "reports", "people"])
+      assert.ok(keys.includes(key), `${route} re-reads ${key}: ${keys}`);
+  }
+  // One list for the four, so an answer recorded for one person and for many cannot drift apart.
+  for (const route of answers) assert.deepEqual(keysOf(route).sort(), keysOf(answers[0]).sort(), route);
+  // A person added, imported or deleted is on an audience or off it.
+  for (const route of ["POST contacts", "POST contacts/import", "DELETE contacts/[id]"]) {
+    const keys = keysOf(route);
+    for (const key of [...counted, "people"]) assert.ok(keys.includes(key), `${route} re-reads ${key}: ${keys}`);
+  }
+  // A playbook made, changed or removed, and the class that lets the follow-up send, move what People's rows say of it
+  // (their `follow_up`).
+  for (const route of ["POST playbooks", "PUT playbooks/[id]", "DELETE playbooks/[id]", "PUT policies"]) {
+    assert.ok(keysOf(route).includes("people"), `${route} re-reads people: ${keysOf(route)}`);
+  }
+  // And each keeps what it re-read before.
+  assert.ok(keysOf("PUT policies").includes("settings"));
+  for (const key of ["playbooks", "broadcasts"]) assert.ok(keysOf("POST playbooks").includes(key), key);
+  for (const key of ["playbooks", "broadcasts", "reach_outs"])
+    assert.ok(keysOf("PUT playbooks/[id]").includes(key), `PUT playbooks/[id]: ${key}`);
 });
 
 test("a partner joining a workspace goes through the map, the switcher's list and the partner's count", () => {
