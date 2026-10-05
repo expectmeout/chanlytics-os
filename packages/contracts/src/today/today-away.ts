@@ -80,6 +80,20 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   reach_out_replied: ["reply to a reach-out", "replies to a reach-out"],
 };
 
+/**
+ * A group's words count what its rows are ABOUT, not the rows: sixteen nightly alerts about one thread read
+ * "16 conversations need you" (the 2 Oct 2026 audit). A row with no subject stands for itself. Said once, for the
+ * away card and the bell, so the two cannot count one pile two ways.
+ */
+function groupTitle<T extends { about?: { type: string; id: string } | null }>(
+  members: readonly T[],
+  noun: [one: string, many: string],
+  idOf: (r: T) => string,
+): string {
+  const subjects = new Set(members.map((m) => (m.about ? `${m.about.type}:${m.about.id}` : idOf(m)))).size;
+  return `${subjects} ${noun[subjects === 1 ? 0 : 1]}`;
+}
+
 /** A warning outranks good news, whatever their clocks say. */
 const AWAY_TONE_RANK: Record<string, number> = { warn: 0, "": 1, ok: 2 };
 
@@ -220,7 +234,7 @@ export function todayAwayGrouped<T extends AwayRowLike>(
     groups.push({
       row: members[0],
       count: members.length,
-      title: `${members.length} ${noun[1]}`,
+      title: groupTitle(members, noun, idOf),
       ids: members.map(idOf),
     });
   }
@@ -260,6 +274,8 @@ export interface BellNoteLike {
   key?: string;
   kind?: string;
   unread: boolean;
+  /** What a kept note is about, when the edge said: a group's words count the subjects, not the notes. */
+  about?: { type: string; id: string } | null;
 }
 
 /** One line of the bell: a note, or several notes of one kind said once ("9 calls"), which open with a tap. */
@@ -313,7 +329,7 @@ export function bellSections<T extends BellNoteLike>(rows: readonly T[]): Array<
         key: `${label}:${k}`,
         row: members[0],
         count: members.length,
-        title: `${members.length} ${noun[1]}`,
+        title: groupTitle(members, noun, idOf),
         members,
       });
     }

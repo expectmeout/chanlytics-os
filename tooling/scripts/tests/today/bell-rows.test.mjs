@@ -521,3 +521,26 @@ test("on a desk nothing slides: a mouse has the × and the note's own press", ()
   assert.equal(el.style.transform, undefined);
   assert.deepEqual(h.gone, []);
 });
+
+test("the bell groups by what its notes are about, as the away card does: sixteen notes on one thread are one conversation (the 2 Oct 2026 audit, C8)", () => {
+  const note = (i, about) => ({
+    id: `n:${i}`,
+    kind: "handoff",
+    unread: true,
+    title: "Reply delivery failed: Robin",
+    message: "x",
+    tone: "warn",
+    icon: "alert",
+    about,
+  });
+  const [section] = bellSections(Array.from({ length: 16 }, (_, i) => note(i, { type: "conversation", id: "c1" })));
+  assert.equal(section.label, "New");
+  assert.equal(section.lines[0].title, "1 conversation needs you", "REGRESSION: it said 16 conversations");
+  assert.equal(section.lines[0].count, 16, "and the line stands for every note it holds");
+  assert.equal(section.lines[0].members.length, 16);
+  const [spread] = bellSections([
+    note(1, { type: "conversation", id: "c1" }),
+    note(2, { type: "conversation", id: "c2" }),
+  ]);
+  assert.equal(spread.lines[0].title, "2 conversations need you");
+});

@@ -7,11 +7,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, QUOTE_MAX, leadQuestionRoute, attentionRow } from "@chanlytics/contracts";
+import { toTodayVM, todayBriefWords, QUOTE_MAX, leadQuestionRoute, attentionRow } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { personRow, daysAgo, ROW_NOW, ROW_TZ } from "../consent/_person-row.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
-import { installLegacyReact, fresh, again, all, byTestId } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, find, byTestId, textOf } from "../_legacy-react.mjs";
 
 // People's cells, from the code the page draws its rows with (surfaces/people/cells/columns.tsx).
 const { PL_COLUMNS, PL_PHONE_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
@@ -638,4 +638,124 @@ test("REGRESSION: the queue names the wire the thread is actually on", () => {
   // every row was before the column existed to say otherwise.
   const bare = toTodayVM(metrics(), conversations, escalations, calls, NOW).queue.rows;
   assert.equal(bare.find((r) => r.who === "Ana").channel, "Phone", "a call-back row is the call's");
+});
+
+/* ---- who is waiting is counted once, in the head, the foot and the brief (the 2 Oct 2026 audit) ---- */
+
+/** Nine people nobody has taken, the oldest waiting longest: Person 0 since 1:00 AM, Person 8 since 9:00 AM. */
+const crowd = (n) => {
+  const people = Array.from({ length: n }, (_, i) => ({
+    id: `p${i}`,
+    state: "needs_human",
+    paused_until: null,
+    last_wa_inbound_at: null,
+    last_message_at: "2026-09-06T05:00:00Z",
+    contact: contact(`k${i}`, `Person ${i}`, `+1305555${String(200 + i).padStart(4, "0")}`),
+    messages: [],
+  }));
+  const asking = people.map((p, i) => ({
+    id: `e-${p.id}`,
+    reason: "human_token",
+    details: null,
+    state: "open",
+    created_at: new Date(Date.parse("2026-09-06T05:00:00Z") + i * 3_600_000).toISOString(),
+    conversation_id: p.id,
+  }));
+  return { people, asking };
+};
+/** A caller who reached voicemail: a call worth a listen, which sorts after everyone waiting. */
+const voicemail = (i) =>
+  call(`kv${i}`, {
+    conversation_id: null,
+    contact_id: null,
+    from_e164: `+1347555${String(300 + i).padStart(4, "0")}`,
+    contact: null,
+    started_at: "2026-09-06T12:40:00Z",
+    ended_at: "2026-09-06T12:40:30Z",
+    duration_ms: 30_000,
+    in_voicemail: true,
+    summary: null,
+    wanted: null,
+    outcome: "voicemail",
+    follow_up: null,
+    caller_name: null,
+  });
+// Asked ten minutes before NOW: the people have waited longer, so it sorts after all of them.
+const lateSearch = search(
+  "s-late",
+  "Florists in Tampa",
+  round({ state: "waiting_on_owner", question: QUESTION, waiting_since: "2026-09-06T13:50:00Z", counted: 25 }),
+);
+
+test("the queue counts the people past the six apart from the calls and the searches that sort after them, and the brief says all of it", () => {
+  const { people, asking } = crowd(9);
+  const vm = toTodayVM(
+    metrics({ now: { ...metrics().now, escalations_open: 9 } }),
+    people,
+    asking,
+    [0, 1, 2, 3].map(voicemail),
+    NOW,
+    [lateSearch],
+  );
+  assert.equal(vm.queue.rows.length, 6);
+  assert.equal(vm.queue.more, 8, "everything past the six: three people, the search and four calls");
+  assert.equal(vm.queue.more_people, 3, "the people past the six, nothing else");
+  assert.equal(vm.queue.calls, 4, "every call worth a listen, though none is among the six drawn");
+  assert.equal(vm.queue.searches, 1, "and the search, though it sorts after nine people");
+  assert.equal(vm.queue.waiting, 10, "the nine people and the search");
+  const words = todayBriefWords(vm, null, []).text;
+  assert.match(words, /Person 0, Person 1, Person 2 and 6 more need you\./, `${words}: nine people, three named`);
+  assert.doesNotMatch(words, /and 11 more|and 8 more/, "REGRESSION: the calls and the search were counted as people");
+  assert.match(
+    words,
+    /4 calls are worth a listen\./,
+    "REGRESSION: the brief counted the calls among the six rows, which held none",
+  );
+  assert.match(words, /A search is waiting on your answer\./, "and the search past the six");
+});
+
+test("a person and four calls: the brief says one person needs you, not 'and 4 more'", () => {
+  const { people, asking } = crowd(1);
+  const vm = toTodayVM(
+    metrics({ now: { ...metrics().now, escalations_open: 1 } }),
+    people,
+    asking,
+    [0, 1, 2, 3, 4, 5, 6].map(voicemail),
+    NOW,
+  );
+  assert.equal(vm.queue.more, 2, "one person and seven calls: six shown, two more");
+  assert.equal(vm.queue.more_people, 0);
+  const words = todayBriefWords(vm, null, []).text;
+  assert.match(words, /^Person 0 needs you, waiting since 1:00 AM\./, words);
+  assert.match(words, /7 calls are worth a listen\./, words);
+});
+
+test("the queue's head counts who is waiting and the calls worth a listen apart; its foot counts the people the card could not hold", () => {
+  // Three waiting and a call worth a listen: the head said four.
+  const four = toTodayVM(metrics(), conversations, escalations, calls, NOW);
+  assert.equal(four.queue.rows.length, 4);
+  const head = rowsDrawn(four);
+  assert.equal(textOf(byTestId(head.tree, "today-queue-count")).trim(), "3", "REGRESSION: the head counted the call");
+  assert.match(
+    textOf(find(head.tree, (n) => n.props?.className === "tq-sub")),
+    /2 need you · 1 reply window closing · 1 call worth a listen/,
+    "the sentence beside it still says the call, apart",
+  );
+  // Six people and four calls: the card draws four rows, so two people are left; the foot said six, counting the calls.
+  const { people, asking } = crowd(6);
+  const busy = toTodayVM(
+    metrics({ now: { ...metrics().now, escalations_open: 6 } }),
+    people,
+    asking,
+    [0, 1, 2, 3].map(voicemail),
+    NOW,
+  );
+  assert.equal(busy.queue.more, 4, "the four calls sit past the six rows");
+  const drawn = rowsDrawn(busy);
+  assert.equal(textOf(byTestId(drawn.tree, "today-queue-count")).trim(), "6", "the six people");
+  assert.match(
+    textOf(find(drawn.tree, (n) => n.props?.className === "tq-foot")),
+    /^2 more in the Inbox/,
+    "REGRESSION: it said 6 more in the Inbox, counting four calls that live in Conversations",
+  );
 });

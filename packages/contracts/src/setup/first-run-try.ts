@@ -13,6 +13,7 @@ import { forwardingTestOpen } from "../voice/forwarding";
 import type { LiveCallVM } from "../voice/live";
 import { forwardedLineOf, type SetupDto } from "./setup";
 import { MIN_MS } from "../shared/time";
+import { mmss } from "../shared/clock";
 
 export type FirstRunTryStage = "listen" | "quiet" | "call" | "done" | "rows";
 
@@ -213,7 +214,7 @@ export function firstRunTryOf({ dto, calls, since, nowMs }: FirstRunTryInput): F
   const to = `conversations/${call.cvId}`;
   if (call.live) {
     const secs = Math.max(0, Math.floor((nowMs - (call.startedAtMs ?? nowMs)) / 1000));
-    const clock = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+    const clock = mmss(secs * 1000);
     return {
       ...base,
       stage: "call",

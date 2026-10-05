@@ -7,7 +7,7 @@ import { MIN_MS } from "../shared/time";
 import { formatPhoneDisplay } from "../shared/phone";
 import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import { replyWindow } from "../config/policy";
-import { standingOf } from "./standing";
+import { replyWaitsOnYou, standingOf } from "./standing";
 import { messageAt, isOptedOut, type ConversationDto, type MessageDto } from "./thread-dto";
 import { agentFor, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
 import { contactName, contactMeta, initialsOf } from "./thread-contact";
@@ -66,6 +66,34 @@ export function threadStanding(
   return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
 }
 
+/**
+ * The thread's held draft: the LAST one, not the first. If two ever coexist the newer one is what the customer would
+ * receive, so it is the one to offer controls for (cancelling withdraws every queued AI row on the thread anyway). The
+ * thread's view model offers it (`heldDraft`, `veto`) and `conversationWaitsOnYou` counts it: one pick, so the two
+ * cannot read different drafts.
+ */
+function heldDraftOf(messages: readonly MessageDto[]): MessageDto | null {
+  return [...messages].reverse().find(isHeldDraft) ?? null;
+}
+
+/**
+ * Whether a thread waits on you NOW, read off the wire: it needs a person and nobody has it (threadStanding), or the
+ * receptionist's reply is counting down and can still be stopped (standing.ts replyWaitsOnYou, which People's
+ * Needs you reads as well). The Inbox reads the same two facts off its view model (rules.ts ixWaitsOnYou) for its chip,
+ * its list and the sidebar's badge, with the one thing only a tab knows, a hold made in it; this is that count for a
+ * page that holds the wire. Today published threadStanding alone, and overwrote the Inbox's badge with a number
+ * that left the drafts out on every refresh: 21 on the chip, 19 on the badge (the 2 Oct 2026 audit).
+ */
+export function conversationWaitsOnYou(
+  dto: ConversationDto,
+  escalation: EscalationDto | null,
+  now = new Date(),
+): boolean {
+  if (threadStanding(dto, escalation, now).needsYou) return true;
+  const draft = heldDraftOf(dto.messages);
+  return !!draft && replyWaitsOnYou({ endsAtMs: draftSendsAtMs(draft) }, now.getTime());
+}
+
 export function toInboxThreadVM(
   dto: ConversationDto,
   escalation: EscalationDto | null,
@@ -77,16 +105,7 @@ export function toInboxThreadVM(
   // takenOver = a human claimed it (assignee set by take-over/reply) — the pane
   // then shows the owned-thread strip + hand-back instead of the take banner.
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
-  // The LAST held draft, not the first: if two ever coexist the newer one is
-  // what the customer would receive, so it is the one to offer controls for.
-  // Cancelling withdraws every queued AI row on the thread anyway.
-  let draftMsg: MessageDto | null = null;
-  for (let i = dto.messages.length - 1; i >= 0; i--) {
-    if (isHeldDraft(dto.messages[i])) {
-      draftMsg = dto.messages[i];
-      break;
-    }
-  }
+  const draftMsg = heldDraftOf(dto.messages);
   const heldDraft = draftMsg
     ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) }
     : null;

@@ -203,3 +203,27 @@ test("the lists a member pinned are one row of doors on Today, with People's cou
     delete globalThis.__lists;
   }
 });
+
+test("a group of rows about ONE thread says one conversation, however many alerts it raised (the 2 Oct 2026 audit, C8)", () => {
+  const handoff = (i, id) => ({
+    id: `n:${i}`,
+    kind: "handoff",
+    unread: true,
+    title: "Reply delivery failed: Robin",
+    message: "x",
+    tone: "warn",
+    icon: "alert",
+    about: { type: "conversation", id },
+  });
+  const sixteen = todayAwayGrouped(Array.from({ length: 16 }, (_, i) => handoff(i, "c1")));
+  assert.equal(sixteen.groups[0].title, "1 conversation needs you", "REGRESSION: it said 16 conversations");
+  assert.equal(sixteen.groups[0].count, 16, "the group still stands for every row, so Mark read reaches all");
+  assert.equal(sixteen.groups[0].ids.length, 16);
+  const three = todayAwayGrouped([handoff(1, "c1"), handoff(2, "c2"), handoff(3, "c3")]);
+  assert.equal(three.groups[0].title, "3 conversations need you");
+  const mixed = todayAwayGrouped([handoff(1, "c1"), handoff(2, "c1"), handoff(3, "c2")]);
+  assert.equal(mixed.groups[0].title, "2 conversations need you", "three rows, two threads");
+  // A row that says nothing of what it is about stands for itself: two of them are two.
+  const bare = (i) => ({ ...handoff(i, "x"), about: null });
+  assert.equal(todayAwayGrouped([bare(1), bare(2)]).groups[0].title, "2 conversations need you");
+});

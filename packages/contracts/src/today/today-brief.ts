@@ -87,7 +87,7 @@ export function toTodayVM(
       noReply,
       calls: null,
       callsRead: f.callsRead,
-      queue: { rows: [], more: 0, parts: [], empty, waiting: 0 },
+      queue: { rows: [], more: 0, more_people: 0, calls: 0, searches: 0, parts: [], empty, waiting: 0 },
       quiet: { ...todayQuietDay(f, proof), figures: quietFigures(f.live, f.tz, now) },
     };
   }
