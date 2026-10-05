@@ -47,16 +47,12 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-send:disabled { background: var(--bg-active); color: var(--ink-faint); cursor: default; }
 .ask-send:not(:disabled):hover { background: oklch(from var(--ink) calc(l + 0.08) c h); }
 .ask-send.talk.on, .ask-send.talk.on:hover { background: var(--accent); color: var(--accent-fg); }
-/* Connecting: the tap has landed and the agent is not up yet; the mic breathes until it is (ask-pulse, below). */
-.ask-send.talk.on.connecting { animation: ask-pulse 1.1s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .ask-send.talk.on.connecting { animation: none; opacity: .7; } }
-/* Up: the mic keeps a ring breathing out while the agent listens, quicker while it speaks (data-state), so a live line
-   never reads as off (Ruben, 4 Oct: a still coral button read as switched off, and a second tap ended the call). */
-.ask-send.talk.on { position: relative; }
-.ask-send.talk.on[data-state="listening"]::after, .ask-send.talk.on[data-state="speaking"]::after { content: ""; position: absolute; inset: -3px; border: 2px solid var(--accent); border-radius: inherit; opacity: 0; pointer-events: none; animation: ask-live 2.4s ease-out infinite; }
-.ask-send.talk.on[data-state="speaking"]::after { animation-duration: 1s; }
+/* The agent speaking (data-state, the hold's answer coming back aloud): a ring breathes out of the mic, so the voice
+   on the line is seen as well as heard; the next hold cuts it off. */
+.ask-send.talk { position: relative; }
+.ask-send.talk[data-state="speaking"]::after { content: ""; position: absolute; inset: -3px; border: 2px solid var(--accent); border-radius: inherit; opacity: 0; pointer-events: none; animation: ask-live 1s ease-out infinite; }
 @keyframes ask-live { 0% { opacity: .9; scale: .9; } 70%, 100% { opacity: 0; scale: 1.4; } }
-@media (prefers-reduced-motion: reduce) { .ask-send.talk.on[data-state="listening"]::after, .ask-send.talk.on[data-state="speaking"]::after { animation: none; opacity: .6; scale: 1.12; } }
+@media (prefers-reduced-motion: reduce) { .ask-send.talk[data-state="speaking"]::after { animation: none; opacity: .6; scale: 1.12; } }
 .ask-send .icon { animation: ask-bloom 160ms var(--ease-out) both; }
 @keyframes ask-bloom { from { transform: scale(.55); opacity: 0; } }
 /* The reading line: the latest trace, lined up with the field (84px face + 12px gap), a coral dot pulsing (S5). */

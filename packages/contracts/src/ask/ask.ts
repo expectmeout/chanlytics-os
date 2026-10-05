@@ -70,12 +70,24 @@ export const ASK_VOICE_MODEL = "eleven_turbo_v2";
 /** The most one speech request reads aloud: a brief runs 400 to 800 characters, an answer's say under 600. */
 export const ASK_SPEECH_MAX_CHARS = 1500;
 /**
- * How a voice conversation ended, the browser's word, one of a closed set the row keeps (00300): End pressed, typing,
- * a new conversation in its place, the Line closing, the far side ending it, or a start that never came up. The
- * voice doctor groups by it; "stopped" said nothing.
+ * How a voice conversation ended, the browser's word, one of a closed set the row keeps (00300, 00302): a press
+ * (Clear; End, while the mic had a tap), typing, a new conversation in its place, the Line closing, the far side
+ * ending it, a start that never came up, or a minute with nothing asked (`idle`, since the hold is the one mic and the
+ * session waits silently between questions). The voice doctor groups by it; "stopped" said nothing.
  */
-export const VOICE_END_REASONS = ["button", "typed", "superseded", "navigated", "vendor", "start"] as const;
+export const VOICE_END_REASONS = ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"] as const;
 export type VoiceEndReason = (typeof VOICE_END_REASONS)[number];
+/**
+ * How long a voice session waits with nothing asked before the browser ends it (`idle`): a minute, long enough for a
+ * follow-up, short enough that a session left open costs a minute of the vendor's and not ten. The agent's own
+ * re-engage ("..." at its turn timeout) resets the vendor's own after-last-message clock, so this clock is the end.
+ */
+export const ASK_VOICE_IDLE_MS = MIN_MS;
+/**
+ * How long a lift waits for a session that is still connecting before the words go the typed way instead (the text
+ * turn, then the clip): the connection starts on the press and takes two to four seconds; most holds outlast it.
+ */
+export const ASK_VOICE_UP_WAIT_MS = 2_500;
 /** The longest a browser's timing may claim on a session's end: ten minutes, the conversation's own ceiling. */
 export const ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 /**

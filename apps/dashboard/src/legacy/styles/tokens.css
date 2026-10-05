@@ -447,6 +447,16 @@
     radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), oklch(0.821 0.089 265 / 0.14), transparent),
     radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), oklch(0.98 0.013 64 / 0.95), transparent),
     radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), oklch(0.841 0.088 295 / 0.09), transparent);
+  /* The page's top on a phone: plain paper under the phone's own bar (the clock, the battery), and the light coming in
+     under it (Ruben, 4 Oct 2026). Safari runs the page under the bar, so the paper holds through the inset and fades
+     over the 64px after it; the phone app pads the bar itself and starts the page under it, where the inset reads 0,
+     so the paper is a soft edge from the strip the app painted. The dark side reads its own --bg through this. Laid
+     over the pools by the body's and the app's root's phone paint (below, and components.css), never by the page
+     name's tint (kit.css), which keeps the three pools alone. */
+  --surface-page-top: linear-gradient(
+    var(--bg) env(safe-area-inset-top, 0px),
+    transparent calc(env(safe-area-inset-top, 0px) + 64px)
+  );
   /* How much of its own ink a phone's page name lays over the page light, which tints its letters (kit.css, the page head):
      the light side is strong, and the canvases' name is faded by it into a slate (the pool is 14% blue there), so this
      lets most of the tint through; the dark side's pools are faint, so it keeps more. */
@@ -713,6 +723,12 @@ html, body {
   background-image: var(--surface-page-light);
   background-attachment: fixed;
   background-repeat: no-repeat;
+}
+/* On a phone the page's top is plain paper under the phone's bar (--surface-page-top). */
+@media (max-width: 900px) {
+  [data-look="glass"] body {
+    background-image: var(--surface-page-top), var(--surface-page-light);
+  }
 }
 /* Mona Sans plain: the stylistic sets above are Geist's. */
 html[data-look="glass"],

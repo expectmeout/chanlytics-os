@@ -30,7 +30,7 @@ test("agentConfig carries every value of spec §3.7 as amended: the custom LLM n
     conversation_config: {
       agent: {
         first_message: AGENT_FIRST_MESSAGE,
-        disable_first_message_interruptions: true,
+        disable_first_message_interruptions: false,
         language: "en",
         prompt: {
           prompt:
@@ -61,8 +61,8 @@ test("agentConfig carries every value of spec §3.7 as amended: the custom LLM n
       },
       turn: {
         turn_eagerness: "patient",
-        turn_timeout: 25,
-        silence_end_call_timeout: 20,
+        turn_timeout: 30,
+        silence_end_call_timeout: -1,
         speculative_turn: false,
         turn_model: "turn_v3",
         interruption_ignore_terms: INTERRUPTION_IGNORE_TERMS,
@@ -95,11 +95,13 @@ test("agentConfig carries every value of spec §3.7 as amended: the custom LLM n
       sentiment_analysis: { enabled: false },
     },
   });
-  assert.equal(AGENT_FIRST_MESSAGE, "I'm listening.");
-  assert.ok(
-    body.conversation_config.turn.silence_end_call_timeout < body.conversation_config.turn.turn_timeout,
-    "a silent call ends before the agent asks the brain again: the door's \"I'm here.\" is never said to an empty room",
+  assert.equal(AGENT_FIRST_MESSAGE, "", "the session comes up during the hold: the first words are the person's");
+  assert.equal(
+    body.conversation_config.turn.silence_end_call_timeout,
+    -1,
+    "the muted session is silent by design: the vendor's silence end would cut it before a follow-up",
   );
+  assert.ok(body.conversation_config.conversation.client_events.includes("audio"), "the agent's speech is gated on it");
   assert.equal(
     ASK_VOICE_MODEL,
     "eleven_turbo_v2",
@@ -171,7 +173,7 @@ test("agentDrift: an agent read back that is the body answers no difference; the
     drift.find((d) => d.path.endsWith("turn_timeout")),
     {
       path: "conversation_config.turn.turn_timeout",
-      want: 25,
+      want: 30,
       got: 7,
     },
   );
@@ -196,5 +198,5 @@ test("the body printed hides the secret; the dry run prints it and calls nothing
   assert.ok(out.includes('"x-chanlytics-agent": "<secret>"'), "the header's value is hidden");
   assert.ok(!out.includes("secret-for-this-test") && !out.includes("key-for-this-test"), "neither secret is printed");
   assert.ok(out.includes('"url": "https://app.example.com/api/ask/voice/llm"'));
-  assert.ok(out.includes('"first_message": "I\'m listening."'));
+  assert.ok(out.includes('"first_message": ""'), "the agent says nothing on connect");
 });

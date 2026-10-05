@@ -14,7 +14,7 @@ export const SCHEMA_SETS = {
     "note_suggest", "reach_out_check", "reply_read",
   ],
   "ask_messages.role": ["user", "assistant"],
-  "ask_voice_sessions.end_reason": ["button", "typed", "superseded", "navigated", "vendor", "start"],
+  "ask_voice_sessions.end_reason": ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"],
   "ask_voice_sessions.language": ["en", "es", "other"],
   "billing_accounts.mode": ["stripe", "direct"],
   "billing_accounts.status": [

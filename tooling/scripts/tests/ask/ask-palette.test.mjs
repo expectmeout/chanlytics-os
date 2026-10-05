@@ -2191,7 +2191,7 @@ test("the thread's arithmetic: the newest question stands a breath under the thr
   assert.equal(H.latestShown({ qTop: 560, scrollTop: 0, clientHeight: 600 }), false, "its first line in sight");
 });
 
-test("a question spoken is answered aloud by itself: the hold's words asked, the answer's say goes to Ask's voice as it lands, with Read showing it is getting the voice then Stop; a typed question stays quiet (the spec's §3.5 as amended 4 Oct)", async () => {
+test("a question spoken where the agent's session cannot come up (no microphone for the agent, a mint refused) is still answered aloud, by the clip: the answer's say goes to Ask's voice as it lands, with Read showing it is getting the voice then Stop; a typed question stays quiet (the spec's §3.5 as amended 4 Oct)", async () => {
   const ph = phoneWindow();
   const props = { open: true, onClose() {} };
   const s = speechStub();
@@ -2216,9 +2216,7 @@ test("a question spoken is answered aloud by itself: the hold's words asked, the
     const calls = ask([]);
     Object.assign(globalThis.window.__ask, {
       ...s.stub,
-      canVoice: () => true,
-      startVoice: async () => ({ threadId: "t-voice", title: "Voice" }),
-      stopVoice: async () => {},
+      canVoice: () => false,
       send: async (input, on) => {
         calls.sent.push(input.text);
         const n = calls.sent.length;
@@ -2228,7 +2226,7 @@ test("a question spoken is answered aloud by itself: the hold's words asked, the
     });
     render(Palette, props);
     let tree = await later(Palette, props);
-    // A hold past the beat dictates; the recogniser hears the question and the lift asks it.
+    // A hold dictates; the recogniser hears the question and the lift asks it (no agent here: the typed way).
     byTestId(tree, "ask-talk").props.onPointerDown(down());
     await wait(340);
     assert.equal(recs.length, 1, "the hold dictates");
@@ -2348,7 +2346,7 @@ test("on a phone the mic keeps the finger: the lift asks what was heard, and Typ
   }
 });
 
-test("where Ask can talk, a press on the mic waits the beat: a lift inside it is a tap that talks with Ask and never starts the recogniser; a finger still down when the beat ends dictates as before", async () => {
+test("the hold is the one mic: the press asks for the agent's session and starts the recogniser at once, the lift sends the words heard to the agent when it is up and the Line hears the question from the module; the agent's answer streams in as it speaks, a ring on the mic; a typed question is answered in text alone and ends the session", async () => {
   const ph = phoneWindow();
   const recs = [];
   globalThis.window.SpeechRecognition = class {
@@ -2366,56 +2364,82 @@ test("where Ask can talk, a press on the mic waits the beat: a lift inside it is
     rec.onresult({ results: [r] });
   };
   const down = () => ({ ...pressOf(), pointerId: 7, currentTarget: { setPointerCapture: () => {} } });
-  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  const started = [];
+  const ensured = [];
+  const spoken = [];
+  const stops = [];
+  const hushed = [];
+  let listener = null;
   try {
     const calls = ask([]);
     Object.assign(globalThis.window.__ask, {
       canVoice: () => true,
-      startVoice: async (input, on) => {
-        started.push({ input, on });
+      voiceUp: () => ensured.length > 0,
+      voiceThread: () => "t-voice",
+      ensureVoice: async (input, on) => {
+        ensured.push(input);
+        listener = on;
         return { threadId: "t-voice", title: "Voice" };
       },
-      stopVoice: async () => {},
+      soonVoice: async (input, on) => {
+        listener = on;
+        return { threadId: "t-voice", title: "Voice" };
+      },
+      sayVoice: (text) => {
+        spoken.push(text);
+        return true;
+      },
+      hushVoice: (on) => hushed.push(on),
+      stopVoice: async (reason) => {
+        stops.push(reason);
+      },
     });
     render(Palette, OPEN);
     let tree = await later(Palette, OPEN);
     const mic = byTestId(tree, "ask-talk");
-    assert.ok(mic, "the mic, where Ask can talk");
-    // A tap: down and up inside the beat.
+    assert.ok(mic, "the mic, held to talk");
+    assert.equal(byTestId(tree, "ask-voice"), null, "no tap, no End: one mic");
     mic.props.onPointerDown(down());
-    mic.props.onPointerUp();
-    for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
-    assert.equal(recs.length, 0, "a tap never starts the recogniser");
-    assert.equal(started.length, 1, "a tap talks with Ask");
-    assert.equal(started[0].input.ask, undefined, "with no first question of its own");
-    assert.ok(byTestId(tree, "ask-voice"), "and the one button is the conversation's end");
-    // Up, the button says what the agent is doing and the way out, and draws it (data-state): a still button read as off.
-    const t = globalThis.window.askText("en");
-    let end = byTestId(tree, "ask-voice");
-    assert.equal(end.props["data-state"], "listening", "up: the agent listens");
-    assert.equal(end.props["aria-label"], t.voiceListening, "and the button says so, with the way out");
-    started[0].on({ t: "mode", mode: "speaking" });
-    tree = await later(Palette, OPEN);
-    end = byTestId(tree, "ask-voice");
-    assert.equal(end.props["data-state"], "speaking", "the agent speaks");
-    assert.equal(end.props["aria-label"], t.voiceSpeaking);
-    await wait(340);
-    assert.equal(recs.length, 0, "and the beat, cleared by the lift, never fires");
-    started[0].on({ t: "gone", reason: "agent" });
-    tree = await later(Palette, OPEN);
-    assert.ok(byTestId(tree, "ask-talk"), "the agent gone, the mic again");
-    // A hold: the finger is still down when the beat ends, so the recogniser starts then; the lift asks what it heard.
-    byTestId(tree, "ask-talk").props.onPointerDown(down());
-    assert.equal(recs.length, 0, "a hold waits the beat before it dictates");
-    await wait(340);
-    assert.equal(recs.length, 1, "then dictates");
+    assert.equal(recs.length, 1, "the press dictates at once: no beat to wait");
+    assert.equal(ensured.length, 1, "and asks for the agent's session");
+    assert.equal(ensured[0].threadId, null, "on no thread yet");
+    assert.deepEqual(hushed, [true], "the agent's voice held down while the person talks");
     hears(recs[0], "how did the week go");
     tree = await later(Palette, OPEN);
     byTestId(tree, "ask-talk").props.onPointerUp();
-    for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
-    assert.deepEqual(calls.sent, ["how did the week go"], "the lift off a hold asks");
-    assert.equal(started.length, 1, "and never talks with Ask");
+    for (let i = 0; i < 4; i++) tree = await later(Palette, OPEN);
+    assert.deepEqual(spoken, ["how did the week go"], "the lift's words go to the agent as the person's turn");
+    assert.deepEqual(calls.sent, [], "and not the typed way");
+    assert.deepEqual(hushed, [true, false], "the voice back up on the lift");
+    // The module tells the Line the question (the vendor sends no transcript of a text turn), and the agent's words
+    // stream in as it speaks them; the mic wears a ring meanwhile.
+    listener({ t: "question", text: "how did the week go" });
+    listener({ t: "mode", mode: "speaking" });
+    listener({ t: "say", headline: "Two people need you.", detail: "" });
+    tree = await later(Palette, OPEN);
+    assert.equal(
+      byTestId(tree, "ask-talk").props["data-state"],
+      "speaking",
+      "a ring on the mic while the agent speaks",
+    );
+    const shown = textOf(tree);
+    assert.ok(shown.includes("how did the week go"), "the question on the line");
+    assert.ok(shown.includes("Two people need you."), "and the answer as it is spoken");
+    listener({ t: "mode", mode: "listening" });
+    listener({ t: "landed" });
+    tree = await later(Palette, OPEN);
+    assert.equal(byTestId(tree, "ask-talk").props["data-state"], undefined, "the ring gone with the voice");
+    // A second hold on the same thread: the session running, the words go straight to it.
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    hears(recs[1], "and the month");
+    tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerUp();
+    for (let i = 0; i < 4; i++) tree = await later(Palette, OPEN);
+    assert.deepEqual(spoken, ["how did the week go", "and the month"]);
+    assert.equal(ensured.at(-1).threadId, "t-voice", "the hold names the thread the session is on");
+    // Typed: answered in text alone, and the session ends (one voice at a time).
+    tree = await asks(tree, OPEN, "and last year?");
+    assert.deepEqual(stops, ["typed"], "a typed question ends the session");
+    assert.equal(spoken.length, 2, "and goes the typed way");
   } finally {
     await closes();
     delete globalThis.window.SpeechRecognition;

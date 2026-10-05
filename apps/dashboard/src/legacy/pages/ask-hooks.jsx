@@ -256,50 +256,40 @@ const ahSlide = (from, stage, hero) => {
 // second. Where the device cannot (no microphone, or no secure page) `can` is false and nothing starts.
 const AH_VOICE_LEVEL_MS = 50;
 const useAskVoice = ({ A, M, hear }) => {
-  const [on, setOn] = useAhState(false);
-  // Connecting: the tap has landed and the agent is not up yet; the button says so, and a tap meanwhile ends it.
+  const [up, setUp] = useAhState(false);
+  // Connecting: the press has landed and the session is not up yet.
   const [connecting, setConnecting] = useAhState(false);
   const [mode, setMode] = useAhState("listening");
-  const threadRef = useAhRef(null);
   const hearRef = useAhRef(hear);
   hearRef.current = hear;
   const can = !!(A && A.canVoice && A.canVoice());
-  const rest = () => { setOn(false); setConnecting(false); setMode("listening"); threadRef.current = null; };
-  // The end: the Line is told first (the conversation's end comes back as "gone" through the same hearing, with the
-  // thread still known, so the stored turn is read), and the thread forgotten after.
-  // The end, with the person's reason (voice.ts: `button` End pressed, `typed`, `navigated` the Line closing), which
-  // the row keeps (00300).
+  const rest = () => { setUp(false); setConnecting(false); setMode("listening"); };
+  // What the module tells of the session: the agent's mode, every action for the Line, and the end (gone), after which
+  // the Line reads the stored turn off the thread the module still names.
+  const listen = (a) => { if (a.t === "mode") setMode(a.mode); hearRef.current(a); if (a.t === "gone") rest(); };
+  const landed = (got) => { setConnecting(false); setUp(!!got); return got; };
+  // The press: the session asked for (up by the lift, most holds); nothing to say yet.
+  const ensure = (input) => {
+    if (!can) return Promise.resolve(null);
+    if (!(A.voiceUp && A.voiceUp())) setConnecting(true);
+    return A.ensureVoice(input, listen).then(landed, () => landed(null));
+  };
+  // The lift: the session if it is up within the lift's patience, else null and the words go the typed way.
+  const soon = (input) => (can ? A.soonVoice(input, listen).then(landed, () => landed(null)) : Promise.resolve(null));
+  const say = (text) => !!(A && A.sayVoice && A.sayVoice(text));
+  const hush = (on) => { if (A && A.hushVoice) A.hushVoice(on); };
+  // The end, with the person's reason (voice.ts: `button` Clear, `typed`, `navigated` the Line closing), kept on the row (00300).
   const stop = async (reason = "button") => {
-    setOn(false); setMode("listening");
+    setUp(false); setMode("listening");
     if (A && A.stopVoice) await A.stopVoice(reason);
-    threadRef.current = null;
   };
-  const start = async (input) => {
-    if (!can) return null;
-    setOn(true); setConnecting(true); setMode("listening");
-    try {
-      const got = await A.startVoice(input, (a) => {
-        if (a.t === "mode") setMode(a.mode);
-        // Heard before the rest: "gone" reads the thread off threadRef, which the rest clears.
-        hearRef.current(a);
-        if (a.t === "gone") rest();
-      });
-      // Ended before it was up (null): nothing runs, and the Line was told so.
-      if (!got) { rest(); return null; }
-      setConnecting(false);
-      threadRef.current = got.threadId;
-      return got;
-    } catch (e) {
-      rest();
-      throw e;
-    }
-  };
+  const speaking = up && mode === "speaking";
   useAhEffect(() => {
-    if (!on || mode !== "speaking" || !M || !M.mood.voice) return undefined;
+    if (!speaking || !M || !M.mood.voice) return undefined;
     const id = setInterval(() => M.mood.voice(A.level ? A.level() : 0, true), AH_VOICE_LEVEL_MS);
     return () => { clearInterval(id); M.mood.voice(0, false); };
-  }, [on, mode, A, M]);
-  return { can, on, connecting, mode, start, stop, threadId: () => threadRef.current };
+  }, [speaking, A, M]);
+  return { can, up, connecting, speaking, ensure, soon, say, hush, stop, threadId: () => (A && A.voiceThread ? A.voiceThread() : null) };
 };
 
 window.AskHooks = {

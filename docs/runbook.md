@@ -901,10 +901,12 @@ Nothing of it runs until the five variables are set, and each app refuses in wor
    `--set-url` refuses production's name. The key comes from the environment or `apps/edge/.env.local`, the header's
    value from `ELEVENLABS_LLM_SECRET` (each agent its own). The id an edge mints on is its `ELEVENLABS_AGENT_ID`. The
    body is `tooling/scripts/voice/elevenlabs-agent-config.mjs`, held to the spec by
-   `tooling/scripts/tests/ask-voice/elevenlabs-agent.test.mjs`: the agent speaks first ("I'm listening."), patient
-   turns that end a silent call after twenty seconds, before the agent would ask the brain again at twenty-five, room
-   voices detected and the listener's words ignored, Ask's one voice (contracts `ASK_VOICE_ID`) on its one model
-   (`ASK_VOICE_MODEL`, Turbo v2), no override but the extra body, the vendor's
+   `tooling/scripts/tests/ask-voice/elevenlabs-agent.test.mjs`: the agent says nothing on connect (the session comes
+   up during the hold; the first words are the person's), patient turns, the turn timeout at its longest (30) and the
+   silence end off (the session's microphone is muted; the brain door answers the vendor's "..." with the buffer words,
+   and the browser ends an idle session after a minute, `idle`), room voices detected and the listener's words
+   ignored, Ask's one voice (contracts `ASK_VOICE_ID`) on its one model (`ASK_VOICE_MODEL`, Turbo v2), `audio` among
+   the client events (it gates the agent's speech), no override but the extra body, the vendor's
    transcript readers off, `cascade_timeout_seconds` 15 (the vendor's ceiling; the brain door sends the vendor's buffer
    words whenever ten seconds pass with nothing speakable, contracts `ASK_VOICE_PULSE_MS`), audio not recorded, seven
    days' retention, the limits of the plan.
@@ -925,8 +927,12 @@ token and the spend check) for the vendor's text-to-speech stream in the same vo
 No agent, no microphone, no row. Logged as `ask_speech` (`purpose`, `chars`, `ttfb_ms`) and `ask_speech_refused`
 on the dashboard, `voice_speech_spoken` and `voice_speech_refused` on the edge; counted as `speech`, sixty an hour a
 person. The browser's own synthesis is gone: a clip that cannot be made says why beside the button, and nothing
-else speaks. A question the recogniser heard is answered aloud by itself when its answer lands; a typed one is not.
-One voice at a time: a clip ends a conversation that is running, and a conversation ends a clip. The
+else speaks. **The hold is the one mic** (4 Oct, evening): the mic's press asks for the agent's session (its microphone
+muted) and starts the browser's recogniser; the lift sends the words heard to the agent as a text turn, and the agent
+answers aloud at once, its words streaming into the Line as it speaks; a session not up by the lift leaves the words
+to the typed way, read aloud by the clip when the answer lands; the next hold cuts the agent off; a typed question is
+answered in text alone and ends the session. One voice at a time: a clip ends a session that is running, and a hold
+ends a clip. The
 words of each clip go into the vendor's text-to-speech history under the account's retention (zero retention is an
 Enterprise switch); deleting each after it plays is the spec's §8 follow-up.
 
@@ -955,8 +961,10 @@ select date_trunc('hour', created_at) as hour, end_reason, count(*) as n,
 ```
 
 A row with `end_reason` null ended by the webhook alone (the browser never said), `start` never came up, `vendor` was
-cut from the far side, `superseded` was a second tap. Healthy: `connect_p50_ms` under 3,000, `first_audio_p50_ms`
-under 4,000, `spoke` close to `n`, few `superseded`.
+cut from the far side, `superseded` was replaced (a hold on another thread, a clip), `idle` waited a minute with
+nothing asked (the usual end since the hold became the one mic: most rows), `typed` and `navigated` are the person's.
+Healthy: `connect_p50_ms` under 3,000, `first_audio_p50_ms` under 6,000 (the press to the agent's first word of the
+answer: the hold itself is in it), `spoke` close to `n`, few `start` and `vendor`.
 
 The gate, as every phase's: `E2E_BASE_URL=https://<host> ELEVENLABS_LLM_SECRET=… REPS=3 node tooling/scripts/eval-ask.mjs --spoken`
 asks every first turn through the brain door as the agent would and adds the spoken rules to the judge

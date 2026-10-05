@@ -224,8 +224,10 @@
   .rp-agents .tbl { min-width: 680px; }
 
   /* ---------- Settings ---------- */
-  /* The leading tile at the phone row's face size (tokens.css --row-face). */
-  .settings { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); --set-lead: var(--row-face, 32px); }
+  /* The leading tile at the phone row's face size (tokens.css --row-face). The one column is minmax(0, 1fr), never a
+     bare 1fr: Safari sized a bare 1fr to the strip of sections laid end to end (775px on a 393px iPhone), and every
+     pane under the strip took that width and ran off the screen's right edge (4 Oct). */
+  .settings { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); --set-lead: var(--row-face, 32px); }
   .setup-rows { --set-lead: var(--row-face, 32px); }
   /* The sections are every page's strip here (components.css .stabs, settings.jsx), where the rail was squeezed into
      a row of boxed icons that ran off the screen's edge with no sign there was more (25 Sep). The strip scrolls
