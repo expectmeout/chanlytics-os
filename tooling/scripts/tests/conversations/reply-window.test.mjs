@@ -20,6 +20,11 @@ const { buildProposal } = await import(
   pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/tools/index.ts")).href
 );
 
+// The person page's reading of the same rule: a helper of the people module, read from its source.
+const { replyChannelOfThreads } = await import(
+  pathToFileURL(path.join(here, "../../../../packages/contracts/src/people/person-helpers.ts")).href
+);
+
 const NOW = new Date("2026-09-10T15:00:00Z");
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const CONV = "33333333-3333-3333-3333-333333333333";
@@ -162,4 +167,45 @@ test("where a person last wrote is the wire of their own newest words: not a cal
   );
   assert.equal(card.isError, false, card.result);
   assert.equal(card.proposal.payload.window_open, true, "the reply goes by text, where she last wrote");
+
+  // And the case only the rule can pass: she last wrote on WhatsApp three days ago, and since then a call's note and
+  // her mailbox's out-of-office came in. The reply goes by WhatsApp, whose window has closed. "The newest inbound row"
+  // sent it by email, which has no window, and said the thread was open.
+  const closed = await buildProposal(
+    toolContext({
+      conversations: [thread({ last_wa_inbound_at: hoursAgo(72) })],
+      messages: [
+        row("m-wa", 72, { channel: "whatsapp" }),
+        row("m-call", 2, { channel: "voice", sender: "system", type: "call_summary" }),
+        row("m-ooo", 1, { channel: "email", meta: { email: { claim: "auto_reply" } } }),
+      ],
+    }),
+    "propose_reply",
+    { action: "draft", ...DRAFT },
+  );
+  assert.equal(closed.isError, false, closed.result);
+  assert.equal(closed.proposal.payload.window_open, false, "the reply goes by WhatsApp, and its window is closed");
+
+  // A person who has written nothing themselves is answered where the last thing from their side came from: a program
+  // at their address is still their address. The row, the person's page and the route say the same wire.
+  assert.equal(lastWroteOn([away]), null, "they wrote nothing");
+  assert.equal(threadChannelOf([campaign, away]), "email", "the thread is on the wire their side answered by");
+  const threads = (messages) => [{ messages: messages.map((m, i) => ({ created_at: hoursAgo(10 - i), ...m })) }];
+  assert.equal(replyChannelOfThreads(threads([campaign, away])), "email");
+  assert.equal(
+    replyChannelOfThreads(threads([said("whatsapp"), away, note])),
+    "whatsapp",
+    "their own words come first",
+  );
+  assert.equal(replyChannelOfThreads(threads([note, campaign])), null, "nothing from their side in writing");
+  const mailOnly = await buildProposal(
+    toolContext({
+      conversations: [thread({ last_wa_inbound_at: null })],
+      messages: [row("m-ooo", 1, { channel: "email", meta: { email: { claim: "auto_reply" } } })],
+    }),
+    "propose_reply",
+    { action: "draft", ...DRAFT },
+  );
+  assert.equal(mailOnly.isError, false, mailOnly.result);
+  assert.equal(mailOnly.proposal.payload.window_open, true, "the reply goes by email, which has no window");
 });

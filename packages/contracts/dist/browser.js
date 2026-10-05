@@ -2699,15 +2699,21 @@ function writtenChannelOf(channel) {
 }
 var THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
 function lastWroteOn(messages) {
-  const theirs = [...messages].reverse().find(
-    (m) => m.direction === "inbound" && m.sender === "customer" && m.type !== "call_summary" && isPersonsWords(m.meta)
-  );
+  const theirs = [...messages].reverse().find(isTheirOwnWords);
   return theirs ? writtenChannelOf(theirs.channel) : null;
+}
+var WRITTEN_TYPES = ["text", "template", "media"];
+function isFromTheirSide(m) {
+  return m.sender === "customer" && m.direction !== "outbound" && WRITTEN_TYPES.includes(m.type);
+}
+function isTheirOwnWords(m) {
+  return isFromTheirSide(m) && isPersonsWords(m.meta);
 }
 function threadChannelOf(messages) {
   const wrote = lastWroteOn(messages);
   if (wrote) return wrote;
-  const written = [...messages].reverse().find((m) => m.type !== "call_summary");
+  const newest = [...messages].reverse();
+  const written = newest.find(isFromTheirSide) ?? newest.find((m) => m.type !== "call_summary");
   return written ? writtenChannelOf(written.channel) : "phone";
 }
 function threadChannelWords(messages) {
@@ -2721,14 +2727,18 @@ function fmtDate(ms2, tz, nowMs) {
   return clockDate(ms2, tz, nowMs);
 }
 function replyChannelOfThreads(conversations) {
-  let latest = null;
+  let own = null;
+  let any = null;
   for (const c of conversations) {
     for (const m of c.messages) {
-      if (m.sender !== "customer" || m.type === "call_summary") continue;
+      if (!isFromTheirSide(m)) continue;
       const at3 = Date.parse(m.channel_ts ?? m.created_at);
-      if (Number.isFinite(at3) && (!latest || at3 > latest.at)) latest = { at: at3, channel: m.channel };
+      if (!Number.isFinite(at3)) continue;
+      if (!any || at3 > any.at) any = { at: at3, channel: m.channel };
+      if (isTheirOwnWords(m) && (!own || at3 > own.at)) own = { at: at3, channel: m.channel };
     }
   }
+  const latest = own ?? any;
   return latest ? writtenChannelOf(latest.channel) : null;
 }
 function proposalSent(conversations, url) {
@@ -32731,6 +32741,7 @@ export {
   isE164,
   isForwardingMode,
   isFreeMail,
+  isFromTheirSide,
   isHeldDraft,
   isIdentifierName,
   isLeadList,
@@ -32760,6 +32771,7 @@ export {
   isSellsBy,
   isSidebarPref,
   isSiteRoot,
+  isTheirOwnWords,
   isThemePref,
   isTimezone,
   isTypingTarget,

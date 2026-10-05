@@ -119,6 +119,23 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     if (error) throw new Error(`ingest_email: cannot name the person this address belongs to: ${error.message}`);
   }
 
+  // A START is a yes, and ingest_inbound writes a yes before it knows the message is one it already holds (its replay
+  // gate is the message's own insert). An email delivered twice, or a run that resumes, would write the yes again, over
+  // a STOP the person has sent since by any wire. So a delivery this workspace already holds says nothing new: the first
+  // one wrote its answer in the same transaction that kept the message.
+  let optIn = p.optIn ?? false;
+  if (optIn) {
+    const held = await db
+      .from("messages")
+      .select("id")
+      .eq("tenant_id", p.tenantId)
+      .eq("external_id", p.receivedId)
+      .limit(1);
+    if (held.error)
+      throw new Error(`ingest_email: cannot read whether the email is already held: ${held.error.message}`);
+    optIn = (held.data ?? []).length === 0;
+  }
+
   const out = await ingestInbound(db, {
     tenantId: p.tenantId,
     channel: "email",
@@ -131,7 +148,7 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     channelTs: p.channelTs,
     meta: p.meta,
     optOut: p.optOut ?? false,
-    optIn: p.optIn ?? false,
+    optIn,
   });
 
   if (!known.data) {

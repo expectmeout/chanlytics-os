@@ -362,17 +362,8 @@ test(
     // by email invites exactly this answer, so "Asked to stop" counts it.
     const pressed = await opts();
     assert.ok(pressed > 0, "the unsubscribes pressed above are counted");
-    ok(
-      await db.from("events").insert({
-        tenant_id: A,
-        kind: "contact.consent_changed",
-        category: "contact",
-        subject_type: "contact",
-        subject_id: person,
-        data: { consent: "opted_out", purpose: "email_marketing", source: "unsubscribe" },
-      }),
-    );
-    assert.equal(await opts(), pressed + 1, "one more unsubscribe, one more stop");
+    // One answer a person a day: the page's "stop all" writes the STOP and email's own no for one press, and a person
+    // who unsubscribed today and then writes STOP has stopped once.
     ok(
       await db.from("events").insert({
         tenant_id: A,
@@ -383,7 +374,19 @@ test(
         data: { consent: "opted_out", source: "customer_message", channel: "whatsapp", words: "STOP" },
       }),
     );
-    assert.equal(await opts(), pressed + 2, "a STOP still counts");
+    assert.equal(await opts(), pressed, "the same person's STOP the same day is the same stop");
+    const other = await personOf("stops-too@fixture-unsubscribe.example");
+    ok(
+      await db.from("events").insert({
+        tenant_id: A,
+        kind: "contact.consent_changed",
+        category: "contact",
+        subject_type: "contact",
+        subject_id: other,
+        data: { consent: "opted_out", source: "customer_message", channel: "whatsapp", words: "STOP" },
+      }),
+    );
+    assert.equal(await opts(), pressed + 1, "another person's STOP still counts");
   },
 );
 

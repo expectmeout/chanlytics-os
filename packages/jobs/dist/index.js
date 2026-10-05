@@ -3737,6 +3737,13 @@ async function ingestInboundEmail(db, p) {
     );
     if (error) throw new Error(`ingest_email: cannot name the person this address belongs to: ${error.message}`);
   }
+  let optIn = p.optIn ?? false;
+  if (optIn) {
+    const held = await db.from("messages").select("id").eq("tenant_id", p.tenantId).eq("external_id", p.receivedId).limit(1);
+    if (held.error)
+      throw new Error(`ingest_email: cannot read whether the email is already held: ${held.error.message}`);
+    optIn = (held.data ?? []).length === 0;
+  }
   const out = await ingestInbound(db, {
     tenantId: p.tenantId,
     channel: "email",
@@ -3749,7 +3756,7 @@ async function ingestInboundEmail(db, p) {
     channelTs: p.channelTs,
     meta: p.meta,
     optOut: p.optOut ?? false,
-    optIn: p.optIn ?? false
+    optIn
   });
   if (!known.data) {
     const { error } = await db.from("contacts").update({ email: p.address }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).is("email", null);

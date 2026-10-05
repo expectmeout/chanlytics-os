@@ -173,9 +173,11 @@ const LAST_WROTE_LOOKBACK = 20;
  * The channel a reply goes out on: where the customer last wrote. A
  * conversation is one per person and its messages carry the channel. The reply
  * route sends on it and the assistant's reply card shows its window, so both
- * read it here. "Wrote" is contracts lastWroteOn's: their own words, so not a call's note (an inbound row the system
- * wrote, which read as WhatsApp here) and not an out-of-office or a list's mail from their address (which made email
- * the place a reply went). The newest few of their messages are read and the first a person wrote is taken.
+ * read it here. "Wrote" is contracts isTheirOwnWords': their own words, so not a call's note (an inbound row the
+ * system wrote, which read as WhatsApp here) and not an out-of-office or a list's mail from their address (which made
+ * email the place a reply went). The newest few written messages from their side are read and the first a person wrote
+ * is taken; a person who has written none is answered where the last thing from their side came from (a program at
+ * their address is still their address), as the thread's row and their page say (threadChannelOf, replyChannelOfThreads).
  */
 export async function replyChannelOf(
   ctx: RouteContext,
@@ -188,11 +190,12 @@ export async function replyChannelOf(
     .eq("tenant_id", conv.tenant_id)
     .eq("direction", "inbound")
     .eq("sender", "customer")
-    .neq("type", "call_summary")
+    .in("type", ["text", "template", "media"])
     .order("channel_ts", { ascending: false, nullsFirst: false })
     .limit(LAST_WROTE_LOOKBACK);
   if (error) throw new Error(`reading the last inbound: ${error.message}`);
-  return writtenChannelOf((data ?? []).find((m) => isPersonsWords(m.meta))?.channel);
+  const theirs = data ?? [];
+  return writtenChannelOf((theirs.find((m) => isPersonsWords(m.meta)) ?? theirs[0])?.channel);
 }
 
 /**

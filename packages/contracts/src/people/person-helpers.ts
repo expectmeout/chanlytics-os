@@ -9,7 +9,7 @@ import type { PersonDetailDto } from "./person-dto";
 import type { PersonProposalVM } from "./person-reach";
 import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
 import type { ConversationDto } from "../conversations/thread-dto";
-import { writtenChannelOf } from "../conversations/thread-channel";
+import { isFromTheirSide, isTheirOwnWords, writtenChannelOf } from "../conversations/thread-channel";
 
 export const MONTH_MS = 30 * DAY_MS;
 
@@ -27,18 +27,27 @@ export function fmtDate(ms: number, tz: string, nowMs: number): string {
   return clockDate(ms, tz, nowMs);
 }
 
-/** The wire a reply goes out on, exactly: where they last wrote (the reply route's own rule, verbs replyChannelOf). */
+/**
+ * The wire a reply goes out on, exactly: where they last wrote, by the reply route's own rule (verbs replyChannelOf,
+ * contracts isTheirOwnWords): their newest own words across their threads, and for a person who has written none, the
+ * newest written thing from their side (a program at their address is still their address). Null for neither.
+ */
 export function replyChannelOfThreads(
   conversations: ReadonlyArray<ConversationDto>,
 ): "whatsapp" | "sms" | "email" | null {
-  let latest: { at: number; channel: string | null | undefined } | null = null;
+  type Latest = { at: number; channel: string | null | undefined } | null;
+  let own: Latest = null;
+  let any: Latest = null;
   for (const c of conversations) {
     for (const m of c.messages) {
-      if (m.sender !== "customer" || m.type === "call_summary") continue;
+      if (!isFromTheirSide(m)) continue;
       const at = Date.parse(m.channel_ts ?? m.created_at);
-      if (Number.isFinite(at) && (!latest || at > latest.at)) latest = { at, channel: m.channel };
+      if (!Number.isFinite(at)) continue;
+      if (!any || at > any.at) any = { at, channel: m.channel };
+      if (isTheirOwnWords(m) && (!own || at > own.at)) own = { at, channel: m.channel };
     }
   }
+  const latest = own ?? any;
   return latest ? writtenChannelOf(latest.channel) : null;
 }
 

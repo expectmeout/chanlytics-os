@@ -43,16 +43,29 @@ type ChannelRow = Pick<MessageDto, "type" | "channel"> & Partial<Pick<MessageDto
  * goes out there (the dashboard's replyChannelOf asks the same of the database), and a thread's row names it
  * (threadChannelOf). Where it was derived from "the newest inbound row" a call's note read as WhatsApp and an
  * automatic reply made email "where they last wrote"; where it was "the newest message either way" a playbook's email
- * turned a WhatsApp customer's row into Email.
+ * turned a WhatsApp customer's row into Email. The messages are read in the order given, oldest first, as a thread holds them.
  */
 export function lastWroteOn(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "sms" | "email" | null {
-  const theirs = [...messages]
-    .reverse()
-    .find(
-      (m) =>
-        m.direction === "inbound" && m.sender === "customer" && m.type !== "call_summary" && isPersonsWords(m.meta),
-    );
+  const theirs = [...messages].reverse().find(isTheirOwnWords);
   return theirs ? writtenChannelOf(theirs.channel) : null;
+}
+
+/** The kinds of message that are written words: what people_list calls spoken (00259), so not a call's note or a team's note. */
+const WRITTEN_TYPES: readonly string[] = ["text", "template", "media"];
+
+/** A message that came from the customer's side in writing, whoever or whatever wrote it. */
+export function isFromTheirSide(m: ChannelRow): boolean {
+  return m.sender === "customer" && m.direction !== "outbound" && WRITTEN_TYPES.includes(m.type);
+}
+
+/**
+ * A message the person wrote themselves: from their side, in writing, and a person's words (isPersonsWords). THE
+ * predicate lastWroteOn, the person page's reply wire (replyChannelOfThreads) and the reply route (replyChannelOf, as a
+ * query) share. people_list's lateral (00320) is its twin, and also leaves out a row moved in with no time of its own,
+ * which it could not order.
+ */
+export function isTheirOwnWords(m: ChannelRow): boolean {
+  return isFromTheirSide(m) && isPersonsWords(m.meta);
 }
 
 /**
@@ -70,7 +83,10 @@ export function lastWroteOn(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "
 export function threadChannelOf(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "sms" | "email" | "phone" {
   const wrote = lastWroteOn(messages);
   if (wrote) return wrote;
-  const written = [...messages].reverse().find((m) => m.type !== "call_summary");
+  // Nothing of their own: the wire the last thing from their side came by (a program at their address is still their
+  // address, and where the reply route sends), then the wire our own words went by.
+  const newest = [...messages].reverse();
+  const written = newest.find(isFromTheirSide) ?? newest.find((m) => m.type !== "call_summary");
   return written ? writtenChannelOf(written.channel) : "phone";
 }
 

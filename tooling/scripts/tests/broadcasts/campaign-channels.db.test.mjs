@@ -410,6 +410,45 @@ test("people_list says the channel a person last wrote on, which is not the chan
   );
 });
 
+test("the two rules a message's meta decides are said the same way in TypeScript and in SQL: an automated send, and a person's own words", async (t) => {
+  if (skip) return t.skip(skip);
+  const { isAutomatedSend, isPersonsWords } = await import("@chanlytics/contracts");
+  // Every shape the column holds or could: the sources a run stamps, the claims the email intake keeps, and what is
+  // absent, empty or of the wrong kind. A pair that disagrees on one of them counts one way on a page and another in
+  // a report.
+  const metas = [
+    {},
+    { source: "broadcast" },
+    { source: "reach_out" },
+    { source: "voice" },
+    { source: null },
+    { source: 7 },
+    { email: { claim: "person" } },
+    { email: { claim: "auto_reply" } },
+    { email: { claim: "automated" } },
+    { email: { claim: "report" } },
+    { email: { claim: null } },
+    { email: {} },
+    { email: "not an object" },
+    { email: { claim: "auto_reply" }, source: "broadcast" },
+  ];
+  for (const meta of metas) {
+    const what = JSON.stringify(meta);
+    assert.equal(
+      ok(await db.rpc("automated_send", { p_meta: meta }), what),
+      isAutomatedSend(meta),
+      `automated: ${what}`,
+    );
+    assert.equal(
+      ok(await db.rpc("message_is_a_persons_words", { p_meta: meta }), what),
+      isPersonsWords(meta),
+      `a person's words: ${what}`,
+    );
+  }
+  // No meta at all, as a caller may hold it: nobody's campaign, and a person's words.
+  assert.deepEqual([isAutomatedSend(null), isPersonsWords(null), isPersonsWords(undefined)], [false, true, true]);
+});
+
 test("people_list says when an address stopped being sent to, so the pick can leave email for another channel", async (t) => {
   if (skip) return t.skip(skip);
   const withAddress = async (email) =>

@@ -132,7 +132,7 @@ test(
 test("campaign_series: each day's sends, receipts, replies, yeses and stops land on it", { skip }, () => {
   const seen = rolledBack(`
     declare
-      t uuid; tpl uuid; b uuid; cid uuid; conv uuid; mid uuid; day0 timestamptz; k int; receipt text; report jsonb;
+      t uuid; tpl uuid; b uuid; cid uuid; first uuid; conv uuid; mid uuid; day0 timestamptz; k int; receipt text; report jsonb;
     begin
       insert into public.tenants (slug, name, timezone) values ('campaign-days-' || gen_random_uuid(), 'Campaign days', 'UTC')
         returning id into t;
@@ -147,6 +147,7 @@ test("campaign_series: each day's sends, receipts, replies, yeses and stops land
         k := case when i <= 3 then 0 else 3 end;
         receipt := (array['read', 'delivered', 'sent', 'sent', 'sent', 'failed'])[i];
         insert into public.contacts (tenant_id) values (t) returning id into cid;
+        if i = 1 then first := cid; end if;
         insert into public.conversations (tenant_id, contact_id) values (t, cid) returning id into conv;
         insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body, status, created_at)
           values (t, conv, cid, 'whatsapp', 'outbound', 'human', 'template', 'an offer', receipt,
@@ -168,12 +169,15 @@ test("campaign_series: each day's sends, receipts, replies, yeses and stops land
                     '{"email": {"claim": "auto_reply"}}');
         end if;
       end loop;
-      -- A yes and a stop a day ago, and an unsubscribe from offers by email: email's own answer (00174), and a stop
+      -- A day ago: one person says yes, then presses "stop all" on the unsubscribe page, which writes the STOP and
+      -- email's own no for the one press (00174): one stop. Another person unsubscribes from offers by email: a stop
       -- to what a campaign sends, counted with the others since offers go by email (00320).
       insert into public.events (tenant_id, kind, category, subject_type, subject_id, created_at, data) values
         (t, 'contact.consent_changed', 'contact', 'contact', cid, day0 - interval '1 day' + interval '1 minute', '{"consent": "opted_in"}'),
         (t, 'contact.consent_changed', 'contact', 'contact', cid, day0 - interval '1 day' + interval '2 minutes', '{"consent": "opted_out"}'),
         (t, 'contact.consent_changed', 'contact', 'contact', cid, day0 - interval '1 day' + interval '3 minutes',
+         '{"consent": "opted_out", "purpose": "email_marketing"}'),
+        (t, 'contact.consent_changed', 'contact', 'contact', first, day0 - interval '1 day' + interval '4 minutes',
          '{"consent": "opted_out", "purpose": "email_marketing"}');
       report := public.campaign_series(t, 7);
       seen := jsonb_build_object('report', report);
@@ -191,7 +195,11 @@ test("campaign_series: each day's sends, receipts, replies, yeses and stops land
     [3, 2, 1, 1, 0, 0],
     "today: three sent, two delivered (one read), one answered; a call's note and an out-of-office are no answer",
   );
-  assert.deepEqual(row(1), [0, 0, 0, 0, 1, 2], "a day ago: a yes, a stop, and an unsubscribe from offers by email");
+  assert.deepEqual(
+    row(1),
+    [0, 0, 0, 0, 1, 2],
+    "a day ago: a yes; one person's stop-all, two events and one stop; and another's unsubscribe from offers by email",
+  );
   assert.deepEqual(row(3), [2, 0, 0, 0, 0, 0], "three days ago: two sent, and the failed one counts nowhere");
   for (const k of [2, 4, 5, 6, 7, 13]) assert.deepEqual(row(k), [0, 0, 0, 0, 0, 0], `${ago(k)} had nothing`);
   assert.equal(report.sources.length, 1);

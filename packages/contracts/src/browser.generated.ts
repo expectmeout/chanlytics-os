@@ -96,7 +96,7 @@ export { emailLeftOutOf, splitQuotedReply } from "./conversations/message-email"
 export { mediaKind, mediaVM } from "./conversations/message-media";
 export { messageStatusLabel, reachedCustomer, isHeldDraft, draftSendsAtMs, messageWords, messageText, clipAtWord } from "./conversations/message-words";
 export { standingOf, replyWaitsOnYou } from "./conversations/standing";
-export { agentFor, lastWroteOn, writtenChannelOf, threadChannelOf, threadChannelWords } from "./conversations/thread-channel";
+export { agentFor, isFromTheirSide, isTheirOwnWords, lastWroteOn, writtenChannelOf, threadChannelOf, threadChannelWords } from "./conversations/thread-channel";
 export { shortTime, formatWaited } from "./conversations/thread-clock";
 export { contactName, isIdentifierName, contactMeta, initialsOf } from "./conversations/thread-contact";
 export { messageAt, isOptedOut, memberMetaOf } from "./conversations/thread-dto";

@@ -4,7 +4,8 @@
 --   campaign_series   a run was "replied to" by any inbound row in its thread: a call's note, an out-of-office, a
 --                     list's mail. Now a reply is the customer's own words (message_is_a_persons_words, 00299), as the
 --                     Broadcasts page counts it. And its yeses and stops left out email's own answer (00174), so
---                     "Asked to stop" stayed 0 for the one-click unsubscribe an offer by email invites: it is counted.
+--                     "Asked to stop" stayed 0 for the one-click unsubscribe an offer by email invites: it is counted,
+--                     one answer a person a day each way (the unsubscribe page's "stop all" writes two events).
 --   people_list       `last_inbound_channel` was the wire of the last inbound message with words, whoever wrote
 --                     them, so an automatic reply made email "where they last wrote" and a campaign's reach followed
 --                     it. Now it is the wire of their newest own words (a new lateral, lw); the last inbound's words
@@ -73,9 +74,11 @@ begin
   ),
   -- A yes or a stop, from the desk or in the customer's own words: the
   -- consent ledger both doors write (00013, 00043), email's own answer with them (00174: the one-click unsubscribe an
-  -- offer by email invites, and YES OFFERS by email), which this left out while offers went by WhatsApp alone.
+  -- offer by email invites, and YES OFFERS by email), which this left out while offers went by WhatsApp alone. One
+  -- answer a person a day each way: the unsubscribe page's "stop all" writes the STOP and email's own no for one
+  -- press (stop_all_messages), and that is one stop.
   consent as (
-    select (e.created_at at time zone v_tz)::date as day, e.data->>'consent' as consent
+    select distinct (e.created_at at time zone v_tz)::date as day, e.subject_id, e.data->>'consent' as consent
       from events e
      where e.tenant_id = p_tenant_id
        and e.kind = 'contact.consent_changed'
@@ -155,7 +158,7 @@ revoke all on function public.campaign_series(uuid, integer) from public, anon;
 grant execute on function public.campaign_series(uuid, integer) to authenticated;
 
 comment on function public.campaign_series(uuid, integer) is
-  'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies (the customer''s own words: not a call''s note, an automatic reply or a list''s mail), yeses and stops (an unsubscribe from offers by email among them, 00174), day by day over two periods, and the current period by source.';
+  'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies (the customer''s own words: not a call''s note, an automatic reply or a list''s mail), yeses and stops (an unsubscribe from offers by email among them, 00174; one a person a day each way), day by day over two periods, and the current period by source.';
 
 create or replace function public.people_list(p_tenant_id uuid, p_contact_id uuid default null, p_query text default null, p_limit integer default 1000, p_offset integer default 0,
                                               p_after_at timestamptz default null, p_after_added timestamptz default null, p_after_id uuid default null)

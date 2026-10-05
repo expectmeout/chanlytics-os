@@ -277,6 +277,21 @@ test(
       ],
       "both answers on the ledger, each with the email that said it",
     );
+
+    // They stop again, by any wire. The provider then delivers the START a second time (or a run resumes): an email
+    // this workspace already holds says nothing new, so the yes is not written over the later no.
+    const again = await ingestInboundEmail(db, {
+      ...email("rcv-35", "came-back@example.com", { body: "STOP" }),
+      optOut: true,
+    });
+    assert.deepEqual([again.consent, again.dnc], ["opted_out", true]);
+    const replay = await ingestInboundEmail(db, {
+      ...email("rcv-34", "came-back@example.com", { body: "START" }),
+      optIn: true,
+    });
+    assert.equal(replay.is_new, false, "the same delivery");
+    const { data: now } = await db.from("contacts").select("consent, dnc").eq("id", start.contact_id).single();
+    assert.deepEqual(now, { consent: "opted_out", dnc: true }, "REGRESSION guard: a repeated START undid a later STOP");
   },
 );
 

@@ -658,9 +658,11 @@ begin
   ),
   -- A yes or a stop, from the desk or in the customer's own words: the
   -- consent ledger both doors write (00013, 00043), email's own answer with them (00174: the one-click unsubscribe an
-  -- offer by email invites, and YES OFFERS by email), which this left out while offers went by WhatsApp alone.
+  -- offer by email invites, and YES OFFERS by email), which this left out while offers went by WhatsApp alone. One
+  -- answer a person a day each way: the unsubscribe page's "stop all" writes the STOP and email's own no for one
+  -- press (stop_all_messages), and that is one stop.
   consent as (
-    select (e.created_at at time zone v_tz)::date as day, e.data->>'consent' as consent
+    select distinct (e.created_at at time zone v_tz)::date as day, e.subject_id, e.data->>'consent' as consent
       from events e
      where e.tenant_id = p_tenant_id
        and e.kind = 'contact.consent_changed'
@@ -741,7 +743,7 @@ end $$;
 -- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies (the customer''s own words: not a call''s note, an automatic reply or a list''s mail), yeses and stops (an unsubscribe from offers by email among them, 00174), day by day over two periods, and the current period by source.';
+COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies (the customer''s own words: not a call''s note, an automatic reply or a list''s mail), yeses and stops (an unsubscribe from offers by email among them, 00174; one a person a day each way), day by day over two periods, and the current period by source.';
 
 
 --

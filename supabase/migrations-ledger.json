@@ -322,6 +322,6 @@
     "00317_a_member_reads_their_workspace_s_days.sql": "9a11019bd0514efac08078f5efc20723eef51d2a90828f13089e7778ffc1c17c",
     "00318_an_invoice_keeps_what_it_moved.sql": "9b139a64716c2d6197b97a761b38b0c38e4598c379a51a6609ab6abc816fdc42",
     "00319_a_message_keeps_what_it_cost_to_send.sql": "2eefe1efaa0727e6ea520443f115b25a5181e4e5abdd95a1e7e7cb2c3cdf504c",
-    "00320_a_reply_and_where_they_last_wrote_are_a_person_s_own_words.sql": "b9ec45d1a9a7cd3db841c9faed30d33d7a40d02829a5b81ef09cf111ee17217f"
+    "00320_a_reply_and_where_they_last_wrote_are_a_person_s_own_words.sql": "857bed89a2fba1ed524dff69d997591ae2ec762ec712a4e2295a4a849c6b777e"
   }
 }
