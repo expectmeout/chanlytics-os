@@ -14,8 +14,12 @@ import * as facts from "./facts";
 export const sources: Reader<{ from: string | null; days: number; fresh: boolean }, CalendarSources> = {
   name: "calendarSources",
   async read(rc, { from, days, fresh }) {
-    const { timezone } = (await load(rc, facts.facts, undefined)).data;
-    const settings = (await load(rc, facts.config, undefined)).data;
+    // Together: neither waits on the other, and each is a round trip to the database.
+    const [{ data: known }, { data: settings }] = await Promise.all([
+      load(rc, facts.facts, undefined),
+      load(rc, facts.config, undefined),
+    ]);
+    const { timezone } = known;
     const data = await calendarSources(rc.ctx, rc.tenantId, { from, days }, rc.now, {
       fresh,
       timezone,

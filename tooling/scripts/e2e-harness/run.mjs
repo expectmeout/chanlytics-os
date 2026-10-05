@@ -1,10 +1,11 @@
 /**
  * A signed-in Playwright spec, run locally against the harness rather than a deployment.
  *
- *   corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts
- *   corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts --scenario=salon
- *   corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts --scenario=salon --grep "fits a phone"
+ *   corepack pnpm e2e:local -- e2e/people/people.spec.ts --scenario=pipeline
  *   corepack pnpm e2e:local -- e2e/kit/kit.spec.ts --scenario=kit
+ *
+ * The spec is named: there is no default one. The Business-tab spec the harness used to run by default drew Settings
+ * in the standalone mockup, which no longer draws it (decision 0015 step 11; Ruben, 4 Oct 2026).
  *
  * It starts the harness on a FREE port (never a fixed one: a developer machine has its own servers, and a port
  * already taken would fail as something far stranger), sets the four environment variables e2e/session.ts needs so
@@ -27,7 +28,6 @@ import { OWNER, SCENARIOS } from "./scenarios.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const PLAYWRIGHT = path.join(REPO, "node_modules/@playwright/test/cli.js");
-const DEFAULT_SPEC = "e2e/settings/settings-business.spec.ts";
 
 // `pnpm e2e:local -- <spec>` hands the `--` along with the rest; passed on to Playwright it ends its option parsing
 // and the spec after it is read as nothing at all, so the WHOLE suite runs. It is pnpm's separator, not an argument.
@@ -42,7 +42,10 @@ if (!SCENARIOS.includes(name)) {
 // (`--grep "fits a phone"`) are two words, and taking them apart to sort them would drop the second.
 const rest = argv.filter((a) => a !== scenarioArg);
 const has = (flag) => rest.some((a) => a === flag || a.startsWith(`${flag}=`));
-const spec = rest.some((a) => a.endsWith(".spec.ts")) ? [] : [DEFAULT_SPEC];
+if (!rest.some((a) => a.endsWith(".spec.ts"))) {
+  console.error("name the spec to run, e.g. corepack pnpm e2e:local -- e2e/people/people.spec.ts --scenario=pipeline");
+  process.exit(2);
+}
 
 const harness = await startHarness({ name });
 console.log(`the ${name} record on ${harness.url}`);
@@ -52,7 +55,6 @@ const run = spawn(
   [
     PLAYWRIGHT,
     "test",
-    ...spec,
     ...(has("--retries") ? [] : ["--retries=0"]),
     ...(has("--timeout") ? [] : ["--timeout=120000"]),
     ...rest,

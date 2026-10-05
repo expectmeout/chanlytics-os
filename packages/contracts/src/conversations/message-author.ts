@@ -3,6 +3,7 @@
  * a chat row's line saying who had the last word. The Inbox (inbox-thread.ts) and Conversations
  * (conversation-vm.ts) say it in these words.
  */
+import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import type { MessageDto } from "./thread-dto";
 
 export interface MessageAuthor {
@@ -52,4 +53,14 @@ export function lastWordLine(needsHuman: boolean, last: MessageDto | undefined, 
   if (author.kind === "receptionist") return "Answered by the receptionist";
   if (author.kind === "team") return "Answered by your team";
   return `Last message: ${author.words}`;
+}
+
+/**
+ * The reasoning beside a message, for the messages that have any: only the receptionist's own replies carry it. A
+ * customer's inbound row carries an `intent` too since 00305 (what they were after, stamped when the receptionist read
+ * it), and that is the topic of their words, not why anyone said anything. The Inbox, Conversations and Ask's thread
+ * tool say it here.
+ */
+export function messageWhy(m: Pick<MessageDto, "sender" | "meta">): ReplyWhyVM | null {
+  return m.sender === "ai" ? replyWhy(m.meta) : null;
 }

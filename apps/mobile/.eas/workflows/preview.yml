@@ -20,6 +20,7 @@ on:
       - packages/contracts/src/shared/identity.ts
       - packages/contracts/src/shared/phone.ts
       - packages/contracts/src/shared/time.ts
+      - packages/contracts/src/shell/address.ts
       - packages/contracts/src/shell/chrome.ts
       - packages/contracts/src/workspace/billing.ts
 jobs:

@@ -118,16 +118,20 @@ globalThis.document = {
   getElementById: () => null,
   // A selector's part finds the open element when it names its role, and, for one outside the app, asks for no
   // .app-root; unless the part leaves out a class the element carries.
+  // A part that opens with a class of its own (the kit's `.more-menu[role="menu"]` and `.sheet[role="dialog"]`, drawn on
+  // the body) finds only an element that carries it.
   querySelector: (sel) =>
     overlayOpen &&
-    sel.split(",").some(
-      (part) =>
+    sel.split(",").some((part) => {
+      const classes = String(overlayOpen.className || "").split(/\s+/);
+      const own = /^\s*\.([\w-]+)\[role=/.exec(part);
+      return (
         part.includes(`[role="${overlayOpen.role}"]`) &&
         (overlayOpen.inApp !== false || !part.includes(".app-root")) &&
-        !String(overlayOpen.className || "")
-          .split(/\s+/)
-          .some((c) => c && part.includes(`:not(.${c})`)),
-    )
+        (!own || classes.includes(own[1])) &&
+        !classes.some((c) => c && part.includes(`:not(.${c})`))
+      );
+    })
       ? overlayOpen
       : null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
@@ -464,19 +468,35 @@ Object.assign(globalThis.window, {
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,
 });
-// People's shared parts, published under the names the pages that have not moved read them by (people-globals.ts: the
-// table, the rail kit, the list page's hooks, the words), on the window and as the bare names a classic script reads; and
-// the saved lists' verbs, which the person page reads as `window.__lists`. The page itself is TSX, imported here.
+// People's parts the shell still reads by name (people-globals.ts: the strip's scopes, the deal and step sheets), on the
+// window and as the bare names a classic script reads; and the saved lists' verbs, which the person page reads as
+// `window.__lists`. The page itself is TSX, imported here.
 Object.assign(globalThis.window, peoplePages);
 Object.assign(globalThis, peoplePages);
 installLists();
 const { PeopleReal } = await import("../../../../apps/dashboard/src/surfaces/people/page/people-real.tsx");
 const { PL_FIRST_ROWS, PL_WINDOW_ROWS, PL_WINDOW_STEP } =
   await import("../../../../apps/dashboard/src/surfaces/people/table/row-window.ts");
-// The Leads scope reads People's hooks (usePeople, usePlControls, usePlPlace) and its bar and rail kit by those names.
-await import("../../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
 // The person's lists are TSX (surfaces/people/person): they read People through the seam, which the override publishes.
 const { PersonLists } = await import("../../../../apps/dashboard/src/surfaces/people/person/lists.tsx");
+// The phone's sheets and their rows (surfaces/people/sheets/phone-sheet.tsx), which People and Leads import.
+const { PhoneSheet, PhoneSheetRow } =
+  await import("../../../../apps/dashboard/src/surfaces/people/sheets/phone-sheet.tsx");
+// The kit's Menu, which the phone's bulk bar draws for Add to list (a node is found by its type).
+const { Menu } = await import("../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
+/** A bar's menu by its words, as the old MoreMenu's props read: the kit's Menu draws it, its trigger the page's Button, its groups
+    headings over items; an item's act is `onSelect`, given here as `onClick` too. */
+const barMenuOf = (tree, words) => {
+  const m = find(tree, (n) => n.type === Menu && textOf(n.props.trigger).trim() === words);
+  const item = (i) => ({ ...i, onClick: i.onSelect });
+  return (
+    m && {
+      props: {
+        items: m.props.groups.flatMap((g) => [...(g.header ? [{ header: g.header }] : []), ...g.items.map(item)]),
+      },
+    }
+  );
+};
 // The shell's ? sheet, whose Esc is heard before People's.
 await import("../../../../apps/dashboard/src/legacy/components/shortcuts.jsx");
 
@@ -665,7 +685,7 @@ test("REGRESSION: adding people to a list counts who was added, and Undo takes o
   let tree = draw();
   byTestId(tree, "select-all").props.onChange();
   tree = draw();
-  const regulars = find(tree, (n) => n.props?.label === "Add to list").props.items.find((i) => i.label === "Regulars");
+  const regulars = barMenuOf(tree, "Add to list").props.items.find((i) => i.label === "Regulars");
   await regulars.onClick();
   await settle();
   const toast = flashes.at(-1);
@@ -689,7 +709,7 @@ test("REGRESSION (B4): a yes recorded for more than fifty goes for fifty, says s
   let tree = draw();
   byTestId(tree, "select-all").props.onChange();
   tree = draw();
-  const way = find(tree, (n) => n.props?.label === "Record a yes").props.items.find((i) => i.label && !i.header);
+  const way = barMenuOf(tree, "Record a yes").props.items.find((i) => i.label && !i.header);
   await way.onClick();
   await settle();
   const [yes] = wrote(seen);
@@ -832,7 +852,7 @@ test("REGRESSION (B27): lists that could not be read say so on the rail, the pro
   byTestId(tree, "select-all").props.onChange();
   tree = draw();
   assert.deepEqual(
-    find(tree, (n) => n.props?.label === "Add to list").props.items.map((i) => i.header || i.label),
+    barMenuOf(tree, "Add to list").props.items.map((i) => i.header || i.label),
     ["Your saved lists couldn't be read", "New list…"],
     "no list is offered that could not be read",
   );
@@ -1070,17 +1090,15 @@ test("REGRESSION: on a phone People is one bar, one line and the people -- a 57p
     let tree = draw();
     const bar = byTestId(tree, "people-phone-bar");
     assert.ok(bar, "the bar");
-    assert.deepEqual(
-      all(bar, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props["aria-selected"]]),
-      [
-        ["People", true],
-        ["Leads", false],
-      ],
+    assert.equal(
+      all(bar, (n) => n.props?.role === "tab").length,
+      0,
+      "the scopes are the frame's strip of views over the page, never the bar's",
     );
     assert.equal(textOf(byTestId(bar, "people-phone-lists")).trim(), "Everyone", "the list being shown");
     assert.equal(byTestId(bar, "people-phone-search-open").props["aria-label"], "Search by name or phone");
     assert.ok(
-      find(bar, (n) => n.type === globalThis.MoreMenu),
+      find(bar, (n) => n.type === Menu),
       "and the page's more-menu",
     );
     assert.equal(
@@ -1105,40 +1123,28 @@ test("REGRESSION: on a phone People is one bar, one line and the people -- a 57p
     assert.deepEqual(idsShown(tree), ["person-p1"]);
   }));
 
-test("where deals are on, the switch has a third tab, the Pipeline, on a desktop and in a phone's bar, and it goes to clients/pipeline", async () => {
-  await freshPage({ people: [person(1)], dealsOn: true });
-  went.length = 0;
-  let tree = draw();
-  assert.deepEqual(
-    all(byTestId(tree, "people-scope"), (n) => n.props?.role === "tab").map((n) => [
-      textOf(n),
-      n.props["aria-selected"],
-    ]),
-    [
-      ["People", true],
-      ["Leads", false],
-      ["Pipeline", false],
-    ],
-  );
-  click(byTestId(tree, "scope-pipeline"));
-  assert.deepEqual(went, ["clients/pipeline"]);
-  await onPhone(async () => {
-    await freshPage({ people: [person(1)], dealsOn: true });
-    went.length = 0;
-    tree = draw();
-    const tabs = all(byTestId(tree, "people-phone-bar"), (n) => n.props?.role === "tab");
-    assert.deepEqual(
-      tabs.map((n) => [textOf(n), n.props["aria-selected"]]),
-      [
-        ["People", true],
-        ["Leads", false],
-        ["Pipeline", false],
-      ],
-    );
-    click(tabs[2]);
-    assert.deepEqual(went, ["clients/pipeline"]);
-    assert.ok(byTestId(tree, "people-phone-lists"), "People keeps its list to pick beside three tabs");
-  });
+/** Whether anything in the tree is a strip of views: the frame's (SurfaceTabs) draws it, and no page does. */
+const drawsAStrip = (tree) =>
+  !!byTestId(tree, "people-scope") ||
+  all(tree, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes("stabs"),
+  ).length > 0;
+
+test("the switch between the scopes is the frame's strip of views: the page draws none of its own, on a desktop or in a phone's bar, deals on or off", async () => {
+  // What the strip holds (People, Leads, the Pipeline where deals are on), which is picked, and where a press goes are the
+  // chrome's (people-views.test.mjs); this page says them and draws nothing of them.
+  for (const dealsOn of [false, true]) {
+    await freshPage({ people: [person(1)], dealsOn });
+    assert.equal(drawsAStrip(draw()), false, `a desktop's page draws no strip (deals ${dealsOn})`);
+    await onPhone(async () => {
+      await freshPage({ people: [person(1)], dealsOn });
+      const tree = draw();
+      assert.equal(drawsAStrip(tree), false, `a phone's bar draws no strip (deals ${dealsOn})`);
+      assert.ok(byTestId(tree, "people-phone-lists"), "People keeps its list to pick, the frame's strip over it");
+    });
+  }
 });
 
 // Ruben, 24 Sep: the scopes on a phone should look like the Inbox's views. They were a boxed switch squeezed into the
@@ -1157,29 +1163,16 @@ test("People's scopes are its strip's order: People, Leads, the Pipeline; a pers
   assert.equal(w.stripSlide(w.stripPlace("clients", "leads"), w.stripPlace("clients", null)), "prev");
 });
 
-test("on a phone the scopes are the Inbox's tab strip, on a row of their own over the bar, and they stay while searching", () =>
+test("on a phone the top is the list's row and the search under the frame's strip, and the list stays over the search", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1)], dealsOn: true });
     went.length = 0;
     let tree = draw();
     const top = byTestId(tree, "people-phone-bar");
     const kids = (top.props.children || []).filter(Boolean);
-    // The first row is the one switch (PeopleScopeTabs), the component a desk draws over its rail; the strip is what
-    // it rendered.
-    const strip = kids[0].rendered ?? kids[0];
-    assert.match(String(strip.props.className), /\bstabs\b/, "the shell's own strip, as the Inbox draws its views");
-    assert.equal(strip.props.role, "tablist");
-    assert.deepEqual(
-      all(strip, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props.className]),
-      [
-        ["People", "stabs-tab active"],
-        ["Leads", "stabs-tab"],
-        ["Pipeline", "stabs-tab"],
-      ],
-      "the picked one underlined, as the Inbox's is",
-    );
-    const bar = kids[1];
-    assert.equal(bar.props.className, "pp-bar", "the bar is the row under it");
+    // The frame's strip of views stands over this (SurfaceTabs); the page's top begins at the bar.
+    const bar = kids[0];
+    assert.equal(bar.props.className, "pp-bar", "the bar is the first row, under the frame's strip");
     assert.equal(all(bar, (n) => n.props?.role === "tab").length, 0, "no switch squeezed beside the list button");
     assert.ok(byTestId(bar, "people-phone-lists"), "the list button has the bar");
     // The top stands over the page's scroller, not in it, as the Inbox's strip does: the rows scroll and bounce under
@@ -1195,13 +1188,7 @@ test("on a phone the scopes are the Inbox's tab strip, on a row of their own ove
     tree = draw();
     const searching = byTestId(tree, "people-phone-bar");
     assert.ok(byTestId(searching, "people-phone-search"), "the bar is the field");
-    assert.deepEqual(
-      all(byTestId(searching, "people-phone-scopes"), (n) => n.props?.role === "tab").map(textOf),
-      ["People", "Leads", "Pipeline"],
-      "and the scopes stay over it",
-    );
-    click(all(byTestId(searching, "people-phone-scopes"), (n) => n.props?.role === "tab")[1]);
-    assert.deepEqual(went, ["clients/leads"]);
+    assert.ok(byTestId(searching, "people-phone-lists"), "and the list stays over it");
   }));
 
 test("a desktop draws no phone bar, and keeps its controls row and its list head", async () => {
@@ -1212,7 +1199,7 @@ test("a desktop draws no phone bar, and keeps its controls row and its list head
   assert.ok(find(tree, (n) => n.props?.className === "cl-section-head"));
 });
 
-test("on a phone search is a button that opens the bar into the field; Cancel gives the bar back and clears the words", () =>
+test("on a phone search is a capsule at rest that opens into the field; Cancel gives the capsule back and clears the words", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1, { display_name: "Rosa Diaz" }), person(2, { display_name: "Ana Lee" })] });
     let tree = draw();
@@ -1222,21 +1209,35 @@ test("on a phone search is a button that opens the bar into the field; Cancel gi
     const field = byTestId(tree, "people-phone-search");
     assert.equal(field.props.type, "search");
     assert.equal(field.props.autoFocus, true);
-    assert.equal(byTestId(tree, "people-phone-lists"), null, "the bar is the field while searching");
+    assert.ok(
+      byTestId(tree, "people-phone-lists"),
+      "the list stays over the field, as the Inbox's buckets stay over its search",
+    );
+    assert.equal(byTestId(tree, "people-phone-search-open"), null, "the capsule at rest is the field now");
     field.props.onChange({ target: { value: "rosa" } });
     tree = draw();
     assert.deepEqual(idsShown(tree), ["person-p1"]);
     click(byTestId(tree, "people-phone-search-cancel"));
     tree = draw();
-    assert.ok(byTestId(tree, "people-phone-lists"), "Cancel gives the bar back");
+    assert.ok(byTestId(tree, "people-phone-search-open"), "Cancel gives the capsule back");
+    assert.equal(byTestId(tree, "people-phone-search"), null, "and closes the field");
     assert.equal(idsShown(tree).length, 2, "and clears the words");
     // The page's / opens it too.
     press("/");
     assert.ok(byTestId(draw(), "people-phone-search"), "/ opens the field");
   }));
 
+/** The phone bar's more-menu, its items as the page built them: a set of choices (the sorts) as items ticked or not. */
 const phoneMenuOf = (tree) =>
-  find(byTestId(tree, "people-phone-bar"), (n) => n.type === globalThis.MoreMenu).props.items;
+  find(byTestId(tree, "people-phone-bar"), (n) => n.type === Menu).props.groups.flatMap((g) =>
+    g.choose
+      ? g.choose.options.map((o) => ({
+          label: o.label,
+          checked: g.choose.value === o.value,
+          onClick: () => g.choose.onChoose(o.value),
+        }))
+      : g.items.map((i) => ({ ...i, onClick: i.onSelect })),
+  );
 
 test("the phone's more-menu adds a person in a sheet, sorts as a desktop's headings do, and holds the open list's own acts", () =>
   onPhone(async () => {
@@ -1323,8 +1324,8 @@ test("Esc closes the phone's own sheet, and the page holds its keys while one is
   }));
 
 test("a phone sheet's list is rows of one shape, and a step inside a sheet has a way back", () => {
-  const Row = globalThis.window.PhoneSheetRow;
-  const Sheet = globalThis.window.PhoneSheet;
+  const Row = PhoneSheetRow;
+  const Sheet = PhoneSheet;
   let pressed = 0;
   const row = Row({
     icon: "edit",
@@ -1460,27 +1461,24 @@ test("REGRESSION: on a phone a selection is one row -- ✕, the count, Add to li
     assert.ok(hasClass(bar, "pp-bulk"), "the phone's row");
     const controls = bar.props.children
       .filter(Boolean)
-      .map(
-        (k) =>
-          k.props?.["data-testid"] || (k.type === globalThis.MoreMenu ? `menu:${k.props.label}` : k.props?.className),
-      );
+      .map((k) => k.props?.["data-testid"] || (k.type === Menu ? `menu:${k.props.label}` : k.props?.className));
     assert.deepEqual(
       controls,
-      ["bulk-clear", "cl-bulk-count", "menu:Add to list", "bulk-more"],
+      ["bulk-clear", "cl-bulk-count", "menu:Add to a list", "bulk-more"],
       "four things, in one row",
     );
     assert.equal(textOf(find(bar, (n) => hasClass(n, "cl-bulk-count"))), "2 selected");
     for (const id of ["bulk-note", "bulk-form-note", "bulk-list-name", "bulk-export"])
       assert.equal(byTestId(bar, id), null, `${id} is the sheet's, not the row's`);
     assert.equal(
-      find(bar, (n) => n.type === globalThis.MoreMenu && n.props.label !== "Add to list"),
-      null,
+      all(bar, (n) => n.type === Menu).filter((n) => n.props.label !== "Add to a list").length,
+      0,
       "REGRESSION: Record a yes and Receptionist were menus in the row",
     );
-    const add = find(bar, (n) => n.type === globalThis.MoreMenu);
-    assert.equal(add.props.escape, true, "placed against the window");
+    const add = find(bar, (n) => n.type === Menu);
+    assert.ok(hasClass(bar, "capsule") && bar.props["data-dock"] === true, "the kit's capsule, docked (mobile.css)");
     assert.deepEqual(
-      add.props.items.map((i) => i.label || i.header),
+      add.props.groups.flatMap((g) => [g.header, ...g.items.map((i) => i.label)]),
       ["Add to", "Regulars", "New list…"],
     );
     assert.equal(byTestId(tree, "bulk-sheet"), null, "the sheet waits for ⋯");
@@ -1584,9 +1582,10 @@ test("on a phone Add to list › New list… names the list in the sheet; a memb
     const seen = await freshPage({ people: [person(1), person(2)] });
     byTestId(rowOf(draw(), "p1"), "row-select").props.onChange();
     let tree = draw();
-    find(byTestId(tree, "bulk-bar"), (n) => n.type === globalThis.MoreMenu)
-      .props.items.find((i) => i.label === "New list…")
-      .onClick();
+    find(byTestId(tree, "bulk-bar"), (n) => n.type === Menu)
+      .props.groups.flatMap((g) => g.items)
+      .find((i) => i.label === "New list…")
+      .onSelect();
     tree = draw();
     assert.equal(
       byTestId(tree, "bulk-sheet").props["aria-label"],
@@ -1617,7 +1616,7 @@ test("on a phone Add to list › New list… names the list in the sheet; a memb
       byTestId(rowOf(draw(), "p1"), "row-select").props.onChange();
       tree = draw();
       assert.equal(
-        find(byTestId(tree, "bulk-bar"), (n) => n.type === globalThis.MoreMenu),
+        find(byTestId(tree, "bulk-bar"), (n) => n.type === Menu),
         null,
         "no Add to list for a member who may not edit",
       );
@@ -1664,10 +1663,9 @@ test("on a phone the face is the checkbox, and while anyone is selected a tap on
     assert.match(rowOf(tree, "p2").props.className, /\bselected\b/, "it selects them");
     const bar = byTestId(tree, "bulk-bar");
     assert.ok(bar, "the bar");
-    assert.equal(
-      find(bar, (n) => n.type === globalThis.MoreMenu).props.escape,
-      true,
-      "its menus are placed against the window: the docked row scrolls, and would cut them off",
+    assert.ok(
+      find(bar, (n) => n.type === Menu),
+      "its menu is the kit's, drawn on the body: the docked row scrolls, and would cut it off",
     );
     click(byTestId(tree, "bulk-clear"));
     tree = draw();
@@ -1973,12 +1971,9 @@ test("on a phone a smart list's rule is shown and changed from the more-menu: th
     await freshPage({ people: [person(1)], lists: [{ id: "s2", name: "Texters", ids: [], rule: TEXTERS }] });
     draw({ initialSaved: "s2" });
     let tree = draw({ initialSaved: "s2" });
-    const menu = find(
-      tree,
-      (n) => Array.isArray(n.props?.items) && n.props.items.some((i) => i.label === "Who is on it"),
-    );
-    assert.ok(menu, "the more-menu offers it for a smart list");
-    menu.props.items.find((i) => i.label === "Who is on it").onClick();
+    const rule = phoneMenuOf(tree).find((i) => i.label === "Who is on it");
+    assert.ok(rule, "the more-menu offers it for a smart list");
+    rule.onClick();
     tree = draw({ initialSaved: "s2" });
     const sheet = byTestId(tree, "list-act-sheet");
     assert.match(textOf(byTestId(sheet, "rule-edit-now")), /^Now: Reaches you by WhatsApp/);
@@ -2031,17 +2026,19 @@ test("export follows the list that is open, and is not offered for a list that c
     people: [person(1)],
     lists: [{ id: "s3", name: "Booked soon", ids: [], rule: { all: [{ field: "booked", op: "is", yes: true }] } }],
   });
-  // Export is an item of the file menu after Columns (canvas P1; the kit's MoreMenu, read by its items): the link is
+  // Export is an item of the file menu after Columns (canvas P1; the kit's Menu, read by its groups): the link is
   // the route's (the client's own url for GET contacts/export), opened in place, with its path and the list it is
   // asked for.
   const exportItem = (tree) =>
-    find(tree, (n) => n.props?.testid === "people-file-menu").props.items.find((i) => i.label === "Export CSV");
+    find(tree, (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "people-file-menu")
+      .props.groups.flatMap((g) => g.items || [])
+      .find((i) => i.label === "Export CSV");
   const opened = [];
   const open = globalThis.window.open;
   globalThis.window.open = (u) => opened.push(String(u));
   try {
     const linkOf = (item) => {
-      item.onClick();
+      item.onSelect();
       const u = new URL(opened.at(-1), "https://app.chanlytics.com");
       return [u.pathname, u.searchParams.get("list")];
     };
@@ -2055,7 +2052,7 @@ test("export follows the list that is open, and is not offered for a list that c
     const blocked = exportItem(draw({ initialSaved: "s3" }));
     assert.equal(blocked.title, globalThis.window.__PEOPLE.saved[0].unknown);
     const before = opened.length;
-    blocked.onClick();
+    blocked.onSelect();
     assert.equal(opened.length, before, "held: nothing opens");
   } finally {
     globalThis.window.open = open;
@@ -2174,14 +2171,22 @@ test("a list's own route lands on People with that list picked -- Playbooks' lis
   assert.equal(route(null), "clients");
 });
 
-test("the Leads scope still loads over People's shared parts: it reads the list page's hooks, its phone bar and the rail's toggle by name, and the app publishes them from the TSX", () => {
-  // leads-real.jsx (People's other scope, drawn in leads-honest.test.mjs) is a classic script: it finds these on the window, by
-  // the names the JSX pages this file replaced gave them (surfaces/people/people-globals.ts).
-  assert.equal(typeof globalThis.window.LeadsReal, "function", "the Leads scope is loaded");
-  for (const name of ["usePeople", "usePlControls", "usePlPlace", "PeoplePhoneBar", "railToggle", "plScopeRoute"]) {
-    assert.equal(globalThis.window[name], peoplePages[name], `${name} is the one the TSX publishes`);
-    assert.notEqual(globalThis.window[name], undefined, `${name} is published`);
-  }
+test("the Leads scope imports People's parts: the list page's hooks, the table and the rail kit are on no window, and only what the shell still draws by name is", () => {
+  // Leads is TSX (surfaces/leads, decision 0015 step 9): it imports People's hooks, its phone bar and the rail's toggle, so
+  // the names the JSX read them by are published no more, and what was published kept them in the shell's chunk.
+  for (const name of [
+    "usePeople",
+    "usePlControls",
+    "usePlPlace",
+    "PeoplePhoneBar",
+    "railToggle",
+    "PeopleTable",
+    "PhoneSheet",
+  ])
+    assert.equal(peoplePages[name], undefined, `${name} is imported, not published`);
+  // The shell's strip reads People's scope words by name (components/surface-tabs.jsx stripPlace); it draws them from the page's chrome.
+  for (const name of ["plScopes", "plScopeRoute"]) assert.equal(typeof peoplePages[name], "function", name);
+  assert.equal(peoplePages.PeopleScopeTabs, undefined, "and the page's own copy of the strip is gone");
 });
 
 test("REGRESSION: on a list, the Offers column shows the answer about offers -- the Lists page showed the yes to messages under the Offers heading", async () => {
@@ -2210,7 +2215,7 @@ test("a selection's yes on a sign-up form is recorded with the note that says wh
     ]);
   let tree = draw();
   byTestId(tree, "select-all").props.onChange();
-  const menu = () => find(draw(), (n) => n.props?.label === "Record a yes");
+  const menu = () => barMenuOf(draw(), "Record a yes");
   assert.deepEqual(
     menu().props.items.map((i) => i.header || i.label),
     [
@@ -2283,7 +2288,7 @@ const headings = (tree) =>
 /** A person's row, by their id. */
 const rowOf = (tree, id) => find(tree, (n) => n.type === "tr" && n.props?.id === `person-${id}`);
 
-test("the table's columns: Person, State, Last contact, the receptionist or, with a calendar, Visits, Offers, and Came from", async () => {
+test("the table's columns: Person, State, Last contact, the receptionist or, with a calendar, Visits, and Offers; Came from waits in the Columns menu", async () => {
   // The headings a press sorts by, as the table marks them; and each body row's cells against the headings above them.
   const sorting = (tree) =>
     all(tree, (n) => n.type === "th" && !colOff(n) && /\bsortable\b/.test(String(n.props?.className || ""))).map((th) =>
@@ -2308,25 +2313,26 @@ test("the table's columns: Person, State, Last contact, the receptionist or, wit
   };
   await freshPage({ people: [person(1), person(2)] });
   let tree = draw();
-  assert.deepEqual(headings(tree), ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Came from"]);
-  assert.deepEqual(
-    sorting(tree),
-    ["Person", "State", "Last contact", "Offers"],
-    "the receptionist and where they came from never sort",
-  );
+  assert.deepEqual(headings(tree), ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers"]);
+  assert.deepEqual(sorting(tree), ["Person", "State", "Last contact", "Offers"], "the receptionist never sorts");
   oneCellPerHeading(tree, "without a calendar");
+  // Where they came from is the member's to show (canvas P1: with it the table outgrew the pane at 1440), and never sorts.
+  await freshPage({
+    people: [person(1), person(2)],
+    views: { people: { sortBy: "last", sortDir: "desc", columns: { came_from: true } } },
+  });
+  tree = draw();
+  assert.deepEqual(headings(tree), ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Came from"]);
+  assert.deepEqual(sorting(tree), ["Person", "State", "Last contact", "Offers"], "where they came from never sorts");
+  oneCellPerHeading(tree, "with Came from shown");
   await freshPage({ people: [person(1), person(2)], calendar: "ok" });
   tree = draw();
   assert.deepEqual(
     headings(tree),
-    ["Person", "State", "Reach", "Last contact", "Visits", "Offers", "Came from"],
+    ["Person", "State", "Reach", "Last contact", "Visits", "Offers"],
     "with a calendar the outcome takes the receptionist's column",
   );
-  assert.deepEqual(
-    sorting(tree),
-    ["Person", "State", "Last contact", "Visits", "Offers"],
-    "the visit sorts; where they came from never does",
-  );
+  assert.deepEqual(sorting(tree), ["Person", "State", "Last contact", "Visits", "Offers"], "the visit sorts");
   oneCellPerHeading(tree, "with a calendar");
 });
 
@@ -2338,6 +2344,7 @@ test("a row says where the person came from, in words, and nothing when nothing 
       person(3, { came_from: null }),
       person(4),
     ],
+    views: { people: { sortBy: "last", sortDir: "desc", columns: { came_from: true } } },
   });
   const tree = draw();
   const said = (id) => textOf(byTestId(rowOf(tree, id), "row-came-from")).trim();
@@ -2490,7 +2497,7 @@ test("REGRESSION: Esc in a field is the field's, even once the field has gone --
   byTestId(draw(), "select-all").props.onChange();
   // New list… puts the name box in the bar. Its own Esc closes it (React hears the key before the window does), and
   // focus goes with it: by the time the page hears the key, focus is on the body.
-  find(draw(), (n) => n.props?.label === "Add to list")
+  barMenuOf(draw(), "Add to list")
     .props.items.find((i) => i.label === "New list…")
     .onClick();
   byTestId(draw(), "bulk-list-name").props.onKeyDown({ key: "Escape" });
@@ -2520,6 +2527,14 @@ test("REGRESSION: Esc while a menu or a dialog is open is theirs -- the Esc that
       /2 selected/,
       `REGRESSION: an Esc that closed a ${role} cleared the selection`,
     );
+  }
+  // The kit's Menu and Sheet are drawn on the body, past .app-root, and named by their class: the page holds still too.
+  for (const [role, className] of [
+    ["menu", "more-menu"],
+    ["dialog", "sheet"],
+  ]) {
+    overlayOpen = { role, inApp: false, className };
+    assert.equal(press("j"), false, `and walks nothing behind the kit's ${className}`);
   }
   // A dialog outside the app, one a browser extension added and hid, is not the app's: the page keeps its keys.
   overlayOpen = { role: "dialog", inApp: false };
@@ -2696,20 +2711,30 @@ test("the Columns menu shows and hides columns and stays open while it does; Per
       { key: "last", on: true, locked: false },
       { key: "receptionist", on: true, locked: false },
       { key: "offers", on: true, locked: false },
-      { key: "came_from", on: true, locked: false },
+      { key: "came_from", on: false, locked: false },
       { key: "since", on: false, locked: false },
       { key: "email", on: false, locked: false },
       { key: "lists", on: false, locked: false },
     ],
     "every column this workspace can show; Visits waits for a calendar",
   );
+  assert.ok(!headings(tree).includes("Came from"), "off until asked for");
   click(byTestId(tree, "column-came_from"));
   tree = draw();
   assert.ok(byTestId(tree, "people-columns-menu"), "it stays open: MoreMenu closes on every pick");
-  assert.ok(!headings(tree).includes("Came from"), "hidden");
+  assert.ok(headings(tree).includes("Came from"), "shown");
   click(byTestId(tree, "column-lists"));
   tree = draw();
-  assert.deepEqual(headings(tree), ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Lists"]);
+  assert.deepEqual(headings(tree), [
+    "Person",
+    "State",
+    "Reach",
+    "Last contact",
+    "Receptionist",
+    "Offers",
+    "Came from",
+    "Lists",
+  ]);
   assert.equal(
     textOf(byTestId(rowOf(tree, "p1"), "row-lists")).trim(),
     "Regulars",
@@ -2886,7 +2911,7 @@ test("a saved view's columns are read with care -- only a true or false for a co
   const tree = draw();
   assert.deepEqual(
     headings(tree),
-    ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Came from", "Email"],
+    ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Email"],
     "Person stays, and a word is not a false",
   );
   assert.ok(
@@ -2906,7 +2931,7 @@ test("a saved view's columns are read with care -- only a true or false for a co
     await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc", columns } } });
     assert.deepEqual(
       headings(draw()),
-      ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Came from"],
+      ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers"],
       `${JSON.stringify(columns)} is no set of columns: the defaults`,
     );
   }
@@ -2943,7 +2968,7 @@ test("a view saves one at a time, and only the latest waits -- two in flight cou
   click(byTestId(draw(), "column-email"));
   draw();
   assert.equal(calls.length, 1, "two quick toggles: the first goes, and the second waits for it to land");
-  assert.deepEqual(calls[0].view.columns, { came_from: false });
+  assert.deepEqual(calls[0].view.columns, { came_from: true });
   click(byTestId(draw(), "column-lists"));
   draw();
   assert.equal(calls.length, 1, "a third takes the second's place: only the latest waits");
@@ -2953,7 +2978,7 @@ test("a view saves one at a time, and only the latest waits -- two in flight cou
   assert.equal(calls[1].page, "people");
   assert.deepEqual(
     calls[1].view,
-    { sortBy: "last", sortDir: "desc", columns: { came_from: false, email: true, lists: true } },
+    { sortBy: "last", sortDir: "desc", columns: { came_from: true, email: true, lists: true } },
     "the latest view, whole",
   );
   calls[1].land({ ok: true });
@@ -2996,7 +3021,7 @@ test("a save that fails is tried once more, unless a newer view is waiting to go
     assert.equal(calls.length, 4);
     assert.deepEqual(
       calls[3].view.columns,
-      { email: true, lists: true, came_from: false },
+      { email: true, lists: true, came_from: true },
       "the newer view, not the failed one again",
     );
     calls[3].land({ ok: true });
@@ -3044,7 +3069,7 @@ test("a column put back the way its default has it is no choice any more -- the 
   await freshPage({ people: [person(1)], calendar: "ok", views: { people: saves().at(-1) } });
   assert.deepEqual(
     headings(draw()),
-    ["Person", "State", "Reach", "Last contact", "Visits", "Offers", "Came from"],
+    ["Person", "State", "Reach", "Last contact", "Visits", "Offers"],
     "a calendar connects, and Visits takes the receptionist's place, as it does for everyone",
   );
 });
@@ -3089,7 +3114,7 @@ test("with a calendar the menu offers Visits, shown, and the receptionist, hidde
       ["visits", true],
       ["receptionist", false],
       ["offers", true],
-      ["came_from", true],
+      ["came_from", false],
       ["since", false],
       ["email", false],
       ["lists", false],
@@ -3118,7 +3143,7 @@ test("with a calendar the menu offers Visits, shown, and the receptionist, hidde
   await freshPage({ people: [person(1)], calendar: "ok", views: { people: saves().at(-1) } });
   assert.deepEqual(
     headings(draw()),
-    ["Person", "State", "Reach", "Last contact", "Offers", "Came from", "Email"],
+    ["Person", "State", "Reach", "Last contact", "Offers", "Email"],
     "back up, and Visits is still hidden, as chosen",
   );
 });
@@ -3136,16 +3161,16 @@ test("REGRESSION: Back keeps the columns a member chose -- People mounted again 
   await settle();
   assert.deepEqual(
     seen.viewSaves,
-    [{ page: "people", view: { sortBy: "last", sortDir: "desc", columns: { came_from: false } } }],
+    [{ page: "people", view: { sortBy: "last", sortDir: "desc", columns: { came_from: true } } }],
     "the save landed",
   );
   // A profile opens, so the list goes; Back mounts it again, and it reads the surface as it stands.
   cells = [];
   const tree = draw();
-  assert.ok(!headings(tree).includes("Came from"), "REGRESSION: the column the member hid came back");
+  assert.ok(headings(tree).includes("Came from"), "REGRESSION: the column the member showed went away");
   assert.deepEqual(
     JSON.parse(globalThis.localStorage.getItem("chanlytics-people-view")).columns,
-    { came_from: false },
+    { came_from: true },
     "REGRESSION: and this device's copy was written over with the old columns",
   );
   sortByHeading(tree, "State");
@@ -3153,7 +3178,7 @@ test("REGRESSION: Back keeps the columns a member chose -- People mounted again 
   await settle();
   assert.deepEqual(
     seen.viewSaves.at(-1),
-    { page: "people", view: { sortBy: "state", sortDir: "desc", columns: { came_from: false } } },
+    { page: "people", view: { sortBy: "state", sortDir: "desc", columns: { came_from: true } } },
     "REGRESSION: a sort afterwards sent the columns from before, and the server lost the choice",
   );
 });
@@ -3173,18 +3198,18 @@ test("REGRESSION: a save made while People is being read is not undone by the re
   await settle();
   assert.deepEqual(
     seen.viewSaves.map((s) => s.view.columns),
-    [{ came_from: false }],
+    [{ came_from: true }],
     "the save went while the read was out",
   );
   cells = [];
   const tree = draw();
-  assert.ok(!headings(tree).includes("Came from"), "REGRESSION: the read put the column back");
+  assert.ok(headings(tree).includes("Came from"), "REGRESSION: the read took the column away");
   sortByHeading(tree, "State");
   draw();
   await settle();
   assert.deepEqual(
     seen.viewSaves.at(-1).view,
-    { sortBy: "state", sortDir: "desc", columns: { came_from: false } },
+    { sortBy: "state", sortDir: "desc", columns: { came_from: true } },
     "REGRESSION: and the next sort saved the old columns",
   );
 });
@@ -3202,7 +3227,7 @@ test("a read of People that overlapped no save takes the server's view -- anothe
   cells = [];
   assert.deepEqual(
     headings(draw()),
-    ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Came from", "Email"],
+    ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Email"],
     "the other device's columns, not this tab's last save",
   );
 });
@@ -3268,7 +3293,7 @@ test("REGRESSION: the bulk bar acts on the people shown -- a person a refresh mo
       /1 selected/,
       "REGRESSION: the bar counted a person who is not on screen",
     );
-    await find(tree, (n) => n.props?.label === "Add to list")
+    await barMenuOf(tree, "Add to list")
       .props.items.find((i) => i.label === "Regulars")
       .onClick();
     await settle();
@@ -3278,7 +3303,7 @@ test("REGRESSION: the bulk bar acts on the people shown -- a person a refresh mo
       "REGRESSION: the add wrote to a person the view no longer shows",
     );
     // The doors that take fifty at a time (a yes, the receptionist, a note, Take off) share one batch; a yes stands for them.
-    await find(draw({ initialState: "needs_you" }), (n) => n.props?.label === "Record a yes")
+    await barMenuOf(draw({ initialState: "needs_you" }), "Record a yes")
       .props.items.find((i) => i.label === "In person")
       .onClick();
     await settle();
@@ -3328,7 +3353,7 @@ test("REGRESSION: a search match past the people loaded is exported with the res
       ["Person 2", "Saturday Jones", "Saturday Smith"],
       "REGRESSION: the person found past the loaded rows was left out of the file",
     );
-    await find(tree, (n) => n.props?.label === "Add to list")
+    await barMenuOf(tree, "Add to list")
       .props.items.find((i) => i.label === "Regulars")
       .onClick();
     await settle();
@@ -3463,7 +3488,7 @@ test("REGRESSION: a desktop builds no cell of a column the member turned off -- 
     0,
     "State, Offers, Email and Lists are not in the row at all",
   );
-  assert.deepEqual(headings(desk), ["Person", "Reach", "Last contact", "Receptionist", "Came from"]);
+  assert.deepEqual(headings(desk), ["Person", "Reach", "Last contact", "Receptionist"]);
 });
 
 test("REGRESSION: a phone row is one cell -- the face, the name and the state; why they need a person, or their own words; the visit and the last contact -- and the member's desktop columns never reach it", () =>
@@ -3494,8 +3519,8 @@ test("REGRESSION: a phone row is one cell -- the face, the name and the state; w
     assert.ok(byTestId(card, "row-state-detail"), "why they need a person");
     assert.equal(byTestId(card, "row-offers"), null, "the answer to offers is on their page (Ruben, 22 Sep)");
     assert.ok(
-      find(card, (n) => /\bpl-card-face\b/.test(String(n.props?.className || ""))),
-      "their face",
+      find(card, (n) => /\bface\b/.test(String(n.props?.className || ""))),
+      "their face, the kit's",
     );
     assert.match(
       textOf(byTestId(rowOf(tree, "p2"), "row-words")),
@@ -3604,7 +3629,10 @@ test("REGRESSION: a person's cell is who they are and what they said -- the chan
 });
 
 test("a heading that sorts is a button a keyboard reaches; one that does not is words", async () => {
-  await freshPage({ people: [person(1)] });
+  await freshPage({
+    people: [person(1)],
+    views: { people: { sortBy: "last", sortDir: "desc", columns: { came_from: true } } },
+  });
   const tree = draw();
   const ths = all(
     find(tree, (n) => n.type === "thead"),
@@ -3618,11 +3646,10 @@ test("a heading that sorts is a button a keyboard reaches; one that does not is 
     "REGRESSION: the sort was the cell's own click, which Tab never found",
   );
   for (const th of withButton) assert.equal(find(th, isSort).props.type, "button", "a button, not a form's submit");
+  const cameFrom = ths.find((th) => textOf(th).trim() === "Came from");
+  assert.ok(cameFrom, "Came from is drawn, the member having shown it");
   assert.equal(
-    find(
-      ths.find((th) => textOf(th).trim() === "Came from"),
-      (n) => n.type === "button",
-    ),
+    find(cameFrom, (n) => n.type === "button"),
     null,
     "Came from does not sort, so it is words",
   );

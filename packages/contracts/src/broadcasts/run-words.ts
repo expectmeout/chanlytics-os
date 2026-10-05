@@ -38,6 +38,14 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   // that should have arrived untranslated.
   no_marketing_consent: "no yes to offers",
   no_phone: "no number",
+  // The channel picked was email and no address is on file (step 3), or no channel the send ticks could carry it.
+  no_address: "no email address",
+  no_channel: "no channel it can go by",
+  sms_line_not_active: "the texting line is not active",
+  // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
+  month_allowance: "this month's allowance is used up",
+  // Meta no longer approves the message's WhatsApp template: it holds the people who go by WhatsApp, and only them.
+  template_not_approved: "WhatsApp no longer approves its template",
   // The number is on file but no thread answers to it on this line: a stored
   // number that does not normalise, or one no contact row matches.
   no_thread: "no thread for that number",
@@ -45,11 +53,20 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   paused: "the workspace was paused",
   superseded_by_human: "a person answered first",
   sms_carries_no_promotions: "no offers by text",
-  email_marketing_disabled: "no offers by email yet",
+  // The campaigns domain offers leave from is not this deployment's to use, or the provider does not verify it: the business's
+  // news by email is an offer at the door (decision D2), so it waits as an offer does. Each person's own skip, final.
+  email_marketing_disabled: "offers and news by email can't leave yet: the campaigns domain isn't switched on",
+  // The workspace's offers by email are paused while complaints or bounces settle (email-offers.ts), and the business's news
+  // by email with them (decision D2); a visit's reminder and a reply still go.
+  email_offers_paused: "offers and news by email are paused",
+  // An offer's foot names the business's address, and it has none on file: the person is held until it does.
+  no_business_address: "no business address on file",
   email_suppressed: "their email address stopped accepting mail",
   recipient_changed: "their email address changed",
   erased: "deleted",
-  send_failed: "WhatsApp refused",
+  // The provider refused the send, on whichever channel the person was reached by: a page that knows the channel says
+  // it by SEND_REFUSED_WORDS, and a row that does not (a person's own page, a run made before rows kept theirs) says this.
+  send_failed: "the provider refused it",
   missing_value: "a value was missing",
   // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
   // this object opaque to the bundler, which then carries the whole map into
@@ -70,3 +87,32 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   sending_domain_not_ready: "the domain isn't sending",
   sending_domain_at_cap: "the domain's day is full",
 };
+
+/**
+ * The two reasons the workspace, not the person, holds an email for: its offers and news by email paused by a gate, and a
+ * campaigns domain that cannot be used. A run that also goes another way skips each email person for them, one by one, and
+ * goes on (core broadcast-stops.ts).
+ */
+export const EMAIL_HOLDS = [
+  "email_offers_paused",
+  "email_marketing_disabled",
+] as const satisfies readonly DeliveryRefusal[];
+export type EmailHold = (typeof EMAIL_HOLDS)[number];
+
+/**
+ * The reasons a finished run gives for the people it held back, in one list for its news (core broadcast.ts finishedNews):
+ * a run's tally counts who was held, not why, so the news names what any run is held for, each in the words the run's own
+ * page gives (HELD_REASONS). The workspace's holds on email are named only where this run skipped someone for one
+ * (`emailHeld`): a run that went on past its email people must say that is what happened to them, and a run nobody was
+ * held on for it must not suggest it.
+ */
+export function finishedRunHeldWhy(emailHeld: readonly EmailHold[]): string {
+  const why = [
+    HELD_REASONS.not_opted_in,
+    HELD_REASONS.opted_out,
+    HELD_REASONS.no_phone,
+    HELD_REASONS.human_has_it,
+    ...EMAIL_HOLDS.filter((r) => emailHeld.includes(r)).map((r) => HELD_REASONS[r]),
+  ];
+  return `${why.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
+}

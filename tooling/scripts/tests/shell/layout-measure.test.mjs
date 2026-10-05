@@ -107,6 +107,16 @@ test("Setup shares the settings column with the cards above and below it", () =>
   );
 });
 
+test("on a phone Settings' one column is as wide as the screen, whatever the strip of sections holds", () => {
+  // A bare 1fr is minmax(auto, 1fr): Safari sized it to the strip's tabs laid end to end (775px on a 393px iPhone,
+  // 4 Oct), and every pane under the strip ran off the screen. Chromium shrank it, so only a phone showed it.
+  assert.match(
+    MOBILE,
+    /\n {2}\.settings \{ grid-template-columns: minmax\(0, 1fr\);/,
+    "the phone's Settings column may shrink below what the strip and the panes hold",
+  );
+});
+
 test("the thread pane has ONE gutter, and the pane owns it", () => {
   const inbox = readRaw("apps/dashboard/src/legacy/styles/inbox.css");
   // Every rule on the scroller, its layout and the look's gutter (16px 24px, set once, in the look's own rule).
@@ -162,20 +172,11 @@ test("the focus ring is a default, not a list of names", () => {
   );
 });
 
-test("a settings control is named by the row it sits in", () => {
-  // Every switch rendered as an unlabelled role="switch": the words that say
-  // what it does live in the left column and nothing tied the two together, so
-  // a screen reader announced "switch, on" all the way down Notifications.
-  const settings = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(settings.includes("React.useId()"), "the row mints an id for its label");
-  assert.ok(settings.includes('aria-labelledby": labelId'), "and hands it to the control");
-  assert.ok(
-    settings.includes('!kid.props["aria-label"] && !kid.props["aria-labelledby"]'),
-    "a control that brings its own name keeps it",
-  );
-  // The controls have to forward it or the name never lands on the element:
-  // settings-words.test.mjs draws each row's control and reads it off the element.
-});
+// A settings control is named by the row it sits in: every switch rendered as an unlabelled role="switch", the words
+// that say what it does in the left column and nothing tying the two together, so a screen reader announced "switch,
+// on" all the way down Notifications. The row (surfaces/settings/autonomy/controls.tsx SetRow, decision 0015 step 11)
+// mints its label's id and hands it to the control it draws; settings-words.test.mjs ("a settings control is named by
+// the row it sits in") draws each row's control and reads the name off the element.
 
 test("on a phone a thread opens by coming in from the right, over where the list stood -- transform and opacity only, and none under reduced motion", () => {
   // The list cut to a pane fading up in place read as a jolt (Ruben, 22 Sep 2026). A page on a phone comes in from
@@ -183,7 +184,7 @@ test("on a phone a thread opens by coming in from the right, over where the list
   const mobile = MOBILE;
   assert.match(
     mobile,
-    /\.inbox\.phone-thread \.ix-thread-pane, \.conversations\.phone-detail \.ix-thread-pane \{ animation: thread-in \d+ms var\(--ease-out\); \}/,
+    /\.inbox\[data-takeover\] \.ix-thread-pane, \.conversations\[data-takeover\] \.ix-thread-pane \{ animation: thread-in \d+ms var\(--ease-out\); \}/,
     "both pages' threads, the one motion",
   );
   const frames = mobile.match(/@keyframes thread-in \{([^}]*)\}/);
@@ -194,7 +195,7 @@ test("on a phone a thread opens by coming in from the right, over where the list
   assert.ok(!/(width|height|top|left):/.test(frames[1]), "never a layout property");
   assert.match(
     mobile,
-    /prefers-reduced-motion: reduce\) \{ \.inbox\.phone-thread \.ix-thread-pane, \.conversations\.phone-detail \.ix-thread-pane \{ animation: none; \} \}/,
+    /prefers-reduced-motion: reduce\) \{ \.inbox\[data-takeover\] \.ix-thread-pane, \.conversations\[data-takeover\] \.ix-thread-pane \{ animation: none; \} \}/,
     "and none under reduced motion",
   );
 });
@@ -226,7 +227,7 @@ test("a route on its way is an empty pane that says so after a beat, never a ske
   // these four agreed already and now say so.
   const tokens = readRaw("apps/dashboard/src/legacy/styles/tokens.css");
   assert.ok(
-    tokens.includes("--rail-nav: 220px") && tokens.includes("--rail-list: 340px"),
+    tokens.includes("--rail-nav: 220px") && tokens.includes("--rail-list: 360px"),
     "the two kinds of rail are named",
   );
   for (const [file, sel] of [

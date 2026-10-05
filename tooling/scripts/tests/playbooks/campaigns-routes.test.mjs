@@ -1,89 +1,117 @@
 /**
- * Campaigns' three pages are App Router pages (decision 0015, step 7), and what the frame says around each is the surface's
- * (src/surfaces/campaigns/routes.ts): the crumbs an address wears, named for a playbook or a run only once the surface holds
- * it, the audience a broadcast opens on named by the page's own rule, and the top bar's one act, which only a demo offers.
- * The routes the registry hands the frame take the addresses the rows took (`outbound/<id>`, `broadcasts/run:<id>`), and the
- * path says the product's word.
+ * Campaigns is one page, its home (canvas A, 3 Oct 2026), and its two other pages are rooms of it: what the frame says around
+ * each address (src/surfaces/campaigns/routes.ts), the routes the registry hands the frame, and the old Playbooks addresses,
+ * which land on the home for ever (contracts doorOf, applied where a route is written and where an address is moved on load).
+ *
+ *   campaigns                        the home                    crumbs: Campaigns
+ *   campaigns/moment:<id>            a playbook open in a sheet  crumbs: Campaigns › <its name>
+ *   campaigns/new[:to:<list>|:every|:moment:<trigger>|:edit:<id>]  the composer  crumbs: Campaigns › New message
+ *   broadcasts[/run:<id>|/get-yes]           Sent               crumbs: Campaigns › Sent [› …]
+ *   broadcasts/<list>                        a door: campaigns/new:to:<list>
+ *   messages (the path's templates)          the Library        crumbs: Campaigns › Library
+ *   outbound[/<id>] (the path's playbooks)   a door: campaigns, campaigns/moment:<id>
  */
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 
 const S = "../../../../apps/dashboard/src/surfaces";
-const { playbooksChrome, broadcastsChrome, broadcastsProps } = await import(`${S}/campaigns/routes.ts`);
+const { campaignsChrome, broadcastsChrome, broadcastsProps } = await import(`${S}/campaigns/routes.ts`);
+const { parseHome, momentRoute, composeRoute } = await import(`${S}/campaigns/home/address.ts`);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
-const { SURFACE_ROUTES, routeHasPage } = await import(`${S}/routes.ts`);
-const { workspacePath, routeOfPath } = await import("@chanlytics/contracts");
+const { SURFACE_ROUTES, routeHasPage, onOnePage } = await import(`${S}/routes.ts`);
+const { workspacePath, routeOfPath, routeOfHash, movedAddress, doorOf } = await import("@chanlytics/contracts");
 
 afterEach(() => {
-  setSurfaceValue("playbooks", undefined);
-  setSurfaceValue("broadcasts", undefined);
+  for (const k of ["playbooks", "broadcasts", "reach_outs"]) setSurfaceValue(k, undefined);
 });
 
-const playbooks = (rows = []) => ({ rows });
-const broadcasts = (rows = [], audiences = []) => ({ rows, audiences });
+const HOME = { label: "Campaigns", to: "campaigns" };
+const SENT = { label: "Sent", to: "broadcasts" };
 
-test("Playbooks: the crumbs name Campaigns and Playbooks, and one playbook by name once the playbooks hold it", () => {
-  assert.deepEqual(playbooksChrome({ param: null }).crumbs, ["Campaigns", "Playbooks"]);
-  setSurfaceValue("playbooks", playbooks([{ id: "pb-1", name: "Win-back" }]));
-  assert.deepEqual(playbooksChrome({ param: null }).crumbs, ["Campaigns", "Playbooks"]);
-  assert.deepEqual(playbooksChrome({ param: "pb-1" }).crumbs, [
-    "Campaigns",
-    { label: "Playbooks", to: "outbound" },
-    "Win-back",
-  ]);
-  assert.deepEqual(
-    playbooksChrome({ param: "pb-9" }).crumbs,
-    ["Campaigns", { label: "Playbooks", to: "outbound" }, "Playbook"],
-    "a link to a playbook the surface does not hold names none",
-  );
-  setSurfaceValue("playbooks", undefined);
-  assert.deepEqual(
-    playbooksChrome({ param: "pb-1" }).crumbs,
-    ["Campaigns", { label: "Playbooks", to: "outbound" }, "Playbook"],
-    "before the first read no playbook is named",
-  );
-});
+/* ------------------------------------------------------ the home ------------------------------------------------------ */
 
-test("Playbooks: the top bar's act is the demo's Ask door, and only while the surface holds nothing", () => {
-  assert.deepEqual(playbooksChrome({ param: null }).act, {
-    label: "New campaign",
-    glyph: "plus",
-    primary: true,
-    ask: true,
+test("the home's address says a moment open, or the composer, and spells back to the same words", () => {
+  assert.deepEqual(parseHome(null), { moment: null, compose: null });
+  assert.deepEqual(parseHome("moment:pb-1"), { moment: "pb-1", compose: null });
+  assert.deepEqual(parseHome("new"), { moment: null, compose: { mode: "once", to: null } });
+  assert.deepEqual(
+    parseHome("new:to:s1"),
+    { moment: null, compose: { mode: "once", to: "s1" } },
+    "the audience it is for",
+  );
+  assert.deepEqual(parseHome("new:to:"), parseHome("new"), "no audience named is no audience");
+  assert.deepEqual(parseHome("new:every"), { moment: null, compose: { mode: "every", moment: null, edit: null } });
+  assert.deepEqual(parseHome("new:moment:quiet_30"), {
+    moment: null,
+    compose: { mode: "every", moment: "quiet_30", edit: null },
   });
-  setSurfaceValue("playbooks", playbooks());
-  assert.equal(playbooksChrome({ param: null }).act, null, "a real workspace's New playbook is the page's own");
+  assert.deepEqual(parseHome("new:edit:pb-1"), {
+    moment: null,
+    compose: { mode: "every", moment: null, edit: "pb-1" },
+  });
+  // A word the page does not know is the home: a link never lands on nothing.
+  for (const odd of ["surprise", "moment:", "new:edit:", "run:b-1", ""])
+    assert.deepEqual(parseHome(odd), parseHome(null), odd);
+  assert.equal(momentRoute("pb-1"), "campaigns/moment:pb-1");
+  assert.equal(composeRoute("once"), "campaigns/new");
+  assert.equal(composeRoute("once", { to: "s1" }), "campaigns/new:to:s1");
+  assert.equal(composeRoute("once", { to: null }), "campaigns/new", "none named");
+  assert.equal(
+    composeRoute("once", { to: "s1" }) && parseHome(composeRoute("once", { to: "s1" }).split("/")[1]).compose.to,
+    "s1",
+    "and back",
+  );
+  assert.equal(composeRoute("every"), "campaigns/new:every");
+  assert.equal(composeRoute("every", { moment: "visited" }), "campaigns/new:moment:visited");
+  assert.equal(composeRoute("every", { edit: "pb-1" }), "campaigns/new:edit:pb-1", "changing one wins over a moment");
 });
 
-test("Broadcasts: the crumbs name a run, the get-yes section, or an audience the surface offers, and every address is one mount", () => {
+test("the home's crumbs name Campaigns, and a playbook or a reach-out by name once the surfaces hold it; every address is one mount", () => {
+  const c = (param) => campaignsChrome({ param });
+  assert.deepEqual(c(null), { crumbs: ["Campaigns"], mount: "campaigns", act: null });
+  assert.deepEqual(c("moment:pb-1").crumbs, [HOME, "Playbook"], "before the first read no playbook is named");
+  setSurfaceValue("playbooks", { rows: [{ id: "pb-1", name: "Win-back" }] });
+  assert.deepEqual(c("moment:pb-1").crumbs, [HOME, "Win-back"]);
+  assert.deepEqual(c("moment:pb-9").crumbs, [HOME, "Playbook"], "a link to one the surface does not hold names none");
+  setSurfaceValue("reach_outs", [{ root_id: "ch-1", name: "Cold email to studios" }]);
+  assert.deepEqual(c("moment:ch-1").crumbs, [HOME, "Cold email to studios"]);
+  assert.deepEqual(c("new").crumbs, [HOME, "New message"]);
+  assert.deepEqual(c("new:moment:visited").crumbs, [HOME, "New message"]);
+  assert.deepEqual(c("new:edit:pb-1").crumbs, [HOME, "Win-back"], "changing a playbook is named for it");
+  assert.deepEqual(c("new:edit:ch-1").crumbs, [HOME, "Cold email to studios"], "and a reach-out for its own name");
+  assert.deepEqual(c("new:to:s1").crumbs, [HOME, "New message"], "the composer on a list is the composer");
+  for (const p of [null, "moment:pb-1", "new", "new:every", "surprise"])
+    assert.equal(c(p).mount, "campaigns", String(p));
+  assert.equal(c(null).act, null, "a real workspace's New message is the page's own; the top bar has none");
+});
+
+/* ---------------------------------------------------- the rooms ---------------------------------------------------- */
+
+test("Sent: the crumbs go back to Campaigns, name a run, the get-yes section, or an audience the surface offers; every address is one mount", () => {
   const b = (param) => broadcastsChrome({ param });
-  assert.deepEqual(b(null), { mount: "broadcasts", crumbs: ["Campaigns", "Broadcasts"] });
-  const link = { label: "Broadcasts", to: "broadcasts" };
-  assert.deepEqual(b("run:b-1").crumbs, ["Campaigns", link, "Broadcast"], "a run nothing holds yet");
-  assert.deepEqual(b("get-yes").crumbs, ["Campaigns", link, "Get their yes"]);
-  assert.deepEqual(b("s1").crumbs, ["Campaigns", "Broadcasts"], "an audience nothing holds yet");
-  setSurfaceValue(
-    "broadcasts",
-    broadcasts(
-      [{ id: "b-1", name: "Win-back · Sep 10" }],
-      [
-        { kind: "everyone", id: null, label: "Everyone who said yes" },
-        { kind: "saved", id: "s1", label: "Regulars" },
-        { kind: "list", id: "new_week", label: "New this week" },
-        { kind: "playbook", id: "pb-1", label: "Win-back" },
-      ],
-    ),
-  );
-  assert.deepEqual(b("run:b-1").crumbs, ["Campaigns", link, "Win-back · Sep 10"]);
-  assert.deepEqual(b("run:b-9").crumbs, ["Campaigns", link, "Broadcast"]);
-  assert.deepEqual(b("s1").crumbs, ["Campaigns", link, "Regulars"]);
-  assert.deepEqual(b("new_week").crumbs, ["Campaigns", link, "New this week"]);
+  assert.deepEqual(b(null), { mount: "broadcasts", crumbs: [HOME, "Sent"] });
+  assert.deepEqual(b("run:b-1").crumbs, [HOME, SENT, "Broadcast"], "a run nothing holds yet");
+  assert.deepEqual(b("get-yes").crumbs, [HOME, SENT, "Get their yes"]);
+  assert.deepEqual(b("s1").crumbs, [HOME, "Sent"], "an audience nothing holds yet");
+  setSurfaceValue("broadcasts", {
+    rows: [{ id: "b-1", name: "Win-back · Sep 10" }],
+    audiences: [
+      { kind: "everyone", id: null, label: "Everyone" },
+      { kind: "saved", id: "s1", label: "Regulars" },
+      { kind: "list", id: "new_week", label: "New this week" },
+      { kind: "playbook", id: "pb-1", label: "Win-back" },
+    ],
+  });
+  assert.deepEqual(b("run:b-1").crumbs, [HOME, SENT, "Win-back · Sep 10"]);
+  assert.deepEqual(b("run:b-9").crumbs, [HOME, SENT, "Broadcast"]);
+  assert.deepEqual(b("s1").crumbs, [HOME, SENT, "Regulars"]);
+  assert.deepEqual(b("new_week").crumbs, [HOME, SENT, "New this week"]);
   assert.deepEqual(
     b("pb-1").crumbs,
-    ["Campaigns", "Broadcasts"],
+    [HOME, "Sent"],
     "only a list or a kept list is an audience the composer opens on, never a playbook's",
   );
-  assert.deepEqual(b("nobody").crumbs, ["Campaigns", "Broadcasts"]);
+  assert.deepEqual(b("nobody").crumbs, [HOME, "Sent"]);
   assert.equal(b("run:b-1").mount, "broadcasts");
 });
 
@@ -94,28 +122,146 @@ test("Broadcasts is handed a run, the get-yes section, or the audience a word na
   assert.deepEqual(broadcastsProps(null), { initialSegment: null, initialRun: null, initialYes: false });
 });
 
-test("the frame takes every address the rows took: a playbook, a run, an audience; Templates is its own route alone", () => {
+test("the Library's crumbs go back to Campaigns, and no room has a strip of tabs", () => {
+  assert.deepEqual(SURFACE_ROUTES.messages.crumbs, [HOME, "Library"]);
+  assert.deepEqual(SURFACE_ROUTES.broadcasts.crumbs, [HOME, "Sent"]);
+  assert.equal(
+    SURFACE_ROUTES.messages.activeNav,
+    "messages",
+    "the sidebar lights Campaigns for each (sidebar.jsx groupMap)",
+  );
+});
+
+/* ------------------------------------------------ what the frame draws ------------------------------------------------ */
+
+test("the frame takes every address of the home, and of the rooms: a moment, the composer, a run, an audience", () => {
   for (const route of [
-    "outbound",
-    "outbound/pb-1",
+    "campaigns",
+    "campaigns/moment:pb-1",
+    "campaigns/new",
+    "campaigns/new:every",
+    "campaigns/new:moment:quiet_30",
+    "campaigns/new:to:s1",
+    "campaigns/new:edit:ch-1",
     "broadcasts",
     "broadcasts/run:b-1",
     "broadcasts/get-yes",
     "broadcasts/s1",
     "messages",
+    "outbound",
+    "outbound/pb-1",
   ])
     assert.ok(routeHasPage(route), route);
-  assert.ok(!routeHasPage("messages/x"), "Templates draws no address under it, as Reports draws none");
-  assert.equal(SURFACE_ROUTES.outbound.activeNav, "outbound");
-  assert.equal(SURFACE_ROUTES.messages.activeNav, "messages");
-  assert.equal(SURFACE_ROUTES.broadcasts.pane, false, "Broadcasts draws in the page's own scroller, as its row said");
-  assert.equal(SURFACE_ROUTES.outbound.pane, true);
+  assert.ok(!routeHasPage("messages/x"), "the Library draws no address under it, as Reports draws none");
+  assert.equal(SURFACE_ROUTES.campaigns.activeNav, "campaigns");
+  assert.equal(SURFACE_ROUTES.campaigns.pane, false, "the home is a page that scrolls, not the Inbox's two panes");
+  assert.equal(SURFACE_ROUTES.campaigns.mount, "campaigns", "a moment opened over the home is no new page");
+  // The rooms are the Inbox's two panes (campaigns/parts/split.tsx): the list, and what is open beside it, each scrolling itself.
+  assert.equal(SURFACE_ROUTES.broadcasts.pane, true);
+  assert.equal(SURFACE_ROUTES.messages.pane, true);
+  assert.equal(
+    SURFACE_ROUTES.outbound.activeNav,
+    "campaigns",
+    "the old list is a door, drawn under Campaigns while it moves",
+  );
 });
 
-test("the path says the product's word: playbooks and templates, and the shell's own route is what a page reads", () => {
-  assert.equal(workspacePath("acme", "outbound/pb-1"), "/w/acme/playbooks/pb-1");
-  assert.equal(workspacePath("acme", "messages"), "/w/acme/templates");
+test("a move between two addresses of the home is the page's own: opening a moment is no request for a page", () => {
+  assert.ok(onOnePage("campaigns", "campaigns/moment:pb-1"));
+  assert.ok(onOnePage("campaigns/moment:pb-1", "campaigns/new"));
+  assert.ok(onOnePage("campaigns/new", "campaigns"));
+  assert.ok(onOnePage("campaigns/moment:pb-1", "campaigns/new:edit:pb-1"), "a change opened over its detail");
+  assert.ok(onOnePage("campaigns/new:to:s1", "campaigns"));
+  assert.ok(!onOnePage("campaigns", "broadcasts"), "a room is its own page");
+  assert.ok(!onOnePage("broadcasts/run:b-1", "campaigns"));
+});
+
+/* ------------------------------------------------ the old addresses ------------------------------------------------- */
+
+test("the old Playbooks addresses land on the home: outbound on campaigns, outbound/<id> on campaigns/moment:<id>", () => {
+  assert.equal(doorOf("outbound"), "campaigns");
+  assert.equal(doorOf("outbound/pb-1"), "campaigns/moment:pb-1");
+  assert.equal(
+    doorOf("outbound/pb-1/x"),
+    "campaigns/moment:pb-1",
+    "the route's second word, as the shell reads its param",
+  );
+  for (const kept of [
+    "campaigns",
+    "campaigns/moment:pb-1",
+    "broadcasts",
+    "broadcasts/run:b-1",
+    "messages",
+    "clients/c-1",
+    "today",
+  ]) {
+    assert.equal(doorOf(kept), null, `${kept} is where it always was`);
+  }
+  // Written: every link the app makes lands in one move.
+  assert.equal(workspacePath("acme", "outbound"), "/w/acme/campaigns");
+  assert.equal(workspacePath("acme", "outbound/pb-1"), "/w/acme/campaigns/moment:pb-1");
+  assert.equal(workspacePath("acme", "campaigns/new"), "/w/acme/campaigns/new");
   assert.equal(workspacePath("acme", "broadcasts/run:b-1"), "/w/acme/broadcasts/run:b-1");
-  assert.equal(routeOfPath("/w/acme/playbooks/pb-1"), "outbound/pb-1");
-  assert.equal(routeOfPath("/w/acme/templates"), "messages");
+  assert.equal(
+    workspacePath("acme", "messages"),
+    "/w/acme/templates",
+    "the Library keeps the product's word in its path",
+  );
+});
+
+test("broadcasts/<audience>, which People and a list write to message these people, is a door to the home's composer on that audience; a run, Get their yes and Sent itself stay", () => {
+  assert.equal(doorOf("broadcasts/s1"), "campaigns/new:to:s1");
+  assert.equal(doorOf("broadcasts/new_week"), "campaigns/new:to:new_week");
+  assert.equal(
+    doorOf("broadcasts/s1/x"),
+    "campaigns/new:to:s1",
+    "the route's second word, as the shell reads its param",
+  );
+  for (const kept of [
+    "broadcasts",
+    "broadcasts/run:b-1",
+    "broadcasts/run:b-1/x",
+    "broadcasts/get-yes",
+    "broadcast",
+    "campaigns/new:to:s1",
+  ])
+    assert.equal(doorOf(kept), null, `${kept} is where it is`);
+  // Written: People's "Message these people" lands in one move.
+  assert.equal(workspacePath("acme", "broadcasts/s1"), "/w/acme/campaigns/new:to:s1");
+  assert.equal(workspacePath("acme", "broadcasts/run:b-1"), "/w/acme/broadcasts/run:b-1");
+  assert.equal(workspacePath("acme", "broadcasts"), "/w/acme/broadcasts");
+  // And an old link, a bookmark or a bell row that says it moves as the frame loads.
+  const moved = (address) => movedAddress({ search: "", hash: "", ...address });
+  assert.equal(moved({ pathname: "/w/acme", hash: "#/broadcasts/s1" }), "/w/acme/campaigns/new:to:s1");
+  assert.equal(moved({ pathname: "/w/acme/broadcasts/s1" }), "/w/acme/campaigns/new:to:s1");
+  assert.equal(
+    moved({ pathname: "/w/acme/broadcasts/s1", search: "?from=people" }),
+    "/w/acme/campaigns/new:to:s1?from=people",
+  );
+  assert.equal(moved({ pathname: "/w/acme", hash: "#/broadcasts/get-yes" }), "/w/acme/broadcasts/get-yes");
+  assert.equal(moved({ pathname: "/w/acme/broadcasts" }), null);
+  // The address it lands on reads back as the composer on that audience.
+  assert.equal(routeOfPath("/w/acme/campaigns/new:to:s1"), "campaigns/new:to:s1");
+  assert.deepEqual(parseHome("new:to:s1").compose, { mode: "once", to: "s1" });
+});
+
+test("a bookmark, a bell row or an email link that says the old route moves to the new address as the frame loads", () => {
+  const moved = (address) => movedAddress({ search: "", hash: "", ...address });
+  // The hash, as emails, the phone app's links and every bell row's `route` write it.
+  assert.equal(moved({ pathname: "/w/acme", hash: "#/outbound" }), "/w/acme/campaigns");
+  assert.equal(moved({ pathname: "/w/acme", hash: "#/outbound/pb-1" }), "/w/acme/campaigns/moment:pb-1");
+  assert.equal(
+    moved({ pathname: "/w/acme", hash: "#/outbound/pb-1", search: "?from=email" }),
+    "/w/acme/campaigns/moment:pb-1?from=email",
+  );
+  // The path: the shell's own name, and the product's word the page had for a day (`playbooks`).
+  assert.equal(moved({ pathname: "/w/acme/outbound/pb-1" }), "/w/acme/campaigns/moment:pb-1");
+  assert.equal(moved({ pathname: "/w/acme/playbooks" }), "/w/acme/campaigns");
+  assert.equal(moved({ pathname: "/w/acme/playbooks/pb-1", hash: "#x" }), "/w/acme/campaigns/moment:pb-1#x");
+  // The rooms and the home are where they are; the Library's old name still moves to its word.
+  assert.equal(moved({ pathname: "/w/acme/campaigns/moment:pb-1" }), null);
+  assert.equal(moved({ pathname: "/w/acme", hash: "#/broadcasts/run:b-1" }), "/w/acme/broadcasts/run:b-1");
+  assert.equal(moved({ pathname: "/w/acme", hash: "#/messages" }), "/w/acme/templates");
+  assert.equal(routeOfPath("/w/acme/campaigns/moment:pb-1"), "campaigns/moment:pb-1");
+  assert.equal(routeOfHash("#/campaigns"), "campaigns");
 });

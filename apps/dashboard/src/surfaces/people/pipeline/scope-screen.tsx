@@ -9,7 +9,6 @@ import { Icon } from "../../kit/icon/icon";
 import { PeopleBulkBar } from "../bulk/bulk-bar";
 import { PeopleListsSheet } from "../rail/lists-sheet";
 import { PeoplePhoneBar } from "../rail/phone-bar";
-import { PeopleScopeTabs } from "../rail/scope-tabs";
 import { PeopleColumnsMenu } from "../table/columns-menu";
 import { PeopleTable } from "../table/table";
 import { PL_SEARCH_LABEL } from "../words";
@@ -191,14 +190,11 @@ function rowsView(s: PipelineState) {
 
 /** A phone's top: the scopes as the Inbox's tab strip, then the bar -- the view shown (its rows in a sheet), search, and New proposal's +. */
 function phoneBar(s: PipelineState) {
-  const { f, ui, r, onScope, newActs, newGate } = s;
+  const { f, ui, r, newActs, newGate } = s;
   const { q, setQ, searchRef, searchOpen, setSearchOpen } = f.controls;
   const { words } = P;
   return (
     <PeoplePhoneBar
-      scope="pipeline"
-      dealsOn
-      onScope={onScope}
       listLabel={P.viewLabel(r.view, r.pace)}
       listCount={r.viewCount}
       onLists={() => ui.setListsOpen(true)}
@@ -326,12 +322,11 @@ function bulkBlock(s: PipelineState) {
 }
 
 export function pipelineScreen(s: PipelineState) {
-  const { f, pk, onScope } = s;
+  const { f, pk } = s;
   const { phone, scrollRef, toastNode } = f.controls;
   return (
     <div className="clients pipe-scope" data-testid="pipeline">
-      {/* People's switch over the Pipeline's own rail. A phone's are the bar's: its first row and its list button. */}
-      {!phone && <PeopleScopeTabs scope="pipeline" onScope={onScope} dealsOn />}
+      {/* People's switch is the frame's strip of views over this page (surfaces/people/chrome.ts). A phone's rail is the bar's list button. */}
       {!phone && (
         <aside className="cl-rail pipe-rail" data-testid="pipeline-rail">
           <PipelineRailRows sections={s.r.rail} view={s.r.view} onPick={s.pickView} />

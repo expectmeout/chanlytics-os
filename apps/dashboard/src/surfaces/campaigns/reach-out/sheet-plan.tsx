@@ -5,7 +5,11 @@
  */
 import { useState } from "react";
 import type { ReachOutDraft, ReachOutPreviewDto, ReachOutPreviewInput, SendingDomainDto } from "@chanlytics/contracts";
-import { PbTok } from "../playbooks/words";
+import { Button } from "../../kit/button/button";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { Picker } from "../../kit/picker/picker";
+import { Switch } from "../../kit/switch/switch";
+import { cmChevron, cmNumbers } from "../parts/picks";
 import { reachOuts } from "./surface";
 
 type Words = typeof reachOuts.words;
@@ -27,12 +31,13 @@ export function RoPace({ W, pace, gap, onGap }: PaceProps) {
       <p className="pb-when">
         {words.parts[1]}
         {words.parts[2]}
-        <PbTok
-          value={gap}
-          options={gaps}
-          onChange={(v) => onGap(Number(v))}
+        <Picker
           label="How long between emails"
-          testid="ro-gap"
+          value={String(gap)}
+          onValueChange={(v) => onGap(Number(v))}
+          groups={cmNumbers(gaps)}
+          chevron={cmChevron()}
+          data-testid="ro-gap"
         />
         {words.parts[4]}
       </p>
@@ -73,24 +78,26 @@ export function RoFrom({ W, domains, unread, draft, onPick }: FromProps) {
     <section className="pb-sec" data-testid="ro-from">
       <span className="pb-sec-k">{P.from}</span>
       <label className="ro-domain">
-        <input
-          type="checkbox"
+        <Switch
           checked={picked.length === 0}
-          onChange={() => onPick([])}
+          onCheckedChange={() => onPick([])}
+          labelledBy="ro-domain-every-name"
           data-testid="ro-domain-every"
-        />{" "}
-        {P.everyDomain}
+        />
+        <span id="ro-domain-every-name">{P.everyDomain}</span>
       </label>
       {verified.map((d) => (
         <label key={d.id} className="ro-domain">
-          <input
-            type="checkbox"
+          <Switch
             checked={picked.includes(d.id)}
-            disabled={!more && !picked.includes(d.id)}
-            onChange={() => toggle(d.id)}
+            readOnly={!more && !picked.includes(d.id)}
+            onCheckedChange={() => toggle(d.id)}
+            labelledBy={`ro-domain-${d.id}-name`}
             data-testid={`ro-domain-${d.id}`}
-          />{" "}
-          {d.from_name} · {d.address}
+          />
+          <span id={`ro-domain-${d.id}-name`}>
+            {d.from_name} · {d.address}
+          </span>
         </label>
       ))}
       {!more && (
@@ -130,24 +137,12 @@ function RoFrame({ W, shown, of, busy, onMove, onRewrite }: FrameProps) {
         <p className="em-reader" data-testid="ro-reader">
           {lines.reader}
           {v.angle && <span className="chip">{v.angle}</span>}
-          <button
-            type="button"
-            className="cl-bucket-link"
-            disabled={busy || lines.first}
-            onClick={() => onMove(-1)}
-            data-testid="ro-prev"
-          >
+          <LinkButton disabled={busy || lines.first} onClick={() => onMove(-1)} data-testid="ro-prev">
             {PW.prev}
-          </button>
-          <button
-            type="button"
-            className="cl-bucket-link"
-            disabled={busy || lines.last}
-            onClick={() => onMove(1)}
-            data-testid="ro-next"
-          >
+          </LinkButton>
+          <LinkButton disabled={busy || lines.last} onClick={() => onMove(1)} data-testid="ro-next">
             {PW.next}
-          </button>
+          </LinkButton>
         </p>
       )}
       {v.lead && v.body && (
@@ -169,9 +164,9 @@ function RoFrame({ W, shown, of, busy, onMove, onRewrite }: FrameProps) {
         </p>
       ))}
       {v.lead && (
-        <button type="button" className="btn btn-sm" disabled={busy} onClick={onRewrite} data-testid="ro-rewrite">
+        <Button size="sm" disabled={busy} onClick={onRewrite} data-testid="ro-rewrite">
           {PW.rewrite}
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -204,15 +199,9 @@ export function RoBefore({ W, ask, of, stale }: BeforeProps) {
     <section className="pb-sec" data-testid="ro-before">
       <span className="pb-sec-k">{W.REACH_OUT_SHEET_PARTS.before}</span>
       {(!shown || changed) && (
-        <button
-          type="button"
-          className="btn btn-sm"
-          disabled={busy}
-          onClick={() => go(shown ? shown.index : 0)}
-          data-testid="ro-preview"
-        >
+        <Button size="sm" disabled={busy} onClick={() => go(shown ? shown.index : 0)} data-testid="ro-preview">
           {changed ? PW.changed : PW.read}
-        </button>
+        </Button>
       )}
       {busy && (
         <p className="cm-standing" data-testid="ro-preview-busy">

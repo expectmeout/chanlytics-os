@@ -69,6 +69,9 @@ const { scopedRead } = await import(at("apps/dashboard/src/server/ask/cross-page
 const { workspaceFacts, stableSystem, turnWords, answerLine, askTurnText, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
 );
+/** The listening line, as prompt.ts writes it (the voice door, spec 2026-10-03 §3.4): pinned here, word for word. */
+const SPOKEN_LINE =
+  "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol or a bracketed tag. Every figure and row goes in show, where the screen draws it.";
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
 const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const workspaceReads = await import(at("apps/dashboard/src/server/readers/facts.ts"));
@@ -164,6 +167,18 @@ const call = (id, over = {}) => ({
   ...over,
 });
 
+// The workspace has a WhatsApp number unless a test says otherwise (step 3): a campaign is counted by the channels the
+// workspace can send on, and with no number nobody can be sent a broadcast.
+const WHATSAPP_NUMBER = {
+  id: "ch-wa-base",
+  tenant_id: A,
+  kind: "whatsapp",
+  number_e164: "+19295550198",
+  status: "active",
+  created_at: "2026-08-01T00:00:00Z",
+  config: { quality_rating: "GREEN", messaging_limit: "TIER_1K" },
+};
+
 function tables(over = {}) {
   return {
     memberships: [
@@ -191,7 +206,7 @@ function tables(over = {}) {
         version: 1,
       },
     ],
-    tenant_channels: [],
+    tenant_channels: [WHATSAPP_NUMBER],
     policies: [],
     conversations: [conversation(C1)],
     escalations: [],
@@ -1643,8 +1658,16 @@ test("the proposal builders run against the database in memory: each kind is a c
   // template with a typed slot and no words is a question for the person, never invented words (pinned as text in
   // playbooks.test.mjs until PR 3.1).
   assert.match(
-    (await p("propose_campaign", { action: "playbook", trigger: "new_week" })).result,
+    (await p("propose_campaign", { action: "playbook", trigger: "quiet_30" })).result,
     /starter is not approved on this workspace yet/,
+  );
+  // 2 Oct 2026: welcome is no longer a moment a new playbook starts from (it was this case's trigger): the schema says so.
+  const welcome = (await p("propose_campaign", { action: "playbook", trigger: "new_week" })).result;
+  assert.match(welcome, /Invalid option: expected one of/);
+  assert.doesNotMatch(
+    welcome,
+    /new_week|phoned_only/,
+    "the moments it names are the ones a new playbook may start from",
   );
   assert.match(
     (await p("propose_campaign", { action: "playbook", trigger: "everyone_monthly", template_id: TPL2 })).result,
@@ -1869,10 +1892,10 @@ test("REGRESSION: a broadcast to nobody is refused with the cause it has -- Ask 
   const regulars = await refusal(S_REG);
   assert.ok(regulars.includes(noNumberWords("“Regulars”", "marketing")), regulars);
   assert.ok(!regulars.includes("has said yes"), `REGRESSION: the model was told nobody had said yes: ${regulars}`);
-  // Nobody on Walk-ins said yes to offers: the QR is where that is got, and it is on Broadcasts -- Ask is no page.
+  // Nobody on Walk-ins said yes to offers: the QR is where that is got, and it is in Sent -- Ask is no page.
   const walkIns = await refusal(S_WALK);
   assert.ok(walkIns.includes("Nobody there has said yes to offers yet"), walkIns);
-  assert.ok(walkIns.includes("or get their yes with the phrase and the QR on Broadcasts."), walkIns);
+  assert.ok(walkIns.includes("or get their yes with the phrase and the QR in Sent."), walkIns);
   assert.ok(!walkIns.includes("on this page"), `REGRESSION: ${walkIns}`);
 });
 
@@ -3083,6 +3106,47 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
   );
 });
 
+test("inbox.thread says nothing of reasoning beside a customer's words, though their message carries an intent since 00305: a reply of the receptionist's keeps its why", async () => {
+  const brain = {
+    intent: "pricing",
+    confidence: 0.62,
+    reason: "asked a price",
+    facts_used: [],
+    language: "en",
+    model: "m",
+  };
+  const t = tables({
+    messages: [
+      message(M1, C1, {
+        direction: "inbound",
+        sender: "customer",
+        body: "How much is a refill?",
+        meta: { raw_type: "text", processed_at: iso(NOW.getTime() - 3590_000), handled: "ai", intent: "pricing" },
+      }),
+      message(M2, C1, {
+        direction: "outbound",
+        sender: "ai",
+        body: "Refills are $40.",
+        status: "sent",
+        created_at: iso(NOW.getTime() - 3580_000),
+        meta: brain,
+      }),
+    ],
+  });
+  const tc = newToolContext(ctxFor(t), A, "operator", TZ, NOW);
+  const read = JSON.parse(
+    (await runTool(tc, { name: "inbox", input: { action: "thread", conversation_id: C1 } })).result,
+  );
+  assert.deepEqual(
+    read.messages.map((m) => [m.from, m.text, m.why ?? null]),
+    [
+      ["customer", "How much is a refill?", null],
+      ["receptionist", "Refills are $40.", "Pricing question · 62% sure"],
+    ],
+    "the customer's stamped message carries no why; the receptionist's reply does",
+  );
+});
+
 test("people.get is the person page's one read (ledger #3): the reader's one round, every read keyed on the person asked for at once and only their threads' own waiting for the ids; the config and sells_by the turn already read are not read again; read once a turn; the page's own view model over the page's payload, so the About rows and the timeline say what the profile says; another workspace's person is an error, never a row", async () => {
   const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
   const P2 = "abababab-abab-4aba-8aba-abababababa2";
@@ -3800,7 +3864,9 @@ test("the proposal follow-up in Ask (0006): listed where deals are on and counte
     name: "proposal_follow_up",
     language: "en_US",
     meta_status: "approved",
-    category: "UTILITY",
+    // 2 Oct 2026: the column holds Meta's category lowercased (purposeOfTemplate), and a follow-up's message must be a
+    // utility one: the check refuses an offer there (contracts messageFitsMoment). "UTILITY" read as an offer.
+    category: "utility",
     variables: [{ position: 1 }, { position: 2 }, { position: 3 }],
     body_preview: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}}.",
     hidden_at: null,
@@ -3962,6 +4028,93 @@ test("the assistant counts with the calendar too: a visit tomorrow on the owner'
       "Rosa's visit tomorrow, read from the feed: her yes to messages and her number",
     );
     assert.equal(read.modes.booking, "ask", "the Bookings class, which the reminder runs under, with no row: ask");
+  } finally {
+    globalThis.fetch = fetchWas;
+    forgetFeeds();
+  }
+});
+
+test("the assistant offers the moments a new playbook may start from (2 Oct 2026): the win-back is the one the workspace can read, welcome and save our number are not offered though a playbook made on one is still listed, and a proposal for the win-back it cannot read is refused in words", async () => {
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const { WIN_BACK_WORDS } = await import("@chanlytics/contracts");
+  const ICS = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//test//EN", "END:VCALENDAR"].join("\r\n");
+  // A workspace with a calendar address on file: its feed read, or not.
+  const connected = (over = {}) => {
+    const base = tables(over);
+    return {
+      ...base,
+      tenant_config: [
+        {
+          ...base.tenant_config[0],
+          config: { ...base.tenant_config[0].config, calendar: { ical_url: "https://calendar.example/harbor.ics" } },
+        },
+      ],
+    };
+  };
+  const welcome = {
+    id: "pb-welcome",
+    tenant_id: A,
+    kind: "moment",
+    name: "Welcome",
+    trigger: "new_week",
+    template_id: TPL,
+    template_name: "fall_offer",
+    template_language: "en",
+    params: [],
+    policy_class: "campaign",
+    state: "running",
+    run_hour: 10,
+    cap_per_run: 25,
+    gap_days: 30,
+    cadence_days: 30,
+    last_run_for: null,
+    last_run_at: null,
+    created_at: iso(NOW.getTime() - 30 * 86_400_000),
+  };
+  const toolContext = (t) => newToolContext(ctxFor(t), A, "owner", TZ, NOW);
+  const listed = async (t) => {
+    const out = await runTool(toolContext(t), { name: "campaigns", input: { action: "playbooks" } });
+    assert.equal(out.isError, false, out.result);
+    return JSON.parse(out.result);
+  };
+  const offered = (read) => read.triggers.map((x) => x.trigger);
+  const SILENCE = ["quiet_30", "everyone_monthly", "visit_tomorrow", "visited", "saved_list"];
+  const VISITS = ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list"];
+  const feed = (status) => async () => new Response(status === 200 ? ICS : "down", { status });
+  const fetchWas = globalThis.fetch;
+  try {
+    forgetFeeds();
+    // No calendar: the win-back by silence, and neither welcome nor save our number nor the one by visits.
+    const none = await listed(tables({ templates: [OFFER], playbooks: [welcome] }));
+    assert.deepEqual(offered(none), SILENCE, "no calendar: Win-back goes by silence");
+    assert.deepEqual(
+      none.playbooks.map((p) => [p.trigger, p.trigger_label]),
+      [["new_week", "Welcome"]],
+      "a playbook made on a moment no longer offered is still listed, as it was",
+    );
+    // A calendar on file whose feed reads: the win-back by visits.
+    globalThis.fetch = feed(200);
+    forgetFeeds();
+    assert.deepEqual(offered(await listed(connected())), VISITS, "a calendar: Win-back goes by visits");
+    // One on file whose feed cannot be read just now is still connected: the offer does not swap back to silence.
+    globalThis.fetch = feed(500);
+    forgetFeeds();
+    assert.deepEqual(offered(await listed(connected())), VISITS, "a feed down is still a calendar");
+    // A proposal asks the same question of the same fact, with the turn's own read of the settings.
+    const win = { action: "playbook", template_id: TPL, params: [] };
+    const refused = async (t, trigger) => {
+      const out = await buildProposal(toolContext(t), "propose_campaign", { ...win, trigger });
+      assert.equal(out.isError, true, out.result);
+      return JSON.parse(out.result).error;
+    };
+    assert.equal(await refused(connected({ templates: [OFFER] }), "quiet_30"), WIN_BACK_WORDS.quiet_30);
+    assert.equal(await refused(tables({ templates: [OFFER] }), "lapsed"), WIN_BACK_WORDS.lapsed);
+    const made = await buildProposal(toolContext(tables({ templates: [OFFER] })), "propose_campaign", {
+      ...win,
+      trigger: "quiet_30",
+    });
+    assert.equal(made.isError, false, made.result);
+    assert.equal(made.proposal.payload.trigger, "quiet_30", "and the one it can read is proposed");
   } finally {
     globalThis.fetch = fetchWas;
     forgetFeeds();
@@ -4240,7 +4393,7 @@ test("campaigns.playbooks says the Playbooks page's numbers (ledger #10): every 
   );
   assert.deepEqual(
     read.playbooks.map((p) => [p.playbook_id, p.next_run]),
-    page.playbooks.map((p) => [p.id, nextRunLabel(p, page.timezone, NOW)]),
+    page.playbooks.map((p) => [p.id, nextRunLabel(p, page.timezone, NOW, false)]),
     "the page's rows, and its next-run words",
   );
   const byId = Object.fromEntries(read.playbooks.map((p) => [p.playbook_id, p]));
@@ -4382,8 +4535,11 @@ test("the workspace's pages are read once a turn, each tool as its page reads it
   const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
   assert.deepEqual(
     ["tenant_channels", "templates", "lead_searches_view"].map(selects),
-    [1, 1, 1],
-    "the channels once for workspace.settings and campaigns.audiences alike, the templates once, the searches once",
+    [2, 1, 1],
+    // 3 Oct 2026: the channels reader's one read serves workspace.settings and campaigns.audiences alike; the audience
+    // pool's rows are judged against what the workspace can send on (readers/facts.ts channelsReady: the number's config
+    // and the texting line), once a turn, a read of its own.
+    "the channels once for workspace.settings and campaigns.audiences alike, and once for the pool's readiness; the templates once, the searches once",
   );
   assert.equal(ctx.supabase.seen.filter((q) => q.rpc === "lead_list_counts").length, 1, "the rail's counts once");
   // Every tool result the model was handed, by its call's id, across both rounds.
@@ -4628,8 +4784,9 @@ test("a read the page tolerates, Ask tolerates as the page does and says so: a f
   assert.deepEqual(without(a, "number", "could_not_read"), without(listing, "number"), "the audiences still answer");
   assert.equal(
     noChannels.ctx.supabase.seen.filter((q) => q.table === "tenant_channels" && q.op === "select").length,
-    2,
-    "the failure was not kept: campaigns.audiences read the channels again",
+    3,
+    // The failure was not kept (campaigns.audiences read the channels again), and the pool's readiness is a read of its own.
+    "workspace.settings, campaigns.audiences and the pool's readiness each read the channels",
   );
   assert.deepEqual(
     noChannels.lines.map((l) => JSON.parse(l)).map((x) => [x.tool, x.read, x.tenant_id]),
@@ -7179,4 +7336,83 @@ test("a thread a teammate holds is said as theirs, never as the receptionist ans
   assert.equal(threadState(row({ claimedByOther: true, state: "snoozed" })), "a teammate is answering");
   assert.equal(threadState(row({ state: "snoozed", optedOut: true })), "snoozed");
   assert.equal(threadState(row({ optedOut: true })), "opted out");
+});
+test("a broadcast or a playbook proposed on a workspace with no WhatsApp number says so, in the route's words: nobody can be sent it, and the card is not offered over a send the route will refuse (step 3)", async () => {
+  const day = 86_400_000;
+  const luis = peopleListRow({
+    id: "cccccccc-cccc-4ccc-8ccc-cccccccccca2",
+    display_name: "Luis Mora",
+    phone_e164: "+15555550101",
+    marketing_consent: "opted_in",
+    marketing_consent_source: "customer_message",
+    marketing_consent_updated_at: iso(NOW.getTime() - 20 * day),
+  });
+  const world = (channels) =>
+    tables({
+      tenant_channels: channels,
+      templates: [
+        {
+          id: TPL,
+          tenant_id: A,
+          channel: "whatsapp",
+          name: "fall_offer",
+          language: "en",
+          meta_status: "approved",
+          category: "MARKETING",
+          variables: [],
+          body_preview: "20% off this week.",
+          hidden_at: null,
+        },
+      ],
+    });
+  const toolContext = (channels) =>
+    newToolContext(ctxFor(world(channels), { ...RPCS, people_list: () => [luis] }), A, "owner", TZ, NOW);
+  const broadcast = { action: "broadcast", template_id: TPL, audience_kind: "everyone", params: [] };
+  // With the number connected the card is offered; with none it is refused in the words the route would refuse in.
+  const connected = await buildProposal(toolContext([WHATSAPP_NUMBER]), "propose_campaign", broadcast);
+  assert.equal(connected.isError, false, connected.result);
+  const none = await buildProposal(toolContext([]), "propose_campaign", broadcast);
+  assert.deepEqual([none.proposal, none.isError], [null, true], none.result);
+  assert.equal(JSON.parse(none.result).error, "Connect a WhatsApp number first.");
+  // A number WhatsApp flagged is refused the same way, in WhatsApp's words.
+  const flagged = { ...WHATSAPP_NUMBER, config: { quality_rating: "RED", messaging_limit: "TIER_1K" } };
+  const red = await buildProposal(toolContext([flagged]), "propose_campaign", broadcast);
+  assert.match(JSON.parse(red.result).error, /WhatsApp flagged this number's quality/);
+  // A playbook is still proposed with no number (a run holds everyone), and its card says so.
+  const playbook = { action: "playbook", trigger: "everyone_monthly", template_id: TPL, params: [] };
+  const held = await buildProposal(toolContext([]), "propose_campaign", playbook);
+  assert.equal(held.isError, false, held.result);
+  assert.match(held.proposal.summary, /Connect a WhatsApp number first\. Its runs hold everyone until it is\./);
+});
+
+test("a spoken turn (the voice door, spec 2026-10-03 §3.4): the listening line rides last in the turn's words, a typed turn says nothing of it, the model reads it, and the stored shape says which", async () => {
+  // Pure: the line, once, after the language's own.
+  const facts = {
+    role: "operator",
+    personLabel: "ada",
+    scope: null,
+    surface: null,
+    language: "en",
+    timezone: TZ,
+    closures: [],
+    now: NOW,
+  };
+  const spokenLines = turnWords({ ...facts, spoken: true }).split("\n");
+  assert.equal(spokenLines.at(-1), SPOKEN_LINE, "the listening line is the last, after the language");
+  assert.equal(spokenLines.at(-2), "They wrote in English; answer in English.");
+  assert.ok(!turnWords(facts).includes(SPOKEN_LINE), "a typed turn carries no such line");
+  assert.ok(SPOKEN_LINE.startsWith("They are listening, not reading. Open with a short clause and a comma,"));
+
+  // Through the loop: the words reach the model, and the shape says the turn was spoken.
+  const spoken = scripted([ROUND([answer("Nobody is waiting.")])]);
+  const r = await runAskTurn(turn(ctxFor(), { spoken: true }).input, ports(spoken.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.ok(JSON.stringify(spoken.requests[0].messages).includes(SPOKEN_LINE), "the model read the line");
+  assert.equal(r.shape.spoken, true);
+
+  const typed = scripted([ROUND([answer("Nobody is waiting.")])]);
+  const r2 = await runAskTurn(turn(ctxFor()).input, ports(typed.round));
+  assert.equal(r2.failed, false, r2.failure ?? "");
+  assert.ok(!JSON.stringify(typed.requests[0].messages).includes(SPOKEN_LINE), "a typed turn: no line");
+  assert.equal(r2.shape.spoken, false);
 });

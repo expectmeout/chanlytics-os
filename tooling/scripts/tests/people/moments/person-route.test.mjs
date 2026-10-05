@@ -30,12 +30,16 @@ test("a param is a person's unless it names a scope or a view of People, in the 
     assert.equal(isPersonParam(not), false, `${not} is not`);
 });
 
-test("the page takes a person, a view of People and the Pipeline (which it draws as People where deals are off), and not Leads", () => {
+test("the page takes a person, a view of People, Leads and the Pipeline (which it draws as People where deals are off)", () => {
   setSurfaceValue("people", undefined);
   assert.equal(peopleTakes(UUID), true);
   assert.equal(peopleTakes("seg:regulars"), true);
   assert.equal(peopleTakes("new-list"), true);
-  assert.equal(peopleTakes("leads:s-austin"), false);
+  assert.equal(
+    peopleTakes("leads:s-austin"),
+    true,
+    "Leads left the shell: People's page draws it (decision 0015, step 9)",
+  );
   assert.equal(peopleTakes("pipeline"), true, "no surface says deals are on: the Pipeline's address draws People");
   setSurfaceValue("people", { dealsOn: true, rows: [], lists: [], saved: [] });
   assert.equal(peopleTakes("pipeline"), true, "with deals on it draws the Pipeline: the page's own since it moved");

@@ -68,7 +68,7 @@ test.describe("Content-Security-Policy, enforced", () => {
         "#/live",
         "#/clients",
         "#/calendar",
-        "#/outbound",
+        "#/campaigns",
         "#/broadcasts",
         "#/messages",
         "#/reports",

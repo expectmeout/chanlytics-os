@@ -3,8 +3,7 @@
  * report is read when a row is opened); a chain's report; a search's reach; one business's preview; what Start did;
  * a run's sends for its approval. Storage says tenant; these say workspace.
  */
-import { z } from "zod";
-import { REACH_OUT_BODY_MAX, REACH_OUT_SUBJECT_MAX, SIGNED_BY_MAX, type ReachOutHold } from "./reach-out-words";
+import type { ReachOutHold } from "./reach-out-words";
 import type { StepHand } from "./reach-out-hand";
 
 /** A step's words and place, as the sheet edits them. */
@@ -135,33 +134,8 @@ export interface ReachOutSavedDto {
 /** The furthest business a preview pages to: a run's cap is 200 (F11). */
 export const REACH_OUT_PREVIEW_INDEX_MAX = 199;
 
-/** What the sheet's preview asks: the n-th business of a search, with the first step's words as they stand. */
-export const ReachOutPreviewSchema = z.object({
-  search_id: z.string().uuid(),
-  index: z.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
-  include_unconfirmed: z.boolean(),
-  words: z.object({
-    subject: z
-      .string()
-      .max(REACH_OUT_SUBJECT_MAX * 2)
-      .nullable(),
-    body: z
-      .string()
-      .trim()
-      .min(1)
-      .max(REACH_OUT_BODY_MAX * 2),
-  }),
-  signed_by: z.string().trim().max(SIGNED_BY_MAX).nullable(),
-  language: z
-    .string()
-    .regex(/^[a-z]{2,3}(_[A-Z]{2})?$/)
-    .optional(),
-});
-export type ReachOutPreviewInput = z.infer<typeof ReachOutPreviewSchema>;
-
 export const REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"] as const;
 export type ReachOutDecision = (typeof REACH_OUT_DECISIONS)[number];
-export const ReachOutDecideSchema = z.object({ decision: z.enum(REACH_OUT_DECISIONS) });
 
 export interface ReachOutHeldSend {
   send_id: string;

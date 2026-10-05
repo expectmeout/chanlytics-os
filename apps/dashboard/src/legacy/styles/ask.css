@@ -47,6 +47,12 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-send:disabled { background: var(--bg-active); color: var(--ink-faint); cursor: default; }
 .ask-send:not(:disabled):hover { background: oklch(from var(--ink) calc(l + 0.08) c h); }
 .ask-send.talk.on, .ask-send.talk.on:hover { background: var(--accent); color: var(--accent-fg); }
+/* The agent speaking (data-state, the hold's answer coming back aloud): a ring breathes out of the mic, so the voice
+   on the line is seen as well as heard; the next hold cuts it off. */
+.ask-send.talk { position: relative; }
+.ask-send.talk[data-state="speaking"]::after { content: ""; position: absolute; inset: -3px; border: 2px solid var(--accent); border-radius: inherit; opacity: 0; pointer-events: none; animation: ask-live 1s ease-out infinite; }
+@keyframes ask-live { 0% { opacity: .9; scale: .9; } 70%, 100% { opacity: 0; scale: 1.4; } }
+@media (prefers-reduced-motion: reduce) { .ask-send.talk[data-state="speaking"]::after { animation: none; opacity: .6; scale: 1.12; } }
 .ask-send .icon { animation: ask-bloom 160ms var(--ease-out) both; }
 @keyframes ask-bloom { from { transform: scale(.55); opacity: 0; } }
 /* The reading line: the latest trace, lined up with the field (84px face + 12px gap), a coral dot pulsing (S5). */
@@ -270,9 +276,10 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   @keyframes ask-dot-breathe { 50% { transform: scale(0.78); } }
   /* Inside the native shell the native tab bar stands under it: the ✦ lifts by the shell's inset (mobile.css, html.in-app). */
   html.in-app .phone-ask { bottom: calc(10px + var(--app-inset-bottom, 0px)); }
-  /* Inside an open thread the reply box IS the action, and Send sits a thumb from here. Ask comes back with the list. */
-  body:has(.inbox.phone-thread) .phone-ask,
-  body:has(.conversations.phone-detail) .phone-ask { display: none; }
+  /* Inside a page that takes the screen over (data-takeover on its root: a thread, a call) the reply box IS the action,
+     and Send sits a thumb from here. Ask comes back with the list. A bar docked at the foot (data-dock, mobile.css) takes
+     the same room. */
+  body:has([data-takeover], [data-dock]) .phone-ask { display: none; }
 
   /* Every dialog on the ask overlay sits on the bottom edge on a phone: the Calendar's event panel (calendar-real.jsx)
      shares .ask-overlay and was docked here by this rule before the Line. The Line itself is the whole screen. */
@@ -363,7 +370,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   /* The delete question sits under the middle, over the foot. */
   .ask-line .ask-confirm { order: 8; margin: 8px 12px 0; }
   /* The foot: the band as the field, last in the column, the one button inside it (spec 5.1). */
-  .ask-line .ask-stage { order: 9; margin: 8px 12px 10px; padding: 0 8px 0 16px; border: 1px solid var(--line); border-radius: var(--radius-xl); grid-template-rows: auto; }
+  .ask-line .ask-stage { order: 9; margin: 8px 12px 10px; padding: 0 8px 0 16px; border-radius: var(--radius-xl); grid-template-rows: auto; }
   /* While it listens the band stays drawn under the pill, hidden: the button in it holds the finger until the lift. */
   .ask-line .ask-stage.listening { display: none; }
   .ask-stage-row { min-height: 56px; gap: 8px; }
@@ -518,4 +525,36 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 }
 .ask-suggestion:hover {
   background: var(--surface-control-fill);
+}
+
+/* ---- Ask's takeover on a phone, in Glass (Ruben, 2 Oct 2026: "it seems to have a background; remove it so it follows the
+   transparent styling") ----
+   The phone's Line is the whole screen, and it drew one: a window of the page's own ground (`background: var(--bg)`, nearly
+   opaque once the pop's fill and blur sat on it) over a scrim of the sunken ground at 64%, so the page behind was gone
+   and the three stood on a flat black screen. Here the scrim is the glass: the control layer's blur over a soft veil, so
+   the page's own light and colour come through softened; the window over it keeps nothing of its own; and the field at
+   the foot is the inset's capsule, not a dark pill. The window is reached as the overlay's child, since a class named
+   modal is a primitive's word to the ratchet. */
+@media (max-width: 720px) {
+  .ask-overlay.ask-line-scrim {
+    background: color-mix(in oklab, var(--surface-scrim) 55%, transparent);
+    backdrop-filter: var(--surface-control-blur);
+  }
+  .ask-overlay > .ask-line {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  .ask-line .ask-stage {
+    border: 0;
+    background: var(--surface-inset-fill);
+    box-shadow: var(--surface-inset-depth);
+  }
+  /* What Ask says of right now stands on the glass itself, with no panel of its own behind the three. */
+  .ask-line .ask-now {
+    background: transparent;
+    box-shadow: none;
+  }
 }

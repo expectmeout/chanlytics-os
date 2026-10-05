@@ -49,13 +49,14 @@ const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) =>
 
 /** Everyone, each as People draws their row for the member asking, with no deal where deals are off. */
 async function peopleRows(rc: ReaderContext) {
-  const [all, sells, tz] = await Promise.all([
+  const [all, sells, tz, ready] = await Promise.all([
     load(rc, everyoneReader, undefined).then((r) => r.data),
     load(rc, facts.sellsBy, undefined).then((r) => r.data),
     zone(rc),
+    load(rc, facts.channelsReady, undefined).then((r) => r.data),
   ]);
   const dealsOn = dealsAreOn(sells);
-  const vm = (r: PersonRowDto) => poolRowOf(r, { tz, now: rc.now, viewer: rc.userId, dealsOn });
+  const vm = (r: PersonRowDto) => poolRowOf(r, { tz, now: rc.now, viewer: rc.userId, dealsOn, ready });
   return { all, dealsOn, tz, vm };
 }
 

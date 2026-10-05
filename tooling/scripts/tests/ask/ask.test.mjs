@@ -204,9 +204,12 @@ const REACHED = {
   // People › Lists is People's rail; `segments/<id>` still lands there.
   segments: ["Lists", "clients"],
   calendar: ["Calendar", "calendar"],
-  outbound: ["Playbooks", "outbound"],
-  broadcasts: ["Broadcasts", "broadcasts"],
-  messages: ["Templates", "messages"],
+  // Campaigns' home; the old Playbooks list, `outbound`, is a door to it (contracts doorOf), so its jump is the home's.
+  campaigns: ["Campaigns", "campaigns"],
+  outbound: ["Campaigns", "campaigns"],
+  // Campaigns' rooms: Sent and the Library, each still found by the name it went by (ask-palette.test.mjs).
+  broadcasts: ["Sent", "broadcasts"],
+  messages: ["Library", "messages"],
   start: ["Setting up", "start"],
   "admin/profile": ["Profile", "admin/profile"],
   "admin/workspace": ["Settings", "admin/workspace"],
@@ -833,21 +836,28 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
 });
 
 test("the turn route: same-origin POST, a rate bucket, the thread saved before the model is asked, JSON lines out, a sixty-second ceiling", () => {
-  // The route, and the thread it keeps (server/ask/memory.ts, moved out of it in PR 5.0): read in the one scan.
-  const [r, memory] = ["app/api/v1/ask/route.ts", "src/server/ask/memory.ts"].map((f) =>
+  // The route, the thread it keeps (server/ask/memory.ts, moved out of it in PR 5.0) and the turn itself
+  // (server/ask/turn.ts, moved out of it for the voice door, spec 2026-10-03 §3.4): read in the one scan.
+  const [r, memory, turn] = ["app/api/v1/ask/route.ts", "src/server/ask/memory.ts", "src/server/ask/turn.ts"].map((f) =>
     readCode(`apps/dashboard/${f}`),
   );
   assert.ok(r.includes("export const maxDuration = 60;"));
   assert.ok(r.includes('rate: "ask",'));
   assert.ok(
-    r.includes('await appendMessage(ctx, turn.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });'),
+    turn.includes(
+      'await appendMessage(ctx, thread.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });',
+    ),
     "the question is saved before the answer is attempted",
+  );
+  assert.ok(
+    r.includes("const prepared = await prepareAskTurn(ctx, member, {") && r.includes("await finishAskTurn(prepared, "),
+    "the route keeps the thread before its stream opens, and streams the turn's second half",
   );
   assert.ok(r.includes('"content-type": "application/x-ndjson; charset=utf-8"'));
   assert.ok(r.includes('"cache-control": "private, no-store"'));
-  assert.ok(r.includes("const result = await runAskTurn({"));
+  assert.ok(turn.includes("const result = await runAskTurn({"));
   assert.ok(
-    ![r, memory].some((code) => code.includes("service")),
+    ![r, memory, turn].some((code) => code.includes("service")),
     "the turn and the thread it keeps run on the session client, never the service role",
   );
   const rate = readCode("apps/dashboard/src/server/rate-limit.ts");
@@ -1155,16 +1165,9 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
 });
 
 test("voice and the phone: hold to talk uses the browser's recogniser, the origin may ask for the microphone, the phone's ✦ opens Ask above the tab bar", () => {
-  const hooks = readCode("apps/dashboard/src/legacy/pages/ask-hooks.jsx");
-  assert.ok(
-    hooks.includes("const ahRecognizer = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;"),
-  );
-  // Press to start, release to stop, and what was heard sent on its own: executed in ask-palette.test.mjs ("on a
-  // phone the mic keeps the finger").
-  assert.ok(
-    hooks.includes('rec.lang = lang === "es" ? "es-ES" : (navigator.language || "en-US");'),
-    "the recogniser listens in the palette's language",
-  );
+  // The one recogniser is the kit's (surfaces/kit/talk), which Ask's hook delegates to. Press to start, release to
+  // stop, what was heard sent on its own, and the language it listens in: executed in ask-palette.test.mjs ("on a
+  // phone the mic keeps the finger", "the Line's recogniser listens in the Line's language").
   const cfg = readCode("apps/dashboard/next.config.ts");
   assert.ok(cfg.includes("microphone=(self)"), "the page may ask for the microphone");
   assert.ok(
@@ -1424,15 +1427,17 @@ test("the speed pass: a fast model for a short answer, the autonomy modes in the
       !l.includes("const EFFORT"),
     "the loop asks the deployment's profile for the model and the effort, and names neither itself (spec 5.11)",
   );
+  // The turn's own text moved to server/ask/turn.ts (the voice door's half-and-half, spec 2026-10-03 §3.4).
   const route = readCode("apps/dashboard/app/api/v1/ask/route.ts");
+  const turn = readCode("apps/dashboard/src/server/ask/turn.ts");
   assert.ok(
-    route.includes("model: result.model,") && !route.includes('model: "claude-'),
+    turn.includes("model: result.model,") && !turn.includes('model: "claude-') && !route.includes('model: "claude-'),
     "the saved turn names the model that ran",
   );
   assert.ok(
     // Prettier breaks a call with two function arguments over lines: the shape, whatever its whitespace.
-    /load\(rc, readers\.policies, undefined\)\.then\(\s*\(r\) => r\.data,\s*\(\) => \[\],?\s*\)/.test(route) &&
-      route.includes("cfg?.config ?? null, offered)"),
+    /load\(rc, readers\.policies, undefined\)\.then\(\s*\(r\) => r\.data,\s*\(\) => \[\],?\s*\)/.test(turn) &&
+      turn.includes("cfg?.config ?? null, offered)"),
     "the policies still ride in the stable block, read through the turn's cache and tolerated when they fail",
   );
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");

@@ -24,6 +24,7 @@ import {
   useStubHooks,
   fresh as freshTree,
   again as againTree,
+  find,
 } from "../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -655,7 +656,11 @@ test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -
 const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
 installClock();
 // The schedule box and the receipt's words, and the ledger's numbers: TSX modules of Broadcasts (decision 0015).
-const { BcWhenBox, bcWhenNote, bcWhenWords } = await import(`${SRC}/surfaces/campaigns/broadcasts/when.tsx`);
+const { BcWhenPick, bcWhenNote } = await import(`${SRC}/surfaces/campaigns/broadcasts/when.tsx`);
+// The receipt's sentence is words alone, apart from the picker, so the shell that publishes it carries no picker.
+const { bcWhenWords } = await import(`${SRC}/surfaces/campaigns/broadcasts/when-words.ts`);
+const { DatePicker } = await import(`${SRC}/surfaces/kit/datepicker/datepicker.tsx`);
+const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { BcHistoryStats } = await import(`${SRC}/surfaces/campaigns/broadcasts/ledger.tsx`);
 
 /** A Tokyo workspace, with "now" pinned, for one page test: New York and UTC disagree with it about the day. */
@@ -689,16 +694,37 @@ test("REGRESSION (C11): the schedule box reads and writes the business's clock, 
     let picked;
     cells = [];
     frames.begin();
-    const box = BcWhenBox({
-      at: null,
+    // The box is a sentence of the kit's pickers now (a day and a time), opened here on 1 PM today in Tokyo.
+    const sentence = BcWhenPick({
+      at: Date.parse("2026-12-15T04:00:00Z"),
       maxDays: 30,
       onChange: (v) => {
         picked = v;
       },
     });
-    assert.equal(box.props.min, "2026-12-15T12:00", "no earlier than now, by the clock in Tokyo");
-    assert.equal(box.props.max, "2027-01-14T12:00", "and within thirty days");
-    box.props.onChange({ target: { value: "2026-12-15T22:30" } });
+    const day = find(sentence, (n) => n.type === DatePicker);
+    const time = find(sentence, (n) => n.type === Picker && n.props["data-testid"] === "bc-when-time");
+    assert.equal(day.props.today, "2026-12-15", "today, by the clock in Tokyo");
+    assert.equal(day.props.value, "2026-12-15");
+    assert.equal(time.props.value, "13:00");
+    const hours = time.props.groups.flatMap((g) => g.options).map((o) => o.value);
+    assert.deepEqual([hours[0], hours.at(-1)], ["09:00", "20:45"], "the sending hours, in quarter hours");
+    // The days stop at the ceiling the route keeps, and at today: a day past either is held to it, the time kept.
+    day.props.onValueChange("2027-03-01");
+    assert.equal(picked, Date.parse("2027-01-14T04:00:00Z"), "within thirty days: the 14th, at 1 PM in Tokyo");
+    day.props.onValueChange("2026-12-01");
+    assert.equal(picked, Date.parse("2026-12-15T04:00:00Z"), "and no day that has passed");
+    // Today at an hour that has passed gives way to the first quarter hour still ahead (noon in Tokyo now).
+    const earlier = BcWhenPick({
+      at: Date.parse("2026-12-15T02:00:00Z"),
+      maxDays: 30,
+      onChange: (v) => {
+        picked = v;
+      },
+    });
+    find(earlier, (n) => n.type === DatePicker).props.onValueChange("2026-12-15");
+    assert.equal(picked, Date.parse("2026-12-15T03:15:00Z"), "12:15 PM, not 11:00 AM");
+    time.props.onValueChange("22:30");
     assert.equal(picked, Date.parse("2026-12-15T13:30:00Z"), "REGRESSION: 10:30 PM was read on the device's clock");
     const late = bcWhenNote(picked, 30);
     assert.deepEqual(
@@ -1018,16 +1044,16 @@ const campaignsWorld = async () => {
     clearInterval() {},
   });
   Object.assign(globalThis.window, kitPages);
-  const { PlaybookCard } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
+  const { PlaybookPane } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
   const { playbooks } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
   const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
   const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
-  campaigns = { toasts, PlaybookCard, playbooks, TemplatesPage, setSurfaceValue };
+  campaigns = { toasts, PlaybookPane, playbooks, TemplatesPage, setSurfaceValue };
   return campaigns;
 };
 
 test("REGRESSION: approving a run the server moved to nine says so -- the toast said 'sending now'", async () => {
-  const { toasts, PlaybookCard, playbooks } = await campaignsWorld();
+  const { toasts, PlaybookPane, playbooks } = await campaignsWorld();
   assert.equal(typeof bcWhenWords, "function", "one sentence for when a send really goes");
   const moved = bcWhenWords({
     scheduled_for: "2026-09-15T13:00:00Z",
@@ -1071,7 +1097,8 @@ test("REGRESSION: approving a run the server moved to nine says so -- the toast 
       },
     };
     freshTree();
-    const tree = PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
+    // The playbook open (the pane in Campaigns' sheet; it was a card under its row): a waiting run's Approve is in its foot.
+    const tree = PlaybookPane({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t), onClose() {} });
     let approve = null;
     walk(tree, (n) => {
       if (!approve && n.props?.["data-testid"] === "pb-approve") approve = n;
@@ -1114,7 +1141,8 @@ const byId = (tree, id) => {
 };
 /**
  * Templates with ONE named message open: a row carries a line of the words, and
- * the whole message -- its slots filled with this business's own -- is inside it.
+ * the whole message -- its slots filled with this business's own -- is in the pane
+ * it opens beside the list (the page's tree holds both, so a read by test id finds it).
  * Named, because eight starters are rows on the same page and opening whichever
  * is first passes a preview assertion with another message's words.
  */

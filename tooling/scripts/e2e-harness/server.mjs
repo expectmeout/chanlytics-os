@@ -279,7 +279,5 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const started = await startHarness({ port: Number(process.argv[2] || 0), name: process.argv[3] || "nightly" });
-  console.log(
-    `the ${started.record.name} record on ${started.url}/${started.record.gallery ? "" : "#/admin/workspace"}`,
-  );
+  console.log(`the ${started.record.name} record on ${started.url}/`);
 }

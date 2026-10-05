@@ -53,10 +53,11 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   fleet: "demo",
   store: "demo",
   studio: "demo",
-  outbound: "real", // Campaigns › Playbooks: standing rules over the people who said yes, under the two Autonomy rows, and the reach-outs as chains (the reach_outs surface, each report read as its row opens)
+  campaigns: "real", // Campaigns' home (canvas A, "Lifecycle"): the moments around a customer over the playbooks' surface, and who can hear you, what is coming and what came back over the broadcasts', the library's templates and the reach-outs'
+  outbound: "real", // the old Playbooks list, a door now: it lands on campaigns (contracts doorOf), and a playbook is campaigns/moment:<id>
   content: "demo",
-  broadcasts: "real", // one approved template to the people who said yes; SMS and email stay not available
-  messages: "real", // Campaigns › Messages: what the receptionist and the campaigns send, as the customer sees it, a reach-out's emails included (drawn from the reach_outs surface's chains, each count read as its row opens)
+  broadcasts: "real", // Campaigns › Sent: the runs, and the send screen where an audience is named; SMS and email stay not available
+  messages: "real", // Campaigns › Library: what the receptionist and the campaigns send, as the customer sees it, a reach-out's emails included (drawn from the reach_outs surface's chains, each count read as its row opens)
   start: "real", // the first run: Setup's rows a step at a time, read from the workspace (contracts/first-run.ts)
   admin: "demo", // the page itself: every pane below is classified, and a
   // pane nobody has listed inherits this honest default
@@ -66,7 +67,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   "admin/autonomy": "real", // the policies table, live for the reply row
   "admin/notifications": "real", // who is alerted, from tenant_config
   "admin/integrations": "real", // the channels in tenant_channels, read-only
-  // Billing is real on every workspace (billing-real.jsx). Memory is not built,
+  // Billing is real on every workspace (surfaces/settings/billing). Memory is not built,
   // and says so IN the pane: falling through to the page's "demo" replaced all
   // of Settings with a bare card; the pane keeps the nav and states what exists
   // instead (settings.jsx PaneSoon). ⌘K's Memory jump lands on Business, where
@@ -80,7 +81,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // clicked Back office got the Not-in-this-release card -- found by Ruben
   // on 11 September, the day the tab became the way to file a campaign.
   "admin/platform": "real",
-  // A partner's account and link (0012): the offer for everyone else, the row for a partner (partner-real.jsx).
+  // A partner's account and link (0012): the offer for everyone else, the row for a partner (surfaces/settings/partner).
   "admin/partner": "real",
 };
 
@@ -103,6 +104,8 @@ export const ROUTE_SURFACE: Record<string, string> = {
   reports: "reports",
   live: "live",
   broadcasts: "broadcasts",
+  // Campaigns' home is the playbooks' moments first; the broadcasts, the library and the reach-outs fill in beside it (ROUTE_DRAWS).
+  campaigns: "playbooks",
   // The templates ride on the settings surface; the page waits for it like Settings does.
   messages: "settings",
   outbound: "playbooks",
@@ -192,6 +195,9 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
   // surface, read beside each page's own.
   outbound: ["reach_outs"],
+  // Campaigns' home draws who can hear you, what is coming and what came back from the broadcasts, the call's text and the library's count
+  // from Settings' templates, and the reach-outs as lines under the moments.
+  campaigns: ["broadcasts", "settings", "reach_outs"],
   // Templates says which playbooks send each template (messages.jsx), and Broadcasts names a run's playbook.
   messages: ["reach_outs", "playbooks"],
   broadcasts: ["playbooks"],
@@ -237,10 +243,24 @@ function pageOfRoute(route: string): { page: string; param: string | null } {
   return { page: page || "today", param: param || null };
 }
 
-/** Whether this surface is the one the page on screen is of (its own surface, never one it draws beside it). */
+/**
+ * The pages that own the refreshes of what they draw beside their own surface. Campaigns' home is one page of four surfaces (the
+ * playbooks' moments, the broadcasts' runs and numbers, Settings' library, the reach-outs' chains), and a message moves the
+ * replies it says under "What came back" and the runs it lists: left to the broadcasts' own page, its numbers stood where they
+ * were read for as long as the home was open. Today draws more (People, Reports, the Calendar) and does not own them, for a
+ * message re-reads the three that draw messages and Today, and People's pages of contacts are the heaviest read there is
+ * (shell/surfaces/message-fan-out.test.mjs).
+ */
+const OWNS_WHAT_IT_DRAWS: ReadonlySet<string> = new Set(["campaigns"]);
+
+/**
+ * Whether this surface is the one the page on screen is of: its own surface, and, on a page that owns what it draws
+ * (OWNS_WHAT_IT_DRAWS), the surfaces it draws beside it (ROUTE_DRAWS).
+ */
 export function ownsTheScreen(key: string, route: string): boolean {
   const { page, param } = pageOfRoute(route);
-  return routeSurfaceFor(page, param) === key;
+  if (routeSurfaceFor(page, param) === key) return true;
+  return OWNS_WHAT_IT_DRAWS.has(page) && routeDrawsFor(page, param).includes(key);
 }
 
 /** Surfaces that let a live event pass while their page was elsewhere: read once when it comes on screen. */

@@ -26,7 +26,15 @@ import {
 import { api } from "@/legacy-bridge/api";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 import { surfaceValue } from "../surface-values";
-import { calendarOverride, getCalendarSpan, paintHeldCalendar, setCalendarFresh, setCalendarSpan } from "./surface";
+import {
+  calendarOverride,
+  getCalendarSpan,
+  paintHeldCalendar,
+  setCalendarFresh,
+  setCalendarSpan,
+  warmCalendar,
+} from "./surface";
+import { windowsToWarm } from "./warm";
 import { CALENDAR_PAGE } from "./words";
 
 /** Load `days` days starting on `from` (a day key); a null `from` is the window around today. */
@@ -69,6 +77,15 @@ async function home(): Promise<boolean> {
   return true;
 }
 
+/**
+ * Read ahead the windows a few moves from where the board is, the ones the loaded weeks do not cover (warm.ts), and hold
+ * them. Reads nothing the board would not read itself on getting there, and nothing for a window it already holds.
+ */
+function warmAround(view: CalendarView, anchor: string): void {
+  const loaded = surfaceValue("calendar")?.vm.days ?? [];
+  for (const w of windowsToWarm({ view, anchor, loaded })) void warmCalendar(w);
+}
+
 /** What a feed holds, or the refusal's words. A read: nothing refreshes. Never throws. */
 async function previewFeed(url: string) {
   return api()("POST calendar/preview", { body: { url } });
@@ -97,6 +114,7 @@ export const calendar = {
   goTo,
   ensure,
   home,
+  warmAround,
   previewFeed,
   refresh,
   spanFor: spanForView,

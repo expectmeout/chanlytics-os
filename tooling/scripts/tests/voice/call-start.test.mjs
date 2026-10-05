@@ -99,6 +99,9 @@ const contact = (w) => ({
   dnc: false,
   notes: null,
   email: null,
+  // Never asked for the yes to offers, as a contact row is: a call's context says nothing of it, the ask is WhatsApp's alone.
+  marketing_consent: "unknown",
+  offers_asked_at: null,
   erased_at: null,
 });
 const conversation = (w) => ({ id: C1, tenant_id: w.tenant, contact_id: P1 });

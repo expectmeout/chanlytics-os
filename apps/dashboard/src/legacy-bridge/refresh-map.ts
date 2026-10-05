@@ -29,11 +29,11 @@ import { reportsOverride } from "@/surfaces/reports/surface";
 import { settingsOverride } from "./surfaces/settings";
 import { todayOverride } from "@/surfaces/today/surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
-import { billingOverride } from "./billing";
-import { partnerOverride } from "./partner";
+import { billingOverride } from "@/surfaces/settings/billing/surface";
+import { partnerOverride } from "@/surfaces/settings/partner/surface";
 import { googleOverride } from "./google";
-import { leadsOverride } from "./leads";
-import { setupOverride } from "./setup";
+import { leadsOverride } from "@/surfaces/leads/surface";
+import { setupOverride } from "@/surfaces/setup/surface";
 import { refreshSurfaces } from "./surface-runner";
 import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
 import { repliesOverride } from "./reach-out/replies";
@@ -48,9 +48,17 @@ const runs = () => [playbooksOverride, broadcastsOverride];
 // first step, and its run waiting (the row's "next run") is approved or skipped as any run is. The chains' read scans
 // no audience (reach-outs.ts), so reading it behind a door that moved an ordinary playbook costs little.
 const runsAndChains = () => [...runs(), reachOutsOverride];
+// What the composers and People's reach read of the workspace's channels (server/campaigns/channels-ready.ts): the number's
+// health, the text line, the mailbox and its offers pause, and the postal address an offer by email names. A write that
+// changes one of them moves the Send by row, the count of who each campaign reaches and People's own reach, so it
+// re-reads all three, or a channel just opened stays closed on the composer until something else reads it again.
+const readiness = () => [broadcastsOverride, playbooksOverride, peopleOverride];
 const templates = () => [settingsOverride, inboxOverride];
+// An email or text version, written or taken away: the one list, so the two writes cannot drift apart.
+const versionWrite = () => [settingsOverride, reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride];
 const leads = () => [leadsOverride];
 const setup = () => [setupOverride];
+const setupAndReadiness = () => [setupOverride, ...readiness()];
 const google = () => [googleOverride, setupOverride];
 const billing = () => [billingOverride, setupOverride];
 const settings = () => [settingsOverride];
@@ -119,7 +127,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT lead-suggestions": leads,
   "POST leads/[id]/stage": () => [leadsOverride, peopleOverride],
   // Outbound.
-  "POST broadcasts": () => [broadcastsOverride],
+  // A broadcast made moves the month's emails and texts both composers say before a send, and Playbooks' composer reads
+  // them from its own surface: both are read again, as approving or cancelling a run reads them.
+  "POST broadcasts": runs,
   "POST broadcasts/[id]/approve": runsAndChains,
   "POST broadcasts/[id]/cancel": runsAndChains,
   "POST playbooks": runs,
@@ -143,14 +153,29 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE templates/[id]": templates,
   "POST templates/starter": templates,
   "POST templates/sync": templates,
+  // An email or text version of a message (One message, every channel, step 1): the Templates page reads them with the
+  // settings surface, and both composers read them too: the Send by row closes a channel the message has no version on,
+  // and the preview draws a person on the channel they are reached on as that version reads. No hook is told: the
+  // composers read their surfaces, which this re-reads. A reach-out's email is written by this route too (step 5),
+  // through its chain's save, so what a chain's edit moves moves with it: its words, the runs its held sends are in, and
+  // its leads. Taking a version away moves the same surfaces as writing one: the channel it was on closes.
+  "POST templates/versions": versionWrite,
+  "DELETE templates/versions/[id]": versionWrite,
   // Settings and the team.
   // Settings FIRST: it carries the version the next save has to send. Today
   // states the workspace's facts; hours, closures, rules and services are the
   // Calendar's too.
-  // Name, hours, services, the hand-off number and the calendar feed are Setup rows too.
-  "PUT settings": () => [settingsOverride, todayOverride, calendarOverride, setupOverride],
+  // Name, hours, services, the hand-off number and the calendar feed are Setup rows too. The business's postal address is
+  // saved here as well, and an offer by email is closed without it: the composers' Send by row and People's reach follow.
+  "PUT settings": () => [settingsOverride, todayOverride, calendarOverride, setupOverride, ...readiness()],
   // The first receptionist is a settings write too, from what is known: the same surfaces read again.
-  "POST settings/receptionist": () => [settingsOverride, todayOverride, calendarOverride, setupOverride],
+  "POST settings/receptionist": () => [
+    settingsOverride,
+    todayOverride,
+    calendarOverride,
+    setupOverride,
+    ...readiness(),
+  ],
   "PUT policies": settings,
   // The zone is the workspace's, saved through its own route, and the prompt names it: the settings read's preview
   // carries the zone every fold's consequence is resolved with (business-tab.ts), and the prompt card states it. Not
@@ -161,22 +186,26 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PATCH team/[id]": settings,
   "DELETE team/[id]": settings,
   // Connections repaints, and so does the Setup row that said "Connect".
-  "POST channels/whatsapp/connect": () => [settingsOverride, setupOverride],
+  // The number connected is the one a broadcast goes out on: the composers' WhatsApp tick and who it reaches follow.
+  "POST channels/whatsapp/connect": () => [settingsOverride, setupOverride, ...readiness()],
   "PUT notifications": () => [notificationsOverride],
   // Setup, lines, billing, Google.
   "POST capabilities/[kind]": setup,
   "DELETE capabilities/[kind]": setup,
-  "POST lines/buy": setup,
-  "POST lines/retry": setup,
-  "POST lines/register": setup,
+  // The text line is a channel a campaign goes by once it is active (its state is what the composers' Send by row reads):
+  // getting one, resuming it and filing it with the carriers each move that state, so the composers read it again.
+  "POST lines/buy": setupAndReadiness,
+  "POST lines/retry": setupAndReadiness,
+  "POST lines/register": setupAndReadiness,
   // Forwarding saved: Setup's row, and the settings read's kept number (facts.ts kept_line), which the card shows.
   "POST lines/forwarding": () => [setupOverride, settingsOverride],
   "POST lines/forwarding/test": setup,
   "POST setup/request": setup,
   "PUT business-record": setup,
-  // Making the mailbox adds a line, so the count above the work changes with it.
-  "POST mailboxes": () => [setupOverride, todayOverride],
-  "PUT mailboxes/[id]": setup,
+  // Making the mailbox adds a line, so the count above the work changes with it, and opens the email channel to a campaign.
+  "POST mailboxes": () => [setupOverride, todayOverride, ...readiness()],
+  // The mailbox's own facts are what email's readiness reads (its offers pause among them), so a save of it re-reads them.
+  "PUT mailboxes/[id]": setupAndReadiness,
   // A sending domain added, checked or removed: the Email row's block reads again from Setup.
   "POST sending-domains": setup,
   "POST sending-domains/[id]/check": setup,
@@ -205,6 +234,13 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   // Ask keeps its own thread and its cards; a card's own call goes through its verb's route, and that route's refresh.
   "POST ask": "a question: Ask draws its answer from the turn it streams",
   "POST ask/warm": "a warm read of the page before a question; it changes nothing",
+  "POST ask/speech": "a clip of the words the page already shows, read aloud in Ask's voice; nothing on screen moves",
+  // The spoken conversation (ask-spoken design, §3): its row and the vendor's session are the Line's own state; what it
+  // writes into the thread arrives through the turn's own stream, as a typed question's does.
+  "POST ask/voice": "a conversation minted: the mic's state, held by the Line; the thread fills from the turns",
+  "POST ask/voice/page":
+    "where the page went, kept on the session's row for the next spoken turn; nothing on screen moves",
+  "POST ask/voice/end": "the end of a conversation, kept on its row; the Line already shows the mic at rest",
   "POST ask/messages/[id]/proposals/[pid]": "a card's outcome, kept on Ask's own message; the card's call refreshed",
   "DELETE ask/threads/[id]": "one of Ask's own threads, which Ask's list drops itself",
   // A draft, a preview, a search: nothing stored that a surface shows.
@@ -232,13 +268,13 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST vitals": "the page's field data, kept for the back office",
   "POST client-errors": "an error a boundary caught, told to the server's log; nothing on screen moves",
   // The partner's own pane and the team's partner card read their rows themselves, again after each act.
-  "POST partner": "the partner's account, published from the answer at once (partner.ts become)",
-  "PATCH partner": "the partner's letters, published from the answer at once (partner.ts setLetters)",
+  "POST partner": "the partner's account, published from the answer at once (settings/partner/surface.ts become)",
+  "PATCH partner": "the partner's letters, published from the answer at once (settings/partner/surface.ts setLetters)",
   "POST partner/workspaces": "the workspace set up, which the tab switches to when its invitation went",
   "POST partner/workspaces/[id]/resend": "an invitation sent again; the row says so from the answer",
   "POST partner/invitations/[id]/decline": "the invitation leaves the pane's own list, which it reads again",
-  "POST team/partner": "the team's partner card reads the workspace's partner again (partner-real.jsx)",
-  "DELETE team/partner": "the team's partner card reads the workspace's partner again (partner-real.jsx)",
+  "POST team/partner": "the team's partner card reads the workspace's partner again (settings/partner/team-card.tsx)",
+  "DELETE team/partner": "the team's partner card reads the workspace's partner again (settings/partner/team-card.tsx)",
   // The back office reads its own lists on demand (platform.ts): no surface holds them.
   "POST platform/jobs/requeue":
     "no pane shows the ledger: a support session asks, and the job runs on the next heartbeat",

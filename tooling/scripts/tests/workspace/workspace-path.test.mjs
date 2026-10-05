@@ -24,6 +24,8 @@ const {
   addressApi,
   notifyAddress,
   setAppRouter,
+  warmRoute,
+  warmSoon,
 } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
 const { onOnePage, routeHasPage } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
 
@@ -49,7 +51,7 @@ test("an address is the slug encoded, with whatever rides after it; a hash route
   assert.equal(workspaceHref("a b", "#/inbox"), "/w/a%20b/inbox");
   assert.equal(
     workspaceHref("acme", "?billing=success#/admin/billing"),
-    "/w/acme/admin/billing?billing=success",
+    "/w/acme/settings/billing?billing=success",
     "and the query stays after the route, as a path's does",
   );
   assert.equal(workspaceHref("acme", "#/start"), "/w/acme/start", "the first run, for a workspace just made");
@@ -67,7 +69,7 @@ test("the home sends a tab to the last workspace used, else to the one the serve
   assert.equal(homeHref("acme", answer, "#/today"), "/w/acme/today", "the last one used wins");
   assert.equal(
     homeHref(null, answer, "?billing=success#/admin/billing"),
-    "/w/bayside/admin/billing?billing=success",
+    "/w/bayside/settings/billing?billing=success",
     "else the server's active one",
   );
   assert.equal(homeHref(null, { workspaces: [], activeWorkspaceId: null }), null, "nowhere: the create screen");
@@ -305,4 +307,69 @@ test("a move between two addresses of one page is the page's own; a move to it f
   assert.equal(onOnePage("reports", "inbox"), false);
   assert.equal(onOnePage("inbox", "inbox/th-1"), true, "an address the page follows is the page's own");
   assert.equal(onOnePage("settings", "settings/x"), false, "no page, so no page to stay on");
+});
+
+test("a route with a page of its own is warmed in full before anyone goes there: once, never the page on screen, never a route the frame draws, and never past what the router says is stale", () => {
+  const w = windowAt({ pathname: "/w/acme/inbox" });
+  const asked = [];
+  const stale = [];
+  // Nothing to warm with: the standalone mockup's address, a test's window.
+  setAppRouter(null);
+  warmRoute("conversations", w.win);
+  setAppRouter({
+    push: () => {},
+    replace: () => {},
+    prefetch: (href, options) => {
+      asked.push(href);
+      stale.push(options?.onInvalidate);
+    },
+  });
+  try {
+    warmRoute("conversations", w.win);
+    warmRoute("conversations", w.win);
+    assert.deepEqual(asked, ["/w/acme/conversations"], "a route is warmed once, as a link to its path");
+    warmRoute("inbox", w.win);
+    warmRoute("inbox/th-1", w.win);
+    assert.equal(asked.length, 1, "the page on screen is already drawn, whichever of its addresses is asked");
+    warmRoute("settings", w.win);
+    assert.equal(asked.length, 1, "a route the frame's table draws has no page to warm");
+    // The router says the payload has gone stale (it lives five minutes): the next ask warms it again.
+    stale[0]();
+    warmRoute("conversations", w.win);
+    assert.deepEqual(asked, ["/w/acme/conversations", "/w/acme/conversations"], "warmed again once it is stale");
+    // On the address API the pages that cannot import reach it by.
+    addressApi(w.win).warm("live");
+    assert.equal(asked.at(-1), "/w/acme/live");
+  } finally {
+    setAppRouter(null);
+  }
+});
+
+test("routes are warmed once the page is idle, a breath apart, and not at all where a person has asked to save data", async () => {
+  const w = windowAt({ pathname: "/w/acme/inbox" });
+  const asked = [];
+  setAppRouter({ push: () => {}, replace: () => {}, prefetch: (href) => asked.push(href) });
+  const was = { idle: globalThis.requestIdleCallback, nav: Object.getOwnPropertyDescriptor(globalThis, "navigator") };
+  const link = (connection) =>
+    Object.defineProperty(globalThis, "navigator", { value: { connection }, configurable: true });
+  try {
+    globalThis.requestIdleCallback = (fn) => setTimeout(fn, 0);
+    link({ saveData: true });
+    warmSoon(["reports", "calendar"], w.win);
+    await new Promise((r) => setTimeout(r, 60));
+    assert.deepEqual(asked, [], "save-data: nothing warmed on its own");
+    link({ effectiveType: "2g" });
+    warmSoon(["reports", "calendar"], w.win);
+    await new Promise((r) => setTimeout(r, 60));
+    assert.deepEqual(asked, [], "2g: nothing warmed on its own");
+    link({ effectiveType: "4g" });
+    warmSoon(["reports", "calendar"], w.win);
+    await new Promise((r) => setTimeout(r, 400));
+    assert.deepEqual(asked, ["/w/acme/reports", "/w/acme/calendar"], "otherwise each, in the order asked");
+  } finally {
+    setAppRouter(null);
+    globalThis.requestIdleCallback = was.idle;
+    if (was.nav) Object.defineProperty(globalThis, "navigator", was.nav);
+    else delete globalThis.navigator;
+  }
 });

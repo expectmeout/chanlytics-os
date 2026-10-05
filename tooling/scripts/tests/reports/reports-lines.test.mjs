@@ -146,8 +146,10 @@ test("where: mostly one channel or one leading, as before or taking over, with c
   );
   assert.equal(where({ voice: 4, whatsapp: 3, email: 3 }), "Calls lead.");
   assert.equal(where({ email: 6, whatsapp: 2 }), "Mostly email.");
+  assert.equal(where({ sms: 4, whatsapp: 3, email: 3 }), "Texts lead.", "a text is a common noun, and plural");
   assert.equal(where({ email: 6, whatsapp: 2 }, { whatsapp: 8, email: 1 }), "Email took over from WhatsApp.");
   assert.equal(where({ whatsapp: 6, voice: 2 }, { voice: 5, whatsapp: 1 }), "WhatsApp took over from calls.");
+  assert.equal(where({ sms: 6, voice: 1 }, { voice: 5, sms: 1 }), "Texts took over from calls.");
   assert.equal(where({}, { whatsapp: 3 }), null, "nobody reached it this period");
   assert.equal(lines().channels, null, "a v2 payload counted no channel");
 });

@@ -132,6 +132,8 @@ function rowOf(table, overrides) {
   const defaults = DEFAULTS[table]();
   const row = {};
   for (const [col, c] of Object.entries(cols)) {
+    // A computed column (a function of the row, as has_relationship of 00299) is served with a read and never written.
+    if (c.computed) continue;
     const v = col in overrides ? overrides[col] : col in defaults ? defaults[col] : c.nullable ? null : undefined;
     if (v === undefined)
       throw new Error(`rows: ${table}.${col} is NOT NULL and the factory names no value for it (_rows.mjs DEFAULTS)`);

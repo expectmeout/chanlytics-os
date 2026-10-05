@@ -950,11 +950,28 @@ Object.assign(globalThis.window, {
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,
 });
-// People's TSX, which the Pipeline draws by import (decision 0015): its table, columns menu and rail kit are the names
-// the tree is found by below, and the page is the module itself.
+// People's TSX, which the Pipeline draws by import (decision 0015): its table and columns menu are the types the tree is
+// found by below, and the page is the module itself; the parts the shell still draws by name are published as it does.
 const { PEOPLE_GLOBALS } = await import("../../../../apps/dashboard/src/surfaces/people/people-globals.ts");
 Object.assign(globalThis.window, PEOPLE_GLOBALS);
+const { PeopleTable } = await import("../../../../apps/dashboard/src/surfaces/people/table/table.tsx");
+const { PeopleColumnsMenu } = await import("../../../../apps/dashboard/src/surfaces/people/table/columns-menu.tsx");
+const { plLoadedWords } = await import("../../../../apps/dashboard/src/surfaces/people/words.ts");
 const { PipelineScope } = await import("../../../../apps/dashboard/src/surfaces/people/pipeline/scope.tsx");
+// The kit's Menu, which a row and a card draw their acts with.
+const { Menu } = await import("../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
+const { standingSaid } = await import("../../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
+/** The page's one filled button: in the frame's head on a desk (what the page says to it, standing.tsx), the bar's + on a phone. */
+const newOpen = (tree) =>
+  byTestId(tree, "pipeline-new-open") ??
+  find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "pipeline-new-open");
+/** A kit Menu's groups as the list the page built: a heading over its group, a divider between two, an act as `onClick`. */
+const listOf = (menu) =>
+  menu.props.groups.flatMap((g, at) => [
+    ...(at > 0 ? [{ divider: true }] : []),
+    ...(g.header ? [{ header: g.header }] : []),
+    ...g.items.map((i) => ({ ...i, onClick: i.onSelect })),
+  ]);
 const { PeopleReal } = await import("../../../../apps/dashboard/src/surfaces/people/page/people-real.tsx");
 const { PipelineRailRows } = await import("../../../../apps/dashboard/src/surfaces/people/pipeline/rail.tsx");
 
@@ -1100,18 +1117,23 @@ const lineParts = (tree) =>
     /^pl-standing-(total|reached|needs)( on)?$/.test(n.props?.className || ""),
   ).map(textOf);
 
-test("the Pipeline has its own rail with People's switch at its head, the line, and the table in sections -- every word contracts'", async () => {
+/** Whether anything in the tree is a strip of views: the frame's (SurfaceTabs) draws it from the page's chrome, no page does. */
+const drawsAStrip = (tree) =>
+  !!byTestId(tree, "people-scope") ||
+  all(tree, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes("stabs"),
+  ).length > 0;
+
+test("the Pipeline has its own rail under People's switch (the frame's strip), the line, and the table in sections -- every word contracts'", async () => {
   await fresh();
   const tree = draw();
   assert.ok(byTestId(tree, "pipeline"), "the Pipeline, not People");
-  const tabs = byTestId(tree, "people-scope");
-  assert.deepEqual(
-    all(tabs, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props["aria-selected"]]),
-    [
-      ["People", false],
-      ["Leads", false],
-      ["Pipeline", true],
-    ],
+  assert.equal(
+    drawsAStrip(tree),
+    false,
+    "the switch is the frame's strip over the page (people/moments/people-views.test.mjs)",
   );
   const vm = pipelineOf(globalThis.window.__PEOPLE.rows, Date.now(), ZONE, null);
   assert.deepEqual(lineParts(tree), vm.summary);
@@ -1154,39 +1176,29 @@ test("the Pipeline has its own rail with People's switch at its head, the line, 
   const head = find(tree, (n) => n.type === "tr" && String(n.props?.className || "").includes("pl-sec-head"));
   assert.equal(head.props.id, undefined);
   const th = find(head, (n) => n.type === "th");
-  assert.deepEqual([th.props.scope, th.props.colSpan], ["rowgroup", 8]);
-  // The headings are contracts', after the selection's box, People's person cell first; Stage is the order it
-  // opens in. Came from and Valid until are the member's to show (Columns).
+  assert.deepEqual([th.props.scope, th.props.colSpan], ["rowgroup", 6]);
+  // The headings are contracts', after the selection's box, People's person cell first, the service under the name (canvas
+  // D1); where it stands is the order it opens in. Came from and Valid until are the member's to show (Columns).
   assert.deepEqual(
     all(
       find(tree, (n) => n.type === "thead"),
       (n) => n.type === "th",
     ).map((n) => textOf(n)),
-    ["", "Person", "Service", "Value", "Stage▲", "Next step", "Where it stands", "More"],
-  );
-  // The chip's column says its name to a screen reader only: no one word is right above every chip.
-  const chipHead = all(
-    find(tree, (n) => n.type === "thead"),
-    (n) => n.type === "th",
-  ).find((n) => textOf(n) === "Where it stands");
-  assert.deepEqual(
-    chipHead.props.children.map((k) => [k.type, k.props.className, textOf(k)]),
-    [["span", "rec-sr", "Where it stands"]],
-    "the house's visually hidden words, and nothing seen",
+    ["", "Person", "Value", "Where it stands▲", "Next step", "More"],
   );
   assert.deepEqual(
     all(tree, (n) => n.props?.className === "cl-th-sort").map(textOf),
-    ["Person", "Value", "Stage▲", "Next step"],
-    "the headings that sort are buttons, and Stage is the order it opens in",
+    ["Person", "Value", "Where it stands▲", "Next step"],
+    "the headings that sort are buttons, and where it stands is the order it opens in",
   );
-  // Each row: People's own person cell, the service, the value, the time in stage, and the chip in its tone.
+  // Each row: People's own person cell with the service under the name, the value, the time in stage, and the chip in its tone.
   const wes = find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes");
   assert.ok(
     find(wes, (n) => String(n.props?.className || "").includes("cl-name-cell")),
     "People's person cell",
   );
   assert.deepEqual(
-    ["pipe-service", "pipe-value", "pipe-in-stage"].map((id) => textOf(byTestId(wes, id))),
+    ["row-words", "pipe-value", "pipe-in-stage"].map((id) => textOf(byTestId(wes, id))),
     ["Color correction", "$1,200", "11 d"],
   );
   const chip = byTestId(wes, "pipe-chip");
@@ -1336,7 +1348,7 @@ test("past the people People has loaded, the line says it counts only them, in P
   assert.equal(people.page.has_more, true, "the surface stopped with more to follow");
   const tree = draw();
   const parts = lineParts(tree);
-  assert.equal(parts.at(-1), globalThis.window.plLoadedWords(people.rows.length, 1400));
+  assert.equal(parts.at(-1), plLoadedWords(people.rows.length, 1400));
   assert.equal(parts.at(-1), `${people.rows.length} of 1,400 loaded`, "People's words: N of M loaded");
   assert.deepEqual(parts.slice(0, -1), pipelineOf(people.rows, people.fetchedAt, ZONE, null).summary);
 });
@@ -1350,7 +1362,7 @@ test("with nobody to follow, the table says so in contracts' words", async () =>
   assert.match(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")), /^0 people/);
 });
 
-test("where deals are off the address draws People, and its switch has no Pipeline", async () => {
+test("where deals are off the address draws People", async () => {
   await fresh({ dealsOn: false });
   globalThis.window.location.hash = "#/clients/pipeline";
   // The route draws People's own page for this address (surfaces/people/chrome.ts peopleTakes), which says its own.
@@ -1362,27 +1374,16 @@ test("where deals are off the address draws People, and its switch has no Pipeli
   );
   assert.equal(byTestId(tree, "pipeline"), null);
   assert.ok(byTestId(tree, "people-standing"), "People");
-  assert.deepEqual(
-    all(byTestId(tree, "people-scope"), (n) => n.props?.role === "tab").map((n) => [
-      textOf(n),
-      n.props["aria-selected"],
-    ]),
-    [
-      ["People", true],
-      ["Leads", false],
-    ],
-  );
+  assert.equal(drawsAStrip(tree), false, "and its switch, without the Pipeline, is the frame's");
 });
 
-test("the switch goes to each scope's own address, and the rail's rows to the Pipeline's own views", async () => {
+test("the rail's rows go to the Pipeline's own views (the switch to each scope is the frame's)", async () => {
   await fresh();
   const tree = draw();
-  for (const id of ["scope-people", "scope-leads", "scope-pipeline"]) click(byTestId(tree, id));
-  assert.deepEqual(went, ["clients", "clients/leads", "clients/pipeline"]);
   // Its rail picks a view of the Pipeline, a new entry each; People's lists open on People, from People.
   for (const id of ["proposals", "waiting", "svc:Color correction", "all"])
     click(byTestId(tree, `pipeline-rail-row-${id}`));
-  assert.deepEqual(went.slice(3), [
+  assert.deepEqual(went, [
     "clients/pipeline:v-proposals",
     "clients/pipeline:v-waiting",
     "clients/pipeline:v-s.Color%20correction",
@@ -1469,7 +1470,7 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
     return true;
   };
   let tree = draw();
-  const open = byTestId(tree, "pipeline-new-open");
+  const open = newOpen(tree);
   assert.deepEqual(
     [open.props.className.includes("btn-primary"), textOf(open).trim()],
     [true, "New proposal"],
@@ -1505,7 +1506,7 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
   assert.deepEqual(asked, [{ personId: "wes", mode: "propose" }]);
   assert.equal(byTestId(tree, "pipeline-new"), null, "the picker closes as the sheet opens");
   // Someone new, by number, through People's own door.
-  click(byTestId(tree, "pipeline-new-open"));
+  click(newOpen(tree));
   tree = draw();
   click(byTestId(tree, "pipeline-new-add-open"));
   tree = draw();
@@ -1529,7 +1530,7 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
         details: { fields: { phone: "That is not a mobile number." } },
       },
     });
-  click(byTestId(tree, "pipeline-new-open"));
+  click(newOpen(tree));
   tree = draw();
   click(byTestId(tree, "pipeline-new-add-open"));
   tree = draw();
@@ -1576,7 +1577,7 @@ test("on a phone: one bar with the switch, the view's list button, search and Ne
   onPhone(async () => {
     await fresh();
     const tree = draw();
-    assert.equal(byClass(tree, "cl-rail"), null, "no rail: the switch is the bar's");
+    assert.equal(byClass(tree, "cl-rail"), null, "no rail: the view is the bar's list button");
     assert.equal(byClass(tree, "cl-controls"), null, "no controls row");
     const bar = byTestId(tree, "pipeline-phone-bar");
     const scroller = byClass(tree, "cl-main-scroll");
@@ -1586,14 +1587,7 @@ test("on a phone: one bar with the switch, the view's list button, search and Ne
       null,
       "the bar stands over what scrolls, as the Inbox's strip does",
     );
-    assert.deepEqual(
-      all(bar, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props["aria-selected"]]),
-      [
-        ["People", false],
-        ["Leads", false],
-        ["Pipeline", true],
-      ],
-    );
+    assert.equal(all(bar, (n) => n.props?.role === "tab").length, 0, "the switch is the frame's strip over the bar");
     // The view is the bar's list button, its rows the rail's, in a sheet: no row of chips above the work.
     const lists = byTestId(bar, "pipeline-phone-lists");
     assert.deepEqual(
@@ -1605,7 +1599,7 @@ test("on a phone: one bar with the switch, the view's list button, search and Ne
     assert.ok(byTestId(tree, "pipeline-summary"));
     const card = find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes");
     assert.match(card.props.className, /\bpl-card-row\b/);
-    assert.equal(textOf(find(card, (n) => n.props?.className === "pl-card-name")), "Wes");
+    assert.equal(textOf(find(card, (n) => n.props?.className === "list-row-name")), "Wes");
     assert.equal(textOf(byTestId(card, "pipe-chip")), "Nothing back");
     assert.equal(textOf(byTestId(card, "pipe-service")), "Color correction");
     assert.deepEqual(
@@ -1630,7 +1624,7 @@ test("on a phone: one bar with the switch, the view's list button, search and Ne
     assert.equal(went.at(-1), "clients/pipeline:v-clients");
     assert.equal(byTestId(draw(), "people-lists-sheet"), null, "a pick closes it");
     // New proposal's picker is a phone's sheet, whose search takes focus as it opens: that sheet has no focus rule.
-    click(byTestId(draw(), "pipeline-new-open"));
+    click(newOpen(draw()));
     const picker = draw();
     assert.ok(byTestId(picker, "pipeline-new-sheet"));
     assert.equal(byTestId(picker, "pipeline-new-search").props.autoFocus, true);
@@ -2546,7 +2540,7 @@ test("a viewer sees New proposal and why they may not press it, and a press open
   globalThis.window.ST_STORE = { can: () => false, myRole: () => "viewer" };
   try {
     let tree = draw();
-    const open = byTestId(tree, "pipeline-new-open");
+    const open = newOpen(tree);
     assert.deepEqual([open.props["aria-disabled"], typeof open.props["aria-description"]], [true, "string"]);
     let stopped = false;
     open.props.onClick({
@@ -2587,8 +2581,8 @@ test("the headings sort within each group, kept in the member's view: Value, the
   click(find(tree, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Person")));
   tree = draw();
   assert.deepEqual(rowIds(tree), ["sara", "hana", "wes", "nia", "cat"]);
-  // Stage again: the Pipeline's own order, the way it opened, on the first press.
-  click(find(tree, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Stage")));
+  // Where it stands again: the Pipeline's own order, the way it opened, on the first press.
+  click(find(tree, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Where it stands")));
   tree = draw();
   assert.deepEqual(rowIds(tree), ["hana", "sara", "wes", "nia", "cat"]);
 });
@@ -2604,12 +2598,11 @@ test("Columns shows where they came from and the day a proposal stands until, as
     ],
   });
   let tree = draw();
-  const menu = find(tree, (n) => n.type === globalThis.window.PeopleColumnsMenu);
+  const menu = find(tree, (n) => n.type === PeopleColumnsMenu);
   assert.deepEqual(
     menu.props.options.map((o) => [o.key, o.on]),
     [
       ["name", true],
-      ["service", true],
       ["value", true],
       ["stage", true],
       ["next", true],
@@ -2627,31 +2620,40 @@ test("Columns shows where they came from and the day a proposal stands until, as
   assert.equal(textOf(valid("cat")), "", "a client's deal stands until no day");
 });
 
-test("each row and card wears its deal's steps beside the time in stage, hidden from a screen reader that hears the head and the chip", async () => {
+test("each card wears its deal's steps beside the time in stage, hidden from a screen reader that hears the head and the chip; a desk's row says it in words alone", async () => {
   await fresh();
-  const tree = draw();
-  const steps = (id) =>
-    all(rowNode(tree, id), (n) => n.props?.className === "pipe-step").map(
-      (n) => `${n.props["data-key"]}:${n.props["data-at"]}:${n.props["data-tone"]}`,
-    );
-  assert.deepEqual(
-    steps("wes"),
-    ["proposal:current:warn", "client:ahead:plain"],
-    "waiting on the owner, as its chip says",
-  );
-  assert.deepEqual(steps("cat"), ["proposal:done:plain", "client:current:ok"]);
-  assert.deepEqual(steps("hana"), ["consultation:done:plain", "proposal:current:warn", "client:ahead:plain"]);
-  assert.deepEqual(steps("sara"), ["consultation:current:info", "proposal:ahead:plain", "client:ahead:plain"]);
-  assert.equal(byTestId(rowNode(tree, "wes"), "pipe-track").props["aria-hidden"], "true");
+  const desk = draw();
   assert.equal(
-    textOf(byTestId(rowNode(tree, "wes"), "pipe-in-stage")),
+    byTestId(rowNode(desk, "wes"), "pipe-track"),
+    null,
+    "canvas D1: a desk's row has no picture of the steps, the chip's words say what it drew",
+  );
+  assert.equal(
+    textOf(byTestId(rowNode(desk, "wes"), "pipe-in-stage")),
     "11 d",
-    "the time in stage beside it, as before",
+    "the time in stage under the chip, as before",
   );
   await onPhone(async () => {
     await fresh();
-    const card = rowNode(draw(), "wes");
-    assert.ok(byTestId(card, "pipe-track"), "a phone's card says the steps in its facts line");
+    const tree = draw();
+    const steps = (id) =>
+      all(rowNode(tree, id), (n) => n.props?.className === "pipe-step").map(
+        (n) => `${n.props["data-key"]}:${n.props["data-at"]}:${n.props["data-tone"]}`,
+      );
+    assert.deepEqual(
+      steps("wes"),
+      ["proposal:current:warn", "client:ahead:plain"],
+      "waiting on the owner, as its chip says",
+    );
+    assert.deepEqual(steps("cat"), ["proposal:done:plain", "client:current:ok"]);
+    assert.deepEqual(steps("hana"), ["consultation:done:plain", "proposal:current:warn", "client:ahead:plain"]);
+    assert.deepEqual(steps("sara"), ["consultation:current:info", "proposal:ahead:plain", "client:ahead:plain"]);
+    assert.equal(byTestId(rowNode(tree, "wes"), "pipe-track").props["aria-hidden"], "true");
+    assert.equal(
+      textOf(byTestId(rowNode(tree, "wes"), "pipe-in-stage")),
+      "11 d",
+      "the time in stage beside it, as before",
+    );
   });
 });
 
@@ -2659,8 +2661,8 @@ test("a row's menu: the deal's own acts where the member may record one, then th
   await fresh();
   const asked = [];
   globalThis.window.openDealSheet = (a) => asked.push(a);
-  const menuOf = (tree, id) => find(rowNode(tree, id), (n) => n.type === globalThis.window.MoreMenu);
-  let items = menuOf(draw(), "wes").props.items;
+  const menuOf = (tree, id) => find(rowNode(tree, id), (n) => n.type === Menu);
+  let items = listOf(menuOf(draw(), "wes"));
   assert.deepEqual(
     items.map((it) => (it.divider ? "—" : it.label)),
     [DEAL_ACT_WORDS.won, DEAL_ACT_WORDS.lost, DEAL_ACT_WORDS.edit, "—", "Open the thread", "Open their page"],
@@ -2674,7 +2676,7 @@ test("a row's menu: the deal's own acts where the member may record one, then th
   items.at(-2).onClick();
   assert.equal(went.at(-1), `inbox/${wes.threadId}`, "their thread");
   // A consultation held: start one, with nothing to name a deal by.
-  items = menuOf(draw(), "hana").props.items;
+  items = listOf(menuOf(draw(), "hana"));
   items[0].onClick();
   assert.deepEqual(asked.at(-1), { personId: "hana", mode: "propose", dealId: null });
   // Someone who passed before and came back for a consultation: a new proposal, as dragging their card asks, never
@@ -2689,7 +2691,7 @@ test("a row's menu: the deal's own acts where the member may record one, then th
       }),
     ],
   });
-  items = menuOf(draw(), "bea").props.items;
+  items = listOf(menuOf(draw(), "bea"));
   assert.equal(items[0].label, DEAL_ACT_WORDS.propose);
   items[0].onClick();
   assert.deepEqual(asked.at(-1), { personId: "bea", mode: "propose", dealId: null });
@@ -2697,7 +2699,7 @@ test("a row's menu: the deal's own acts where the member may record one, then th
   globalThis.window.__ME = { role: "viewer" };
   try {
     assert.deepEqual(
-      menuOf(draw(), "wes").props.items.map((it) => it.label),
+      listOf(menuOf(draw(), "wes")).map((it) => it.label),
       ["Open the thread", "Open their page"],
     );
   } finally {
@@ -2719,7 +2721,7 @@ test("a selection: People's bar leads with Mark as passed · N; why is asked onc
   };
   try {
     let tree = draw();
-    const table = find(tree, (n) => n.type === globalThis.window.PeopleTable);
+    const table = find(tree, (n) => n.type === PeopleTable);
     assert.equal(table.props.selectable, true);
     for (const id of ["wes", "nia", "cat"]) table.props.onToggle(id);
     tree = draw();
@@ -2769,7 +2771,7 @@ test("a selection: People's bar leads with Mark as passed · N; why is asked onc
     });
     tree = draw();
     assert.deepEqual(
-      [...find(tree, (n) => n.type === globalThis.window.PeopleTable).props.sel].sort(),
+      [...find(tree, (n) => n.type === PeopleTable).props.sel].sort(),
       ["cat", "nia"],
       "only Wes, who passed, leaves the selection: the one that had changed, and the client, stay picked",
     );
@@ -2789,7 +2791,7 @@ test("beside an open peek on a desk the table keeps who and where they stand; th
       find(tree, (n) => n.type === "thead"),
       (n) => n.type === "th",
     ).map(textOf),
-    ["", "Person", "Where it stands"],
+    ["", "Person", "Where it stands▲"],
   );
   // Closed again, the table has all its columns back.
   press("Escape");
@@ -2799,7 +2801,7 @@ test("beside an open peek on a desk the table keeps who and where they stand; th
       find(tree, (n) => n.type === "thead"),
       (n) => n.type === "th",
     ).length,
-    8,
+    6,
   );
 });
 
@@ -2879,12 +2881,12 @@ test("on the board a card wears its steps and a Move to menu of the columns it m
   // A card's steps, and its Move to: the columns a proposal out may go to, each asking the one sheet.
   const first = find(col, (n) => n.props?.["data-testid"] === "pipeline-card");
   assert.ok(byTestId(first, "pipe-track"));
-  const menu = find(col, (n) => n.type === globalThis.window.MoreMenu);
+  const menu = find(col, (n) => n.type === Menu);
   assert.deepEqual(
-    menu.props.items.map((it) => it.header || it.label),
+    listOf(menu).map((it) => it.header || it.label),
     ["Move to", "Clients", "Passed or ended"],
   );
-  menu.props.items[1].onClick();
+  listOf(menu)[1].onClick();
   assert.equal(asked.at(-1).mode, "won");
   click(byTestId(col, "pipeline-col-more"));
   assert.equal(cards().length, 27, "and all of them, asked");
@@ -2892,7 +2894,7 @@ test("on the board a card wears its steps and a Move to menu of the columns it m
   globalThis.window.__ME = { role: "viewer" };
   try {
     assert.equal(
-      find(byTestId(draw(), "pipeline-col-proposals"), (n) => n.type === globalThis.window.MoreMenu),
+      find(byTestId(draw(), "pipeline-col-proposals"), (n) => n.type === Menu),
       null,
     );
   } finally {
@@ -3031,7 +3033,7 @@ test("their next step on the page: a column after Stage that sorts by its day, i
   let tree = draw();
   const heads = all(tree, (n) => n.props?.className === "cl-th-sort").map((n) => textOf(n).trim());
   const at = (w) => heads.findIndex((h) => h.startsWith(w));
-  assert.ok(at("Next step") === at("Stage") + 1, `after Stage: ${heads.join(", ")}`);
+  assert.ok(at("Next step") === at("Where it stands") + 1, `after where it stands: ${heads.join(", ")}`);
   const cell = (id) => byTestId(rowNode(tree, id), "pipe-next");
   const wesWhen = stepDayOf(day(-2), ZONE, now).words;
   assert.equal(textOf(byClass(cell("wes"), "pipe-next-words")), "Send the revised quote");

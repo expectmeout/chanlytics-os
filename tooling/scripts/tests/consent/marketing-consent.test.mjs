@@ -87,31 +87,51 @@ const person = (over = {}) => ({ consent: "opted_in", dnc: false, marketing_cons
 
 test("a yes about appointments is not a yes about offers", () => {
   const both = person();
-  assert.deepEqual(mayMessageFor(both, "marketing"), { ok: true, reason: null });
-  assert.deepEqual(mayMessageFor(both, "conversational", { proactive: true }), { ok: true, reason: null });
+  assert.deepEqual(mayMessageFor(both, "marketing", { channel: "whatsapp" }), { ok: true, reason: null });
+  assert.deepEqual(mayMessageFor(both, "conversational", { proactive: true, channel: "whatsapp" }), {
+    ok: true,
+    reason: null,
+  });
 
   // The over-blocking this repairs: an appointment reminder to somebody who
   // never asked for offers.
   const appointmentsOnly = person({ marketing_consent: "unknown" });
-  assert.deepEqual(mayMessageFor(appointmentsOnly, "conversational", { proactive: true }), { ok: true, reason: null });
-  assert.deepEqual(mayMessageFor(appointmentsOnly, "marketing"), { ok: false, reason: "no_marketing_consent" });
+  assert.deepEqual(mayMessageFor(appointmentsOnly, "conversational", { proactive: true, channel: "whatsapp" }), {
+    ok: true,
+    reason: null,
+  });
+  assert.deepEqual(mayMessageFor(appointmentsOnly, "marketing", { channel: "whatsapp" }), {
+    ok: false,
+    reason: "no_marketing_consent",
+  });
 
   // Declining offers is not a request to stop hearing about your own visit.
   const noOffers = person({ marketing_consent: "opted_out" });
-  assert.equal(mayMessageFor(noOffers, "conversational", { proactive: true }).ok, true);
-  assert.equal(mayMessageFor(noOffers, "marketing").ok, false);
+  assert.equal(mayMessageFor(noOffers, "conversational", { proactive: true, channel: "whatsapp" }).ok, true);
+  assert.equal(mayMessageFor(noOffers, "marketing", { channel: "whatsapp" }).ok, false);
 
   // STOP is not symmetric with that. It stops everything, on both axes, and so
   // does an operator's do-not-call.
   for (const stopped of [person({ consent: "opted_out" }), person({ dnc: true })]) {
-    assert.deepEqual(mayMessageFor(stopped, "marketing"), { ok: false, reason: "opted_out" });
-    assert.deepEqual(mayMessageFor(stopped, "conversational"), { ok: false, reason: "opted_out" });
+    assert.deepEqual(mayMessageFor(stopped, "marketing", { channel: "whatsapp" }), { ok: false, reason: "opted_out" });
+    assert.deepEqual(mayMessageFor(stopped, "conversational", { channel: "whatsapp" }), {
+      ok: false,
+      reason: "opted_out",
+    });
     assert.equal(isOptedOutContact(stopped), true, "and the old predicate still agrees");
   }
 
   // Answering somebody who wrote to you needs only that they have not stopped.
-  assert.equal(mayMessageFor(person({ consent: "unknown", marketing_consent: "unknown" }), "conversational").ok, true);
-  assert.equal(mayMessageFor(person({ consent: "unknown" }), "conversational", { proactive: true }).ok, false);
+  assert.equal(
+    mayMessageFor(person({ consent: "unknown", marketing_consent: "unknown" }), "conversational", {
+      channel: "whatsapp",
+    }).ok,
+    true,
+  );
+  assert.equal(
+    mayMessageFor(person({ consent: "unknown" }), "conversational", { proactive: true, channel: "whatsapp" }).ok,
+    false,
+  );
 
   // Every refusal has words a person can act on.
   for (const r of ["opted_out", "not_opted_in", "no_marketing_consent"]) assert.ok(PURPOSE_REFUSALS[r]);
@@ -123,8 +143,15 @@ test("a missing column withholds an offer rather than sending one", () => {
   // so a forgotten SELECT never silences a reply; this fails closed so a
   // forgotten SELECT never authorises a promotion.
   const rowFromAnOlderSelect = { consent: "opted_in", dnc: false };
-  assert.equal(mayMessageFor(rowFromAnOlderSelect, "conversational", { proactive: true }).ok, true);
-  assert.equal(mayMessageFor(rowFromAnOlderSelect, "marketing").ok, false, "no column, no promotion");
+  assert.equal(
+    mayMessageFor(rowFromAnOlderSelect, "conversational", { proactive: true, channel: "whatsapp" }).ok,
+    true,
+  );
+  assert.equal(
+    mayMessageFor(rowFromAnOlderSelect, "marketing", { channel: "whatsapp" }).ok,
+    false,
+    "no column, no promotion",
+  );
 });
 
 test("what a message IS comes from what was already recorded, and NULL means marketing", () => {
@@ -478,8 +505,15 @@ test("UNDER-BLOCKING, pinned: the voice path asks the one predicate, with the me
   // the message." The broadcast wire was moved to `mayMessageFor`; this was not, so
   // for a while the product had two bars again. Nothing in this file read it.
   const gate = readCode("apps/edge/lib/receptionist/outbound-gate.ts");
-  assert.match(gate, /import \{ mayMessageFor/, "the gate asks the one predicate rather than holding a copy");
-  assert.match(gate, /const may = mayMessageFor\(f\.contact, f\.purpose, \{ proactive: f\.proactive \}\);/);
+  assert.match(gate, /import \{\s*mayMessageFor/, "the gate asks the one predicate rather than holding a copy");
+  // Asked on the channel the message goes out on (step 2): a yes covers the channels it was given for. And with what the
+  // message is about (decision D1), a fact the caller states: by email the business's own news asks for a yes, a visit's
+  // message does not.
+  assert.match(
+    gate,
+    /const may = mayMessageFor\(f\.contact, f\.purpose, \{\s*proactive: f\.proactive,\s*channel: f\.channel,\s*about: f\.about,?\s*\}\);/,
+  );
+  assert.match(gate, /about: MessageAbout;/, "required of every caller, as the purpose is");
   assert.ok(!/optedOut: boolean/.test(gate), "REGRESSION: a pre-decided boolean cannot answer a per-purpose question");
 
   // The voice path itself is run in retell-fn-door.test.mjs. Its purpose is STATED
@@ -495,7 +529,8 @@ test("UNDER-BLOCKING, pinned: the voice path asks the one predicate, with the me
   // The resolver has to project the column, or the gate above reads undefined and
   // fails closed on every promotional send it is ever asked about.
   const repo = readCode("packages/db/src/repositories/ingest.ts");
-  assert.match(repo, /\.select\("id, consent, dnc, marketing_consent"\)/);
+  // And the channels each yes covers (step 2), or every yes reads as WhatsApp alone.
+  assert.match(repo, /\.select\("id, consent, dnc, marketing_consent, consent_channels, marketing_channels"\)/);
 });
 
 test("the fact has a WRITE path: two callers, which is what 00095 designed for", () => {
@@ -611,13 +646,31 @@ test("every reason the wire can write has words the owner can read", () => {
       for (const dnc of [true, false]) {
         for (const purpose of ["conversational", "marketing"]) {
           for (const proactive of [true, false]) {
-            const r = mayMessageFor({ consent, dnc, marketing_consent }, purpose, { proactive }).reason;
+            const r = mayMessageFor({ consent, dnc, marketing_consent }, purpose, {
+              proactive,
+              channel: "whatsapp",
+            }).reason;
             if (r) reasons.add(r);
           }
         }
       }
     }
   }
+  // And by email, where what a message is about decides the rule (decision D1): the business's own news refuses with
+  // "unsubscribed" or "not_opted_in", and each of them has words as well.
+  for (const about of ["theirs", "ours"])
+    for (const email_marketing of ["unknown", "opted_in", "opted_out"])
+      for (const has_relationship of [true, false])
+        for (const purpose of ["conversational", "marketing"])
+          for (const proactive of [true, false]) {
+            const r = mayMessageFor(
+              { consent: "unknown", dnc: false, marketing_consent: "unknown", email_marketing, has_relationship },
+              purpose,
+              { proactive, channel: "email", about },
+            ).reason;
+            if (r) reasons.add(r);
+          }
+  assert.ok(reasons.has("not_opted_in") && reasons.has("unsubscribed"), "the business's news by email refuses in both");
   assert.ok(reasons.size >= 3, "the predicate refuses for at least three distinct reasons");
   for (const r of reasons) {
     assert.ok(HELD_REASONS[r], `HELD_REASONS is missing "${r}" — the owner would read the enum`);
@@ -658,15 +711,27 @@ test("a cold email to a business asks no yes: only that they did not stop everyt
   // The finder's business has said nothing yet: no consent row, no offers yes. US law lets a business write until it
   // is told to stop, so outreach asks for none, proactive or not.
   const found = { consent: "unknown", dnc: false, marketing_consent: null };
-  assert.deepEqual(mayMessageFor(found, "outreach"), { ok: true, reason: null });
-  assert.deepEqual(mayMessageFor(found, "outreach", { proactive: true }), { ok: true, reason: null });
+  assert.deepEqual(mayMessageFor(found, "outreach", { channel: "whatsapp" }), { ok: true, reason: null });
+  assert.deepEqual(mayMessageFor(found, "outreach", { proactive: true, channel: "whatsapp" }), {
+    ok: true,
+    reason: null,
+  });
   // STOP stops it, and so does a do-not-call.
-  assert.deepEqual(mayMessageFor({ ...found, consent: "opted_out" }, "outreach"), { ok: false, reason: "opted_out" });
-  assert.deepEqual(mayMessageFor({ ...found, dnc: true }, "outreach"), { ok: false, reason: "opted_out" });
+  assert.deepEqual(mayMessageFor({ ...found, consent: "opted_out" }, "outreach", { channel: "whatsapp" }), {
+    ok: false,
+    reason: "opted_out",
+  });
+  assert.deepEqual(mayMessageFor({ ...found, dnc: true }, "outreach", { channel: "whatsapp" }), {
+    ok: false,
+    reason: "opted_out",
+  });
   // Pressing Unsubscribe (00174) stops cold email, and only that: a reply to what they write is still owed.
   const unsubscribed = { ...found, email_marketing: "opted_out" };
-  assert.deepEqual(mayMessageFor(unsubscribed, "outreach"), { ok: false, reason: "unsubscribed" });
-  assert.deepEqual(mayMessageFor(unsubscribed, "conversational"), { ok: true, reason: null });
+  assert.deepEqual(mayMessageFor(unsubscribed, "outreach", { channel: "whatsapp" }), {
+    ok: false,
+    reason: "unsubscribed",
+  });
+  assert.deepEqual(mayMessageFor(unsubscribed, "conversational", { channel: "whatsapp" }), { ok: true, reason: null });
   // Every refusal has words, the door's own outreach ones included.
   for (const r of [
     "unsubscribed",
@@ -686,7 +751,8 @@ test("every refusal the door can give has words for the thread and for a run's r
     assert.ok(PURPOSE_REFUSALS[r], `thread words for ${r}`);
     assert.ok(HELD_REASONS[r], `run words for ${r}`);
   }
-  // Said plainly, the audit's corrections: an unsubscribe stops what the business starts, not their own replies.
-  assert.match(PURPOSE_REFUSALS.unsubscribed, /unless they write first/);
+  // Said plainly, the audit's corrections: an unsubscribe stops what the business starts, not their own replies (and,
+  // since offers by email go to customers, not the messages about their visits: the spec's decision 12).
+  assert.match(PURPOSE_REFUSALS.unsubscribed, /replies and messages about their visits still can/);
   assert.doesNotMatch(PURPOSE_REFUSALS.outreach_not_a_lead, /People/);
 });

@@ -1686,9 +1686,9 @@ test("Ctrl or Cmd with Enter saves the sheet, as it saves a fold", () => {
 
 test("the services sheet is drawn by the page's last child, its one sheet slot, with the sheet closed and open", () => {
   // The rule the page's comment stated and nothing held: the kit's sheet holds hooks and is drawn only while open, so
-  // a card drawn after it reads shifted hook cells whenever it opens (business-tab-gestures.jsx BtSheet). A card
+  // a card drawn after it reads shifted hook cells whenever it opens (surfaces/settings/business/gestures/ BtSheet). A card
   // composed below the sheet's line is the first thing this catches, before any of its rows misbehave. Since Phase 5
-  // the last child is the slot both sheets go through (business-tab.jsx BtSheetSlot; the prompt sheet's half of this is
+  // the last child is the slot both sheets go through (surfaces/settings/business/tab.tsx BtSheetSlot; the prompt sheet's half of this is
   // business-tab-prompt.test.mjs).
   const drawnIn = (node) => [].concat(node.rendered.props.children).filter((c) => c != null && c !== false);
   let tree = drawTab({ profile: many });

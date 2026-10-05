@@ -11,11 +11,13 @@
  * Nothing here is new behaviour: each reads what the pages it stands in for read, in the same words.
  */
 import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback, TouchEvent } from "react";
-import type { SetupSurface } from "../legacy-bridge/setup";
+import type { AskApi } from "../legacy-bridge/ask";
+import type { SetupSurface } from "./setup/surface";
+import { surfaceValue } from "./surface-values";
 import type { ApiResult } from "../client/api";
 
 /** What a toast says, as the shell's one flash takes it (data-bits `usePPToast`). */
-interface LegacyFlash {
+export interface LegacyFlash {
   tone?: string;
   msg: ReactNode;
   /** One act beside the words (an Undo that is not the toast's own, a way on): pressing it closes the toast. */
@@ -34,6 +36,7 @@ declare global {
     canDo?: (action: string) => boolean;
     holdStill?: (el: Element | null | undefined, change: () => void) => void;
     askAbout?: (about: { prompt?: string; mode?: string; thread?: string }) => void;
+    appAsk?: () => void;
     __listRoute?: (id: string) => string;
     __refreshSurface?: (key: string) => Promise<void>;
     usePPToast?: () => [ReactNode, (flash: LegacyFlash) => void];
@@ -44,6 +47,35 @@ declare global {
 export function navigate(route: string, opts?: { replace?: boolean; quiet?: boolean }): void {
   if (opts === undefined) window.CHANLY?.nav?.(route);
   else window.CHANLY?.nav?.(route, opts);
+}
+
+/** The role the member is acting as, View-as included (the role store's `myRole`); a role nobody can read is a viewer's. */
+export function actingRole(): string {
+  return window.ST_STORE && window.ST_STORE.myRole ? window.ST_STORE.myRole() : "viewer";
+}
+
+/** The lower role an owner is previewing (the role store's View-as), or null to act as who they are. */
+export function viewAsRole(): string | null {
+  return (window.ST_STORE && window.ST_STORE.viewAsRole) || null;
+}
+
+/** Preview a lower role, or `null` to stop: the role store's own, which every gate then reads (`team:changed`). */
+export function setViewAs(role: string | null): void {
+  window.ST_STORE?.setViewAs?.(role);
+}
+
+/** Hear the role store change (View-as, the mockup's roster): what a page that draws by the acting role redraws on. */
+export function onRolesChanged(fn: () => void): () => void {
+  window.addEventListener("team:changed", fn);
+  return () => window.removeEventListener("team:changed", fn);
+}
+
+/** Sign out of every session (the frame's `__shell.signOut`); false where there is no frame to do it. */
+export function shellSignOut(): boolean {
+  const shell = shellObject<{ signOut?: () => void }>("__shell");
+  if (!shell || !shell.signOut) return false;
+  shell.signOut();
+  return true;
 }
 
 /** Whether the person acting may do what a role gate names (data-bits `canDo`): with no role store, they may. */
@@ -68,6 +100,17 @@ export function holdStill(control: Element | null | undefined, change: () => voi
 /** Open Ask on a question (the Line asks it, or opens on the scope). Nothing where Ask is not drawn. */
 export function askAbout(about: { prompt?: string; mode?: string; thread?: string }): void {
   window.askAbout?.(about);
+}
+
+/** Open Ask as ⌘K does (the frame's `appAsk`), keeping what is in its field; on nothing where the frame has no door of its own. */
+export function openAsk(): void {
+  if (window.appAsk) window.appAsk();
+  else askAbout({});
+}
+
+/** Ask's own calls (`window.__ask`, legacy-bridge/ask.ts installAsk): a turn sent, a card committed, the page as context. */
+export function askCalls(): AskApi | undefined {
+  return (window as Window & { __ask?: AskApi }).__ask;
 }
 
 /** Where a People list is, by its id: the list picked (People's own rule), or People itself before its lists are read. */
@@ -315,6 +358,11 @@ export function touchSwipe(options: SwipeOptions): SwipeHandlers {
   return window.touchSwipe ? window.touchSwipe(options) : {};
 }
 
+/** Whether the shell takes a thumb's gestures at all (data-bits `touchSwipe`): a row slides only where it does. */
+export function hasTouchSwipe(): boolean {
+  return !!window.touchSwipe;
+}
+
 /** The ref that plays an overlay out as React lets go of it (data-bits `leaving`), one per key. */
 export function leaving(key: string): RefCallback<HTMLElement> | undefined {
   return window.leaving ? window.leaving(key) : undefined;
@@ -385,19 +433,31 @@ export function replaceRoute(route: string): void {
 }
 
 /** Who is acting, as the workspace read said (`window.__ME`); null before it lands. */
-export function meNow(): { id?: string | null; role?: string | null; display_name?: string | null } | null {
-  type Me = { id?: string | null; role?: string | null; display_name?: string | null };
+export function meNow(): {
+  id?: string | null;
+  role?: string | null;
+  display_name?: string | null;
+  email?: string | null;
+  platform_admin?: boolean;
+} | null {
+  type Me = {
+    id?: string | null;
+    role?: string | null;
+    display_name?: string | null;
+    email?: string | null;
+    platform_admin?: boolean;
+  };
   return (window as Window & { __ME?: Me | null }).__ME ?? null;
 }
 
-/** What Setup read (`window.__SETUP.dto`), or null before it lands and where its read failed. */
+/** What Setup read (the seam's `setup`), or null before it lands and where its read failed. */
 export function setupDto(): SetupSurface["dto"] | null {
-  return (window.__SETUP && window.__SETUP.dto) || null;
+  return surfaceValue("setup")?.dto ?? null;
 }
 
-/** Whether Setup's read failed (`window.__SETUP` is null, where before its first read it is undefined). */
+/** Whether Setup's read failed (the seam holds null, where before its first read it holds nothing). */
 export function setupFailed(): boolean {
-  return window.__SETUP === null;
+  return surfaceValue("setup") === null;
 }
 
 /** Whether the surface a route draws from failed to read (`window.__surfaceFailed`): where the registry has none, no. */

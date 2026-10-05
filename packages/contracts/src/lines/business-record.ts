@@ -33,7 +33,7 @@ import {
   DEFAULT_INDUSTRY,
 } from "./a2p-enums";
 import { registrationPathOf, SOLE_PROP_LIMITS, type RegistrationPath } from "./registration-path";
-import { E164 } from "../config/workspace-config/business-profile";
+import { E164 } from "../config/workspace-config/config-rules";
 
 export interface BusinessRecordDto {
   legal_name: string;

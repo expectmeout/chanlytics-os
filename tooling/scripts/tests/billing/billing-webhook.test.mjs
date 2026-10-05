@@ -329,6 +329,217 @@ test("a failed payment marks the row and rings, and the receptionist keeps answe
   assert.equal(writes(db, "tenants").length, 0, "a failed card never silences the receptionist");
 });
 
+/* ------------------------------------------------ what an invoice moved (K8) */
+
+/** The database's door for an invoice's amount, recording each call; `over` makes it answer another way. */
+function amountDoor(over = {}) {
+  const kept = [];
+  return {
+    kept,
+    rpcs: {
+      billing_event_keep_amount: over.door ?? ((a) => (kept.push([a.p_id, a.p_amount_cents, a.p_currency]), true)),
+      ...over.rpcs,
+    },
+  };
+}
+const withDoor = (door, rows = {}) => {
+  const state = tables({ billing_accounts: [row({ status: "active" })], ...rows });
+  const db = fakeDb(state, {}, door.rpcs, { unique: ["billing_events"] });
+  setPg(db);
+  return { state, db };
+};
+const invoice = (over = {}) => ({ id: "in_1", object: "invoice", customer: "cus_1", metadata: {}, ...over });
+/** A plan invoice, as a partner's share is earned on: a subscription raised it. */
+const planInvoice = (over = {}) =>
+  invoice({
+    created: 1758326000,
+    status_transitions: { paid_at: 1758326400 },
+    parent: { type: "subscription_details", subscription_details: { subscription: "sub_1", metadata: {} } },
+    ...over,
+  });
+/** The order the door's statements reached the database: a query as table.op, a call by its name. */
+const stepsOf = (db) => db.seen.map((s) => s.rpc ?? `${s.table}.${s.op}`);
+
+test("a paid invoice's amount is kept on its event, once, after the claim: the amount paid, in Stripe's lowercase currency; the workspace is marked paid as before", async () => {
+  const door = amountDoor();
+  const { db } = withDoor(door);
+  const res = await deliver(
+    "invoice.paid",
+    invoice({ amount_paid: 4900, amount_due: 4900, currency: "USD" }),
+    "evt_inv_paid",
+  );
+  assert.deepEqual(await res.json(), { ok: true });
+  assert.deepEqual(door.kept, [["evt_inv_paid", 4900, "usd"]]);
+  assert.ok(
+    first(writes(db, "billing_accounts").find((s) => s.op === "update")).last_paid_at,
+    "and last_paid_at is stamped as it was",
+  );
+  assert.deepEqual(
+    Object.keys(first(claims(db)[0])).sort(),
+    ["id", "lease_until", "state", "tenant_id", "type"],
+    "the claim's own insert names no column of the migration: an edge ahead of it still claims",
+  );
+});
+
+test("a failed payment keeps what was due; a trial's $0 invoice keeps the zero it is and marks nobody paid", async () => {
+  const failed = amountDoor();
+  withDoor(failed);
+  await deliver(
+    "invoice.payment_failed",
+    invoice({ amount_paid: 0, amount_due: 4900, currency: "usd" }),
+    "evt_inv_failed",
+  );
+  assert.deepEqual(failed.kept, [["evt_inv_failed", 4900, "usd"]]);
+
+  const trial = amountDoor();
+  const { db } = withDoor(trial);
+  await deliver("invoice.paid", invoice({ amount_paid: 0, amount_due: 0, currency: "usd" }), "evt_inv_trial");
+  assert.deepEqual(trial.kept, [["evt_inv_trial", 0, "usd"]]);
+  assert.equal(
+    writes(db, "billing_accounts").length,
+    0,
+    "an invoice that took no money stamps no last_paid_at (billing.ts notePayment)",
+  );
+});
+
+test("an invoice that names no amount we can keep writes nothing: none, a fraction, a negative, a currency that is not three letters, none at all, the other event's amount", async () => {
+  const door = amountDoor();
+  withDoor(door);
+  for (const [n, type, over] of [
+    [1, "invoice.paid", {}],
+    [2, "invoice.paid", { amount_paid: 49.5, currency: "usd" }],
+    [3, "invoice.paid", { amount_paid: -1, currency: "usd" }],
+    [4, "invoice.paid", { amount_paid: 100, currency: "dollars" }],
+    [5, "invoice.paid", { amount_paid: 100 }],
+    [6, "invoice.paid", { amount_due: 100, currency: "usd" }],
+    [7, "invoice.payment_failed", { amount_paid: 100, currency: "usd" }],
+    [8, "invoice.payment_failed", { amount_due: null, currency: "usd" }],
+  ]) {
+    const res = await deliver(type, invoice(over), `evt_inv_odd_${n}`);
+    assert.equal(res.status, 200, JSON.stringify(over));
+  }
+  assert.deepEqual(door.kept, [], "a paid invoice keeps the amount paid, a failed one the amount due, and no other");
+});
+
+test("the amount is kept after the statements the door already made: the payment's mark and the partner's share come first, and the claim is completed after", async () => {
+  const door = amountDoor({ rpcs: { partner_earn: () => ({ id: "e1", earned_cents: 10000 }) } });
+  const { db } = withDoor(door);
+  const res = await deliver("invoice.paid", planInvoice({ amount_paid: 40000, currency: "usd" }), "evt_inv_order");
+  assert.deepEqual(await res.json(), { ok: true, partner_earned: 10000 });
+  assert.deepEqual(door.kept, [["evt_inv_order", 40000, "usd"]]);
+  const steps = stepsOf(db);
+  const pos = (step) => steps.indexOf(step);
+  assert.ok(
+    pos("billing_events.insert") >= 0 && pos("billing_events.insert") < pos("billing_accounts.update"),
+    "the claim first",
+  );
+  assert.ok(pos("billing_accounts.update") < pos("partner_earn"), "the payment is marked, then the share is earned");
+  assert.ok(pos("partner_earn") < pos("billing_event_keep_amount"), "and the amount is kept after both");
+  assert.ok(
+    pos("billing_event_keep_amount") < steps.lastIndexOf("billing_events.update"),
+    "before the claim is completed",
+  );
+});
+
+test("a database that refuses the amount costs the amount alone: the claim completes, the work is done, the answer is 200 and one line says what was lost", async () => {
+  // The ways it can refuse: an edge ahead of its migration (the function is not there), a value the column holds no
+  // room for, a database that does not answer at all.
+  const refusals = [
+    () => {
+      throw Object.assign(
+        new Error("Could not find the function public.billing_event_keep_amount in the schema cache"),
+        {
+          code: "PGRST202",
+        },
+      );
+    },
+    () => {
+      throw Object.assign(new Error('column "amount_cents" of relation "billing_events" does not exist'), {
+        code: "42703",
+      });
+    },
+    () => {
+      throw Object.assign(new Error("value is out of range for type integer"), { code: "22003" });
+    },
+  ];
+  for (const [n, refuse] of refusals.entries()) {
+    for (const type of ["invoice.paid", "invoice.payment_failed"]) {
+      const door = amountDoor({ door: refuse, rpcs: { partner_earn: () => ({ id: "e1", earned_cents: 10000 }) } });
+      const { state, db } = withDoor(door);
+      const id = `evt_inv_refused_${n}_${type}`;
+      const { result, lines } = await logged(() =>
+        deliver(type, planInvoice({ amount_paid: 40000, amount_due: 40000, currency: "usd" }), id),
+      );
+      assert.equal(result.status, 200, `${type}: the door still answers`);
+      assert.deepEqual(
+        await result.json(),
+        type === "invoice.paid" ? { ok: true, partner_earned: 10000 } : { ok: true },
+        `${type}: with the answer it always gave`,
+      );
+      assert.equal(state.billing_events.find((e) => e.id === id).state, "applied", `${type}: the claim is completed`);
+      const mark = first(writes(db, "billing_accounts").find((s) => s.op === "update"));
+      assert.ok(
+        type === "invoice.paid" ? mark.last_paid_at : mark.last_payment_failed_at,
+        `${type}: the payment's mark`,
+      );
+      assert.equal(
+        writes(db, "notifications").length,
+        type === "invoice.paid" ? 0 : 1,
+        `${type}: the bell it always rang`,
+      );
+      assert.deepEqual(
+        lines.filter((l) => l.event === "stripe_amount_unkept").map((l) => l.event_id),
+        [id],
+        `${type}: one line says what was lost`,
+      );
+    }
+  }
+});
+
+test("a database that does not answer the call at all costs the amount alone", async () => {
+  const door = amountDoor();
+  const { state, db } = withDoor(door);
+  db.rpc = () => Promise.reject(new TypeError("fetch failed"));
+  const { result, lines } = await logged(() =>
+    deliver("invoice.paid", invoice({ amount_paid: 4900, currency: "usd" }), "evt_inv_dark"),
+  );
+  assert.equal(result.status, 200);
+  assert.deepEqual(await result.json(), { ok: true });
+  assert.equal(state.billing_events.find((e) => e.id === "evt_inv_dark").state, "applied");
+  assert.ok(first(writes(db, "billing_accounts").find((s) => s.op === "update")).last_paid_at);
+  assert.deepEqual(
+    lines.filter((l) => l.event === "stripe_amount_unkept").map((l) => [l.event_id, l.error]),
+    [["evt_inv_dark", "TypeError: fetch failed"]],
+  );
+});
+
+test("a replayed event is answered as a duplicate before the ledger row is touched again", async () => {
+  const door = amountDoor();
+  withDoor(door);
+  await deliver("invoice.paid", invoice({ amount_paid: 4900, currency: "usd" }), "evt_inv_twice");
+  const again = await deliver("invoice.paid", invoice({ amount_paid: 4900, currency: "usd" }), "evt_inv_twice");
+  assert.deepEqual(await again.json(), { ok: true, duplicate: true });
+  assert.equal(door.kept.length, 1);
+});
+
+test("a delivery that failed before the amount gives its claim back and keeps nothing: the retry keeps it", async () => {
+  const door = amountDoor();
+  const state = tables({ billing_accounts: [row({ status: "active" })] });
+  const broken = fakeDb(state, { "billing_accounts.update": { message: "connection reset" } }, door.rpcs, {
+    unique: ["billing_events"],
+  });
+  setPg(broken);
+  const failed = await deliver("invoice.paid", invoice({ amount_paid: 4900, currency: "usd" }), "evt_inv_retried");
+  assert.equal(failed.status, 500);
+  assert.deepEqual(door.kept, [], "the amount is the last statement: a delivery that did not get there kept none");
+  assert.deepEqual(state.billing_events, [], "and the claim is given back");
+
+  setPg(fakeDb(state, {}, door.rpcs, { unique: ["billing_events"] }));
+  const retried = await deliver("invoice.paid", invoice({ amount_paid: 4900, currency: "usd" }), "evt_inv_retried");
+  assert.equal(retried.status, 200);
+  assert.deepEqual(door.kept, [["evt_inv_retried", 4900, "usd"]], "the retry keeps it, once");
+});
+
 test("a deleted customer is forgotten: the ids point at nothing, the row says nothing is on record, and Checkout may start again", async () => {
   const db = fakeDb(tables({ billing_accounts: [row({ status: "canceled" })] }));
   setPg(db);

@@ -10,10 +10,20 @@
  */
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
+import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
-import type { PeopleCellCtx, TableColumn } from "../types";
-import { PL_RECEPT_MARK, offersOf, plFace, plIsAddress, plIsNumber, plReceptSaysTheState, plWhen } from "../words";
+import type { PeopleCellCtx, RowPick, TableColumn } from "../types";
+import {
+  PL_RECEPT_MARK,
+  offersOf,
+  plFace,
+  plIsAddress,
+  plIsNumber,
+  plReceptSaysTheState,
+  plVisitStart,
+  plWhen,
+} from "../words";
 import { ChannelGlyph } from "./channel-glyph";
 import { plRowCard } from "./row-card";
 
@@ -131,11 +141,9 @@ export const plNameCell = (
     <td key="name" className="cl-name-cell pl-pin">
       <div className="cl-row-name">
         {numbered ? (
-          <div className="ix-thread-avatar cl-row-avatar-glyph" title="No name yet">
-            <Icon name={byNumber ? "phone" : "mail"} size={12} />
-          </div>
+          <Face size="sm" glyph={<Icon name={byNumber ? "phone" : "mail"} size={12} />} title="No name yet" />
         ) : (
-          <div className="ix-thread-avatar">{p.initials}</div>
+          <Face size="sm" initials={p.initials} />
         )}
         <div className="cl-row-name-block">
           <div className="cl-row-fullname">
@@ -187,6 +195,9 @@ const plOffersCell = (p: PersonRowVM) => {
   );
 };
 
+/** The next visit's hours, as the row's own words give them after the day. */
+const visitHours = (p: PersonRowVM): string => (p.nextVisit || "").split(" · ")[1] || "";
+
 /** The Visits cell: the day of the next visit (else the last), which opens its day on the Calendar. */
 const plVisitsCell = (p: PersonRowVM) => (
   <td
@@ -210,7 +221,7 @@ const plVisitsCell = (p: PersonRowVM) => (
         {p.nextVisitDay ? (
           <>
             <span className="cl-row-next">{p.nextVisitDay}</span>
-            <span className="dim"> · {(p.nextVisit || "").split(" · ")[1] || ""}</span>
+            <span className="dim"> · {plVisitStart(visitHours(p))}</span>
           </>
         ) : (
           <span className="cl-row-last-visit">Last · {p.lastVisitDay}</span>
@@ -288,11 +299,13 @@ export const PL_COLUMNS: PeopleColumn[] = [
     ),
   },
   { key: "offers", label: "Offers", sortable: true, cell: plOffersCell },
-  // Where they first came from: people_list's came_from, in contracts' words; nothing when nothing says.
+  // Where they first came from: people_list's came_from, in contracts' words; nothing when nothing says. It is
+  // the Columns menu's to show (canvas P1 keeps it there): with it the table was wider than the pane at 1440.
   {
     key: "came_from",
     label: "Came from",
     sortable: false,
+    on: false,
     cell: (p) => (
       <td key="came_from" className="shrink dim cl-came-cell" data-testid="row-came-from">
         {p.cameFrom ? p.cameFrom.label : ""}
@@ -371,13 +384,14 @@ export const PL_COLUMNS: PeopleColumn[] = [
  * coming and when you last spoke. The desktop's columns say the same things; a phone says them once, in this order, and
  * leaves the answer to offers, the receptionist's word, where they came from and their lists to their page, one tap away.
  */
-const plCardCell = (p: PersonRowVM, { attention }: Pick<PeopleCellCtx, "attention">) => {
+const plCardCell = (p: PersonRowVM, { attention }: Pick<PeopleCellCtx, "attention">, pick?: RowPick) => {
   const byNumber = plIsNumber(p.name);
   const words = attentionWordsOf(p, attention);
   const asks = p.state === "needs_you" || p.state === "waiting_on_you";
   const time = p.nextVisitDay ? (p.nextVisit || "").split(" · ")[1] || "" : "";
   return plRowCard({
     face: plFace(p),
+    pick,
     name: p.name,
     numeric: byNumber,
     pill: <PeopleStatePill state={p.state} label={p.stateLabel} />,

@@ -276,7 +276,7 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   // Opt-IN, and only for a surface that follows its param: which pages are one mount across their address is run
   // on the shell as drawn (shell-status.test.mjs), the safe default with them. Broadcasts follows its run and its
   // list as props: drawn in runs-honest.test.mjs.
-  const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  const settings = readCode("apps/dashboard/src/surfaces/settings/frame/page.tsx");
   assert.ok(settings.includes("const active = SET_TAB(tab);"), "Settings derives its tab every render");
   const inbox = readCode("apps/dashboard/src/surfaces/inbox/pages/inbox-state.tsx");
   assert.ok(/\},\s*\[initialThreadId\],\s*\)/.test(inbox), "the Inbox follows a later deep-link");

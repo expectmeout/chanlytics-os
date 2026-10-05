@@ -30,8 +30,8 @@ const PHONE = "(646) 555-0134";
 const LINK = "https://booksy.com/en-us/999999_aurora-nails";
 
 /**
- * What the create fold PUTs for a workspace whose config is `{}` (pages/business-tab-create.jsx, the fold
- * business-tab-folds.jsx calls "receptionist"; business-tab-create.test.mjs presses it and reads what it sent).
+ * What the create fold PUTs for a workspace whose config is `{}` (surfaces/settings/business/create.tsx, the fold
+ * surfaces/settings/business/folds.ts calls "receptionist"; business-tab-create.test.mjs presses it and reads what it sent).
  *
  * The form this replaced wrote a profile holding the three guardrails as well. hasProfile does not count them, so a
  * profile of guardrails alone composed exactly what no profile composes, and absent is the same three rules in force
@@ -114,8 +114,8 @@ test("a fresh workspace answers from its fields as soon as it has any", () => {
 /* --------------------- the fold that sets one up ------------------------- */
 
 // The form is gone (Task 3.7), and with it the eleven source-text pins that were here. What set a receptionist up is
-// a fold of the Business page -- the card pages/business-tab-create.jsx over the "receptionist" fold of
-// pages/business-tab-folds.jsx -- and business-tab-create.test.mjs EXECUTES every claim they made, on the stub React:
+// a fold of the Business page -- the card surfaces/settings/business/create.tsx over the "receptionist" fold of
+// surfaces/settings/business/folds.ts -- and business-tab-create.test.mjs EXECUTES every claim they made, on the stub React:
 //   the three boxes it collects, each named by its visible label, and that nothing else is asked for;
 //   an empty name, number or link said under its own box, with nothing sent;
 //   a booking link that is not a full web address, and a number that is not a number, said the same way;

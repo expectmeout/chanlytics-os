@@ -59,8 +59,11 @@ export function stripComments(src) {
 /** Read normalised to LF — these files are CRLF and patterns must not care. */
 export const readRaw = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
 
-/** Read as executable code: comments removed, string literals preserved. */
-export const readCode = (p) => stripComments(readRaw(p));
+/**
+ * Read as executable code: comments removed, string literals preserved. Several paths are read as one text, for a
+ * door and the module that holds what it does (a route under app/api and its verb under src/server).
+ */
+export const readCode = (...paths) => paths.map((p) => stripComments(readRaw(p))).join("\n");
 
 /** Import a source module by repo-relative path (tsx loads .ts): for a rule tested by running it. */
 export const importSrc = (p) => import(pathToFileURL(path.join(ROOT, p)).href);

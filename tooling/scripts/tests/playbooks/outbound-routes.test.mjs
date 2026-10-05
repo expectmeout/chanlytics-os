@@ -30,6 +30,7 @@ const sync = await import(at("apps/dashboard/app/api/v1/templates/sync/route.ts"
 const playbooks = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
 const playbook = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/route.ts"));
 const run = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/run/route.ts"));
+const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -794,7 +795,7 @@ test("a draft is judged in the body's words before the assistant is asked; the s
   );
   assert.deepEqual([onFile.submitted, onFile.existing, onFile.synced, onFile.failed], [0, 1, 0, 0]);
   await refused(
-    starter.POST.run(send("POST", { keys: ["welcome_new"] }, inB), ctxFor(tables)),
+    starter.POST.run(send("POST", { keys: ["winback_reply"] }, inB), ctxFor(tables)),
     "upstream_meta",
     502,
     "Adding templates only works on the production dashboard.",
@@ -1076,5 +1077,259 @@ test("a reach-out's step is no moment: never listed among the playbooks, never r
     "validation",
     400,
     REACH_OUT_IS_NOT_A_MOMENT,
+  );
+});
+
+/* ---- One message, every channel (step 3): the routes take and judge `channels` ---- */
+
+const TE = "77777777-7777-4777-8777-777777777775";
+/** The workspace's rows a channel is judged by: its number, its texting line, its mailbox, and a message's own versions. */
+const channelRows = {
+  number: { id: "ch-wa", tenant_id: B, kind: "whatsapp", status: "active", config: { quality_rating: "GREEN" } },
+  line: {
+    tenant_id: B,
+    messaging_service_sid: "MG1",
+    voice_state: "ready",
+    sms_state: "active",
+    reg_mock: false,
+    created_at: "2026-09-01T00:00:00Z",
+  },
+  mailbox: { tenant_id: B, local_part: "bayside", reply_token: "tok", from_name: "Bayside" },
+  textVersion: (over = {}) => tpl(TE, B, { channel: "sms", name: "visit_reminder", ...over }),
+  emailVersion: (over = {}) => tpl(TE, B, { channel: "email", name: "visit_reminder", ...over }),
+};
+
+test("a broadcast ticks channels at the door: a tick the workspace is not ready on, whose message has no version, or the purpose never carries is refused before a row, in the composer's words", async () => {
+  // Whether the deployment can send email is the EDGE's answer (its mail domain AND the provider's key, which the
+  // dashboard never holds): here a stubbed fetch, asked through the real dashboard server, and an unreachable edge is
+  // not ready and not guessed ready.
+  const beforeSecret = process.env.EDGE_CALL_SECRET;
+  const beforeFetch = globalThis.fetch;
+  process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
+  const edgeSays = async (answer) => {
+    globalThis.fetch = async () => {
+      if (answer instanceof Error) throw answer;
+      return new Response(JSON.stringify(answer), { status: 200, headers: { "content-type": "application/json" } });
+    };
+    await emailWire({ fresh: true });
+  };
+  const tablesFor = (over = {}) => ({
+    memberships: both("viewer", "operator"),
+    templates: [tpl(T1, B)],
+    tenants: [],
+    tenant_config: [],
+    policies: [],
+    tenant_channels: [channelRows.number],
+    lines: [],
+    mailboxes: [],
+    ...over,
+  });
+  const post = (tables, body) => {
+    // One broadcast bucket a minute: each refusal below is its own try.
+    setRateStore(memoryStore());
+    const ctx = ctxFor(tables, {}, { people_list: () => [] });
+    return {
+      ctx,
+      run: broadcasts.POST.run(
+        send("POST", { template_id: T1, params: [], audience: { kind: "everyone" }, ...body }, inB),
+        ctx,
+      ),
+    };
+  };
+  try {
+    await edgeSays({ ok: true, ready: false });
+    // WhatsApp, as ever: with no number the broadcast says so, and the number is not asked about when it is not ticked.
+    await refused(
+      post(tablesFor({ tenant_channels: [] }), {}).run,
+      "conflict",
+      409,
+      "Connect a WhatsApp number first.",
+    );
+    // A text: no line, a line the carriers have not approved, then no text version, then everything ready (the empty
+    // audience is the next thing the route says, which proves the channel passed).
+    await refused(post(tablesFor(), { channels: ["sms"] }).run, "conflict", 409, "No texting line yet.");
+    const pending = { ...channelRows.line, sms_state: "pending" };
+    await refused(
+      post(tablesFor({ lines: [pending] }), { channels: ["sms"] }).run,
+      "conflict",
+      409,
+      "not approved by the carriers",
+    );
+    await refused(
+      post(tablesFor({ lines: [channelRows.line] }), { channels: ["sms"] }).run,
+      "conflict",
+      409,
+      "This message has no text version yet.",
+    );
+    const ready = tablesFor({ lines: [channelRows.line], templates: [tpl(T1, B), channelRows.textVersion()] });
+    await refused(post(ready, { channels: ["sms"] }).run, "conflict", 409, "Nobody there has said yes");
+    // Email. A broadcast is the business's own news, which by email waits for the campaigns domain as an offer does
+    // (decision D2), so a deployment that cannot send them says so first: no email wire, then none verified.
+    await refused(
+      post(tablesFor(), { channels: ["email"] }).run,
+      "conflict",
+      409,
+      "Offers by email start once the campaigns domain is set up.",
+    );
+    // The edge could not be asked: not offered, and said so, never guessed ready.
+    await edgeSays(new Error("connect ECONNREFUSED"));
+    await refused(
+      post(tablesFor(), { channels: ["email"] }).run,
+      "conflict",
+      409,
+      "This could not be checked just now.",
+    );
+    // The campaigns domain verified: then the business's address, the mailbox, the message's version, and the people.
+    await edgeSays({ ok: true, ready: true, offers: true });
+    await refused(
+      post(tablesFor(), { channels: ["email"] }).run,
+      "conflict",
+      409,
+      "Add your business's address to send offers by email.",
+    );
+    const address = {
+      tenant_config: [
+        {
+          tenant_id: B,
+          config: {
+            brain: {
+              business_name: "Bayside",
+              system_prompt: "Answer as the front desk of Bayside: brief and warm.",
+              fallbacks: { greeting: "g", error: "e", non_text: "n" },
+              profile: { address: "12 Main St, Springfield" },
+            },
+          },
+          version: 1,
+        },
+      ],
+    };
+    await refused(post(tablesFor(address), { channels: ["email"] }).run, "conflict", 409, "Set up email in Settings");
+    await refused(
+      post(tablesFor({ ...address, mailboxes: [channelRows.mailbox] }), { channels: ["email"] }).run,
+      "conflict",
+      409,
+      "This message has no email version yet.",
+    );
+    const mail = tablesFor({
+      ...address,
+      mailboxes: [channelRows.mailbox],
+      templates: [tpl(T1, B), channelRows.emailVersion()],
+    });
+    // By email the business's news asks a yes covering email or a relationship on record (decision D1): said as that.
+    await refused(
+      post(mail, { channels: ["email"] }).run,
+      "conflict",
+      409,
+      "a yes to hearing from you by email or a relationship with you on record",
+    );
+    // An offer by email goes only once the workspace can send them (the campaigns domain, the business's address, no
+    // pause: a state of the workspace, so a conflict); never by text (the purpose never carries it: a wrong request).
+    const offer = {
+      templates: [tpl(T1, B, { category: "marketing" }), channelRows.emailVersion()],
+      mailboxes: [channelRows.mailbox],
+    };
+    await edgeSays({ ok: true, ready: true });
+    await refused(
+      post(tablesFor(offer), { channels: ["email"] }).run,
+      "conflict",
+      409,
+      "Offers by email start once the campaigns domain is set up.",
+    );
+    await refused(post(tablesFor(offer), { channels: ["sms"] }).run, "validation", 400, "Texts carry no offers.");
+    await refused(
+      post(tablesFor(), { channels: ["carrier pigeon"] }).run,
+      "validation",
+      400,
+      "Pick WhatsApp, text or email to send by.",
+    );
+    // And nothing was written by any of them.
+    const refusedOnes = post(tablesFor(), { channels: ["sms"] });
+    await refused(refusedOnes.run, "conflict", 409);
+    assert.equal(writes(refusedOnes.ctx), 0, "nothing enrolled, nothing scheduled, nothing on the ledger");
+  } finally {
+    globalThis.fetch = beforeFetch;
+    if (beforeSecret === undefined) delete process.env.EDGE_CALL_SECRET;
+    else process.env.EDGE_CALL_SECRET = beforeSecret;
+    // What the next test reads is the answer of a deployment that cannot ask the edge, as it was before this one.
+    await emailWire({ fresh: true });
+  }
+});
+
+test("a playbook ticks channels: made with them, kept by an edit that names none, held to what its message may be on them; made before, it goes by WhatsApp alone", async () => {
+  const reminder = tpl(T1, B, { name: "visit_reminder", category: "utility" });
+  const tables = {
+    memberships: both("viewer", "operator"),
+    playbooks: [],
+    templates: [reminder, tpl(T4, B, { name: "month_offer", category: "marketing" })],
+    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago" }],
+    decisions: [],
+  };
+  const body = { trigger: "visit_tomorrow", template_id: T1, params: [] };
+  // By email too: the check has no readiness (a run holds the people it cannot reach), only what the message may be.
+  const made = await playbooks.POST.run(
+    send("POST", { ...body, channels: ["whatsapp", "email"] }, inB),
+    ctxFor(tables),
+  );
+  const row = tables.playbooks.find((p) => p.id === made.id);
+  assert.deepEqual(row.channels, ["whatsapp", "email"]);
+  assert.deepEqual(tables.decisions.at(-1).payload.channels, ["whatsapp", "email"], "the ledger says the channels");
+  // Naming none is WhatsApp alone, and the column is not even named: a database 00298 has not reached takes it as before.
+  const plain = await playbooks.POST.run(send("POST", body, inB), ctxFor(tables));
+  const before = tables.playbooks.find((p) => p.id === plain.id);
+  assert.ok(!("channels" in before), "WhatsApp alone is the column's default, written as every playbook always was");
+  assert.deepEqual(tables.decisions.at(-1).payload.channels, ["whatsapp"]);
+  // An offer is by WhatsApp alone.
+  await refused(
+    playbooks.POST.run(
+      send("POST", { trigger: "everyone_monthly", template_id: T4, params: [], channels: ["sms"] }, inB),
+      ctxFor(tables),
+    ),
+    "validation",
+    400,
+    "Texts carry no offers.",
+  );
+  await refused(
+    playbooks.POST.run(send("POST", { ...body, channels: ["fax"] }, inB), ctxFor(tables)),
+    "validation",
+    400,
+    "Pick WhatsApp, text or email to send by.",
+  );
+  // An edit that names no channels keeps them (the playbook is checked by the ones it has); one that names them rewrites.
+  const rewritten = await playbook.PUT.run(send("PUT", { ...body, name: "Renamed" }), ctxFor(tables, { id: made.id }));
+  assert.equal(rewritten.name, "Renamed");
+  assert.deepEqual(tables.playbooks.find((p) => p.id === made.id).channels, ["whatsapp", "email"], "kept, never reset");
+  await playbook.PUT.run(send("PUT", { ...body, channels: ["sms"] }), ctxFor(tables, { id: made.id }));
+  assert.deepEqual(tables.playbooks.find((p) => p.id === made.id).channels, ["sms"]);
+  // A playbook kept on email may be changed to an offer: its run holds the people it cannot reach by email until the
+  // workspace can send offers by it (the composer's tick says why). Text is the channel an offer is never carried on.
+  await playbook.PUT.run(send("PUT", { ...body, channels: ["email"] }), ctxFor(tables, { id: made.id }));
+  await playbook.PUT.run(
+    send("PUT", { trigger: "everyone_monthly", template_id: T4, params: [] }),
+    ctxFor(tables, { id: made.id }),
+  );
+  assert.deepEqual(tables.playbooks.find((p) => p.id === made.id).channels, ["email"], "kept, never reset");
+  await playbook.PUT.run(send("PUT", { ...body, channels: ["sms"] }), ctxFor(tables, { id: made.id }));
+  await refused(
+    playbook.PUT.run(
+      send("PUT", { trigger: "everyone_monthly", template_id: T4, params: [] }),
+      ctxFor(tables, { id: made.id }),
+    ),
+    "validation",
+    400,
+    "Texts carry no offers.",
+  );
+  // One made before the channels has none to keep, and an edit leaves it on WhatsApp without naming the column.
+  const old = pb(K1, B, {
+    name: "Old",
+    template_name: "visit_reminder",
+    trigger: "visit_tomorrow",
+    policy_class: "booking",
+  });
+  tables.playbooks.push(old);
+  await playbook.PUT.run(send("PUT", { ...body, name: "Old, renamed" }), ctxFor(tables, { id: K1 }));
+  assert.equal(tables.playbooks.find((p) => p.id === K1).name, "Old, renamed");
+  assert.ok(
+    !("channels" in tables.playbooks.find((p) => p.id === K1)) ||
+      tables.playbooks.find((p) => p.id === K1).channels === undefined,
   );
 });

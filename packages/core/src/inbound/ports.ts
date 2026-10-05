@@ -16,9 +16,11 @@
  */
 import type {
   BrainConfig,
+  BrainIntent,
   BrainMeta,
   CalendarConfig,
   FeaturesConfig,
+  Handled,
   KnownFacts,
   NotificationsConfig,
   PolicyLimits,
@@ -183,7 +185,19 @@ export interface InboundSink {
     purpose?: SendPurpose,
     kind?: SendKind,
   ): Promise<Delivered>;
-  processed(): Promise<unknown>;
+  /**
+   * The message is finished with, and says what it became (contracts Handled) and, where the model read it, what it was
+   * about; the adapter marks it processed and stamps both (K1, ./handled.ts). Both are optional so a caller with nothing
+   * to say still marks it.
+   */
+  processed(handled?: Handled, intent?: BrainIntent | null): Promise<unknown>;
+  /**
+   * Say what the message became WITHOUT marking it processed: for the one way out that leaves a message unfinished on
+   * purpose, a reply that could not be delivered, whose `send_failed` escalation landed (the deadman sweep finishes it,
+   * ./handled.ts). The adapter writes the same stamp `processed` does, through the same door and the same guard, and
+   * never touches processed_at.
+   */
+  noteHandled(handled: Handled, intent?: BrainIntent | null): Promise<unknown>;
   allowlistSkip(): Promise<unknown>;
   /** The sender cannot receive a reply (a short code). Recorded like any other message, and not answered. */
   unreachableSender(): Promise<unknown>;
@@ -219,9 +233,10 @@ export interface InboundPorts {
     /**
      * That context in a line or two, for the model. A VALUE from the db package
      * on the edge, so it arrives as a port rather than as an import. The zone is
-     * the business's, for the dates a deal's sentence says (0004).
+     * the business's, for the dates a deal's sentence says (0004). The channel is the conversation's: a text rides this
+     * road on the WhatsApp prompt, and the ask for the yes to offers is for WhatsApp alone.
      */
-    describe(lead: LeadContext, now?: Date, tz?: string): string;
+    describe(lead: LeadContext, now?: Date, tz?: string, channel?: InboundChannel): string;
   };
   calendar: {
     openings(rt: InboundRuntime, now?: Date): Promise<string | null>;
@@ -241,6 +256,8 @@ export interface InboundPorts {
       tenantId: string | null,
       n: NormalizedInbound,
       channel?: InboundChannel,
+      /** The line the message came in on, a tenant_channels id: the first touch of the person it makes carries it (K3). */
+      line?: string | null,
     ): Promise<IngestResult | null>;
     sink(
       db: InboundDb | null,

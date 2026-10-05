@@ -64,9 +64,10 @@ function needsSentences(vm: TodayVM): TodayBriefSegment[][] {
     const detail = vm.standing.detail;
     // One person: the headline's detail names them again ("Ana Reyes has been waiting since 2:20 PM."), so the two
     // sentences are one: "Ana Reyes needs you, waiting since 2:20 PM."
-    const lead = `${people[0]} has been `;
+    const [first = ""] = people;
+    const lead = `${first} has been `;
     if (one && detail && detail.startsWith(lead))
-      out.push([bold(people[0]), plain(` needs you, ${detail.slice(lead.length)}`)]);
+      out.push([bold(first), plain(` needs you, ${detail.slice(lead.length)}`)]);
     else {
       out.push([...names(people, vm.queue.more), plain(one ? " needs you." : " need you.")]);
       if (detail) out.push([plain(detail)]);
@@ -113,12 +114,12 @@ function daySentence(day: TodayDayVM | null): TodayBriefSegment[] | null {
 
 /**
  * What came in: the recap's line, and the proof the lines are listening on a quiet day and on a day with nothing
- * counted while someone waits (the day's tile stands as four zeros then, zeroFigures, and the proof has no other seat).
+ * counted while someone waits (the day's tile stands as four zeros then, zero_figures, and the proof has no other seat).
  */
 function cameIn(vm: TodayVM): TodayBriefSegment[][] {
   const line = vm.recap?.line;
   if (!line) return [];
-  return vm.quiet || vm.zeroFigures ? [[plain(line)], [plain(vm.proof)]] : [[plain(line)]];
+  return vm.quiet || vm.zero_figures ? [[plain(line)], [plain(vm.proof)]] : [[plain(line)]];
 }
 
 /** A run waiting for a word: its name in bold, then the queue's own sentence about it. */

@@ -47,6 +47,12 @@
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… NEXT_PUBLIC_SUPABASE_ANON_KEY=… \
  *   E2E_USER_EMAIL=… [REPS=3] [SURFACE=today] [ONLY=id,id] node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
  *   [REPS=3] [SURFACE=…] [ONLY=…] node tooling/scripts/eval-ask.mjs --list [tooling/evals/ask-cases.json]
+ *   ELEVENLABS_LLM_SECRET=… … node tooling/scripts/eval-ask.mjs --spoken   # every turn through the brain door, as the agent asks it (eval-ask-spoken.mjs)
+ *
+ * --spoken asks each turn the way the voice agent asks it (a session minted as the member, the brain door called with
+ * the agent's secret, the stored turn read off the thread; the deployment's edge must hold the agent's key) and the
+ * judge adds the spoken rules: no id, no route, no bracketed tag, an early comma in a long headline. A second turn is
+ * not spoken (its page and scope are the typed Line's), so --spoken runs the first turns alone.
  *
  * REPS runs every case that many times (the gate runs three: spec 5.10). SURFACE keeps one surface's cases. The run
  * says how many turns it is about to spend before it spends one, and stops after three refusals in a row: a key with
@@ -57,6 +63,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { ASK_TOKENS_DAY, BUILTIN_LISTS, cardOpenRoute, oneDoor } from "@chanlytics/contracts";
 import { spread, wilson, pct } from "./ask-stats.mjs";
+import { askSpoken, spokenFails } from "./eval-ask-spoken.mjs";
 import { usedAny } from "../evals/rename-ask-tools.mjs";
 import {
   ROW_SOURCES,
@@ -86,6 +93,15 @@ const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 const EMAIL = process.env.E2E_USER_EMAIL;
 const LIST = process.argv.includes("--list");
+/** Every turn through the brain door, as the agent asks it, judged by the spoken rules too (eval-ask-spoken.mjs). */
+const SPOKEN = process.argv.includes("--spoken");
+const AGENT_SECRET = process.env.ELEVENLABS_LLM_SECRET;
+if (SPOKEN && !AGENT_SECRET) {
+  console.error(
+    "--spoken knocks on the brain door as the agent does: set ELEVENLABS_LLM_SECRET to the agent's secret.",
+  );
+  process.exit(2);
+}
 const file = process.argv.slice(2).find((a) => !a.startsWith("--")) || "tooling/evals/ask-cases.json";
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
 const REPS = Math.max(1, Math.round(Number(process.env.REPS) || 1));
@@ -553,7 +569,11 @@ async function askTurn(q, rep, turn, { warmIt, threadId = null, scopeOf, first =
     page = q.context ? resolveContext(q.context, answers, Date.now(), first?.final ?? null) : null;
     if (page && warmIt) warmed = await warm(cookie, tenantId, page.context);
     scope = scopeOf(page);
-    r = await ask(cookie, { text: q.text, surface: q.surface, page, threadId, scope }, page ? tenantId : null);
+    const asked = { text: q.text, surface: q.surface, page, threadId, scope };
+    r =
+      SPOKEN && turn === 1
+        ? await askSpoken(BASE, cookie, AGENT_SECRET, asked, tenantId)
+        : await ask(cookie, asked, page ? tenantId : null);
   } catch (e) {
     r = unanswered(e);
   }
@@ -561,6 +581,7 @@ async function askTurn(q, rep, turn, { warmIt, threadId = null, scopeOf, first =
   r.scope = scope;
   r.first = first;
   const j = r.final ? judge(q, r) : { pass: false, fails: [r.error ?? "no answer"], notes: [] };
+  if (SPOKEN && r.final) (j.fails.push(...spokenFails(r.final)), (j.pass = j.fails.length === 0));
   const row = rowOf(q, rep, turn, r, warmed, j);
   said(row, r, warmed);
   return { r, row };

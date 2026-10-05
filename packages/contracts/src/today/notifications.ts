@@ -319,17 +319,32 @@ const JOB_WORK_OTHER = { stopped: "Something in the background did not finish", 
 /**
  * A job's news: its title, the one line under it, and its door. The job's id and kind are for whoever reads the
  * email to the end, so the runner keeps them as the body's last line, never its first (the bell shows the first).
+ *
+ * The line is worded from how the job was SETTLED, not from the fact that it ended (`how.resumed`: the ledger handed what
+ * it left to a fresh run, or one is already coming, jobs settle.ts and tick.ts conclude). A broadcast that stopped partway
+ * is carried on that way up to MAX_RESUMES times, and its alert said "will not start again on its own" each of them, the
+ * opposite of what happened, in the only line the bell and the phone show: an owner who believed it and sent again reached
+ * the whole audience twice. Only a job nothing carries on says it will not start again. `resumed` is null where settling
+ * threw, so nobody knows whether anything carries on: the line then says neither (its body says what could not be checked).
  */
-export function jobNewsWords(jobKind: string, end: JobEnd, attempts = 1): { title: string; lead: string; to: string } {
+export function jobNewsWords(
+  jobKind: string,
+  end: JobEnd,
+  how: { attempts: number; resumed: boolean | null },
+): { title: string; lead: string; to: string } {
   const w = (JOB_WORK as Record<string, typeof JOB_WORK_OTHER>)[jobKind] ?? JOB_WORK_OTHER;
+  const { attempts, resumed } = how;
+  const tries = attempts > 1 ? ` after ${attempts} tries` : "";
   const lead =
     end === "unfinished"
       ? jobKind === "outbound_send"
         ? "It started and never reported back, so it may or may not have reached the customer. Check the conversation before sending it again."
-        : "It started and never reported back, so how it ended is unknown."
+        : `It started and never reported back, so how it ended is unknown${resumed ? ", and the rest carries on in a fresh run" : ""}.`
       : end === "unknown_kind"
         ? "Nothing ran: this is work the app does not know how to do."
-        : `It stopped${attempts > 1 ? ` after ${attempts} tries` : ""} and will not start again on its own.`;
+        : resumed === null
+          ? `It stopped${tries}, and whether it carries on in a fresh run could not be checked.`
+          : `It stopped${tries} and ${resumed ? "carries on in a fresh run" : "will not start again on its own"}.`;
   return { title: w.stopped, lead, to: w.to };
 }
 
@@ -350,7 +365,8 @@ function jobRowWords(n: NotificationDto): { title: string; message: string; rout
   const m = OLD_JOB_TITLE.exec(n.title.trim());
   if (!m) return null;
   const tries = /after (\d+) tries/.exec(n.body);
-  const w = jobNewsWords(m[1], OLD_JOB_END[m[2]], tries ? Number(tries[1]) : 1);
+  // A row from before these words was never worded from how it was settled: it said it would not start again.
+  const w = jobNewsWords(m[1], OLD_JOB_END[m[2]], { attempts: tries ? Number(tries[1]) : 1, resumed: false });
   // The old rows all said "inbox", whatever the job was; a row that named another page keeps it.
   return { title: w.title, message: w.lead, route: n.route && n.route !== "inbox" ? n.route : w.to };
 }
@@ -377,16 +393,16 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
      * a change is belongs to the change (waba-events.ts describeWabaChange), and
      * how it should read belongs here. Never inferred from the title.
      */
-    template_ready: { icon: "check", tone: "ok", action: "Open Templates", to: "messages" },
-    template_blocked: { icon: "alert", tone: "warn", action: "Open Templates", to: "messages" },
+    template_ready: { icon: "check", tone: "ok", action: "Open Library", to: "messages" },
+    template_blocked: { icon: "alert", tone: "warn", action: "Open Library", to: "messages" },
     sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
     /** A JOB that did not finish, and nothing else. See JobNewsKind. */
     job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
     /** A broadcast that ran to completion: good news, on the page it happened on. */
-    broadcast_sent: { icon: "check", tone: "ok", action: "Open Broadcasts", to: "broadcasts" },
+    broadcast_sent: { icon: "check", tone: "ok", action: "Open Sent", to: "broadcasts" },
     /** A broadcast that did not go out, or stopped partway. */
-    broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Broadcasts", to: "broadcasts" },
-    playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
+    broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Sent", to: "broadcasts" },
+    playbook: { icon: "bolt", tone: "ok", action: "Open Campaigns", to: "outbound" },
     calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
     /** A search that finished: good news, on the page the leads are on. */
     leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },
@@ -401,7 +417,7 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
     /** A business wrote back to a reach-out: its row names the thread, where the reply and what was read are. */
     reach_out_replied: { icon: "mail", tone: "", action: "Open the thread", to: "inbox", own: true },
     /** The day's reach-out numbers (H12): what they wrote and what came back, with the chains on Playbooks. */
-    reach_out_day: { icon: "mail", tone: "", action: "Open Playbooks", to: "outbound" },
+    reach_out_day: { icon: "mail", tone: "", action: "Open Campaigns", to: "outbound" },
     alert: { icon: "bell", tone: "", action: "Open Today", to: "today" },
   };
 
@@ -417,10 +433,12 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],
   [/^live/, "Open Live"],
-  [/^outbound/, "Open Playbooks"],
-  [/^broadcasts/, "Open Broadcasts"],
-  // The route is still `messages`; the page is Templates (#658), and the door says the page's name.
-  [/^messages/, "Open Templates"],
+  // The old Playbooks list (`outbound`) is Campaigns' home now, and Sent and the Library its rooms: the door says the name.
+  [/^outbound/, "Open Campaigns"],
+  [/^campaigns/, "Open Campaigns"],
+  [/^broadcasts/, "Open Sent"],
+  // The route is still `messages`; the page is the Library (a room of Campaigns), and the door says the page's name.
+  [/^messages/, "Open Library"],
   [/^calendar/, "Open Calendar"],
   // One person's page, by their id: the row is about them, so its door says so.
   [/^clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, "Open their page"],

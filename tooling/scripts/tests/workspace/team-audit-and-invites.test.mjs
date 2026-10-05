@@ -17,12 +17,17 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { DECISION_SUBJECTS, DECISION_VERBS } from "@chanlytics/contracts";
 import { readRaw, readCode } from "../_source.mjs";
 
 const sql = readRaw("supabase/migrations/00023_team_audit_and_invite_lookup.sql");
 const service = readCode("apps/dashboard/src/server/workspace/team.ts");
-const workspaces = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
+const workspaces = readCode(
+  "apps/dashboard/app/api/v1/workspaces/route.ts",
+  "apps/dashboard/src/server/workspace/workspace-list.ts",
+);
 const teamIdRoute = readCode("apps/dashboard/app/api/v1/team/[id]/route.ts");
 
 /* ------------------------------ the audit trail --------------------------- */
@@ -63,10 +68,81 @@ test("REGRESSION: acceptance is no longer gated on having no memberships", () =>
   // cross-site check, so its write must not run for a cross-site read) —
   // never on having no memberships.
   assert.ok(
-    workspaces.includes("if (isSameOrigin(_req) && (await acceptOpenInvites(userId, email ?? null)) > 0) {"),
+    workspaces.includes("const invited = isSameOrigin(_req) ? openInvitesFor(email ?? null) : null;") &&
+      workspaces.includes("if (invited && (await acceptOpenInvites(userId, email ?? null, invited)) > 0) {"),
     "acceptance must be attempted on every same-origin workspace read",
   );
   assert.ok(!workspaces.includes("!data?.length && (await acceptOpenInvites"), "the membership gate is the bug");
+});
+
+test("an open invitation, run: looked up beside the boot's other reads, accepted on the app's own read and the list read again with the new seat; a cross-site read looks up nothing and writes nothing", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+  const { fakeDb } = await import("../_fake-db.mjs");
+  const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+  const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+  const { GET } = await import(at("apps/dashboard/app/api/v1/workspaces/route.ts"));
+  const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
+  const USER = "99999999-9999-4999-8999-999999999999";
+  const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  // One world under both clients: the session's (RLS stands in for nothing here) and the service role's, which accepts.
+  const world = {
+    memberships: [
+      { user_id: USER, tenant_id: A, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01" },
+    ],
+    tenants: [
+      { id: A, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" },
+      { id: B, slug: "luna", name: "Luna", status: "active", timezone: "Europe/Madrid" },
+    ],
+    profiles: [],
+    invitations: [
+      {
+        id: "i-1",
+        tenant_id: B,
+        role: "operator",
+        email: "ada@example.com",
+        accepted_at: null,
+        revoked_at: null,
+        expires_at: "2999-01-01T00:00:00Z",
+      },
+    ],
+  };
+  setServiceClient(fakeDb(world));
+  const ctx = {
+    supabase: fakeDb(world, {}, { is_platform_admin: () => false }),
+    userId: USER,
+    email: "Ada@Example.com",
+    aal: "aal2",
+    params: {},
+    headers: {},
+  };
+  const read = (site) =>
+    GET.run(
+      new Request("http://localhost/api/v1/workspaces?workspace=harbor", { headers: { "sec-fetch-site": site } }),
+      ctx,
+    );
+  const roleIn = (answer, id) => answer.workspaces.find((w) => w.id === id)?.role ?? null;
+  try {
+    const away = await read("cross-site");
+    assert.equal(roleIn(away, B), null, "a cross-site read seats nobody");
+    assert.equal(world.invitations[0].accepted_at, null, "and stamps nothing");
+    assert.equal(world.memberships.length, 1);
+
+    const home = await read("same-origin");
+    assert.equal(roleIn(home, B), "operator", "the list read again says the seat the invitation made");
+    assert.equal(roleIn(home, A), "owner");
+    assert.equal(home.activeWorkspaceId, A, "the tab stays where it asked to be");
+    assert.equal(home.user.role, "owner");
+    assert.ok(world.invitations[0].accepted_at, "the invitation is stamped accepted");
+    assert.equal(world.memberships.length, 2);
+
+    const again = await read("same-origin");
+    assert.equal(world.memberships.length, 2, "an accepted invitation is not looked up again");
+    assert.equal(roleIn(again, B), "operator");
+  } finally {
+    setServiceClient(null);
+  }
 });
 
 test("the lookup that now runs every time has an index that fits it", () => {
@@ -90,9 +166,12 @@ test("the index matches how the reader actually filters", () => {
 });
 
 /* ---- the card writes to the SERVER, not to the seeded roster ---- */
+// The card is TSX (surfaces/settings/team/team.tsx, decision 0015 step 11), and the mockup's seeded roster left with the
+// twin it fed: what these held of the seeded branches (that one never wrote on a real roster, that its undo stayed
+// there) is now that there is no seeded branch, no write to the role store's roster and no undo at all.
 {
   const { readCode } = await import("../_source.mjs");
-  const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  const settings = readCode("apps/dashboard/src/surfaces/settings/team/team.tsx");
   const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
   const seam = readCode("apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
 
@@ -100,57 +179,29 @@ test("the index matches how the reader actually filters", () => {
     // They mutated ST_STORE and toasted success on a pane fed by live data:
     // "Invite sent to x as Operator" while nothing was sent, stored or
     // audited, and a demotion confirmed while the database still said owner.
-    for (const verb of ["__teamInvite", "__teamSetRole", "__teamRemove"]) {
-      assert.ok(settings.includes(`window.${verb}(`), `${verb} must be called from the Team card`);
-      assert.ok(bridge.includes(verb), `${verb} must be published by the bridge`);
+    for (const verb of ["invite", "setRole", "remove"]) {
+      assert.ok(settings.includes(`teamVerbs.${verb}(`), `${verb} must be called from the Team card`);
     }
+    assert.ok(
+      bridge.includes("export const teamVerbs = { invite: teamInvite, setRole: teamSetRole, remove: teamRemove };"),
+      "through the bridge's three doors",
+    );
   });
 
-  test("the seeded store is only written when the roster is seeded", () => {
-    // Every ST_STORE write in the team handlers must sit behind !realRoster.
-    const start = settings.indexOf("const invite = async");
-    const end = settings.indexOf("return (", start);
-    const handlers = settings.slice(start, end);
-    assert.ok(start > -1 && end > start, "team handlers must be locatable");
-    for (const write of ["S.addMember(", "S.setRole(", "S.removeMember("]) {
-      let at = handlers.indexOf(write);
-      while (at > -1) {
-        const before = handlers.slice(0, at);
-        assert.ok(
-          before.lastIndexOf("!realRoster") > before.lastIndexOf("realRoster\n"),
-          `${write} must be reachable only on a seeded roster`,
-        );
-        at = handlers.indexOf(write, at + 1);
-      }
-    }
+  test("the card never writes the role store's roster", () => {
+    // The seeded roster is the mockup's, and it left with the twin: the card's only writes are its three doors.
+    for (const write of ["addMember(", "removeMember(", "ST_STORE"]) assert.ok(!settings.includes(write), write);
   });
 
   test("no team write claims an undo it cannot perform", () => {
-    // An invitation email cannot be recalled and a role change is the power to
-    // message customers, so the real branch waits for the server and re-reads
-    // rather than predicting an outcome it would have to walk back.
-    const start = settings.indexOf("const invite = async");
-    const end = settings.indexOf("return (", start);
-    // Every `undo:` must sit in a seeded branch: reading backwards from it,
-    // the guard that opened that branch must be nearer than any server call.
-    const handlers = settings.slice(start, end);
-    let at = handlers.indexOf("undo:");
-    let checked = 0;
-    while (at > -1) {
-      const before = handlers.slice(0, at);
-      assert.ok(
-        before.lastIndexOf("!realRoster") > before.lastIndexOf("window.__team"),
-        "an undo may only be offered on the seeded roster",
-      );
-      checked++;
-      at = handlers.indexOf("undo:", at + 1);
-    }
-    assert.ok(checked >= 2, "the seeded branches still offer undo, so there is something to check");
+    // An invitation email cannot be recalled and a role change is the power to message customers, so the card waits
+    // for the server and re-reads rather than predicting an outcome it would have to walk back.
+    assert.ok(!settings.includes("undo:"), "no undo is offered at all");
   });
 
   test("pending invitations are published and rendered", () => {
-    assert.ok(seam.includes("__TEAM_INVITES"), "the seam must publish open invitations");
-    assert.ok(settings.includes("__TEAM_INVITES"), "the card must render them");
+    assert.ok(seam.includes("invites: w.__TEAM_INVITES ?? null"), "the seam must publish open invitations");
+    assert.ok(settings.includes("read.invites"), "the card must render them");
   });
 
   test("service-layer rules reach the owner as their own sentence", () => {

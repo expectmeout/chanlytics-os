@@ -140,7 +140,7 @@ test("the live salon: both numbers on, the listing watched, the profile connecte
   assert.equal(r.whatsapp.state, "connected");
   assert.equal(r.whatsapp.detail, "+1 (305) 555-0188");
   assert.ok(r.whatsapp.sentence.startsWith("Receiving · last message"));
-  assert.deepEqual(r.whatsapp.verb, { label: "Templates", to: "messages", who: "operator" });
+  assert.deepEqual(r.whatsapp.verb, { label: "Library", to: "messages", who: "operator" });
   assert.equal(r.phone.state, "connected");
   assert.equal(r.phone.verb, null);
   assert.equal(r.google_profile.state, "connected");
@@ -414,9 +414,15 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
 });
 
 test("the wiring: the page draws rows from the same facts Setup reads, the old cards are gone, the edge says the audience", () => {
-  const page = readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx");
+  // The pane moved to TSX (decision 0015 step 11): the pane, its row, its parts and the business record's form, read in one
+  // go, and the text of any of them is "the page".
+  const parts = ["pane", "row", "record-form", "google-choose", "email-setup", "domains-block"].map((f) =>
+    readCode(`apps/dashboard/src/surfaces/settings/connections/${f}.tsx`),
+  );
+  const [pane, row, form] = parts;
+  const page = parts.join("\n");
   assert.ok(
-    page.includes(
+    row.includes(
       'r.kind === "google_listing" && owner && !armed && (r.state === "connected" || r.state === "attention") && (',
     ),
     "Remove is offered only when there is a listing to remove",
@@ -425,65 +431,69 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
     !page.includes("It is an operator action for now"),
     "the off-channel sentence lives on the row (channels.ts), not in a note beneath it",
   );
-  const shell = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  // The pane computes its rows from contracts' own function, over the facts Setup and Google already read.
   assert.ok(
-    page.includes("window.__connections.rows({") &&
-      page.includes("lineRequestedAt: S ? S.dto.requests.line : null,") &&
-      page.includes(
+    pane.includes("connectionRows(") &&
+      pane.includes("lineRequestedAt: S ? S.dto.requests.line : null,") &&
+      pane.includes(
         "google: G ? { ready: G.dto.ready, listing: G.dto.listing, connection: G.dto.connection } : null,",
       ) &&
-      page.includes("calendar: S ? S.dto.calendar : null,"),
+      pane.includes("calendar: S ? S.dto.calendar : null,"),
   );
   assert.ok(
     !page.includes("INT_NOT_AVAILABLE") && !page.includes("<GoogleCard />") && !page.includes("<ConnectWhatsAppRow />"),
     "one row model, no hand-built cards",
   );
-  // The pane is its own file; the settings shell only chooses between the
-  // mockup and it, the way it does for Billing.
+  // The pane is its own file; Settings' page (surfaces/settings/frame, decision 0015 step 11) imports it and draws it
+  // for its tab, as it does Billing.
+  const shell = readCode("apps/dashboard/src/surfaces/settings/frame/page.tsx");
   assert.ok(
-    shell.includes("<window.PaneIntegrationsReal />") && !shell.includes("const PaneIntegrationsReal"),
-    "the shell renders the pane, it does not contain it",
+    shell.includes("<PaneIntegrationsReal />") && !shell.includes("const PaneIntegrationsReal"),
+    "the page renders the pane, it does not contain it",
   );
-  assert.ok(page.includes("window.PaneIntegrationsReal = PaneIntegrationsReal;"));
-  // A file of its own may use React and the window, never a helper that
-  // lives in the file it came from: `useSetState` is an alias declared at
-  // the top of settings.jsx, so it left with the code and arrived undefined
-  // — a break no source-reading test could see, and the browser found.
-  // A file of its own may use React and the window, never a helper that
-  // lives in the file it came from: `useSetState` is an alias declared at
-  // the top of settings.jsx, so it left with the code and arrived undefined
-  // — a break no source-reading test could see, and the browser found.
-  const form = readCode("apps/dashboard/src/legacy/pages/business-record.jsx");
-  for (const f of [page, form]) {
+  assert.match(shell, /import \{ PaneIntegrationsReal \} from "\.\.\/connections\/pane";/);
+  assert.ok(pane.includes("export const PaneIntegrationsReal = () => {"));
+  // A file of its own never uses a helper that lives in the file it came
+  // from: `useSetState` was an alias declared at the top of settings.jsx, so
+  // it left with the code and arrived undefined -- a break no source-reading
+  // test could see, and the browser found. The TSX imports what it uses; the
+  // toast is the verbs module's `useLegacyToast`, not a window helper.
+  for (const f of [pane, row, form]) {
     assert.ok(
       !f.includes("useSetState") && !f.includes("useSetEffect"),
       "an alias from settings.jsx cannot be used here",
     );
-    assert.ok(
-      !f.includes("usePPToast()") || f.includes("window.usePPToast()"),
-      "the toast is reached through the window, as it is everywhere else",
-    );
+    assert.ok(!f.includes("usePPToast"), "the toast is reached through the verbs module, not the window");
   }
-  // Both files are loaded, and the form is rendered through the window the
-  // way the shell renders the billing pane: one file per concern.
-  const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
-  for (const f of ["integrations-real.jsx", "business-record.jsx"])
-    assert.ok(manifest.includes(`@/legacy/pages/${f}`), f);
-  assert.ok(page.includes("<window.BusinessRecordForm line={ownLine} flash={flash} />"));
-  assert.ok(page.includes("data-testid={`connections-${g}`}") && page.includes("data-testid={`connection-${r.kind}`}"));
   assert.ok(
-    page.includes(
-      'for (const ev of ["surface:settings", "surface:setup", "surface:google"]) window.addEventListener(ev, bump);',
-    ),
+    pane.includes('import { refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-verbs";') &&
+      pane.includes("const [toastNode, flash] = useLegacyToast();"),
+  );
+  // No legacy page is loaded for the pane or the form any more (both files are gone), and the form is drawn by the pane
+  // as the component it is.
+  const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
+  for (const f of ["integrations-real.jsx", "business-record.jsx", "sending-domains.jsx"])
+    assert.ok(!manifest.includes(`@/legacy/pages/${f}`), f);
+  assert.ok(pane.includes("<BusinessRecordForm line={ownLine} flash={flash} />"));
+  assert.ok(pane.includes("data-testid={`connections-${g}`}") && row.includes("data-testid={`connection-${r.kind}`}"));
+  assert.ok(
+    pane.includes('useSurface("settings")') &&
+      pane.includes('useSurface("setup")') &&
+      pane.includes('useSurface("google")'),
     "repaints on every surface it reads",
   );
   assert.ok(
-    page.includes('verb.who === "owner" ? window.canDo("team") : window.canDo("approve")'),
+    row.includes('verb.who === "owner" ? canDo("team") : canDo("approve")'),
     "who may press is the row's to say, the page only checks",
   );
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/connections.ts");
-  assert.ok(bridge.includes("win.__connections = { rows: connectionRows, groupWords: CONNECTION_GROUP_WORDS };"));
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installConnections();"));
+  // The rows and the group words are contracts' own, imported by the pane: nothing is published on the window for it,
+  // and nothing in the app installs the old door.
+  const fromContracts = pane.match(/import \{([^}]*)\} from "@chanlytics\/contracts";/);
+  assert.ok(
+    fromContracts && /\bconnectionRows\b/.test(fromContracts[1]) && /\bCONNECTION_GROUP_WORDS\b/.test(fromContracts[1]),
+    "the pane imports contracts' rows and group words",
+  );
+  assert.ok(!readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installConnections"));
   const edge = readCode("apps/edge/lib/google/google-config.ts");
   assert.ok(
     edge.includes("export function googleAudience(): GoogleAudience | null {") &&
@@ -497,7 +507,10 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
       server,
     ),
   );
-  const route = readCode("apps/dashboard/app/api/v1/google/route.ts");
+  const route = readCode(
+    "apps/dashboard/app/api/v1/google/route.ts",
+    "apps/dashboard/src/server/connections/google-actions.ts",
+  );
   assert.ok(route.includes("ready: { places: ready.places, profile: ready.profile, audience: ready.audience }"));
   const env = readRaw("apps/edge/.env.example");
   assert.ok(env.includes("GOOGLE_OAUTH_AUDIENCE="), "the manifest names the switch");
@@ -516,7 +529,7 @@ test("every verb a row can offer is a verb the page runs", () => {
   const rows = readRaw("packages/contracts/src/setup/connections.ts");
   const offered = [...rows.matchAll(/to:\s*"verb:([a-z-]+)"/g)].map((m) => m[1]);
   assert.ok(offered.length >= 5, "the verbs were found at all");
-  const page = readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx");
+  const page = readCode("apps/dashboard/src/surfaces/settings/connections/pane.tsx");
   const handled = [...page.matchAll(/case\s*"verb:([a-z-]+)":/g)].map((m) => m[1]);
   for (const v of new Set(offered)) {
     assert.ok(handled.includes(v), `verb:${v} is offered by a row and handled by nobody`);

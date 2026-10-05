@@ -455,11 +455,6 @@
 .cal-dayhead .cal-closed-chip, .cal-dayhead .cal-allday { flex-basis: 100%; }
 
 /* ---- Month, agenda, the rules bar, the controls ---- */
-/* The date field lies over the range, which opens it; a keyboard that reaches it sees it. */
-.cal-jump { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0 var(--space-2); border: 0; border-radius: inherit; background: var(--bg-raised); color: var(--ink); font: inherit; font-size: var(--text-sm); opacity: 0; cursor: pointer; }
-/* The date and the service pickers take the ring every control takes (C4): the date's was switched off. */
-.cal-jump:focus-visible, .cal-service:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.cal-jump:focus-visible { opacity: 1; }
 /* The service picker takes the room its choice needs and no more: it narrows the board's open times to the ones a
    service fits, and the board is where that shows. */
 .cal-service { max-width: 180px; }
@@ -579,9 +574,8 @@
 .cal-title-range { overflow: hidden; font-size: var(--text-lg); font-weight: 500; letter-spacing: -0.01em; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; }
 .cal-title > .icon { flex: none; }
 .cal-tools { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-.cal-tools .cal-service { height: 30px; padding-top: 0; padding-bottom: 0; border-color: var(--line); border-radius: var(--radius-md); background-color: var(--bg-raised); }
+.cal-tools .cal-service { width: auto; height: 30px; padding-top: 0; padding-bottom: 0; border-color: var(--line); border-radius: var(--radius-md); background-color: var(--bg-raised); }
 .cal-views { flex: none; }
-.cal-views .cl-tab { justify-content: center; padding: 4px 12px; font-size: 12px; }
 /* The foot: the legend and the toggle on one line, and what the toggle shows under them. */
 /* Never the scroll's anchor (overflow-anchor): at the page's foot the browser anchored to it, so when Hours and rules
    opened it moved the page in one jump before its smooth scroll could run (measured on production at 390px, 24 Sep: one
@@ -604,10 +598,10 @@
 @media (pointer: coarse) {
   .cal-steps .btn-icon { width: 44px; }
   .cal-title { min-height: 44px; }
-  html.legacy-on .cal-views .cl-tab { min-height: 38px; }
+  html.legacy-on .cal-views > * { min-height: 38px; }
   /* The views keep their 38px look; a thumb gets the 44px it needs from a press area 3px over and under each. */
-  .cal-views .cl-tab { position: relative; }
-  .cal-views .cl-tab::after { content: ""; position: absolute; inset: -3px 0; }
+  .cal-views > * { position: relative; }
+  .cal-views > *::after { content: ""; position: absolute; inset: -3px 0; }
   .cal-tools .cal-service { height: 44px; }
 }
 
@@ -634,20 +628,100 @@
 .cal-ev-foot-left { flex-wrap: wrap; }
 
 /* ====================================================================
-   Glass: the Calendar (no canvas of its own; the panes the other surfaces wear). The board is one clear pane under the
-   frame's head, at the page's gutter, its toolbar on the page above it; the sticky day heads take the pane's solid so a
-   scrolled board keeps them legible. Each rule names the look inside :where(); none matches in Classic.
+   Glass: the Calendar (no canvas of its own: Today's E3 language on the Calendar's own parts, reviewed 2 Oct 2026).
+   The page keeps ONE gutter, .calendar's own: the sheet's margins above all read --cal-gutter, which is nothing here, so a
+   phone gave the board 301 of its 375px and a desk 56px on each side. One bar of glass capsules stands over the board
+   (the steps, the range, the views), the page's act at its right; the week and the day are one clear pane, the month one,
+   and each agenda day its own. On a phone the views stand under the name as every strip does with the booking link a
+   circle beside them, then the range and the steps, then the first day. Each rule names the look inside :where(); none
+   matches in Classic. A class that carries a primitive's word (btn, rec-seg-btn) is reached by position.
    ==================================================================== */
-.main-scroll > .calendar { padding: 0 var(--gutter-page) 16px; }
-.calendar > .cal-bar { padding: 2px 0 12px; }
-.calendar > .cal-body {
+.main-scroll > .calendar {
+  --cal-gutter: 0px;
+  padding: 0 var(--gutter-page) var(--space-4);
+}
+
+/* ---- The bar ---- */
+.main-scroll > .calendar .cal-head {
+  padding: 0 0 var(--space-3);
+}
+.main-scroll > .calendar .cal-bar {
+  gap: var(--space-2) var(--space-3);
+}
+.main-scroll > .calendar .cal-steps {
+  padding: 2px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-control-fill);
+  box-shadow: var(--surface-control-depth);
+}
+.main-scroll > .calendar .cal-steps > * {
+  height: var(--control-h-md);
+  border-radius: var(--radius-full);
+}
+.main-scroll > .calendar .cal-steps > * + * {
+  border-left: 0;
+}
+.main-scroll > .calendar .cal-title {
+  min-height: var(--control-h-lg);
+  margin-left: 0;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-radius: var(--radius-full);
+}
+.main-scroll > .calendar .cal-title-range {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+}
+.main-scroll > .calendar .cal-views {
+  gap: 2px;
+  padding: 4px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-control-fill);
+  box-shadow: var(--surface-control-depth);
+}
+.main-scroll > .calendar .cal-views > * {
+  height: var(--control-h-sm);
+  padding: 0 14px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-base);
+  color: var(--ink-muted);
+}
+.main-scroll > .calendar .cal-views > [aria-checked="true"] {
+  color: var(--ink);
+}
+
+.main-scroll > .calendar .cal-tools {
+  margin-left: auto;
+}
+.main-scroll > .calendar .cal-tools .cal-service {
+  height: var(--control-h-lg);
+  padding-left: var(--space-4);
+  border: 0;
+  border-radius: var(--radius-full);
+  background-color: var(--surface-control-fill);
+  box-shadow: var(--surface-control-depth);
+  font-size: var(--text-base);
+  color: var(--ink);
+}
+
+/* ---- The notices over the board (a card is a primitive's word, so they are reached by their place and their ids) ---- */
+.main-scroll > .calendar .cal-pane > :is([data-testid^="cal-feed"], [data-testid="cal-consult-note"]) {
+  border: 0;
+  border-radius: var(--radius-xl);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+
+/* ---- The week and the day: one clear pane ---- */
+.main-scroll > .calendar .cal-body:has(> .cal-scroll) {
   position: relative;
   border-radius: var(--surface-pane-radius);
   background: var(--surface-pane-fill);
   box-shadow: var(--surface-pane-depth);
-  overflow: hidden auto;
+  overflow: hidden;
 }
-.calendar > .cal-body::after {
+.main-scroll > .calendar .cal-body:has(> .cal-scroll)::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -659,5 +733,200 @@
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-.calendar :is(.cal-corner, .cal-dayhead) { background: var(--surface-pane-solid); }
-.calendar > .cal-foot { padding-top: 12px; }
+.main-scroll > .calendar .cal-scroll {
+  padding: 0 var(--space-3) var(--space-3);
+}
+/* The day heads and the hours stand over the days as clear glass, not a solid band: what scrolls under them blurs. */
+.main-scroll > .calendar :is(.cal-corner, .cal-dayhead, .cal-gutter) {
+  background: transparent;
+}
+/* On a desk alone: a phone scrolls its days sideways under the heads, and a blur redrawn on every frame of that is the
+   one cost the board's motion could not spare, so there they take the pane's solid (the phone block below). */
+@media (min-width: 721px) {
+  .main-scroll > .calendar :is(.cal-corner, .cal-dayhead) {
+    backdrop-filter: blur(var(--blur-md));
+  }
+}
+
+/* Seven days across a narrower desk: the columns give up 16px each before the board scrolls sideways. */
+@media (min-width: 721px) {
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) {
+    grid-template-columns: 56px repeat(7, minmax(104px, 1fr));
+    min-width: 784px;
+  }
+}
+
+/* ---- The foot ---- */
+.main-scroll > .calendar .cal-foot {
+  padding: var(--space-3) 0 0;
+  border-top: 0;
+}
+/* The hours, the rules and the calendar it reads: one inset under the legend rather than a hairline and loose words. */
+.main-scroll > .calendar .cal-rules {
+  margin-top: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border: 0;
+  border-radius: var(--radius-2xl);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+
+/* ---- The options button, at the bar's end ----
+   One menu holds what the calendar offers its owner (the booking link, a read now, the hours and rules, its settings):
+   a glass circle the height of the capsules beside it. */
+.main-scroll > .calendar .cal-options {
+  flex: none;
+  width: var(--control-h-lg);
+  height: var(--control-h-lg);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-circle);
+  background: var(--surface-control-fill);
+  box-shadow: var(--surface-control-depth);
+  color: var(--ink-muted);
+}
+.main-scroll > .calendar .cal-options:hover,
+.main-scroll > .calendar .cal-options[aria-expanded="true"] {
+  background: var(--selected-fill);
+  color: var(--ink);
+}
+
+/* ---- The blocks, the open times, the days ---- */
+.main-scroll > .calendar .cal-appt.feed {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+.main-scroll > .calendar .cal-appt.feed:hover {
+  background: var(--selected-fill);
+}
+/* Today's column against the clock: a booking that is over stands back, the one under way is ringed in the accent. */
+.main-scroll > .calendar .cal-appt.feed[data-phase="past"] {
+  opacity: 0.6;
+}
+.main-scroll > .calendar .cal-appt.feed[data-phase="now"] {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+.main-scroll > .calendar .cal-appt-who {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.main-scroll > .calendar .cal-appt-service {
+  font-size: var(--text-xs);
+}
+.main-scroll > .calendar .cal-open {
+  padding: 3px 10px;
+  border-radius: var(--radius-lg);
+}
+.main-scroll > .calendar .cal-open-label {
+  font-size: var(--text-xs);
+}
+.main-scroll > .calendar .cal-dayhead {
+  padding: var(--space-3) var(--space-3) var(--space-2);
+}
+.main-scroll > .calendar .cal-dow {
+  font-size: var(--text-xs);
+}
+.main-scroll > .calendar .cal-date {
+  font-size: var(--text-sm);
+}
+
+/* ---- The agenda: each day a pane ---- */
+.main-scroll > .calendar .cal-agenda {
+  gap: var(--space-3);
+}
+.main-scroll > .calendar .cal-agenda-day {
+  position: relative;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5) var(--space-3);
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+.main-scroll > .calendar .cal-agenda-day::after,
+.main-scroll > .calendar .cal-month::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+/* A day with nothing under its name (closed) is a slim row, not a pane's worth of room. */
+.main-scroll > .calendar .cal-agenda-day:has(> .cal-agenda-head:only-child) {
+  padding-block: var(--space-3);
+}
+.main-scroll > .calendar .cal-agenda-head {
+  align-items: baseline;
+}
+.main-scroll > .calendar .cal-agenda-head .cal-date {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+/* The rail's dots were ringed in the card's ground; a pane's ground is the page's. The one happening now keeps its ring. */
+.main-scroll > .calendar .cal-agenda-day [data-phase]:not([data-phase="now"]) .ag-item-rail::after {
+  box-shadow: none;
+}
+/* Today's list reads against the clock: what is over stands back, what comes next is said in ink. */
+.main-scroll > .calendar .cal-agenda-day [data-phase="next"] .ag-item-time {
+  color: var(--ink);
+}
+.main-scroll > .calendar .cal-agenda-day [data-phase="next"] .ag-item-name {
+  font-weight: var(--weight-semibold);
+}
+
+/* ---- The month: one pane ---- */
+.main-scroll > .calendar .cal-month {
+  position: relative;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+.main-scroll > .calendar .cal-month-head {
+  background: transparent;
+}
+.main-scroll > .calendar .cal-month-cell.today .cal-month-num {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--space-6);
+  height: var(--space-6);
+  border-radius: var(--radius-full);
+  background: var(--primary-fill);
+  color: var(--primary-ink);
+}
+
+/* ---- A phone ---- */
+@media (max-width: 720px) {
+  /* The views stand under the name with the options button beside them; then the range and the steps; then the first day. */
+  .main-scroll > .calendar .cal-tools {
+    order: -1;
+  }
+  .main-scroll > .calendar .cal-views > * {
+    height: var(--control-h-lg);
+    padding: 0 var(--space-2);
+  }
+  .main-scroll > .calendar .cal-options {
+    width: 44px;
+    height: 44px;
+  }
+  .main-scroll > .calendar :is(.cal-pane, .cal-scroll) {
+    scrollbar-width: none;
+  }
+  /* The hours stick to the pane's own edge: a gutter inside the scroller's padding left a strip of the days beside them. */
+  .main-scroll > .calendar .cal-scroll {
+    padding-inline: 0;
+  }
+  /* The hours, the corner and the day heads stand over the days as they scroll across, so they take the pane's solid, not clear glass. */
+  .main-scroll > .calendar :is(.cal-corner, .cal-dayhead, .cal-gutter) {
+    background: var(--surface-pane-solid);
+  }
+}

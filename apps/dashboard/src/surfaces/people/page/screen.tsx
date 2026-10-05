@@ -5,7 +5,7 @@
  */
 import { canDo, gate, navigate } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { Menu } from "../../kit/menu/menu";
 import { PeopleBulkBar } from "../bulk/bulk-bar";
 import { plCardRowClass } from "../cells/columns";
 import { PeopleImportSheet } from "../import/import-sheet";
@@ -16,17 +16,17 @@ import { SaveShownAsList } from "../lists/save-shown";
 import { PeopleRail } from "../rail/people-rail";
 import { PeopleListsSheet } from "../rail/lists-sheet";
 import { PeoplePhoneBar } from "../rail/phone-bar";
-import { PeopleScopeTabs } from "../rail/scope-tabs";
 import { PeopleStanding } from "../rail/standing";
 import { PeopleAddSheet, PeopleListActSheet } from "../sheets/list-sheets";
 import { AddPersonButton } from "../sheets/add-person";
 import { PeopleColumnsMenu } from "../table/columns-menu";
 import { PeopleTable } from "../table/table";
 import type { TableEmpty } from "../types";
-import { PL_DEFAULT_GROUPS, PL_NO_LISTS, PL_SEARCH_LABEL, PL_TAB_LABEL, plLoadedWords, plScopeRoute } from "../words";
+import { PL_DEFAULT_GROUPS, PL_NO_LISTS, PL_SEARCH_LABEL, PL_TAB_LABEL, plLoadedWords, plSortedBy } from "../words";
 import type { PeopleState } from "./state";
 import { peoplePhoneMenu } from "./phone-menu";
-import type { MoreMenuItem } from "../../kit/more-menu/more-menu";
+import { menuGroups, moreButton } from "../menu-groups";
+import type { PeopleMenuItem } from "../menu-groups";
 
 /** Nobody to show: a list that isn't here, or one of the member's own with nobody on it. */
 function peopleTableEmpty(s: PeopleState): TableEmpty | null {
@@ -89,7 +89,10 @@ function peopleListHead(s: PeopleState) {
     viewRule,
     shownIds,
     openMade,
+    sortBy,
   } = s;
+  // The list says how it is ordered at the head's right.
+  const sortedBy = plSortedBy(sortBy);
   return (
     <div className="cl-section-head">
       <div className="cl-section-lead">
@@ -187,7 +190,7 @@ function peopleListHead(s: PeopleState) {
         ) : filtered ? (
           "Filtered"
         ) : (
-          ""
+          sortedBy
         )}
       </span>
     </div>
@@ -261,27 +264,26 @@ function peopleDeskControls(s: PeopleState) {
         {/* The canvas (P1) folds the file acts under one ⋯ after Columns: Import (a client list as a file, read in the
             browser, counted, then written in parts of fifty, import/import-sheet.tsx), and Export CSV (everyone, from
             the route: owner only) with its gate or the reason it is held. */}
-        {
-          <MoreMenu
-            testid="people-file-menu"
-            items={[
-              ...(canExport ? [{ label: "Import", icon: "download", onClick: () => setImportOpen(true) }] : []),
-              !canDo("export")
-                ? { label: "Export CSV", icon: "external", gate: gate("export") }
-                : exportBlocked
-                  ? { label: "Export CSV", icon: "external", title: exportBlocked, onClick: () => undefined }
-                  : {
-                      label: "Export CSV",
-                      icon: "external",
-                      title: exportName
-                        ? `Download the people on ${exportName} as a CSV file`
-                        : "Download everyone as a CSV file",
-                      // The route answers as an attachment, so the page stays where it is (as Leads' export does).
-                      onClick: () => window.open(exportHref, "_self"),
-                    },
-            ]}
-          />
-        }
+        <Menu
+          label="More"
+          trigger={moreButton({ title: "More", testid: "people-file-menu" })}
+          groups={menuGroups([
+            ...(canExport ? [{ label: "Import", icon: "download", onClick: () => setImportOpen(true) }] : []),
+            !canDo("export")
+              ? { label: "Export CSV", icon: "external", gate: gate("export") }
+              : exportBlocked
+                ? { label: "Export CSV", icon: "external", title: exportBlocked, onClick: () => undefined }
+                : {
+                    label: "Export CSV",
+                    icon: "external",
+                    title: exportName
+                      ? `Download the people on ${exportName} as a CSV file`
+                      : "Download everyone as a CSV file",
+                    // The route answers as an attachment, so the page stays where it is (as Leads' export does).
+                    onClick: () => window.open(exportHref, "_self"),
+                  },
+          ])}
+        />
       </div>
     </div>
   );
@@ -327,6 +329,7 @@ function peopleScroll(s: PeopleState) {
     searchMore,
     loadingMore,
     loadMore,
+    swap,
   } = s;
   return (
     <div className="cl-main-scroll pl-main" ref={scrollRef}>
@@ -348,6 +351,7 @@ function peopleScroll(s: PeopleState) {
       {(!phone || listStep) && peopleListSection(s)}
 
       <PeopleTable
+        swapRef={swap}
         budget={rowBudget}
         noun="person"
         columns={columns}
@@ -402,27 +406,12 @@ function peopleScroll(s: PeopleState) {
   );
 }
 
-/** A phone's one bar: the switch, the list, search and the more-menu (PeoplePhoneBar). */
+/** A phone's one bar: the list, search and the more-menu (PeoplePhoneBar). */
 function phoneBar(s: PeopleState, phoneMenu: ReturnType<typeof peoplePhoneMenu>) {
-  const {
-    nav,
-    dealsOn,
-    activeSaved,
-    activeList,
-    listGone,
-    setListsOpen,
-    listsOpen,
-    q,
-    setQ,
-    searchRef,
-    searchOpen,
-    setSearchOpen,
-  } = s;
+  const { activeSaved, activeList, listGone, setListsOpen, listsOpen, q, setQ, searchRef, searchOpen, setSearchOpen } =
+    s;
   return (
     <PeoplePhoneBar
-      scope="people"
-      onScope={(to) => nav(plScopeRoute(to))}
-      dealsOn={dealsOn}
       listLabel={
         activeSaved ? activeSaved.name : activeList ? activeList.label : listGone ? listGone.title : "Everyone"
       }
@@ -435,7 +424,13 @@ function phoneBar(s: PeopleState, phoneMenu: ReturnType<typeof peoplePhoneMenu>)
       onSearchOpen={setSearchOpen}
       searchLabel={PL_SEARCH_LABEL}
       testid="people"
-      trailing={<MoreMenu items={phoneMenu} title="More" size={18} btnClass="pp-bar-icon" escape />}
+      trailing={
+        <Menu
+          label="More"
+          groups={menuGroups(phoneMenu)}
+          trigger={moreButton({ title: "More", className: "pp-bar-icon", size: 18, big: true })}
+        />
+      }
     />
   );
 }
@@ -443,7 +438,6 @@ function phoneBar(s: PeopleState, phoneMenu: ReturnType<typeof peoplePhoneMenu>)
 /** The phone's rail, as a sheet: its first row is Everyone, and a press opens the list and closes the sheet. */
 function listsSheet(s: PeopleState) {
   const {
-    nav,
     lists,
     people,
     listId,
@@ -472,7 +466,6 @@ function listsSheet(s: PeopleState) {
             setListsOpen(false);
           },
         }}
-        onScope={(to: string) => nav(plScopeRoute(to))}
         lists={lists}
         groups={people.groups || PL_DEFAULT_GROUPS}
         active={listId}
@@ -503,8 +496,6 @@ function listsSheet(s: PeopleState) {
 export function peopleScreen(s: PeopleState) {
   const {
     phone,
-    nav,
-    dealsOn,
     lists,
     people,
     listId,
@@ -545,11 +536,10 @@ export function peopleScreen(s: PeopleState) {
     setListId,
     setSavedId,
   } = s;
-  const phoneMenu: MoreMenuItem[] = peoplePhoneMenu(s);
+  const phoneMenu: PeopleMenuItem[] = peoplePhoneMenu(s);
   return (
     <div className="clients">
-      {/* The switch between the scopes, over the rail and the rows; a phone's is the bar's first row (PeoplePhoneBar). */}
-      {!phone && <PeopleScopeTabs scope="people" onScope={(to) => nav(plScopeRoute(to))} dealsOn={dealsOn} />}
+      {/* The switch between the scopes is the frame's strip of views, over this page (surfaces/people/chrome.ts). */}
       <PeopleRail
         scope="people"
         // The rail opens with everyone, the way the canvas draws it (P1).

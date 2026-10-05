@@ -1,5 +1,7 @@
 import "server-only";
-import { dealPaceOf, dealsAreOn } from "@chanlytics/contracts";
+import { dealPaceOf, dealsAreOn, type ChannelsReady, type MonthSent } from "@chanlytics/contracts";
+import { channelsReadyOrNull } from "../campaigns/channels-ready";
+import { monthSentOrNull } from "../campaigns/month-sent";
 import { listPlaybooks, recentTouches, triggerPools, type PlaybookListRow } from "../campaigns/playbooks";
 import { dealPaceRead } from "../people/deals";
 import { load, stamp, type Reader } from "./index";
@@ -8,7 +10,7 @@ import { everyone } from "./everyone";
 
 type Pools = Awaited<ReturnType<typeof triggerPools>>;
 
-/** GET playbooks' answer: the eight keys the Playbooks page reads, in the route's order. */
+/** GET playbooks' answer: the nine keys the Playbooks page reads, in the route's order. */
 interface PlaybooksPage {
   playbooks: PlaybookListRow[];
   timezone: string;
@@ -18,6 +20,10 @@ interface PlaybooksPage {
   lists: Pools["lists"];
   people_lists: Pools["people"];
   deals_on: boolean;
+  /** Whether the workspace can send on each channel now, which the pools were counted against; null where unread. */
+  ready: ChannelsReady | null;
+  /** What its campaigns have sent by email and by text this calendar month (month-sent.ts); null where unread. */
+  month_sent: MonthSent | null;
 }
 
 /**
@@ -37,13 +43,17 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
     const ctx = rc.ctx;
     const tenantId = rc.tenantId;
     const now = rc.now;
-    const [playbooks, facts, touched, sellsBy, paceRead] = await Promise.all([
+    const [playbooks, facts, touched, sellsBy, paceRead, ready, month_sent] = await Promise.all([
       listPlaybooks(ctx, tenantId),
       load(rc, readers.facts, undefined).then((r) => r.data),
       recentTouches(ctx, tenantId, now),
       load(rc, readers.sellsBy, undefined).then((r) => r.data),
       // The pace the edge's sweep reads (packages/db yesesSince): the follow-up's pool is the run's own.
       dealPaceRead(ctx, tenantId, now),
+      // Whether each channel can send now: the pools are counted against it, and the composer draws its ticks from it.
+      channelsReadyOrNull(ctx, tenantId, { withPause: true }),
+      // The month's emails and texts already sent, which the composer says before a send and the head from half used.
+      monthSentOrNull(tenantId, now),
     ]);
     const dealsOn = dealsAreOn(sellsBy);
     const { pools, calendar, lists, people } = await triggerPools(
@@ -55,9 +65,12 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
       { on: dealsOn, pace: dealsOn ? dealPaceOf(paceRead) : null },
       // Everyone, and the zone and settings, from the turn, each read just where the pools read their own: everyone
       // once a turn, shared with the audience pool; a settings read that fails costs the visit moments, never the page.
+      // And the playbooks, so one whose message is stricter than its moment is counted by the message (strictMessagePools).
       {
         people: () => load(rc, everyone, undefined).then((r) => r.data),
         known: readers.zoneAndSettings(rc),
+        playbooks,
+        ready,
       },
     );
     return {
@@ -70,6 +83,8 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
         lists,
         people_lists: people,
         deals_on: dealsOn,
+        ready,
+        month_sent,
       },
       rows: playbooks.map((p) => ({ kind: "playbook" as const, id: p.id, route: `outbound/${p.id}`, label: p.name })),
       stamp: stamp(),

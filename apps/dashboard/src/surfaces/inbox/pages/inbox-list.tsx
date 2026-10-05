@@ -17,6 +17,8 @@ import { useEffect, useState, type KeyboardEvent } from "react";
 import { Confirm } from "../../kit/confirm/confirm";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
+import { useSwapMotion } from "../../kit/motion/use-swap-motion";
+import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { ixKeepPlace, ixPlace } from "../place";
 import { threadRow } from "./list-rows";
 import { askOnScreenKey, demoSession, gate, setAskOnScreen, surfaceState } from "../shell";
@@ -219,6 +221,8 @@ export function InboxList(props: InboxListProps) {
   const base = listProps(props);
   const { threads, allThreads, activeView, activeBucket, activeThreadId, selected, onSelectThread, onToggleSelect } =
     base;
+  // The rows swap in with a rise as the bucket changes (kit/motion).
+  const swap = useSwapMotion(activeBucket);
   // The words in the search come back after a refresh or a trip to another page, in this tab (the Inbox's place).
   const [query, setQueryNow] = useState(() => {
     const p = ixPlace();
@@ -286,14 +290,14 @@ export function InboxList(props: InboxListProps) {
 
   return (
     <div className={`ix-list ${L.density} ${selected.length > 0 ? "picking" : ""}`}>
-      {bucketChips(L)}
+      {bucketTabs(L)}
       {searchBox(L)}
       {viewChips(L)}
       {stakeLine(L)}
       {listHead(L)}
       {archiveAsk(L)}
       {/* Threads */}
-      <div className="ix-threads">
+      <div className="ix-threads" ref={swap}>
         {unreadEscalated()}
         {visible.length === 0 && emptyThreads(L)}
         {visible.length > 0 && (
@@ -309,28 +313,29 @@ export function InboxList(props: InboxListProps) {
 /* --------------------------------- the parts --------------------------------- */
 
 /**
- * Buckets. A real workspace has three, and they sit in one row of words: as a grid of two they took two rows
- * with the third alone on the second, and on a phone "Needs you" wrapped to two lines.
+ * Buckets, the kit's sub-tabs. A real workspace has three, and they sit in one line of words, with no glyph: the glyph
+ * said again what the label says, and a grid of two took two rows with the third alone on the second. Six seeded
+ * buckets keep theirs. The canvases count a bucket only where there is something to count ("Snoozed" stands alone,
+ * I1), and on a phone only the bucket that needs you says its figure.
  */
-function bucketChips(L: ListCtx) {
+function bucketTabs(L: ListCtx) {
   const { buckets, activeBucket, onBucketChange } = L;
   return (
-    <div className={`ix-buckets ${buckets.length <= 3 ? "one-row" : ""}`}>
-      {buckets.map((b) => (
-        <button
-          key={b.id}
-          className={`ix-bucket ${activeBucket === b.id ? "active" : ""} ${b.accent ? "accent" : ""}`}
-          onClick={() => onBucketChange(b.id)}
-          aria-pressed={activeBucket === b.id}
-          title={b.hint}
-        >
-          <Icon name={b.icon} size={13} />
-          <span className="ix-bucket-label">{b.label}</span>
-          {/* The canvases count a bucket only where there is something to count: "Snoozed" stands alone (I1). */}
-          {(b.count ?? 0) > 0 && <span className="ix-bucket-count tabular">{b.count}</span>}
-        </button>
-      ))}
-    </div>
+    <SubTabs
+      label="Conversations by status"
+      className="ix-buckets"
+      quietCounts
+      value={activeBucket}
+      onSelect={onBucketChange}
+      tabs={buckets.map((b) => ({
+        id: b.id,
+        label: b.label,
+        hint: b.hint,
+        tone: b.accent ? ("warn" as const) : undefined,
+        glyph: buckets.length > 3 ? <Icon name={b.icon} size={13} /> : undefined,
+        count: (b.count ?? 0) > 0 ? b.count : undefined,
+      }))}
+    />
   );
 }
 

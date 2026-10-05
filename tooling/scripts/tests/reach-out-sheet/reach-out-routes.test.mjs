@@ -334,7 +334,7 @@ test("POST reach-outs refuses before the door: a viewer, a slot that is none of 
     chains.POST.run(send("POST", firstName), ctxFor(tables())),
     "validation",
     422,
-    "{{first name}} isn't one of the slots. Use the chips below.",
+    "{{first name}} isn't one of the slots. Use one of the six.",
   );
   const link = CHAIN({ steps: [{ subject: "Hi", body: "Book here: {{booking link}}", after_days: null }] });
   await refused(

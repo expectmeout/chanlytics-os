@@ -18,8 +18,10 @@
  * zone-math.ts, and the service a caller means, and what it is offered as, is service-offer.ts.
  */
 import type { Closure, Hours } from "../config/workspace-config/business-profile";
+import { DAYS } from "../config/workspace-config/config-rules";
 import { NO_LINK_DETAILS } from "../config/no-booking-link";
-import { clockInZone, dayPlusInZone, localToUtcMs } from "./zone-math";
+import { keyParts } from "./day-keys";
+import { WEEKDAY_KEYS, clockInZone, dayPlusInZone, localToUtcMs } from "./zone-math";
 import type { BusyBlock } from "./feed";
 
 /* ----------------------------------------------------------- the windows */
@@ -86,6 +88,39 @@ export function dayIntervals(h: Hours | undefined): Array<[string, string]> {
 
 export function closedOn(closures: Closure[] | undefined, key: string): boolean {
   return !!closures?.some((c) => c.date <= key && key <= (c.until && c.until >= c.date ? c.until : c.date));
+}
+
+const minutesOf = (s: string): number | null => {
+  const t = hhmm(s);
+  return t ? t[0] * 60 + t[1] : null;
+};
+
+/**
+ * Whether the business is open at a minute of a day on its own clock ("2026-09-17", 19 * 60): that weekday's hours
+ * as dayIntervals reads them, and never on a closure (closedOn). The one answer to "were they open then?"; Reports'
+ * while-you-were-closed asks it for each quarter hour something came in (spec A2). A workspace with no hours reads
+ * closed at every moment, which is no fact about it: ask hasHours first.
+ */
+export function openAt(
+  hours: Record<string, Hours | undefined> | undefined,
+  closures: Closure[] | undefined,
+  dateKey: string,
+  minute: number,
+): boolean {
+  if (closedOn(closures, dateKey)) return false;
+  const { y, m, d } = keyParts(dateKey);
+  const weekday = WEEKDAY_KEYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  if (!weekday) return false;
+  return dayIntervals(hours?.[weekday]).some(([o, c]) => {
+    const from = minutesOf(o);
+    const to = minutesOf(c);
+    return from !== null && to !== null && from <= minute && minute < to;
+  });
+}
+
+/** Whether a workspace has said when it is open at all. A week with no open day says nothing, never "always closed". */
+export function hasHours(hours: Record<string, Hours | undefined> | undefined): boolean {
+  return DAYS.some((d) => dayIntervals(hours?.[d]).length > 0);
 }
 
 /**

@@ -246,6 +246,12 @@ function tally(seen: SeenSelector[][]) {
   const all = [...byKey.values()];
   return { all, missed: all.filter((s) => !s.drawn) };
 }
+/**
+ * Conditions only another engine meets: the gallery runs in Chromium, which never draws what they hold, so a rule inside
+ * one is held on a device, not here. Each names the rule that waits on it. iOS WebKit's `-webkit-touch-callout`: kit.css
+ * gives the page's title and date the soft ink alone there, because iOS draws no fixed background through a clip.
+ */
+const ENGINE_ONLY = ["@supports (-webkit-touch-callout: none)"];
 const named = (s: SeenSelector) =>
   `${s.selector}${s.media ? ` in ${s.media}` : ""}${s.rule !== s.selector ? ` (of ${s.rule})` : ""}: no entry draws it`;
 
@@ -286,7 +292,8 @@ test("every selector of every rule of kit.css is drawn by an entry, a press's wi
       `runs; ${press.length} of them a press's, judged with the presses forced`,
   );
   expect([...unread], "rules of kit.css the checks cannot read").toEqual([]);
-  expect(missed.map(named), "selectors of kit.css no entry draws, in any run").toEqual([]);
+  const here = missed.filter((s) => !ENGINE_ONLY.some((condition) => s.media.includes(condition)));
+  expect(here.map(named), "selectors of kit.css no entry draws, in any run").toEqual([]);
 });
 
 test("each entry reads its tokens, a press rule's with the presses forced, in every run, but the known overrides", async ({

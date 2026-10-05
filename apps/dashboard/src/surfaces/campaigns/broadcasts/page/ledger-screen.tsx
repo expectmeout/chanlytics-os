@@ -3,9 +3,14 @@
  * legacy/pages/broadcasts.jsx, decision 0015). Plain functions that return the elements they draw, called from
  * BroadcastsReal with the page's state.
  */
+import { CAMPAIGN_ROOMS } from "@chanlytics/contracts";
+import { Button } from "../../../kit/button/button";
 import { EmptyState } from "../../../kit/empty/empty";
 import { Icon } from "../../../kit/icon/icon";
-import { gate } from "../../../legacy-verbs";
+import { LinkButton } from "../../../kit/link-button/link-button";
+import { gate, navigate } from "../../../legacy-verbs";
+import { composeRoute } from "../../home/address";
+import { NewMessageLabel } from "../../home/new-label";
 import { BcBand, BcHistoryStats, BcWeek } from "../ledger";
 import { CmHead } from "../../parts/head";
 import type { BcBase, BcV } from "./types";
@@ -59,8 +64,8 @@ function bcOptIn({ data, yesOpen, setYesOpen, flash }: Pick<BcBase, "data" | "ye
                     Print a desk sign
                   </a>
                 )}
-                <button
-                  className="btn btn-sm"
+                <Button
+                  size="sm"
                   data-testid="bc-optin-copy"
                   onClick={() => {
                     if (navigator.clipboard)
@@ -68,7 +73,7 @@ function bcOptIn({ data, yesOpen, setYesOpen, flash }: Pick<BcBase, "data" | "ye
                   }}
                 >
                   Copy link
-                </button>
+                </Button>
                 <a className="btn btn-sm" href={optIn.qrPath as string} download="say-yes-to-offers.svg">
                   Download QR
                 </a>
@@ -103,56 +108,46 @@ function bcOptIn({ data, yesOpen, setYesOpen, flash }: Pick<BcBase, "data" | "ye
   );
 }
 
-// The ledger: one line of the runs by state and what went, the week ahead, the runs, and the section that gets a yes.
+// The ledger, the page's list: its head (the runs by state, what went, the week ahead), the runs, and the section that gets a yes.
 /** The page's act as the canvas draws it, a capsule of the control layer; coral is the composer's. */
 export function bcLedger(v: BcV) {
-  const { rows, band, setBand, data, origin, setOrigin, setWriting, now, runs, runCard, sentN, recent } = v;
+  const { rows, band, setBand, data, origin, setOrigin, now, runs, runCard, sentN, recent } = v;
+  // New message is the home's one door to the composer, at its address (`campaigns/new`): the same sheet, the same name, and Back
+  // closes it, whichever room it is pressed in.
+  const write = () => navigate(composeRoute("once"));
   return (
-    <>
-      {/* One line, the way every Campaigns tab opens: the tab says "Broadcasts", so
-              the name is a screen reader's alone (CmHead quiet). The line is the runs
-              by state, each its own filter -- "1 waiting on you" is the first of them
-              -- then what went out, then the page's act. It was a headline, a sentence
-              about the ledger, a flag saying "1 waiting on you" and, under them, a
-              card saying it again beside a bar of the same numbers. */}
+    <div className="bc-list">
+      {/* The page's act and, in Glass, the frame's head: Sent is a room of Campaigns' home (crumbs Campaigns › Sent, no strip
+          of tabs), so the head names it. It says no sentence: a sentence is drawn in the frame's <p>, where a strip of filters is not
+          phrasing and in Glass is not drawn at all on a desk. The runs by state, each its own filter -- "waiting on you"
+          is the one that is warn -- are the list's head, and what went out under them. It was a headline, a sentence
+          about the ledger, a flag saying "1 waiting on you" and, under them, a card saying it again beside a bar of the
+          same numbers. */}
       <CmHead
-        title="Broadcasts"
-        quiet
+        title="Sent"
         testid="bc-head"
-        sub={
-          <>
-            <BcBand rows={rows} band={band} onBand={setBand} />
-            <BcHistoryStats
-              rows={rows}
-              more={data.more}
-              replyWindow={data.replyWindow}
-              origin={origin}
-              onOrigin={setOrigin}
-              counted
-            />
-          </>
-        }
         right={
-          <button
-            className="btn"
-            onClick={() => setWriting(true)}
-            data-testid="bc-new"
-            {...gate("approve", "send a broadcast")}
-          >
-            <Icon name="plus" size={12} />{" "}
-            <span>
-              New<span className="cm-act-noun"> broadcast</span>
-            </span>
-          </button>
+          <Button variant="secondary" onClick={write} data-testid="bc-new" {...gate("approve", "send a message")}>
+            <Icon name="plus" size={12} /> <NewMessageLabel />
+          </Button>
         }
+      />
+      <BcBand rows={rows} band={band} onBand={setBand} />
+      <BcHistoryStats
+        rows={rows}
+        more={data.more}
+        replyWindow={data.replyWindow}
+        origin={origin}
+        onOrigin={setOrigin}
+        counted
       />
       {rows.length > 0 && <BcWeek rows={rows} now={now} />}
       <div className="bc-runs" data-testid="bc-runs">
         {runs.map(runCard)}
         {!band && sentN > recent.filter((r) => r.state === "sent").length && (
-          <button type="button" className="bc-runs-more" onClick={() => setBand("sent")} data-testid="bc-runs-more">
+          <LinkButton className="bc-runs-more" onClick={() => setBand("sent")} data-testid="bc-runs-more">
             All {sentN} sent <Icon name="arrow-right" size={11} />
-          </button>
+          </LinkButton>
         )}
         {band && runs.length === 0 && (
           <EmptyState
@@ -174,14 +169,14 @@ export function bcLedger(v: BcV) {
           title="Nothing sent or queued yet"
           body="Every run lands here — the ones you send, and the ones your playbooks send."
           action={{
-            label: "New broadcast",
-            onClick: () => setWriting(true),
-            gate: { ...gate("approve", "send a broadcast") },
+            label: CAMPAIGN_ROOMS.newMessage,
+            onClick: write,
+            gate: { ...gate("approve", "send a message") },
           }}
           testid="bc-empty"
         />
       )}
       {bcOptIn(v)}
-    </>
+    </div>
   );
 }

@@ -21,7 +21,7 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/calendar.css": {
-    "font": 32,
+    "font": 31,
     "radius": 4,
     "shadow": 1,
     "colour": 0,
@@ -35,18 +35,18 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/clients.css": {
-    "font": 100,
-    "radius": 19,
-    "shadow": 12,
+    "font": 97,
+    "radius": 18,
+    "shadow": 10,
     "colour": 7,
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/components.css": {
-    "font": 96,
-    "radius": 37,
-    "shadow": 8,
-    "colour": 11,
-    "blur": 1
+    "font": 55,
+    "radius": 15,
+    "shadow": 5,
+    "colour": 7,
+    "blur": 0
   },
   "apps/dashboard/src/legacy/styles/conversations.css": {
     "font": 7,
@@ -84,9 +84,9 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/inbox.css": {
-    "font": 76,
-    "radius": 21,
-    "shadow": 8,
+    "font": 72,
+    "radius": 20,
+    "shadow": 7,
     "colour": 2,
     "blur": 2
   },
@@ -98,18 +98,18 @@
     "blur": 1
   },
   "apps/dashboard/src/legacy/styles/live.css": {
-    "font": 17,
+    "font": 16,
     "radius": 3,
     "shadow": 3,
     "colour": 0,
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/mobile.css": {
-    "font": 5,
-    "radius": 1,
+    "font": 3,
+    "radius": 0,
     "shadow": 0,
-    "colour": 2,
-    "blur": 1
+    "colour": 1,
+    "blur": 0
   },
   "apps/dashboard/src/legacy/styles/people.css": {
     "font": 32,
@@ -133,7 +133,7 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/settings.css": {
-    "font": 25,
+    "font": 24,
     "radius": 9,
     "shadow": 5,
     "colour": 1,
@@ -144,6 +144,13 @@
     "radius": 3,
     "shadow": 0,
     "colour": 0,
+    "blur": 0
+  },
+  "apps/dashboard/src/surfaces/campaigns/campaigns.css": {
+    "font": 12,
+    "radius": 18,
+    "shadow": 1,
+    "colour": 1,
     "blur": 0
   },
   "apps/dashboard/src/surfaces/kit/kit.css": {

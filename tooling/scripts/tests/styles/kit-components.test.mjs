@@ -365,6 +365,11 @@ const BUTTONS = {
     h(Button, { size: "sm", variant: "primary" }, "Save"),
     h(Button, { size: "sm", variant: "quiet" }, "Cancel"),
   ],
+  "btn-lg": () => [
+    h(Button, { size: "lg", variant: "primary" }, "Open the thread"),
+    h(Button, { size: "lg" }, "More ", glyph()),
+    h(Button, { iconOnly: true, size: "lg", "aria-label": "Clear the selection" }, glyph()),
+  ],
   "btn-icon": () => [
     h(Button, { iconOnly: true, "aria-label": "More" }, glyph()),
     h(Button, { iconOnly: true, size: "sm", "aria-label": "Close" }, glyph()),
@@ -462,9 +467,16 @@ const FACES = {
   face: () => [h(Face, { initials: "AR" }), h(Face, { initials: "SO" })],
   "face-glyph": () => h(Face, { glyph: glyph() }),
   "face-photo": () => h(Face, { initials: "AR", photo: PHOTO }),
-  "face-twin": () => h(Face, { initials: "AR" }),
-  "face-glyph-twin": () => h(Face, { glyph: glyph() }),
-  "face-photo-twin": () => h(Face, { initials: "AR", photo: PHOTO }),
+  "face-sm": () => [h(Face, { initials: "AR", size: "sm" }), h(Face, { initials: "AR", size: "sm", photo: PHOTO })],
+  "face-lg": () => [h(Face, { initials: "AR", size: "lg" }), h(Face, { initials: "AR", size: "lg", photo: PHOTO })],
+  "face-xl": () => [h(Face, { initials: "AR", size: "xl" }), h(Face, { initials: "AR", size: "xl", photo: PHOTO })],
+  "face-mark": () => h(Face, { initials: "ZS", photo: PHOTO, mark: PHOTO }),
+  "face-pick": () => [
+    h(Face, { initials: "AR", pick: "choose" }),
+    h(Face, { initials: "AR", pick: "chosen" }),
+    h(Face, { initials: "AR", pick: "choose", photo: PHOTO }),
+  ],
+  "face-priority": () => h(Face, { initials: "AR", priority: "P1" }),
 };
 
 test("Face draws the gallery's Face family, hidden from a screen reader, its picture standing aside when it does not load", () => {
@@ -480,7 +492,8 @@ test("Face draws the gallery's Face family, hidden from a screen reader, its pic
   assert.equal(face.props.ref, hold);
   assert.deepEqual(keysOf(face), ["aria-hidden", "className", "ref", "title"], "who it is stays off it");
   const [initials, picture] = face.props.children;
-  assert.equal(initials, "AR");
+  // The initials are words in a span of their own, so a face that is a row's checkbox can hold them back.
+  assert.deepEqual([initials.type, initials.props.children].flat(), ["span", "AR"]);
   assert.deepEqual(keysOf(picture), ["alt", "className", "decoding", "key", "loading", "onError", "src"]);
   assert.deepEqual(
     ["key", "src", "alt", "loading", "decoding"].map((p) => picture.props[p]),
@@ -490,7 +503,17 @@ test("Face draws the gallery's Face family, hidden from a screen reader, its pic
   const img = { hidden: false };
   picture.props.onError({ currentTarget: img });
   assert.equal(img.hidden, true, "a picture that does not load stands aside, and the initials show again");
-  assert.deepEqual(drawn(h(Face, { initials: "AR" })).props.children, ["AR", null], "no picture, no image");
+  assert.deepEqual(
+    drawn(h(Face, { initials: "AR" })).props.children.map((k) => (k && k.props ? k.props.children : k)),
+    [["AR"], null, null],
+    "no picture, no mark, no image",
+  );
+  // A row's checkbox says where it stands, and a face outside a selection says nothing of it.
+  assert.equal(drawn(h(Face, { initials: "AR", pick: "chosen" })).props["data-pick"], "chosen");
+  assert.equal(drawn(h(Face, { initials: "AR" })).props["data-pick"], undefined);
+  // A lead's own mark is a second picture, over the first, that stands aside as the first does.
+  const marked = drawn(h(Face, { initials: "ZS", photo: PHOTO, mark: PHOTO }));
+  assert.equal(marked.props.children[2].props.className, "face-photo face-mark");
   const known = drawn(h(Face, { glyph: glyph() }));
   assert.equal(known.props.className, "face face-glyph");
   assert.equal(known.props.children[0].type, "svg");
@@ -518,8 +541,6 @@ const LIST_ROWS = {
   "list-row-two": () => row({ said: false }),
   "list-row-note": () => row({ note: true }),
   "list-row-door": () => row({ note: true, href: "#kit" }),
-  "list-row-twin": () => row({ note: true }),
-  "list-row-two-twin": () => row({ said: false }),
 };
 
 test("ListRow draws the gallery's List row family, and the page's own elements where the row takes them", () => {
@@ -549,7 +570,7 @@ test("ListRow draws the gallery's List row family, and the page's own elements w
   assert.deepEqual(keysOf(own), ["className", "data-testid", "ref"], "its lines stay off it");
   assert.equal(
     spell(settle(drawnSkeleton(own))),
-    "div.list-row.pl-row(span.face.list-row-face.pl-face[aria-hidden=true] div.list-row-name time.list-row-end " +
+    "div.list-row.pl-row(span.face.list-row-face.pl-face[aria-hidden=true](span) div.list-row-name time.list-row-end " +
       "div.list-row-said.pl-card-lead div.list-row-facts(span span.pl-card-last))",
     "the page's elements stand where the row lays them out, its fact among the line's own; a fact of nothing is none",
   );
@@ -558,7 +579,7 @@ test("ListRow draws the gallery's List row family, and the page's own elements w
   );
   assert.equal(
     spell(settle(drawnSkeleton(bare))),
-    "div.list-row(span.face.list-row-face[aria-hidden=true] div.list-row-name)",
+    "div.list-row(span.face.list-row-face[aria-hidden=true](span) div.list-row-name)",
     "no words said, no facts and no note: none of their lines is drawn",
   );
   const door = drawn(h(ListRow, { face: { initials: "AR" }, name: "Aisha Rahman", href: "#/clients", ref: hold }));

@@ -69,25 +69,30 @@ export async function listPeople(
   tenantId: string,
   page: PeoplePage = {},
 ): Promise<PersonRowDto[]> {
-  const rows = await peoplePage(ctx.supabase, tenantId, { ...page, q: searchNeedle(page.q) || null });
-  return withReplyModes(ctx, tenantId, rows);
+  // The policies with the rows, not after them: they are the workspace's, and a page waited a round trip for them.
+  const [rows, pols] = await Promise.all([
+    peoplePage(ctx.supabase, tenantId, { ...page, q: searchNeedle(page.q) || null }),
+    replyPolicies(ctx, tenantId),
+  ]);
+  return withReplyModes(rows, pols);
 }
 
-/**
- * The reply mode in force for each person: their own policy row when set, else the workspace's. Read once for however
- * many rows, so everyone() asks for the policies once, not once a page.
- */
-async function withReplyModes(
-  ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
-  rows: PersonRowDto[],
-): Promise<PersonRowDto[]> {
+/** The workspace's reply policies, its own and each person's: none when they cannot be read, which is logged. */
+async function replyPolicies(ctx: Pick<RouteContext, "supabase">, tenantId: string) {
   const { data: pols, error: polErr } = await ctx.supabase
     .from("policies")
     .select("subject_type, subject_id, mode")
     .eq("tenant_id", tenantId)
     .eq("class", "reply");
   if (polErr) log.error("people_policies_read_failed", { error: polErr.message });
+  return pols;
+}
+
+/**
+ * The reply mode in force for each person: their own policy row when set, else the workspace's. Read once for however
+ * many rows, so everyone() asks for the policies once, not once a page.
+ */
+function withReplyModes(rows: PersonRowDto[], pols: Awaited<ReturnType<typeof replyPolicies>>): PersonRowDto[] {
   const workspaceMode = pols?.find((p) => p.subject_type === null)?.mode ?? null;
   const personMode = new Map(
     (pols ?? []).filter((p) => p.subject_type === "contact").map((p) => [p.subject_id, p.mode]),
@@ -108,7 +113,8 @@ async function withReplyModes(
  * here.
  */
 export async function everyone(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<PersonRowDto[]> {
-  return withReplyModes(ctx, tenantId, await everyoneIn(ctx.supabase, tenantId));
+  const [rows, pols] = await Promise.all([everyoneIn(ctx.supabase, tenantId), replyPolicies(ctx, tenantId)]);
+  return withReplyModes(rows, pols);
 }
 
 /**

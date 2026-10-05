@@ -1,6 +1,7 @@
 # 0001 · A channel-neutral inbound pipeline
 
-**Status:** decided, not built. Written against commit `b729bdf`, and verified
+**Status:** decided. Step 1 built (28 September 2026: the extraction into `packages/core/src/inbound/`, "As built"
+below); steps 2 to 8 to come. Written against commit `b729bdf`, and verified
 against the code at it, with the working tree as it stood. Where this note and
 the code disagree, the code wins.
 

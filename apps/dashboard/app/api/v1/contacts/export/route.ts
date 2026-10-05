@@ -3,6 +3,7 @@ import { read, workspace } from "@/server/route";
 import { everyone } from "@/server/people/people";
 import { tenantFacts } from "@/server/tenant";
 import { audiencePool, poolList } from "@/server/people/audience";
+import { channelsReadyOrNull } from "@/server/campaigns/channels-ready";
 import { attachment, dateTag, peopleCsv, safeName } from "@/server/export/export";
 import { recordDecision } from "@/server/verbs";
 import { log } from "@/server/log";
@@ -33,7 +34,14 @@ export const GET = read({
     let list: { token: string; name: string } | null = null;
     const ref = input.list ? parseListToken(input.list) : null;
     if (ref && input.list) {
-      const pool = await audiencePool(ctx, member.tenantId, timezone, now);
+      // The list is counted as the page counts it, and who can be sent what is judged against what the workspace sends on.
+      const pool = await audiencePool(
+        ctx,
+        member.tenantId,
+        timezone,
+        now,
+        await channelsReadyOrNull(ctx, member.tenantId, { withPause: false }),
+      );
       const found = await poolList(ctx, member.tenantId, pool, ref);
       if (!found) throw new AppError("not_found", "That list isn't here.", 404);
       if ("unknown" in found)

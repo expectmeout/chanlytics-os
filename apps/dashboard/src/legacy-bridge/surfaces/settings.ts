@@ -6,7 +6,9 @@
  */
 
 import {
+  OWN_VERSION_CHANNELS,
   STARTER_TEMPLATES,
+  isReachOutRow,
   templateSentWords,
   templateUnused,
   templateUseNote,
@@ -21,6 +23,7 @@ import type { PromptPreviewDto } from "../../server/receptionist/prompt-preview"
 import { read } from "../api";
 import { pageClock, workspaceZone } from "../zone";
 import type { PoliciesSurface } from "../policy-store";
+import type { Output } from "../../client/api";
 import type { SurfaceOverride } from "../surface-data";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { setSurfaceValue } from "../../surfaces/surface-values";
@@ -57,6 +60,10 @@ export interface SettingsRecord {
   updatedAt: string | null;
 }
 
+/** A member of the workspace, and an invitation nobody has taken yet, as the team read answers them. */
+export type TeamMember = Output<"GET team">["members"][number];
+export type TeamInvite = Output<"GET team">["invites"][number];
+
 /** What each template is used by, as the card says it (`__TEMPLATE_USE`), by the template's name. */
 export type TemplateUse = Record<
   string,
@@ -66,7 +73,8 @@ export type TemplateUse = Record<
 /**
  * The slice of Settings a TSX surface reads through `useSurface("settings")`: the workspace's record, its channels and its
  * templates with what uses each and when each last went out, exactly what the globals below hold, and each null where
- * that read failed. Campaigns' Templates reads it; the panes of Settings still read the globals.
+ * that read failed. Campaigns' Templates and the panes of Settings that have moved read it; the rest still read the
+ * globals.
  */
 export interface SettingsSurface {
   settings: SettingsRecord | null;
@@ -74,8 +82,49 @@ export interface SettingsSurface {
   facts: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
   channels: ChannelVM[] | null;
   templatesAll: TemplateDto[] | null;
+  /**
+   * A message's other versions (One message, every channel, step 1): the workspace's email and text rows, which the
+   * Templates page sets beside each message's WhatsApp rows by their name. `templatesAll` stays WhatsApp's alone, so
+   * what the Inbox, Broadcasts, Playbooks and Ask read of it does not change; a reach-out's emails are not here (their
+   * own list), and null is a read that failed, as it is for `templatesAll`.
+   */
+  templateVersions?: TemplateDto[] | null;
   templateUse: TemplateUse | null;
   templateSent: Record<string, TemplateSentWords> | null;
+  /**
+   * The workspace's policy rows (`__POLICIES`), null where that read failed: Settings › Autonomy's matrix and dials.
+   * Absent from a value kept from before it was carried, which the pane reads as not yet read.
+   */
+  policies?: PoliciesSurface | null;
+  /** The roster and its open invitations (`__TEAM`, `__TEAM_INVITES`), each null where the team read failed: Settings › Team. */
+  team?: TeamMember[] | null;
+  invites?: TeamInvite[] | null;
+}
+
+/** The email and text rows among the templates read, for the page that draws a message's versions; null where the read failed. */
+function versionRowsOf(tpl: Error | { templates?: TemplateDto[] }): TemplateDto[] | null {
+  if (tpl instanceof Error) return null;
+  return (tpl.templates ?? []).filter(
+    (t) => (OWN_VERSION_CHANNELS as readonly string[]).includes(t.channel) && !isReachOutRow(t),
+  );
+}
+
+/** The policies read as the autonomy matrix draws it. */
+function policiesOf(pol: Output<"GET policies">): PoliciesSurface {
+  return {
+    // `limits` is a JSON column: an object when set, and anything else reads as none.
+    rows: (pol.policies ?? []).map((r) => ({
+      class: r.class,
+      mode: r.mode,
+      limits:
+        r.limits && typeof r.limits === "object" && !Array.isArray(r.limits)
+          ? (r.limits as Record<string, unknown>)
+          : {},
+    })),
+    role: pol.role ?? null,
+    // Deals on or off (0008): the follow-ups' row is drawn only where they are on (0006).
+    dealsOn: !!pol.deals_on,
+  };
 }
 
 export const settingsOverride: SurfaceOverride = {
@@ -113,8 +162,8 @@ export const settingsOverride: SurfaceOverride = {
     const w = window as unknown as {
       __SETTINGS?: SettingsRecord;
       __FACTS?: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
-      __TEAM?: unknown[] | null;
-      __TEAM_INVITES?: unknown[] | null;
+      __TEAM?: TeamMember[] | null;
+      __TEAM_INVITES?: TeamInvite[] | null;
       __POLICIES?: PoliciesSurface | null;
       __CHANNELS?: ChannelVM[] | null;
       __TEMPLATES_ALL?: TemplateDto[] | null;
@@ -202,20 +251,7 @@ export const settingsOverride: SurfaceOverride = {
       w.__POLICIES = null;
       console.error("settings_policies_fetch_failed", pol.message);
     } else {
-      w.__POLICIES = {
-        // `limits` is a JSON column: an object when set, and anything else reads as none.
-        rows: (pol.policies ?? []).map((r) => ({
-          class: r.class,
-          mode: r.mode,
-          limits:
-            r.limits && typeof r.limits === "object" && !Array.isArray(r.limits)
-              ? (r.limits as Record<string, unknown>)
-              : {},
-        })),
-        role: pol.role ?? null,
-        // Deals on or off (0008): the follow-ups' row is drawn only where they are on (0006).
-        dealsOn: !!pol.deals_on,
-      };
+      w.__POLICIES = policiesOf(pol);
     }
     if (team instanceof Error) {
       // null, not [] — "we could not read the team" and "there is nobody" are
@@ -236,8 +272,12 @@ export const settingsOverride: SurfaceOverride = {
       facts: w.__FACTS ?? null,
       channels: w.__CHANNELS ?? null,
       templatesAll: w.__TEMPLATES_ALL ?? null,
+      templateVersions: versionRowsOf(tpl),
       templateUse: w.__TEMPLATE_USE ?? null,
       templateSent: w.__TEMPLATE_SENT ?? null,
+      policies: w.__POLICIES ?? null,
+      team: w.__TEAM ?? null,
+      invites: w.__TEAM_INVITES ?? null,
     });
   },
 };

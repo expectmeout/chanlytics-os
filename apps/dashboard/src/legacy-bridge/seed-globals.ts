@@ -22,51 +22,17 @@ import {
   handoffE164,
   formatPhoneDisplay,
   BROKEN_CONFIG_WORDS,
-  hardLimitsWords,
-  LEAD_WORDS,
 } from "@chanlytics/contracts";
 import { INBOX_GLOBALS, hearPresence } from "../surfaces/inbox/legacy-globals";
 import { threadVerbs } from "../surfaces/inbox/thread/thread-verbs";
 import { KIT_GLOBALS } from "../surfaces/kit/kit-globals";
-import { CAMPAIGN_GLOBALS } from "../surfaces/campaigns/globals";
 import { PEOPLE_GLOBALS } from "../surfaces/people/people-globals";
 import { LEADS_GLOBALS } from "../surfaces/leads/globals";
+import { BUSINESS_GLOBALS } from "../surfaces/settings/business/globals";
 import { surfaceHook, type SurfaceNames } from "./surface-status";
 import { routeSurfaces } from "./surface-registry";
 import { pipelineHelpers, type PipelineHelpers } from "@/surfaces/people/pipeline-helpers";
-import {
-  LEAD_COUNT_CHOICES,
-  planArea,
-  planMinutes,
-  planSaid,
-  planSentence,
-  planVersionOf,
-  planWhere,
-  planWho,
-  planWords,
-  leadPlanAsk,
-  leadPlanFacts,
-  leadPlanLikely,
-  leadEndingLine,
-  LEAD_QUESTION_WAIT_LINE,
-  leadNearWhere,
-  leadsFirstDayWays,
-  leadUndoable,
-  planCeiling,
-  leadReviewGroups,
-  leadBand,
-  leadReviewCosts,
-  leadPeekMenu,
-  leadCheckAgainCents,
-  leadAskedFor,
-  LEAD_REVIEW_ACT_WORDS,
-  LEAD_REVIEW_GROUP_WHY,
-  leadMapPlot,
-  leadMapAcross,
-  leadMapNote,
-  leadMapLegend,
-  leadPinTone,
-} from "@chanlytics/contracts";
+import { installRoleStore } from "./identity";
 
 declare global {
   interface Window {
@@ -88,41 +54,6 @@ declare global {
     __handoffE164: typeof handoffE164;
     __phoneDisplay: typeof formatPhoneDisplay;
     __brokenConfigWords: typeof BROKEN_CONFIG_WORDS;
-    __hardLimits: typeof hardLimitsWords;
-    __LEAD_WORDS: typeof LEAD_WORDS;
-    __leadWays: typeof leadsFirstDayWays;
-    __LEAD_VM: {
-      planWords: typeof planWords;
-      planSaid: typeof planSaid;
-      planSentence: typeof planSentence;
-      planWho: typeof planWho;
-      planWhere: typeof planWhere;
-      planArea: typeof planArea;
-      planMinutes: typeof planMinutes;
-      planVersionOf: typeof planVersionOf;
-      LEAD_COUNT_CHOICES: typeof LEAD_COUNT_CHOICES;
-      leadPlanLikely: typeof leadPlanLikely;
-      leadPlanFacts: typeof leadPlanFacts;
-      leadPlanAsk: typeof leadPlanAsk;
-      leadEndingLine: typeof leadEndingLine;
-      LEAD_QUESTION_WAIT_LINE: typeof LEAD_QUESTION_WAIT_LINE;
-      leadNearWhere: typeof leadNearWhere;
-      planCeiling: typeof planCeiling;
-      leadUndoable: typeof leadUndoable;
-      leadReviewGroups: typeof leadReviewGroups;
-      leadBand: typeof leadBand;
-      leadReviewCosts: typeof leadReviewCosts;
-      leadPeekMenu: typeof leadPeekMenu;
-      leadCheckAgainCents: typeof leadCheckAgainCents;
-      leadAskedFor: typeof leadAskedFor;
-      leadMapPlot: typeof leadMapPlot;
-      leadMapAcross: typeof leadMapAcross;
-      leadMapNote: typeof leadMapNote;
-      leadMapLegend: typeof leadMapLegend;
-      leadPinTone: typeof leadPinTone;
-      LEAD_REVIEW_ACT_WORDS: typeof LEAD_REVIEW_ACT_WORDS;
-      LEAD_REVIEW_GROUP_WHY: typeof LEAD_REVIEW_GROUP_WHY;
-    };
   }
 }
 
@@ -144,6 +75,7 @@ if (typeof window !== "undefined") {
     PolicyChip: KIT_GLOBALS.PolicyChip,
     TlMedia: KIT_GLOBALS.TlMedia,
     AttnRow: KIT_GLOBALS.AttnRow,
+    useHoldToTalk: KIT_GLOBALS.useHoldToTalk,
     // The Inbox's and Conversations' names for the pages that have not moved (surfaces/inbox/legacy-globals.ts), and the
     // one thread's verbs, which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx).
     INBOX_DATA: INBOX_GLOBALS.INBOX_DATA,
@@ -153,10 +85,6 @@ if (typeof window !== "undefined") {
     CV_ROUTE: INBOX_GLOBALS.CV_ROUTE,
     CV_IN_CHANNEL: INBOX_GLOBALS.CV_IN_CHANNEL,
     threadVerbs,
-    // Campaigns' door to a reach-out, its sheet and its receipt's time, for Leads and Today until they move (campaigns/globals.ts).
-    bcWhenWords: CAMPAIGN_GLOBALS.bcWhenWords,
-    ReachOutDoor: CAMPAIGN_GLOBALS.ReachOutDoor,
-    ReachOutSheet: CAMPAIGN_GLOBALS.ReachOutSheet,
     FieldError: KIT_GLOBALS.FieldError,
     RecordRow: KIT_GLOBALS.RecordRow,
     RecordSourceChip: KIT_GLOBALS.RecordSourceChip,
@@ -190,55 +118,27 @@ if (typeof window !== "undefined") {
     AgendaItem: KIT_GLOBALS.AgendaItem,
     AgendaItems: KIT_GLOBALS.AgendaItems,
     AgendaOpen: KIT_GLOBALS.AgendaOpen,
-    // The lead peek and its acts, which the Leads page still draws by name (surfaces/leads/globals.ts).
-    LeadPeek: LEADS_GLOBALS.LeadPeek,
-    LeadPeekActions: LEADS_GLOBALS.LeadPeekActions,
-    LeadNotFitWhy: LEADS_GLOBALS.LeadNotFitWhy,
-    LeadLightbox: LEADS_GLOBALS.LeadLightbox,
-    leadPeekEscape: LEADS_GLOBALS.leadPeekEscape,
-    leadPeekFollows: LEADS_GLOBALS.leadPeekFollows,
-    leadPeekFocus: LEADS_GLOBALS.leadPeekFocus,
-    leadArmOnReturn: LEADS_GLOBALS.leadArmOnReturn,
-    pkPlaceTip: LEADS_GLOBALS.pkPlaceTip,
-    pkScrolling: LEADS_GLOBALS.pkScrolling,
-    leadPhotoWarm: LEADS_GLOBALS.leadPhotoWarm,
-    // And People's parts the pages that have not moved still draw or call by name, and the two sheets the frame draws once (people-globals.ts).
+    // Leads' plan card, which Ask's palette draws for a lead_search card until Ask moves (surfaces/leads/globals.ts).
+    LeadPlanCard: LEADS_GLOBALS.LeadPlanCard,
+    // The Business tab's parts the first run draws and the saver it saves through (settings/business/globals.ts).
+    __businessTabSave: BUSINESS_GLOBALS.__businessTabSave,
+    btSellsByChoice: BUSINESS_GLOBALS.btSellsByChoice,
+    BtAddressRow: BUSINESS_GLOBALS.BtAddressRow,
+    BtWebsiteRow: BUSINESS_GLOBALS.BtWebsiteRow,
+    BtBookingLinkRow: BUSINESS_GLOBALS.BtBookingLinkRow,
+    BtZoneRow: BUSINESS_GLOBALS.BtZoneRow,
+    BtHoursRow: BUSINESS_GLOBALS.BtHoursRow,
+    BtServicesRow: BUSINESS_GLOBALS.BtServicesRow,
+    BtLanguagesRow: BUSINESS_GLOBALS.BtLanguagesRow,
+    BtRulesRow: BUSINESS_GLOBALS.BtRulesRow,
+    BtCanCard: BUSINESS_GLOBALS.BtCanCard,
+    BtServicesSheet: BUSINESS_GLOBALS.BtServicesSheet,
+    // And People's parts the shell still draws or calls by name: the strip's scopes (surface-tabs.jsx), the two sheets the
+    // frame draws once and their doors (app-shell.jsx), and the demo's Lists page's mark and route (people-globals.ts).
     plScopes: PEOPLE_GLOBALS.plScopes,
     plScopeRoute: PEOPLE_GLOBALS.plScopeRoute,
-    PeopleScopeTabs: PEOPLE_GLOBALS.PeopleScopeTabs,
-    PeopleStanding: PEOPLE_GLOBALS.PeopleStanding,
-    PeopleRail: PEOPLE_GLOBALS.PeopleRail,
-    PeopleListsSheet: PEOPLE_GLOBALS.PeopleListsSheet,
-    PeopleBulkBar: PEOPLE_GLOBALS.PeopleBulkBar,
-    PeoplePhoneBar: PEOPLE_GLOBALS.PeoplePhoneBar,
-    PhoneSheet: PEOPLE_GLOBALS.PhoneSheet,
-    PhoneSheetRow: PEOPLE_GLOBALS.PhoneSheetRow,
-    RailSection: PEOPLE_GLOBALS.RailSection,
-    RailRow: PEOPLE_GLOBALS.RailRow,
-    RailEmpty: PEOPLE_GLOBALS.RailEmpty,
-    railQuiet: PEOPLE_GLOBALS.railQuiet,
-    railToggle: PEOPLE_GLOBALS.railToggle,
-    usePeople: PEOPLE_GLOBALS.usePeople,
-    usePlControls: PEOPLE_GLOBALS.usePlControls,
-    usePlPlace: PEOPLE_GLOBALS.usePlPlace,
-    PeopleTable: PEOPLE_GLOBALS.PeopleTable,
-    PeopleColumnsMenu: PEOPLE_GLOBALS.PeopleColumnsMenu,
-    plSortKeys: PEOPLE_GLOBALS.plSortKeys,
-    plDrawnColumns: PEOPLE_GLOBALS.plDrawnColumns,
-    plColumnOptions: PEOPLE_GLOBALS.plColumnOptions,
-    PL_NO_SEL: PEOPLE_GLOBALS.PL_NO_SEL,
-    plRowCard: PEOPLE_GLOBALS.plRowCard,
-    plNameCell: PEOPLE_GLOBALS.plNameCell,
-    plFace: PEOPLE_GLOBALS.plFace,
-    plIsNumber: PEOPLE_GLOBALS.plIsNumber,
-    plMatcher: PEOPLE_GLOBALS.plMatcher,
-    plLoadedWords: PEOPLE_GLOBALS.plLoadedWords,
-    PL_SEARCH_LABEL: PEOPLE_GLOBALS.PL_SEARCH_LABEL,
-    plAddPerson: PEOPLE_GLOBALS.plAddPerson,
-    plAddedWords: PEOPLE_GLOBALS.plAddedWords,
     ChannelGlyph: PEOPLE_GLOBALS.ChannelGlyph,
     __listRoute: PEOPLE_GLOBALS.__listRoute,
-    PersonDealCard: PEOPLE_GLOBALS.PersonDealCard,
     DealSheetHost: PEOPLE_GLOBALS.DealSheetHost,
     StepSheetHost: PEOPLE_GLOBALS.StepSheetHost,
     openDealSheet: PEOPLE_GLOBALS.openDealSheet,
@@ -290,57 +190,11 @@ if (typeof window !== "undefined") {
   // A stored number written the way people write one, "+1 (305) 555-0100", as
   // Setup and Connections already show them: Business showed the E.164.
   window.__phoneDisplay = formatPhoneDisplay;
-  // A broken configuration in the words Setup's row says (S8), and Autonomy's
-  // hard limits in words that say a default is a default (S6).
+  // A broken configuration in the words Setup's row says (S8).
   window.__brokenConfigWords = BROKEN_CONFIG_WORDS;
-  window.__hardLimits = hardLimitsWords;
-  // Every word the Leads scope says, from contracts. The legacy pages are
-  // classic scripts and cannot import; without this each page would spell the
-  // stage, the email state and the questions again, and a word spelled twice is
-  // a word that drifts (contracts leads.ts LEAD_WORDS; Task 19 adds the facts'
-  // own words to the same record, Task 17 the ways beside it).
-  window.__LEAD_WORDS = LEAD_WORDS;
-  // The first day's three ways (Task 17). Beside the words rather than inside
-  // __LEAD_VM: it takes facts the page reads from two surfaces and answers what
-  // may be said about each way, so a way never claims a line nobody looked at.
-  window.__leadWays = leadsFirstDayWays;
-  // One derivation per fact: __LEAD_WORDS holds the words, __LEAD_VM holds what
-  // derives them, and the pages spell neither. Task 10 adds `leadStrip` to this
-  // object; `leadEndingLine` is here, so the strip never spells an ending itself.
-  window.__LEAD_VM = {
-    planWords,
-    planSaid,
-    planSentence,
-    planWho,
-    planWhere,
-    planArea,
-    planMinutes,
-    planCeiling,
-    planVersionOf,
-    LEAD_COUNT_CHOICES,
-    leadPlanLikely,
-    leadPlanFacts,
-    leadPlanAsk,
-    leadEndingLine,
-    // The question's one line under its sentence (the email says the same).
-    LEAD_QUESTION_WAIT_LINE,
-    leadNearWhere,
-    leadUndoable,
-    leadReviewGroups,
-    leadBand,
-    leadReviewCosts,
-    // Who the peek's ⋯ offers Erase to (PR 9): the owner, by contracts' rule, never the page's.
-    leadPeekMenu,
-    leadCheckAgainCents,
-    leadAskedFor,
-    LEAD_REVIEW_ACT_WORDS,
-    LEAD_REVIEW_GROUP_WHY,
-    leadMapPlot,
-    leadMapAcross,
-    leadMapNote,
-    leadMapLegend,
-    leadPinTone,
-  };
+  // The role store every gate asks (identity.ts), made before any page loads, as settings.jsx made it as the
+  // manifest loaded: identity.ts completes it once its own install runs.
+  installRoleStore();
 }
 
 export {};

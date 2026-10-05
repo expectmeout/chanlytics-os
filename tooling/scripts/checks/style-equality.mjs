@@ -47,26 +47,23 @@ const FORMAT = 2;
 /** The moment every record is built at and every page's clock stands at: a Monday afternoon, 28 September 2026. */
 export const FIXED_NOW = Date.UTC(2026, 8, 28, 20, 2, 0);
 
+/** The pipeline record's third person (scenarios.mjs `uuidOf`): a proposal out, a conversation, a number. */
+const PERSON = "clients/5c0e0000-0000-4000-8000-000000000003";
+
 /**
- * The harness's records and the routes each is opened at (the address after `#/`). The salon draws every Settings
- * pane; the nightly its empty Business pane (its other pages are the salon's own, element for element); the kit its
- * gallery, which draws every class of the kit (e2e-harness/kit-gallery.mjs) and has no routes, so its one is a name.
+ * The harness's records and the routes each is opened at (the address after `#/`). The salon draws the mockup's
+ * pages and a seeded person; the pipeline the real People, Pipeline and person's page; the kit its gallery, which draws
+ * every class of the kit (e2e-harness/kit-gallery.mjs) and has no routes, so its one is a name. Settings is not here: it
+ * left the mockup (decision 0015 step 11; Ruben, 4 Oct 2026), and with it the nightly's empty Business pane and the
+ * salon's panes and four scenes (a record sheet, a combobox, a segmented control and a switch, all drawn in Business).
  *
  * A route that has left the shell (decision 0015: an App Router page, src/surfaces/routes.ts) is not in the list: the harness
- * draws the shell's table and answers "No surface at" for it, so `record` refuses it. The Inbox, Reports, Campaigns' three
- * (outbound, broadcasts, messages), Today, People with the Pipeline, Leads and a person's page, and the Calendar are out;
- * a page that leaves takes its route out of this list in the same change (the four last named left it late, found by the
- * Glass look's step 5.7 on 2 October 2026, which records those pages on the app itself). Settings is the shell's last page.
+ * draws the shell's table and answers "No surface at" for it, so `record` refuses it. The Inbox, Reports and Campaigns' three
+ * (outbound, broadcasts, messages) are out; a page that leaves takes its route out of this list in the same change.
  */
 export const PAGES = {
-  salon: [
-    // Settings: Business is the bare route, and then each pane in the rail (settings.jsx SET_TABS).
-    "admin",
-    ...["profile", "partner", "team", "autonomy", "integrations", "notifications", "billing", "activity"].map(
-      (pane) => `admin/${pane}`,
-    ),
-  ],
-  nightly: ["admin"],
+  salon: [...["clients", "clients/c-aisha", "calendar"]],
+  pipeline: ["clients", "clients/pipeline", "clients/leads", PERSON],
   kit: ["kit"],
 };
 
@@ -76,41 +73,58 @@ export const PAGES = {
  * and what must then be on screen. A record's scenes run after its routes, in this order: the tooltip's node stays in
  * the page once made, so it goes last.
  *
- * Most of the kit is drawn only in a state: the record kit's fold as a sheet (Settings › Business, and every fold on a
- * phone), a combobox's list, a segmented control with its picked segment, a switch that is on, and a tooltip. The
- * scenes the person's page held (a menu, a confirm, a toast, a fold in place, a menu's danger item under the pointer,
- * a button focused as a keyboard focuses it) left the shell with it (PAGES above); the kit's gallery draws each of
- * those parts at rest, and e2e/kit/kit-behaves.spec.ts drives them.
+ * Most of the kit is drawn only in a state: the record kit's fold in place on a desk (the person's page) and as a
+ * sheet (every fold on a phone), a combobox's list, a segmented control with its picked
+ * segment, a switch that is on, a menu's danger item under the pointer, and a button focused as a keyboard focuses it.
  */
 export const SCENES = {
-  "a record sheet": {
-    record: "salon",
-    route: "admin",
-    steps: [["click", '[data-testid="rec-row-act-services"]']],
-    sees: ".rec-sheet",
+  "a menu": {
+    record: "pipeline",
+    route: PERSON,
+    steps: [["click", '[data-testid="person-more"]']],
+    sees: ".more-menu",
   },
-  "a combobox open in a fold": {
-    record: "salon",
-    route: "admin",
+  "a confirm": {
+    record: "pipeline",
+    route: PERSON,
     steps: [
-      ["click", '[data-testid="rec-row-act-languages"]'],
-      ["key", '[data-testid="rec-fold-languages"] .rec-combo-input', "ArrowDown"],
+      ["click", '[data-testid="person-more"]'],
+      ["click", '.more-menu [role="menuitem"]:has-text("Delete person")'],
     ],
-    sees: '[data-testid="rec-fold-languages"] .rec-combo-list',
+    sees: ".confirm",
   },
-  "a segmented control": {
-    record: "salon",
-    route: "admin",
-    steps: [["click", '[data-testid="rec-row-act-phone_display"]']],
-    sees: '[data-testid="rec-inline-phone_display"] .rec-seg-btn[aria-checked="true"]',
+  "a toast": {
+    record: "pipeline",
+    route: PERSON,
+    steps: [
+      ["click", '[data-testid="person-more"]'],
+      ["click", '.more-menu [role="menuitem"]:has-text("Copy number")'],
+    ],
+    sees: ".pp-toast",
   },
-  "a switch that is on": {
-    record: "salon",
-    route: "admin",
-    steps: [["click", '[data-testid="rec-row-act-guardrails"]']],
-    sees: '[data-testid="rec-fold-guardrails"] .rec-switch[aria-checked="true"]',
+  "a fold in place": {
+    record: "pipeline",
+    route: PERSON,
+    steps: [["click", '[data-testid="rec-row-act-person-receptionist"]']],
+    sees: '[data-testid="rec-fold-person-receptionist"]',
   },
-  "a tooltip": { record: "salon", route: "admin", steps: [["hover", ".tb-bell"]], sees: ".ui-tip.show" },
+  "a danger item under the pointer": {
+    record: "pipeline",
+    route: PERSON,
+    steps: [
+      ["click", '[data-testid="person-more"]'],
+      ["hover", ".more-menu .more-item.danger"],
+    ],
+    sees: ".more-menu .more-item.danger",
+  },
+  // Focused by a key, as a keyboard focuses it: once the pointer has pressed anything, `focus` alone is not :focus-visible.
+  "a focused button": {
+    record: "pipeline",
+    route: PERSON,
+    steps: [["key", '[data-testid="person-open-thread"]', "Shift"]],
+    sees: '[data-testid="person-open-thread"]:focus-visible',
+  },
+  "a tooltip": { record: "salon", route: "today", steps: [["hover", ".tb-bell"]], sees: ".ui-tip.show" },
 };
 
 /** A desk and a phone. The phone is a touch screen, so the shell's 44px floor under a coarse pointer is drawn. */
@@ -783,7 +797,7 @@ async function recordTo(file, against, limit) {
 }
 
 async function selfTest() {
-  const pages = { salon: ["admin", "admin/team"] };
+  const pages = { salon: ["today", "clients"] };
   const log = (line) => console.log(`  ${line}`);
   console.log("two recordings of one tree, then a third with --radius-md moved one step");
   const first = await record({ pages, scenes: {}, log });

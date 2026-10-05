@@ -28,6 +28,8 @@ export type SwitchProps = SwitchName & {
   /** Its name in a form, which the hidden checkbox beside it carries. */
   name?: string;
   readOnly?: boolean;
+  /** The id a test finds the switch by (a page's tests and the browser's specs), on the button itself. */
+  "data-testid"?: string;
   className?: string;
   ref?: Ref<HTMLButtonElement>;
 };
@@ -41,6 +43,7 @@ export function Switch({
   describedBy,
   name,
   readOnly,
+  "data-testid": testid,
   className,
   ref,
 }: SwitchProps) {
@@ -54,6 +57,7 @@ export function Switch({
       aria-label={label}
       aria-labelledby={labelledBy}
       aria-describedby={describedBy}
+      data-testid={testid}
       className={cx("rec-switch", className)}
       nativeButton
       render={<button type="button" />}

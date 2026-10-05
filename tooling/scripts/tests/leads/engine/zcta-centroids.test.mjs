@@ -5,8 +5,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import { centroidsOf, OUT } from "../../../gen/zcta-centroids.mjs";
+import { centroidsOf, moduleOf, rowsOf } from "../../../gen/zcta-centroids.mjs";
+import { ZCTA_ROWS } from "../../../../../packages/core/src/leads/zcta-centroids.generated.ts";
 
 const SAMPLE = [
   "GEOID\tALAND\tAWATER\tALAND_SQMI\tAWATER_SQMI\tINTPTLAT\tINTPTLONG   ",
@@ -25,8 +25,15 @@ test("three rows of the gazetteer become three sorted, rounded centroids; a file
   assert.throws(() => centroidsOf(`${SAMPLE}\nabcde\t0\t0\t0\t0\t1\t2`), /not a ZCTA/);
 });
 
+test("the written module gives back the rows it was written from, one a line", () => {
+  const rows = centroidsOf(SAMPLE);
+  const text = moduleOf(rows);
+  assert.ok(text.includes("00601,18.1806,-66.75\n10016,40.7452,-73.9783\n78704,30.243,-97.7651"));
+  assert.deepEqual(rowsOf(text.slice(text.indexOf("`") + 1, text.lastIndexOf("`"))), rows);
+});
+
 test("the bundled table is the whole country: about 33,000 rows, sorted by zip, keys and coordinates only", () => {
-  const table = JSON.parse(fs.readFileSync(OUT, "utf8"));
+  const table = rowsOf(ZCTA_ROWS);
   assert.ok(table.length > 33_000 && table.length < 34_000, String(table.length));
   assert.ok(
     table.every((r) => r.length === 3 && /^\d{5}$/.test(r[0]) && typeof r[1] === "number" && typeof r[2] === "number"),

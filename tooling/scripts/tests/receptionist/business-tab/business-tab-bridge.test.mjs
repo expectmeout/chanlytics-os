@@ -75,6 +75,10 @@ const { installInboxVerbs } = await import(at("apps/dashboard/src/legacy-bridge/
 installBusinessTab();
 installInboxVerbs();
 const tab = W.__businessTab;
+// The save's own rules, before the tab has asked for them (it does as it mounts, surfaces/settings/business/tab.tsx): a draft the save
+// would refuse is judged by nothing yet, so nothing is said of it. Read here, once, before every test below loads them.
+const BEFORE_RULES = tab.saveIssues({ calendar: { ical_url: "https://localhost/feed.ics" } });
+await tab.loadSaveRules();
 
 const TZ = "America/New_York";
 const CHANNELS = ["whatsapp", "voice"];
@@ -184,6 +188,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "hoursZoneWords",
     "instructionsWords",
     "isProductFallback",
+    "loadSaveRules",
     "needsConsultation",
     "notesWords",
     "offersBookingLink",
@@ -735,6 +740,8 @@ test("the mockup's bundle publishes the same helpers and never bundles the bridg
   // URL as every browser has it: the brain's links are checked with it before a draft is resolved.
   vm.runInNewContext(js, { window: win, console, Date, Intl, URL });
   assert.deepEqual(Object.keys(win.__businessTab).sort(), Object.keys(tab).sort(), "installed at load");
+  // The save's own rules, asked for at load (the bundle's footer) and bundled in: here once the load's promise settles.
+  await win.__businessTab.loadSaveRules();
   assert.equal(
     win.__businessTab.consequenceOf("guardrails", STORED, "voice"),
     null,
@@ -812,4 +819,9 @@ test("saveIssues says what the save's own schema refuses in a part of the config
     [["calendar", "ical_url"]],
   );
   assert.deepEqual(tab.saveIssues(undefined), [], "nothing to judge is nothing refused");
+});
+
+test("until the save's own rules arrive, a fold is told nothing they would judge, and the server judges the save", () => {
+  assert.deepEqual(BEFORE_RULES, [], "the same calendar draft, refused above once the rules are here");
+  assert.equal(tab.saveIssues({ calendar: { ical_url: "https://localhost/feed.ics" } }).length, 1);
 });

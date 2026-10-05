@@ -11,7 +11,7 @@
  *   and a closure had one (S18).
  * - A card titled "This device" held a sign-out that ends every session, and the alerts pane said push alerts were
  *   not built beside the bell's own device alerts (S20).
- * Run against settings.jsx on a stub React.
+ * Run against the Settings page (surfaces/settings/frame/page.tsx) on a stub React.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -156,7 +156,19 @@ globalThis.React = {
     return fn;
   },
   useId: () => `id-${slot()}`,
-  // SetRow names its control from the row: the three calls it makes, over this stub's nodes.
+  // A surface's value through the seam (use-surface.ts): what it holds when the component draws, and, as React does, a
+  // draw again when the seam says the surface moved (one subscription for the hook's place).
+  useSyncExternalStore: (subscribe, snapshot) => {
+    const k = slot();
+    if (!cells.has(k))
+      cells.set(
+        k,
+        subscribe(() => {
+          dirty = true;
+        }),
+      );
+    return snapshot();
+  },
   Children: { map: (kids, fn) => (kids == null ? kids : [].concat(kids).flat(Infinity).map(fn)) },
   isValidElement: (n) => !!n && typeof n === "object" && "type" in n && "props" in n,
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
@@ -219,11 +231,28 @@ Object.assign(globalThis.window, {
   __fallbackDefaults: FALLBACK_DEFAULTS,
   __unknownDetails: unknownDetails,
 });
-await import("../../../../../apps/dashboard/src/legacy/pages/business-tab-save.jsx");
-// How it answers owns the languages the old form offers and its three messages' labels, which settings.jsx reads as
-// it loads (business-tab-answers.jsx, before it in both load lists).
-await import("../../../../../apps/dashboard/src/legacy/pages/business-tab-answers.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/settings.jsx");
+await import("./_business-parts.mjs");
+// The page is the TSX module (decision 0015 step 11); it imports every pane it draws, and the panes read the settings
+// read over the seam.
+const { SettingsPage } = await import("../../../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
+const { setSurfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { hearSurfaces } = await import("../../../../../apps/dashboard/src/legacy-bridge/surface-status.ts");
+// The Team tab is the Partner pane's Team (settings/partner/team-card.tsx): the roster, then the workspace's partner
+// card, an owner's read answered here as refused, so the card stays out of what these tests look at.
+const { partnerVerbs } = await import("../../../../../apps/dashboard/src/surfaces/settings/partner/surface.ts");
+partnerVerbs.team.read = async () => ({ ok: false, code: "forbidden", message: "Only an owner can do this." });
+/** The seam's settings value, beside the globals it copies (legacy-bridge/surfaces/settings.ts). */
+const seam = () =>
+  setSurfaceValue("settings", {
+    settings: globalThis.window.__SETTINGS,
+    facts: globalThis.window.__FACTS ?? null,
+    channels: null,
+    templatesAll: null,
+    templateUse: null,
+    templateSent: null,
+    team: globalThis.window.__TEAM ?? null,
+    invites: globalThis.window.__TEAM_INVITES ?? null,
+  });
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -269,7 +298,7 @@ const fresh = () => {
 const draw = (tab) => {
   frames = [{ key: "root", hook: 0, kids: {} }];
   dirty = false;
-  lastTree = globalThis.window.SettingsPage({ tab, onTab() {} });
+  lastTree = SettingsPage({ tab, onTab() {} });
   return lastTree;
 };
 const settings = (tab) => {
@@ -320,6 +349,7 @@ const workspace = (over = {}) => {
     __TEAM_INVITES: [],
     ...over,
   });
+  seam();
 };
 
 /* ------------------------------ the refresh ------------------------------ */
@@ -334,7 +364,12 @@ test("REGRESSION (D7, S11): the Team card draws again when the settings surface 
   globalThis.window.__TEAM_INVITES = [
     { id: "inv-sam", email: "sam@northside.example", role: "viewer", expires_at: "2026-09-22T12:00:00Z" },
   ];
+  // The read lands as the bridge lays it: the globals, the seam's value, and the event, which the bridge hears as the
+  // surface moving (surface-status.ts hearSurfaces), the move the card's useSurface listens for.
+  seam();
+  const stop = hearSurfaces([{ key: "settings", events: ["surface:settings"] }], globalThis.window);
   globalThis.window.dispatchEvent({ type: "surface:settings" });
+  stop();
   const tree = settle("team");
   assert.ok(textOf(tree).includes("sam@northside.example"), "REGRESSION: the roster on screen did not change");
 });

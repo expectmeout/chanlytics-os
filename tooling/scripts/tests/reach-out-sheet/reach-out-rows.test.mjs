@@ -1,27 +1,27 @@
 /**
- * A reach-out on Playbooks and on Templates (Reach out, Part 4 PR 8), run on the stub React over the surface's own
- * words (surfaces/campaigns/reach-out/surface.ts, contracts reach-out-sheet.ts) and its verbs stubbed on the surface's
- * one `reachOuts` object, which the TSX row imports (a test sets what a verb answers there, as it once set
+ * A reach-out on Campaigns and on Templates (Reach out, Part 4 PR 8), run on the stub React over the surface's own words
+ * (surfaces/campaigns/reach-out/surface.ts, contracts reach-out-sheet.ts) and its verbs stubbed on the surface's one
+ * `reachOuts` object, which the TSX pane imports (a test sets what a verb answers there, as it once set
  * `window.__reachOuts`):
  *
- * - Playbooks: a chain is one row among the moments, with its steps, its search and its next run as they are (R23);
- *   its report is read when the row opens, never before, and its table is the report's counts and nothing else; Pause
- *   or Resume presses the chain's first step; Remove is offered only while the report says it may go (R16), asks
- *   first, and presses the chain's own door; the held open their run (R20); stopping one business is said (R24);
- *   a report that could not be read says so and reads again on Retry; a refusal is said as every refusal is; a
- *   viewer's acts are inert (the real gate); the head counts the chains; a link to a chain opens its row and is
- *   "gone" only once the chains were read; Edit opens the reach-out sheet over the chain, for a role that may change it.
- * - Templates: a chain's emails are their own rows (contracts emailTemplateRowsOf over __REACH_OUTS, R19), with the
- *   Email chip and what sends them (their chain's row); Edit in its reach-out opens the sheet over its chain (its
- *   Playbooks row for a role that may not change it); how many one wrote is read when it opens, never before; no
- *   WhatsApp or Text switch and no delete; the page counts them and says so in its hover; an email-only workspace is
- *   not "nothing on file", and a reach-outs read that failed is said.
+ * - Campaigns' home (it took the Playbooks list's place, 3 Oct 2026): a chain is a quiet line under the moments, with its
+ *   steps, its search and its state, and Open or Resume; its report is read when it opens, never before (R23); a link to
+ *   it (`campaigns/moment:<root id>`) opens its pane in the sheet, and is "gone" only once the chains were read; Resume on
+ *   a line is the playbooks' own verb, the door the chain's own Resume presses.
+ * - The pane: its report is read when it opens, and its table is the report's counts and nothing else; Pause or Resume
+ *   presses the chain's first step; Remove is offered only while the report says it may go (R16), asks first, and presses
+ *   the chain's own door; the held open their run (R20); stopping one business is said (R24); a report that could not be
+ *   read says so and reads again on Retry; a refusal is said as every refusal is; a viewer's acts are inert (the real
+ *   gate); Edit opens the reach-out sheet over the chain, for a role that may change it.
+ * - Templates: a chain's emails are messages in the Templates list (reach-out-email-message.test.mjs: their rows, their
+ *   pane and its editor, counted by contracts' emailTemplateRowsOf over the chains, which this file holds to the surface's
+ *   reads).
  * - The bridge: the verbs press the doors they name, and the surface reads the chains and nothing more.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
@@ -33,18 +33,22 @@ Object.assign(W, {
   // The role store's gate is data-bits.jsx's own (window.gate, canDo, gateTitle), over this role and contracts' table.
   ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
   __roleGate: contracts.roleGate,
-  usePPToast: () => [null, (t) => toasts.push(t)],
   __surfaceState: () => "live",
   useHotkey: () => {},
 });
 // The shell's own parts (Confirm, StatePill, the role gate, the record kit) are still JSX the frame loads.
 const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
-// The pages and their rows are TSX (decision 0015): Playbooks, Templates, and the reach-out's row, sheet and email row.
+// The shell's toast is data-bits.jsx's own; the home raises its notices through it, and a test reads them here.
+W.usePPToast = () => [null, (t) => toasts.push(t)];
+// The pages and their panes are TSX (decision 0015): Campaigns' home, Templates, and the reach-out's pane and sheet.
 const S = "../../../../apps/dashboard/src/surfaces";
-const { ReachOutRow } = await import(`${S}/campaigns/reach-out/row.tsx`);
-const { PlaybooksPage } = await import(`${S}/campaigns/playbooks/playbooks-page.tsx`);
-const { TemplatesPage } = await import(`${S}/campaigns/templates/templates-page.tsx`);
+const { ReachOutPane } = await import(`${S}/campaigns/reach-out/row.tsx`);
+const { CampaignsHome } = await import(`${S}/campaigns/home/home-page.tsx`);
+const { ReachOutSheet } = await import(`${S}/campaigns/reach-out/sheet.tsx`);
+const { PaneSheet } = await import(`${S}/campaigns/home/pane-sheet.tsx`);
+const { playbooksSample } = await import(`${S}/campaigns/playbooks/sample.ts`);
+const { playbooks: playbookVerbs } = await import(`${S}/campaigns/playbooks/verbs.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surface-values.ts`);
 const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
 const WORDS = bridge.reachOuts.words;
@@ -127,52 +131,32 @@ const verbs = (report = REPORT(), ok = true) => {
   return pressed;
 };
 
-/** One row, drawn as the page draws it, open or not; `state` holds the open flag between draws. */
-const row = (chain, state) => {
+/**
+ * One reach-out's pane, as the home's drawer draws it (home/drawer.tsx), open or not: its steps, report and acts are in it;
+ * `state` holds the open flag between draws.
+ */
+const openPane = (chain, state) => {
   const draw = () =>
-    W.React.createElement(ReachOutRow, {
-      chain,
-      canAct: true,
-      flash: (t) => toasts.push(t),
-      tz: ZONE,
-      now: new Date("2026-09-28T13:00:00Z"),
-      open: state.open,
-      onOpen: () => (state.open = !state.open),
-    });
+    W.React.createElement(
+      "div",
+      null,
+      state.open
+        ? W.React.createElement(ReachOutPane, {
+            chain,
+            canAct: true,
+            flash: (t) => toasts.push(t),
+            onClose: () => (state.open = false),
+          })
+        : null,
+    );
   return { draw, redraw: () => again(draw) };
 };
 
-test("a chain is one row: its steps and domain, its state, its search, and its next run as it is (R23); nothing read yet", () => {
-  const pressed = verbs();
-  fresh();
-  const r = row(chainOf(), { open: false });
-  const tree = r.redraw();
-  assert.equal(textOf(byTestId(tree, "ro-hint")), "Your email, a short nudge · from harbor-mail.example");
-  assert.equal(textOf(byTestId(tree, "ro-search")), "Personal trainers · Austin");
-  assert.equal(textOf(byTestId(tree, "ro-next")), "Next run today 09:00.");
-  assert.equal(byTestId(tree, "ro-open-body"), null);
-  assert.deepEqual(pressed, [], "the report is read when the row opens, never before (R23)");
-  // Paused, set to never, held for billing, a run waiting: each said as it is.
-  for (const [c, want] of [
-    [chainOf({ state: "paused" }), "Paused. Nothing is planned until you resume it."],
-    [chainOf({}, { mode: "never" }), "Outreach is set to Never in Settings › Autonomy, so nothing runs."],
-    [chainOf({}, { may_spend: false }), "Held for billing: nothing is planned until billing is sorted."],
-  ]) {
-    fresh();
-    assert.equal(textOf(byTestId(row(c, { open: false }).redraw(), "ro-next")), want);
-  }
-  fresh();
-  went.length = 0;
-  const waiting = row(chainOf({}, { waiting_run_id: "b9" }), { open: false }).redraw();
-  press(byTestId(waiting, "ro-next-run"));
-  assert.deepEqual(went, ["broadcasts/run:b9"], "a run waiting opens that run");
-});
-
-test("the open row is the report's: its steps counted, its sentence, its runs, the held opening their run (R20), and how to stop one business (R24)", async () => {
+test("the open pane is the report's: its steps counted, its sentence, its runs, the held opening their run (R20), and how to stop one business (R24)", async () => {
   const pressed = verbs();
   fresh();
   const state = { open: true };
-  const r = row(chainOf(), state);
+  const r = openPane(chainOf(), state);
   let tree = r.redraw();
   assert.equal(textOf(byTestId(tree, "ro-reading")), "Reading how it is doing…");
   await settle();
@@ -227,7 +211,7 @@ test("the open row is the report's: its steps counted, its sentence, its runs, t
 test("Pause and Resume press the chain's first step; Remove is offered only while it may go, asks first, and presses the chain's door (R16)", async () => {
   let pressed = verbs();
   fresh();
-  let r = row(chainOf(), { open: true });
+  let r = openPane(chainOf(), { open: true });
   r.redraw();
   await settle();
   let tree = r.redraw();
@@ -239,7 +223,7 @@ test("Pause and Resume press the chain's first step; Remove is offered only whil
 
   pressed = verbs();
   fresh();
-  r = row(chainOf({ state: "paused" }), { open: true });
+  r = openPane(chainOf({ state: "paused" }), { open: true });
   r.redraw();
   await settle();
   tree = r.redraw();
@@ -264,7 +248,7 @@ test("Pause and Resume press the chain's first step; Remove is offered only whil
     }),
   );
   fresh();
-  r = row(chainOf(), { open: true });
+  r = openPane(chainOf(), { open: true });
   r.redraw();
   await settle();
   tree = r.redraw();
@@ -281,7 +265,7 @@ test("Pause and Resume press the chain's first step; Remove is offered only whil
 test("a report that could not be read says so, and draws no count", async () => {
   verbs(REPORT(), false);
   fresh();
-  const r = row(chainOf(), { open: true });
+  const r = openPane(chainOf(), { open: true });
   r.redraw();
   await settle();
   const tree = r.redraw();
@@ -300,7 +284,7 @@ test("Retry on a report that could not be read reads it again, and draws it once
     ),
   });
   fresh();
-  const r = row(chainOf(), { open: true });
+  const r = openPane(chainOf(), { open: true });
   r.redraw();
   await settle();
   let tree = r.redraw();
@@ -323,7 +307,7 @@ test("a refused Pause is said as every refusal is (window.refusalToast), never a
     message: "Only an owner or operator can pause a reach-out.",
   });
   fresh();
-  const r = row(chainOf(), { open: true });
+  const r = openPane(chainOf(), { open: true });
   r.redraw();
   await settle();
   press(byTestId(r.redraw(), "ro-toggle"));
@@ -340,7 +324,7 @@ test("a viewer's Pause, Resume and Remove are inert: the real gate refuses them 
     for (const c of [chainOf(), chainOf({ state: "paused" })]) {
       const pressed = verbs(REPORT({ can_remove: true }));
       fresh();
-      const r = row(c, { open: true });
+      const r = openPane(c, { open: true });
       r.redraw();
       await settle();
       let tree = r.redraw();
@@ -363,244 +347,188 @@ test("a viewer's Pause, Resume and Remove are inert: the real gate refuses them 
   }
 });
 
-/* ------------------------------ the Playbooks page ------------------------------ */
+/* ------------------------------ Campaigns' home ------------------------------ */
 
-const surface = (over = {}) => ({
-  rows: [],
-  timezone: ZONE,
-  countsRead: true,
-  lists: [],
-  calendar: "none",
-  triggers: [],
-  templates: [],
-  number: { present: true, health: { state: "ok" } },
-  businessName: "Harbor",
-  bookingLink: false,
-  replyWindow: "24 hours",
-  fetchedAt: Date.now(),
-  ...over,
-});
-/** The Playbooks page over its surface and the reach-outs surface (its own: the seam's "reach_outs"). */
-const playbooksPage = (s, props = {}, chains = [chainOf()]) => {
-  setSurfaceValue("playbooks", s);
-  setSurfaceValue("reach_outs", chains);
+const NOW = Date.parse("2026-09-28T13:00:00Z");
+/** The reach-outs not read yet: the surface holds nothing (a read that failed is null, and one that came back is its chains). */
+const UNREAD = "unread";
+/** Campaigns' home at an address (`campaigns/<param>`, null for the home), over the playbooks' surface and the reach-outs' own (the seam's "reach_outs"). */
+const homeAt = (param = null, chains = [chainOf()]) => {
+  setSurfaceValue("playbooks", { ...playbooksSample(new Date(NOW)), timezone: ZONE });
+  setSurfaceValue("reach_outs", chains === UNREAD ? undefined : chains);
   fresh();
-  return again(() => W.React.createElement(PlaybooksPage, props));
+  return again(() => CampaignsHome({ param, nowMs: NOW }));
 };
+const homeAgain = (param = null) => again(() => CampaignsHome({ param, nowMs: NOW }));
+const reachLines = (tree) =>
+  all(tree, (n) => n.props?.["data-testid"] === "cmh-strip" && n.props["data-kind"] === "reach_out");
 
-test("Playbooks draws each chain as a row among the moments, counts it in the head, and a link to it opens its row", () => {
-  verbs();
-  let tree = playbooksPage(surface(), {}, [
-    chainOf(),
-    chainOf({ root_id: "r2", name: "Reach out · Florists", state: "paused" }),
-  ]);
-  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ro-row").length, 2);
-  assert.match(textOf(byTestId(tree, "pb-standing")), /1running.*1paused/);
-  tree = playbooksPage(surface(), { initialPlaybook: ROOT });
-  assert.ok(byTestId(tree, "ro-open-body"), "outbound/<root_id> opens its row");
-  assert.equal(byTestId(tree, "pb-gone"), null);
-  const refreshed = [];
-  W.__refreshSurface = (k) => refreshed.push(k);
-  tree = playbooksPage(surface(), {}, null);
-  assert.ok(byTestId(tree, "pb-chains-failed"), "a chains read that failed is said, not an empty list");
-  press(byTestId(tree, "pb-chains-failed-retry"));
-  assert.deepEqual(refreshed, ["reach_outs"], "its Retry reads the reach-outs, not the moments");
-});
-
-test("a link to a chain is 'gone' only once the chains were read, and lands on its row when the row arrives", () => {
-  verbs();
-  // Unread (undefined) or failed (null): a chain's id is not known to be missing.
-  for (const unread of [undefined, null]) {
-    const tree = playbooksPage(surface(), { initialPlaybook: ROOT }, unread);
-    assert.equal(byTestId(tree, "pb-gone"), null, `no "isn't here any more" while the chains are ${unread}`);
-  }
-  assert.ok(
-    byTestId(playbooksPage(surface(), { initialPlaybook: "gone" }, []), "pb-gone"),
-    "read, and not there: gone",
-  );
-  // The row brought into view: again when the chain's row lands after the page drew.
-  const scrolled = [];
-  const was = globalThis.document.getElementById;
-  globalThis.document.getElementById = (id) => ({
-    getBoundingClientRect: () => ({ top: 2000 }),
-    scrollIntoView: () => scrolled.push(id),
-  });
-  try {
-    setSurfaceValue("playbooks", surface());
-    setSurfaceValue("reach_outs", undefined);
-    fresh();
-    again(() => W.React.createElement(PlaybooksPage, { initialPlaybook: ROOT }));
-    setSurfaceValue("reach_outs", [chainOf()]);
-    again(() => W.React.createElement(PlaybooksPage, { initialPlaybook: ROOT }));
-    assert.deepEqual(scrolled, [`pb-${ROOT}`, `pb-${ROOT}`], "brought into view again as its row arrives");
-  } finally {
-    globalThis.document.getElementById = was;
-  }
-});
-
-/* ------------------------------ Templates ------------------------------ */
-
-/** The chain Templates lists: its first email, and a nudge whose words have a slot. */
-const templatesChain = () =>
-  chainOf({
-    steps: [
-      { ...chainOf().steps[0], body: "{{opening}}" },
-      { ...chainOf().steps[1], body: "Just checking in, {{business}}." },
-    ],
-  });
-const WHATSAPP_ROW = {
-  id: "w1",
-  channel: "whatsapp",
-  name: "offer",
-  language: "en_US",
-  meta_status: "approved",
-  category: "marketing",
-  source: "chanlytics",
-  hidden_at: null,
-  title: null,
-  body_preview: "Our offer.",
-  variables: [],
-};
-// What Templates reads through the seam: the settings surface holds the WhatsApp rows, the numbers and the business's
-// words (what `__TEMPLATES_ALL`, `__CHANNELS` and `__SETTINGS` held), the reach_outs surface the chains. `over` names them
-// as the test always has; a key that is present and undefined is a read not landed.
-const drawTemplates = () => W.React.createElement(TemplatesPage, {});
-const templatesPage = (over = {}) => {
-  const o = {
-    __TEMPLATES_ALL: [WHATSAPP_ROW],
-    __REACH_OUTS: [templatesChain()],
-    __TEMPLATE_USE: null,
-    __TEMPLATE_SENT: null,
-    __PLAYBOOKS: undefined,
-    __CHANNELS: [{ kind: "whatsapp" }],
-    __SETTINGS: { config: { brain: { business_name: "Harbor" } } },
-    ...over,
-  };
-  setSurfaceValue("settings", {
-    settings: o.__SETTINGS,
-    facts: null,
-    channels: o.__CHANNELS,
-    templatesAll: o.__TEMPLATES_ALL,
-    templateUse: o.__TEMPLATE_USE,
-    templateSent: o.__TEMPLATE_SENT,
-  });
-  setSurfaceValue("reach_outs", o.__REACH_OUTS);
-  setSurfaceValue("playbooks", o.__PLAYBOOKS);
-  fresh();
-  return again(drawTemplates);
-};
-
-test("Templates: a chain's emails are their own rows, with the Email chip and what sends them; the page counts them, and its hover says so", () => {
+test("a chain is a quiet line on the home -- its name, its steps and search, its state, Open or Resume -- and its report is read when it opens, never before (R23)", async () => {
   const pressed = verbs();
   went.length = 0;
-  const tree = templatesPage();
-  const rows = all(tree, (n) => n.props?.["data-testid"] === "template-email");
-  assert.equal(rows.length, 2);
-  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "custom-row").length, 1, "the WhatsApp row is unchanged");
-  assert.match(textOf(byTestId(tree, "messages-standing")), /3 templates/, "the page counts both");
-  assert.match(
-    byTestId(tree, "messages-count").props["data-tip"],
-    /on WhatsApp.* The count takes 2 emails of your reach-outs too: their own words, sent by email, with no review\.$/,
-    "the hover says what the count takes (contracts' words)",
-  );
-  const nudge = rows[1];
-  assert.equal(textOf(byTestId(nudge, "template-email-chip")), "Email");
-  assert.equal(textOf(byTestId(nudge, "template-email-sends")), "Reach out · Personal trainers");
-  assert.match(textOf(nudge), /step 2 · after 4 days with nothing back/);
-  for (const r of rows) assert.equal(textOf(byTestId(r, "template-email-sent")), "", "closed, no count");
-  assert.deepEqual(pressed, [], "the list reads no report (R23)");
-  press(byTestId(nudge, "template-email-sends"));
-  assert.deepEqual(went, [`outbound/${ROOT}`]);
-});
-
-test("an email row says how many it wrote once it opens and its chain's report reads, and nothing when it cannot", async () => {
-  let pressed = verbs();
-  let tree = templatesPage();
-  press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "template-email")[1], "template-email-open"));
-  again(drawTemplates);
-  await settle();
-  tree = again(drawTemplates);
-  assert.deepEqual(pressed, [["report", ROOT]], "its chain's report, read as it opens");
-  const nudge = all(tree, (n) => n.props?.["data-testid"] === "template-email")[1];
-  assert.equal(textOf(byTestId(nudge, "template-email-sent")), "28 sent", "the report's own count for its step");
-
-  pressed = verbs(REPORT(), false);
-  tree = templatesPage();
-  press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "template-email")[1], "template-email-open"));
-  again(drawTemplates);
-  await settle();
-  tree = again(drawTemplates);
-  assert.deepEqual(pressed, [["report", ROOT]]);
-  assert.equal(
-    textOf(byTestId(all(tree, (n) => n.props?.["data-testid"] === "template-email")[1], "template-email-sent")),
-    "",
-    "not read, not counted: never a 0",
-  );
-});
-
-test("Templates: an email-only workspace is not 'nothing on file'; unread says nothing; a reach-outs read that failed is said, with its Retry", () => {
-  verbs();
-  const bare = { __TEMPLATES_ALL: [], __CHANNELS: [] };
-  let tree = templatesPage(bare);
-  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "template-email").length, 2);
-  assert.equal(byTestId(tree, "templates-nothing"), null, "its email rows are on file");
-  tree = templatesPage({ ...bare, __REACH_OUTS: [] });
-  assert.ok(byTestId(tree, "templates-nothing"), "read, and nothing of any kind");
-  tree = templatesPage({ ...bare, __REACH_OUTS: undefined });
-  assert.equal(byTestId(tree, "templates-nothing"), null, "the chains not read yet: no claim");
-  const refreshed = [];
-  W.__refreshSurface = (k) => refreshed.push(k);
-  tree = templatesPage({ __REACH_OUTS: null });
-  assert.equal(byTestId(tree, "templates-nothing"), null);
-  assert.match(textOf(byTestId(tree, "templates-email-failed")), /Couldn't read your reach-outs' emails/);
-  press(byTestId(tree, "templates-email-failed-retry"));
-  assert.deepEqual(refreshed, ["reach_outs"]);
-});
-
-test("an open email row: email only, its slots as chips, the check and the foot, Edit in its reach-out; no switch and no delete (R19)", () => {
-  went.length = 0;
-  verbs();
-  let tree = templatesPage();
-  press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "template-email")[1], "template-email-open"));
-  tree = again(drawTemplates);
-  const body = byTestId(tree, "template-email-body");
-  assert.equal(textOf(byTestId(body, "template-email-versions")), "a reach-out sends email only");
+  const tree = homeAt(null, [chainOf(), chainOf({ root_id: "r2", name: "Reach out · Florists", state: "paused" })]);
+  const lines = reachLines(tree);
   assert.deepEqual(
-    all(byTestId(body, "template-email-words"), (n) => String(n.props?.className || "").includes("em-slot")).map(
-      textOf,
-    ),
-    ["business"],
+    lines.map((l) => l.props["data-strip"]),
+    [ROOT, "r2"],
   );
-  assert.match(textOf(byTestId(body, "template-email-check")), /^Checked before each send/);
-  assert.equal(all(body, (n) => n.props?.role === "radiogroup").length, 0, "no WhatsApp or Text switch");
-  assert.equal(
-    all(body, (n) => /Delete|Rename|Hide/.test(textOf(n)) && n.type === "button").length,
-    0,
-    "no delete of its own",
+  const said = textOf(lines[0]);
+  for (const part of ["Reach out · Personal trainers", "Personal trainers · Austin", "2 steps"])
+    assert.ok(said.includes(part), `${part}: ${said}`);
+  assert.deepEqual(
+    lines.map((l) => textOf(byTestId(l, "cmh-strip-act"))),
+    ["Open", "Resume"],
+    "a running one opens, a paused one resumes",
   );
-  // Edit in its reach-out: the sheet over its chain as the reach_outs surface read it.
-  press(byTestId(body, "template-email-edit"));
-  tree = again(drawTemplates);
-  assert.deepEqual(went, [], "no page change");
-  assert.equal(byTestId(tree, "ro-name").props.value, templatesChain().name);
-  assert.equal(textOf(byTestId(tree, "ro-start")), "Save");
+  assert.deepEqual(pressed, [], "a line reads no report: it is read when the reach-out opens (R23)");
+  // Its name opens it by its address, pushed so Back closes it; there, its pane reads the report once.
+  press(byTestId(lines[0], "cmh-strip-open"));
+  assert.deepEqual(went, [`campaigns/moment:${ROOT}`]);
+  homeAt(`moment:${ROOT}`);
+  await settle();
+  const open = homeAgain(`moment:${ROOT}`);
+  assert.deepEqual(pressed, [["report", ROOT]], "read when it opens, once");
+  assert.ok(
+    find(open, (n) => n.type === ReachOutPane),
+    "its own pane, in the sheet",
+  );
+  assert.ok(byTestId(open, "ro-steps"), "with the report's counts in it");
+  // A read of the chains that failed draws no line, and the moments are still there: null, never an empty list.
+  const failed = homeAt(null, null);
+  assert.equal(reachLines(failed).length, 0);
+  assert.ok(byTestId(failed, "campaigns-home"));
 });
 
-test("an email row's Edit, for a role that may not change the chain, opens its Playbooks row instead", () => {
-  went.length = 0;
-  verbs();
-  const keep = W.ST_STORE;
-  W.ST_STORE = { can: (a) => !!contracts.ROLE_PERMS.viewer[a], myRole: () => "viewer" };
+test("a paused chain's line resumes it in place through the playbooks' own verb, and says so", async () => {
+  const kept = playbookVerbs.resume;
+  const resumed = [];
+  playbookVerbs.resume = async (id, opts) => {
+    resumed.push(id);
+    opts.onAccepted({});
+    return { ok: true, data: {} };
+  };
   try {
-    let tree = templatesPage();
-    press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "template-email")[1], "template-email-open"));
-    tree = again(drawTemplates);
-    press(byTestId(byTestId(tree, "template-email-body"), "template-email-edit"));
-    assert.deepEqual(went, [`outbound/${ROOT}`]);
-    assert.equal(byTestId(again(drawTemplates), "ro-sheet"), null);
+    const tree = homeAt(null, [chainOf({ state: "paused" })]);
+    toasts.length = 0;
+    await byTestId(reachLines(tree)[0], "cmh-strip-act").props.onClick();
+    assert.deepEqual(resumed, [ROOT], "the chain's root, the door its own Resume presses (the bridge's verbs, below)");
+    assert.match(textOf(toasts.at(-1).msg), /Reach out · Personal trainers resumed/);
   } finally {
-    W.ST_STORE = keep;
+    playbookVerbs.resume = kept;
   }
+});
+
+test("a link to a chain is 'gone' only once the chains were read, and opens its pane when the chain arrives", () => {
+  verbs();
+  // Unread (undefined) or failed (null): a chain's id is not known to be missing.
+  for (const unread of [UNREAD, null]) {
+    const tree = homeAt(`moment:${ROOT}`, unread);
+    assert.equal(byTestId(tree, "pb-gone"), null, `no "isn't here any more" while the chains are ${unread}`);
+    assert.equal(
+      find(tree, (n) => n.type === ReachOutPane),
+      null,
+      "and no pane to draw",
+    );
+  }
+  assert.ok(byTestId(homeAt("moment:gone", []), "pb-gone"), "read, and not there: gone");
+  // The link followed before the chains were read lands on its pane when the chain arrives.
+  homeAt(`moment:${ROOT}`, UNREAD);
+  setSurfaceValue("reach_outs", [chainOf()]);
+  const arrived = homeAgain(`moment:${ROOT}`);
+  assert.ok(
+    find(arrived, (n) => n.type === ReachOutPane),
+    "its pane, as the chain arrives",
+  );
+  assert.equal(byTestId(arrived, "pb-gone"), null);
+});
+
+/** The surfaces a Retry was pressed for: the frame's runner (`window.__refreshSurface`), which a failed read's Retry reads through. */
+const refreshed = [];
+const withRetry = (run) => {
+  W.__refreshSurface = async (key) => {
+    refreshed.push(key);
+  };
+  try {
+    run();
+  } finally {
+    delete W.__refreshSurface;
+  }
+};
+
+test("a chain's drawer says it is reading, or that it could not read, in the sheet itself: never a sheet with nothing in it", () => {
+  verbs();
+  const reading = homeAt(`moment:${ROOT}`, UNREAD);
+  assert.ok(byTestId(reading, "cmh-drawer-reading"), "the chains are not read yet: reading, quietly");
+  assert.equal(textOf(byTestId(reading, "cmh-drawer-reading")), "Reading…");
+  assert.equal(byTestId(reading, "cmh-drawer-failed"), null);
+  withRetry(() => {
+    refreshed.length = 0;
+    const failed = homeAt(`moment:${ROOT}`, null);
+    assert.ok(byTestId(failed, "cmh-drawer-failed"), "the read failed: said, with its Retry");
+    assert.match(textOf(byTestId(failed, "cmh-drawer-failed")), /Couldn't read your reach-outs/);
+    press(byTestId(failed, "cmh-drawer-failed-retry"));
+    assert.deepEqual(refreshed, ["reach_outs"], "a Retry that reads the reach-outs again");
+    assert.equal(byTestId(failed, "cmh-drawer-reading"), null);
+  });
+  assert.equal(byTestId(homeAt(`moment:${ROOT}`, [chainOf()]), "cmh-drawer-reading"), null, "read: its pane");
+});
+
+test("Edit on a reach-out in the home's drawer opens its sheet at an address of its own, in the drawer's place: the record sheet stands on the page, so it could not stand under the drawer's modal", async () => {
+  verbs();
+  went.length = 0;
+  // In the drawer, Edit is the home's press: the sheet is not the pane's own (it would be hidden under the drawer), the address is.
+  homeAt(`moment:${ROOT}`);
+  await settle();
+  let tree = homeAgain(`moment:${ROOT}`);
+  press(byTestId(tree, "ro-edit"));
+  assert.deepEqual(went, [`campaigns/new:edit:${ROOT}`], "pushed, so Back returns to the detail");
+  tree = homeAgain(`moment:${ROOT}`);
+  assert.equal(byTestId(tree, "ro-sheet"), null, "and no sheet of the pane's own, under the drawer's modal");
+  // The address: the drawer is closed (no moment is asked for), the composer is not drawn, and the reach-out's sheet is the page's.
+  const at = homeAt(`new:edit:${ROOT}`);
+  const sheet = find(at, (n) => n.type === ReachOutSheet);
+  assert.ok(sheet, "the reach-out's sheet");
+  assert.equal(sheet.props.chain.root_id, ROOT);
+  assert.deepEqual(sheet.props.search, { id: "s1", name: "Personal trainers · Austin" });
+  const hosts = all(at, (n) => n.type === PaneSheet);
+  assert.equal(
+    hosts.find((n) => n.props.testid === "cmh-drawer"),
+    undefined,
+    "no drawer: its address has gone",
+  );
+  assert.equal(
+    hosts.find((n) => n.props.testid === "cmh-composer"),
+    undefined,
+    "and the playbook composer is not drawn for a reach-out's id",
+  );
+  // Closing it leaves the address (a link that arrived here replaces it with the home); the door it says on a save replaces it
+  // with where it goes, so a close that is a step Back does not undo the door.
+  went.length = 0;
+  sheet.props.onClose();
+  assert.deepEqual(went, ["campaigns"]);
+  went.length = 0;
+  sheet.props.onGo("broadcasts/run:b2");
+  assert.deepEqual(went, ["broadcasts/run:b2"]);
+});
+
+test("a change to something that is no playbook waits on the reach-outs: reading while they are out, failed where they could not be, gone once they are read and it is not one", () => {
+  verbs();
+  const reading = homeAt(`new:edit:${ROOT}`, UNREAD);
+  assert.ok(byTestId(reading, "cmh-composer-reading"), "not known to be missing yet");
+  assert.equal(
+    find(reading, (n) => n.type === ReachOutSheet),
+    null,
+  );
+  withRetry(() => {
+    refreshed.length = 0;
+    const failed = homeAt(`new:edit:${ROOT}`, null);
+    assert.ok(byTestId(failed, "cmh-composer-failed"));
+    press(byTestId(failed, "cmh-composer-failed-retry"));
+    assert.deepEqual(refreshed, ["reach_outs"]);
+  });
+  const gone = homeAt("new:edit:nothing", []);
+  assert.ok(byTestId(gone, "pb-gone"), "read, and neither a playbook nor a chain");
+  assert.equal(byTestId(gone, "cmh-composer-reading"), null);
 });
 
 /* ------------------------------ the bridge ------------------------------ */
@@ -683,16 +611,7 @@ test("who may press is the role store's one answer: a viewer is told by it, and 
   verbs();
   fresh();
   const draw = (canAct) =>
-    again(() =>
-      W.React.createElement(ReachOutRow, {
-        chain: chainOf(),
-        canAct,
-        flash: () => {},
-        tz: ZONE,
-        open: true,
-        onOpen: () => {},
-      }),
-    );
+    again(() => W.React.createElement(ReachOutPane, { chain: chainOf(), canAct, flash: () => {}, onClose: () => {} }));
   draw(false);
   await settle();
   assert.equal(
@@ -715,7 +634,7 @@ test("Edit opens the reach-out sheet over the chain as read, saves through its o
     templateUse: null,
     templateSent: null,
   });
-  W.__SETUP = {
+  setSurfaceValue("setup", {
     dto: {
       email: {
         mailbox: null,
@@ -733,10 +652,10 @@ test("Edit opens the reach-out sheet over the chain as read, saves through its o
         },
       },
     },
-  };
+  });
   fresh();
   const state = { open: true };
-  const r = row(chainOf(), state);
+  const r = openPane(chainOf(), state);
   r.redraw();
   await settle();
   let tree = r.redraw();
@@ -760,7 +679,7 @@ test("Edit opens the reach-out sheet over the chain as read, saves through its o
   assert.equal(byTestId(r.redraw(), "ro-sheet"), null);
   // A chain whose search is gone has nothing to write to: no Edit.
   fresh();
-  const gone = row(chainOf({ search: null }), { open: true });
+  const gone = openPane(chainOf({ search: null }), { open: true });
   gone.redraw();
   await settle();
   assert.equal(byTestId(gone.redraw(), "ro-edit"), null);
@@ -769,7 +688,7 @@ test("Edit opens the reach-out sheet over the chain as read, saves through its o
   W.ST_STORE = { can: (a) => !!contracts.ROLE_PERMS.viewer[a], myRole: () => "viewer" };
   try {
     fresh();
-    const v = row(chainOf(), { open: true });
+    const v = openPane(chainOf(), { open: true });
     v.redraw();
     await settle();
     assert.equal(byTestId(v.redraw(), "ro-edit"), null);

@@ -75,7 +75,7 @@ test("totals, shares of sent, and deltas over the prior period", () => {
   const vm = toCampaignReportVM(dto());
   assert.equal(vm.days, 7);
   assert.equal(vm.points.length, 7);
-  assert.deepEqual(vm.totals, { sent: 20, delivered: 16, replied: 4, sends: 3, optIns: 3, optOuts: 2 });
+  assert.deepEqual(vm.totals, { sent: 20, delivered: 16, read: 11, replied: 4, sends: 3, optIns: 3, optOuts: 2 });
   const by = Object.fromEntries(vm.tiles.map((t) => [t.id, t]));
   assert.deepEqual(
     vm.tiles.map((t) => t.label),
@@ -116,7 +116,8 @@ test("the current period by source: a playbook's runs together, a broadcast alon
       s.template,
     ]),
     [
-      ["Win-back", "Playbook", 2, 14, 86, 50, 21, 1, "Win-back"],
+      // The playbook sends the retired win-back (2 Oct 2026), called apart from the set's own by its title.
+      ["Win-back", "Playbook", 2, 14, 86, 50, 21, 1, "Win-back (earlier)"],
       ["A quick note · Sep 1", "Broadcast", 1, 6, 67, 67, 17, 6 / 14, "A quick note"],
     ],
   );

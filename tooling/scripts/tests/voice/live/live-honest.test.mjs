@@ -174,7 +174,8 @@ const pressIn = (node) => node.props.onClick();
 
 test("REGRESSION (A20, L8): an ended call's card leads with what the caller wanted, says what to do next, and gives its length in words beside the time", () => {
   const vm = withLive([ended()]);
-  const tree = mount();
+  // A call that has ended opens where a link names it (Today's, the bar's): it is no longer what the page opens on.
+  const tree = mount({ initialCallId: "c-done" });
   const card = byTestId(tree, "live-summary");
   assert.match(
     textOf(card),
@@ -186,19 +187,19 @@ test("REGRESSION (A20, L8): an ended call's card leads with what the caller want
   const meta = textOf(headMeta(tree));
   assert.match(meta, / · 3 min 10 sec/);
   assert.doesNotMatch(meta, /· 3:10/, "REGRESSION: 'Sep 6 · 3:10' put a length where a time reads");
-  assert.ok(
-    find(tree, (n) => n.type === "button" && textOf(n).includes("Open profile")),
-    "the door names what it opens",
-  );
+  // The person's door is their face, the one a thread's header wears, not a button with words beside the name.
+  const door = byTestId(tree, "lm-head-avatar");
+  assert.ok(door, "the caller's face is the door to their page");
+  assert.equal(door.type, "a");
+  assert.equal(door.props.href, "#/clients/c7", "and it opens the person's page");
+  assert.match(door.props["aria-label"], /Emily Chen/, "named for a reader, as the face itself is decoration");
+  assert.ok(!find(tree, (n) => n.type === "button" && textOf(n).includes("Open profile")), "no button says it twice");
   assert.ok(!textOf(tree).includes("Open client"));
-  went.length = 0;
-  find(tree, (n) => n.type === "button" && textOf(n).includes("Open profile")).props.onClick();
-  assert.deepEqual(went, ["clients/c7"], "and it opens the person's page");
 });
 
 test("REGRESSION: who is calling opens their page, and their number rings them -- the name was words beside an Open profile button, and the number words to type again", () => {
   withLive([ended()]);
-  const tree = mount();
+  const tree = mount({ initialCallId: "c-done" });
   const who = byTestId(tree, "lm-head-person");
   assert.ok(who, "the caller's name is a link");
   assert.equal(who.type, "a");
@@ -209,7 +210,7 @@ test("REGRESSION: who is calling opens their page, and their number rings them -
   assert.equal(tel.props.href, "tel:+19175550106");
   // Nobody behind the call: the name stays words.
   withLive([ended({ contact_id: null, contact: null })]);
-  assert.ok(!byTestId(mount(), "lm-head-person"), "no link where there is no page");
+  assert.ok(!byTestId(mount({ initialCallId: "c-done" }), "lm-head-person"), "no link where there is no page");
 });
 
 test("REGRESSION (A20, A25): a caller's row shows their initials, and the rows take the keyboard -- Tab reaches them, Enter opens one, arrows move", () => {
@@ -493,7 +494,7 @@ test("a row says who, how long, and what they last said -- in the Inbox's three 
   );
 });
 
-test("with nobody on the line the list says what the line is doing and opens Conversations › Calls; the panel still opens on the last call", () => {
+test("with nobody on the line the list says what the line is doing and opens Conversations › Calls; no call that has ended is drawn unasked", () => {
   withLive([ended()]);
   went.length = 0;
   const tree = mount();
@@ -503,7 +504,15 @@ test("with nobody on the line the list says what the line is doing and opens Con
   assert.ok(door, "the door to every call");
   door.props.onClick();
   assert.deepEqual(went, ["conversations/phone"], "REGRESSION: the calls were listed a second time here instead");
-  assert.ok(byTestId(tree, "live-summary"), "what the last caller wanted is still one look away, in the panel");
+  assert.equal(
+    byTestId(tree, "live-summary"),
+    null,
+    "the last call is Conversations', not an example drawn beside the line",
+  );
+  assert.match(textOf(tree), /Nothing on the line/, "the panel says so instead");
+  assert.equal(byTestId(tree, "live-controls"), null);
+  // Named by a link, it still opens.
+  assert.ok(byTestId(mount({ initialCallId: "c-done" }), "live-summary"), "a link that names the call opens it");
 });
 
 test("the work first: no title, no sub-headline, no stat cards above the calls", () => {

@@ -369,7 +369,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   assert.ok(ESCALATION_REASONS.includes("paused") && SERVER_NOTIFICATION_KINDS.includes("billing"));
   for (const k of ["billing.updated", "billing.paused", "billing.resumed"]) assert.ok(EVENT_KINDS.includes(k), k);
 
-  const hook = readCode("apps/edge/api/stripe-webhook.ts");
+  const hook = readCode("apps/edge/lib/billing/stripe-event.ts");
   assert.ok(hook.includes("s.webhooks.constructEvent(raw, sig, secret)"), "the signature, on the raw body");
   assert.ok(
     hook.indexOf("constructEvent(") < hook.indexOf("keepEvent(") &&
@@ -478,18 +478,18 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
       setup.includes("billingReadiness(),") &&
       /trial_days: billingReady\.trial_days,\s*cancel_at: billingRow\.cancel_at/.test(setup),
   );
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/billing.ts");
+  // Billing is TSX since decision 0015's step 11 (surfaces/settings/billing): the surface, then the pane.
+  const [bridge, pane] = ["surface.ts", "pane.tsx"].map((f) =>
+    readCode(`apps/dashboard/src/surfaces/settings/billing/${f}`),
+  );
   assert.ok(
     bridge.includes('key: "billing",') &&
+      bridge.includes('value: "billing",') &&
       bridge.includes('refreshOnTables: ["billing_accounts"],') &&
-      bridge.includes("win.location.assign(r.data.url)"),
+      bridge.includes("window.location.assign(r.data.url)"),
   );
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(/googleOverride,\s*billingOverride,?\s*\]/.test(app) && app.includes("installBilling();"));
-  assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/billing-real.jsx";'),
-  );
-  const pane = readCode("apps/dashboard/src/legacy/pages/billing-real.jsx");
   for (const t of [
     "billing-real",
     "billing-headline",
@@ -501,13 +501,16 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
     "billing-note",
   ])
     assert.ok(pane.includes(`data-testid="${t}"`), t);
-  const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  const settings = readCode("apps/dashboard/src/surfaces/settings/frame/page.tsx");
   assert.ok(
-    settings.includes("<window.PaneBillingReal flash={flash} />") && !settings.includes('which="billing"'),
-    "the pane is real; nothing says not built",
+    settings.includes("<PaneBillingReal flash={flash} />") &&
+      !settings.includes('which="billing"') &&
+      !settings.includes("const PaneBilling ="),
+    "the pane is real; nothing says not built, and the mockup's twin is gone",
   );
-  const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
-  assert.ok(page.includes('verb.to === "verb:billing-checkout"') && page.includes('verb.to === "verb:billing-portal"'));
+  // Setup's rows press them (surfaces/setup/rows/acts.tsx, TSX since decision 0015's step 10).
+  const page = readCode("apps/dashboard/src/surfaces/setup/rows/acts.tsx");
+  assert.ok(page.includes('to === "verb:billing-checkout"') && page.includes('to === "verb:billing-portal"'));
   assert.deepEqual(
     toldFor("billing_accounts"),
     EVERY_EVENT,

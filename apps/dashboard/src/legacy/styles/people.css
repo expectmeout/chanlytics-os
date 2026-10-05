@@ -484,23 +484,6 @@
 .cl-seg-filter-x:hover, .cl-seg-filter-open:hover { background: oklch(0.6 0.12 235 / 0.18); }
 .cl-seg-filter-x:hover { color: var(--danger); background: var(--danger-soft); }
 
-/* ---------- Broadcast exclusion chips ---------- */
-.bc-chip.bc-excl {
-  border-style: dashed;
-  color: var(--ink-muted);
-}
-.bc-chip.bc-excl:hover { color: var(--danger); border-color: var(--danger); }
-.bc-sched-seg {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: inherit;
-  color: var(--info);
-  font-weight: 500;
-  transition: color 100ms;
-}
-.bc-sched-seg:hover { color: var(--ink); }
-
 @media (max-width: 900px) {
   .sg-page { grid-template-columns: 1fr; grid-template-rows: auto 1fr; overflow-y: auto; }
   .sg-list { border-right: none; border-bottom: 1px solid var(--line); max-height: 44vh; }

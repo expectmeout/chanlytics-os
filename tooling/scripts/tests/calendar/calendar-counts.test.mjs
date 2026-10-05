@@ -24,6 +24,7 @@ const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server
 const { forgetFeeds, openingsFor } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
 const { bookingReport } = await import(at("apps/dashboard/src/server/calendar/people-visits.ts"));
 const { triggerPools } = await import(at("apps/dashboard/src/server/campaigns/playbooks.ts"));
+const { playbookPoolKey, channelsReady } = await import("@chanlytics/contracts");
 // everyone() lives beside listPeople now: every read that means the whole
 // workspace goes through it, not just the pool a playbook run picks from.
 const { everyone, PEOPLE_PAGE } = await import(at("apps/dashboard/src/server/people/people.ts"));
@@ -94,6 +95,9 @@ const tables = (url, role = "owner", extra = {}) => ({
   broadcasts: [],
   broadcast_recipients: [],
   templates: [],
+  // A workspace with its WhatsApp number: the pools are counted against what each channel can send on now (step 3), and a
+  // workspace with no number has nobody a run can reach.
+  tenant_channels: [{ tenant_id: T, kind: "whatsapp", status: "active", config: {} }],
   ...extra,
 });
 /** A person who said yes to offers and can be texted; `n` numbers their phone. */
@@ -308,6 +312,116 @@ test("with a calendar, a visit tomorrow is counted from the feed, over everyone"
   const { pools, calendar } = await triggerPools(ctx, T, {}, TZ, NOW, NO_DEALS);
   assert.equal(calendar, "ok");
   assert.equal(pools.visit_tomorrow.candidates, 1, "Person 2 is on the calendar tomorrow; Person 1 on Friday is not");
+});
+
+test("a playbook whose message is stricter than its moment's class is counted by the message (2 Oct 2026): an After-the-visit playbook that still sends the offer it was made with reaches only who said yes to offers", async () => {
+  const url = "https://cal.example/yesterday.ics";
+  const visit = (uid, n) =>
+    [
+      "BEGIN:VEVENT",
+      `UID:${uid}`,
+      `SUMMARY:Person ${n} · Cut`,
+      `DESCRIPTION:+1 917 555 000${n}`,
+      "DTSTART;TZID=America/New_York:20260907T140000",
+      "DTEND;TZID=America/New_York:20260907T150000",
+      "END:VEVENT",
+    ].join("\r\n");
+  answers.set(url, { body: ["BEGIN:VCALENDAR", visit("v1", 1), visit("v2", 2), "END:VCALENDAR"].join("\r\n") });
+  // Both came yesterday and said yes to texts; only the first said yes to offers.
+  const all = [person(1), person(2, { marketing_consent: "unknown" }), person(3)];
+  const message = (name, category) => ({
+    tenant_id: T,
+    channel: "whatsapp",
+    name,
+    language: "en_US",
+    category,
+    meta_status: "approved",
+    body_preview: "Hi",
+    title: null,
+    variables: [],
+  });
+  const templates = [message("after_visit", "marketing"), message("after_visit_check", "utility")];
+  const playbook = (id, trigger, name) => ({ id, trigger, template_name: name, template_language: "en_US" });
+  const playbooks = [
+    playbook("pb-offer", "visited", "after_visit"),
+    playbook("pb-check", "visited", "after_visit_check"),
+    playbook("pb-month", "everyone_monthly", "after_visit"),
+  ];
+  const { pools } = await triggerPools(
+    ctxFor(tables(url, "owner", { templates }), { people_list: pagedList(all) }),
+    T,
+    {},
+    TZ,
+    NOW,
+    NO_DEALS,
+    { playbooks },
+  );
+  assert.deepEqual(
+    [pools.visited.pool, pools.visited.candidates, pools.visited.saidYes],
+    [2, 2, 2],
+    "the moment alone: their own visit needs the yes to messages, and both said it",
+  );
+  const own = pools[playbookPoolKey("pb-offer")];
+  assert.deepEqual(
+    [own.pool, own.candidates, own.saidYes, own.noYes],
+    [2, 1, 1, 1],
+    "the playbook that sends the offer: only who said yes to offers",
+  );
+  assert.deepEqual(
+    Object.keys(pools).filter((k) => k.startsWith("playbook:")),
+    [playbookPoolKey("pb-offer")],
+    "one that sends a message about the visit is the moment's own count, and a moment under offers is counted as it was",
+  );
+  // The templates unread: the playbook the message may make stricter is not counted at all, never by the class's yes.
+  const blind = await triggerPools(
+    {
+      supabase: fakeDb(
+        tables(url, "owner", { templates }),
+        { "templates.select": { message: "down" } },
+        { people_list: pagedList(all) },
+      ),
+      userId: "u1",
+      email: "ada@example.com",
+      params: {},
+    },
+    T,
+    {},
+    TZ,
+    NOW,
+    NO_DEALS,
+    { playbooks },
+  );
+  assert.equal(blind.pools[playbookPoolKey("pb-offer")], null);
+  assert.equal(blind.pools[playbookPoolKey("pb-check")], null, "each one the class could be stricter than");
+  assert.equal(blind.pools.visited.candidates, 2, "and the moments are counted as ever");
+  // The route hands the page the same, under the playbook's key: the page reads its card's count from it.
+  const out = await playbooksRoute.GET.run(
+    new Request(`http://localhost/api/v1/playbooks?workspace=${T}`),
+    ctxFor(
+      tables(url, "owner", {
+        templates,
+        playbooks: [
+          {
+            ...playbook("pb-offer", "visited", "after_visit"),
+            tenant_id: T,
+            kind: "moment",
+            name: "After the visit",
+            params: [],
+            policy_class: "reengage",
+            state: "running",
+            created_at: iso(NOW.getTime()),
+          },
+        ],
+      }),
+      { people_list: pagedList(all) },
+    ),
+  );
+  // (It counts by the wall clock, not the NOW above, so no visit yesterday is in its feed: the key is what is held here.)
+  assert.deepEqual(
+    Object.keys(out.pools).filter((k) => k.startsWith("playbook:")),
+    [playbookPoolKey("pb-offer")],
+  );
+  assert.ok(out.pools[playbookPoolKey("pb-offer")], "counted, not unread");
 });
 
 test("the runner's own read of People pages the same way, and a refused page is an error, not a short pool", async () => {
@@ -713,4 +827,67 @@ test("a proposal's moment (0006): counted by the workspace's pace where deals ar
   assert.deepEqual([read.deals_on, read.pools.proposal_waiting.pool], [true, 2]);
   const booked = await playbooksRoute.GET.run(new Request(url), ctxFor(tables(null), { people_list: pagedList(all) }));
   assert.deepEqual([booked.deals_on, booked.pools.proposal_waiting], [false, null], "a workspace whose customers book");
+});
+
+test("each moment is counted for every set of channels a playbook on it may tick (One message, every channel, step 3): WhatsApp alone as ever, and each other set the workspace can send on and the kind of message allows", async () => {
+  const url = "https://cal.example/tomorrow.ics";
+  const visit = (uid, n) =>
+    [
+      "BEGIN:VEVENT",
+      `UID:${uid}`,
+      `SUMMARY:Person ${n} · Cut`,
+      `DESCRIPTION:+1 917 555 000${n}`,
+      "DTSTART;TZID=America/New_York:20260909T140000",
+      "DTEND;TZID=America/New_York:20260909T150000",
+      "END:VEVENT",
+    ].join("\r\n");
+  answers.set(url, {
+    body: ["BEGIN:VCALENDAR", visit("v1", 1), visit("v2", 2), visit("v3", 3), "END:VCALENDAR"].join("\r\n"),
+  });
+  // All three come tomorrow and said yes to messages (on WhatsApp, the reach every such yes had); two left an address.
+  const all = [person(1, { email: "one@example.com" }), person(2), person(3, { email: "three@example.com" })];
+  const ctx = () => ctxFor(tables(url), { people_list: pagedList(all) });
+  const ready = channelsReady({
+    whatsapp: { canSend: true, refusal: null },
+    textLine: { sms_state: "active", reg_mock: false },
+    email: { mailbox: true, domain: true },
+  });
+  const from = { ready };
+  const { pools } = await triggerPools(ctx(), T, {}, TZ, NOW, NO_DEALS, from);
+  const visits = pools.visit_tomorrow;
+  assert.deepEqual(
+    [visits.candidates, visits.pool, visits.by_channel],
+    [3, 3, { whatsapp: 3, sms: 0, email: 0 }],
+    "the figures a moment always had are for WhatsApp alone",
+  );
+  assert.deepEqual(
+    visits.by.map((b) => b.channels),
+    [["sms"], ["whatsapp", "sms"], ["email"], ["whatsapp", "email"], ["sms", "email"], ["whatsapp", "sms", "email"]],
+    "every other set of the three, in the page's order",
+  );
+  const set = (...channels) => visits.by.find((b) => b.channels.join() === channels.join());
+  // Email alone: the two with an address; the third has none and nothing else to go by.
+  assert.deepEqual(
+    [set("email").candidates, set("email").no_address, set("email").by_channel],
+    [2, 1, { whatsapp: 0, sms: 0, email: 2 }],
+  );
+  // Text alone: a yes given by their own message to WhatsApp covers WhatsApp alone, so nobody's yes covers a text.
+  assert.deepEqual([set("sms").candidates, set("sms").noYes], [0, 3]);
+  // Either: each person once, on WhatsApp first; email catches nobody the WhatsApp reach had left.
+  assert.deepEqual(set("whatsapp", "email").by_channel, { whatsapp: 3, sms: 0, email: 0 });
+  // An offer carries no text and no email yet: it has nothing but WhatsApp to be counted for.
+  assert.equal(pools.everyone_monthly.by, undefined);
+  assert.equal(pools.everyone_monthly.by_channel.whatsapp, 3);
+  // Where the channels could not be read, every moment is counted as before: for WhatsApp, and nothing else offered.
+  const blind = await triggerPools(ctx(), T, {}, TZ, NOW, NO_DEALS, { ready: null });
+  assert.equal(blind.pools.visit_tomorrow.by, undefined);
+  assert.equal(blind.pools.visit_tomorrow.candidates, 3);
+  // A workspace with no number to send on counts nobody by WhatsApp: the whole of what the moment names has no channel.
+  const none = channelsReady({ whatsapp: null, textLine: null, email: { mailbox: false, domain: false } });
+  const stuck = await triggerPools(ctx(), T, {}, TZ, NOW, NO_DEALS, { ready: none });
+  assert.deepEqual(
+    [stuck.pools.visit_tomorrow.candidates, stuck.pools.visit_tomorrow.no_channel],
+    [0, 3],
+    "held for no channel, never counted as people who said no",
+  );
 });

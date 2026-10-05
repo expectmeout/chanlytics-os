@@ -16,19 +16,11 @@
  * a record whose details compose nothing. The other folds' words are its neighbours in this folder.
  */
 import { offersBookingLink } from "../no-booking-link";
-import { GuardrailsSchema, type GuardrailsInForce } from "../workspace-config/business-profile";
+import { GUARDRAIL_KEYS, type GuardrailKey, type GuardrailsInForce } from "../workspace-config/config-rules";
 import { NO_FIELDS_COMPOSED_WORDS } from "../workspace-config/resolve";
 
-/**
- * The guardrail keys the profile stores, read off the schema rather than copied
- * from it. A copy would let a new rule reach the schema without a strength here;
- * derived, `STRENGTHS` below fails to compile until somebody says how far it goes.
- *
- * Read inside a call marked pure: a top-level call is a side effect to the bundler,
- * so a bare one kept this list in the four dists that bundle contracts and never use it.
- */
-export const GUARDRAIL_KEYS = /* @__PURE__ */ (() => GuardrailsSchema.keyof().options)();
-export type GuardrailKey = (typeof GUARDRAIL_KEYS)[number];
+// The guardrail keys are config-rules.ts's, which the type test holds equal to the schema's: a new rule in the schema
+// fails to compile there, and `STRENGTHS` below fails until somebody says how far it goes.
 
 /**
  * What each channel is called, wherever this tab names one.
@@ -76,7 +68,7 @@ export interface RuleStrengthVM {
 }
 
 /*
- * Built inside a call marked pure, as GUARDRAIL_KEYS is: `channelOpens` below makes this an expression the
+ * Built inside a call marked pure: `channelOpens` below makes this an expression the
  * bundler cannot prove has no side effect, and a side effect at the top level is one it must KEEP. Left bare, this
  * table and everything it reaches shipped into the four dists that bundle contracts and never draw this tab --
  * jobs carried it six times, once per package re-bundled into it.
@@ -250,7 +242,7 @@ export function rulesKept(i: RulesKeptInputs): string[] {
  * stored prompt is also built from (prompt-blocks.ts): the two are on one page, so they are one sentence rather than
  * two that happen to agree (the plan's M-2).
  *
- * Built inside a call marked pure, as GUARDRAIL_KEYS is: a template literal with a substitution in it is an
+ * Built inside a call marked pure, as STRENGTHS is: a template literal with a substitution in it is an
  * expression the bundler must keep at the top level, and this sentence belongs to one tab of the dashboard.
  */
 const rulesWithoutFields = (noLink: boolean): string =>

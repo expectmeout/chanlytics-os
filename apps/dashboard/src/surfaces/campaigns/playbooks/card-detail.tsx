@@ -1,27 +1,36 @@
 /**
- * Campaigns › Playbooks: one playbook as a card, the detail a row opens into (moved from legacy/pages/playbook-card.jsx,
- * decision 0015; Reach out Part 2.5). Its tile and its slot are card.tsx's.
+ * Campaigns: one playbook's detail, which a moment, a line or a row of Coming up opens into (moved from
+ * legacy/pages/playbook-card.jsx, decision 0015; Reach out Part 2.5). Campaigns' home draws it in a sheet from the side
+ * (home/drawer.tsx); it was the pane beside the Playbooks list, which the home replaced (3 Oct 2026).
  *
  * One playbook: what starts it, what it sends, its clock, its mode, what its runs earned, and the verbs. A run that
  * waits for a person is approved or skipped right here, the same doors as on Today and Broadcasts.
  */
 import { useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { pipelineRoute, poolWords } from "@chanlytics/contracts";
+import { PLAYBOOK_DELETE_WORDS, pipelineRoute, poolWords } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { pageClock } from "@/legacy-bridge/zone";
-import { confirmPart, policyChipPart, statePillPart } from "../../legacy-parts";
 import { canRestoreList, gate, navigate, restoreList } from "../../legacy-verbs";
+import { Button } from "../../kit/button/button";
+import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { Menu } from "../../kit/menu/menu";
+import type { MenuItem } from "../../kit/menu/menu";
+import { StatePill } from "../../kit/pill/state-pill";
+import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { useSurface } from "../../use-surface";
-import { bcWhenWords } from "../broadcasts/when";
+import { bcWhenWords } from "../broadcasts/when-words";
 import { MessagePreview } from "../parts/message-preview";
+import { CmPane, useCmPhone } from "../parts/split";
 import type { PlaybookCardVM, PlaybookTriggerOption, PlaybooksSurface } from "./surface";
 import { playbooks as V } from "./verbs";
 import {
   PB_NONE,
   pbDay,
   pbFooter,
+  pbIcon,
   pbLangWords,
   pbMessage,
   pbNoNumberWords,
@@ -40,7 +49,7 @@ import {
 export type Flash = (flash: { tone?: string; msg: ReactNode }) => void;
 
 /** A playbook as the surface holds it. */
-export type PlaybookRow = PlaybookCardVM;
+type PlaybookRow = PlaybookCardVM;
 
 type Waiting = NonNullable<PlaybookCardVM["totals"]["waiting"]>;
 type History = PlaybookCardVM["totals"]["history"][number];
@@ -53,12 +62,10 @@ interface CardProps {
   canAct: boolean;
   onEdit: (p: PlaybookRow) => void;
   flash: Flash;
-  focus?: boolean;
-  bare?: boolean;
 }
 
 /** The trigger the surface offers for a playbook's moment, or null when the surface has no such one. */
-export function triggerOption(surface: PlaybooksSurface | undefined, id: string): PlaybookTriggerOption | null {
+function triggerOption(surface: PlaybooksSurface | undefined, id: string): PlaybookTriggerOption | null {
   return ((surface && surface.triggers) || PB_NONE).find((t) => t.id === id) || null;
 }
 
@@ -174,7 +181,7 @@ function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash }: ActsIn) {
           </>
         ),
     );
-  // The server may move the run to nine o'clock: the receipt says when it really goes (broadcasts/when.tsx bcWhenWords).
+  // The server may move the run to nine o'clock: the receipt says when it really goes (broadcasts/when-words.ts bcWhenWords).
   const approve = (waiting: Waiting) =>
     act(
       (o) => V.approveRun(waiting.id, o),
@@ -201,7 +208,7 @@ function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash }: ActsIn) {
       (o) => V.remove(p.id, o),
       () => (
         <>
-          <b>{p.name}</b> deleted — its runs stay in Broadcasts with their numbers
+          <b>{p.name}</b> {PLAYBOOK_DELETE_WORDS.done}
         </>
       ),
     );
@@ -239,15 +246,10 @@ function cardWords(c: CardCtx) {
         />
         {/* Which message this is, captioning the message itself, and in which
             language -- that was a data-tip on a chip, and no finger reaches one.
-            It opens Templates, where the same one is renamed or replaced. */}
-        <button
-          type="button"
-          className="ob-words-name"
-          onClick={() => navigate("messages")}
-          data-testid="pb-template-name"
-        >
+            It opens the Library, where the same one is renamed or replaced. */}
+        <LinkButton className="ob-words-name" onClick={() => navigate("messages")} data-testid="pb-template-name">
           {pbTitle(p.template_name)} <span className="dim">&middot; {pbLangWords(p.template_language)}</span>
-        </button>
+        </LinkButton>
       </div>
     )
   );
@@ -261,7 +263,7 @@ function sentenceCounted(c: CardCtx) {
     <>
       {" "}
       &mdash;{" "}
-      <button
+      <LinkButton
         className="ob-link"
         data-tip={
           trig && trig.kind === "visit"
@@ -275,7 +277,7 @@ function sentenceCounted(c: CardCtx) {
       >
         {noNumber ||
           `${pbPeople(p.candidates)} ${trig && trig.kind === "deal" ? poolWords(p.trigger) : "on the list"} said yes`}
-      </button>
+      </LinkButton>
       {/* Why a list with people on it can still offer nobody: one message per
           person per week, across playbooks. A bare "0 people" read as broken. */}
       {p.held > 0 ? <>, and {pbPeople(p.held)} more heard from you this week and wait</> : null}
@@ -292,8 +294,7 @@ function sentenceArchived(c: CardCtx) {
       {canAct && canRestoreList() ? (
         <>
           {" "}
-          <button
-            type="button"
+          <LinkButton
             className="ob-link"
             onClick={() =>
               acts.act(
@@ -308,7 +309,7 @@ function sentenceArchived(c: CardCtx) {
             data-testid="pb-list-restore"
           >
             Bring the list back
-          </button>
+          </LinkButton>
           , or edit the playbook to run on another.
         </>
       ) : null}
@@ -331,14 +332,9 @@ function sentenceState(c: CardCtx) {
         {reachDoor && (
           <>
             {" "}
-            <button
-              type="button"
-              className="ob-link"
-              onClick={() => navigate(reachDoor.to)}
-              data-testid="pb-reach-door"
-            >
+            <LinkButton className="ob-link" onClick={() => navigate(reachDoor.to)} data-testid="pb-reach-door">
               {reachDoor.label}
-            </button>
+            </LinkButton>
             .
           </>
         )}
@@ -385,9 +381,9 @@ function cardFacts(c: CardCtx) {
           {canAct ? (
             <>
               {" "}
-              <button type="button" className="ob-link" onClick={() => onEdit(p)} data-testid="pb-slot-wrong-edit">
+              <LinkButton className="ob-link" onClick={() => onEdit(p)} data-testid="pb-slot-wrong-edit">
                 Edit it
-              </button>
+              </LinkButton>
               , and each slot takes what it should.
             </>
           ) : null}
@@ -426,9 +422,8 @@ function cardFacts(c: CardCtx) {
 /** One run, as a line that opens as itself on Broadcasts (broadcasts/run:<id>), read by its id however old it is. */
 function historyRow(h: History) {
   return (
-    <button
+    <LinkButton
       key={h.id}
-      type="button"
       className="cl-prof-aut-hint ob-history-row"
       onClick={() => navigate(`broadcasts/run:${h.id}`)}
       data-testid="pb-run-open"
@@ -451,7 +446,7 @@ function historyRow(h: History) {
         h.state
       )}
       <Icon name="arrow-right" size={10} />
-    </button>
+    </LinkButton>
   );
 }
 
@@ -477,90 +472,135 @@ function cardHistory(c: CardCtx) {
   );
 }
 
-/** The verbs: Approve and Skip for a run waiting on a person, then Pause, Run now, Edit and Delete for a role that may. */
-function cardActions(c: CardCtx) {
-  const { p, canAct, busy, sure, skipSure, setSure, setSkipSure, waiting, acts, onEdit } = c;
-  const Confirm = confirmPart();
+/** A run waiting on a person: Approve, the card's one filled act, for every role (it says who may), and Skip, which asks. */
+function cardWaitActs(c: CardCtx) {
+  const { p, canAct, busy, skipSure, setSkipSure, waiting, acts } = c;
+  if (!waiting) return null;
+  if (canAct && skipSure) {
+    return (
+      <Confirm
+        question={`Skip this run of ${p.name}?`}
+        detail="Nothing sends, and the run closes."
+        yes="Yes, skip it"
+        danger
+        busy={busy}
+        onYes={() => acts.skip(waiting)}
+        onNo={() => setSkipSure(false)}
+        testid="pb-skip"
+      />
+    );
+  }
   return (
-    <div className="ob-actions">
-      {/* The run's Approve is where it always is for every role, and says who may; Skip stays with those who may. */}
-      {waiting && !skipSure && (
-        <button
-          className="btn btn-primary btn-sm"
-          disabled={busy}
-          onClick={() => acts.approve(waiting)}
-          data-testid="pb-approve"
-          {...(canAct ? {} : gate("approve", "approve a run"))}
-        >
-          <Icon name="check" size={12} /> Approve · {pbPeople(waiting.recipient_count)}
-        </button>
-      )}
-      {waiting && canAct && !skipSure && (
-        <button className="btn btn-sm" disabled={busy} onClick={() => setSkipSure(true)} data-testid="pb-skip">
+    <>
+      {canAct && (
+        <Button size="sm" disabled={busy} onClick={() => setSkipSure(true)} data-testid="pb-skip">
           Skip this run
-        </button>
+        </Button>
       )}
-      {waiting && canAct && skipSure && (
-        <Confirm
-          question={`Skip this run of ${p.name}?`}
-          detail="Nothing sends, and the run closes."
-          yes="Yes, skip it"
-          danger
-          busy={busy}
-          onYes={() => acts.skip(waiting)}
-          onNo={() => setSkipSure(false)}
-          testid="pb-skip"
-        />
-      )}
-      {canAct && (
-        <button className="btn btn-sm" disabled={busy} onClick={acts.toggle} data-testid="pb-pause">
-          <Icon name={p.state === "paused" ? "play" : "pause"} size={12} /> {p.state === "paused" ? "Resume" : "Pause"}
-        </button>
-      )}
-      {canAct && p.state === "running" && !waiting && (
-        <button
-          className="btn btn-sm"
-          disabled={busy}
-          onClick={acts.runNow}
-          data-tip={`Runs it now, at your request — sends unless its class is set to Never; outside ${pageClock().hours.range} it goes at ${pageClock().hours.first}`}
-          data-testid="pb-run-now"
-        >
-          <Icon name="bolt" size={12} /> Run now
-        </button>
-      )}
-      {canAct && (
-        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => onEdit(p)} data-testid="pb-edit">
-          Edit
-        </button>
-      )}
-      {canAct && !sure && (
-        <button
-          className="btn btn-ghost btn-sm danger"
-          disabled={busy}
-          onClick={() => setSure(true)}
-          data-testid="pb-delete"
-        >
-          Delete
-        </button>
-      )}
-      {canAct && sure && (
-        <Confirm
-          question={`Delete ${p.name}?`}
-          detail="Its runs stay in Broadcasts with their numbers."
-          yes="Yes, delete"
-          danger
-          busy={busy}
-          onYes={acts.remove}
-          onNo={() => setSure(false)}
-          testid="pb-delete"
-        />
-      )}
-    </div>
+      <Button
+        variant="primary"
+        size="sm"
+        disabled={busy}
+        onClick={() => void acts.approve(waiting)}
+        data-testid="pb-approve"
+        {...(canAct ? {} : gate("approve", "approve a run"))}
+      >
+        <Icon name="check" size={12} /> Approve · {pbPeople(waiting.recipient_count)}
+      </Button>
+    </>
   );
 }
 
-/** What the card holds, inside a tile or on its own: what it sends, its runs and its verbs. */
-function cardInner(c: CardCtx) {
+/**
+ * What a role that may change it does to it, at the head of its pane: Pause or Resume and Edit in words, and behind the
+ * kit's menu the two that are pressed least and cost most -- Run now, and Delete, which asks first. They were five
+ * buttons in a row under the card, the red Delete among them.
+ */
+function cardOwnActs(c: CardCtx, phone = false) {
+  const { p, canAct, busy, sure, setSure, waiting, acts, onEdit } = c;
+  if (!canAct) return null;
+  const hours = pageClock().hours;
+  // On a phone the pane's head is a capsule a thumb wide: every act is the menu's, as a thread's Actions are.
+  const words: MenuItem[] = phone
+    ? [
+        {
+          label: p.state === "paused" ? "Resume" : "Pause",
+          glyph: <Icon name={p.state === "paused" ? "play" : "pause"} size={13} />,
+          disabled: busy,
+          onSelect: () => void acts.toggle(),
+        },
+        { label: "Edit", glyph: <Icon name="pencil" size={13} />, disabled: busy, onSelect: () => onEdit(p) },
+      ]
+    : [];
+  const more: MenuItem[] = [
+    ...words,
+    ...(p.state === "running" && !waiting
+      ? [
+          {
+            label: "Run now",
+            glyph: <Icon name="bolt" size={13} />,
+            title: `Runs it now, at your request — sends unless its class is set to Never; outside ${hours.range} it goes at ${hours.first}`,
+            disabled: busy,
+            onSelect: () => void acts.runNow(),
+          },
+        ]
+      : []),
+    {
+      label: "Delete…",
+      glyph: <Icon name="x" size={13} />,
+      tone: "danger",
+      disabled: busy,
+      onSelect: () => setSure(true),
+    },
+  ];
+  return (
+    <>
+      {phone ? null : (
+        <>
+          <Button size="sm" disabled={busy} onClick={() => void acts.toggle()} data-testid="pb-pause">
+            <Icon name={p.state === "paused" ? "play" : "pause"} size={12} />{" "}
+            {p.state === "paused" ? "Resume" : "Pause"}
+          </Button>
+          <Button variant="quiet" size="sm" disabled={busy} onClick={() => onEdit(p)} data-testid="pb-edit">
+            Edit
+          </Button>
+        </>
+      )}
+      {sure ? null : (
+        <Menu
+          label={`More for ${p.name}`}
+          trigger={
+            <Button variant="quiet" size="sm" iconOnly aria-label={`More for ${p.name}`} data-testid="pb-more">
+              <Icon name="more" size={14} />
+            </Button>
+          }
+          groups={[{ items: more }]}
+        />
+      )}
+    </>
+  );
+}
+
+/** Delete, asked: the one question, where the acts were. */
+function cardDeleteAsk(c: CardCtx) {
+  const { p, canAct, busy, sure, setSure, acts } = c;
+  if (!canAct || !sure) return null;
+  return (
+    <Confirm
+      question={`Delete ${p.name}?`}
+      detail={PLAYBOOK_DELETE_WORDS.detail}
+      yes="Yes, delete"
+      danger
+      busy={busy}
+      onYes={acts.remove}
+      onNo={() => setSure(false)}
+      testid="pb-delete"
+    />
+  );
+}
+
+/** What the card says: the message beside what the rule does with it, then its runs, newest first. */
+function cardBody(c: CardCtx) {
   return (
     <>
       {/* The message first, beside what the rule does with it.
@@ -577,13 +617,12 @@ function cardInner(c: CardCtx) {
       {/* The runs themselves, newest first, from the same rows the totals are
           summed over -- every run, not the recent fifty broadcasts of any kind. */}
       {cardHistory(c)}
-
-      {cardActions(c)}
     </>
   );
 }
 
-export function PlaybookCard({ p, canAct, onEdit, flash, focus = false, bare = false }: CardProps) {
+/** A playbook's state and verbs, held once for the pane it is open in (Campaigns' home draws it in a sheet). */
+function useCard({ p, canAct, onEdit, flash }: Pick<CardProps, "p" | "canAct" | "onEdit" | "flash">): CardCtx {
   const [busy, setBusy] = useState(false);
   const [sure, setSure] = useState(false);
   // Skip asks first, as it does on Broadcasts, with a question of its own apart from the delete's.
@@ -591,52 +630,72 @@ export function PlaybookCard({ p, canAct, onEdit, flash, focus = false, bare = f
   const surface = useSurface("playbooks");
   const read = cardRead(p, surface);
   const acts = cardActs({ p, busy, setBusy, setSure, setSkipSure, flash });
-  const { status, reachWords } = read;
-  const StatePill = statePillPart();
-  const PolicyChip = policyChipPart();
-  // Inside a tile (PlaybookTile), the tile draws the name and the state; the
-  // card is its detail -- what it sends, its runs and its verbs -- under them.
-  const inner = cardInner({ ...read, p, canAct, onEdit, busy, sure, skipSure, setSure, setSkipSure, acts });
-  if (bare) {
-    return (
-      <div className="ob-card-detail">
-        <div className="ob-head ob-head-bare">
-          {reachWords && (
-            <span className="ob-reach" data-testid="pb-reach">
-              {reachWords}
-            </span>
-          )}
-          <PolicyChip cls={p.policy_class} />
-        </div>
-        {inner}
-      </div>
-    );
-  }
+  return { ...read, p, canAct, onEdit, busy, sure, skipSure, setSure, setSkipSure, acts };
+}
+
+interface PaneProps {
+  p: PlaybookRow;
+  canAct: boolean;
+  onEdit: (p: PlaybookRow) => void;
+  flash: Flash;
+  onClose: () => void;
+}
+
+/**
+ * The playbook open, in the pane beside the list (parts/split.tsx), as a thread opens beside the Inbox's: its mark, name,
+ * state and what starts it, with Pause, Edit and the rest at the head; what it sends, its sentence and its runs in the
+ * body; and a run waiting on you, or a delete asked, in the foot. It opened under its own row, which pushed every row
+ * after it down by the card's height, the list's columns over a card that had none.
+ */
+export function PlaybookPane({ p, canAct, onEdit, flash, onClose }: PaneProps) {
+  const c = useCard({ p, canAct, onEdit, flash });
+  const phone = useCmPhone();
+  const { status, reachWords, waiting } = c;
+  const asking = cardDeleteAsk(c);
+  const foot = asking ? (
+    <div className="pb-pane-foot">{asking}</div>
+  ) : waiting ? (
+    <div className="pb-pane-foot">
+      <span className="pb-pane-foot-say" data-testid="pb-waiting">
+        This run waits on you
+      </span>
+      {cardWaitActs(c)}
+    </div>
+  ) : null;
   return (
-    <section
-      id={`pb-${p.id}`}
-      className={`fl-card ob-card ${status === "approval" ? "is-approval" : ""}${focus ? " is-focus" : ""}`}
-      data-testid="pb-card"
-      data-state={status}
-    >
-      <div className="ob-head">
-        <div className="ob-titles">
-          <span className="ob-name">{p.name}</span>
-        </div>
+    <CmPane
+      testid="pb-pane"
+      className="pb-pane"
+      mark={
+        <span className="mark pb-row-mark" aria-hidden="true">
+          <Icon name={pbIcon(p.trigger)} size={13} />
+        </span>
+      }
+      title={p.name}
+      badge={
         <StatePill
           kind="playbook"
           value={status === "paused" ? "paused" : status === "approval" ? "approval" : "running"}
         />
-        {/* Beside the state, because it IS part of the state: three cards of
-            "Running" that reach nobody scan as three working playbooks. */}
-        {reachWords && (
-          <span className="ob-reach" data-testid="pb-reach">
-            {reachWords}
-          </span>
+      }
+      sub={p.triggerHint}
+      tools={cardOwnActs(c, phone)}
+      foot={foot}
+      onClose={onClose}
+    >
+      <div className="ob-card-detail" data-testid="pb-detail" data-state={status}>
+        {(reachWords || p.policy_class) && (
+          <div className="ob-head ob-head-bare">
+            {reachWords && (
+              <span className="ob-reach" data-testid="pb-reach">
+                {reachWords}
+              </span>
+            )}
+            <PolicyChip cls={p.policy_class} />
+          </div>
         )}
-        <PolicyChip cls={p.policy_class} />
+        {cardBody(c)}
       </div>
-      {inner}
-    </section>
+    </CmPane>
   );
 }

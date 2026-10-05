@@ -55,6 +55,19 @@ export interface ActivityPageDto {
 export const ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."] as const;
 
 /**
+ * Kinds, one by one, that are a record kept for Reports and that no owner reads as activity: hidden unless asked for by
+ * name. Each is named, never its family, so an owner-facing kind added under the same prefix later (an `escalation.` one)
+ * is shown and not hidden with them.
+ */
+export const ACTIVITY_NOISE_KINDS = [
+  "escalation.changed",
+  "lead.set_aside",
+  "call.transferred",
+  "booking_link.sent",
+  "channel.quality_rating",
+] as const;
+
+/**
  * Whether a row of the log is about money: an event its emitter filed under billing -- the subscription's
  * (billing.updated, .paused, .resumed, apps/edge/lib/billing/billing.ts) and a partner's share, its reversal, its payment and
  * its standing (partner.earned, .reversed, .paid, .standing_set, written by 00203/00205/00207/00214). Read from the row's
@@ -135,9 +148,13 @@ const WORDS: Record<string, string> = {
   "conversation.reopened": "A thread reopened",
   "conversation.pause_expired": "A pause ended",
   "conversation.snooze_expired": "A snooze ended",
+  "escalation.changed": "A handover's reason changed",
   "call.recorded": "A call was recorded",
+  "call.transferred": "A call was passed to a person",
+  "booking_link.sent": "The booking link was sent",
   "broadcast.sent": "A broadcast finished",
   "playbook.run": "A playbook ran",
+  "channel.quality_rating": "A WhatsApp number's quality rating changed",
   "setup.requested": "Setup was requested",
   "voice.provisioned": "The phone receptionist was provisioned",
   "line.answering": "A line started answering",
@@ -157,6 +174,8 @@ const WORDS: Record<string, string> = {
   "google.replied": "A Google review was answered",
   "mailbox.created": "The workspace's email address was set up",
   "mailbox.renamed": "The name on the workspace's email changed",
+  "mailbox.offers_paused": "Offers by email were paused",
+  "mailbox.offers_resumed": "Offers by email were turned back on",
   "sending_domain.added": "A domain to send from was added",
   "sending_domain.verified": "A domain to send from was verified",
   "sending_domain.held": "A domain to send from was held",
@@ -166,6 +185,7 @@ const WORDS: Record<string, string> = {
   "lead.round": "A search for businesses",
   "lead.no_card": "An ask no source covers yet",
   "lead.converted": "A lead is Talking",
+  "lead.set_aside": "A lead was set aside",
   // A reply to a reach-out, read (Reach out Part 5): the case below says who and what it meant.
   "reach_out.replied": "A business wrote back to a reach-out",
   "reach_out.reply_undone": "A reply read as no was undone",
@@ -233,11 +253,24 @@ function readingWords(kind: string, p: Record<string, unknown>, base: string): s
     : `${who} wrote back`;
 }
 
+/** The gates that pause a workspace's offers by email (00299), in the owner's words: which one tripped. */
+const OFFERS_PAUSED_WHY: Record<string, string> = {
+  complaints: "too many offers were marked as spam",
+  bounces: "too many offers bounced",
+};
+
+/** A workspace's offers by email were paused by a gate: the kind's words, then why where the row says. */
+function offersPausedWords(p: Record<string, unknown>, base: string): string {
+  const why = OFFERS_PAUSED_WHY[textAt(p, "reason") ?? ""];
+  return why ? `${base} · ${why}` : base;
+}
+
 /** The kinds whose sentence is written whole, by its own function. */
 const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string) => string>([
   ["import", (p) => importWords(p)],
   ["lead.converted", (p, base) => readingWords("lead.converted", p, base)],
   ["reach_out.replied", (p, base) => readingWords("reach_out.replied", p, base)],
+  ["mailbox.offers_paused", offersPausedWords],
 ]);
 
 /**
@@ -432,6 +465,7 @@ const TONES: Record<string, Tone> = {
   "broadcast.sent": "ok",
   "billing.resumed": "ok",
   "mailbox.created": "ok",
+  "mailbox.offers_resumed": "ok",
   "sending_domain.verified": "ok",
   "sending_domain.released": "ok",
   "sending_domain.resumed": "ok",
@@ -447,6 +481,7 @@ const TONES: Record<string, Tone> = {
   "google.unlinked": "warn",
   "google.disconnected": "warn",
   "sending_domain.held": "warn",
+  "mailbox.offers_paused": "warn",
   "message.send_raced_cancel": "warn",
   "ingest.allowlist_skip": "warn",
   pause_agent: "warn",
@@ -474,7 +509,10 @@ export const ACTIVITY_KINDS: readonly string[] = [...DECISION_VERBS, ...EVENT_KI
 
 /** true for a kind an owner is not shown unless they ask for it by name. */
 export function isActivityNoise(kind: string): boolean {
-  return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p));
+  return (
+    ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p)) ||
+    (ACTIVITY_NOISE_KINDS as readonly string[]).includes(kind)
+  );
 }
 
 export type { DecisionVerb as ActivityVerb };

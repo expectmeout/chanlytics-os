@@ -33,7 +33,7 @@ export const reports: Provider = async (rc, ctx) => {
   const asked = Number(ctx.view);
   const days = REPORT_RANGES.some((r) => r.days === asked) ? asked : 30;
   const r = (await load(rc, reportReader, { days })).data;
-  const vm = toReportVM(r.report);
+  const vm = toReportVM(r.report, { profile: r.profile });
   const booking = r.booking ? toBookingReportVM(r.booking) : null;
   return {
     rows: [],
@@ -65,7 +65,7 @@ async function playbookRows(rc: ReaderContext, ids: string[]) {
           p.name,
           triggerOf(p.trigger)?.label ?? p.trigger,
           p.state,
-          `next run ${nextRunLabel(p, pb.timezone, rc.now)}`,
+          `next run ${nextRunLabel(p, pb.timezone, rc.now, pb.ready?.paused === true)}`,
           `${p.totals.runs} runs, ${p.totals.sent} sent, ${p.totals.replied} replied`,
         ],
         `outbound/${id}`,

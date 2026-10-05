@@ -7,8 +7,12 @@ import {
   sendText,
   sendTemplate,
   sendEmail,
+  graphThrottled,
+  resendLimitOf,
+  SEND_MIN_MS,
   requestLeavesAs,
   addressOf,
+  type ResendLimit,
   type SendResult,
   type EmailLeftAsWhy,
   type WaConfig,
@@ -16,6 +20,7 @@ import {
   type EmailSendsAs,
   type ResendConfig,
 } from "@chanlytics/channels";
+import { isOfferByEmail } from "@chanlytics/contracts";
 import type { Channel, Delivery, Sender, Wire } from "./deliver";
 
 /**
@@ -110,11 +115,13 @@ export function whatsappWire(read: CredentialsRead<WaConfig>): Sender | null | W
 
 /**
  * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
- * on the platform's account, for everything but a cold email; "own" is one of the workspace's own verified domains on
- * the cold account, for outreach and nothing else.
+ * on the platform's account, for replies, visit messages and everything but the two below; "campaigns" is the same mailbox
+ * on the deployment's campaigns domain (the platform's account too), for offers (and the business's own news, which is one at
+ * the door: decision D2) and nothing else, so a complaint about an offer never touches the domain replies leave from; "own" is one of the workspace's own verified domains on the cold
+ * account, for outreach and nothing else.
  */
 export interface EmailRoute {
-  lane: "hosted" | "own";
+  lane: "hosted" | "campaigns" | "own";
   cfg: ResendConfig;
   as: EmailSendsAs;
 }
@@ -144,12 +151,15 @@ export function emailSender(routes: EmailRoute[], held: readonly string[] = []):
     if (!p.email) return refuse("no_frozen_request");
     if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
     const own = p.reply && p.ownEmail && p.purpose !== "outreach" ? ownRouteOf(routes, held, to, p.ownEmail) : null;
-    if (own && "route" in own) return { ...(await sendEmail(own.route.cfg, p.ownEmail!)), leftAs: "own" };
+    // The caller's own ceiling, when it has one (a batch's, Delivery.sendBy): the send never outlives it, but is never given
+    // less than a request needs: a send started when none is left would only time out with the email possibly taken.
+    const bound = p.deadlineMs === undefined ? {} : { deadlineMs: Math.max(SEND_MIN_MS, p.deadlineMs) };
+    if (own && "route" in own) return { ...(await sendEmail(own.route.cfg, p.ownEmail!, bound)), leftAs: "own" };
     const from = addressOf(p.email.from)?.address;
-    const lane = p.purpose === "outreach" ? "own" : "hosted";
+    const lane = p.purpose === "outreach" ? "own" : p.purpose === "marketing" ? "campaigns" : "hosted";
     const route = routes.find((r) => r.lane === lane && r.as.address === from);
     if (!route || !requestLeavesAs(p.email, route.as)) return refuse("request_leaves_as_another_sender");
-    const sent = await sendEmail(route.cfg, p.email);
+    const sent = await sendEmail(route.cfg, p.email, bound);
     return own ? { ...sent, leftAs: "mailbox", leftAsWhy: own.why } : sent;
   };
 }
@@ -174,6 +184,25 @@ function ownRouteOf(
   return requestLeavesAs(twin, route.as) ? { route } : { why: "route_refuses_twin" };
 }
 
+/**
+ * What the provider's failure came to, named here at the wire, so a caller says it in words or waits without reading
+ * the provider's answer itself: a limit of the mail provider's own (too fast, or the day's sending used up; channels
+ * resendLimitOf), WhatsApp's "not now" (graphThrottled), or a send that may have gone all the same (provider-fetch
+ * outcome unknown). A failure that is ours -- no wire, no credentials -- is none of them.
+ */
+export function namedFailure(
+  channel: Channel,
+  sent: SendResult & { reason?: string },
+): { limit?: ResendLimit; throttled?: true; mayHaveGone?: true } {
+  if (sent.reason) return {};
+  const gone = sent.outcome === "unknown" ? { mayHaveGone: true as const } : {};
+  if (channel === "email") {
+    const limit = resendLimitOf(sent);
+    return limit ? { limit, ...gone } : gone;
+  }
+  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true, ...gone } : gone;
+}
+
 /** What the wire said, or why there was none to ask. */
 type WireResult = SendResult & { reason?: "no_sender_for_channel" | "no_credentials" };
 
@@ -184,7 +213,12 @@ type WireResult = SendResult & { reason?: "no_sender_for_channel" | "no_credenti
  * try. Not the same fact as `null`. Only a person's reply (`asReply`) may leave by an own domain (G15); any other send
  * never carries the twin. A send the provider did not take throws too, for a delivery that asked (NotTakenError).
  */
-export async function putOnWire(wire: Wire, d: Delivery, asReply: boolean): Promise<WireResult> {
+export async function putOnWire(
+  wire: Wire,
+  d: Delivery,
+  asReply: boolean,
+  now: (() => number) | undefined,
+): Promise<WireResult> {
   const send = wire[d.channel];
   if (isWireUnavailable(send)) throw new WireUnavailableError(d.channel, send.error);
   if (send === undefined)
@@ -192,11 +226,17 @@ export async function putOnWire(wire: Wire, d: Delivery, asReply: boolean): Prom
   if (send === null)
     return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
   const reply = d.email && asReply ? { reply: true, ownEmail: d.ownEmail } : {};
+  // What is left of the caller's ceiling at this moment, not when the delivery was made: the door's reads came between.
+  const bound = d.email && d.sendBy !== undefined ? { deadlineMs: Math.max(0, d.sendBy - (now ?? Date.now)()) } : {};
   const sent = await send(d.to, {
     body: d.body,
     template: d.template,
-    ...(d.email ? { email: d.email, purpose: d.purpose } : {}),
+    // The lane an email takes is chosen by the purpose it is handed (emailSender): an offer by email leaves by the campaigns
+    // domain, and the business's own news is one at the door (decision D2, contracts isOfferByEmail), so the wire is told it
+    // is, whatever its template's category says. Anything else keeps the purpose it asked with.
+    ...(d.email ? { email: d.email, purpose: isOfferByEmail(d) ? "marketing" : d.purpose } : {}),
     ...reply,
+    ...bound,
   });
   // Not taken, for a caller that will try again (Delivery.holdIfNotTaken): nothing is written, the row stays queued.
   if (!sent.ok && sent.outcome === "retryable" && d.holdIfNotTaken) throw new NotTakenError(d.channel, sent);

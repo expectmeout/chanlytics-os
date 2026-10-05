@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../shell/address/_address.mjs";
-import { kitPages } from "../_legacy-react.mjs";
+import { kitPages, useStubHooks } from "../_legacy-react.mjs";
 import {
   PROPOSAL_GATE,
   ROLE_PERMS,
@@ -29,23 +29,9 @@ import {
   groundCitations,
   normalizeAnswer,
   LeadSearchPlanSchema,
-  LEAD_COUNT_CHOICES,
-  LEAD_QUESTION_WAIT_LINE,
-  leadEndingLine,
-  leadPlanAsk,
-  leadPlanFacts,
-  leadPlanLikely,
   leadQuestionRoute,
   leadsRoute,
-  planArea,
-  planCeiling,
-  planMinutes,
-  planSaid,
   planSentence,
-  planVersionOf,
-  planWhere,
-  planWho,
-  planWords,
 } from "@chanlytics/contracts";
 
 /* ---------------------------------- the window ---------------------------------- */
@@ -200,8 +186,11 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-// Confirm is the kit's (surfaces/kit/confirm), which seed-globals publishes as window.Confirm.
+// Confirm is the kit's (surfaces/kit/confirm), which seed-globals publishes as window.Confirm, and so is the one
+// recogniser (surfaces/kit/talk), as window.useHoldToTalk, over this file's own React.
+useStubHooks(globalThis.React);
 globalThis.Confirm = globalThis.window.Confirm = kitPages.Confirm;
+globalThis.window.useHoldToTalk = kitPages.useHoldToTalk;
 /** What the palette flashed, in order. */
 const flashed = [];
 Object.assign(globalThis.window, {
@@ -215,8 +204,10 @@ await import("../../../../apps/dashboard/src/legacy/pages/ask-turn.jsx");
 await import("../../../../apps/dashboard/src/legacy/pages/ask-real.jsx");
 // Ask's face in the line (components/ask-face.jsx): drawn in every case; it moves only where a case installs the bridge.
 await import("../../../../apps/dashboard/src/legacy/components/ask-face.jsx");
-// A lead search's card on the rail is the finder's own plan card (leads-finder.jsx LeadPlanCard, hookless).
-await import("../../../../apps/dashboard/src/legacy/pages/leads-finder.jsx");
+// A lead search's card on the rail is the finder's own plan card (surfaces/leads/finder/plan-card.tsx, hookless), which
+// Ask's palette draws by name until it moves: what seed-globals publishes (surfaces/leads/globals.ts).
+const { LEADS_GLOBALS } = await import("../../../../apps/dashboard/src/surfaces/leads/globals.ts");
+Object.assign(globalThis.window, LEADS_GLOBALS);
 const { askPalette, quickAnswer, surfaceFor } =
   await import("../../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
 const { askSpeech } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/speech.ts");
@@ -365,7 +356,8 @@ const ask = (threads = []) => {
   globalThis.window.__ask = {
     surfaceFor,
     ...palette,
-    ...askSpeech(globalThis.window),
+    // The one-way speech, over a route nothing answers here: a test that reads aloud stubs speak/canSpeak itself.
+    ...askSpeech(globalThis.window, { api: { speech: async () => new Blob() } }),
     quick: quickAnswer(palette, openings),
     answerText,
     cardOpenRoute,
@@ -1909,21 +1901,64 @@ test("on a phone the newest answer carries Copy, which copies its words; an earl
   }
 });
 
+/** Ask's voice stood in for (legacy-bridge/ask/speech.ts as the Line reads it off window.__ask): the clip lands when the test says. */
+const speechStub = () => {
+  const spoken = [];
+  let stops = 0;
+  let state = "idle";
+  const watchers = new Set();
+  const move = (s) => {
+    state = s;
+    for (const w of watchers) w();
+  };
+  let land = null;
+  let fail = null;
+  const stub = {
+    canSpeak: () => true,
+    state: () => state,
+    watchSpeech: (on) => {
+      watchers.add(on);
+      return () => watchers.delete(on);
+    },
+    speak: (text, purpose) => {
+      spoken.push({ text, purpose });
+      move("loading");
+      return new Promise((resolve, reject) => {
+        land = () => {
+          move("speaking");
+          resolve();
+        };
+        fail = (why) => {
+          move("idle");
+          reject(new Error(why));
+        };
+      });
+    },
+    stopSpeaking: () => {
+      stops += 1;
+      move("idle");
+    },
+  };
+  return {
+    stub,
+    spoken,
+    get stops() {
+      return stops;
+    },
+    land: () => land && land(),
+    fail: (why) => fail && fail(why),
+    ends: () => move("idle"),
+  };
+};
+
 test("REGRESSION: on a phone an answer read aloud stops when another question is asked or another conversation is opened -- it went on over the next answer, whose Read then said Stop (D14)", async () => {
   const ph = phoneWindow();
   const props = { open: true, onClose() {} };
-  const voice = { spoken: [], stops: 0 };
+  const s = speechStub();
   try {
     const calls = ask([TH(1)]);
     Object.assign(globalThis.window.__ask, {
-      canSpeak: () => true,
-      speak: (text) => {
-        voice.spoken.push(text);
-        return true;
-      },
-      stopSpeaking: () => {
-        voice.stops += 1;
-      },
+      ...s.stub,
       send: async (input, on) => {
         calls.sent.push(input.text);
         const n = calls.sent.length;
@@ -1935,26 +1970,86 @@ test("REGRESSION: on a phone an answer read aloud stops when another question is
     let tree = await later(Palette, props);
     tree = await asks(tree, props, "first?");
     press(byTestId(nowOf(tree), "ask-read"));
+    s.land();
     tree = await later(Palette, props);
-    assert.deepEqual(voice.spoken, ["Answer 1."], "the answer, read aloud");
+    assert.deepEqual(s.spoken, [{ text: "Answer 1.", purpose: "answer" }], "the answer's say, read in Ask's voice");
     assert.equal(byTestId(nowOf(tree), "ask-read").props["aria-pressed"], true);
-    let stops = voice.stops;
+    let stops = s.stops;
     tree = await asks(tree, props, "second?");
-    assert.ok(voice.stops > stops, "a question asked: the reading stops");
+    assert.ok(s.stops > stops, "a question asked: the reading stops");
     assert.equal(
       byTestId(nowOf(tree), "ask-read").props["aria-pressed"],
       false,
       "and the new answer's Read is not pressed",
     );
     press(byTestId(nowOf(tree), "ask-read"));
+    s.land();
     tree = await later(Palette, props);
-    stops = voice.stops;
+    stops = s.stops;
     press(byTestId(tree, "ask-earlier"));
     tree = await later(Palette, props);
     press(byTestId(tree, "ask-row-thread"));
     tree = await later(Palette, props);
     assert.equal(textOf(byTestId(nowOf(tree), "ask-say")), "The answer to Question 1.", "another conversation is open");
-    assert.ok(voice.stops > stops, "and the reading stops");
+    assert.ok(s.stops > stops, "and the reading stops");
+  } finally {
+    await closes();
+    ph.restore();
+  }
+});
+
+test("Read aloud speaks the answer's say in Ask's one voice: the button says it is getting the voice until the clip plays, Stop while it does, and a press then stops it; a clip that could not be made says why, in the server's words, and nothing else speaks", async () => {
+  const ph = phoneWindow();
+  const props = { open: true, onClose() {} };
+  const s = speechStub();
+  try {
+    const calls = ask([TH(1)]);
+    Object.assign(globalThis.window.__ask, {
+      ...s.stub,
+      send: async (input, on) => {
+        calls.sent.push(input.text);
+        on({ t: "thread", id: TH(5).id, title: input.text });
+        on({ t: "final", message: said("m-1", "Answer 1.") });
+      },
+    });
+    render(Palette, props);
+    let tree = await later(Palette, props);
+    tree = await asks(tree, props, "first?");
+    const flashes = flashed.length;
+    press(byTestId(nowOf(tree), "ask-read"));
+    tree = await later(Palette, props);
+    assert.deepEqual(
+      s.spoken,
+      [{ text: "Answer 1.", purpose: "answer" }],
+      "one clip asked for: the say, not the whole text",
+    );
+    let read = byTestId(nowOf(tree), "ask-read");
+    assert.equal(read.props["aria-busy"], true, "getting the voice until the clip plays");
+    assert.equal(read.props["aria-pressed"], false, "not Stop yet");
+    s.land();
+    tree = await later(Palette, props);
+    read = byTestId(nowOf(tree), "ask-read");
+    assert.equal(read.props["aria-pressed"], true, "Stop while it plays");
+    assert.equal(read.props["aria-busy"], undefined);
+    const stops = s.stops;
+    press(read);
+    tree = await later(Palette, props);
+    assert.ok(s.stops > stops, "a press stops the clip");
+    assert.equal(byTestId(nowOf(tree), "ask-read").props["aria-pressed"], false);
+    assert.equal(flashed.length, flashes, "nothing said: it worked");
+    // The clip could not be made (the mint refused, the vendor down): why, once, in the server's words; nothing else speaks.
+    press(byTestId(nowOf(tree), "ask-read"));
+    s.fail("Voice is off while this workspace is paused or its plan has ended.");
+    tree = await later(Palette, props);
+    assert.equal(flashed.length, flashes + 1, "one flash");
+    assert.match(textOf(flashed.at(-1).msg), /paused or its plan has ended/, "the server's words");
+    assert.equal(flashed.at(-1).tone, "danger");
+    assert.equal(byTestId(nowOf(tree), "ask-read").props["aria-pressed"], false, "and Read is at rest again");
+    assert.equal(
+      "speechSynthesis" in globalThis.window && globalThis.window.speechSynthesis,
+      false,
+      "the browser's own voice is never asked",
+    );
   } finally {
     await closes();
     ph.restore();
@@ -2096,6 +2191,100 @@ test("the thread's arithmetic: the newest question stands a breath under the thr
   assert.equal(H.latestShown({ qTop: 560, scrollTop: 0, clientHeight: 600 }), false, "its first line in sight");
 });
 
+test("a question spoken where the agent's session cannot come up (no microphone for the agent, a mint refused) is still answered aloud, by the clip: the answer's say goes to Ask's voice as it lands, with Read showing it is getting the voice then Stop; a typed question stays quiet (the spec's §3.5 as amended 4 Oct)", async () => {
+  const ph = phoneWindow();
+  const props = { open: true, onClose() {} };
+  const s = speechStub();
+  const recs = [];
+  globalThis.window.SpeechRecognition = class {
+    constructor() {
+      recs.push(this);
+    }
+    start() {}
+    stop() {
+      this.onend();
+    }
+  };
+  const hears = (rec, words) => {
+    const r = [{ transcript: words }];
+    r.isFinal = true;
+    rec.onresult({ results: [r] });
+  };
+  const down = () => ({ ...pressOf(), pointerId: 7, currentTarget: { setPointerCapture: () => {} } });
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    const calls = ask([]);
+    Object.assign(globalThis.window.__ask, {
+      ...s.stub,
+      canVoice: () => false,
+      send: async (input, on) => {
+        calls.sent.push(input.text);
+        const n = calls.sent.length;
+        on({ t: "thread", id: TH(5).id, title: input.text });
+        on({ t: "final", message: said(`m-${n}`, `Answer ${n}.`) });
+      },
+    });
+    render(Palette, props);
+    let tree = await later(Palette, props);
+    // A hold dictates; the recogniser hears the question and the lift asks it (no agent here: the typed way).
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    await wait(340);
+    assert.equal(recs.length, 1, "the hold dictates");
+    hears(recs[0], "how did the week go");
+    tree = await later(Palette, props);
+    byTestId(tree, "ask-talk").props.onPointerUp();
+    for (let i = 0; i < 4; i++) tree = await later(Palette, props);
+    assert.deepEqual(calls.sent, ["how did the week go"], "the words heard are asked");
+    assert.deepEqual(
+      s.spoken,
+      [{ text: "Answer 1.", purpose: "answer" }],
+      "and the answer's say is read aloud by itself, nobody pressing Read",
+    );
+    let read = byTestId(nowOf(tree), "ask-read");
+    assert.equal(read.props["aria-busy"], true, "Read says it is getting the voice");
+    s.land();
+    tree = await later(Palette, props);
+    read = byTestId(nowOf(tree), "ask-read");
+    assert.equal(read.props["aria-pressed"], true, "then Stop while it plays");
+    // A typed question: the clip stops with the asking (one voice at a time) and the new answer is not read aloud.
+    const stops = s.stops;
+    tree = await asks(tree, props, "and the month?");
+    assert.ok(s.stops > stops, "the typed question stops the clip");
+    assert.deepEqual(calls.sent, ["how did the week go", "and the month?"]);
+    assert.equal(s.spoken.length, 1, "a typed question's answer stays quiet");
+    assert.equal(byTestId(nowOf(tree), "ask-read").props["aria-pressed"], false, "Read at rest, there to press");
+  } finally {
+    await closes();
+    delete globalThis.window.SpeechRecognition;
+    ph.restore();
+  }
+});
+
+test("the Line's recogniser listens in the Line's language: Spanish where the Line speaks it, the browser's own elsewhere", () => {
+  const H = globalThis.window.AskHooks;
+  const langs = [];
+  globalThis.window.SpeechRecognition = class {
+    start() {
+      langs.push(this.lang);
+    }
+    stop() {}
+  };
+  try {
+    for (const lang of ["es", "en"]) {
+      let talk;
+      const Probe = () => {
+        talk = H.useAskTalk({ lang, onWords() {}, onHeard() {}, disabled: false });
+        return null;
+      };
+      render(Probe, {});
+      talk.start();
+    }
+    assert.deepEqual(langs, ["es-ES", navigator.language || "en-US"]);
+  } finally {
+    delete globalThis.window.SpeechRecognition;
+  }
+});
+
 test("on a phone the mic keeps the finger: the lift asks what was heard, and Type instead leaves it in the field", async () => {
   const ph = phoneWindow();
   const recs = [];
@@ -2150,6 +2339,219 @@ test("on a phone the mic keeps the finger: the lift asks what was heard, and Typ
     byTestId(tree, "ask-talk").props.onPointerUp();
     for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
     assert.deepEqual(calls.sent, ["how did the weekend go"], "the lift off the mic asks");
+  } finally {
+    await closes();
+    delete globalThis.window.SpeechRecognition;
+    ph.restore();
+  }
+});
+
+test("the hold is the one mic: the press asks for the agent's session and starts the recogniser at once, the lift sends the words heard to the agent when it is up and the Line hears the question from the module; the agent's answer streams in as it speaks, a ring on the mic; a typed question is answered in text alone and ends the session", async () => {
+  const ph = phoneWindow();
+  const recs = [];
+  globalThis.window.SpeechRecognition = class {
+    constructor() {
+      recs.push(this);
+    }
+    start() {}
+    stop() {
+      this.onend();
+    }
+  };
+  const hears = (rec, words) => {
+    const r = [{ transcript: words }];
+    r.isFinal = true;
+    rec.onresult({ results: [r] });
+  };
+  const down = () => ({ ...pressOf(), pointerId: 7, currentTarget: { setPointerCapture: () => {} } });
+  const ensured = [];
+  const spoken = [];
+  const stops = [];
+  const hushed = [];
+  let listener = null;
+  try {
+    const calls = ask([]);
+    Object.assign(globalThis.window.__ask, {
+      canVoice: () => true,
+      voiceUp: () => ensured.length > 0,
+      voiceThread: () => "t-voice",
+      ensureVoice: async (input, on) => {
+        ensured.push(input);
+        listener = on;
+        return { threadId: "t-voice", title: "Voice" };
+      },
+      soonVoice: async (input, on) => {
+        listener = on;
+        return { threadId: "t-voice", title: "Voice" };
+      },
+      sayVoice: (text) => {
+        spoken.push(text);
+        return true;
+      },
+      hushVoice: (on) => hushed.push(on),
+      stopVoice: async (reason) => {
+        stops.push(reason);
+      },
+    });
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    const mic = byTestId(tree, "ask-talk");
+    assert.ok(mic, "the mic, held to talk");
+    assert.equal(byTestId(tree, "ask-voice"), null, "no tap, no End: one mic");
+    mic.props.onPointerDown(down());
+    assert.equal(recs.length, 1, "the press dictates at once: no beat to wait");
+    assert.equal(ensured.length, 1, "and asks for the agent's session");
+    assert.equal(ensured[0].threadId, null, "on no thread yet");
+    assert.deepEqual(hushed, [true], "the agent's voice held down while the person talks");
+    hears(recs[0], "how did the week go");
+    tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerUp();
+    for (let i = 0; i < 4; i++) tree = await later(Palette, OPEN);
+    assert.deepEqual(spoken, ["how did the week go"], "the lift's words go to the agent as the person's turn");
+    assert.deepEqual(calls.sent, [], "and not the typed way");
+    assert.deepEqual(hushed, [true, false], "the voice back up on the lift");
+    // The module tells the Line the question (the vendor sends no transcript of a text turn), and the agent's words
+    // stream in as it speaks them; the mic wears a ring meanwhile.
+    listener({ t: "question", text: "how did the week go" });
+    listener({ t: "mode", mode: "speaking" });
+    listener({ t: "say", headline: "Two people need you.", detail: "" });
+    tree = await later(Palette, OPEN);
+    assert.equal(
+      byTestId(tree, "ask-talk").props["data-state"],
+      "speaking",
+      "a ring on the mic while the agent speaks",
+    );
+    const shown = textOf(tree);
+    assert.ok(shown.includes("how did the week go"), "the question on the line");
+    assert.ok(shown.includes("Two people need you."), "and the answer as it is spoken");
+    listener({ t: "mode", mode: "listening" });
+    listener({ t: "landed" });
+    tree = await later(Palette, OPEN);
+    assert.equal(byTestId(tree, "ask-talk").props["data-state"], undefined, "the ring gone with the voice");
+    // A second hold on the same thread: the session running, the words go straight to it.
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    hears(recs[1], "and the month");
+    tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerUp();
+    for (let i = 0; i < 4; i++) tree = await later(Palette, OPEN);
+    assert.deepEqual(spoken, ["how did the week go", "and the month"]);
+    assert.equal(ensured.at(-1).threadId, "t-voice", "the hold names the thread the session is on");
+    // Typed: answered in text alone, and the session ends (one voice at a time).
+    tree = await asks(tree, OPEN, "and last year?");
+    assert.deepEqual(stops, ["typed"], "a typed question ends the session");
+    assert.equal(spoken.length, 2, "and goes the typed way");
+  } finally {
+    await closes();
+    delete globalThis.window.SpeechRecognition;
+    ph.restore();
+  }
+});
+
+test("a session still connecting is ended as one that is up is: by a typed question, and by the Line closing; it was left to come up with nobody using it", async () => {
+  const ph = phoneWindow();
+  const recs = [];
+  globalThis.window.SpeechRecognition = class {
+    constructor() {
+      recs.push(this);
+    }
+    start() {}
+    stop() {
+      this.onend();
+    }
+  };
+  const down = () => ({ ...pressOf(), pointerId: 7, currentTarget: { setPointerCapture: () => {} } });
+  const stops = [];
+  try {
+    ask([]);
+    Object.assign(globalThis.window.__ask, {
+      canVoice: () => true,
+      voiceUp: () => false,
+      voiceThread: () => null,
+      // The vendor is slow: the session the press asked for never lands while this test runs.
+      ensureVoice: () => new Promise(() => {}),
+      soonVoice: async () => null,
+      sayVoice: () => false,
+      hushVoice: () => {},
+      stopVoice: async (reason) => {
+        stops.push(reason);
+      },
+    });
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    // A press and a lift with nothing heard: the session is on its way, and the person types instead.
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerUp();
+    tree = await later(Palette, OPEN);
+    tree = await asks(tree, OPEN, "who wrote today?");
+    assert.deepEqual(stops, ["typed"], "a typed question ends the session on its way");
+    // Another press, and the Line closes under it.
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerUp();
+    tree = await later(Palette, OPEN);
+    await closes();
+    assert.deepEqual(stops, ["typed", "navigated"], "and so does the Line closing");
+  } finally {
+    await closes();
+    delete globalThis.window.SpeechRecognition;
+    ph.restore();
+  }
+});
+
+test("a press while Ask is still thinking of a spoken answer does not hold the agent's voice down: the recogniser cannot listen then, and the press swallowed the answer's first words", async () => {
+  const ph = phoneWindow();
+  const recs = [];
+  globalThis.window.SpeechRecognition = class {
+    constructor() {
+      recs.push(this);
+    }
+    start() {}
+    stop() {
+      this.onend();
+    }
+  };
+  const hears = (rec, words) => {
+    const r = [{ transcript: words }];
+    r.isFinal = true;
+    rec.onresult({ results: [r] });
+  };
+  const down = () => ({ ...pressOf(), pointerId: 7, currentTarget: { setPointerCapture: () => {} } });
+  const hushed = [];
+  let listener = null;
+  try {
+    ask([]);
+    Object.assign(globalThis.window.__ask, {
+      canVoice: () => true,
+      voiceUp: () => true,
+      voiceThread: () => "t-voice",
+      ensureVoice: async (input, on) => {
+        listener = on;
+        return { threadId: "t-voice", title: "Voice" };
+      },
+      soonVoice: async (input, on) => {
+        listener = on;
+        return { threadId: "t-voice", title: "Voice" };
+      },
+      sayVoice: () => true,
+      hushVoice: (on) => hushed.push(on),
+      stopVoice: async () => {},
+    });
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    hears(recs[0], "how did the week go");
+    tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerUp();
+    for (let i = 0; i < 4; i++) tree = await later(Palette, OPEN);
+    listener({ t: "question", text: "how did the week go" });
+    tree = await later(Palette, OPEN);
+    assert.deepEqual(hushed, [true, false], "the first hold: down, and back up");
+    // Thinking: the answer has not landed. A press now starts no recogniser, and must not mute what is about to be said.
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    tree = await later(Palette, OPEN);
+    assert.equal(recs.length, 1, "no recogniser while a turn runs");
+    assert.deepEqual(hushed, [true, false], "and the agent's voice is not held down under a press that hears nothing");
   } finally {
     await closes();
     delete globalThis.window.SpeechRecognition;
@@ -2702,7 +3104,8 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
   for (const [words, to] of [
     ["calendar", "calendar"],
     ["lists", "clients"],
-    ["playbooks", "outbound"],
+    ["playbooks", "campaigns"], // the Playbooks list is Campaigns' home (contracts doorOf); the old name still finds it
+    ["campaigns", "campaigns"],
     ["broadcasts", "broadcasts"],
     ["messages", "messages"],
     ["setup", "start"],
@@ -2766,32 +3169,12 @@ const LEAD_CARD = {
   payload: { plan: LEAD_PLAN, view: { title: "Find 200 personal trainers" }, facts: LEAD_FACTS },
   undo: "Stop the search",
 };
-/** The derivations the plan card reads off the window (seed-globals.ts __LEAD_VM), so the card on the rail is the finder's own. */
-const LEAD_VM = {
-  planWords,
-  planSaid,
-  planWhere,
-  planWho,
-  planArea,
-  planMinutes,
-  planCeiling,
-  planSentence,
-  planVersionOf,
-  LEAD_COUNT_CHOICES,
-  leadEndingLine,
-  leadPlanLikely,
-  leadPlanFacts,
-  leadPlanAsk,
-  LEAD_QUESTION_WAIT_LINE,
-};
-
 test("on Leads the Line is the finder: describe the businesses, Find businesses with the day's chip and the consent line; the words go as typed on the leads surface; the card puts them back to change and opens the search once approved", async () => {
   const hash = globalThis.window.location.hash;
   const chanly = globalThis.window.CHANLY;
   const went = [];
   globalThis.window.location.hash = "#/clients/leads";
   globalThis.window.__LEADS = { suggestions: { items: [{ words: "100 nail salons in Queens, NY" }] }, searches: [] };
-  globalThis.window.__LEAD_VM = LEAD_VM;
   globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
   try {
     ask([]);
@@ -2872,7 +3255,6 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
     globalThis.window.location.hash = hash;
     globalThis.window.CHANLY = chanly;
     delete globalThis.window.__LEADS;
-    delete globalThis.window.__LEAD_VM;
   }
 });
 
@@ -2882,7 +3264,6 @@ test("on Leads a card that answers a search commits through Ask's door with no u
   const went = [];
   globalThis.window.location.hash = "#/clients/leads";
   globalThis.window.__LEADS = { suggestions: { items: [] }, searches: [] };
-  globalThis.window.__LEAD_VM = LEAD_VM;
   globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
   const answering = {
     ...LEAD_CARD,
@@ -2941,7 +3322,6 @@ test("on Leads a card that answers a search commits through Ask's door with no u
     globalThis.window.location.hash = hash;
     globalThis.window.CHANLY = chanly;
     delete globalThis.window.__LEADS;
-    delete globalThis.window.__LEAD_VM;
   }
 });
 
@@ -3071,10 +3451,15 @@ test("the disc's dot is the usage's standing alone: nothing with no usage surfac
 
 /* ------------------------------ the name a page went by ------------------------------ */
 
-test("a page is found by the name it goes by AND by the one it used to: 'templates' and 'messages' both land there", () => {
-  const byLabel = askJump("templates", ASK_PAGES);
+test("a page is found by the name it goes by AND by the one it used to: 'library', 'templates' and 'messages' all land there", () => {
+  const byLabel = askJump("library", ASK_PAGES);
   assert.equal(byLabel[0]?.to, "messages", "the label first");
-  assert.equal(byLabel[0]?.label, "Templates");
+  assert.equal(byLabel[0]?.label, "Library");
+  // The Library was Templates, and before that Messages; Sent was Broadcasts: each name still finds its room (campaign rooms, 3 Oct).
+  assert.equal(askJump("templates", ASK_PAGES)[0]?.to, "messages", "the name it went by");
+  const sent = askJump("sent", ASK_PAGES);
+  assert.deepEqual([sent[0]?.label, sent[0]?.to], ["Sent", "broadcasts"], "the label first");
+  assert.equal(askJump("broadcasts", ASK_PAGES)[0]?.to, "broadcasts", "the name it went by");
   const byOldName = askJump("messages", ASK_PAGES);
   assert.ok(
     byOldName.some((j) => j.to === "messages"),

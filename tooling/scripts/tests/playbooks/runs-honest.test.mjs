@@ -1,16 +1,18 @@
 /**
- * A run you can open: every door to one broadcast lands on it, and a playbook's card shows what it sends.
+ * A run you can open: every door to one broadcast lands on it, and a playbook's detail shows what it sends.
  *
  * - A playbook's runs were dead text, and "Its runs in Broadcasts" opened the page of every broadcast, which could
  *   name none of them (the wiring audit's C9); Today's run rows opened Playbooks or that same page (A21).
  * - The broadcast detail said "Couldn't be read right now." with nothing to press, never re-read while a send went
  *   out, and would have offered a Retry for a broadcast that is not in the workspace at all (C23).
- * - A card named its template and never showed the words its runs send (C10); Skip this run fired on one click,
- *   when Broadcasts asks first (C16); a visit reminder's card had no policy chip, its class (booking) being looked
+ * - A playbook's detail named its template and never showed the words its runs send (C10); Skip this run fired on one
+ *   click, when Broadcasts asks first (C16); a visit reminder's had no policy chip, its class (booking) being looked
  *   up as a row id (book) (C18); the composer's no-template hint named Messages as plain words (C19).
  * - Run now said "sending now" over a run the server had moved to nine o'clock (C7).
  * Run against the pages (TSX, apps/dashboard/src/surfaces/campaigns) on a stub React, over the view models the seam holds
- * (surface-values.ts), their verbs the modules' own; Today's run rows are the shell's, still JSX.
+ * (surface-values.ts), their verbs the modules' own; Today's run rows are the shell's, still JSX. A playbook's detail is
+ * `PlaybookPane` (the card the Playbooks list drew in its row is gone, 3 Oct 2026: Campaigns' home opens the pane in a
+ * sheet), and the composer is the home's `new:every` address.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -167,6 +169,7 @@ const playbooksSurface = (over = {}) => ({
       cls: "reengage",
       list: "quiet_30",
       kind: "list",
+      offered: true,
       candidates: 4,
       held: 0,
       named: { pool: 6, noYes: 2, stopped: 0, noNumber: 0, saidYes: 4 },
@@ -277,17 +280,30 @@ installPolicyStore(globalThis.window);
 // Today's queue and card (TSX since decision 0015): the day comes over the seam, the rows a run needs off the window.
 const { AgentCommand } = await import(`${S}/surfaces/today/pages/queue.tsx`);
 const { TodayBriefPane } = await import(`${S}/surfaces/today/pages/brief-pane.tsx`);
-const { standingSaid } = await import(`${S}/surfaces/kit/head/standing.ts`);
 // The moved surfaces: TSX, drawn over the values the seam holds, their verbs imported.
 const { BroadcastsPage } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
-const { PlaybooksPage } = await import(`${S}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
-const { PlaybookCard } = await import(`${S}/surfaces/campaigns/playbooks/card-detail.tsx`);
+const { CampaignsHome } = await import(`${S}/surfaces/campaigns/home/home-page.tsx`);
+const { PlaybookPane } = await import(`${S}/surfaces/campaigns/playbooks/card-detail.tsx`);
+const { playbooksSample } = await import(`${S}/surfaces/campaigns/playbooks/sample.ts`);
+const { Menu } = await import(`${S}/surfaces/kit/menu/menu.tsx`);
+const { Picker } = await import(`${S}/surfaces/kit/picker/picker.tsx`);
+/** One of the composer's choices, the kit's Picker (surfaces/kit/picker/), by its test id. */
+const pickerOf = (tree, testid) => find(tree, (n) => n.type === Picker && n.props["data-testid"] === testid);
+/** The kit menu's item by its words (the ⋯ beside Pause and Edit, where Run now and Delete live): what a press does. */
+const moreItem = (tree, label) => {
+  const menu = find(tree, (n) => n.type === Menu);
+  const item = menu && menu.props.groups.flatMap((g) => g.items || []).find((i) => i.label === label);
+  assert.ok(item, `the ⋯ menu offers ${label}`);
+  return item;
+};
 const { broadcasts } = await import(`${S}/surfaces/campaigns/broadcasts/verbs.ts`);
 const { playbooks } = await import(`${S}/surfaces/campaigns/playbooks/verbs.ts`);
 const { playbooksOverride } = await import(`${S}/surfaces/campaigns/playbooks/surface.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 
 const buttonsSaying = (tree, words) => all(tree, (n) => n.type === "button" && textOf(n).trim() === words);
+/** A run's name as its pane's head says it (CmPane's title, an h2's first child; its state is the second): where the page's h1 was. */
+const paneTitle = (tree) => textOf(find(byTestId(tree, "bc-run-solo"), (n) => n.type === "h2").props.children[0]);
 /** A fresh mount: nothing kept from the last page, no listener left behind by it. */
 const fresh = () => {
   freshTree();
@@ -316,20 +332,31 @@ const page = (props) => {
   return BroadcastsPage(props);
 };
 const again = (props) => drawAgain(() => BroadcastsPage(props));
-const cardOf = (p) => PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
-const card = (p) => {
+/** A playbook's detail as the home's drawer draws it (home/drawer.tsx): the pane, its body the card's own words and verbs. */
+const paneOf = (p) => PlaybookPane({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t), onClose() {} });
+const pane = (p) => {
   fresh();
-  return cardOf(p);
+  return paneOf(p);
 };
-const redraw = (p) => drawAgain(() => cardOf(p));
-const outbound = (props = {}) => PlaybooksPage(props);
+const redraw = (p) => drawAgain(() => paneOf(p));
+/**
+ * Campaigns' home at an address (`campaigns/<param>`, null for the home), read at the clock the file runs at. Only the
+ * playbooks are read here: the broadcasts, the reach-outs and the library are not, and their sections are left out.
+ */
+const homeAt = (param = null, broadcasts = undefined) => {
+  for (const key of ["reach_outs", "settings"]) setSurfaceValue(key, undefined);
+  setSurfaceValue("broadcasts", broadcasts);
+  fresh();
+  return drawAgain(() => CampaignsHome({ param, nowMs: NOW }));
+};
 
 /* ------------------------------- a run's own door ------------------------------- */
 
 test("REGRESSION (C9): each of a playbook's runs opens that run -- the runs were dead text, and the one door opened every broadcast", () => {
   setSurfaceValue("playbooks", playbooksSurface());
-  const tree = card(playbook());
-  const doors = all(tree, (n) => n.props?.["data-testid"] === "pb-run-open");
+  const tree = pane(playbook());
+  // The kit's LinkButton (surfaces/kit/link-button/) and the host button it draws carry the id: the doors are the hosts.
+  const doors = all(tree, (n) => n.type === "button" && n.props?.["data-testid"] === "pb-run-open");
   assert.equal(doors.length, 2, "REGRESSION: a run was a line of text");
   assert.ok(
     doors.every((d) => d.type === "button"),
@@ -342,14 +369,14 @@ test("REGRESSION (C9): each of a playbook's runs opens that run -- the runs were
     0,
     "REGRESSION: the door to every broadcast, which could name none of them",
   );
-  assert.equal(byTestId(tree, "pb-history-more"), null, "every run is on the card");
-  const busy = card(
+  assert.equal(byTestId(tree, "pb-history-more"), null, "every run is in its detail");
+  const busy = pane(
     playbook({ totals: { ...playbook().totals, runs: 14, history: Array.from({ length: 10 }, (_, i) => runOf(i)) } }),
   );
   assert.equal(
     textOf(byTestId(busy, "pb-history-more")),
     "The newest 10 of 14 runs",
-    "a card that lists some of its runs says so",
+    "a detail that lists some of its runs says so",
   );
 });
 
@@ -359,7 +386,8 @@ test("REGRESSION (C9): a link to a run opens it on Broadcasts -- its report on a
   // The ledger's own doors: a row's name and its Open (the chevron, named "Open <run>" for a screen reader) are links
   // to the run.
   let tree = page({ initialSegment: null, initialRun: null });
-  const card = find(tree, (n) => n.props?.id === "bc-run-b-sent");
+  // A row is `bc-row-<id>` now: the pane beside the list holds `bc-run-<id>`, and one id is one element.
+  const card = find(tree, (n) => n.props?.id === "bc-row-b-sent");
   press(byTestId(card, "bc-open-who"));
   press(find(card, (n) => n.type === "button" && /^Open /.test(n.props?.["aria-label"] || "")));
   assert.deepEqual(
@@ -381,18 +409,18 @@ test("REGRESSION (C9): a link to a run opens it on Broadcasts -- its report on a
     "bc-run-b-sent",
     "the screen a link lands on carries the run's anchor",
   );
-  assert.equal(byTestId(tree, "bc-head"), null, "the report is its own screen: the ledger is not drawn under it");
+  // The layout is the Inbox's list + pane (Claude Video/docs/2026-10-02-campaigns-on-the-kit.md §3.1): the ledger stays the
+  // list, and the report is the pane beside it, its head (a CmPane's) saying the run's name and state.
+  assert.ok(byTestId(tree, "bc-runs"), "the report is a pane: the ledger stays the list beside it");
   assert.equal(byTestId(tree, "bc-composer"), null);
+  const solo0 = byTestId(tree, "bc-run-solo");
+  assert.equal(paneTitle(tree), "Win-back · 2026-09-10", "the run's name is the pane's title");
   assert.ok(
-    textOf(standingSaid()?.title ?? null).startsWith("Win-back · 2026-09-10"),
-    "the run's name is the frame's head (CmHead says it to the standing)",
-  );
-  assert.ok(
-    find(standingSaid()?.title ?? null, (n) => n.props?.["data-state"] === "sent"),
-    "with its state beside it, in the head",
+    find(solo0, (n) => n.props?.["data-state"] === "sent"),
+    "with its state beside it",
   );
   assert.ok(textOf(details[0]).includes("Rosa Díaz"), "and who got it");
-  press(find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "bc-detail-close"));
+  press(byTestId(tree, "bc-detail-close"));
   assert.deepEqual(
     went.at(-1),
     "broadcasts",
@@ -406,21 +434,22 @@ test("REGRESSION (C9): a link to a run opens it on Broadcasts -- its report on a
   tree = again(older);
   const solo = byTestId(tree, "bc-run-solo");
   assert.ok(
-    solo && textOf(standingSaid()?.title ?? null).includes("Win-back · 2026-06-01"),
-    "a run past the newest fifty is read by its id and shown the same way, its name the frame's head",
+    solo && textOf(solo).includes("Win-back · 2026-06-01"),
+    "a run past the newest fifty is read by its id and shown the same way",
   );
   assert.ok(
-    find(standingSaid()?.title ?? null, (n) => n.props?.["data-state"] === "sent"),
+    find(solo, (n) => n.props?.["data-state"] === "sent"),
     "with its state",
   );
 });
 
 test("the page follows its link rather than starting again: opening a run keeps the audience chosen, and a link to a list picks it", () => {
   setSurfaceValue("broadcasts", broadcastsSurface());
-  const chosen = (tree) =>
-    textOf(
-      find(tree, (n) => n.props?.["data-testid"] === "bc-audience" && String(n.props.className).includes("active")),
-    );
+  // The list the send is for is the kit's picker's token (the chips are gone): the label of the option chosen.
+  const chosen = (tree) => {
+    const p = pickerOf(tree, "bc-audience");
+    return p.props.groups.flatMap((g) => g.options).find((o) => o.value === p.props.value).label;
+  };
   let tree = page({ initialSegment: "s1", initialRun: null });
   assert.ok(chosen(tree).startsWith("Regulars"));
   again({ initialSegment: null, initialRun: "b-sent" });
@@ -432,7 +461,7 @@ test("the page follows its link rather than starting again: opening a run keeps 
   again({ initialSegment: "s2", initialRun: null });
   tree = again({ initialSegment: "s2", initialRun: null });
   assert.ok(chosen(tree).startsWith("Walk-ins"), "and a later link to another list picks that list");
-  press(find(tree, (n) => n.props?.["data-testid"] === "bc-audience" && textOf(n).startsWith("Regulars")));
+  pickerOf(tree, "bc-audience").props.onValueChange("saved:s1");
   setSurfaceValue("broadcasts", broadcastsSurface());
   again({ initialSegment: "s2", initialRun: null });
   tree = again({ initialSegment: "s2", initialRun: null });
@@ -451,18 +480,24 @@ test("a run opened before opens at once from what the tab holds, and is read aga
   broadcasts.peekDetail = (id) => (id === "b-sent" ? { ok: true, data: detailOf(dto()) } : null);
   asked.length = 0;
   try {
-    const seen = byTestId(page({ initialSegment: null, initialRun: "b-sent" }), "bc-detail");
+    const first = page({ initialSegment: null, initialRun: "b-sent" });
+    const seen = byTestId(first, "bc-detail");
     assert.ok(
       !textOf(seen).includes("Reading who got it"),
       "REGRESSION: a run opened a moment ago was read before anything showed",
     );
-    assert.ok(
-      textOf(standingSaid()?.title ?? null).startsWith("Win-back · 2026-09-10"),
-      "its report, on the first paint",
-    );
+    assert.equal(paneTitle(first), "Win-back · 2026-09-10", "its report, on the first paint");
     assert.deepEqual(asked, ["b-sent"], "and it is read again behind");
-    const cold = byTestId(page({ initialSegment: null, initialRun: "b-new" }), "bc-detail");
+    const coldPage = page({ initialSegment: null, initialRun: "b-new" });
+    const cold = byTestId(coldPage, "bc-detail");
     assert.ok(textOf(cold).includes("Reading who got it"), "a run never opened still says it is reading");
+    assert.equal(paneTitle(coldPage), "Broadcast", "and has no name to say yet when the list has none for it");
+    // The list's row has a name for it (b-sending is on the ledger), which the pane's head says while it reads.
+    assert.equal(
+      paneTitle(page({ initialSegment: null, initialRun: "b-sending" })),
+      "Offers · 2026-09-15",
+      "the name its row has, until the report says its own",
+    );
   } finally {
     broadcasts.peekDetail = peekKept;
   }
@@ -609,11 +644,11 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
   }
 });
 
-/* ------------------------------ what a card shows ------------------------------ */
+/* ------------------------- what a playbook's detail shows ------------------------- */
 
-test("REGRESSION (C10): a card shows the words its runs send -- it named the template and never showed the message", () => {
+test("REGRESSION (C10): a playbook's detail shows the words its runs send -- it named the template and never showed the message", () => {
   setSurfaceValue("playbooks", playbooksSurface());
-  let tree = card(playbook());
+  let tree = pane(playbook());
   const words = byTestId(tree, "pb-words");
   assert.ok(words, "REGRESSION: the template's name, and no words");
   assert.ok(
@@ -628,7 +663,7 @@ test("REGRESSION (C10): a card shows the words its runs send -- it named the tem
   assert.equal(byTestId(tree, "pb-words-toggle"), null, "and nothing to press to see it");
 
   setSurfaceValue("playbooks", playbooksSurface({ templates: [] }));
-  tree = card(playbook());
+  tree = pane(playbook());
   assert.equal(byTestId(tree, "pb-words"), null);
   assert.match(
     textOf(byTestId(tree, "pb-template-gone")),
@@ -636,11 +671,11 @@ test("REGRESSION (C10): a card shows the words its runs send -- it named the tem
     "a template WhatsApp no longer approves is said, since the runs skip it",
   );
 
+  // A read of the templates that failed is not "no longer approved": the detail shows no words and calls nothing withdrawn.
   setSurfaceValue("playbooks", playbooksSurface({ templates: null }));
-  fresh();
-  const failed = outbound();
-  assert.ok(byTestId(failed, "pb-cards-templates-failed"), "a templates read that failed is said once, over the cards");
-  assert.equal(byTestId(failed, "pb-template-gone"), null, "and no card calls its template withdrawn");
+  tree = pane(playbook());
+  assert.equal(byTestId(tree, "pb-words"), null);
+  assert.equal(byTestId(tree, "pb-template-gone"), null, "a failed read does not call its template withdrawn");
 });
 
 test("REGRESSION (C16): Skip this run asks first, as Broadcasts does -- it skipped on one click", async () => {
@@ -654,7 +689,7 @@ test("REGRESSION (C16): Skip this run asks first, as Broadcasts does -- it skipp
   const p = playbook({
     totals: { ...playbook().totals, waiting: { id: "b-wait", recipient_count: 3, name: "Win-back · 2026-09-15" } },
   });
-  let tree = card(p);
+  let tree = pane(p);
   press(byTestId(tree, "pb-skip"));
   assert.deepEqual(skipped, [], "REGRESSION: one click skipped the run");
   tree = redraw(p);
@@ -666,11 +701,11 @@ test("REGRESSION (C16): Skip this run asks first, as Broadcasts does -- it skipp
   assert.deepEqual(skipped, ["b-wait"]);
 });
 
-test("REGRESSION (C18): a visit reminder's card shows its policy chip -- its class, booking, was looked up as a row id", () => {
+test("REGRESSION (C18): a visit reminder's detail shows its policy chip -- its class, booking, was looked up as a row id", () => {
   globalThis.window.__POLICIES = { role: "owner", rows: [{ class: "booking", mode: "auto", limits: {} }] };
   try {
     setSurfaceValue("playbooks", playbooksSurface());
-    const tree = card(
+    const tree = pane(
       playbook({
         id: "pb-v",
         name: "Visit reminder",
@@ -692,11 +727,9 @@ test("REGRESSION (C18): a visit reminder's card shows its policy chip -- its cla
 });
 
 test("REGRESSION (C19): with no approved template, the composer's hint opens Messages -- it named the page in plain words", () => {
-  setSurfaceValue("playbooks", playbooksSurface({ rows: [], templates: [] }));
-  fresh();
-  outbound();
-  globalThis.window.dispatchEvent({ type: "playbooks:new" });
-  const tree = drawAgain(outbound);
+  // A workspace with no playbook and no approved template, and the home's composer on Every time a moment comes.
+  setSurfaceValue("playbooks", { ...playbooksSample(new Date(NOW)), rows: [], templates: [] });
+  const tree = homeAt("new:every");
   const hint = byTestId(tree, "pb-no-template");
   assert.ok(hint, "the composer is open on a workspace with no template");
   const door = find(hint, (n) => n.type === "button");
@@ -721,7 +754,8 @@ test("REGRESSION (C7): Run now says when the run really goes -- it said 'sending
     },
   });
   toasts.length = 0;
-  await press(byTestId(card(playbook()), "pb-run-now"));
+  moreItem(pane(playbook()), "Run now").onSelect();
+  await settle();
   let said = textOf(toasts.at(-1).msg);
   assert.ok(said.includes("scheduled for"), `REGRESSION: ${said}`);
   assert.ok(!said.includes("sending now"), said);
@@ -731,30 +765,31 @@ test("REGRESSION (C7): Run now says when the run really goes -- it said 'sending
     ok: true,
     data: { id: "pb-1", outcome: "sent", eligible: 3, broadcast_id: "b-new", name: "Win-back" },
   });
-  await press(byTestId(card(playbook()), "pb-run-now"));
+  moreItem(pane(playbook()), "Run now").onSelect();
+  await settle();
   said = textOf(toasts.at(-1).msg);
   playbooks.runNow = runKept;
   assert.ok(!/\bnow\b/.test(said), said);
 });
 
-test("A card says what its runs earned as one sentence, and nothing when it has not run", () => {
+test("A playbook's detail says what its runs earned as one sentence, and nothing when it has not run", () => {
   setSurfaceValue("playbooks", playbooksSurface());
   // Five numbers with dots between them became a sentence, the way Today,
   // Reports and People say theirs; each run below still says its own.
-  const words = textOf(byTestId(card(playbook()), "pb-results"))
+  const words = textOf(byTestId(pane(playbook()), "pb-results"))
     .replace(/\s+/g, " ")
     .trim();
   assert.equal(words, "2 runs so far: 6 sent, 4 delivered, 1 wrote back.");
   // A held-back count only when there is one to say.
-  const held = textOf(byTestId(card(playbook({ totals: { ...playbook().totals, held: 3 } })), "pb-results"));
+  const held = textOf(byTestId(pane(playbook({ totals: { ...playbook().totals, held: 3 } })), "pb-results"));
   assert.ok(held.includes("3 held back"), held);
   // And a playbook that has never run claims no numbers at all.
-  assert.equal(byTestId(card(playbook({ totals: { ...playbook().totals, runs: 0 } })), "pb-results"), null);
+  assert.equal(byTestId(pane(playbook({ totals: { ...playbook().totals, runs: 0 } })), "pb-results"), null);
 });
 
-test("A card leads with what it sends, not with how it is configured", () => {
+test("A playbook's detail leads with what it sends, not with how it is configured", () => {
   setSurfaceValue("playbooks", playbooksSurface());
-  const tree = card(playbook());
+  const tree = pane(playbook());
   // The trigger, the schedule, the audience and the next run were five chips and
   // a meta line above the message; they are one sentence beside it now.
   const facts = textOf(find(tree, (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
@@ -765,7 +800,7 @@ test("A card leads with what it sends, not with how it is configured", () => {
   assert.ok(!facts.includes("Goes to"), facts);
   const hint = PLAYBOOK_TRIGGERS.find((t) => t.id === "quiet_30").hint;
   const real = textOf(
-    find(card(playbook({ triggerHint: hint })), (n) => String(n.props?.className || "") === "ob-sentence"),
+    find(pane(playbook({ triggerHint: hint })), (n) => String(n.props?.className || "") === "ob-sentence"),
   ).replace(/\s+/g, " ");
   assert.ok(real.startsWith(`${hint} —`), real);
   assert.equal(
@@ -780,7 +815,7 @@ test("A card leads with what it sends, not with how it is configured", () => {
 
 test("REGRESSION: a playbook whose yes has no number says so and offers no QR -- its card said '0 people on the list said yes' and sent the owner for an answer they had", async () => {
   // The chain, run: the route's pools (server/campaigns/playbooks.ts triggerPools), the surface the bridge builds from them,
-  // the words and the door the card imports (playbooks/words.tsx), and the card that draws them.
+  // the words and the door the detail imports (playbooks/words.tsx), and the pane that draws them.
   const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
   const pools = {
     ...Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty])),
@@ -810,7 +845,7 @@ test("REGRESSION: a playbook whose yes has no number says so and offers no QR --
   };
   try {
     await playbooksOverride.apply();
-    const drawn = (id) => card(surfaceValue("playbooks").rows.find((p) => p.id === id));
+    const drawn = (id) => pane(surfaceValue("playbooks").rows.find((p) => p.id === id));
     const sentence = (tree) =>
       textOf(find(tree, (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
     const hint = PLAYBOOK_TRIGGERS.find((t) => t.id === "quiet_30").hint;
@@ -825,6 +860,8 @@ test("REGRESSION: a playbook whose yes has no number says so and offers no QR --
     const noYes = drawn("pb-new");
     assert.ok(sentence(noYes).includes("— 0 people on the list said yes."), sentence(noYes));
     assert.equal(textOf(byTestId(noYes, "pb-reach-door")), "Get their yes");
+    press(byTestId(noYes, "pb-reach-door"));
+    assert.equal(went.at(-1), "broadcasts/get-yes", "and getting it is one press from the playbook's detail");
     // Nobody on it at all: there is no yes to get.
     assert.equal(byTestId(drawn("pb-phoned"), "pb-reach-door"), null);
   } finally {
@@ -867,7 +904,7 @@ test("REGRESSION: a playbook's list that could not be read is not called deleted
   }
 });
 
-test("a playbook on an archived list says so on its card, one press from its list coming back, and no new playbook is offered the list (00169)", async () => {
+test("a playbook on an archived list says so in its detail, one press from its list coming back, and no new playbook is offered the list (00169)", async () => {
   const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
   const pools = {
     ...Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty])),
@@ -920,7 +957,7 @@ test("a playbook on an archived list says so on its card, one press from its lis
       ["list:l2"],
       "an archived list is offered to no new playbook",
     );
-    const drawn = card(P.rows[0]);
+    const drawn = pane(P.rows[0]);
     const sentence = textOf(find(drawn, (n) => String(n.props?.className || "") === "ob-sentence")).replace(
       /\s+/g,
       " ",
@@ -936,7 +973,7 @@ test("a playbook on an archived list says so on its card, one press from its lis
   }
 });
 
-test("REGRESSION: counts that could not be read are said once, and nothing draws a zero it never counted -- a People read that failed drew '0 of 0', 'nobody to send to' and the QR on every card", async () => {
+test("REGRESSION: counts that could not be read are said as such, and nothing draws a zero it never counted -- a People read that failed drew '0 of 0', 'nobody to send to' and the QR on every card", async () => {
   // The route's answer when its People read failed (server/campaigns/playbooks.ts triggerPools): no moment was counted.
   const pools = Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, null]));
   const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
@@ -953,49 +990,33 @@ test("REGRESSION: counts that could not be read are said once, and nothing draws
   };
   try {
     await playbooksOverride.apply();
-    fresh();
-    let page = outbound();
-    assert.match(
-      textOf(byTestId(page, "pb-counts-failed")),
-      /Couldn't read who each moment reaches/,
-      "said once, over the cards",
-    );
-    assert.ok(
-      !/anyone to send to/.test(textOf(byTestId(page, "pb-standing"))),
-      `REGRESSION: ${textOf(byTestId(page, "pb-standing"))}`,
-    );
-    assert.equal(byTestId(page, "pb-tile-reach"), null, "REGRESSION: the tile drew '0 of 0 who said yes'");
-    const slots = all(page, (n) => n.props?.["data-testid"] === "pb-slot");
-    assert.ok(slots.length > 0);
-    for (const s of slots)
-      assert.ok(!/nobody today|people today|person today/i.test(textOf(s)), `REGRESSION: ${textOf(s)}`);
-    // The card says what it knows -- the moment, the clock, the next run -- and no count, no reach, no door.
-    const opened = card(surfaceValue("playbooks").rows[0]);
+    // The home says what it knows -- its moments, and the win-back's next run -- and draws no figure it never counted: a
+    // moment has "—" where it has no number, and its next run says it could not be counted, never "Nobody".
+    // (Its Coming up is made of the broadcasts' read too, here read and holding no run: unread, it would say it is reading.)
+    const home = homeAt(null, broadcastsSurface({ rows: [], number: { present: true } }));
+    const stages = all(home, (n) => n.props?.["data-testid"] === "cmh-stage");
+    assert.ok(stages.length > 0);
+    for (const s of stages) assert.equal(textOf(byTestId(s, "cmh-people")), "—", `REGRESSION: ${textOf(s)}`);
+    const coming = textOf(byTestId(home, "cmh-coming"));
+    assert.ok(coming.includes("Who it reaches could not be counted"), coming);
+    assert.ok(!/nobody|\b0 of\b/i.test(coming), `REGRESSION: ${coming}`);
+    // The playbook's detail says what it knows -- the moment, the clock, the next run -- and no count, no reach, no door.
+    const opened = pane(surfaceValue("playbooks").rows[0]);
     const said = textOf(find(opened, (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
     assert.ok(/Next run/.test(said), said);
     assert.ok(!said.includes("on the list said yes") && !said.includes("nobody to send to"), `REGRESSION: ${said}`);
     assert.equal(byTestId(opened, "pb-reach-door"), null);
     // Nor does the composer, where a moment is picked by who it reaches.
-    fresh();
-    page = outbound();
-    find(
-      all(page, (n) => n.props?.["data-testid"] === "pb-slot")[0],
-      (n) => n.props?.["data-testid"] === "pb-slot-start",
-    ).props.onClick();
-    page = drawAgain(outbound);
+    const composing = homeAt("new:every");
     // Its "Who it's for" section (the sheet around it is the record kit's, not loaded here).
-    const who = byTestId(page, "pb-who");
+    const who = byTestId(composing, "pb-who");
     assert.ok(who, "the composer opens");
     assert.equal(byTestId(who, "pb-reach"), null, "REGRESSION: the composer drew '0 of 0'");
-    // And its moments, listed: none says how many it reaches today.
-    find(
-      who,
-      (n) => String(n.props?.className || "").includes("pb-pick") && typeof n.props?.onClick === "function",
-    ).props.onClick({});
-    page = drawAgain(outbound);
-    const options = all(page, (n) => n.props?.role === "option");
+    // And its moments, listed in the kit's Picker: none says how many it reaches today.
+    const options = pickerOf(who, "pb-moment").props.groups.flatMap((g) => g.options);
     assert.ok(options.length > 0, "the moments are listed");
-    for (const o of options) assert.ok(!/nobody today|\d+ today/i.test(textOf(o)), `REGRESSION: ${textOf(o)}`);
+    for (const o of options)
+      assert.ok(!/nobody today|\d+ today/i.test(`${o.label} ${o.sub ?? ""} ${o.meta ?? ""}`), `REGRESSION: ${o.meta}`);
   } finally {
     globalThis.fetch = kept;
   }
@@ -1007,7 +1028,7 @@ test("A paused playbook says it is paused, and a run's day is words", () => {
   // "Next run paused" -- seen in production on the month's offer.
   const off = textOf(
     find(
-      card(playbook({ state: "paused", next: "paused" })),
+      pane(playbook({ state: "paused", next: "paused" })),
       (n) => String(n.props?.className || "") === "ob-sentence",
     ),
   ).replace(/\s+/g, " ");
@@ -1016,23 +1037,23 @@ test("A paused playbook says it is paused, and a run's day is words", () => {
 
   // A run's day is a calendar day, not an instant: it was printed as its raw key.
   const on = textOf(
-    find(card(playbook({ last_run_for: "2026-08-25" })), (n) => String(n.props?.className || "") === "ob-sentence"),
+    find(pane(playbook({ last_run_for: "2026-08-25" })), (n) => String(n.props?.className || "") === "ob-sentence"),
   ).replace(/\s+/g, " ");
   assert.ok(on.includes(`Last ran ${fmtDay("2026-08-25")}.`), on);
   assert.ok(!on.includes("2026-08-25"), on);
   // And in every row of its history, which said the key too.
-  const hist = textOf(byTestId(card(playbook()), "pb-history"));
+  const hist = textOf(byTestId(pane(playbook()), "pb-history"));
   assert.ok(!/\d{4}-\d{2}-\d{2}/.test(hist), hist);
 
   // A list with people on it that offers nobody says why: one message per person
   // per week, across playbooks. A bare "0 people" read as broken.
   const held = textOf(
-    find(card(playbook({ candidates: 0, held: 2 })), (n) => String(n.props?.className || "") === "ob-sentence"),
+    find(pane(playbook({ candidates: 0, held: 2 })), (n) => String(n.props?.className || "") === "ob-sentence"),
   ).replace(/\s+/g, " ");
   assert.ok(held.includes("0 people on the list said yes, and 2 people more heard from you this week and wait"), held);
 });
 
-test("a proposal follow-up's card (0006): where deals are on, who it reaches with a proposal waiting; where they are off, why it runs nothing, and no count it never took", async () => {
+test("a proposal follow-up's detail (0006): where deals are on, who it reaches with a proposal waiting; where they are off, why it runs nothing, and no count it never took", async () => {
   const { FOLLOW_UP_NEEDS_DEALS } = await import("@chanlytics/contracts");
   const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
   const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
@@ -1074,7 +1095,7 @@ test("a proposal follow-up's card (0006): where deals are on, who it reaches wit
       on.triggers.some((t) => t.id === "proposal_waiting"),
       "offered where deals are on",
     );
-    const drawnOn = sentence(card(on.rows[0]));
+    const drawnOn = sentence(pane(on.rows[0]));
     assert.ok(drawnOn.includes("— 2 people with a proposal waiting said yes."), drawnOn);
     assert.ok(drawnOn.includes("once per proposal") && /Next run /.test(drawnOn), drawnOn);
     const off = await read(false);
@@ -1084,7 +1105,7 @@ test("a proposal follow-up's card (0006): where deals are on, who it reaches wit
       "not offered, and no moment said to be uncounted",
     );
     assert.equal(off.rows[0].off, FOLLOW_UP_NEEDS_DEALS);
-    const drawnOff = sentence(card(off.rows[0]));
+    const drawnOff = sentence(pane(off.rows[0]));
     assert.ok(
       drawnOff.includes(FOLLOW_UP_NEEDS_DEALS) && !/Next run|nobody to send to/.test(drawnOff),
       `why it runs nothing, never a zero it did not count: ${drawnOff}`,

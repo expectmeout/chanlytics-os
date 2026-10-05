@@ -1,25 +1,17 @@
 /**
- * Campaigns under Glass (the interface kit's step 5.4, the Campaigns canvas C1 and C2): the markup only Glass draws is
- * drawn by the look and by nothing else. The page opens on the surface's title, the composers stand as rows (the word at the
- * left, the Classic section at the right), and Classic, the look members see, draws none of it: no row, no visible title, and
- * the sentence under the composer's name that Glass drops. Drawn on the stub React, over the look the document says.
+ * Campaigns in Glass, the one look (the interface kit's step 5.4, the Campaigns canvas C1 and C2; Classic retired on 2 October
+ * 2026): the home opens on the surface's title (said to the frame's head, the page drawing none of its own), and the
+ * composers stand as rows (the word at the left, the section at the right). Drawn on the stub React: the home
+ * (campaigns/home/home-page.tsx), the playbook composer on its own as the home's sheet hosts it, and the Broadcasts send
+ * screen.
  *
  * What a look changes by token is not here (the gallery and the harness's shots show it); this holds the few pieces of
- * markup a look draws that another does not, and that each section keeps the testids Classic's tests and specs reach it by.
+ * markup the look draws, and that each section keeps the testids the tests and specs reach it by.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import {
-  installLegacyReact,
-  fresh as freshTree,
-  again,
-  all,
-  find,
-  byTestId,
-  press,
-  textOf,
-} from "../_legacy-react.mjs";
+import { installLegacyReact, fresh as freshTree, again, all, find, byTestId, textOf } from "../_legacy-react.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -27,8 +19,8 @@ const NOW = new Date("2026-09-28T18:00:00.000Z");
 
 installLegacyReact({
   location: {
-    pathname: "/w/studio",
-    hash: "#/outbound",
+    pathname: "/w/studio/campaigns",
+    hash: "",
     origin: "https://app.chanlytics.com",
     assign() {},
     replace() {},
@@ -55,48 +47,40 @@ Object.assign(globalThis, {
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
-const { PlaybooksPage } = await import(`${SRC}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
+const { CampaignsHome } = await import(`${SRC}/surfaces/campaigns/home/home-page.tsx`);
+const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
 const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sample.ts`);
+const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 
-/** The document's root, as the head's script and the shell stamp it: Glass where it says so, and nothing else says Classic. */
-const lookIs = (look) => {
-  globalThis.document.documentElement = { getAttribute: (name) => (name === "data-look" && look ? look : null) };
-};
-const allByTestId = (tree, id) => all(tree, (n) => n.props?.["data-testid"] === id);
 const within = (tree, id, inner) => {
   const outer = byTestId(tree, id);
   return !!outer && !!find(outer, (n) => n.props?.["data-testid"] === inner);
 };
 const wordOf = (row) => textOf(find(row, (n) => String(n.props?.className || "").includes("-grow-word")));
 
-/** The playbooks page with its composer open on a moment's Set it up. */
-const composing = (look) => {
-  lookIs(look);
-  setSurfaceValue("playbooks", playbooksSample(NOW));
+/** Campaigns' home over the two surfaces it is made from (the samples a demo draws), the month said as the test gives it. */
+const homeOf = (over = {}) => {
+  setSurfaceValue("playbooks", { ...playbooksSample(NOW), ...(over.playbooks ?? {}) });
+  setSurfaceValue("broadcasts", { ...broadcastsSample(NOW), ...(over.broadcasts ?? {}) });
   freshTree();
-  const page = () => again(() => PlaybooksPage({}));
-  const tree = page();
-  press(
-    find(
-      find(tree, (n) => n.props?.["data-testid"] === "pb-slot"),
-      (n) => n.props?.["data-testid"] === "pb-slot-start",
-    ),
-  );
-  return page();
+  return again(() => CampaignsHome({ param: null, nowMs: NOW.getTime() }));
 };
 
-test("the head: Glass says the surface's title to the frame's head and draws none of its own; Classic keeps the tab's name for a screen reader", () => {
-  setSurfaceValue("playbooks", playbooksSample(NOW));
-  const draw = () => {
-    freshTree();
-    return again(() => PlaybooksPage({}));
-  };
+/** The playbook composer, as the home's sheet draws it: on the first moment nothing is doing yet. */
+const composing = () => {
+  const data = playbooksSample(NOW);
+  setSurfaceValue("playbooks", data);
+  freshTree();
+  return again(() => PlaybookComposer({ data, editing: null, initialTrigger: null, onDone() {}, onCancel() {} }));
+};
+
+test("the head: the page says the surface's title to the frame's head and draws none of its own", () => {
+  const draw = () => homeOf();
   const h1 = () => find(draw(), (n) => n.type === "h1");
-  lookIs("glass");
   const tree = draw();
   assert.equal(h1(), null, "the page draws no head of its own; the frame's is the head");
   assert.equal(
@@ -105,49 +89,106 @@ test("the head: Glass says the surface's title to the frame's head and draws non
     "and no cm-head either",
   );
   const said = standingSaid();
-  assert.equal(said?.title, "Campaigns", "Glass: the surface's name, which the strip above narrows to this tab");
-  assert.equal(said?.back, null, "a tab's list has no way back above its name");
+  assert.equal(said?.title, "Campaigns", "the surface's name");
+  assert.equal(said?.back, null, "the home has no way back above its name");
   assert.ok(said?.sentence, "and the head's line beside it");
+  assert.ok(
+    textOf(said.sentence).includes("What goes out on its own as a customer reaches a moment"),
+    "the line is the page's own, said to the frame",
+  );
+  // The page's two acts ride to the row of views: the Library, and New message.
+  assert.ok(
+    find(said.act, (n) => n.props?.["data-testid"] === "cmh-library"),
+    "the Library",
+  );
+  assert.ok(
+    find(said.act, (n) => n.props?.["data-testid"] === "cmh-new"),
+    "and New message",
+  );
+  assert.equal(byTestId(tree, "cmh-new"), null, "which the page does not draw a second time");
 });
 
-test("the playbook composer: four rows, To, Says, When and Under, each holding its section", () => {
-  const glass = composing("glass");
-  const rows = ["pb-row-to", "pb-row-says", "pb-row-when", "pb-row-under"].map((id) => byTestId(glass, id));
+test("the head says the month's allowance from half used, quietly: one line after the page's own, never a banner; nothing under half, or where the month could not be counted", () => {
+  const draw = (month) => homeOf({ playbooks: { month_sent: month }, broadcasts: { month_sent: null } });
+  // The head's line is the frame's one sentence: what the page says to it.
+  const line = (month) => {
+    draw(month);
+    return textOf(standingSaid()?.sentence);
+  };
+  assert.ok(
+    line({ email: 1240, sms: 12 }).endsWith("1,240 of 2,000 emails used this month"),
+    "after the page's own line, in the same quiet text",
+  );
+  draw({ email: 1240, sms: 12 });
+  assert.equal(
+    find(standingSaid()?.sentence, (n) => n.props?.["data-testid"] === "cm-month")?.type,
+    "span",
+    "a span of the line, not a banner",
+  );
+  assert.ok(
+    line({ email: 2000, sms: 400 }).endsWith(
+      "2,000 of 2,000 emails used this month · 400 of 500 texts used this month",
+    ),
+    "both, emails first",
+  );
+  for (const month of [{ email: 999, sms: 249 }, null])
+    assert.ok(!line(month).includes("this month"), `${JSON.stringify(month)}: nothing said`);
+  // The month is read from whichever of the two surfaces has it: the Broadcasts surface's, with the Playbooks' not read.
+  homeOf({ playbooks: { month_sent: null }, broadcasts: { month_sent: { email: 100, sms: 300 } } });
+  assert.ok(textOf(standingSaid()?.sentence).includes("300 of 500 texts used this month"));
+});
+
+test("the playbook composer: five rows, To, Says, Send by, When and Under, each holding its section", () => {
+  const glass = composing();
+  const rows = ["pb-row-to", "pb-row-says", "pb-row-via", "pb-row-when", "pb-row-under"].map((id) =>
+    byTestId(glass, id),
+  );
   assert.ok(
     rows.every((r) => r),
-    "Glass: the four rows",
+    "the five rows",
   );
-  assert.deepEqual(rows.map(wordOf), ["To", "Says", "When", "Under"]);
+  assert.deepEqual(rows.map(wordOf), ["To", "Says", "Send by", "When", "Under"]);
   assert.ok(within(glass, "pb-row-to", "pb-who"), "To holds who it is for");
   assert.ok(within(glass, "pb-row-says", "pb-message"), "Says holds the message");
+  assert.ok(within(glass, "pb-row-via", "pb-via-sec"), "Send by holds the channels it goes by");
   assert.ok(within(glass, "pb-row-when", "pb-clock"), "When holds the sentence of its numbers");
   assert.ok(within(glass, "pb-row-under", "pb-guard"), "Under holds the guardrails");
   assert.ok(
     within(glass, "pb-row-under", "pb-runs-under") || byTestId(glass, "pb-runs-under") === null,
     "and the row it runs under",
   );
-  assert.equal(allByTestId(glass, "pb-hour").length, 1, "the hour is chosen where it was, once");
+  assert.equal(
+    all(glass, (n) => n.type === Picker && n.props["data-testid"] === "pb-hour").length,
+    1,
+    "the hour is chosen where it was, once: the kit's Picker in the When row's sentence",
+  );
   assert.ok(!textOf(glass).includes("One approved message"), "no explanation under the title");
   for (const id of ["pb-save", "pb-cancel"]) assert.ok(byTestId(glass, id), `the foot keeps ${id}`);
 });
 
-test("the broadcast composer: the rows To, Says, When in one pane", () => {
-  // The page's act (New broadcast) is the head's, said to the frame's head.
-  const act = (tree, id) =>
-    byTestId(tree, id) ?? find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === id);
-  const open = (look) => {
-    lookIs(look);
+test("the broadcast composer: the rows To, Says, Send by, When in one pane", () => {
+  const open = () => {
     setSurfaceValue("broadcasts", broadcastsSample(NOW));
     freshTree();
-    const page = () => again(() => BroadcastsPage({}));
-    press(act(page(), "bc-new"));
+    const page = (props = {}) => again(() => BroadcastsPage(props));
+    // The screen opens as the page still opens it, on a link that names a list: the home's New message hosts the same screen.
+    page({ initialSegment: "no-such-list" });
     return page();
   };
-  const glass = open("glass");
+  const glass = open();
   const rows = all(glass, (n) => String(n.props?.className || "") === "bc-grow");
-  assert.deepEqual(rows.map(wordOf), ["To", "Says", "When"]);
+  // Send by is the row between Says and When (One message, every channel, step 3).
+  assert.deepEqual(rows.map(wordOf), ["To", "Says", "Send by", "When"]);
   assert.ok(within(glass, "bc-composer", "bc-col-who") && within(glass, "bc-composer", "bc-col-what"));
   assert.ok(within(glass, "bc-composer", "bc-col-when"), "each column keeps its testid");
+  assert.ok(within(glass, "bc-composer", "bc-col-via"), "Send by keeps its testid");
+  // Each holds its sentence of tokens (the kit's pickers).
+  for (const [col, id] of [
+    ["bc-col-who", "bc-audience"],
+    ["bc-col-what", "bc-preview"],
+    ["bc-col-when", "bc-when-mode"],
+  ])
+    assert.ok(within(glass, col, id), `${col} holds ${id}`);
   assert.ok(String(byTestId(glass, "bc-composer").props.className).includes("bc-glass"));
-  assert.ok(byTestId(glass, "bc-send") && act(glass, "bc-compose-close"), "the foot and Cancel are the same");
+  assert.ok(byTestId(glass, "bc-send") && byTestId(glass, "bc-compose-close"), "the foot and Cancel are the same");
 });

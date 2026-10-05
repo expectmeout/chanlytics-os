@@ -5,9 +5,10 @@
  * same grammar, with Approve or Stop where the button goes. What already went out is a line of the day's card. The
  * page keeps deciding WHICH rows wait or are scheduled; the words are contracts' (todayRunWords).
  */
-import type { BroadcastVM } from "@chanlytics/contracts";
+import { CAMPAIGNS_PAUSED_WORDS, type BroadcastVM } from "@chanlytics/contracts";
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import { AttnRow } from "../../kit/attention/attn-row";
+import { gatedProps } from "../../legacy-verbs";
 import { TODAY_HELPERS } from "../helpers";
 import {
   bcWhenWords,
@@ -49,6 +50,9 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
   const { waiting, soon } = runsPending();
   const words = (r: BroadcastVM) => TODAY_HELPERS.runs(r);
   const can = canDo("approve");
+  // A paused workspace sends nothing, and approving is refused (core approveRun): the row says so, in the words every
+  // campaign says it, instead of a button that answers 402. The readiness is the one the broadcasts surface already holds.
+  const paused = broadcastsRead()?.ready?.paused === true;
   // Each is said the moment the server takes it, from what it answered, not once the runs are read again behind it.
   // What a verb returns is the caller's (the tests await it), so it is typed as nothing React would read.
   const stop: (r: BroadcastVM) => unknown = async (r) => {
@@ -70,7 +74,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
     else if (!said) say();
   };
   const approve: (r: BroadcastVM) => unknown = async (r) => {
-    if (!can || !api) return;
+    if (!can || !api || paused) return;
     let said = false;
     const say = (data: NonNullable<VerbAnswer["data"]>) => {
       said = true;
@@ -102,14 +106,14 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
         glyph="bolt"
         name={r.audience.label}
         meta={words(r).waiting.meta}
-        sentence={words(r).waiting.sentence}
+        sentence={paused ? CAMPAIGNS_PAUSED_WORDS : words(r).waiting.sentence}
         status={words(r).waiting.status}
         tone="escalated"
         cta={{
           label: "Approve",
           kind: verbKind(),
           onClick: () => approve(r),
-          gate: gate("approve", "approve a run"),
+          gate: paused ? gatedProps(CAMPAIGNS_PAUSED_WORDS) : gate("approve", "approve a run"),
         }}
         also={{ label: "See who's on it", onClick: () => nav(`broadcasts/run:${r.id}`) }}
         onOpen={() => nav(`broadcasts/run:${r.id}`)}

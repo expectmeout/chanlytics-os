@@ -2,18 +2,29 @@
  * Who a playbook reaches: eligibility against the touches, a run's reach, and the words for a playbook that reaches
  * nobody. Moved whole from playbooks.ts (Reach out Part 2.5), which re-exports it.
  */
-import { audienceMembers } from "../broadcasts/broadcasts";
+import { audienceMembers, type CampaignHow, saidYesOnAny } from "../broadcasts/broadcast-audience";
+import { reachFor } from "../broadcasts/reach-for";
 import { POLICY_CLASS_WORDS } from "../config/workspace-config/policy-classes";
+import type { MatchVia } from "../calendar/calendar-people";
+import { fullNameKey } from "../calendar/visit-service";
 import { purposeOfPlaybook } from "../consent/consent";
 import type { DealPaceVM } from "../deals/deal-waits";
 import { GET_YES_ROUTE, saidYesWords } from "../people/people-lists";
 import type { PersonRowVM } from "../people/person-row";
-import { saidYesTo, whyNotReceive } from "../people/person-consent";
+
 import { breathHolds, followUpIsFor, followUpNames } from "./playbook-follow-ups";
+import { enrolPurpose, messageAboutOfTrigger, type RunMessage } from "./playbook-purpose";
 import { localDate } from "./playbook-schedule";
 import { DAY_MS } from "./playbook-time";
 import { type PlaybookPolicyClass, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
+import type { ConsentChannel } from "../consent/consent-channels";
+
+/**
+ * Where the Playbooks route counts one playbook on its own, in its `pools`: when its message is stricter than its
+ * moment's class (enrolPurpose), its run enrols by the message's yes, so the moment's count would overstate it.
+ */
+export const playbookPoolKey = (id: string): string => `playbook:${id}`;
 
 /**
  * When a person last heard from this playbook and from any playbook, and when they last had a proposal follow-up
@@ -26,6 +37,39 @@ export interface Touches {
   followUps: Map<string, number>;
 }
 
+/** A workspace's touches as a run reads them: by each playbook (its gap), by any (the week's breath), and the proposal follow-ups. */
+interface WorkspaceTouches {
+  byThis: Map<string, Map<string, number>>;
+  byAny: Map<string, number>;
+  followUps: Map<string, number>;
+}
+
+/**
+ * The touches once a run has been assembled: its people were touched from the moment it goes (`at`, epoch ms), by the
+ * playbook, by any, and, for a proposal's follow-up, as one had. The database's own reading of a run (packages/db
+ * touchesSince) says the same; this is the same fold for the run just made, so the next playbook run against the same
+ * read of the workspace -- the hourly sweep runs every due playbook of a workspace against one -- sees them, and the
+ * week's breath ("one a week per person, across every moment") holds between two moments in the same hour. New maps; the
+ * touches given are left as they were.
+ */
+export function touchesAfterRun(
+  touches: WorkspaceTouches,
+  run: { playbookId: string; at: number; followUp: boolean },
+  people: Iterable<string>,
+): WorkspaceTouches {
+  const byThis = new Map(touches.byThis);
+  const mine = new Map(byThis.get(run.playbookId));
+  const byAny = new Map(touches.byAny);
+  const followUps = new Map(touches.followUps);
+  for (const id of people) {
+    mine.set(id, Math.max(mine.get(id) ?? 0, run.at));
+    byAny.set(id, Math.max(byAny.get(id) ?? 0, run.at));
+    if (run.followUp) followUps.set(id, Math.max(followUps.get(id) ?? 0, run.at));
+  }
+  byThis.set(run.playbookId, mine);
+  return { byThis, byAny, followUps };
+}
+
 /**
  * The people a run may reach: the trigger's list crossed with who said yes to
  * THIS KIND of message, minus anyone who heard from this playbook within its
@@ -34,7 +78,9 @@ export interface Touches {
  *
  * The purpose is the trigger's own `cls`, which every trigger has always
  * declared and which nothing has ever read. `booking` is a reminder about an
- * appointment the customer made; everything else is promotional.
+ * appointment the customer made; everything else is promotional. When the
+ * playbook's message is in view (`message`), the stricter of the two holds
+ * (enrolPurpose): a person its message cannot reach is not enrolled.
  *
  * That distinction fixes a real loss. `visit_tomorrow` sends the one utility
  * template in the starter library to somebody with a visit on the calendar
@@ -44,7 +90,7 @@ export interface Touches {
  */
 export function eligibleForPlaybook(
   rows: PersonRowVM[],
-  p: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days">,
+  p: RunPlaybook,
   touches: Touches,
   nowMs: number,
   pace: Pick<DealPaceVM, "waitDays"> | null,
@@ -56,8 +102,8 @@ export function eligibleForPlaybook(
 /**
  * Who a run reaches, out of everyone its moment names, and why each of the
  * rest was left out -- each counted once, under the first rule that left them
- * out, in the order the run applies the rules. So `will` and the eight counts
- * add up to `pool`, and a bar of them is the whole list.
+ * out, in the order the run applies the rules. So `will` and every count
+ * below add up to `pool`, and a bar of them is the whole list.
  *
  * A run recorded how many it enrolled and nothing about the rest, so the sheet
  * an owner approves it from could only list the rules that made the list:
@@ -83,6 +129,58 @@ export interface RunReach {
   overCap: number;
   /** Past the number's daily limit (run-playbook): named, never dropped in silence. */
   overLimit: number;
+  /** No email address, where email was the only channel left (step 3). Absent on a run counted before runs kept it. */
+  no_address?: number;
+  /**
+   * An email address on file that mail no longer goes to (it bounced, or they marked a message as spam), where email was
+   * the only channel left. Absent on a run counted before.
+   */
+  address_stopped?: number;
+  /** No channel the playbook ticks can carry its message here (step 3). Absent on a run counted before. */
+  no_channel?: number;
+  /** Who it reaches on each channel (step 3), adding up to `will`. Absent on a run counted before: all WhatsApp. */
+  by_channel?: Record<ConsentChannel, number>;
+}
+
+/**
+ * A playbook as its run reads it: its moment and limits, its message (null for a moment counted with no message in
+ * view), and how it may go: the channels it ticks and the workspace's channels now (reach-for.ts). Required, as the
+ * message is: no caller may count a run without saying how it would go. What its message is about is the moment's own
+ * (messageAboutOfTrigger), never a caller's to say.
+ */
+export type RunPlaybook = Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> & {
+  message: RunMessage;
+} & Omit<CampaignHow, "about">;
+
+/** The name a person is saved under, as the calendar matches it (calendar-people.ts personLikeOf): the one a human gave, else their WhatsApp name. */
+const savedNameOf = (r: Pick<PersonRowVM, "givenName" | "waName">): string | null => r.givenName ?? r.waName;
+
+/** How many of the rows hold each full saved name, by its key (calendar-people.ts fullNameKey); a name that is not a full one is not counted. */
+function fullNameHolders(rows: readonly Pick<PersonRowVM, "givenName" | "waName">[]): Map<string, number> {
+  const holders = new Map<string, number>();
+  for (const r of rows) {
+    const key = fullNameKey(savedNameOf(r));
+    if (key !== null) holders.set(key, (holders.get(key) ?? 0) + 1);
+  }
+  return holders;
+}
+
+/**
+ * Whether the visit a row was matched to is surely theirs, for a message that goes to them about it. A number or an address
+ * on the event is exact: they are the person, or nobody. A name is a guess: any name of four letters or more matched, so a
+ * client saved as "Maria" was sent a reminder for another Maria's appointment, with the event's whole title in it. A run
+ * enrols a visit found by name alone only when the event carries the person's FULL saved name (two words or more, first and
+ * last) and no one else in the workspace is saved under it; a first name alone never enrols. The receptionist says "Matched
+ * by name only -- make sure it is them" (calendar-people.ts) and a person reads it; a message sent on its own cannot.
+ */
+function visitIsTheirs(
+  r: Pick<PersonRowVM, "givenName" | "waName">,
+  via: MatchVia | null,
+  holders: ReadonlyMap<string, number>,
+): boolean {
+  if (via !== "name") return true;
+  const key = fullNameKey(savedNameOf(r));
+  return key !== null && holders.get(key) === 1;
 }
 
 /**
@@ -94,7 +192,11 @@ export interface RunReach {
  */
 export function playbookRunReach(
   rows: PersonRowVM[],
-  p: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days">,
+  /**
+   * `message`: the playbook's template, as Meta filed it, for a run or a playbook counted; null for a moment counted with
+   * no message in view (the class's yes alone). A required property, as the pace is: no caller may leave it out.
+   */
+  p: RunPlaybook,
   touches: Touches,
   nowMs: number,
   /**
@@ -104,7 +206,7 @@ export function playbookRunReach(
   pace: Pick<DealPaceVM, "waitDays"> | null,
   /** Who is on the list a saved_list playbook runs on (list-rules.ts savedListIds); none when it names no list. */
   listIds: ReadonlySet<string> | null = null,
-): { eligible: PersonRowVM[]; reach: RunReach; saidYes: number } {
+): { eligible: PersonRowVM[]; reach: RunReach; saidYes: number; channelOf: Record<string, ConsentChannel> } {
   const reach: RunReach = {
     pool: 0,
     will: 0,
@@ -115,25 +217,42 @@ export function playbookRunReach(
     heardAny: 0,
     overCap: 0,
     overLimit: 0,
+    no_address: 0,
+    address_stopped: 0,
+    no_channel: 0,
   };
+  const byChannel: Record<ConsentChannel, number> = { whatsapp: 0, sms: 0, email: 0 };
+  const channelOf: Record<string, ConsentChannel> = {};
+  const none = { eligible: [], reach, saidYes: 0, channelOf };
   const t = triggerOf(p.trigger);
-  if (!t) return { eligible: [], reach, saidYes: 0 };
+  if (!t) return none;
   // A reach-out writes to leads, never to People: its run is its own (core campaigns/run-reach-out.ts), and its
   // steps must not fall through to the moments' "everyone" below.
-  if (t.kind === "reach_out") return { eligible: [], reach, saidYes: 0 };
-  const purpose = purposeOfPlaybook(t.cls);
+  if (t.kind === "reach_out") return none;
+  const purpose = enrolPurpose(t.cls, p.message);
+  // How it goes: the ticks and the channels now, and what the moment's message is about (a visit's or a follow-up's is
+  // theirs, which by email asks no yes; any other moment's is the business's news: decision D1).
+  const how: CampaignHow = { channels: p.channels, ready: p.ready, about: messageAboutOfTrigger(p.trigger) };
+  // Who holds each full saved name in the workspace, for a visit found by name alone (visitIsTheirs).
+  const holders = t.kind === "visit" ? fullNameHolders(rows) : new Map<string, number>();
   // Who the moment names, before anyone is left out.
   const named =
     t.kind === "visit"
-      ? // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
+      ? // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow. And a visit that is surely
+        // theirs (visitIsTheirs).
         rows.filter((r) => {
           if (!r.calendarTz) return false;
           if (p.trigger === "visit_tomorrow")
-            return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS));
+            return (
+              r.nextVisitDate !== null &&
+              r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS)) &&
+              visitIsTheirs(r, r.nextVisitVia, holders)
+            );
           return (
             r.lastVisitDate !== null &&
             r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS)) &&
-            !r.booked
+            !r.booked &&
+            visitIsTheirs(r, r.lastVisitVia, holders)
           );
         })
       : t.kind === "saved"
@@ -142,14 +261,34 @@ export function playbookRunReach(
           ? rows.filter((r) => followUpNames(r, nowMs, pace))
           : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
-  const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
+  const saidYes = named.filter((r) => saidYesOnAny(r, purpose, how)).length;
+  // Who the run reaches, each on their channel, and the reach counted by channel.
+  const done = (eligible: PersonRowVM[]) => {
+    const kept: Record<string, ConsentChannel> = {};
+    for (const r of eligible) {
+      const channel = channelOf[r.id];
+      if (!channel) continue;
+      kept[r.id] = channel;
+      byChannel[channel] += 1;
+    }
+    reach.by_channel = byChannel;
+    reach.will = eligible.length;
+    return { eligible, reach, saidYes, channelOf: kept };
+  };
   const allowed: PersonRowVM[] = [];
+  // Each person on the one channel the run reaches them on (reachFor), or counted under why it reaches them on none.
   for (const r of named) {
-    const why = whyNotReceive(r, purpose);
-    if (why === "no_number") reach.noNumber += 1;
-    else if (why === "stopped") reach.stopped += 1;
-    else if (why === "no_yes") reach.noYes += 1;
-    else allowed.push(r);
+    const pick = reachFor(r, purpose, how);
+    if (pick.channel) {
+      channelOf[r.id] = pick.channel;
+      allowed.push(r);
+    } else if (pick.held === "no_number") reach.noNumber += 1;
+    // Their own no to email counts with the other noes: they asked us to stop, and the run leaves them out.
+    else if (pick.held === "stopped" || pick.held === "unsubscribed") reach.stopped += 1;
+    else if (pick.held === "no_yes") reach.noYes += 1;
+    else if (pick.held === "no_address") reach.no_address = (reach.no_address ?? 0) + 1;
+    else if (pick.held === "address_stopped") reach.address_stopped = (reach.address_stopped ?? 0) + 1;
+    else reach.no_channel = (reach.no_channel ?? 0) + 1;
   }
   if (t.kind === "visit") {
     // The calendar decides, one message per visit: the run is daily and a
@@ -165,8 +304,7 @@ export function playbookRunReach(
     // with a visit. Capped, the twenty-sixth appointment of a busy day got no
     // reminder at all -- not deferred, dropped, since the run is once a day.
     // The number's own daily limit still applies, in run-playbook, and says so.
-    reach.will = allowed.length;
-    return { eligible: allowed, reach, saidYes };
+    return done(allowed);
   }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
   // One follow-up per proposal (0006): a follow-up since the proposal went, from whichever playbook, one since deleted
@@ -189,8 +327,7 @@ export function playbookRunReach(
   picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
   const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
   reach.overCap = picked.length - eligible.length;
-  reach.will = eligible.length;
-  return { eligible, reach, saidYes };
+  return done(eligible);
 }
 
 /**

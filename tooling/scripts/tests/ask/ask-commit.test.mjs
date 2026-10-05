@@ -673,7 +673,7 @@ test("a broadcast and a playbook: the body the route expects, the receipt from t
   );
   assert.deepEqual(p, {
     ok: true,
-    receipt: "Playbook “Win-back” is running — its next run is on the card in Campaigns › Playbooks",
+    receipt: "Playbook “Win-back” is running — its next run is under Coming up in Campaigns",
     undo: { playbook_id: PB1, decision_id: D(0) },
   });
   assert.deepEqual(t.sent[1].body, {

@@ -79,7 +79,7 @@ test.describe("Settings → Integrations on a real workspace", () => {
     await expect(row).toContainText(/Connect WhatsApp|isn't set up to connect|Checking|Sign in to Meta/);
   });
 
-  test("Integrations lists no template: the WhatsApp row points at Campaigns › Templates", async ({ page }) => {
+  test("Integrations lists no template: the WhatsApp row points at Campaigns › Library", async ({ page }) => {
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("connections-connected")).toBeVisible();

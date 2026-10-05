@@ -1,13 +1,6 @@
 import { read, write, account } from "@/server/route";
-import { requireSecondFactor } from "@/server/with-route";
-import {
-  HandoverCreateSchema,
-  type PartnerHandoverDto,
-  type PartnerWorkspaceMoneyDto,
-  type PlatformTenantDto,
-} from "@chanlytics/contracts";
-import { createWorkspaceForBusiness, getOwnPartner, getPartnerHandovers, getPartnerWorkspaces } from "@chanlytics/db";
-import { handoverRefusal, sendHandoverInvite } from "@/server/workspace/handover";
+import { HandoverCreateSchema } from "@chanlytics/contracts";
+import { readPartnerWorkspaces, setUpWorkspaceForBusiness } from "@/server/workspace/partner-account";
 
 /**
  * GET /api/v1/partner/workspaces — the workspaces the caller brought as a partner (decision 0012, P4): the back
@@ -15,24 +8,13 @@ import { handoverRefusal, sendHandoverInvite } from "@/server/workspace/handover
  * platformRows), and the standing and earnings of each they ever brought; and the handover of each they set up for a
  * business (0016). On the account: a partner is a person. The database answers about the caller alone, so a caller
  * who is no partner reads three empty lists.
+ *
+ * The handle is readPartnerWorkspaces in src/server/workspace/partner-account.ts: the route is its declaration (who
+ * may, how often), the verb is what it does.
  */
 export const GET = read({
   scope: account,
-  handle: async ({
-    ctx,
-  }): Promise<{
-    overview: PlatformTenantDto[];
-    money: PartnerWorkspaceMoneyDto[];
-    handovers: PartnerHandoverDto[];
-  }> => {
-    // What a partner brought is read past the second factor, as their seats are (0013, M3; 00261 in the database).
-    if (await getOwnPartner(ctx.supabase)) requireSecondFactor(ctx);
-    const [{ overview, money }, handovers] = await Promise.all([
-      getPartnerWorkspaces(ctx.supabase),
-      getPartnerHandovers(ctx.supabase),
-    ]);
-    return { overview, money, handovers };
-  },
+  handle: ({ ctx }) => readPartnerWorkspaces(ctx),
 });
 
 /**
@@ -40,22 +22,14 @@ export const GET = read({
  * a business and hands it to its owner (decision 0016, 00214 create_workspace_for_business). They sit on it as its
  * partner, never its owner; the owner is invited, and owns it once they accept. `sent` says whether the invitation
  * went: the workspace is made either way, and the invitation can be sent again.
+ *
+ * The handle is setUpWorkspaceForBusiness in src/server/workspace/partner-account.ts: the route is its declaration (who
+ * may, how often), the verb is what it does.
  */
 export const POST = write({
   scope: account,
   role: null,
   rate: "partner_handover",
   input: HandoverCreateSchema,
-  handle: async ({ ctx, input }): Promise<{ workspace: { id: string; slug: string; name: string }; sent: boolean }> => {
-    // The workspace seats the partner as partner: the seat's rule, before it exists (0013, M3; the function asks too).
-    requireSecondFactor(ctx);
-    const r = await createWorkspaceForBusiness(ctx.supabase, {
-      name: input.name,
-      timezone: input.timezone ?? null,
-      ownerEmail: input.email,
-    });
-    if (!r.ok) throw handoverRefusal(r);
-    const sent = await sendHandoverInvite(r.value.id, input.email, ctx.userId);
-    return { workspace: r.value, sent };
-  },
+  handle: ({ ctx, input }) => setUpWorkspaceForBusiness(ctx, input),
 });

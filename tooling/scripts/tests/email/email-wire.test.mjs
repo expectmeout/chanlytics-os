@@ -645,6 +645,48 @@ test("each try's timeout is the smaller of fifteen seconds and what is left of t
   }
 });
 
+test("a caller's ceiling is the send's deadline when it is the smaller, and never more than the wire's own 32 s: a send begun late is bounded by what is left of the tick", async () => {
+  const real = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  const asked = [];
+  AbortSignal.timeout = (ms) => (asked.push(ms), realTimeout.call(AbortSignal, ms));
+  let clock = 0;
+  let posts = 0;
+  // The first try takes 20 s and gives up; a second answers.
+  globalThis.fetch = async () => {
+    posts++;
+    if (posts === 1) {
+      clock += 20_000;
+      throw Object.assign(new Error("aborted"), { name: "TimeoutError" });
+    }
+    return new Response(JSON.stringify({ id: "re_9" }), { status: 200 });
+  };
+  try {
+    const r = buildEmailRequest(input());
+    // A ceiling far away (or none) is the wire's own 32 s: 12 s are left for the second try.
+    await sendEmail({ apiKey: "k" }, r, { now: () => clock, deadlineMs: 100_000 });
+    assert.deepEqual(asked, [15_000, 12_000], "never more than SEND_DEADLINE_MS, whatever the caller says");
+    // A ceiling of 24 s (a send begun late in a function that had that much left) leaves 4 s after the first try: not
+    // enough for a second (it needs 5), so the first timeout is the answer, and the send ends inside the ceiling.
+    asked.length = 0;
+    posts = 0;
+    clock = 0;
+    resetBreakers();
+    const out = await sendEmail({ apiKey: "k" }, r, { now: () => clock, deadlineMs: 24_000 });
+    assert.deepEqual([out.status, out.errorBody, out.outcome, posts], [0, "timeout", "unknown", 1]);
+    assert.deepEqual(asked, [15_000], "the first try is the smaller of 15 s and the ceiling");
+    assert.ok(clock <= 24_000, "and nothing was waited for past it");
+    // The first try itself is bounded by a ceiling shorter than a try.
+    asked.length = 0;
+    posts = 5;
+    await sendEmail({ apiKey: "k" }, r, { now: () => 0, deadlineMs: 6_000 });
+    assert.deepEqual(asked, [6_000]);
+  } finally {
+    globalThis.fetch = real;
+    AbortSignal.timeout = realTimeout;
+  }
+});
+
 test("after a timeout, a retry that finds the first still in flight, gets no answer, or a 5xx is still an unknown outcome", async () => {
   const real = globalThis.fetch;
   const r = buildEmailRequest(input());

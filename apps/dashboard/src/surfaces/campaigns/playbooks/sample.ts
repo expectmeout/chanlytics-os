@@ -9,6 +9,8 @@ import {
   DAY_MS,
   REPLY_WINDOW_WORDS,
   PLAYBOOK_TRIGGERS,
+  channelsReady,
+  momentOffered,
   nextRunLabel,
   numberHealth,
   scheduleLine,
@@ -18,14 +20,13 @@ import {
   triggerOffered,
   type PlaybookDto,
 } from "@chanlytics/contracts";
-import type { TemplateDto } from "@/surfaces/inbox/types";
-import type { PlaybookCardVM, PlaybooksSurface, PlaybookTriggerOption } from "./surface";
+import type { PlaybookCardVM, PlaybooksSurface, PlaybookTemplate, PlaybookTriggerOption, PoolRead } from "./surface";
 import { DEMO_ZONE } from "../../demo-zone";
 
 const DAY = DAY_MS;
 
 /** A starter as WhatsApp holds it once approved: the library's words and slots. */
-function approved(key: string, syncedAt: string): TemplateDto {
+function approved(key: string, syncedAt: string): PlaybookTemplate {
   const s = starterByKey(key);
   if (!s) throw new Error(`no starter called ${key}`);
   const t = starterText(s, "en_US");
@@ -44,6 +45,8 @@ function approved(key: string, syncedAt: string): TemplateDto {
     synced_at: syncedAt,
     source: "starter",
     title: null,
+    // The demo's starters are WhatsApp's alone: no email or text version is on file to send by.
+    channels: ["whatsapp"],
   };
 }
 
@@ -57,13 +60,19 @@ function card(
   return {
     ...dto,
     ...extra,
+    poolKey: dto.trigger,
     triggerLabel: t?.label ?? dto.trigger,
     triggerHint: t?.hint ?? "",
     schedule: scheduleLine(dto),
-    next: nextRunLabel(dto, DEMO_ZONE, now),
+    next: nextRunLabel(dto, DEMO_ZONE, now, false),
     named: null,
     off: null,
   };
+}
+
+/** A moment's count in the demo: who a run reaches, who waits out the week, everyone the moment names; each of them said yes. */
+function samplePool(candidates: number, held: number, pool: number): PoolRead {
+  return { candidates, held, pool, noYes: 0, stopped: 0, noNumber: 0, saidYes: pool };
 }
 
 /** The demo's Playbooks as of `now`: what `useSurface("playbooks")` answers for a workspace that has read its own. */
@@ -168,6 +177,8 @@ export function playbooksSample(now = new Date()): PlaybooksSurface {
     }),
     card(reminder, now, { candidates: 3, held: 0, totals: empty }),
   ];
+  // Every moment that may run here, as the surface hands them (surface.ts); the sample has a calendar (`calendar: "ok"`
+  // below), so a new playbook is offered the win-back by visits, and the welcome it already runs stays a card.
   const triggers: PlaybookTriggerOption[] = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, false)).map((t) => ({
     id: t.id,
     label: t.label,
@@ -175,12 +186,29 @@ export function playbooksSample(now = new Date()): PlaybooksSurface {
     cls: t.cls,
     list: t.list,
     kind: t.kind,
+    offered: momentOffered(t, { dealsOn: false, calendarOn: true }),
     candidates: t.id === "quiet_30" ? 6 : t.id === "new_week" ? 4 : t.id === "visit_tomorrow" ? 3 : 0,
     held: 0,
     named: null,
   }));
   return {
     rows,
+    // The moments' counts, as the cards above and the triggers below say them (Campaigns' home reads who each moment
+    // names from here), and a workspace with its WhatsApp number and nothing else set up to send on: no texting line, no
+    // mailbox.
+    pools: {
+      quiet_30: samplePool(6, 1, 9),
+      new_week: samplePool(4, 0, 4),
+      visit_tomorrow: samplePool(3, 0, 3),
+      visited: samplePool(0, 0, 0),
+    },
+    ready: channelsReady({
+      whatsapp: { canSend: true, refusal: null },
+      textLine: null,
+      email: { mailbox: false, domain: true },
+    }),
+    // The demo sends nothing, so it has no month to say.
+    month_sent: null,
     timezone: DEMO_ZONE,
     countsRead: true,
     calendar: "ok",

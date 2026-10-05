@@ -213,6 +213,8 @@ function sampleLoaded(nowMs: number): PeopleLoaded {
     consultFirst: false,
     dealPace: null,
     followUp: null,
+    // A made-up workspace has no channels to read: counted by WhatsApp alone, as every People page was.
+    channelsReady: null,
     views: {},
     viewsRead: true,
   };

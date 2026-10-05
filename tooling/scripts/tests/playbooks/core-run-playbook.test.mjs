@@ -5,14 +5,20 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PLAYBOOK_VETO_DELAY_MS, numberHealth, toPersonRowVM } from "@chanlytics/contracts";
+import {
+  PLAYBOOK_VETO_DELAY_MS,
+  channelsReady,
+  numberHealth,
+  toPersonRowVM,
+  touchesAfterRun,
+} from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 
 const { runPlaybook } = await importSrc("packages/core/src/campaigns/run-playbook.ts");
 const NOW = new Date("2026-09-06T14:00:00Z"); // 10:00 in New York
 const TZ = "America/New_York";
 const D = 86_400_000;
-const WRITES = new Set(["record", "assemble", "decide", "notify"]);
+const WRITES = new Set(["record", "assemble", "holdRecipients", "decide", "notify"]);
 
 /** A person as the People page reads them: quiet for 40 days, said yes to both. */
 const person = (id, over = {}) => ({
@@ -111,12 +117,19 @@ const playbook = (over = {}) => ({
   last_run_for: null,
   ...over,
 });
+/**
+ * What the workspace can send on now, as the run reads it (contracts channelsReady): WhatsApp by its number, and by default
+ * nothing else set up, as every workspace was before the channels.
+ */
+const ready = ({ textLine = null, mailbox = false, domain = false } = {}) =>
+  channelsReady({ whatsapp: { canSend: true, refusal: null }, textLine, email: { mailbox, domain } });
 const context = (over = {}) => ({
   tz: TZ,
   now: NOW,
   people: [person("a"), person("b", { lastContact: { ts: NOW.getTime() - 90 * D, label: "" } })],
   modes: new Map([["reengage", "auto"]]),
   health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
+  ready: ready(),
   touches: { byThis: new Map(), byAny: new Map() },
   calendar: "none",
   visits: new Map(),
@@ -140,16 +153,29 @@ const NOBODY_LEFT = {
   heardAny: 0,
   overCap: 0,
   overLimit: 0,
+  // Step 3: who it could not reach for want of an address, an address mail no longer goes to, or a channel, and who it reaches on each.
+  no_address: 0,
+  address_stopped: 0,
+  no_channel: 0,
+  by_channel: { whatsapp: 0, sms: 0, email: 0 },
 };
+/** Who a run reaches on each channel, WhatsApp alone: every run before the channels. */
+const onWhatsApp = (n) => ({ whatsapp: n, sms: 0, email: 0 });
 
 /** Every port answers a value or a function of its arguments; the writes log their call as [name, ...args]. */
 function fakes(over = {}) {
   const log = [];
   const answers = {
     template: { meta_status: "approved" },
+    // The channels, of email and text, that hold a version of the message (a playbook that ticks only WhatsApp never asks).
+    versions: [],
     alreadyRan: false,
     record: undefined,
     assemble: "b1",
+    // The month's allowance, counted before anyone is enrolled: what this workspace's campaigns have sent by email and by
+    // text this month (none here), and the write that holds those past it the moment the run exists.
+    monthSent: 0,
+    holdRecipients: undefined,
     decide: undefined,
     notify: undefined,
     ...over,
@@ -209,6 +235,7 @@ test("the mode decides: never runs nothing and says so; no row for the class mea
         playbook: "Win-back",
         mode: "ask",
         recipients: 2,
+        channels: ["whatsapp"],
         scheduled_for: NOW.toISOString(),
         run_now: true,
       },
@@ -252,16 +279,59 @@ test("off before a single row: a template Meta withdrew, a flagged number, a run
     skipped: "already_ran_today",
   });
   assert.deepEqual(twice.ops(), [], "the day's run stands; nothing is recorded again");
+  // No calendar connected is a final answer for the day: said, and recorded.
   const noCalendar = fakes();
   const p = playbook({ trigger: "visit_tomorrow", policy_class: "booking" });
   assert.deepEqual(
     await runPlaybook(
       noCalendar.ports,
-      cmd({ playbook: p, ctx: context({ modes: new Map([["booking", "auto"]]), calendar: "unavailable" }) }),
+      cmd({ playbook: p, ctx: context({ modes: new Map([["booking", "auto"]]), calendar: "none" }) }),
     ),
     { outcome: "off", mode: "auto", skipped: "no_calendar" },
   );
   assert.deepEqual(noCalendar.ops(), ["record"]);
+});
+
+test("a calendar that could not be READ is the run failing, not the day done: nothing is recorded, so the next sweep asks again -- as a template that could not be read is", async () => {
+  const modes = new Map([["booking", "auto"]]);
+  // Every moment that reads the calendar: the visit's two, and Lapsed's.
+  for (const trigger of ["visit_tomorrow", "visited", "lapsed"]) {
+    const blip = fakes();
+    const p = playbook({ trigger, policy_class: trigger === "lapsed" ? "reengage" : "booking" });
+    const ctx = context({ modes: new Map([...modes, ["reengage", "auto"]]), calendar: "unavailable" });
+    assert.deepEqual(
+      await runPlaybook(blip.ports, cmd({ playbook: p, ctx })),
+      { outcome: "failed", error: "calendar: could not be read" },
+      trigger,
+    );
+    assert.deepEqual(
+      blip.ops(),
+      [],
+      `${trigger}: nothing recorded, so the day stays open and the next tick asks again`,
+    );
+  }
+  // The same run, the calendar back: it goes, and the day is recorded as the run's own.
+  const next = visit("2026-09-07T18:00:00Z", "Balayage");
+  const row = toPersonRowVM(
+    dto("a", { visits: { timezone: TZ, source: "calendar", state: "ok", next, last: null } }),
+    TZ,
+    NOW,
+  );
+  const back = fakes();
+  const r = await runPlaybook(
+    back.ports,
+    cmd({
+      playbook: playbook({ trigger: "visit_tomorrow", policy_class: "booking", params: [{ kind: "visit_when" }] }),
+      ctx: context({
+        modes,
+        calendar: "ok",
+        people: [row],
+        visits: new Map([["a", { timezone: TZ, source: "calendar", state: "ok", next, last: null }]]),
+      }),
+    }),
+  );
+  assert.equal(r.outcome, "sent");
+  assert.deepEqual(back.ops(), ["assemble", "decide", "record"]);
 });
 
 test("a template that could not be read is the run failing, not the template withdrawn: nothing is recorded, so the next sweep asks again", async () => {
@@ -281,12 +351,18 @@ test("who the run reaches: the trigger's list crossed with who said yes, longest
   const r = await runPlaybook(ports, cmd({ ctx: context({ people: rows }) }));
   assert.equal(r.outcome, "sent");
   assert.deepEqual(of("assemble")[0][2], [
-    { contact_id: "b", facts: null },
-    { contact_id: "a", facts: null },
+    { contact_id: "b", facts: null, channel: "whatsapp" },
+    { contact_id: "a", facts: null, channel: "whatsapp" },
   ]);
   assert.equal(of("assemble")[0][1].recipient_count, 2);
   // And who it left out, kept on the run: three on the list, one of them never said yes.
-  assert.deepEqual(of("assemble")[0][1].audience.reach, { ...NOBODY_LEFT, pool: 3, will: 2, noYes: 1 });
+  assert.deepEqual(of("assemble")[0][1].audience.reach, {
+    ...NOBODY_LEFT,
+    pool: 3,
+    will: 2,
+    noYes: 1,
+    by_channel: onWhatsApp(2),
+  });
   const capped = fakes();
   await runPlaybook(
     capped.ports,
@@ -301,7 +377,7 @@ test("who the run reaches: the trigger's list crossed with who said yes, longest
   );
   assert.deepEqual(
     capped.of("assemble")[0][1].audience.reach,
-    { ...NOBODY_LEFT, pool: 3, will: 1, noYes: 1, overLimit: 1 },
+    { ...NOBODY_LEFT, pool: 3, will: 1, noYes: 1, overLimit: 1, by_channel: onWhatsApp(1) },
     "and the one past it is counted, not dropped",
   );
   const nobody = fakes();
@@ -356,6 +432,10 @@ test("a run counts everyone its moment named, each once, under the first rule th
     heardAny: 1,
     overCap: 1,
     overLimit: 0,
+    no_address: 0,
+    address_stopped: 0,
+    no_channel: 0,
+    by_channel: onWhatsApp(2),
   });
   assert.equal(
     reach.will +
@@ -395,13 +475,21 @@ test("auto: the row, the people, the send now, the system's decision, the run re
     template_name: "winback_offer",
     template_language: "en_US",
     params: [{ kind: "first_name" }],
-    audience: { kind: "playbook", id: "p1", label: "Win-back", reach: { ...NOBODY_LEFT, pool: 2, will: 2 } },
+    audience: {
+      kind: "playbook",
+      id: "p1",
+      label: "Win-back",
+      // The moment, which the month's allowance asks at the wire: a visit's message is never held by it.
+      trigger: "quiet_30",
+      reach: { ...NOBODY_LEFT, pool: 2, will: 2, by_channel: onWhatsApp(2) },
+    },
     state: "scheduled",
     scheduled_for: NOW.toISOString(),
     recipient_count: 2,
     created_by: "owner",
     playbook_id: "p1",
     run_for: "2026-09-06",
+    channels: ["whatsapp"],
   });
   assert.deepEqual(of("assemble")[0][3], NOW);
   assert.deepEqual(of("decide")[0][1], {
@@ -412,6 +500,7 @@ test("auto: the row, the people, the send now, the system's decision, the run re
       playbook: "Win-back",
       mode: "auto",
       recipients: 2,
+      channels: ["whatsapp"],
       scheduled_for: NOW.toISOString(),
       run_now: false,
     },
@@ -426,7 +515,7 @@ test("auto: the row, the people, the send now, the system's decision, the run re
       by: "system",
       mode: "auto",
       eligible: 2,
-      reach: { ...NOBODY_LEFT, pool: 2, will: 2 },
+      reach: { ...NOBODY_LEFT, pool: 2, will: 2, by_channel: onWhatsApp(2) },
       broadcast_id: "b1",
       state: "scheduled",
     },
@@ -470,7 +559,7 @@ test("ask: the row waits, nobody is scheduled, the owner is told in these words,
   assert.deepEqual(of("notify")[0], [
     "notify",
     "Playbook “Win-back” is ready: 2 people",
-    "2 people have become eligible for “Win-back”. Approve or skip the run on Today or in Campaigns › Playbooks. Nothing is sent until you do.",
+    "2 people have become eligible for “Win-back”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.",
   ]);
   const one = fakes();
   await runPlaybook(one.ports, cmd({ ctx: context({ modes: new Map([["reengage", "ask"]]), people: [person("a")] }) }));
@@ -505,8 +594,148 @@ test("a visit run keeps each person's words on their row, from the visit the run
   );
   assert.equal(r.outcome, "sent");
   assert.deepEqual(of("assemble")[0][2], [
-    { contact_id: "a", facts: { visit_when: "tomorrow at 2:00 PM", visit_service: "Balayage" } },
+    {
+      contact_id: "a",
+      facts: { visit_when: "tomorrow at 2:00 PM", visit_service: "Balayage" },
+      channel: "whatsapp",
+    },
   ]);
+});
+
+test("a visit's service slot carries the service alone: the person's name comes out of the event's title, and a title that was only their name says \"your appointment\"", async () => {
+  const run = async (title, over = {}) => {
+    const next = visit("2026-09-07T18:00:00Z", title);
+    const row = toPersonRowVM(
+      dto("a", {
+        display_name: "Maria Lopez",
+        visits: { timezone: TZ, source: "calendar", state: "ok", next, last: null },
+        ...over,
+      }),
+      TZ,
+      NOW,
+    );
+    const { ports, of } = fakes();
+    const r = await runPlaybook(
+      ports,
+      cmd({
+        playbook: playbook({
+          trigger: "visit_tomorrow",
+          policy_class: "booking",
+          template_name: "visit_reminder",
+          params: [{ kind: "visit_when" }, { kind: "visit_service" }],
+        }),
+        ctx: context({
+          modes: new Map([["booking", "auto"]]),
+          calendar: "ok",
+          people: [row],
+          visits: new Map([["a", { timezone: TZ, source: "calendar", state: "ok", next, last: null }]]),
+        }),
+      }),
+    );
+    assert.equal(r.outcome, "sent", title);
+    return of("assemble")[0][2][0].facts;
+  };
+  assert.deepEqual(await run("Balayage · Maria Lopez"), {
+    visit_when: "tomorrow at 2:00 PM",
+    visit_service: "Balayage",
+  });
+  assert.equal((await run("Maria Lopez - Balayage")).visit_service, "Balayage");
+  assert.equal((await run("Haircut with Maria Lopez")).visit_service, "Haircut");
+  assert.equal((await run("Maria Lopez")).visit_service, "your appointment", "nothing left: no service words at all");
+  assert.equal((await run("Balayage")).visit_service, "Balayage", "a title without a name is the service as it stands");
+  // By their WhatsApp name, when no human gave one: the calendar matched it by that name, so that is the name that comes out.
+  assert.equal(
+    (await run("Gloss · Mari Lopez", { display_name: null, wa_profile_name: "Mari Lopez" })).visit_service,
+    "Gloss",
+  );
+});
+
+test("the people a run enrols are touched for the next run against the same read of the workspace: the week's breath holds between two moments in one hour", async () => {
+  // The sweep reads the workspace once and runs every due playbook against it; its touches never changed between the runs,
+  // so a second moment judged the breath from a snapshot that did not have the first one's people in it.
+  const ctx = context({ people: [person("a"), person("b")], modes: new Map([["reengage", "auto"]]) });
+  const first = fakes();
+  const one = await runPlaybook(first.ports, cmd({ playbook: playbook({ id: "p1" }), ctx }));
+  assert.deepEqual([one.outcome, one.eligible], ["sent", 2]);
+  // The same two people, the same morning, another moment: the week's breath holds them.
+  const second = fakes();
+  const two = await runPlaybook(second.ports, cmd({ playbook: playbook({ id: "p2", name: "Lapsed" }), ctx }));
+  assert.deepEqual(two, { outcome: "empty", eligible: 0, mode: "auto" });
+  assert.equal(second.of("record")[0][4].reach.heardAny, 2, "left out for the breath, and counted so");
+  assert.deepEqual(second.ops(), ["record"], "nobody enrolled: no run, no job");
+  // At the moment the first run goes, by any playbook and by the first.
+  assert.deepEqual(
+    [...ctx.touches.byAny],
+    [
+      ["a", NOW.getTime()],
+      ["b", NOW.getTime()],
+    ],
+  );
+  assert.deepEqual(
+    [...ctx.touches.byThis.get("p1")],
+    [
+      ["a", NOW.getTime()],
+      ["b", NOW.getTime()],
+    ],
+  );
+  assert.deepEqual([...ctx.touches.followUps], [], "not a proposal's follow-up");
+  // A reminder for a visit is owed whatever else they heard (the run is daily and a visit is on one day): still reaches them.
+  const next = visit("2026-09-07T18:00:00Z", "Balayage");
+  const rows = ["a", "b"].map((id) =>
+    toPersonRowVM(dto(id, { visits: { timezone: TZ, source: "calendar", state: "ok", next, last: null } }), TZ, NOW),
+  );
+  const reminder = fakes();
+  const visitCtx = {
+    ...ctx,
+    people: rows,
+    calendar: "ok",
+    visits: new Map(rows.map((r) => [r.id, { timezone: TZ, source: "calendar", state: "ok", next, last: null }])),
+    modes: new Map([["booking", "auto"]]),
+  };
+  const r = await runPlaybook(
+    reminder.ports,
+    cmd({ playbook: playbook({ id: "p3", trigger: "visit_tomorrow", policy_class: "booking" }), ctx: visitCtx }),
+  );
+  assert.deepEqual([r.outcome, r.eligible], ["sent", 2]);
+});
+
+test("a run that was not made touches nobody, and one made to wait for a person touches its people from the moment it was made", async () => {
+  // A run that failed to be assembled enrolled nobody: its people are free for the next playbook, and for tomorrow.
+  const failedCtx = context({ people: [person("a")] });
+  const failed = await runPlaybook(fakes({ assemble: new Error("insert refused") }).ports, cmd({ ctx: failedCtx }));
+  assert.equal(failed.outcome, "failed");
+  assert.deepEqual([...failedCtx.touches.byAny], []);
+  // Ask mode: the run waits for a person, and its people are enrolled all the same.
+  const askCtx = context({ people: [person("a")], modes: new Map([["reengage", "ask"]]) });
+  const asked = await runPlaybook(fakes().ports, cmd({ ctx: askCtx }));
+  assert.equal(asked.outcome, "held");
+  assert.deepEqual([...askCtx.touches.byAny], [["a", NOW.getTime()]]);
+});
+
+test("the touches a run adds are new maps, the latest touch stands, and only a proposal's follow-up is one", () => {
+  const given = { byThis: new Map(), byAny: new Map(), followUps: new Map() };
+  const after = touchesAfterRun(given, { playbookId: "pf", at: 5, followUp: true }, ["a", "b"]);
+  assert.deepEqual(
+    [...after.followUps],
+    [
+      ["a", 5],
+      ["b", 5],
+    ],
+  );
+  assert.deepEqual(
+    [...given.byAny, ...given.followUps, ...given.byThis],
+    [],
+    "the touches handed in are left as they were",
+  );
+  const earlier = touchesAfterRun(after, { playbookId: "pf", at: 3, followUp: true }, ["a"]);
+  assert.deepEqual(
+    [...earlier.byAny],
+    [
+      ["a", 5],
+      ["b", 5],
+    ],
+  );
+  assert.deepEqual([...touchesAfterRun(given, { playbookId: "pg", at: 5, followUp: false }, ["a"]).followUps], []);
 });
 
 test('a reminder run asked for at night goes at nine and says "today": the words are relative to the moment the send goes; every visit is reminded, whatever the cap', async () => {
@@ -547,4 +776,479 @@ test("a run that could not be written says so and stops: the run, its people and
   const refused = fakes({ assemble: new Error("insert refused") });
   assert.deepEqual(await runPlaybook(refused.ports, cmd()), { outcome: "failed", error: "insert refused" });
   assert.deepEqual(refused.ops(), ["assemble"], "no decision, no notice, no record of a run that is not there");
+});
+
+/* ---- One message, every channel (step 3): a run goes by the channels its playbook ticks ---- */
+
+/** A message about their visit, as Meta files it: a utility, which only the yes to messages is needed for. */
+const UTILITY = { meta_status: "approved", category: "utility" };
+const TEXT_LINE = { sms_state: "active", reg_mock: false };
+/** A visit reminder, ticking all three channels: a message about their visit, which text and email carry. */
+const reminder = (over = {}) =>
+  playbook({
+    trigger: "visit_tomorrow",
+    policy_class: "booking",
+    template_name: "visit_reminder",
+    params: [{ kind: "first_name" }],
+    channels: ["whatsapp", "sms", "email"],
+    ...over,
+  });
+const NEXT_VISIT = visit("2026-09-07T18:00:00Z", "Balayage"); // tomorrow, 2:00 PM in New York
+const LAST_VISIT = visit("2026-09-05T18:00:00Z", "Balayage"); // yesterday, 2:00 PM in New York
+/** People with a visit tomorrow, as people_list reads them: what they can be reached by, said yes to, last wrote on. */
+function visitors(specs, when = { next: NEXT_VISIT, last: null }) {
+  const visits = new Map(specs.map(([id]) => [id, { timezone: TZ, source: "calendar", state: "ok", ...when }]));
+  const people = specs.map(([id, over]) =>
+    toPersonRowVM(
+      dto(id, {
+        visits: visits.get(id),
+        // A yes to messages by WhatsApp and by text; a visit message by email needs none.
+        consent_channels: ["whatsapp", "sms"],
+        email: `${id}@example.com`,
+        ...over,
+      }),
+      TZ,
+      NOW,
+    ),
+  );
+  return { people, visits };
+}
+const reminderCtx = (specs, over = {}) => ({
+  ...visitors(specs),
+  modes: new Map([["booking", "auto"]]),
+  calendar: "ok",
+  ready: ready({ textLine: TEXT_LINE, mailbox: true, domain: true }),
+  ...over,
+});
+
+test("a run goes by the channels its playbook ticks: each person once, on the first that reaches them, written on their row; the row, the ledger and the reach say so", async () => {
+  const f = fakes({ template: UTILITY, versions: ["email", "sms"] });
+  const r = await runPlaybook(
+    f.ports,
+    cmd({
+      playbook: reminder(),
+      ctx: context(
+        reminderCtx([
+          ["a", {}], // a number and an address, never wrote: WhatsApp, the first of the three
+          ["b", { last_inbound_channel: "sms" }], // wrote by text last, and said yes by text: text
+          ["c", { phone_e164: null }], // an address and no number: email
+          ["d", { phone_e164: null, email: null }], // nowhere to send: held, and counted
+        ]),
+      ),
+    }),
+  );
+  assert.equal(r.outcome, "sent");
+  assert.equal(r.eligible, 3);
+  const [, row, recipients] = f.of("assemble")[0];
+  assert.deepEqual(
+    recipients.map((x) => [x.contact_id, x.channel]),
+    [
+      ["a", "whatsapp"],
+      ["b", "sms"],
+      ["c", "email"],
+    ],
+    "each on one channel: the one they last wrote on first, else WhatsApp, text, email",
+  );
+  assert.deepEqual(row.channels, ["whatsapp", "sms", "email"]);
+  assert.deepEqual(
+    row.audience.reach,
+    { ...NOBODY_LEFT, pool: 4, will: 3, noNumber: 1, by_channel: { whatsapp: 1, sms: 1, email: 1 } },
+    "who it left out, and why, and who it reaches on each channel, adding up to the list",
+  );
+  assert.deepEqual(f.of("decide")[0][1].payload.channels, ["whatsapp", "sms", "email"]);
+});
+
+test("the number's daily limit is Meta's: it holds WhatsApp's people alone, and an email or a text is never held for it", async () => {
+  const f = fakes({ template: UTILITY, versions: ["email"] });
+  const r = await runPlaybook(
+    f.ports,
+    cmd({
+      playbook: reminder({ channels: ["whatsapp", "email"] }),
+      ctx: context(
+        reminderCtx(
+          [
+            ["a", {}],
+            ["b", {}],
+            ["c", { phone_e164: null }],
+            ["d", { phone_e164: null }],
+          ],
+          { health: { canSend: true, tone: "ok", label: "", limitPerDay: 1, refusal: null } },
+        ),
+      ),
+    }),
+  );
+  assert.equal(r.eligible, 3, "one of the two on WhatsApp is past the day's limit; both by email go");
+  const [, row, recipients] = f.of("assemble")[0];
+  assert.deepEqual(
+    recipients.map((x) => [x.contact_id, x.channel]),
+    [
+      ["a", "whatsapp"],
+      ["c", "email"],
+      ["d", "email"],
+    ],
+  );
+  assert.deepEqual(
+    row.audience.reach,
+    { ...NOBODY_LEFT, pool: 4, will: 3, overLimit: 1, by_channel: { whatsapp: 1, sms: 0, email: 2 } },
+    "named, never dropped in silence, and the split still adds up to who it reaches",
+  );
+});
+
+test("an address that bounced is counted as itself, not as no address and not as no channel: the run's reach says which, so the sheet can word each", async () => {
+  const f = fakes({ template: UTILITY, versions: ["email"] });
+  const r = await runPlaybook(
+    f.ports,
+    cmd({
+      playbook: reminder({ channels: ["email"] }),
+      ctx: context(
+        reminderCtx([
+          ["a", {}], // an address that works: email
+          ["b", { email_suppressed_at: "2026-09-01T10:00:00Z" }], // on file, and mail to it has stopped
+          ["c", { email: null }], // no address on file at all
+        ]),
+      ),
+    }),
+  );
+  assert.equal(r.outcome, "sent");
+  assert.equal(r.eligible, 1);
+  const [, row] = f.of("assemble")[0];
+  assert.deepEqual(row.audience.reach, {
+    ...NOBODY_LEFT,
+    pool: 3,
+    will: 1,
+    no_address: 1,
+    address_stopped: 1,
+    by_channel: { whatsapp: 0, sms: 0, email: 1 },
+  });
+});
+
+test("a channel the workspace is not ready on, or the message has no version on, holds those people and never fails the playbook: nobody is rerouted", async () => {
+  const people = [
+    ["a", {}],
+    ["b", {}],
+  ];
+  // Email only, no mailbox: nobody can be reached, the run says so and goes on.
+  const noMailbox = fakes({ template: UTILITY, versions: ["email"] });
+  assert.deepEqual(
+    await runPlaybook(
+      noMailbox.ports,
+      cmd({ playbook: reminder({ channels: ["email"] }), ctx: context(reminderCtx(people, { ready: ready() })) }),
+    ),
+    { outcome: "empty", eligible: 0, mode: "auto" },
+  );
+  assert.deepEqual(noMailbox.log.at(-1)[4].reach, { ...NOBODY_LEFT, pool: 2, no_channel: 2 });
+  // Ready on email, but the message has no email version in this language: the same.
+  const noVersion = fakes({ template: UTILITY, versions: ["sms"] });
+  const held = await runPlaybook(
+    noVersion.ports,
+    cmd({ playbook: reminder({ channels: ["email"] }), ctx: context(reminderCtx(people)) }),
+  );
+  assert.equal(held.outcome, "empty");
+  assert.equal(noVersion.log.at(-1)[4].reach.no_channel, 2);
+  // WhatsApp is ticked and not ready: the people it cannot reach go by the channel that can, never by none.
+  const offWhatsApp = fakes({ template: UTILITY, versions: ["email"] });
+  const r = await runPlaybook(
+    offWhatsApp.ports,
+    cmd({
+      playbook: reminder({ channels: ["whatsapp", "email"] }),
+      ctx: context(
+        reminderCtx(people, {
+          ready: channelsReady({ whatsapp: null, textLine: null, email: { mailbox: true, domain: true } }),
+        }),
+      ),
+    }),
+  );
+  assert.equal(r.eligible, 2);
+  assert.deepEqual(
+    offWhatsApp.of("assemble")[0][2].map((x) => x.channel),
+    ["email", "email"],
+  );
+});
+
+test("the number's health stops a run only when it ticks WhatsApp; a playbook made before ticks it alone and never asks for the versions", async () => {
+  const flagged = numberHealth({ quality: "RED", event: null, limit: "TIER_1K" });
+  const email = fakes({ template: UTILITY, versions: ["email"] });
+  const byEmail = await runPlaybook(
+    email.ports,
+    cmd({ playbook: reminder({ channels: ["email"] }), ctx: context(reminderCtx([["a", {}]], { health: flagged })) }),
+  );
+  assert.equal(byEmail.outcome, "sent", "a run that does not tick WhatsApp never asks about its number");
+  const both = fakes({ template: UTILITY, versions: ["email"] });
+  const stopped = await runPlaybook(
+    both.ports,
+    cmd({
+      playbook: reminder({ channels: ["whatsapp", "email"] }),
+      ctx: context(reminderCtx([["a", {}]], { health: flagged })),
+    }),
+  );
+  assert.equal(stopped.skipped, "number_flagged");
+  // Made before the channels (no column, or none ticked): WhatsApp alone, and the versions are never read.
+  for (const channels of [undefined, null, []]) {
+    const before = fakes({ template: UTILITY, versions: new Error("must not be read") });
+    const r = await runPlaybook(before.ports, cmd({ playbook: playbook({ channels }) }));
+    assert.equal(r.outcome, "sent", String(channels));
+    assert.deepEqual(before.of("assemble")[0][1].channels, ["whatsapp"]);
+  }
+  // A version that could not be looked for is the run failing, not a message without one: nothing is recorded.
+  const blip = fakes({ template: UTILITY, versions: new Error("PostgREST blip") });
+  assert.deepEqual(
+    await runPlaybook(
+      blip.ports,
+      cmd({ playbook: reminder({ channels: ["whatsapp", "email"] }), ctx: context(reminderCtx([["a", {}]])) }),
+    ),
+    { outcome: "failed", error: "template: PostgREST blip" },
+  );
+  assert.deepEqual(blip.ops(), []);
+});
+
+test("WhatsApp's template not approved holds WhatsApp's people alone: a run that also ticks email or text goes on for them, and stops on it only when nobody else is drawn", async () => {
+  const rejected = { meta_status: "rejected", category: "utility" };
+  const both = reminder({ channels: ["whatsapp", "sms", "email"] });
+  // The people on email and text go on their versions; the person who has only WhatsApp is held, not drawn.
+  const f = fakes({ template: rejected, versions: ["email", "sms"] });
+  const r = await runPlaybook(
+    f.ports,
+    cmd({
+      playbook: both,
+      ctx: context(
+        reminderCtx([
+          ["a", {}], // WhatsApp first, and said yes by text too: goes by text, the next channel that can carry it
+          ["c", { phone_e164: null }], // an address and no number: email
+          ["w", { consent_channels: ["whatsapp"], email: null }], // WhatsApp alone: nothing else reaches them
+        ]),
+      ),
+    }),
+  );
+  assert.equal(r.outcome, "sent", "the run is not stopped by a template WhatsApp alone needs");
+  assert.deepEqual(
+    f.of("assemble")[0][2].map((x) => [x.contact_id, x.channel]),
+    [
+      ["a", "sms"],
+      ["c", "email"],
+    ],
+    "nobody is drawn on WhatsApp: its version of the message is not approved",
+  );
+  // A run that ticks WhatsApp and has nobody on email or text to draw stops on it, as it always did.
+  const alone = fakes({ template: rejected, versions: ["email", "sms"] });
+  assert.deepEqual(
+    await runPlaybook(
+      alone.ports,
+      cmd({ playbook: both, ctx: context(reminderCtx([["w", { consent_channels: ["whatsapp"], email: null }]])) }),
+    ),
+    { outcome: "off", mode: "auto", skipped: "template_not_approved" },
+  );
+  assert.deepEqual(alone.ops(), ["record"]);
+  // A playbook that does not tick WhatsApp never asks about its template at all.
+  const byEmail = fakes({ template: rejected, versions: ["email"] });
+  const e = await runPlaybook(
+    byEmail.ports,
+    cmd({ playbook: reminder({ channels: ["email"] }), ctx: context(reminderCtx([["c", { phone_e164: null }]])) }),
+  );
+  assert.equal(e.outcome, "sent");
+  // The number's health still stops a run that ticks WhatsApp, whatever else it ticks.
+  const flagged = fakes({ template: rejected, versions: ["email", "sms"] });
+  const health = numberHealth({ quality: "RED", event: null, limit: "TIER_1K" });
+  assert.equal(
+    (await runPlaybook(flagged.ports, cmd({ playbook: both, ctx: context(reminderCtx([["a", {}]], { health })) })))
+      .skipped,
+    "number_flagged",
+  );
+});
+
+/* ---- The month's allowance, at enrolment ---- */
+
+/** A proposal's follow-up, ticking WhatsApp and email: a message that answers their own request, so email carries it. */
+const followUp = (over = {}) =>
+  playbook({
+    trigger: "proposal_waiting",
+    policy_class: "follow_up",
+    template_name: "proposal_nudge",
+    params: [{ kind: "first_name" }],
+    channels: ["whatsapp", "email"],
+    ...over,
+  });
+/** People with a proposal out ten days, as people_list reads them; the specs say who has no number (email only). */
+function proposals(specs) {
+  const people = specs.map(([id, over]) =>
+    toPersonRowVM(
+      dto(id, {
+        deal_id: `deal-${id}`,
+        deal_stage: "proposed",
+        deal_service: "Remodel",
+        deal_proposed_at: iso(10 * D),
+        deal_amount_cents: 500_000,
+        deal_proposal_url: `https://example.com/p/${id}`,
+        last_inbound_at: iso(12 * D),
+        consent_channels: ["whatsapp", "sms"],
+        email: `${id}@example.com`,
+        ...over,
+      }),
+      TZ,
+      NOW,
+    ),
+  );
+  return people;
+}
+const followUpCtx = (people, over = {}) => ({
+  people,
+  modes: new Map([["follow_up", "auto"]]),
+  calendar: "none",
+  dealsOn: true,
+  pace: null,
+  ready: ready({ textLine: TEXT_LINE, mailbox: true, domain: true }),
+  touches: { byThis: new Map(), byAny: new Map(), followUps: new Map() },
+  ...over,
+});
+const FOLLOW_UPS = [
+  ["w", {}], // a number and an address: WhatsApp, which Meta limits and this never does
+  ["e1", { phone_e164: null }], // an address and no number: email
+  ["e2", { phone_e164: null }],
+  ["e3", { phone_e164: null }],
+];
+
+test("a run counts the month before it enrolls: whoever is past the room is enrolled held, and the run's page says so up front", async () => {
+  const asked = [];
+  const f = fakes({
+    template: UTILITY,
+    versions: ["email"],
+    monthSent: (channel) => (asked.push(channel), 1999),
+  });
+  const r = await runPlaybook(f.ports, cmd({ playbook: followUp(), ctx: context(followUpCtx(proposals(FOLLOW_UPS))) }));
+  assert.equal(r.outcome, "sent");
+  assert.equal(r.eligible, 4, "everyone is enrolled, the held among them");
+  assert.deepEqual(asked, ["email"], "only the channel somebody goes by is counted, once, before the run is written");
+  assert.deepEqual(f.ops(), ["assemble", "holdRecipients", "decide", "record"]);
+  assert.deepEqual(
+    f.of("holdRecipients")[0],
+    ["holdRecipients", "b1", ["e2", "e3"], "month_allowance"],
+    "one email left in the month: the first on email keeps it, the others are held, in the order drawn",
+  );
+  assert.equal(
+    f.of("assemble")[0][1].audience.trigger,
+    "proposal_waiting",
+    "the run keeps its moment for the send's own check",
+  );
+  assert.equal(f.of("record")[0][4].held_for_allowance, 2, "and the run's record says how many");
+  assert.equal("hold_unwritten" in f.of("record")[0][4], false);
+});
+
+test("a run is counted against the month it goes in: asked for at eleven on the last night of the month, it goes at nine on the first, and the new month's room is read", async () => {
+  const lastNight = new Date("2026-10-01T03:00:00Z"); // 23:00 on 30 September in New York
+  const nine = new Date("2026-10-01T13:00:00Z"); // 09:00 on 1 October
+  const at = [];
+  const f = fakes({ template: UTILITY, versions: ["email"], monthSent: (_channel, when) => (at.push(when), 0) });
+  const r = await runPlaybook(
+    f.ports,
+    cmd({
+      playbook: followUp(),
+      ctx: context({ ...followUpCtx(proposals(FOLLOW_UPS)), now: lastNight }),
+      by: { kind: "user", userId: "u1" },
+    }),
+  );
+  assert.equal(r.outcome, "sent");
+  assert.deepEqual(f.of("assemble")[0][3], nine, "the run goes at nine on the first");
+  assert.deepEqual(
+    at,
+    [nine],
+    "and the month it is counted against is the one it goes in, never the night it was asked for",
+  );
+});
+
+test("a proposal's follow-up touches its people as one had, and not those the month's allowance holds: the next run against the same read neither follows the proposal up twice nor breathes on them", async () => {
+  const ctx = context(followUpCtx(proposals(FOLLOW_UPS)));
+  const f = fakes({ template: UTILITY, versions: ["email"], monthSent: 1999 });
+  assert.equal((await runPlaybook(f.ports, cmd({ playbook: followUp(), ctx }))).outcome, "sent");
+  assert.deepEqual(
+    [...ctx.touches.followUps.keys()].sort(),
+    ["e1", "w"],
+    "e2 and e3 are held for the month: skipped, touched by nothing",
+  );
+  assert.deepEqual([...ctx.touches.byAny.keys()].sort(), ["e1", "w"]);
+});
+
+test("a hold that could not be written leaves the people queued: the run is made, and its record says so", async () => {
+  const f = fakes({
+    template: UTILITY,
+    versions: ["email"],
+    monthSent: 2000,
+    holdRecipients: new Error("write failed"),
+  });
+  const r = await runPlaybook(f.ports, cmd({ playbook: followUp(), ctx: context(followUpCtx(proposals(FOLLOW_UPS))) }));
+  assert.equal(r.outcome, "sent");
+  const record = f.of("record")[0][4];
+  assert.equal(record.held_for_allowance, 3);
+  assert.equal(record.hold_unwritten, 3, "queued, and held at the wire all the same");
+});
+
+test("a visit reminder and the check after a visit are never held by the month: they are not even counted against it", async () => {
+  for (const trigger of ["visit_tomorrow", "visited"]) {
+    const f = fakes({
+      template: UTILITY,
+      versions: ["email", "sms"],
+      monthSent: new Error("a visit's message never asks the month"),
+    });
+    // The reminder reads tomorrow's visit; the check after a visit reads yesterday's, when nothing is booked next.
+    const when = trigger === "visit_tomorrow" ? { next: NEXT_VISIT, last: null } : { next: null, last: LAST_VISIT };
+    const specs = FOLLOW_UPS.map(([id]) => [id, id === "w" ? {} : { phone_e164: null }]);
+    const r = await runPlaybook(
+      f.ports,
+      cmd({
+        playbook: reminder({ trigger, channels: ["whatsapp", "email"] }),
+        ctx: context({ ...reminderCtx(specs), ...visitors(specs, when) }),
+      }),
+    );
+    assert.equal(r.outcome, "sent", `${trigger}: ${JSON.stringify(r)}`);
+    assert.equal(r.eligible, 4);
+    assert.equal(f.of("holdRecipients").length, 0, `${trigger}: nobody held, with the month used up many times over`);
+    assert.equal(f.of("assemble")[0][1].audience.trigger, trigger, "and the send knows it is one");
+  }
+});
+
+test("a booking moment that sends an OFFER is metered like any other: the exemption is a message about a visit, never the moment's", async () => {
+  // A playbook made before messages were checked against their moments: a visit moment whose message is an offer. Its run
+  // enrols by the stricter purpose (an offer), so it is metered as an offer is, and the send's own check says the same.
+  const OFFER = { meta_status: "approved", category: "marketing" };
+  const offersOpen = channelsReady({
+    whatsapp: { canSend: true, refusal: null },
+    textLine: null,
+    email: { mailbox: true, domain: true, offers: { campaigns: true, address: true, paused: null } },
+  });
+  const specs = [
+    ["e1", { phone_e164: null, email_marketing: "opted_in" }],
+    ["e2", { phone_e164: null, email_marketing: "opted_in" }],
+  ];
+  const asked = [];
+  const f = fakes({ template: OFFER, versions: ["email"], monthSent: (channel) => (asked.push(channel), 2000) });
+  const r = await runPlaybook(
+    f.ports,
+    cmd({
+      playbook: reminder({ channels: ["email"] }),
+      ctx: context({ ...reminderCtx(specs), ready: offersOpen }),
+    }),
+  );
+  assert.equal(r.outcome, "sent", JSON.stringify(r));
+  assert.equal(r.eligible, 2);
+  assert.deepEqual(asked, ["email"], "the month is counted: an offer is not exempt, whatever its moment");
+  assert.deepEqual(f.of("holdRecipients")[0], ["holdRecipients", "b1", ["e1", "e2"], "month_allowance"]);
+  assert.equal(f.of("record")[0][4].held_for_allowance, 2);
+  assert.equal(
+    f.of("assemble")[0][1].audience.trigger,
+    "visit_tomorrow",
+    "and the send reads the same moment and message",
+  );
+});
+
+test("a month that could not be counted is not room: the run fails, records nothing, and the next sweep counts again", async () => {
+  const f = fakes({ template: UTILITY, versions: ["email"], monthSent: new Error("rpc: connection reset") });
+  const r = await runPlaybook(f.ports, cmd({ playbook: followUp(), ctx: context(followUpCtx(proposals(FOLLOW_UPS))) }));
+  assert.equal(r.outcome, "failed");
+  assert.match(r.error, /^month: rpc: connection reset/);
+  assert.deepEqual(f.ops(), [], "no run, no people, no job, no record: nothing says the day was spent");
+  // A run by WhatsApp alone has nobody to count for: it never asks.
+  const wa = fakes({ template: UTILITY, monthSent: new Error("never asked") });
+  const ok = await runPlaybook(
+    wa.ports,
+    cmd({ playbook: followUp({ channels: ["whatsapp"] }), ctx: context(followUpCtx(proposals([["w", {}]]))) }),
+  );
+  assert.equal(ok.outcome, "sent");
 });

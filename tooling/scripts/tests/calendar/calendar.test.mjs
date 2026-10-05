@@ -348,8 +348,8 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   );
   assert.deepEqual(
     (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["PUT settings"]().map((o) => o.key),
-    ["settings", "today", "calendar", "setup"],
-    "hours, closures, rules and services saved in Settings reach the board, and Setup",
+    ["settings", "today", "calendar", "setup", "broadcasts", "playbooks", "people"],
+    "hours, closures, rules and services saved in Settings reach the board, and Setup (and the postal address, the composers' channels)",
   );
   const dayModule = readCode("apps/dashboard/src/surfaces/today/pages/day.tsx");
   assert.ok(

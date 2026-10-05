@@ -385,7 +385,7 @@ const inboxPage = (
   const railThread = showAgentRail && !requestedMissing && activeThread && !activeThread.real ? activeThread : null;
 
   return (
-    <div className={`inbox ${railThread ? "with-rail" : ""} ${phoneThreadOpen ? "phone-thread" : ""}`}>
+    <div className={`inbox ${railThread ? "with-rail" : ""}`} data-takeover={phoneThreadOpen || undefined}>
       <InboxList
         threads={visible}
         allThreads={threads}

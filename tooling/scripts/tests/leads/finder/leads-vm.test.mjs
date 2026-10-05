@@ -16,7 +16,6 @@ import {
   leadsRoute,
   parseLeadsRoute,
   stageArgs,
-  LeadStageInputSchema,
   leadDraftFooter,
   LEAD_DRAFT_JSON_SCHEMA,
   LEAD_SUGGEST_JSON_SCHEMA,
@@ -57,7 +56,8 @@ import {
 } from "../../../../../packages/contracts/src/leads/leads.ts";
 import { LEAD_ROUND_ENDINGS } from "../../../../../packages/contracts/src/leads/search/sets.ts";
 import { LEAD_ENDING_WORDS } from "../../../../../packages/contracts/src/leads/search/endings.ts";
-import { LeadSearchPlanSchema } from "../../../../../packages/contracts/src/leads/search/plan.ts";
+import { LeadSearchPlanSchema } from "../../../../../packages/contracts/src/leads/search/plan-schema";
+import { LeadStageInputSchema } from "../../../../../packages/contracts/src/leads/lead-plan-schema.ts";
 
 /* ------------------------------------------------------------ the fixtures */
 

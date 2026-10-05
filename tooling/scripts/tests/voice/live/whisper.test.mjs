@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { DECISION_VERBS, DECISION_SUBJECTS, toLiveVM } from "@chanlytics/contracts";
 import { updateLiveCall } from "@chanlytics/channels";
 import { readCode, readRaw } from "../../_source.mjs";
-import { installLegacyReact, fresh, again, find, byTestId, textOf } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, find, byTestId } from "../../_legacy-react.mjs";
 
 test("the ledger knows a whisper on a call, and the database agrees", () => {
   assert.ok(DECISION_VERBS.includes("whisper"));
@@ -143,8 +143,8 @@ test("the page offers it only on a live call, behind the gate the server enforce
     setSurfaceValue("live", toLiveVM(calls, [], ZONE, new Date(NOW)));
     fresh();
   };
-  const sendButton = (tree) =>
-    find(byTestId(tree, "live-whisper"), (n) => n.type === "button" && textOf(n).trim() === "Whisper");
+  // The one round button at the field's end: the arrow that sends, once there are words (the mic while there are none).
+  const sendButton = (tree) => byTestId(tree, "live-whisper-send");
   const type = (tree, words) =>
     find(byTestId(tree, "live-whisper"), (n) => n.type === "input").props.onChange({ target: { value: words } });
   try {

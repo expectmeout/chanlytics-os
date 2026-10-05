@@ -30,12 +30,12 @@ import {
 import { isOptedOutContact } from "../consent/consent";
 import { replyWindow } from "../config/policy";
 import type { FollowUpStand } from "../playbooks/playbooks";
-import { visitAnswersAsk, visitDateKey, visitDay, visitLine } from "../calendar/calendar-people";
+import { visitAnswersAsk, visitDateKey, visitDay, visitLine, type MatchVia } from "../calendar/calendar-people";
 import { nextStepOf, stepIsDue, type PersonNextStepVM } from "../notes/steps";
 import { initialsOf, isIdentifierName } from "../conversations/thread-contact";
 import { dealOf, type DealVM } from "../deals/deal-vm";
 import { dealStageOf, type DealStandingStage } from "../deals/deal-consultations";
-import { mayReceive, type PersonConsent, saidYesTo } from "./person-consent";
+import type { PersonConsent } from "./person-consent";
 import { MONTH_MS, ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";
 import { bookingLinkAction } from "./person-reach";
@@ -50,6 +50,9 @@ import {
   type PersonLastContact,
 } from "./person-row-facts";
 import { heardAt, PERSON_STATE_LABELS, personStanding, personStateFor, type PersonState } from "./person-state";
+import type { ConsentChannel } from "../consent/consent-channels";
+import { personReachOf, type PersonReach } from "../broadcasts/reach-any";
+import type { ChannelsReady } from "../broadcasts/reach-for";
 
 /**
  * Channels are what actually happened, not only what identities record.
@@ -110,6 +113,10 @@ export interface PersonRowVM {
   initials: string;
   phone: string | null;
   email: string | null;
+  /** Their address has bounced or complained and is no longer sent to: for a campaign it is no address (whyNotReceive). */
+  emailSuppressed: boolean;
+  /** The channel they last wrote on (step 3): a campaign reaches them there first when it may (reachFor). */
+  lastChannel: ConsentChannel | null;
   waName: string | null;
   channels: PersonChannel[];
   hasChat: boolean;
@@ -181,10 +188,18 @@ export interface PersonRowVM {
   assigned: "me" | "teammate" | "nobody" | "someone";
   /** Where they stand on the way to a deal, as the Pipeline groups them (deals.ts dealStageOf); null for none. */
   dealStage: DealStandingStage | null;
-  /** Said the yes each purpose needs, a number to send to or not (saidYesTo). */
-  saidYes: { offers: boolean; messages: boolean };
-  /** May be sent each: the yes and a number (mayReceive). */
-  canReceive: { offers: boolean; messages: boolean };
+  /**
+   * Gave the answer each kind of message asks (yes to messages, yes to offers), a way to reach them or not: what they
+   * said, whatever channel it was for and whether the workspace can send on it (reach-any.ts answeredYes).
+   */
+  saidYes: PersonReach["saidYes"];
+  /**
+   * May be sent each, on any channel the workspace can send on now: the yes and a way to reach them there, a number or
+   * an address that has not bounced (reach-any.ts personReachOf, which reachFor answers). Offers wait on WhatsApp.
+   */
+  canReceive: PersonReach["canReceive"];
+  /** Why they cannot, where they cannot (the strictest refusal reachFor gave, or no channel to send it on); null where they can. */
+  whyNot: PersonReach["whyNot"];
   /** Asked to stop, or on the do-not-contact list (consent.ts isOptedOutContact). */
   stopped: boolean;
   /** Their next step's day has come (steps.ts stepIsDue). */
@@ -192,6 +207,13 @@ export interface PersonRowVM {
   /** "2026-09-08": the day of the next / last visit by the calendar's own clock — what a day-keyed playbook reads. */
   nextVisitDate: string | null;
   lastVisitDate: string | null;
+  /**
+   * How the calendar found the next / last visit to be theirs, surest first: a number or an address is exact, a name is a
+   * guess (calendar-people.ts MatchVia). What a playbook that writes to them judges the visit by (playbook-reach.ts); null
+   * without a visit.
+   */
+  nextVisitVia: MatchVia | null;
+  lastVisitVia: MatchVia | null;
   /** The calendar's zone; null without a calendar. */
   calendarTz: string | null;
   /** Their deal, as the page says it (0004); null where none was recorded. */
@@ -240,14 +262,53 @@ export function visitTitleFor(title: string, name: string): string {
 }
 
 /**
+ * What a day-keyed playbook reads of a row's visits (playbook-reach.ts): the calendar's day of the next and the last, how
+ * each was found to be theirs (a number and an address are exact, a name is a guess: MatchVia), and the calendar's zone.
+ * All null without a calendar read.
+ */
+function visitKeysOf(
+  v: PersonRowDto["visits"],
+): Pick<PersonRowVM, "nextVisitDate" | "lastVisitDate" | "nextVisitVia" | "lastVisitVia" | "calendarTz"> {
+  return {
+    nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
+    lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
+    nextVisitVia: v?.next?.via ?? null,
+    lastVisitVia: v?.last?.via ?? null,
+    calendarTz: v?.timezone ?? null,
+  };
+}
+
+/** A channel a message was written on, as a campaign may reach them on it; null for a call or nothing. */
+function lastChannelOf(c: string | null | undefined): ConsentChannel | null {
+  return c === "whatsapp" || c === "sms" || c === "email" ? c : null;
+}
+
+/**
+ * What a row says of reaching them: what the pick reads beside their answers (reachFor: where they last wrote, whether
+ * their address is dead), and what comes of them on the channels the workspace can send on now (reach-any.ts). `ready`
+ * is those channels, or null where they could not be read: counted as before the channels were, by WhatsApp alone.
+ */
+function rowReachOf(
+  r: PersonRowDto,
+  consent: PersonConsent,
+  ready: ChannelsReady | null,
+): Pick<PersonRowVM, "lastChannel" | "emailSuppressed" | "saidYes" | "canReceive" | "whyNot"> {
+  const facts = { lastChannel: lastChannelOf(r.last_inbound_channel), emailSuppressed: !!r.email_suppressed_at };
+  return { ...facts, ...personReachOf({ consent, phone: r.phone_e164, email: r.email ?? null, ...facts }, ready) };
+}
+
+/**
  * A People row, as it reads at `now` for `viewerId` (the member looking; null for a playbook's run, which has no one):
  * its words, and the facts a list's rule reads (list-rules.ts), each worked out once here in the workspace's own dates.
+ * `ready` is what the workspace can send on now, which their reach is judged against (reach-any.ts): required, since a
+ * row says who can be sent what; null where it could not be read, counted as before the channels were, by WhatsApp alone.
  */
 export function toPersonRowVM(
   r: PersonRowDto,
   tz: string,
   now = new Date(),
   viewerId: string | null = null,
+  ready: ChannelsReady | null,
 ): PersonRowVM {
   const nowMs = now.getTime();
   const name = personName(r);
@@ -255,6 +316,7 @@ export function toPersonRowVM(
   const last = lastContactOf(r, tz, nowMs);
   const first = firstContactOf(r, tz, nowMs);
   const consent = consentOf(r, tz, nowMs);
+  const reach = rowReachOf(r, consent, ready);
   // Booked is a fact from the calendar, not a stage: an appointment ahead.
   // Asked-not-booked is the gap the owner can act on — they reached out
   // this month and the calendar has never had them.
@@ -302,6 +364,7 @@ export function toPersonRowVM(
     initials: initialsOf(name),
     phone: formatPhoneDisplay(r.phone_e164),
     email: r.email ?? null,
+    ...reach,
     waName: r.wa_profile_name,
     channels: channelsOf(r),
     hasChat: !!r.has_chat,
@@ -361,15 +424,8 @@ export function toPersonRowVM(
         : r.latest_assignee_user_id === viewerId
           ? "me"
           : "teammate",
-    saidYes: { offers: saidYesTo({ consent }, "marketing"), messages: saidYesTo({ consent }, "conversational") },
-    canReceive: {
-      offers: mayReceive({ consent, phone: r.phone_e164 }, "marketing"),
-      messages: mayReceive({ consent, phone: r.phone_e164 }, "conversational"),
-    },
     stopped: isOptedOutContact({ consent: r.consent, dnc: r.dnc }),
-    nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
-    lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
-    calendarTz: v?.timezone ?? null,
+    ...visitKeysOf(v),
     deal: dealOf(r, tz, nowMs),
     consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
     consultedMs: v?.last?.consultation ? ts(v.last.end) : null,

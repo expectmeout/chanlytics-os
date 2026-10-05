@@ -270,14 +270,14 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
 
 test("the field that caused this says what it is", () => {
   // Task 3.7 deleted the form. The three numbers are three rows of the Business page, each edited where it is stated
-  // (business-tab-who.jsx); business-tab-page.test.mjs draws and presses every one of them.
-  const pane = readRaw("apps/dashboard/src/legacy/pages/business-tab-who.jsx");
+  // (surfaces/settings/business/who.tsx); business-tab-page.test.mjs draws and presses every one of them.
+  const pane = readRaw("apps/dashboard/src/surfaces/settings/business/who.tsx");
   assert.ok(!/label="Phone line"/.test(pane), "REGRESSION: the editor called it the same thing as the line it answers");
   assert.ok(pane.includes('label="Tells customers to call"'), "it is what goes in the words");
   // And not a text box at all any more: the line is the default, and publishing
   // anything else is a deliberate act with a reason shown under it.
   assert.ok(
-    pane.includes('{ value: "line", label: "Your line" }, { value: "other", label: "A different number" }'),
+    /\{ value: "line", label: "Your line" \},\s*\{ value: "other", label: "A different number" \}/.test(pane),
     "two options, the line first",
   );
 
@@ -286,7 +286,7 @@ test("the field that caused this says what it is", () => {
   // were sections nine and thirteen of a fourteen-section form, a page apart
   // from each other and from the card that reads them.
   assert.ok(
-    pane.includes('window.CHANLY.nav("admin/integrations")') && pane.includes('label="Answers on"'),
+    pane.includes('navigate("admin/integrations")') && pane.includes('label="Answers on"'),
     "the line is Connections' to own",
   );
   assert.ok(
@@ -295,7 +295,7 @@ test("the field that caused this says what it is", () => {
   );
   // One key, on top of what is stored -- PUT /settings is a whole-config CAS,
   // and a fragment would delete the rest. The save itself moved to
-  // pages/business-tab-save.jsx with the Business tab (Task 3.2); these rows
+  // surfaces/settings/business/save.tsx with the Business tab (Task 3.2); these rows
   // take it from window, settings-honest.test.mjs presses them, and
   // business-tab-page.test.mjs runs the save when it fails.
   // Absent means the line, so clearing the box removes the key: the row's patch, run in business-tab-page.test.mjs.
@@ -445,8 +445,8 @@ test("the editor is four steps, and the days sit beside the hours they qualify",
   // not apply to, with the services and the calendar feed in between. Task 3.7 deleted that form; the four steps are
   // the four cards of the Business page, in this order, and what each one draws is EXECUTED in its own test file
   // (business-tab-open.test.mjs asserts the cards in order, and the four rows of When you are open in theirs).
-  const page = readRaw("apps/dashboard/src/legacy/pages/business-tab.jsx");
-  const cards = [...page.matchAll(/window\.(Bt(?:Who|Open|Offer|Answers))Card \?/g)].map((m) => m[1]);
+  const page = readRaw("apps/dashboard/src/surfaces/settings/business/tab.tsx");
+  const cards = [...page.matchAll(/<(Bt(?:Who|Open|Offer|Answers))Card\b/g)].map((m) => m[1]);
   assert.deepEqual(cards, ["BtWho", "BtOpen", "BtOffer", "BtAnswers"]);
 });
 
@@ -454,12 +454,12 @@ test("languages is one control, not a grid plus a second control", () => {
   // The fourteen languages shouting, two of them chosen, went with the form (Task 3.7). The languages are one fold of
   // the Business page: the chosen ones as tokens, each with its remove, and ONE box to add another, over the common
   // ones as an offer rather than a wall. business-tab-answers.test.mjs draws it and adds, removes and caps it.
-  const pane = readRaw("apps/dashboard/src/legacy/pages/business-tab-answers.jsx");
-  assert.ok(pane.includes('data-testid="rec-languages"') && pane.includes("window.RecordCombobox"), "a token field");
+  const pane = readRaw("apps/dashboard/src/surfaces/settings/business/answers-fields.tsx");
+  assert.ok(pane.includes('data-testid="rec-languages"') && pane.includes("<RecordCombobox"), "a token field");
   assert.ok(!/set-chip/.test(pane), "REGRESSION: fourteen languages shouting, two of them chosen");
   assert.ok(!pane.includes('placeholder="Another language"'), "and no second field underneath to add a fifteenth");
   assert.ok(
-    pane.includes('e.key === "Backspace" && e.target && e.target.value === "" && chosen.length'),
+    /e\.key === "Backspace" &&\s*"value" in e\.target &&\s*e\.target\.value === "" &&\s*chosen\.length/.test(pane),
     "backspace takes the last one back, as every token field does",
   );
 });

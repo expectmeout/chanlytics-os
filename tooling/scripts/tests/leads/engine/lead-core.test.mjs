@@ -237,6 +237,28 @@ test("the judge's facts are capped and stripped; a batch refused twice is Needs 
   await assert.rejects(judgeBatch(boom, PLAN, [f], "op-3"), /overloaded/, "the provider's trouble propagates");
 });
 
+test("a batch is judged in the round it belongs to: the workspace and the round reach the judge, on the retry too; none named, none passed", async () => {
+  const seen = [];
+  let n = 0;
+  const judge = {
+    judge: async (plan, places, tenantId, roundId) => {
+      seen.push([tenantId, roundId]);
+      n += 1;
+      return n === 1 ? { refused: true, why: "not JSON" } : fakeJudge().judge(plan, places);
+    },
+  };
+  const f = factsOf(0, cleanPlace(card.mapItem(mapsItem(1))));
+  await judgeBatch(judge, PLAN, [f], "op-4", { tenant_id: "tenant-1", id: "round-1" });
+  assert.deepEqual(seen, [
+    ["tenant-1", "round-1"],
+    ["tenant-1", "round-1"],
+  ]);
+  seen.length = 0;
+  n = 1;
+  await judgeBatch(judge, PLAN, [f], "op-5");
+  assert.deepEqual(seen, [[undefined, undefined]]);
+});
+
 test("sizing: the probe spreads 25 across the terms; the main phase divides the remainder by the yield within 1.2x and 4x; caps carry headroom, fit the reserve, never go under the floor", () => {
   assert.deepEqual(probeAsk(PLAN), { terms: ["personal trainer", "strength coach"], perTerm: [13, 12] });
   assert.equal(yieldOf(24, 12), 0.5);

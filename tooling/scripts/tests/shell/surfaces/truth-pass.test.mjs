@@ -17,17 +17,17 @@ import path from "node:path";
 import { ROOT, readCode, readRaw } from "../../_source.mjs";
 
 test("AI memory is an honest pane that keeps the settings nav; Billing is real", () => {
-  const settings = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
+  const settings = readRaw("apps/dashboard/src/surfaces/settings/frame/page.tsx");
   assert.ok(
     settings.includes(
-      '{active.id === "memory" && (window.__SETTINGS === undefined ? <PaneMemory flash={flash} /> : <PaneSoon which="memory" onTab={onTab} />)}',
+      // The pane, wherever Settings is drawn: the mockup's twin, five invented memories with a Forget that kept nothing,
+      // went with step 11 of decision 0015.
+      '{id === "memory" && <PaneSoon which="memory" onTab={onTab} />}',
     ),
   );
   assert.ok(
-    settings.includes(
-      '{active.id === "billing" && (window.__SETTINGS === undefined ? <PaneBilling flash={flash} /> : <window.PaneBillingReal flash={flash} />)}',
-    ),
-    "Billing is real on a workspace: billing-real.jsx",
+    settings.includes('{id === "billing" && <PaneBillingReal flash={flash} />}'),
+    "Billing is real on a workspace: surfaces/settings/billing, imported by the page",
   );
   assert.ok(settings.includes("data-testid={`soon-${which}`}"), "the pane is addressable by the e2e");
   assert.ok(settings.includes("does not learn rules on its own yet"), "AI memory says what is true");
@@ -50,15 +50,17 @@ test("AI memory is an honest pane that keeps the settings nav; Billing is real",
 test("the thread menu on a real workspace offers only verbs that act", () => {
   const page = readCode("apps/dashboard/src/surfaces/inbox/thread/header.tsx");
   assert.ok(
-    page.includes('...(demoSession() ? [{ label: "Mark as unread"'),
+    page.replace(/\s+/g, " ").includes('...(demoSession() ? [{ label: "Mark as unread"'),
     "Mark as unread is demo-only until unread state exists",
   );
-  assert.ok(/label: "Block sender",\s*icon: "x",\s*danger: true/.test(page), "the demo keeps its item");
+  assert.ok(/label: "Block sender",\s*glyph: ixGlyph\("x"\),\s*tone: "danger"/.test(page), "the demo keeps its item");
   const block = page.indexOf('label: "Block sender"');
   const gate = page.lastIndexOf("demoSession()", block);
   assert.ok(gate > 0 && block - gate < 120, "Block sender is behind the demo gate");
   assert.ok(
-    page.includes('{ label: "Receptionist settings", icon: "shield", onClick: () => onOpenClient(thread.clientId) }'),
+    page.includes(
+      '{ label: "Receptionist settings", glyph: ixGlyph("shield"), onSelect: () => onOpenClient(thread.clientId) }',
+    ),
     "a real session is sent to the per-person mode instead",
   );
 });

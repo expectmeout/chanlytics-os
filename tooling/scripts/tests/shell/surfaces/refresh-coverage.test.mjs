@@ -53,3 +53,36 @@ test("a partner joining a workspace goes through the map, the switcher's list an
   assert.deepEqual(keysOf("POST partner/invitations/[id]/accept").sort(), ["partner", "workspace"]);
   assert.deepEqual(keysOf("POST billing/start-now").sort(), ["billing", "setup"]);
 });
+
+test("REGRESSION: taking an email or text version away re-reads what saving one does -- the composers kept the channel open", () => {
+  // The Send by row closes a channel its message has no version on, and the preview draws a person as that version
+  // reads: both composers read their surfaces, and a delete that re-read Settings alone left the channel ticked.
+  const saved = keysOf("POST templates/versions");
+  for (const key of ["settings", "playbooks", "broadcasts"]) assert.ok(saved.includes(key), `${key}: ${saved}`);
+  assert.deepEqual(keysOf("DELETE templates/versions/[id]"), saved, "one list for the two writes");
+});
+
+test("REGRESSION: a broadcast made re-reads Playbooks with Broadcasts, as approving or cancelling a run does", () => {
+  assert.deepEqual(keysOf("POST broadcasts").sort(), ["broadcasts", "playbooks"]);
+});
+
+test("a write that changes what a channel can send re-reads the composers and People's reach", () => {
+  // The number, the text line, the mailbox and the postal address an offer by email names are what channels-ready.ts
+  // reads; each has its writer in this table, and each moves the three surfaces that show the readiness.
+  const moved = ["broadcasts", "playbooks", "people"];
+  for (const route of [
+    "PUT settings",
+    "POST settings/receptionist",
+    "POST channels/whatsapp/connect",
+    "POST lines/buy",
+    "POST lines/retry",
+    "POST lines/register",
+    "POST mailboxes",
+    "PUT mailboxes/[id]",
+  ]) {
+    const keys = keysOf(route);
+    for (const key of moved) assert.ok(keys.includes(key), `${route} re-reads ${key}: ${keys}`);
+  }
+  // A line's forwarding is the voice line's: it changes no channel a campaign goes by.
+  assert.deepEqual(keysOf("POST lines/forwarding").sort(), ["settings", "setup"]);
+});

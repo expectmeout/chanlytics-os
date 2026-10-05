@@ -76,7 +76,6 @@
      rather than a rename. Live's 400 held a four-column table; its rows now
      take the Inbox's shape, and the real page takes --rail-list (live.css). */
   --rail-nav: 220px;
-  --rail-list: 340px;
 
   /* ---------- A list row on a phone (900px and under) ----------
      Four lists show a person, a lead, a conversation and a call, and each had
@@ -112,6 +111,8 @@
   --radius-2xl: 20px;
   /* A capsule around a 36px control with 6px of room (the Inbox's reply box, I1): 18 + 6. */
   --radius-3xl: 24px;
+  /* The top corners of the phone's action sheet (the kit's Menu from the bottom edge): the sheet's 16 and 6 more. */
+  --radius-sheet: 22px;
   --radius-full: 999px;
   /* A circle, whatever the box's size: a face, a dot. --radius-full rounds a wide box into a capsule, this into an
      ellipse; on a square box the two are one circle. The stylesheets still write 50% by hand for it (step 2.2). */
@@ -189,22 +190,32 @@
 }
 
 /* ============================================================
-   ROLES -- what a thing is for (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, 3.1), set to the look's
-   values: GLASS, the look the six Liquid Glass canvases draw (§3.1 and Appendix B, its values in oklch), the one
-   look since Classic, the app as it was drawn before, retired on 2 October 2026 (step 5.7).
+   ROLES -- what a thing is for (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, 3.1)
    A rule that draws a control, a badge, a menu or a panel reads one of these, not the scale or the colour under it,
-   so a look restyles every button, chip and menu in one place. They are set on every element that carries a theme,
-   not on :root alone: a custom property is made once where it is set, so a role made on the page's root would keep
-   the root's colours inside an .app-root that stamps the other theme. A role arrives with its first reader.
-   The look is a material more than a palette: a cool ground lit by three soft pools of light, which the glass takes
-   its colour from; the control layer (the sidebar, the top bar's capsules, the tab bar, a segmented capsule) in deep
-   glass with a rim lit from the top left; panes clear; inside a pane everything an inset, a plain fill with a
-   hairline and no blur (never glass on glass); and what pops over the page opaque. Coral is the primary act
-   (decision 5), the live call, the Now line and the picked tab; amber the one warning; a count is neutral; green is
-   what is open, checked or won. This block is the light side and sets everything; the [data-theme="dark"] block
-   after it sets every colour again for the dark side. A value no canvas gives is derived from theirs and says so.
-   A second look is a [data-look="<name>"] block after these two, with its dark side after that (docs/runbook.md,
-   "Add a look"); where Classic's values stood here before, a comment still says so for what they were.
+   so a look restyles every button, chip and menu in one place. These are Classic, the look every page wears: each is
+   made from the scales above and the theme's colours, so each equals what its readers wrote before. A look is one
+   more block that sets them (a [data-look] block, after this one).
+   They are set on every element that carries a theme, not on :root alone: a custom property is made once where it
+   is set, so a role made on the page's root would keep the root's colours inside an .app-root that stamps the other
+   theme.
+   A role arrives with its first reader. The blurs, a pane's depth and the control layer's fill have none in Classic;
+   they arrive with the look that draws them.
+   ============================================================ */
+
+/* ============================================================
+   GLASS -- the look the six Liquid Glass canvases draw (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md,
+   §3.1 and Appendix B, its values in oklch). Not offered to members yet: a page wears it only where a stored look asks
+   for it (contracts' shell/chrome.ts, LOOK_OFFERED), and Classic, above, is untouched.
+   A material more than a palette: a cool ground lit by three soft pools of light, which the glass takes its colour
+   from; the control layer (the sidebar, the top bar's capsules, the tab bar, a segmented capsule) in deep glass with a
+   rim lit from the top left; panes clear; inside a pane everything an inset, a plain fill with a hairline and no blur
+   (never glass on glass); and what pops over the page opaque. Coral is the primary act (decision 5), the live call,
+   the Now line and the picked tab; amber the one warning; a count is neutral; green is what is open, checked or won.
+   The first block is the light side and sets everything; the dark side sets every colour again, since a [data-look]
+   rule weighs what a [data-theme] rule weighs and would otherwise lend a dark root its light colours. A value no
+   canvas gives is derived from theirs and says so. The roles Classic lacks (the page's light, a surface's blur, rim
+   and depth, the control layer's fill, the island, the count, the solid fills) are set here alone, and only rules of
+   this look read them.
    ============================================================ */
 /* Where the three pools of light stand (the canvases' glow): registered, so the app's root can move them (components.css,
    pg-drift); a browser without @property keeps them still. */
@@ -218,6 +229,8 @@
   /* A badge's height and its round ends: a pill, a chip. */
   --chip-h: 20px;
   --chip-radius: var(--radius-full);
+  /* A thread of the first priority rings its face (Classic; Glass draws none). */
+  --face-ring: inset 0 0 0 1.5px var(--accent);
 
   --quiet-ink: var(--ink-muted);
 
@@ -238,6 +251,10 @@
   /* The page's gutter is the canvases' (28px beside the sidebar; 16px on a phone), which the head, the row of views and
      the panes all keep to. */
   --gutter-page: 28px;
+  /* The list beside a thread, in the Inbox, Conversations and Live: the canvases' 360 (I1), where Classic's rail is 340.
+     One value for the three, so the list's edge and the thread's width stay put as the strip's tabs are pressed (the
+     Inbox alone had it, and the other two moved it 20px). */
+  --rail-list: 360px;
   /* The look's type: the canvases' Mona Sans (Ruben, 1 October 2026), named in app/globals.css over public/fonts and
      in the mockup's Google Fonts link, with Geist behind it; the mono stays Geist Mono, as the canvases keep it.
      Geist's stylistic sets (the base rules' ss01, cv11, cv02) are its own, so the look reads Mona Sans plain, as the
@@ -313,9 +330,24 @@
 
   /* The page: its ground, and the light, three soft pools where the canvases put them. */
   --surface-page-light:
-    radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), oklch(0.821 0.089 265 / 0.68), transparent),
+    radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), oklch(0.821 0.089 265 / 0.14), transparent),
     radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), oklch(0.98 0.013 64 / 0.95), transparent),
-    radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), oklch(0.841 0.088 295 / 0.46), transparent);
+    radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), oklch(0.841 0.088 295 / 0.09), transparent);
+  /* The page's top on a phone: plain paper under the phone's own bar (the clock, the battery), and the light coming in
+     under it (Ruben, 4 Oct 2026). Safari runs the page under the bar, so the paper holds through the inset and fades
+     over the 64px after it; the phone app pads the bar itself and starts the page under it, where the inset reads 0,
+     so the paper is a soft edge from the strip the app painted. The dark side reads its own --bg through this. Laid
+     over the pools by the body's and the app's root's phone paint (below, and components.css), never by the page
+     name's tint (kit.css), which keeps the three pools alone. */
+  --surface-page-top: linear-gradient(
+    var(--bg) env(safe-area-inset-top, 0px),
+    transparent calc(env(safe-area-inset-top, 0px) + 64px)
+  );
+  /* How much of its own ink a phone's page name lays over the page light, which tints its letters (kit.css, the page head):
+     the light side is strong, and the canvases' name is faded by it into a slate (the pool is 14% blue there), so this
+     lets most of the tint through; the dark side's pools are faint, so it keeps more. */
+  --title-veil: 0.04;
+  --title-fill: 0.72;
 
   /* The control layer: its glass, the sheen over its top, how far it blurs, its rim, its specular edge and contour
      with the depth under it, and the sidebar's corner (a capsule's is half its height, --radius-full). */
@@ -383,6 +415,9 @@
   --control-radius-sm: var(--radius-full);
   --selected-fill: oklch(1 0 0 / 0.82);
   --selected-depth: inset 0 1px 0 oklch(1 0 0 / 0.95), 0 2px 6px -3px oklch(0 0 0 / 0.22);
+  /* The canvases' accent text on the lozenge (#B93A26): a step brighter than the accent's ink (0.45), which read as a dark
+     brown on the white lozenge. */
+  --tab-ink: oklch(0.532 0.167 31.7);
   /* The dim and faint inks on the picked segment, which is lighter than the ground it stands on: the page's own on the
      light side, where the lozenge only lifts them. */
   --selected-ink-dim: var(--ink-dim);
@@ -447,6 +482,8 @@
     radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), oklch(0.737 0.103 267 / 0.17), transparent),
     radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), oklch(0.955 0.026 55 / 0.05), transparent),
     radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), oklch(0.76 0.135 293 / 0.1), transparent);
+  --title-veil: 0.4;
+  --title-fill: 0.9;
 
   --surface-control-fill: oklch(1 0 0 / 0.085);
   --surface-control-sheen: linear-gradient(180deg, oklch(1 0 0 / 0.042), transparent 42%);
@@ -490,6 +527,9 @@
 
   --selected-fill: oklch(1 0 0 / 0.13);
   --selected-depth: inset 0 1px 0 oklch(1 0 0 / 0.2), 0 2px 6px -3px oklch(0 0 0 / 0.22);
+  /* The canvases' accent text on the lozenge (#FF8A7C): coral, a step deeper than the accent's ink (0.82), which read as a
+     pale salmon on the dark lozenge. */
+  --tab-ink: oklch(0.759 0.144 28.1);
   --selected-ink-dim: oklch(0.946 0.012 286 / 0.8);
   --selected-ink-faint: oklch(0.946 0.012 286 / 0.5);
 
@@ -569,6 +609,12 @@ body {
   background-attachment: fixed;
   background-repeat: no-repeat;
 }
+/* On a phone the page's top is plain paper under the phone's bar (--surface-page-top). */
+@media (max-width: 900px) {
+  body {
+    background-image: var(--surface-page-top), var(--surface-page-light);
+  }
+}
 
 button, input, select, textarea {
   font-family: inherit;
@@ -599,7 +645,7 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
 @media (max-width: 900px) {
-  [data-look="glass"] {
+  :root, [data-theme] {
     --gutter-page: 16px;
   }
 }

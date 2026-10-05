@@ -203,6 +203,87 @@ export type Database = {
           },
         ]
       }
+      ask_voice_sessions: {
+        Row: {
+          connect_ms: number | null
+          context: Json | null
+          conversation_id: string | null
+          created_at: string
+          duration_s: number | null
+          end_reason: string | null
+          ended_at: string | null
+          first_audio_ms: number | null
+          id: string
+          language: string
+          scope: Json | null
+          surface: string | null
+          tenant_id: string
+          thread_id: string
+          token_cipher: string
+          token_expires_at: string
+          turn_key: string | null
+          turn_started_at: string | null
+          user_id: string
+        }
+        Insert: {
+          connect_ms?: number | null
+          context?: Json | null
+          conversation_id?: string | null
+          created_at?: string
+          duration_s?: number | null
+          end_reason?: string | null
+          ended_at?: string | null
+          first_audio_ms?: number | null
+          id: string
+          language?: string
+          scope?: Json | null
+          surface?: string | null
+          tenant_id: string
+          thread_id: string
+          token_cipher: string
+          token_expires_at: string
+          turn_key?: string | null
+          turn_started_at?: string | null
+          user_id: string
+        }
+        Update: {
+          connect_ms?: number | null
+          context?: Json | null
+          conversation_id?: string | null
+          created_at?: string
+          duration_s?: number | null
+          end_reason?: string | null
+          ended_at?: string | null
+          first_audio_ms?: number | null
+          id?: string
+          language?: string
+          scope?: Json | null
+          surface?: string | null
+          tenant_id?: string
+          thread_id?: string
+          token_cipher?: string
+          token_expires_at?: string
+          turn_key?: string | null
+          turn_started_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ask_voice_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ask_voice_sessions_thread_id_same_workspace"
+            columns: ["tenant_id", "thread_id"]
+            isOneToOne: false
+            referencedRelation: "ask_threads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
       billing_accounts: {
         Row: {
           cancel_at: string | null
@@ -299,6 +380,8 @@ export type Database = {
       }
       billing_events: {
         Row: {
+          amount_cents: number | null
+          currency: string | null
           id: string
           lease_until: string | null
           received_at: string
@@ -307,6 +390,8 @@ export type Database = {
           type: string
         }
         Insert: {
+          amount_cents?: number | null
+          currency?: string | null
           id: string
           lease_until?: string | null
           received_at?: string
@@ -315,6 +400,8 @@ export type Database = {
           type: string
         }
         Update: {
+          amount_cents?: number | null
+          currency?: string | null
           id?: string
           lease_until?: string | null
           received_at?: string
@@ -334,7 +421,9 @@ export type Database = {
       }
       broadcast_recipients: {
         Row: {
+          attempt: number
           broadcast_id: string
+          channel: string | null
           contact_id: string
           facts: Json | null
           message_id: string | null
@@ -344,7 +433,9 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          attempt?: number
           broadcast_id: string
+          channel?: string | null
           contact_id: string
           facts?: Json | null
           message_id?: string | null
@@ -354,7 +445,9 @@ export type Database = {
           tenant_id: string
         }
         Update: {
+          attempt?: number
           broadcast_id?: string
+          channel?: string | null
           contact_id?: string
           facts?: Json | null
           message_id?: string | null
@@ -397,6 +490,7 @@ export type Database = {
       broadcasts: {
         Row: {
           audience: Json
+          channels: string[]
           created_at: string
           created_by: string | null
           failure: string | null
@@ -418,6 +512,7 @@ export type Database = {
         }
         Insert: {
           audience?: Json
+          channels?: string[]
           created_at?: string
           created_by?: string | null
           failure?: string | null
@@ -439,6 +534,7 @@ export type Database = {
         }
         Update: {
           audience?: Json
+          channels?: string[]
           created_at?: string
           created_by?: string | null
           failure?: string | null
@@ -812,7 +908,10 @@ export type Database = {
       }
       contacts: {
         Row: {
+          acquired_ref: string | null
+          acquired_via: string | null
           consent: string
+          consent_channels: string[] | null
           consent_source: string | null
           consent_updated_at: string | null
           created_at: string
@@ -831,11 +930,13 @@ export type Database = {
           first_seen_at: string
           id: string
           last_seen_at: string
+          marketing_channels: string[] | null
           marketing_consent: string
           marketing_consent_source: string | null
           marketing_consent_updated_at: string | null
           merged_into_contact_id: string | null
           notes: string | null
+          offers_asked_at: string | null
           phone_e164: string | null
           proposal_url: string | null
           tenant_id: string
@@ -843,7 +944,10 @@ export type Database = {
           wa_profile_name: string | null
         }
         Insert: {
+          acquired_ref?: string | null
+          acquired_via?: string | null
           consent?: string
+          consent_channels?: string[] | null
           consent_source?: string | null
           consent_updated_at?: string | null
           created_at?: string
@@ -862,11 +966,13 @@ export type Database = {
           first_seen_at?: string
           id?: string
           last_seen_at?: string
+          marketing_channels?: string[] | null
           marketing_consent?: string
           marketing_consent_source?: string | null
           marketing_consent_updated_at?: string | null
           merged_into_contact_id?: string | null
           notes?: string | null
+          offers_asked_at?: string | null
           phone_e164?: string | null
           proposal_url?: string | null
           tenant_id: string
@@ -874,7 +980,10 @@ export type Database = {
           wa_profile_name?: string | null
         }
         Update: {
+          acquired_ref?: string | null
+          acquired_via?: string | null
           consent?: string
+          consent_channels?: string[] | null
           consent_source?: string | null
           consent_updated_at?: string | null
           created_at?: string
@@ -893,11 +1002,13 @@ export type Database = {
           first_seen_at?: string
           id?: string
           last_seen_at?: string
+          marketing_channels?: string[] | null
           marketing_consent?: string
           marketing_consent_source?: string | null
           marketing_consent_updated_at?: string | null
           merged_into_contact_id?: string | null
           notes?: string | null
+          offers_asked_at?: string | null
           phone_e164?: string | null
           proposal_url?: string | null
           tenant_id?: string
@@ -1171,6 +1282,7 @@ export type Database = {
           details: string | null
           id: string
           reason: string
+          resolved_at: string | null
           resolved_by_user_id: string | null
           state: string
           tenant_id: string
@@ -1184,6 +1296,7 @@ export type Database = {
           details?: string | null
           id?: string
           reason: string
+          resolved_at?: string | null
           resolved_by_user_id?: string | null
           state?: string
           tenant_id: string
@@ -1197,6 +1310,7 @@ export type Database = {
           details?: string | null
           id?: string
           reason?: string
+          resolved_at?: string | null
           resolved_by_user_id?: string | null
           state?: string
           tenant_id?: string
@@ -1259,45 +1373,6 @@ export type Database = {
         Relationships: []
       }
       events_default: {
-        Row: {
-          category: string
-          created_at: string
-          data: Json
-          id: string
-          kind: string
-          request_id: string | null
-          subject_id: string | null
-          subject_type: string | null
-          tenant_id: string
-          version: number
-        }
-        Insert: {
-          category?: string
-          created_at?: string
-          data?: Json
-          id?: string
-          kind: string
-          request_id?: string | null
-          subject_id?: string | null
-          subject_type?: string | null
-          tenant_id: string
-          version?: number
-        }
-        Update: {
-          category?: string
-          created_at?: string
-          data?: Json
-          id?: string
-          kind?: string
-          request_id?: string | null
-          subject_id?: string | null
-          subject_type?: string | null
-          tenant_id?: string
-          version?: number
-        }
-        Relationships: []
-      }
-      events_y2026m09: {
         Row: {
           category: string
           created_at: string
@@ -1805,6 +1880,45 @@ export type Database = {
         Relationships: []
       }
       events_y2027m10: {
+        Row: {
+          category: string
+          created_at: string
+          data: Json
+          id: string
+          kind: string
+          request_id: string | null
+          subject_id: string | null
+          subject_type: string | null
+          tenant_id: string
+          version: number
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          data?: Json
+          id?: string
+          kind: string
+          request_id?: string | null
+          subject_id?: string | null
+          subject_type?: string | null
+          tenant_id: string
+          version?: number
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          data?: Json
+          id?: string
+          kind?: string
+          request_id?: string | null
+          subject_id?: string | null
+          subject_type?: string | null
+          tenant_id?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      events_y2027m11: {
         Row: {
           category: string
           created_at: string
@@ -2979,6 +3093,8 @@ export type Database = {
           reviews: number | null
           reviews_dist: Json | null
           stage: string
+          stage_at: string | null
+          stage_from: string | null
           street: string | null
           tenant_id: string
           tiktok_url: string | null
@@ -3034,6 +3150,8 @@ export type Database = {
           reviews?: number | null
           reviews_dist?: Json | null
           stage?: string
+          stage_at?: string | null
+          stage_from?: string | null
           street?: string | null
           tenant_id: string
           tiktok_url?: string | null
@@ -3089,6 +3207,8 @@ export type Database = {
           reviews?: number | null
           reviews_dist?: Json | null
           stage?: string
+          stage_at?: string | null
+          stage_from?: string | null
           street?: string | null
           tenant_id?: string
           tiktok_url?: string | null
@@ -3234,6 +3354,9 @@ export type Database = {
           last_error: string | null
           last_received_at: string | null
           local_part: string
+          offers_paused_at: string | null
+          offers_paused_reason: string | null
+          offers_resumed_at: string | null
           reply_mode: string
           reply_token: string
           reply_token_prev: string | null
@@ -3247,6 +3370,9 @@ export type Database = {
           last_error?: string | null
           last_received_at?: string | null
           local_part: string
+          offers_paused_at?: string | null
+          offers_paused_reason?: string | null
+          offers_resumed_at?: string | null
           reply_mode?: string
           reply_token: string
           reply_token_prev?: string | null
@@ -3260,6 +3386,9 @@ export type Database = {
           last_error?: string | null
           last_received_at?: string | null
           local_part?: string
+          offers_paused_at?: string | null
+          offers_paused_reason?: string | null
+          offers_resumed_at?: string | null
           reply_mode?: string
           reply_token?: string
           reply_token_prev?: string | null
@@ -4053,10 +4182,13 @@ export type Database = {
       }
       platform_metrics: {
         Row: {
+          ai_tokens: Json | null
+          ai_usd: Json | null
           answered: number
           asks: number
           brain_p95_ms: number | null
           day: string
+          handled: Json | null
           messages_in: Json
           messages_out: Json
           provider_failures: Json
@@ -4066,12 +4198,17 @@ export type Database = {
           rolled_at: string
           tenant_id: string
           tokens: number
+          topics: Json | null
+          voice_usd: number | null
         }
         Insert: {
+          ai_tokens?: Json | null
+          ai_usd?: Json | null
           answered?: number
           asks?: number
           brain_p95_ms?: number | null
           day: string
+          handled?: Json | null
           messages_in?: Json
           messages_out?: Json
           provider_failures?: Json
@@ -4081,12 +4218,17 @@ export type Database = {
           rolled_at?: string
           tenant_id: string
           tokens?: number
+          topics?: Json | null
+          voice_usd?: number | null
         }
         Update: {
+          ai_tokens?: Json | null
+          ai_usd?: Json | null
           answered?: number
           asks?: number
           brain_p95_ms?: number | null
           day?: string
+          handled?: Json | null
           messages_in?: Json
           messages_out?: Json
           provider_failures?: Json
@@ -4096,6 +4238,8 @@ export type Database = {
           rolled_at?: string
           tenant_id?: string
           tokens?: number
+          topics?: Json | null
+          voice_usd?: number | null
         }
         Relationships: [
           {
@@ -4113,6 +4257,7 @@ export type Database = {
           after_playbook_id: string | null
           cadence_days: number
           cap_per_run: number
+          channels: string[]
           created_at: string
           created_by: string | null
           domain_ids: string[]
@@ -4145,6 +4290,7 @@ export type Database = {
           after_playbook_id?: string | null
           cadence_days?: number
           cap_per_run?: number
+          channels?: string[]
           created_at?: string
           created_by?: string | null
           domain_ids?: string[]
@@ -4177,6 +4323,7 @@ export type Database = {
           after_playbook_id?: string | null
           cadence_days?: number
           cap_per_run?: number
+          channels?: string[]
           created_at?: string
           created_by?: string | null
           domain_ids?: string[]
@@ -4808,6 +4955,59 @@ export type Database = {
           },
         ]
       }
+      sending_domain_days: {
+        Row: {
+          bounced: number | null
+          checked_at: string | null
+          complaints: number | null
+          day: string
+          domain_id: string
+          held_why: string | null
+          host: string
+          kept_at: string
+          sent: number | null
+          sent_days: number | null
+          state: string
+          tenant_id: string
+        }
+        Insert: {
+          bounced?: number | null
+          checked_at?: string | null
+          complaints?: number | null
+          day: string
+          domain_id: string
+          held_why?: string | null
+          host: string
+          kept_at?: string
+          sent?: number | null
+          sent_days?: number | null
+          state: string
+          tenant_id: string
+        }
+        Update: {
+          bounced?: number | null
+          checked_at?: string | null
+          complaints?: number | null
+          day?: string
+          domain_id?: string
+          held_why?: string | null
+          host?: string
+          kept_at?: string
+          sent?: number | null
+          sent_days?: number | null
+          state?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sending_domain_days_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sending_domains: {
         Row: {
           bounced_recent: number | null
@@ -5295,9 +5495,14 @@ export type Database = {
         }
         Returns: string
       }
+      automated_send: { Args: { p_meta: Json }; Returns: boolean }
       billing_card_mark: {
         Args: { p_fingerprint: string; p_tenant_id: string }
         Returns: undefined
+      }
+      billing_event_keep_amount: {
+        Args: { p_amount_cents: number; p_currency: string; p_id: string }
+        Returns: boolean
       }
       calendars_due: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }
@@ -5308,14 +5513,28 @@ export type Database = {
           timezone: string
         }[]
       }
+      call_connected: {
+        Args: { p_duration_ms: number; p_status: string }
+        Returns: boolean
+      }
+      call_cost_usd: { Args: { p_cost: Json }; Returns: number }
       call_status_rank: { Args: { p_status: string }; Returns: number }
+      call_transfer_answered: { Args: { p_reason: string }; Returns: boolean }
       caller_has_permission: {
         Args: { p_permission: string; p_tenant_id: string }
         Returns: boolean
       }
+      campaign_month_sent: {
+        Args: { p_at?: string; p_channel: string; p_tenant_id: string }
+        Returns: number
+      }
       campaign_series: {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
+      }
+      channel_keep_quality: {
+        Args: { p_channel_id: string; p_rating: string; p_tenant_id: string }
+        Returns: string
       }
       claim_conversation_control: {
         Args: {
@@ -5363,6 +5582,21 @@ export type Database = {
           sent: number
           tenant_id: string
           unanswered: number
+        }[]
+      }
+      consent_channels_of: {
+        Args: { p_channel: string; p_purpose: string; p_source: string }
+        Returns: string[]
+      }
+      consent_channels_union: {
+        Args: { p_add: string[]; p_have: string[] }
+        Returns: string[]
+      }
+      contact_first_moments: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          contact_id: string
+          first_at: string
         }[]
       }
       create_mailbox: {
@@ -5459,6 +5693,10 @@ export type Database = {
         Args: { p_error: Json; p_status: string }
         Returns: boolean
       }
+      email_offer_counts: {
+        Args: { p_host: string; p_tenant_id: string }
+        Returns: Json
+      }
       email_sent_at: {
         Args: {
           p_created_at: string
@@ -5499,6 +5737,7 @@ export type Database = {
         Args: { p_start: string; p_tenant_id: string }
         Returns: {
           ai_at: string
+          ai_hold_s: number
           ai_seconds: number
           asked_at: string
           conversation_id: string
@@ -5530,6 +5769,10 @@ export type Database = {
       }
       has_permission: {
         Args: { p_permission: string; p_tenant_id: string; p_user: string }
+        Returns: boolean
+      }
+      has_relationship: {
+        Args: { c: Database["public"]["Tables"]["contacts"]["Row"] }
         Returns: boolean
       }
       holds_reply_turn: {
@@ -5683,6 +5926,10 @@ export type Database = {
       }
       lead_in_list: {
         Args: { p_closed_reason: string; p_list: string; p_stage: string }
+        Returns: boolean
+      }
+      lead_is_set_aside: {
+        Args: { p_closed_reason: string; p_stage: string }
         Returns: boolean
       }
       lead_list_counts: { Args: { p_tenant_id: string }; Returns: Json }
@@ -5965,6 +6212,15 @@ export type Database = {
         Args: { p_page: string; p_tenant_id: string; p_view: Json }
         Returns: Json
       }
+      message_carries_link: {
+        Args: { p_body: string; p_link: string }
+        Returns: boolean
+      }
+      message_is_a_persons_words: { Args: { p_meta: Json }; Returns: boolean }
+      message_keep_cost: {
+        Args: { p_external_id: string; p_pricing: Json; p_tenant_id: string }
+        Returns: boolean
+      }
       message_moment: {
         Args: {
           p_channel_ts: string
@@ -5974,6 +6230,15 @@ export type Database = {
           p_type: string
         }
         Returns: Record<string, unknown>
+      }
+      message_stamp_handled: {
+        Args: {
+          p_handled: string
+          p_intent?: string
+          p_message_id: string
+          p_tenant_id: string
+        }
+        Returns: undefined
       }
       metrics_summary: {
         Args: { p_days?: number; p_tenant_id: string }
@@ -6029,6 +6294,16 @@ export type Database = {
         Args: { p_remaining: number; p_sweep: string }
         Returns: number
       }
+      note_yes_on_channel: {
+        Args: {
+          p_channel: string
+          p_contact_id: string
+          p_message_external_id: string
+          p_tenant_id: string
+          p_words: string
+        }
+        Returns: boolean
+      }
       notification_mark: {
         Args: { p_dismissed?: boolean; p_id: string; p_read?: boolean }
         Returns: Json
@@ -6042,6 +6317,7 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      offers_email_reach: { Args: { p_tenant_id: string }; Returns: number }
       outreach_facts: {
         Args: {
           p_contact_id: string
@@ -6219,6 +6495,10 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      pause_email_offers: {
+        Args: { p_counts?: Json; p_reason: string; p_tenant_id: string }
+        Returns: boolean
+      }
       people_list: {
         Args: {
           p_after_added?: string
@@ -6237,6 +6517,7 @@ export type Database = {
           came_from: string
           channels: string[]
           consent: string
+          consent_channels: string[]
           consent_source: string
           consent_updated_at: string
           conversation_count: number
@@ -6255,6 +6536,10 @@ export type Database = {
           dnc: boolean
           earliest_row_at: string
           email: string
+          email_marketing: string
+          email_marketing_source: string
+          email_marketing_updated_at: string
+          email_suppressed_at: string
           escalation_count: number
           first_contact_at: string
           has_backfill: boolean
@@ -6265,21 +6550,25 @@ export type Database = {
           last_inbound_at: string
           last_inbound_call_at: string
           last_inbound_call_summary: string
+          last_inbound_channel: string
           last_inbound_text: string
           last_message_at: string
           last_message_direction: string
           last_message_sender: string
+          last_wrote_at: string
           latest_assignee_user_id: string
           latest_conversation_id: string
           latest_paused_until: string
           latest_snooze_until: string
           latest_state: string
           latest_wa_inbound_at: string
+          marketing_channels: string[]
           marketing_consent: string
           marketing_consent_source: string
           marketing_consent_updated_at: string
           message_channels: string[]
           needs_human: boolean
+          offers_asked_at: string
           open_escalation_reason: string
           open_escalation_since: string
           phone_e164: string
@@ -6400,6 +6689,16 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: Json
+      }
+      person_set_first_touch: {
+        Args: {
+          p_contact_id: string
+          p_made_at?: string
+          p_ref?: string
+          p_tenant_id: string
+          p_via: string
+        }
+        Returns: boolean
       }
       person_step_from_playbook: {
         Args: {
@@ -7022,6 +7321,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      remove_template_version: {
+        Args: { p_template_id: string }
+        Returns: Json
+      }
       rename_mailbox: {
         Args: { p_from_name: string; p_mailbox_id: string }
         Returns: Json
@@ -7035,8 +7338,20 @@ export type Database = {
         Args: { p_path: string; p_sweep: string; p_timeout_ms?: number }
         Returns: number
       }
+      resume_email_offers: { Args: { p_tenant_id: string }; Returns: boolean }
       runtime_stamp: { Args: { p_tenant_id: string }; Returns: string }
       safe_zone: { Args: { p: string }; Returns: string }
+      save_template_version: {
+        Args: {
+          p_body: string
+          p_channel: string
+          p_language: string
+          p_name: string
+          p_subject: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       scrub_ask_for_contact: {
         Args: { p_contact_id: string; p_needles: string[]; p_tenant_id: string }
         Returns: number
@@ -7072,6 +7387,7 @@ export type Database = {
         Args: { p_host: string; p_since: string; p_tenant_id: string }
         Returns: Json
       }
+      sending_domain_days_keep: { Args: never; Returns: number }
       session_has_partner_seat: { Args: never; Returns: boolean }
       session_shows_second_factor: { Args: never; Returns: boolean }
       set_contact_consent: {
@@ -7091,6 +7407,16 @@ export type Database = {
           p_message_id?: string
           p_source: string
           p_state: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      set_email_offers_yes: {
+        Args: {
+          p_contact_id: string
+          p_evidence?: Json
+          p_message_id?: string
+          p_source: string
           p_tenant_id: string
         }
         Returns: Json
@@ -7160,6 +7486,14 @@ export type Database = {
           status: string
         }[]
       }
+      stop_all_messages: {
+        Args: {
+          p_contact_id: string
+          p_message_id?: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       sweep_health: {
         Args: never
         Returns: {
@@ -7195,6 +7529,7 @@ export type Database = {
           schedule: string
         }[]
       }
+      sweep_voice_sessions: { Args: { p_after?: string }; Returns: number }
       take_rate: {
         Args: {
           p_actor: string
@@ -7284,6 +7619,7 @@ export type Database = {
       }
       trigger_calendar_sweep: { Args: never; Returns: number }
       trigger_call_reconcile: { Args: never; Returns: number }
+      trigger_channel_quality_sweep: { Args: never; Returns: number }
       trigger_deadman_sweep: { Args: never; Returns: number }
       trigger_domains_sweep: { Args: never; Returns: number }
       trigger_google_sweep: { Args: never; Returns: number }
@@ -7298,6 +7634,19 @@ export type Database = {
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sweep_health: { Args: never; Returns: number }
       wake_stale_snoozes: { Args: never; Returns: number }
+      workspace_days: {
+        Args: { p_from: string; p_tenant_id: string; p_to: string }
+        Returns: {
+          ai_tokens: Json
+          answered: number
+          asks: number
+          day: string
+          handled: Json
+          messages_in: Json
+          messages_out: Json
+          topics: Json
+        }[]
+      }
       workspace_partner: { Args: { p_tenant: string }; Returns: Json }
     }
     Enums: {

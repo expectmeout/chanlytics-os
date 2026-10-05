@@ -9,6 +9,7 @@ import { inboxTemplates } from "@chanlytics/contracts";
 import { useEffect, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
+import { Menu, type MenuGroup } from "../../kit/menu/menu";
 import { FOCUS_COMPOSER_MS, SAVED_NOTICE_MS } from "../constants";
 import { canDo, gate, tabMemory } from "../shell";
 import { inboxData } from "../store";
@@ -59,6 +60,7 @@ interface TemplateChoice {
   choice: ReturnType<typeof inboxTemplates<ApprovedTemplate>> | null;
   list: ApprovedTemplate[] | null;
   chosen: ApprovedTemplate | null;
+  chosenAt: number;
   chosenTitle: string | null;
 }
 
@@ -79,7 +81,7 @@ function templateChoice(
   const chosenAt = list && list.length ? Math.min(picked, list.length - 1) : -1;
   const chosen = list && chosenAt >= 0 ? list[chosenAt] : null;
   const chosenTitle = choice && chosenAt >= 0 ? choice.sendable[chosenAt].title : null;
-  return { choice, list, chosen, chosenTitle };
+  return { choice, list, chosen, chosenAt, chosenTitle };
 }
 
 /**
@@ -130,22 +132,51 @@ function templateGap(p: {
   return undefined;
 }
 
-/** The templates the picker lists: the ones this person can be sent, else every one approved. */
+/** The templates the menu lists: the ones this person can be sent, else every one approved. */
 function templateOptions(have: TemplateChoice): Array<{ template: ApprovedTemplate; label: string }> {
   const { choice, list } = have;
   return choice ? choice.sendable : (list || []).map((t) => ({ template: t, label: `${t.name} · ${t.language}` }));
 }
 
-const TemplateSendButton = ({
+/**
+ * What the chosen message's name opens: the other messages this person can be sent, the chosen one ticked, and under
+ * them, in the menu's quiet heading, which were not offered and why -- it was a select over the button and a "Why?"
+ * after it. A person who can be sent one message is offered no menu unless something was kept back.
+ */
+function templateMenu(have: TemplateChoice, choose: (at: number) => void): MenuGroup[] {
+  const options = templateOptions(have);
+  const groups: MenuGroup[] = [];
+  if (options.length > 1) {
+    groups.push({
+      choose: {
+        value: String(have.chosenAt),
+        onChoose: (v) => choose(Number(v)),
+        tick: <Icon name="check" size={13} />,
+        options: options.map((o, at) => ({ value: String(at), label: o.label })),
+      },
+    });
+  }
+  if (have.choice && have.choice.hidden) groups.push({ header: have.choice.hidden, items: [] });
+  return groups;
+}
+
+/**
+ * The template send, drawn as the reply box is: the one capsule, with the message to send where the words would go (its
+ * name opens the others, where there are others) and Send at the right end. Outside the window the box says what it will
+ * send instead of waiting for words, and the bottom of every thread is the same shape. `lead` is a call to offer above it.
+ */
+const TemplateComposer = ({
   onSend = () => {},
   threadId,
   real = false,
   thread = null,
+  lead = null,
 }: {
   onSend?: OnSend;
   threadId: string;
   real?: boolean;
   thread?: Thread | null;
+  lead?: ReactNode;
 }) => {
   const [sending, setSending] = useState(false);
   // The workspace's OWN approved templates, published by the seam. The button
@@ -160,7 +191,7 @@ const TemplateSendButton = ({
   // On a seeded thread there is nothing to look up and nothing to send; keep
   // the mockup's own affordance.
   const have = templateChoice(real, templates, thread, picked);
-  const { choice, list, chosen, chosenTitle } = have;
+  const { chosen, chosenTitle } = have;
 
   const fire = () => {
     if (sending || !canDo("approve")) return;
@@ -176,27 +207,50 @@ const TemplateSendButton = ({
   // nothing of what cannot be sent beneath it -- "No approved message can go to Emily Chen yet" under Call back.
   const quiet = real && !!thread && thread.hasChat === false && ixBandCallBack(thread);
   const gap = templateGap({ real, quiet, thread, readTemplates, templates, have });
-  if (gap !== undefined) return gap;
+  if (gap !== undefined) {
+    return (
+      <div className="ix-composer">
+        <div className="ix-composer-foot">
+          <div className="ix-composer-actions">
+            {lead}
+            {gap}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  return (
+  const more = templateMenu(have, setPicked);
+  const shown = chosenTitle || (chosen ? chosen.name : "Booking link");
+  const name = (
     <>
-      {list && list.length > 1 && (
-        <select
-          className="sd-input ix-tpl-pick"
-          value={picked}
-          onChange={(e) => setPicked(Number(e.target.value))}
-          aria-label="Which approved template to send"
-        >
-          {templateOptions(have).map((s, i) => (
-            <option key={s.template.id} value={i}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+      <span className="ix-tpl-title">{shown}</span>
+      {more.length > 0 && <Icon name="chevron-down" size={12} />}
+    </>
+  );
+  const capsule = (
+    <div className="ix-composer ix-composer-row">
+      {more.length > 0 ? (
+        <Menu
+          label="Messages this person can be sent"
+          trigger={
+            <Button
+              variant="quiet"
+              className="ix-tpl-name"
+              aria-label={`Message to send: ${shown}. Choose another`}
+              title="Choose another message"
+            >
+              {name}
+            </Button>
+          }
+          groups={more}
+        />
+      ) : (
+        <span className="ix-tpl-name">{name}</span>
       )}
       <Button
         variant="primary"
-        size="sm"
+        className="ix-composer-send"
         onClick={fire}
         disabled={sending}
         title={
@@ -206,16 +260,19 @@ const TemplateSendButton = ({
         }
         {...gate("approve")}
       >
-        <Icon name="send" size={12} />{" "}
-        {sending
-          ? "Sending…"
-          : chosen && list && list.length > 1
-            ? "Send template"
-            : chosenTitle
-              ? `Send “${chosenTitle}”`
-              : "Send booking link"}
+        {sending ? "Sending…" : "Send"}
       </Button>
-      {choice && choice.hidden ? <IxWhy said={choice.hidden} testid="ix-tpl-hidden" /> : null}
+    </div>
+  );
+  if (!lead) return capsule;
+  return (
+    <>
+      <div className="ix-composer ix-composer-lead">
+        <div className="ix-composer-foot">
+          <div className="ix-composer-actions">{lead}</div>
+        </div>
+      </div>
+      {capsule}
     </>
   );
 };
@@ -356,38 +413,23 @@ function optedOutComposer(thread: Thread) {
 // A caller with no WhatsApp thread: the window never opened, so the honest
 // verbs are the phone and an approved message that starts a thread.
 function noChatComposer(thread: Thread, onSend: OnSend) {
-  return (
-    <div className="ix-composer">
-      {/* The header names the channel and the number, and the line above says they phoned: what is left is what can
-            be sent. A caller with no WhatsApp thread has no free-form reply, so the verbs are the call -- where the
-            line above does not already carry it -- and the approved message that starts a thread. */}
-      <div className="ix-composer-foot">
-        <div className="ix-composer-actions">
-          {!ixBandCallBack(thread) && thread.phone && (
-            <Button size="sm" href={`tel:${thread.phone}`} data-testid="ix-call-back">
-              <Icon name="phone" size={12} /> Call back
-            </Button>
-          )}
-          <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />
-        </div>
-      </div>
-    </div>
-  );
+  // The header names the channel and the number, and the line above says they phoned: what is left is what can be
+  // sent. A caller with no WhatsApp thread has no free-form reply, so the verbs are the call -- where the line above
+  // does not already carry it -- and the approved message that starts a thread.
+  const call =
+    !ixBandCallBack(thread) && thread.phone ? (
+      <Button size="sm" href={`tel:${thread.phone}`} data-testid="ix-call-back">
+        <Icon name="phone" size={12} /> Call back
+      </Button>
+    ) : null;
+  return <TemplateComposer onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} lead={call} />;
 }
 
 // The window has closed: the bar under the header says so, and why (ThreadBar), and the header names the wire and
 // the person. What is left is the one send that works. It was a red block saying the window had closed, over a
 // line saying "WhatsApp · to Rosa Díaz" again, over the send: three rows at the foot of a phone.
 function closedComposer(thread: Thread, onSend: OnSend) {
-  return (
-    <div className="ix-composer">
-      <div className="ix-composer-foot">
-        <div className="ix-composer-actions">
-          <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />
-        </div>
-      </div>
-    </div>
-  );
+  return <TemplateComposer onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />;
 }
 
 // A real thread's reply box is one line that grows, with Send beside it: it was a three-line field over a line

@@ -2,15 +2,16 @@
  * The local harness for the signed-in specs (tooling/scripts/e2e-harness), without a browser.
  *
  * The harness exists so a spec that needs a session can be run and mutation-tested on this machine instead of only
- * in the nightly. Four things have to hold for a run of it to mean anything, and each is a test here:
+ * in the nightly. Settings left the standalone mockup in step 11 of decision 0015 (Ruben, 4 Oct 2026: "Retire the
+ * mockup's Settings"): the Business-tab spec no longer runs here, and the test that held the Business record's reads
+ * against the fixture went with it. Four things have to hold for a run of it to mean anything, and each is a test here:
  *
  *   - its `nightly` record is the SEEDED workspace's, derived from tooling/scripts/ops/e2e-workspace.mjs rather than
  *     copied. A copy is right on the day it is written and silently wrong the day the seed changes -- and a harness
  *     that shows a record the nightly does not hold is a harness that passes specs the nightly then fails;
  *   - the page's fixture publishes the tab's globals through the CONTRACTS functions the bridge publishes, not
- *     stand-ins of its own, and publishes EVERY global the pages under test read -- one published under the wrong
- *     name falls through to the mockup's ported copy in data/bridge-stubs.jsx, and the spec then passes on the
- *     mockup's own words;
+ *     stand-ins of its own -- one published under the wrong name falls through to the mockup's ported copy in
+ *     data/bridge-stubs.jsx, and the spec then passes on the mockup's own words;
  *   - the server answers what the spec actually asks for -- the two Supabase calls `signIn()` makes, and the
  *     settings read -- and refuses everything else, so nothing on it can look like a write that landed;
  *   - the document it serves runs the fixture's install, not the dist-built copy that comes after it.
@@ -20,13 +21,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
 import vm from "node:vm";
-import { fileURLToPath } from "node:url";
 import {
   dealsAreOn,
-  FIRST_RUN_HELPERS,
   hoursLines,
   MEMBERSHIP_ROLES,
   pipelineOf,
@@ -38,14 +35,11 @@ import {
   PROFILE_LIMITS,
 } from "@chanlytics/contracts";
 import { NAME, TIMEZONE, workspaceChannel, workspaceConfig } from "../../ops/e2e-workspace.mjs";
-import { KIT_GLOBALS } from "../../../../apps/dashboard/src/surfaces/kit/kit-globals.ts";
-import { PEOPLE_GLOBALS } from "../../../../apps/dashboard/src/surfaces/people/people-globals.ts";
 import { scenario, SCENARIOS, WORKSPACE } from "../../e2e-harness/scenarios.mjs";
 import { buildFixture } from "../../e2e-harness/fixture.mjs";
 import { answer, appRules, BUSINESS_TAB_SCRIPT, documentWithFixture, pageOf } from "../../e2e-harness/server.mjs";
 
 const NOW = Date.parse("2026-09-22T09:00:00Z");
-const LEGACY = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../apps/dashboard/src/legacy");
 
 test("the nightly record is the seeded workspace's own, derived and not copied", () => {
   const seeded = workspaceConfig();
@@ -152,26 +146,21 @@ test("the page's fixture publishes the tab's globals through the same contracts 
   assert.equal((await w.__workspace.setTimezone("America/Chicago")).ok, false);
 });
 
-test("the role store the mockup makes is completed with the shell's own reading, so an owner's items are offered", async () => {
-  // Since the shell took its role from identity.ts, a page asks `ST_STORE.mayAtLeast(rung)` for what only an owner may
-  // press (the person page's "Delete person", the receptionist row's act), and the mockup's store never defined it: the
-  // harness showed none of them, and three of the style-equality recorder's scenes could not find what they press.
+test("the fixture makes the role store, with the shell's own reading, so an owner's items are offered", async () => {
+  // A page asks `ST_STORE.mayAtLeast(rung)` for what only an owner may press (the person page's "Delete person", the
+  // receptionist row's act). settings.jsx used to make the store in the mockup and the fixture completed it as it was
+  // assigned; the mockup no longer draws Settings, so the fixture makes it as the app's seed-globals does
+  // (identity.ts installRoleStore) and gives it the shell's reading (installRoles), or those items are never offered.
   const { installRoles } = await import("../../../../apps/dashboard/src/legacy-bridge/identity.ts");
   for (const name of SCENARIOS.filter((n) => n !== "kit")) {
     const w = await publishedGlobals(name);
-    // The fixture runs before settings.jsx, so it makes no store of its own (the mockup's `|| {…}` would then keep it).
-    assert.equal(w.ST_STORE, undefined, `${name}: the fixture leaves the store to the mockup`);
-    // settings.jsx's own line, with its own myRole (the mockup's reading, which the shell replaces).
-    const mockup = { viewAsRole: null, myRole: () => "mockup", set() {} };
-    w.ST_STORE = w.ST_STORE || mockup;
-    assert.equal(w.ST_STORE, mockup, `${name}: the mockup's store is the store, not a copy of it`);
-    assert.equal(typeof mockup.set, "function", `${name}: what the mockup put in the store is still there`);
+    assert.equal(typeof w.ST_STORE?.get, "function", `${name}: the fixture makes the store, as the app's boot does`);
     assert.equal(w.ST_STORE.myRole(), "owner", `${name}: the harness signs in as the workspace's owner`);
     // For every role acting and every rung asked, the answer is the shell's own, over the ladder contracts holds.
     for (const acting of MEMBERSHIP_ROLES) {
       const shell = { __ME: { role: "owner" }, ST_STORE: { viewAsRole: acting === "owner" ? null : acting } };
       installRoles(shell);
-      mockup.viewAsRole = acting === "owner" ? null : acting;
+      w.ST_STORE.viewAsRole = acting === "owner" ? null : acting;
       for (const least of MEMBERSHIP_ROLES) {
         const expected = roleAtLeast(acting, least);
         assert.equal(w.ST_STORE.mayAtLeast(least), expected, `${name}: ${acting} asking for ${least}`);
@@ -217,96 +206,6 @@ test("the messages the fixture publishes are the scenario's own, and the nightly
     );
     assert.equal(w.__SETUP.dto.templates.startersApproved, approved.length, name);
   }
-});
-
-/* ------------------------------- what the pages read ------------------------------- */
-
-/** Every `window.__x` the pages under test read: files in legacy/pages, or legacy/<dir>. */
-function globalsRead(files, dir = "pages") {
-  const names = new Set();
-  for (const f of files) {
-    for (const m of fs.readFileSync(path.join(LEGACY, dir, f), "utf8").matchAll(/window\.(__[A-Za-z0-9_]+)/g)) {
-      names.add(m[1]);
-    }
-  }
-  return names;
-}
-
-/**
- * Every `window.__x` a legacy file or the kit's bundle PUBLISHES, except data/bridge-stubs.jsx -- which is the mockup's stand-in for the
- * bridge and writes only what is missing, so a global left to it is exactly the defect this test is for.
- */
-function globalsInstalledByThePages() {
-  const names = new Set();
-  const walk = (dir) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const p = path.join(dir, entry.name);
-      if (entry.isDirectory()) walk(p);
-      else if (/\.jsx?$/.test(entry.name) && !p.endsWith(path.join("data", "bridge-stubs.jsx"))) {
-        const text = fs.readFileSync(p, "utf8");
-        for (const m of text.matchAll(/window\.(__[A-Za-z0-9_]+)\s*=[^=]/g)) names.add(m[1]);
-        for (const m of text.matchAll(/Object\.assign\(\s*window\s*,\s*\{([\s\S]*?)\}\s*\)/g)) {
-          for (const k of m[1].matchAll(/(__[A-Za-z0-9_]+)\s*[,:}]/g)) names.add(k[1]);
-        }
-      }
-    }
-  };
-  walk(LEGACY);
-  // The kit's bundle (data/kit-globals.js, which the harness's document loads after the stubs) publishes the fold registry and
-  // the Settings rail's two answers, as the app publishes them from seed-globals.
-  for (const name of Object.keys(KIT_GLOBALS)) if (name.startsWith("__")) names.add(name);
-  // And People's (data/people-globals.js, the harness's own copy over the People the fixture boots).
-  for (const name of Object.keys(PEOPLE_GLOBALS)) if (name.startsWith("__")) names.add(name);
-  return names;
-}
-
-/**
- * What the fixture deliberately leaves alone, and why. Every one of these is read by settings.jsx for a pane the
- * Business record is not, or by the shell around it; the page guards each. Anything else a page reads has to be
- * published, or the mockup's copy answers for it.
- */
-const NOT_PUBLISHED = new Map([
-  ["__CHANNELS", "defining it at all flips settings.jsx to PaneIntegrationsReal, and its shape is toChannelVM's"],
-  ["__CALENDAR", "the Calendar pane's surface; the Business record's calendar row reads the config"],
-  ["__calendar", "the Calendar pane's verbs"],
-  [
-    "__calendarPage",
-    "the Calendar's two words (surfaces/calendar/words.ts); the record's row reads them beside __CALENDAR, which is left alone",
-  ],
-  ["__setup", "the Setup pane's verbs"],
-  ["__TEAM", "the Team card's surface"],
-  ["__TEAM_INVITES", "the Team card's invitations"],
-  ["__teamInvite", "the Team card's verbs"],
-  ["__teamRemove", "the Team card's verbs"],
-  ["__teamSetRole", "the Team card's verbs"],
-  ["__inviteState", "the Team card's own state"],
-  ["__activity", "the Activity log pane's surface"],
-  ["__platform", "the back office, which an owner never sees"],
-  ["__setPolicy", "the Autonomy pane's verb"],
-  ["__shell", "the chrome's own, published by the app shell"],
-  ["__href", "the chrome's own"],
-  ["__me", "the chrome's own; the fixture publishes __ME, which the record reads"],
-  ["__surfaceFailed", "the surface runner's, for a read that failed; nothing here fails a read"],
-  ["__today", "Today's helpers; the Notifications pane lists what is sent from them, and the record never reads them"],
-]);
-
-test("the fixture publishes every global the Business record and Settings read, or says why not", async () => {
-  // Every file of the record: its cards (business-tab-*.jsx) and What it can do, which is business-can.jsx.
-  const pages = fs.readdirSync(path.join(LEGACY, "pages")).filter((f) => /^business-(tab.*|can)\.jsx$/.test(f));
-  assert.ok(pages.length >= 6, `the Business pages moved: ${pages.join(", ")}`);
-  assert.ok(pages.includes("business-can.jsx"), "What it can do is one of them");
-  const read = globalsRead([...pages, "settings.jsx"]);
-  assert.ok(read.has("__handoffE164"), "the transfer row's check is one of the globals this test is about");
-
-  const published = new Set(Object.keys(await publishedGlobals("nightly")));
-  const installed = globalsInstalledByThePages();
-
-  const missing = [...read].filter((n) => !published.has(n) && !installed.has(n) && !NOT_PUBLISHED.has(n)).sort();
-  assert.deepEqual(missing, [], `neither published nor accounted for: ${missing.join(", ")}`);
-
-  // The list only shrinks: a name published AND excused is an excuse nobody will delete.
-  const stale = [...NOT_PUBLISHED.keys()].filter((n) => published.has(n) || !read.has(n)).sort();
-  assert.deepEqual(stale, [], `no longer true of: ${stale.join(", ")}`);
 });
 
 test("the document runs the fixture's install of the tab's helpers, not the dist-built copy after it", () => {
@@ -607,15 +506,12 @@ test("in a browser, the pipeline record's page stands at its workspace's address
 
 /* ------------------------------------------- the first run and Ask ------------------------------------------- */
 
-test("every record publishes the first run's helpers, from contracts; Ask's client only in a browser, where the first run is its own surface (Ask Rewired, Phase 7)", async () => {
+// The first run is an App Router page (surfaces/setup/first-run, decision 0015 step 10) that imports contracts' helpers,
+// so no record publishes them: the mockup draws no first run.
+test("no record publishes the first run's helpers; Ask's client only in a browser, where the first run is its own surface (Ask Rewired, Phase 7)", async () => {
   for (const name of SCENARIOS) {
     const w = await publishedGlobals(name);
-    assert.deepEqual(
-      Object.keys(w.__firstRun).sort(),
-      Object.keys(FIRST_RUN_HELPERS).sort(),
-      `${name}: setup.ts's own`,
-    );
-    assert.deepEqual(plain(w.__firstRun.words), plain(FIRST_RUN_HELPERS.words), `${name}: its words, from contracts`);
+    assert.equal(w.__firstRun, undefined, `${name}: the first run reads contracts, not the window`);
     assert.equal(w.__ask, undefined, `${name}: outside a browser there is nothing for the Line to ask with`);
   }
   const record = scenario("nightly", NOW);

@@ -148,6 +148,16 @@ const Frame = memo(function Frame({ page }: { page: ReactNode }) {
  * query and the route riding along; only an account with no workspace stays here, where the app shows the create
  * screen.
  */
+/**
+ * A route warmed in full, page and all: every workspace route is dynamic, so a plain prefetch stops at nothing to keep.
+ * The kind is the value Next's own enum holds ("full"), typed from the router's public prefetch, so nothing of Next's
+ * internals is imported into the page: the value must be one the enum holds, so a release that renames it fails here
+ * at the type, not in a tab.
+ */
+type PrefetchOptions = NonNullable<Parameters<ReturnType<typeof useRouter>["prefetch"]>[1]>;
+const FULL: `${NonNullable<PrefetchOptions["kind"]>}` = "full";
+const FULL_PREFETCH = FULL as PrefetchOptions["kind"];
+
 export default function LegacyHost({ home = false, children }: { home?: boolean; children?: ReactNode }) {
   const [stay, setStay] = useState(!home);
   const router = useRouter();
@@ -157,7 +167,12 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
   const place = useCallback(() => setPlaced(true), []);
   // The frame moves to a route with a page of its own through the router (workspace.ts goToRoute).
   useEffect(() => {
-    setAppRouter(router);
+    // What the frame asks of the router: a move, and a route warmed in full (workspace.ts warmRoute).
+    setAppRouter({
+      push: (href) => router.push(href),
+      replace: (href) => router.replace(href),
+      prefetch: (href, options) => router.prefetch(href, { kind: FULL_PREFETCH, onInvalidate: options?.onInvalidate }),
+    });
     return () => setAppRouter(null);
   }, [router]);
   useEffect(() => {

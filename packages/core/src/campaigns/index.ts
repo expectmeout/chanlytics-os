@@ -21,8 +21,9 @@ export type {
 } from "./ports";
 export { assembleRun } from "./assemble";
 export { runPlaybook } from "./run-playbook";
+export { parseChannels, readyForMessage, versionsHeld } from "./message-channels";
 export { templateValues } from "./template-values";
-export { createBroadcast } from "./create-broadcast";
+export { campaignHow, campaignHowOf, createBroadcast } from "./create-broadcast";
 export type { BroadcastReceipt } from "./create-broadcast";
 export { approveRun } from "./approve";
 export type { ApproveReceipt } from "./approve";

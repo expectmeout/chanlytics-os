@@ -48,6 +48,9 @@ export interface ColCtx {
   hasCenter?: boolean;
 }
 
+/** What a row's face says of the selection it is in: a selection under way (`choose`), this row in it (`chosen`), or none. */
+export type RowPick = "choose" | "chosen" | undefined;
+
 /** One column: its heading, whether it sorts, whether a member may hide it, and how its cell is drawn from a row. */
 export interface TableColumn<R extends TableRow = TableRow, X extends TableCtx = TableCtx> {
   key: string;
@@ -58,7 +61,8 @@ export interface TableColumn<R extends TableRow = TableRow, X extends TableCtx =
   on?: boolean | ((x: ColCtx) => boolean);
   needs?: (x: ColCtx) => boolean;
   off?: boolean;
-  cell: (p: R, x: X) => ReactElement<{ className?: string }>;
+  /** The cell, from the row, what the page knows, and (a card's) where the row stands in a selection. */
+  cell: (p: R, x: X, pick?: RowPick) => ReactElement<{ className?: string }>;
 }
 
 /** People's cell context: the booking link, each row's words, the list open for taking people off, their lists, and which columns show. */

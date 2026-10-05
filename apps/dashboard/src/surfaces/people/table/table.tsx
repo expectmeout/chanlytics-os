@@ -6,13 +6,13 @@
  * `<table class="cl-table">`, so the page's selectors and the phone's card rules hold.
  */
 import { cloneElement, memo } from "react";
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement, ReactNode, RefObject } from "react";
 import { holdStill } from "../../legacy-verbs";
 import { EmptyState } from "../../kit/empty/empty";
 import type { TableColumn, TableCtx, TableEmpty, TableRow } from "../types";
 
 /** The table's default for a door its page does not pass: one function, one set, for the page's life. */
-export const PL_NO_SEL: ReadonlySet<string> = new Set();
+const PL_NO_SEL: ReadonlySet<string> = new Set();
 const PL_NOOP = (): void => undefined;
 
 /**
@@ -26,7 +26,7 @@ const PL_NOUNS: Record<string, { one: string; many: string; all: string }> = {
 };
 
 /** The rows in groups (the Pipeline's stages): each its own <tbody> under a header row that names it. */
-interface TableSection<R extends TableRow> {
+export interface TableSection<R extends TableRow> {
   key: string;
   label: ReactNode;
   meta?: ReactNode;
@@ -43,6 +43,8 @@ interface RowProps<R extends TableRow, X extends TableCtx> {
   words: { one: string; many: string; all: string };
   selectable: boolean;
   selected: boolean;
+  /** A selection is under way (somebody is picked, or the page began one): a card's face is then its checkbox. */
+  selecting: boolean;
   focused: boolean;
   tabStop: boolean;
   onToggle: (id: string) => void;
@@ -62,6 +64,7 @@ function PeopleRow<R extends TableRow, X extends TableCtx>({
   words,
   selectable,
   selected,
+  selecting,
   focused,
   tabStop,
   onToggle,
@@ -69,6 +72,8 @@ function PeopleRow<R extends TableRow, X extends TableCtx>({
   onOpen,
   rowClass,
 }: RowProps<R, X>) {
+  // What a card's face says of the selection: a ring while one is under way, the ink with its tick for this one in it.
+  const pick = selected ? "chosen" : selecting ? "choose" : undefined;
   return (
     <tr
       id={`${words.one}-${p.id}`}
@@ -95,7 +100,7 @@ function PeopleRow<R extends TableRow, X extends TableCtx>({
         </td>
       )}
       {columns.map((c) => {
-        const td = c.cell(p, ctx as X);
+        const td = c.cell(p, ctx as X, pick);
         return c.off ? cloneElement(td, { className: `${td.props.className || ""} pl-col-off` }) : td;
       })}
     </tr>
@@ -205,6 +210,8 @@ interface PeopleTableProps<R extends TableRow, X extends TableCtx> {
   busy?: boolean;
   selectMode?: boolean;
   sections?: readonly TableSection<R>[] | null;
+  /** The rows' element for the kit's swap motion (kit/motion, the page's hook): they rise as the list under the view changes. */
+  swapRef?: RefObject<HTMLTableSectionElement | null> | null;
 }
 
 /** The table's heading row: the select-all box, and a heading for each column (a heading that sorts is a button). */
@@ -289,6 +296,7 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
   busy = false,
   selectMode = false,
   sections = null,
+  swapRef = null,
 }: PeopleTableProps<R, X>) {
   const words = PL_NOUNS[noun] || PERSON_NOUN;
   // `selectMode`: the page's Select people (a phone's more-menu), a selection begun with nobody picked yet.
@@ -303,6 +311,7 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
       words={words}
       selectable={selectable}
       selected={sel.has(p.id)}
+      selecting={selecting}
       focused={cursor === p.id}
       tabStop={cursor === p.id || (!cursor && i === 0)}
       onToggle={onToggle}
@@ -346,7 +355,7 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
           {sections && sections.some((s) => s.rows.length > 0) ? (
             plSectionBodies(sections, span, budget, row)
           ) : (
-            <tbody data-dims>
+            <tbody data-dims ref={swapRef ?? undefined}>
               {/* The cursor's row is the table's one tab stop (the first row until there is a cursor), and a row focused --
                   by Tab, or by a click -- takes the cursor, so what a screen reader hears and what the keys act on agree.
                   J and K move focus with the cursor (the page's effect on `cursor`). */}

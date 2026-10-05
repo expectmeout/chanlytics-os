@@ -11,7 +11,8 @@
  * - The slot length (S2's remainder): a save kept it, and no field could set it.
  * - The Calendar's words (C3): the Business card said the hours as 09:00–18:00 beside a Calendar in 9 AM, and the
  *   editor checked the calendar's address as "the link", the booking link's word.
- * Contracts run as they are; settings.jsx runs on a stub React, with the words the bridge publishes (seed-globals).
+ * Contracts run as they are; the Settings page (surfaces/settings/frame/page.tsx) runs on a stub React, with the words
+ * the bridge publishes (seed-globals).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -318,6 +319,8 @@ globalThis.React = {
     return fn;
   },
   useId: () => `id-${slot()}`,
+  // A surface's value through the seam (use-surface.ts): what it holds when the component draws.
+  useSyncExternalStore: (subscribe, snapshot) => snapshot(),
   useEffect: (fn, deps) => {
     const k = slot();
     const prev = cells.get(k);
@@ -375,11 +378,12 @@ Object.assign(globalThis.window, {
   __unknownDetails: contracts.unknownDetails,
   __hoursLines: contracts.hoursLines,
 });
-await import("../../../../../apps/dashboard/src/legacy/pages/business-tab-save.jsx");
-// How it answers owns the languages the old form offers and its three messages' labels, which settings.jsx reads as
-// it loads (business-tab-answers.jsx, before it in both load lists).
-await import("../../../../../apps/dashboard/src/legacy/pages/business-tab-answers.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/settings.jsx");
+await import("./_business-parts.mjs");
+// The page is the TSX module (decision 0015 step 11); it imports every pane it draws. Autonomy's rows are the seam's
+// policies, its one door a module object a test stands a door in on.
+const { SettingsPage } = await import("../../../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
+const { setSurfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { autonomyVerbs } = await import("../../../../../apps/dashboard/src/surfaces/settings/autonomy/verbs.ts");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -426,7 +430,7 @@ const fresh = () => {
 };
 const draw = (tab) => {
   frames = [{ key: "root", hook: 0, kids: {} }];
-  lastTree = globalThis.window.SettingsPage({ tab, onTab() {} });
+  lastTree = SettingsPage({ tab, onTab() {} });
   return lastTree;
 };
 const settings = (tab) => {
@@ -462,7 +466,18 @@ const workspace = (over = {}, rules = {}) => {
     },
     __TEAM: [],
     __TEAM_INVITES: [],
+    __POLICIES: { role: "owner", dealsOn: false, rows: [] },
     ...over,
+  });
+  // The seam's settings value beside the globals it copies (legacy-bridge/surfaces/settings.ts), for the moved panes.
+  setSurfaceValue("settings", {
+    settings: globalThis.window.__SETTINGS ?? null,
+    facts: globalThis.window.__FACTS ?? null,
+    channels: null,
+    templatesAll: null,
+    templateUse: null,
+    templateSent: null,
+    policies: globalThis.window.__POLICIES ?? null,
   });
 };
 
@@ -527,38 +542,20 @@ test("REGRESSION (S19): the AI memory pane points at Business by name -- it said
   assert.match(textOf(tree), /in your own words/);
 });
 
-test("REGRESSION (S6): the reply cap and the pause are dials on the Hard limits card, in the bridge's words -- the card listed values nothing on the page could change", () => {
-  workspace();
-  assert.equal(
-    typeof globalThis.window.__hardLimits,
-    "function",
-    "REGRESSION: the page kept its own words and its own defaults",
-  );
-  const calls = [];
-  Object.assign(globalThis.window, {
-    __POLICIES: [],
-    __setPolicy: async (...args) => {
-      calls.push(args);
-      return { ok: true };
-    },
-    POLICY: {
-      ...globalThis.window.POLICY,
-      MODES: ["Auto", "Veto", "Ask", "Never"],
-      ROWS: [
-        {
-          id: "reply",
-          cls: "reply",
-          label: "Replies to customers",
-          note: "",
-          locked: false,
-          modes: ["Auto", "Veto", "Ask"],
-          mode: "Auto",
-          hints: {},
-          limits: { reply_delay_ms: 30000, pause_hours: 48 },
-        },
-      ],
+test("REGRESSION (S6): the reply cap and the pause are dials on the Hard limits card, in contracts' words -- the card listed values nothing on the page could change", () => {
+  // The words and the defaults are contracts' hardLimitsWords, which the pane imports: it kept its own once.
+  workspace({
+    __POLICIES: {
+      role: "owner",
+      dealsOn: false,
+      rows: [{ class: "reply", mode: "auto", limits: { reply_delay_ms: 30000, pause_hours: 48 } }],
     },
   });
+  const calls = [];
+  autonomyVerbs.setPolicy = async (...args) => {
+    calls.push(args);
+    return { ok: true };
+  };
   const tree = settings("autonomy");
   const text = textOf(tree);
   const H = contracts.hardLimitsWords({ reply_delay_ms: 30000, pause_hours: 48 });
@@ -592,7 +589,7 @@ test("REGRESSION (S6): the reply cap and the pause are dials on the Hard limits 
 // Retry (the spec's When you're open; business-tab-open.test.mjs draws both).
 
 test("a settings control is named by the row it sits in: what the row hands it lands on its element, and what the control takes for itself does not", () => {
-  // SetRow mints an id for its label and hands it to its control as aria-labelledby. The switch and the dials each
+  // SetRow mints an id for its label and hands it to its control as aria-labelledby. The dials each
   // take their own props and give the rest to their element -- spelled out with window.propsWithout, because in the
   // standalone harness an object rest's excluded keys are a `var _excluded` every file shares, and one loaded later
   // put another file's keys in force (legacy-harness.test.mjs). This stub draws a component when it is created, before
@@ -612,17 +609,8 @@ test("a settings control is named by the row it sits in: what the row hands it l
       }));
     });
   try {
-    // The switches are the mockup's Notifications, drawn where no workspace's settings were read.
-    workspace({ __SETTINGS: undefined });
-    const switches = controls("notifications", "SetToggle");
-    workspace();
-    assert.ok(switches.length >= 6, `the switches on Notifications: ${switches.length}`);
-    for (const { label, drawn } of switches) {
-      assert.equal(drawn.props.role, "switch");
-      assert.equal(drawn.props["aria-labelledby"], label, "a switch is announced by its row's words");
-      assert.ok(!("on" in drawn.props) && !("onChange" in drawn.props), "and its button never carries on or onChange");
-    }
-
+    // The switches were the mockup's Notifications, which left with the pane (decision 0015 step 11) and took the
+    // switch with them: the dials are the controls a row hands its words to now.
     const dials = controls("autonomy", "SetDial");
     assert.ok(dials.length > 0, "the autonomy pane's dials");
     for (const { label, drawn } of dials) {

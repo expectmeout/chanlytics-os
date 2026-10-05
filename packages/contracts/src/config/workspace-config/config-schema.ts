@@ -6,14 +6,15 @@
  *
  * This module holds the whole tenant_config column: its sections, the rules only a save has
  * (TenantConfigWriteSchema) and the parse the runtime reads it with. The sections' own parts are
- * business-profile.ts and brain-config.ts beside it.
+ * business-profile.ts and brain-config.ts beside it, and the numbers they are built from config-rules.ts.
  */
 import { feedProblemWords, feedUrlOk } from "../../calendar/feed-url";
 import { normalizeEmail } from "../../shared/email-address";
 import { z } from "zod";
 import { keysLeftOut, refuseUnknownFields, withKeysLeftOut } from "../unknown-keys";
-import { BrainConfigSchema } from "./brain-config";
-import type { Closure, DAYS, Hours } from "./business-profile";
+import { BrainConfigSchema } from "./brain-config-schema";
+import type { Closure, Hours } from "./business-profile";
+import { MAX_CLOSURES, dayProblems, isRealDate } from "./config-rules";
 
 export const NotificationsConfigSchema = z
   .object({
@@ -94,71 +95,9 @@ export type TenantConfig = z.infer<typeof TenantConfigSchema>;
  * This is not the only door — migrations and a service-role client both write
  * tenant_config directly — which is exactly why the composer is written to
  * tell the truth about rows these rules would have refused.
+ *
+ * What a day, a date and the caps are judged by is config-rules.ts's, where a page reads them without a schema.
  */
-
-/** The most shifts one day may be split into. Must match the editor's cap. */
-export const MAX_INTERVALS_PER_DAY = 4;
-/** As many closures as the composer will state — there is no render cap. */
-export const MAX_CLOSURES = 60;
-
-/** Does this string name a real day? "2026-11-31" does not. */
-export function isRealDate(key: string): boolean {
-  const at = new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === key;
-}
-
-/** A day of the week by its whole name, the one table: the write rules', the composer's and the first run's. */
-export const DAY_NAMES: Record<(typeof DAYS)[number], string> = {
-  mon: "Monday",
-  tue: "Tuesday",
-  wed: "Wednesday",
-  thu: "Thursday",
-  fri: "Friday",
-  sat: "Saturday",
-  sun: "Sunday",
-};
-const DAY_NAME: Record<string, string> = DAY_NAMES;
-
-/**
- * What is wrong with one day of the week, in the owner's words, each with where in the day it is. The write rules'
- * day check (checkDay) and anything that builds a day from elsewhere (google.ts hoursFromGoogle) ask this, so a day
- * is judged by one set of rules wherever it comes from. Empty when the day is one the record holds.
- */
-export function dayProblems(h: Hours, day: string): Array<{ path: Array<string | number>; message: string }> {
-  const name = DAY_NAME[day] ?? day;
-  const out: Array<{ path: Array<string | number>; message: string }> = [];
-  const open = h.open ?? undefined;
-  const close = h.close ?? undefined;
-  if (!!open !== !!close) {
-    out.push({
-      path: [open ? "close" : "open"],
-      message: `${name} needs both an opening and a closing time, or neither.`,
-    });
-  }
-  if (open && close && close <= open) {
-    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
-  }
-  const iv = h.intervals ?? [];
-  if (iv.length > MAX_INTERVALS_PER_DAY) {
-    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
-  }
-  iv.forEach((x, n) => {
-    if (x.close <= x.open) {
-      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
-    }
-  });
-  // Overlap, not adjacency. Two shifts that TOUCH — 09:00-13:00 and
-  // 13:00-19:00 — are an ordinary two-stylist day, and rejecting them would
-  // refuse a legitimate entry. Compared on sorted copies so the owner is not
-  // told their day is wrong merely because they typed the afternoon first.
-  const sorted = [...iv].sort((a, b) => (a.open < b.open ? -1 : a.open > b.open ? 1 : 0));
-  for (let n = 1; n < sorted.length; n++) {
-    if (sorted[n].open < sorted[n - 1].close) {
-      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
-    }
-  }
-  return out;
-}
 
 function checkDay(h: Hours, day: string, ctx: z.RefinementCtx): void {
   for (const p of dayProblems(h, day)) {

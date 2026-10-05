@@ -4,9 +4,15 @@ import {
   outreachRefusalOf,
   OUTREACH_WAIT_REFUSALS,
   isWaitRefusal,
-  reachOutSlots,
+  reachOutEmailOf,
   REACH_OUT_MONTH_EMAILS,
 } from "@chanlytics/contracts";
+
+// A step's body filled for one lead by the one fill every email takes: the words, or that this lead's email is held.
+const reachOutSlots = (words, lead, workspace, opening = null) => {
+  const r = reachOutEmailOf({ subject: null, body: words }, lead, workspace, opening);
+  return r.ok ? { ok: true, text: r.body } : r;
+};
 
 const facts = (over = {}) => ({ leadStage: "ready", suppressed: false, wroteBack: false, ...over });
 

@@ -1,7 +1,9 @@
 /**
  * The people an appointment names who are not in People yet, put there through the `create_person` door: the one
  * write in the calendar's server code, made by calendarWeek (calendar-week.ts) and the calendar route, never by a
- * reader.
+ * reader. A person made also gets the appointment's one address (`set_person_email`), when the door has not seen them
+ * before. The door's refusal of one number (22023) skips that row; the refused are counted and said once per read
+ * (calendar_people_refused). Any other failure stops the adding there, and the board draws without the rest.
  */
 import "server-only";
 import { afterPersonRefused, peopleFromItems, type FeedItem, type PersonLike } from "@chanlytics/contracts";
@@ -10,8 +12,8 @@ import { log } from "@/server/log";
 
 /**
  * The people the feed names by phone who are not in People yet, added
- * through the `create_person` door — owner or operator only, which is what
- * `canAct` says; a viewer's read changes nothing. Capped per read: the
+ * through the `create_person` door — the caller allows it to an owner or an
+ * operator only (`canAct`); a viewer's read changes nothing. Capped per read: the
  * hourly sweep on the edge takes the rest. Never fatal to the board. The
  * calendar route makes this write itself, between its reader and the board:
  * a reader never writes (D7).

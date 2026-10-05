@@ -12,8 +12,8 @@ import { type DealVM, proposalLinkOf, toDealVM } from "../deals/deal-vm";
 import { leadsRoute } from "../leads/leads";
 import { reachOutPersonOf } from "../reach-out/reach-out-leads";
 import { linkHost } from "../shared/link";
-import { listRuleWhy } from "./list-rules";
-import { PEOPLE_LISTS } from "./lists";
+import { listRuleWhy } from "./lists/list-rules";
+import { PEOPLE_LISTS } from "./lists/lists";
 import type { PersonDetailDto, PersonRowDto } from "./person-dto";
 import { asPersonMode, PERSON_MODE_WORDS, type PersonMode, type ReceptionistTone } from "./person-receptionist";
 import { ago, reasonShort } from "./person-row-facts";
@@ -207,7 +207,9 @@ export function personCardContext(
 ): PersonCardContext {
   const nowMs = now.getTime();
   const row = personRowOf(d);
-  const base = toPersonRowVM(row, tz, now, viewerId);
+  // A card reads none of a row's reach facts (who can be sent what: the lists', Today's and the follow-up's), so it does
+  // not carry the workspace's channels and counts them as before they were.
+  const base = toPersonRowVM(row, tz, now, viewerId, null);
   const dealsOn = !!d.deals_on;
   const deals = dealsOn ? dealsListOf(d, tz, nowMs) : [];
   // The row's columns say WHICH deal shows (people_list's lateral join, pickCurrentDeal's rule); the listed copy of it

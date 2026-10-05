@@ -4,6 +4,7 @@
  * the run's own screen.
  */
 import type { BroadcastDto, BroadcastVM } from "@chanlytics/contracts";
+import { Button } from "../../../kit/button/button";
 import { gate } from "../../../legacy-verbs";
 import { surfaceValue } from "../../../surface-values";
 import { BcRunCard, bcOrigin } from "../ledger";
@@ -58,6 +59,7 @@ export function bcLedgerOf({
       row={row}
       canSend={canSend}
       now={now}
+      open={openId === row.id}
       onOpen={() => openRun(row.id)}
       armed={armId === row.id}
       onArm={(on) => setArmId(on ? row.id : null)}
@@ -109,6 +111,8 @@ export function bcSheetOf({
       playbook: pb,
       template,
       businessName: data.businessName || "",
+      businessAddress: data.businessAddress ?? null,
+      paused: data.ready ? data.ready.paused === true : null,
       armed: armId === row.id,
       onArm: (on: boolean) => setArmId(on ? row.id : null),
       stopping: stopping === row.id,
@@ -173,8 +177,7 @@ export function bcAgainOf({
     });
     const typedBack = (b.params || []).map((p, i) => (kinds[i] === "text" && p && p.kind === "text" ? p.value : ""));
     return (
-      <button
-        className="btn"
+      <Button
         data-testid="bc-again"
         onClick={() => {
           setAud(bcKey(a));
@@ -189,7 +192,7 @@ export function bcAgainOf({
         {...gate("approve", "send a broadcast")}
       >
         Send it again
-      </button>
+      </Button>
     );
   };
   return { againFor };
@@ -201,7 +204,8 @@ type SoloIn = Pick<BcBase, "openRun"> &
   RunActsIn &
   Pick<BcV, "againFor" | "sheetFor"> & { openId: string };
 
-// The run's own screen: its report, with its verbs at the head when it is still live.
+// The run's own pane beside the list (the report draws it, whatever state it is in): its verbs at its head while it is
+// still live, and the name its row has for it while the report is read.
 export function bcRunSolo({
   openId,
   openRun,
@@ -217,27 +221,28 @@ export function bcRunSolo({
   sheetFor,
 }: SoloIn) {
   return (
-    <section className="bc-run-solo" id={`bc-run-${openId}`} data-testid="bc-run-solo">
-      <BroadcastDetail
-        id={openId}
-        onClose={() => openRun(null)}
-        acts={
-          openRow && BC_LIVE.has(openRow.state) ? (
-            <BcRunVerbs
-              row={openRow}
-              canSend={canSend}
-              armed={armId === openRow.id}
-              onArm={(on) => setArmId(on ? openRow.id : null)}
-              stopping={stopping === openRow.id}
-              approving={approving === openRow.id}
-              approve={approve}
-              cancel={cancel}
-            />
-          ) : null
-        }
-        again={againFor}
-        sheet={sheetFor(openRow)}
-      />
-    </section>
+    <BroadcastDetail
+      // One run's filter and expanded rows are state of that run: keyed by it, the next run opens fresh.
+      key={openId}
+      id={openId}
+      name={openRow ? openRow.name : null}
+      onClose={() => openRun(null)}
+      acts={
+        openRow && BC_LIVE.has(openRow.state) ? (
+          <BcRunVerbs
+            row={openRow}
+            canSend={canSend}
+            armed={armId === openRow.id}
+            onArm={(on) => setArmId(on ? openRow.id : null)}
+            stopping={stopping === openRow.id}
+            approving={approving === openRow.id}
+            approve={approve}
+            cancel={cancel}
+          />
+        ) : null
+      }
+      again={againFor}
+      sheet={sheetFor(openRow)}
+    />
   );
 }

@@ -1941,7 +1941,7 @@ test("a fold's sheet is held by the registry as a fold is, and draws the same ho
 });
 
 test('a fold given frame="sheet" is the sheet beside a desktop page too, its row behind it, with the same hooks as closed; the row frame stays the default', () => {
-  // Settings › Business draws every fold this way (business-tab-gestures.jsx BtFold): an editor that opened under its
+  // Settings › Business draws every fold this way (surfaces/settings/business/gestures/ BtFold): an editor that opened under its
   // row pushed everything under it down. The sheet is the phone's frame, drawn at any width; the row stays in its
   // card behind it, as on a phone; and the fold holds the same hooks whichever frame draws it.
   const folds = W.__recordFolds;

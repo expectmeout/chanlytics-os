@@ -272,8 +272,13 @@ async function conclude(
   }
 
   let wreckage: string | null;
+  // Whether the ledger handed what the job left to a fresh run (or one is already coming): the news is worded from it, so a
+  // run that carries on is not told as one that will not start again. Null when settling threw: nobody knows, and the news
+  // says neither (contracts jobNewsWords).
+  let resumed: boolean | null;
   try {
     const settled = await ports.settle(job, certain);
+    resumed = settled.some((s) => s.resumed === true && !s.error);
     for (const s of settled) {
       if (s.error) ports.log.error("job_settle_failed", { job_id: job.id, what: s.what, error: s.error });
       // Written, but not the write that was wanted: the broadcast is failed
@@ -284,6 +289,7 @@ async function conclude(
     wreckage = saySettled(settled);
   } catch (e) {
     ports.log.error("job_settle_failed", { job_id: job.id, error: errText(e) });
+    resumed = null;
     wreckage =
       "What it was in the middle of could not be checked, so a message or broadcast may still show as sending.";
   }
@@ -298,7 +304,7 @@ async function conclude(
   try {
     // conclude() is only ever reached for a job that failed or never came
     // back, so this is the one place job_failed is the truth.
-    const words = jobNewsWords(job.kind, end, job.attempts);
+    const words = jobNewsWords(job.kind, end, { attempts: job.attempts, resumed });
     const reference = `Reference: job ${job.id} (${job.kind}): ${reason}.`;
     await ports.alert(job, {
       kind: "job_failed",

@@ -17,7 +17,7 @@
  * (deal-report.ts); the deal sheet and the card are sheet/, and the Pipeline is pipeline/.
  */
 import { clockDate, wallClockAt, zoneDayKey } from "../shared/clock";
-import { isRealDate } from "../config/workspace-config/config-schema";
+import { isRealDate } from "../config/workspace-config/config-rules";
 import { linkHost } from "../shared/link";
 import { DAY_MS } from "../shared/time";
 import {

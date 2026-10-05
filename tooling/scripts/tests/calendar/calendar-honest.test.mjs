@@ -154,6 +154,12 @@ globalThis.React = {
     return cells[k];
   },
   useMemo: (fn) => fn(),
+  // An id that stays with its component across draws (the kit's segmented control names its options by it).
+  useId: () => {
+    const k = frames.key();
+    if (!(k in cells)) cells[k] = `:r${Object.keys(cells).length.toString(36)}:`;
+    return cells[k];
+  },
   // Once per effect; with honourDeps, an effect whose dependencies changed runs again, its last cleanup first.
   useEffect: (fn, deps) => {
     const k = frames.key();
@@ -182,7 +188,16 @@ globalThis.React = {
 const reactModule = createRequire(new URL("../../../../apps/dashboard/src/legacy-bridge/_.js", import.meta.url))(
   "react",
 );
-for (const hook of ["useState", "useReducer", "useRef", "useMemo", "useEffect", "useCallback", "useSyncExternalStore"])
+for (const hook of [
+  "useState",
+  "useReducer",
+  "useRef",
+  "useMemo",
+  "useId",
+  "useEffect",
+  "useCallback",
+  "useSyncExternalStore",
+])
   reactModule[hook] = globalThis.React[hook];
 globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.document = {
@@ -241,7 +256,7 @@ globalThis.window.__chrome = { state: stateOf };
 const S = "../../../../apps/dashboard/src/surfaces";
 const { calendar } = await import(`${S}/calendar/verbs.ts`);
 const { CalendarPage } = await import(`${S}/calendar/calendar-page.tsx`);
-const { CALENDAR_PAGE } = await import(`${S}/calendar/words.ts`);
+const { CALENDAR_PAGE, CR_WARM_MS } = await import(`${S}/calendar/words.ts`);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const realVerbs = { ...calendar };
 globalThis.window.__calendar = calendar;
@@ -254,6 +269,9 @@ const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
   fn(n);
   for (const k of n.props?.children ?? []) walk(k, fn);
+  // A kit component's control (the date picker's, a menu's) is a prop: Base UI draws it, and the popup it opens only when
+  // a person does, so the stub walks the control as a child.
+  if (n.props?.trigger && typeof n.props.trigger === "object") walk(n.props.trigger, fn);
   if (n.rendered) walk(n.rendered, fn);
 };
 const all = (tree, pred) => {
@@ -265,6 +283,14 @@ const all = (tree, pred) => {
 };
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
 const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
+// The kit's segmented control the four views are (each option carries the id the browser finds its button by), and a press
+// on one: the control hears the value chosen, not a click.
+const views = (tree) =>
+  find(tree, (n) => Array.isArray(n.props?.options) && n.props.options.some((o) => o.testid?.startsWith("cal-view-")));
+const pickView = (tree, id) => views(tree).props.onValueChange(id);
+// The kit's date picker, which the range opens: the one node that takes a day and today.
+const picker = (tree) =>
+  find(tree, (n) => typeof n.props?.today === "string" && typeof n.props?.onValueChange === "function");
 // What a node says: a component's text is what it drew (its children go through it, and a kit button hands its words to the
 // press that hands them to the element, so counting each layer's children says them three times), a host's is its own words
 // and what is inside it.
@@ -290,6 +316,8 @@ const settle = async (n = 6) => {
 
 let reads = [];
 let homes = 0;
+// The weeks the board asked to have read ahead of need: [view, anchor] each time its timer ran.
+let warmed = [];
 /** A fresh page over `week`: each read the page asks for answers the next of `answers` (true once they run out). */
 const fresh = (week = dto(), answers = []) => {
   trapped.length = 0;
@@ -297,6 +325,7 @@ const fresh = (week = dto(), answers = []) => {
   cleanups = [];
   reads = [];
   homes = 0;
+  warmed = [];
   toasts = [];
   for (const k of Object.keys(listeners)) delete listeners[k];
   setSurfaceValue("calendar", { vm: toCalendarVM(week, NOW), fetchedAt: 1 });
@@ -309,6 +338,9 @@ const fresh = (week = dto(), answers = []) => {
     home: async () => {
       homes += 1;
       return true;
+    },
+    warmAround: (view, anchor) => {
+      warmed.push([view, anchor]);
     },
   });
 };
@@ -756,7 +788,8 @@ test("REGRESSION (B12): the range names the days on screen in every view -- a li
   let tree = page();
   const label = () => textOf(byTestId(tree, "cal-range"));
   const go = (id) => {
-    byTestId(tree, id).props.onClick();
+    if (id.startsWith("cal-view-")) pickView(tree, id.slice("cal-view-".length));
+    else byTestId(tree, id).props.onClick();
     tree = page();
   };
   assert.equal(label(), "Sep 7 – 13");
@@ -846,14 +879,14 @@ test("REGRESSION (B28): a phone opens on the agenda -- it opened on a week grid 
   globalThis.window.matchMedia = (q) => ({ matches: /max-width:\s*720px/.test(q) });
   try {
     const tree = page();
-    assert.equal(byTestId(tree, "cal-view-agenda").props["aria-pressed"], true);
+    assert.equal(views(tree).props.value, "agenda");
     assert.ok(byTestId(tree, "cal-agenda"), "the days as a list");
     assert.equal(byTestId(tree, "cal-col"), null, "no week grid");
   } finally {
     delete globalThis.window.matchMedia;
   }
   fresh();
-  assert.equal(byTestId(page(), "cal-view-week").props["aria-pressed"], true, "a desk keeps the week");
+  assert.equal(views(page()).props.value, "week", "a desk keeps the week");
 });
 
 test("the agenda's rows ARE Today's rows, and a customer is named once: it drew its own grid, the event's whole title, and the name again under it", () => {
@@ -898,7 +931,7 @@ test("a link can name a day: the page opens it in Day view, on a phone too", () 
   globalThis.window.matchMedia = () => ({ matches: true });
   try {
     const tree = page({ initialDay: "2026-09-10" });
-    assert.equal(byTestId(tree, "cal-view-day").props["aria-pressed"], true);
+    assert.equal(views(tree).props.value, "day");
     assert.equal(textOf(byTestId(tree, "cal-range")), "Thu · Sep 10");
   } finally {
     delete globalThis.window.matchMedia;
@@ -1078,7 +1111,7 @@ test("REGRESSION (C1): the page says only what it read -- an unreadable calendar
 test("REGRESSION (C1): a day past what the receptionist offers says so, and the legend names the last day it offers -- the agenda said 'nothing the receptionist would offer', as if the day were booked solid", () => {
   fresh(span("2026-09-07", 42, { rules: { lead_hours: 2, buffer_min: 15, max_days_ahead: 7 } }));
   let tree = page();
-  byTestId(tree, "cal-view-agenda").props.onClick();
+  pickView(tree, "agenda");
   tree = page();
   const day = (key) =>
     textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day").find((n) => n.props.key === key));
@@ -1251,10 +1284,10 @@ test("REGRESSION (C2): days on their way say so in words -- the board only dimme
   assert.equal(byTestId(tree, "cal-body").props["data-dims"], true, "the board is what dims");
   assert.equal(byTestId(tree, "cal-body").props["aria-busy"], "true");
   assert.ok(!String(byTestId(tree, "cal-body").props.className).includes("is-loading"), "not by a page's own class");
-  byTestId(tree, "cal-view-agenda").props.onClick();
+  pickView(tree, "agenda");
   tree = page();
   assert.match(textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day")[0]), /Reading this day/);
-  byTestId(tree, "cal-view-month").props.onClick();
+  pickView(tree, "month");
   tree = page();
   assert.match(textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-month-cell")[0]), /reading/);
 });
@@ -1431,6 +1464,224 @@ test("a window the board has read paints at once on the way back, and is read ag
   }
 });
 
+test("the weeks a few moves on are the ones to read ahead: none where the loaded weeks cover them, each way's nearest where they do not", async () => {
+  const { windowsToWarm } = await import(`${S}/calendar/warm.ts`);
+  // Nine weeks from Mon Aug 24 to Sun Oct 25, the window around Sep 8.
+  const loaded = toCalendarVM(span("2026-08-24", 63), NOW).days;
+  assert.deepEqual(
+    windowsToWarm({ view: "week", anchor: "2026-09-08", loaded: [] }),
+    [],
+    "nothing loaded, nothing to measure from",
+  );
+  assert.deepEqual(
+    windowsToWarm({ view: "week", anchor: "2026-10-06", loaded }),
+    [{ from: "2026-09-21", days: 63 }],
+    "three weeks from the end: the October window, the one stepping to the week of Oct 26 would read",
+  );
+  assert.deepEqual(
+    windowsToWarm({ view: "week", anchor: "2026-09-08", loaded }),
+    [{ from: "2026-07-20", days: 63 }],
+    "mid-window, forward is covered for three weeks and back is not: the August window, the one a step before Aug 24 reads",
+  );
+  assert.deepEqual(
+    windowsToWarm({ view: "day", anchor: "2026-09-20", loaded }),
+    [],
+    "a day looks three days on, which the weeks cover on both sides",
+  );
+  assert.deepEqual(
+    windowsToWarm({ view: "day", anchor: "2026-10-23", loaded }),
+    [{ from: "2026-09-21", days: 63 }],
+    "and three days from the end it reads ahead",
+  );
+  assert.deepEqual(
+    windowsToWarm({ view: "month", anchor: "2026-09-08", loaded }),
+    [
+      { from: "2026-09-21", days: 63 },
+      { from: "2026-07-20", days: 63 },
+    ],
+    "a month's neighbours are never in the nine weeks: both are read, the next first",
+  );
+  assert.deepEqual(
+    windowsToWarm({ view: "agenda", anchor: "2026-09-08", loaded }),
+    [
+      { from: "2026-09-21", days: 63 },
+      { from: "2026-07-20", days: 63 },
+    ],
+    "the agenda steps fortnights, so three steps either way leave the nine weeks",
+  );
+});
+
+test("a window read ahead is held and paints at once when the board gets there; one for a workspace left is dropped", async () => {
+  const { warmCalendar, calendarOverride, setCalendarSpan } = await import(`${S}/calendar/surface.ts`);
+  const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  // The weeks the board last looked at stay with the module: this one begins on the weeks around today.
+  setCalendarSpan(null);
+  const { windowFor, zoneDayKey, shiftMonth: monthOf } = await import("@chanlytics/contracts");
+  const seen = [];
+  const parked = [];
+  const was = {
+    location: globalThis.window.location,
+    fetch: globalThis.window.fetch,
+    ws: globalThis.window.__WORKSPACES,
+    active: globalThis.window.__ACTIVE_WORKSPACE,
+    cal: globalThis.window.__CALENDAR,
+  };
+  Object.assign(globalThis.window, {
+    location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
+    __WORKSPACES: [{ id: "t1", timezone: TZ }],
+    __ACTIVE_WORKSPACE: "t1",
+    fetch: async (url) => {
+      const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
+      seen.push(q.from);
+      await new Promise((r) => parked.push(r));
+      return new Response(JSON.stringify({ ok: true, data: { calendar: span(q.from, Number(q.days)) } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  const pause = () => new Promise((r) => setTimeout(r, 5));
+  const release = async () => {
+    for (let i = 0; i < 40; i += 1) {
+      while (parked.length) parked.shift()();
+      await pause();
+    }
+  };
+  const today = zoneDayKey(Date.now(), TZ);
+  const home = windowFor(today).from;
+  const next = windowFor(monthOf(today, 1)).from;
+  const before = windowFor(monthOf(today, -1)).from;
+  const shown = () => globalThis.window.__CALENDAR?.vm?.from;
+  const stop = startSurfaces([calendarOverride]);
+  try {
+    await release();
+    assert.equal(shown(), home, "the weeks around today, read at boot");
+    seen.length = 0;
+    realVerbs.warmAround("month", today);
+    await release();
+    assert.deepEqual([...seen].sort(), [before, next].sort(), "the month either side was read, and nothing else");
+    assert.equal(shown(), home, "reading ahead paints nothing");
+    // Again: they are held, so no read is made for them.
+    seen.length = 0;
+    realVerbs.warmAround("month", today);
+    await release();
+    assert.deepEqual(seen, [], "a window already held is not read twice");
+    // And the move to one paints before any read lands; the read behind keeps it current.
+    const arrived = realVerbs.goTo(next, 63);
+    await pause();
+    assert.equal(shown(), next, "REGRESSION: stepping to a month read ahead waited on a read of its own");
+    assert.equal(await arrived, true);
+    await release();
+    // A window that lands after the tab changed workspace is not held under the other one.
+    seen.length = 0;
+    const far = windowFor(monthOf(today, 7)).from;
+    const reading = warmCalendar({ from: far, days: 63 });
+    await pause();
+    assert.deepEqual(seen, [far], "the read was made");
+    // The workspace is the address's (/w/<slug>): the tab moved to another while the read was on its way.
+    globalThis.window.location.pathname = "/w/ridge";
+    await release();
+    await reading;
+    // Held under the workspace it landed in, it would paint there at once: it was read for the one the tab left.
+    realVerbs.goTo(far, 63);
+    await pause();
+    assert.notEqual(shown(), far, "REGRESSION: the weeks of a workspace the tab left were held for the one it is on");
+    await release();
+    globalThis.window.location.pathname = "/w/harbor";
+    setCalendarSpan(null);
+  } finally {
+    stop();
+    await release();
+    Object.assign(globalThis.window, {
+      location: was.location,
+      fetch: was.fetch,
+      __WORKSPACES: was.ws,
+      __ACTIVE_WORKSPACE: was.active,
+      __CALENDAR: was.cal,
+    });
+  }
+});
+
+test("a read ahead that fails costs nothing: the move reads the window when it is made", async () => {
+  const { warmCalendar } = await import(`${S}/calendar/surface.ts`);
+  const was = globalThis.window.fetch;
+  globalThis.window.fetch = async () => new Response("{}", { status: 500 });
+  try {
+    await warmCalendar({ from: "2031-03-03", days: 63 });
+  } finally {
+    globalThis.window.fetch = was;
+  }
+});
+
+test("the board reads the weeks beside it once it has stood still for a second: not as it draws, not in a demo, not after it has gone", () => {
+  const timers = [];
+  const real = { set: globalThis.setTimeout, clear: globalThis.clearTimeout };
+  globalThis.setTimeout = (fn, ms) => {
+    timers.push({ fn, ms, cleared: false });
+    return timers.length - 1;
+  };
+  globalThis.clearTimeout = (id) => {
+    if (timers[id]) timers[id].cleared = true;
+  };
+  const warmTimers = () => timers.filter((t) => t.ms === CR_WARM_MS);
+  try {
+    fresh();
+    page();
+    assert.deepEqual(warmed, [], "nothing is read the moment the board draws");
+    assert.equal(warmTimers().length, 1, "it waits a beat first");
+    warmTimers()[0].fn();
+    assert.deepEqual(warmed, [["week", "2026-09-08"]], "then asks for the weeks round the view on screen");
+    leave();
+    assert.equal(warmTimers()[0].cleared, true, "a board that goes first reads nothing");
+    // A demo has no calendar to read from.
+    timers.length = 0;
+    globalThis.window.__DEMO_MODE = true;
+    fresh();
+    page();
+    assert.equal(warmTimers().length, 0, "a demo asks for no read");
+  } finally {
+    globalThis.window.__DEMO_MODE = false;
+    globalThis.setTimeout = real.set;
+    globalThis.clearTimeout = real.clear;
+  }
+});
+
+test("the view the member chose is the one the board opens on again in this tab; a link's day and the phone's agenda are only defaults", () => {
+  const kept = [];
+  const store = {};
+  globalThis.window.__tabMemory = {
+    place: (p, v) => store[`${p}|${v}`] ?? null,
+    keepPlace: (p, v, place) => {
+      kept.push([p, v, place]);
+      store[`${p}|${v}`] = place;
+    },
+  };
+  try {
+    fresh();
+    let tree = page();
+    assert.equal(views(tree).props.value, "week", "nothing kept: a desk opens on the week");
+    pickView(tree, "month");
+    assert.deepEqual(kept, [["calendar", "board", { view: "month" }]], "picking a view keeps it");
+    fresh();
+    assert.equal(views(page()).props.value, "month", "a refresh, or a trip away and back, opens on it");
+    globalThis.window.matchMedia = (q) => ({ matches: /max-width:\s*720px/.test(q) });
+    try {
+      fresh();
+      assert.equal(views(page()).props.value, "month", "and a phone that chose it keeps it over the agenda");
+    } finally {
+      delete globalThis.window.matchMedia;
+    }
+    fresh();
+    assert.equal(views(page({ initialDay: "2026-09-10" })).props.value, "day", "a link to a day opens the day");
+    assert.equal(kept.length, 1, "which is where the board went, not a choice, and keeps nothing");
+    store["calendar|board"] = { view: "year" };
+    fresh();
+    assert.equal(views(page()).props.value, "week", "a view the board does not draw is not opened on");
+  } finally {
+    delete globalThis.window.__tabMemory;
+  }
+});
+
 /* ------------------------------- C3: one word per thing ------------------------------- */
 
 // The week with the receptionist's next open time as the route sends it: today at 3:30 PM.
@@ -1442,7 +1693,7 @@ test("REGRESSION (C3): the times the receptionist would offer are open times whe
   const tree = page();
   assert.match(textOf(byTestId(tree, "cal-legend")), /Open — the receptionist would offer it/);
   assert.equal(
-    byTestId(tree, "cal-service").props["aria-label"],
+    byTestId(tree, "cal-service").props.label,
     "Open times that fit a service",
     "REGRESSION: 'Windows that fit a service'",
   );
@@ -1469,7 +1720,7 @@ test("REGRESSION (C3): what could not be read is said one way -- a month's days 
   honourDeps = true;
   try {
     let tree = page();
-    byTestId(tree, "cal-view-month").props.onClick();
+    pickView(tree, "month");
     page();
     await settle();
     tree = page();
@@ -1633,9 +1884,9 @@ test("REGRESSION (C3): a service that needs a consultation is spoken of as the r
   );
   fresh(dto({ services }));
   let tree = page();
-  byTestId(tree, "cal-service").props.onChange({ target: { value: "Color correction" } });
+  byTestId(tree, "cal-service").props.onValueChange("Color correction");
   tree = page();
-  byTestId(tree, "cal-view-agenda").props.onClick();
+  pickView(tree, "agenda");
   tree = page();
   const day = textOf(
     all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day").find((n) => n.props.key === "2026-09-09"),
@@ -1684,7 +1935,7 @@ test("REGRESSION (C4): a day's head opens that day from the keyboard -- it was a
   assert.equal(opens()[0].props["aria-current"], undefined);
   opens()[3].props.onClick();
   tree = page();
-  assert.equal(byTestId(tree, "cal-view-day").props["aria-pressed"], true);
+  assert.equal(views(tree).props.value, "day");
   assert.equal(textOf(byTestId(tree, "cal-range")), "Thu · Sep 10");
   assert.equal(opens().length, 0, "in Day view the head opens nothing");
 });
@@ -1694,7 +1945,7 @@ test("REGRESSION (C4): a month day names its date and what it holds -- a screen 
   honourDeps = true;
   try {
     let tree = page();
-    byTestId(tree, "cal-view-month").props.onClick();
+    pickView(tree, "month");
     page();
     await settle();
     tree = page();
@@ -1766,23 +2017,31 @@ test("REGRESSION: the Calendar shows the calendar first -- a title the top bar a
     null,
     "REGRESSION: the counts as three cards",
   );
-  // Every control in one bar, and the date field inside the range, which opens it.
+  // Every control in one bar, and the kit's date picker opened by the range.
   const bar = byTestId(tree, "cal-bar");
-  for (const id of [
-    "cal-prev",
-    "cal-today",
-    "cal-next",
-    "cal-range",
-    "cal-jump",
-    "cal-service",
-    "cal-view-week",
-    "cal-view-day",
-    "cal-view-month",
-    "cal-view-agenda",
-  ])
+  for (const id of ["cal-prev", "cal-today", "cal-next", "cal-range", "cal-jump", "cal-service"])
     assert.ok(byTestId(bar, id), `${id} is in the one bar`);
-  const title = find(bar, (n) => n.type === "label" && !!byTestId(n, "cal-jump"));
-  assert.ok(title && byTestId(title, "cal-range"), "the range and the date field are one control");
+  assert.deepEqual(
+    views(bar).props.options.map((o) => o.testid),
+    ["cal-view-week", "cal-view-day", "cal-view-month", "cal-view-agenda"],
+    "the four views are one segmented control of the kit's",
+  );
+  assert.equal(
+    find(bar, (n) => n.type === "select"),
+    null,
+    "REGRESSION: a native select in the bar",
+  );
+  const pick = picker(bar);
+  assert.ok(pick, "the range opens the kit's date picker, not the browser's date field");
+  assert.ok(
+    byTestId(pick.props.trigger, "cal-range") && byTestId(pick.props.trigger, "cal-jump") === pick.props.trigger,
+    "the range and the control that opens the picker are one",
+  );
+  assert.equal(
+    find(bar, (n) => n.type === "input" && n.props?.type === "date"),
+    null,
+    "REGRESSION: a native date input",
+  );
   // The bar is the whole head: a line of counts under it said again what the board draws (22 Sep).
   const head = find(tree, (n) => n.props?.className === "cal-head");
   const inHead = [head.props.children].flat().filter(Boolean);
@@ -1855,7 +2114,7 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
   );
   fresh(week);
   let tree = page();
-  byTestId(tree, "cal-service").props.onChange({ target: { value: "Color correction" } });
+  byTestId(tree, "cal-service").props.onValueChange("Color correction");
   tree = page();
   assert.equal(openTimes(tree).length, 2, "REGRESSION: no open time fit Color correction");
   assert.match(textOf(byTestId(tree, "cal-legend")), /would offer it for a consultation, through Sep 21/);
@@ -1863,7 +2122,7 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
     textOf(byTestId(tree, "cal-consult-note")),
     /The open times here are for a consultation, about 30 minutes\./,
   );
-  byTestId(tree, "cal-view-agenda").props.onClick();
+  pickView(tree, "agenda");
   tree = page();
   const day = (key) =>
     textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day").find((n) => n.props.key === key));
@@ -1875,14 +2134,14 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
   // A service booked as itself is still sized by its own length.
   fresh(dto({ services: [{ name: "Balayage", duration_min: 140, consult_first: false }] }));
   tree = page();
-  byTestId(tree, "cal-service").props.onChange({ target: { value: "Balayage" } });
+  byTestId(tree, "cal-service").props.onValueChange("Balayage");
   tree = page();
   assert.equal(openTimes(tree).length, 1);
   assert.match(textOf(byTestId(tree, "cal-legend")), /would offer it for Balayage,/);
 });
 
 test("the page publishes how long it keeps a read and its words for a read that gives no reason, and says those words itself", () => {
-  // Settings › Business states the same calendar's last read in a row of its own (business-tab-open.jsx), for as long
+  // Settings › Business states the same calendar's last read in a row of its own (surfaces/settings/business/open.tsx), for as long
   // as this board keeps one, and in these words: one number and one spelling, this page's.
   const keeps = CALENDAR_PAGE;
   assert.equal(keeps.refreshMs, 5 * 60 * 1000, "the five minutes after which the board reads itself again");
@@ -1965,10 +2224,6 @@ test("every testid the page is known by is drawn in its view, the date picker fo
     "cal-range",
     "cal-jump",
     "cal-service",
-    "cal-view-week",
-    "cal-view-day",
-    "cal-view-month",
-    "cal-view-agenda",
     "cal-body",
     "cal-dayhead",
     "cal-dayhead-open",
@@ -1986,21 +2241,25 @@ test("every testid the page is known by is drawn in its view, the date picker fo
     "cal-feed-note-repeats",
     "cal-feed-note-undrawn",
   ]);
-  assert.equal(byTestId(tree, "cal-jump").props.value, "2026-09-08", "the date picker follows the anchor");
+  assert.equal(picker(tree).props.value, "2026-09-08", "the date picker follows the anchor");
+  assert.equal(picker(tree).props.today, "2026-09-08", "and is told which day is today, the business's");
   byTestId(tree, "cal-next").props.onClick();
   tree = page();
-  assert.equal(byTestId(tree, "cal-jump").props.value, "2026-09-15", "and the anchor is what a step moves");
+  assert.equal(picker(tree).props.value, "2026-09-15", "and the anchor is what a step moves");
+  picker(tree).props.onValueChange("2026-09-22");
+  tree = page();
+  assert.equal(picker(tree).props.value, "2026-09-22", "a day chosen in the picker is where the board goes");
   byTestId(tree, "cal-today").props.onClick();
-  byTestId(tree, "cal-service").props.onChange({ target: { value: "Balayage" } });
+  byTestId(tree, "cal-service").props.onValueChange("Balayage");
   tree = page();
   expectIds("a service that needs a consultation", ["cal-consult-note"]);
-  byTestId(tree, "cal-view-month").props.onClick();
+  pickView(tree, "month");
   tree = page();
   expectIds("month", ["cal-month", "cal-month-cell"]);
-  byTestId(tree, "cal-view-agenda").props.onClick();
+  pickView(tree, "agenda");
   tree = page();
   expectIds("agenda", ["cal-agenda", "cal-agenda-day", "cal-agenda-item"]);
-  byTestId(tree, "cal-view-day").props.onClick();
+  pickView(tree, "day");
   tree = page();
   expectIds("day", ["cal-col", "cal-block"]);
   byTestId(tree, "cal-block").props.onClick();

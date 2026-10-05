@@ -85,27 +85,15 @@ await import(`${L}/components/data-bits.jsx`);
 // How long the Calendar keeps a read and its words for a read that gives no reason (window.__calendarPage), which the tab's
 // calendar row keeps too: the app publishes them from the Calendar's surface (surfaces/calendar/verbs.ts installCalendar).
 globalThis.window.__calendarPage = (await import(`${L}/../surfaces/calendar/words.ts`)).CALENDAR_PAGE;
-// What the tab's saves write and the one saver they go through, before the page, as both load lists have them.
-await import(`${L}/pages/business-tab-save.jsx`);
-await import(`${L}/pages/business-tab-folds.jsx`);
-// The page's two gestures, then each card, then the page: the order both load lists keep.
-await import(`${L}/pages/business-tab-gestures.jsx`);
-await import(`${L}/pages/business-tab-who.jsx`);
-await import(`${L}/pages/business-tab-open.jsx`);
-await import(`${L}/pages/business-tab-offer.jsx`);
-await import(`${L}/pages/business-tab-answers.jsx`);
-await import(`${L}/pages/business-can.jsx`);
-await import(`${L}/pages/business-tab-services.jsx`);
-// The prompt sheet: the told section's door and the sheet it opens, which the page draws through its one sheet slot.
-await import(`${L}/pages/business-tab-prompt.jsx`);
-// The card a workspace with no receptionist is shown, which PaneWorkspace draws in the page's place
-// (business-tab-create.test.mjs draws it); in both load lists here, after the cards and before the page.
-await import(`${L}/pages/business-tab-create.jsx`);
-await import(`${L}/pages/business-tab.jsx`);
+// The tab is TSX (surfaces/settings/business, decision 0015 step 11): every part on the window by its JSX name.
+await import("./receptionist/business-tab/_business-parts.mjs");
 const W = globalThis.window;
 // The tab's helpers, from the module the app installs: the gap line, and what each row will tell the receptionist.
-const { installBusinessTab } = await import("../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
+const { installBusinessTab, loadSaveRules } = await import("../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
 installBusinessTab();
+// And the save's own rules, which the tab asks for as it mounts (business-tab.jsx): here before any page is drawn, as
+// they are in the app by the time a fold is open.
+await loadSaveRules();
 // What the receptionist is told, read off the settings read as the app reads it (inbox-verbs.ts composedPrompt, the
 // function itself): the prompt sheet cuts it, and draws nothing where it answers nothing.
 const { composedPrompt } = await import("../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
@@ -163,7 +151,7 @@ const brainOf = (profile, over = {}) => ({
 
 /**
  * The workspace's connections, as /api/v1/setup hands them over and the bridge publishes them
- * (legacy-bridge/setup.ts `__SETUP`). Both lines are present, active, have answered something and
+ * (surfaces/setup/surface.ts, its `__SETUP` mirror). Both lines are present, active, have answered something and
  * were switched on by the owner, which is the three things capabilityStatus calls live. Texting is
  * on none of it: the line carries no approved registration, which is what `ready` needs.
  */

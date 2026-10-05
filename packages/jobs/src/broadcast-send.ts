@@ -2,17 +2,45 @@
  * The broadcast_send job: one chunk of a run's recipients, counted and sent. Moved whole from handlers.ts (Reach out
  * Part 2.5), which re-exports its public names.
  */
-import { parseTenantConfig } from "@chanlytics/contracts";
+import {
+  buildEmailRequest,
+  campaignsIdentity,
+  errField,
+  hostedIdentity,
+  logger,
+  signUnsubscribeToken,
+  unsubscribeUrl,
+  type EmailRequest,
+} from "@chanlytics/channels";
+import { CAMPAIGN_EMAIL_TAG, EMAIL_HOLDS, OUTCOME_UNKNOWN, parseTenantConfig } from "@chanlytics/contracts";
 import {
   deliver,
   isWireUnavailable,
   sendBroadcastBatch,
   type BatchCarry,
   type BroadcastBatchPorts,
+  type Channel,
 } from "@chanlytics/core";
-import { type Database, recordEvent, resolveOutboundTarget } from "@chanlytics/db";
+import {
+  type Database,
+  campaignMonthSent,
+  insertQueuedEmail,
+  mailboxOfTenant,
+  queuedRecipients,
+  recordEvent,
+  resolveOutboundTarget,
+  resolveOutboundTargetForContact,
+  runGoesByOthers,
+  withdrawEmail,
+  workspacePaused,
+  writtenEmail,
+} from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type ClaimedJob, type JobContext, must } from "./context";
+import { sendByAt } from "./ledger";
+
+/** The broadcast_send job's own lines, by name: an email it could not build or sign for a person. */
+const sendLog = logger();
 
 /**
  * How many of a broadcast's people are in one state, or in any state at all.
@@ -27,6 +55,7 @@ async function countRecipients(
   tenantId: string,
   broadcastId: string,
   state?: string,
+  reason?: string,
 ): Promise<number> {
   let q = db
     .from("broadcast_recipients")
@@ -34,6 +63,7 @@ async function countRecipients(
     .eq("tenant_id", tenantId)
     .eq("broadcast_id", broadcastId);
   if (state) q = q.eq("state", state);
+  if (reason) q = q.eq("reason", reason);
   const { count, error } = await q;
   if (error) throw new Error(`broadcast_send: cannot count ${state ?? "all"} recipients: ${error.message}`);
   return count ?? 0;
@@ -55,14 +85,251 @@ function withTemplate<T extends { template_name: string | null; template_languag
  * Why the tick could not bind this channel's wire for this tenant (the credentials read failed on the edge), or null. A
  * wire that is null is a number that carries none, and the door's to refuse.
  */
-function wireUnbound(ctx: JobContext, channel: "whatsapp"): string | null {
+function wireUnbound(ctx: JobContext, channel: Channel): string | null {
   const wire = ctx.wire[channel];
   return isWireUnavailable(wire) ? wire.error : null;
 }
 
-/** The wire's ports: why a channel's wire could not be bound, and the platform's pager when this runtime holds one. */
-function wirePorts(ctx: JobContext): Pick<BroadcastBatchPorts, "wireUnavailable" | "page"> {
-  return { wireUnavailable: async (channel) => wireUnbound(ctx, channel), ...(ctx.page ? { page: ctx.page } : {}) };
+/**
+ * The wire's ports: why a channel's wire could not be bound, whether offers by email are closed on this runtime (the edge
+ * says so when the deployment names a campaigns domain the provider does not verify), and the platform's pager when this
+ * runtime holds one.
+ */
+function wirePorts(
+  ctx: JobContext,
+): Pick<BroadcastBatchPorts, "wireUnavailable" | "offersClosed" | "offersUnread" | "page"> {
+  return {
+    wireUnavailable: async (channel) => wireUnbound(ctx, channel),
+    offersClosed: () => Promise.resolve(ctx.email?.campaignsClosed ?? null),
+    offersUnread: () => Promise.resolve(ctx.email?.campaignsUnread ?? null),
+    ...(ctx.page ? { page: ctx.page } : {}),
+  };
+}
+
+/**
+ * The hosted mailbox's email as one person's frozen request (channels buildEmailRequest): From the workspace's address
+ * on the deployment's mail domain, Reply-To its reply route, so a reply lands in the Inbox, with the foot after the
+ * body. Null with no mailbox or no mail domain, and for words no email may carry (a first email posing as a reply). An
+ * appointment message carries no unsubscribe. An OFFER (`offer`) leaves from the same mailbox on the campaigns domain, with
+ * the same Reply-To, the one-click unsubscribe headers and its foot (which carries the link) in HTML; with no campaigns domain
+ * bound to this runtime it is null, and the person is held, never sent from the domain replies use.
+ */
+function emailRequestPort(ctx: JobContext, tenantId: string): BroadcastBatchPorts["emailRequest"] {
+  let mailbox: Awaited<ReturnType<typeof mailboxOfTenant>> | undefined;
+  // The same words fail every person of a batch alike: said once for the batch, with the error, so the hold has its reason.
+  let said = false;
+  return async (i) => {
+    const domain = ctx.email?.domain;
+    if (!domain) return null;
+    const campaigns = ctx.email?.campaigns;
+    if (i.offer && !campaigns) return null;
+    mailbox ??= await mailboxOfTenant(ctx.db, tenantId);
+    if (!mailbox) return null;
+    try {
+      const request = buildEmailRequest({
+        identity:
+          i.offer && campaigns ? campaignsIdentity(mailbox, campaigns.domain, domain) : hostedIdentity(mailbox, domain),
+        to: i.to,
+        parent: null,
+        subject: i.subject,
+        body: i.body,
+        // The foot, where a signature goes: after the words, in the text and in the HTML. An offer's is a campaign's:
+        // the one-click unsubscribe rides in its headers and its link in the foot (never the same words twice).
+        signature: i.offer ? null : i.footer,
+        ...(i.offer
+          ? { campaign: { unsubscribeUrl: i.offer.unsubscribeUrl, footer: i.footer, footerHtml: i.offer.footerHtml } }
+          : {}),
+        // A program's email, sent on its own schedule: marked auto-generated, so an out-of-office does not answer it.
+        actor: "ai",
+        messageId: i.messageId,
+        tenantId,
+      });
+      // A campaign's email, whether or not it carries an unsubscribe: its bounce or a run that died is the campaign's to
+      // count, never a reply that failed (contracts isCampaignEmail).
+      return { ...request, tags: [...request.tags, { name: CAMPAIGN_EMAIL_TAG, value: "broadcast" }] };
+    } catch (e) {
+      // Words no email may carry, or a request the builder refused: the person is held (no_channel), and the log says why.
+      if (!said) {
+        said = true;
+        sendLog.error("broadcast_email_request_failed", { tenant_id: tenantId, offer: !!i.offer, error: errField(e) });
+      }
+      return null;
+    }
+  };
+}
+
+/**
+ * The link that unsubscribes one person from one offer, sealed under the secret the edge bound with the campaigns domain
+ * (channels signUnsubscribeToken: the workspace, the person and the email): the page every offer's foot and List-Unsubscribe
+ * carry, made the way a reach-out's is. Null where this runtime holds none.
+ */
+function unsubscribeUrlPort(ctx: JobContext, tenantId: string): BroadcastBatchPorts["unsubscribeUrl"] {
+  let said = false;
+  return ({ messageId, contactId }) => {
+    const c = ctx.email?.campaigns;
+    if (!c) return Promise.resolve(null);
+    try {
+      const token = signUnsubscribeToken(c.unsubscribeSecret, { tenantId, contactId, messageId });
+      return Promise.resolve(unsubscribeUrl(c.unsubscribeOrigin, token));
+    } catch (e) {
+      // An offer with no link out is never sent, so the person is held (no_channel): said once for the batch, with the
+      // error, never hidden (a secret the edge cannot seal with is the first suspect).
+      if (!said) {
+        said = true;
+        sendLog.error("broadcast_unsubscribe_unsigned", { tenant_id: tenantId, error: errField(e) });
+      }
+      return Promise.resolve(null);
+    }
+  };
+}
+
+/**
+ * A request as the row's JSON: the request is data all the way down (channels isEmailRequest reads it back from the
+ * row), copied so what the row keeps is what was frozen.
+ */
+function frozen(r: EmailRequest) {
+  return {
+    ...r,
+    to: [...r.to],
+    reply_to: [...r.reply_to],
+    headers: { ...r.headers },
+    tags: r.tags.map((t) => ({ ...t })),
+  };
+}
+
+/**
+ * The people a batch sends to, and what is written for each: who is still queued, the people themselves, their thread (by
+ * their number, or for an email by the person), the email's frozen request and its queued row, what a dying run already
+ * sent them, the month's allowance spent, and how each one's send went. One workspace's, over this runtime's database.
+ */
+function peoplePorts(
+  ctx: JobContext,
+  tenantId: string,
+): Pick<
+  BroadcastBatchPorts,
+  | "batch"
+  | "contacts"
+  | "target"
+  | "targetOfContact"
+  | "emailRequest"
+  | "unsubscribeUrl"
+  | "queueEmail"
+  | "withdrawEmail"
+  | "monthSent"
+  | "alreadySent"
+  | "byOtherChannels"
+  | "mark"
+> {
+  const db = ctx.db;
+  return {
+    // On a database 00298 has not reached, a recipient has no channel and everyone goes by WhatsApp, as every run did
+    // (packages/db queuedRecipients): code that ships before its migration must keep its broadcasts going.
+    batch: (id, limit) => queuedRecipients(db, { tenantId, broadcastId: id, limit }),
+    // The batch's people in one read, not one read per person.
+    contacts: async (ids) => {
+      const { data, error } = await db
+        .from("contacts")
+        .select(
+          "id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name, email, email_marketing",
+        )
+        .in("id", ids)
+        .eq("tenant_id", tenantId);
+      if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
+      return new Map((data ?? []).map((c) => [c.id, c]));
+    },
+    // create: false — a broadcast never opens a contact. touch: false — the
+    // door below still has to refuse some of these people, and a thread they
+    // were not messaged in has nothing new in it.
+    target: (phoneE164) => resolveOutboundTarget(db, { tenantId: tenantId, phoneE164, create: false, touch: false }),
+    // An email reaches the person by their address, so its thread is found by the person.
+    targetOfContact: (contactId) =>
+      resolveOutboundTargetForContact(db, { tenantId: tenantId, contactId, touch: false }),
+    emailRequest: emailRequestPort(ctx, tenantId),
+    unsubscribeUrl: unsubscribeUrlPort(ctx, tenantId),
+    // The email, written queued under the id its request was frozen with, before it leaves (the door asks for the
+    // row). Its row keeps the request as meta.email, as every email's does. A row already there is a resumed run's.
+    queueEmail: async (row) => {
+      const wrote = await insertQueuedEmail(db, {
+        id: row.id,
+        tenant_id: tenantId,
+        conversation_id: row.conversationId,
+        contact_id: row.contactId,
+        channel: "email",
+        direction: "outbound",
+        sender: "human",
+        type: "text",
+        body: row.body,
+        status: "queued",
+        meta: {
+          ...row.meta,
+          email: { subject: row.request.subject, to: [...row.request.to], request: frozen(row.request) },
+        },
+      });
+      if (wrote === "written") return { status: "queued" };
+      const there = await writtenEmail(db, { tenantId: tenantId, id: row.id });
+      if (!there) throw new Error(`broadcast_send: the email ${row.id} is taken and cannot be read`);
+      return { status: there.status };
+    },
+    withdrawEmail: async (messageId) => {
+      await withdrawEmail(db, { tenantId: tenantId, id: messageId, reason: "not_taken" });
+    },
+    monthSent: (channel) => campaignMonthSent(db, tenantId, channel),
+    // The messages a dying run left these people: written by deliver after the
+    // wire accepted them, with this broadcast's id in their meta, read once for
+    // the batch. It is the one check standing between a resumed run and a
+    // second WhatsApp template to the same person, so a read that FAILED must
+    // never come back as "no, they have not been messaged".
+    alreadySent: async (id, contactIds) => {
+      const rows = must(
+        "broadcast_send: cannot check what the batch was already sent",
+        await db
+          .from("messages")
+          .select("id, contact_id, created_at")
+          .eq("tenant_id", tenantId)
+          .in("contact_id", contactIds)
+          .filter("meta->>broadcast_id", "eq", id)
+          .in("status", ["sent", "delivered", "read"]),
+      );
+      // created_at is written by the same statement that records the send, so
+      // it is when the message left, which is what the recipient's row wants.
+      const prior = new Map<string, { id: string; sentAt: string | null }>();
+      for (const m of rows ?? [])
+        if (m.contact_id && !prior.has(m.contact_id)) prior.set(m.contact_id, { id: m.id, sentAt: m.created_at });
+      return prior;
+    },
+    // Whether anyone on the run goes by email or text: what WhatsApp's template not being approved asks (core sendBroadcastBatch).
+    byOtherChannels: (id, than) => runGoesByOthers(db, tenantId, id, than),
+    mark: markPort(db, tenantId),
+  };
+}
+
+/**
+ * One person's row, written. `sent_at` comes from the patch when the caller knows it — a resumed run reading the message
+ * a dying run left knows when it actually went out, and stamping "now" instead would reorder the broadcast's own page.
+ *
+ * The CLAIM (failed, outcome_unknown: the row the guard 00182 treats as one) is a compare-and-set: it takes the person
+ * only while they are still queued, and answers whether it did. Two runs that overlap cannot both claim, and so both
+ * send, the same person; the one that lost leaves them to the other. Every other write answers true.
+ */
+function markPort(db: SupabaseClient<Database>, tenantId: string): BroadcastBatchPorts["mark"] {
+  return async (id, contactId, patch) => {
+    const sentAt = patch.sent_at ?? (patch.state === "sent" ? new Date().toISOString() : null);
+    const write = db
+      .from("broadcast_recipients")
+      .update({ ...patch, sent_at: sentAt })
+      .eq("tenant_id", tenantId)
+      .eq("broadcast_id", id)
+      .eq("contact_id", contactId);
+    if (patch.state !== "failed" || patch.reason !== OUTCOME_UNKNOWN) {
+      must("broadcast_send: cannot record how this person's send went", await write);
+      return true;
+    }
+    const took = must(
+      "broadcast_send: cannot claim this person",
+      await write.eq("state", "queued").select("contact_id"),
+    );
+    return (took ?? []).length > 0;
+  };
 }
 
 /** broadcast_send: core's sendBroadcastBatch, over this runtime's ports. payload: { broadcast_id } */
@@ -83,14 +350,9 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         return withTemplate(data);
       },
       // The billing gate, so it fails CLOSED: a tenants row that cannot be read
-      // is not a workspace that is paying.
-      workspacePaused: async () => {
-        const row = must(
-          "broadcast_send: cannot read the workspace's status",
-          await db.from("tenants").select("status").eq("id", job.tenant_id).maybeSingle(),
-        );
-        return row?.status === "paused";
-      },
+      // is not a workspace that is paying. The one reading of it (packages/db workspacePaused), as the composers and the
+      // approval ask.
+      workspacePaused: () => workspacePaused(db, job.tenant_id),
       fail: async (id, failure) => {
         must(
           "broadcast_send: cannot mark the broadcast failed",
@@ -118,85 +380,27 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
       // decides which consent the send needs. A template that cannot be READ is
       // not a template Meta withdrew: null here fails the whole broadcast and
       // emails the owner that WhatsApp rejected it, which would be a lie about
-      // their Meta account told over a statement timeout.
-      template: async (name, language) =>
+      // their Meta account told over a statement timeout. An email's or a text's
+      // version of the message is the row of its name and language on its channel.
+      template: async (name, language, channel) =>
         must(
           `broadcast_send: cannot read template ${name}`,
           await db
             .from("templates")
-            .select("meta_status, body_preview, category")
+            .select("meta_status, body_preview, category, components")
             .eq("tenant_id", job.tenant_id)
-            .eq("channel", "whatsapp")
+            .eq("channel", channel)
             .eq("name", name)
             .eq("language", language)
             .maybeSingle(),
         ),
       facts: () => workspaceFacts(db, job.tenant_id),
-      batch: async (id, limit) => {
-        const { data, error } = await db
-          .from("broadcast_recipients")
-          .select("contact_id, facts")
-          .eq("tenant_id", job.tenant_id)
-          .eq("broadcast_id", id)
-          .eq("state", "queued")
-          .limit(limit);
-        if (error) throw new Error(`broadcast_send: cannot read recipients: ${error.message}`);
-        return data ?? [];
-      },
-      // The batch's people in one read, not one read per person.
-      contacts: async (ids) => {
-        const { data, error } = await db
-          .from("contacts")
-          .select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name")
-          .in("id", ids)
-          .eq("tenant_id", job.tenant_id);
-        if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
-        return new Map((data ?? []).map((c) => [c.id, c]));
-      },
-      // create: false — a broadcast never opens a contact. touch: false — the
-      // door below still has to refuse some of these people, and a thread they
-      // were not messaged in has nothing new in it.
-      target: (phoneE164) =>
-        resolveOutboundTarget(db, { tenantId: job.tenant_id, phoneE164, create: false, touch: false }),
-      // The messages a dying run left these people: written by deliver after the
-      // wire accepted them, with this broadcast's id in their meta, read once for
-      // the batch. It is the one check standing between a resumed run and a
-      // second WhatsApp template to the same person, so a read that FAILED must
-      // never come back as "no, they have not been messaged".
-      alreadySent: async (id, contactIds) => {
-        const rows = must(
-          "broadcast_send: cannot check what the batch was already sent",
-          await db
-            .from("messages")
-            .select("id, contact_id, created_at")
-            .eq("tenant_id", job.tenant_id)
-            .in("contact_id", contactIds)
-            .filter("meta->>broadcast_id", "eq", id)
-            .in("status", ["sent", "delivered", "read"]),
-        );
-        // created_at is written by the same statement that records the send, so
-        // it is when the message left, which is what the recipient's row wants.
-        const prior = new Map<string, { id: string; sentAt: string | null }>();
-        for (const m of rows ?? [])
-          if (m.contact_id && !prior.has(m.contact_id)) prior.set(m.contact_id, { id: m.id, sentAt: m.created_at });
-        return prior;
-      },
-      // `sent_at` comes from the patch when the caller knows it — a resumed run
-      // reading the message a dying run left knows when it actually went out,
-      // and stamping "now" instead would reorder the broadcast's own page.
-      mark: async (id, contactId, patch) => {
-        const sentAt = patch.sent_at ?? (patch.state === "sent" ? new Date().toISOString() : null);
-        must(
-          "broadcast_send: cannot record how this person's send went",
-          await db
-            .from("broadcast_recipients")
-            .update({ ...patch, sent_at: sentAt })
-            .eq("tenant_id", job.tenant_id)
-            .eq("broadcast_id", id)
-            .eq("contact_id", contactId),
-        );
-      },
-      deliver: (d) => deliver({ db, wire: ctx.wire }, d),
+      ...peoplePorts(ctx, job.tenant_id),
+      // Offers by email go only where this runtime holds a verified campaigns domain (the edge binds it for this job). An
+      // email is sent by the time this tick can still wait for it (ledger sendByAt), so one started late is bounded by
+      // what is left of the function rather than by the wire's own, longer deadline.
+      deliver: (d) =>
+        deliver({ db, wire: ctx.wire, emailOffers: !!ctx.email?.campaigns }, { ...d, sendBy: sendByAt(ctx.deadline) }),
       ...wirePorts(ctx),
       remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),
       // Read by the verb as "is this broadcast still wanted"; null is how a
@@ -218,6 +422,13 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
           countRecipients(db, job.tenant_id, id, "sent"),
         ]);
         return { sent, held: all - sent };
+      },
+      // Counted, as the tally is: which of the workspace's holds on email the run skipped anyone for.
+      heldForEmail: async (id) => {
+        const counts = await Promise.all(
+          EMAIL_HOLDS.map((reason) => countRecipients(db, job.tenant_id, id, "skipped", reason)),
+        );
+        return EMAIL_HOLDS.filter((_, i) => (counts[i] ?? 0) > 0);
       },
       finish: async (id, tally) => {
         must(
@@ -264,7 +475,7 @@ export function carriedBy(payload: unknown): Required<BatchCarry> {
 async function workspaceFacts(
   db: JobContext["db"],
   tenantId: string,
-): Promise<{ businessName: string; bookingLink: string | null; timezone: string }> {
+): Promise<{ businessName: string; bookingLink: string | null; timezone: string; address: string | null }> {
   const [tenantRes, cfgRes] = await Promise.all([
     db.from("tenants").select("name, timezone").eq("id", tenantId).maybeSingle(),
     db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
@@ -277,5 +488,7 @@ async function workspaceFacts(
     businessName,
     bookingLink: parsedCfg?.brain?.booking_link ?? null,
     timezone: tenantRow?.timezone || "UTC",
+    // The postal address an email's foot gives, as the Business record keeps it; none, none.
+    address: parsedCfg?.brain?.profile?.address?.trim() || null,
   };
 }

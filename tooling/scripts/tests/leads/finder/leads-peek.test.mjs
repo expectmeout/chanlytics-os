@@ -2,9 +2,15 @@
  * The peek, and everything the owner does to one lead from it: the stage, Not a fit and its five whys, Keep and
  * Exclude, Put back, a call from their own phone with its six outcomes, and a draft for their own inbox.
  *
- * Drawn on the tests' stub React, as refusals-on-the-page does: the components are hookless, so a draw is a call and
- * the state is this file's, the way LeadsReal holds it on the real page. Nothing is mocked that the owner reads:
- * the view model is contracts' own toLeadPeekVM and the words are contracts' LEAD_WORDS.
+ * Drawn on the tests' stub React, as refusals-on-the-page does: the peek's components are hookless, so a draw is a call
+ * and the state is this file's, the way LeadsReal holds it on the real page. Everything is imported from its TSX module
+ * (surfaces/leads/peek, decision 0015): LeadPeek and LeadPeekActions, the lightbox, the seams the page leans on (Esc,
+ * focus, the return watcher, the photo warm-up) and the hint's two handlers; the kit's MoreMenu, Confirm and StatePill
+ * draw as the app draws them. Nothing is mocked that the owner reads: the view model is contracts' own toLeadPeekVM and
+ * the words are contracts' LEAD_WORDS. The page hands the acts a courier, and this file hands its own, so what the peek
+ * asked of the door is read off it (the surface's own doors, and the wire they go over, are leads-bridge.test.mjs's).
+ * The one thing the peek draws that reads the wire is the reach-out block (LeadReachOut): its read is answered here with
+ * a lead no reach-out wrote to, which draws nothing, as it does for most leads.
  */
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
@@ -23,7 +29,7 @@ import {
   leadPeekMenu,
 } from "../../../../../packages/contracts/src/leads/leads.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
-import { kitPages, peoplePages, useStubHooks } from "../../_legacy-react.mjs";
+import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -49,6 +55,17 @@ globalThis.React = {
       cells[k],
       (v) => {
         cells[k] = typeof v === "function" ? v(cells[k]) : v;
+      },
+    ];
+  },
+  // LeadReachOut (the peek's reach-out block, surfaces/leads/reach-out/lines.tsx) keeps its re-read counter in one.
+  useReducer: (red, init) => {
+    const k = frames.key();
+    if (!(k in cells)) cells[k] = init;
+    return [
+      cells[k],
+      (a) => {
+        cells[k] = red(cells[k], a);
       },
     ];
   },
@@ -81,6 +98,11 @@ globalThis.document = {
   removeEventListener: off(listeners),
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
+// The wire, answering the one read the peek makes by itself: the reach-out block asks for the lead's story (GET
+// reach-outs/leads?lead=). A lead no reach-out wrote to has no timeline, and the block draws nothing.
+const wired = [];
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 globalThis.window = {
   document: globalThis.document,
   addEventListener: on(listeners),
@@ -88,7 +110,22 @@ globalThis.window = {
   dispatchEvent() {},
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
-  location: { assign: (href) => dialled.push(href) },
+  // On a workspace page, so the client names the workspace on every request the way it does in the browser.
+  location: {
+    pathname: "/w/harbor",
+    hash: "",
+    origin: "https://app.chanlytics.com",
+    assign: (href) => dialled.push(href),
+  },
+  fetch: async (url) => {
+    wired.push(String(url));
+    if (/^\/api\/v1\/reach-outs\/leads\?/.test(String(url)))
+      return json(200, { ok: true, data: { lines: null, chain: null, timeline: null } });
+    return json(404, {
+      ok: false,
+      error: { code: "not_found", message: "The peek asked for something this test did not expect." },
+    });
+  },
   navigator: {
     clipboard: {
       writeText: async (t) => {
@@ -100,45 +137,22 @@ globalThis.window = {
   // The one colour vocabulary, as the app publishes it: the verdict's pill takes its tone from here.
   __chrome: { state: stateOf },
 };
+// The shell's helpers the peek still asks of the window by way of legacy-verbs: the role gate (`gate`), a thumb's swipe
+// (`touchSwipe`), the refusal toast and the overlay's `leaving` ref. The role store is each test's own (roleIs).
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-// The real glyphs, the kit's now (surfaces/kit/icon): a page's icon draws as it did.
-globalThis.Icon = globalThis.window.Icon = (
-  await import("../../../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx")
-).Icon;
-// The pill, the menu and the question are the kit's (surfaces/kit), which seed-globals publishes on the window.
+// The verdict's pill and the Erase question are the kit's (surfaces/kit), which the peek draws by way of legacy-parts
+// off the window, where seed-globals publishes them. The ⋯ and the ways of calling are the kit's MoreMenu, imported by
+// the peek itself and drawn for real: pressing it opens it. The kit's parts take their hooks from the react module,
+// which the stub reaches here.
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
-globalThis.StatePill = globalThis.window.StatePill;
-// Call is the ways-of-calling menu, the house one, drawn for real: pressing it opens it.
-globalThis.MoreMenu = globalThis.window.MoreMenu;
-// Erase asks first, in the house question (PR 9), drawn for real.
-globalThis.Confirm = kitPages.Confirm;
-// People's parts, TSX now (surfaces/people/people-globals.ts): `leads-scope.jsx` reads plSortKeys at module scope
-// (LEAD_SORT_KEYS), so they are on the window before it loads, as the app publishes them before any page.
-Object.assign(globalThis.window, peoplePages);
-for (const k of ["PeopleTable", "PeopleColumnsMenu", "plSortKeys", "plDrawnColumns", "plColumnOptions", "PL_NO_SEL"])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../../apps/dashboard/src/legacy/pages/leads-cells.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/leads-bench.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/leads-map.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/leads-scope.jsx"); // Task 2's: LeadShape is its, and this file draws it
-// The peek is TSX since decision 0015 (surfaces/leads/peek): its names are what the legacy Leads page reads off the window.
-const { LEADS_GLOBALS } = await import("../../../../../apps/dashboard/src/surfaces/leads/globals.ts");
-Object.assign(globalThis.window, LEADS_GLOBALS);
-for (const k of [
-  "LeadPeek",
-  "LeadCallMenu",
-  "LeadShape",
-  "LeadSlotShape",
-  "LeadPeekActions",
-  "LeadLightbox",
-  "leadPeekEscape",
-  "leadPeekFollows",
-  "leadPeekFocus",
-  "leadArmOnReturn",
-])
-  globalThis[k] = globalThis.window[k];
-globalThis.window.__LEAD_WORDS = LEAD_WORDS;
+// The peek and what the page leans on, from where they live (surfaces/leads/peek, decision 0015).
+const { LeadPeek } = await import("../../../../../apps/dashboard/src/surfaces/leads/peek/peek.tsx");
+const { LeadPeekActions } = await import("../../../../../apps/dashboard/src/surfaces/leads/peek/acts.tsx");
+const { LeadLightbox } = await import("../../../../../apps/dashboard/src/surfaces/leads/peek/lightbox.tsx");
+const { pkPlaceTip, pkScrolling } = await import("../../../../../apps/dashboard/src/surfaces/leads/peek/hint.tsx");
+const { leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn, leadPhotoWarm } =
+  await import("../../../../../apps/dashboard/src/surfaces/leads/peek/seams.ts");
 
 /* ------------------------------------------------------------ the helpers */
 
@@ -409,8 +423,8 @@ const page = (over = {}) => {
   };
   const draw = () => {
     frames.begin();
-    const acts = globalThis.LeadPeekActions(p);
-    return { tree: globalThis.LeadPeek({ vm: p.vm, mode: st.mode, armed: st.armed, draft: st.draft, ...acts }), acts };
+    const acts = LeadPeekActions(p);
+    return { tree: LeadPeek({ vm: p.vm, mode: st.mode, armed: st.armed, draft: st.draft, ...acts }), acts };
   };
   return { st, p, draw };
 };
@@ -423,9 +437,8 @@ const reset = () => {
   dialled.length = 0;
   copied.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
+  wired.length = 0;
   delete globalThis.window.ST_STORE;
-  // Who the ⋯ offers Erase to is contracts' rule, published as seed-globals.ts publishes it.
-  globalThis.window.__LEAD_VM = { leadPeekMenu };
 };
 
 /* ================================================== Task 12: the peek ==== */
@@ -460,18 +473,29 @@ test("the peek names the business, its sub-line, the fit as a sentence and the s
 });
 
 test("the peek hands its panes its acts and nothing else: vm, mode, armed, draft, busy, deck and phone stay its own", () => {
-  // Every prop but those seven is an act the panes call by name. In the standalone harness an object rest's excluded
-  // keys are a `var _excluded` every file shares, and settings.jsx's was the one in force: the panes were handed the
-  // peek's own props with the acts (legacy-harness.test.mjs). So the peek takes them with window.propsWithout, and this
-  // holds the list.
+  // Every prop but those seven is an act the panes call by name: the peek takes the rest of its props as the acts
+  // (`...on`), so a prop it was handed that is not one of the seven would reach the panes as an act. This holds the list.
   reset();
   const { p } = page();
-  const acts = globalThis.LeadPeekActions(p);
+  const acts = LeadPeekActions(p);
   const deck = { at: 2, of: 5, onPrev() {}, onNext() {} };
-  const tree = globalThis.LeadPeek({ vm: p.vm, mode: "info", armed: null, draft: null, busy: true, deck, ...acts });
+  const tree = LeadPeek({ vm: p.vm, mode: "info", armed: null, draft: null, busy: true, deck, ...acts });
   const pane = find(tree, (n) => n.props?.on);
   assert.ok(pane, "a pane is handed the acts");
   assert.deepEqual(Object.keys(pane.props.on).sort(), Object.keys(acts).sort());
+});
+
+test("the peek hosts the reach-out block of its lead: it asks the wire for that lead's story once, and a lead no reach-out wrote to draws no block", async () => {
+  reset();
+  // Another lead than the rest of the file's: the client shares one request between two identical reads inside two seconds.
+  const other = "5e000000-0000-4000-8000-000000000222";
+  const P = page({ vm: vmOf({ id: other }) });
+  const first = P.draw().tree;
+  await settle();
+  assert.deepEqual(wired, [`/api/v1/reach-outs/leads?lead=${other}&workspace=harbor`], "one read, for this lead");
+  const second = P.draw().tree;
+  assert.equal(wired.length, 1, "drawn again, it does not ask again");
+  for (const tree of [first, second]) assert.equal(byTestId(tree, "peek-reach-out"), null, "no timeline, no block");
 });
 
 test("How you can reach them: the phone with its sources and its copy, the email with its state in words and Copy and Draft, and texts and WhatsApp locked with the reason", async () => {
@@ -909,18 +933,14 @@ test("Esc backs out one step: the question it asked, then the pane it opened, th
       st.peekId = v;
     },
   };
-  assert.equal(globalThis.leadPeekEscape(arg), "armed");
+  assert.equal(leadPeekEscape(arg), "armed");
   assert.equal(st.armed, null);
-  assert.equal(globalThis.leadPeekEscape({ ...arg, armed: st.armed }), "mode");
+  assert.equal(leadPeekEscape({ ...arg, armed: st.armed }), "mode");
   assert.equal(st.mode, "info");
-  assert.equal(globalThis.leadPeekEscape({ ...arg, armed: null, mode: st.mode }), "peek");
+  assert.equal(leadPeekEscape({ ...arg, armed: null, mode: st.mode }), "peek");
   assert.equal(st.peekId, null);
   assert.deepEqual(
-    [
-      globalThis.leadPeekFollows("info", null),
-      globalThis.leadPeekFollows("draft", null),
-      globalThis.leadPeekFollows("info", { kind: "call" }),
-    ],
+    [leadPeekFollows("info", null), leadPeekFollows("draft", null), leadPeekFollows("info", { kind: "call" })],
     [true, false, false],
     "a question or a draft holds the peek on its lead",
   );
@@ -931,13 +951,13 @@ test("focus moves into the peek when it opens and back to the row when it closes
   const focused = [];
   const el = (id) => ({ id, focus: () => focused.push(id) });
   globalThis.document.getElementById = (id) => el(id);
-  globalThis.leadPeekFocus(LEAD, null);
-  globalThis.leadPeekFocus(null, LEAD);
+  leadPeekFocus(LEAD, null);
+  leadPeekFocus(null, LEAD);
   assert.deepEqual(focused, ["lead-peek-close", `lead-${LEAD}`], "the row is the cursor's, by the table's own noun");
   globalThis.document.getElementById = undefined;
 
   const st = { armed: { kind: "call", leadId: LEAD, asked: false } };
-  const stop = globalThis.leadArmOnReturn(st.armed, (v) => {
+  const stop = leadArmOnReturn(st.armed, (v) => {
     st.armed = typeof v === "function" ? v(st.armed) : v;
   });
   assert.deepEqual([(listeners.focus || []).length, (listeners.visibilitychange || []).length], [1, 1]);
@@ -954,7 +974,7 @@ test("focus moves into the peek when it opens and back to the row when it closes
     "no listener is left behind",
   );
   assert.equal(
-    globalThis.leadArmOnReturn(st.armed, () => {}),
+    leadArmOnReturn(st.armed, () => {}),
     undefined,
     "an answered question arms nothing",
   );
@@ -1091,7 +1111,7 @@ test("Did you send it? is asked when the tab comes back, not when the draft open
   P.draw();
   assert.equal(byTestId(P.draw().tree, "peek-sent-ask"), null, "nothing is asked while they are away");
 
-  const stop = globalThis.leadArmOnReturn(P.st.armed, P.p.setArmed);
+  const stop = leadArmOnReturn(P.st.armed, P.p.setArmed);
   for (const fn of listeners.focus || []) fn();
   assert.equal(P.st.armed.asked, true);
   stop();
@@ -1133,7 +1153,7 @@ test("Call dials tel: from the peek and asks how it went when the tab comes back
   ).map((n) => textOf(n).trim());
   assert.deepEqual(
     ways,
-    Object.values(globalThis.window.__LEAD_WORDS.callWays).map((w) => `${w.label}${w.meta || ""}`),
+    Object.values(LEAD_WORDS.callWays).map((w) => `${w.label}${w.meta || ""}`),
     "the three ways, and the button already says the number, so no heading repeats it",
   );
   await press(
@@ -1142,13 +1162,13 @@ test("Call dials tel: from the peek and asks how it went when the tab comes back
       (n) =>
         String(n.props?.className || "")
           .split(" ")
-          .includes("more-item") && textOf(n).includes(globalThis.window.__LEAD_WORDS.callWays.dial.label),
+          .includes("more-item") && textOf(n).includes(LEAD_WORDS.callWays.dial.label),
     ),
   );
   assert.deepEqual(dialled, ["tel:+15125550142"]);
   assert.deepEqual([P.st.armed.kind, P.st.armed.asked], ["call", false]);
   assert.equal(byTestId(P.draw().tree, "peek-call-ask"), null);
-  const stop = globalThis.leadArmOnReturn(P.st.armed, P.p.setArmed);
+  const stop = leadArmOnReturn(P.st.armed, P.p.setArmed);
   for (const fn of listeners.visibilitychange || []) fn();
   stop();
   const { tree } = P.draw();
@@ -1522,8 +1542,8 @@ test("the peek's band: the photograph is the band, the mark rides it as a chip, 
 test("a hint's tip is placed against the peek as it is asked for, flips above its line when the room is there, and never shows over a moving body", () => {
   reset();
   const tree = page().draw().tree;
-  const place = globalThis.window.pkPlaceTip;
-  const scrolling = globalThis.window.pkScrolling;
+  const place = pkPlaceTip;
+  const scrolling = pkScrolling;
   const hints = all(tree, (n) => n.props?.className === "pk-hint");
   assert.equal(hints.length, 4, "the evidence bar, the phone's note, the email's note, and why texts are locked");
   for (const h of hints) {
@@ -1761,7 +1781,7 @@ test("D5: the peek opens on a photo band with Expand, says what people say under
     "the act bar is the peek's last child: it never scrolls away",
   );
   assert.equal(textOf(byTestId(act, "peek-act-call")).trim(), "Call +1 (512) 555-0142");
-  await callWay(shown, globalThis.window.__LEAD_WORDS.callWays.dial.label);
+  await callWay(shown, LEAD_WORDS.callWays.dial.label);
   assert.deepEqual(
     dialled,
     ["tel:+15125550142"],
@@ -1796,7 +1816,7 @@ test("D5: the photo expanded is a dialog of its own -- the photo or the tile, wh
     places: 2,
   });
   const closed = [];
-  const tree = globalThis.LeadLightbox({ vm, onClose: () => closed.push(1) });
+  const tree = LeadLightbox({ vm, onClose: () => closed.push(1) });
   const box = byTestId(tree, "lead-lightbox");
   assert.equal(box.props.role, "dialog");
   assert.equal(
@@ -1838,12 +1858,12 @@ test("D5: the photo expanded is a dialog of its own -- the photo or the tile, wh
   byTestId(box, "lightbox-close").props.onClick();
   assert.deepEqual(closed, [1]);
   // A lead with no photo draws the tile, and says so.
-  const noPhoto = globalThis.LeadLightbox({ vm: vmOf({ hours: [] }), onClose: () => {} });
+  const noPhoto = LeadLightbox({ vm: vmOf({ hours: [] }), onClose: () => {} });
   assert.match(textOf(byTestId(noPhoto, "lightbox-photo")), /No photo on the listing/);
   assert.equal(byTestId(noPhoto, "lightbox-week"), null, "no hours, no block");
   // Esc: the lightbox first.
   const steps = [];
-  const out = globalThis.leadPeekEscape({
+  const out = leadPeekEscape({
     mode: "why",
     armed: { asked: true },
     setMode: () => steps.push("mode"),
@@ -1860,10 +1880,10 @@ test("D5, on a phone: one lead at a time — where it sits in the pile, the two 
   const moved = [];
   const deck = { at: 3, of: 19, onPrev: () => moved.push("prev"), onNext: () => moved.push("next") };
   const P = page();
-  const acts = globalThis.LeadPeekActions(P.p);
+  const acts = LeadPeekActions(P.p);
   const withDeck = (over = {}) => {
     frames.begin();
-    return globalThis.LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, deck, ...acts, ...over });
+    return LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, deck, ...acts, ...over });
   };
   let tree = withDeck();
   assert.equal(textOf(byTestId(tree, "peek-deck-at")), "3 of 19", "where this lead sits in the pile");
@@ -1924,7 +1944,7 @@ test("D5, on a phone: one lead at a time — where it sits in the pile, the two 
 
   // A desktop has no deck at all: no place line, no swipe.
   frames.begin();
-  const desk = globalThis.LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, ...acts });
+  const desk = LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, ...acts });
   assert.equal(byTestId(desk, "peek-deck"), null);
   assert.equal(desk.props.onTouchStart, undefined);
 });
@@ -1933,17 +1953,13 @@ test("one lead on one screen: the pile rides on the photo, Expand keeps its name
   reset();
   const deck = { at: 3, of: 19, onPrev() {}, onNext() {} };
   const P = page({ vm: vmOf({ maps_url: "https://maps.example/?cid=1" }) });
-  const acts = globalThis.LeadPeekActions(P.p);
+  const acts = LeadPeekActions(P.p);
   frames.begin();
-  const tree = globalThis.LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, deck, phone: true, ...acts });
+  const tree = LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, deck, phone: true, ...acts });
   const band = byTestId(tree, "peek-photo-band");
   assert.ok(byTestId(band, "peek-deck"), "REGRESSION: the pile's row of its own under the photo, 57px of a phone");
   const expand = byTestId(tree, "peek-expand");
-  assert.equal(
-    expand.props["aria-label"],
-    globalThis.window.__LEAD_WORDS.expand,
-    "named, where a phone draws its mark alone",
-  );
+  assert.equal(expand.props["aria-label"], LEAD_WORDS.expand, "named, where a phone draws its mark alone");
   assert.ok(
     find(expand, (n) => n.props?.className === "pk-band-expand-words"),
     "its words in a span a phone can set aside",
@@ -1952,7 +1968,7 @@ test("one lead on one screen: the pile rides on the photo, Expand keeps its name
   assert.ok(maps, "a lead with a map has its link");
   assert.equal(maps.props["data-said"], "address", "the address is already the link to the map");
   frames.begin();
-  const noAddressLink = globalThis.LeadPeek({
+  const noAddressLink = LeadPeek({
     vm: vmOf({ maps_url: null }),
     mode: "info",
     armed: null,
@@ -1967,9 +1983,9 @@ test("one lead on one screen: the pile rides on the photo, Expand keeps its name
 test("the band's photo is there as the peek opens: the row's tile under it at once, its own size eager and first in line, each lead's its own", () => {
   reset();
   const P = page({ vm: vmOf({ image_url: "https://lh3.googleusercontent.com/p/AF1QipM=w408-h268-k-no" }) });
-  const acts = globalThis.LeadPeekActions(P.p);
+  const acts = LeadPeekActions(P.p);
   frames.begin();
-  const tree = globalThis.LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, ...acts });
+  const tree = LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, ...acts });
   const band = byTestId(tree, "peek-photo-band");
   const photo = byTestId(band, "peek-photo");
   assert.equal(
@@ -2007,9 +2023,9 @@ test("a lead's photo is asked for once, before it is needed, and last in line", 
     }
   };
   try {
-    globalThis.window.leadPhotoWarm("https://lh3.googleusercontent.com/p/warm=w408-h268-k-no");
-    globalThis.window.leadPhotoWarm("https://lh3.googleusercontent.com/p/warm=w408-h268-k-no");
-    globalThis.window.leadPhotoWarm(null);
+    leadPhotoWarm("https://lh3.googleusercontent.com/p/warm=w408-h268-k-no");
+    leadPhotoWarm("https://lh3.googleusercontent.com/p/warm=w408-h268-k-no");
+    leadPhotoWarm(null);
     assert.equal(made.length, 1, "once a page");
     assert.deepEqual(
       [made[0].src, made[0].fetchPriority],

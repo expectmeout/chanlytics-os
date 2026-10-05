@@ -173,7 +173,7 @@ test("an unknown profile field is refused on the save, and left out and named on
 /* ------------------------- the editor's write contract -------------------- */
 
 // The form is gone (Task 3.7). What it did is the Business page's: the tab's ONE saver and each row's patch
-// (pages/business-tab-save.jsx), and each fold's draft and write (pages/business-tab-folds.jsx). Every rule the
+// (surfaces/settings/business/save.tsx), and each fold's draft and write (surfaces/settings/business/folds.ts). Every rule the
 // form's half of this file pinned is now RUN against the stored record, by business-tab-folds.test.mjs,
 // business-tab-page.test.mjs, business-tab-open.test.mjs and business-tab-answers.test.mjs; each is named where
 // its rule was. So this file reads no source at all any more, and what is left of it executes contracts.

@@ -4,9 +4,20 @@
  * Nothing here draws.
  */
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import type { AskedPurpose, AudiencePreview, BroadcastDto, BroadcastVM, ParamSourceKind } from "@chanlytics/contracts";
+import type {
+  AskedPurpose,
+  AudiencePreview,
+  BroadcastDto,
+  BroadcastVM,
+  ChannelsReady,
+  ConsentChannel,
+  ParamSourceKind,
+  PreviewVersions,
+} from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import type { UnsavedWork } from "../../../legacy-parts";
+import type { UnsavedWork } from "../../../kit/record/work";
+import type { CmViaTick } from "../../parts/channels";
+import type { CmPreviewBy } from "../../parts/preview-by";
 import type { PlaybookCardVM } from "../../playbooks/surface";
 import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "../surface";
 import type { bcWhenNote } from "../when";
@@ -34,6 +45,8 @@ export interface BcKept {
   sources?: Sources;
   name?: string;
   whenAt?: number | null;
+  /** The channels ticked in the Send by row; a send kept before the row was drawn has none, and goes by WhatsApp. */
+  channels?: ConsentChannel[];
 }
 
 /** The values typed into each template's slots, by template id. */
@@ -60,8 +73,13 @@ export interface BcSheet {
   position: [number, number] | null;
   canSend: boolean;
   playbook: PlaybookCardVM | null;
-  template: TemplateDto | null;
+  /** The message, with its email and text versions where the page holds them (the composers' templates carry them). */
+  template: (TemplateDto & { versions?: PreviewVersions }) | null;
   businessName: string;
+  /** Its postal address where the Business record holds one: an offer's email names it in its foot. */
+  businessAddress: string | null;
+  /** Whether the workspace is paused, from the page's readiness (ChannelsReady.paused); null where that was not read. */
+  paused: boolean | null;
   armed: boolean;
   onArm: (on: boolean) => void;
   stopping: boolean;
@@ -92,6 +110,9 @@ export interface BcBase {
   setWriting: Setter<boolean>;
   tplId: string;
   setTplId: Setter<string>;
+  /** The channels ticked in the Send by row, as the owner left them (what is on is BcReach's `on`). */
+  channels: ConsentChannel[];
+  setChannels: Setter<ConsentChannel[]>;
   params: Params;
   setParams: Setter<Params>;
   sources: Sources;
@@ -120,6 +141,8 @@ export interface BcBase {
   yesOpen: boolean;
   setYesOpen: Setter<boolean>;
   yesDoor: ReactNode;
+  /** The same door as a link on its own, for the fold under "Who's held back" (state.tsx useBcYes). */
+  yesLink: ReactNode;
   armId: string | null;
   setArmId: Setter<string | null>;
   stopping: string | null;
@@ -137,8 +160,19 @@ export interface BcReach {
   sizeOf: (a: AudienceOption | null) => number;
   activeCount: number;
   number: BroadcastsSurface["number"] | null;
+  /** The WhatsApp number can send, or WhatsApp is not one of the channels on and the number is nothing to this send. */
   numberOk: boolean;
   overLimit: boolean;
+  /** Why the audience is past the number's day's limit, in contracts' sentence (overLimitRefusal); null while it fits. `overLimit` is its presence. */
+  overLimitWords: string | null;
+  /** Whether the workspace can send on each channel, with the message's own versions laid over it (parts/channels.ts). */
+  channelReady: ChannelsReady;
+  /** The channels the send goes by: ticked, and open to this message. Never more than the ticks, may be none. */
+  on: ConsentChannel[];
+  /** The Send by row: every channel, on or off, and why one is closed. */
+  ticks: CmViaTick[];
+  /** The audience as the channels on read it: who it reaches, on which channel, and who it holds. Null with no preview. */
+  reading: AudiencePreview | null;
 }
 
 /** What each slot of the message may take, and what it takes now. */
@@ -152,7 +186,13 @@ export interface BcSlotChoices {
   labels: string[];
 }
 
-/** The words each slot holds, and whether the send can go. */
+/** The first thing that keeps the send from going, as the foot says it: a thing still to fill in or pick, or a refusal. */
+export interface BcSay {
+  tone: "plain" | "warn";
+  words: string;
+}
+
+/** The words each slot holds, and whether the send can go, and if not, the first thing that stops it. */
 export interface BcSlotWords {
   typed: string[];
   setTyped: (i: number, words: string) => void;
@@ -160,7 +200,9 @@ export interface BcSlotWords {
   filled: string[];
   previewValues: string[];
   specs: (string | { kind: ParamSourceKind })[];
+  /** Nothing stops it and it is not on its way: `say` is null (reach.ts bcStopOf is the one rule for both). */
   ready: boolean;
+  say: BcSay | null;
   shown: string[];
 }
 
@@ -170,11 +212,21 @@ export interface BcPeople {
   people: AudiencePreview["people"];
   noNumber: string | null;
   yesWords: string | null;
+  /** The reach split by channel, said where the send goes by more than WhatsApp alone; null otherwise. */
+  splitWords: string | null;
+  /** Who is held, by reason, said where the send goes by more than WhatsApp alone; none otherwise. */
+  heldLines: { n: number; words: string }[];
+  /** The split as the To line says it after the count ("12 on WhatsApp, 12 by email"), where the send goes by more than WhatsApp alone. */
+  reachBy: string | null;
 }
 
 /** The one person the preview is drawn for, what they read, and when it lands. */
 export interface BcPreview {
   person: AudiencePreview["people"][number] | null;
+  /** The channel the send reaches them on, which is the version of the message they read: none for a person held back. */
+  channel: ConsentChannel | null;
+  /** The message as that channel carries it, handed to the preview (parts/preview-by.ts); null with no message picked. */
+  preview: CmPreviewBy | null;
   forPerson: string[];
   noName: boolean;
   personNote: string | null;

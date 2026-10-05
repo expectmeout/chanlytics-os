@@ -1,4 +1,4 @@
-/* global React, Icon, SettingsPage */
+/* global React, Icon */
 // Chanlytics — The route table
 // One row per route the shell draws (SHELL_ROUTES, at the foot), in the order the shell's router matched them, each
 // naming what it draws (its page component and props), which addresses of its page it takes (`when`: the param's
@@ -37,9 +37,9 @@ const SOON_META = {
   calls:      { icon: "phone",       title: "Calls",      blurb: "Live transcription and call review with agent summaries." },
   chats:      { icon: "chat",        title: "Chats",      blurb: "Every DM and SMS conversation, threaded by client." },
   email:      { icon: "mail",        title: "Email",      blurb: "Agent-drafted email, sequences, and review queues." },
-  outbound:   { icon: "bolt",        title: "Playbooks",  blurb: "Standing rules your receptionist runs — win-back, welcome, save our number, the month's offer." },
+  outbound:   { icon: "bolt",        title: "Campaigns",  blurb: "Standing rules your receptionist runs — win-back, welcome, save our number, the month's offer." },
   content:    { icon: "content",     title: "Content",    blurb: "Content calendar with agent-drafted posts." },
-  broadcasts: { icon: "wave",        title: "Broadcasts", blurb: "One-to-many sends with per-segment targeting." },
+  broadcasts: { icon: "wave",        title: "Sent",       blurb: "One-to-many sends with per-segment targeting." },
   fleet:      { icon: "agents",      title: "Agent Fleet", blurb: "Deep management for every agent: autonomy, playbooks, performance." },
   store:      { icon: "agents",      title: "Agent Store", blurb: "Install agents with new abilities — phone, chat, recovery, review." },
   studio:     { icon: "sparkle",     title: "Agent Studio", blurb: "Compose custom agents from skills, tone, and guardrails." },
@@ -95,31 +95,10 @@ const NotFound = ({ raw, onNavigate }) => (
 // answers what the route draws: `activeNav` (the sidebar item it lights), `crumbs`, `pane` (a surface with its own
 // panes, full-bleed), `primaryAction` (the top bar's act, or null) and `content`.
 
-// ---- People's rows: the view they draw in, their crumb, and a row's press ---------------------------------------
-// Every People route lights People in the nav and draws a surface with its own panes (inPeople), names People as its
-// first crumb (PEOPLE_CRUMB, a person's with the page's own Back), and hands the page the door a row's press opens
-// the person by (personDoor).
-const inPeople = (drawn) => ({ activeNav: "clients", pane: true, ...drawn });
-const PEOPLE_CRUMB = { label: "People", to: "clients" };
-const personDoor = (navigate) => ({ onOpenProfile: (id) => navigate(`clients/${id}`) });
-
-// People's list, its views and the New list door left the shell for an App Router page (surfaces/people, routes.ts): it
-// draws what drawPeople, drawPeopleView and drawNewList drew, and the frame's chrome comes from the surface's own
-// `chrome`. What is left here are the addresses of People that are not its list: Leads and the Pipeline, until each
-// leaves the shell, and a person.
-const drawLeads = ({ param, navigate }) => {
-  // People › Leads: the same page, its other scope. The address carries the view (clients/leads:s-<search>:l-<list>:c-<class>),
-  // and `key` remounts the page when the scope changes, so its state starts from the view it is showing rather
-  // than the other one's sort and columns.
-  const search = window.__LEADS && window.__leadsRouteParse
-    ? (window.__LEADS.searches || []).find((s) => s.id === (window.__leadsRouteParse(param) || {}).searchId)
-    : null;
-  const Leads = window.LeadsReal;
-  return inPeople({
-    crumbs: search ? [PEOPLE_CRUMB, { label: "Leads", to: "clients/leads" }, search.name] : [PEOPLE_CRUMB, "Leads"],
-    content: window.__LEADS && Leads ? <Leads key="leads" scope="leads" leadsRoute={param} onNavigate={navigate} {...personDoor(navigate)} /> : null,
-  });
-};
+// ---- People ----------------------------------------------------------------------------------------------------
+// People left the shell for an App Router page (surfaces/people, routes.ts): its list, its views, the New list door, its
+// Leads scope, the Pipeline and a person, each drawn by the page, with the frame's chrome from the surface's own `chrome`
+// (surfaces/people/chrome.ts).
 
 // Lists on a real workspace is a view of People: `segments/<id>` is an App Router page that replaces itself with the
 // list picked on People (surfaces/people/lists-route.tsx). What is left here is the mockup's own seeded page, for a demo.
@@ -136,28 +115,6 @@ const drawSegments = ({ param }) => {
       </button>
     ),
     content: demoPage("SegmentsPage", { initialId: param }),
-  };
-};
-
-const drawStart = () => ({
-  // The first run (first-run.jsx): drawn full screen by the shell, after every hook; the crumb names the tab.
-  crumbs: window.__firstRun ? [window.__firstRun.words.title] : [],
-  content: null,
-});
-
-const drawSettings = ({ param, retiredTo, navigate }) => {
-  // The crumb names the pane Settings opens, by the rule Settings itself
-  // uses (SET_TAB), so the two cannot say different things about one route:
-  // the bare route opens Business, a retired route answers under its own
-  // name, and the back office is found only for the people it exists for --
-  // anyone else lands on Profile, and so does the crumb.
-  const tabMeta = window.SET_TAB ? window.SET_TAB(param || "workspace") : null;
-  return {
-    activeNav: "admin",
-    crumbs: tabMeta ? [{ label: "Settings", to: "admin" }, tabMeta.label] : ["Settings"],
-    pane: true,
-    // A pane that moved (surface-registry ROUTES_MOVED) draws nothing for the frame before the redirect.
-    content: retiredTo ? null : <SettingsPage tab={param || "workspace"} onTab={(t) => navigate(`admin/${t}`)} />,
   };
 };
 
@@ -263,17 +220,13 @@ const routeGated = (drawn, { page, navigate }) => ({
 // pane's own), and the surface's state, scroll and fetches thrown away on a move that never left it. A row takes a
 // `mount` only once its page FOLLOWS the param: Settings derives its tab on every draw, the Inbox follows
 // initialThreadId ("Deep-link follows later navigations too"), Live and Conversations write the call or the row they
-// open to the address (replaced), and Leads reads `leadsRoute` on every draw and keys its one read by it. A page that
-// seeds state from the param and never looks again would show the wrong entity, so a row without one costs the
-// improvement, never correctness. A person keeps their whole route: only the leads route, not an id that starts with the word.
-// People's own views and the Pipeline are its page's, which follows its address itself and mounts afresh for the one it did not
-// write (surfaces/people/people-route.tsx).
+// open to the address (replaced). A page that seeds state from the param and never looks again would show the wrong
+// entity, so a row without one costs the improvement, never correctness. People's own views, Leads and the Pipeline are
+// its page's, which follows its address itself and mounts afresh for the one it did not write
+// (surfaces/people/people-route.tsx).
 const SHELL_ROUTES = [
-  { page: "clients", when: (param) => param && /^leads(:|$)/.test(param), mount: "clients/leads", draw: drawLeads },
   // The mockup's seeded Lists page, where there is no workspace to read (a demo session); a real workspace's Lists is the App Router page (surfaces/routes.ts).
   { page: "segments", when: () => !window.__PEOPLE && !realWorkspace(), draw: drawSegments },
-  { page: "start", mount: "start", draw: drawStart },
-  { page: "admin", mount: "admin", draw: drawSettings },
   { page: "tasks", draw: drawTasks },
 
   { page: "pipeline", draw: drawDealBoard },
@@ -330,6 +283,8 @@ const drawRoute = (r) => {
         ...surface,
         activeNav: asked(surface.activeNav),
         crumbs: chrome ? chrome.crumbs : asked(surface.crumbs),
+        // The page's views, drawn by the frame's strip of views (SurfaceTabs) like the Inbox's: the page says them, never draws them.
+        views: chrome && chrome.views ? chrome.views : null,
         primaryAction: act ? surfaceAct(act, r.openAsk) : null,
         content: r.routePage,
       }

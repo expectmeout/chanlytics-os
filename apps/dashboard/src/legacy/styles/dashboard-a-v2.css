@@ -1171,8 +1171,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 :where(.dash-a-v2) .tq .cl-attn-status { font-size: var(--text-sm); line-height: 1.45; color: var(--ink-muted); white-space: normal; overflow: visible; text-overflow: clip; }
 :where(.dash-a-v2) .tq .cl-attn-acts { justify-self: start; display: inline-flex; gap: 8px; padding-top: 2px; }
 :where(.dash-a-v2) .tq .cl-attn-cta { font-size: var(--text-sm); padding: 8px 12px; border-radius: var(--radius-md); }
-/* Today's card of what is left to set up (dashboard-a-brief.jsx TodaySetup, canvas R10), in the queue's card and its
-   column: the title with the count beside it and Hide at the right, then compact rows (setup.jsx SetupCardRow): the
+/* Today's card of what is left to set up (surfaces/today/pages/setup-card.tsx TodaySetup, canvas R10), in the queue's
+   card and its column: the title with the count beside it and Hide at the right, then compact rows
+   (surfaces/setup/rows/card-row.tsx SetupCardRow): the
    state's dot, the name over its sentence, the acts at the right -- the next one coral, the others outlined, Skip a
    quiet link. Setup's panels open under their row. Setup's own list rules (settings.css .setup-rows, loaded after
    these) keep a column at the prose measure; the card is as wide as the queue. */
@@ -1708,6 +1709,8 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 }
 .dash-a-v2 .tb .tb-listen > svg { fill: currentColor; }
 .tb-listen-len { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0; color: var(--ink-dim); }
+/* Why the voice could not be had, said once beside Listen in the server's words; nothing else speaks. */
+.tb-why { font-size: var(--text-xs); color: var(--ink-dim); min-width: 0; }
 .dash-a-v2 .tb-foot > .tb-follow {
   height: 34px;
   padding: 0 10px;
@@ -1913,8 +1916,15 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   .main-scroll > .dash-a-v2 { --gutter-page: 12px; }
   /* A phone's queue ends with its last row (E3's phone board): what the card could not hold is the Inbox tab's. */
   .dash-a-v2 .tq-foot { display: none; }
-  /* The brief's acts are a desk's: Listen stands in its head here, and Ask is the ✦ beside the tab bar. */
-  .dash-a-v2 .tb-foot { display: none; }
+  /* The brief's foot on a phone holds the follow-up alone (Listen stands in its head), its words on the line's left edge
+     and the touch floor's height split evenly between the line above and the pane's edge below; without it the last
+     line sat on the pane's edge. */
+  .dash-a-v2 .tb-foot { padding: 6px 0 8px; }
+  .dash-a-v2 .tb-foot > .tb-follow { margin-left: -10px; }
+  /* The brief draws its lines without the mark (above), so a door under the words lines up with the words themselves,
+     not with the day card's 34px past a mark (mobile.css); the door's own padding is 6px. */
+  .dash-a-v2 .tb-body .brief-beat-text { flex-basis: 100%; }
+  .dash-a-v2 .tb-body { --beat-door-indent: -6px; }
   /* The day's card: its name on its own row with the door to Reports at the right, what the day says under them. */
   .dash-a-v2 .tc-head { flex-wrap: wrap; }
   .dash-a-v2 .tc-line { flex: 1 1 100%; order: 2; }

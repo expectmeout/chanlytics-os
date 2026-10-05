@@ -37,18 +37,10 @@
   overflow-y: auto;
 }
 
-/* People | Leads (| Pipeline): the one switch between the page's scopes (clients-a.jsx PeopleScopeTabs), drawn as
-   the shell's own tab strip (components.css .stabs: the Inbox's and Campaigns' views, the picked one underlined in
-   the accent). On a desk it is the page's first child, a row of its own across the rail and the rows, so it stands
-   where every other page's views stand; on a phone it is the bar's first row (.pp-top), where the grid is one column
-   and the rail is not drawn. It was a boxed segmented control at the head of the rail, with its own colours and its
-   own size: one control, two looks (Ruben, 25 Sep). */
-.clients > .stabs-people { grid-column: 1 / -1; }
-.clients:has(> .stabs-people) { grid-template-rows: auto minmax(0, 1fr); }
-/* In the Glass look the strip is a capsule as wide as its tabs, set in from the page's edge where the shell's own
-   strip of views stands (components.css, .main > .stabs): the page's gutter on a desk, the rows' 16px on a phone. */
-.clients > .stabs-people { margin: 0 24px 8px; }
-.pp-top > .stabs-people { margin: 4px 16px 8px; }
+/* People | Leads (| Pipeline): the one switch between the page's scopes is the frame's strip of views (SurfaceTabs, the
+   Inbox's Needs you / Conversations / Live), drawn once for every page from what the page's chrome says
+   (surfaces/people/chrome.ts), so it stands where the Inbox's does and moves as it moves. This page draws no strip of
+   its own, and sets none of its sides. */
 
 .cl-rail-section {
   padding: 14px 12px 8px;
@@ -872,11 +864,6 @@
   gap: 9px;
   min-width: 0;
 }
-.cl-row-name .ix-thread-avatar {
-  width: 26px;
-  height: 26px;
-  font-size: 10px;
-}
 .cl-row-name-block { min-width: 0; line-height: 1.25; }
 .cl-row-fullname {
   font-size: var(--text-sm);
@@ -1151,20 +1138,8 @@
 /* Nobody to draw (gone, a failed read): what is said takes the row under the way back. The frame keeps the page's grid;
    with the areas taken away, the way back was put in a column of its own (a grid-area naming no area makes one). */
 .cl-profile--solo .cl-prof-hero > :not(.cl-prof-back) { grid-column: 1 / -1; }
-.cl-prof-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11.5px;
-  color: var(--ink-muted);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  margin-bottom: 14px;
-  padding: 0;
-}
-.cl-prof-back:hover { color: var(--ink); }
-/* As wide as its words: stretched across its row, the whole line over the name was a press that left the page. */
+/* As wide as its words: stretched across its row, the whole line over the name was a press that left the page. The
+   button is the kit's (quiet, small); the page places it. */
 .cl-prof-hero > .cl-prof-back { align-self: flex-start; justify-self: start; margin: 0; }
 
 .cl-prof-id {
@@ -1173,17 +1148,6 @@
 /* What they said reads at a prose measure on a wide window: a sentence ran 1,100px at 1440. The words are held to it,
    not the timeline, so each time stands at the column's edge, as the cards above it do. */
 .cl-prof-timeline .cl-tl-text { max-width: var(--measure-prose); }
-.cl-prof-avatar {
-  flex: none;
-  width: 44px; height: 44px;
-  border-radius: 50%;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  display: flex; align-items: center; justify-content: center;
-  font-size: var(--text-xl); font-weight: 500;
-  color: var(--ink-muted);
-}
-.cl-prof-avatar[data-priority="P1"] { box-shadow: inset 0 0 0 2px var(--accent); }
 .cl-prof-titles { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .cl-prof-name {
   margin: 0;
@@ -1198,7 +1162,6 @@
    their rules at equal specificity, so it has to come later. */
 @container (max-width: 400px) {
   .cl-prof-id { gap: 10px; }
-  .cl-prof-avatar { width: 40px; height: 40px; font-size: 14px; }
   .cl-prof-name { font-size: var(--text-xl); }
 }
 .cl-prof-meta {
@@ -1576,7 +1539,6 @@
 .cl-prof-rail-section:last-child { border-bottom: none; }
 /* A person's lists: the chips, then the quiet link that adds one, on its own line under them. */
 .cl-prof-lists { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.cl-prof-list-add .icon:last-child { display: none; }
 
 .cl-prof-attr-list {
   display: flex;
@@ -1961,7 +1923,6 @@
 
 /* ---- The table: who, at a glance; actions on hover; a keyboard row; cards when narrow ---- */
 .tabular { font-variant-numeric: tabular-nums; }
-.cl-row-avatar-glyph { color: var(--ink-faint); background: var(--bg-sunken); }
 .cl-row-fullname { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .cl-row-name-them { display: inline-flex; align-items: center; gap: 3px; border: none; background: transparent; padding: 0; font: inherit; font-size: 10.5px; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
 .cl-table tbody tr:hover .cl-row-name-them, .cl-table tbody tr.focused .cl-row-name-them, .cl-row-name-them:focus-visible { opacity: 1; }
@@ -2254,8 +2215,8 @@
 .cl-row-state-detail { display: block; margin-top: 3px; max-width: 24ch; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-visit { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 .cl-row-visit:hover .cl-row-next, .cl-row-visit:hover .cl-row-last-visit { text-decoration: underline; }
-/* A profile's timeline filter: the page's own tab strip (.cl-tabs), sized to its words. */
-.cl-tabs.cl-tl-filters { display: inline-flex; flex-wrap: wrap; margin: 0 0 var(--space-3); }
+/* A profile's timeline filter: the kit's sub-tabs, where the page stands them: over the rows, a gap under. */
+.cl-tl-filters { --subtabs-side: 0px; margin: 0 0 var(--space-3); }
 
 /* A person on a list is a button, so a keyboard reaches them; it reads as the name it was. */
 /* ---- Lists on People: a picked list is the section's title, with its rename and its delete on the line ---- */
@@ -2271,9 +2232,9 @@
 /* ==== People on a phone (docs/superpowers/specs/2026-09-22-people-on-a-phone-design.md) ============================
    The page draws these only at 900px and under (PL_PHONE_QUERY), the band the rows, the bar and the Lists sheet share. */
 
-/* The phone's top (PeoplePhoneBar): the scopes as the shell's own tab strip (.stabs, the Inbox's views), then the
-   bar -- the list, search behind a button, the scope's own last control. Searching, the bar is the field, at 16px: a
-   phone zooms into anything smaller. */
+/* The phone's top (PeoplePhoneBar), under the frame's strip of views: the bar -- the list and the scope's own last
+   control -- then the search, a row of its own: a capsule at rest that opens
+   into the field, at 16px, since a phone zooms into anything smaller. */
 .pp-top { flex: none; }
 .pp-bar { display: flex; align-items: center; gap: 6px; padding: 8px 8px 6px 16px; flex: none; }
 /* The page's menu is taller than a menu's 340px on a touch screen (44px items): it takes the room the phone has. */
@@ -2284,21 +2245,24 @@
 .pp-bar-pick-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Leads' count, apart from the name: the name gives way, the count never does. */
 .pp-bar-pick-count { flex: none; margin-left: 2px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
-/* Search and the scope's last control stand at the bar's right edge. A spacer did this, and cost the list button a
-   gap's 6px when there was no room to spare. */
-.pp-bar-push { margin-left: auto; }
+/* The scope's last control stands at the bar's right edge. A spacer did this, and cost the list button a gap's 6px when
+   there was no room to spare. */
+.pp-bar-push { display: flex; margin-left: auto; }
 .pp-bar-icon { flex: none; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink-muted); cursor: pointer; }
 .pp-bar-icon:hover { background: var(--bg-hover); color: var(--ink); }
 .pp-bar .more-wrap { flex: none; }
-.pp-bar-field { flex: 1; min-width: 0; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 2px 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink-dim); }
-.pp-bar-field:focus-within { border-color: var(--ink-faint); }
-.pp-bar-field .icon { flex: none; }
-.pp-bar-field input { flex: 1; min-width: 0; height: 40px; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--field-text-touch); outline: none; }
-.pp-bar-field input::placeholder { color: var(--ink-faint); }
-.pp-bar-field input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
-.pp-bar-clear { flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-dim); cursor: pointer; }
-html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0; }
-.pp-bar-cancel { flex: none; height: 44px; padding: 0 6px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--text-md); font-weight: var(--weight-medium); cursor: pointer; }
+.pp-lookup { display: flex; align-items: center; gap: 6px; padding: 0 8px 6px 16px; flex: none; }
+.pp-lookup-rest, .pp-lookup-box { flex: 1; min-width: 0; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 2px 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink-dim); }
+.pp-lookup-rest { font: inherit; font-size: var(--text-sm); text-align: left; cursor: pointer; }
+.pp-lookup-rest > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-lookup-box:focus-within { border-color: var(--ink-faint); }
+.pp-lookup .icon { flex: none; }
+.pp-lookup-box input { flex: 1; min-width: 0; height: 40px; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--field-text-touch); outline: none; }
+.pp-lookup-box input::placeholder { color: var(--ink-faint); }
+.pp-lookup-box input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.pp-lookup-clear { flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-dim); cursor: pointer; }
+html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-height: 0; }
+.pp-lookup-cancel { flex: none; height: 44px; padding: 0 6px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--text-md); font-weight: var(--weight-medium); cursor: pointer; }
 
 @media (max-width: 900px) {
   /* A list's own step, alone in its section on a phone: one card, on the gutter. */
@@ -2360,41 +2324,23 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
    apart, no shadow. The home bar's inset is for 721 to 900px, where no tab bar stands under it (the 720px block). */
 .cl-bulk.pp-bulk { left: 0; right: 0; bottom: 0; transform: none; flex-wrap: nowrap; gap: 4px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)) 4px; border-width: 1px 0 0; border-radius: 0; box-shadow: none; animation: none; }
 .cl-bulk.pp-bulk .cl-bulk-count { flex: 1 1 auto; min-width: 0; margin: 0 0 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-md); }
-.cl-bulk.pp-bulk > .btn, .cl-bulk.pp-bulk > .more-wrap, .cl-bulk.pp-bulk > .pp-bar-icon { flex: none; }
-.cl-bulk.pp-bulk .btn { padding: 0 14px; font-size: var(--text-md); }
+.cl-bulk.pp-bulk > .btn { flex: none; }
 
 @media (max-width: 900px) {
   /* People's rows and Leads': one card cell each (plRowCard: plCardCell, ldCardCell), edge to edge, a hairline between
      -- the Inbox's list, one list to the eye on both scopes. The wrap's box and its 16px margin are a desktop's. */
-  .clients .pl-table-wrap { margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
+  .clients .pl-table-wrap { margin: 0; border: 0; border-radius: 0; background: transparent; }
   .clients .cl-table-foot { padding: 12px 16px; border-top: 0; background: transparent; }
   .pl-table tbody tr.pl-card-row { display: block; position: relative; padding: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
   /* A tap is not a keyboard's cursor: the accent edge and the hover ground belong to the desktop's J and K. */
   .pl-table tbody tr.pl-card-row.focused { background: transparent; box-shadow: none; }
   .pl-table tbody tr.pl-card-row.selected { background: var(--pl-selected); }
   .pl-table tbody tr.pl-card-row > td.pl-card-cell { display: block; min-width: 0; padding: 0; border: 0; }
-  /* The row every list wears on a phone: tokens.css's --row-*, so the Inbox's, Conversations', Live's and a
-     lead's are this one row, part for part. */
-  .pl-card { display: grid; grid-template-columns: var(--row-face) minmax(0, 1fr) auto; column-gap: var(--row-gap); row-gap: var(--row-line-gap); align-items: center; padding: var(--row-pad-y) var(--row-pad-x); }
-  .pl-card-face { grid-column: 1; grid-row: 1 / span 3; align-self: start; flex: none; width: var(--row-face); height: var(--row-face); }
-  .pl-card:not(:has(> .pl-card-lead)) .pl-card-face { grid-row: 1 / span 2; }
-  .pl-card-tick { display: none; }
-  .pl-card-name { grid-column: 2; grid-row: 1; min-width: 0; font-size: var(--text-base); font-weight: var(--weight-medium); line-height: var(--row-name-line); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pl-card > .pill { grid-column: 3; grid-row: 1; justify-self: end; }
-  .pl-card-lead { grid-column: 2 / 4; min-width: 0; font-size: var(--text-sm); line-height: var(--row-said-line); color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pl-card-lead::first-letter { text-transform: uppercase; }
-  .pl-card-facts { grid-column: 2 / 4; min-width: 0; display: flex; align-items: center; gap: var(--row-gap); font-size: var(--row-facts); line-height: var(--row-facts-line); color: var(--ink-dim); white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+  /* The row every list wears on a phone is the kit's list row (plRowCard draws it, kit.css), through tokens.css's --row-*,
+     so the Inbox's, Conversations', Live's and a lead's are this one row, part for part. What stays here is what the
+     page puts on the facts' line: the next visit and when you last spoke, a lead's reach and rating. */
   .pl-card-visit { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--ink-muted); font-weight: var(--weight-medium); }
   .pl-card-last { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  /* A line of its own under the facts (plRowCard `tail`): the Pipeline's next step. */
-  .pl-card-tail { grid-column: 2 / 4; min-width: 0; display: flex; font-size: var(--row-facts); line-height: var(--row-facts-line); white-space: nowrap; overflow: hidden; }
-  /* A lead's face is its mark or its listing's photo over its initials, round as a person's is; a photo that will not
-     load leaves the initials (plRowCard). */
-  .pl-card-face { position: relative; overflow: hidden; }
-  .pl-card-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
-  /* A logo is contained on its light plate (--mark-plate), never cropped to the circle: 16% keeps a square logo's
-     corners inside it. */
-  .pl-card-mark { object-fit: contain; padding: 16%; box-sizing: border-box; background: var(--mark-plate); box-shadow: inset 0 0 0 1px var(--line); }
   /* A lead's facts: whether a phone and a mailbox reach it (the reach shapes, leads.css's tones), then its rating. */
   .pl-card-reach { flex: none; display: inline-flex; align-items: center; gap: 4px; }
   .pl-card-reach .ld-slot-shape svg { width: 12px; height: 12px; }
@@ -2408,17 +2354,11 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 @media (max-width: 900px) {
   /* The face is the checkbox (tap a face to select): the row's own box lies over the face, a thumb wide and unseen, so a
      tap there selects and a tap on the rest opens the person. While anyone is selected every face is a ring and a
-     picked one the ink with its tick, and a tap anywhere on a row selects it (clients-a.jsx, the table's onOpen). */
+     picked one the ink with its tick (the kit's face, its `pick`, which plRowCard is told by the table), and a tap
+     anywhere on a row selects it (clients-a.jsx, the table's onOpen). */
   .pl-table tbody tr.pl-card-row > td.cl-sel { position: absolute; left: 10px; top: 6px; z-index: 1; display: block; width: 44px; height: 44px; padding: 0; border: 0; }
   .pl-table tbody tr.pl-card-row > td.cl-sel .cl-check { display: block; width: 44px; height: 44px; margin: 0; opacity: 0; cursor: pointer; }
-  .pl-table tbody tr.pl-card-row:has(.cl-check:focus-visible) .pl-card-face { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .pl-table-wrap.selecting tr.pl-card-row .pl-card-face { background: transparent; border: 1.5px solid var(--line-strong); }
-  .pl-table-wrap.selecting tr.pl-card-row .pl-card-initials, .pl-table-wrap.selecting tr.pl-card-row .pl-card-glyph, .pl-table-wrap.selecting tr.pl-card-row .pl-card-photo { visibility: hidden; }
-  .pl-table tbody tr.pl-card-row.selected .pl-card-face { background: var(--ink); border-color: var(--ink); color: var(--bg); }
-  .pl-table tbody tr.pl-card-row.selected .pl-card-tick { display: block; }
-  .pl-table tbody tr.pl-card-row.selected .pl-card-initials, .pl-table tbody tr.pl-card-row.selected .pl-card-glyph { display: none; }
-  /* The list keeps room under its last row for the selection's docked row (.pp-bulk), both scopes. */
-  .pl-table-wrap.selecting { margin-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  .pl-table tbody tr.pl-card-row:has(.cl-check:focus-visible) .pl-card > :first-child { outline: 2px solid var(--accent); outline-offset: 2px; }
   /* A toast rises over the docked row rather than covering it: its Undo and the row's ✕ are both a thumb's. From 721
      to 900px the row stands at the screen's foot, where toasts sat 14px up (mobile.css). */
   body:has(.cl-bulk.pp-bulk) .pp-toast-stack { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
@@ -2608,7 +2548,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pipe-row-next { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 :is(.pipe-next, .pipe-card-next, .pipe-row-next)[data-due]:not([data-due="ahead"]) .pipe-next-when { color: var(--warn-ink); font-weight: 500; }
 .pipe-card .pipe-track { margin-top: 2px; }
-.pl-card-facts .pipe-track { align-self: center; }
+.pl-card .pipe-track { align-self: center; }
 @media (min-width: 901px) {
   /* Under the table's own head (--pl-head, its one height), above the pinned cells even hovered or focused (z 2). */
   .pipe-scope .pl-table tbody tr.pl-sec-head > th { position: sticky; top: var(--pl-head, 39px); z-index: 3; }
@@ -2664,9 +2604,6 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     padding: 0 var(--gutter-page) 16px;
     column-gap: 14px;
     background: transparent;
-  }
-  .main-scroll > .clients > .stabs-people {
-    margin: 0 0 8px;
   }
   /* The head stands in the page's own gutter, where the scope strip and the panes do. */
   .main-scroll:has(> .clients) > header:first-child {
@@ -2864,10 +2801,12 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   .main-scroll .pl-table tbody tr:hover,
   .main-scroll .pl-table tbody tr.focused {
     --pl-row: var(--pl-hover);
-    background: var(--pl-hover);
+    background: transparent;
+    box-shadow: none;
   }
   .main-scroll .pl-table tbody tr.selected {
     --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--surface-pane-solid);
+    background: transparent;
   }
   /* A row as the canvas sets it (P1): 10px over and under its cells, 18px at the pane's sides past the 8px the wrap
      keeps, no hairline between rows; the one under a pointer, the cursor's and a picked one a lozenge of the inset's
@@ -2922,19 +2861,6 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   .main-scroll .cl-row-fullname {
     font-size: var(--text-base);
     font-weight: var(--weight-semibold);
-  }
-  .main-scroll .cl-row-name > :first-child {
-    width: 28px;
-    height: 28px;
-    border: 0;
-    background: var(--face-fill);
-    box-shadow:
-      var(--surface-inset-ring),
-      var(--surface-inset-depth);
-    font-size: var(--text-2xs);
-    font-weight: var(--weight-semibold);
-    letter-spacing: 0.01em;
-    color: var(--ink);
   }
   .main-scroll :is(.cl-row-words, .cl-row-state-detail) {
     font-size: var(--text-xs);
@@ -3039,6 +2965,49 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     font-weight: var(--weight-semibold);
     color: var(--ink);
   }
+
+  /* ---- The parity pass (2 October 2026, against canvas P1 and P2) ---- */
+
+  /* The select-all box is the rows' box, not a fixture of the head: it shows when a pointer is over the table, a key is
+     in it or anyone is picked, as a row's own does. */
+  .main-scroll .cl-table th .cl-check {
+    opacity: 0;
+  }
+  .main-scroll .cl-table-wrap:is(:hover, :focus-within, .selecting) th .cl-check,
+  .main-scroll .cl-table th .cl-check:checked {
+    opacity: 1;
+  }
+  /* A row's words and its state's detail say a line each and end in an ellipsis, so the Person column stays the width
+     the canvas gives it and the table fits the pane at 1440 without a bar across it. */
+  .main-scroll .cl-row-words {
+    max-width: 24ch;
+  }
+  .main-scroll .cl-row-visit {
+    display: block;
+    max-width: 132px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* Columns is its word alone, as the canvas draws it (P1); the eye was Classic's. */
+  .main-scroll [data-testid="people-columns"] > svg {
+    display: none;
+  }
+  /* The list's next step is an inset the way the canvas draws it (P2): the door a white capsule, never the page's coral,
+     which is the live thread's alone. Its words sit at the base step in the ink. */
+  .main-scroll .cl-list-action > button {
+    height: var(--control-h-md);
+    padding: 0 14px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--surface-inset-fill);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+    color: var(--ink);
+  }
 }
 
 /* On a phone the head is the date and the name; where the page stands is said once, in the line under the list's picker. */
@@ -3046,46 +3015,186 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   .main-scroll:has(> .clients) > header .pg-sentence {
     display: none;
   }
-  /* The bar (the phone boards): the list picked as a 40px capsule of the control layer's glass with its count beside
-     the name, and the search and the page's menu as 40px glass circles at its right; the standing line under them. */
+  /* The list picked stands 4px under the strip, as the Inbox's buckets and Conversations' channels do (inbox.css,
+     conversations.css): the strip is the frame's, in its slot, for People as for them. */
+  .main:has(> .main-scroll > .clients) .pg-slot {
+    padding-bottom: 4px;
+  }
+  /* The page's light shows through, as it does behind the Inbox and as it does behind People on a desk: the page stood on
+     the flat ground (--bg) and hid the pools. */
+  .main-scroll > .clients {
+    background: transparent;
+  }
+  /* The top is the Inbox's, tier for tier (inbox.css, the buckets and the search under the strip): the list picked as
+     quiet words at the strip's sides, as the Inbox's buckets stand, with its count beside the name and the page's menu a
+     bare glyph at the right; then the search as the Inbox's capsule, 38px on an inset's fill, at 12; the standing line
+     and the rows under them. Nothing is a capsule of its own but the strip and the search. */
   .pp-bar {
     gap: 8px;
-    padding: 0 12px 2px;
+    min-height: 34px;
+    padding: 0 16px;
   }
   .pp-bar .pp-bar-pick {
-    gap: 8px;
-    padding: 0 10px 0 14px;
+    height: 34px;
+    min-height: 0;
+    gap: 6px;
+    padding: 0;
     border: 0;
-    border-radius: var(--radius-full);
-    background-color: var(--surface-control-fill);
-    background-image: var(--surface-control-sheen);
-    box-shadow: var(--surface-control-depth);
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
     font-size: var(--text-base);
     font-weight: var(--weight-semibold);
   }
   .pp-bar .pp-bar-pick-count {
+    margin-left: 0;
     font-size: var(--text-sm);
     font-weight: var(--weight-medium);
     color: var(--ink-dim);
   }
-  .pp-bar .pp-bar-icon {
-    width: 40px;
-    height: 40px;
-    min-height: 40px;
-    border-radius: var(--radius-circle);
-    background-color: var(--surface-control-fill);
-    background-image: var(--surface-control-sheen);
-    box-shadow: var(--surface-control-depth);
-    color: var(--ink);
+  /* The page's menu is the row's height, not the touch floor's: the 44 it grows to is an invisible target instead. */
+  html.legacy-on .pp-bar .pp-bar-push > button {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    min-height: 0;
   }
-  .pl-standing {
-    padding: 4px 16px 10px;
-    font-size: var(--text-base);
+  .pp-bar .pp-bar-push > *::after {
+    content: "";
+    position: absolute;
+    inset: -5px;
+  }
+  .pp-bar .pp-bar-icon {
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+    border-radius: var(--radius-circle);
+    background: none;
+    box-shadow: none;
     color: var(--ink-muted);
+  }
+  .pp-lookup {
+    gap: 8px;
+    padding: 6px 12px 10px;
+  }
+  /* The resting capsule is a button, so the touch floor (legacy.css, html.legacy-on button) is named over: two classes
+     outweigh it. */
+  .pp-lookup > :is(.pp-lookup-rest, .pp-lookup-box) {
+    height: 38px;
+    min-height: 0;
+    padding: 0 12px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--surface-inset-fill);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+    font-size: var(--text-base);
+    color: var(--ink-dim);
+  }
+  .pp-lookup > .pp-lookup-box:focus-within {
+    box-shadow:
+      var(--focus-ring),
+      var(--surface-inset-depth);
+  }
+  .pp-lookup-cancel {
+    padding: 0 4px;
+    font-size: var(--text-base);
+  }
+  /* A row is one person on the page itself, as the Inbox's is: a lozenge inset from the sides, no line between two, and
+     the pressed one the selected fill. */
+  .clients .pl-table-wrap {
+    padding: 2px 4px;
+    border-top: 0;
+  }
+  .pl-table tbody > tr[id] {
+    width: calc(100% - 16px);
+    margin: 0 8px 2px;
+    border-bottom-color: transparent;
+    border-radius: var(--surface-row-radius);
+  }
+  .pl-table tbody > tr[id]:hover {
+    background: color-mix(in oklab, var(--selected-fill) 55%, transparent);
+  }
+  /* Under the search the line is a caption: what the rows are, said once, small and dim, so the first person stays on
+     the first screen under the Inbox's tiers. */
+  .pl-standing {
+    padding: 0 16px 6px;
+    font-size: var(--text-sm);
+    color: var(--ink-dim);
   }
   .pl-standing-needs {
     font-weight: var(--weight-medium);
     color: var(--warn-ink);
+  }
+
+  /* ---- The parity pass (2 October 2026, the phone) ---- */
+
+  /* A selection takes the foot, as an open thread does: the bar is the kit's capsule, docked (data-dock, mobile.css: the
+     tab bar and Ask's circle stand down) 12px in from the sides over rows that scroll under it, so it blurs them. Its
+     clear, its act and its more are the kit's buttons; the page places them and sets the count at the base step. The rows
+     keep room under their last, and a picked row is the pick's tint where Classic laid a band. */
+  .cl-bulk.pp-bulk {
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: 12px;
+    gap: 6px;
+    height: 52px;
+    padding: 0 8px;
+    border: 0;
+    backdrop-filter: var(--surface-control-blur);
+  }
+  .cl-bulk.pp-bulk .cl-bulk-count {
+    font-size: var(--text-base);
+    color: var(--ink);
+  }
+  .pl-table-wrap.selecting {
+    margin-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+  .pl-table-wrap.selecting tbody tr.selected {
+    background: var(--bubble-us-bg);
+  }
+  /* The sheets People raises from the foot (the lists, and the small jobs) are the pop layer's ground with the pane's
+     corners, as the kit's own sheet is on a phone: reached by their test ids, since their classes are a primitive's
+     word. */
+  :is(
+      [data-testid="people-lists-sheet"],
+      [data-testid="add-person-sheet"],
+      [data-testid="list-act-sheet"],
+      [data-testid="bulk-sheet"],
+      [data-testid="pipeline-new-sheet"]
+    ) {
+    border: 0;
+    border-radius: var(--surface-pane-radius) var(--surface-pane-radius) 0 0;
+    background: var(--surface-pop-solid);
+    box-shadow: var(--surface-pop-depth);
+  }
+  /* The boxes a sheet asks into, and the bar's search once it is opened, are the insets the Inbox's search is: a capsule
+     of the inset's fill with its ring, the focus ring over it. */
+  :is(
+      [data-testid="add-person-sheet"],
+      [data-testid="list-act-sheet"],
+      [data-testid="bulk-sheet"],
+      [data-testid="pipeline-new-sheet"]
+    ) input {
+    padding: 0 18px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--surface-inset-fill);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+  }
+  :is(
+      [data-testid="add-person-sheet"],
+      [data-testid="list-act-sheet"],
+      [data-testid="bulk-sheet"],
+      [data-testid="pipeline-new-sheet"]
+    ) input:focus {
+    border: 0;
+    box-shadow:
+      var(--focus-ring),
+      var(--surface-inset-depth);
   }
 }
 
@@ -3112,17 +3221,6 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .cl-prof-id {
   gap: 16px;
   align-items: center;
-}
-.cl-prof-id > :first-child {
-  border: 0;
-  background: var(--face-fill);
-  box-shadow:
-    var(--surface-inset-ring),
-    var(--surface-inset-depth);
-  font-size: var(--text-lg);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.01em;
-  color: var(--ink);
 }
 .cl-prof-titles {
   gap: 4px;
@@ -3153,26 +3251,6 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 }
 .cl-prof-hero > .cl-prof-queue-actions {
   gap: 8px;
-}
-.cl-prof-hero [data-testid="person-open-thread"] {
-  height: var(--control-h-lg);
-  padding: 0 18px;
-  border-radius: var(--radius-full);
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-}
-.cl-prof-hero [data-testid="person-more"] {
-  height: var(--control-h-lg);
-  padding: 0 14px;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: var(--surface-inset-fill);
-  box-shadow:
-    var(--surface-inset-ring),
-    var(--surface-inset-depth);
-  font-size: var(--text-base);
-  font-weight: var(--weight-medium);
-  color: var(--ink);
 }
 /* The panes: what is coming, their deal, what has happened, and the card's each one, with the look's rim. */
 .cl-prof-body {
@@ -3276,37 +3354,6 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 /* What has happened: the filters as words on a hairline, the picked one underlined in ink; a day's name in the mono
    face over its rows, with no line down the column; a row its 26px mark (the face, an inset square for a thing that
    happened), who at 600 in the muted ink, the words at the base step, the time in the mono face at the right. */
-.cl-tl-filters {
-  display: flex;
-  gap: 16px;
-  padding: 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-.cl-tl-filters .cl-tab {
-  margin-bottom: -1px;
-  padding: 6px 0 8px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  font-size: var(--text-base);
-  color: var(--ink-dim);
-}
-.cl-tl-filters > :hover {
-  background: transparent;
-  color: var(--ink);
-}
-.cl-tl-filters .cl-tab.active {
-  background: transparent;
-  border-bottom-color: var(--ink);
-  box-shadow: none;
-  color: var(--ink);
-  font-weight: var(--weight-semibold);
-}
 .cl-prof-timeline {
   gap: 0;
 }
@@ -3353,7 +3400,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   font-weight: var(--weight-semibold);
   color: var(--ink);
 }
-.cl-prof-history .cl-tl-row > .event {
+.cl-prof-history .cl-tl-row > :is(.event, .session) {
   border-radius: var(--radius-md);
   background: var(--surface-inset-fill);
   box-shadow:
@@ -3403,6 +3450,12 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   font-weight: var(--weight-medium);
   color: var(--ink-muted);
 }
+/* The settings' act is its words and the chevron (P3): the record kit draws the chevron on a phone alone, reached here by
+   its place, since the kit's names are counted. */
+.cl-prof-rec > div[data-testid^="rec-row-"] > :nth-child(3) > :last-child {
+  display: inline-flex;
+  color: var(--ink-faint);
+}
 /* Notes: the line to add one a 38px inset capsule (its class is a primitive's word: reached by its test id), a note at
    the base step. */
 [data-testid="person-notes-input"] {
@@ -3444,17 +3497,41 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 /* A phone (P-phone-person): the page 12px from the sides with 12 between its parts, the panes 16px inside, the face
    44, the name a step under the hero's, the thread's button filling the row beside More. */
 @media (max-width: 900px) {
-  .cl-prof-page {
-    padding: 0 12px 32px;
+  /* .main-scroll lifts it over the phone block that loads after this sheet (padding 12px 16px 32px), which held the
+     panes 16px in where the boards have them 12, and the head against the way back. */
+  .main-scroll .cl-prof-page {
+    padding: 28px 12px calc(32px + env(safe-area-inset-bottom, 0px));
     gap: 12px;
+  }
+  .main-scroll .cl-prof-hero {
+    padding: 0 4px;
+  }
+  /* The card of what they may be given reads as the one above it: the key in its column, the value, then the act in its
+     words with the chevron (the record kit's phone row stacks them, and keeps the words for a screen reader). */
+  .cl-prof-rec > div[data-testid^="rec-row-"] {
+    grid-template-columns: var(--rec-key) minmax(0, 1fr) auto;
+    column-gap: 12px;
+    align-items: baseline;
+  }
+  .cl-prof-rec > div[data-testid^="rec-row-"] > :nth-child(1) {
+    grid-column: 1;
+  }
+  .cl-prof-rec > div[data-testid^="rec-row-"] > :nth-child(2) {
+    grid-column: 2;
+  }
+  .cl-prof-rec > div[data-testid^="rec-row-"] > :nth-child(3) {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .cl-prof-rec > div[data-testid^="rec-row-"] > :nth-child(3) > :first-child {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
   }
   .cl-prof-hero {
     gap: 12px;
-  }
-  .cl-prof-id > :first-child {
-    width: 44px;
-    height: 44px;
-    font-size: var(--text-md);
   }
   .cl-prof-name {
     font-size: var(--text-2xl);
@@ -3465,6 +3542,20 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   }
   .cl-prof-rail {
     display: flex;
+  }
+}
+/* The address's pencil is a 22px mark with a thumb's press around it, as the name's is (a 44px box made the Email row 63px
+   tall, 25px of air over a line of words). */
+@media (max-width: 900px) and (pointer: coarse) {
+  html.legacy-on .cl-prof-email .cl-prof-rename:not(.is-plain) {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+  html.legacy-on .cl-prof-email .cl-prof-rename:not(.is-plain)::after {
+    content: "";
+    position: absolute;
+    inset: -11px -8px;
   }
 }
 

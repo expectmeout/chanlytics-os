@@ -61,7 +61,10 @@ export function personDto(over = {}) {
   };
 }
 
-/** The row as People reads it, for `viewer` (null: no one looking, as a playbook's run). */
-export function personRow(over = {}, { now = ROW_NOW, tz = ROW_TZ, viewer = null } = {}) {
-  return toPersonRowVM(personDto(over), tz, new Date(now), viewer);
+/**
+ * The row as People reads it, for `viewer` (null: no one looking, as a playbook's run), against what the workspace can
+ * send on (`ready`, contracts channelsReady; null counts WhatsApp alone, as a page that could not read it does).
+ */
+export function personRow(over = {}, { now = ROW_NOW, tz = ROW_TZ, viewer = null, ready = null } = {}) {
+  return toPersonRowVM(personDto(over), tz, new Date(now), viewer, ready);
 }

@@ -140,7 +140,7 @@ const AskCardReceipt = ({ p, t, state, receipt, err, open, undoData, doneAt, bus
       {clock ? <AskRing from={doneAt} until={until} onDone={() => setEnded(true)} /> : <Icon name={state === "done" ? "check" : state === "failed" ? "alert" : "x"} size={11} className={state === "done" ? "ok" : ""} />}
       <span className="ask-card-said">{state === "failed" ? err || receipt : state === "dismissed" ? t.notNow : receipt}</span>
       {can && !armed ? <button className="btn btn-ghost btn-sm ask-card-undo" onClick={p.kind === "playbook" ? () => setArmed(true) : onUndo} disabled={busy} title={clock ? p.undo : undefined}>{clock ? t.undo : p.undo}</button> : null}
-      {can && armed ? <window.Confirm question={`${p.undo}?`} detail="The playbook and its schedule go; runs already sent keep their numbers in Broadcasts." yes="Yes, delete it" danger busy={busy} onYes={undoArmed} onNo={() => setArmed(false)} testid="ask-card-undo" /> : null}
+      {can && armed ? <window.Confirm question={`${p.undo}?`} detail="The playbook and its schedule go; runs already sent keep their numbers in Sent." yes="Yes, delete it" danger busy={busy} onYes={undoArmed} onNo={() => setArmed(false)} testid="ask-card-undo" /> : null}
       {state === "failed" ? <button className="btn btn-ghost btn-sm ask-card-undo" onClick={onRetry}>{t.tryAgain}</button> : null}
     </div>
   );
@@ -521,8 +521,13 @@ const AskReads = ({ traces, t }) => {
 
 // An answer's two acts (D14): Copy its words and Read them aloud. A desktop draws them at the field's end beside Clear;
 // a phone under the newest answer, never under an earlier one and never while one is written. `words` are the
-// answer's plain words (contracts answerText); `speech` is the Line's (AskHooks.useAskSpeech).
-const AskActs = ({ words, lang, speech, flash, t }) => {
+// answer's say, its headline then its detail (contracts answerText), written for the ear: what Copy takes and what
+// Read aloud speaks in Ask's one voice (the one-way speech, legacy-bridge/ask/speech.ts through AskHooks.useAskSpeech;
+// docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5 as amended 4 Oct 2026); the figures and rows are
+// drawn, never read. Nobody speaks back: a follow-up is typed, or said with the mic held. Between the press and the first word
+// the button says it is getting the voice, and a press then stops the wait; where the clip could not be made the
+// button says why, in the server's words.
+const AskActs = ({ words, speech, flash, t }) => {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(words);
@@ -532,6 +537,13 @@ const AskActs = ({ words, lang, speech, flash, t }) => {
     }
   };
   const reading = speech.speakingId === "line";
+  const loading = speech.loading === "line";
+  const read = () => {
+    speech.toggle(words, "answer").then((why) => {
+      if (why !== null) flash({ tone: "danger", msg: <>{why || t.readFailed}</> });
+    });
+  };
+  const word = reading ? t.stop : loading ? t.reading : t.read;
   return (
     <span className="ask-acts" data-testid="ask-acts">
       <button type="button" className="ask-line-btn quiet" onClick={copy} aria-label={t.copy} title={t.copy} data-testid="ask-copy">
@@ -540,11 +552,12 @@ const AskActs = ({ words, lang, speech, flash, t }) => {
       {speech.canSpeak ? (
         <button
           type="button"
-          className={`ask-line-btn quiet${reading ? " on" : ""}`}
-          onClick={() => { if (!speech.toggle("line", words, lang)) flash({ msg: <>{t.noSpeech}</> }); }}
-          aria-label={reading ? t.stop : t.read}
+          className={`ask-line-btn quiet${reading || loading ? " on" : ""}`}
+          onClick={read}
+          aria-label={word}
           aria-pressed={reading}
-          title={reading ? t.stop : t.read}
+          aria-busy={loading || undefined}
+          title={word}
           data-testid="ask-read"
         >
           <Icon name={reading ? "pause" : "headphones"} size={14} />

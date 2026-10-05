@@ -7,6 +7,7 @@
  */
 import type {
   Audience,
+  ChannelsReady,
   DecisionSubject,
   DecisionVerb,
   NumberHealth,
@@ -36,11 +37,15 @@ export interface NewBroadcast {
   created_by: string | null;
   playbook_id?: string;
   run_for?: string;
+  /** The channels the run may go by (contracts reach-for.ts): `broadcasts.channels`, each person on one of them. */
+  channels: string[];
 }
 /** One person on the run, with the words their row keeps for the slots (a visit run's), or none. */
 export interface NewRecipient {
   contact_id: string;
   facts: Record<string, string> | null;
+  /** The channel the run reaches them on, picked once at enrolment (contracts reachFor): `broadcast_recipients.channel`. */
+  channel: string;
 }
 
 export interface AssemblePorts {
@@ -49,13 +54,37 @@ export interface AssemblePorts {
    * assemble_broadcast): the run's id back, or a throw, and then nothing was written.
    */
   assemble(row: NewBroadcast, recipients: NewRecipient[], sendAt: Date | null): Promise<string>;
+  /**
+   * How many campaign emails or texts the workspace sent on this channel in the calendar month `at` falls in, in its zone,
+   * that left, may have left or wait to go (packages/db campaignMonthSent): what that month's allowance has spent (contracts
+   * CAMPAIGN_MONTH_ALLOWANCE). `at` is the moment the run opens, which is when its people are counted against the month: a
+   * broadcast made on the 28th for the 1st counts against the new month, not the one it was made in, and a playbook's run
+   * against the month of the moment it goes. Required, so no caller counts the month it was made in by leaving it out.
+   * Throws when it cannot be counted.
+   */
+  monthSent(channel: "email" | "sms", at: Date): Promise<number>;
+  /**
+   * People of a run just assembled, held at once: each still queued is skipped, with `reason`, as the send would have
+   * held them (allowance.ts). A person already settled is left as it is. Throws when it cannot be written, and then the
+   * people stay queued, which the send's own check holds all the same.
+   */
+  holdRecipients(broadcastId: string, contactIds: string[], reason: string): Promise<void>;
 }
 export interface AssembleCommand {
   broadcast: NewBroadcast;
   recipients: NewRecipient[];
   sendAt: Date | null;
+  /**
+   * The people of `recipients` the month's allowance already holds (allowance.ts pastTheMonth), by contact: they are
+   * enrolled with everyone, and held the moment the run exists, so its report says so before anything is sent.
+   */
+  held: readonly string[];
 }
-export type Assembled = { ok: true; id: string } | { ok: false; error: string };
+/**
+ * The run made (its id), or why not. `unheld` is how many of the people to hold at enrolment could not be written as held:
+ * they are queued, and the send holds them at the wire, so nothing is lost; the run's record says so.
+ */
+export type Assembled = { ok: true; id: string; unheld: number } | { ok: false; error: string };
 
 /* ---- The playbook's run ---- */
 
@@ -81,6 +110,8 @@ export interface PlaybookRow {
   list_id?: string | null;
   /** The People list a saved_list playbook runs on, by its id (00168); null otherwise. */
   list_key?: string | null;
+  /** The channels it may go by (`playbooks.channels`); absent or empty on a row made before: WhatsApp alone. */
+  channels?: string[] | null;
 }
 
 /** The workspace as the run reads it once per tenant: the people, the modes, the number, the touches, the calendar. */
@@ -90,6 +121,11 @@ export interface RunContext {
   people: PersonRowVM[];
   modes: Map<string, string>;
   health: NumberHealth;
+  /**
+   * What the workspace can send on now, channel by channel (contracts channelsReady): its WhatsApp number's health, its
+   * texting line, its mailbox. The message's own versions are not in it: the run puts them in (message-channels.ts).
+   */
+  ready: ChannelsReady;
   /** When each person last heard from each playbook, from any, and had a proposal follow-up; contact id → ms. */
   touches: { byThis: Map<string, Map<string, number>>; byAny: Map<string, number>; followUps: Map<string, number> };
   /** The workspace's calendar: a visit playbook runs only when it is "ok". */
@@ -139,8 +175,18 @@ export type RunOutcome =
   | { outcome: "failed"; error: string };
 
 export interface RunPlaybookPorts extends AssemblePorts {
-  /** The template as Meta has it now, by name and language; null when gone. Throws when it cannot be read: unreadable is not withdrawn. */
-  template(name: string, language: string): Promise<{ meta_status: string | null } | null>;
+  /**
+   * The template as Meta has it now, by name and language; null when gone. Its category is the message's purpose, which
+   * the run enrols by with its moment's class (contracts enrolPurpose). Throws when it cannot be read: unreadable is not
+   * withdrawn.
+   */
+  template(name: string, language: string): Promise<{ meta_status: string | null; category: string | null } | null>;
+  /**
+   * The channels, of email and text, that hold a version of this message in this language (a templates row of that name
+   * and language on that channel): which of the playbook's ticks the message can be said on. Throws when it cannot be
+   * read: a version that could not be looked for is not one the workspace lacks.
+   */
+  versions(name: string, language: string): Promise<readonly string[]>;
   /** Whether a run for this local day was already made (the unique index's fact, read first). */
   alreadyRan(playbookId: string, runFor: string): Promise<boolean>;
   /** The run recorded: the event, and the playbook's last run. Never throws. */
@@ -207,8 +253,16 @@ export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts
    * cannot read), its name and why, in the page's words. Null when there is no such list here.
    */
   list(ref: ListRef, now: Date): Promise<ListCount | null>;
-  /** The active WhatsApp number's health as Meta rated it; null when none is connected. */
-  number(): Promise<NumberHealth | null>;
+  /**
+   * What the workspace can send on now (contracts channelsReady), and the active WhatsApp number's health as Meta rated
+   * it (null when none is connected): one read of the rows each is judged by.
+   */
+  channels(): Promise<{ ready: ChannelsReady; health: NumberHealth | null }>;
+  /**
+   * The channels, of email and text, that hold a version of this message in this language: which ticks it can be said
+   * on (message-channels.ts). Throws when it cannot be read.
+   */
+  versions(name: string, language: string): Promise<readonly string[]>;
   record(subject: DecisionSubject, id: string, verb: DecisionVerb, payload: Json): Promise<string>;
 }
 export interface CreateBroadcastCommand {
@@ -220,6 +274,8 @@ export interface CreateBroadcastCommand {
 export interface ApproveRunPorts {
   /** The business's clock, for the hours a send may go out in. */
   timezone(): Promise<string>;
+  /** Whether the workspace is paused (`tenants.status = 'paused'`): nothing is approved while it is. Throws when it cannot be read. */
+  paused(): Promise<boolean>;
   /** pending_approval → scheduled for `at`, only while pending. True iff a row changed. The row carries the time the job carries (00119). */
   release(broadcastId: string, at: Date): Promise<boolean>;
   /** Back to waiting, when the job could not be made. */

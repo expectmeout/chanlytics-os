@@ -12,7 +12,7 @@ import type { PipelineRowVM } from "@chanlytics/contracts";
 import { StatePill } from "../../kit/pill/state-pill";
 import { plNameCell } from "../cells/columns";
 import { plRowCard } from "../cells/row-card";
-import type { TableColumn, TableCtx } from "../types";
+import type { RowPick, TableColumn, TableCtx } from "../types";
 import { plFace, plIsNumber } from "../words";
 import { P } from "./pipe";
 import { PipelineRowMenu, PipelineTrack } from "./row";
@@ -194,10 +194,11 @@ export const pipeGlassColumns = (): PipelineColumn[] => {
 // A row on a phone is People's card (plRowCard): the face and the name with the chip beside them; the service under
 // them; then the deal's steps, the value and the time in stage; and their next step on a line of its own, where it
 // takes nothing from the facts.
-const pipeCardCell = (r: PipelineRowVM) => {
+const pipeCardCell = (r: PipelineRowVM, _x: unknown, pick?: RowPick) => {
   const p = r.person;
   return plRowCard({
     face: plFace(p),
+    pick,
     name: p.name,
     numeric: plIsNumber(p.name),
     pill: r.chip ? <StatePill kind="tone" value={r.chip.tone} label={r.chip.words} testid="pipe-chip" /> : null,

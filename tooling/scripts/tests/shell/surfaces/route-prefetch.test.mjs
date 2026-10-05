@@ -4,14 +4,16 @@
  *
  * Nothing was fetched until the shell had mounted: on a cold load of a person's page the first request left 2,033 ms
  * after a document whose first byte came at 26 ms. The head now starts who is looking and, on a person's page, the
- * person, spelled as the client spells them, and the client's read takes what the head started in place of its own
- * fetch, once. The script is run here as a browser would run it, against a window and a location the test makes; the
- * client is the real one over a fetch that records.
+ * person, and on every other page what it opens on (PREFETCH_READS; 2 Oct 2026: they left at the mount, 538 ms into a
+ * document whose first byte came at 16), spelled as the client spells them, and the client's read takes what the head
+ * started in place of its own fetch, once. The script is run here as a browser would run it, against a window and a
+ * location the test makes; the client is the real one over a fetch that records; and what each page opens on is held to
+ * what its surfaces' own reads ask for, by running them.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
-import { routePrefetchScript, PREFETCH_SLOT } from "@chanlytics/contracts";
+import { routePrefetchScript, PREFETCH_SLOT, PREFETCH_READS } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 
 const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
@@ -38,6 +40,12 @@ const headRuns = ({ pathname, hash, window: given = {}, fetch: fetchWith = null,
   return { calls, win };
 };
 
+/** Who is looking, then what the shell's route `route` opens on, as the client spells each read. */
+const opensOn = (ws, route) => [
+  `/api/v1/workspaces?workspace=${ws}`,
+  ...PREFETCH_READS[route].map((r) => `/api/v1/${r}${r.includes("?") ? "&" : "?"}workspace=${ws}`),
+];
+
 test("on a person's page the head starts who is looking and the person, as the client spells them, same-origin", () => {
   const { calls, win } = headRuns({ pathname: "/w/harbor", hash: `#/clients/${ID}` });
   assert.deepEqual(
@@ -63,27 +71,115 @@ test("the route is the path's, else the hash's: a person's page opens the person
     headRuns({ pathname: "/w/harbor", hash: `#/clients/${ID}` }).calls.map(([u]) => u),
     person,
   );
-  // The path wins over a hash left in it, and a path for another page reads no person.
+  // The path wins over a hash left in it, and a path for another page reads no person: it opens that page.
   assert.deepEqual(
     headRuns({ pathname: "/w/harbor/inbox", hash: `#/clients/${ID}` }).calls.map(([u]) => u),
-    [`/api/v1/workspaces?workspace=harbor`],
+    opensOn("harbor", "inbox"),
   );
+  // The path says People as the product does (ROUTE_WORDS), and an old link says it as the shell did: both open the person.
+  assert.deepEqual(
+    headRuns({ pathname: `/w/harbor/people/${ID}`, hash: "" }).calls.map(([u]) => u),
+    person,
+  );
+  // Not a person: the page is People's list, which has its own reads (below).
   assert.deepEqual(
     headRuns({ pathname: "/w/harbor/clients/not-a-uuid", hash: "" }).calls.map(([u]) => u),
-    [`/api/v1/workspaces?workspace=harbor`],
+    PEOPLE_LIST("harbor"),
   );
 });
 
-test("on any other workspace page only who is looking is started; off a workspace page nothing is", () => {
+/** Who is looking, then what People's list opens on: the rows, the lists kept, the member's views, in the order it asks. */
+const PEOPLE_LIST = (ws) => [
+  `/api/v1/workspaces?workspace=${ws}`,
+  `/api/v1/contacts?workspace=${ws}`,
+  `/api/v1/segments?workspace=${ws}`,
+  `/api/v1/views?workspace=${ws}`,
+];
+
+test("on People's list the head starts its three reads beside who is looking, as the client spells them; Leads and a person's page do not take them", () => {
   assert.deepEqual(
-    headRuns({ pathname: "/w/acme", hash: "#/today" }).calls.map(([u]) => u),
-    ["/api/v1/workspaces?workspace=acme"],
+    headRuns({ pathname: "/w/harbor/people", hash: "" }).calls.map(([u]) => u),
+    PEOPLE_LIST("harbor"),
   );
-  for (const hash of ["#/clients", "#/clients/leads", "#/clients/c-ana", "#/clients/not-a-uuid", ""])
+  // A list, a saved list and the Pipeline are the same page over the same rows.
+  for (const route of ["people/seg:vip", "people/list:abc", "people/state:needs", "people/pipeline", "clients"])
+    assert.deepEqual(
+      headRuns({ pathname: `/w/harbor/${route}`, hash: "" }).calls.map(([u]) => u),
+      PEOPLE_LIST("harbor"),
+      route,
+    );
+  // Leads is its own surface, and a person's page reads the person first.
+  for (const route of ["people/leads", "people/leads:s-abc", "clients/leads"])
+    assert.deepEqual(
+      headRuns({ pathname: `/w/harbor/${route}`, hash: "" }).calls.map(([u]) => u),
+      ["/api/v1/workspaces?workspace=harbor"],
+      route,
+    );
+  // Parked under the URL the client reads, each once.
+  const { win } = headRuns({ pathname: "/w/harbor/people", hash: "" });
+  assert.deepEqual(Object.keys(win[PREFETCH_SLOT]).sort(), PEOPLE_LIST("harbor").slice().sort());
+  const { calls } = headRuns({ pathname: "/w/harbor/people", hash: "", window: win });
+  assert.deepEqual(calls, [], "run twice, nothing twice");
+});
+
+test("every page opens on its own reads, named by the path's word or the hash's; an address naming no route is Today's", () => {
+  // The path says the product's word (ROUTE_WORDS); an old link, or a hash the frame has not moved yet, says the shell's.
+  const pages = [
+    ["today", "today"],
+    ["inbox/c-1", "inbox"],
+    ["conversations/calls", "conversations"],
+    ["live", "live"],
+    ["lists", "segments"],
+    ["segments", "segments"],
+    ["broadcasts", "broadcasts"],
+    ["playbooks", "outbound"],
+    ["outbound", "outbound"],
+    ["templates", "messages"],
+    ["admin/team", "admin"],
+    ["start", "start"],
+  ];
+  for (const [path, route] of pages) {
+    assert.deepEqual(
+      headRuns({ pathname: `/w/acme/${path}`, hash: "" }).calls.map(([u]) => u),
+      opensOn("acme", route),
+      path,
+    );
+    assert.deepEqual(
+      headRuns({ pathname: "/w/acme", hash: `#/${path}` }).calls.map(([u]) => u),
+      opensOn("acme", route),
+      path,
+    );
+  }
+  for (const pathname of ["/w/acme", "/w/acme/"])
+    assert.deepEqual(
+      headRuns({ pathname, hash: "" }).calls.map(([u]) => u),
+      opensOn("acme", "today"),
+      pathname,
+    );
+  // People's own address, before the frame has moved it, still starts People's reads.
+  for (const hash of ["#/clients", "#/clients/c-ana", "#/clients/not-a-uuid"])
     assert.deepEqual(
       headRuns({ pathname: "/w/acme", hash }).calls.map(([u]) => u),
-      ["/api/v1/workspaces?workspace=acme"],
+      PEOPLE_LIST("acme"),
       hash,
+    );
+});
+
+test("a page that opens on what only the tab knows, or one nobody named, starts who is looking alone; off a workspace page nothing is", () => {
+  // The Calendar's weeks are the business's, Reports' period the tab's, Leads' list the view it remembers.
+  for (const route of [
+    "calendar",
+    "calendar/2026-10-02",
+    "reports",
+    "people/leads",
+    "clients/leads:s-1",
+    "nowhere",
+    "constructor",
+  ])
+    assert.deepEqual(
+      headRuns({ pathname: `/w/acme/${route}`, hash: "" }).calls.map(([u]) => u),
+      ["/api/v1/workspaces?workspace=acme"],
+      route,
     );
   for (const pathname of ["/", "/login", "/w", "/w/", "/yes/acme"])
     assert.deepEqual(headRuns({ pathname, hash: `#/clients/${ID}` }).calls, [], pathname);
@@ -270,4 +366,67 @@ test("the bridge's client takes the window's slot for a URL and forgets it as it
   assert.equal(r.data.person.id, "early");
   assert.deepEqual(fetched, []);
   assert.deepEqual(Object.keys(win[PREFETCH_SLOT]), [], "taken, and gone from the slot");
+});
+
+/* ------------------------------ what each page opens on ------------------------------ */
+
+test("what the head starts for a page is what its surfaces ask for first, no more and no less: each one run", async () => {
+  const asked = [];
+  const win = {
+    // Every read is recorded and never answered: a surface asks for its first reads together, then waits.
+    fetch: (url) => {
+      asked.push(url);
+      return new Promise(() => {});
+    },
+    location: { pathname: "/w/harbor", search: "", hash: "", assign() {}, replace() {} },
+    sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    addEventListener() {},
+    removeEventListener() {},
+    dispatchEvent() {
+      return true;
+    },
+  };
+  globalThis.window = win;
+  globalThis.sessionStorage = win.sessionStorage;
+  globalThis.localStorage = win.localStorage;
+  const { api } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
+  const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const S = "apps/dashboard/src";
+  const overrides = Object.fromEntries(
+    [
+      (await importSrc(`${S}/surfaces/today/surface.ts`)).todayOverride,
+      (await importSrc(`${S}/surfaces/setup/surface.ts`)).setupOverride,
+      (await importSrc(`${S}/surfaces/inbox/surface.ts`)).inboxOverride,
+      (await importSrc(`${S}/surfaces/inbox/conversations-surface.ts`)).conversationsOverride,
+      (await importSrc(`${S}/surfaces/people/surface.ts`)).peopleOverride,
+      (await importSrc(`${S}/surfaces/live/surface.ts`)).liveOverride,
+      (await importSrc(`${S}/surfaces/campaigns/broadcasts/surface.ts`)).broadcastsOverride,
+      (await importSrc(`${S}/surfaces/campaigns/playbooks/surface.ts`)).playbooksOverride,
+      (await importSrc(`${S}/legacy-bridge/surfaces/settings.ts`)).settingsOverride,
+    ].map((o) => [o.key, o]),
+  );
+  const settle = async () => {
+    for (let i = 0; i < 10; i += 1) await new Promise((r) => setTimeout(r, 0));
+  };
+  // Settings is a page of panes, each drawn from the settings surface: asked about one of them.
+  const paramOf = { admin: "workspace" };
+  for (const route of Object.keys(PREFETCH_READS)) {
+    const own = registry.routeSurfaceFor(route, paramOf[route] ?? null);
+    const keys = [own, ...(registry.ROUTE_WAITS[route] ?? [])];
+    assert.ok(
+      keys.every((k) => overrides[k]),
+      `${route}: every surface it opens on is run here (${keys.join(", ")})`,
+    );
+    win.location.pathname = `/w/harbor/${route}`;
+    api().forget();
+    asked.length = 0;
+    for (const k of keys) void overrides[k].apply().catch(() => {});
+    await settle();
+    // Who is looking is every page's (and a surface's clock reads it when the tab knows no zone yet).
+    const theirs = [...new Set(asked)].filter((u) => !u.startsWith("/api/v1/workspaces")).sort();
+    const head = opensOn("harbor", route).slice(1).sort();
+    assert.deepEqual(head, theirs, `${route}: the head starts what ${keys.join(" and ")} ask for first`);
+  }
+  api().forget();
 });

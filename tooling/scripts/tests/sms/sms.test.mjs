@@ -372,8 +372,8 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   // nothing about the one that might have dropped the channel.
   assert.equal(
     (code.match(/ports\.persist\.ingest\(/g) ?? []).length,
-    (code.match(/ports\.persist\.ingest\(db, tenantId, n, channel\)/g) ?? []).length,
-    "every ingest carries the channel",
+    (code.match(/ports\.persist\.ingest\(db, tenantId, n, channel[,)]/g) ?? []).length,
+    "every ingest carries the channel (and the line it came in on, as its fifth argument: run in inbound-executed.test.mjs)",
   );
   assert.ok(
     code.includes("...(carrier ? { sms: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),") &&
@@ -392,7 +392,9 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
   assert.ok(
     persist.includes('channel: "whatsapp" | "sms" = "whatsapp"') &&
-      /to,\s*channel,\s*sender: "ai",\s*purpose,\s*proactive: false,/.test(persist),
+      /to,\s*channel,\s*sender: "ai",\s*purpose,\s*\.\.\.AN_ANSWER,/.test(persist) &&
+      // An answer, about something of theirs (contracts MessageAbout), and no playbook's run: no conversation started.
+      persist.includes('const AN_ANSWER = { proactive: false, about: "theirs", trigger: null } as const;'),
     "the sink's door sends on this message's channel, as the receptionist",
   );
   // Conversational unless the caller says otherwise, which only the confirmation

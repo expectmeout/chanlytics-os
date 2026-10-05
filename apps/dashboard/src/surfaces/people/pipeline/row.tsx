@@ -9,10 +9,12 @@
  * people-detail.ts passDeals) and the record kit's toggle group. The guards for their absence went with them.
  */
 import { useEffect, useRef, useState } from "react";
-import type { ComponentProps } from "react";
+
 import { dealMenuActs } from "@chanlytics/contracts";
 import type { DealAct, DealSheetMode, PipelineRowVM, PipelineSource, PipelineStep } from "@chanlytics/contracts";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { Menu } from "../../kit/menu/menu";
+import { menuGroups, moreButton } from "../menu-groups";
+import type { PeopleMenuItem } from "../menu-groups";
 import { Icon } from "../../kit/icon/icon";
 import { can, pick } from "../../kit/record/dom";
 import { RecordToggleGroup } from "../../kit/record/field";
@@ -49,7 +51,7 @@ const PIPE_ACT_ICON: Record<string, string> = {
   again: "repeat",
 };
 
-type MoreItems = NonNullable<ComponentProps<typeof MoreMenu>["items"]>;
+type MoreItems = PeopleMenuItem[];
 
 // The deal's own acts, as the thread's Deal group offers them (the deal kit's menu), then the two doors. The send is
 // the peek's, whose card holds the person the words are for: it is not offered here. A member who may not record a
@@ -102,13 +104,10 @@ export const PipelineRowMenu = ({
   const words = P.words;
   return (
     <span className="cl-row-actions pipe-row-acts" role="presentation" onClick={(e) => e.stopPropagation()}>
-      <MoreMenu
-        items={pipeRowItems(r, { canRecord, onPage, onThread })}
-        title={`${words.row.menu} ${r.name}`}
-        size={13}
-        btnClass="cl-row-act"
-        escape
-        testid="pipe-row-menu"
+      <Menu
+        label={`${words.row.menu} ${r.name}`}
+        trigger={moreButton({ title: `${words.row.menu} ${r.name}`, testid: "pipe-row-menu" })}
+        groups={menuGroups(pipeRowItems(r, { canRecord, onPage, onThread }))}
       />
     </span>
   );

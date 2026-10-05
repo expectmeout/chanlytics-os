@@ -2,7 +2,7 @@
  * What a template is called for people: the title the workspace gave it, the starter's, or its name made words;
  * and a playbook's name when it was given none. A language's words are message-languages.ts.
  */
-import { starterByName, starterForTrigger } from "./starter-lookup";
+import { starterByName, startersForTrigger } from "./starter-lookup";
 
 export const TEMPLATE_TITLE_MAX = 60;
 
@@ -25,7 +25,7 @@ export function templateTitle(name: string | null | undefined, title?: string | 
 
 /**
  * A playbook's name when it was given none: its moment's own ("Win-back")
- * when it sends the moment's own starter, else with the message's title
+ * when it sends a starter written for the moment (the set's, or one it replaced), else with the message's title
  * ("Win-back · Autumn offer"). The route names it so, and the composer says
  * so before it is saved.
  */
@@ -33,7 +33,7 @@ export function playbookName(
   trigger: { id: string; label: string },
   tpl: { name: string; title?: string | null },
 ): string {
-  return starterForTrigger(trigger.id)?.name === tpl.name
+  return startersForTrigger(trigger.id).some((s) => s.name === tpl.name)
     ? trigger.label
     : `${trigger.label} · ${templateTitle(tpl.name, tpl.title)}`;
 }
