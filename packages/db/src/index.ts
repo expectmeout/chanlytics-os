@@ -71,6 +71,7 @@ export {
   recordLateCarrierOptOut,
   recordWhatsAppOffersStop,
 } from "./repositories/campaigns/offers-answer";
+export type { LateCarrierStop } from "./repositories/campaigns/offers-answer";
 export {
   sendingDomainsOf,
   sendingDomainOf,

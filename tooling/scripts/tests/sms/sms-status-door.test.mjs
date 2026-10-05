@@ -244,34 +244,55 @@ test("a STOP the carrier tells us late (21610) is the person's STOP: recorded as
   assert.equal(w.tables.events.length, 1);
 });
 
-test("a late STOP for a text nobody knows, or a person already erased, writes nothing; a database that refuses it is a 503", async () => {
-  const unknown = world({ row: { contact_id: null } });
-  unknown.tables.contacts = [];
-  unknown.tables.events = [];
-  assert.equal(await unknown.post(unknown.form({ MessageStatus: "undelivered", ErrorCode: "21610" })), 200);
-  assert.equal(unknown.tables.events.length, 0);
+test("a late STOP is written for our own text and its person alone: not over a newer answer, an erased person, or a row that is not ours; a database that refuses it is a 503 and the retry lands", async () => {
+  const stop = (w) => w.form({ MessageStatus: "undelivered", ErrorCode: "21610" });
+  const person = (w, id, over = {}) => ({
+    id,
+    tenant_id: w.T,
+    consent: "opted_in",
+    dnc: false,
+    consent_source: "customer_message",
+    consent_updated_at: "2026-09-01T10:00:00Z",
+    erased_at: null,
+    ...over,
+  });
+  const sentAt = "2026-10-01T10:00:00Z";
+  const made = (row, contacts, more = {}) => {
+    const w = world({ row: { created_at: sentAt, ...row }, ...more });
+    w.tables.contacts = contacts(w);
+    w.tables.events = [];
+    w.tables.escalations = [];
+    return w;
+  };
 
-  const erased = world({ row: { contact_id: "k-2" } });
-  erased.tables.contacts = [
-    {
-      id: "k-2",
-      tenant_id: erased.T,
-      consent: "unknown",
-      dnc: true,
-      consent_source: "erasure",
-      erased_at: "2026-09-01T00:00:00Z",
-    },
-  ];
-  erased.tables.events = [];
-  assert.equal(await erased.post(erased.form({ MessageStatus: "undelivered", ErrorCode: "21610" })), 200);
-  assert.deepEqual([erased.tables.contacts[0].consent, erased.tables.events.length], ["unknown", 0]);
+  // The row names no person: their thread does.
+  const byThread = made({ contact_id: null }, (w) => [person(w, "k-9")]);
+  byThread.tables.conversations = [{ id: "cv-1", tenant_id: byThread.T, contact_id: "k-9" }];
+  assert.equal(await byThread.post(stop(byThread)), 200);
+  assert.equal(byThread.tables.contacts[0].consent, "opted_out", "the thread's person");
 
-  const down = world({ row: { contact_id: "k-3" }, faults: { "contacts.select": { message: "contacts is away" } } });
-  down.tables.contacts = [{ id: "k-3", tenant_id: down.T, consent: "opted_in", dnc: false, erased_at: null }];
-  down.tables.events = [];
-  assert.equal(
-    await down.post(down.form({ MessageStatus: "undelivered", ErrorCode: "21610" })),
-    503,
-    "the carrier says it again",
-  );
+  // No person at all, an erased one, a message that came IN, and one that was not a text: nothing is written.
+  const nobody = made({ contact_id: null }, () => []);
+  nobody.tables.conversations = [];
+  assert.equal(await nobody.post(stop(nobody)), 200);
+  const erased = made({ contact_id: "k-2" }, (w) => [
+    person(w, "k-2", { consent: "unknown", dnc: true, erased_at: "2026-09-20T00:00:00Z" }),
+  ]);
+  assert.equal(await erased.post(stop(erased)), 200);
+  const inbound = made({ contact_id: "k-4", direction: "inbound", sender: "customer" }, (w) => [person(w, "k-4")]);
+  assert.equal(await inbound.post(stop(inbound)), 200);
+  for (const w of [nobody, erased, inbound]) assert.equal(w.tables.events.length, 0);
+  assert.deepEqual([erased.tables.contacts[0].consent, inbound.tables.contacts[0].consent], ["unknown", "opted_in"]);
+
+  // They sent START after the text was written: a report said again must not stop them a second time.
+  const back = made({ contact_id: "k-5" }, (w) => [person(w, "k-5", { consent_updated_at: "2026-10-02T09:00:00Z" })]);
+  assert.equal(await back.post(stop(back)), 200);
+  assert.deepEqual([back.tables.contacts[0].consent, back.tables.events.length], ["opted_in", 0]);
+
+  // A database that cannot read the person: 503, with the row already moved, and the carrier's retry records the STOP.
+  const down = made({ contact_id: "k-3" }, (w) => [person(w, "k-3")], {
+    faults: { "contacts.select": { message: "contacts is away" } },
+  });
+  assert.equal(await down.post(stop(down)), 503, "the carrier says it again");
+  assert.equal(down.tables.contacts[0].consent, "opted_in");
 });

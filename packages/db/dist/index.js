@@ -1112,14 +1112,29 @@ async function recordWhatsAppOffersStop(db, p) {
   return true;
 }
 async function recordLateCarrierOptOut(db, p) {
-  const sent = await db.from("messages").select("contact_id").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
+  const sent = await db.from("messages").select("contact_id, conversation_id, direction, channel, created_at").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
   if (sent.error) throw new Error(`reading the text the carrier refused (${p.externalId}): ${sent.error.message}`);
-  const contactId = sent.data?.contact_id;
-  if (!contactId) return false;
-  const who = await db.from("contacts").select("consent, erased_at").eq("id", contactId).eq("tenant_id", p.tenantId).maybeSingle();
+  const text2 = sent.data;
+  if (!text2 || text2.direction !== "outbound" || text2.channel !== "sms") return "not_our_text";
+  let contactId = text2.contact_id;
+  if (!contactId) {
+    const thread = await db.from("conversations").select("contact_id").eq("id", text2.conversation_id).eq("tenant_id", p.tenantId).maybeSingle();
+    if (thread.error) throw new Error(`reading the thread of the text the carrier refused: ${thread.error.message}`);
+    contactId = thread.data?.contact_id ?? null;
+  }
+  if (!contactId) return "no_person";
+  const who = await db.from("contacts").select("consent, consent_updated_at, erased_at").eq("id", contactId).eq("tenant_id", p.tenantId).maybeSingle();
   if (who.error) throw new Error(`reading contact ${contactId} for the carrier's stop: ${who.error.message}`);
-  if (!who.data || who.data.erased_at) return false;
-  return recordCarrierOptOut(db, { tenantId: p.tenantId, contactId, channel: "sms", previous: who.data.consent });
+  if (!who.data || who.data.erased_at) return "no_person";
+  if (who.data.consent === "opted_out") return "already_stopped";
+  if (who.data.consent_updated_at && who.data.consent_updated_at > text2.created_at) return "newer_answer";
+  const wrote = await recordCarrierOptOut(db, {
+    tenantId: p.tenantId,
+    contactId,
+    channel: "sms",
+    previous: who.data.consent
+  });
+  return wrote ? "recorded" : "already_stopped";
 }
 
 // src/repositories/sending-domains.ts

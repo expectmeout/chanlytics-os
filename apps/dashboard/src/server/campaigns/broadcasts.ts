@@ -3,7 +3,6 @@ import {
   AppError,
   REPLY_WINDOW_MS,
   firstNameOf,
-  asksToStop,
   isAutomatedSend,
   isPersonsWords,
   isReplyTo,
@@ -120,35 +119,33 @@ interface Inbound {
   created_at: string;
   /** What the email intake read it as, where it was an email (contracts isPersonsWords). */
   meta: unknown;
-  /** The channel it came by and its words: what says whether it is an ask to stop (contracts asksToStop). */
-  channel: string | null;
-  body: string | null;
+  body?: string | null;
 }
 
 /**
  * What the customers on these threads wrote since `since`, a thread's messages together: a person's own words, so not
  * a call's note (an inbound row the system wrote) and not a program writing from their address (an out-of-office, a
- * list's mail: contracts isPersonsWords), which made a run "replied to" by people who never answered it. And not a
- * message that is, whole, an ask to stop (contracts asksToStop): that is their answer about hearing from the business,
- * which the run counts as "asked to stop", and it was counted as a reply too. The thread ids go two hundred
+ * list's mail: contracts isPersonsWords), which made a run "replied to" by people who never answered it. The thread ids go two hundred
  * at a time so the URL stays short, and each chunk's messages a page at a time under the table's key: two hundred
  * threads hold far more than the thousand rows one read answers, and a run's replies counted from the first thousand
- * read short on exactly the runs that were answered most. The words are read with each message: they say whether it
- * is an ask to stop.
+ * read short on exactly the runs that were answered most. The words are read only where the detail asks for them (a
+ * list only counts replies).
  */
 async function inboundOn(
   ctx: RouteContext,
   tenantId: string,
   convIds: string[],
   since: string,
+  withWords: boolean,
 ): Promise<Map<string, Inbound[]>> {
   const byThread = new Map<string, Inbound[]>();
   for (let i = 0; i < convIds.length; i += IN_CHUNK) {
     const chunk = convIds.slice(i, i + IN_CHUNK);
-    const inbound: Inbound[] = await readAllRows("inbound messages", (from, to) =>
+    // A select chosen at run time is past the client's typed parser: the rows are the columns named above.
+    const inbound = (await readAllRows("inbound messages", (from, to) =>
       ctx.supabase
         .from("messages")
-        .select("conversation_id, created_at, meta, channel, body")
+        .select(withWords ? "conversation_id, created_at, meta, body" : "conversation_id, created_at, meta")
         .eq("tenant_id", tenantId)
         .eq("direction", "inbound")
         .eq("sender", "customer")
@@ -156,9 +153,9 @@ async function inboundOn(
         .gt("created_at", since)
         .order("id")
         .range(from, to),
-    );
+    )) as unknown as Inbound[];
     for (const m of inbound) {
-      if (!isPersonsWords(m.meta) || asksToStop(m.channel, m.body)) continue;
+      if (!isPersonsWords(m.meta)) continue;
       const had = byThread.get(m.conversation_id);
       if (had) had.push(m);
       else byThread.set(m.conversation_id, [m]);
@@ -200,7 +197,7 @@ async function repliedThreads(
 ): Promise<Map<string, string>> {
   const since = [...threads.values()].sort()[0];
   if (since === undefined) return new Map();
-  return firstReplies(threads, await inboundOn(ctx, tenantId, [...threads.keys()], since), words);
+  return firstReplies(threads, await inboundOn(ctx, tenantId, [...threads.keys()], since, words !== null), words);
 }
 
 /** A reply's words as a list line shows them: the whitespace folded, cut at a length no row needs more of. Null for none. */
@@ -326,7 +323,7 @@ async function withCounts(ctx: RouteContext, tenantId: string, rows: BroadcastRo
   const since = sends[0];
   if (since !== undefined) {
     const convIds = [...new Set([...threadsOf.values()].flatMap((threads) => [...threads.keys()]))];
-    const inbound = await inboundOn(ctx, tenantId, convIds, since);
+    const inbound = await inboundOn(ctx, tenantId, convIds, since, false);
     for (const [broadcastId, threads] of threadsOf) {
       counts.get(broadcastId)!.replied = firstReplies(threads, inbound).size;
     }

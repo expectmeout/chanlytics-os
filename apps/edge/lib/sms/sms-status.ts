@@ -25,8 +25,10 @@
  *
  * One refusal is not a failure of ours: 21610, the person having replied STOP to the number (channels
  * SMS_OPTED_OUT_CODE). The send door records that as their STOP when the wire says it at once (core deliver.ts); told
- * late, it is the same STOP, recorded here the same way (db recordLateCarrierOptOut) and never raised as a hold: the
- * owner has nothing to fix, and every later send to the person is refused before the carrier is asked.
+ * late, it is the same STOP, recorded here the same way (db recordLateCarrierOptOut) and never raised as a hold, as the
+ * send door raises none: the owner has nothing to fix, the thread shows the text as not delivered with why (contracts
+ * sendFailureWords), and every later send to the person is refused before the carrier is asked. The log says what the
+ * report came to (`carrier_stop`: recorded, already_stopped, newer_answer, no_person, not_our_text).
  *
  * Twilio retries a status callback it could not deliver, so a database that
  * is down is a 503 and the word comes again; anything it should not retry is
@@ -35,7 +37,7 @@
 import { text } from "../http.js";
 import { pg } from "../pg.js";
 import { SMS_OPTED_OUT_CODE, smsStatusFrom, smsStatusToRow, verifyTwilioSignature } from "../packages/channels.js";
-import { recordLateCarrierOptOut, recordStatusByExternalId } from "../packages/db.js";
+import { recordLateCarrierOptOut, recordStatusByExternalId, type LateCarrierStop } from "../packages/db.js";
 import { flagLateFailure } from "../receptionist/late-failure.js";
 import { lineByNumber, lineAccount } from "./sms.js";
 import { logger } from "../log.js";
@@ -88,7 +90,7 @@ export async function receiveSmsStatus(request: Request): Promise<Response> {
   // The person replied STOP to the number: their answer, recorded below, never a failed send to raise.
   const stopped = !!failure && s.errorCode === String(SMS_OPTED_OUT_CODE);
   let flagged: string | null = null;
-  let carrierStop: boolean | null = null;
+  let carrierStop: LateCarrierStop | null = null;
   try {
     if (failure && !stopped)
       flagged = await flagLateFailure(db, line.tenant_id, { externalId: s.messageSid, channel: "sms", error: failure });
