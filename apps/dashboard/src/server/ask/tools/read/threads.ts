@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import {
   ASK_CAPS,
+  heldDraftWaits,
   reasonLabelOf,
   PERSON_CHANNEL_WORDS,
   clockStamp,
@@ -47,7 +48,8 @@ async function listThreads(t: ToolContext, input: { filter: string }): Promise<u
       case "needs_you":
         return v.needsYou;
       case "held":
-        return !!v.veto || !!v.heldDraft;
+        // A draft still waiting to send, by the Inbox's rule: one past its deadline is going out, not held.
+        return heldDraftWaits(v, t.now.getTime());
       case "waiting":
         return v.takenOver;
       case "snoozed":

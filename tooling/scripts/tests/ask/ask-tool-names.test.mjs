@@ -557,6 +557,37 @@ function withoutRightNowDetail(frozen) {
 }
 
 /**
+ * 5 Oct 2026 (Ask honesty, A12): `held` lists the threads whose held draft still waits, by the Inbox's rule (contracts
+ * heldDraftWaits). This world's one draft was queued thirty minutes before NOW with no hold window, so its deadline is
+ * past and nothing is held: the frozen answer's one change, the thread gone from its list and its count.
+ */
+function withNothingHeld(frozen) {
+  return JSON.stringify({ ...JSON.parse(frozen), total_matching: 0, threads: [] });
+}
+
+/**
+ * 5 Oct 2026 (Ask honesty): a call's row says which way it was dialled, since only a customer's dial that never connected
+ * is "missed" (contracts missedCall). Every call of this world is inbound (`call()` above), so the frozen rows gain
+ * `direction: "inbound"` after `who`: the one change to their bytes, in calls.list and calls.get.
+ */
+function withCallDirection(frozen) {
+  const said = JSON.parse(frozen);
+  const into = (row) =>
+    Object.fromEntries(
+      Object.entries(row).flatMap(([k, v]) =>
+        k === "who"
+          ? [
+              [k, v],
+              ["direction", "inbound"],
+            ]
+          : [[k, v]],
+      ),
+    );
+  if (Array.isArray(said.calls)) return JSON.stringify({ ...said, calls: said.calls.map(into) });
+  return "who" in said ? JSON.stringify(into(said)) : frozen;
+}
+
+/**
  * campaigns.playbooks lists the moments a NEW playbook is offered, in the words contracts gives them now (2 Oct 2026, the
  * lifecycle set: contracts momentOffered; this workspace sells by proposal and has no calendar). Its listing is held to
  * those moments, each one's counts to what 7405e34b counted for it, and the rest of the answer is compared byte for byte.
@@ -604,6 +635,8 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
     if (NAMES[old] === "report") result = withHold(result);
+    if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
+    if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
     // An action above the caller is refused by the registry first since PR 4.3 (the Phase 4 plan, D2), in its words,
     // before anything is read, as its builder refused it: the other change to these bytes.
     const act = ACT_DEFS.find((x) => x.name === call.name)?.actions[call.input.action ?? ""];

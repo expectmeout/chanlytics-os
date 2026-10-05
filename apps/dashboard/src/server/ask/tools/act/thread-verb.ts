@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { ASK_THREAD_VERBS, PROPOSAL_SPECS, clockWhen, shiftKey, zoneMidnight } from "@chanlytics/contracts";
+import { ASK_THREAD_VERBS, PROPOSAL_SPECS, clockWhen, personName, shiftKey, zoneMidnight } from "@chanlytics/contracts";
 import {
   UUID,
   WHOSE,
@@ -36,12 +36,8 @@ async function proposeThreadVerb(
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!conv) return refuse("no such conversation in this workspace");
-  const who =
-    conv.contacts?.display_name ||
-    conv.contacts?.wa_profile_name ||
-    conv.contacts?.phone_e164 ||
-    conv.contacts?.email ||
-    "this person";
+  // As the Inbox names them (personName): a saved name, else their WhatsApp name, else their number as it is printed.
+  const who = personName(conv.contacts);
   let escalationId: string | null = null;
   if (verb === "resolve") {
     const { data: esc, error: escErr } = await t.ctx.supabase

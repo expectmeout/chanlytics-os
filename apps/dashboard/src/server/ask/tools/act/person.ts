@@ -7,6 +7,7 @@ import {
   PERSON_MODES,
   PROPOSAL_SPECS,
   normalizeEmail,
+  personName,
   proposalBelowNeeds,
   whyNotAnEmail,
 } from "@chanlytics/contracts";
@@ -51,8 +52,9 @@ async function personOnCard(t: ToolContext, contactId: string): Promise<CardPers
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!c || c.erased_at) return refuse("no such person in this workspace");
-  const shows = c.wa_profile_name || c.phone_e164 || c.email || null;
-  const who = c.display_name || shows || "this person";
+  // As People names them (personName). What the page shows in place of a name of their own is that, minus the typed name.
+  const who = personName(c);
+  const shows = c.wa_profile_name || c.phone_e164 || c.email ? personName({ ...c, display_name: null }) : null;
   noteRow(t, "person", id, who, `clients/${id}`);
   return { id, who, name: c.display_name ?? null, email: c.email ?? null, shows };
 }
