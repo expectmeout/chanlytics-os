@@ -8,9 +8,10 @@
  * how many tries a "not now" earns, and how many tokens an answer may write. The model port
  * (packages/channels/src/models/anthropic.ts) reads the route; nothing else names a model.
  *
- * A fallback is asked only for an answer that never came: a 529, a 5xx or a try that ran out of time. A refusal, a
- * bad request or a 429 is the answer. Ask's pair swaps: a deployment that runs Ask on Sonnet 5 (ASK_MODEL) falls back
- * to Opus 5.5.
+ * A fallback is asked only for an answer that never came (a 529, a 5xx or a try that ran out of time) or for a model
+ * the API does not know (a 404: a variable's misspelt name, an id since retired). A refusal, a bad request or a 429 is
+ * the answer. Ask's model is whatever its deployment names (ASK_MODEL: any Claude model, ask-model.ts), and a model that
+ * is not the route's own falls back to the route's: a deployment that runs Ask on Sonnet falls back to Opus 5.5.
  *
  * A purpose whose answer is a closed set may also name a shadow port (`shadow`): a second model that is put the same
  * question beside the primary while its switch is on, in shadow (shadow.ts; decision 0023). It changes nothing a
@@ -24,12 +25,26 @@
 export const MODELS = {
   OPUS_5_5: "claude-opus-5-5",
   OPUS_5: "claude-opus-5",
+  SONNET_5_5: "claude-sonnet-5-5",
   SONNET_5: "claude-sonnet-5",
   HAIKU_4_5: "claude-haiku-4-5-20251001",
 } as const;
 /** The same ids as a closed set: a new one is added above, with its price (usage.ts MODEL_PRICES). */
-export const MODEL_IDS = [MODELS.OPUS_5_5, MODELS.OPUS_5, MODELS.SONNET_5, MODELS.HAIKU_4_5] as const;
+export const MODEL_IDS = [
+  MODELS.OPUS_5_5,
+  MODELS.OPUS_5,
+  MODELS.SONNET_5_5,
+  MODELS.SONNET_5,
+  MODELS.HAIKU_4_5,
+] as const;
 export type ModelId = (typeof MODEL_IDS)[number];
+
+/**
+ * How hard a request asks a model to think (`output_config.effort`): the levels the gateway lets through, which every
+ * model the platform asks accepts. Ask's is its deployment's to name (ASK_EFFORT, ask-model.ts).
+ */
+export const MODEL_EFFORTS = ["low", "medium", "high"] as const;
+export type ModelEffort = (typeof MODEL_EFFORTS)[number];
 
 const { OPUS_5_5, OPUS_5, SONNET_5, HAIKU_4_5 } = MODELS;
 
@@ -128,14 +143,13 @@ export function modelRoute(purpose: ModelPurpose): ModelRoute {
 }
 
 /**
- * The model asked once more when `asked` gave no answer, for this purpose: the route's fallback, or its model when
- * the fallback is what was asked (Ask's pair swaps). Null when there is none, or it is the model that just failed.
+ * The model asked once more when `asked` gave no answer, for this purpose: the route's fallback, or the route's own
+ * model when another was asked (a variable's: Ask's, whatever it names). Null when the purpose has none.
  */
 export function fallbackModel(purpose: ModelPurpose, asked: string): ModelId | null {
   const r = modelRoute(purpose);
   if (!r.fallback) return null;
-  const next = asked === r.fallback ? r.model : r.fallback;
-  return next === asked ? null : next;
+  return asked === r.model ? r.fallback : r.model;
 }
 
 /** The port a purpose is put beside in shadow, or null when it has none. */
@@ -146,6 +160,15 @@ export function shadowPortOf(purpose: ModelPurpose): ShadowPort | null {
 /** Whether a string is one of the platform's model ids. */
 export function isModelId(v: unknown): v is ModelId {
   return typeof v === "string" && (MODEL_IDS as readonly string[]).includes(v);
+}
+
+/**
+ * Whether a string reads as a Claude model's id, the registry's or not: what a variable that names a model may hold
+ * (ASK_MODEL, LEAD_JUDGE_MODEL). The shape alone; whether the API has such a model is the API's to say, and the port
+ * asks the route's fallback when it does not.
+ */
+export function readsAsModel(v: unknown): v is string {
+  return typeof v === "string" && /^claude-[a-z0-9][a-z0-9.-]{0,62}$/.test(v);
 }
 
 /** The models behind a phone call, in Retell's own names (voice-provision.ts): its language model and its analysis. */

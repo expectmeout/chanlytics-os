@@ -243,10 +243,18 @@ var FLAGS = [
   {
     name: "ASK_MODEL",
     mechanism: "model_override",
-    does: "The model Ask answers on, one of ASK_MODELS; empty is the registry's (MODEL_ROUTES.ask).",
+    does: "The model Ask answers on, any Claude model's id; empty is the registry's (MODEL_ROUTES.ask).",
     owner: "Ruben",
     sunset: null,
-    kept: "Ask is built to switch models by one variable (ask-model.ts); the gate re-runs on both at every phase."
+    kept: "Ask is built to switch models by one variable (ask-model.ts), so trying one is never a code change."
+  },
+  {
+    name: "ASK_EFFORT",
+    mechanism: "dashboard_env",
+    does: "How hard Ask's model is asked to think: low, medium or high; empty is low (ask-model.ts ASK_EFFORT).",
+    owner: "Ruben",
+    sunset: null,
+    kept: "It rides with ASK_MODEL: a model tried at another effort is the same variable-and-redeploy."
   },
   {
     name: "EDGE_PROVIDERS",
@@ -293,10 +301,18 @@ var FLAGS = [
 var MODELS = {
   OPUS_5_5: "claude-opus-5-5",
   OPUS_5: "claude-opus-5",
+  SONNET_5_5: "claude-sonnet-5-5",
   SONNET_5: "claude-sonnet-5",
   HAIKU_4_5: "claude-haiku-4-5-20251001"
 };
-var MODEL_IDS = [MODELS.OPUS_5_5, MODELS.OPUS_5, MODELS.SONNET_5, MODELS.HAIKU_4_5];
+var MODEL_IDS = [
+  MODELS.OPUS_5_5,
+  MODELS.OPUS_5,
+  MODELS.SONNET_5_5,
+  MODELS.SONNET_5,
+  MODELS.HAIKU_4_5
+];
+var MODEL_EFFORTS = ["low", "medium", "high"];
 var { OPUS_5_5, OPUS_5, SONNET_5, HAIKU_4_5 } = MODELS;
 var MODEL_PURPOSES = [
   "receptionist",
@@ -359,14 +375,16 @@ function modelRoute(purpose) {
 function fallbackModel(purpose, asked) {
   const r2 = modelRoute(purpose);
   if (!r2.fallback) return null;
-  const next = asked === r2.fallback ? r2.model : r2.fallback;
-  return next === asked ? null : next;
+  return asked === r2.model ? r2.fallback : r2.model;
 }
 function shadowPortOf(purpose) {
   return modelRoute(purpose).shadow ?? null;
 }
 function isModelId(v) {
   return typeof v === "string" && MODEL_IDS.includes(v);
+}
+function readsAsModel(v) {
+  return typeof v === "string" && /^claude-[a-z0-9][a-z0-9.-]{0,62}$/.test(v);
 }
 var RETELL_MODELS = { llm: "claude-4.5-haiku", analysis: "gpt-4.1" };
 
@@ -375,6 +393,7 @@ var NO_USAGE = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 var MODEL_PRICES = {
   [MODELS.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
   [MODELS.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
+  [MODELS.SONNET_5_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
   [MODELS.SONNET_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
   [MODELS.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
 };
@@ -7139,15 +7158,15 @@ function askJump(query, index, limit = 6) {
 }
 
 // src/ask/ask-model.ts
-var ASK_MODELS = [MODEL_ROUTES.ask.model, MODEL_ROUTES.ask.fallback];
-var ASK_MODEL_PROFILES = {
-  [MODELS.OPUS_5_5]: { id: MODELS.OPUS_5_5, effort: "low", forcedToolChoice: false, thinking: "always" },
-  [MODELS.SONNET_5]: { id: MODELS.SONNET_5, effort: "low", forcedToolChoice: true, thinking: "adaptive" }
-};
 var ASK_MODEL = MODEL_ROUTES.ask.model;
-function askModelProfile(name) {
-  const id = ASK_MODELS.includes(name ?? "") ? name : ASK_MODEL;
-  return ASK_MODEL_PROFILES[id];
+var ASK_EFFORT = "low";
+function askModelProfile(name, effort) {
+  const id = (name ?? "").trim();
+  const asked = (effort ?? "").trim();
+  return {
+    id: readsAsModel(id) ? id : ASK_MODEL,
+    effort: MODEL_EFFORTS.includes(asked) ? asked : ASK_EFFORT
+  };
 }
 
 // src/ask/ask-shape.ts
@@ -31795,13 +31814,12 @@ export {
   ASK_CITATION_KINDS,
   ASK_CONTEXT_MAX_ROWS,
   ASK_CONTEXT_ROW_KINDS,
+  ASK_EFFORT,
   ASK_LANGUAGES,
   ASK_MAX_CHARS,
   ASK_MAX_ROUNDS,
   ASK_MAX_TOKENS,
   ASK_MODEL,
-  ASK_MODELS,
-  ASK_MODEL_PROFILES,
   ASK_PAGES,
   ASK_PAGE_ROUTES,
   ASK_ROW_WORDS,
@@ -32167,6 +32185,7 @@ export {
   MOCK_TEXTING_SENTENCE,
   MODELS,
   MODEL_CALL_OUTCOMES,
+  MODEL_EFFORTS,
   MODEL_IDS,
   MODEL_PORTS,
   MODEL_PRICES,
@@ -33397,6 +33416,7 @@ export {
   readingPlan,
   readingSystemPrompt,
   readingUserContent,
+  readsAsModel,
   readyOrWhatsApp,
   reasonLabelOf,
   reasonShort,

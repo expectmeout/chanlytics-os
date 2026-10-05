@@ -10,7 +10,7 @@
 import "./zod-config";
 export { DATA_NOT_INSTRUCTIONS, PROFILE_NAME_MAX, fenceActed, fenced, fencedInline, injectionQuestion, promptSafeName } from "./ai/fence";
 export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./ai/flags";
-export { MODELS, MODEL_IDS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_PORTS, RETELL_MODELS, modelRoute, fallbackModel, shadowPortOf, isModelId } from "./ai/models";
+export { MODELS, MODEL_IDS, MODEL_EFFORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_PORTS, RETELL_MODELS, modelRoute, fallbackModel, shadowPortOf, isModelId, readsAsModel } from "./ai/models";
 export { MODEL_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf, usageMonthOf } from "./ai/usage";
 export { RUN_VERBS, proposalChannelsWords } from "./ask-proposals/campaigns";
 export { ASK_THREAD_ROUTES } from "./ask-proposals/inbox";
@@ -25,7 +25,7 @@ export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, itemFocus } from "./ask/as
 export { dayFromQuestion, askIntent, callsToday } from "./ask/ask-fast-paths";
 export { askJump, askPages, ASK_PAGES } from "./ask/ask-jump";
 export { detectLanguage, ASK_LANGUAGES } from "./ask/ask-language";
-export { askModelProfile, ASK_MODELS, ASK_MODEL_PROFILES, ASK_MODEL } from "./ask/ask-model";
+export { askModelProfile, ASK_EFFORT, ASK_MODEL } from "./ask/ask-model";
 export { applySettingsChange, describeSettingsChange } from "./ask/ask-settings-change";
 export { cacheHitOf } from "./ask/ask-shape";
 export { buildAskSuggestions } from "./ask/ask-suggestions";

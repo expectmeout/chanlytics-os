@@ -9,7 +9,8 @@
  *     (budget.ts reads usage.llm_tokens and nothing else); the day's sum is one statement (ask_tokens_day, 00240) and a
  *     count that cannot be read holds the turn. The tee reads a round's usage off the stream as it is forwarded.
  *   - validateGatewayRequest and its limits: what a request may ask for; anything else is refused (bad_request) before
- *     the key is spent. The models it may name are the registry's for the two routes the gateway serves.
+ *     the key is spent. Ask may name any model that reads as one (its deployment's ASK_MODEL); the small drafts
+ *     name the registry's for their route.
  *   - modelPurposeOf: the registry's purpose a gateway purpose is asked as.
  *
  * Two records of one round, on purpose: the event above is the budget's count (a sum over 24 hours, purged with the
@@ -17,7 +18,15 @@
  * by the model that answered, kept 400 days. This module writes the first and not the second.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ASK_MAX_TOKENS, MODELS, MODEL_ROUTES, type ModelPurpose } from "./packages/contracts.js";
+import {
+  ASK_MAX_TOKENS,
+  MODELS,
+  MODEL_EFFORTS,
+  MODEL_ROUTES,
+  readsAsModel,
+  type ModelEffort,
+  type ModelPurpose,
+} from "./packages/contracts.js";
 import type { Database } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
 import { logger, errField } from "./log.js";
@@ -152,14 +161,14 @@ export interface GatewayRequest {
   tool_choice?: unknown;
   temperature?: number;
   output_config?: {
-    effort?: "low" | "medium" | "high";
+    effort?: ModelEffort;
     format?: { type: "json_schema"; schema: Record<string, unknown> };
   };
   /** The cache diagnostics (the Phase 6 plan, D2): the message this request follows on, or null to start comparing. */
   diagnostics?: { previous_message_id: string | null };
 }
 
-const EFFORTS = new Set(["low", "medium", "high"]);
+const EFFORTS: ReadonlySet<string> = new Set(MODEL_EFFORTS);
 
 /** What the gateway spends the key on. Every purpose counts in Ask's own daily budget (ASK_USAGE_KIND). */
 export const GATEWAY_PURPOSES = ["ask", "lead_draft", "lead_suggest", "list_draft"] as const;
@@ -199,9 +208,11 @@ function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, u
 }
 
 /**
- * The models a request may name: every model and fallback of the purposes the gateway serves (the registry's routes for
- * Ask and the small JSON drafts), so the dashboard's ASK_MODEL and JSON_MODEL, and the fallback the port may ask, are
- * the list, and the two cannot drift apart.
+ * The models a small draft's request may name: every model and fallback of the registry's routes the gateway serves,
+ * so the dashboard's JSON_MODEL and the fallback the port may ask are the list, and the two cannot drift apart. Ask is
+ * not held to it: its model is its deployment's to name (contracts ask-model.ts), any that reads as a Claude model, so
+ * trying one is a variable on the dashboard and no change here. The door is the dashboard's alone (a signed token),
+ * the day's cap counts tokens whatever the model, and a name the API does not know is asked of the route's own.
  */
 export const GATEWAY_MODELS: readonly string[] = [
   ...new Set(
@@ -222,6 +233,10 @@ export const GATEWAY_MAX_MESSAGES = 60;
 export const GATEWAY_MAX_TOOLS = 40;
 export const GATEWAY_MAX_BODY = 700_000;
 
+/** Whether a purpose's request may name this model: Ask any that reads as one, a small draft the list's. */
+const mayName = (purpose: GatewayPurpose, model: string): boolean =>
+  purpose === "ask" ? readsAsModel(model) : GATEWAY_MODELS.includes(model);
+
 /** A request the gateway will not send: `bad_request`, with the rule it broke in `detail`. */
 const badRequest = (detail: string) => ({ ok: false as const, error: "bad_request" as const, detail });
 
@@ -232,7 +247,7 @@ export function validateGatewayRequest(
   const r = raw as Partial<GatewayRequest> | null;
   if (!r || typeof r !== "object") return badRequest("request required");
   const model = typeof r.model === "string" ? r.model : GATEWAY_FALLBACK_MODEL;
-  if (!GATEWAY_MODELS.includes(model)) return badRequest("unknown model");
+  if (!mayName(purpose, model)) return badRequest("unknown model");
   const cap = purpose === "ask" ? ASK_MAX_TOKENS : GATEWAY_MAX_TOKENS;
   const maxTokens = Math.min(cap, Math.max(64, Math.round(num(r.max_tokens) || 800)));
   if (!Array.isArray(r.messages) || !r.messages.length || r.messages.length > GATEWAY_MAX_MESSAGES) {
@@ -248,7 +263,7 @@ export function validateGatewayRequest(
     r.output_config && typeof r.output_config === "object"
       ? (r.output_config as { effort?: unknown; format?: unknown })
       : null;
-  const effort = oc && EFFORTS.has(String(oc.effort)) ? (oc.effort as "low" | "medium" | "high") : null;
+  const effort = oc && EFFORTS.has(String(oc.effort)) ? (oc.effort as ModelEffort) : null;
   // A format rides through for every purpose: the lead purposes answer as
   // records, and Ask's turn answers in its answer schema (the Line, D3).
   const format = formatOf(oc ? oc.format : undefined);

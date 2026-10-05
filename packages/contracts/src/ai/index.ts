@@ -2,6 +2,7 @@
 export {
   MODELS,
   MODEL_IDS,
+  MODEL_EFFORTS,
   MODEL_PURPOSES,
   MODEL_ROUTES,
   MODEL_PORTS,
@@ -10,8 +11,9 @@ export {
   fallbackModel,
   shadowPortOf,
   isModelId,
+  readsAsModel,
 } from "./models";
-export type { ModelId, ModelPort, ModelPurpose, ModelRoute, ShadowPort } from "./models";
+export type { ModelEffort, ModelId, ModelPort, ModelPurpose, ModelRoute, ShadowPort } from "./models";
 export {
   SYSTEM_ONE_MODEL,
   SYSTEM_ONE_STATE_MAX_CHARS,

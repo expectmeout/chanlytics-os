@@ -88,6 +88,24 @@ test("a connection that never opened is retried; a refused request is rejected a
   assert.ok(!formatRejected({ outcome: "unreachable", status: 529, error: "Overloaded" }));
 });
 
+test("a model the API does not know (a 404: a variable's misspelt name, a retired id) is asked once of the route's fallback, as an answer that never came is, in both forms; unknown on both is the API's refusal", async () => {
+  const named = "claude-some-model-9";
+  const api = scripted(status(404, `model: ${named}`), said("Here."));
+  const r = await askModel(KEY, ask({ purpose: "ask", model: named }), { fetch: api.fetch, ...noWait });
+  assert.deepEqual([r.outcome, r.fellBack, r.asked, r.model], ["ok", true, named, MODEL_ROUTES.ask.model]);
+  assert.deepEqual(
+    api.calls.map((c) => c.model),
+    [named, MODEL_ROUTES.ask.model],
+    "a name that is neither of the route's falls to the route's own model",
+  );
+  const flow = scripted(status(404, `model: ${named}`), streamed("Here."));
+  const s = await streamModel(KEY, ask({ purpose: "ask", model: named }), { fetch: flow.fetch, ...noWait });
+  assert.deepEqual([s.outcome, s.fellBack, s.model], ["ok", true, MODEL_ROUTES.ask.model]);
+  const both = scripted(status(404, "model: not found"));
+  const b = await askModel(KEY, ask({ purpose: "ask", model: named }), { fetch: both.fetch, ...noWait });
+  assert.deepEqual([b.outcome, b.status, both.calls.length], ["rejected", 404, 2]);
+});
+
 test("a purpose with no fallback waits instead (the lead judge), and a named model asks that model first", async () => {
   const api = scripted(status(529, "Overloaded"));
   const r = await askModel(KEY, ask({ purpose: "lead_judge" }), { fetch: api.fetch, ...noWait });

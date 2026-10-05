@@ -26,7 +26,7 @@ import {
   type LeadJudgeAnswer,
   type LeadJudgeClient,
 } from "../packages/channels.js";
-import { judgeShadowSpecs } from "../packages/contracts.js";
+import { judgeShadowSpecs, readsAsModel } from "../packages/contracts.js";
 import { env, httpsOriginOf } from "../env.js";
 import { edgeOrigin } from "../dashboard-origin.js";
 import { callModel } from "../model.js";
@@ -57,7 +57,7 @@ async function leadWebhookToken(runRowId: string): Promise<string> {
 
 /** One constant (PRD decision 3), overridable by the env to another Claude model; anything else is the default. */
 function leadJudgeModel(v: string | undefined = env.LEAD_JUDGE_MODEL): string {
-  return v && /^claude-[a-z0-9.-]+$/.test(v) ? v : LEAD_JUDGE_DEFAULT_MODEL;
+  return readsAsModel(v) ? v : LEAD_JUDGE_DEFAULT_MODEL;
 }
 
 /** The server-side fallback (decision 14): on unless the env says off. */

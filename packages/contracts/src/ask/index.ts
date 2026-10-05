@@ -61,8 +61,8 @@ export {
 export type { AskCitationKind, AskCitation, AskReadSet, AskRowRef } from "./citations";
 export { cacheHitOf } from "./ask-shape";
 export type { AskTurnShape, AskTurnTokens } from "./ask-shape";
-export { askModelProfile, ASK_MODELS, ASK_MODEL_PROFILES, ASK_MODEL } from "./ask-model";
-export type { AskModelId, AskModelProfile } from "./ask-model";
+export { askModelProfile, ASK_EFFORT, ASK_MODEL } from "./ask-model";
+export type { AskModelProfile } from "./ask-model";
 export {
   answerText,
   cardOpenRoute,
