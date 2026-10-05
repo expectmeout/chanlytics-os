@@ -4541,7 +4541,8 @@ async function ingestInboundEmail(db, p) {
     body: p.body,
     channelTs: p.channelTs,
     meta: p.meta,
-    optOut: p.optOut ?? false
+    optOut: p.optOut ?? false,
+    optIn: p.optIn ?? false
   });
   if (!known.data) {
     const { error } = await db.from("contacts").update({ email: p.address }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).is("email", null);

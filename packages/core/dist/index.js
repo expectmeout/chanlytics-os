@@ -8332,6 +8332,7 @@ var EVENT_KINDS2 = [
 var EMAIL_STOP_PATTERN = /^\s*(stop|baja|alto)\s*[.!]?\s*$/i;
 var EMAIL_UNSUBSCRIBE_PATTERN = /^\s*(?:please\s+)?(?:unsubscribe(?:\s+me)?|desuscribir(?:me)?)\s*[.!]?\s*$/i;
 var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
+var CONVERSATION_OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
 var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS2 = [
   "approve",
@@ -15458,9 +15459,7 @@ async function ingestEmail(ports, cmd) {
   if (await ports.erasedBefore(mailbox.tenant_id, address, email.receivedAt ?? at)) return "erased_person";
   const { claim } = email;
   if (claim === "report") return "not_a_conversation";
-  const stops = asksToStop(email);
-  const yes = !stops && saysYesToOffers(email);
-  const optInOffers = yes && email.senderAuthenticated === true;
+  const said = answersOf(email);
   const kept = await ports.record({
     tenantId: mailbox.tenant_id,
     address,
@@ -15468,14 +15467,14 @@ async function ingestEmail(ports, cmd) {
     body: bodyOf(email),
     channelTs: email.receivedAt ?? at,
     meta: metaOf(email),
-    optOut: stops,
-    // One word, one answer: a STOP stops everything and says nothing of offers; an unsubscribe and a yes are about offers.
-    unsubscribe: !stops && asksToUnsubscribe(email),
-    optInOffers,
+    optOut: said.optOut,
+    optIn: said.optIn,
+    unsubscribe: said.unsubscribe,
+    optInOffers: said.optInOffers,
     words: replyTextOf(email.text).slice(0, 80) || null
   });
   if (!kept.is_new && kept.processed) return "already_handled";
-  if (yes && !optInOffers)
+  if (said.unproven)
     emailLog.warn("email_yes_unauthenticated", { tenant_id: mailbox.tenant_id, message_id: kept.message_id });
   const reachOut = await ports.reachOutReply(mailbox.tenant_id, kept.message_id);
   if (reachOut) await ports.readReply(mailbox.tenant_id, kept.message_id);
@@ -15512,6 +15511,19 @@ async function flagForAPerson(ports, email, p) {
     claim
   });
 }
+function answersOf(e) {
+  const optOut = asksToStop(e);
+  const yes = !optOut && saysYesToOffers(e);
+  const start = !optOut && asksToStart(e);
+  const proven = e.senderAuthenticated === true;
+  return {
+    optOut,
+    unsubscribe: !optOut && asksToUnsubscribe(e),
+    optInOffers: yes && proven,
+    optIn: start && proven,
+    unproven: (yes || start) && !proven
+  };
+}
 function asksToStop(e) {
   return EMAIL_STOP_PATTERN.test(replyTextOf(e.text));
 }
@@ -15520,6 +15532,9 @@ function asksToUnsubscribe(e) {
 }
 function saysYesToOffers(e) {
   return e.claim === "person" && MARKETING_OPT_IN_PATTERN.test(replyTextOf(e.text));
+}
+function asksToStart(e) {
+  return e.claim === "person" && CONVERSATION_OPT_IN_PATTERN.test(replyTextOf(e.text));
 }
 function bodyOf(e) {
   return e.text?.slice(0, EMAIL_BODY_MAX) ?? null;

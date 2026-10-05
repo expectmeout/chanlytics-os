@@ -32894,6 +32894,11 @@ interface IngestEmailParams {
     /** The email's own words are STOP: ingest_inbound records the opt-out (consent opted_out, dnc) as it does for a text. */
     optOut?: boolean;
     /**
+     * The email's own words are START, from a sender nothing says is forged: ingest_inbound records the yes as it does for a
+     * text's START, and the yes covers email (note_yes_on_channel).
+     */
+    optIn?: boolean;
+    /**
      * The email's own words are UNSUBSCRIBE: offers by email end through the one door the unsubscribe link writes through
      * (set_email_marketing), and nothing else does (an unsubscribe is not a STOP). Recorded after the ingest, and a write that
      * fails throws: a no is never lost, and the run that resumes writes it again, which changes nothing twice.

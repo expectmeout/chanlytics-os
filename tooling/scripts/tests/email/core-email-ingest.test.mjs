@@ -240,6 +240,40 @@ test("a STOP by email is passed to the ingest as the opt-out, as a text's is: ju
     assert.equal(await optOutOf(text), false, words);
 });
 
+test("a START by email is the way back from a STOP: taken as the yes a text's START is, from a proven sender alone, on the reply's own words", async () => {
+  const optInOf = async (text, over = {}) => {
+    const w = world({ fetch: email({ text, senderAuthenticated: true, ...over }) });
+    await run(w);
+    return w.call("record")[1].optIn;
+  };
+  const history = "On Tue, Sep 16, 2026 at 10:44 AM Best Movers <bestmovers@mail.chanlytics.com> wrote:";
+  for (const [words, text] of [
+    ["START alone", "START"],
+    ["any case, with a full stop", "  Start. "],
+    ["UNSTOP", "unstop"],
+    ["RESUME", "Resume"],
+    ["ALTA, the Spanish word", "alta"],
+    ["above the quoted email", `START\n\n${history}\n> You will not hear from us again.`],
+  ])
+    assert.equal(await optInOf(text), true, words);
+  for (const [words, text] of [
+    ["a sentence", "When do you start?"],
+    ["a quote of an earlier START is not theirs", `Thanks!\n\n${history}\n> START`],
+    ["YES OFFERS is the yes to offers, another answer", "YES OFFERS"],
+    ["STOP", "STOP"],
+    ["no words", ""],
+  ])
+    assert.equal(await optInOf(text), false, words);
+  // A yes widens what may be sent: a From anyone can write does not give it, and neither does a program's mail.
+  assert.equal(
+    await optInOf("START", { senderAuthenticated: false }),
+    false,
+    "an unproven sender's START is not taken",
+  );
+  assert.equal(await optInOf("START", { senderAuthenticated: undefined }), false, "nor one nothing was said about");
+  assert.equal(await optInOf("START", { claim: "auto_reply" }), false, "nor a responder's");
+});
+
 /** What the intake handed the ingest for an email's words: the three answers it may carry, and the words quoted. */
 const saidOf = async (text, over = {}) => {
   const w = world({ fetch: email({ text, ...over }) });

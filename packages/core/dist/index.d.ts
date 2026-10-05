@@ -1154,6 +1154,11 @@ interface EmailIngestPorts {
         meta: Json;
         /** The email's own words are the opt-out (asksToStop): ingest_inbound then records the STOP, as it does for a text. */
         optOut: boolean;
+        /**
+         * The email's own words are START, from a sender the receiving side proved (asksToStart): ingest_inbound records the
+         * yes to hearing from the business again, as it does for a text, and the yes covers email.
+         */
+        optIn: boolean;
         /** The email's own words are UNSUBSCRIBE (asksToUnsubscribe): offers by email end, through the unsubscribe link's door. */
         unsubscribe: boolean;
         /** The email's own words are YES OFFERS, from a sender the receiving side proved (asksForOffers): the yes to offers by email. */
