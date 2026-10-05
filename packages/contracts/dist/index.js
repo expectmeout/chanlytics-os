@@ -7475,6 +7475,143 @@ function formatWaited(ms2) {
   return waitedLabel(ms2);
 }
 
+// src/config/brain.ts
+var BRAIN_INTENTS = [
+  "booking",
+  "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var INTENT_LABELS = {
+  booking: "Booking",
+  pricing: "Pricing question",
+  money: "Money question",
+  hours: "Hours",
+  services: "Services",
+  location: "Location",
+  complaint: "Complaint",
+  smalltalk: "Small talk",
+  other: "Other"
+};
+var BRAIN_LANGUAGES = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS],
+      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
+function brainMetaOf(out, model, stamp) {
+  return {
+    intent: out.intent,
+    confidence: Math.round(out.confidence * 100) / 100,
+    reason: out.reason,
+    facts_used: out.facts_used,
+    language: out.language,
+    model,
+    ...stamp ? { prompt_hash: stamp.promptHash, config_version: stamp.configVersion } : {}
+  };
+}
+function replyWhy(meta) {
+  if (!meta || typeof meta !== "object") return null;
+  const intent = BRAIN_INTENTS.includes(String(meta.intent)) ? meta.intent : null;
+  const conf = typeof meta.confidence === "number" && Number.isFinite(meta.confidence) ? Math.round(Math.min(1, Math.max(0, meta.confidence)) * 100) : null;
+  if (intent === null && conf === null) return null;
+  const facts = Array.isArray(meta.facts_used) ? meta.facts_used.filter((f) => typeof f === "string" && !!f.trim()) : [];
+  const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
+  const source = typeof meta.source === "string" ? meta.source : null;
+  const heldFor2 = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
+  const label = intent ? INTENT_LABELS[intent] : "Reply";
+  return {
+    intent: intent ?? "other",
+    intentLabel: label,
+    confidence: conf,
+    reason,
+    facts,
+    heldFor: heldFor2,
+    summary: conf === null ? label : `${label} \xB7 ${conf}% sure`
+  };
+}
+var CONFIDENCE_STEPS = [0, 0.6, 0.75, 0.9];
+
+// src/conversations/message-author.ts
+var metaOf = (meta, key) => meta !== null && typeof meta === "object" ? meta[key] : void 0;
+var AUTOMATED_SEND_SOURCES = ["broadcast", "reach_out"];
+function isAutomatedSend(meta) {
+  const source = metaOf(meta, "source");
+  return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
+}
+var NOT_A_PERSONS_CLAIMS = ["automated", "auto_reply", "report"];
+function isPersonsWords(meta) {
+  const claim = metaOf(metaOf(meta, "email"), "claim");
+  return !(typeof claim === "string" && NOT_A_PERSONS_CLAIMS.includes(claim));
+}
+function messageVia(m) {
+  if (m.meta?.source !== "broadcast") return null;
+  return m.meta.playbook_name ? { kind: "playbook", name: String(m.meta.playbook_name) } : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") };
+}
+function messageAuthor(m) {
+  if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
+  const via = messageVia(m);
+  if (via) {
+    return via.kind === "playbook" ? (
+      // A playbook named "The month's offer" is not "the The month's offer playbook".
+      { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
+    ) : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
+  }
+  return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
+}
+function lastWordLine(needsHuman, last, author) {
+  if (needsHuman) return "Receptionist paused \u2014 a human has this thread";
+  if (!last) return "No messages yet";
+  if (last.direction === "inbound") return "They wrote last \u2014 no reply yet";
+  if (!author) return "Answered automatically";
+  if (author.kind === "receptionist") return "Answered by the receptionist";
+  if (author.kind === "team") return "Answered by your team";
+  return `Last message: ${author.words}`;
+}
+function messageWhy(m) {
+  return m.sender === "ai" ? replyWhy(m.meta) : null;
+}
+
 // src/conversations/thread-channel.ts
 var AGENTS = {
   whatsapp: { glyph: "W", name: "WhatsApp Receptionist" },
@@ -7489,7 +7626,15 @@ function writtenChannelOf(channel) {
   return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
 }
 var THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
+function lastWroteOn(messages) {
+  const theirs = [...messages].reverse().find(
+    (m) => m.direction === "inbound" && m.sender === "customer" && m.type !== "call_summary" && isPersonsWords(m.meta)
+  );
+  return theirs ? writtenChannelOf(theirs.channel) : null;
+}
 function threadChannelOf(messages) {
+  const wrote = lastWroteOn(messages);
+  if (wrote) return wrote;
   const written = [...messages].reverse().find((m) => m.type !== "call_summary");
   return written ? writtenChannelOf(written.channel) : "phone";
 }
@@ -14788,103 +14933,6 @@ function cannotRows(i) {
   );
 }
 
-// src/config/brain.ts
-var BRAIN_INTENTS = [
-  "booking",
-  "pricing",
-  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
-  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
-  "money",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var INTENT_LABELS = {
-  booking: "Booking",
-  pricing: "Pricing question",
-  money: "Money question",
-  hours: "Hours",
-  services: "Services",
-  location: "Location",
-  complaint: "Complaint",
-  smalltalk: "Small talk",
-  other: "Other"
-};
-var BRAIN_LANGUAGES = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS],
-      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
-function brainMetaOf(out, model, stamp) {
-  return {
-    intent: out.intent,
-    confidence: Math.round(out.confidence * 100) / 100,
-    reason: out.reason,
-    facts_used: out.facts_used,
-    language: out.language,
-    model,
-    ...stamp ? { prompt_hash: stamp.promptHash, config_version: stamp.configVersion } : {}
-  };
-}
-function replyWhy(meta) {
-  if (!meta || typeof meta !== "object") return null;
-  const intent = BRAIN_INTENTS.includes(String(meta.intent)) ? meta.intent : null;
-  const conf = typeof meta.confidence === "number" && Number.isFinite(meta.confidence) ? Math.round(Math.min(1, Math.max(0, meta.confidence)) * 100) : null;
-  if (intent === null && conf === null) return null;
-  const facts = Array.isArray(meta.facts_used) ? meta.facts_used.filter((f) => typeof f === "string" && !!f.trim()) : [];
-  const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
-  const source = typeof meta.source === "string" ? meta.source : null;
-  const heldFor2 = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
-  const label = intent ? INTENT_LABELS[intent] : "Reply";
-  return {
-    intent: intent ?? "other",
-    intentLabel: label,
-    confidence: conf,
-    reason,
-    facts,
-    heldFor: heldFor2,
-    summary: conf === null ? label : `${label} \xB7 ${conf}% sure`
-  };
-}
-var CONFIDENCE_STEPS = [0, 0.6, 0.75, 0.9];
-
 // src/config/brain-schema.ts
 import { z as z9 } from "zod";
 var BrainOutputSchema = z9.object({
@@ -16876,35 +16924,6 @@ function memberMetaOf(meta) {
 }
 function isOptedOut(dto) {
   return isOptedOutContact(dto.contact);
-}
-
-// src/conversations/message-author.ts
-function messageVia(m) {
-  if (m.meta?.source !== "broadcast") return null;
-  return m.meta.playbook_name ? { kind: "playbook", name: String(m.meta.playbook_name) } : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") };
-}
-function messageAuthor(m) {
-  if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
-  const via = messageVia(m);
-  if (via) {
-    return via.kind === "playbook" ? (
-      // A playbook named "The month's offer" is not "the The month's offer playbook".
-      { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
-    ) : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
-  }
-  return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
-}
-function lastWordLine(needsHuman, last, author) {
-  if (needsHuman) return "Receptionist paused \u2014 a human has this thread";
-  if (!last) return "No messages yet";
-  if (last.direction === "inbound") return "They wrote last \u2014 no reply yet";
-  if (!author) return "Answered automatically";
-  if (author.kind === "receptionist") return "Answered by the receptionist";
-  if (author.kind === "team") return "Answered by your team";
-  return `Last message: ${author.words}`;
-}
-function messageWhy(m) {
-  return m.sender === "ai" ? replyWhy(m.meta) : null;
 }
 
 // src/conversations/handled.ts
@@ -34170,6 +34189,7 @@ export {
   invoiceStatusWords,
   isActivityMoney,
   isActivityNoise,
+  isAutomatedSend,
   isBaselinePrompt,
   isCampaignEmail,
   isCarrier,
@@ -34198,6 +34218,7 @@ export {
   isOptedOutContact,
   isOwned,
   isPartnerCode,
+  isPersonsWords,
   isPipelineView,
   isProductFallback,
   isPushKind,
@@ -34241,6 +34262,7 @@ export {
   languageName,
   languageTag,
   languageWords,
+  lastWroteOn,
   leadAllowanceFact,
   leadAnd,
   leadAskedFor,

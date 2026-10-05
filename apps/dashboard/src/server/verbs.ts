@@ -10,6 +10,7 @@ import {
   asTenantId,
   REACH_OUT_REFUSALS,
   REPLY_UNDO_REFUSALS,
+  isPersonsWords,
   writtenChannelOf,
   type DecisionVerb,
   type DecisionSubject,
@@ -165,11 +166,16 @@ async function loadCall(ctx: RouteContext, id: string): Promise<VerbCall> {
 }
 export const callScope = row((ctx, params) => loadCall(ctx, String(params.id ?? "")));
 
+/** How many of a thread's newest messages from the customer the reply's channel is looked for in. */
+const LAST_WROTE_LOOKBACK = 20;
+
 /**
  * The channel a reply goes out on: where the customer last wrote. A
  * conversation is one per person and its messages carry the channel. The reply
  * route sends on it and the assistant's reply card shows its window, so both
- * read it here.
+ * read it here. "Wrote" is contracts lastWroteOn's: their own words, so not a call's note (an inbound row the system
+ * wrote, which read as WhatsApp here) and not an out-of-office or a list's mail from their address (which made email
+ * the place a reply went). The newest few of their messages are read and the first a person wrote is taken.
  */
 export async function replyChannelOf(
   ctx: RouteContext,
@@ -177,15 +183,16 @@ export async function replyChannelOf(
 ): Promise<"whatsapp" | "sms" | "email"> {
   const { data, error } = await ctx.supabase
     .from("messages")
-    .select("channel")
+    .select("channel, meta")
     .eq("conversation_id", conv.id)
     .eq("tenant_id", conv.tenant_id)
     .eq("direction", "inbound")
+    .eq("sender", "customer")
+    .neq("type", "call_summary")
     .order("channel_ts", { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(LAST_WROTE_LOOKBACK);
   if (error) throw new Error(`reading the last inbound: ${error.message}`);
-  return writtenChannelOf(data?.channel);
+  return writtenChannelOf((data ?? []).find((m) => isPersonsWords(m.meta))?.channel);
 }
 
 /**

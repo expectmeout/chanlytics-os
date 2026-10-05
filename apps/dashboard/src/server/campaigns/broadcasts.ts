@@ -3,6 +3,8 @@ import {
   AppError,
   REPLY_WINDOW_MS,
   firstNameOf,
+  isAutomatedSend,
+  isPersonsWords,
   isReplyTo,
   parseParamSpecs,
   personName,
@@ -115,11 +117,15 @@ function countRecipients(
 interface Inbound {
   conversation_id: string;
   created_at: string;
+  /** What the email intake read it as, where it was an email (contracts isPersonsWords). */
+  meta: unknown;
   body?: string | null;
 }
 
 /**
- * What the customers on these threads wrote since `since`, a thread's messages together. The thread ids go two hundred
+ * What the customers on these threads wrote since `since`, a thread's messages together: a person's own words, so not
+ * a call's note (an inbound row the system wrote) and not a program writing from their address (an out-of-office, a
+ * list's mail: contracts isPersonsWords), which made a run "replied to" by people who never answered it. The thread ids go two hundred
  * at a time so the URL stays short, and each chunk's messages a page at a time under the table's key: two hundred
  * threads hold far more than the thousand rows one read answers, and a run's replies counted from the first thousand
  * read short on exactly the runs that were answered most. The words are read only where the detail asks for them (a
@@ -139,15 +145,17 @@ async function inboundOn(
     const inbound = (await readAllRows("inbound messages", (from, to) =>
       ctx.supabase
         .from("messages")
-        .select(withWords ? "conversation_id, created_at, body" : "conversation_id, created_at")
+        .select(withWords ? "conversation_id, created_at, meta, body" : "conversation_id, created_at, meta")
         .eq("tenant_id", tenantId)
         .eq("direction", "inbound")
+        .eq("sender", "customer")
         .in("conversation_id", chunk)
         .gt("created_at", since)
         .order("id")
         .range(from, to),
     )) as unknown as Inbound[];
     for (const m of inbound) {
+      if (!isPersonsWords(m.meta)) continue;
       const had = byThread.get(m.conversation_id);
       if (had) had.push(m);
       else byThread.set(m.conversation_id, [m]);
@@ -201,7 +209,8 @@ function previewLine(body: string | null | undefined): string | null {
 /**
  * Who answered each reply first, and when: the first message out of the thread after the reply that a person could
  * read as an answer -- the receptionist's, or the team's own words. A note is the team talking to itself, and a
- * template is the machine starting something new (a later broadcast, a playbook's run), so neither is an answer.
+ * template is the machine starting something new (a later broadcast, a playbook's run), so neither is an answer. Nor is
+ * a campaign's text or email, which is written as the team's and is nobody's answer (contracts isAutomatedSend).
  */
 async function answeredAfter(
   ctx: RouteContext,
@@ -215,16 +224,17 @@ async function answeredAfter(
   for (let i = 0; i < convIds.length; i += IN_CHUNK) {
     const { data, error } = await ctx.supabase
       .from("messages")
-      .select("conversation_id, created_at, sender, type")
+      .select("conversation_id, created_at, sender, type, meta")
       .eq("tenant_id", tenantId)
       .eq("direction", "outbound")
       .in("conversation_id", convIds.slice(i, i + IN_CHUNK))
       .gt("created_at", since);
     if (error) throw new Error(error.message);
-    for (const m of (data ?? []) as { conversation_id: string; created_at: string; sender: string; type: string }[]) {
+    for (const m of data ?? []) {
       const reply = replied.get(m.conversation_id);
       if (!reply || !(m.created_at > reply)) continue;
       if (m.type !== "text" && m.type !== "media") continue;
+      if (isAutomatedSend(m.meta)) continue;
       const by = m.sender === "ai" ? "receptionist" : m.sender === "human" ? "team" : null;
       if (!by) continue;
       const first = out.get(m.conversation_id);

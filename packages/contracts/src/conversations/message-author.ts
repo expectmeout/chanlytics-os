@@ -1,7 +1,9 @@
 /**
  * Who sent one of our messages: the receptionist, the team, or the broadcast or playbook run that sent it, and
  * a chat row's line saying who had the last word. The Inbox (inbox-thread.ts) and Conversations
- * (conversation-vm.ts) say it in these words.
+ * (conversation-vm.ts) say it in these words. And the two things a row's `sender` does not say: a send written as a
+ * person's that no person made (isAutomatedSend), and a message from a person's address that no person wrote
+ * (isPersonsWords).
  */
 import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import type { MessageDto } from "./thread-dto";
@@ -10,6 +12,43 @@ export interface MessageAuthor {
   kind: "receptionist" | "team" | "broadcast" | "playbook";
   /** How a bubble names them: "the receptionist", "your team", "a broadcast (Spring offer)". */
   words: string;
+}
+
+/** A key of a message's meta, read without trusting its shape (the column is free JSON). */
+const metaOf = (meta: unknown, key: string): unknown =>
+  meta !== null && typeof meta === "object" ? (meta as Record<string, unknown>)[key] : undefined;
+
+/**
+ * The sources of a send written as a person's (`sender: 'human'`) that no person made: a broadcast's or a playbook's
+ * run, and a reach-out's step (`meta.source`, stamped by the run that sent it).
+ */
+const AUTOMATED_SEND_SOURCES: readonly string[] = ["broadcast", "reach_out"];
+
+/**
+ * Whether one of our messages is a campaign's send, whatever its row says wrote the words. THE statement of it in
+ * TypeScript: the send door asks it (core deliver.ts: a campaign's email is no person speaking on the thread), and so
+ * does a run's report (the dashboard's broadcasts reader: a later campaign is not the team's answer to a reply).
+ * public.automated_send (00303) is its twin in SQL, read by first_replies and both reports: the two change together.
+ */
+export function isAutomatedSend(meta: unknown): boolean {
+  const source = metaOf(meta, "source");
+  return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
+}
+
+/** What the email intake read a message as when it is not a person writing (channels email/intake.ts EmailClaim). */
+const NOT_A_PERSONS_CLAIMS: readonly string[] = ["automated", "auto_reply", "report"];
+
+/**
+ * Whether an inbound message's words are a person's own. The intake keeps what an email CLAIMS to be beside it
+ * (`meta.email.claim`), and a message of any other kind has no claim and is somebody's words: an out-of-office, a
+ * list's mail or a form's notification is a program writing from their address, which is not the person answering.
+ * THE statement of it in TypeScript, read where a run counts who replied (the dashboard's broadcasts reader) and where
+ * a reply is addressed (replyChannelOf); public.message_is_a_persons_words (00299) is its twin in SQL, read by
+ * has_relationship and the people list: the two change together.
+ */
+export function isPersonsWords(meta: unknown): boolean {
+  const claim = metaOf(metaOf(meta, "email"), "claim");
+  return !(typeof claim === "string" && NOT_A_PERSONS_CLAIMS.includes(claim));
 }
 
 /**

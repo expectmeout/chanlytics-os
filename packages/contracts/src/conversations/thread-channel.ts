@@ -3,6 +3,7 @@
  * that channel in the words a row shows. The Inbox (inbox-thread.ts) and Conversations (conversation-vm.ts)
  * both read it here.
  */
+import { isPersonsWords } from "./message-author";
 import type { MessageDto } from "./thread-dto";
 
 /**
@@ -32,8 +33,31 @@ export function writtenChannelOf(channel: string | null | undefined): "whatsapp"
 /** A thread's channel in the words under a person's name. */
 export const THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" } as const;
 
+/** A message as the channel rules read it: its kind and wire, and who wrote it where the reader holds that. */
+type ChannelRow = Pick<MessageDto, "type" | "channel"> & Partial<Pick<MessageDto, "direction" | "sender" | "meta">>;
+
 /**
- * The wire a thread's written words LAST travelled; "phone" when it has none.
+ * Where a person last WROTE: the wire of their newest own words, or null when they have written none. Their own words
+ * are a message they sent (not a call's note, which is an inbound row the system wrote) that a person wrote (not an
+ * out-of-office or a list's mail from their address: isPersonsWords). THE one statement of it in TypeScript: a reply
+ * goes out there (the dashboard's replyChannelOf asks the same of the database), and a thread's row names it
+ * (threadChannelOf). Where it was derived from "the newest inbound row" a call's note read as WhatsApp and an
+ * automatic reply made email "where they last wrote"; where it was "the newest message either way" a playbook's email
+ * turned a WhatsApp customer's row into Email.
+ */
+export function lastWroteOn(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "sms" | "email" | null {
+  const theirs = [...messages]
+    .reverse()
+    .find(
+      (m) =>
+        m.direction === "inbound" && m.sender === "customer" && m.type !== "call_summary" && isPersonsWords(m.meta),
+    );
+  return theirs ? writtenChannelOf(theirs.channel) : null;
+}
+
+/**
+ * The wire a thread is on: where the person last wrote (lastWroteOn), and for a thread they have never written on, the
+ * wire our own written words last travelled; "phone" when it has none.
  *
  * One derivation, because three surfaces were each answering it their own way
  * and two of them answered "WhatsApp" whatever the row said. Today hard-coded
@@ -43,16 +67,14 @@ export const THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms:
  * names none: the owner replies in the wrong place, or does not recognise the
  * thread they are being asked about.
  */
-export function threadChannelOf(
-  messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>,
-): "whatsapp" | "sms" | "email" | "phone" {
+export function threadChannelOf(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "sms" | "email" | "phone" {
+  const wrote = lastWroteOn(messages);
+  if (wrote) return wrote;
   const written = [...messages].reverse().find((m) => m.type !== "call_summary");
   return written ? writtenChannelOf(written.channel) : "phone";
 }
 
 /** The same question, in the words a row shows. */
-export function threadChannelWords(
-  messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>,
-): "WhatsApp" | "Text" | "Email" | "Phone" {
+export function threadChannelWords(messages: ReadonlyArray<ChannelRow>): "WhatsApp" | "Text" | "Email" | "Phone" {
   return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
 }

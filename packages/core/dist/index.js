@@ -1686,6 +1686,58 @@ var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
     test: (vm) => listRuleMatches(l.rule, vm)
   };
 });
+var BRAIN_INTENTS = [
+  "booking",
+  "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var BRAIN_LANGUAGES = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS],
+      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
 var MONTH_MS = 30 * DAY_MS;
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS = {
@@ -2584,58 +2636,6 @@ var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
 var TenantConfigWriteSchema = z8.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
-var BRAIN_INTENTS = [
-  "booking",
-  "pricing",
-  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
-  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
-  "money",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var BRAIN_LANGUAGES = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS],
-      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
 var BrainOutputSchema = z9.object({
   reply: z9.string(),
   intent: z9.enum(BRAIN_INTENTS).catch("other"),
@@ -6853,6 +6853,64 @@ var PEOPLE_LISTS2 = BUILTIN_LISTS2.map((l) => {
     test: (vm) => listRuleMatches2(l.rule, vm)
   };
 });
+var BRAIN_INTENTS2 = [
+  "booking",
+  "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var BRAIN_LANGUAGES2 = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA2 = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS2],
+      description: `What the customer is after. money: ${POLICY_COVERS2.money}.`
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES2],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
+var metaOf = (meta, key) => meta !== null && typeof meta === "object" ? meta[key] : void 0;
+var AUTOMATED_SEND_SOURCES = ["broadcast", "reach_out"];
+function isAutomatedSend(meta) {
+  const source = metaOf(meta, "source");
+  return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
+}
 var MONTH_MS2 = 30 * DAY_MS2;
 var CARRIER_CONSENT_SOURCE = "carrier";
 function bearingOf(c) {
@@ -9122,58 +9180,6 @@ function ownWordsOf(brain) {
   const own = brain?.profile?.extra_instructions;
   return own?.trim() ? own : brain?.system_prompt ?? null;
 }
-var BRAIN_INTENTS2 = [
-  "booking",
-  "pricing",
-  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
-  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
-  "money",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var BRAIN_LANGUAGES2 = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA2 = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS2],
-      description: `What the customer is after. money: ${POLICY_COVERS2.money}.`
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES2],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
 var BrainOutputSchema2 = z92.object({
   reply: z92.string(),
   intent: z92.enum(BRAIN_INTENTS2).catch("other"),
@@ -12415,6 +12421,58 @@ var PEOPLE_LISTS3 = BUILTIN_LISTS3.map((l) => {
     test: (vm) => listRuleMatches3(l.rule, vm)
   };
 });
+var BRAIN_INTENTS3 = [
+  "booking",
+  "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var BRAIN_LANGUAGES3 = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA3 = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS3],
+      description: `What the customer is after. money: ${POLICY_COVERS3.money}.`
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES3],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
 var MONTH_MS3 = 30 * DAY_MS3;
 var CARRIER_CONSENT_SOURCE2 = "carrier";
 var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
@@ -13322,58 +13380,6 @@ var WriteRules3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
   (p.closures ?? []).forEach((c, n) => checkClosure3(c, n, ctx));
 });
 var TenantConfigWriteSchema3 = z83.unknown().superRefine((raw, ctx) => refuseUnknownFields3(TenantConfigSchema3, raw, ctx)).pipe(WriteRules3);
-var BRAIN_INTENTS3 = [
-  "booking",
-  "pricing",
-  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
-  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
-  "money",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var BRAIN_LANGUAGES3 = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA3 = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS3],
-      description: `What the customer is after. money: ${POLICY_COVERS3.money}.`
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES3],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
 var BrainOutputSchema3 = z93.object({
   reply: z93.string(),
   intent: z93.enum(BRAIN_INTENTS3).catch("other"),
@@ -14823,10 +14829,7 @@ async function overtakenByHuman(db, d) {
   if (!mine) return null;
   const { data: newer, error } = await db.from("messages").select("id, meta").eq("conversation_id", d.conversationId).eq("tenant_id", d.tenantId).eq("direction", "outbound").eq("sender", "human").gt("created_at", mine.created_at).order("created_at", { ascending: true }).limit(10);
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
-  const spoke = (newer ?? []).find((m) => {
-    const source = m.meta?.source;
-    return source !== "broadcast" && source !== "reach_out";
-  });
+  const spoke = (newer ?? []).find((m) => !isAutomatedSend(m.meta));
   return spoke ? spoke.id : null;
 }
 function event(db, d, kind, messageId, data) {
@@ -15464,7 +15467,7 @@ async function ingestEmail(ports, cmd) {
     receivedId: email.id,
     body: bodyOf(email),
     channelTs: email.receivedAt ?? at,
-    meta: metaOf(email),
+    meta: metaOf2(email),
     optOut: stops,
     // One word, one answer: a STOP stops everything and says nothing of offers; an unsubscribe and a yes are about offers.
     unsubscribe: !stops && asksToUnsubscribe(email),
@@ -15521,7 +15524,7 @@ function saysYesToOffers(e) {
 function bodyOf(e) {
   return e.text?.slice(0, EMAIL_BODY_MAX) ?? null;
 }
-function metaOf(e) {
+function metaOf2(e) {
   return {
     email: {
       subject: e.subject,
@@ -15690,7 +15693,7 @@ function channelOf(r4) {
 function rowFacts(r4) {
   return r4.facts !== null && typeof r4.facts === "object" && !Array.isArray(r4.facts) ? r4.facts : {};
 }
-function metaOf2(b) {
+function metaOf3(b) {
   const label = b.audience?.label;
   return {
     source: "broadcast",
@@ -15755,7 +15758,7 @@ async function emailDelivery(w, i, base) {
       contactId: i.c.id,
       body: said.body,
       request,
-      meta: metaOf2(w.b)
+      meta: metaOf3(w.b)
     }
   };
 }
@@ -15783,7 +15786,7 @@ async function prepare(w, i) {
     // than written as failed: this person waits in the queue, and the run waits with them (00282).
     holdIfNotTaken: true,
     // A run's message names its playbook, so a thread reads "by the Win-back playbook".
-    meta: metaOf2(b)
+    meta: metaOf3(b)
   };
   if (i.channel === "whatsapp") {
     return {

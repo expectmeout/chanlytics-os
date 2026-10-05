@@ -112,6 +112,9 @@ function peopleOf(id, { sent, held = 0, read = 0, replied = 0, wrote = 1 }) {
           tenant_id: TID,
           conversation_id,
           direction: "inbound",
+          // Their own words, as the row holds them: the customer's, with nothing the email intake read into it.
+          sender: "customer",
+          meta: {},
           created_at: at(i * 1000 + 600_000 + w * 1000),
         });
   }
@@ -213,6 +216,8 @@ test("a person on two runs answers each by its own send: the one read is judged 
     tenant_id: TID,
     conversation_id: "cv-pam",
     direction: "inbound",
+    sender: "customer",
+    meta: {},
     created_at: at(ms),
   });
   const world = (writing) => ({
@@ -228,6 +233,68 @@ test("a person on two runs answers each by its own send: the one read is judged 
   assert.deepEqual(await repliedBy([wrote("m1", 5 * day)]), { r1: 0, r2: 1 }, "the 6th is past the first window");
   assert.deepEqual(await repliedBy([wrote("m1", day), wrote("m2", 5 * day)]), { r1: 1, r2: 1 });
   assert.deepEqual(await repliedBy([]), { r1: 0, r2: 0 });
+});
+
+test("a reply is a person's own words, and an answer is the receptionist's or the team's own: a call's note, an out-of-office and a list's mail are no reply, and a later campaign is nobody's answer", async () => {
+  const hour = 3_600_000;
+  const person = (who) => ({
+    tenant_id: TID,
+    broadcast_id: "b1",
+    contact_id: who,
+    state: "sent",
+    reason: null,
+    sent_at: at(0),
+    messages: { conversation_id: `cv-${who}`, status: "delivered", meta: {} },
+  });
+  const row = (id, who, ms, over) => ({
+    id,
+    tenant_id: TID,
+    conversation_id: `cv-${who}`,
+    created_at: at(ms),
+    type: "text",
+    meta: {},
+    ...over,
+  });
+  const theirs = (id, who, ms, over = {}) => row(id, who, ms, { direction: "inbound", sender: "customer", ...over });
+  const ours = (id, who, ms, over = {}) => row(id, who, ms, { direction: "outbound", sender: "human", ...over });
+  const tables = {
+    broadcasts: [broadcast("b1")],
+    broadcast_recipients: ["ana", "bo", "cy", "di", "eli", "flo"].map(person),
+    messages: [
+      // Ana wrote back, and the team answered her.
+      theirs("m1", "ana", hour),
+      ours("m2", "ana", 2 * hour),
+      // Bo phoned: the call's note is an inbound row the system wrote, not Bo's words.
+      theirs("m3", "bo", hour, { sender: "system", type: "call_summary" }),
+      // Cy's mailbox answered for him, and Di's address sent a list's mail: programs, not people.
+      theirs("m4", "cy", hour, { meta: { email: { claim: "auto_reply" } } }),
+      theirs("m5", "di", hour, { meta: { email: { claim: "automated" } } }),
+      // Eli wrote by email himself, and the only thing sent after was the next campaign's text: nobody answered him.
+      theirs("m6", "eli", hour, { meta: { email: { claim: "person" } } }),
+      ours("m7", "eli", 3 * hour, { meta: { source: "broadcast", broadcast_name: "Next offer" } }),
+      // Flo wrote, a reach-out's step went out after, and then the receptionist answered her.
+      theirs("m8", "flo", hour),
+      ours("m9", "flo", 2 * hour, { meta: { source: "reach_out" } }),
+      ours("m10", "flo", 3 * hour, { sender: "ai" }),
+    ],
+  };
+  const d = await getBroadcast({ supabase: capped(tables) }, TID, "b1");
+  const by = Object.fromEntries(d.recipients.map((r) => [r.contact_id, [r.replied, r.answered_by, r.answered_at]]));
+  assert.deepEqual(by, {
+    ana: [true, "team", at(2 * hour)],
+    bo: [false, null, null],
+    cy: [false, null, null],
+    di: [false, null, null],
+    eli: [true, null, null],
+    flo: [true, "receptionist", at(3 * hour)],
+  });
+  assert.equal(d.broadcast.counts.replied, 3, "three people wrote back, not six rows that came in");
+  // The list's count is the detail's: one rule for both.
+  const [listed] = await listRuns(
+    { supabase: capped({ ...tables, broadcasts: [broadcast("b1", { playbook_id: "pb1" })] }) },
+    TID,
+  );
+  assert.equal(listed.counts.replied, 3);
 });
 
 test("REGRESSION: a broadcast's detail lists every person on it -- it stopped at a thousand", async () => {

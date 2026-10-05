@@ -2397,6 +2397,293 @@ var PERSON_CAME_FROM_WORDS = {
   lead: "A lead you found"
 };
 
+// src/config/workspace-config/policy-classes.ts
+var POLICY_CLASSES = [
+  "reply",
+  "booking",
+  "faq",
+  "reengage",
+  "campaign",
+  "reviews",
+  "money",
+  "follow_up",
+  "outreach"
+];
+var POLICY_CLASS_WORDS = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: `the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: `the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS} after they are made unless you stop them \xB7 never sends none`
+  }
+};
+var POLICY_MODES = ["auto", "veto", "ask", "never"];
+var POLICY_MODE_WORDS = {
+  auto: { head: "Sends it", sub: "right away", chip: "sends it", does: "Sends it right away." },
+  veto: {
+    head: "Holds it",
+    sub: "you can stop it",
+    chip: "holds it",
+    does: "Writes it, holds it, and sends it unless you stop it."
+  },
+  ask: {
+    head: "Asks you",
+    sub: "nothing sent",
+    chip: "asks you",
+    does: "Waits for you. Nothing is sent until you say so."
+  },
+  never: { head: "Stays quiet", sub: "nothing happens", chip: "stays quiet", does: "Stays out of it entirely." }
+};
+var POLICY_CLASS_MODES = {
+  reply: ["auto", "veto", "ask", "never"],
+  booking: ["auto", "ask"],
+  faq: ["auto", "ask"],
+  reengage: ["auto", "veto", "ask", "never"],
+  campaign: ["auto", "veto", "ask", "never"],
+  reviews: ["auto", "ask", "never"],
+  money: ["never"],
+  follow_up: ["auto", "ask", "never"],
+  // Cold email never goes the moment a run is made: a chain's first run waits for its owner whatever the mode, and a
+  // later one gives thirty minutes to be stopped (veto), waits too (ask), or does not run (never).
+  outreach: ["veto", "ask", "never"]
+};
+function policyModeOffered(cls, mode) {
+  return POLICY_CLASSES.includes(cls) && POLICY_CLASS_MODES[cls].includes(mode);
+}
+function policyModeRefusal(cls, mode) {
+  if (policyModeOffered(cls, mode)) return null;
+  if (mode === "veto") return `The ${POLICY_CLASS_WORDS[cls].short} row has nothing to hold for review.`;
+  if (mode === "never" && (cls === "booking" || cls === "faq"))
+    return 'Bookings and service questions are answered by the receptionist or by you \u2014 there is no "never".';
+  return `The ${cls} row cannot be set to ${mode}.`;
+}
+function policyClassOfIntent(intent) {
+  if (intent === "booking") return "booking";
+  if (intent === "pricing" || intent === "services") return "faq";
+  if (intent === "money") return "money";
+  return null;
+}
+function policyAskClass(policy, intent) {
+  const cls = policyClassOfIntent(intent);
+  if (!cls) return null;
+  if (cls === "money") return cls;
+  const mode = policy?.[cls]?.mode ?? "auto";
+  return mode === "auto" ? null : cls;
+}
+function bookingHeld(policy) {
+  return policyAskClass(policy, "booking") === "booking";
+}
+var POLICY_COVERS = {
+  booking: "someone wants to book, reschedule or cancel",
+  faq: "Service and pricing questions",
+  money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays"
+};
+var POLICY_CLASS_NONE = "none";
+function policyClassLabel(intent) {
+  return policyClassOfIntent(intent) ?? POLICY_CLASS_NONE;
+}
+function policyClassQuestion() {
+  return {
+    type: "choice",
+    instructions: "Which of these rules does the customer's message fall under?",
+    criteria: {
+      booking: POLICY_COVERS.booking,
+      faq: POLICY_COVERS.faq,
+      money: POLICY_COVERS.money,
+      [POLICY_CLASS_NONE]: "none of the above"
+    }
+  };
+}
+function policyRules(policy, channel) {
+  const out = [];
+  const modeOf = (cls) => policy?.[cls]?.mode ?? "auto";
+  const voice = channel === "voice";
+  if (modeOf("booking") !== "auto") {
+    out.push(
+      voice ? `Booking: when ${POLICY_COVERS.booking}, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name.` : `Booking: when ${POLICY_COVERS.booking}, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.`
+    );
+  }
+  if (modeOf("faq") !== "auto") {
+    out.push(
+      voice ? `${POLICY_COVERS.faq}: do not answer them yourself. Say a member of the team will call them back with the details, and take their name.` : `${POLICY_COVERS.faq}: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.`
+    );
+  }
+  out.push(
+    voice ? `Money: ${POLICY_COVERS.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.` : `Money: ${POLICY_COVERS.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will get back to them about it, set intent to money and escalate to true.`
+  );
+  return out;
+}
+
+// src/config/brain.ts
+var BRAIN_INTENTS = [
+  "booking",
+  "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var INTENT_LABELS = {
+  booking: "Booking",
+  pricing: "Pricing question",
+  money: "Money question",
+  hours: "Hours",
+  services: "Services",
+  location: "Location",
+  complaint: "Complaint",
+  smalltalk: "Small talk",
+  other: "Other"
+};
+var BRAIN_LANGUAGES = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS],
+      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
+function brainMetaOf(out, model, stamp) {
+  return {
+    intent: out.intent,
+    confidence: Math.round(out.confidence * 100) / 100,
+    reason: out.reason,
+    facts_used: out.facts_used,
+    language: out.language,
+    model,
+    ...stamp ? { prompt_hash: stamp.promptHash, config_version: stamp.configVersion } : {}
+  };
+}
+function replyWhy(meta) {
+  if (!meta || typeof meta !== "object") return null;
+  const intent = BRAIN_INTENTS.includes(String(meta.intent)) ? meta.intent : null;
+  const conf = typeof meta.confidence === "number" && Number.isFinite(meta.confidence) ? Math.round(Math.min(1, Math.max(0, meta.confidence)) * 100) : null;
+  if (intent === null && conf === null) return null;
+  const facts = Array.isArray(meta.facts_used) ? meta.facts_used.filter((f) => typeof f === "string" && !!f.trim()) : [];
+  const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
+  const source = typeof meta.source === "string" ? meta.source : null;
+  const heldFor2 = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
+  const label = intent ? INTENT_LABELS[intent] : "Reply";
+  return {
+    intent: intent ?? "other",
+    intentLabel: label,
+    confidence: conf,
+    reason,
+    facts,
+    heldFor: heldFor2,
+    summary: conf === null ? label : `${label} \xB7 ${conf}% sure`
+  };
+}
+var CONFIDENCE_STEPS = [0, 0.6, 0.75, 0.9];
+
+// src/conversations/message-author.ts
+var metaOf = (meta, key) => meta !== null && typeof meta === "object" ? meta[key] : void 0;
+var AUTOMATED_SEND_SOURCES = ["broadcast", "reach_out"];
+function isAutomatedSend(meta) {
+  const source = metaOf(meta, "source");
+  return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
+}
+var NOT_A_PERSONS_CLAIMS = ["automated", "auto_reply", "report"];
+function isPersonsWords(meta) {
+  const claim = metaOf(metaOf(meta, "email"), "claim");
+  return !(typeof claim === "string" && NOT_A_PERSONS_CLAIMS.includes(claim));
+}
+function messageVia(m) {
+  if (m.meta?.source !== "broadcast") return null;
+  return m.meta.playbook_name ? { kind: "playbook", name: String(m.meta.playbook_name) } : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") };
+}
+function messageAuthor(m) {
+  if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
+  const via = messageVia(m);
+  if (via) {
+    return via.kind === "playbook" ? (
+      // A playbook named "The month's offer" is not "the The month's offer playbook".
+      { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
+    ) : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
+  }
+  return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
+}
+function lastWordLine(needsHuman, last, author) {
+  if (needsHuman) return "Receptionist paused \u2014 a human has this thread";
+  if (!last) return "No messages yet";
+  if (last.direction === "inbound") return "They wrote last \u2014 no reply yet";
+  if (!author) return "Answered automatically";
+  if (author.kind === "receptionist") return "Answered by the receptionist";
+  if (author.kind === "team") return "Answered by your team";
+  return `Last message: ${author.words}`;
+}
+function messageWhy(m) {
+  return m.sender === "ai" ? replyWhy(m.meta) : null;
+}
+
 // src/conversations/thread-channel.ts
 var AGENTS = {
   whatsapp: { glyph: "W", name: "WhatsApp Receptionist" },
@@ -2411,7 +2698,15 @@ function writtenChannelOf(channel) {
   return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
 }
 var THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
+function lastWroteOn(messages) {
+  const theirs = [...messages].reverse().find(
+    (m) => m.direction === "inbound" && m.sender === "customer" && m.type !== "call_summary" && isPersonsWords(m.meta)
+  );
+  return theirs ? writtenChannelOf(theirs.channel) : null;
+}
 function threadChannelOf(messages) {
+  const wrote = lastWroteOn(messages);
+  if (wrote) return wrote;
   const written = [...messages].reverse().find((m) => m.type !== "call_summary");
   return written ? writtenChannelOf(written.channel) : "phone";
 }
@@ -11080,253 +11375,6 @@ function previewHorizon(now) {
   return { from: now.getTime() - DAY_MS, to: now.getTime() + 30 * DAY_MS };
 }
 
-// src/config/workspace-config/policy-classes.ts
-var POLICY_CLASSES = [
-  "reply",
-  "booking",
-  "faq",
-  "reengage",
-  "campaign",
-  "reviews",
-  "money",
-  "follow_up",
-  "outreach"
-];
-var POLICY_CLASS_WORDS = {
-  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: {
-    name: "Service & pricing questions",
-    short: "Questions",
-    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
-  },
-  booking: {
-    name: "Book \xB7 reschedule",
-    short: "Bookings",
-    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
-  },
-  reengage: {
-    name: "Re-engage quiet customers",
-    short: "Re-engage",
-    note: `the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
-  },
-  campaign: {
-    name: "Standing offers",
-    short: "Offers",
-    note: `the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
-  },
-  reviews: {
-    name: "Google reviews",
-    short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
-  },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
-  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
-  follow_up: {
-    name: "Proposal follow-ups",
-    short: "Follow-ups",
-    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
-  },
-  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
-  outreach: {
-    name: "Cold email to businesses a search found",
-    short: "Reach-outs",
-    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS} after they are made unless you stop them \xB7 never sends none`
-  }
-};
-var POLICY_MODES = ["auto", "veto", "ask", "never"];
-var POLICY_MODE_WORDS = {
-  auto: { head: "Sends it", sub: "right away", chip: "sends it", does: "Sends it right away." },
-  veto: {
-    head: "Holds it",
-    sub: "you can stop it",
-    chip: "holds it",
-    does: "Writes it, holds it, and sends it unless you stop it."
-  },
-  ask: {
-    head: "Asks you",
-    sub: "nothing sent",
-    chip: "asks you",
-    does: "Waits for you. Nothing is sent until you say so."
-  },
-  never: { head: "Stays quiet", sub: "nothing happens", chip: "stays quiet", does: "Stays out of it entirely." }
-};
-var POLICY_CLASS_MODES = {
-  reply: ["auto", "veto", "ask", "never"],
-  booking: ["auto", "ask"],
-  faq: ["auto", "ask"],
-  reengage: ["auto", "veto", "ask", "never"],
-  campaign: ["auto", "veto", "ask", "never"],
-  reviews: ["auto", "ask", "never"],
-  money: ["never"],
-  follow_up: ["auto", "ask", "never"],
-  // Cold email never goes the moment a run is made: a chain's first run waits for its owner whatever the mode, and a
-  // later one gives thirty minutes to be stopped (veto), waits too (ask), or does not run (never).
-  outreach: ["veto", "ask", "never"]
-};
-function policyModeOffered(cls, mode) {
-  return POLICY_CLASSES.includes(cls) && POLICY_CLASS_MODES[cls].includes(mode);
-}
-function policyModeRefusal(cls, mode) {
-  if (policyModeOffered(cls, mode)) return null;
-  if (mode === "veto") return `The ${POLICY_CLASS_WORDS[cls].short} row has nothing to hold for review.`;
-  if (mode === "never" && (cls === "booking" || cls === "faq"))
-    return 'Bookings and service questions are answered by the receptionist or by you \u2014 there is no "never".';
-  return `The ${cls} row cannot be set to ${mode}.`;
-}
-function policyClassOfIntent(intent) {
-  if (intent === "booking") return "booking";
-  if (intent === "pricing" || intent === "services") return "faq";
-  if (intent === "money") return "money";
-  return null;
-}
-function policyAskClass(policy, intent) {
-  const cls = policyClassOfIntent(intent);
-  if (!cls) return null;
-  if (cls === "money") return cls;
-  const mode = policy?.[cls]?.mode ?? "auto";
-  return mode === "auto" ? null : cls;
-}
-function bookingHeld(policy) {
-  return policyAskClass(policy, "booking") === "booking";
-}
-var POLICY_COVERS = {
-  booking: "someone wants to book, reschedule or cancel",
-  faq: "Service and pricing questions",
-  money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays"
-};
-var POLICY_CLASS_NONE = "none";
-function policyClassLabel(intent) {
-  return policyClassOfIntent(intent) ?? POLICY_CLASS_NONE;
-}
-function policyClassQuestion() {
-  return {
-    type: "choice",
-    instructions: "Which of these rules does the customer's message fall under?",
-    criteria: {
-      booking: POLICY_COVERS.booking,
-      faq: POLICY_COVERS.faq,
-      money: POLICY_COVERS.money,
-      [POLICY_CLASS_NONE]: "none of the above"
-    }
-  };
-}
-function policyRules(policy, channel) {
-  const out = [];
-  const modeOf = (cls) => policy?.[cls]?.mode ?? "auto";
-  const voice = channel === "voice";
-  if (modeOf("booking") !== "auto") {
-    out.push(
-      voice ? `Booking: when ${POLICY_COVERS.booking}, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name.` : `Booking: when ${POLICY_COVERS.booking}, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.`
-    );
-  }
-  if (modeOf("faq") !== "auto") {
-    out.push(
-      voice ? `${POLICY_COVERS.faq}: do not answer them yourself. Say a member of the team will call them back with the details, and take their name.` : `${POLICY_COVERS.faq}: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.`
-    );
-  }
-  out.push(
-    voice ? `Money: ${POLICY_COVERS.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.` : `Money: ${POLICY_COVERS.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will get back to them about it, set intent to money and escalate to true.`
-  );
-  return out;
-}
-
-// src/config/brain.ts
-var BRAIN_INTENTS = [
-  "booking",
-  "pricing",
-  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
-  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
-  "money",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var INTENT_LABELS = {
-  booking: "Booking",
-  pricing: "Pricing question",
-  money: "Money question",
-  hours: "Hours",
-  services: "Services",
-  location: "Location",
-  complaint: "Complaint",
-  smalltalk: "Small talk",
-  other: "Other"
-};
-var BRAIN_LANGUAGES = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS],
-      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
-function brainMetaOf(out, model, stamp) {
-  return {
-    intent: out.intent,
-    confidence: Math.round(out.confidence * 100) / 100,
-    reason: out.reason,
-    facts_used: out.facts_used,
-    language: out.language,
-    model,
-    ...stamp ? { prompt_hash: stamp.promptHash, config_version: stamp.configVersion } : {}
-  };
-}
-function replyWhy(meta) {
-  if (!meta || typeof meta !== "object") return null;
-  const intent = BRAIN_INTENTS.includes(String(meta.intent)) ? meta.intent : null;
-  const conf = typeof meta.confidence === "number" && Number.isFinite(meta.confidence) ? Math.round(Math.min(1, Math.max(0, meta.confidence)) * 100) : null;
-  if (intent === null && conf === null) return null;
-  const facts = Array.isArray(meta.facts_used) ? meta.facts_used.filter((f) => typeof f === "string" && !!f.trim()) : [];
-  const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
-  const source = typeof meta.source === "string" ? meta.source : null;
-  const heldFor2 = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
-  const label = intent ? INTENT_LABELS[intent] : "Reply";
-  return {
-    intent: intent ?? "other",
-    intentLabel: label,
-    confidence: conf,
-    reason,
-    facts,
-    heldFor: heldFor2,
-    summary: conf === null ? label : `${label} \xB7 ${conf}% sure`
-  };
-}
-var CONFIDENCE_STEPS = [0, 0.6, 0.75, 0.9];
-
 // src/config/business-tab/counts.ts
 var count = (n) => n.toLocaleString("en-US");
 var CHIPS_SHOWN = 3;
@@ -14506,35 +14554,6 @@ function clipAtWord(text, max) {
   const cut = t.slice(0, max + 1);
   const space = cut.lastIndexOf(" ");
   return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}\u2026`;
-}
-
-// src/conversations/message-author.ts
-function messageVia(m) {
-  if (m.meta?.source !== "broadcast") return null;
-  return m.meta.playbook_name ? { kind: "playbook", name: String(m.meta.playbook_name) } : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") };
-}
-function messageAuthor(m) {
-  if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
-  const via = messageVia(m);
-  if (via) {
-    return via.kind === "playbook" ? (
-      // A playbook named "The month's offer" is not "the The month's offer playbook".
-      { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
-    ) : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
-  }
-  return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
-}
-function lastWordLine(needsHuman, last, author) {
-  if (needsHuman) return "Receptionist paused \u2014 a human has this thread";
-  if (!last) return "No messages yet";
-  if (last.direction === "inbound") return "They wrote last \u2014 no reply yet";
-  if (!author) return "Answered automatically";
-  if (author.kind === "receptionist") return "Answered by the receptionist";
-  if (author.kind === "team") return "Answered by your team";
-  return `Last message: ${author.words}`;
-}
-function messageWhy(m) {
-  return m.sender === "ai" ? replyWhy(m.meta) : null;
 }
 
 // src/conversations/conversation-vm.ts
@@ -32693,6 +32712,7 @@ export {
   invoiceStatusWords,
   isActivityMoney,
   isActivityNoise,
+  isAutomatedSend,
   isBaselinePrompt,
   isCampaignEmail,
   isCarrier,
@@ -32721,6 +32741,7 @@ export {
   isOptedOutContact,
   isOwned,
   isPartnerCode,
+  isPersonsWords,
   isPipelineView,
   isProductFallback,
   isPushKind,
@@ -32757,6 +32778,7 @@ export {
   languageName,
   languageTag,
   languageWords,
+  lastWroteOn,
   leadAllowanceFact,
   leadAnd,
   leadAskedFor,
