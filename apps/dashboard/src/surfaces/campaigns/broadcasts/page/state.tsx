@@ -4,14 +4,14 @@
  * BroadcastsReal calls them in the order it always has.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { HOUR_MS } from "@chanlytics/contracts";
+import { HOUR_MS, UNKNOWN_AUDIENCE_WORDS, doorNamesNoAudience } from "@chanlytics/contracts";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { navigate } from "../../../legacy-verbs";
 import { tabDraft } from "../../../kit/record/work";
 import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "../surface";
 import { starters } from "../../templates/verbs";
 import { BC_NONE } from "../run";
-import type { BcKept, Params, Setter, Sources } from "./types";
+import type { BcKept, Flash, Params, Setter, Sources } from "./types";
 import { bcKey, bcOrder, bcSlots } from "./words";
 
 /** A row as `sendable` reads it: with the components Meta holds, which `TemplateDto` does not name. */
@@ -64,6 +64,23 @@ export function useBcList(initialSegment: string | null, audiences: AudienceOpti
     if (initialSegment) setWriting(true);
   }, [initialSegment, audiences]);
   return { kept, aud, setAud, writing, setWriting };
+}
+
+/**
+ * A door that names a list the composer does not offer opens on Everyone (useBcList): said once for each such door,
+ * when the audiences are read, so a message meant for a few is not one press from everybody without a word.
+ */
+export function useUnknownAudienceNotice(
+  initialSegment: string | null,
+  audiences: AudienceOption[] | null | undefined,
+  flash: Flash,
+) {
+  const told = useRef<string | null>(null);
+  useEffect(() => {
+    if (told.current === initialSegment || !doorNamesNoAudience(initialSegment, audiences ?? null)) return;
+    told.current = initialSegment;
+    flash({ tone: "warn", msg: UNKNOWN_AUDIENCE_WORDS });
+  }, [initialSegment, audiences, flash]);
 }
 
 // The words of the send, kept or fresh: the values typed into its slots and what fills each, the template it writes

@@ -63,6 +63,29 @@ export const EVERYONE_HINT =
   "Everyone we can reach whose yes covers the message you pick, and by email whoever has dealt with you";
 
 /**
+ * The People lists that are no audience of their own because they are the consent filter itself: a door that names one
+ * ("message these people" on the Can receive offers list) means Everyone, and says nothing more.
+ */
+const LISTS_THAT_MEAN_EVERYONE: readonly string[] = ["opted_in", "offers_ok"];
+
+/**
+ * Whether a door to the composer (`campaigns/new:to:<list>`) names a list the composer does not offer: one archived or
+ * deleted since the link was made, one whose data the workspace has not switched on, or a word that was never a list.
+ * The composer then opens on Everyone, and must say so (UNKNOWN_AUDIENCE_WORDS): it opened there in silence, and a
+ * message meant for a few was one press from everybody. False while the audiences are not read yet (null).
+ */
+export function doorNamesNoAudience(
+  to: string | null,
+  audiences: ReadonlyArray<{ kind: string; id?: string | null }> | null,
+): boolean {
+  if (!to || !audiences || LISTS_THAT_MEAN_EVERYONE.includes(to)) return false;
+  return !audiences.some((a) => (a.kind === "saved" || a.kind === "list") && a.id === to);
+}
+
+/** What the composer says when the door it was opened by names no list it offers (doorNamesNoAudience). */
+export const UNKNOWN_AUDIENCE_WORDS = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL}. Choose who it goes to before you send.`;
+
+/**
  * The people a broadcast may reach: the audience crossed with mayReceive.
  * The route enrols exactly these; the page shows exactly these counts.
  *

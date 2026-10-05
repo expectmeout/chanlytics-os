@@ -2038,6 +2038,8 @@ var READY_WHATSAPP_ALONE = {
   sms: { ready: false, why: CHANNEL_WORDS.unchecked },
   email: { ready: false, why: CHANNEL_WORDS.unchecked }
 };
+var EVERYONE_LABEL = "Everyone";
+var UNKNOWN_AUDIENCE_WORDS = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL}. Choose who it goes to before you send.`;
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -7853,7 +7855,8 @@ function audienceTrigger(audience) {
   const t = audience && typeof audience === "object" ? audience.trigger : null;
   return typeof t === "string" ? t : null;
 }
-var EVERYONE_LABEL = "Everyone";
+var EVERYONE_LABEL2 = "Everyone";
+var UNKNOWN_AUDIENCE_WORDS2 = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL2}. Choose who it goes to before you send.`;
 function enrolFor(rows, kind, id, savedIds, purpose, how) {
   const out = [];
   for (const row2 of audienceMembers(rows, kind, id, savedIds)) {
@@ -12783,6 +12786,8 @@ var READY_WHATSAPP_ALONE3 = {
   sms: { ready: false, why: CHANNEL_WORDS3.unchecked },
   email: { ready: false, why: CHANNEL_WORDS3.unchecked }
 };
+var EVERYONE_LABEL3 = "Everyone";
+var UNKNOWN_AUDIENCE_WORDS3 = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL3}. Choose who it goes to before you send.`;
 var LIMIT_TIERS3 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -16741,7 +16746,7 @@ async function campaignHowOf(ports, tpl, channels, purpose) {
 }
 async function audienceOf(ports, ref, now) {
   const rows = await ports.people(now);
-  if (!ref) return { pool: rows, label: EVERYONE_LABEL, kept: void 0 };
+  if (!ref) return { pool: rows, label: EVERYONE_LABEL2, kept: void 0 };
   const found = await ports.list(ref, now);
   if (!found) throw new AppError("not_found", "List not found.", 404);
   if ("unknown" in found) throw new AppError("conflict", `${found.label} can't be counted here. ${found.unknown}`, 409);

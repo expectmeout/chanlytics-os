@@ -17,6 +17,8 @@ import {
   DECISION_SUBJECTS,
   DECISION_VERBS,
   EVERYONE_LABEL,
+  UNKNOWN_AUDIENCE_WORDS,
+  doorNamesNoAudience,
   PEOPLE_LISTS,
   broadcastName,
   channelsReady,
@@ -1073,4 +1075,27 @@ test("the page says once why a customer who only ever texted is not in an offer'
   assert.match(alone, /registered with the carriers for replies and appointment messages/);
   assert.match(alone, /nothing promotional is sent by text/);
   assert.match(alone, /once they say yes on WhatsApp/);
+});
+
+test("a door to the composer that names a list it does not offer says so: it opened on Everyone in silence", () => {
+  const audiences = [
+    { kind: "everyone", id: null },
+    { kind: "list", id: "lapsed" },
+    { kind: "saved", id: "s-vip" },
+  ];
+  assert.equal(doorNamesNoAudience("lapsed", audiences), false, "a People list the composer offers");
+  assert.equal(doorNamesNoAudience("s-vip", audiences), false, "a list kept by hand");
+  assert.equal(doorNamesNoAudience(null, audiences), false, "New message with no list named");
+  // The consent lists are the filter itself, so a door from one means Everyone and needs no word.
+  for (const to of ["opted_in", "offers_ok"]) assert.equal(doorNamesNoAudience(to, audiences), false, to);
+  // A list archived since the link was made, one this workspace has not the data for, a word that was never a list,
+  // and the people who asked to stop, who are nobody's audience.
+  for (const to of ["s-archived", "booked_week", "nonsense", "opted_out"])
+    assert.equal(doorNamesNoAudience(to, audiences), true, to);
+  // Before the audiences are read nothing is known, so nothing is said.
+  assert.equal(doorNamesNoAudience("s-archived", null), false);
+  assert.equal(
+    UNKNOWN_AUDIENCE_WORDS,
+    "That list isn't one a message can go to, so this is addressed to Everyone. Choose who it goes to before you send.",
+  );
 });

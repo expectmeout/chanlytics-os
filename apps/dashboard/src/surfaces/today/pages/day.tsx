@@ -18,14 +18,7 @@
  * ReferenceError where it drew one, which `present` says again.
  */
 import type { ComponentType, ReactNode } from "react";
-import type {
-  CalendarLike,
-  PlaybookCardLike,
-  TodayDayFrameVM,
-  TodayDayItemVM,
-  TodayDayVM,
-  TodayStepsVM,
-} from "@chanlytics/contracts";
+import type { CalendarLike, TodayDayFrameVM, TodayDayItemVM, TodayDayVM, TodayStepsVM } from "@chanlytics/contracts";
 import type { CalendarSurface } from "@/surfaces/calendar/surface";
 import type { PeopleSurface } from "@/surfaces/people/surface";
 import type { PlaybooksSurface } from "@/surfaces/campaigns/playbooks/surface";
@@ -118,10 +111,10 @@ type Open = (b: TodayDayItemVM) => void;
 
 /**
  * The day the calendar says, or null: no feed, one that could not be read, or nothing in its span. The card and the
- * strip (strip.tsx, Glass) read this one derivation. The calendar's `now` is null when today is not in its span, and a
- * playbook's `candidates` when the server could not count it; todayDay reads the first only on today's frame, where it
- * is a number, and its own types (CalendarLike, PlaybookCardLike) say neither null: what the surfaces published is
- * handed over as the JSX handed it.
+ * strip (strip.tsx, Glass) read this one derivation. The calendar's `now` is null when today is not in its span;
+ * todayDay reads it only on today's frame, where it is a number, and its own type (CalendarLike) does not say null:
+ * what the surface published is handed over as the JSX handed it. A playbook's `candidates` is null when the server
+ * could not count it, and PlaybookCardLike says so: the card leaves the count out.
  */
 function dayVmOf(
   C: CalendarSurface | undefined,
@@ -129,7 +122,7 @@ function dayVmOf(
   people: PeopleSurface | undefined,
 ): TodayDayVM | null {
   if (!C || !C.vm || C.vm.feed.state !== "ok") return null;
-  const vm = TODAY_HELPERS.day(C.vm as CalendarLike, (P ? P.rows : null) as PlaybookCardLike[] | null, people || null);
+  const vm = TODAY_HELPERS.day(C.vm as CalendarLike, P ? P.rows : null, people || null);
   return vm.frames.length ? vm : null;
 }
 

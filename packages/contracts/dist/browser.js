@@ -7899,6 +7899,12 @@ function audienceTrigger(audience) {
 }
 var EVERYONE_LABEL = "Everyone";
 var EVERYONE_HINT = "Everyone we can reach whose yes covers the message you pick, and by email whoever has dealt with you";
+var LISTS_THAT_MEAN_EVERYONE = ["opted_in", "offers_ok"];
+function doorNamesNoAudience(to, audiences) {
+  if (!to || !audiences || LISTS_THAT_MEAN_EVERYONE.includes(to)) return false;
+  return !audiences.some((a) => (a.kind === "saved" || a.kind === "list") && a.id === to);
+}
+var UNKNOWN_AUDIENCE_WORDS = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL}. Choose who it goes to before you send.`;
 function eligibleFor(rows, kind, id, savedIds, purpose, how) {
   return enrolFor(rows, kind, id, savedIds, purpose, how).map((e) => e.row);
 }
@@ -32312,6 +32318,7 @@ export {
   TRIAL_COVERS,
   TRY_QUIET_AFTER_MS,
   TRY_SKIPPED,
+  UNKNOWN_AUDIENCE_WORDS,
   UNREAD_READING,
   UNSUBSCRIBE_PAGE_HEADER,
   US_STATE_ZONES,
@@ -32570,6 +32577,7 @@ export {
   domainRecordsIntro,
   domainRegistrarHint,
   domainStatsWords,
+  doorNamesNoAudience,
   doorOf,
   draftExcerpt,
   draftListRule,

@@ -1991,6 +1991,8 @@ function parseParamSpec(raw) {
 function parseParamSpecs(raw) {
   return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
 }
+var EVERYONE_LABEL = "Everyone";
+var UNKNOWN_AUDIENCE_WORDS = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL}. Choose who it goes to before you send.`;
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
