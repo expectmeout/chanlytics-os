@@ -93,6 +93,11 @@ test("totals, shares of sent, and deltas over the prior period", () => {
     "a share moves in points, never a percentage of a percentage",
   );
   assert.equal(by.replied.value, "20%");
+  assert.deepEqual(
+    vm.tiles.map((t) => t.metric),
+    ["messages_sent", "delivered_share", "replied_share", "said_yes", "asked_to_stop"],
+    "each names its figure where it is built",
+  );
   assert.equal(by.optins.value, "3");
   assert.equal(by.optins.delta.text, "+200% vs prior 7 days");
   assert.equal(by.optouts.value, "2");

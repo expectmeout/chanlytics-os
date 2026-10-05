@@ -8,7 +8,16 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toReportVM, deltaOf, quantile, fmtSeconds, fmtDay, REPORT_RANGES } from "@chanlytics/contracts";
+import {
+  toReportVM,
+  deltaOf,
+  quantile,
+  fmtSeconds,
+  fmtDay,
+  REPORT_RANGES,
+  bookedTileOf,
+  toBookingReportVM,
+} from "@chanlytics/contracts";
 
 function day(d, over = {}) {
   return {
@@ -170,4 +179,42 @@ test("every chart has a table twin with the same numbers", () => {
     REPORT_RANGES.map((r) => r.days),
     [7, 30, 90],
   );
+});
+
+test("each tile names the figure it says where it is built, once: the report's six, in the order the view model lists them", () => {
+  assert.deepEqual(
+    toReportVM(dto(), { profile: null }).tiles.map((t) => [t.id, t.metric]),
+    [
+      ["messages", "customer_messages"],
+      ["answered", "answered_share"],
+      ["reply", "reply_median"],
+      ["needed", "handovers"],
+      ["calls", "calls"],
+      ["people", "new_people"],
+    ],
+  );
+});
+
+test("Booked is a tile of contracts', with its figure: a count where the calendar was read, and why there is none where not", () => {
+  assert.deepEqual(bookedTileOf(toBookingReportVM({ calendar: "ok", days: 7, asked: 8, booked: 3 })), {
+    id: "booked",
+    metric: "booked",
+    label: "Booked",
+    value: "3",
+    meta: "of 8 who asked",
+    compare: null,
+  });
+  const why = (b) => {
+    const t = bookedTileOf(b);
+    return [t.value, t.meta];
+  };
+  assert.deepEqual(why(toBookingReportVM({ calendar: "unavailable", days: 7, asked: 4, booked: 0 })), [
+    "—",
+    "the calendar could not be read",
+  ]);
+  assert.deepEqual(why(toBookingReportVM({ calendar: "none", days: 7, asked: 0, booked: 0 })), [
+    "—",
+    "no calendar to read",
+  ]);
+  assert.deepEqual(why(null), ["—", "no calendar to read"]);
 });

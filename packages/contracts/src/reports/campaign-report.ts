@@ -9,7 +9,8 @@
  * the page's.
  */
 import { DELIVERY_RECEIPTS_WORDS, REPLY_WINDOW_WORDS } from "../broadcasts/broadcasts";
-import { dayDate, deltaOf, fmtDay, pointsDelta, priorOf, type ReportTileVM } from "./reports";
+import { dayDate, fmtDay, priorOf } from "./reports";
+import { deltaOf, pointsDelta, type ReportTileVM } from "./report-tiles";
 import { templateTitle } from "../templates/template-titles";
 import { sumOf } from "../shared/numbers";
 import { formatterOnUse } from "../shared/time";
@@ -166,6 +167,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
   const tiles: ReportTileVM[] = [
     {
       id: "sent",
+      metric: "messages_sent",
       label: "Messages sent",
       value: String(tot.sent),
       meta: tot.sent ? `over ${sends} ${sends === 1 ? "send" : "sends"}` : "none in this period",
@@ -175,6 +177,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     },
     {
       id: "delivered",
+      metric: "delivered_share",
       label: "Delivered",
       value: pct(tot.delivered, tot.sent) === null ? "—" : `${pct(tot.delivered, tot.sent)}%`,
       meta: tot.sent ? `${tot.delivered} of ${tot.sent} · ${DELIVERY_RECEIPTS_WORDS}` : "nothing sent",
@@ -184,6 +187,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     },
     {
       id: "replied",
+      metric: "replied_share",
       label: "Replied",
       value: pct(tot.replied, tot.sent) === null ? "—" : `${pct(tot.replied, tot.sent)}%`,
       meta: tot.sent ? `${tot.replied} wrote back ${REPLY_WINDOW_WORDS}` : "nothing sent",
@@ -193,6 +197,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     },
     {
       id: "optins",
+      metric: "said_yes",
       label: "Said yes",
       value: String(tot.optIns),
       meta: tot.optIns ? "at the desk, or in their own words" : "nobody in this period",
@@ -202,6 +207,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     },
     {
       id: "optouts",
+      metric: "asked_to_stop",
       label: "Asked to stop",
       value: String(tot.optOuts),
       meta: tot.optOuts ? "STOP, or recorded at the desk" : "nobody in this period",

@@ -15578,6 +15578,116 @@ function hoursUnsetOf(arrivals, profile) {
   return arrivals !== void 0 && profile != null && !hasHours(profile.hours);
 }
 
+// src/reports/report-tiles.ts
+function fmtSeconds(s) {
+  if (s == null || !Number.isFinite(s)) return "\u2014";
+  return durationWords(s);
+}
+function deltaOf(current, previous, upIsGood, noun) {
+  if (!previous) return null;
+  const pct3 = Math.round((current - previous) / previous * 100);
+  if (pct3 === 0) return { text: `same as the prior ${noun}`, tone: "" };
+  const up = pct3 > 0;
+  return { text: `${up ? "+" : ""}${pct3}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
+}
+function pointsDelta(current, previous, noun) {
+  if (current === null || previous === null) return null;
+  const pts = current - previous;
+  if (pts === 0) return { text: `same share as the prior ${noun}`, tone: "" };
+  return { text: `${pts > 0 ? "+" : ""}${pts} pts vs prior ${noun}`, tone: pts > 0 ? "pos" : "neg" };
+}
+function compareWords(current, previous, rangeLabel, priorHadAny) {
+  if (!priorHadAny || current === 0 && previous === 0) return null;
+  if (previous === 0) return `none the ${rangeLabel} before`;
+  if (current === previous) return `same as the ${rangeLabel} before`;
+  return `${current > previous ? "up" : "down"} from ${previous}`;
+}
+var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "messages",
+  metric: "customer_messages",
+  label: "Customer messages",
+  value: String(tot.in),
+  meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
+  delta: deltaOf(tot.in, prev.in, true, noun),
+  spark: points.map((p) => p.in),
+  compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny)
+});
+var answeredTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) => ({
+  id: "answered",
+  metric: "answered_share",
+  label: "Receptionist answered",
+  value: aiShare === null ? "\u2014" : `${aiShare}%`,
+  meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
+  // A share compares in POINTS. Against counts, the share could fall from
+  // 100% to 60% while the delta read +20% in green.
+  delta: pointsDelta(aiShare, prevShare, noun),
+  spark: points.map((p) => p.ai),
+  compare: null
+});
+var replyTile = ({ sortedReply, median, p90, hold }) => ({
+  id: "reply",
+  metric: "reply_median",
+  label: "Median reply time",
+  value: fmtSeconds(median),
+  // The reply time includes the hold the owner set, and says so where replies waited one (spec D14).
+  meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies${holdNote(hold)}` : "no receptionist replies yet",
+  delta: null,
+  spark: [],
+  compare: null
+});
+var neededTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "needed",
+  metric: "handovers",
+  label: "Needed you",
+  value: String(tot.escalations),
+  meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
+  delta: deltaOf(tot.escalations, prev.escalations, false, noun),
+  spark: points.map((p) => p.escalations),
+  compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny)
+});
+var callsTile = ({ dto, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "calls",
+  metric: "calls",
+  label: "Calls",
+  value: String(tot.calls),
+  meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone \xB7 ${dto.voicemail ?? 0} to voicemail` : "no calls",
+  delta: deltaOf(tot.calls, prev.calls, true, noun),
+  spark: points.map((p) => p.calls),
+  compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny)
+});
+var peopleTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "people",
+  metric: "new_people",
+  label: "New people",
+  value: String(tot.newPeople),
+  meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
+  delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
+  spark: points.map((p) => p.newPeople),
+  compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny)
+});
+var REPORT_TILES = [
+  messagesTile,
+  answeredTile,
+  replyTile,
+  neededTile,
+  callsTile,
+  peopleTile
+];
+function bookedTileOf(booking) {
+  const tile = { id: "booked", metric: "booked", label: "Booked", compare: null };
+  if (booking && booking.present)
+    return {
+      ...tile,
+      value: String(booking.booked),
+      meta: booking.asked ? `of ${booking.asked} who asked` : "nobody asked"
+    };
+  return {
+    ...tile,
+    value: "\u2014",
+    meta: booking && booking.calendar === "unavailable" ? "the calendar could not be read" : "no calendar to read"
+  };
+}
+
 // src/shared/numbers.ts
 var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
 
@@ -15600,35 +15710,12 @@ function dayDate(day) {
 function fmtDay(day) {
   return DATE_FMT.format(dayDate(day));
 }
-function fmtSeconds(s) {
-  if (s == null || !Number.isFinite(s)) return "\u2014";
-  return durationWords(s);
-}
 function quantile(sorted, q) {
   if (!sorted.length) return null;
   const pos = (sorted.length - 1) * q;
   const lo = Math.floor(pos);
   const hi = Math.ceil(pos);
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
-}
-function deltaOf(current, previous, upIsGood, noun) {
-  if (!previous) return null;
-  const pct3 = Math.round((current - previous) / previous * 100);
-  if (pct3 === 0) return { text: `same as the prior ${noun}`, tone: "" };
-  const up = pct3 > 0;
-  return { text: `${up ? "+" : ""}${pct3}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
-}
-function pointsDelta(current, previous, noun) {
-  if (current === null || previous === null) return null;
-  const pts = current - previous;
-  if (pts === 0) return { text: `same share as the prior ${noun}`, tone: "" };
-  return { text: `${pts > 0 ? "+" : ""}${pts} pts vs prior ${noun}`, tone: pts > 0 ? "pos" : "neg" };
-}
-function compareWords(current, previous, rangeLabel, priorHadAny) {
-  if (!priorHadAny || current === 0 && previous === 0) return null;
-  if (previous === 0) return `none the ${rangeLabel} before`;
-  if (current === previous) return `same as the ${rangeLabel} before`;
-  return `${current > previous ? "up" : "down"} from ${previous}`;
 }
 function bars(entries) {
   const max = Math.max(1, ...entries.map((e) => e[2]));
@@ -15813,64 +15900,6 @@ function periodFactsOf(dto) {
     hold: holdOf(dto.replies)
   };
 }
-var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "messages",
-  label: "Customer messages",
-  value: String(tot.in),
-  meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
-  delta: deltaOf(tot.in, prev.in, true, noun),
-  spark: points.map((p) => p.in),
-  compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny)
-});
-var answeredTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) => ({
-  id: "answered",
-  label: "Receptionist answered",
-  value: aiShare === null ? "\u2014" : `${aiShare}%`,
-  meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
-  // A share compares in POINTS. Against counts, the share could fall from
-  // 100% to 60% while the delta read +20% in green.
-  delta: pointsDelta(aiShare, prevShare, noun),
-  spark: points.map((p) => p.ai),
-  compare: null
-});
-var replyTile = ({ sortedReply, median, p90, hold }) => ({
-  id: "reply",
-  label: "Median reply time",
-  value: fmtSeconds(median),
-  // The reply time includes the hold the owner set, and says so where replies waited one (spec D14).
-  meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies${holdNote(hold)}` : "no receptionist replies yet",
-  delta: null,
-  spark: [],
-  compare: null
-});
-var neededTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "needed",
-  label: "Needed you",
-  value: String(tot.escalations),
-  meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
-  delta: deltaOf(tot.escalations, prev.escalations, false, noun),
-  spark: points.map((p) => p.escalations),
-  compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny)
-});
-var callsTile = ({ dto, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "calls",
-  label: "Calls",
-  value: String(tot.calls),
-  meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone \xB7 ${dto.voicemail ?? 0} to voicemail` : "no calls",
-  delta: deltaOf(tot.calls, prev.calls, true, noun),
-  spark: points.map((p) => p.calls),
-  compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny)
-});
-var peopleTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "people",
-  label: "New people",
-  value: String(tot.newPeople),
-  meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
-  delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
-  spark: points.map((p) => p.newPeople),
-  compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny)
-});
-var REPORT_TILES = [messagesTile, answeredTile, replyTile, neededTile, callsTile, peopleTile];
 var reasonBarsOf = (reasons) => bars(
   Object.entries(reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r2, n]) => [r2, capitalize(reasonShort(r2)) || r2, n])
 );
@@ -16221,6 +16250,7 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
   const tiles = [
     {
       id: "rating",
+      metric: "rating",
       label: "Rating on Google",
       value: typeof l.rating === "number" ? l.rating.toFixed(1) : "\u2014",
       meta: `${reviewsWords(l.review_count)} \xB7 ${checked.toLowerCase()}`,
@@ -16230,6 +16260,7 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
     },
     {
       id: "reviews",
+      metric: "reviews",
       label: "Reviews on Google",
       value: typeof l.review_count === "number" ? String(l.review_count) : "\u2014",
       meta: "as Google counts them, with or without words",
@@ -16239,6 +16270,7 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
     },
     {
       id: "gained",
+      metric: "ratings_gained",
       label: `Gained in ${noun}`,
       value: gained.total === null ? "\u2014" : String(gained.total),
       meta: gained.total === null ? "needs a second day of reading" : gained.sinceLabel ? `since ${gained.sinceLabel}, the first day on record` : `new ratings, words or not`,
@@ -16248,6 +16280,7 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
     },
     {
       id: "newest",
+      metric: "newest_review",
       label: "Newest review",
       value: newest?.when || "\u2014",
       meta: newest ? `${newest.stars} \xB7 ${newest.author}` : canReply ? "no review yet" : "none of the five Google shows has a date",
@@ -26740,6 +26773,7 @@ function toCampaignReportVM(dto) {
   const tiles = [
     {
       id: "sent",
+      metric: "messages_sent",
       label: "Messages sent",
       value: String(tot.sent),
       meta: tot.sent ? `over ${sends2} ${sends2 === 1 ? "send" : "sends"}` : "none in this period",
@@ -26749,6 +26783,7 @@ function toCampaignReportVM(dto) {
     },
     {
       id: "delivered",
+      metric: "delivered_share",
       label: "Delivered",
       value: pct2(tot.delivered, tot.sent) === null ? "\u2014" : `${pct2(tot.delivered, tot.sent)}%`,
       meta: tot.sent ? `${tot.delivered} of ${tot.sent} \xB7 ${DELIVERY_RECEIPTS_WORDS}` : "nothing sent",
@@ -26758,6 +26793,7 @@ function toCampaignReportVM(dto) {
     },
     {
       id: "replied",
+      metric: "replied_share",
       label: "Replied",
       value: pct2(tot.replied, tot.sent) === null ? "\u2014" : `${pct2(tot.replied, tot.sent)}%`,
       meta: tot.sent ? `${tot.replied} wrote back ${REPLY_WINDOW_WORDS}` : "nothing sent",
@@ -26767,6 +26803,7 @@ function toCampaignReportVM(dto) {
     },
     {
       id: "optins",
+      metric: "said_yes",
       label: "Said yes",
       value: String(tot.optIns),
       meta: tot.optIns ? "at the desk, or in their own words" : "nobody in this period",
@@ -26776,6 +26813,7 @@ function toCampaignReportVM(dto) {
     },
     {
       id: "optouts",
+      metric: "asked_to_stop",
       label: "Asked to stop",
       value: String(tot.optOuts),
       meta: tot.optOuts ? "STOP, or recorded at the desk" : "nobody in this period",
@@ -34380,6 +34418,7 @@ export {
   blockShareWords,
   bookedAfterAsk,
   bookedSeenOf,
+  bookedTileOf,
   bookingHeld,
   bookingLinkAction,
   bookingLinkOptional,

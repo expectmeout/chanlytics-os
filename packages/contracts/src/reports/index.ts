@@ -12,11 +12,7 @@ export type {
 export {
   dayDate,
   fmtDay,
-  fmtSeconds,
   quantile,
-  deltaOf,
-  pointsDelta,
-  compareWords,
   priorOf,
   weekOf,
   reportHourWords,
@@ -36,7 +32,6 @@ export type {
   ReportChannelKey,
   ReportChannelCounts,
   ReportDto,
-  ReportTileVM,
   ReportPointVM,
   ReportBarVM,
   ReportSpeedPointVM,
@@ -46,6 +41,8 @@ export type {
   ReportLinesVM,
   ReportVM,
 } from "./reports";
+export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./report-tiles";
+export type { ReportTileVM, ReportStripTile } from "./report-tiles";
 export { holdOf } from "./report-speed";
 export type { ReportHoldVM } from "./report-speed";
 export { closedOf } from "./report-closed";

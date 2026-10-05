@@ -209,7 +209,8 @@ export { toReachOutReportVM, reachOutDayWords } from "./reports/reach-out-report
 export { closedOf } from "./reports/report-closed";
 export { reportFacts } from "./reports/report-facts";
 export { holdOf } from "./reports/report-speed";
-export { dayDate, fmtDay, fmtSeconds, quantile, deltaOf, pointsDelta, compareWords, priorOf, weekOf, reportHourWords, hoursOf, channelsOf, runningTotal, speedOf, callMoodTone, toReportVM, REPORT_CHANNELS, REPORT_RANGES, REPORT_WEEK_SHORT, REPORT_WEEK_LONG } from "./reports/reports";
+export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./reports/report-tiles";
+export { dayDate, fmtDay, quantile, priorOf, weekOf, reportHourWords, hoursOf, channelsOf, runningTotal, speedOf, callMoodTone, toReportVM, REPORT_CHANNELS, REPORT_RANGES, REPORT_WEEK_SHORT, REPORT_WEEK_LONG } from "./reports/reports";
 export { ROUTE_KEYS } from "./route-keys.generated";
 export { SCHEMA_SETS } from "./schema-sets.generated";
 export { capabilityStatus, CAPABILITY_KINDS } from "./setup/capabilities";
