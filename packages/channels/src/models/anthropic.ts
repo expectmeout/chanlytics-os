@@ -10,14 +10,16 @@
  * What a call comes to:
  *   ok           the API answered: its message, its usage, and the model that answered (a fallback's, when it did).
  *   rejected     the API refused the request itself (a 4xx but 408 and 429: a bad request, a key it will not take, a
- *                format it does not know). Asking again, anywhere, gets the same answer.
+ *                format it does not know). Asking again, anywhere, gets the same answer; but for a 404, which says
+ *                the API has no such model, and the purpose's other model may well exist.
  *   unreachable  no answer came: a 429 or 408 ("not now"), a 5xx or a 529 (overloaded), a try that ran out of time or a
  *                connection that dropped, after the fallback was asked too. Never "the model refused": the model was
  *                never heard.
  *
  * Retry by kind: a "not now" is asked again on the same model up to the route's retries (providerFetch's backoff, inside
- * the deadline); an answer that never came (5xx, 529, a timeout) is asked once of the purpose's fallback model, when
- * there is one and the deadline leaves room. A model's own refusal (stop_reason "refusal") is an answer, ok, and the
+ * the deadline); an answer that never came (5xx, 529, a timeout), or a model the API does not know (a 404: a name a
+ * variable misspelt, an id since retired), is asked once of the purpose's fallback model, when there is one and the
+ * deadline leaves room. A model's own refusal (stop_reason "refusal") is an answer, ok, and the
  * caller reads it. The calls are always made (breaker "count"): an overloaded model says nothing of the others.
  *
  * The streaming form hands back the API's event stream unread for the gateway to forward; the fallback is asked only
@@ -120,6 +122,8 @@ function errorOf(a: ProviderReply): string {
 
 /** Whether an answer that did not come is worth the fallback: a 5xx or 529, a timeout, a dropped connection. */
 const neverCame = (a: ProviderReply): boolean => a.outcome === "unknown";
+/** Whether the API has no such model (its 404): the one refusal another model may not share. */
+const modelUnknown = (a: ProviderReply): boolean => a.status === 404;
 
 function messageOf(json: unknown): ModelMessage {
   const j = json && typeof json === "object" ? (json as Record<string, unknown>) : {};
@@ -196,7 +200,7 @@ function tryModel(key: string, ask: ModelAsk, p: Plan, model: string, stream: bo
 
 /** Whether the fallback may still be asked: there is one, and the deadline leaves it room. */
 function fallbackFor(ask: ModelAsk, p: Plan, failed: ProviderReply): string | null {
-  if (!neverCame(failed) || ask.signal?.aborted) return null;
+  if (!(neverCame(failed) || modelUnknown(failed)) || ask.signal?.aborted) return null;
   const next = fallbackModel(ask.purpose, p.first);
   if (!next) return null;
   const left = ask.deadlineMs === undefined ? Infinity : ask.deadlineMs - (p.d.now() - p.started);

@@ -582,8 +582,8 @@ test("the API's refusal of the request is forwarded in its own shape; a model th
   ]);
   assert.deepEqual(
     down.calls.map((c) => c.body.model),
-    ["claude-opus-5", MODEL_ROUTES.ask.fallback],
-    "the fallback was asked before the stream began",
+    ["claude-opus-5", MODEL_ROUTES.ask.model],
+    "the fallback was asked before the stream began: for a model that is not the route's own, the route's own",
   );
   assert.equal(tables.events.length, 0, "no Ask usage event for a round that never answered");
   assert.deepEqual(
@@ -676,9 +676,9 @@ test("what the Line needs from the gateway: Opus 5.5 is a model Ask may name, As
   const ask = (over) => validateGatewayRequest({ ...REQUEST, ...over }, "ask");
   assert.equal(ask({ model: ASK_MODEL }).ok, true, "Ask's default profile is a model the door allows");
   assert.deepEqual(
-    ask({ model: "claude-opus-5-9" }),
+    ask({ model: "gpt-9" }),
     { ok: false, error: "bad_request", detail: "unknown model" },
-    "and still only the models listed",
+    "and a name that reads as no Claude model is refused (any that does may be asked: ask-model.test.mjs)",
   );
   const schema = {
     type: "object",
