@@ -130,9 +130,9 @@ function factRow(f: ReportFactVM) {
   return (
     <li key={f.id} className={`rpt-fact${f.tone ? ` is-${f.tone}` : ""}`} data-fact={f.id}>
       {door ? (
-        <button type="button" className="rpt-fact-row" title={said} onClick={() => navigate(door.to)}>
+        <LinkButton className="rpt-fact-row" title={said} onClick={() => navigate(door.to)}>
           {body}
-        </button>
+        </LinkButton>
       ) : (
         <div className="rpt-fact-row" title={said}>
           {body}
@@ -263,14 +263,13 @@ function sourceRow(s: CampaignSourceVM) {
   return (
     <tr key={s.id} data-testid="source-row">
       <td>
-        <button
-          type="button"
+        <LinkButton
           className="rpt-src"
           onClick={() => navigate(s.kind === "broadcast" ? `broadcasts/run:${s.id}` : `outbound/${s.id}`)}
           data-testid="source-open"
         >
           {s.name}
-        </button>
+        </LinkButton>
         <span className="rpt-src-meta">
           {s.kindLabel}
           {s.kind === "playbook" ? ` · ${rptPlural(s.runs, "run")}` : ""}

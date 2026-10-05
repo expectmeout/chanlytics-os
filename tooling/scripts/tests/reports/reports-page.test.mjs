@@ -165,7 +165,18 @@ const redraw = () => again(draw);
 const card = (tree, id) => byTestId(tree, id);
 const plot = (tree, id) => find(card(tree, id), (n) => classes(n).includes("ck-plot"));
 const cls = (tree, c) => find(tree, (n) => classes(n).includes(c));
-const tabOf = (tree, label) => find(cls(tree, "rpt-range"), (n) => n.type === "button" && textOf(n) === label);
+const { Segmented } = await import(`${S}/surfaces/kit/segmented/segmented.tsx`);
+const { Field } = await import(`${S}/surfaces/kit/field/field.tsx`);
+/** The period control: the kit's segmented control, and the option a person presses, by its words. */
+const control = (tree) => find(tree, (n) => n.type === Segmented);
+const choose = (tree, label) => {
+  const c = control(tree);
+  c.props.onValueChange(c.props.options.find((o) => o.label === label).value);
+};
+const chosen = (tree) => {
+  const c = control(tree);
+  return c.props.options.find((o) => o.value === c.props.value)?.label;
+};
 const takeaway = (tree, id) => textOf(find(card(tree, id), (n) => classes(n).includes("ck-card-takeaway")));
 
 /* ------------------------------------------ the headline ------------------------------------------ */
@@ -592,6 +603,25 @@ test("Ask about this period asks Ask, in the period's words, and names itself fo
   assert.deepEqual(asked, [{ prompt: "What stood out in my last 7 days?" }]);
 });
 
+test("the period control is the kit's Segmented over the table's periods, each option with a test id, and the Ask door is the kit's Button", () => {
+  const tree = page();
+  const c = control(tree);
+  assert.deepEqual(
+    c.props.options.map((o) => [o.value, o.label, o.testid]),
+    [
+      ["7d", "7 days", "period-7d"],
+      ["30d", "30 days", "period-30d"],
+      ["90d", "90 days", "period-90d"],
+      ["month", "Month", "period-month"],
+    ],
+  );
+  assert.equal(c.props.label, "Period");
+  assert.equal(c.props.readOnly, false, "nothing on its way");
+  const ask = byTestId(tree, "reports-ask");
+  assert.equal(ask.props.size, "sm");
+  assert.equal(ask.props["aria-label"], "Ask about this period");
+});
+
 test("a period on its way keeps the one showing, dimmed by the one rule every page uses, and says it is busy", async () => {
   // The loading standard's H: Reports dimmed its own way (.rpt-body.is-loading, at once, to 0.55). It is the shared
   // rule now -- the page wears data-loading, the body data-dims (components.css): a beat before it dims, so a period
@@ -599,7 +629,7 @@ test("a period on its way keeps the one showing, dimmed by the one rule every pa
   await inPeriodTest("hold", async () => {
     let tree = page();
     assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing on its way");
-    press(tabOf(tree, "90 days"));
+    choose(tree, "90 days");
     tree = redraw();
     assert.equal(byTestId(tree, "reports-real").props["data-loading"], "", "the page says its period is on its way");
     const body = cls(tree, "rpt-body");
@@ -615,7 +645,7 @@ test("a period on its way keeps the one showing, dimmed by the one rule every pa
       undefined,
       "the period landed: nothing on its way",
     );
-    assert.equal(tabOf(tree, "90 days").props["aria-pressed"], true, "and it is the period the read answered");
+    assert.equal(chosen(tree), "90 days", "and it is the period the read answered");
   });
 });
 
@@ -623,12 +653,12 @@ test("a period that fails to load says so, keeps the one showing, and lets the t
   // 30 days, which no test above has read: a period this tab holds paints at once (held views) and cannot fail to load.
   await inPeriodTest("refuse", async () => {
     let tree = page();
-    press(tabOf(tree, "30 days"));
+    choose(tree, "30 days");
     for (let i = 0; i < 12; i++) await settle();
     tree = redraw();
     assert.equal(textOf(cls(tree, "rpt-failed")), "Couldn't load 30 days. Still showing 7 days.");
-    assert.equal(tabOf(tree, "90 days").props["aria-disabled"], false, "the tabs hold only while a period loads");
-    assert.equal(tabOf(tree, "7 days").props["aria-pressed"], true);
+    assert.equal(control(tree).props.readOnly, false, "the control holds only while a period loads");
+    assert.equal(chosen(tree), "7 days");
   });
 });
 
@@ -701,6 +731,17 @@ test("Google's reviews under the period: four tiles, the ratings gained day by d
       byTestId(card(tree, "chart-google-latest"), "google-reply"),
       "a review through the Business Profile can be answered",
     );
+    // The reply box is the kit's Field: its words kept, a limit of 4096, and no typing while a draft is on its way.
+    lensAt = LENS_PATHS[5];
+    const reviews = pageOnce();
+    press(byTestId(card(reviews, "chart-google-latest"), "google-reply"));
+    const box = find(again(draw), (n) => n.type === Field);
+    assert.deepEqual(
+      [box.props.rows, box.props.maxLength, box.props.readOnly, box.props["data-testid"]],
+      [3, 4096, true, "google-reply-text"],
+    );
+    assert.ok(box.props["aria-label"], "named, with no label drawn");
+    lensAt = LENS_PATHS[0];
     // Neither card sets the other's height: a run of days and a list of reviews want different shapes, so they take
     // the row one above the other. Side by side, the reviews stretched the days to a picture of nothing.
     for (const id of ["chart-google-gained", "chart-google-latest"])
@@ -745,10 +786,10 @@ test("a demo draws the same page from the sample, its tabs switch the sample; wi
     lensAt = LENS_PATHS[0];
     fresh();
     tree = draw();
-    assert.equal(tabOf(tree, "30 days").props["aria-pressed"], true);
-    press(tabOf(tree, "90 days"));
+    assert.equal(chosen(tree), "30 days");
+    choose(tree, "90 days");
     tree = redraw();
-    assert.equal(tabOf(tree, "90 days").props["aria-pressed"], true, "the sample's own period");
+    assert.equal(chosen(tree), "90 days", "the sample's own period");
     globalThis.__DEMO_MODE = false;
     fresh();
     assert.ok(byTestId(draw(), "reports-none"), "no workspace and no demo: the page says what Reports reads");
@@ -810,10 +851,10 @@ test("REGRESSION (C26): a chart is one keyboard stop whose arrows read each day 
 test("REGRESSION (C27): the period tabs hold while a period loads -- a second press started a second load", async () => {
   await inPeriodTest("hold", async () => {
     let tree = page();
-    press(tabOf(tree, "30 days"));
+    choose(tree, "30 days");
     tree = redraw();
-    assert.equal(tabOf(tree, "90 days").props["aria-disabled"], true, "REGRESSION: pressable while a period loaded");
-    press(tabOf(tree, "90 days"));
+    assert.equal(control(tree).props.readOnly, true, "REGRESSION: pressable while a period loaded");
+    choose(tree, "90 days");
     assert.deepEqual(period.asked, ["30d"], "REGRESSION: a second load began");
     await land();
   });
@@ -822,18 +863,16 @@ test("REGRESSION (C27): the period tabs hold while a period loads -- a second pr
 test("Month is a period of its own: its tab, its read by that name, and the page says the days it holds", async () => {
   await inPeriodTest("hold", async () => {
     let tree = page();
-    assert.deepEqual(all(cls(tree, "rpt-range"), (n) => n.type === "button").map(textOf), [
-      "7 days",
-      "30 days",
-      "90 days",
-      "Month",
-    ]);
-    press(tabOf(tree, "Month"));
+    assert.deepEqual(
+      control(tree).props.options.map((o) => o.label),
+      ["7 days", "30 days", "90 days", "Month"],
+    );
+    choose(tree, "Month");
     assert.deepEqual(period.asked, ["month"]);
     await land();
     redraw();
     tree = redraw();
-    assert.equal(tabOf(tree, "Month").props["aria-pressed"], true);
+    assert.equal(chosen(tree), "Month");
     assert.equal(cls(tree, "rpt-failed"), null, "nothing failed");
   });
 });
@@ -891,8 +930,12 @@ test("REGRESSION: a tile is a number, what it is and one line under it; the head
     "REGRESSION: a sparkline and a percentage delta in every tile",
   );
   const head = cls(tree, "rpt-head");
+  // The period is the segmented control's chosen option (the stub draws a Base UI part as a leaf, so its words are read from its props).
   assert.ok(
-    head && textOf(head).includes("7 days") && textOf(head).includes("Aug 29 to Sep 4"),
+    head &&
+      find(head, (n) => n.type === Segmented) &&
+      chosen(head) === "7 days" &&
+      textOf(head).includes("Aug 29 to Sep 4"),
     `the period and its days: ${textOf(head)}`,
   );
   const said = textOf(tree);

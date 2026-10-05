@@ -20,8 +20,10 @@ import {
 } from "@chanlytics/contracts";
 import { workspaceOverride } from "@/legacy-bridge/surface-data";
 import { askAbout, demoSession } from "../legacy-verbs";
+import { Button } from "../kit/button/button";
 import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
+import { Segmented } from "../kit/segmented/segmented";
 import { useSurface } from "../use-surface";
 import { useRptPhone } from "./blocks";
 import { useReportsStanding } from "./head";
@@ -63,20 +65,14 @@ function periodRow(p: {
   const vm = R.vm;
   return (
     <div className="rpt-head">
-      <div className="rpt-range" role="group" aria-label="Period">
-        {REPORT_RANGES.map((r) => (
-          <button
-            key={r.id}
-            type="button"
-            className={R.period === r.id ? "on" : ""}
-            aria-pressed={R.period === r.id}
-            aria-disabled={busy}
-            onClick={() => void pick(r.id)}
-          >
-            {r.label}
-          </button>
-        ))}
-      </div>
+      {/* While a period loads the control keeps its choice and says so (readOnly), rather than start a second load over the first. */}
+      <Segmented
+        label="Period"
+        value={R.period}
+        onValueChange={(next) => void pick(next)}
+        options={REPORT_RANGES.map((r) => ({ value: r.id, label: r.label, testid: `period-${r.id}` }))}
+        readOnly={busy}
+      />
       <span className="rpt-dates" title={`Days follow ${vm.timezone}`}>
         {vm.since} to {vm.until}
       </span>
@@ -85,8 +81,8 @@ function periodRow(p: {
           Couldn't load {REPORT_RANGES.find((r) => r.id === failed)?.label}. Still showing {vm.rangeLabel}.
         </span>
       )}
-      <button
-        type="button"
+      <Button
+        size="sm"
         className="rpt-ask"
         aria-label="Ask about this period"
         onClick={() => askAbout({ prompt: `What stood out in my last ${vm.rangeLabel}?` })}
@@ -94,7 +90,7 @@ function periodRow(p: {
       >
         <Icon name="sparkle" size={13} />
         <span className="rpt-ask-label">Ask about this period</span>
-      </button>
+      </Button>
     </div>
   );
 }

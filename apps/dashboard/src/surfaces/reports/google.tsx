@@ -18,6 +18,7 @@ import { BarChart } from "../kit/charts/bar";
 import { ChartCard } from "../kit/charts/card";
 import { EmptyState } from "../kit/empty/empty";
 import { Button } from "../kit/button/button";
+import { Field } from "../kit/field/field";
 import { Icon } from "../kit/icon/icon";
 import { LinkButton } from "../kit/link-button/link-button";
 import { useSurface } from "../use-surface";
@@ -78,14 +79,14 @@ function ReviewReply({ r, mode }: { r: GoogleReviewVM; mode: ReplyMode }) {
         </LinkButton>
       ) : (
         <div className="rp2-review-composer" data-testid="google-reply-composer">
-          <textarea
-            className="rp2-review-textarea"
+          <Field
+            aria-label="Your reply to this review"
             rows={3}
             value={text}
             maxLength={4096}
-            disabled={drafting}
-            onChange={(e) => {
-              setText(e.target.value);
+            readOnly={drafting}
+            onValueChange={(next) => {
+              setText(next);
               if (drafted === "yes") setDrafted(null);
             }}
             placeholder={

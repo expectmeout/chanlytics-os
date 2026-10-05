@@ -12,6 +12,7 @@ import { navigate } from "../legacy-verbs";
 import { BarChart, BarList } from "../kit/charts/bar";
 import { ChartCard } from "../kit/charts/card";
 import { EmptyState, FailedRead } from "../kit/empty/empty";
+import { LinkButton } from "../kit/link-button/link-button";
 import { RptSection } from "./blocks";
 import { RPT_WRITTEN } from "./series";
 import type { ReportsSurface } from "./surface";
@@ -39,14 +40,9 @@ function RptReachOutSources({ rows }: { rows: ReachOutSourceLine[] }) {
             <tr key={s.id} data-testid={s.kind === "chain" ? "ro-source-row" : "ro-step-row"}>
               <td>
                 {s.kind === "chain" ? (
-                  <button
-                    type="button"
-                    className="rpt-src"
-                    onClick={() => s.to && navigate(s.to)}
-                    data-testid="ro-source-open"
-                  >
+                  <LinkButton className="rpt-src" onClick={() => s.to && navigate(s.to)} data-testid="ro-source-open">
                     {s.name}
-                  </button>
+                  </LinkButton>
                 ) : (
                   <span className="rpt-src-meta">{s.name}</span>
                 )}

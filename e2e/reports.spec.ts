@@ -55,9 +55,8 @@ test.describe("Reports on a real workspace", () => {
       );
     }
 
-    const ranges = report.locator(".rpt-range button");
-    await expect(ranges).toHaveCount(4);
-    await expect(ranges.filter({ hasText: "30 days" })).toHaveAttribute("aria-pressed", "true");
+    await expect(report.locator('[data-testid^="period-"]')).toHaveCount(4);
+    await expect(report.getByTestId("period-30d")).toHaveAttribute("aria-checked", "true");
     await expect(report.getByRole("button", { name: "Ask about this period" })).toBeVisible();
 
     // A workspace nobody reached in the period has one honest card instead of the charts, and no Worth knowing.
@@ -170,12 +169,12 @@ test.describe("Reports on a real workspace", () => {
     await expect(report).toBeVisible();
 
     const req = page.waitForRequest(
-      (r) => r.url().includes("/api/v1/reports") && r.url().includes("days=7") && r.method() === "GET",
+      (r) => r.url().includes("/api/v1/reports") && r.url().includes("period=7d") && r.method() === "GET",
     );
-    await report.locator(".rpt-range button", { hasText: "7 days" }).click();
+    await report.getByTestId("period-7d").click();
     const seen = await req;
     expect(seen.url()).toContain("workspace=");
-    await expect(report.locator(".rpt-range button", { hasText: "7 days" })).toHaveAttribute("aria-pressed", "true");
+    await expect(report.getByTestId("period-7d")).toHaveAttribute("aria-checked", "true");
     await expect(report.getByTestId("reports-hero")).toBeVisible();
   });
 
@@ -191,7 +190,7 @@ test.describe("Reports on a real workspace", () => {
       );
     } else {
       // An empty period shows one card instead of the sections; the route still carries the line.
-      const res = await apiGet(page, "/api/v1/reports?days=30");
+      const res = await apiGet(page, "/api/v1/reports?period=30d");
       expect((await res.json()).data).toHaveProperty("booking");
     }
   });
