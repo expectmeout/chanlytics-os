@@ -11,6 +11,7 @@ import { AttnRow } from "../../kit/attention/attn-row";
 import { gatedProps } from "../../legacy-verbs";
 import { TODAY_HELPERS } from "../helpers";
 import {
+  bcLateWords,
   bcWhenWords,
   borrowed,
   broadcastVerbs,
@@ -43,6 +44,13 @@ export const runsPending = () => {
     soon: all.filter((r) => r.state === "scheduled" && r.playbook_id && Date.parse(r.scheduled_for) > Date.now()),
   };
 };
+
+/**
+ * Why a waiting run cannot be approved now, or null. A run whose day has passed is refused by the verb (bcLateWords,
+ * contracts runApprovalRefusal): its row says so in the verb's sentence and opens the run, where Skip is, instead of an
+ * Approve that answers 409. A reach-out's run has no day to pass (the predicate's own exemption).
+ */
+export const runLate = (r: BroadcastVM): string | null => bcLateWords(r);
 
 export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) => {
   const api = broadcastVerbs();
@@ -99,35 +107,40 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
   // Each row opens its own run (broadcasts/run:<id>): who is on it, and what it has done so far.
   const count = waiting.length + soon.length;
   const drawn = [
-    ...waiting.slice(0, room).map((r) => (
-      <AttnRow
-        key={`run-${r.id}`}
-        initials="▶"
-        glyph="bolt"
-        name={r.audience.label}
-        meta={words(r).waiting.meta}
-        sentence={paused ? CAMPAIGNS_PAUSED_WORDS : words(r).waiting.sentence}
-        status={words(r).waiting.status}
-        tone="escalated"
-        // A reach-out's run is opened, never approved from here (decision D6): its sheet counts and names each send
-        // first, Ask refuses to approve one, and a one-tap send from Today is the wrong habit for a first cold email.
-        cta={
-          isReachOutRun(r.audience)
-            ? { label: "Open", kind: verbKind(), onClick: () => nav(`broadcasts/run:${r.id}`) }
-            : {
-                label: "Approve",
-                kind: verbKind(),
-                onClick: () => approve(r),
-                gate: paused ? gatedProps(CAMPAIGNS_PAUSED_WORDS) : gate("approve", "approve a run"),
-              }
-        }
-        also={
-          isReachOutRun(r.audience) ? null : { label: "See who's on it", onClick: () => nav(`broadcasts/run:${r.id}`) }
-        }
-        onOpen={() => nav(`broadcasts/run:${r.id}`)}
-        testid="brief-run-row"
-      />
-    )),
+    ...waiting.slice(0, room).map((r) => {
+      const late = runLate(r);
+      return (
+        <AttnRow
+          key={`run-${r.id}`}
+          initials="▶"
+          glyph="bolt"
+          name={r.audience.label}
+          meta={late ? words(r).late.meta : words(r).waiting.meta}
+          sentence={late ?? (paused ? CAMPAIGNS_PAUSED_WORDS : words(r).waiting.sentence)}
+          status={late ? words(r).late.status : words(r).waiting.status}
+          tone="escalated"
+          // A reach-out's run is opened, never approved from here (decision D6): its sheet counts and names each send
+          // first, Ask refuses to approve one, and a one-tap send from Today is the wrong habit for a first cold email.
+          cta={
+            isReachOutRun(r.audience) || late
+              ? { label: "Open", kind: verbKind(), onClick: () => nav(`broadcasts/run:${r.id}`) }
+              : {
+                  label: "Approve",
+                  kind: verbKind(),
+                  onClick: () => approve(r),
+                  gate: paused ? gatedProps(CAMPAIGNS_PAUSED_WORDS) : gate("approve", "approve a run"),
+                }
+          }
+          also={
+            isReachOutRun(r.audience) || late
+              ? null
+              : { label: "See who's on it", onClick: () => nav(`broadcasts/run:${r.id}`) }
+          }
+          onOpen={() => nav(`broadcasts/run:${r.id}`)}
+          testid="brief-run-row"
+        />
+      );
+    }),
     ...soon
       .slice(0, Math.max(0, room - Math.min(waiting.length, room)))
       .map((r) => (

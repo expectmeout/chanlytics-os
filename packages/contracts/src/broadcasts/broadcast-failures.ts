@@ -74,11 +74,37 @@ const isRunStop = (code: BroadcastFailure): code is RunStop => code in RUN_STOP_
  * visit, and tomorrow's run is for tomorrow's.
  */
 export function stoppedRunFix(why: RunStop, run: { playbook_id: string | null; trigger: string | null }): string {
-  if (!run.playbook_id) return RUN_STOP_AGAIN[why];
-  if (triggerOf(run.trigger ?? "")?.kind === "visit")
-    return `${RUN_STOP_REMEDY[why]}. It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.`;
-  return `${RUN_STOP_REMEDY[why]}. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.`;
+  const next = playbookRunNext(run, "tomorrow");
+  return next ? `${RUN_STOP_REMEDY[why]}. ${next}` : RUN_STOP_AGAIN[why];
 }
+
+/**
+ * What becomes of a playbook's run that stopped, WHATEVER stopped it, in one sentence; null for a broadcast the owner made,
+ * which is sent again. Said after the cause by every alert of a stopped run (core broadcast.ts thenWhat, broadcast-stops.ts)
+ * and as the run's fix on its page (broadcastFailureFix): a run stopped by a limit, a wire or the day's hours told its owner
+ * to "send it again", which a playbook's run has no way to do (stoppedRunFix says why, and why tomorrow's run reaches who
+ * this one did not).
+ *
+ * `by` is when the people it did not reach are reached: by tomorrow's run, where what stopped it is over by then or is
+ * the owner's to end (a pause to resume, a line to reconnect); or by the next run that can go, where it may outlast
+ * tomorrow and is nobody's to end (the mail provider's month, a template waiting on Meta, the platform's key). Saying
+ * "tomorrow" of those promised a run that meets the same stop.
+ */
+export type PlaybookRunNextBy = "tomorrow" | "when_it_can";
+export function playbookRunNext(
+  run: { playbook_id: string | null; trigger: string | null },
+  by: PlaybookRunNextBy,
+): string | null {
+  if (!run.playbook_id) return null;
+  if (triggerOf(run.trigger ?? "")?.kind === "visit")
+    return "It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.";
+  return by === "tomorrow"
+    ? "It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice."
+    : "It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
+}
+
+/** The failures that may outlast tomorrow and are not the owner's to end, as a run's page knows them (playbookRunNext). */
+const OUTLASTS_TOMORROW: ReadonlySet<BroadcastFailure> = new Set(["provider_limit", "template_not_approved"]);
 
 /** The failures whose words name the wire the run went out on: the rest read the same whichever channel it was. */
 const WIRE_FAILURES = ["wire_unavailable", "throttled", "stalled"] as const satisfies readonly BroadcastFailure[];
@@ -208,8 +234,46 @@ const BROADCAST_FAILURE_FIX_AFTER: Partial<Record<BroadcastFailure, (n: number, 
 };
 
 /**
+ * What an owner can do about each failure that is not a stop for the workspace (RunStop), with no "send it again": the
+ * words a playbook's run says before what becomes of it (playbookRunNext). None where there is nothing to do but wait.
+ */
+const PLAYBOOK_RUN_REMEDY: Record<Exclude<BroadcastFailure, RunStop>, Words | null> = {
+  template_not_approved: "Open it in the Library — it can be resubmitted.",
+  wire_unavailable: null,
+  run_interrupted: null,
+  throttled: {
+    whatsapp: "WhatsApp lifts these limits on its own.",
+    sms: "The texting provider lifts these limits on its own.",
+    email: "The mail provider lifts these limits on its own.",
+  },
+  stalled: {
+    whatsapp: "Nothing is wrong with the number.",
+    sms: "Nothing is wrong with the line.",
+    email: "Nothing is wrong with the mailbox.",
+  },
+  people_unreadable: "Nothing is wrong with your channels.",
+  after_hours: null,
+  provider_limit: "The mail provider's limit resets on its own.",
+};
+
+/**
+ * A playbook's failed run, on its page: how many got it, what there is to do, and what becomes of it (`next`, the caller's
+ * playbookRunNext for this code).
+ */
+function playbookRunFix(
+  read: { code: Exclude<BroadcastFailure, RunStop>; channel: ConsentChannel },
+  reached: number,
+  next: string,
+): string {
+  const remedy = PLAYBOOK_RUN_REMEDY[read.code];
+  const got = reached > 0 ? `The first ${reached === 1 ? "one" : reached} got it.` : "Nobody got it.";
+  return [got, remedy ? wordsFor(remedy, read.channel) : null, next].filter(Boolean).join(" ");
+}
+
+/**
  * The next step past a failed run's reason, by how many it reached first; null for a code nobody has written words for. A
- * playbook's run that stopped for the workspace is told what its own next step is (stoppedRunFix), never to send it again.
+ * playbook's run is told what its own next step is (stoppedRunFix for a stop of the workspace's, playbookRunFix for any
+ * other), never to send it again.
  */
 export function broadcastFailureFix(
   failure: string | null | undefined,
@@ -219,7 +283,12 @@ export function broadcastFailureFix(
   if (!failure) return null;
   const read = readFailure(failure);
   if (!read) return null;
-  if (isRunStop(read.code) && run?.playbook_id) return stoppedRunFix(read.code, run);
+  // The stored limit does not say the day's from the month's, so its page promises no tomorrow.
+  const next = run ? playbookRunNext(run, OUTLASTS_TOMORROW.has(read.code) ? "when_it_can" : "tomorrow") : null;
+  if (run && next) {
+    const { code, channel } = read;
+    return isRunStop(code) ? stoppedRunFix(code, run) : playbookRunFix({ code, channel }, reached, next);
+  }
   const after = reached > 0 ? BROADCAST_FAILURE_FIX_AFTER[read.code] : undefined;
   return after ? after(reached, read.channel) : wordsFor(BROADCAST_FAILURE_FIX[read.code], read.channel) || null;
 }

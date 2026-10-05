@@ -23,6 +23,11 @@ export interface TodayRunWordsVM {
   people: string;
   /** A run waiting for a word: what kind of run it is ("Playbook · ready"), then its sentence. */
   waiting: { meta: string; sentence: string; status: string[] };
+  /**
+   * A waiting run the approve verb would refuse (contracts runApprovalRefusal: its day has passed): what its row says in
+   * place of "ready". Its sentence is the verb's own, which the page asks for, and its act is to open it, where Skip is.
+   */
+  late: { meta: string; status: string[] };
   /** A run under the veto window: scheduled, not yet sending. */
   soon: { meta: string; sentence: string; status: string[] };
   /** A run that went out today: what it earned so far, and whether it is still sending. */
@@ -52,6 +57,7 @@ export function todayRunWords(r: RunLike): TodayRunWordsVM {
       sentence: `${people}. Nothing sends until you say so.`,
       status: ["Waiting for your approval"],
     },
+    late: { meta: `${kind} · too late to approve`, status: ["Too late to approve"] },
     soon: {
       meta: `${kind} · sends ${r.when}`,
       sentence: `${people}. Stop it if you'd rather not.`,

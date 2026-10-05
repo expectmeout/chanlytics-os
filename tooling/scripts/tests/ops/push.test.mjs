@@ -52,6 +52,8 @@ test("the kinds a phone hears about are kept kinds, and not all of them; the led
   for (const k of PUSH_KINDS) assert.ok(SERVER_NOTIFICATION_KINDS.includes(k), k);
   for (const k of ["sweep", "deadman", "alert"]) assert.ok(!isPushKind(k), `${k} stays off the phone`);
   assert.ok(isPushKind("handoff") && isPushKind("call") && isPushKind("note_for_you"));
+  // A run that waits for a word has a deadline (it is refused once its day has passed): the phone hears it.
+  assert.ok(isPushKind("playbook"), "a playbook's run waiting for a person reaches their phone");
   assert.ok(JOB_KINDS.includes("push_send") && JOB_KINDS.includes("push_receipts"));
 });
 

@@ -23,7 +23,7 @@ import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, askAbout, askSpeech, useMoved, workspaceClock } from "../shell";
 import { recapBeats } from "./card";
 import { useDayVm } from "./day";
-import { runsPending } from "./queue-runs";
+import { runLate, runsPending } from "./queue-runs";
 
 /** The brief's sentences as drawn: a name in bold where the canvas sets it, a space between sentences. */
 function briefLine(words: TodayBriefWords) {
@@ -113,7 +113,8 @@ export const TodayBriefPane = () => {
   // The runs the queue holds for a word, said as the queue says them (todayRunWords).
   const runs: TodayBriefRun[] = runsPending().waiting.map((r) => ({
     label: r.audience.label,
-    sentence: TODAY_HELPERS.runs(r).waiting.sentence,
+    // A run whose day has passed says so, in the verb's sentence, as its row does (queue-runs.tsx).
+    sentence: runLate(r) ?? TODAY_HELPERS.runs(r).waiting.sentence,
   }));
   const words = vm ? TODAY_HELPERS.briefWords(vm, day, runs) : null;
   const line = words && words.sentences.length ? words.text : null;

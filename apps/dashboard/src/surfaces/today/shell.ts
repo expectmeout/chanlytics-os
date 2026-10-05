@@ -17,6 +17,8 @@ import type { BellApi } from "@/legacy-bridge/notifications";
 import type { PageClock } from "@/legacy-bridge/zone";
 import { surfaceHook } from "@/legacy-bridge/surface-status";
 import { bcWhenWords as whenWords } from "../campaigns/broadcasts/when-words";
+
+export { bcLateWords } from "../campaigns/broadcasts/when-words";
 import type { SurfaceNames } from "@/legacy-bridge/surface-status";
 import { askAbout, canDo, holdStill } from "../legacy-verbs";
 import { fn, windowValue, object, type Flash } from "../shell-doors";
