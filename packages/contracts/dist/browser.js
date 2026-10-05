@@ -2925,6 +2925,7 @@ var CONSENT_SOURCES = [
 var CONSENT_RESET_SOURCE = "operator";
 var CARRIER_CONSENT_SOURCE = "carrier";
 var STOP_ENDED_OFFERS_SOURCE = "stop";
+var WHATSAPP_CONSENT_SOURCE = "whatsapp";
 var OFFERS_YES_SOURCES = ["form", "customer_message"];
 function offersYesRefusal(source) {
   if (source && OFFERS_YES_SOURCES.includes(source)) return null;
@@ -2952,6 +2953,7 @@ function consentSourceLabel(source) {
   if (known) return known.label;
   if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
   if (source === STOP_ENDED_OFFERS_SOURCE) return "Ended when they said stop";
+  if (source === WHATSAPP_CONSENT_SOURCE) return "Reported by WhatsApp";
   return source === CONSENT_RESET_SOURCE ? null : source;
 }
 function mayReceive(r2, purpose, channel, about) {
@@ -22973,6 +22975,22 @@ function leadOf(d, base, tz, nowMs) {
 }
 
 // src/people/person-timeline.ts
+function howKnown(c) {
+  if (c.source === "customer_message") {
+    const where = c.channel === "sms" ? "by text" : c.channel === "whatsapp" ? "on WhatsApp" : c.channel === "email" ? "by email" : "in their own message";
+    return `In their own words ${where}${c.words ? `: \u201C${c.words}\u201D` : ""}`;
+  }
+  if (c.source === CONSENT_RESET_SOURCE || !c.source) {
+    return "Reset by staff";
+  }
+  if (c.source === CARRIER_CONSENT_SOURCE) {
+    return "Reported by the carrier: they had texted STOP to your number, so a text to them was not sent";
+  }
+  if (c.source === WHATSAPP_CONSENT_SOURCE) {
+    return "Reported by WhatsApp: they chose there to stop marketing messages from your business, so an offer to them was not delivered";
+  }
+  return `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` \xB7 ${c.note}` : ""}`;
+}
 function consentChangeWords(c) {
   if (c.purpose === "email_marketing")
     return {
@@ -22988,18 +23006,7 @@ function consentChangeWords(c) {
       sub: "They said stop, which ends it. Offers start again only on a new yes of their own"
     };
   const text = c.consent === "opted_in" ? offers ? "Said yes to offers and news" : "Said yes to messages about their visit" : c.consent === "opted_out" ? offers ? "Said no to offers" : "Said stop \u2014 nothing goes out to them" : offers ? "Offers: back to not asked" : "Back to not asked";
-  let sub;
-  if (c.source === "customer_message") {
-    const where = c.channel === "sms" ? "by text" : c.channel === "whatsapp" ? "on WhatsApp" : c.channel === "email" ? "by email" : "in their own message";
-    sub = `In their own words ${where}${c.words ? `: \u201C${c.words}\u201D` : ""}`;
-  } else if (c.source === CONSENT_RESET_SOURCE || !c.source) {
-    sub = "Reset by staff";
-  } else if (c.source === CARRIER_CONSENT_SOURCE) {
-    sub = "Reported by the carrier: they had texted STOP to your number, so a text to them was not sent";
-  } else {
-    sub = `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` \xB7 ${c.note}` : ""}`;
-  }
-  return { who: offers ? "Offers" : "Consent", text, sub };
+  return { who: offers ? "Offers" : "Consent", text, sub: howKnown(c) };
 }
 var DECISION_LABELS = {
   take_over: { who: "Took over", text: "You paused the receptionist on this thread" },
@@ -32368,6 +32375,7 @@ export {
   WA_WINDOW_MS,
   WEEKDAY_KEYS,
   WEEK_MS,
+  WHATSAPP_CONSENT_SOURCE,
   WHATSAPP_LANGUAGES,
   WHY_FROM_MAPS,
   WIN_BACK_WORDS,

@@ -21,6 +21,7 @@ export type { ServiceClientConfig } from "./service-client";
 export {
   ingestInbound,
   recordCarrierOptOut,
+  recordWhatsAppOffersStop,
   markProcessed,
   stampHandled,
   recordOutbound,

@@ -18,6 +18,7 @@ import {
   CONSENT_RESET_SOURCE,
   consentSourceLabel,
   STOP_ENDED_OFFERS_SOURCE,
+  WHATSAPP_CONSENT_SOURCE,
 } from "./person-consent";
 import { addedBy, ts } from "./person-helpers";
 import { capitalize } from "../shared/words";
@@ -61,6 +62,35 @@ export interface PersonVisitAheadVM {
   /** Matched to them by their name alone, which the page says, as the Next visit fact does. */
   byName: boolean;
   to: string;
+}
+
+/** How we know an answer: their own words and where, the carrier's or WhatsApp's report, or a member's record and note. */
+function howKnown(c: ConsentChange): string {
+  if (c.source === "customer_message") {
+    const where =
+      c.channel === "sms"
+        ? "by text"
+        : c.channel === "whatsapp"
+          ? "on WhatsApp"
+          : c.channel === "email"
+            ? "by email"
+            : "in their own message";
+    return `In their own words ${where}${c.words ? `: “${c.words}”` : ""}`;
+  }
+  if (c.source === CONSENT_RESET_SOURCE || !c.source) {
+    return "Reset by staff";
+  }
+  if (c.source === CARRIER_CONSENT_SOURCE) {
+    // The carrier's report of a STOP we never heard (a text refused with Twilio 21610): the person's own no, said
+    // by the carrier -- neither their words to us nor a member's record.
+    return "Reported by the carrier: they had texted STOP to your number, so a text to them was not sent";
+  }
+  if (c.source === WHATSAPP_CONSENT_SOURCE) {
+    // WhatsApp's report of a no to offers we never heard (131050 on an offer we sent): their own choice, made in
+    // WhatsApp, said by WhatsApp. Neither their words to us nor a member's record.
+    return "Reported by WhatsApp: they chose there to stop marketing messages from your business, so an offer to them was not delivered";
+  }
+  return `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` · ${c.note}` : ""}`;
 }
 
 /**
@@ -114,27 +144,7 @@ export function consentChangeWords(c: ConsentChange): { who: string; text: strin
         : offers
           ? "Offers: back to not asked"
           : "Back to not asked";
-  let sub: string | undefined;
-  if (c.source === "customer_message") {
-    const where =
-      c.channel === "sms"
-        ? "by text"
-        : c.channel === "whatsapp"
-          ? "on WhatsApp"
-          : c.channel === "email"
-            ? "by email"
-            : "in their own message";
-    sub = `In their own words ${where}${c.words ? `: “${c.words}”` : ""}`;
-  } else if (c.source === CONSENT_RESET_SOURCE || !c.source) {
-    sub = "Reset by staff";
-  } else if (c.source === CARRIER_CONSENT_SOURCE) {
-    // The carrier's report of a STOP we never heard (a text refused with Twilio 21610): the person's own no, said
-    // by the carrier -- neither their words to us nor a member's record.
-    sub = "Reported by the carrier: they had texted STOP to your number, so a text to them was not sent";
-  } else {
-    sub = `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` · ${c.note}` : ""}`;
-  }
-  return { who: offers ? "Offers" : "Consent", text, sub };
+  return { who: offers ? "Offers" : "Consent", text, sub: howKnown(c) };
 }
 
 const DECISION_LABELS: Record<string, { who: string; text: string }> = {

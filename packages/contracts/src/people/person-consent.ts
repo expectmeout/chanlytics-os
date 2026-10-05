@@ -83,6 +83,14 @@ export const CARRIER_CONSENT_SOURCE = "carrier";
 export const STOP_ENDED_OFFERS_SOURCE = "stop";
 
 /**
+ * WhatsApp's report of a no to offers we never heard: the person chose, in WhatsApp, to stop marketing messages from
+ * this business, and Meta refused an offer to them for it (131050). Their own answer, said by WhatsApp, as the
+ * carrier's report is for a text. A source the receipts door writes (packages/db recordWhatsAppOffersStop), never one
+ * a member is offered.
+ */
+export const WHATSAPP_CONSENT_SOURCE = "whatsapp";
+
+/**
  * The ways a yes to OFFERS may have been given: in writing, and only in writing.
  *
  * Promotional texts need the customer's express WRITTEN consent. The carriers
@@ -143,13 +151,14 @@ export function ownMessageRefusal(
   return messageId ? OWN_MESSAGE_REFUSALS.notOwnMessage : null;
 }
 
-/** The words for a source; the reset has none, the carrier's report and a stop's end of a yes their own, an unknown one is shown as itself. */
+/** The words for a source; the reset has none, the carrier's report, WhatsApp's and a stop's end of a yes their own, an unknown one is shown as itself. */
 export function consentSourceLabel(source: string | null | undefined): string | null {
   if (!source) return null;
   const known = CONSENT_SOURCES.find((s) => s.id === source);
   if (known) return known.label;
   if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
   if (source === STOP_ENDED_OFFERS_SOURCE) return "Ended when they said stop";
+  if (source === WHATSAPP_CONSENT_SOURCE) return "Reported by WhatsApp";
   return source === CONSENT_RESET_SOURCE ? null : source;
 }
 

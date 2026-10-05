@@ -164,7 +164,7 @@ export { asListRule, draftListRule, ruleFacts, factNeeds, ruleNeeds, ruleLists, 
 export { listToken, parseListToken, unmetNeed, listMembers, savedListIds, savedListLookup, listNamer, listNeeds, listsFor, resolveList, membersOf, listUnknownWords, savedListTip, ruleNeedsViewer, pinTokens, todayPins, togglePin, PEOPLE_LIST_GROUPS, BUILTIN_LISTS, PEOPLE_LISTS, viewerListWords, TODAY_PINS_MAX } from "./people/lists/lists";
 export { peopleListAction, savedListAction, noNumberWords, noChannelWords, saidYesWords, peopleAggregates, recencyCells, GET_YES_ROUTE, NO_NUMBER_REACH, NO_CHANNEL_REACH } from "./people/people-lists";
 export { attentionRow } from "./people/person-attention";
-export { offersYesRefusal, ownMessageRefusal, consentSourceLabel, mayReceive, whyNotReceive, saidYesTo, CONSENT_SOURCES, CONSENT_RESET_SOURCE, OFFERS_YES_SOURCES, OWN_MESSAGE_REFUSALS, CARRIER_CONSENT_SOURCE, STOP_ENDED_OFFERS_SOURCE } from "./people/person-consent";
+export { offersYesRefusal, ownMessageRefusal, consentSourceLabel, mayReceive, whyNotReceive, saidYesTo, CONSENT_SOURCES, CONSENT_RESET_SOURCE, OFFERS_YES_SOURCES, OWN_MESSAGE_REFUSALS, CARRIER_CONSENT_SOURCE, STOP_ENDED_OFFERS_SOURCE, WHATSAPP_CONSENT_SOURCE } from "./people/person-consent";
 export { callerName, personName } from "./people/person-name";
 export { filterTimeline, personActs, toPersonVM, TIMELINE_FILTERS } from "./people/person-profile";
 export { bookingLinkAction, proposalMessage, proposalAction, repliesWords, mayReach } from "./people/person-reach";
