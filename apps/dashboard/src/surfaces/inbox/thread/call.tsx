@@ -11,6 +11,7 @@
  * tree it was; its hooks stay in `ThreadCall`, in the order they were.
  */
 import { useEffect, useRef, useState, type CSSProperties, type RefObject, type SyntheticEvent } from "react";
+import { mmss } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { demoSession } from "../shell";
 import { hasHref, hrefOf } from "./shell-thread";
@@ -39,10 +40,8 @@ const tlNoteOf = (body: string | null | undefined) => {
   };
 };
 
-const tlClock = (sec: number | null | undefined) => {
-  const s = Math.max(0, Math.floor(sec || 0));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
+// The one clock (contracts mmss) on the whole seconds a player reports.
+const tlClock = (sec: number | null | undefined) => mmss(Math.max(0, Math.floor(sec || 0)) * 1000);
 const TL_SPEEDS = [1, 1.5, 2];
 // The line being said at `pos` seconds: the last one that had begun by then. A line with no moment (a whisper) never is.
 const tlLineAt = (lines: Array<{ start?: number | null }>, pos: number) => {

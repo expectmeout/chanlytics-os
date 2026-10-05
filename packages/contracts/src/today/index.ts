@@ -13,10 +13,11 @@ export type {
   TodayNoReplyVM,
   TodayVM,
 } from "./today-vm";
-export { tzClock } from "./today-clock";
+export { tzClock, tzSince } from "./today-clock";
 export { QUOTE_MAX } from "./today-facts";
 export { todayProof } from "./today-figures";
 export { NO_REPLY_AFTER_MS } from "./today-rows";
+export { isPersonRow } from "./today-queue";
 export { toTodayVM } from "./today-brief";
 export { todayBriefWords } from "./today-brief-words";
 export type { TodayBriefRun, TodayBriefWords } from "./today-brief-words";

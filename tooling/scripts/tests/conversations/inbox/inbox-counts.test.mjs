@@ -547,3 +547,171 @@ test("the row says the seconds, where the time it last moved would be", () => {
   );
   assert.equal(find(row("Rosa Díaz"), hasClass("ix-sending")), null, "only the thread whose reply is on its way");
 });
+
+/* ---- one count: the chip, the badge and Today's publish are the same rule (the 2 Oct 2026 audit) ---- */
+
+/** The wire's threads the salon's Inbox holds, with the escalation each has open: the rows the page and Today both read. */
+const wireThread = (id, name, over, esc) => ({ dto: conv(id, name, over), esc });
+const sendingDto = () => {
+  const at = new Date(Date.now() - 30_000).toISOString();
+  return conv("c5", "Jess Park", {
+    state: "open",
+    last_message_at: at,
+    messages: [
+      wrote("m-c5", "Is Thursday free?", 5),
+      { ...ours("m-c5d", "ai", "Thursday at 2 works.", 0, "queued"), created_at: at, meta: { delay_ms: 90_000 } },
+    ],
+  });
+};
+const pastDeadlineDto = () =>
+  conv("c6", "Lee Chen", {
+    state: "open",
+    messages: [
+      wrote("m-c6", "Any slots?", 30),
+      { ...ours("m-c6d", "ai", "Friday at 3 works.", 20, "queued"), meta: { delay_ms: 10 * 60_000 } },
+    ],
+  });
+const salon = () => [
+  wireThread("c1", "Rosa Díaz", {}, asked("c1", 90)),
+  wireThread(
+    "c2",
+    "Nina Park",
+    { paused_until: later, assignee_user_id: "u-me", assignee_is_me: true },
+    asked("c2", 120),
+  ),
+  wireThread(
+    "c3",
+    "Ada Lovelace",
+    { paused_until: later, assignee_user_id: ANA, assignee_is_me: false },
+    asked("c3", 150),
+  ),
+  { dto: conv("c4", "Zoe Martin", { state: "open", messages: [wrote("m-c4", "Can I book at 3?", 30)] }), esc: null },
+  { dto: sendingDto(), esc: null },
+  { dto: pastDeadlineDto(), esc: null },
+];
+
+test("conversationWaitsOnYou: nobody has it, or a reply is counting down; not a draft past its deadline, not a teammate's thread", async () => {
+  const { conversationWaitsOnYou } = await import("@chanlytics/contracts");
+  const open = (over = {}) =>
+    conv("c-w", "Rosa Díaz", {
+      state: "open",
+      paused_until: null,
+      assignee_user_id: null,
+      assignee_is_me: false,
+      ...over,
+    });
+  const esc = { id: "e1", reason: "human_token", details: null, state: "open", created_at: ago(5) };
+  assert.equal(conversationWaitsOnYou(open(), esc, NOW), true, "an open escalation nobody has");
+  assert.equal(
+    conversationWaitsOnYou(open({ assignee_user_id: ANA, assignee_is_me: false }), esc, NOW),
+    false,
+    "a teammate's",
+  );
+  const draft = (min) => ({
+    ...ours("d1", "ai", "Friday at 3 works.", min, "queued"),
+    meta: { delay_ms: 10 * 60_000 },
+  });
+  assert.equal(
+    conversationWaitsOnYou(open({ messages: [wrote("m1", "Any slots?", 2), draft(1)] }), null, NOW),
+    true,
+    "counting down",
+  );
+  assert.equal(
+    conversationWaitsOnYou(open({ messages: [wrote("m1", "Any slots?", 30), draft(20)] }), null, NOW),
+    false,
+    "past its deadline: the job's to send",
+  );
+  assert.equal(conversationWaitsOnYou(open({ messages: [wrote("m1", "Any slots?", 2)] }), null, NOW), false, "quiet");
+});
+
+test("the wire's count is the chip's: each thread waits on you on the wire exactly when the Inbox's row says it does", async () => {
+  const { conversationWaitsOnYou } = await import("@chanlytics/contracts");
+  const now = new Date();
+  VW_STORE.state = {};
+  const rows = salon();
+  const wire = rows.map(({ dto, esc }) => conversationWaitsOnYou(dto, esc, now));
+  const chip = rows.map(({ dto, esc }) => ixWaitsOnYou(toInboxThreadVM(dto, esc, ZONE, now), now.getTime()));
+  assert.deepEqual(wire, chip, "REGRESSION: Today counted what needs a person and left the replies counting down out");
+  assert.deepEqual(wire, [true, false, false, false, true, false], "Rosa, and Jess whose reply is on its way");
+});
+
+/** The wire as the salon's Today reads it: the routes' answers, the metrics as the page's own fixtures write them. */
+const todayWire = (rows) => {
+  const metrics = {
+    workspace: { name: "Marisa's Beauty Salon", timezone: ZONE, status: "active" },
+    channels: [{ kind: "whatsapp", status: "active", number: "+13055550188" }],
+    window: {
+      days: 1,
+      since: "2026-09-15T04:00:00+00:00",
+      since_local: "2026-09-15T00:00:00",
+      now_local: "2026-09-15T10:00:00",
+    },
+    now: {
+      escalations_open: 3,
+      oldest_open_escalation_at: ago(150),
+      threads_needing_human: 3,
+      threads_snoozed: 0,
+      threads_awaiting_reply: 0,
+      last_inbound_at: null,
+      last_outbound_at: null,
+    },
+    period: {
+      messages_in: 0,
+      messages_out_ai: 0,
+      messages_out_you: 0,
+      conversations_active: 0,
+      answered_by_ai: 0,
+      answered_by_you: 0,
+      unanswered_in_window: 0,
+      median_reply_seconds_ai: null,
+      send_failures: 0,
+      escalations_new: 0,
+      escalation_reasons: {},
+      calls: 0,
+      call_seconds: 0,
+      call_sentiments: {},
+      calls_voicemail: 0,
+      new_contacts: 0,
+    },
+  };
+  const answers = {
+    "/api/v1/metrics": { metrics },
+    "/api/v1/conversations": { conversations: rows.map((r) => r.dto) },
+    "/api/v1/escalations": {
+      escalations: rows.flatMap((r) => (r.esc ? [{ ...r.esc, conversation_id: r.dto.id }] : [])),
+    },
+    "/api/v1/calls": { calls: [] },
+    "/api/v1/lead-searches": { searches: [] },
+  };
+  globalThis.fetch = async (url) => {
+    const data = answers[new URL(String(url), "https://app.chanlytics.com").pathname];
+    return new Response(
+      JSON.stringify(data ? { ok: true, data } : { ok: false, error: { code: "not_found", message: "no" } }),
+      {
+        status: data ? 200 : 404,
+        headers: { "content-type": "application/json" },
+      },
+    );
+  };
+};
+
+test("Today publishes the badge by the Inbox's rule: the sidebar does not drop a reply counting down every time Today reads again", async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    const { todayOverride } = await import(`${S}/surfaces/today/surface.ts`);
+    VW_STORE.state = {};
+    todayWire(salon());
+    const before = counted.length;
+    await todayOverride.apply();
+    assert.equal(counted.length, before + 1, "Today says its number once per read");
+    assert.equal(
+      counted.at(-1),
+      2,
+      "REGRESSION: it read 1 (threadStanding alone) where the chip read 2: Rosa, and Jess whose reply is on its way",
+    );
+    const inbox = salon().map(({ dto, esc }) => toInboxThreadVM(dto, esc, ZONE, new Date()));
+    assert.equal(counted.at(-1), inbox.filter((t) => ixWaitsOnYou(t)).length, "the chip's own number");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

@@ -4,7 +4,7 @@
  * read the one list, ticking once a second while a call is up.
  */
 import { useEffect, useState } from "react";
-import type { LiveVM } from "@chanlytics/contracts";
+import { mmss, type LiveVM } from "@chanlytics/contracts";
 import { borrowed, useMoved } from "../shell";
 
 /** The heartbeat rule's clock: a call's elapsed time moves once a second while a call is up. */
@@ -13,7 +13,7 @@ const TICK_MS = 1000;
 type LiveCall = LiveVM["now"][number];
 
 /** "1:12": a call's elapsed seconds as the rail and the strip say them. */
-export const liveClock = (s: number): string => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+export const liveClock = (s: number): string => mmss(s * 1000);
 
 /** The calls up now, and the moment they are read against. */
 export function useLiveNow(): { live: LiveCall[]; nowMs: number } {

@@ -310,8 +310,8 @@
     "depth": 1
   },
   "packages/contracts/src/conversations/inbox-thread.ts::toInboxThreadVM#1": {
-    "lines": 227,
-    "branches": 51,
+    "lines": 218,
+    "branches": 49,
     "depth": 2
   },
   "packages/contracts/src/deals/sheet/deal-sheet-body.ts::dealSheetBody#1": {

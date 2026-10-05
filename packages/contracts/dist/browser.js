@@ -14420,7 +14420,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     const next = start == null ? null : starts.slice(i + 1).find((x) => x != null && x > start) ?? null;
     const end = start == null ? null : turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next;
     return {
-      t: typeof own === "number" ? `${Math.floor(own / 60)}:${String(Math.floor(own % 60)).padStart(2, "0")}` : "\u2014",
+      t: typeof own === "number" ? mmss(own * 1e3) : "\u2014",
       speaker: turn.role === "agent" ? "agent" : "client",
       text: turn.content ?? "",
       start,
@@ -15732,16 +15732,18 @@ function threadStanding(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const state = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
   return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
 }
+function heldDraftOf(messages) {
+  return [...messages].reverse().find(isHeldDraft) ?? null;
+}
+function conversationWaitsOnYou(dto, escalation, now = /* @__PURE__ */ new Date()) {
+  if (threadStanding(dto, escalation, now).needsYou) return true;
+  const draft = heldDraftOf(dto.messages);
+  return !!draft && replyWaitsOnYou({ endsAtMs: draftSendsAtMs(draft) }, now.getTime());
+}
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
-  let draftMsg = null;
-  for (let i = dto.messages.length - 1; i >= 0; i--) {
-    if (isHeldDraft(dto.messages[i])) {
-      draftMsg = dto.messages[i];
-      break;
-    }
-  }
+  const draftMsg = heldDraftOf(dto.messages);
   const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
   const reasonLabel = escalation ? reasonLabelOf(escalation.reason) : null;
   const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
@@ -19951,7 +19953,7 @@ function firstRunTryOf({ dto, calls, since, nowMs }) {
   const to = `conversations/${call.cvId}`;
   if (call.live) {
     const secs = Math.max(0, Math.floor((nowMs - (call.startedAtMs ?? nowMs)) / 1e3));
-    const clock3 = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+    const clock3 = mmss(secs * 1e3);
     return {
       ...base,
       stage: "call",
@@ -28566,6 +28568,10 @@ var AWAY_NOUN = {
   // A reach-out that wrote to several businesses hears back from several (Reach out Part 5).
   reach_out_replied: ["reply to a reach-out", "replies to a reach-out"]
 };
+function groupTitle(members, noun, idOf) {
+  const subjects = new Set(members.map((m) => m.about ? `${m.about.type}:${m.about.id}` : idOf(m))).size;
+  return `${subjects} ${noun[subjects === 1 ? 0 : 1]}`;
+}
 var AWAY_TONE_RANK = { warn: 0, "": 1, ok: 2 };
 var AWAY_GROUP_MIN = 2;
 var AWAY_EMPTY_CLEAR = "All caught up.";
@@ -28624,7 +28630,7 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
     groups.push({
       row: members[0],
       count: members.length,
-      title: `${members.length} ${noun[1]}`,
+      title: groupTitle(members, noun, idOf),
       ids: members.map(idOf)
     });
   }
@@ -28663,7 +28669,7 @@ function bellSections(rows) {
         key: `${label}:${k}`,
         row: members[0],
         count: members.length,
-        title: `${members.length} ${noun[1]}`,
+        title: groupTitle(members, noun, idOf),
         members
       });
     }
@@ -29067,7 +29073,11 @@ function todayFacts(input) {
     callsInWindow: callDtos.filter((c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs),
     callMinutes: Math.round(period.call_seconds / 60),
     traffic: period.messages_in + period.calls + period.messages_out_you,
-    oldest: tzSince(metrics.now.oldest_open_escalation_at, tz, now)
+    // The oldest wait among the threads WAITING ON YOU: openEsc is the list the headline's count and its one name are
+    // read from, oldest first. The metric's oldest open escalation counts the ones you or a teammate hold and the
+    // snoozed too, so the headline paired one person's name with another thread's time ("Ana has been waiting since
+    // Aug 29"; the 2 Oct 2026 audit).
+    oldest: tzSince(openEsc[0]?.created_at, tz, now)
   };
 }
 
@@ -29501,6 +29511,10 @@ function todayCalls(f, rows) {
 
 // src/today/today-queue.ts
 var TODAY_QUEUE_MAX = 6;
+var PEOPLE_KINDS = /* @__PURE__ */ new Set(["handoff", "callback", "window", "reply"]);
+function isPersonRow(r2) {
+  return PEOPLE_KINDS.has(r2.kind);
+}
 var SEARCH_WARN_MS = 12 * HOUR_MS;
 function callbackRow(r2) {
   const e = r2.e;
@@ -29653,6 +29667,13 @@ function todayQueue(f, callRows, empty) {
   return {
     rows: queueAll.slice(0, TODAY_QUEUE_MAX),
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
+    // The PEOPLE past the six, apart from the rest: the brief said "and 20 more need you" over sixteen people, counting
+    // the calls and the search that sort after them.
+    more_people: queueAll.slice(TODAY_QUEUE_MAX).filter(isPersonRow).length,
+    // Every call worth a listen and every search waiting for an answer, drawn or not: the brief counted only those
+    // among the six rows, so it said nothing of four calls the head had just counted.
+    calls: earN,
+    searches: searchN,
     parts: parts2,
     empty,
     waiting: needN + winN + searchN
@@ -29688,7 +29709,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       noReply,
       calls: null,
       callsRead: f.callsRead,
-      queue: { rows: [], more: 0, parts: [], empty, waiting: 0 },
+      queue: { rows: [], more: 0, more_people: 0, calls: 0, searches: 0, parts: [], empty, waiting: 0 },
       quiet: { ...todayQuietDay(f, proof), figures: quietFigures(f.live, f.tz, now) }
     };
   }
@@ -29733,27 +29754,20 @@ function names2(who, rest) {
   if (left) out.push(plain(` and ${left} more`));
   return out;
 }
-var PEOPLE_KINDS = /* @__PURE__ */ new Set([
-  "handoff",
-  "callback",
-  "window",
-  "reply"
-]);
 function needsSentences(vm) {
   const rows = vm.queue.rows;
-  const people = [...new Set(rows.filter((r2) => PEOPLE_KINDS.has(r2.kind)).map((r2) => r2.who))];
-  const calls = rows.filter((r2) => r2.kind === "call").length;
-  const searches = rows.filter((r2) => r2.kind === "search").length;
+  const people = [...new Set(rows.filter(isPersonRow).map((r2) => r2.who))];
+  const { calls, searches } = vm.queue;
   const out = [];
   if (people.length) {
-    const one = people.length === 1 && vm.queue.more === 0;
+    const one = people.length === 1 && vm.queue.more_people === 0;
     const detail = vm.standing.detail;
     const [first = ""] = people;
     const lead = `${first} has been `;
     if (one && detail && detail.startsWith(lead))
       out.push([bold(first), plain(` needs you, ${detail.slice(lead.length)}`)]);
     else {
-      out.push([...names2(people, vm.queue.more), plain(one ? " needs you." : " need you.")]);
+      out.push([...names2(people, vm.queue.more_people), plain(one ? " needs you." : " need you.")]);
       if (detail) out.push([plain(detail)]);
     }
   }
@@ -32607,6 +32621,7 @@ export {
   conversationMoveAllowed,
   conversationOfNeedsKey,
   conversationPatch,
+  conversationWaitsOnYou,
   coveredChannels,
   coversSpan,
   csvCell,
@@ -32860,6 +32875,7 @@ export {
   isOptedOutContact,
   isOwned,
   isPartnerCode,
+  isPersonRow,
   isPersonsWords,
   isPipelineView,
   isProductFallback,
@@ -33025,6 +33041,7 @@ export {
   messageVia,
   messageWhy,
   messageWords,
+  mmss,
   modelRoute,
   momentOffered,
   mondayOf,
@@ -33575,6 +33592,7 @@ export {
   triggerOffered,
   trimmedOrNull,
   tzClock,
+  tzSince,
   unknownDetails,
   unmetNeed,
   unreadCount,

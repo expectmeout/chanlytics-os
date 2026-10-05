@@ -160,7 +160,20 @@ export interface TodayVM {
    * rows hold in words, and how many people are waiting on you across the whole queue (a handoff, a call-back or a
    * closing window; a call worth a listen is nobody waiting), which Ask's Right now says.
    */
-  queue: { rows: TodayQueueRowVM[]; more: number; parts: string[]; empty: TodayQueueEmptyVM; waiting: number };
+  queue: {
+    rows: TodayQueueRowVM[];
+    /** Every row past the six, whatever it is. */
+    more: number;
+    /** The people past the six (a handoff, a call-back, a closing window), apart from the calls and the searches: what "more" says of who needs you. */
+    more_people: number;
+    /** The calls worth a listen, drawn or not. */
+    calls: number;
+    /** The searches waiting for your answer, drawn or not. */
+    searches: number;
+    parts: string[];
+    empty: TodayQueueEmptyVM;
+    waiting: number;
+  };
   quiet: {
     headline: string;
     sub: string;
