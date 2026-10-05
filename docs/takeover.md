@@ -43,7 +43,7 @@ copies                               73   of 21 names
 as unknown as                       141
 as never                             13
 non-null assertions, x!             111
-index reads the compiler lets pass  484   in 128 files
+index reads the compiler lets pass  482   in 128 files
 table names outside packages/db     485
 SQL functions outside packages/db   133   called by .rpc
 edge statements naming no workspace   28   in 15 files

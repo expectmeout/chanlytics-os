@@ -29668,7 +29668,7 @@ function todayQueue(f, callRows, empty) {
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
     // The PEOPLE past the six, apart from the rest: the brief said "and 20 more need you" over sixteen people, counting
     // the calls and the search that sort after them.
-    morePeople: queueAll.slice(TODAY_QUEUE_MAX).filter(isPersonRow).length,
+    more_people: queueAll.slice(TODAY_QUEUE_MAX).filter(isPersonRow).length,
     // Every call worth a listen and every search waiting for an answer, drawn or not: the brief counted only those
     // among the six rows, so it said nothing of four calls the head had just counted.
     calls: earN,
@@ -29708,7 +29708,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       noReply,
       calls: null,
       callsRead: f.callsRead,
-      queue: { rows: [], more: 0, morePeople: 0, calls: 0, searches: 0, parts: [], empty, waiting: 0 },
+      queue: { rows: [], more: 0, more_people: 0, calls: 0, searches: 0, parts: [], empty, waiting: 0 },
       quiet: { ...todayQuietDay(f, proof), figures: quietFigures(f.live, f.tz, now) }
     };
   }
@@ -29759,14 +29759,14 @@ function needsSentences(vm) {
   const { calls, searches } = vm.queue;
   const out = [];
   if (people.length) {
-    const one = people.length === 1 && vm.queue.morePeople === 0;
+    const one = people.length === 1 && vm.queue.more_people === 0;
     const detail = vm.standing.detail;
     const [first = ""] = people;
     const lead = `${first} has been `;
     if (one && detail && detail.startsWith(lead))
       out.push([bold(first), plain(` needs you, ${detail.slice(lead.length)}`)]);
     else {
-      out.push([...names2(people, vm.queue.morePeople), plain(one ? " needs you." : " need you.")]);
+      out.push([...names2(people, vm.queue.more_people), plain(one ? " needs you." : " need you.")]);
       if (detail) out.push([plain(detail)]);
     }
   }

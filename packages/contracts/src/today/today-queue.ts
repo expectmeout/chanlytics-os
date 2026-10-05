@@ -218,7 +218,7 @@ export function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: Tod
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
     // The PEOPLE past the six, apart from the rest: the brief said "and 20 more need you" over sixteen people, counting
     // the calls and the search that sort after them.
-    morePeople: queueAll.slice(TODAY_QUEUE_MAX).filter(isPersonRow).length,
+    more_people: queueAll.slice(TODAY_QUEUE_MAX).filter(isPersonRow).length,
     // Every call worth a listen and every search waiting for an answer, drawn or not: the brief counted only those
     // among the six rows, so it said nothing of four calls the head had just counted.
     calls: earN,

@@ -54,7 +54,7 @@ function needsSentences(vm: TodayVM): TodayBriefSegment[][] {
   const { calls, searches } = vm.queue;
   const out: TodayBriefSegment[][] = [];
   if (people.length) {
-    const one = people.length === 1 && vm.queue.morePeople === 0;
+    const one = people.length === 1 && vm.queue.more_people === 0;
     const detail = vm.standing.detail;
     // One person: the headline's detail names them again ("Ana Reyes has been waiting since 2:20 PM."), so the two
     // sentences are one: "Ana Reyes needs you, waiting since 2:20 PM."
@@ -64,7 +64,7 @@ function needsSentences(vm: TodayVM): TodayBriefSegment[][] {
       out.push([bold(first), plain(` needs you, ${detail.slice(lead.length)}`)]);
     else {
       // The people not named, never the calls and the searches past the six: "and 20 more" over sixteen people.
-      out.push([...names(people, vm.queue.morePeople), plain(one ? " needs you." : " need you.")]);
+      out.push([...names(people, vm.queue.more_people), plain(one ? " needs you." : " need you.")]);
       if (detail) out.push([plain(detail)]);
     }
   }

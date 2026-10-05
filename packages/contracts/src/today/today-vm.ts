@@ -165,7 +165,7 @@ export interface TodayVM {
     /** Every row past the six, whatever it is. */
     more: number;
     /** The people past the six (a handoff, a call-back, a closing window), apart from the calls and the searches: what "more" says of who needs you. */
-    morePeople: number;
+    more_people: number;
     /** The calls worth a listen, drawn or not. */
     calls: number;
     /** The searches waiting for your answer, drawn or not. */

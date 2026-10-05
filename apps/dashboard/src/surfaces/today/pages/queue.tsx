@@ -199,7 +199,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // model already counted for the Inbox are the same kind of thing to a reader. The PEOPLE among them, since the foot
   // names the Inbox: it said "28 more in the Inbox" counting four calls and a search that live elsewhere, and the
   // head's sentence already says those (the 2 Oct 2026 audit).
-  const rowsCut = rows.slice(drawn.length).filter(isPersonRow).length + vm.queue.morePeople;
+  const rowsCut = rows.slice(drawn.length).filter(isPersonRow).length + vm.queue.more_people;
   const total = rows.length + runsCount + vm.queue.more;
   // The head's number is who is waiting on a person (the people, the windows, the searches) and the runs, under a
   // title that says "Need you": it counted the calls worth a listen too, so it read 24 over 19 (the 2 Oct 2026 audit).

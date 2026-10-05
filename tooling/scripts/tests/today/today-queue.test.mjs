@@ -699,7 +699,7 @@ test("the queue counts the people past the six apart from the calls and the sear
   );
   assert.equal(vm.queue.rows.length, 6);
   assert.equal(vm.queue.more, 8, "everything past the six: three people, the search and four calls");
-  assert.equal(vm.queue.morePeople, 3, "the people past the six, nothing else");
+  assert.equal(vm.queue.more_people, 3, "the people past the six, nothing else");
   assert.equal(vm.queue.calls, 4, "every call worth a listen, though none is among the six drawn");
   assert.equal(vm.queue.searches, 1, "and the search, though it sorts after nine people");
   assert.equal(vm.queue.waiting, 10, "the nine people and the search");
@@ -724,7 +724,7 @@ test("a person and four calls: the brief says one person needs you, not 'and 4 m
     NOW,
   );
   assert.equal(vm.queue.more, 2, "one person and seven calls: six shown, two more");
-  assert.equal(vm.queue.morePeople, 0);
+  assert.equal(vm.queue.more_people, 0);
   const words = todayBriefWords(vm, null, []).text;
   assert.match(words, /^Person 0 needs you, waiting since 1:00 AM\./, words);
   assert.match(words, /7 calls are worth a listen\./, words);
