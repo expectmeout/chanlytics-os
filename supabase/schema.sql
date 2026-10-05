@@ -640,8 +640,9 @@ begin
        and r.state = 'sent'
        and r.sent_at >= v_start
   ),
-  -- Replied: the customer wrote in that thread after the message went out —
-  -- the same rule the Broadcasts page counts by.
+  -- Replied: the customer wrote in that thread after the message went out, in their own words: not a call's note
+  -- (an inbound row the system wrote) and not a program writing from their address (message_is_a_persons_words, 00299).
+  -- The same rule the Broadcasts page counts by (the dashboard's broadcasts reader, contracts isPersonsWords).
   sent_r as (
     select s.*,
            (s.message_status in ('delivered', 'read')) as delivered,
@@ -649,19 +650,21 @@ begin
            exists (select 1 from messages i
                     where i.conversation_id = s.conversation_id
                       and i.direction = 'inbound'
+                      and i.sender = 'customer'
+                      and public.message_is_a_persons_words(i.meta)
                       and i.created_at > s.sent_at
                       and i.created_at <= s.sent_at + interval '72 hours')  as replied
       from sent s
   ),
   -- A yes or a stop, from the desk or in the customer's own words: the
-  -- consent ledger both doors write (00013, 00043). Not email's own answer (00174).
+  -- consent ledger both doors write (00013, 00043), email's own answer with them (00174: the one-click unsubscribe an
+  -- offer by email invites, and YES OFFERS by email), which this left out while offers went by WhatsApp alone.
   consent as (
     select (e.created_at at time zone v_tz)::date as day, e.data->>'consent' as consent
       from events e
      where e.tenant_id = p_tenant_id
        and e.kind = 'contact.consent_changed'
        and e.created_at >= v_start
-       and coalesce(e.data->>'purpose', '') <> 'email_marketing'
   ),
   -- Each day from one pass over each source, grouped by the day (00251), where a scalar subquery per day and per
   -- count scanned both again for every day.
@@ -738,7 +741,7 @@ end $$;
 -- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies, yeses and stops (not an unsubscribe from email, 00174) — day by day over two periods, and the current period by playbook or broadcast. Invoker''s RLS.';
+COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies (the customer''s own words: not a call''s note, an automatic reply or a list''s mail), yeses and stops (an unsubscribe from offers by email among them, 00174), day by day over two periods, and the current period by source.';
 
 
 --
@@ -10134,7 +10137,7 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     oe.created_at,
     lc.id, lc.state, lc.paused_until, lc.assignee_user_id, lc.snooze_until, lc.last_wa_inbound_at,
     lm.at, lm.direction, lm.sender,
-    li.body, li.at, li.channel,
+    li.body, li.at, lw.channel,
     ma.last_wrote_at,
     lk.last_at,
     lk.last_inbound_at,
@@ -10226,6 +10229,17 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
      limit 1
   ) li on true
   left join lateral (
+    -- Where they last WROTE: the wire of their newest own words. Not a call's note (the system's row, never spoken)
+    -- and not a program writing from their address (persons_words): an out-of-office made email "where they last
+    -- wrote", and a campaign then went there. contracts lastWroteOn is its twin.
+    select e.channel
+      from ev e
+     where e.contact_id = c.id and e.at is not null
+       and e.direction = 'inbound' and e.sender = 'customer' and e.spoken and e.persons_words
+     order by e.at desc
+     limit 1
+  ) lw on true
+  left join lateral (
     select min(e.at) filter (where e.spoken) as first_at,
            min(e.created_at) as first_row_at,
            bool_or(e.backfill) as has_backfill,
@@ -10297,7 +10311,7 @@ $$;
 -- Name: FUNCTION people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00297; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent (whatsapp, sms or email; null when they have sent none): the channel a campaign reaches them on first (00298, contracts'' reachFor). `last_wrote_at` is when they last wrote words that were a person''s own, an automatic reply, a list''s mail or a delivery report left out (00299, message_is_a_persons_words): the fact of "they wrote" that contracts'' relationshipOnRecord reads. `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it. `email_marketing`, `email_marketing_source` and `email_marketing_updated_at` are the person''s own answer about offers by email (00174, 00299): an offer by email goes to someone who has not unsubscribed and who asked for offers by email or has a relationship with the business on record (contracts'' mayMessageFor).';
+COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00297; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent themselves (their own words: not an automatic reply or a list''s mail) (whatsapp, sms or email; null when they have sent none): the channel a campaign reaches them on first (00298, contracts'' reachFor). `last_wrote_at` is when they last wrote words that were a person''s own, an automatic reply, a list''s mail or a delivery report left out (00299, message_is_a_persons_words): the fact of "they wrote" that contracts'' relationshipOnRecord reads. `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it. `email_marketing`, `email_marketing_source` and `email_marketing_updated_at` are the person''s own answer about offers by email (00174, 00299): an offer by email goes to someone who has not unsubscribed and who asked for offers by email or has a relationship with the business on record (contracts'' mayMessageFor).';
 
 
 --

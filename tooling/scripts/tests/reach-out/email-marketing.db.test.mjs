@@ -349,25 +349,43 @@ test(
   },
 );
 
-test("Reports › Campaigns counts no unsubscribe from email as a STOP to its offers", { skip }, async () => {
-  const opts = async () => {
-    const r = ok(await db.rpc("campaign_series", { p_tenant_id: A, p_days: 30 }));
-    assert.equal(r.error, undefined, JSON.stringify(r).slice(0, 200));
-    return r.series.reduce((n, d) => n + d.opt_outs, 0);
-  };
-  assert.equal(await opts(), 0, "the presses above are email's own answer");
-  ok(
-    await db.from("events").insert({
-      tenant_id: A,
-      kind: "contact.consent_changed",
-      category: "contact",
-      subject_type: "contact",
-      subject_id: person,
-      data: { consent: "opted_out", source: "customer_message", channel: "whatsapp", words: "STOP" },
-    }),
-  );
-  assert.equal(await opts(), 1, "a STOP still counts");
-});
+test(
+  "Reports › Campaigns counts an unsubscribe from offers by email among its stops, as it counts a STOP (00320)",
+  { skip },
+  async () => {
+    const opts = async () => {
+      const r = ok(await db.rpc("campaign_series", { p_tenant_id: A, p_days: 30 }));
+      assert.equal(r.error, undefined, JSON.stringify(r).slice(0, 200));
+      return r.series.reduce((n, d) => n + d.opt_outs, 0);
+    };
+    // The presses above are email's own answer (00174). They were left out while offers went by WhatsApp alone; an offer
+    // by email invites exactly this answer, so "Asked to stop" counts it.
+    const pressed = await opts();
+    assert.ok(pressed > 0, "the unsubscribes pressed above are counted");
+    ok(
+      await db.from("events").insert({
+        tenant_id: A,
+        kind: "contact.consent_changed",
+        category: "contact",
+        subject_type: "contact",
+        subject_id: person,
+        data: { consent: "opted_out", purpose: "email_marketing", source: "unsubscribe" },
+      }),
+    );
+    assert.equal(await opts(), pressed + 1, "one more unsubscribe, one more stop");
+    ok(
+      await db.from("events").insert({
+        tenant_id: A,
+        kind: "contact.consent_changed",
+        category: "contact",
+        subject_type: "contact",
+        subject_id: person,
+        data: { consent: "opted_out", source: "customer_message", channel: "whatsapp", words: "STOP" },
+      }),
+    );
+    assert.equal(await opts(), pressed + 2, "a STOP still counts");
+  },
+);
 
 test(
   "a complaint is a no through the same door: opted out, on the never-again list, the leads closed, the source said (00177)",

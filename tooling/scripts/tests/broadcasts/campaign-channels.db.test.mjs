@@ -376,6 +376,32 @@ test("people_list says the channel a person last wrote on, which is not the chan
   assert.equal(row(people.byText).last_inbound_text, "then, by text", "the same message as the text the row carries");
   assert.equal(row(people.byWhatsApp).last_inbound_channel, "whatsapp");
   assert.equal(row(people.silent).last_inbound_channel, null, "nothing written, no channel");
+  // Their OWN words (00320): their mailbox answering for them, and a call's note, are rows that came in after and
+  // are not where they last wrote. The row's text is still the last thing that came in, as it was.
+  ok(
+    await db.from("messages").insert([
+      {
+        ...message(texted, people.byText, "email", "inbound", "2026-09-10T13:00:00Z", "I am out of the office."),
+        meta: { email: { claim: "auto_reply" } },
+      },
+      {
+        ...message(wrote, people.byWhatsApp, "voice", "inbound", "2026-09-10T13:00:00Z", "They phoned about Saturday."),
+        sender: "system",
+        type: "call_summary",
+        // Named on both rows: one insert of rows with different keys writes null where a row names none.
+        meta: {},
+      },
+    ]),
+  );
+  const after = ok(await db.rpc("people_list", { p_tenant_id: A }), "people_list");
+  const now = (id) => after.find((p) => p.id === id);
+  assert.equal(now(people.byText).last_inbound_channel, "sms", "an out-of-office does not make email where they wrote");
+  assert.equal(
+    now(people.byText).last_inbound_text,
+    "I am out of the office.",
+    "the last thing that came in, as before",
+  );
+  assert.equal(now(people.byWhatsApp).last_inbound_channel, "whatsapp", "a call's note is not their writing");
   // One person's row alone, by the same door.
   const alone = ok(await db.rpc("people_list", { p_tenant_id: A, p_contact_id: people.byText }), "one person");
   assert.deepEqual(

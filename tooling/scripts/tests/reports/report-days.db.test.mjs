@@ -141,7 +141,8 @@ test("campaign_series: each day's sends, receipts, replies, yeses and stops land
       insert into public.broadcasts (tenant_id, name, template_id, template_name, template_language, scheduled_for)
         values (t, 'Campaign days', tpl, 'campaign_days', 'en', day0 - interval '5 days') returning id into b;
       -- Six sends: three today (read, delivered, sent; the read one answered an hour later), two three days ago, and
-      -- one three days ago that failed and counts nowhere.
+      -- one three days ago that failed and counts nowhere. The second's thread got a call's note and the third's an
+      -- out-of-office from their mailbox: rows that came in, and nobody's answer (00320).
       for i in 1..6 loop
         k := case when i <= 3 then 0 else 3 end;
         receipt := (array['read', 'delivered', 'sent', 'sent', 'sent', 'failed'])[i];
@@ -157,8 +158,18 @@ test("campaign_series: each day's sends, receipts, replies, yeses and stops land
           insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body, status, created_at)
             values (t, conv, cid, 'whatsapp', 'inbound', 'customer', 'text', 'yes please', 'received', day0 + interval '61 minutes');
         end if;
+        if i = 2 then
+          insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body, status, created_at)
+            values (t, conv, cid, 'voice', 'inbound', 'system', 'call_summary', 'They phoned about Saturday.', 'received', day0 + interval '62 minutes');
+        end if;
+        if i = 3 then
+          insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body, status, created_at, meta)
+            values (t, conv, cid, 'email', 'inbound', 'customer', 'text', 'I am out of the office.', 'received', day0 + interval '63 minutes',
+                    '{"email": {"claim": "auto_reply"}}');
+        end if;
       end loop;
-      -- A yes and a stop a day ago, and an unsubscribe from email, which is email's own answer and no STOP (00174).
+      -- A yes and a stop a day ago, and an unsubscribe from offers by email: email's own answer (00174), and a stop
+      -- to what a campaign sends, counted with the others since offers go by email (00320).
       insert into public.events (tenant_id, kind, category, subject_type, subject_id, created_at, data) values
         (t, 'contact.consent_changed', 'contact', 'contact', cid, day0 - interval '1 day' + interval '1 minute', '{"consent": "opted_in"}'),
         (t, 'contact.consent_changed', 'contact', 'contact', cid, day0 - interval '1 day' + interval '2 minutes', '{"consent": "opted_out"}'),
@@ -175,8 +186,12 @@ test("campaign_series: each day's sends, receipts, replies, yeses and stops land
     const d = days[ago(k)];
     return [d.sent, d.delivered, d.read, d.replied, d.opt_ins, d.opt_outs];
   };
-  assert.deepEqual(row(0), [3, 2, 1, 1, 0, 0], "today: three sent, two delivered (one read), one answered");
-  assert.deepEqual(row(1), [0, 0, 0, 0, 1, 1], "a day ago: a yes and a stop, and no unsubscribe from email");
+  assert.deepEqual(
+    row(0),
+    [3, 2, 1, 1, 0, 0],
+    "today: three sent, two delivered (one read), one answered; a call's note and an out-of-office are no answer",
+  );
+  assert.deepEqual(row(1), [0, 0, 0, 0, 1, 2], "a day ago: a yes, a stop, and an unsubscribe from offers by email");
   assert.deepEqual(row(3), [2, 0, 0, 0, 0, 0], "three days ago: two sent, and the failed one counts nowhere");
   for (const k of [2, 4, 5, 6, 7, 13]) assert.deepEqual(row(k), [0, 0, 0, 0, 0, 0], `${ago(k)} had nothing`);
   assert.equal(report.sources.length, 1);
