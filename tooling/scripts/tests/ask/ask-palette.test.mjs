@@ -423,6 +423,31 @@ test("REGRESSION (N3): what the shell sends as the Line opens is taken -- a seed
   await closes();
 });
 
+test("words on the Line that are a question on its way warm the model's cache (the bridge sends one in four minutes): two words or more, eight characters, reaching no page or person; a word alone, a jump and a closed Line warm nothing", async () => {
+  ask([]);
+  let warms = 0;
+  Object.assign(globalThis.window.__ask, {
+    warmModel: () => {
+      warms += 1;
+    },
+    // The jumps a few words reach, as contracts' askJump answers them: a list, empty when they reach nothing.
+    jump: (q) => (q.startsWith("maria") ? [{ kind: "person", to: "clients/c-1", label: "Maria Lopez" }] : []),
+  });
+  render(Palette, CLOSED);
+  await later(Palette, CLOSED);
+  assert.equal(warms, 0, "closed: nothing is on its way");
+  let tree = await opens();
+  for (const words of ["inbox", "maria lopez", "how was"]) {
+    typed(tree, words);
+    tree = await later(Palette, OPEN);
+  }
+  assert.equal(warms, 0, "a word alone, two words that reach a person, and words too few to be a question");
+  typed(tree, "how was the week");
+  await later(Palette, OPEN);
+  assert.ok(warms >= 1, "a question on its way: the bridge is asked, and sends one warm however often it is");
+  await closes();
+});
+
 test("a question carries how long the Line was open before it was asked (AskTurnShape.opened_ms)", async () => {
   const calls = ask([]);
   render(Palette, OPEN);

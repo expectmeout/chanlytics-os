@@ -1033,7 +1033,7 @@ const AskReal = ({ open, onClose }) => {
   ln.surface = A ? A.surfaceFor(route.page, route.param) : "other";
   Object.assign(ln, arActs(ln));
   ln.submit = arSubmitter(ln);
-  Object.assign(ln, useArVoice(ln));
+  Object.assign(ln, useArVoice(ln)); H.useAskWarm(ln); // and a question on its way warms the model's cache (ask-hooks.jsx)
   useArMood(ln);
   useArSlide(ln);
   useArOpen(ln);
