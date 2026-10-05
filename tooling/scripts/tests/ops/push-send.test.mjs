@@ -82,7 +82,10 @@ test("every member's every phone hears a workspace row, in the bell's words; ano
   });
 });
 
-test("the badge is each reader's own bell number; the tickets go to one push_receipts job a quarter of an hour on", async () => {
+test("the badge is each reader's own bell number; the tickets go to one push_receipts job a quarter of an hour on", async (t) => {
+  // The rows are dated 26 September and the bell counts the last thirty days (BELL_WINDOW_DAYS): read on the real
+  // clock, this would count nothing from 26 October on. The clock is the one the other tests here hold.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-28T17:00:00Z") });
   // u1 opened the bell after the first row and marked nothing; u2 never opened it but dismissed one row.
   const tables = {
     notifications: [
