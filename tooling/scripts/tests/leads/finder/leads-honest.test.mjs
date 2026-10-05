@@ -3936,6 +3936,13 @@ test("at a phone's width Needs review is rows in groups: the group's acts on its
     );
     const card = find(first, (n) => n.props?.className === "pl-card");
     assert.equal(typeof card.props.onTouchStart, "function", "a thumb has the row");
+    // The row takes its own touch, so a slide on it never walks the strip of views over the page as well: a slide right
+    // kept the lead and moved to People in one stroke (5 Oct 2026; surface-tabs.jsx ST_OWN_TOUCH).
+    assert.equal(
+      find(first, (n) => n.props?.className === "pl-card-cell").props["data-own-drag"],
+      "",
+      "the sliding row is marked as taking its own touch",
+    );
     assert.deepEqual(
       all(first, (n) => /pl-card-ground/.test(String(n.props?.className || ""))).map(textOf),
       ["Keep", "Exclude"],
