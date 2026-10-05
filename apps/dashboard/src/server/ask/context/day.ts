@@ -1,5 +1,7 @@
 import "server-only";
 import {
+  askCallOutcome,
+  heldDraftWaits,
   leadsRoute,
   toCallVM,
   toInboxThreadVM,
@@ -33,16 +35,16 @@ import { threadState } from "../thread-state";
  * them, so it is simply absent) and writes each row with the page's own view model, as Ask's tools do.
  */
 
-/** A draft held on the thread, as inbox.list marks one. */
-const held = (v: InboxThreadVM): string | null => (v.veto || v.heldDraft ? "draft held" : null);
+/** A draft held on the thread, as inbox.list marks one: still waiting, by the Inbox's rule (heldDraftWaits). */
+const held = (v: InboxThreadVM, now: Date): string | null => (heldDraftWaits(v, now.getTime()) ? "draft held" : null);
 
 /** A thread's line: who, its state, a held draft, the last word, when. */
-const threadLine = (v: InboxThreadVM, route: string): string =>
-  line([v.who, threadState(v), held(v), v.preview, v.lastAtFull], route);
+const threadLine = (v: InboxThreadVM, route: string, now: Date): string =>
+  line([v.who, threadState(v), held(v, now), v.preview, v.lastAtFull], route);
 
 /** A call's line, as calls.list says a call: who, how it went, when, how long, what it was about. */
 const callLine = (v: CallVM, route: string): string =>
-  line([v.who, v.outcome, v.at, v.duration, v.summary.headline], route);
+  line([v.who, askCallOutcome(v), v.at, v.duration, v.summary.headline], route);
 
 const callRow = (v: CallVM): ContextRow => {
   const route = `conversations/cv-${v.callId}`;
@@ -118,7 +120,7 @@ export const inbox: Provider = async (rc, ctx) => {
     rows.push({
       source: sourceOf("thread", r.id),
       title: v.who,
-      text: threadLine(v, route),
+      text: threadLine(v, route, rc.now),
       ref: refOf("thread", r.id, v.who, route),
     });
   }
@@ -128,7 +130,7 @@ export const inbox: Provider = async (rc, ctx) => {
     aggregate: aggregateOf([
       `${pageWithView(ctx)}: ${rows.length} threads on screen`,
       `needs you: ${count((v) => v.needsYou)}`,
-      `held: ${count((v) => !!v.veto || !!v.heldDraft)}`,
+      `held: ${count((v) => heldDraftWaits(v, rc.now.getTime()))}`,
       `waiting on you: ${count((v) => v.takenOver)}`,
       `snoozed: ${count((v) => v.state === "snoozed")}`,
       `threads: ${vms.length}`,
@@ -171,7 +173,7 @@ export const conversations: Provider = async (rc, ctx) => {
       rows.push({
         source: sourceOf("conversation", r.id),
         title: v.who,
-        text: threadLine(v, route),
+        text: threadLine(v, route, rc.now),
         ref: refOf("conversation", r.id, v.who, route),
       });
     } else {

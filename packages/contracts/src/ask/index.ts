@@ -47,6 +47,7 @@ export { buildAskSuggestions } from "./ask-suggestions";
 export type { AskSuggestion, SuggestionInput } from "./ask-suggestions";
 export { dayFromQuestion, askIntent, callsToday } from "./ask-fast-paths";
 export type { FastCall, AskIntent } from "./ask-fast-paths";
+export { callJumpSub, askCallOutcome } from "./ask-calls";
 export { applySettingsChange, describeSettingsChange } from "./ask-settings-change";
 export { AskSettingsChangeSchema } from "./ask-schemas";
 export type { AskSettingsChange } from "./ask-settings-change";

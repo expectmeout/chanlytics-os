@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { callerName } from "@chanlytics/contracts";
 import { UUID, defineAct, noteRow, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
 
 async function proposeWhisper(t: ToolContext, input: { call_id: string; text: string }): Promise<ProposalOutcome> {
@@ -9,15 +10,15 @@ async function proposeWhisper(t: ToolContext, input: { call_id: string; text: st
   if (!text) return refuse("text is required");
   const { data: call, error } = await t.ctx.supabase
     .from("calls")
-    .select("id, status, contacts (display_name, wa_profile_name, phone_e164)")
+    .select("id, status, from_e164, from_raw, contacts (display_name, wa_profile_name)")
     .eq("id", id)
     .eq("tenant_id", t.tenantId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!call) return refuse("no such call in this workspace");
   if (call.status !== "ongoing") return refuse("that call is not in progress; there is nobody on the line");
-  const who =
-    call.contacts?.display_name || call.contacts?.wa_profile_name || call.contacts?.phone_e164 || "the caller";
+  // As Live names the call (callerName): the saved name, else the number as the phone showed it, never the raw digits.
+  const who = callerName({ from_e164: call.from_e164, from_raw: call.from_raw, contact: call.contacts });
   noteRow(t, "call", id, who, `conversations/cv-${id}`);
   return propose({
     kind: "whisper",

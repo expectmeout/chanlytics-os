@@ -11,7 +11,9 @@ import {
   askIntent,
   askJump,
   askPages,
+  bellCalls,
   buildAskSuggestions,
+  callJumpSub,
   callsAnswer,
   callsToday,
   detectLanguage,
@@ -22,7 +24,6 @@ import {
   rightNowLine,
   sameQuestion,
   scopeFromRoute,
-  zoneDayKey,
   type AskAnswer,
   type AskLanguage,
   type AskMessageVM,
@@ -30,19 +31,12 @@ import {
   type AskSuggestion,
   type AskSurface,
   type AskWaiting,
+  type FeedLive,
   type JumpEntry,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
 import { feedFromGlobals } from "../notifications";
 import type { Workspace } from "../surface-data";
-
-interface Call {
-  callId: string;
-  who: string;
-  missed: boolean;
-  live: boolean;
-  startedAtMs: number | null;
-}
 
 /** A playbook's run as the broadcasts surface publishes it, as far as who is waiting reads it. */
 interface Run {
@@ -56,7 +50,8 @@ interface Run {
 
 export interface PaletteGlobals {
   INBOX_DATA?: { THREADS?: Array<{ id: string; real?: boolean; who: string; needsYou?: boolean }> };
-  __LIVE?: { now?: Call[]; recent?: Call[] };
+  /** Live's value: the calls on the line, the page's recent few, and every missed call still news (uncapped). */
+  __LIVE?: FeedLive;
   __PEOPLE?: { rows?: Array<{ id: string; name: string }>; dealsOn?: boolean } | null;
   __SETTINGS?: { config?: { calendar?: { ical_url?: string } } | null } | null;
   __WORKSPACES?: Workspace[];
@@ -140,13 +135,8 @@ export function jumpIndexFrom(win: Window): JumpEntry[] {
     });
   }
   for (const p of w.__PEOPLE?.rows ?? []) out.push({ label: p.name, to: `clients/${p.id}`, kind: "person" });
-  for (const c of [...(w.__LIVE?.now ?? []), ...(w.__LIVE?.recent ?? [])]) {
-    out.push({
-      label: `${c.who} — call`,
-      to: `conversations/cv-${c.callId}`,
-      kind: "call",
-      sub: c.live ? "live" : c.missed ? "missed" : undefined,
-    });
+  for (const c of bellCalls(w.__LIVE)) {
+    out.push({ label: `${c.who} — call`, to: `conversations/cv-${c.callId}`, kind: "call", sub: callJumpSub(c) });
   }
   return out;
 }
@@ -214,7 +204,8 @@ export function askPalette(win: Window, storage: Storage | null) {
     const id = w.__ACTIVE_WORKSPACE ?? null;
     return (w.__WORKSPACES ?? []).find((x) => x.id === id) ?? null;
   };
-  const calls = () => [...(w.__LIVE?.now ?? []), ...(w.__LIVE?.recent ?? [])];
+  // Every call Live holds, each once: the page's recent few are not all of today's (Live's missedCalls is uncapped).
+  const calls = () => bellCalls(w.__LIVE);
   const timezone = () => activeWorkspace()?.timezone ?? null;
   const language = (text?: string): AskLanguage => {
     if (!text) return lastLanguage();
@@ -236,17 +227,15 @@ export function askPalette(win: Window, storage: Storage | null) {
     suggestions: (surface: AskSurface, scope: AskScope | null, lang?: AskLanguage): AskSuggestion[] => {
       const feed = feedFromGlobals(w as Parameters<typeof feedFromGlobals>[0], Date.now());
       const who = waiting();
-      // The business's today (clock.ts): a call missed at 1 AM where the business is counts as that day's, whatever day the browser says.
+      // The business's today: a call missed at 1 AM where the business is counts as that day's, whatever day the browser says.
       const tz = timezone();
-      const today = tz ? zoneDayKey(Date.now(), tz) : null;
       return buildAskSuggestions({
         surface,
         language: lang ?? lastLanguage(),
         needsYou: rightNowCounts(who).people,
         heldDrafts: feed.filter((i) => i.kind === "held_draft").length,
-        missedToday: tz
-          ? calls().filter((c) => c.missed && c.startedAtMs && zoneDayKey(c.startedAtMs, tz) === today).length
-          : 0,
+        // The count the quick answer gives (callsToday): a dial the receptionist placed is not a missed call.
+        missedToday: tz ? callsToday(calls(), Date.now(), tz).missed.length : 0,
         liveNow: calls().filter((c) => c.live).length,
         hasCalendar: !!w.__SETTINGS?.config?.calendar?.ical_url,
         scope,

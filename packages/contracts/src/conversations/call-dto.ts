@@ -91,12 +91,21 @@ export function abandonedCall(
 }
 
 /**
+ * Whether a call is a "missed call": a dial that never connected (`missed`, what the call view models carry for status
+ * not_connected) and the customer's own. The one the receptionist placed and nobody answered is not missed by anyone
+ * (callAttemptWords). A row that does not say who dialled is a customer's, as the bell reads it (FeedCall).
+ */
+export function missedCall(c: { missed: boolean; direction?: "inbound" | "outbound" | null }): boolean {
+  return c.missed && c.direction !== "outbound";
+}
+
+/**
  * A dial that never connected, by who dialled: a customer's is a missed call; one the receptionist placed and
  * nobody answered is not "missed" by anyone. The bell, the person page and the call row said "Missed call" for
  * both, and the bell named the BUSINESS's own number under it (the 2 Oct 2026 audit).
  */
 export function callAttemptWords(direction: "inbound" | "outbound"): string {
-  return direction === "outbound" ? "Call didn't connect" : "Missed call";
+  return missedCall({ missed: true, direction }) ? "Missed call" : "Call didn't connect";
 }
 
 /** Why the call ended, in words a salon owner uses. */
