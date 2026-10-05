@@ -1,5 +1,5 @@
 /**
- * A sending domain keeps each day's counters (00296 sending_domain_days), on a real Postgres.
+ * A sending domain keeps each day's counters (00314 sending_domain_days), on a real Postgres.
  *
  * A domain's sent, bounced and complaint counts, the days it has sent on and its state live on its own row, which the
  * ten-minute domains sweep rewrites on every check and a Resume clears. The nightly clock `sending-domain-days` (00:23

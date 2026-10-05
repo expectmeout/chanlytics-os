@@ -1,9 +1,9 @@
--- 00289 · A person added at a door keeps how.
+-- 00307 · A person added at a door keeps how.
 --
--- The Reports lenses spec, K3, the other half of 00288. A person added at a door (the calendar sweep, create_person,
+-- The Reports lenses spec, K3, the other half of 00306. A person added at a door (the calendar sweep, create_person,
 -- import_person, lead_set_stage, reach_out_person, lead_link_contact) is already declared by the contact.added event their
 -- writer inserts beside them, whose `source` is calendar, lead, import or the hand's own word. This trigger reads that
--- event and calls 00288's door, person_set_first_touch, so none of those writers is restated, and the first value wins as
+-- event and calls 00306's door, person_set_first_touch, so none of those writers is restated, and the first value wins as
 -- it does for a message or a call. A lead's id is the ref where the event names one (reach_out_person's does; lead_set_stage's
 -- and the trigger that converts a lead onto a person who wrote first name none, so their ref is null). Cuttable: without
 -- it these people read null and People works their source out from the same event, as before. Either deploy order works.
@@ -16,7 +16,7 @@
 --
 -- What it costs, on the ledger that is written on every action. The WHEN is a kind, a subject type and a subject, so a row
 -- of any other kind never enters the function; only a person's arrival does, once per person, and that call is one
--- primary-key update that finds nothing to change after their first touch is taken. It traps its own failure as 00288's
+-- primary-key update that finds nothing to change after their first touch is taken. It traps its own failure as 00306's
 -- triggers do (the call sits in an exception block, a subtransaction): a warning and a person with no first touch, never
 -- a lost event, so never a lost person, calendar sweep or import. After insert, so the event is on record whatever the
 -- stamp does. The trigger is on the partitioned parent, so every partition, and each one made later, carries it.

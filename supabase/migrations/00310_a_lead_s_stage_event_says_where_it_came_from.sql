@@ -1,7 +1,7 @@
--- 00292 · A lead's stage event says where the lead came from.
+-- 00310 · A lead's stage event says where the lead came from.
 --
 -- The Reports lenses spec, K5, the other half. lead.stage carried the stage a lead went to and never the one it left;
--- 00291 now keeps that on the lead (stage_from). This completes the event with it: one trigger on the ledger, so the
+-- 00309 now keeps that on the lead (stage_from). This completes the event with it: one trigger on the ledger, so the
 -- writers that say a lead's stage (lead_set_stage, set_email_marketing, reach_out_reply_undo) are not restated and a later
 -- one is held too. It adds `from` only when the lead moved into the stage the event names in this very transaction
 -- (stage_at is now(), and the stage is the event's): an event written for a lead that did not move, or that moved in
@@ -13,7 +13,7 @@
 -- made is a warning and the event lands as written. It fires for a lead.stage row about a lead only (the WHEN), so no other
 -- event enters it. Either deploy order works (nothing reads `from` yet).
 --
--- The lock. A trigger on the events ledger locks its partitions until commit (as 00289's does): one table, one wait, the
+-- The lock. A trigger on the events ledger locks its partitions until commit (as 00307's does): one table, one wait, the
 -- 3 s guard of 00259; if it times out nothing was applied and the owner re-runs it when the line is quiet. This file reads
 -- leads but takes no lock on it. Every statement re-runs.
 set local lock_timeout = '3s';

@@ -1,4 +1,4 @@
--- 00297 · A number's quality is read on a clock, and said when it changes.
+-- 00315 · A number's quality is read on a clock, and said when it changes.
 --
 -- The Reports lenses spec, K9 (the number's half). A connected WhatsApp number's quality rating (GREEN, YELLOW, RED) was
 -- read once, when the number was connected, and kept as tenant_channels.config.quality_rating, which numberHealth

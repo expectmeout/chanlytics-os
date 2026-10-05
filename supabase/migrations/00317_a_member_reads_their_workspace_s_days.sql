@@ -1,7 +1,7 @@
--- 00299 · A member reads their workspace's days.
+-- 00317 · A member reads their workspace's days.
 --
--- The Reports lenses spec, K10. The rolled days (platform_metrics, 00277, widened by 00298) are the back office's table:
--- RLS on and no member policy, because latency, provider failures and, since 00298, dollars live in it. The lenses past
+-- The Reports lenses spec, K10. The rolled days (platform_metrics, 00277, widened by 00316) are the back office's table:
+-- RLS on and no member policy, because latency, provider failures and, since 00316, dollars live in it. The lenses past
 -- ninety days (the Overview's trends, Usage's earlier periods) need the part of a day that is a workspace's own, so
 -- workspace_days returns exactly those columns and no others (day, messages_in, messages_out, asks, answered, handled,
 -- topics, ai_tokens), to a member of that workspace. Never ai_usd, voice_usd, brain_p95_ms, provider_failures,
@@ -21,7 +21,7 @@
 -- only on a session that showed its second factor (session_shows_second_factor, 00218). A session with no user (the
 -- service role, anon) is refused. A route above it will declare the role (Usage is the owner's); no route reads it yet.
 --
--- A day rolled before 00298 returns null in handled, topics and ai_tokens: absent, never zero. At most 800 days a call.
+-- A day rolled before 00316 returns null in handled, topics and ai_tokens: absent, never zero. At most 800 days a call.
 --
 -- Either deploy order works (nothing reads it yet). No table is changed.
 set local lock_timeout = '3s';
@@ -72,4 +72,4 @@ end $$;
 revoke all on function public.workspace_days(uuid, date, date) from public, anon;
 grant execute on function public.workspace_days(uuid, date, date) to authenticated;
 comment on function public.workspace_days(uuid, date, date) is
-  'A workspace''s rolled days between two dates, oldest first, for a member of that workspace (K10): the messages in and out by channel, the asks and how many were answered, how each customer message ended, what they asked about, and the model''s tokens by purpose. Never the operator''s columns (dollars, latency, provider failures). Checks membership itself (a partner''s seat only with its second factor shown); refuses a session with no user and a range over 800 days. A day rolled before 00298 reads null in the last three.';
+  'A workspace''s rolled days between two dates, oldest first, for a member of that workspace (K10): the messages in and out by channel, the asks and how many were answered, how each customer message ended, what they asked about, and the model''s tokens by purpose. Never the operator''s columns (dollars, latency, provider failures). Checks membership itself (a partner''s seat only with its second factor shown); refuses a session with no user and a range over 800 days. A day rolled before 00316 reads null in the last three.';

@@ -13,7 +13,7 @@
  *                        which sorts it behind the moments that can run, so it never holds the page's first places.
  *   whatsappNumbersToRead  the active WhatsApp numbers, never read first and then the longest unread: what the
  *                          channel-quality sweep (apps/edge/api/cron/channel-quality.ts, every six hours) reads.
- *   keepChannelQuality     the one write that sweep makes, through channel_keep_quality (00297).
+ *   keepChannelQuality     the one write that sweep makes, through channel_keep_quality (00315).
  * The functions are the service role's alone. The edge's calendar and playbooks sweeps read the pages through
  * lib/ops/sweep-rotation.ts, and the playbooks sweep calls the stamp. A read that fails throws, and so does a page
  * whose rows lack the count, so a database without the function is a sweep that says so, never a quiet tick.
@@ -167,7 +167,7 @@ const KEPT_ANSWERS = ["first", "changed", "same", "gone"] as const;
 type ChannelQualityKept = (typeof KEPT_ANSWERS)[number];
 
 /**
- * A number's rating, kept (channel_keep_quality, 00297): first read, changed, the same as the last, or gone (not this
+ * A number's rating, kept (channel_keep_quality, 00315): first read, changed, the same as the last, or gone (not this
  * workspace's WhatsApp channel any more). Throws on the database's refusal and on an answer it does not know, so a
  * sweep counts the number as unread and tries it next tick.
  */

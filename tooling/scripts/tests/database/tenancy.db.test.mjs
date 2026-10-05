@@ -229,7 +229,7 @@ before(async () => {
     from_local: "sam",
     from_name: "Tenancy",
   });
-  // One day of that domain (00296): the clock's function writes it, a member of the workspace reads it.
+  // One day of that domain (00314): the clock's function writes it, a member of the workspace reads it.
   await seed(
     "sending_domain_days",
     {
@@ -609,7 +609,7 @@ const TENANT_TABLES = {
       from_name: "Stranger",
     }),
   ],
-  // A sending domain's day (00296): members read their own workspace's, and only the nightly function writes one.
+  // A sending domain's day (00314): members read their own workspace's, and only the nightly function writes one.
   sending_domain_days: [
     "member",
     () => ({

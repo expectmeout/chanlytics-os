@@ -1,7 +1,7 @@
 /**
  * The channel-quality sweep (the Reports lenses spec, K9): every six hours, each connected WhatsApp number's quality
  * rating (GREEN, YELLOW, RED, NA or UNKNOWN) is read from Meta with the token its workspace already holds, and kept
- * through the database's door (channel_keep_quality, 00297), which writes a channel.quality_rating event { from, to }
+ * through the database's door (channel_keep_quality, 00315), which writes a channel.quality_rating event { from, to }
  * when the word differs from the last one read. The word is kept beside the rating stored at connection
  * (config.quality_rating), never over it: what a broadcast is gated on does not change here. The reading is
  * readNumberQualities (lib/whatsapp/number-quality.ts); nothing here decides what a number's rating means.
@@ -10,9 +10,9 @@
  * read once in five hours and AT_ONCE at a time, and no read starts after YIELD_AT_MS from the door's first line, so
  * what is left is first in line next tick.
  *
- * pg_cron runs it at minute 41 of every sixth hour ('channel-quality-sweep', 00297), and trigger_channel_quality_sweep
+ * pg_cron runs it at minute 41 of every sixth hour ('channel-quality-sweep', 00315), and trigger_channel_quality_sweep
  * asks the edge (request_sweep) only when an active WhatsApp channel exists, and otherwise records only that it looked.
- * sweep_health() judges the answer and expects one at least every 19 hours (00297). Auth is authorizeCron: the
+ * sweep_health() judges the answer and expects one at least every 19 hours (00315). Auth is authorizeCron: the
  * x-cron-key header against the sweep key held in Vault.
  *
  * It answers 200 with the counts, whatever Meta said: a Meta that is down, a token that was revoked, a word it has not

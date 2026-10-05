@@ -1,5 +1,5 @@
 /**
- * An invoice keeps what it moved (00300, K8): the Stripe door keeps what an invoice event moved, on the event's own
+ * An invoice keeps what it moved (00318, K8): the Stripe door keeps what an invoice event moved, on the event's own
  * ledger row, once; writes nothing it cannot validate; keeps a real zero (a trial's first invoice moved nothing, and
  * that is what it moved); and the ledger's own floor refuses a bad value written any other way. The door is the service
  * role's alone.

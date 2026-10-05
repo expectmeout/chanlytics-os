@@ -15,7 +15,7 @@ const ONE_LEAD_COLUMNS =
 
 type LeadsRow = Database["public"]["Tables"]["leads"]["Row"];
 // A reach-out's facts (resume_at; booked_at and reach_out_stopped_at, 00241) are its own reads', never the page's row,
-// and so are the stage's (stage_at and stage_from, 00291): Reports reads them.
+// and so are the stage's (stage_at and stage_from, 00309): Reports reads them.
 export type LeadOneLead = Omit<
   LeadsRow,
   | "country"

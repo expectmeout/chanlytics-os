@@ -1,5 +1,5 @@
 /**
- * A day keeps what the lenses read (00298), on a real Postgres.
+ * A day keeps what the lenses read (00316), on a real Postgres.
  *
  * The nightly roll (platform_metrics_roll) counted a day from events purged at thirty days and kept nothing of what the
  * receptionist did. Five columns now keep it, read from rows that last:

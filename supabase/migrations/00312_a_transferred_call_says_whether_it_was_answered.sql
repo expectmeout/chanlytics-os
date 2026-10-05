@@ -1,4 +1,4 @@
--- 00294 · A transferred call says whether it was answered.
+-- 00312 · A transferred call says whether it was answered.
 --
 -- The Reports lenses spec, K7 (the phone half). The receptionist hands a caller to a person with the transfer tool, and
 -- the provider says how the call ended: call_transfer (it was transferred), transfer_bridged (the destination picked up and
@@ -15,7 +15,7 @@
 -- that carries the same ending, and a later word that names another transfer all write nothing). A transfer that did not
 -- connect and left the caller with the receptionist ends with another reason and writes none. No backfill.
 --
--- It sits beside 00288's first-touch triggers on calls and neither depends on the other: this one reads only NEW and
+-- It sits beside 00306's first-touch triggers on calls and neither depends on the other: this one reads only NEW and
 -- writes only an event of a kind no trigger on events reacts to, and theirs write a person, so the order Postgres fires
 -- them in (by name) cannot matter, and each traps its own failure, so a failure of one never stops the other. It writes
 -- only the event, traps its own failure (a call with no event is a warning, never a failed ingest), and fires only for a

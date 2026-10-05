@@ -1,13 +1,13 @@
--- 00291 · A lead keeps when it changed stage, and is told when it is set aside.
+-- 00309 · A lead keeps when it changed stage, and is told when it is set aside.
 --
 -- The Reports lenses spec, K5. A lead's stage is overwritten by every writer that moves it (the member's door, the bulk
 -- door, a conversion, a person's no, its undo, the contact trigger that links a lead, the nightly purge) and nothing kept
 -- when, so "time in each stage" and the leads stuck now could not be read. Now leads.stage_at is the moment the lead
 -- entered the stage it is in and leads.stage_from the stage it left, both stamped by one trigger on the stage itself:
--- every writer is held and none is restated (as 00290 holds an escalation's). A new row's stage_at is its birth, by the
+-- every writer is held and none is restated (as 00308 holds an escalation's). A new row's stage_at is its birth, by the
 -- column's default; no row is backfilled, so a lead from before reads null (unknown) and a tile treats null as absent.
 -- stage_from is said in one place, the stamp's own write of it (leads_stamp_stage), and everything that wants to say where
--- a lead came from reads that column and never works it out again: lead.set_aside below, and 00292's lead.stage event.
+-- a lead came from reads that column and never works it out again: lead.set_aside below, and 00310's lead.stage event.
 --
 -- A lead that is set aside as stale (archived, closed stale: the product's word, retention.ts) wrote no event when the
 -- nightly purge did it, and one set to stale by hand (lead_set_stage allows the reason) wrote only a lead.stage. Now the
@@ -43,9 +43,9 @@ alter table public.leads add column if not exists stage_from text;
 alter table public.leads alter column stage_at set default now();
 
 comment on column public.leads.stage_at is
-  'When the lead entered the stage it is in (K5): its birth for a new row, the move for any later one, stamped by leads_stamp_stage whoever writes the stage. Null for a lead from before 00291: unknown, never now.';
+  'When the lead entered the stage it is in (K5): its birth for a new row, the move for any later one, stamped by leads_stamp_stage whoever writes the stage. Null for a lead from before 00309: unknown, never now.';
 comment on column public.leads.stage_from is
-  'The stage the lead was in before the move that stamped stage_at (K5); null until it moves. The one place a lead''s "from" is said: lead.set_aside and 00292''s lead.stage event read it.';
+  'The stage the lead was in before the move that stamped stage_at (K5); null until it moves. The one place a lead''s "from" is said: lead.set_aside and 00310''s lead.stage event read it.';
 
 create or replace function public.lead_is_set_aside(p_stage text, p_closed_reason text)
 returns boolean

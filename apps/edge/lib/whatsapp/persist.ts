@@ -172,7 +172,7 @@ export async function pgIngest(
       meta: {
         raw_type: n.rawType,
         // K3: the line it came in on and the ad it came from ride in the row's meta, where the database's own trigger
-        // (00288) reads them for the first touch of the person this message made. Absent keys, never nulls.
+        // (00306) reads them for the first touch of the person this message made. Absent keys, never nulls.
         ...(line ? { line } : {}),
         ...(n.referral ? { referral: { source_id: n.referral.sourceId, source_type: n.referral.sourceType } } : {}),
       },

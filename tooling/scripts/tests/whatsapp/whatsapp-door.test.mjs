@@ -222,7 +222,7 @@ function world() {
     tables,
     /** A phone number id no workspace holds. */
     stranger: String(106540000500000 + i),
-    /** The cost door (00301) refuses from now on, as a database ahead of its migration, or one that is down, does. */
+    /** The cost door (00319) refuses from now on, as a database ahead of its migration, or one that is down, does. */
     refuseCost: () => {
       costRefused = true;
     },

@@ -291,7 +291,7 @@ test(
       p_lost_reason: "timing",
     });
     assert.equal(told.deal.lost_reason, null, "a reason is a pass's alone, whatever a call names");
-    // Events carry what they did: a stage; the amount the deal held at the move and, for a pass, its reason (00293, K6);
+    // Events carry what they did: a stage; the amount the deal held at the move and, for a pass, its reason (00311, K6);
     // never a link or a note. The deal held 120000 when proposed, lost its amount to the cleared field before the pass
     // (so the pass says none), and the reason is the pass's alone.
     const SIX = ["by", "contact_id", "deal_id", "from", "service", "stage"];

@@ -57,7 +57,7 @@ export function lastWordLine(needsHuman: boolean, last: MessageDto | undefined, 
 
 /**
  * The reasoning beside a message, for the messages that have any: only the receptionist's own replies carry it. A
- * customer's inbound row carries an `intent` too since 00287 (what they were after, stamped when the receptionist read
+ * customer's inbound row carries an `intent` too since 00305 (what they were after, stamped when the receptionist read
  * it), and that is the topic of their words, not why anyone said anything. The Inbox, Conversations and Ask's thread
  * tool say it here.
  */

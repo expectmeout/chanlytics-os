@@ -3083,7 +3083,7 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
   );
 });
 
-test("inbox.thread says nothing of reasoning beside a customer's words, though their message carries an intent since 00287: a reply of the receptionist's keeps its why", async () => {
+test("inbox.thread says nothing of reasoning beside a customer's words, though their message carries an intent since 00305: a reply of the receptionist's keeps its why", async () => {
   const brain = {
     intent: "pricing",
     confidence: 0.62,

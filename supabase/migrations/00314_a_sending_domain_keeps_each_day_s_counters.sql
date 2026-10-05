@@ -1,4 +1,4 @@
--- 00296 · A sending domain keeps each day's counters.
+-- 00314 · A sending domain keeps each day's counters.
 --
 -- The Reports lenses spec, K9 (the domains' half). A domain's sent, bounced and complaint counts, the days it has sent on
 -- and its state live on its own row, which the ten-minute domains sweep rewrites on every check and a Resume clears, so

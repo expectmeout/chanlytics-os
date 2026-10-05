@@ -1,5 +1,5 @@
 /**
- * What an invoice moved, kept on its event's ledger row (K8, 00300): the amount paid on invoice.paid, the amount due on
+ * What an invoice moved, kept on its event's ledger row (K8, 00318): the amount paid on invoice.paid, the amount due on
  * invoice.payment_failed (what the invoice moved, or tried to), and Stripe's currency, lowercased. The operator's
  * margin, billing mix and failed payments read it from billing_events; the door had said only whether anything was paid
  * (last_paid_at, lib/billing/billing.ts notePayment) and dropped the amount.

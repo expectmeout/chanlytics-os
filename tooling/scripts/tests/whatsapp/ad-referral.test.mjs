@@ -1,7 +1,7 @@
 /**
  * The ad a person clicked to write (the Reports lenses spec, K3): Meta names it in messages[].referral, and the edge
  * keeps its id and kind, nothing else, and writes them with the line the message came in on into the inbound row's
- * meta, where the database's first-touch trigger (00288) reads them. A message with neither writes neither key.
+ * meta, where the database's first-touch trigger (00306) reads them. A message with neither writes neither key.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

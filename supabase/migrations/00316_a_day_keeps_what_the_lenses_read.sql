@@ -1,4 +1,4 @@
--- 00298 · A day keeps what the lenses read.
+-- 00316 · A day keeps what the lenses read.
 --
 -- The Reports lenses spec, K10, and the first clause of K8. The nightly roll (00277) counted a workspace's day from
 -- events that are purged at thirty days, and kept nothing the receptionist did: how each customer's message ended, what
@@ -7,7 +7,7 @@
 -- connected inbound call's analysis.topic, K1 and K2: the nine words of contracts BRAIN_INTENTS), ai_tokens and ai_usd
 -- (the ledger, 00273, by purpose, the workspace's own calls and never a shadow's), and voice_usd (calls.cost: Retell's
 -- call_cost.combined_cost is in cents, and call_cost_usd is the one place the product says what a call cost in dollars).
--- The dollars are the operator's, and stay in this service-role table: workspace_days (00299) is what an owner may read.
+-- The dollars are the operator's, and stay in this service-role table: workspace_days (00317) is what an owner may read.
 --
 -- tokens now reads the ledger where the ledger holds the day for the workspace, so it counts a call once, and the events'
 -- count otherwise (a day before the ledger reads as it did). It RISES on the first night after this lands: the events
@@ -287,4 +287,4 @@ end $$;
 revoke all on function public.platform_metrics_roll(date) from public, anon, authenticated;
 grant execute on function public.platform_metrics_roll(date) to service_role;
 comment on function public.platform_metrics_roll(date) is
-  'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read: how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00298), in a block that fails alone. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty.';
+  'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read: how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00316), in a block that fails alone. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty.';

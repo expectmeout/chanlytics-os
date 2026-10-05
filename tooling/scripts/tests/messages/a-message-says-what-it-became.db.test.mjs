@@ -1,5 +1,5 @@
 /**
- * 00287 on a real Postgres: message_stamp_handled says what a customer's message became (the Reports lenses spec, K1)
+ * 00305 on a real Postgres: message_stamp_handled says what a customer's message became (the Reports lenses spec, K1)
  * beside processed_at and never over it. The deadman sweep (apps/edge/lib/receptionist/unfinished.ts) reads
  * meta.processed_at, so a stamp that cost a key would show an answered customer as unanswered: both writes land,
  * whichever comes first and when both come at once. The first answer stands, no intent is no key, and a row that is

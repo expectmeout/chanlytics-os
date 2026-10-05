@@ -1,13 +1,13 @@
--- 00288 · A person keeps how they first reached the workspace.
+-- 00306 · A person keeps how they first reached the workspace.
 --
 -- The Reports lenses spec, K3. People works "where they first reached you" out when it reads, and nothing says which line
--- or which ad. Now contacts.acquired_via (whatsapp, sms, email, call, ad; from 00289 calendar, import, lead, manual) and
+-- or which ad. Now contacts.acquired_via (whatsapp, sms, email, call, ad; from 00307 calendar, import, lead, manual) and
 -- acquired_ref (the line, a tenant_channels id, or the ad's id; never the person) are written once, through
 -- person_set_first_touch, by the message or call that made the person. A person and the first message or call that made
 -- them are written in one transaction, so their created_at are one now(), and anyone who existed before (imported, added,
 -- made by an earlier call) is never stamped by it. The triggers run inside ingest_inbound and ingest_call (neither
 -- restated) and trap their own failure as lead_link_contact (00140) does: a warning and a person with no first touch,
--- never a lost message. A call counts when public.call_connected says so (phase A's one rule, 00285: ongoing or ended, or
+-- never a lost message. A call counts when public.call_connected says so (phase A's one rule, 00303: ongoing or ended, or
 -- an error after it had a length), read at the moment it first does: on the call's first row, or on the update that first
 -- makes it connected. Retell's first row can be `registered`, which an upsert later raises to ongoing or ended; a row keeps
 -- its created_at across updates, so the person that row made still has the same created_at as the call, and that equality
@@ -63,7 +63,7 @@ alter table public.contacts add column if not exists acquired_via text;
 alter table public.contacts add column if not exists acquired_ref text;
 
 comment on column public.contacts.acquired_via is
-  'How the person first reached the workspace, written once (person_set_first_touch): whatsapp, sms, email or call for the wire of the message or call that made them, ad for a WhatsApp click-to-chat ad (a referral whose source_type is ad; a post or any other referral is the wire''s), calendar, import, lead or manual for the door that added them (00289). Null for a person from before it was kept, and wherever nothing says: unknown, never a guess.';
+  'How the person first reached the workspace, written once (person_set_first_touch): whatsapp, sms, email or call for the wire of the message or call that made them, ad for a WhatsApp click-to-chat ad (a referral whose source_type is ad; a post or any other referral is the wire''s), calendar, import, lead or manual for the door that added them (00307). Null for a person from before it was kept, and wherever nothing says: unknown, never a guess.';
 comment on column public.contacts.acquired_ref is
   'The line (tenant_channels.id) or the ad (Meta''s source id) the person first came through; null where nothing says. Never the person.';
 

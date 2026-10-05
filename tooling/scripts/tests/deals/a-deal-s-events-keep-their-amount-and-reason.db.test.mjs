@@ -1,10 +1,10 @@
 /**
- * 00293 on a real Postgres: a deal's events keep its amount and, for a pass, why it was lost (the Reports lenses spec,
+ * 00311 on a real Postgres: a deal's events keep its amount and, for a pass, why it was lost (the Reports lenses spec,
  * K6), whoever writes the event. The writers are the real ones: deal_record (a new deal and each move) and
  * set_person_proposal (the Proposal out it opens), neither restated. An event says two keys at most, `amount_cents` and
  * `lost_reason`, each only when the deal has the thing: absent is never null, and never 0, while a stored 0 is an amount
  * (as the Deals page reads it). Never a note, a link, a `per` or a `currency`. The one trigger enters a deal.* event
- * about a deal and no other, and never together with 00292's, whose events are lead.stage. A lookup that cannot be made
+ * about a deal and no other, and never together with 00310's, whose events are lead.stage. A lookup that cannot be made
  * costs the event nothing (a transaction on this machine's database that never commits, through the CLI, as
  * escalation-outcome.db.test.mjs does). Runs against the database `supabase start` builds on this machine, never
  * production.

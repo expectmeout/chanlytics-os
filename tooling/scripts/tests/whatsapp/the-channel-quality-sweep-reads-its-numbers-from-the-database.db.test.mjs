@@ -1,5 +1,5 @@
 /**
- * The channel-quality sweep's two database reads, on a real Postgres (packages/db sweeps.ts, with 00297): the numbers it
+ * The channel-quality sweep's two database reads, on a real Postgres (packages/db sweeps.ts, with 00315): the numbers it
  * lists and the word it keeps. The sweep's door test (cron/cron-channel-quality-door.test.mjs) runs them over a database
  * in memory; this holds what that cannot judge, the order PostgREST gives a JSON path (config.quality_read_at), and that
  * the wrapper means what the SQL door answers.

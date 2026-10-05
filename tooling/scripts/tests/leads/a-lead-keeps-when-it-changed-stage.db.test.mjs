@@ -1,11 +1,11 @@
 /**
- * 00291 on a real Postgres: a lead keeps when it entered the stage it is in and the stage it left (the Reports lenses
+ * 00309 on a real Postgres: a lead keeps when it entered the stage it is in and the stage it left (the Reports lenses
  * spec, K5), whoever moved it, and a lead set aside as stale (archived, closed stale: by the nightly purge or by hand) is
  * told as lead.set_aside. The writers are the real ones: the member's door (lead_set_stage), the bulk door (lead_bulk),
  * the undo door (lead_undo) and purge_leads, none of which this change restates. No row is backfilled: a lead from before
  * reads null, and a move stamps it. A ledger that cannot take the event does not take the set-aside with it (a
  * transaction on this machine's database that never commits, through the CLI, as escalation-outcome.db.test.mjs does).
- * 00292's half, the stage event's `from`, is in this file too, below. Runs against the database `supabase start` builds
+ * 00310's half, the stage event's `from`, is in this file too, below. Runs against the database `supabase start` builds
  * on this machine, never production.
  *
  * purge_leads has no workspace argument: each call also sets aside, and after 180 days blanks, any other workspace's
@@ -334,7 +334,7 @@ test(
   },
 );
 
-/* ---------------------------------------- 00292: the stage event says where the lead came from ---------------------------------------- */
+/* ---------------------------------------- 00310: the stage event says where the lead came from ---------------------------------------- */
 
 test(
   "a stage event says which stage the lead came from, through the member's door, back and forth; a stage set to the one it has says none",

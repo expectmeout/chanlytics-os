@@ -1,6 +1,6 @@
 /**
  * The ad or post a customer clicked to write: Meta names it in a WhatsApp message's `referral`, and the person that
- * message made keeps its id as `contacts.acquired_ref` (00288; the Reports lenses spec, K3), beside `acquired_via = 'ad'`,
+ * message made keeps its id as `contacts.acquired_ref` (00306; the Reports lenses spec, K3), beside `acquired_via = 'ad'`,
  * when the referral's kind (`source_type`) is `ad`. A post is kept in the message's meta and the person is stamped by the
  * wire, as one whose message had no referral is.
  *

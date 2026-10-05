@@ -1,11 +1,11 @@
 /**
- * 00294 on a real Postgres: a call that ended in a transfer says whether a person picked up (the Reports lenses spec,
+ * 00312 on a real Postgres: a call that ended in a transfer says whether a person picked up (the Reports lenses spec,
  * K7). The trigger is on the call row, so the writer is the real one, ingest_call, whose body this change does not
  * restate: the webhook's call_started, call_ended and call_analyzed all carry the call and the ending they know, and the
  * event is written once, on the update that first makes the ending a transfer, however many times the provider says it
  * after. One predicate, call_transfer_answered, says which endings are a transfer and whether it was answered, and is
  * held to the product's own words for the endings (DISCONNECTION_LABELS) by the case below. The trigger sits beside the
- * first-touch ones of 00288 on the same table and never reads what they write. A ledger that cannot take the event does
+ * first-touch ones of 00306 on the same table and never reads what they write. A ledger that cannot take the event does
  * not take the call with it (a transaction on this machine's database that never commits, through the CLI, as
  * team-changes-and-their-audit.db.test.mjs does). Runs against the database `supabase start` builds on this machine,
  * never production.
@@ -226,7 +226,7 @@ test(
 );
 
 test(
-  "the transfer sits beside the first touch of 00288 on the same row, and neither takes the other's place: a call's first row and the update that connects it",
+  "the transfer sits beside the first touch of 00306 on the same row, and neither takes the other's place: a call's first row and the update that connects it",
   { skip },
   async () => {
     // First row: connected and inbound (the insert trigger of the first touch fires) and already a transfer (ours does).

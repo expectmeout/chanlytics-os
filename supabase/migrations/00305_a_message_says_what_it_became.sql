@@ -1,4 +1,4 @@
--- 00287 · A message says what it became.
+-- 00305 · A message says what it became.
 --
 -- The Reports lenses spec, K1. What the receptionist made of a customer's message, and what they were after, were known
 -- to the verb for a moment and kept nowhere. message_stamp_handled merges `handled` and `intent` into an inbound row's

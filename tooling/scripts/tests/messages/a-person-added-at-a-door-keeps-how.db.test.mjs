@@ -1,5 +1,5 @@
 /**
- * 00289 on a real Postgres: a person added at a door keeps the door's word as their first touch (the Reports lenses
+ * 00307 on a real Postgres: a person added at a door keeps the door's word as their first touch (the Reports lenses
  * spec, K3). Every writer of a person who did not write or phone first (the calendar sweep, create_person,
  * import_person, a lead converted) already declares how in the contact.added event it inserts beside them; the trigger
  * reads that event, so none of those writers is restated, and the first value wins as everywhere else. The event is

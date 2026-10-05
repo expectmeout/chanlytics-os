@@ -1,5 +1,5 @@
 /**
- * 00295 on a real Postgres: a booking link sent in chat is said once (the Reports lenses spec, K7, the chat half). The
+ * 00313 on a real Postgres: a booking link sent in chat is said once (the Reports lenses spec, K7, the chat half). The
  * trigger is on the message row, so the writers are the real ones: the send door (core deliver.ts, which writes a row as
  * sent or finalizes a queued one) over the real repository writer (db recordOutbound), and a row written straight, as a
  * backfill or a campaign writes it. One predicate, message_carries_link, is the rule: the words hold the link without its
@@ -14,7 +14,7 @@
  *     and never for a draft that was canceled or failed, an email, an inbound message, a campaign's or a reach-out's
  *     send, or a backfilled row; a later delivered, read or repeated sent writes no second one;
  *   - each workspace's own link: another workspace's link says nothing;
- *   - it sits beside the first touch of 00288 on the same table, and neither takes the other's place;
+ *   - it sits beside the first touch of 00306 on the same table, and neither takes the other's place;
  *   - a ledger that cannot take the event does not take the message with it, on a row written as sent and on one that
  *     becomes sent (a transaction on this machine's database that never commits, through the CLI, as
  *     team-changes-and-their-audit.db.test.mjs does).
@@ -522,7 +522,7 @@ test(
 );
 
 test(
-  "the trigger sits beside the first touch of 00288 on the same table, and neither takes the other's place",
+  "the trigger sits beside the first touch of 00306 on the same table, and neither takes the other's place",
   { skip },
   async () => {
     // A person who writes first: ingest_inbound makes them and stamps how they first reached us (messages_note_first_touch,

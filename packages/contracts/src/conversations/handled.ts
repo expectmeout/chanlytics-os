@@ -1,6 +1,6 @@
 /**
  * What a customer's message became when the receptionist finished with it, stamped on the inbound row's meta as
- * `handled` (message_stamp_handled, 00287; the Reports lenses spec, K1). One meaning each, decided by core's one rule
+ * `handled` (message_stamp_handled, 00305; the Reports lenses spec, K1). One meaning each, decided by core's one rule
  * (inbound/handled.ts handledOf) and held by the verb's executed test (inbound-executed.test.mjs): a message is a
  * `handoff` exactly when an escalation LANDED for it, and a write the database refused asked nobody.
  *

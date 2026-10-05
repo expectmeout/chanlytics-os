@@ -140,7 +140,7 @@ test("v3 says where, when and how fast, and every older field is as it was", { s
   for (const t of [...asks.map((a) => a.at), callAt]) want[isoDow(t) - 1][t.getUTCHours()] += 1;
   assert.deepEqual(r.hours, want);
 
-  // How fast: each receptionist first reply, with the day it was asked and the hold it waited (00286; none here, each
+  // How fast: each receptionist first reply, with the day it was asked and the hold it waited (00304; none here, each
   // reply was sent at once), oldest first.
   assert.deepEqual(r.replies, [
     { day: utcDay(asks[0].at), s: 30, hold: 0 },

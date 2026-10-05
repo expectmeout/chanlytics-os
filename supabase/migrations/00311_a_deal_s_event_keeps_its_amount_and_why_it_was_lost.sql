@@ -1,4 +1,4 @@
--- 00293 · A deal's event keeps its amount and why it was lost.
+-- 00311 · A deal's event keeps its amount and why it was lost.
 --
 -- The Reports lenses spec, K6. Each deal.* event said the stage and who (00156, 00160) and nothing of what the deal was
 -- worth or why it was passed on, and both are overwritten on the row by the next edit, so "why they passed" and stage
@@ -18,11 +18,11 @@
 --
 -- It reads one row of deals and writes only the event it is part of, and traps its own failure: a lookup that cannot be
 -- made is a warning and the event lands as written. It fires for a deal.proposed, deal.won, deal.lost or deal.ended row
--- about a deal only (the WHEN), so no other event enters the function. 00292's trigger on this ledger fires for lead.stage
+-- about a deal only (the WHEN), so no other event enters the function. 00310's trigger on this ledger fires for lead.stage
 -- only: no event enters both, each reads its own table and writes keys the other never reads, so the order they fire in
 -- cannot matter. Either deploy order works (nothing reads the keys yet).
 --
--- The lock. As 00292: a trigger on the events ledger locks its partitions until commit, one table, one wait, the 3 s guard
+-- The lock. As 00310: a trigger on the events ledger locks its partitions until commit, one table, one wait, the 3 s guard
 -- of 00259; if it times out nothing was applied and the owner re-runs it when the line is quiet. This file reads deals but
 -- takes no lock on it. Every statement re-runs.
 set local lock_timeout = '3s';

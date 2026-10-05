@@ -1,4 +1,4 @@
--- 00290 · An escalation keeps when it ended, and why it changed.
+-- 00308 · An escalation keeps when it ended, and why it changed.
 --
 -- The Reports lenses spec, K4. A thread has one open escalation, so a new reason replaces the old on the same row, and
 -- resolving it sets a state and not a time: both histories were lost. Now escalations.resolved_at is stamped once by a
@@ -33,7 +33,7 @@ end $$;
 alter table public.escalations add column if not exists resolved_at timestamptz;
 
 comment on column public.escalations.resolved_at is
-  'When the escalation was resolved (K4), stamped once by escalations_stamp_resolved when state goes from open to resolved. Null while open, and for every row resolved before 00290: unknown, never zero.';
+  'When the escalation was resolved (K4), stamped once by escalations_stamp_resolved when state goes from open to resolved. Null while open, and for every row resolved before 00308: unknown, never zero.';
 
 create or replace function public.escalations_stamp_resolved()
 returns trigger

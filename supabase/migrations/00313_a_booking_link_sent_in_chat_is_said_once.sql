@@ -1,4 +1,4 @@
--- 00295 · A booking link sent in chat is said once.
+-- 00313 · A booking link sent in chat is said once.
 --
 -- The Reports lenses spec, K7 (the chat half). A call that sends the booking link records it as its outcome
 -- (calls.outcome booking_link_sent); a chat message that carried it recorded nothing, so "links sent, then booked" could
@@ -39,11 +39,11 @@
 -- and was not (messages_guard keeps a status monotone and a terminal one terminal, so a row that is sent is sent, then
 -- delivered, then read, and a delivered, a read or a repeated sent never writes a second event). The two WHENs restate the
 -- same chat-reply conditions (outbound, whatsapp or sms, not automated, not a backfill) and differ only in the move into
--- sent, and the backfill test is spelled inline here as in 00285, 00286 and 00288: both are left as they are, the pattern
--- since 00288.
+-- sent, and the backfill test is spelled inline here as in 00303, 00304 and 00306: both are left as they are, the pattern
+-- since 00306.
 --
 -- It writes only the event and traps its own failure: a message with no event is a warning, never a failed send or a lost
--- ingest. It sits beside 00288's first-touch trigger on the same table and neither depends on the other: that one fires
+-- ingest. It sits beside 00306's first-touch trigger on the same table and neither depends on the other: that one fires
 -- for an inbound customer message and this one for an outbound one, so no row fires both; this one reads only NEW (after
 -- messages_guard, which may stamp meta.status_at and touches neither meta.source nor meta.backfill) and tenant_config, and
 -- writes only an event of a kind no trigger on events reacts to; the statement triggers of messages (person_moments_*,

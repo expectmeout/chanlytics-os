@@ -13,7 +13,7 @@
  * so this belongs against Postgres rather than a double. Skipped without a
  * local database.
  *
- * The last case forces the failure the change event's trap exists for (00290): a ledger that refuses the row, put on
+ * The last case forces the failure the change event's trap exists for (00308): a ledger that refuses the row, put on
  * `events` inside a transaction that never commits (through the CLI, as team-changes-and-their-audit.db.test.mjs does
  * for `decisions`; SUPABASE_CLI names the binary when `supabase` is not on PATH).
  */
@@ -113,7 +113,7 @@ before(async () => {
 
 after(async () => {
   if (skip) return;
-  // The ledger has no foreign key to a workspace, so a change event would outlive it (00290).
+  // The ledger has no foreign key to a workspace, so a change event would outlive it (00308).
   if (tenantId) {
     await db.from("events").delete().eq("tenant_id", tenantId);
     await db.from("tenants").delete().eq("id", tenantId);

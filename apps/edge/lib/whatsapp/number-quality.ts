@@ -1,7 +1,7 @@
 /**
  * The reading behind the channel-quality sweep (the Reports lenses spec, K9): each connected WhatsApp number's quality
  * rating, asked of Meta with the token its own workspace already holds, and kept through the database's door
- * (channel_keep_quality, 00297), which says when the word changed.
+ * (channel_keep_quality, 00315), which says when the word changed.
  *
  * What is asked, and when. The numbers come from whatsappNumbersToRead, never read first and then the longest unread,
  * and a number is asked only when it was never read or was last read READ_EVERY_MS ago, so a tick that is late, or

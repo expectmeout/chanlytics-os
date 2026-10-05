@@ -43,8 +43,8 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 00215 added 'purge_jobs', the nightly purge of the ledger's finished rows.
   // 00255 added 'purge_page_vitals', the nightly purge of the page timings.
   // 00277 added 'platform_metrics_roll', the nightly count of each workspace's day.
-  // 00296 added 'sending_domain_days', the nightly keeping of each sending domain's counters.
-  // 00297 added 'channel_quality', the six-hourly read of each WhatsApp number's rating.
+  // 00314 added 'sending_domain_days', the nightly keeping of each sending domain's counters.
+  // 00315 added 'channel_quality', the six-hourly read of each WhatsApp number's rating.
   assert.deepEqual(
     data.map((r) => r.sweep),
     [

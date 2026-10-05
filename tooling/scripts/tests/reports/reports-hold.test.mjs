@@ -169,7 +169,7 @@ test("the bars, the hero and the line count one split: the bars' first two are t
   assert.equal(vm.lines.hero, "16 of 25 customer messages, without you. 9 of 14 took longer than your 1-minute hold.");
 });
 
-test("a report with no hold keeps the bars on the seconds a reply took: from before 00286, or with none held", () => {
+test("a report with no hold keeps the bars on the seconds a reply took: from before 00304, or with none held", () => {
   const ABSOLUTE = ["lt15", "lt60", "lt300", "lt1800", "gte1800"];
   const unheld = times(14, () => ({ day: "2026-09-17", s: 63 }));
   for (const replies of [unheld, times(14, () => reply(63, 0))]) {

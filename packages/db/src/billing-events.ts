@@ -2,7 +2,7 @@
  * The Stripe ledger (00073 billing_events): the one row each delivery leaves, by Stripe's event id. A table is typed here
  * and nowhere else.
  *
- *   keepInvoiceAmount  what an invoice event moved, kept on its own row (00300 billing_event_keep_amount): the amount in
+ *   keepInvoiceAmount  what an invoice event moved, kept on its own row (00318 billing_event_keep_amount): the amount in
  *                      the smallest unit of the invoice's currency and the currency, once, the first answer standing. A
  *                      real zero is kept. False when the door wrote nothing: a value it cannot validate, an event that
  *                      already has an amount, an id that is no event's. A write that fails throws, with the database's

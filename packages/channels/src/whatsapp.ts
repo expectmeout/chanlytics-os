@@ -284,7 +284,7 @@ export type WaPricing = { billable?: boolean; pricing_model?: string; category?:
 /**
  * A word of Meta's pricing (`PMP`, `utility`, `authentication-international`, `free_customer_service`): letters, digits, `_`
  * and `-`, at most 40. Anything else (a sentence, a control character, a megabyte) is not one. The same word the
- * database's message_keep_cost (00301) accepts, so what this keeps is what it stores: tied to it by
+ * database's message_keep_cost (00319) accepts, so what this keeps is what it stores: tied to it by
  * tooling/scripts/tests/messages/a-message-keeps-what-it-cost-to-send.db.test.mjs, which runs one table of pricings
  * through both, so an edit to either alone is a red test (database files run in CI when database paths change: run it).
  */

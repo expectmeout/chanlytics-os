@@ -1,5 +1,5 @@
 /**
- * 00288 on a real Postgres: a person keeps how they first reached the workspace (the Reports lenses spec, K3), written
+ * 00306 on a real Postgres: a person keeps how they first reached the workspace (the Reports lenses spec, K3), written
  * once, by the message or call that made them. The touch that made a person is told by their own row, written in the
  * same transaction (one now(): their created_at is the message's), so a person who existed before it, a redelivered
  * message and a later touch stamp nothing; a stamp that cannot be written costs nobody their message. The writers are
@@ -261,7 +261,7 @@ test(
   { skip },
   async () => {
     // contacts_link_lead (00140) runs inside ingest_inbound, between the person's insert and the message's: it converts
-    // the lead onto the person and writes their contact.added event, whose source is `lead`. 00289's trigger
+    // the lead onto the person and writes their contact.added event, whose source is `lead`. 00307's trigger
     // (events_note_first_touch) reads that event as it is written, so the order of the writers in that transaction is the
     // lead's event, then the message: the lead stands and the message finds the touch taken (People's came_from reads a
     // lead first, too). That conversion's event names no lead id, so the ref is null.
@@ -291,7 +291,7 @@ test(
     assert.deepEqual(
       added.map((e) => e.data.source),
       ["lead"],
-      "and said so, once, in the event 00289 reads",
+      "and said so, once, in the event 00307 reads",
     );
     assert.deepEqual(
       await touchOf(first.contact_id),
@@ -547,7 +547,7 @@ test(
       meta: { raw_type: "text", line: waLine, referral: { source_id: adId, source_type: "ad" } },
     });
     assert.deepEqual(await touchOf(ad.contact_id), ["ad", adId]);
-    // A lead-made person: the lead is linked to them, and the contact.added event beside them names it, as 00289's trigger reads it.
+    // A lead-made person: the lead is linked to them, and the contact.added event beside them names it, as 00307's trigger reads it.
     const person = ok(
       await db
         .from("contacts")

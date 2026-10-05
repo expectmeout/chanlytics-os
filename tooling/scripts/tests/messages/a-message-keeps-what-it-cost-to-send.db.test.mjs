@@ -1,5 +1,5 @@
 /**
- * 00301 on a real Postgres: message_keep_cost keeps what a message cost to send (the Reports lenses spec, K8). Meta's
+ * 00319 on a real Postgres: message_keep_cost keeps what a message cost to send (the Reports lenses spec, K8). Meta's
  * receipt carries a `pricing` object (billable, pricing_model, category, type; no amount), and the door merges it into
  * the outbound row's meta, found by the provider's own id in the named workspace, once: the first receipt carrying it
  * stands. The webhook is public input, so each key is checked on its own (a boolean for billable; letters, digits, _ or
@@ -378,7 +378,7 @@ test(
           stored: stored && JSON.stringify(stored).slice(0, 80),
         });
     }
-    assert.deepEqual(disagree, [], "waPricingOf (packages/channels) and message_keep_cost (00301) must be one rule");
+    assert.deepEqual(disagree, [], "waPricingOf (packages/channels) and message_keep_cost (00319) must be one rule");
     assert.ok(kept > 0 && kept < AGREE.length, `the table must hold both outcomes: ${kept} of ${AGREE.length} kept`);
   },
 );

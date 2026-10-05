@@ -1,13 +1,13 @@
 /**
- * A member reads their workspace's days (00299, K10), on a real Postgres.
+ * A member reads their workspace's days (00317, K10), on a real Postgres.
  *
- * platform_metrics (00277, widened by 00298) is the back office's table: RLS on, no member policy, because latency,
- * provider failures and, since 00298, dollars live in it. The Reports lenses past ninety days need the part of a day
+ * platform_metrics (00277, widened by 00316) is the back office's table: RLS on, no member policy, because latency,
+ * provider failures and, since 00316, dollars live in it. The Reports lenses past ninety days need the part of a day
  * that is a workspace's own, so workspace_days returns exactly those columns and no others, to a member of that
  * workspace, and it checks membership itself (a definer function never meets a row policy):
  *   - the answer: a member (an owner, a viewer) reads the workspace's days between two dates, inclusive, oldest first,
  *     in the owner's eight columns and no others (never ai_usd, voice_usd, brain_p95_ms, provider_failures, the
- *     replies_* or the legacy tokens); a day rolled before 00298 reads null where the new columns are, never zero; a
+ *     replies_* or the legacy tokens); a day rolled before 00316 reads null where the new columns are, never zero; a
  *     backwards range is empty;
  *   - the door: another workspace's owner, a workspace nobody owns, anon and the service role (no user) are refused
  *     with 42501; a partner's seat reads only on a session that showed its second factor; a span of more than 800
@@ -109,7 +109,7 @@ before(async () => {
       replies_held: 1,
       replies_handed_off: 0,
     },
-    { tenant_id: A, day: "2026-04-02", asks: 1, answered: 1 }, // rolled before 00298: the new columns are null
+    { tenant_id: A, day: "2026-04-02", asks: 1, answered: 1 }, // rolled before 00316: the new columns are null
     { tenant_id: B, day: "2026-04-01", asks: 99, answered: 99, handled: { ai: 99 } },
   ];
   for (const row of rows) ok(await db.from("platform_metrics").insert(row), `day ${row.day}`);
@@ -146,7 +146,7 @@ test(
       assert.deepEqual(
         [old.handled, old.topics, old.ai_tokens],
         [null, null, null],
-        "a day rolled before 00298 says nothing of what it did not keep",
+        "a day rolled before 00316 says nothing of what it did not keep",
       );
     }
   },

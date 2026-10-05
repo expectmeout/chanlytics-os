@@ -1650,7 +1650,7 @@ test("the report reader hands the workspace's hours and closures beside the repo
   }
 });
 
-/** report_series's answer for a period: no day counted, `replies` each reply the receptionist sent (00286 gives each its hold). */
+/** report_series's answer for a period: no day counted, `replies` each reply the receptionist sent (00304 gives each its hold). */
 const replyReport =
   (replies, extra = {}) =>
   (a) => ({

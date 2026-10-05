@@ -1,4 +1,4 @@
--- 00300 · An invoice keeps what it moved.
+-- 00318 · An invoice keeps what it moved.
 --
 -- The Reports lenses spec, K8. The Stripe webhook keeps each delivery once, by Stripe's event id, in billing_events, and
 -- said nothing of what an invoice event was for: the amount of a paid invoice went into one yes-or-no (did the workspace
@@ -30,7 +30,7 @@ alter table public.billing_events add column if not exists amount_cents integer
 alter table public.billing_events add column if not exists currency text
   check (currency is null or currency ~ '^[a-z]{3}$');
 comment on column public.billing_events.amount_cents is
-  'What the invoice behind this event moved, in the smallest unit of its currency (K8): the amount paid on invoice.paid, the amount due on invoice.payment_failed. Kept once by billing_event_keep_amount; null for an event from before 00300 or that named no amount. A real zero is a zero.';
+  'What the invoice behind this event moved, in the smallest unit of its currency (K8): the amount paid on invoice.paid, the amount due on invoice.payment_failed. Kept once by billing_event_keep_amount; null for an event from before 00318 or that named no amount. A real zero is a zero.';
 comment on column public.billing_events.currency is
   'The invoice''s currency as Stripe spells it, three lowercase letters (K8); null where amount_cents is.';
 

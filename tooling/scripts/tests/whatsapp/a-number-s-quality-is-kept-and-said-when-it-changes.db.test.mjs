@@ -1,5 +1,5 @@
 /**
- * A number's quality is kept and said when it changes (00297 channel_keep_quality and the channel-quality clock), on a
+ * A number's quality is kept and said when it changes (00315 channel_keep_quality and the channel-quality clock), on a
  * real Postgres.
  *
  * A connected WhatsApp number's rating (GREEN, YELLOW, RED) is read once, when the number is connected, and kept as

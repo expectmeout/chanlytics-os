@@ -231,7 +231,7 @@ test(
 
     const closed = ok(await db.from("events").select("subject_id, data").eq("tenant_id", A).eq("kind", "lead.stage"));
     assert.deepEqual(closed.map((e) => e.subject_id).sort(), [leads.ready.id, leads.nurture.id].sort());
-    // Each lead's event says the stage that lead came from (00292), whichever the order they were closed in.
+    // Each lead's event says the stage that lead came from (00310), whichever the order they were closed in.
     const cameFrom = { [leads.ready.id]: "ready", [leads.nurture.id]: "nurture" };
     for (const e of closed)
       assert.deepEqual(e.data, {
