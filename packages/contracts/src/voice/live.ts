@@ -108,8 +108,6 @@ export interface LiveCallVM {
   outcomeWords: string | null;
   /** What to do next, from the analysis. */
   followUp: string | null;
-  /** The name the caller gave. */
-  callerName: string | null;
   /** "3 min 10 sec" once the call has ended: a length in words, so it never reads as a time beside a date. */
   lengthWords: string | null;
   transcript: LiveTurnVM[];
@@ -333,7 +331,6 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     wanted: live ? null : dto.wanted?.trim() || null,
     outcomeWords: live ? null : callOutcomeWords(dto.outcome),
     followUp: live ? null : dto.follow_up?.trim() || null,
-    callerName: dto.caller_name?.trim() || null,
     lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
     transcript: turnsOf(dto),
   };

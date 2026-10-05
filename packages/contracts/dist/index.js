@@ -30029,13 +30029,6 @@ function tzDayAndTime(iso, tz, now) {
 
 // src/today/today-facts.ts
 var QUOTE_MAX = 240;
-function todayClock(m) {
-  const localNow = new Date(m.window.now_local);
-  const valid = !Number.isNaN(localNow.getTime());
-  const clock3 = valid ? localNow.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
-  const datePart = valid ? `${localNow.toLocaleDateString("en-US", { weekday: "long" })} \xB7 ${localNow.toLocaleDateString("en-US", { month: "long", day: "numeric" })}` : "";
-  return { clock: clock3, datePart };
-}
 function todayWires(m) {
   return m.channels.map((c) => ({
     kind: c.kind,
@@ -30117,7 +30110,6 @@ function todayFacts(input) {
     live: metrics.now,
     // Null: the calls read failed. The card says so rather than counting none.
     callsRead: calls !== null,
-    ...todayClock(metrics),
     wires: todayWires(metrics),
     needsYouCount: openEsc.length,
     escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),
@@ -30625,7 +30617,6 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     wanted: live ? null : dto.wanted?.trim() || null,
     outcomeWords: live ? null : callOutcomeWords(dto.outcome),
     followUp: live ? null : dto.follow_up?.trim() || null,
-    callerName: dto.caller_name?.trim() || null,
     lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
     transcript: turnsOf(dto)
   };
@@ -30952,7 +30943,6 @@ function todayQueue(f, callRows, empty) {
 function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date(), searches = null) {
   const f = todayFacts({ metrics: m, conversations, escalations, calls, now, searches });
   const { chips, lines, alert } = todayStanding(f);
-  const eyebrow = `${f.datePart} \xB7 ${f.clock} \xB7 ${m.workspace.name}`;
   const proof = todayProof(f.live, f.tz, now);
   const noReply = todayNoReply(f);
   const facts = todayAskFacts(f);
@@ -30960,7 +30950,6 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   if (f.traffic === 0 && f.needsYouCount === 0 && !alert) {
     return {
       standing: {
-        eyebrow,
         chips,
         lines,
         alert: null,
@@ -30986,7 +30975,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const callRows = todayCallRows(f);
   const figures = figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now);
   return {
-    standing: { eyebrow, chips, lines, alert, headline, detail, tone },
+    standing: { chips, lines, alert, headline, detail, tone },
     needsYou,
     windowClosing: todayWindowClosing(f),
     recap: {

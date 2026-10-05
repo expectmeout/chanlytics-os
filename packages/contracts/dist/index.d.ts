@@ -21157,7 +21157,6 @@ interface TodayNoReplyVM {
 }
 interface TodayVM {
     standing: {
-        eyebrow: string;
         chips: Array<{
             text: string;
             ok: boolean;
@@ -24807,8 +24806,6 @@ interface LiveCallVM {
     outcomeWords: string | null;
     /** What to do next, from the analysis. */
     followUp: string | null;
-    /** The name the caller gave. */
-    callerName: string | null;
     /** "3 min 10 sec" once the call has ended: a length in words, so it never reads as a time beside a date. */
     lengthWords: string | null;
     transcript: LiveTurnVM[];

@@ -370,14 +370,6 @@ test("sentiment is always attributed to the provider, never asserted as fact", (
   assert.match(vm.calls.rows[0].note, /voice provider/);
 });
 
-test("the clock comes from the TENANT's timezone, not the reader's", () => {
-  const m = metrics();
-  m.window.now_local = "2026-08-27T19:30:00"; // evening at the salon
-  const vm = toTodayVM(m, [], [], [], NOW);
-  assert.match(vm.standing.eyebrow, /7:30 PM/);
-  assert.match(vm.standing.eyebrow, /Marisa's Beauty Salon/);
-});
-
 test("receipts quote the outbound message verbatim, not a summary of it", () => {
   const m = metrics({ period: { messages_in: 1, messages_out_ai: 1, answered_by_ai: 1, conversations_active: 1 } });
   const c = conv({

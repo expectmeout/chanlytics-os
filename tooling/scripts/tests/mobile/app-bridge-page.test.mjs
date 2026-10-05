@@ -234,7 +234,6 @@ test("Today is handed to the widget at install and on every refresh, in the snap
   const vm = {
     standing: {
       headline: "Quiet so far",
-      eyebrow: "",
       chips: [],
       lines: { text: "", down: false },
       alert: null,
