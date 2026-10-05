@@ -297,6 +297,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
       "awayGrouped",
       "steps",
       "withReplies",
+      "withoutWrongPerson",
       "notificationKinds",
     ],
     "the helpers, in order",
@@ -361,7 +362,15 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   globalThis.__REPLIES = { replies: [reading] };
   assert.deepEqual(TODAY_HELPERS.withReplies([handoff]), withReplies([handoff], [reading]));
   assert.equal(TODAY_HELPERS.withReplies([handoff])[0].kind, "reply", "the reading is the surface's, read when asked");
+  // And so is who waits with nothing back, less a wrong person: laid over by the same readings, none when unread.
+  const waiting = [{ conversationId: "cv1", who: "Brightwater & Co.", sinceMs: 0, to: "inbox/th-cv1" }];
+  assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), waiting, "a reading of another intent leaves them");
+  globalThis.__REPLIES = { replies: [{ ...reading, intent: "wrong_person" }] };
+  assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), [], "a wrong person is nobody waiting");
+  globalThis.__REPLIES = null;
+  assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), waiting, "a read that failed takes nobody for gone");
   delete globalThis.__REPLIES;
+  assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), waiting, "and one not read yet");
   delete globalThis.__today;
   installToday();
   assert.equal(globalThis.__today, TODAY_HELPERS, "installed, not re-listed");

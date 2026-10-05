@@ -24,6 +24,8 @@ import {
   zoneDayKey,
   POLICY_MODES,
   POLICY_MODE_WORDS,
+  NOTIFICATION_KIND_GROUPS,
+  NOTIFICATION_PANE_WORDS,
 } from "@chanlytics/contracts";
 import { useStubHooks, kitPages } from "../_legacy-react.mjs";
 
@@ -910,13 +912,32 @@ test("Notifications lists what is sent in contracts' groups, the Reach-outs grou
     textOf(byTestId(tree, "notif-recipients")).includes("except the two marked for Chanlytics"),
     "the recipients' card says which alerts are not theirs (F36)",
   );
+  assert.ok(
+    textOf(byTestId(tree, "notif-recipients")).includes(NOTIFICATION_PANE_WORDS.recipients),
+    "in contracts' words",
+  );
   const kinds = byTestId(tree, "notif-kinds");
+  assert.ok(
+    textOf(kinds).includes("What is not listed here is not emailed."),
+    "the list is closed, and says so (B16): every kind the edge emails is in it, and notify() mails no other",
+  );
   const groups = all(kinds, (n) => n.props?.["data-testid"] === "notif-group");
   assert.deepEqual(
     groups.map((g) => textOf(find(g, (n) => n.type === "h3"))),
-    ["Customers", "Reach-outs", "To Chanlytics"],
+    NOTIFICATION_KIND_GROUPS.map((g) => g.title),
+    "every group contracts lists, in its order",
   );
-  const reach = groups[1];
+  assert.deepEqual(
+    groups.map((g) =>
+      all(g, (n) => n.props?.className === "set-row").map((r) =>
+        textOf(find(r, (n) => n.props?.className === "set-row-label")).trim(),
+      ),
+    ),
+    // A row for Chanlytics wears the chip "to Chanlytics" in its label.
+    NOTIFICATION_KIND_GROUPS.map((g) => g.rows.map((r) => r.title + (r.platform ? "to Chanlytics" : ""))),
+    "and every row of each",
+  );
+  const reach = groups[NOTIFICATION_KIND_GROUPS.findIndex((g) => g.title === "Reach-outs")];
   const rows = all(reach, (n) => n.props?.className === "set-row").map((r) =>
     textOf(find(r, (n) => n.props?.className === "set-row-label")).trim(),
   );
@@ -932,5 +953,41 @@ test("Notifications lists what is sent in contracts' groups, the Reach-outs grou
     0,
     "rows that say what is sent, never a switch no code reads",
   );
-  assert.equal(all(groups[2], (n) => n.props?.className === "chip set-notif-platform").length, 2, "to Chanlytics");
+  assert.equal(
+    all(
+      groups[NOTIFICATION_KIND_GROUPS.findIndex((g) => g.title === "To Chanlytics")],
+      (n) => n.props?.className === "chip set-notif-platform",
+    ).length,
+    2,
+    "to Chanlytics",
+  );
+});
+
+// B16 (audit, 2 Oct 2026): the pane said "Sent from the Chanlytics alert address until your own sending domain is
+// verified". Nothing writes notifications.from, and nothing swaps the sender for a sending domain the workspace verifies
+// (the sending domains are for campaigns): the sentence promised a feature there is not. It says where the mail comes from.
+test("Notifications says where its mail is sent from, and promises no sending domain that changes it (B16)", () => {
+  workspace("owner");
+  const bare = textOf(settings("notifications"));
+  assert.ok(bare.includes(NOTIFICATION_PANE_WORDS.sentFromPlatform), "no own address: the platform's, said as it is");
+  assert.ok(
+    !bare.includes("until your own sending domain is verified") && !/sending domain is verified/.test(bare),
+    "REGRESSION: promised a switch to the workspace's own sending domain that nothing makes",
+  );
+  workspace("owner", {
+    __SETTINGS: {
+      role: "owner",
+      version: 3,
+      config: {
+        brain: { business_name: "Northside Studio" },
+        notifications: { escalation_emails: ["dana@northside.example"], from: "Northside <alerts@northside.example>" },
+      },
+    },
+  });
+  const own = textOf(settings("notifications"));
+  assert.ok(
+    own.includes(`${NOTIFICATION_PANE_WORDS.sentFrom} Northside <alerts@northside.example>.`),
+    "the config's own",
+  );
+  assert.ok(!own.includes(NOTIFICATION_PANE_WORDS.sentFromPlatform));
 });

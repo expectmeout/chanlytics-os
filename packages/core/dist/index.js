@@ -9,6 +9,7 @@ import {
   CARRIER_CONSENT_SOURCE,
   domainDailyCap,
   isAutomatedSend,
+  isEmailStopped,
   isOfferByEmail as isOfferByEmail3,
   mayMessageFor,
   outreachRefusalOf,
@@ -263,7 +264,7 @@ function refusalFor(d, f, nowMs, o) {
   if (d.channel === "email") {
     const offer = offerRefusal(d, f.offers);
     if (offer) return offer;
-    if (f.contact.email_suppressed_at) return "email_suppressed";
+    if (isEmailStopped(f.contact)) return "email_suppressed";
     if (f.contact.email !== d.to) return "recipient_changed";
   }
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive, channel: d.channel, about: d.about });
@@ -569,6 +570,7 @@ import {
   AppError as AppError8,
   firstNameOf,
   inboxSlots,
+  isEmailStopped as isEmailStopped2,
   isOptedOutContact,
   normalizeEmail,
   OPT_OUT_REFUSAL,
@@ -585,7 +587,7 @@ var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
 var HOLD_EXPIRY_MS = 2 * MIN_MS;
 var REPLY_IN_PROGRESS_REFUSAL = "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
 async function shapeEmailReply(ports, conv, to, text, agreedTo) {
-  if (conv.email_suppressed_at) {
+  if (isEmailStopped2(conv)) {
     throw new AppError8(
       "conflict",
       "Email to this address has stopped: it bounced, or they reported it. Correct the address on their page, or reach them another way."
@@ -891,18 +893,25 @@ async function sayItFailed(ports, cmd, f) {
   if (channel === "email" && isCampaignEmail(msg.email)) return;
   const cause = causeOf(out, channel);
   const receptionist = msg.sender === "ai";
-  await ports.escalate(
-    p.conversation_id,
-    "send_failed",
-    `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`
-  );
-  await ports.alert({
-    kind: "handoff",
-    route: `inbox/th-${p.conversation_id}`,
-    about: { type: "conversation", id: p.conversation_id },
+  await raiseSendFailed(ports, {
+    conversationId: p.conversation_id,
+    details: `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`,
     subject: `Reply delivery failed: ${to}`,
     body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`
   });
+}
+async function raiseSendFailed(ports, f, again = false) {
+  const flagged = await ports.escalate(f.conversationId, "send_failed", f.details);
+  if (again && flagged === "failed")
+    throw new Error(`send failed: its thread ${f.conversationId} could not be flagged`);
+  await ports.alert({
+    kind: "handoff",
+    route: `inbox/th-${f.conversationId}`,
+    about: { type: "conversation", id: f.conversationId },
+    subject: f.subject,
+    body: f.body
+  });
+  return flagged;
 }
 function causeOf(out, channel) {
   const limit = out.limit ?? null;
@@ -913,6 +922,34 @@ function causeOf(out, channel) {
     // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
     out.status === 0 && out.mayHaveGone ? "the provider did not answer, so it may have gone; check the thread before sending it again" : out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
   );
+}
+
+// src/messages/late-failure.ts
+import { isAutomatedSend as isAutomatedSend2, sendFailureWords } from "../../contracts/dist/index.js";
+async function raiseLateFailure(ports, cmd) {
+  const m = await ports.message(cmd.externalId);
+  if (!m) return "not_ours";
+  if (m.direction !== "outbound" || m.sender !== "ai" && m.sender !== "human" || isAutomatedSend2(m.meta))
+    return "not_a_reply";
+  if (m.status === "failed" || m.status === "canceled") return "already_over";
+  const why = sendFailureWords(cmd.error, cmd.channel) ?? "The provider reported it as not delivered.";
+  const who = m.sender === "ai" ? "The receptionist's reply" : "A reply from your team";
+  await raiseSendFailed(
+    ports,
+    {
+      conversationId: m.conversationId,
+      details: `${who} was accepted for sending but did not reach them. ${why}`,
+      subject: `Reply delivery failed: ${m.to ?? "a customer"}`,
+      body: `${who} was accepted for sending, and then the provider reported that it was not delivered. ${why} The thread is flagged in the Inbox.`
+    },
+    true
+  );
+  await ports.noteFailed(m.messageId, {
+    reason: "receipt",
+    outcome: "refused",
+    body: JSON.stringify(cmd.error).slice(0, 500)
+  });
+  return "raised";
 }
 
 // src/messages/provision-line.ts
@@ -38624,6 +38661,7 @@ export {
   probeYield,
   provisionLine,
   radiusFromSpread,
+  raiseLateFailure,
   reachOutRunIdFor,
   readReply,
   readyForMessage,

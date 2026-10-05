@@ -2,9 +2,10 @@
  * The model Ask runs on is whatever its environment names (spec 5.11, opened 5 Oct 2026): any Claude model's id, at the
  * effort the environment names, the registry's default when it names none. The dashboard picks (server/ask/model.ts),
  * the edge lets Ask name any model that reads as one, and a name the API does not know is answered by the route's
- * fallback (model-port.test.mjs), so a misspelt variable never takes Ask down.
+ * fallback (model-port.test.mjs), so a misspelt variable never takes Ask down. And what goes to the model ahead of a
+ * question: the warm of its cache (the second half of this file).
  */
-import { test } from "node:test";
+import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -13,10 +14,12 @@ import {
   ASK_MODEL,
   MODEL_EFFORTS,
   MODEL_ROUTES,
+  ASK_WARM_MAX_TOKENS,
   askModelProfile,
   priceOf,
   readsAsModel,
 } from "@chanlytics/contracts";
+import { fakeDb } from "../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -134,7 +137,6 @@ test("the loop asks the profile: the request names its id and its effort, and th
   const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
   const { buildProposal } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
   const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
-  const { fakeDb } = await import("../_fake-db.mjs");
   const written = JSON.stringify({
     say: { headline: "Nobody is waiting.", detail: "" },
     show: {
@@ -184,5 +186,186 @@ test("the loop asks the profile: the request names its id and its effort, and th
     assert.deepEqual([r.shape.model, r.shape.effort], [UNLISTED, "medium"], "and the stored turn says both");
   } finally {
     restore(was);
+  }
+});
+
+/* ------------------------------------------------ the model's cache, written ahead of the question ------------------------------------------------ */
+
+/**
+ * A warm (server/ask/warm.ts, POST ask/warm/model). A turn's first request begins with a head the model caches: the
+ * tools, the rules and the workspace's shape, some thirty thousand tokens. A question asked after the cache has gone
+ * cold waits two seconds longer for its first words while that head is read and written again. A warm sends the head
+ * alone, under its own purpose and with next to nothing to write, so the question that follows reads it. Proved here
+ * through the real route and the real turn route with the model scripted: the warm's head is the following turn's,
+ * byte for byte; an instance warms a workspace's head once in four minutes; a warm that cannot run costs the page
+ * nothing.
+ */
+
+const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
+const warm = await import(at("apps/dashboard/app/api/v1/ask/warm/model/route.ts"));
+const ask = await import(at("apps/dashboard/app/api/v1/ask/route.ts"));
+
+beforeEach(() => setRateStore(memoryStore()));
+beforeEach(() => readerCache.clear());
+
+/** Every case its own workspace: an instance holds a head as warmed, in the module's memory, for four minutes. */
+const W = (n) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(n).padStart(12, "0")}`;
+const USER = "u1";
+/** How long an instance holds a head as warmed (warm.ts ASK_WARM_KEPT_MS): under the cache's own five minutes. */
+const KEPT_MS = 4 * 60_000;
+const tables = (ws, role = "operator") => ({
+  memberships: [
+    { user_id: USER, tenant_id: ws, role, tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
+  ],
+  tenants: [{ id: ws, name: "Harbor", timezone: "America/New_York" }],
+  tenant_config: [{ tenant_id: ws, config: {}, version: 1 }],
+  policies: [],
+  ask_threads: [],
+  ask_messages: [],
+});
+const ctxFor = (t) => ({ supabase: fakeDb(t, {}, {}), userId: USER, email: "ada@example.com", params: {} });
+const post = (ws, body = {}) =>
+  new Request(`http://localhost/api/v1/x?workspace=${ws}`, { method: "POST", body: JSON.stringify(body) });
+const NONE = { kind: "none", id: "", label: "" };
+const WRITTEN = JSON.stringify({
+  say: { headline: "Nobody is waiting.", detail: "" },
+  show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: NONE } },
+  do: { open: { source: NONE, label: "", now: false }, next: [] },
+  language: "en",
+});
+const SHAPE = "The workspace: Harbor · zone America/New_York";
+
+/** The model, scripted: a warm is cut at its ceiling, a turn answers; every call is kept as it was sent. */
+function scripted(over = {}) {
+  const calls = [];
+  setAskPorts({
+    round: async (call, onText) => {
+      calls.push(call);
+      if (over.round) return over.round(call, onText);
+      if (call.purpose === "ask_warm")
+        return {
+          blocks: [],
+          stopReason: "max_tokens",
+          streamError: null,
+          usage: { inputTokens: 4, outputTokens: 64, cacheReadTokens: 0, cacheCreationTokens: 31_000 },
+        };
+      onText(WRITTEN);
+      return {
+        blocks: [{ type: "text", id: "", name: "", text: WRITTEN, json: "" }],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
+    shape: async () => SHAPE,
+  });
+  return calls;
+}
+/** The log lines a run wrote through one of the console's methods: `log` carries info, `warn` the warnings. */
+async function logged(level, fn) {
+  const lines = [];
+  const was = console[level];
+  console[level] = (...args) => {
+    const line = logLineOf(args);
+    if (line) lines.push(line);
+  };
+  try {
+    await fn();
+  } finally {
+    console[level] = was;
+  }
+  return lines;
+}
+const bytes = (v) => JSON.stringify(v);
+
+test("the warm declares its policy: every member's, counted as a question is, since it asks the model", () => {
+  assert.deepEqual(warm.POST.policy, { kind: "write", scope: "workspace", role: "viewer", rate: "ask", spend: false });
+});
+
+test("a warm is the head of the turn that follows it: the same model, system, tools, tool choice and answer format, byte for byte, under its own purpose, with one word to read and next to nothing to write", async () => {
+  const calls = scripted();
+  try {
+    const A = W(1);
+    const t = tables(A);
+    const info = await logged("log", async () => {
+      assert.deepEqual(await warm.POST.run(post(A), ctxFor(t)), { warmed: true });
+    });
+    const res = await ask.POST.run(post(A, { text: "Who needs me?", surface: "today" }), ctxFor(t));
+    await res.text();
+    assert.equal(calls.length, 2, "one warm, one round");
+    const [w, turn] = calls.map((c) => c.request);
+    assert.deepEqual([calls[0].purpose, calls[0].tenantId, calls[0].userId], ["ask_warm", A, USER]);
+    assert.ok(calls[1].purpose === undefined || calls[1].purpose === "ask", "the turn is Ask's own");
+    for (const part of ["model", "system", "tools", "tool_choice", "output_config"])
+      assert.equal(bytes(w[part]), bytes(turn[part]), `${part}: what the cache is keyed by, the same bytes`);
+    assert.ok(
+      w.system.length === 2 && w.system.every((b) => b.cache_control),
+      "the rules and the shape, each a breakpoint",
+    );
+    assert.ok(w.tools.length > 5, "the tools a member of this role is offered");
+    assert.equal(w.max_tokens, ASK_WARM_MAX_TOKENS);
+    assert.deepEqual(
+      w.messages.map((m) => [m.role, typeof m.content]),
+      [["user", "string"]],
+      "one message, nothing of the workspace's in it",
+    );
+    const said = info.filter((l) => l.event === "ask_model_warmed");
+    assert.equal(said.length, 1);
+    assert.deepEqual(
+      { ...fieldsOf(said[0]), ms: typeof fieldsOf(said[0]).ms },
+      { tenant_id: A, model: w.model, cache_read: 0, cache_written: 31_000, ms: "number" },
+      "what it found warm and what it wrote, for the log to count",
+    );
+  } finally {
+    setAskPorts(null);
+  }
+});
+
+test("an instance warms a workspace's head once in four minutes: a second warm inside them asks nothing, one after them asks again, and another role's head (other tools) is its own", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-05T15:00:00Z") });
+  const calls = scripted();
+  try {
+    const A = W(2);
+    const world = tables(A);
+    assert.deepEqual(await warm.POST.run(post(A), ctxFor(world)), { warmed: true });
+    assert.deepEqual(await warm.POST.run(post(A), ctxFor(world)), { warmed: false }, "kept: the cache is warm");
+    assert.equal(calls.length, 1);
+    t.mock.timers.tick(KEPT_MS - 1_000);
+    assert.deepEqual(await warm.POST.run(post(A), ctxFor(world)), { warmed: false }, "still inside the four minutes");
+    t.mock.timers.tick(1_000);
+    assert.deepEqual(await warm.POST.run(post(A), ctxFor(world)), { warmed: true }, "four minutes on: asked again");
+    assert.equal(calls.length, 2);
+    assert.deepEqual(await warm.POST.run(post(A), ctxFor(tables(A, "viewer"))), { warmed: true }, "a viewer's tools");
+    assert.equal(calls.length, 3);
+    assert.notEqual(bytes(calls[2].request.tools), bytes(calls[0].request.tools));
+  } finally {
+    setAskPorts(null);
+  }
+});
+
+test("a warm that cannot run costs the page nothing: the gateway's refusal, or a model that broke, answers not warmed, says so once in the log, and leaves the next warm free to try", async () => {
+  let refuse = true;
+  const calls = scripted({
+    round: async () => {
+      if (refuse) throw new GatewayRefused({ kind: "budget", used: 10, cap: 10 });
+      return { blocks: [], stopReason: "max_tokens", streamError: null, usage: null };
+    },
+  });
+  try {
+    const A = W(3);
+    const world = tables(A);
+    const warned = await logged("warn", async () => {
+      assert.deepEqual(await warm.POST.run(post(A), ctxFor(world)), { warmed: false });
+    });
+    const failed = warned.filter((l) => l.event === "ask_model_warm_failed");
+    assert.equal(failed.length, 1);
+    assert.deepEqual(fieldsOf(failed[0]), { tenant_id: A, why: "budget" });
+    refuse = false;
+    assert.deepEqual(await warm.POST.run(post(A), ctxFor(world)), { warmed: true }, "not kept: the next one tries");
+    assert.equal(calls.length, 2);
+  } finally {
+    setAskPorts(null);
   }
 });

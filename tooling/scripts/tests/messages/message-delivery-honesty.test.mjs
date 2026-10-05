@@ -15,7 +15,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { messageStatusLabel, reachedCustomer, toConversationVM } from "@chanlytics/contracts";
+import { messageStatusLabel, reachedCustomer, toConversationVM, toInboxThreadVM } from "@chanlytics/contracts";
 import { readCode } from "../_source.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -75,6 +75,29 @@ test("every way of not arriving is marked as not arriving", () => {
   for (const status of ["sent", "delivered", "read"]) {
     assert.equal(toConversationVM(dto([msg(status, "x")]), null, ZONE).messages[0].reachedCustomer, true, status);
   }
+});
+
+test("an email's delivered receipt says what it knows: their mail server took it, not that it is on their phone", () => {
+  // Resend's `delivered` is the receiving server's acceptance. A text or a WhatsApp message is "Delivered" on a phone.
+  assert.equal(messageStatusLabel("delivered", "email"), "Reached their mail server");
+  assert.equal(messageStatusLabel("delivered", "whatsapp"), "Delivered");
+  assert.equal(messageStatusLabel("delivered", "sms"), "Delivered");
+  assert.equal(messageStatusLabel("delivered"), "Delivered", "a row that names no wire keeps the word it always had");
+  // Nothing else moves with the wire: the words for every other status are one vocabulary.
+  for (const status of ["queued", "failed", "canceled", "read", "sent", undefined])
+    assert.equal(messageStatusLabel(status, "email"), messageStatusLabel(status, "sms"), String(status));
+
+  // Both panes draw it from the row's own channel (the Inbox's thread and Conversations).
+  const email = toConversationVM(dto([msg("delivered", "Thanks", { channel: "email" })]), null, ZONE);
+  assert.equal(email.messages[0].statusLabel, "Reached their mail server");
+  const text = toConversationVM(dto([msg("delivered", "Thanks", { channel: "sms" })]), null, ZONE);
+  assert.equal(text.messages[0].statusLabel, "Delivered");
+});
+
+test("the Inbox's thread says the same words for an email as Conversations does", () => {
+  const thread = toInboxThreadVM(dto([msg("delivered", "Thanks", { channel: "email" })]), null, ZONE);
+  const bubble = thread.timeline.find((e) => e.type === "msg");
+  assert.equal(bubble.statusLabel, "Reached their mail server");
 });
 
 test("a customer's own message is never given a send status", () => {

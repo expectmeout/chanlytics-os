@@ -24,10 +24,11 @@ export interface GatewayCall {
   userId: string;
   /**
    * What the key is spent on (GATEWAY_PURPOSES, ask-gateway.ts). Ask's own turn
-   * omits it and gets "ask"; the lead purposes name themselves. Every purpose
-   * may carry a format: Ask's turn answers in ASK_ANSWER_FORMAT.
+   * omits it and gets "ask"; a turn's warm (warm.ts) and the lead purposes name
+   * themselves. Every purpose may carry a format: Ask's turn answers in
+   * ASK_ANSWER_FORMAT.
    */
-  purpose?: "ask" | "lead_draft" | "lead_suggest" | "list_draft";
+  purpose?: "ask" | "ask_warm" | "lead_draft" | "lead_suggest" | "list_draft";
   request: {
     model?: string;
     max_tokens: number;

@@ -636,7 +636,7 @@ test("the wire's count is the chip's: each thread waits on you on the wire exact
 });
 
 /** The wire as the salon's Today reads it: the routes' answers, the metrics as the page's own fixtures write them. */
-const todayWire = (rows) => {
+const todayWire = (rows, replies) => {
   const metrics = {
     workspace: { name: "Marisa's Beauty Salon", timezone: ZONE, status: "active" },
     channels: [{ kind: "whatsapp", status: "active", number: "+13055550188" }],
@@ -682,6 +682,8 @@ const todayWire = (rows) => {
     },
     "/api/v1/calls": { calls: [] },
     "/api/v1/lead-searches": { searches: [] },
+    // The readings of replies to reach-outs, when the case has some: a route the wire does not answer is a read that failed.
+    ...(replies ? { "/api/v1/reach-out-replies": { replies, mailbox: null } } : {}),
   };
   globalThis.fetch = async (url) => {
     const data = answers[new URL(String(url), "https://app.chanlytics.com").pathname];
@@ -713,5 +715,54 @@ test("Today publishes the badge by the Inbox's rule: the sidebar does not drop a
     assert.equal(counted.at(-1), inbox.filter((t) => ixWaitsOnYou(t)).length, "the chip's own number");
   } finally {
     globalThis.fetch = realFetch;
+  }
+});
+
+test("a Today load asks for the replies to reach-outs once, as the surface that holds them does: Today asks for none of its own", async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    const { todayOverride } = await import(`${S}/surfaces/today/surface.ts`);
+    const { repliesOverride } = await import(`${S}/legacy-bridge/reach-out/replies.ts`);
+    const reading = (conversation_id, intent) => ({ conversation_id, intent, undone: false, claim: "person" });
+    const requests = [];
+    const asked = () => requests.filter((u) => u.includes("/api/v1/reach-out-replies")).length;
+    /** The wire as the salon's Today reads it, with every request it receives recorded. */
+    const wire = () => {
+      requests.length = 0;
+      VW_STORE.state = {};
+      todayWire(salon(), [reading("c4", "wrong_person")]);
+      const answer = globalThis.fetch;
+      globalThis.fetch = (url, init) => {
+        requests.push(String(url));
+        return answer(url, init);
+      };
+    };
+
+    wire();
+    await todayOverride.apply();
+    assert.equal(
+      asked(),
+      0,
+      "REGRESSION: Today read the replies a second time (and the head a third) over the surface that holds them",
+    );
+
+    // What a Today load runs: its own surface and the replies it draws beside it (surface-registry ROUTE_DRAWS).
+    wire();
+    await Promise.all([todayOverride.apply(), repliesOverride.apply()]);
+    assert.equal(asked(), 1, "one read of the replies on a Today load, the one main makes");
+    assert.deepEqual(
+      globalThis.__REPLIES.replies.map((r) => [r.conversation_id, r.intent]),
+      [["c4", "wrong_person"]],
+      "and the surface holds what Today lays over its rows",
+    );
+
+    // A read that fails is none: the replies are null, and Today takes nobody for gone (helpers.ts readings).
+    wire();
+    todayWire(salon());
+    await repliesOverride.apply().catch(() => {});
+    assert.equal(globalThis.__REPLIES, null);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete globalThis.__REPLIES;
   }
 });

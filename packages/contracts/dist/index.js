@@ -999,8 +999,182 @@ function splitQuotedReply(body) {
   return { text, quoted };
 }
 
+// src/config/brain.ts
+var BRAIN_INTENTS = [
+  "booking",
+  "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var INTENT_LABELS = {
+  booking: "Booking",
+  pricing: "Pricing question",
+  money: "Money question",
+  hours: "Hours",
+  services: "Services",
+  location: "Location",
+  complaint: "Complaint",
+  smalltalk: "Small talk",
+  other: "Other"
+};
+var BRAIN_LANGUAGES = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS],
+      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
+function brainMetaOf(out, model, stamp) {
+  return {
+    intent: out.intent,
+    confidence: Math.round(out.confidence * 100) / 100,
+    reason: out.reason,
+    facts_used: out.facts_used,
+    language: out.language,
+    model,
+    ...stamp ? { prompt_hash: stamp.promptHash, config_version: stamp.configVersion } : {}
+  };
+}
+function replyWhy(meta) {
+  if (!meta || typeof meta !== "object") return null;
+  const intent = BRAIN_INTENTS.includes(String(meta.intent)) ? meta.intent : null;
+  const conf = typeof meta.confidence === "number" && Number.isFinite(meta.confidence) ? Math.round(Math.min(1, Math.max(0, meta.confidence)) * 100) : null;
+  if (intent === null && conf === null) return null;
+  const facts = Array.isArray(meta.facts_used) ? meta.facts_used.filter((f) => typeof f === "string" && !!f.trim()) : [];
+  const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
+  const source = typeof meta.source === "string" ? meta.source : null;
+  const heldFor2 = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
+  const label = intent ? INTENT_LABELS[intent] : "Reply";
+  return {
+    intent: intent ?? "other",
+    intentLabel: label,
+    confidence: conf,
+    reason,
+    facts,
+    heldFor: heldFor2,
+    summary: conf === null ? label : `${label} \xB7 ${conf}% sure`
+  };
+}
+var CONFIDENCE_STEPS = [0, 0.6, 0.75, 0.9];
+
+// src/conversations/message-author.ts
+var metaKey = (meta, key) => meta !== null && typeof meta === "object" ? meta[key] : void 0;
+var AUTOMATED_SEND_SOURCES = ["broadcast", "reach_out"];
+function isAutomatedSend(meta) {
+  const source = metaKey(meta, "source");
+  return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
+}
+var NOT_A_PERSONS_CLAIMS = ["automated", "auto_reply", "report"];
+function isPersonsWords(meta) {
+  const claim = metaKey(metaKey(meta, "email"), "claim");
+  return !(typeof claim === "string" && NOT_A_PERSONS_CLAIMS.includes(claim));
+}
+function messageVia(m) {
+  if (m.meta?.source !== "broadcast") return null;
+  return m.meta.playbook_name ? { kind: "playbook", name: String(m.meta.playbook_name) } : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") };
+}
+function messageAuthor(m) {
+  if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
+  const via = messageVia(m);
+  if (via) {
+    return via.kind === "playbook" ? (
+      // A playbook named "The month's offer" is not "the The month's offer playbook".
+      { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
+    ) : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
+  }
+  return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
+}
+function lastWordLine(needsHuman, last, author) {
+  if (needsHuman) return "Receptionist paused \u2014 a human has this thread";
+  if (!last) return "No messages yet";
+  if (last.direction === "inbound") return "They wrote last \u2014 no reply yet";
+  if (!author) return "Answered automatically";
+  if (author.kind === "receptionist") return "Answered by the receptionist";
+  if (author.kind === "team") return "Answered by your team";
+  return `Last message: ${author.words}`;
+}
+function messageWhy(m) {
+  return m.sender === "ai" ? replyWhy(m.meta) : null;
+}
+
+// src/conversations/thread-channel.ts
+var AGENTS = {
+  whatsapp: { glyph: "W", name: "WhatsApp Receptionist" },
+  sms: { glyph: "T", name: "Text Receptionist" },
+  email: { glyph: "Y", name: "Your team" },
+  phone: { glyph: "P", name: "Phone Receptionist" }
+};
+function agentFor(channel) {
+  return AGENTS[channel] ?? AGENTS.whatsapp;
+}
+function writtenChannelOf(channel) {
+  return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
+}
+var THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
+function lastWroteOn(messages) {
+  const theirs = [...messages].reverse().find(isTheirOwnWords);
+  return theirs ? writtenChannelOf(theirs.channel) : null;
+}
+var WRITTEN_TYPES = ["text", "template", "media"];
+function isFromTheirSide(m) {
+  return m.sender === "customer" && m.direction !== "outbound" && WRITTEN_TYPES.includes(m.type);
+}
+function isTheirOwnWords(m) {
+  return isFromTheirSide(m) && isPersonsWords(m.meta);
+}
+function threadChannelOf(messages) {
+  const wrote = lastWroteOn(messages);
+  if (wrote) return wrote;
+  const newest = [...messages].reverse();
+  const written = newest.find(isFromTheirSide) ?? newest.find((m) => m.type !== "call_summary");
+  return written ? writtenChannelOf(written.channel) : "phone";
+}
+function threadChannelWords(messages) {
+  return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
+}
+
 // src/conversations/message-words.ts
-function messageStatusLabel(status) {
+var EMAIL_DELIVERED = "Reached their mail server";
+function messageStatusLabel(status, channel) {
   switch (status) {
     case "queued":
       return "Sending\u2026";
@@ -1011,10 +1185,108 @@ function messageStatusLabel(status) {
     case "read":
       return "Read";
     case "delivered":
-      return "Delivered";
+      return channel === "email" ? EMAIL_DELIVERED : "Delivered";
     default:
       return void 0;
   }
+}
+var WHATSAPP_FAILURES = {
+  130429: "Your number has reached WhatsApp's message limit for now",
+  131026: "WhatsApp couldn't deliver it: their number may not be on WhatsApp, or they haven't accepted its latest terms or updated the app",
+  131031: "Your WhatsApp Business account is restricted or disabled, or WhatsApp couldn't verify its details",
+  131042: "WhatsApp reports a problem with your payment method",
+  131047: "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now",
+  131048: "WhatsApp is limiting how many messages your number can send, because earlier ones were blocked or flagged as spam",
+  131049: "WhatsApp chose not to deliver it, to maintain healthy engagement, and advises waiting at least 24 hours before sending again",
+  131050: "They've chosen to stop receiving marketing messages from your business on WhatsApp",
+  131053: "WhatsApp couldn't upload the attachment, for a reason such as a file type it doesn't support",
+  131056: "Your number sent them too many messages in a short while, and WhatsApp asks you to wait before sending more to them",
+  132e3: "The template's variable values didn't match the ones it defines",
+  132001: "That template doesn't exist in this language, or hasn't been approved",
+  132012: "The template's variable values were formatted wrongly",
+  132015: "That template is paused because of its low quality",
+  132016: "That template was permanently disabled for low quality"
+};
+var SMS_FAILURES = {
+  21211: "That isn't a valid phone number",
+  21408: "Texts to that region are turned off for your account",
+  21610: "They've opted out of texts from your number",
+  21614: "That number isn't a valid mobile number",
+  30003: "Their phone couldn't be reached: it may be off, out of signal, or unable to receive texts",
+  30004: "The text was blocked from reaching this number",
+  30005: "The carrier says this number is unknown and may no longer exist",
+  30006: "This number can't receive texts, which is typical of a landline",
+  30007: "The text was filtered as a possible policy violation",
+  30008: "The carrier gave no reason for not delivering it",
+  30034: "Your texting line isn't registered with the carriers yet, so they blocked it"
+};
+var SMS_STATUS_WORDS = {
+  undelivered: "The carrier didn't deliver it.",
+  failed: "The text couldn't be sent.",
+  canceled: "The text was canceled before it left."
+};
+var EMAIL_FAILURES = {
+  bounced: "The email bounced: their address didn't accept it.",
+  failed: "The mail provider couldn't send it.",
+  suppressed: "The mail provider has stopped sending to this address after an earlier bounce or complaint."
+};
+var SETTLED_FAILURES = {
+  never_delivered: "It was never sent: the job that would have sent it never ran.",
+  run_interrupted: "It may not have gone: the run that was sending it did not finish.",
+  orphaned: "It was never sent: no job was left to send it."
+};
+var record = (v) => v !== null && typeof v === "object" && !Array.isArray(v) ? v : null;
+function codeOf(v) {
+  if (typeof v === "number") return Number.isInteger(v) && v > 0 ? v : null;
+  return typeof v === "string" && /^\d{3,6}$/.test(v.trim()) ? Number(v.trim()) : null;
+}
+function providerCodeOf(error) {
+  const listed = Array.isArray(error.errors) ? record(error.errors[0]) : null;
+  const direct = codeOf(listed?.code) ?? codeOf(error.code);
+  if (direct !== null) return direct;
+  const body = error.body;
+  if (typeof body === "string") {
+    const graph = /"code"\s*:\s*(\d{3,6})/.exec(body);
+    if (graph) return Number(graph[1]);
+    const twilio = /^Twilio (\d{5})$/.exec(body.trim());
+    return twilio ? Number(twilio[1]) : null;
+  }
+  return codeOf(record(record(body)?.error)?.code);
+}
+function sendFailureWords(error, channel) {
+  const e = record(error);
+  if (!e) return null;
+  const wire = writtenChannelOf(channel);
+  if (wire === "email") {
+    const provider = typeof e.provider === "string" ? e.provider : "";
+    return EMAIL_FAILURES[provider] ?? settledWords(e);
+  }
+  const code2 = providerCodeOf(e);
+  const sms = wire === "sms";
+  if (code2 !== null) {
+    const meaning = (sms ? SMS_FAILURES : WHATSAPP_FAILURES)[code2];
+    if (meaning) return `${meaning} (${sms ? "Twilio" : "WhatsApp"} error ${code2}).`;
+    return sms ? `Twilio didn't deliver it (error ${code2}).` : `WhatsApp didn't deliver it (error ${code2}).`;
+  }
+  const carrier = typeof e.carrier === "string" ? SMS_STATUS_WORDS[e.carrier] : void 0;
+  return carrier ?? settledWords(e);
+}
+function messageFailedWhy(m) {
+  return m.status === "failed" ? sendFailureWords(m.error, m.channel) : null;
+}
+function sentFactsOf(m) {
+  const statusLabel = messageStatusLabel(m.status, m.channel);
+  const failedWhy = messageFailedWhy(m);
+  return {
+    ...statusLabel ? { statusLabel } : {},
+    ...failedWhy ? { failedWhy } : {},
+    reachedCustomer: reachedCustomer(m.status)
+  };
+}
+function settledWords(e) {
+  const settled = typeof e.reason === "string" ? SETTLED_FAILURES[e.reason] : void 0;
+  if (settled) return settled;
+  return e.outcome === "unknown" ? "The provider didn't answer in time, so it may have gone: check the thread before sending it again." : null;
 }
 function isChatMessage(m) {
   return m.type !== "call_summary" && m.type !== "note";
@@ -4958,6 +5230,7 @@ var ASK_VOICE_IDLE_MS = MIN_MS;
 var ASK_VOICE_UP_WAIT_MS = 2500;
 var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_MAX_TOKENS = 4e3;
+var ASK_WARM_MAX_TOKENS = 64;
 var ASK_TOKENS_DAY = 15e5;
 var ASK_CAPS = {
   threads: 20,
@@ -5584,6 +5857,16 @@ function initialsOf(name) {
   if (parts2.length >= 2 && parts2[0] && parts2[1]) return (parts2[0][0] + parts2[1][0]).toUpperCase();
   const p = parts2[0] || "?";
   return p.slice(0, 2).toUpperCase();
+}
+function isEmailStopped(c) {
+  return !!c.email_suppressed_at;
+}
+function emailStoppedWords(c, tz, now) {
+  if (!isEmailStopped(c)) return null;
+  const at3 = Date.parse(c.email_suppressed_at);
+  const on = Number.isNaN(at3) ? "" : ` on ${clockDate(at3, tz, now.getTime())}`;
+  const why = c.email_suppressed_reason === "hard_bounce" ? `Their address bounced${on}.` : c.email_suppressed_reason === "complaint" ? `They marked a message as spam${on}.` : `The mail provider stopped sending to their address${on}.`;
+  return `${why} Email can't reach them: correct the address on their page, or reach them another way.`;
 }
 
 // src/leads/lead-peek.ts
@@ -7534,179 +7817,6 @@ function bubbleTime(iso, tz, now) {
 }
 function formatWaited(ms2) {
   return waitedLabel(ms2);
-}
-
-// src/config/brain.ts
-var BRAIN_INTENTS = [
-  "booking",
-  "pricing",
-  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
-  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
-  "money",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var INTENT_LABELS = {
-  booking: "Booking",
-  pricing: "Pricing question",
-  money: "Money question",
-  hours: "Hours",
-  services: "Services",
-  location: "Location",
-  complaint: "Complaint",
-  smalltalk: "Small talk",
-  other: "Other"
-};
-var BRAIN_LANGUAGES = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS],
-      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
-function brainMetaOf(out, model, stamp) {
-  return {
-    intent: out.intent,
-    confidence: Math.round(out.confidence * 100) / 100,
-    reason: out.reason,
-    facts_used: out.facts_used,
-    language: out.language,
-    model,
-    ...stamp ? { prompt_hash: stamp.promptHash, config_version: stamp.configVersion } : {}
-  };
-}
-function replyWhy(meta) {
-  if (!meta || typeof meta !== "object") return null;
-  const intent = BRAIN_INTENTS.includes(String(meta.intent)) ? meta.intent : null;
-  const conf = typeof meta.confidence === "number" && Number.isFinite(meta.confidence) ? Math.round(Math.min(1, Math.max(0, meta.confidence)) * 100) : null;
-  if (intent === null && conf === null) return null;
-  const facts = Array.isArray(meta.facts_used) ? meta.facts_used.filter((f) => typeof f === "string" && !!f.trim()) : [];
-  const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
-  const source = typeof meta.source === "string" ? meta.source : null;
-  const heldFor2 = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
-  const label = intent ? INTENT_LABELS[intent] : "Reply";
-  return {
-    intent: intent ?? "other",
-    intentLabel: label,
-    confidence: conf,
-    reason,
-    facts,
-    heldFor: heldFor2,
-    summary: conf === null ? label : `${label} \xB7 ${conf}% sure`
-  };
-}
-var CONFIDENCE_STEPS = [0, 0.6, 0.75, 0.9];
-
-// src/conversations/message-author.ts
-var metaKey = (meta, key) => meta !== null && typeof meta === "object" ? meta[key] : void 0;
-var AUTOMATED_SEND_SOURCES = ["broadcast", "reach_out"];
-function isAutomatedSend(meta) {
-  const source = metaKey(meta, "source");
-  return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
-}
-var NOT_A_PERSONS_CLAIMS = ["automated", "auto_reply", "report"];
-function isPersonsWords(meta) {
-  const claim = metaKey(metaKey(meta, "email"), "claim");
-  return !(typeof claim === "string" && NOT_A_PERSONS_CLAIMS.includes(claim));
-}
-function messageVia(m) {
-  if (m.meta?.source !== "broadcast") return null;
-  return m.meta.playbook_name ? { kind: "playbook", name: String(m.meta.playbook_name) } : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") };
-}
-function messageAuthor(m) {
-  if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
-  const via = messageVia(m);
-  if (via) {
-    return via.kind === "playbook" ? (
-      // A playbook named "The month's offer" is not "the The month's offer playbook".
-      { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
-    ) : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
-  }
-  return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
-}
-function lastWordLine(needsHuman, last, author) {
-  if (needsHuman) return "Receptionist paused \u2014 a human has this thread";
-  if (!last) return "No messages yet";
-  if (last.direction === "inbound") return "They wrote last \u2014 no reply yet";
-  if (!author) return "Answered automatically";
-  if (author.kind === "receptionist") return "Answered by the receptionist";
-  if (author.kind === "team") return "Answered by your team";
-  return `Last message: ${author.words}`;
-}
-function messageWhy(m) {
-  return m.sender === "ai" ? replyWhy(m.meta) : null;
-}
-
-// src/conversations/thread-channel.ts
-var AGENTS = {
-  whatsapp: { glyph: "W", name: "WhatsApp Receptionist" },
-  sms: { glyph: "T", name: "Text Receptionist" },
-  email: { glyph: "Y", name: "Your team" },
-  phone: { glyph: "P", name: "Phone Receptionist" }
-};
-function agentFor(channel) {
-  return AGENTS[channel] ?? AGENTS.whatsapp;
-}
-function writtenChannelOf(channel) {
-  return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
-}
-var THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
-function lastWroteOn(messages) {
-  const theirs = [...messages].reverse().find(isTheirOwnWords);
-  return theirs ? writtenChannelOf(theirs.channel) : null;
-}
-var WRITTEN_TYPES = ["text", "template", "media"];
-function isFromTheirSide(m) {
-  return m.sender === "customer" && m.direction !== "outbound" && WRITTEN_TYPES.includes(m.type);
-}
-function isTheirOwnWords(m) {
-  return isFromTheirSide(m) && isPersonsWords(m.meta);
-}
-function threadChannelOf(messages) {
-  const wrote = lastWroteOn(messages);
-  if (wrote) return wrote;
-  const newest = [...messages].reverse();
-  const written = newest.find(isFromTheirSide) ?? newest.find((m) => m.type !== "call_summary");
-  return written ? writtenChannelOf(written.channel) : "phone";
-}
-function threadChannelWords(messages) {
-  return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
 }
 
 // src/people/person-helpers.ts
@@ -17210,6 +17320,13 @@ function conversationWaitsOnYou(dto, escalation, now = /* @__PURE__ */ new Date(
   const draft = heldDraftOf(dto.messages);
   return !!draft && replyWaitsOnYou({ endsAtMs: draftSendsAtMs(draft) }, now.getTime());
 }
+function replyFacts(dto, primaryChannel, tz, now) {
+  return {
+    optedOut: isOptedOut(dto),
+    offersOk: dto.contact.marketing_consent === "opted_in",
+    emailStopped: primaryChannel === "email" ? emailStoppedWords(dto.contact, tz, now) : null
+  };
+}
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
@@ -17268,15 +17385,10 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       // The words Conversations says too (messageAuthor): a person's reply is the team's.
       ...m.sender === "human" && messageAuthor(m) ? { byWords: messageAuthor(m).words } : {},
       ...messageVia(m) ? { via: messageVia(m) } : {},
-      ...m.sender !== "customer" && m.status ? {
-        status: m.status,
-        // The words themselves live in messageStatusLabel, so this pane and
-        // the Conversations pane cannot describe the same message
-        // differently — which is exactly what they were doing.
-        ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
-        // Whether the words left: the receptionist's failed reply was drawn as a sent bubble (I1).
-        reachedCustomer: reachedCustomer(m.status)
-      } : {},
+      // What became of it: the words for its status, why it failed (one sentence for the owner, drawn under "Didn't send"),
+      // and whether the words left (the receptionist's failed reply was drawn as a sent bubble, I1). Said in message-words.ts,
+      // so this pane and the Conversations pane cannot describe the same message differently.
+      ...m.sender !== "customer" && m.status ? { status: m.status, ...sentFactsOf(m) } : {},
       // A held draft is not a sent message and must not read as one.
       ...isHeldDraft(m) ? { pending: true, sendsAtMs: draftSendsAtMs(m) } : {}
     };
@@ -17305,8 +17417,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     clientId: dto.contact.id || null,
     escalationId: escalation?.id ?? null,
     windowOpen: win,
-    optedOut: isOptedOut(dto),
-    offersOk: dto.contact.marketing_consent === "opted_in",
+    ...replyFacts(dto, primaryChannel, tz, now),
     who,
     whoMeta: contactMeta(dto, THREAD_CHANNEL_WORDS[primaryChannel]),
     avatar: initialsOf(who),
@@ -17416,10 +17527,7 @@ function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date())
     ...messageAuthor(m) ? { by: messageAuthor(m).words } : {},
     // Only for OUR messages. A customer's inbound message has no send status,
     // and labelling it would be inventing one.
-    ...m.sender !== "customer" ? {
-      ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
-      reachedCustomer: reachedCustomer(m.status)
-    } : {}
+    ...m.sender !== "customer" ? sentFactsOf(m) : {}
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const chat = dto.messages.filter(isChatMessage);
@@ -26500,9 +26608,18 @@ function replyRowOf(row2, r2) {
     cta: { label: drafted(r2) ? "Read the draft" : "Open and reply", to: row2.cta.to }
   };
 }
-function withReplies(rows, readings) {
+function newestReadings(readings) {
   const newest = /* @__PURE__ */ new Map();
   for (const r2 of readings) if (!newest.has(r2.conversation_id)) newest.set(r2.conversation_id, r2);
+  return newest;
+}
+function withoutWrongPerson(waiting, readings) {
+  const gone = /* @__PURE__ */ new Set();
+  for (const [thread, r2] of newestReadings(readings)) if (r2.intent === "wrong_person" && !r2.undone) gone.add(thread);
+  return gone.size ? waiting.filter((w) => !gone.has(w.conversationId)) : [...waiting];
+}
+function withReplies(rows, readings) {
+  const newest = newestReadings(readings);
   return rows.map((row2) => {
     const r2 = row2.kind === "handoff" && row2.conversationId ? newest.get(row2.conversationId) : void 0;
     return r2 && rowWorthy(r2) ? replyRowOf(row2, r2) : row2;
@@ -28964,6 +29081,7 @@ var ROUTE_KEYS = [
   "POST ask/voice/end",
   "POST ask/voice/page",
   "POST ask/warm",
+  "POST ask/warm/model",
   "POST billing/checkout",
   "POST billing/portal",
   "POST billing/resume",
@@ -30105,6 +30223,10 @@ var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
 var RECENT_MAX = 8;
+var MISSED_CALL_NEWS_MS = DAY_MS;
+function missedCallIsNews(c, now) {
+  return c.missed && !c.live && typeof c.startedAtMs === "number" && now - c.startedAtMs <= MISSED_CALL_NEWS_MS;
+}
 function fmtClock(seconds) {
   return mmss(Math.max(0, seconds) * 1e3);
 }
@@ -30219,7 +30341,9 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
 function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {
   const vms = calls.map((c) => toLiveCallVM(c, tz, now));
   const nowList = vms.filter((c) => c.live).sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
-  const recent = vms.filter((c) => !c.live).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0)).slice(0, RECENT_MAX);
+  const finished = vms.filter((c) => !c.live).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
+  const recent = finished.slice(0, RECENT_MAX);
+  const missedCalls = finished.filter((c) => missedCallIsNews(c, now.getTime()));
   const voice = channels?.find((ch) => ch.kind === "voice") ?? null;
   const line = voice ? {
     number: formatPhoneDisplay(voice.number_e164),
@@ -30229,6 +30353,7 @@ function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {
   return {
     now: nowList,
     recent,
+    missedCalls,
     line,
     lineRead: channels !== null,
     heartbeatMs: CALL_HEARTBEAT_MS,
@@ -31055,6 +31180,16 @@ var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var BELL_WINDOW_DAYS = 30;
 
 // src/today/notifications.ts
+function bellCalls(live) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const c of [...live?.now ?? [], ...live?.missedCalls ?? [], ...live?.recent ?? []]) {
+    if (seen.has(c.callId)) continue;
+    seen.add(c.callId);
+    out.push(c);
+  }
+  return out;
+}
 function buildNotificationFeed(input) {
   const { now } = input;
   const items = [];
@@ -31092,8 +31227,7 @@ function buildNotificationFeed(input) {
     }
   }
   for (const c of input.calls ?? []) {
-    if (!c.missed || c.live || typeof c.startedAtMs !== "number") continue;
-    if (now - c.startedAtMs > DAY_MS) continue;
+    if (!missedCallIsNews(c, now)) continue;
     items.push({
       key: `call:${c.callId}`,
       kind: "missed_call",
@@ -31496,17 +31630,102 @@ function todaySteps(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
 }
 
 // src/today/notification-kinds.ts
+var NOTIFICATION_DELIVERY = {
+  handoff: "email",
+  deadman: "email",
+  call: "email",
+  number: "email",
+  sweep: "email",
+  job_failed: "email",
+  playbook: "email",
+  calendar_people: "bell",
+  alert: "email",
+  review: "bell",
+  billing: "email",
+  template_ready: "email",
+  template_blocked: "email",
+  broadcast_sent: "email",
+  broadcast_stopped: "email",
+  leads_ready: "bell",
+  leads_question: "email",
+  note_for_you: "bell",
+  reach_out_replied: "email",
+  reach_out_day: "bell"
+};
+var EMAILED_NOTIFICATION_KINDS = SERVER_NOTIFICATION_KINDS.filter(
+  (k) => NOTIFICATION_DELIVERY[k] === "email"
+);
+function emailsNotificationKind(kind) {
+  const known = SERVER_NOTIFICATION_KINDS.includes(kind ?? "");
+  return NOTIFICATION_DELIVERY[known ? kind : "alert"] === "email";
+}
 var NOTIFICATION_KIND_GROUPS = [
   {
     title: "Customers",
     rows: [
       {
         title: "A customer needs a person",
-        what: "It stopped on a thread and someone is waiting. The alert carries their message."
+        what: "It stopped on a thread and someone is waiting. The alert carries their message.",
+        kinds: ["handoff"]
       },
-      { title: "Still waiting", what: "A handoff has gone unanswered for a while." },
-      { title: "After every phone call", what: "Who called, how long, how it went." },
-      { title: "A reply failed to send", what: "It wrote an answer and the channel refused it." }
+      { title: "Still waiting", what: "A handoff has gone unanswered for a while.", kinds: ["deadman"] },
+      { title: "After every phone call", what: "Who called, how long, how it went.", kinds: ["call"] }
+    ]
+  },
+  {
+    // What stopped, finished or was paused in the sending: a reply, a broadcast, a playbook, the offers by email, a job.
+    title: "Sending",
+    rows: [
+      {
+        title: "Something did not finish",
+        what: "A reply may not have been sent, or a search, a broadcast or another background job stopped partway. It says what stopped and whether it carries on in a fresh run.",
+        kinds: ["job_failed"]
+      },
+      {
+        title: "A broadcast finished, or stopped",
+        what: "When a broadcast has gone to everyone it could reach, with how many got it and how many were held back; and when one stops partway or never goes out.",
+        kinds: ["broadcast_sent", "broadcast_stopped"]
+      },
+      {
+        title: "A playbook could not run",
+        what: "It could not run for the day, or could not read your calendar, so nobody was sent it. Tomorrow's run tries again.",
+        kinds: ["playbook"]
+      },
+      {
+        title: "Offers and news by email are paused",
+        what: "Complaints or bounces went over the line, so they wait until it is fixed. Messages about a visit, replies by email and everything on WhatsApp go on.",
+        kinds: ["sweep"]
+      }
+    ]
+  },
+  {
+    title: "Numbers and templates",
+    rows: [
+      {
+        title: "Your WhatsApp number needs attention",
+        what: "WhatsApp flagged it, lowered how many new conversations it can start, restricted the account or rejected its review, or the business removed Chanlytics from it. Good news about the number is not emailed.",
+        kinds: ["number"]
+      },
+      {
+        title: "A WhatsApp template was approved or blocked",
+        what: "WhatsApp approved a template, or rejected, paused or disabled it, or moved it to marketing, where a send needs the customer's recorded yes.",
+        kinds: ["template_ready", "template_blocked"]
+      },
+      {
+        title: "Your phone number is going back",
+        what: "Your subscription ended: a warning with the day your receptionist's number goes back to the phone company, and a note once it has. A card declined or a trial ending is on the bell, not emailed.",
+        kinds: ["billing"]
+      }
+    ]
+  },
+  {
+    title: "Lead searches",
+    rows: [
+      {
+        title: "A search is waiting for your answer",
+        what: `A lead search stopped to ask you something. ${LEAD_QUESTION_WAIT_LINE}`,
+        kinds: ["leads_question"]
+      }
     ]
   },
   {
@@ -31516,24 +31735,30 @@ var NOTIFICATION_KIND_GROUPS = [
     rows: [
       {
         title: "They wrote back",
-        what: "A business answered a reach-out: what the reply was read as, what was done, and the receptionist's draft when it wrote one."
+        what: "A business answered a reach-out: what the reply was read as, what was done, and the receptionist's draft when it wrote one.",
+        kinds: ["reach_out_replied"]
       },
       {
         title: "A reach-out waits for you",
-        what: "A run is planned and waits for your yes before anything sends."
+        what: "A run is planned and waits for your yes before anything sends.",
+        kinds: ["playbook"]
       },
       {
         title: "A reach-out holds an email for you",
-        what: "The check held an email of a run it could not pass, and it waits for your call."
+        what: "The check held an email of a run it could not pass, and it waits for your call.",
+        kinds: ["playbook"]
       },
       {
         title: "A sending domain is held, and when it sends again",
-        what: "A domain stopped sending (bounces, a complaint, its records), which stops its runs; and when it sends again."
+        what: "A domain stopped sending (bounces, a complaint, its records), which stops its runs; and when it sends again.",
+        kinds: ["sweep"]
       },
       {
         // Part 6 (H12): a line in the bell, never an email.
         title: "The day's numbers",
-        what: "At 6 PM your time, a line in the bell, not an email: what your reach-outs wrote that day, who wrote back, and what waits for you."
+        what: "At 6 PM your time, a line in the bell, not an email: what your reach-outs wrote that day, who wrote back, and what waits for you.",
+        kinds: ["reach_out_day"],
+        bell: true
       }
     ]
   },
@@ -31545,16 +31770,26 @@ var NOTIFICATION_KIND_GROUPS = [
       {
         title: "Messages arriving for a switched-off number",
         what: "Someone is texting a channel this workspace switched off. Goes to Chanlytics, not to the addresses above: a switched-off number has no workspace to alert.",
+        kinds: ["alert"],
         platform: true
       },
       {
         title: "Background checks",
         what: "When the watchdog over unanswered threads stops, and when it recovers. Goes to Chanlytics, not to the addresses above.",
+        kinds: ["alert"],
         platform: true
       }
     ]
   }
 ];
+var NOTIFICATION_PANE_WORDS = {
+  recipients: "Each alert below is emailed to every one of these, except the two marked for Chanlytics and the day's numbers, a line in the bell.",
+  kinds: "By email, the moment it happens; the day's reach-out numbers are a line in the bell. What is not listed here is not emailed.",
+  /** The address the alerts come from, said before the config's own `from` where an operator set one (nothing in the app writes it). */
+  sentFrom: "Sent from",
+  /** And where none is set, which is every workspace the app made: the platform's own. Nothing swaps it for a verified sending domain of the workspace's. */
+  sentFromPlatform: "Sent from the Chanlytics alert address."
+};
 
 // src/workspace/signup.ts
 var SIGNUP_NAME_MIN = 2;
@@ -33284,6 +33519,7 @@ export {
   ASK_VOICE_TIMING_MAX_MS,
   ASK_VOICE_TOKEN_MIN_MS,
   ASK_VOICE_UP_WAIT_MS,
+  ASK_WARM_MAX_TOKENS,
   AUDIENCE_KINDS,
   AppError,
   AskProposalOutcomeSchema,
@@ -33422,6 +33658,7 @@ export {
   E164,
   EARLIER_FALLBACK_DEFAULTS,
   EDGE_ERROR_CODES,
+  EMAILED_NOTIFICATION_KINDS,
   EMAIL_BODY_MAX,
   EMAIL_ELSEWHERE_SENTENCE,
   EMAIL_HOLDS,
@@ -33683,6 +33920,7 @@ export {
   NOTE_SUGGEST_SCHEMA,
   NOTE_WORDS,
   NOTIFICATION_KIND_GROUPS,
+  NOTIFICATION_PANE_WORDS,
   NO_CHANNEL_REACH,
   NO_FIELDS_COMPOSED_WORDS,
   NO_LINK_DETAILS,
@@ -34090,6 +34328,7 @@ export {
   autoReplyHold,
   awayUntilOf,
   bellActionOf,
+  bellCalls,
   bellSections,
   billingAccountDto,
   billingDoorOpen,
@@ -34309,10 +34548,12 @@ export {
   emailOffersOpen,
   emailRowWrittenOf,
   emailRunStop,
+  emailStoppedWords,
   emailTemplateRowsOf,
   emailTemplateWords,
   emailWires,
   emailWordCount,
+  emailsNotificationKind,
   emptyAudienceRefusal,
   emptyBusinessRecord,
   emptyReadSet,
@@ -34466,6 +34707,7 @@ export {
   isDealStage,
   isDraftWhy,
   isE164,
+  isEmailStopped,
   isForReader,
   isForwardingMode,
   isFreeMail,
@@ -34657,6 +34899,7 @@ export {
   messageVia,
   messageWhy,
   messageWords,
+  missedCallIsNews,
   mmss,
   modelRoute,
   momentOffered,
@@ -35050,6 +35293,7 @@ export {
   sellsBySaved,
   sellsByVM,
   sendFailureIsOurs,
+  sendFailureWords,
   sendWindowsOf,
   sendableTemplates,
   senderLanguage,
@@ -35310,6 +35554,7 @@ export {
   withReplies,
   withStoredKeysKept,
   withVisitsOf,
+  withoutWrongPerson,
   wordCount,
   wordsIssueWords,
   wordsNeedOpening,

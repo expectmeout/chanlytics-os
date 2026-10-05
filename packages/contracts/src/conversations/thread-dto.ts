@@ -20,6 +20,12 @@ export interface MessageDto {
   media: { mime_type?: string | null; fetch_state?: string; filename?: string | null; caption?: string | null } | null;
   meta: Record<string, unknown> | null;
   status?: string;
+  /**
+   * What the provider (or the ledger) said when this message failed: its code and words, as the row keeps them
+   * (messages.error). Present only on a failed message, and only where the reader asked for it; for the owner, who
+   * reads it as one sentence (sendFailureWords), never raw. Absent from older readers.
+   */
+  error?: Record<string, unknown> | null;
   created_at: string;
   /**
    * When the event actually happened on its channel, as the provider reported
@@ -82,6 +88,9 @@ export interface ConversationDto {
     dnc?: boolean | null;
     /** Yes to OFFERS: a promotional template goes only to someone who said it (the reply route's rule). */
     marketing_consent?: string | null;
+    /** When mail to their address stopped (00126), and why: 'hard_bounce', 'complaint' or 'provider'. Absent on payloads read without it; isEmailStopped says what it means. */
+    email_suppressed_at?: string | null;
+    email_suppressed_reason?: string | null;
   };
   messages: MessageDto[];
 }

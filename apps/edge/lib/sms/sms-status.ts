@@ -19,6 +19,10 @@
  * moved the way a WhatsApp receipt moves it (recordStatusByExternalId):
  * forward only, terminal states kept, an unknown sid logged and let go.
  *
+ * A text the carrier then refuses (undelivered, failed) is news to the owner, as a send that fails at the wire is (core
+ * raiseLateFailure): the thread is flagged and the bell rings, once per message, BEFORE the row moves to failed, so a
+ * flag the database would not take is a 503 with the row untouched and Twilio sends the callback again.
+ *
  * Twilio retries a status callback it could not deliver, so a database that
  * is down is a 503 and the word comes again; anything it should not retry is
  * a 2xx with nothing in it.
@@ -27,6 +31,7 @@ import { text } from "../http.js";
 import { pg } from "../pg.js";
 import { smsStatusFrom, smsStatusToRow, verifyTwilioSignature } from "../packages/channels.js";
 import { recordStatusByExternalId } from "../packages/db.js";
+import { flagLateFailure } from "../receptionist/late-failure.js";
 import { lineByNumber, lineAccount } from "./sms.js";
 import { logger } from "../log.js";
 import { phoneTail } from "../packages/contracts.js";
@@ -73,18 +78,17 @@ export async function receiveSmsStatus(request: Request): Promise<Response> {
     L.info("sms_status_interim");
     return empty(200);
   }
+  const failure =
+    rowStatus === "failed" ? { carrier: s.status, ...(s.errorCode ? { code: s.errorCode } : {}) } : undefined;
+  let flagged: string | null = null;
   try {
-    await recordStatusByExternalId(
-      db,
-      line.tenant_id,
-      s.messageSid,
-      rowStatus,
-      rowStatus === "failed" ? { carrier: s.status, ...(s.errorCode ? { code: s.errorCode } : {}) } : undefined,
-    );
+    if (failure)
+      flagged = await flagLateFailure(db, line.tenant_id, { externalId: s.messageSid, channel: "sms", error: failure });
+    await recordStatusByExternalId(db, line.tenant_id, s.messageSid, rowStatus, failure);
   } catch (e) {
     L.error("sms_status_record_failed", { error: e instanceof Error ? e.message : String(e) });
     return empty(503);
   }
-  L.info("sms_status", { recorded: rowStatus, code: s.errorCode });
+  L.info("sms_status", { recorded: rowStatus, code: s.errorCode, ...(flagged ? { flagged } : {}) });
   return empty(200);
 }

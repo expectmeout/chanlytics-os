@@ -22,6 +22,12 @@ export interface InboxThreadVM {
   optedOut: boolean;
   /** They said yes to offers, so a promotional template may go to them: the composer offers only what can send (I4). */
   offersOk: boolean;
+  /**
+   * The reply would go by email and the address has stopped (a bounce or a complaint): why, and what is left, in one sentence
+   * (emailStoppedWords). The box says it in place of an email to write, which the reply route would refuse. Null while email
+   * can reach them, or while the reply goes by another wire.
+   */
+  emailStopped: string | null;
   /** The owner's proposal link for this person (00154), or null: the header's Actions put it in the reply. */
   proposalUrl: string | null;
   who: string;
@@ -138,6 +144,8 @@ export interface InboxThreadVM {
         status?: string;
         /** "Didn't send", "Canceled before sending", "Read" (messageStatusLabel). */
         statusLabel?: string;
+        /** Why a failed message did not arrive, in one sentence for the owner (sendFailureWords); absent when the row does not say. */
+        failedWhy?: string;
         /** False when these words never reached the customer: the page dashes them, as Conversations does. */
         reachedCustomer?: boolean;
         /** The message's own id, on every bubble: a call's note finds its call by it, and a link opens the thread there. */

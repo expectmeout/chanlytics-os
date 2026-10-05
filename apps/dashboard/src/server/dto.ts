@@ -19,7 +19,7 @@ import {
  */
 
 export const CONVERSATION_COLUMNS =
-  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url)";
+  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url, email_suppressed_at, email_suppressed_reason)";
 
 export const MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts, channel";
@@ -47,6 +47,9 @@ interface ConversationRow {
     marketing_consent: string | null;
     /** The owner's proposal link for this person (00154): the thread's Actions put it in the reply. */
     proposal_url: string | null;
+    /** When mail to their address stopped, and why (00126): the reply box says it before anyone writes (contracts emailStoppedWords). */
+    email_suppressed_at: string | null;
+    email_suppressed_reason: string | null;
   } | null;
 }
 
@@ -64,6 +67,18 @@ interface MessageRow {
   channel_ts: string | null;
   /** The wire it travelled: whatsapp, sms or voice. A text thread read as WhatsApp without it (I5). */
   channel: string | null;
+  /** What the provider said when it failed (messages.error), on a row read with it: newest_messages does not answer it. */
+  error?: unknown;
+}
+
+/**
+ * A failed message's error as the DTO carries it: the object the row keeps, for a message that failed and nothing for
+ * any other, so the owner's thread can say why (contracts sendFailureWords) and a message that arrived carries none.
+ */
+function failedErrorOf(status: string, error: unknown): Pick<MessageDto, "error"> {
+  return status === "failed" && error !== null && typeof error === "object" && !Array.isArray(error)
+    ? { error: error as Record<string, unknown> }
+    : {};
 }
 
 interface CallRow {
@@ -153,6 +168,7 @@ export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {
       media: mediaPublic(m.media),
       meta: memberMetaOf(m.meta),
       status: m.status,
+      ...failedErrorOf(m.status, m.error),
       created_at: m.created_at,
       channel_ts: m.channel_ts,
     });
@@ -193,6 +209,8 @@ export function toConversationDto(c: ConversationRow, messages: MessageDto[], us
       // Yes to offers, for the composer to offer only the templates the reply route sends (I4).
       marketing_consent: c.contacts?.marketing_consent ?? null,
       proposal_url: c.contacts?.proposal_url ?? null,
+      email_suppressed_at: c.contacts?.email_suppressed_at ?? null,
+      email_suppressed_reason: c.contacts?.email_suppressed_reason ?? null,
     },
     messages,
   };

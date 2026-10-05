@@ -39,7 +39,7 @@ function world({ busy = false } = {}) {
       return Promise.resolve(null);
     },
   };
-  return { did, ...oneVoice(clip, conversation) };
+  return { did, ...oneVoice(clip, conversation, () => did.push("warmModel")) };
 }
 
 test("a clip leaves a quiet session running: the session the press asked for is still there for the next hold", async () => {
@@ -58,10 +58,10 @@ test("a clip takes the agent's place while the agent has the floor, and starts i
   );
 });
 
-test("a hold ends the clip, then asks for its session; the rest of both modules passes through", () => {
+test("a hold ends the clip, warms the model for the question on its way, then asks for its session; the rest of both modules passes through", () => {
   const w = world();
   void w.voice.ensureVoice({ threadId: "t1" });
-  assert.deepEqual(w.did, ["stopSpeaking", "ensureVoice:t1"]);
+  assert.deepEqual(w.did, ["stopSpeaking", "warmModel", "ensureVoice:t1"]);
   assert.equal(w.speech.state(), "idle");
   assert.equal(w.voice.voiceBusy(), false);
 });

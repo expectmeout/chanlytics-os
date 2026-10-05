@@ -39,6 +39,8 @@ export const DASHBOARD_LOG_EVENTS = [
   "ask_format_rejected",
   "ask_gateway_refused",
   "ask_model_unknown",
+  "ask_model_warm_failed",
+  "ask_model_warmed",
   "ask_openings_failed",
   "ask_proposal_failed",
   "ask_replay_malformed",

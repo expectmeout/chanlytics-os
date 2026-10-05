@@ -69,6 +69,26 @@ interface PreparedTurn {
   personLabel: string;
 }
 
+/**
+ * The workspace's facts as a turn's stable block says them, and its zone: read once here for a turn and for its warm
+ * (warm.ts), so the two write the same block. Kept across turns by the reader's own cache (five minutes).
+ */
+export async function turnFacts(rc: ReaderContext): Promise<{ facts: WorkspaceFacts; timezone: string }> {
+  const [{ name, timezone }, cfg, policies, sellsBy] = await Promise.all([
+    load(rc, readers.facts, undefined).then((r) => r.data),
+    load(rc, readers.config, undefined).then((r) => r.data),
+    // The autonomy modes ride in the stable block, so "what can the receptionist do alone" needs no read.
+    load(rc, readers.policies, undefined).then(
+      (r) => r.data,
+      () => [],
+    ),
+    load(rc, readers.sellsBy, undefined).then((r) => r.data),
+  ]);
+  // The rows the pane draws: the follow-ups' only where deals are on (0006).
+  const offered = policies.filter((p) => policyClassOffered(p.class, dealsAreOn(sellsBy)));
+  return { facts: workspaceFacts(name, timezone, cfg?.config ?? null, offered), timezone };
+}
+
 export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: AskTurnAsk): Promise<PreparedTurn> {
   const { text, threadId, answering } = ask;
   const tenantId = member.tenantId;
@@ -83,19 +103,7 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
   // A turn keeps what may be kept across turns (the workspace's name and zone, five minutes): the next question of
   // the same person does not read them again. The GET routes keep nothing.
   const rc = readerContext(ctx, member, undefined, { keep: true });
-  const [{ name, timezone }, cfg, policies, sellsBy] = await Promise.all([
-    load(rc, readers.facts, undefined).then((r) => r.data),
-    load(rc, readers.config, undefined).then((r) => r.data),
-    // The autonomy modes ride in the stable block, so "what can the receptionist do alone" needs no read.
-    load(rc, readers.policies, undefined).then(
-      (r) => r.data,
-      () => [],
-    ),
-    load(rc, readers.sellsBy, undefined).then((r) => r.data),
-  ]);
-  // The rows the pane draws: the follow-ups' only where deals are on (0006).
-  const offered = policies.filter((p) => policyClassOffered(p.class, dealsAreOn(sellsBy)));
-  const facts = workspaceFacts(name, timezone, cfg?.config ?? null, offered);
+  const { facts, timezone } = await turnFacts(rc);
   const language = detectLanguage(text);
   const personLabel = ctx.email ? `${ctx.email} (${member.role})` : member.role;
   return { ctx, member, tenantId, ask, thread, scope, earlier, rc, facts, timezone, language, personLabel };

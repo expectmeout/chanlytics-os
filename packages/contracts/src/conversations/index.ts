@@ -11,13 +11,22 @@ export {
   threadChannelWords,
   THREAD_CHANNEL_WORDS,
 } from "./thread-channel";
-export { contactName, isIdentifierName, contactMeta, initialsOf } from "./thread-contact";
+export {
+  contactName,
+  isIdentifierName,
+  contactMeta,
+  initialsOf,
+  isEmailStopped,
+  emailStoppedWords,
+} from "./thread-contact";
+export type { EmailStopBearing } from "./thread-contact";
 export { shortTime, formatWaited } from "./thread-clock";
 export { mediaKind, mediaVM } from "./message-media";
 export type { MediaVM } from "./message-media";
 export { emailLeftOutOf, splitQuotedReply } from "./message-email";
 export {
   messageStatusLabel,
+  sendFailureWords,
   reachedCustomer,
   isHeldDraft,
   isChatMessage,

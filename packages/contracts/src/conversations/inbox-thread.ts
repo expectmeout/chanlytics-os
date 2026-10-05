@@ -10,13 +10,13 @@ import { replyWindow } from "../config/policy";
 import { replyWaitsOnYou, standingOf } from "./standing";
 import { messageAt, isOptedOut, type ConversationDto, type MessageDto } from "./thread-dto";
 import { agentFor, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
-import { contactName, contactMeta, initialsOf } from "./thread-contact";
+import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./thread-contact";
 import { shortTime, bubbleTime, formatWaited } from "./thread-clock";
 import { mediaVM } from "./message-media";
 import { emailSubjectOf, emailLeftOutOf, splitQuotedReply } from "./message-email";
 import { replyLeftAsOf } from "../reach-out/reach-out-reply-words";
 import {
-  messageStatusLabel,
+  sentFactsOf,
   reachedCustomer,
   isHeldDraft,
   isChatMessage,
@@ -92,6 +92,24 @@ export function conversationWaitsOnYou(
   if (threadStanding(dto, escalation, now).needsYou) return true;
   const draft = heldDraftOf(dto.messages);
   return !!draft && replyWaitsOnYou({ endsAtMs: draftSendsAtMs(draft) }, now.getTime());
+}
+
+/**
+ * What the reply box needs to know of the person before it offers a way to write: that they asked to stop (nothing can be
+ * sent), whether they said yes to offers (which templates can go), and that mail to their address has stopped, which only
+ * matters where the reply goes by email (a thread on WhatsApp or by text is not held by a bounced address).
+ */
+function replyFacts(
+  dto: ConversationDto,
+  primaryChannel: InboxThreadVM["primaryChannel"],
+  tz: string,
+  now: Date,
+): Pick<InboxThreadVM, "optedOut" | "offersOk" | "emailStopped"> {
+  return {
+    optedOut: isOptedOut(dto),
+    offersOk: dto.contact.marketing_consent === "opted_in",
+    emailStopped: primaryChannel === "email" ? emailStoppedWords(dto.contact, tz, now) : null,
+  };
 }
 
 export function toInboxThreadVM(
@@ -180,17 +198,10 @@ export function toInboxThreadVM(
       // The words Conversations says too (messageAuthor): a person's reply is the team's.
       ...(m.sender === "human" && messageAuthor(m) ? { byWords: (messageAuthor(m) as MessageAuthor).words } : {}),
       ...(messageVia(m) ? { via: messageVia(m)! } : {}),
-      ...(m.sender !== "customer" && m.status
-        ? {
-            status: m.status,
-            // The words themselves live in messageStatusLabel, so this pane and
-            // the Conversations pane cannot describe the same message
-            // differently — which is exactly what they were doing.
-            ...(messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {}),
-            // Whether the words left: the receptionist's failed reply was drawn as a sent bubble (I1).
-            reachedCustomer: reachedCustomer(m.status),
-          }
-        : {}),
+      // What became of it: the words for its status, why it failed (one sentence for the owner, drawn under "Didn't send"),
+      // and whether the words left (the receptionist's failed reply was drawn as a sent bubble, I1). Said in message-words.ts,
+      // so this pane and the Conversations pane cannot describe the same message differently.
+      ...(m.sender !== "customer" && m.status ? { status: m.status, ...sentFactsOf(m) } : {}),
       // A held draft is not a sent message and must not read as one.
       ...(isHeldDraft(m) ? { pending: true as const, sendsAtMs: draftSendsAtMs(m) } : {}),
     };
@@ -241,8 +252,7 @@ export function toInboxThreadVM(
     clientId: dto.contact.id || null,
     escalationId: escalation?.id ?? null,
     windowOpen: win,
-    optedOut: isOptedOut(dto),
-    offersOk: dto.contact.marketing_consent === "opted_in",
+    ...replyFacts(dto, primaryChannel, tz, now),
     who,
     whoMeta: contactMeta(dto, THREAD_CHANNEL_WORDS[primaryChannel]),
     avatar: initialsOf(who),

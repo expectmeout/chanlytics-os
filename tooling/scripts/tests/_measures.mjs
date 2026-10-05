@@ -25,7 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import ts from "typescript";
-import { ROOT, readCode } from "./_source.mjs";
+import { ROOT, readCode, readRaw } from "./_source.mjs";
 import {
   repoFiles,
   parse,
@@ -42,6 +42,9 @@ import {
   durationsIn,
   inlineStyles,
   sourceReads,
+  mediaPreludes,
+  mediaWidths,
+  stringsIn,
   SOURCE,
 } from "./_ast.mjs";
 import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
@@ -98,6 +101,24 @@ const TIMED = SRC.filter(
 export const TOKENS_CSS = "apps/dashboard/src/legacy/styles/tokens.css";
 const KIT_CSS = "apps/dashboard/src/surfaces/kit/kit.css";
 const STYLES = repoFiles(["apps/dashboard"], { keep: /\.css$/ }).filter((f) => f !== TOKENS_CSS);
+/**
+ * Where the dashboard's layout changes: every stylesheet's @media rules, the tokens' own among them, and the media
+ * queries its scripts write (a matchMedia call, a named query, a <source media>).
+ */
+const DASHBOARD_CSS = repoFiles(["apps/dashboard"], { keep: /\.css$/ });
+const DASHBOARD_SRC = SRC.filter((f) => f.startsWith("apps/dashboard/"));
+
+/**
+ * The widths the set holds, read from the tokens themselves (`--bp-phone`, `--bp-narrow`), so the set is written once.
+ * A token file that writes none leaves the ratchet nothing to hold a width to, and says so rather than count every
+ * width a stray.
+ */
+export function breakpointSet() {
+  const css = readRaw(TOKENS_CSS).replace(/\/\*[\s\S]*?\*\//g, "");
+  const set = [...css.matchAll(/--bp-[a-z-]+\s*:\s*(\d+)px\s*;/g)].map((m) => Number(m[1]));
+  if (!set.length) throw new Error(`${TOKENS_CSS} writes no --bp- token: the breakpoints ratchet has no set`);
+  return new Set(set);
+}
 /**
  * The shell's markup, which the kit will style: the legacy pages and components, and the surfaces that leave them
  * (§3.7). The app's own error screens and the bridge's host draw before the stylesheets or without them, so a prop is
@@ -273,6 +294,24 @@ export const MEASURES = [
     },
     advice:
       "Name the length of time: a whole minute, hour or day from contracts' shared/time.ts (5 * MIN_MS, DAY_MS), anything else a constant in its module that says what it is (const RETRY_MS = 800; const LEASE_MS = 5 * MIN_MS). A value that is not a time says its unit in its name (RADIUS_MAX_M, TAB_TOTAL_CHARS).",
+  },
+  {
+    name: "breakpoints outside the set",
+    file: "breakpoints.json",
+    // `file::width`: where the width is and where it splits the screens (_ast.mjs mediaWidths), so a page cannot trade
+    // one stray for another; its count, how many conditions split there.
+    measure: () => {
+      const set = breakpointSet();
+      const out = {};
+      const hold = (file, widths) => {
+        for (const w of widths) if (!set.has(w)) out[`${file}::${w}`] = (out[`${file}::${w}`] ?? 0) + 1;
+      };
+      for (const f of DASHBOARD_CSS) hold(f, mediaPreludes(readRaw(f)).flatMap(mediaWidths));
+      for (const f of DASHBOARD_SRC) hold(f, stringsIn(parse(f)).flatMap(mediaWidths));
+      return out;
+    },
+    advice:
+      "Change the layout at one of tokens.css's breakpoints, from either side: (max-width: 720px) or (min-width: 721px), (max-width: 900px) or (width > 900px). A page that needs a width of its own says why in its row of docs/debt.md, and a new width for the whole product is a new --bp- token.",
   },
   {
     name: "literal style values",

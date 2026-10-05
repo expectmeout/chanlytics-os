@@ -92,6 +92,7 @@ export const ROUTES = {
   "POST ask/voice/end": { method: "POST", path: "/api/v1/ask/voice/end" },
   "POST ask/voice/page": { method: "POST", path: "/api/v1/ask/voice/page" },
   "POST ask/warm": { method: "POST", path: "/api/v1/ask/warm" },
+  "POST ask/warm/model": { method: "POST", path: "/api/v1/ask/warm/model" },
   "POST billing/checkout": { method: "POST", path: "/api/v1/billing/checkout" },
   "POST billing/portal": { method: "POST", path: "/api/v1/billing/portal" },
   "POST billing/resume": { method: "POST", path: "/api/v1/billing/resume" },
@@ -307,6 +308,7 @@ export type Routes = {
   "POST ask/voice/end": typeof import("../../app/api/v1/ask/voice/end/route").POST;
   "POST ask/voice/page": typeof import("../../app/api/v1/ask/voice/page/route").POST;
   "POST ask/warm": typeof import("../../app/api/v1/ask/warm/route").POST;
+  "POST ask/warm/model": typeof import("../../app/api/v1/ask/warm/model/route").POST;
   "POST billing/checkout": typeof import("../../app/api/v1/billing/checkout/route").POST;
   "POST billing/portal": typeof import("../../app/api/v1/billing/portal/route").POST;
   "POST billing/resume": typeof import("../../app/api/v1/billing/resume/route").POST;

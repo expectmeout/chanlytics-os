@@ -11,7 +11,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { buildNotificationFeed, applyReadState, agoLabel, ALERT_KINDS } from "@chanlytics/contracts";
+import {
+  buildNotificationFeed,
+  applyReadState,
+  agoLabel,
+  ALERT_KINDS,
+  RECENT_MAX,
+  toLiveVM,
+} from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -359,6 +366,77 @@ test("two devices agree after Mark all read: the seen moment is the server's, th
   });
   c.api.seenAll();
   assert.equal(c.api.unread(), 0, "not the stale server moment while the re-read is in flight");
+});
+
+// A17 (audit, 2 Oct 2026): the bell read Live's recent list, which holds the newest eight finished calls for the page, so
+// on a busy day a 9 AM missed call had no row. The bell now reads every missed call inside its day (LiveVM.missedCalls).
+test("the bell raises a row for every missed call in its day, not just the newest eight Live lists", async () => {
+  const mod = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/legacy-bridge/notifications.ts")).href
+  );
+  const base = Date.now();
+  const ago = (ms) => new Date(base - ms).toISOString();
+  const dto = (id, over) => ({
+    id,
+    retell_call_id: `r-${id}`,
+    direction: "inbound",
+    call_type: "phone_call",
+    from_e164: "+17865550181",
+    from_raw: "+17865550181",
+    to_e164: "+13055550123",
+    started_at: ago(3_600_000),
+    ended_at: ago(3_500_000),
+    updated_at: ago(3_500_000),
+    duration_ms: 90_000,
+    disconnection_reason: null,
+    sentiment: null,
+    call_successful: null,
+    in_voicemail: null,
+    summary: "Booked.",
+    transcript_object: null,
+    recording: null,
+    conversation_id: null,
+    contact_id: null,
+    message_id: null,
+    contact: null,
+    status: "ended",
+    ...over,
+  });
+  const missed = (id, startedAgo) =>
+    dto(id, { status: "not_connected", started_at: ago(startedAgo), ended_at: null, duration_ms: null, summary: null });
+  const calls = [
+    // The busy afternoon: more finished calls than the page lists, all newer than the morning's.
+    ...Array.from({ length: RECENT_MAX + 4 }, (_, i) => dto(`done${i}`, { started_at: ago(600_000 + i * 60_000) })),
+    missed("afternoon", 2 * 3_600_000),
+    missed("nine-am", 6 * 3_600_000),
+    missed("yesterday", 30 * 3_600_000),
+  ];
+  const live = toLiveVM(calls, [], "America/New_York", new Date(base));
+  assert.equal(live.recent.length, RECENT_MAX, "the page's own list is still the newest few");
+  assert.ok(!live.recent.some((c) => c.callId === "nine-am"), "and the morning's missed call is not in it");
+  assert.deepEqual(
+    live.missedCalls.map((c) => c.callId),
+    ["afternoon", "nine-am"],
+    "every missed call still news, newest first: a day's worth, the one from yesterday gone",
+  );
+  const win = {
+    addEventListener: () => {},
+    document: { visibilityState: "visible" },
+    focus: () => {},
+    location: { hash: "" },
+    INBOX_DATA: { THREADS: [] },
+    __LIVE: live,
+    __TEAM_INVITES: [],
+  };
+  const bell = mod.installNotifications(win, { getItem: () => null, setItem: () => {} });
+  assert.deepEqual(
+    bell
+      .feed()
+      .map((r) => r.id)
+      .sort(),
+    ["call:afternoon", "call:nine-am"],
+    "a row for the 9 AM call, once each, though it is nowhere in Live's recent list",
+  );
 });
 
 test("the top bar shows the real feed outside a demo, with the device-alert switch", () => {
