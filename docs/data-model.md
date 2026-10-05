@@ -32,7 +32,7 @@ what the script writes.
 | [`contacts`](#contacts) | `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`conversations`](#conversations) | `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts` | on, 2 policies |
 | [`deals`](#deals) | `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
-| [`decisions`](#decisions) | none | on, 2 policies |
+| [`decisions`](#decisions) | `packages/db/src/repositories/people.ts` | on, 2 policies |
 | [`erasure_keying`](#erasure_keying) | none | on, no policy, so only the service role reaches it |
 | [`escalations`](#escalations) | `packages/db/src/repositories/outreach.ts` | on, 2 policies |
 | [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
@@ -678,7 +678,7 @@ Foreign keys:
 
 ### decisions
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/people.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 

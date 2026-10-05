@@ -606,7 +606,8 @@ export function partnerEventBits(kind: string, p: Record<string, unknown>): stri
   const text = (k: string): string | null => (typeof p[k] === "string" && p[k] ? p[k] : null);
   const known = (words: Record<string, string>, k: string): string[] => {
     const said = text(k);
-    return said !== null && Object.hasOwn(words, said) ? [words[said]] : [];
+    const word = said !== null && Object.hasOwn(words, said) ? (words[said] ?? null) : null;
+    return word === null ? [] : [word];
   };
   switch (kind) {
     case "partner.code_ignored":

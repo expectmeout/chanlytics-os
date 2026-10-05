@@ -31352,7 +31352,8 @@ function partnerEventBits(kind, p) {
   const text = (k) => typeof p[k] === "string" && p[k] ? p[k] : null;
   const known = (words2, k) => {
     const said = text(k);
-    return said !== null && Object.hasOwn(words2, said) ? [words2[said]] : [];
+    const word = said !== null && Object.hasOwn(words2, said) ? words2[said] ?? null : null;
+    return word === null ? [] : [word];
   };
   switch (kind) {
     case "partner.code_ignored":
@@ -31689,7 +31690,7 @@ var joinBits = (base, bits2) => {
   const said = bits2.filter((b) => !!b);
   return said.length ? `${base} \xB7 ${said.join(" \xB7 ")}` : base;
 };
-var wordOf = (words2, key) => key !== null && Object.hasOwn(words2, key) ? words2[key] : null;
+var wordOf = (words2, key) => key !== null && Object.hasOwn(words2, key) ? words2[key] ?? null : null;
 function leadStageWords(p, base) {
   const n = numberAt(p, "count");
   const head = p.bulk === true && n !== null ? `${plural(n, "lead")} moved` : base;
@@ -31719,7 +31720,7 @@ var SEND_FAILED_WHY = {
 };
 function sendFailedWords(p, base) {
   const reason = textAt(p, "reason");
-  const provider = numberAt(p, "http_status") === 0 ? "the provider gave no answer" : HELD_REASONS.send_failed;
+  const provider = numberAt(p, "http_status") === 0 ? "the provider gave no answer" : wordOf(HELD_REASONS, "send_failed");
   const why = p.outcome === "unknown" ? "the provider didn't answer in time, so it may have gone" : wordOf(SEND_FAILED_WHY, reason) ?? (reason === "provider" ? provider : null);
   return joinBits(base, [why]);
 }

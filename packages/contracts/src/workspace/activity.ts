@@ -306,7 +306,7 @@ const joinBits = (base: string, bits: readonly (string | null)[]): string => {
 
 /** A word out of a closed set a ledger row names by its key: nothing for a key the set does not hold (never a guess). */
 const wordOf = (words: Readonly<Record<string, string>>, key: string | null): string | null =>
-  key !== null && Object.hasOwn(words, key) ? words[key] : null;
+  key !== null && Object.hasOwn(words, key) ? (words[key] ?? null) : null;
 
 /**
  * A lead moved to a stage (lead_set_stage, the bulk door, a reply's undo): the stage it went to, and why when it was
@@ -363,7 +363,8 @@ const SEND_FAILED_WHY: Record<string, string> = {
  */
 function sendFailedWords(p: Record<string, unknown>, base: string): string {
   const reason = textAt(p, "reason");
-  const provider = numberAt(p, "http_status") === 0 ? "the provider gave no answer" : HELD_REASONS.send_failed;
+  const provider =
+    numberAt(p, "http_status") === 0 ? "the provider gave no answer" : wordOf(HELD_REASONS, "send_failed");
   const why =
     p.outcome === "unknown"
       ? "the provider didn't answer in time, so it may have gone"

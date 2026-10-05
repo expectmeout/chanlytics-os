@@ -390,8 +390,8 @@
     "depth": 2
   },
   "packages/contracts/src/voice/live.ts::toLiveCallVM#1": {
-    "lines": 77,
-    "branches": 50,
+    "lines": 76,
+    "branches": 48,
     "depth": 0
   },
   "packages/contracts/src/workspace/activity.ts::activityWords#1": {
