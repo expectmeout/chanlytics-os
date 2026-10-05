@@ -9574,6 +9574,42 @@ function buildAskSuggestions(input) {
   return [...asks, ...acts.slice(0, 4)];
 }
 
+// src/conversations/call-dto.ts
+var ABANDONED_MS = 15e3;
+function abandonedCall(dto) {
+  if (dto.direction !== "inbound") return false;
+  if (dto.status === "not_connected" || dto.in_voicemail) return false;
+  const ms2 = dto.duration_ms;
+  if (typeof ms2 !== "number" || ms2 <= 0 || ms2 >= ABANDONED_MS) return false;
+  return dto.disconnection_reason === "user_hangup";
+}
+function missedCall(c) {
+  return c.missed && c.direction !== "outbound";
+}
+function callAttemptWords(direction) {
+  return missedCall({ missed: true, direction }) ? "Missed call" : "Call didn't connect";
+}
+var DISCONNECTION_LABELS = {
+  user_hangup: "Customer hung up",
+  agent_hangup: "Receptionist ended the call",
+  call_transfer: "Transferred to a person",
+  voicemail_reached: "Reached voicemail",
+  dial_no_answer: "No answer",
+  dial_busy: "Line was busy",
+  dial_failed: "Call couldn't connect",
+  inactivity: "Ended after silence",
+  max_duration_reached: "Hit the call length limit",
+  concurrency_limit_reached: "Line was busy \u2014 all agents in use",
+  user_declined: "Customer declined the call",
+  marked_as_spam: "Flagged as spam by the carrier",
+  // The endings the Live page's own controls produce, and the provider's
+  // newer names for a transfer.
+  manual_stopped: "Ended from the dashboard",
+  call_take_over: "A person took over the call",
+  transfer_bridged: "Transferred to a person",
+  transfer_cancelled: "Transfer did not go through"
+};
+
 // src/ask/ask-fast-paths.ts
 var NEEDS_RE = /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
 var CALLS_RE = /\b((did|has|have) (anyone|someone|anybody|somebody) (call|called|rang|phoned)|missed calls?|who called|any calls?|llam[oó] alguien|llamaron|llamadas? perdidas?|qui[eé]n llam[oó]|alguna llamada)\b/i;
@@ -9622,9 +9658,19 @@ function askIntent(question, now, tz) {
 function callsToday(calls, now, tz) {
   const today = dayKey(now, tz);
   return {
-    missed: calls.filter((c) => c.missed && c.startedAtMs && dayKey(c.startedAtMs, tz) === today),
+    missed: calls.filter((c) => missedCall(c) && c.startedAtMs && dayKey(c.startedAtMs, tz) === today),
     live: calls.filter((c) => c.live)
   };
+}
+
+// src/ask/ask-calls.ts
+function callJumpSub(c) {
+  if (c.live) return "live";
+  if (!c.missed) return void 0;
+  return missedCall(c) ? "missed" : "didn't connect";
+}
+function askCallOutcome(v) {
+  return v.outcome === "missed" && !missedCall(v) ? "not_connected" : v.outcome;
 }
 
 // src/ask/ask-shape.ts
@@ -17545,6 +17591,9 @@ function conversationWaitsOnYou(dto, escalation, now = /* @__PURE__ */ new Date(
   const draft = heldDraftOf(dto.messages);
   return !!draft && replyWaitsOnYou({ endsAtMs: draftSendsAtMs(draft) }, now.getTime());
 }
+function heldDraftWaits(vm, nowMs) {
+  return !!vm.heldDraft && replyWaitsOnYou({ endsAtMs: vm.heldDraft.sendsAtMs }, nowMs);
+}
 function replyFacts(dto, primaryChannel, tz, now) {
   return {
     optedOut: isOptedOut(dto),
@@ -17803,39 +17852,6 @@ function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date())
     messages: msgs
   };
 }
-
-// src/conversations/call-dto.ts
-var ABANDONED_MS = 15e3;
-function abandonedCall(dto) {
-  if (dto.direction !== "inbound") return false;
-  if (dto.status === "not_connected" || dto.in_voicemail) return false;
-  const ms2 = dto.duration_ms;
-  if (typeof ms2 !== "number" || ms2 <= 0 || ms2 >= ABANDONED_MS) return false;
-  return dto.disconnection_reason === "user_hangup";
-}
-function callAttemptWords(direction) {
-  return direction === "outbound" ? "Call didn't connect" : "Missed call";
-}
-var DISCONNECTION_LABELS = {
-  user_hangup: "Customer hung up",
-  agent_hangup: "Receptionist ended the call",
-  call_transfer: "Transferred to a person",
-  voicemail_reached: "Reached voicemail",
-  dial_no_answer: "No answer",
-  dial_busy: "Line was busy",
-  dial_failed: "Call couldn't connect",
-  inactivity: "Ended after silence",
-  max_duration_reached: "Hit the call length limit",
-  concurrency_limit_reached: "Line was busy \u2014 all agents in use",
-  user_declined: "Customer declined the call",
-  marked_as_spam: "Flagged as spam by the carrier",
-  // The endings the Live page's own controls produce, and the provider's
-  // newer names for a transfer.
-  manual_stopped: "Ended from the dashboard",
-  call_take_over: "A person took over the call",
-  transfer_bridged: "Transferred to a person",
-  transfer_cancelled: "Transfer did not go through"
-};
 
 // src/voice/whisper.ts
 var OPEN = 'Owner: "';
@@ -34721,6 +34737,7 @@ export {
   asListRule,
   asPersonMode,
   asTenantId,
+  askCallOutcome,
   askIntent,
   askJump,
   askModelProfile,
@@ -34781,6 +34798,7 @@ export {
   callActivityPropsOf,
   callActivityStart,
   callAttemptWords,
+  callJumpSub,
   callLength,
   callMoodTone,
   callNoteLines,
@@ -35070,6 +35088,7 @@ export {
   heardWords,
   heldBackWords,
   heldByAllowance,
+  heldDraftWaits,
   heldLine,
   heldNoticeWords,
   heldWords,
@@ -35320,6 +35339,7 @@ export {
   messageVia,
   messageWhy,
   messageWords,
+  missedCall,
   missedCallIsNews,
   mmss,
   modelRoute,

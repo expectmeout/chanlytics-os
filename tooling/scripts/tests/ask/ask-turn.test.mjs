@@ -5808,8 +5808,10 @@ test("the raw at the caps (a number for the pull request, not a limit: the Phase
         message(`eeeeeeee-${String(i).padStart(4, "0")}-4eee-8eee-${hex(j)}`, c, {
           body: words(600, `Message ${j}.`),
           created_at: iso(NOW.getTime() - (100 - j) * 60_000),
+          // Held for real: its hold window runs nine minutes past NOW, so it waits by the Inbox's rule (heldDraftWaits); a
+          // queued draft with no window is past its deadline and is not held.
           ...(j === 99
-            ? { direction: "outbound", sender: "ai", status: "queued" }
+            ? { direction: "outbound", sender: "ai", status: "queued", meta: { delay_ms: 600_000 } }
             : j % 2
               ? { direction: "outbound", sender: "ai" }
               : {}),

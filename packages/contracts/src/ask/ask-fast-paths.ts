@@ -4,6 +4,7 @@
  * ask-answer.ts words each answer.
  */
 import { dayPlusInZone } from "../calendar/zone-math";
+import { missedCall } from "../conversations/call-dto";
 import { dateFormat } from "../shared/time";
 
 /* -------------------------------------------------------------- fast paths */
@@ -11,7 +12,10 @@ import { dateFormat } from "../shared/time";
 export interface FastCall {
   callId: string;
   who: string;
+  /** The dial never connected (the view models' `missed`): missed to the owner only where the customer dialled. */
   missed: boolean;
+  /** Who dialled; a row that does not say is a customer's (missedCall). */
+  direction?: "inbound" | "outbound";
   live: boolean;
   startedAtMs: number | null;
 }
@@ -84,7 +88,10 @@ export function askIntent(question: string, now: number, tz?: string | null): As
   return null;
 }
 
-/** Today's missed calls by the business's clock, and the calls on the line now. */
+/**
+ * Today's missed calls by the business's clock, and the calls on the line now. A dial the receptionist placed that
+ * nobody answered is not a missed call (missedCall), so it is not here.
+ */
 export function callsToday(
   calls: FastCall[],
   now: number,
@@ -92,7 +99,7 @@ export function callsToday(
 ): { missed: FastCall[]; live: FastCall[] } {
   const today = dayKey(now, tz);
   return {
-    missed: calls.filter((c) => c.missed && c.startedAtMs && dayKey(c.startedAtMs, tz) === today),
+    missed: calls.filter((c) => missedCall(c) && c.startedAtMs && dayKey(c.startedAtMs, tz) === today),
     live: calls.filter((c) => c.live),
   };
 }

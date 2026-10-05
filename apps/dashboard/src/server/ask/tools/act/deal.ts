@@ -15,6 +15,7 @@ import {
   isRealDate,
   linkHost,
   normalizeLink,
+  personName,
   pickCurrentDeal,
   stepDayOf,
   whyNotALink,
@@ -79,7 +80,7 @@ async function proposeDeal(
     .order("created_at", { ascending: false });
   if (dErr) throw new Error(dErr.message);
   const current = pickCurrentDeal(rows ?? []);
-  const who = c.display_name || c.wa_profile_name || c.phone_e164 || c.email || "this person";
+  const who = personName(c);
   const named = str(input.service, 80) || null;
   const amount =
     typeof input.amount_cents === "number" && input.amount_cents >= 0 ? Math.round(input.amount_cents) : null;
