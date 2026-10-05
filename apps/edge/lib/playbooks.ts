@@ -382,11 +382,18 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
           payload: payload as unknown as Json,
         });
       },
-      notify: async (subject, body) => {
+      // The row opens the run it is about, as a reach-out's does (run-context.ts notifyWaiting): it opened Campaigns' home.
+      notify: async (subject, body, runId) => {
         const target = await loadTenantNotifications(db, tenantId);
         await notify(
           { tenantId, notifications: target.notifications, isEnvDefault: target.isEnvDefault },
-          { kind: "playbook", route: "outbound", subject, body },
+          {
+            kind: "playbook",
+            route: `broadcasts/run:${runId}`,
+            about: { type: "broadcast", id: runId },
+            subject,
+            body,
+          },
         );
       },
     },

@@ -9,6 +9,7 @@ import { consentRuleWords } from "../consent/consent-asks";
 import type { ConsentChannel } from "../consent/consent-channels";
 import { GET_YES_ROUTE } from "../people/people-lists";
 import { CAMPAIGNS_PAUSED_WORDS } from "../workspace/billing";
+import { isReachOutRun } from "../reach-out/reach-out-rules";
 import { messageAboutOfTrigger } from "./playbook-purpose";
 import type { RunReach } from "./playbook-reach";
 import { triggerOf } from "./playbook-triggers";
@@ -265,12 +266,15 @@ function visitRunTooLate(run: { run_for?: string | null; audience?: unknown }, d
  * Why a waiting playbook's run cannot be approved now, in one sentence, or null: its day has passed (dayHasPassed), or it
  * is a visit's run that an approval now would send on a later day than the one it was made for (visitRunTooLate). THE
  * predicate for the verb (core approveRun), Ask's run card and the sheet (toApprovalVM), so the sheet never offers a button
- * the verb refuses, `playbook_id` guard and all: a run that is no playbook's has no day to pass.
+ * the verb refuses, `playbook_id` guard and all: a run that is no playbook's has no day to pass. Nor has a reach-out's
+ * run, which carries a step's id and a day and is approved on any later one (approveRun takes it to approveReachOut
+ * before it asks this; decision D6): the exemption is here, so every page that asks agrees with the verb.
  */
 export function runApprovalRefusal(
   run: { playbook_id: string | null; run_for?: string | null; audience?: unknown },
   days: ApprovalDays,
 ): string | null {
+  if (isReachOutRun(run.audience)) return null;
   const day =
     dayHasPassed(run, days.today) ??
     (run.playbook_id && run.run_for && visitRunTooLate(run, days) ? run.run_for : null);

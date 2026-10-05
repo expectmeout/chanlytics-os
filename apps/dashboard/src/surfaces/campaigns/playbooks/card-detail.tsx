@@ -11,7 +11,7 @@ import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { DELIVERY_RECEIPTS_TIP, PLAYBOOK_DELETE_WORDS, pipelineRoute, poolWords } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { pageClock } from "@/legacy-bridge/zone";
-import { canRestoreList, gate, navigate, restoreList } from "../../legacy-verbs";
+import { canRestoreList, gate, gatedProps, navigate, restoreList } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
@@ -21,7 +21,7 @@ import type { MenuItem } from "../../kit/menu/menu";
 import { StatePill } from "../../kit/pill/state-pill";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { useSurface } from "../../use-surface";
-import { bcWhenWords } from "../broadcasts/when-words";
+import { bcLateWords, bcWhenWords } from "../broadcasts/when-words";
 import { MessagePreview } from "../parts/message-preview";
 import { CmPane, useCmPhone } from "../parts/split";
 import type { PlaybookCardVM, PlaybookTriggerOption, PlaybooksSurface } from "./surface";
@@ -476,6 +476,9 @@ function cardHistory(c: CardCtx) {
 function cardWaitActs(c: CardCtx) {
   const { p, canAct, busy, skipSure, setSkipSure, waiting, acts } = c;
   if (!waiting) return null;
+  // The run is this playbook's, and its day and moment are the run's own (the list read's): a run whose day has passed is
+  // refused by the verb (bcLateWords), so the button says why and Skip is the act left.
+  const late = bcLateWords({ playbook_id: p.id, run_for: waiting.run_for, audience: { trigger: waiting.trigger } });
   if (canAct && skipSure) {
     return (
       <Confirm
@@ -501,9 +504,9 @@ function cardWaitActs(c: CardCtx) {
         variant="primary"
         size="sm"
         disabled={busy}
-        onClick={() => void acts.approve(waiting)}
+        onClick={() => (late ? undefined : void acts.approve(waiting))}
         data-testid="pb-approve"
-        {...(canAct ? {} : gate("approve", "approve a run"))}
+        {...(!canAct ? gate("approve", "approve a run") : late ? gatedProps(late) : {})}
       >
         <Icon name="check" size={12} /> Approve · {pbPeople(waiting.recipient_count)}
       </Button>

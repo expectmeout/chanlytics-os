@@ -83,10 +83,11 @@ export {
   broadcastFailureFix,
   broadcastFailureWords,
   emailRunStop,
+  playbookRunNext,
   stoppedRunFix,
   wireFailure,
 } from "./broadcast-failures";
-export type { BroadcastFailure, EmailRunStop, RunStop, WireFailure } from "./broadcast-failures";
+export type { BroadcastFailure, EmailRunStop, PlaybookRunNextBy, RunStop, WireFailure } from "./broadcast-failures";
 export { LIMIT_TIERS, dailyLimit, numberHealth, overLimitRefusal } from "./broadcast-number";
 export type { NumberHealthInput, NumberHealth } from "./broadcast-number";
 export { RUN_REPORT_STEPS, RUN_FILTERS, consentAnswerWords, receiptWords, toRunReportVM } from "./run-report";

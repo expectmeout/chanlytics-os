@@ -53,6 +53,9 @@ export const PUSH_KINDS = [
   "leads_question",
   "broadcast_sent",
   "broadcast_stopped",
+  // A playbook's run that waits for a word, or goes by itself unless it is stopped: the one notice with a deadline (a
+  // waiting run is refused once its day has passed, contracts runApprovalRefusal), and the phone never heard it.
+  "playbook",
   "job_failed",
   "billing",
   "number",

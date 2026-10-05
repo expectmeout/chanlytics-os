@@ -1,6 +1,7 @@
 import "server-only";
 import {
   AppError,
+  audienceTrigger,
   FOLLOW_UP_ONE,
   parseParamSpecs,
   PLAYBOOK_BREATH_MS,
@@ -97,7 +98,8 @@ export interface PlaybookTotals {
   replied: number;
   held: number;
   lastRun: { id: string; state: string; run_for: string | null; recipient_count: number } | null;
-  waiting: { id: string; recipient_count: number; name: string } | null;
+  /** The run waiting for a person, with its day and its moment: what the approve verb's refusal reads (runApprovalRefusal). */
+  waiting: { id: string; recipient_count: number; name: string; run_for: string | null; trigger: string | null } | null;
   /** The most recent runs, newest first, from the same rows the totals are summed over. */
   history: RunSummary[];
 }
@@ -614,7 +616,13 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
     }
     if (!t.lastRun) t.lastRun = { id: b.id, state: b.state, run_for: b.run_for, recipient_count: b.recipient_count };
     if (b.state === "pending_approval" && !t.waiting)
-      t.waiting = { id: b.id, recipient_count: b.recipient_count, name: b.name };
+      t.waiting = {
+        id: b.id,
+        recipient_count: b.recipient_count,
+        name: b.name,
+        run_for: b.run_for,
+        trigger: audienceTrigger(b.audience),
+      };
     totals.set(b.playbook_id, t);
   }
   return (rows ?? []).map((r) => ({

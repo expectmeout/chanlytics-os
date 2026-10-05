@@ -2,8 +2,24 @@
  * When a send really goes, in one sentence for every receipt that has one (moved from when.tsx, which draws the picker):
  * words alone, so Today's receipts and the shell that publishes them (campaigns/globals.ts) carry no picker.
  */
-import { MIN_MS } from "@chanlytics/contracts";
+import { MIN_MS, runApprovalRefusal } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
+
+/**
+ * Why a waiting run cannot be approved now, in the verb's own sentence, or null: its day has passed, or it is a visit's
+ * run an approval now would send on a later day (contracts runApprovalRefusal, THE predicate approveRun refuses by),
+ * asked by the business's clock. For every Approve outside the run's sheet (Today's row, a run's card, a playbook's
+ * card), which offered the button over a run the route then refused with a 409: the sheet alone asked (toApprovalVM).
+ */
+export function bcLateWords(run: {
+  playbook_id: string | null;
+  run_for?: string | null;
+  audience?: unknown;
+}): string | null {
+  const C = pageClock();
+  const now = Date.now();
+  return runApprovalRefusal(run, { today: C.dayKey(now), sendsOn: C.dayKey(C.nextOpen(now).at), say: C.dayWords });
+}
 
 /** What a receipt says of its time: the server's answer to a send or an approve. */
 interface WhenReceipt {
