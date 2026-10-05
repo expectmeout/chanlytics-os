@@ -426,7 +426,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 ### `POST /api/v1/contacts/[id]/merge`
 
-Writes; for a member of the row's own workspace, owner or above; counts against the `erase` rate; spends nothing.
+Writes; for a member of the row's own workspace, owner or above; counts against the `merge` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |

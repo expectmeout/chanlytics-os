@@ -80,8 +80,8 @@ does to consent), which Ruben delegated on 4 October.
   in `route-policy.json`.
 - **The page:** on a person, in the same menu as Delete: "Merge with another record…", a picker over People, then a
   confirmation that names both, says which is kept and what moves, and asks for the kept person's name typed.
-- **Words:** in `packages/contracts/src/people/`, with the refusals; the timeline says "Merged with <name>" and the
-  consent entries say "from the merge".
+- **Words:** in `packages/contracts/src/people/`, with the refusals; the consent entries on the timeline say the merge
+  changed the answer, and the workspace's activity names the merge.
 - **New closed-set members:** the decision verb `merge` (the `decisions_verb_check` constraint and
   `DECISION_VERBS`), the event kind `contact.merged`, the consent source `merge`.
 
@@ -101,8 +101,8 @@ Each is its own pull request, shippable in either deploy order.
   pair is refused. One transaction is the function's own: a plpgsql door commits whole or not at all.
 - **The guard:** a message still cannot change thread in any other case, including into the thread of a person its
   own was not merged into, and no other column became changeable.
-- **The route and the page:** who may, the refusals carried back in words, the confirmation's count equal to the
-  door's.
+- **The route and the page:** who may, the refusals carried back in words, the request the page sends (the kept
+  record's route, the other in the body), and the box that closes when the door answers.
 
 ## Risks
 

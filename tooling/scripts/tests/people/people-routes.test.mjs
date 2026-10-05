@@ -2033,7 +2033,14 @@ test("the proposal follow-up's facts (0006): answered with People's first page w
 });
 
 test("the merge of two records (0028): the owner's, judged on the kept record, the door's answer and its refusal as said", async () => {
-  assert.deepEqual(merge.POST.policy, { kind: "write", scope: "row", role: "owner", rate: "erase", spend: false });
+  assert.deepEqual(merge.POST.policy, {
+    kind: "write",
+    fresh: true,
+    scope: "row",
+    role: "owner",
+    rate: "merge",
+    spend: false,
+  });
   const asked = [];
   const door = (a) => {
     asked.push(a);

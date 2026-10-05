@@ -21,6 +21,7 @@ import { deletePerson, mergePerson } from "../people-detail";
 import { PersonName } from "./name";
 import { digitsOf } from "./ctx";
 import type { PageCtx } from "./ctx";
+import type { PersonRowVM } from "@chanlytics/contracts";
 
 const ACT_ICON: Record<string, string> = {
   booking: "calendar",
@@ -87,8 +88,15 @@ function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGr
     },
     "copy-phone": () => copyOut(c, p.phone, "the number"),
     "copy-email": () => copyOut(c, p.email, "the email"),
-    delete: () => setDel({ open: true, typed: "", busy: false, error: null }),
-    merge: () => setMerge({ open: true, pick: null, typed: "", busy: false, error: null }),
+    // One question at a time: opening either box closes the other.
+    delete: () => {
+      setMerge({ open: false, pick: null, typed: "", busy: false, error: null });
+      setDel({ open: true, typed: "", busy: false, error: null });
+    },
+    merge: () => {
+      setDel({ open: false, typed: "", busy: false, error: null });
+      setMerge({ open: true, pick: null, typed: "", busy: false, error: null });
+    },
   };
   const acts = (p.acts || []).filter((a) => a.needs === "any" || (a.needs === "record" ? canRecord : isOwner));
   // A few words each, a line between the groups, and what an act does on hover: a sentence beside every label was a
@@ -168,41 +176,36 @@ function deleteBox(c: PageCtx) {
  */
 function mergeBox(c: PageCtx) {
   const { p, merge, setMerge, others, flash, load } = c;
-  const other = others.find((r) => r.id === merge.pick) ?? null;
+  const rows = others ?? [];
+  const other = rows.find((r) => r.id === merge.pick) ?? null;
+  // Two records of one name are told apart by what else the row says (a number, an address).
+  const said = (r: PersonRowVM) => [r.phone, r.email].filter(Boolean).join(" · ");
+  const nameOf = (r: PersonRowVM) =>
+    rows.some((o) => o.id !== r.id && o.name === r.name) && said(r) ? `${r.name} (${said(r)})` : r.name;
   const typedMatches =
     merge.typed.trim() === p.name ||
     (!!p.phone && digitsOf(merge.typed).length >= 7 && digitsOf(merge.typed) === digitsOf(p.phone));
   const groups: PickerGroup<string>[] = [
     {
-      options: others.map((r) => ({
-        value: r.id,
-        label: r.name,
-        sub: [r.phone, r.email].filter(Boolean).join(" · ") || undefined,
-      })),
+      options: rows.map((r) => ({ value: r.id, label: r.name, sub: said(r) || undefined })),
     },
   ];
   const confirmMerge = async () => {
-    if (!other || !typedMatches) return;
+    if (!other || !typedMatches || merge.busy) return;
     setMerge((m) => ({ ...m, busy: true, error: null }));
     const r = await mergePerson(p.id, other.id);
     if (!r.ok) {
       setMerge((m) => ({ ...m, busy: false, error: r.message || "Could not merge these records." }));
       return;
     }
-    flash({
-      msg: (
-        <>
-          <b>{other.name}</b> merged into <b>{p.name}</b>
-        </>
-      ),
-    });
+    flash({ msg: MERGE_WORDS.done(p.name, nameOf(other)) });
     setMerge({ open: false, pick: null, typed: "", busy: false, error: null });
     load();
   };
-  const name = other?.name ?? "the other record";
+  const name = other ? nameOf(other) : "the other record";
   return (
     <div className="cl-prof-danger" data-testid="merge">
-      <p>
+      <div>
         {MERGE_WORDS.pick}{" "}
         <Picker
           label={MERGE_WORDS.pick}
@@ -217,12 +220,14 @@ function mergeBox(c: PageCtx) {
             empty: MERGE_WORDS.pickEmpty,
             match: (o, q) => `${o.label} ${o.sub ?? ""}`.toLowerCase().includes(q.toLowerCase()),
           }}
+          note={others === null ? MERGE_WORDS.pickReading : undefined}
           readOnly={merge.busy}
           data-testid="merge-pick"
         />
-      </p>
+      </div>
       <Confirm
         block
+        danger
         typed={p.name}
         value={merge.typed}
         onType={(v) => setMerge((m) => ({ ...m, typed: v }))}

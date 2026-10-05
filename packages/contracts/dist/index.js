@@ -7756,6 +7756,7 @@ var MERGE_WORDS = {
   pickPlaceholder: "Search by name, number or email",
   pickEmpty: "Nobody else matches",
   pickNone: "Choose the other record",
+  pickReading: "People is still being read; the other records are offered once it lands.",
   question: (kept, other) => `Merge ${other} into ${kept}?`,
   detail: (kept, other) => `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. Their answers about messages and offers become the more careful of the two. ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
   typed: (kept) => `Type ${kept} to confirm.`,

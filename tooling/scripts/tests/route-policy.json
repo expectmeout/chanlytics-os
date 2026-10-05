@@ -337,9 +337,10 @@
     },
     "POST contacts/[id]/merge": {
       "kind": "write",
+      "fresh": true,
       "scope": "row",
       "role": "owner",
-      "rate": "erase",
+      "rate": "merge",
       "spend": false
     },
     "POST contacts/[id]/notes/decide": {

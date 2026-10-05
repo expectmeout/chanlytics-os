@@ -55,8 +55,11 @@ export interface PageCtx {
   setDel: Dispatch<SetStateAction<DelState>>;
   merge: MergeState;
   setMerge: Dispatch<SetStateAction<MergeState>>;
-  /** The other people the page holds (People's rows, this person left out): what a merge chooses from. */
-  others: PersonRowVM[];
+  /**
+   * What a merge may choose from: People's other rows the door could take with this person (not one with a different
+   * number or address, which it refuses as two people). Null while People has not been read.
+   */
+  others: PersonRowVM[] | null;
   rm: RmState;
   setRm: Dispatch<SetStateAction<RmState>>;
   tlFilter: string;

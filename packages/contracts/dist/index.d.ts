@@ -21847,6 +21847,7 @@ declare const MERGE_WORDS: {
     readonly pickPlaceholder: "Search by name, number or email";
     readonly pickEmpty: "Nobody else matches";
     readonly pickNone: "Choose the other record";
+    readonly pickReading: "People is still being read; the other records are offered once it lands.";
     readonly question: (kept: string, other: string) => string;
     readonly detail: (kept: string, other: string) => string;
     readonly typed: (kept: string) => string;

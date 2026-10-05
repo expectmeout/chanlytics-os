@@ -91,8 +91,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST calls/[id]/hand-over": () => [liveOverride],
   // People.
   "DELETE contacts/[id]": () => [...personAndThreads(), ...audiences()],
-  // Two records became one (0028): the kept person's page and People, the threads that folded, and every count by consent.
-  "POST contacts/[id]/merge": () => [...personAndThreads(), ...audiences()],
+  // Two records became one (0028): the kept person's page and People, the threads that folded, and every count by
+  // consent, Reports' included: the merge may change an answer, as a consent write does.
+  "POST contacts/[id]/merge": consentWrite,
   "PUT contacts/[id]/receptionist": people,
   "PUT contacts/[id]/consent": consentWrite,
   "PUT contacts/[id]/marketing-consent": consentWrite,

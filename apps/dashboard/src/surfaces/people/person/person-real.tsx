@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { NOTE_WORDS } from "@chanlytics/contracts";
-import type { PersonVM } from "@chanlytics/contracts";
+import type { PersonRowVM, PersonVM } from "@chanlytics/contracts";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { useRecordFold } from "../../kit/record/hooks";
 import { mayAtLeast } from "../../legacy-verbs";
@@ -205,7 +205,7 @@ function ClientProfileReal({ id }: { id: string }) {
     setDel,
     merge,
     setMerge,
-    others: people && people.rows ? people.rows.filter((r) => r.id !== id) : [],
+    others: people && people.rows ? people.rows.filter((r) => r.id !== id && mayMergeWith(vm, r)) : null,
     rm,
     setRm,
     tlFilter,
@@ -215,6 +215,16 @@ function ClientProfileReal({ id }: { id: string }) {
     folds,
   };
   return personPage(c, toastNode);
+}
+
+/**
+ * The door refuses a pair with two different numbers or two different addresses as two people (0028): the page does not
+ * offer one it would refuse. Everyone else People holds is offered; the door judges the rest (deals, deleted, merged).
+ */
+function mayMergeWith(p: PersonVM, r: PersonRowVM): boolean {
+  if (p.phone && r.phone && p.phone !== r.phone) return false;
+  if (p.email && r.email && p.email !== r.email) return false;
+  return true;
 }
 
 /** The page a route draws for `clients/<id>`: a real workspace's person, in full. */

@@ -150,10 +150,15 @@ export async function mergePeople(db: Db, keep: string, merge: string): Promise<
   return mergedOf(data);
 }
 
-/** The door's answer read key by key: a word where it said one, the counts as it gave them, never a cast. */
+/**
+ * The door's answer read key by key: a word where it said one, the counts as it gave them, never a cast. An answer
+ * that names no kept or merged record is not the door's, and is refused rather than read as a success: the merge has
+ * committed by then, and the route answers that something went wrong, never a page with nobody on it.
+ */
 function mergedOf(v: unknown): MergedPeople {
   const o = v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
   const word = (k: string): string => (typeof o[k] === "string" ? o[k] : "");
+  if (!word("contact_id") || !word("merged")) throw new Error("merge_people answered without the two records");
   const counts =
     o.counts && typeof o.counts === "object" && !Array.isArray(o.counts) ? (o.counts as Record<string, unknown>) : {};
   const out: Record<string, number | string> = {};

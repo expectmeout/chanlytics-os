@@ -403,6 +403,7 @@ async function mergePeople(db, keep, merge) {
 function mergedOf(v) {
   const o = v && typeof v === "object" && !Array.isArray(v) ? v : {};
   const word = (k) => typeof o[k] === "string" ? o[k] : "";
+  if (!word("contact_id") || !word("merged")) throw new Error("merge_people answered without the two records");
   const counts = o.counts && typeof o.counts === "object" && !Array.isArray(o.counts) ? o.counts : {};
   const out = {};
   for (const [k, n] of Object.entries(counts)) if (typeof n === "number" || typeof n === "string") out[k] = n;
