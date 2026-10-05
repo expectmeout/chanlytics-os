@@ -5,6 +5,7 @@
  */
 import { read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
+import { LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { toInboxThreadVM, type ConversationDto, type EscalationDto, type TemplateHolds } from "@chanlytics/contracts";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
@@ -51,6 +52,9 @@ export const inboxOverride: SurfaceOverride = {
   // sidebar badge; the reseeded Inbox emits the real count itself.
   events: ["surface:inbox"],
   refreshOnMessageInserts: true,
+  // A send's ticks, and a failure written late, repaint the thread without a reload (00325): a message's update, by the
+  // status it leaves the row in. Not an inbound row's meta stamped after its arrival.
+  refreshOnMessageStatuses: LEFT_THE_QUEUE,
   apply: async () => {
     const [convData, escData, tplRes, tz] = await Promise.all([
       read("GET conversations"),

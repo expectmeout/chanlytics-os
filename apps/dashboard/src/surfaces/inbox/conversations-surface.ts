@@ -8,6 +8,7 @@
  */
 import { read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
+import { LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { toConversationVM, toCallVM } from "@chanlytics/contracts";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
@@ -56,6 +57,8 @@ export const conversationsOverride: SurfaceOverride = {
   value: "conversations",
   events: ["surface:conversations"],
   refreshOnMessageInserts: true,
+  // The rows' last words carry the same ticks as the thread (00325): see the Inbox's.
+  refreshOnMessageStatuses: LEFT_THE_QUEUE,
   apply: async () => {
     // The open escalations too: a row's standing is the Inbox's rule over the thread AND its escalation
     // (contracts standingOf), and without the second this surface read an escalated thread as quiet. The Inbox

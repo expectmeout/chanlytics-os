@@ -9,11 +9,15 @@
  * re-reads the Inbox, Conversations and Today, and the page on screen; a surface that let one pass is read once as its
  * page comes on screen. And the shell (app-shell.jsx on a stub React, over the real signal): the reads of a message
  * move nothing for a page that draws none of them, and one redraw for Today.
+ *
+ * A message's UPDATE (00325: a send's ticks, a failure written late) is told for each receipt, so it is heard by
+ * status and by three surfaces alone: the Inbox and Conversations for a tick, Today for a failure.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { changesOf, toldFor } from "../../_live-feed.mjs";
 import { historyOf, legacyAddress } from "../address/_address.mjs";
 
 const heard = new Map();
@@ -52,6 +56,7 @@ win.__shell = (await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts"))
 win.CHANLY = { nav() {}, address: await legacyAddress() };
 const runner = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
 const status = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
+const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
 const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
 const { workspaceOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
 const S = "apps/dashboard/src/legacy-bridge/surfaces";
@@ -100,13 +105,19 @@ async function running() {
   await settle(20);
   assert.ok(feed, "the feed is joined once the boot is in");
   asked.length = 0;
-  const change = async (table, event) => {
-    feed({ tenant_id: "ws-1" }, table, event);
+  const change = async (table, event, status) => {
+    feed({ tenant_id: "ws-1", ...(status ? { status } : {}) }, table, event);
+    await settle(10);
+  };
+  /** A notice as the database sends it, decoded by the live feed's own wrapper, each change it makes handed on. */
+  const notice = async (payload) => {
+    for (const c of await changesOf({ event: payload.op, payload }, "ws-1")) feed(c.row, c.table, c.event);
     await settle(10);
   };
   return {
     asked,
     change,
+    notice,
     message: () => change("messages", "INSERT"),
     stop: () => {
       stop();
@@ -128,6 +139,105 @@ test("a message re-reads the Inbox, Conversations and Today, not the four surfac
   } finally {
     r.stop();
   }
+});
+
+const THREADS = ["conversations", "inbox"];
+
+test("a message's update is heard by status: the threads' two surfaces for a tick, Today for a failure, none for an arrival's stamp (00325)", async () => {
+  assert.deepEqual(toldFor("messages"), ["INSERT", "UPDATE"], "the database tells a workspace of a message's update");
+  win.location.hash = "#/today";
+  const r = await running();
+  try {
+    for (const [status, heard] of [
+      ["sent", THREADS],
+      ["delivered", THREADS],
+      ["read", THREADS],
+      ["canceled", THREADS],
+      ["failed", [...THREADS, "today"]],
+      ["received", []],
+      ["queued", []],
+      [undefined, []],
+    ]) {
+      r.asked.length = 0;
+      await r.change("messages", "UPDATE", status);
+      assert.deepEqual([...r.asked].sort(), heard, `an update leaving ${status ?? "no status"}`);
+    }
+  } finally {
+    r.stop();
+  }
+});
+
+test("a notice reaches the surfaces as the live feed decodes it: each status it carries a change, one read for the lot, and an arrival as it was", async () => {
+  win.location.hash = "#/today";
+  const r = await running();
+  try {
+    await r.notice({ table: "messages", op: "UPDATE", statuses: ["delivered", "received"] });
+    assert.deepEqual([...r.asked].sort(), THREADS, "a receipt, and an inbound row's stamp beside it");
+    r.asked.length = 0;
+    await r.notice({ table: "messages", op: "UPDATE", statuses: ["failed", "read"] });
+    assert.deepEqual([...r.asked].sort(), [...THREADS, "today"], "a read and a failure: Today reads for the failure");
+    r.asked.length = 0;
+    await r.notice({ table: "messages", op: "UPDATE", statuses: ["received"] });
+    assert.deepEqual(r.asked, [], "an arrival's stamp is nobody's tick");
+    await r.notice({ table: "messages", op: "INSERT" });
+    assert.deepEqual([...r.asked].sort(), ["conversations", "inbox", "today"], "an arrival is read as ever");
+  } finally {
+    r.stop();
+  }
+});
+
+test("a receipt never reads People, Reports or Campaigns on their own pages, and leaves nothing for them to read when they come back", async () => {
+  // What an arrival earlier in this file let pass is read as a page comes back: leave and return once, to start clean.
+  const away = async (from, to) => {
+    for (const hash of [from, to]) {
+      win.location.hash = hash;
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+    }
+  };
+  for (const hash of ["#/clients", "#/reports", "#/campaigns"]) {
+    win.location.hash = hash;
+    const r = await running();
+    try {
+      await away("#/calendar", hash);
+      r.asked.length = 0;
+      await r.change("messages", "UPDATE", "delivered");
+      assert.deepEqual([...r.asked].sort(), THREADS, `${hash}: the threads alone`);
+      await r.change("messages", "UPDATE", "failed");
+      assert.deepEqual([...new Set(r.asked)].sort(), [...THREADS, "today"], `${hash}: and Today, for a failure`);
+      r.asked.length = 0;
+
+      await away("#/calendar", hash);
+      assert.deepEqual(r.asked, [], `${hash}: no update was kept for the page's return`);
+    } finally {
+      r.stop();
+      win.location.hash = "#/today";
+    }
+  }
+});
+
+test("a surface hears a message's update only by naming its statuses: of the real overrides, the Inbox, Conversations and Today alone", () => {
+  const update = (status) => ({ table: "messages", event: "UPDATE", row: { status } });
+  const statuses = ["received", "queued", "sent", "delivered", "read", "failed", "canceled"];
+  const hears = (o) => statuses.filter((s) => wantsRefresh(o, "messages", update(s)));
+  const heard = Object.fromEntries(REAL.map((o) => [o.key, hears(o)]).filter(([, h]) => h.length));
+  assert.deepEqual(heard, {
+    conversations: ["sent", "delivered", "read", "failed", "canceled"],
+    inbox: ["sent", "delivered", "read", "failed", "canceled"],
+    today: ["failed"],
+  });
+  // An arrival is heard as it was.
+  const arrival = { table: "messages", event: "INSERT", row: {} };
+  for (const key of ["inbox", "conversations", "today"])
+    assert.equal(
+      wantsRefresh(
+        REAL.find((o) => o.key === key),
+        "messages",
+        arrival,
+      ),
+      true,
+      `${key} hears an arrival`,
+    );
 });
 
 test("the page on screen hears messages too, and a surface that let one pass is read once when its page comes back", async () => {
