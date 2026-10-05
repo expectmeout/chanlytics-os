@@ -34792,6 +34792,8 @@ interface TemplateRow {
     body_preview: string | null;
     title: string | null;
     variables: unknown;
+    /** Meta's component array: what makes a message one this product cannot send whole (contracts templateBlocked). */
+    components: unknown;
 }
 /**
  * Every template this workspace holds on a channel.

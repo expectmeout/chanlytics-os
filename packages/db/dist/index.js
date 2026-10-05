@@ -2411,7 +2411,7 @@ async function releaseControl(db, p) {
 
 // src/repositories/templates.ts
 async function templatesFor(db, tenantId, channel = "whatsapp") {
-  const { data, error } = await db.from("templates").select("name, language, category, meta_status, body_preview, title, variables").eq("tenant_id", tenantId).eq("channel", channel);
+  const { data, error } = await db.from("templates").select("name, language, category, meta_status, body_preview, title, variables, components").eq("tenant_id", tenantId).eq("channel", channel);
   if (error) throw new Error(`templatesFor: ${error.message}`);
   return data ?? [];
 }

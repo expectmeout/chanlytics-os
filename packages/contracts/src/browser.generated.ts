@@ -246,7 +246,7 @@ export { refusalOf, roleGate, waitWords, NEEDS_TITLE, PERM_DOING } from "./shell
 export { stateTone, stateLabel, stateOf, leadPinTone, leadMapLegend, TONES } from "./shell/tone";
 export { PAGE_VITALS, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_READ, PAGE_VITALS_MIN_LOADS, PageVitalReport, vitalsPageOf, vitalValueWords, vitalVerdict, pageVitalsWords } from "./shell/vitals";
 export { emailFoot, emailFootHtml } from "./templates/email-foot";
-export { inboxTemplates, inboxSlots, slotToWrite } from "./templates/inbox-templates";
+export { inboxTemplates, inboxSlots, noTemplateWords, slotToWrite, templateHolds } from "./templates/inbox-templates";
 export { libraryCount, isLibrarySample } from "./templates/library-count";
 export { languageWords, languageLabels, LANGUAGE_GROUP_WORDS, messageLanguageChoices, templateUntranslatable } from "./templates/message-languages";
 export { toSlotParts, fromSlotParts, partWritten, insertSlot, eraseSlot, clampWords, slotLabel, slotKnown, namedProblem } from "./templates/message-version-slots";
@@ -257,7 +257,7 @@ export { starterByName, starterByKey, startersOffered, starterForTrigger, starte
 export { STARTER_LANGUAGES, STARTER_TEMPLATES } from "./templates/starter-templates";
 export { templateLanguage, languageName, languageLabel, languageTag, findLanguages, WHATSAPP_LANGUAGES, languageBase } from "./templates/template-languages";
 export { starterIndex, compareTemplates, defaultTemplate, groupTemplates, bookingTemplate } from "./templates/template-order";
-export { footerOf, templateFooter, templateParts, templateBlocked, sendableTemplates, templateLinkButton } from "./templates/template-parts";
+export { footerOf, templateFooter, templateParts, templateBlocked, refusedWords, sendableTemplates, templateLinkButton } from "./templates/template-parts";
 export { starterPreviewValues, starterPreview, templatePreviewValues, templatePreview } from "./templates/template-preview";
 export { guessSlotKind, defaultSlotKinds, defaultParamSpecs, slotChoices, templateSlots, slotLabels } from "./templates/template-slots";
 export { TEMPLATE_TITLE_MAX, templateTitle, playbookName } from "./templates/template-titles";
@@ -279,7 +279,7 @@ export { isPersonRow } from "./today/today-queue";
 export { NO_REPLY_AFTER_MS } from "./today/today-rows";
 export { todayRunWords, todayRunsSub, todayRunApproved } from "./today/today-runs";
 export { todaySteps } from "./today/today-steps";
-export { callOutcomeOf, callOutcomeWords, tidyCallSummary, CALL_OUTCOMES, CALL_OUTCOME_WORDS } from "./voice/call-words";
+export { callOutcomeOf, callOutcomeWords, callNoteLines, callNotesOf, callTodoWords, tidyCallSummary, CALL_OUTCOMES, CALL_OUTCOME_WORDS } from "./voice/call-words";
 export { telHref, forwardingDialLabel, forwardingCodes, forwardingMatch, divertedNumbers, forwardingProof, forwardingTestOpen, CARRIERS, FORWARDING_MODES, CARRIER_WORDS, FORWARDING_MODE_WORDS, FORWARDING_TEST_WINDOW_MS, isCarrier, isForwardingMode } from "./voice/forwarding";
 export { greetingFor, pausedGreetingFor, GREETING_DEFAULT } from "./voice/greeting";
 export { fmtClock, liveStillUp, liveBar, toLiveCallVM, toLiveVM, LIVE_STALE_MS, LIVE_OVERLONG_MS, ANALYSIS_GRACE_MS, RECENT_MAX } from "./voice/live";
