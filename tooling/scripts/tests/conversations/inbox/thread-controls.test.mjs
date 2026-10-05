@@ -804,3 +804,109 @@ test("on a phone an open thread swipes back to its list: the pane carries a thum
   assert.equal(typeof pane({ onBack: () => {} }).props.onTouchMove, "function");
   assert.equal(pane({}).props.onTouchMove, undefined, "with no Back (a desktop's pane), nothing to swipe to");
 });
+
+/* --------------------------- an address that stopped --------------------------- */
+
+// B7 (audit, 2 Oct 2026): an address that bounced for good, or whose person marked a message as spam, is refused by the
+// reply route (core conversations/reply.ts) after the owner has written the reply. The reply box says so before they
+// write, in one sentence of contracts' words, and offers no email to write.
+const emailConv = (contact = {}, over = {}) =>
+  conv({
+    state: "open",
+    last_wa_inbound_at: null,
+    contact: { ...conv().contact, email: "rosa@example.com", ...contact },
+    messages: [m("m1", 40, { channel: "email", body: "Can I move my appointment to Friday?" })],
+    ...over,
+  });
+const stoppedBy = (reason) => ({ email_suppressed_at: "2026-09-03T15:00:00Z", email_suppressed_reason: reason });
+const TAIL = "Email can't reach them: correct the address on their page, or reach them another way.";
+
+test("an email thread whose address stopped says why in the reply box before anyone writes, and offers no email to write", () => {
+  for (const [reason, why] of [
+    ["hard_bounce", "Their address bounced on Sep 3."],
+    ["complaint", "They marked a message as spam on Sep 3."],
+    ["provider", "The mail provider stopped sending to their address on Sep 3."],
+  ]) {
+    const vm = toInboxThreadVM(emailConv(stoppedBy(reason)), null, ZONE, NOW);
+    assert.equal(vm.emailStopped, `${why} ${TAIL}`, reason);
+    const box = find(draw(vm), byTestId("ix-composer-email-stopped"));
+    assert.equal(textOf(box), `${why} ${TAIL}`, `${reason}: the box says it`);
+    assert.equal(
+      find(box, (n) => n.type === "textarea"),
+      undefined,
+      `${reason}: nothing to type an email into`,
+    );
+    assert.equal(
+      find(box, (n) => n.type === "button"),
+      undefined,
+      `${reason}: and no Send`,
+    );
+  }
+  // The same thread with an address that works: the box is the ordinary one, naming the channel.
+  const fine = draw(toInboxThreadVM(emailConv(), null, ZONE, NOW));
+  assert.equal(find(fine, byTestId("ix-composer-email-stopped")), undefined);
+  assert.equal(find(fine, hasClass("ix-composer-text")).props.placeholder, "Email to Rosa Díaz…");
+});
+
+test("a stopped address holds only the replies that would go by email: a thread on WhatsApp keeps its box", () => {
+  const onWhatsApp = conv({ contact: { ...conv().contact, email: "rosa@example.com", ...stoppedBy("hard_bounce") } });
+  const vm = toInboxThreadVM(onWhatsApp, null, ZONE, NOW);
+  assert.equal(vm.emailStopped, null, "they wrote on WhatsApp 40 minutes ago, and the reply goes there");
+  const tree = draw(vm);
+  assert.equal(find(tree, byTestId("ix-composer-email-stopped")), undefined);
+  assert.ok(find(tree, hasClass("ix-composer-text")), "the box to write in");
+  // An opt-out is stronger and still the box's own: nothing at all can be sent.
+  const both = toInboxThreadVM(
+    emailConv({ ...stoppedBy("complaint"), consent: "opted_out", dnc: true }),
+    null,
+    ZONE,
+    NOW,
+  );
+  assert.match(textOf(find(draw(both), hasClass("ix-composer"))), /asked to stop receiving messages/);
+});
+
+test("the conversations read carries the stop into the thread, and one predicate says it for the reply route, the send door and the box", async () => {
+  const { toConversationDto } = await import("../../../../../apps/dashboard/src/server/dto.ts");
+  const { CONVERSATION_COLUMNS } = await import("../../../../../apps/dashboard/src/server/dto.ts");
+  const { isEmailStopped } = await import("@chanlytics/contracts");
+  assert.match(
+    CONVERSATION_COLUMNS,
+    /email_suppressed_at, email_suppressed_reason\)/,
+    "the read asks for both columns",
+  );
+  const row = {
+    id: "c1",
+    state: "open",
+    paused_until: null,
+    snooze_until: null,
+    assignee_user_id: null,
+    last_wa_inbound_at: null,
+    last_message_at: null,
+    contacts: {
+      id: "p1",
+      display_name: "Rosa Díaz",
+      wa_profile_name: null,
+      phone_e164: null,
+      email: "rosa@example.com",
+      consent: "opted_in",
+      dnc: false,
+      marketing_consent: null,
+      proposal_url: null,
+      ...stoppedBy("hard_bounce"),
+    },
+  };
+  const dto = toConversationDto(row, [], "u-me");
+  assert.deepEqual(
+    [dto.contact.email_suppressed_at, dto.contact.email_suppressed_reason],
+    ["2026-09-03T15:00:00Z", "hard_bounce"],
+    "REGRESSION: the thread dropped the stop, so the box offered an email the route would refuse",
+  );
+  assert.equal(isEmailStopped(dto.contact), true);
+  assert.equal(isEmailStopped({ ...dto.contact, email_suppressed_at: null }), false);
+  const clear = toConversationDto(
+    { ...row, contacts: { ...row.contacts, ...{ email_suppressed_at: null, email_suppressed_reason: null } } },
+    [],
+    "u-me",
+  );
+  assert.deepEqual([clear.contact.email_suppressed_at, clear.contact.email_suppressed_reason], [null, null]);
+});

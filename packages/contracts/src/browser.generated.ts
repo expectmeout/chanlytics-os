@@ -98,7 +98,7 @@ export { messageStatusLabel, sendFailureWords, reachedCustomer, isHeldDraft, isC
 export { standingOf, replyWaitsOnYou } from "./conversations/standing";
 export { agentFor, isFromTheirSide, isTheirOwnWords, lastWroteOn, writtenChannelOf, threadChannelOf, threadChannelWords, THREAD_CHANNEL_WORDS } from "./conversations/thread-channel";
 export { shortTime, formatWaited } from "./conversations/thread-clock";
-export { contactName, isIdentifierName, contactMeta, initialsOf } from "./conversations/thread-contact";
+export { contactName, isIdentifierName, contactMeta, initialsOf, isEmailStopped, emailStoppedWords } from "./conversations/thread-contact";
 export { messageAt, isOptedOut, memberMetaOf } from "./conversations/thread-dto";
 export { amountWords, parseAmount, amountTotalsWords } from "./deals/deal-amount";
 export { consultServiceOf, isConsultationTitle, noProposalSince, consultationHeld, dealStageOf, consultationsWithoutProposal, consultsHeldWords, CONSULT_FOLLOW_DAYS } from "./deals/deal-consultations";
@@ -262,8 +262,8 @@ export { starterPreviewValues, starterPreview, templatePreviewValues, templatePr
 export { guessSlotKind, defaultSlotKinds, defaultParamSpecs, slotChoices, templateSlots, slotLabels } from "./templates/template-slots";
 export { TEMPLATE_TITLE_MAX, templateTitle, playbookName } from "./templates/template-titles";
 export { templateNameOk, slugTemplateName, placeholdersOf, placeholdersSequential, validateTemplateDraft, templateComponents, parseParamSpec, parseParamSpecs, paramLabel, playbooksStillSending, firstNameOf, resolveParams, exampleParams, templateUsage, templateUseWords, templateUseNote, templateUnused, templateSends, templateSentWords, TEMPLATE_LANGUAGES, TEMPLATE_CATEGORIES, TEMPLATE_BODY_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_EXAMPLE_MAX, TEMPLATE_NAME_MAX, TEMPLATE_BUTTON_TEXT_MAX, PARAM_SOURCES, PARAM_SOURCE_LABELS, PARAM_SOURCE_HINTS } from "./templates/templates";
-export { NOTIFICATION_KIND_GROUPS } from "./today/notification-kinds";
-export { buildNotificationFeed, applyReadState, unreadCount, agoLabel, jobNewsWords, verbForRoute, conversationOfNeedsKey, callOfKey, serverNotificationRows, dedupeFeed, nameKnownCustomers, EMPTY_READ_STATE, ALERT_KINDS, SERVER_NOTIFICATION_KINDS, SERVER_KEY_PREFIX } from "./today/notifications";
+export { NOTIFICATION_KIND_GROUPS, NOTIFICATION_PANE_WORDS, EMAILED_NOTIFICATION_KINDS, emailsNotificationKind } from "./today/notification-kinds";
+export { buildNotificationFeed, bellCalls, applyReadState, unreadCount, agoLabel, jobNewsWords, verbForRoute, conversationOfNeedsKey, callOfKey, serverNotificationRows, dedupeFeed, nameKnownCustomers, EMPTY_READ_STATE, ALERT_KINDS, SERVER_NOTIFICATION_KINDS, SERVER_KEY_PREFIX } from "./today/notifications";
 export { parseDevice, firstLine, pushFor, PUSH_PLATFORMS, PUSH_KINDS, isPushKind, unreadFor, isForReader, PUSH_RECEIPTS_AFTER_MS, BELL_WINDOW_DAYS } from "./today/push";
 export { todayAwayGrouped, bellSections } from "./today/today-away";
 export { toTodayVM } from "./today/today-brief";
@@ -282,7 +282,7 @@ export { todaySteps } from "./today/today-steps";
 export { callOutcomeOf, callOutcomeWords, callNoteLines, callNotesOf, callTodoWords, tidyCallSummary, CALL_OUTCOMES, CALL_OUTCOME_WORDS } from "./voice/call-words";
 export { telHref, forwardingDialLabel, forwardingCodes, forwardingMatch, divertedNumbers, forwardingProof, forwardingTestOpen, CARRIERS, FORWARDING_MODES, CARRIER_WORDS, FORWARDING_MODE_WORDS, FORWARDING_TEST_WINDOW_MS, isCarrier, isForwardingMode } from "./voice/forwarding";
 export { greetingFor, pausedGreetingFor, GREETING_DEFAULT } from "./voice/greeting";
-export { fmtClock, liveStillUp, liveBar, toLiveCallVM, toLiveVM, LIVE_STALE_MS, LIVE_OVERLONG_MS, ANALYSIS_GRACE_MS, RECENT_MAX } from "./voice/live";
+export { fmtClock, liveStillUp, liveBar, toLiveCallVM, toLiveVM, missedCallIsNews, LIVE_STALE_MS, LIVE_OVERLONG_MS, ANALYSIS_GRACE_MS, RECENT_MAX } from "./voice/live";
 export { frameWhisper, frameGuardrail, frameSteer, whisperText, frameHandOver, injectedTurn } from "./voice/whisper";
 export { ACTIVATION_MILESTONES } from "./workspace/activation";
 export { activityWords, activityTone, isActivityMoney, isActivityNoise, ACTIVITY_NOISE_PREFIXES, ACTIVITY_NOISE_KINDS, ACTIVITY_KINDS } from "./workspace/activity";

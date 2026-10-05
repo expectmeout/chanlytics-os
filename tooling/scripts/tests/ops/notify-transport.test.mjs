@@ -575,3 +575,105 @@ test("a kept row of a kind a phone hears about schedules one push_send naming it
   assert.equal(jobs.length, 1, "and stays off the phone");
   assert.equal(t.sent.length, 2, "both mails left as ever");
 });
+
+// B16 (audit, 2 Oct 2026): Settings › Notifications said "Every alert below goes to each of these" over eleven kinds
+// while notify() mailed every kind it was handed, so a WhatsApp number's flag, a template's refusal, a finished
+// broadcast and more were emailed and said nowhere. What is emailed is now one closed list in contracts
+// (EMAILED_NOTIFICATION_KINDS): notify() asks it before it mails, and the pane's rows are typed and tested by it.
+test("notify mails exactly the kinds contracts lists as emailed, and the pane's rows speak for exactly those (B16)", async () => {
+  const { SERVER_NOTIFICATION_KINDS, EMAILED_NOTIFICATION_KINDS, NOTIFICATION_KIND_GROUPS, emailsNotificationKind } =
+    await import("@chanlytics/contracts");
+  // Which kinds the edge emails, written out. It is the set notify() is handed today (read off its callers: the
+  // WhatsApp webhook's number and template news, the job runner's, the playbooks', the sweeps', the call summary), so
+  // a kind that joins or leaves is a decision made here and in contracts' table together, and the pane follows.
+  const EMAILED = [
+    "alert",
+    "billing",
+    "broadcast_sent",
+    "broadcast_stopped",
+    "call",
+    "deadman",
+    "handoff",
+    "job_failed",
+    "leads_question",
+    "number",
+    "playbook",
+    "reach_out_replied",
+    "sweep",
+    "template_blocked",
+    "template_ready",
+  ];
+  assert.deepEqual([...EMAILED_NOTIFICATION_KINDS].sort(), EMAILED, "the closed list");
+  const BELL = SERVER_NOTIFICATION_KINDS.filter((k) => !EMAILED.includes(k)).sort();
+  assert.deepEqual(
+    BELL,
+    ["calendar_people", "leads_ready", "note_for_you", "review", "reach_out_day"].sort(),
+    "the rest are the bell's: written by the edge or a database function, and no mail follows",
+  );
+
+  // notify, executed over every kind the table keeps.
+  for (const kind of SERVER_NOTIFICATION_KINDS) {
+    const rows = [];
+    const t = transport();
+    const out = await withEnv(PLATFORM_ENV, () =>
+      notify(
+        { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+        { kind, subject: `a ${kind}`, body: "…" },
+        { db: fakeDb({ notifications: rows }), send: t.send },
+      ),
+    );
+    assert.equal(
+      t.sent.length,
+      EMAILED.includes(kind) ? 1 : 0,
+      `${kind}: ${EMAILED.includes(kind) ? "mailed" : "not mailed"}`,
+    );
+    assert.equal(rows.length, 1, `${kind}: the row is kept either way`);
+    assert.equal(out, true, `${kind}: told, by the mail or, for the bell's kinds, by the row`);
+  }
+  // No kind said, and a kind the table does not know, are plain alerts: emailed as they were.
+  for (const kind of [undefined, "bogus"]) {
+    const t = transport();
+    await withEnv(PLATFORM_ENV, () =>
+      notify(
+        { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+        { kind, subject: "x", body: "y" },
+        { db: fakeDb({ notifications: [] }), send: t.send },
+      ),
+    );
+    assert.equal(t.sent.length, 1, `${kind}: a plain alert`);
+    assert.equal(emailsNotificationKind(kind), true);
+  }
+  // notifyOnce asks the same list: a bell kind is told by its row, a mailed one by the mail.
+  const { notifyOnce } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href);
+  for (const [kind, mails] of [
+    ["review", 0],
+    ["playbook", 1],
+  ]) {
+    const t = transport();
+    const told = await withEnv(PLATFORM_ENV, () =>
+      notifyOnce(
+        { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+        { kind, subject: `a ${kind}`, body: "…" },
+        { db: fakeDb({ notifications: [] }), send: t.send },
+      ),
+    );
+    assert.equal(told, true, kind);
+    assert.equal(t.sent.length, mails, `${kind}: notifyOnce mails ${mails}`);
+  }
+
+  // The pane's rows: the rows that are emailed speak for every emailed kind and no other, and a row that is a line in
+  // the bell speaks for none that is emailed.
+  const rows = NOTIFICATION_KIND_GROUPS.flatMap((g) => g.rows);
+  const speaksFor = (rs) => [...new Set(rs.flatMap((r) => r.kinds))].sort();
+  assert.deepEqual(speaksFor(rows.filter((r) => !r.bell)), EMAILED, "the pane lists what is emailed, all of it");
+  assert.deepEqual(
+    speaksFor(rows.filter((r) => r.bell)).filter((k) => EMAILED.includes(k)),
+    [],
+    "and a row that is the bell's names no emailed kind",
+  );
+  assert.deepEqual(
+    rows.filter((r) => r.platform).flatMap((r) => r.kinds),
+    ["alert", "alert"],
+    "what goes to Chanlytics is the plain alert",
+  );
+});

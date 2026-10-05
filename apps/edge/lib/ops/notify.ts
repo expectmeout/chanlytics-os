@@ -25,7 +25,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { forgetNotification, type Database } from "../packages/db.js";
 import type { NotificationsConfig } from "../packages/contracts.js";
-import { SERVER_NOTIFICATION_KINDS, isPushKind } from "../packages/contracts.js";
+import { SERVER_NOTIFICATION_KINDS, emailsNotificationKind, isPushKind } from "../packages/contracts.js";
 import { scheduleJob } from "../packages/jobs.js";
 import { pg } from "../pg.js";
 import { env } from "../env.js";
@@ -255,6 +255,9 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: No
     db,
   );
   if (kept && target.tenantId && msg.push !== false) await schedulePush(target.tenantId, kept, db);
+  // Mailed only if contracts keeps the kind for email (emailsNotificationKind: the list Settings › Notifications draws,
+  // so what the pane says is emailed is what is). A kind kept for the bell is a row and no more, and the row is the notice.
+  if (!emailsNotificationKind(msg.kind)) return kept !== null;
   return mail(target, msg, ports);
 }
 
@@ -272,7 +275,7 @@ export async function notifyOnce(target: NotifyTarget, msg: NotifyMessage, ports
     db,
   );
   if (!kept || !target.tenantId || !db) return false;
-  const told = !reachesTenant(target) || (await mail(target, msg, ports));
+  const told = !reachesTenant(target) || !emailsNotificationKind(msg.kind) || (await mail(target, msg, ports));
   if (!told) {
     await forgetNotification(db, { tenantId: target.tenantId, id: kept.id }).catch((e) =>
       logger({ tenant_id: target.tenantId }).error("notification_record_failed", {

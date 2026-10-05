@@ -25,7 +25,7 @@ import { initialsOf } from "../conversations/thread-contact";
 import { shortTime } from "../conversations/thread-clock";
 import { callOutcomeWords } from "./call-words";
 import type { ChannelDto } from "../lines/channels";
-import { MIN_MS } from "../shared/time";
+import { DAY_MS, MIN_MS } from "../shared/time";
 
 /** A live call whose heartbeat is older than this is "still marked live · checking". */
 export const LIVE_STALE_MS = 5 * MIN_MS;
@@ -36,6 +36,21 @@ export const LIVE_OVERLONG_MS = 30 * MIN_MS;
 export const ANALYSIS_GRACE_MS = 10 * MIN_MS;
 /** How many finished calls the page lists beside the live ones. */
 export const RECENT_MAX = 8;
+/** How long a dial that never connected stays news to the bell (missedCallIsNews): a day. */
+const MISSED_CALL_NEWS_MS = DAY_MS;
+
+/**
+ * Whether a call is one the bell still raises a "missed call" row for: a dial that never connected, no longer on the
+ * line, with a start, inside MISSED_CALL_NEWS_MS of `now`. One rule, and two readers: the feed asks it of every call
+ * it is handed (today/notifications.ts), and Live carries every call that passes it (LiveVM.missedCalls), so what the
+ * bell can see is not the page's newest RECENT_MAX.
+ */
+export function missedCallIsNews<C extends Pick<LiveCallVM, "missed" | "live" | "startedAtMs">>(
+  c: C,
+  now: number,
+): c is C & { startedAtMs: number } {
+  return c.missed && !c.live && typeof c.startedAtMs === "number" && now - c.startedAtMs <= MISSED_CALL_NEWS_MS;
+}
 
 export interface LiveTurnVM {
   /** "whisper" is the owner's own words, handed to the agent mid-call; "platform" is what Chanlytics told it -- a correction, or the hand-over. */
@@ -110,8 +125,11 @@ export interface LiveLineVM {
 export interface LiveVM {
   /** In progress, oldest first — the one that has been waiting longest leads. */
   now: LiveCallVM[];
-  /** Finished or missed, newest first, at most RECENT_MAX. */
+  /** Finished or missed, newest first, at most RECENT_MAX: the page's list. */
   recent: LiveCallVM[];
+  /** Every call that passes missedCallIsNews as of the read, newest first, with no cap: what the bell raises a row for. A busy
+   *  day's eight newest finished calls need not include the missed one from the morning. */
+  missedCalls: LiveCallVM[];
   /** The voice channel, or null when the workspace has no phone line. */
   line: LiveLineVM | null;
   /** Whether the channels read succeeded; false means the line's state is unknown, not absent. */
@@ -312,10 +330,9 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
 export function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, tz: string, now = new Date()): LiveVM {
   const vms = calls.map((c) => toLiveCallVM(c, tz, now));
   const nowList = vms.filter((c) => c.live).sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
-  const recent = vms
-    .filter((c) => !c.live)
-    .sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0))
-    .slice(0, RECENT_MAX);
+  const finished = vms.filter((c) => !c.live).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
+  const recent = finished.slice(0, RECENT_MAX);
+  const missedCalls = finished.filter((c) => missedCallIsNews(c, now.getTime()));
 
   const voice = channels?.find((ch) => ch.kind === "voice") ?? null;
   const line: LiveLineVM | null = voice
@@ -329,6 +346,7 @@ export function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, tz: st
   return {
     now: nowList,
     recent,
+    missedCalls,
     line,
     lineRead: channels !== null,
     heartbeatMs: CALL_HEARTBEAT_MS,

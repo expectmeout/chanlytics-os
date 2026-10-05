@@ -26,11 +26,12 @@ import {
   agoLabel,
   applyReadState,
   bellActionOf,
+  bellCalls,
   bellSections,
   type BellSectionVM,
   buildNotificationFeed,
-  type FeedCall,
   type FeedInvite,
+  type FeedLive,
   type FeedThread,
   type NotificationItem,
   type NotificationReadState,
@@ -62,7 +63,7 @@ interface StorageLike {
 
 interface Globals {
   INBOX_DATA?: { THREADS?: FeedThread[] };
-  __LIVE?: { now?: FeedCall[]; recent?: FeedCall[] };
+  __LIVE?: FeedLive;
   __TEAM_INVITES?: FeedInvite[] | null;
   /** The kept rows, from the notifications surface. */
   __NOTIFICATIONS?: { dto: NotificationsDto } | null;
@@ -124,7 +125,7 @@ export function writeState(
 export function feedFromGlobals(g: Globals, now: number) {
   return buildNotificationFeed({
     threads: g.INBOX_DATA?.THREADS ?? null,
-    calls: [...(g.__LIVE?.now ?? []), ...(g.__LIVE?.recent ?? [])],
+    calls: bellCalls(g.__LIVE),
     invites: g.__TEAM_INVITES ?? null,
     now,
   });
@@ -213,7 +214,7 @@ export function installNotifications(
   // newest first.
   // A kept row that names its customer by number takes their name when the Inbox or the calls here know it.
   const named = <T extends NotificationRow>(list: T[]): T[] =>
-    nameKnownCustomers(list, win.INBOX_DATA?.THREADS, [...(win.__LIVE?.now ?? []), ...(win.__LIVE?.recent ?? [])]);
+    nameKnownCustomers(list, win.INBOX_DATA?.THREADS, bellCalls(win.__LIVE));
   const rows = () =>
     named(
       dedupeFeed([
