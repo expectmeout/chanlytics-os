@@ -7,6 +7,7 @@
  */
 import type { ReactNode } from "react";
 import type { TemplateDto } from "@/surfaces/inbox/types";
+import { refusedWords } from "@chanlytics/contracts";
 import type { TemplateSentWords } from "@chanlytics/contracts";
 import { gate, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
@@ -117,6 +118,8 @@ export function tplMark(offer: boolean) {
  * language in view.
  */
 export function rowHints(row: TemplateDto | null) {
+  // WhatsApp's own reason, in the one sentence contracts says it in (refusedWords).
+  const refused = row && row.meta_status === "rejected" ? refusedWords(row.rejected_reason) : null;
   return (
     <>
       {row && row.blocked && (
@@ -124,10 +127,9 @@ export function rowHints(row: TemplateDto | null) {
           Can&rsquo;t be sent from here: it has {row.blocked}. It still works in WhatsApp Manager.
         </p>
       )}
-      {row && row.meta_status === "rejected" && row.rejected_reason && (
+      {refused && (
         <p className="bc-excl-hint danger" data-testid="template-rejected">
-          WhatsApp refused this one: {String(row.rejected_reason).toLowerCase().replace(/_/g, " ")}. Change the words
-          and send it back.
+          {refused}
         </p>
       )}
     </>

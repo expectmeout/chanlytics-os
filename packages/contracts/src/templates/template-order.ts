@@ -6,6 +6,7 @@ import { slotToWrite } from "./inbox-templates";
 import { languageLabels } from "./message-languages";
 import { starterByKey, startersForTrigger } from "./starter-lookup";
 import { STARTER_TEMPLATES } from "./starter-templates";
+import { templateBlocked } from "./template-parts";
 import { defaultSlotKinds } from "./template-slots";
 import { templateTitle } from "./template-titles";
 
@@ -107,18 +108,36 @@ export function groupTemplates<
 /**
  * The template this workspace may text somebody who asked to book.
  *
- * Three things at once, and none of them a name: APPROVED, because a row
+ * Four things at once, and none of them a name: APPROVED, because a row
  * asserting an approval Meta never gave is the defect this replaces; fillable
  * from the workspace's own facts, because the server fills the slots and never
- * asks a caller for words; and carrying the booking link, which is what makes
- * it the booking template rather than any other. A workspace with none has
- * none, and is owed that answer rather than a send that fails at Meta.
+ * asks a caller for words; carrying the booking link, which is what makes
+ * it the booking template rather than any other; and one this product can put
+ * on the wire (`templateBlocked`): an approved message with a picture for a
+ * heading was chosen, and Meta refused the send ("HTTP 400") on the caller's
+ * own phone call. A workspace with none has none, and is owed that answer
+ * rather than a send that fails at Meta.
+ *
+ * A row says whether it can be sent by `blocked` (the reader's answer) or by the
+ * `components` it still holds (the edge's read); a row with neither is judged
+ * sendable, so whoever reads the templates hands one of the two.
  */
 export function bookingTemplate<
-  T extends { name: string; language: string; meta_status?: string | null; variables: unknown },
+  T extends {
+    name: string;
+    language: string;
+    meta_status?: string | null;
+    variables: unknown;
+    blocked?: string | null;
+    components?: unknown;
+  },
 >(templates: readonly T[]): T | null {
   const usable = templates.filter(
-    (t) => t.meta_status === "approved" && !slotToWrite(t) && defaultSlotKinds(t).includes("booking_link"),
+    (t) =>
+      t.meta_status === "approved" &&
+      !templateBlocked(t) &&
+      !slotToWrite(t) &&
+      defaultSlotKinds(t).includes("booking_link"),
   );
   // The starter first when the workspace has it, so a business that took the
   // one we wrote gets the words we wrote: the call's text, else the booking

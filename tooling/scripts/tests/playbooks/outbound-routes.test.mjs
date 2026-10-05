@@ -419,6 +419,36 @@ test("a template says what sends it: the playbooks, the broadcasts a PERSON sent
   assert.equal(composer.usedBy, undefined, "the composers' read stays one query");
 });
 
+test("the message the Inbox books with is never one WhatsApp refuses: Settings does not name a picture-headed promo as what the receptionist sends to book", async () => {
+  // REGRESSION (audit of 2 Oct 2026, #10): the Templates page read "Promo with a picture" as "The Inbox · what the
+  // receptionist sends to book", and the call would have sent it. Approved, and the link its one slot -- and refused by Meta.
+  const link = [{ position: 1, label: "Booking link", example: "https://booksy.example.com/x" }];
+  const tables = {
+    memberships: both("viewer", "operator"),
+    templates: [
+      tpl(T1, B, {
+        name: "promo_with_a_picture",
+        variables: link,
+        components: [
+          { type: "HEADER", format: "IMAGE" },
+          { type: "BODY", text: "Book here: {{1}}" },
+        ],
+      }),
+    ],
+    playbooks: [],
+    broadcasts: [],
+  };
+  const all = await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables));
+  assert.equal(all.templates[0].blocked, "a picture for a heading");
+  assert.equal(all.usedBy.promo_with_a_picture, undefined, "nothing books with it");
+  tables.templates.push(
+    tpl(T2, B, { name: "reservar_ahora", variables: link, components: [{ type: "BODY", text: "Book: {{1}}" }] }),
+  );
+  const both2 = await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables));
+  assert.equal(both2.usedBy.reservar_ahora.booking, true, "the plain one beside it is the one");
+  assert.equal(both2.usedBy.promo_with_a_picture, undefined);
+});
+
 test("what sends a template says what that thing is doing: a playbook's clock, a run waiting on the owner, the latest broadcasts a person sent -- the line under the words", async () => {
   const C = await import("@chanlytics/contracts");
   const K3 = "99999999-9999-4999-8999-999999999993";
@@ -641,6 +671,12 @@ test("templates: the composers see the approved and unhidden, Settings sees ever
   assert.deepEqual(
     (await templates.GET.run(get(inB), ctxFor(tables))).templates.map((t) => t.name),
     ["visit_reminder"],
+  );
+  // What it left out is counted by why, in this workspace alone, so an empty picker can say it (noTemplateWords).
+  assert.deepEqual(
+    (await templates.GET.run(get(inB), ctxFor(tables))).held,
+    { pending: 1, rejected: 0, paused: 0, disabled: 0, hidden: 1 },
+    "one waiting for WhatsApp, one the workspace hid; the other workspace's message is not this one's",
   );
   assert.deepEqual(
     (await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables))).templates.map((t) => t.name),

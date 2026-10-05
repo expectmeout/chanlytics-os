@@ -73,9 +73,11 @@ import { logger, errField, type Logger } from "../log.js";
  * same literal behind for the same reason (legacy-bridge inbox-verbs.ts); this
  * was the last caller holding it.
  *
- * `bookingTemplate` asks the three questions that matter -- approved, fillable
- * from the workspace's own facts, carrying the booking link -- and a workspace
- * with none is told so in words a caller can hear.
+ * `bookingTemplate` asks the questions that matter -- approved, fillable
+ * from the workspace's own facts, carrying the booking link, and one this product
+ * can send whole (a picture for a heading is refused by Meta; the row carries
+ * the components it is judged by) -- and a workspace with none is told so in
+ * words a caller can hear.
  *
  * The PURPOSE comes from the template's own category again. It used to be
  * declared here, because the hand-written row said `marketing` and

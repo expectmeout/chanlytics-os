@@ -24,6 +24,8 @@ export interface TemplateRow {
   body_preview: string | null;
   title: string | null;
   variables: unknown;
+  /** Meta's component array: what makes a message one this product cannot send whole (contracts templateBlocked). */
+  components: unknown;
 }
 
 /**
@@ -37,7 +39,7 @@ export interface TemplateRow {
 export async function templatesFor(db: Db, tenantId: string, channel = "whatsapp"): Promise<TemplateRow[]> {
   const { data, error } = await db
     .from("templates")
-    .select("name, language, category, meta_status, body_preview, title, variables")
+    .select("name, language, category, meta_status, body_preview, title, variables, components")
     .eq("tenant_id", tenantId)
     .eq("channel", channel);
   if (error) throw new Error(`templatesFor: ${error.message}`);
