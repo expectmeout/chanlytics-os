@@ -78,8 +78,8 @@ export async function receiveWhatsappEvent(request: Request): Promise<Response> 
   } catch {
     /* ack anyway */
   }
-  // Messages the database did not accept in this batch: the one thing this
-  // handler must not acknowledge.
+  // Messages (and failure receipts, whose thread could not be flagged) the database did not accept in this batch: the
+  // one thing this handler must not acknowledge.
   let unrecorded = 0;
 
   try {
@@ -173,7 +173,7 @@ export async function receiveWhatsappEvent(request: Request): Promise<Response> 
             }
           }
         } else if (field === "messages" && v.statuses) {
-          await recordReceipts(db, tenantId, v.statuses);
+          unrecorded += await recordReceipts(db, tenantId, v.statuses);
         } else if (field === "smb_message_echoes") {
           // The owner (or staff) replied from the WhatsApp Business app -> pause the bot on that thread
           try {

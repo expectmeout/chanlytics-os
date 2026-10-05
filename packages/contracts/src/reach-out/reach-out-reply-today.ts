@@ -33,14 +33,36 @@ export function replyRowOf(row: TodayQueueRowVM, r: ReachOutReplyDto): TodayQueu
   };
 }
 
+/** Each thread's newest reading: the readings come newest first, so the first of a thread is its newest. */
+function newestReadings(readings: readonly ReachOutReplyDto[]): Map<string, ReachOutReplyDto> {
+  const newest = new Map<string, ReachOutReplyDto>();
+  for (const r of readings) if (!newest.has(r.conversation_id)) newest.set(r.conversation_id, r);
+  return newest;
+}
+
+/**
+ * Who is waiting with nothing back (Today's `noReply`), less the threads where nobody is there to answer: the newest
+ * reading of the reply on them is a wrong person (they are not the one to ask, and may say who is), and it stands. A
+ * customer who "wrote last" there is waiting on nobody. A not-now stays: they are still the one to ask, later. Over the
+ * readings the Inbox's surface holds (`__REPLIES`), as withReplies is, so Today asks the replies of nobody twice: a
+ * reading that has not been read is none, and nobody is then taken for gone.
+ */
+export function withoutWrongPerson<W extends { conversationId: string }>(
+  waiting: readonly W[],
+  readings: readonly ReachOutReplyDto[],
+): W[] {
+  const gone = new Set<string>();
+  for (const [thread, r] of newestReadings(readings)) if (r.intent === "wrong_person" && !r.undone) gone.add(thread);
+  return gone.size ? waiting.filter((w) => !gone.has(w.conversationId)) : [...waiting];
+}
+
 /**
  * Today's queue with each handoff whose thread's newest reading is a reply worth a row swapped for that row, in the
  * same place: the queue's order is by wait, and a reading does not change how long they have waited. A reading with no
  * open handoff adds no row (the queue is what needs a person), and a no or an automatic reply leaves its row as it was.
  */
 export function withReplies(rows: TodayQueueRowVM[], readings: ReachOutReplyDto[]): TodayQueueRowVM[] {
-  const newest = new Map<string, ReachOutReplyDto>();
-  for (const r of readings) if (!newest.has(r.conversation_id)) newest.set(r.conversation_id, r);
+  const newest = newestReadings(readings);
   return rows.map((row) => {
     const r = row.kind === "handoff" && row.conversationId ? newest.get(row.conversationId) : undefined;
     return r && rowWorthy(r) ? replyRowOf(row, r) : row;

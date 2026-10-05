@@ -150,6 +150,9 @@ function world(over = {}) {
       state.kept = { ...state.kept, told: true };
     }),
     scheduleOnce: call("scheduleOnce", async () => "scheduled"),
+    // What the intake opened, the reading closes (#1403): the drafts are this file's, the close reply-read-verb's.
+    resolveEscalation: call("resolveEscalation", async () => true),
+    archiveConversation: call("archiveConversation", async () => true),
     now: () => NOW,
   };
   return {
