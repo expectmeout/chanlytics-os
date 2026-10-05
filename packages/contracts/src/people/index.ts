@@ -148,3 +148,5 @@ export {
 export type { PoolCalendar, PoolOptions } from "./audience-pool";
 export { legacyErasedPhoneHash, legacyErasedEmailHash, legacyLeadSuppressionHash } from "./erasure";
 export { CARRIER_CONSENT_SOURCE, STOP_ENDED_OFFERS_SOURCE, WHATSAPP_CONSENT_SOURCE } from "./person-consent";
+export { MERGE_CONSENT_SOURCE, MERGE_REFUSALS, mergedAnswers } from "./person-merge";
+export type { MergedAnswers, RecordAnswers } from "./person-merge";

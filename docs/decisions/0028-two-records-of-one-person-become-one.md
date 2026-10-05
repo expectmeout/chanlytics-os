@@ -1,7 +1,9 @@
 # 0028 · Two records of one person become one
 
-**Status:** Proposed, not built; Ruben's to accept. Written against `d6b9efb8f` (main, 5 October 2026) and verified
-against the code and the schema snapshot at it; where this note and the code disagree, the code wins. It answers the
+**Status:** Decided on 5 October 2026 (Ruben: "yes to all three as you best recommend"). Step 1 built: the door, the
+guard's exception and their tests (migration 00325, 5 October 2026); steps 2 and 3 to come. Written against `d6b9efb8f`
+(main, 5 October 2026) and verified against the code and the schema snapshot at it; where this note and the code
+disagree, the code wins. It answers the
 4 October campaigns wiring review's P1 5 ("one human can be two people") and builds on its decision D5 (what a merge
 does to consent), which Ruben delegated on 4 October.
 
@@ -91,10 +93,10 @@ Each is its own pull request, shippable in either deploy order.
 
 ## Tests
 
-- **The door, on a real database** (`tooling/scripts/tests/people/`): each table's rows after a merge; each refusal;
-  the consent table of D5 case by case, held equal to a pure function in contracts that states the same rule; a
+- **The door, on a real database** (`tooling/scripts/tests/people/merge/`): the rows after a merge; each refusal in
+  contracts' sentence; the consent table of D5, every pair of answers, held equal to `mergedAnswers` in contracts; a
   merged person's next inbound message (by the moved identity) lands in the kept thread; a second merge of the same
-  pair changes nothing; one transaction (a forced failure late in the door leaves both rows as they were).
+  pair is refused. One transaction is the function's own: a plpgsql door commits whole or not at all.
 - **The guard:** a message still cannot change thread in any other case, including into the thread of a person its
   own was not merged into, and no other column became changeable.
 - **The route and the page:** who may, the refusals carried back in words, the confirmation's count equal to the

@@ -6588,6 +6588,13 @@ type Database = {
                 };
                 Returns: Json;
             };
+            merge_people: {
+                Args: {
+                    p_keep: string;
+                    p_merge: string;
+                };
+                Returns: Json;
+            };
             message_carries_link: {
                 Args: {
                     p_body: string;
@@ -15277,6 +15284,13 @@ declare function builderOf<T extends TenantTable>(db: Db$q, table: T): _supabase
                 p_page: string;
                 p_tenant_id: string;
                 p_view: Json;
+            };
+            Returns: Json;
+        };
+        merge_people: {
+            Args: {
+                p_keep: string;
+                p_merge: string;
             };
             Returns: Json;
         };
