@@ -27,12 +27,12 @@ import {
   heldDraftWaits,
   missedCall,
 } from "@chanlytics/contracts";
-import { fakeDb } from "../_fake-db.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runTool, buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { buildContext, clearContextCache } = await import(at("apps/dashboard/src/server/ask/context.ts"));
@@ -187,7 +187,20 @@ const tables = () => ({
     { user_id: USER, tenant_id: A, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
   ],
   tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }],
-  tenant_config: [],
+  tenant_config: [
+    {
+      tenant_id: A,
+      config: {
+        brain: {
+          business_name: "Harbor Moving",
+          booking_link: "https://book.example/harbor",
+          system_prompt: "Answer as the front desk of Harbor Moving: brief and warm.",
+          fallbacks: { greeting: "g", error: "e", non_text: "n" },
+        },
+      },
+      version: 1,
+    },
+  ],
   tenant_channels: [],
   policies: [],
   contacts: CONTACTS,
