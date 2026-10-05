@@ -2137,7 +2137,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   /* A page whose views are in the slot and that names an act (People's three scopes, the Pipeline's New proposal, canvas
      D1-list): the act stands at the strip's right on the strip's row, a 36px capsule, where it stood on a row of its own
      over the hidden name. */
-  .main:has(> .main-scroll > .clients) .pg-act-slot > span > :first-child {
+  .main:has(> .main-scroll > .clients) .pg-act-slot > span > button:first-child,
+  .main:has(> .main-scroll > .clients) .pg-act-slot > span > a:first-child {
     height: var(--control-h-lg);
     padding: 0 16px;
     font-size: var(--text-base);
@@ -2160,7 +2161,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 #pg-act {
   display: contents;
 }
-.pg-act-slot:has(> #pg-act:not(:empty)) > :not(#pg-act) {
+/* A rule with a :has() over the element it styles names that element by its tag or class, never by its place alone
+   (`> :first-child`, `> *`): the browser cannot narrow such a rule, and a press anywhere on the page restyled all of it
+   (tooling/scripts/tests/styles/has-subjects.test.mjs). The act is a button or a link. */
+.pg-act-slot:has(> #pg-act:not(:empty)) > button:not(#pg-act),
+.pg-act-slot:has(> #pg-act:not(:empty)) > a:not(#pg-act) {
   display: none;
 }
 /* The way back above the name (a person's People): the quiet link, in the muted ink. */
@@ -2285,7 +2290,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     align-self: center;
     justify-content: flex-end;
   }
-  .pg-slot:has(> nav) > .pg-act-slot > span > :first-child {
+  .pg-slot:has(> nav) > .pg-act-slot > span > button:first-child,
+  .pg-slot:has(> nav) > .pg-act-slot > span > a:first-child {
     width: 44px;
     height: 44px;
     min-height: 44px;
@@ -2306,7 +2312,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     white-space: nowrap;
   }
   /* Beside the act the strip has 44px less: its tabs give up 4px of padding each side, and the three still fit a phone. */
-  .pg-slot:has(> nav) > nav > * {
+  .pg-slot:has(> nav) > nav > a {
     padding-inline: 10px;
   }
   /* And a phone's strip says the views' names alone: the counts beside them pushed "Templates 7" past the strip's end,

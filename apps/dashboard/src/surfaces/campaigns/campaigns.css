@@ -5282,10 +5282,12 @@ div.tpl-slotbox:not([data-lines="1"]) {
      which it is in its own head (Sent, the Library: CmHead, drawn in every look but Glass, whose frame says it), so the
      second crumb said it again over the head ("Campaigns / Sent" over "Sent"); a moment's or a run's own name is the
      sheet's head. */
-  .main:has(.cm-page, .bc-page) .crumbs > :not(:first-child) {
+  .main:has(.cm-page, .bc-page) .crumbs > span:not(:first-child),
+  .main:has(.cm-page, .bc-page) .crumbs > button:not(:first-child) {
     display: none;
   }
-  .main:has(.cm-page, .bc-page) .crumbs > :first-child {
+  .main:has(.cm-page, .bc-page) .crumbs > span:first-child,
+  .main:has(.cm-page, .bc-page) .crumbs > button:first-child {
     color: var(--ink);
     font-weight: 500;
   }

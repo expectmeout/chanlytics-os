@@ -403,7 +403,7 @@
   .cl-prof-hero > .cl-prof-queue-actions > [data-testid="person-open-thread"] { flex: 1 1 auto; }
   /* The crumb names the person, and the name is the first thing under it: the crumb says People, once, with the
      back's chevron before it (drawn, not a glyph, so it sits on the word's middle in every font). */
-  .main:has(.cl-profile) .crumbs > :not(:first-child) { display: none; }
+  .main:has(.cl-profile) .crumbs > span:not(:first-child), .main:has(.cl-profile) .crumbs > button:not(:first-child) { display: none; }
   .main:has(.cl-profile) .crumbs .crumb-link { display: inline-flex; align-items: center; gap: 7px; color: var(--ink); font-weight: 500; }
   .main:has(.cl-profile) .crumbs .crumb-link::before { content: ""; flex: none; width: 7px; height: 7px; margin-left: 3px; border-left: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); }
 
@@ -521,7 +521,7 @@
   .tb-ask, .tb-theme { display: none; }
   /* On the Inbox it says Inbox, once: the open thread's header names the person, and the crumb named them again
      over it. */
-  .main:has(.inbox) .crumbs > :not(:first-child) { display: none; }
+  .main:has(.inbox) .crumbs > span:not(:first-child), .main:has(.inbox) .crumbs > button:not(:first-child) { display: none; }
   .main:has(.inbox) .crumbs .crumb-link { color: var(--ink); font-weight: 500; }
   .topbar .btn-icon { min-width: 44px; }
   /* The bell's sheet covers the tab bar, so while it is open the toast sits at the bottom edge, not over its notes. */
