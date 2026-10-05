@@ -98,7 +98,7 @@ export { messageStatusLabel, sendFailureWords, reachedCustomer, isHeldDraft, isC
 export { standingOf, replyWaitsOnYou } from "./conversations/standing";
 export { agentFor, isFromTheirSide, isTheirOwnWords, lastWroteOn, writtenChannelOf, threadChannelOf, threadChannelWords, THREAD_CHANNEL_WORDS } from "./conversations/thread-channel";
 export { shortTime, formatWaited } from "./conversations/thread-clock";
-export { contactName, isIdentifierName, contactMeta, initialsOf } from "./conversations/thread-contact";
+export { contactName, isIdentifierName, contactMeta, initialsOf, isEmailStopped, emailStoppedWords } from "./conversations/thread-contact";
 export { messageAt, isOptedOut, memberMetaOf } from "./conversations/thread-dto";
 export { amountWords, parseAmount, amountTotalsWords } from "./deals/deal-amount";
 export { consultServiceOf, isConsultationTitle, noProposalSince, consultationHeld, dealStageOf, consultationsWithoutProposal, consultsHeldWords, CONSULT_FOLLOW_DAYS } from "./deals/deal-consultations";

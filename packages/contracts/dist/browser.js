@@ -3914,6 +3914,16 @@ function initialsOf(name) {
   const p = parts2[0] || "?";
   return p.slice(0, 2).toUpperCase();
 }
+function isEmailStopped(c) {
+  return !!c.email_suppressed_at;
+}
+function emailStoppedWords(c, tz, now) {
+  if (!isEmailStopped(c)) return null;
+  const at3 = Date.parse(c.email_suppressed_at);
+  const on = Number.isNaN(at3) ? "" : ` on ${clockDate(at3, tz, now.getTime())}`;
+  const why = c.email_suppressed_reason === "hard_bounce" ? `Their address bounced${on}.` : c.email_suppressed_reason === "complaint" ? `They marked a message as spam${on}.` : `The mail provider stopped sending to their address${on}.`;
+  return `${why} Email can't reach them: correct the address on their page, or reach them another way.`;
+}
 
 // src/leads/lead-peek.ts
 var peekCheckLabel = (c, search, mailboxLabel) => c.key === "mailbox" ? mailboxLabel : leadCheckWord(c.how === "read" ? search : null, c.key, c.answer);
@@ -15892,6 +15902,13 @@ function conversationWaitsOnYou(dto, escalation, now = /* @__PURE__ */ new Date(
   const draft = heldDraftOf(dto.messages);
   return !!draft && replyWaitsOnYou({ endsAtMs: draftSendsAtMs(draft) }, now.getTime());
 }
+function replyFacts(dto, primaryChannel, tz, now) {
+  return {
+    optedOut: isOptedOut(dto),
+    offersOk: dto.contact.marketing_consent === "opted_in",
+    emailStopped: primaryChannel === "email" ? emailStoppedWords(dto.contact, tz, now) : null
+  };
+}
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
@@ -15982,8 +15999,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     clientId: dto.contact.id || null,
     escalationId: escalation?.id ?? null,
     windowOpen: win,
-    optedOut: isOptedOut(dto),
-    offersOk: dto.contact.marketing_consent === "opted_in",
+    ...replyFacts(dto, primaryChannel, tz, now),
     who,
     whoMeta: contactMeta(dto, THREAD_CHANNEL_WORDS[primaryChannel]),
     avatar: initialsOf(who),
@@ -33040,6 +33056,7 @@ export {
   emailOffersOpen,
   emailRowWrittenOf,
   emailRunStop,
+  emailStoppedWords,
   emailTemplateRowsOf,
   emailTemplateWords,
   emailWires,
@@ -33196,6 +33213,7 @@ export {
   isDealStage,
   isDraftWhy,
   isE164,
+  isEmailStopped,
   isForReader,
   isForwardingMode,
   isFreeMail,
