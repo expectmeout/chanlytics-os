@@ -206,7 +206,8 @@ export const PREFETCH_SLOT = "__prefetched";
 export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   today: ["metrics?days=1", "conversations", "escalations?state=open", "calls", "lead-searches", "setup", "views"],
   inbox: ["conversations", "escalations?state=open", "templates"],
-  conversations: ["conversations", "calls"],
+  // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
+  conversations: ["conversations", "calls", "escalations?state=open"],
   // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
   clients: ["contacts", "segments", "views"],
   segments: ["contacts", "segments", "views"],

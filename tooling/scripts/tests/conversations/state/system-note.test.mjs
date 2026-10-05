@@ -3,7 +3,7 @@
  * reply: drawn as a bubble it read "by WhatsApp Receptionist · Delivered", the Inbox's quiet line said the
  * receptionist had answered, and Conversations' pill flipped to handled (the 2 Oct 2026 audit). One question,
  * isChatMessage, for the three readers.
- * Run: node tooling/scripts/checks/test.mjs tooling/scripts/tests/conversations/inbox/system-note.test.mjs
+ * Run: node tooling/scripts/checks/test.mjs tooling/scripts/tests/conversations/state/system-note.test.mjs
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

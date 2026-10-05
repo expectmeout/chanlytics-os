@@ -16562,7 +16562,8 @@ var PREFETCH_SLOT = "__prefetched";
 var PREFETCH_READS = {
   today: ["metrics?days=1", "conversations", "escalations?state=open", "calls", "lead-searches", "setup", "views"],
   inbox: ["conversations", "escalations?state=open", "templates"],
-  conversations: ["conversations", "calls"],
+  // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
+  conversations: ["conversations", "calls", "escalations?state=open"],
   // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
   clients: ["contacts", "segments", "views"],
   segments: ["contacts", "segments", "views"],
@@ -24229,7 +24230,8 @@ function escalationItems({ profile, stamp }) {
   for (const e of profile.escalations) {
     const t = ts(e.created_at);
     if (t === null) continue;
-    const details = e.details?.trim() ? clipAtWord(e.details, 120) : null;
+    const said = e.details?.trim();
+    const details = said && said.toLowerCase() !== reasonShort(e.reason).toLowerCase() ? clipAtWord(said, 120) : null;
     const resolvedAt = e.state === "resolved" ? ts(e.updated_at) : null;
     items.push({
       id: `e-${e.id}`,

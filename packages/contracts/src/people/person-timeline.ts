@@ -262,7 +262,9 @@ function escalationItems({ profile, stamp }: PersonCardContext): PersonTimelineI
     if (t === null) continue;
     // The details say more (a call back's to-do, why a send failed): the page dropped them, and said "Resolved" with
     // no when (the 2 Oct 2026 audit). A call back's details are its whole sentence, so they are not repeated as a quote.
-    const details = e.details?.trim() ? clipAtWord(e.details, 120) : null;
+    // Details that only repeat the reason's own words ("asked for a person") say nothing more, and are left out.
+    const said = e.details?.trim();
+    const details = said && said.toLowerCase() !== reasonShort(e.reason).toLowerCase() ? clipAtWord(said, 120) : null;
     const resolvedAt = e.state === "resolved" ? ts(e.updated_at) : null;
     items.push({
       id: `e-${e.id}`,
