@@ -713,6 +713,10 @@ async function profileUi() {
     onBack() {},
     del: { open: false, typed: "", busy: false, error: null },
     setDel() {},
+    // Two records of one person becoming one (0028, #1419): not asked, and People not read, so nothing to merge with.
+    merge: { open: false, pick: null, typed: "", busy: false, error: null },
+    setMerge() {},
+    others: null,
     ...over,
   });
   /** The writes a courier's call made over a wire that takes every write, with what each carried. */
