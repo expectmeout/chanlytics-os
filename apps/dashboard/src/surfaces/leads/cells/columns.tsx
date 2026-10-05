@@ -14,7 +14,7 @@ import { gate, hasTouchSwipe, touchSwipe } from "../../legacy-verbs";
 import { plRowCard } from "../../people/cells/row-card";
 import { plPhoneNow } from "../../people/words";
 import type { RowPick, TableColumn } from "../../people/types";
-import { LeadCallMenu, ldCallProps } from "./call-menu";
+import { LeadRowCall } from "./call-menu";
 import { LeadHover, LeadTip, ldPlacePop } from "./hover";
 import { LeadRatedCard, ldBusinessCell, ldClientOf } from "./name-cell";
 import { LeadSlot, LeadSlotShape } from "./shapes";
@@ -26,28 +26,19 @@ import type { LeadCellCtx } from "./types";
 // Keep and Exclude move a place out of Needs review, Put back is the owner's override of an exclusion. All three count, so
 // all three are the owner's permission `find`; anyone else sees them on the page, in the tab order, saying why when pressed
 // (the role gate), never disabled and never silent. They are the system's small buttons, 26px like People's row acts: Call
-// and Copy square (`btn-icon btn-sm`), the words `btn-sm`. On a phone's card, leads.css draws Call at 44px.
+// and Copy square (`btn-icon btn-sm`), the words `btn-sm`. On a phone's card, leads.css draws Call at 44px. Call's ways are
+// the one menu the rows share (call-menu.tsx), which the scope draws once: a row holds only its control.
 const LeadRowActions = ({
   l,
-  onCall,
+  callMenu,
   onCopy,
-  onCopyPhone,
-  onLogCall,
   onKeep,
   onExclude,
   onPutBack,
   canFind,
-}: { l: LeadRowVM } & Pick<
-  LeadCellCtx,
-  "onCall" | "onCopy" | "onCopyPhone" | "onLogCall" | "onKeep" | "onExclude" | "onPutBack" | "canFind"
->) => (
+}: { l: LeadRowVM } & Pick<LeadCellCtx, "callMenu" | "onCopy" | "onKeep" | "onExclude" | "onPutBack" | "canFind">) => (
   <span className="cl-row-actions ld-row-actions">
-    {l.phone && !l.phoneWrong && (
-      <LeadCallMenu
-        {...ldCallProps(l, { onCall, onCopyPhone, onLogCall })}
-        look={{ variant: "quiet", size: "sm", iconOnly: true, className: "ld-call" }}
-      />
-    )}
+    {l.phone && !l.phoneWrong && <LeadRowCall l={l} handle={callMenu} />}
     {l.email && l.emailState !== "invalid" && (
       <button
         type="button"
@@ -282,10 +273,8 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
       <td key="actions" className="shrink cl-actions-cell">
         <LeadRowActions
           l={l}
-          onCall={x.onCall}
+          callMenu={x.callMenu}
           onCopy={x.onCopy}
-          onCopyPhone={x.onCopyPhone}
-          onLogCall={x.onLogCall}
           onKeep={x.onKeep}
           onExclude={x.onExclude}
           onPutBack={x.onPutBack}

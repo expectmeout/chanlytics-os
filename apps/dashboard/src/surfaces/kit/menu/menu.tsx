@@ -195,24 +195,71 @@ function Group({ group }: { group: MenuGroup }) {
   );
 }
 
+/** What a menu draws on the body: its wash, its place by its control, and its groups. */
+function MenuPopup({ groups, align = "end", label, className, ref }: Omit<MenuProps, "trigger">) {
+  return (
+    <BaseMenu.Portal>
+      <BaseMenu.Backdrop className="more-backdrop" />
+      <BaseMenu.Positioner className="pop-place" sideOffset={MENU_GAP_PX} align={align}>
+        <BaseMenu.Popup ref={ref} className={cx(menuClasses({ align }), className)} aria-label={label}>
+          {groups.map((group, at) => (
+            <Fragment key={at}>
+              {at > 0 ? <BaseMenu.Separator className="more-divider" /> : null}
+              <Group group={group} />
+            </Fragment>
+          ))}
+        </BaseMenu.Popup>
+      </BaseMenu.Positioner>
+    </BaseMenu.Portal>
+  );
+}
+
 /** A menu, opened by the page's control and drawn on the document's body. */
-export function Menu({ trigger, groups, align = "end", label, className, ref }: MenuProps) {
+export function Menu({ trigger, ...popup }: MenuProps) {
   return (
     <BaseMenu.Root>
       <BaseMenu.Trigger render={trigger} />
-      <BaseMenu.Portal>
-        <BaseMenu.Backdrop className="more-backdrop" />
-        <BaseMenu.Positioner className="pop-place" sideOffset={MENU_GAP_PX} align={align}>
-          <BaseMenu.Popup ref={ref} className={cx(menuClasses({ align }), className)} aria-label={label}>
-            {groups.map((group, at) => (
-              <Fragment key={at}>
-                {at > 0 ? <BaseMenu.Separator className="more-divider" /> : null}
-                <Group group={group} />
-              </Fragment>
-            ))}
-          </BaseMenu.Popup>
-        </BaseMenu.Positioner>
-      </BaseMenu.Portal>
+      <MenuPopup {...popup} />
+    </BaseMenu.Root>
+  );
+}
+
+/** What ties a shared menu to its controls (Base UI's handle): made once where the menu is drawn. */
+export type MenuHandle<P> = BaseMenu.Handle<P>;
+export const menuHandle = <P,>(): MenuHandle<P> => BaseMenu.createHandle<P>();
+
+/**
+ * One of many controls that open one menu, each with what it is about (`payload`): a row's Call. A row draws its
+ * control alone and the table draws the menu once (SharedMenu), so two hundred rows mount one menu and not two hundred
+ * (a switch to Leads at 200 rows spent 159 ms at 4x CPU mounting a menu on every row, 5 Oct 2026). It behaves as a
+ * Menu's control does: it opens the menu under itself, and gets focus back as it closes.
+ */
+export function MenuTrigger<P>({
+  handle,
+  payload,
+  trigger,
+}: {
+  handle: MenuHandle<P>;
+  payload: P;
+  trigger: ReactElement;
+}) {
+  return <BaseMenu.Trigger handle={handle} payload={payload} render={trigger} />;
+}
+
+/** The menu its controls share: its groups and its name for the payload of the control that opened it. */
+export type SharedMenuProps<P> = Omit<MenuProps, "trigger" | "groups" | "label"> & {
+  handle: MenuHandle<P>;
+  groups: (payload: P) => readonly MenuGroup[];
+  label?: (payload: P) => string;
+};
+
+/** A menu drawn once for the controls that share it (MenuTrigger), its items those of the one that opened it. */
+export function SharedMenu<P>({ handle, groups, label, ...popup }: SharedMenuProps<P>) {
+  return (
+    <BaseMenu.Root handle={handle}>
+      {({ payload }: { payload: P | undefined }) =>
+        payload === undefined ? null : <MenuPopup {...popup} groups={groups(payload)} label={label?.(payload)} />
+      }
     </BaseMenu.Root>
   );
 }

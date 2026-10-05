@@ -532,7 +532,7 @@ const { LeadHover, ldPlacePop } = await importSrc("apps/dashboard/src/surfaces/l
 recorded.set(MoreMenu, menus);
 // Leads' menus are the kit's Menu (Base UI's) since 5 Oct 2026, read here as every menu in this file is read: its name as
 // `title`, its control's test id, and its groups as one list, a heading where a group has one and a line between two.
-const { Menu } = await importSrc("apps/dashboard/src/surfaces/kit/menu/menu.tsx");
+const { Menu, MenuTrigger, SharedMenu } = await importSrc("apps/dashboard/src/surfaces/kit/menu/menu.tsx");
 const { Sheet } = await importSrc("apps/dashboard/src/surfaces/kit/sheet/sheet.tsx");
 const asMenuRecord = (p) => ({
   title: p.label,
@@ -560,6 +560,16 @@ const asMenuRecord = (p) => ({
   toggles: p.groups.find((g) => g.toggles)?.toggles,
 });
 recorded.set(Menu, { push: (p) => menus.push(asMenuRecord(p)) });
+// A menu its controls share (a row's Call, since 5 Oct 2026): each row draws its control with its lead, and the scope draws
+// the menu once, after the rows. Read as the menu each control opens, so a row's Call is found as any menu is.
+const sharedTriggers = [];
+recorded.set(MenuTrigger, sharedTriggers);
+recorded.set(SharedMenu, {
+  push: (p) => {
+    for (const t of sharedTriggers.splice(0))
+      menus.push(asMenuRecord({ ...p, label: p.label?.(t.payload), trigger: t.trigger, groups: p.groups(t.payload) }));
+  },
+});
 /** A switch of the Columns menu (people/table/columns-menu.tsx) as last drawn, flipped as Base UI's checkbox item flips it. */
 const flipColumn = (key) => menus.findLast((m) => m.title === "Columns").toggles.onToggle(key);
 recorded.set(Confirm, confirms);

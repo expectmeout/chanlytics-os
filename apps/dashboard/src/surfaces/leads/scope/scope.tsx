@@ -18,6 +18,7 @@ import { PeopleTable, type TableSection } from "../../people/table/table";
 import { LeadBand } from "../bench/band";
 import { LeadReviewBench } from "../bench/bench";
 import { LeadExcludedChips, LeadReviewGroups, ldExcludedChips } from "../bench/chips";
+import { LeadRowsCallMenu } from "../cells/call-menu";
 import { ldCardRowClass } from "../cells/columns";
 import { ldRowClass } from "../cells/name-cell";
 import { LeadsFirstDay } from "../finder/first-day";
@@ -418,6 +419,9 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
       {p.lightbox ? <LeadLightbox vm={p.lightbox} onClose={p.onCloseLightbox} /> : null}
       {phone && p.listsOpen && <PeopleListsSheet onClose={p.onCloseLists}>{railRows}</PeopleListsSheet>}
       {p.toastNode}
+      {/* The rows' one Call menu, opened by a row's Call with its lead (cells/call-menu.tsx): it draws nothing here, and
+          on the body while open. Last, so nothing before it moves for the stub React. */}
+      <LeadRowsCallMenu handle={p.cellCtx.callMenu} acts={p.cellCtx} />
     </div>
   );
 };
