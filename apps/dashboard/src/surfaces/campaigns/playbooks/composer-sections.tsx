@@ -12,22 +12,22 @@ import type { Dispatch, SetStateAction } from "react";
 import {
   PREVIEW_WORDS,
   allowanceBeforeSend,
+  messageAboutOfTrigger,
   noMessageWords,
-  purposeOfTemplate,
   type ConsentChannel,
 } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { policyChipPart } from "../../legacy-parts";
 import { navigate } from "../../legacy-verbs";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Picker } from "../../kit/picker/picker";
+import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { CM_VIA_WORDS, cmTick } from "../parts/channels";
 import { MessagePreview, PreviewStepper } from "../parts/message-preview";
 import { CmLangGlyph } from "../parts/picker";
 import { cmChevron, cmGroups, cmNumbers, cmSearch } from "../parts/picks";
-import { cmPreviewBy } from "../parts/preview-by";
+import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
 import { CmVia } from "../parts/send-by";
 import { CmSlot } from "../parts/slot";
 import { CmWho } from "../parts/reach";
@@ -48,6 +48,7 @@ import {
   pbListSub,
   pbShort,
   pbTitle,
+  pbWhoWords,
   pbWith,
 } from "./words";
 
@@ -378,8 +379,9 @@ export function messageSection(x: SectionCtx) {
           address: data.businessAddress,
           facts,
           labelled,
-          // An offer's email reads with the offer's foot: why they get it, and the way out (step 4).
-          ...(purposeOfTemplate(tpl.category) === "marketing" ? { offer: "customer" as const } : {}),
+          // An offer's email reads with the offer's foot: why they get it, and the way out (step 4). The moment says what
+          // its message is about: the business's news is an offer by email too (decision D2), a visit's is not.
+          ...cmOfferFoot(tpl.category, messageAboutOfTrigger(x.trig ? x.trig.id : null)),
         },
       )
     : null;
@@ -491,10 +493,14 @@ function whenSentence(x: SectionCtx) {
   );
 }
 
-/** The row of Autonomy it runs under, and the guardrails every run keeps. */
+/**
+ * The row of Autonomy it runs under, and the guardrails every run keeps: who it reaches, said where it is read and not only
+ * in the shield's tooltip (which a finger never opens), for the channels it goes by.
+ */
 export function underLine(x: SectionCtx) {
-  const { trig, runsUnder } = x;
-  const PolicyChip = policyChipPart();
+  const { trig, runsUnder, kept, purpose } = x;
+  const about = messageAboutOfTrigger(trig ? trig.id : null);
+  const guard = pbGuardWords(trig ? trig.kind : "", kept, purpose, about);
   return (
     <div className="pb-rules-line">
       {runsUnder && (
@@ -507,11 +513,14 @@ export function underLine(x: SectionCtx) {
         className="pb-guard"
         // eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex -- as the JSX drew it (decision 0015)
         tabIndex={0}
-        data-tip={pbGuardWords(trig ? trig.kind : "")}
-        aria-description={pbGuardWords(trig ? trig.kind : "")}
+        data-tip={guard}
+        aria-description={guard}
         data-testid="pb-guard"
       >
         <Icon name="shield" size={12} /> Guardrails
+      </span>
+      <span className="pb-guard-words" data-testid="pb-guard-who">
+        {pbWhoWords(kept, purpose, about)}
       </span>
     </div>
   );

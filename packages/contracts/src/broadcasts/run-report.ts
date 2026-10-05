@@ -2,6 +2,7 @@
  * A run's report: its figures over time, the people it reached and what each said back. Moved whole from
  * broadcasts.ts (Reach out Part 2.5), which re-exports it.
  */
+import { audienceTrigger } from "./broadcast-audience";
 import { broadcastFailureFix, broadcastFailureWords } from "./broadcast-failures";
 import type { BroadcastRecipientDto } from "./broadcasts";
 import { HELD_REASONS } from "./run-words";
@@ -183,6 +184,16 @@ const NOT_DELIVERED_WORDS: Record<ConsentChannel, string> = {
   email: "the email was not delivered",
 };
 
+/**
+ * Why a person's send was refused at the provider (the recipient's reason `send_failed`), for the channel it went by: the
+ * run's words are the channel's, never WhatsApp's on an email or a text.
+ */
+const SEND_REFUSED_WORDS: Record<ConsentChannel, string> = {
+  whatsapp: "WhatsApp refused",
+  sms: "the texting provider refused it",
+  email: "the mail provider refused it",
+};
+
 const initialsOf = (name: string, named: boolean): string =>
   named
     ? name
@@ -320,9 +331,10 @@ function personPillOf(r: ReportRecipient, c: PersonCase): RunPersonVM["pill"] {
 
 /** The words: why they were held back or not reached, what they answered, or what WhatsApp's receipts say. */
 function personWordsOf(r: ReportRecipient, { hiThere, answer, quote, cutOff, clock, via }: PersonCase): string {
-  if (r.state === "skipped") return (r.reason && HELD_REASONS[r.reason]) || r.reason || "held back";
-  if (r.state === "failed")
-    return (r.reason && HELD_REASONS[r.reason]) || HELD_REASONS.send_failed || "WhatsApp refused it";
+  // `send_failed` is the one reason whose words depend on the channel: the others are the same on every one.
+  const said = r.reason === "send_failed" ? SEND_REFUSED_WORDS[via] : r.reason ? HELD_REASONS[r.reason] : undefined;
+  if (r.state === "skipped") return said || r.reason || "held back";
+  if (r.state === "failed") return said || SEND_REFUSED_WORDS[via];
   if (r.state === "queued") return cutOff ?? "not sent yet";
   if (r.consent_after === "opted_out") return quote ? `${quote} — ${answer}` : answer!;
   if (quote) return quote;
@@ -411,7 +423,10 @@ function runStopOf({ d, sent }: RunFacts): RunReportVM["stop"] {
   return failed
     ? {
         words: broadcastFailureWords(code),
-        fix: broadcastFailureFix(code, sent),
+        fix: broadcastFailureFix(code, sent, {
+          playbook_id: d.broadcast?.playbook_id ?? null,
+          trigger: audienceTrigger(d.broadcast?.audience),
+        }),
         tone: code === "paused" ? "warn" : "danger",
       }
     : null;
@@ -537,7 +552,14 @@ const RUN_FIGURES: readonly RunFigureOf[] = [sentFigure, deliveredFigure, replie
  */
 export function toRunReportVM(
   d: {
-    broadcast?: { state?: string; failure?: string | null; params?: readonly ParamSpec[] };
+    broadcast?: {
+      state?: string;
+      failure?: string | null;
+      params?: readonly ParamSpec[];
+      /** A playbook's run: which, and the moment its audience names, which a stop's next step is worded by (stoppedRunFix). */
+      playbook_id?: string | null;
+      audience?: unknown;
+    };
     recipients: readonly ReportRecipient[];
   },
   opts: { windowMs: number; nowMs: number; clock?: (iso: string | null) => string | null },

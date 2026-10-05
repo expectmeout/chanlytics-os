@@ -11,9 +11,11 @@
 import {
   CONSENT_CHANNELS,
   DEFAULT_CAMPAIGN_CHANNELS,
+  CAMPAIGNS_PAUSED_WORDS,
   PREVIEW_CHANNEL_WORDS,
   PREVIEW_WORDS,
   enrolPurpose,
+  messageAboutOfTrigger,
   playbookName,
   poolWords,
   reachLines,
@@ -21,7 +23,7 @@ import {
 import type { ConsentChannel, PlaybookTrigger, ReachSplit, TemplateGroup } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { pageClock } from "@/legacy-bridge/zone";
-import { policyRow } from "../../legacy-parts";
+import { policyStore } from "../../legacy-verbs";
 import {
   cmChannelsKept,
   cmChannelsOn,
@@ -34,17 +36,7 @@ import {
 import { starters } from "../templates/verbs";
 import { namedOf, readingFor } from "./surface";
 import type { PlaybookCardVM, PlaybookNamed, PlaybookTriggerOption, PlaybooksSurface } from "./surface";
-import {
-  PB_NONE,
-  PB_TEXT,
-  pbChannelReasons,
-  pbExample,
-  pbFirstFree,
-  pbIcon,
-  pbLabel,
-  pbLangWords,
-  pbOrder,
-} from "./words";
+import { PB_NONE, PB_TEXT, pbExample, pbFirstFree, pbIcon, pbLabel, pbLangWords, pbOrder } from "./words";
 
 /** What the sheet holds: the moment, the message, the numbers, and the words typed into each slot. */
 export interface Fields {
@@ -287,23 +279,27 @@ function channelsModelOf({ data, f }: ModelIn, { trig, onList }: Moment, { tpl }
     mine && mine.channels ? mine.channels : DEFAULT_CAMPAIGN_CHANNELS,
   );
   const ticked = f.channels || DEFAULT_CAMPAIGN_CHANNELS;
+  // What the moment's message is about: a visit's or a proposal's is theirs, any other moment's the business's news, which by
+  // email waits for the workspace's offers as an offer does (contracts isOfferByEmail, decision D2).
+  const about = messageAboutOfTrigger(trig ? trig.id : null);
   return {
     // What the run is for (enrolPurpose): the one reading the sections ask, so the month's allowance is said by it too.
     purpose,
     // The message's email and text versions as words, for the preview (parts/preview-by.ts).
     versions: mine ? mine.versions : undefined,
     channelReady,
-    on: cmChannelsOn(ticked, channelReady, purpose),
+    on: cmChannelsOn(ticked, channelReady, purpose, about),
     // A playbook keeps a ticked channel that cannot send yet: its run holds those people until it can.
     kept: cmChannelsKept(ticked, purpose),
-    ticks: cmViaTicks(ticked, channelReady, purpose, true),
+    ticks: cmViaTicks(ticked, channelReady, { purpose, about }, true),
   };
 }
 
 /**
  * Who it reaches today: the moment's own count, or this playbook's while it keeps its moment, for the channels it goes by,
  * with the cap as it is set here -- the cards' bar and the approval sheet's reasons (contracts reachLines), before anything
- * is saved. Where it goes by more than WhatsApp alone, the split by channel and who has no address or no channel to go by.
+ * is saved. Where it goes by more than WhatsApp alone, the split by channel; who has no address, an address that stopped
+ * or no channel to go by is among the reasons, as contracts' reachLines says them.
  */
 function reachOf(input: ModelIn, mo: Moment, on: readonly ConsentChannel[]) {
   const { f } = input;
@@ -327,6 +323,10 @@ function reachOf(input: ModelIn, mo: Moment, on: readonly ConsentChannel[]) {
             heardAny: base.held,
             overCap,
             overLimit: 0,
+            // Who has no address, an address mail no longer goes to, or no channel to go by: the reasons' too.
+            no_address: named.noAddress ?? 0,
+            address_stopped: named.addressStopped ?? 0,
+            no_channel: named.noChannel ?? 0,
           },
           {
             trigger: f.trigger as PlaybookTrigger,
@@ -336,8 +336,6 @@ function reachOf(input: ModelIn, mo: Moment, on: readonly ConsentChannel[]) {
           },
         )?.lines ?? []
       )
-        // Who has no address or no channel to go by is the reasons' too (contracts reachLines names neither).
-        .concat(pbChannelReasons(named))
         .sort((a, b) => b.n - a.n)
         .slice(0, 3)
         .map((l) => ({ t: l.words, tone: l.tone, door: l.door }))
@@ -421,14 +419,23 @@ function choicesOf({ data, editing }: ModelIn, { triggers, link }: Moment, { gro
   return { momentChoices, messageChoices, langChoices };
 }
 
-/** The words the sheet says of itself: the name the route would give, the foot's one sentence, and the clock's city. */
-function composerWords({ editing, f, error }: ModelIn, { trig }: Moment, { tpl }: Message, { missing, labels }: Slots) {
+/**
+ * The words the sheet says of itself: the name the route would give, the foot's one sentence, and the clock's city. A paused
+ * workspace is said where nothing else stops the playbook (it can still be saved, and runs once billing resumes): a note,
+ * never a refusal, since `ready` (what Save waits on) does not read it.
+ */
+function composerWords(
+  { editing, f, error }: ModelIn,
+  { trig }: Moment,
+  { tpl }: Message,
+  { missing, labels, paused }: Slots & { paused: boolean },
+) {
   // The name the route gives it when it is given none, said before it is saved.
   const auto = trig && tpl ? playbookName(trig, tpl) : trig ? trig.label : "New playbook";
   const title = f.name === null ? auto : f.name;
   const city = pageClock().city();
   // The Autonomy row its runs keep to, said by the one chip (PolicyChip) -- and not said at all where there is no row to name.
-  const runsUnder = trig && policyRow(trig.cls) ? trig.cls : null;
+  const runsUnder = trig && policyStore()?.row(trig.cls) ? trig.cls : null;
   const say = error
     ? { tone: "danger", t: error }
     : !trig
@@ -437,7 +444,9 @@ function composerWords({ editing, f, error }: ModelIn, { trig }: Moment, { tpl }
         ? { tone: "plain", t: "Pick the message it sends." }
         : missing >= 0
           ? { tone: "plain", t: `Fill in “${labels[missing]}” to ${editing ? "save it" : "start it"}.` }
-          : null;
+          : paused
+            ? { tone: "plain", t: CAMPAIGNS_PAUSED_WORDS }
+            : null;
   return { auto, title, city, runsUnder, say };
 }
 
@@ -450,7 +459,7 @@ export function composerModel(input: ModelIn) {
   const reach = reachOf(input, mo, via.on);
   const walk = walkOf(input, mo, via, reach);
   const ch = choicesOf(input, mo, msg);
-  const words = composerWords(input, mo, msg, sl);
+  const words = composerWords(input, mo, msg, { ...sl, paused: via.channelReady.paused === true });
   const ready = !!mo.trig && !!msg.tpl && sl.missing < 0 && !input.busy && (!mo.onList || !!mo.list);
   return {
     ...mo,

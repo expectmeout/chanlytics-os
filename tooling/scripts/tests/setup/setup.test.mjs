@@ -1232,13 +1232,14 @@ test("an activated capability offers to withdraw its activation from its row, an
 
 test("a save in Workspace and a WhatsApp connect repaint Setup too", async () => {
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  // Both also move what the composers and People's reach read of the channels (refresh-coverage.test.mjs says which).
   assert.deepEqual(
     AFTER["PUT settings"]().map((o) => o.key),
-    ["settings", "today", "calendar", "setup"],
+    ["settings", "today", "calendar", "setup", "broadcasts", "playbooks", "people"],
   );
   assert.deepEqual(
     AFTER["POST channels/whatsapp/connect"]().map((o) => o.key),
-    ["settings", "setup"],
+    ["settings", "setup", "broadcasts", "playbooks", "people"],
   );
 });
 

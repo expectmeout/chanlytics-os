@@ -1,4 +1,10 @@
-import { normalizeEmail, type CallDto, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
+import {
+  memberMetaOf,
+  normalizeEmail,
+  type CallDto,
+  type ConversationDto,
+  type MessageDto,
+} from "@chanlytics/contracts";
 
 /**
  * Row → DTO mapping, in one place.
@@ -145,7 +151,7 @@ export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {
       ...(m.channel ? { channel: m.channel } : {}),
       body: m.body,
       media: mediaPublic(m.media),
-      meta: m.meta as MessageDto["meta"],
+      meta: memberMetaOf(m.meta),
       status: m.status,
       created_at: m.created_at,
       channel_ts: m.channel_ts,

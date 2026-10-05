@@ -22,11 +22,12 @@ export type {
 } from "./models/anthropic";
 export { askSystemOne, SYSTEM_ONE_URL } from "./models/typesafe";
 export type { SystemOneAsk, SystemOneReply } from "./models/typesafe";
-export { normalizeInbound, graphThrottled, sendText, sendTemplate, fetchMediaBytes } from "./whatsapp";
+export { normalizeInbound, waPricingOf, graphThrottled, sendText, sendTemplate, fetchMediaBytes } from "./whatsapp";
 export type {
   WaConfig,
   WaRawMessage,
   WaChangeValue,
+  WaPricing,
   WaMediaRef,
   NormalizedInbound,
   SendResult,
@@ -114,12 +115,13 @@ export {
 export {
   mintConversationToken,
   deleteConversation,
+  speakText,
   elevenLabsWebhookSignature,
   verifyElevenLabsWebhook,
   ELEVENLABS_WEBHOOK_TOLERANCE_S,
   ELEVENLABS_SIGNATURE_HEADER,
 } from "./voice/elevenlabs";
-export type { ElevenLabsConfig, ConversationMint } from "./voice/elevenlabs";
+export type { ElevenLabsConfig, ConversationMint, SpeechStream } from "./voice/elevenlabs";
 export type {
   ProvisionSecrets,
   VoiceProvisionRequest,
@@ -217,6 +219,7 @@ export {
   RESEND_API,
   SEND_TIMEOUT_MS,
   SEND_DEADLINE_MS,
+  SEND_MIN_MS,
 } from "./email/email-resend";
 export type { ResendConfig, ResendAnswer, SendEmailOptions } from "./email/email-resend";
 export {

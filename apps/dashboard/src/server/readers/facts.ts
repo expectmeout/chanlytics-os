@@ -40,7 +40,8 @@ export const sellsBy: Reader<undefined, Awaited<ReturnType<typeof sellsByOf>>> =
 export const channelsReady: Reader<undefined, ChannelsReady | null> = {
   name: "channelsReady",
   async read(rc) {
-    return { data: await channelsReadyOrNull(rc.ctx, rc.tenantId), rows: [], stamp: stamp() };
+    // Who can be reached, which a pause does not change: the pause is the composers' to read, not People's.
+    return { data: await channelsReadyOrNull(rc.ctx, rc.tenantId, { withPause: false }), rows: [], stamp: stamp() };
   },
 };
 

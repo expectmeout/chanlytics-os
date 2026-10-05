@@ -4,8 +4,9 @@
  * Five small modules, composed here: what the palette shows before a model
  * is asked (ask/palette.ts), the Ask routes and the streamed turn
  * (ask/api.ts), a card's commit and undo through the verbs' own routes
- * (ask/commit.ts), reading aloud (ask/speech.ts), and a voice conversation
- * with Ask on the agent (ask/voice.ts). The mockup's palette
+ * (ask/commit.ts), reading aloud in Ask's voice (ask/speech.ts: the brief, an
+ * answer's say, through the speech route), and a voice conversation with Ask
+ * on the agent (ask/voice.ts). The mockup's palette
  * reaches all of it through this one object and nothing else, so what a
  * palette may do is the list below.
  */
@@ -26,7 +27,7 @@ import { createClient } from "../lib/supabase/client";
 import { hearAddress, routeOnScreen } from "./workspace";
 import { commitProposal, editReply, undoProposal, type CommitResult } from "./ask/commit";
 import { askPalette, quickAnswer } from "./ask/palette";
-import { askSpeech } from "./ask/speech";
+import { askSpeech, type SpeechPurpose } from "./ask/speech";
 import { installVoice } from "./ask/voice";
 import { pageContext, type ThreadMessage } from "./ask/context";
 
@@ -76,18 +77,46 @@ async function freshSession(): Promise<void> {
   if (typeof exp === "number" && exp * 1000 - Date.now() < ASK_VOICE_TOKEN_MIN_MS) await client.auth.refreshSession();
 }
 
+/**
+ * One voice at a time, held where the clip and the agent's session are composed. A clip takes the agent's place only
+ * while the agent has the floor (an answer on its way, or being spoken): a session up and quiet, or still connecting,
+ * is in no clip's way and is left for the next hold, so the clip that reads a typed-way answer does not end the session
+ * the press asked for. The clip starts inside the press, the hang-up beside it and never before it: a phone plays
+ * audio only from a gesture, and the hang-up is a round trip. A hold ends the clip.
+ */
+export function oneVoice(clip: ReturnType<typeof askSpeech>, conversation: ReturnType<typeof installVoice>) {
+  return {
+    speech: {
+      ...clip,
+      speak: (text: string, purpose: SpeechPurpose): Promise<void> => {
+        if (conversation.voiceBusy()) void conversation.stopVoice("superseded");
+        return clip.speak(text, purpose);
+      },
+    },
+    voice: {
+      ...conversation,
+      ensureVoice: (...args: Parameters<typeof conversation.ensureVoice>) => {
+        clip.stopSpeaking();
+        return conversation.ensureVoice(...args);
+      },
+    },
+  };
+}
+
 export function installAsk(win: Window = window, storage: Storage | null = safeStorage()): AskApi {
   const palette = askPalette(win, storage);
   const api = askApi(apiFor(win));
-  const speech = askSpeech(win);
-  // A voice conversation on the agent (ask/voice.ts): the vendor's client is loaded on the first tap, not here.
-  const voice = installVoice(win, { api, freshen: freshSession });
+  // Reading aloud in Ask's voice (ask/speech.ts: the clip from the speech route, played by one element of the module's)
+  // and the agent's session the hold speaks to (ask/voice.ts: the vendor's client is loaded on the first press, not
+  // here). One voice at a time, held here where the two are composed: a clip ends the session it would talk over, and
+  // a hold ends the clip.
+  const { speech, voice } = oneVoice(askSpeech(win, { api }), installVoice(win, { api, freshen: freshSession }));
   // The page under a running conversation follows the member: the next spoken turn reads the page they moved to
   // (a window that cannot be listened to, a test's stand-in, has no page to follow). The address is read as the
   // Line reads its own (ask-real.jsx arRoute): the page, then the rest as its param.
   if (typeof win.addEventListener === "function") {
     hearAddress(() => {
-      if (!voice.voiceOn()) return;
+      if (!voice.voiceUp()) return;
       const [page, ...rest] = routeOnScreen(win).split("/");
       voice.pageMoved(pageContext(win, { page: page || "today", param: rest.length ? rest.join("/") : null }));
     }, win);

@@ -1,6 +1,6 @@
 /**
  * Settings › Business on a workspace with NO receptionist, EXECUTED on the stub React: the empty state, the fold its
- * act opens, and the one request that sets a receptionist up (pages/business-tab-create.jsx).
+ * act opens, and the one request that sets a receptionist up (surfaces/settings/business/create.tsx).
  *
  * This is the one thing the form being replaced did that no row of the new page does. Provisioning inserts an empty
  * tenant_config row (migration 00017), so every workspace starts here, and the old form's create path was the only way
@@ -112,7 +112,7 @@ test("its act opens the three things a receptionist cannot answer anyone without
 test("no other business is anyone's example: the boxes are empty and the placeholders are fictional", () => {
   // The setup form's placeholders were the live salon's own name and its working transfer number, shown to the next
   // business as its example. Every box here starts empty, and the one placeholder that is a number is the reserved
-  // 555-01xx range (the rows this box is shared with used it; business-tab-who.jsx).
+  // 555-01xx range (the rows this box is shared with used it; surfaces/settings/business/who.tsx).
   let tree = drawCreate();
   setUp(tree);
   tree = redrawCreate();

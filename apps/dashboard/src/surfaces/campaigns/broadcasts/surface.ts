@@ -14,10 +14,10 @@ import {
   poolRowsOf,
   BROADCAST_CHUNK,
   BROADCAST_SCHEDULE_MAX_DAYS,
+  EVERYONE_HINT,
   EVERYONE_LABEL,
   GET_YES_ROUTE,
   HELD_REASONS,
-  OFFERS_BY_WHATSAPP_NOTE,
   REPLY_WINDOW_WORDS,
   OFFERS_OPT_IN_PHRASES,
   DEFAULT_CAMPAIGN_CHANNELS,
@@ -135,6 +135,12 @@ export interface BroadcastsSurface {
    * used (contracts allowanceLine) and the composer before a send (contracts allowanceBeforeSend).
    */
   month_sent: MonthSent | null;
+  /**
+   * The month after it and the instant it begins (server/campaigns/month-sent.ts monthSentNext), which a send scheduled
+   * past the month's end counts against: the composer reads the month at the time it is set to go (contracts monthSentAt).
+   * Null where the workspace's clock could not be read, and on a server from before it was carried.
+   */
+  month_sent_next: { from: number; sent: MonthSent | null } | null;
   /** Whether the saved lists were read; false leaves the audiences without them, and the page says so. */
   listsRead: boolean;
   audiences: AudienceOption[];
@@ -168,8 +174,6 @@ export interface BroadcastsSurface {
   /** Its postal address where the Business record holds one: the foot of an email names it (contracts emailFoot). */
   businessAddress?: string | null;
   bookingLink: boolean;
-  /** Why offers go by WhatsApp only, said once on the page (contracts OFFERS_BY_WHATSAPP_NOTE). */
-  offersNote: string;
   /** Older broadcasts exist beyond the rows: the history's numbers are the latest fifty, and the page says so. */
   more: boolean;
   /** How far ahead a send may be scheduled, in days: the schedule box stops where the route does. */
@@ -182,6 +186,11 @@ const HOME_REPORT_DAYS = 30;
 
 /** The month's emails and texts the read carries; null where it could not be counted, and on a server from before it was. */
 const monthSentOf = (read: { month_sent?: MonthSent | null }): MonthSent | null => read.month_sent ?? null;
+
+/** The next month's count and where it begins, as the read carries them; null on a server from before they were. */
+const monthSentNextOf = (read: {
+  month_sent_next?: { from: number; sent: MonthSent | null } | null;
+}): { from: number; sent: MonthSent | null } | null => read.month_sent_next ?? null;
 
 /**
  * Whether a People list is an audience a broadcast offers: not the three consent lists, each a restatement of the
@@ -249,14 +258,15 @@ function optionReadings(
 ): Pick<AudienceOption, "counts" | "preview" | "by"> {
   const { kind, id, ids } = of;
   const { ready, touched } = how;
+  // A broadcast is the business's news: by email it asks for a yes covering email or a relationship (decision D1).
   const reading = (purpose: AskedPurpose, channels: readonly ConsentChannel[]) =>
-    audiencePreview(rows, kind, id, ids, purpose, { channels, ready }, 5, touched);
+    audiencePreview(rows, kind, id, ids, purpose, { channels, ready, about: "ours" }, 5, touched);
   const preview = {
     conversational: reading("conversational", DEFAULT_CAMPAIGN_CHANNELS),
     marketing: reading("marketing", DEFAULT_CAMPAIGN_CHANNELS),
   };
   const sets = (purpose: AskedPurpose) =>
-    otherChannelSets(ready, purpose).map((channels) => ({ channels, preview: reading(purpose, channels) }));
+    otherChannelSets(ready, purpose, "ours").map((channels) => ({ channels, preview: reading(purpose, channels) }));
   const by = { conversational: sets("conversational"), marketing: sets("marketing") };
   return {
     counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending },
@@ -338,7 +348,7 @@ export const broadcastsOverride: SurfaceOverride = {
         id: null,
         label: EVERYONE_LABEL,
         ...optionFor("everyone", null, null),
-        hint: "Everyone with a number whose yes covers the message you pick",
+        hint: EVERYONE_HINT,
       },
       // The calendar lists are audiences only when there is a calendar to read them
       // from. The three consent lists are never audiences: each is a restatement of
@@ -402,13 +412,13 @@ export const broadcastsOverride: SurfaceOverride = {
       number,
       ready: bc.ready ?? null,
       month_sent: monthSentOf(bc),
+      month_sent_next: monthSentNextOf(bc),
       heldReasons: HELD_REASONS,
       chunk: BROADCAST_CHUNK,
       replyWindow: REPLY_WINDOW_WORDS,
       businessName: brain?.business_name || "the business",
       businessAddress: cmAddressOf(brain),
       bookingLink: !!brain?.booking_link,
-      offersNote: OFFERS_BY_WHATSAPP_NOTE,
       optIn: {
         phrase: OFFERS_OPT_IN_PHRASES.en,
         phraseEs: OFFERS_OPT_IN_PHRASES.es,

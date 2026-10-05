@@ -51,6 +51,7 @@ export {
   isActivityMoney,
   isActivityNoise,
   ACTIVITY_NOISE_PREFIXES,
+  ACTIVITY_NOISE_KINDS,
   ACTIVITY_KINDS,
 } from "./activity";
 export type { ActivityRowDto, ActivityPageDto, ActivityVerb } from "./activity";
@@ -116,6 +117,7 @@ export {
   SPEND_LEADS,
   SPEND_TEXTING,
   PAUSED_WORDS,
+  CAMPAIGNS_PAUSED_WORDS,
   BILLING_TEST_MODE_CLAUSE,
   TRIAL_COVERS,
   START_PLAN_WORDS,

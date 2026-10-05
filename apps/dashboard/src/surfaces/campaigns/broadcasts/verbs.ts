@@ -94,6 +94,8 @@ export const broadcasts = {
     d: BroadcastDetailDto,
     playbook: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> | null,
     businessName: string,
+    /** Whether the workspace is paused, from the page's own readiness (ChannelsReady.paused); null where it was not read. */
+    paused: boolean | null,
   ) => {
     const clock = window.__clock;
     const now = Date.now();
@@ -101,8 +103,14 @@ export const broadcasts = {
     return toApprovalVM(d, {
       playbook,
       businessName,
+      paused,
       today: clock ? clock.dayKey(now) : new Date(now).toISOString().slice(0, 10),
-      open: { time: clock ? clock.time(open.at) : "", moved: open.moved },
+      // The day it would send on (a visit's run made for today does not go on a later one: toApprovalVM says so, as approveRun does).
+      open: {
+        time: clock ? clock.time(open.at) : "",
+        moved: open.moved,
+        on: clock ? clock.dayKey(open.at) : new Date(open.at).toISOString().slice(0, 10),
+      },
       day: (ymd) => (clock ? clock.dayWords(ymd) : ymd),
     });
   },

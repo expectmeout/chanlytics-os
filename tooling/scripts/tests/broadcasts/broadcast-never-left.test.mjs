@@ -89,6 +89,7 @@ function world(tally = { sent: 0, held: 0 }) {
     remaining: async () => 3,
     state: async () => "sending",
     tally: async () => tally,
+    heldForEmail: async () => [],
     finish: async (...a) => log.push(["finish", ...a]),
     fail: async (...a) => log.push(["fail", ...a]),
     alert: async (a) => log.push(["alert", a.subject, a.body]),

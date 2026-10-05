@@ -26,12 +26,15 @@ import {
   mayReceive,
   numberHealth,
   renderTemplate,
+  saidYesTo,
   toBroadcastVM,
   whenLabel,
-  OFFERS_BY_WHATSAPP_NOTE,
+  whyNotReceive,
+  offersNote,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
+import { middayZone } from "../shared/_midday-zone.mjs";
 import { installLegacyReact, fresh as freshTree, all, find, byTestId, textOf } from "../_legacy-react.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -89,18 +92,19 @@ test("the tables: the workspace's, members read, acting members enrol, only the 
 });
 
 test("the one predicate: the yes THIS message needs, no do-not-contact, a number", () => {
-  assert.equal(mayReceive(person(), "marketing", "whatsapp"), true);
+  // A broadcast is the business's own news, ours (decision D1).
+  assert.equal(mayReceive(person(), "marketing", "whatsapp", "ours"), true);
   assert.equal(
-    mayReceive(person({ consent: { state: "unknown", dnc: false } }), "marketing", "whatsapp"),
+    mayReceive(person({ consent: { state: "unknown", dnc: false } }), "marketing", "whatsapp", "ours"),
     false,
     "not asked is not a yes",
   );
   assert.equal(
-    mayReceive(person({ consent: { state: "opted_in", dnc: true } }), "marketing", "whatsapp"),
+    mayReceive(person({ consent: { state: "opted_in", dnc: true } }), "marketing", "whatsapp", "ours"),
     false,
     "the operator's block outranks a yes",
   );
-  assert.equal(mayReceive(person({ phone: null }), "marketing", "whatsapp"), false, "nowhere to send");
+  assert.equal(mayReceive(person({ phone: null }), "marketing", "whatsapp", "ours"), false, "nowhere to send");
 });
 
 test("ONE rule, not a second copy of it: the VM predicate delegates to mayMessageFor", async () => {
@@ -117,15 +121,18 @@ test("ONE rule, not a second copy of it: the VM predicate delegates to mayMessag
     for (const marketing of ["unknown", "opted_in", "opted_out"]) {
       for (const dnc of [false, true]) {
         for (const purpose of ["conversational", "marketing"]) {
-          const vm = person({ consent: { state, dnc, marketing } });
-          assert.equal(
-            mayReceive(vm, purpose, "whatsapp"),
-            mayMessageFor({ consent: state, dnc, marketing_consent: marketing }, purpose, {
-              proactive: true,
-              channel: "whatsapp",
-            }).ok,
-            `${state}/${marketing}/dnc:${dnc}/${purpose}`,
-          );
+          for (const about of ["theirs", "ours"]) {
+            const vm = person({ consent: { state, dnc, marketing } });
+            assert.equal(
+              mayReceive(vm, purpose, "whatsapp", about),
+              mayMessageFor({ consent: state, dnc, marketing_consent: marketing }, purpose, {
+                proactive: true,
+                channel: "whatsapp",
+                about,
+              }).ok,
+              `${state}/${marketing}/dnc:${dnc}/${purpose}/${about}`,
+            );
+          }
         }
       }
     }
@@ -140,17 +147,31 @@ test("THE PURPOSE IS REQUIRED, because a default is what broke this", () => {
   // the compiler at every call site; a default cannot be audited.
   // Six since step 3: who a send reaches also says how, the channels it ticks and the workspace's (reachFor), required too.
   assert.equal(eligibleFor.length, 6, "REGRESSION: a defaulted parameter is not counted in .length");
-  // The channel is required too (One message, every channel, step 2): a yes covers the channels it was given for.
-  assert.equal(mayReceive.length, 3, "REGRESSION: the purpose or the channel went back to being optional");
+  // The channel is required too (One message, every channel, step 2): a yes covers the channels it was given for. And what
+  // the message is about (decision D1): by email the business's own news asks a yes, a visit's message does not, so no
+  // caller may leave out which it is.
+  assert.equal(
+    mayReceive.length,
+    4,
+    "REGRESSION: the purpose, the channel or what it is about went back to being optional",
+  );
+  assert.equal(whyNotReceive.length, 4, "the reasoned twin takes the same four");
+  assert.equal(saidYesTo.length, 4, "and so does the yes the row gave");
 });
 
 test("the refusal names the yes that was actually missing", () => {
   // Nobody on it said either yes; a yes with no number to send to is core-campaigns.test.mjs's, through the route.
   const nobody = [person({ consent: { state: "unknown", dnc: false, marketing: "unknown" } })];
-  assert.match(emptyAudienceRefusal("marketing", "Regulars", nobody), /offers/i);
-  assert.match(emptyAudienceRefusal("conversational", "Regulars", nobody), /yes to messages/i);
+  assert.match(
+    emptyAudienceRefusal("marketing", "Regulars", nobody, { channels: ["whatsapp"], about: "ours" }),
+    /offers/i,
+  );
+  assert.match(
+    emptyAudienceRefusal("conversational", "Regulars", nobody, { channels: ["whatsapp"], about: "ours" }),
+    /yes to messages/i,
+  );
   assert.doesNotMatch(
-    emptyAudienceRefusal("conversational", "Regulars", nobody),
+    emptyAudienceRefusal("conversational", "Regulars", nobody, { channels: ["whatsapp"], about: "ours" }),
     /said yes to offers/i,
     "a utility refusal must not send the owner to record a consent this message does not need",
   );
@@ -162,26 +183,30 @@ test("a yes about appointments is not a yes about offers, which is what error 30
   // carriers refused a live campaign over it -- "marketing consent was combined
   // with other consents. Marketing consent must be collected separately."
   const appointmentsOnly = person({ consent: { state: "opted_in", dnc: false, marketing: "unknown" } });
-  assert.equal(mayReceive(appointmentsOnly, "marketing", "whatsapp"), false, "no offer without a yes about offers");
   assert.equal(
-    mayReceive(appointmentsOnly, "conversational", "whatsapp"),
+    mayReceive(appointmentsOnly, "marketing", "whatsapp", "ours"),
+    false,
+    "no offer without a yes about offers",
+  );
+  assert.equal(
+    mayReceive(appointmentsOnly, "conversational", "whatsapp", "theirs"),
     true,
     "but their own appointment still reaches them",
   );
 
   const offersToo = person();
-  assert.equal(mayReceive(offersToo, "marketing", "whatsapp"), true);
-  assert.equal(mayReceive(offersToo, "conversational", "whatsapp"), true);
+  assert.equal(mayReceive(offersToo, "marketing", "whatsapp", "ours"), true);
+  assert.equal(mayReceive(offersToo, "conversational", "whatsapp", "theirs"), true);
 
   // Declining offers is not a request to stop hearing about your own visit.
   const noOffers = person({ consent: { state: "opted_in", dnc: false, marketing: "opted_out" } });
-  assert.equal(mayReceive(noOffers, "marketing", "whatsapp"), false);
-  assert.equal(mayReceive(noOffers, "conversational", "whatsapp"), true);
+  assert.equal(mayReceive(noOffers, "marketing", "whatsapp", "ours"), false);
+  assert.equal(mayReceive(noOffers, "conversational", "whatsapp", "theirs"), true);
 
   // STOP is not symmetric with that: it stops everything.
   const stopped = person({ consent: { state: "opted_out", dnc: false, marketing: "opted_in" } });
-  assert.equal(mayReceive(stopped, "marketing", "whatsapp"), false);
-  assert.equal(mayReceive(stopped, "conversational", "whatsapp"), false);
+  assert.equal(mayReceive(stopped, "marketing", "whatsapp", "ours"), false);
+  assert.equal(mayReceive(stopped, "conversational", "whatsapp", "theirs"), false);
 });
 
 test("an audience is a People list, a list kept by hand, or everyone — each crossed with the predicate", () => {
@@ -192,7 +217,8 @@ test("an audience is a People list, a list kept by hand, or everyone — each cr
     person({ id: "c", state: "quiet", heardDays: 45, consent: { state: "unknown", dnc: false, marketing: "unknown" } }),
     person({ id: "d", hasChat: false, calls: 2 }),
   ];
-  // By WhatsApp, which the workspace can send on: who a send reaches also says how (reachFor), required since step 3.
+  // By WhatsApp, which the workspace can send on: who a send reaches also says how (reachFor), required since step 3, and
+  // what the message is about, a broadcast's the business's news (decision D1).
   const how = {
     channels: ["whatsapp"],
     ready: channelsReady({
@@ -200,6 +226,7 @@ test("an audience is a People list, a list kept by hand, or everyone — each cr
       textLine: null,
       email: { mailbox: false, domain: false },
     }),
+    about: "ours",
   };
   assert.deepEqual(
     eligibleFor(rows, "everyone", null, null, "marketing", how).map((r) => r.id),
@@ -352,7 +379,8 @@ const world = () => ({
       failure: null,
     },
   ],
-  tenants: [{ id: TID, name: "Marisa's", status: "active" }],
+  // The batch asks the day's sending hours on the machine's clock: this workspace's noon is now, whenever the suite runs.
+  tenants: [{ id: TID, name: "Marisa's", status: "active", timezone: middayZone() }],
   tenant_config: [{ tenant_id: TID, config: {} }],
   templates: [
     {
@@ -400,7 +428,7 @@ test("the job's ports fail CLOSED: a read that did not happen never answers 'not
 
   // The billing gate. `data?.status === "paused"` on a failed read is false,
   // and a paid template blast then goes out under a subscription that stopped.
-  await assert.rejects(dispatchJob(ctx(fakeDb(world(), { "tenants.select": blip })), job), /workspace's status/);
+  await assert.rejects(dispatchJob(ctx(fakeDb(world(), { "tenants.select": blip })), job), /cannot read the workspace/);
 
   // The worst of the three. A null template reads as "no longer approved by
   // WhatsApp": the broadcast is terminally failed and the owner is emailed
@@ -440,6 +468,7 @@ test('the job carries WhatsApp\'s "not now" through: the person back in the queu
   // inside the hours by any clock the job may read, and the next wait stays inside them.
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-06-10T14:00:00Z") });
   const w = world();
+  w.tenants[0].timezone = "UTC"; // the clock is the mocked one: 14:00 here, not the noon of the zone the suite's own hour picks
   // The person's thread, as the door reads it: the contact's answers and the workspace's status beside the row.
   w.conversations = [
     {
@@ -694,7 +723,6 @@ const surfaceOf = (over = {}) => ({
   getYes: "broadcasts/get-yes",
   businessName: "Northside Studio",
   bookingLink: false,
-  offersNote: OFFERS_BY_WHATSAPP_NOTE,
   more: false,
   scheduleMaxDays: 30,
   fetchedAt: 1,
@@ -731,7 +759,10 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   // the composer can show one of the people the number is a length of.
   // And one per set of channels a send may tick (One message, every channel, step 3): the default, WhatsApp alone, is the
   // pair every audience carries, and the others are its `by`, read by the composer as the owner ticks.
-  assert.ok(s.includes("audiencePreview(rows, kind, id, ids, purpose, { channels, ready }, 5, touched)"));
+  // Each reading says what a broadcast is about, the business's own news (decision D1): by email it asks a yes or dealings.
+  assert.ok(
+    s.includes('audiencePreview(rows, kind, id, ids, purpose, { channels, ready, about: "ours" }, 5, touched)'),
+  );
   assert.ok(s.includes('conversational: reading("conversational", DEFAULT_CAMPAIGN_CHANNELS)'));
   assert.ok(s.includes('marketing: reading("marketing", DEFAULT_CAMPAIGN_CHANNELS)'));
   assert.ok(
@@ -1028,10 +1059,18 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
 });
 
 test("the page says once why a customer who only ever texted is not in an offer's count", () => {
-  // The wire refuses per customer (sms_carries_no_promotions); the page states
-  // the rule beside the count, in the same words the carriers were told.
-  assert.match(OFFERS_BY_WHATSAPP_NOTE, /^Offers and news go by WhatsApp only\./);
-  assert.match(OFFERS_BY_WHATSAPP_NOTE, /registered with the carriers for replies and appointment messages/);
-  assert.match(OFFERS_BY_WHATSAPP_NOTE, /nothing promotional is sent by text/);
-  assert.match(OFFERS_BY_WHATSAPP_NOTE, /once they say yes on WhatsApp/);
+  // The wire refuses per customer (sms_carries_no_promotions); the page states the rule beside the count, in the same
+  // words the carriers were told, and as the workspace's channels make it true (contracts offersNote): a page that read no
+  // channels counts WhatsApp alone, as every page did before them.
+  const alone = offersNote(
+    channelsReady({
+      whatsapp: { canSend: true, refusal: null },
+      textLine: null,
+      email: { mailbox: false, domain: false },
+    }),
+  );
+  assert.match(alone, /^Offers and news go by WhatsApp only\./);
+  assert.match(alone, /registered with the carriers for replies and appointment messages/);
+  assert.match(alone, /nothing promotional is sent by text/);
+  assert.match(alone, /once they say yes on WhatsApp/);
 });

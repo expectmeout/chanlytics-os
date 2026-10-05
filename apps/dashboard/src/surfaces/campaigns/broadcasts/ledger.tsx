@@ -10,7 +10,8 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import type { SubTab } from "../../kit/sub-tabs/sub-tabs";
-import { policyChipPart, statePillPart } from "../../legacy-parts";
+import { StatePill } from "../../kit/pill/state-pill";
+import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { navigate } from "../../legacy-verbs";
 import { surfaceValue } from "../../surface-values";
 import { cmRowPress } from "../parts/head";
@@ -462,8 +463,6 @@ export function BcRunCard({
   cancel,
   now,
 }: BcRunCardProps) {
-  const StatePill = statePillPart();
-  const PolicyChip = policyChipPart();
   const byPb = bcByPlaybook(row);
   const pb = byPb ? playbookRows().find((p) => p.id === row.playbook_id) : null;
   const waiting = row.state === "pending_approval";

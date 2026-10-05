@@ -215,7 +215,9 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
     "one download per message: the unreadable path's, or the vision path's",
   );
   assert.ok(
-    wa.includes("await sayUnreadable(thread.pausedUntil);\n      await sink.processed();"),
+    wa.includes(
+      "const said = await sayUnreadable(thread.pausedUntil);\n      await sink.processed(handledOf(said.way));",
+    ),
     "a photo that could not be fetched is handed over, not answered from its caption",
   );
   assert.ok(
@@ -239,7 +241,7 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
 test("the owner turns it on in Workspace, and a save carries the section", () => {
   // Since Task 3.7 it is a switch of the Business page's "Rules it always keeps" fold, which patches features.vision
   // and nothing else (business-tab-answers.test.mjs draws it, business-tab-folds.test.mjs saves it).
-  const s = readRaw("apps/dashboard/src/legacy/pages/business-tab-folds.jsx");
+  const s = readRaw("apps/dashboard/src/surfaces/settings/business/folds.ts");
   assert.ok(s.includes("vision: (config.features || {}).vision === true,"), "off unless explicitly on");
   assert.ok(
     s.includes("if (vision || features.vision !== undefined) next.features = { ...features, vision };"),

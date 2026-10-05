@@ -6,6 +6,7 @@
  */
 import { isVisionMime, toBase64, VISION_MAX_BYTES } from "./vision";
 import { GO, type Answering } from "./context";
+import { escalationOf, handledOf, SET_ASIDE, type WayOut } from "./handled";
 
 /** Whether the receptionist will look at this photo, and how it says what it will not read. */
 export function seeingOf(at: Answering) {
@@ -42,10 +43,14 @@ export function seeingOf(at: Answering) {
    * Resolves to the moment the receptionist is out of the thread until, or 0
    * when it never spoke — the pause itself is written to Postgres by
    * sink.pause below, and a courtesy that did not reach the customer earns no
-   * pause.
+   * pause — and to the facts of the way out, for the message's stamp
+   * (./handled.ts): a thread a person already holds says nothing and asks
+   * nobody, and past that the `non_text` escalation is always attempted, so the
+   * message is a handoff when it landed, and the acknowledgement is a reply
+   * that left when it did.
    */
-  const sayUnreadable = async (pausedUntilNow: number): Promise<number> => {
-    if (Date.now() <= pausedUntilNow) return 0;
+  const sayUnreadable = async (pausedUntilNow: number): Promise<{ pausedUntil: number; way: WayOut }> => {
+    if (Date.now() <= pausedUntilNow) return { pausedUntil: 0, way: SET_ASIDE };
     // The acknowledgement is the receptionist speaking, so it obeys the
     // same rule as every reply: only when the mode in force lets it speak.
     // A workspace on Ask, or a person set to Never, gets no canned text —
@@ -71,13 +76,14 @@ export function seeingOf(at: Answering) {
           : personMode
             ? `no acknowledgement — this person is set to '${replyMode}'`
             : `no acknowledgement — reply mode is '${replyMode}'`;
+    const asked = sink.escalate("non_text", `Customer sent a ${raw.type} message — ${why}.`);
     await Promise.all([
       ...(pausedUntil ? [sink.pause(new Date(pausedUntil).toISOString())] : []),
-      sink.escalate("non_text", `Customer sent a ${raw.type} message — ${why}.`),
+      asked,
       tell(`[${raw.type} message]`, `(${why})`, "non-text message", pausedUntil ? pauseHours : null),
     ]);
     L.info("wa_nontext", { acked, may_ack: mayAck, mode: replyMode, person_mode: personMode });
-    return pausedUntil;
+    return { pausedUntil, way: { escalation: escalationOf(await asked), reply: acked ? "sent" : "none" } };
   };
   return { maySee, sayUnreadable };
 }
@@ -95,8 +101,8 @@ export async function unreadableGate(at: Answering, seen: Seen): Promise<typeof 
     // much as ~23s of pure timeout, before being told we had seen it. Nothing
     // in the ack depends on those bytes, so it joins the work at the end.
     const media = sink.media(n);
-    await sayUnreadable(thread.pausedUntil);
-    await Promise.all([media, sink.processed()]);
+    const said = await sayUnreadable(thread.pausedUntil);
+    await Promise.all([media, sink.processed(handledOf(said.way))]);
     return;
   }
   return GO;
@@ -143,8 +149,8 @@ export async function photoOf(
       // picture nobody saw: the same handoff the routing above would have given
       // it, rather than a confident reply composed from the words alone.
       L.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
-      await sayUnreadable(thread.pausedUntil);
-      await sink.processed();
+      const said = await sayUnreadable(thread.pausedUntil);
+      await sink.processed(handledOf(said.way));
       return;
     }
   }

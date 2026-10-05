@@ -501,9 +501,9 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
     "billing-note",
   ])
     assert.ok(pane.includes(`data-testid="${t}"`), t);
-  const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  const settings = readCode("apps/dashboard/src/surfaces/settings/frame/page.tsx");
   assert.ok(
-    settings.includes("<window.PaneBillingReal flash={flash} />") &&
+    settings.includes("<PaneBillingReal flash={flash} />") &&
       !settings.includes('which="billing"') &&
       !settings.includes("const PaneBilling ="),
     "the pane is real; nothing says not built, and the mockup's twin is gone",

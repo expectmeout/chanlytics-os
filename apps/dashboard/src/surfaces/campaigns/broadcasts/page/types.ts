@@ -12,9 +12,10 @@ import type {
   ChannelsReady,
   ConsentChannel,
   ParamSourceKind,
+  PreviewVersions,
 } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import type { UnsavedWork } from "../../../legacy-parts";
+import type { UnsavedWork } from "../../../kit/record/work";
 import type { CmViaTick } from "../../parts/channels";
 import type { CmPreviewBy } from "../../parts/preview-by";
 import type { PlaybookCardVM } from "../../playbooks/surface";
@@ -72,8 +73,13 @@ export interface BcSheet {
   position: [number, number] | null;
   canSend: boolean;
   playbook: PlaybookCardVM | null;
-  template: TemplateDto | null;
+  /** The message, with its email and text versions where the page holds them (the composers' templates carry them). */
+  template: (TemplateDto & { versions?: PreviewVersions }) | null;
   businessName: string;
+  /** Its postal address where the Business record holds one: an offer's email names it in its foot. */
+  businessAddress: string | null;
+  /** Whether the workspace is paused, from the page's readiness (ChannelsReady.paused); null where that was not read. */
+  paused: boolean | null;
   armed: boolean;
   onArm: (on: boolean) => void;
   stopping: boolean;
@@ -157,6 +163,8 @@ export interface BcReach {
   /** The WhatsApp number can send, or WhatsApp is not one of the channels on and the number is nothing to this send. */
   numberOk: boolean;
   overLimit: boolean;
+  /** Why the audience is past the number's day's limit, in contracts' sentence (overLimitRefusal); null while it fits. `overLimit` is its presence. */
+  overLimitWords: string | null;
   /** Whether the workspace can send on each channel, with the message's own versions laid over it (parts/channels.ts). */
   channelReady: ChannelsReady;
   /** The channels the send goes by: ticked, and open to this message. Never more than the ticks, may be none. */
@@ -178,7 +186,13 @@ export interface BcSlotChoices {
   labels: string[];
 }
 
-/** The words each slot holds, and whether the send can go. */
+/** The first thing that keeps the send from going, as the foot says it: a thing still to fill in or pick, or a refusal. */
+export interface BcSay {
+  tone: "plain" | "warn";
+  words: string;
+}
+
+/** The words each slot holds, and whether the send can go, and if not, the first thing that stops it. */
 export interface BcSlotWords {
   typed: string[];
   setTyped: (i: number, words: string) => void;
@@ -186,7 +200,9 @@ export interface BcSlotWords {
   filled: string[];
   previewValues: string[];
   specs: (string | { kind: ParamSourceKind })[];
+  /** Nothing stops it and it is not on its way: `say` is null (reach.ts bcStopOf is the one rule for both). */
   ready: boolean;
+  say: BcSay | null;
   shown: string[];
 }
 

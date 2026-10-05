@@ -1,6 +1,6 @@
 /**
- * Settings › Partner (decision 0012), drawn: pages/partner-real.jsx on the stub React, over data-bits and the real
- * bridge (legacy-bridge/partner.ts). Reading, a failed read, the offer and its one press, and a partner's link, share,
+ * Settings › Partner (decision 0012), drawn: the TSX pane (surfaces/settings/partner) on the stub React, over data-bits
+ * and the real verbs (settings/partner/surface.ts), the account as the seam holds it. Reading, a failed read, the offer and its one press, and a partner's link, share,
  * earnings and count, every sentence contracts'. And the rail: the tab is on the account, beside Profile.
  */
 import { test } from "node:test";
@@ -10,16 +10,22 @@ import { installLegacyReact, fresh, again, byTestId, textOf, press, settle } fro
 
 installLegacyReact();
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-const { installPartner } = await import("../../../../apps/dashboard/src/legacy-bridge/partner.ts");
-await import("../../../../apps/dashboard/src/legacy/pages/partner-real.jsx");
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { partnerVerbs } = await import("../../../../apps/dashboard/src/surfaces/settings/partner/surface.ts");
+const { PanePartner } = await import("../../../../apps/dashboard/src/surfaces/settings/partner/pane.tsx");
+const { PaneTeam } = await import("../../../../apps/dashboard/src/surfaces/settings/partner/team-card.tsx");
+/** The account as the seam holds it: undefined before the read, null when it failed. */
+const setAccount = (v) => setSurfaceValue("partner", v);
+/** The real verbs, as the module made them: the tests below answer for some, and the last runs them all again. */
+const REAL = { ...partnerVerbs, team: { ...partnerVerbs.team }, secondFactor: { ...partnerVerbs.secondFactor } };
 
 const flashes = [];
 const flash = (f) => flashes.push(f);
 const draw = () => {
   fresh();
-  return again(() => globalThis.React.createElement(globalThis.window.PanePartner, { flash }));
+  return again(() => globalThis.React.createElement(PanePartner, { flash }));
 };
-const redraw = () => again(() => globalThis.React.createElement(globalThis.window.PanePartner, { flash }));
+const redraw = () => again(() => globalThis.React.createElement(PanePartner, { flash }));
 
 const ROW = {
   id: "p1",
@@ -30,29 +36,28 @@ const ROW = {
   created_at: "2026-09-01T12:00:00Z",
 };
 
-installPartner(globalThis.window);
 /** The workspaces read, answered by the test. */
 let workspacesSay = { ok: true, vm: { rows: [], summary: "No workspace has you as its partner yet." } };
 const opened = [];
-globalThis.window.__partner.workspaces = async () => workspacesSay;
-globalThis.window.__partner.open = (id) => opened.push(id);
+partnerVerbs.workspaces = async () => workspacesSay;
+partnerVerbs.open = (id) => opened.push(id);
 
 test("while it reads, it says so; a read that failed says so with a retry, never an empty offer", () => {
-  delete globalThis.window.__PARTNER;
+  setAccount(undefined);
   assert.equal(textOf(byTestId(draw(), "partner-loading")).includes(PARTNER_WORDS.reading), true);
-  globalThis.window.__PARTNER = null;
+  setAccount(null);
   assert.ok(byTestId(draw(), "partner-failed"));
 });
 
 test("the offer: the share every new account starts with, the terms, and a press that waits for the agreement and the second factor", async () => {
-  globalThis.window.__PARTNER = { dto: null, balance: [], fetchedAt: 0 };
+  setAccount({ dto: null, balance: [], fetchedAt: 0 });
   const factor = factorStub();
-  globalThis.window.__partner.secondFactor = factor.api;
+  partnerVerbs.secondFactor = factor.api;
   const asked = [];
-  globalThis.window.__partner.become = async (code) => {
+  partnerVerbs.become = async (code) => {
     asked.push(code);
     if (code === "taken") return { ok: false, message: "That code is taken. Try another." };
-    globalThis.window.__PARTNER = { dto: { ...ROW, code }, balance: [], fetchedAt: 1 };
+    setAccount({ dto: { ...ROW, code }, balance: [], fetchedAt: 1 });
     return { ok: true, message: "" };
   };
   draw();
@@ -96,14 +101,14 @@ test("a partner: the link on this origin, the row's share, the ledger's sums, an
     { id: "b", slug: "b", name: "Bayside", role: "partner" },
     { id: "c", slug: "c", name: "Harbor", role: "partner" },
   ];
-  globalThis.window.__PARTNER = {
+  setAccount({
     dto: { ...ROW, share_bp: 2000 },
     balance: [
       { currency: "usd", state: "held", earned_cents: 10000, next_payable_at: "2036-10-26T00:00:00Z" },
       { currency: "usd", state: "payable", earned_cents: 5000, next_payable_at: null },
     ],
     fetchedAt: 1,
-  };
+  });
   const tree = draw();
   assert.equal(textOf(byTestId(tree, "partner-link")), "https://app.chanlytics.com/p/ada");
   assert.equal(textOf(byTestId(tree, "partner-share")), "20% of what it pays for its plan, for as long as it pays.");
@@ -118,7 +123,7 @@ test("a partner: the link on this origin, the row's share, the ledger's sums, an
 });
 
 test("nothing on the ledger yet is said once, and a paused account leads with why", () => {
-  globalThis.window.__PARTNER = { dto: { ...ROW, status: "paused" }, balance: [], fetchedAt: 1 };
+  setAccount({ dto: { ...ROW, status: "paused" }, balance: [], fetchedAt: 1 });
   const tree = draw();
   assert.equal(textOf(byTestId(tree, "partner-earnings-none")), PARTNER_WORDS.noneYet);
   assert.equal(byTestId(tree, "partner-held"), null);
@@ -126,7 +131,7 @@ test("nothing on the ledger yet is said once, and a paused account leads with wh
 });
 
 test("the link copies, and a copy the browser refuses says what to do instead", async () => {
-  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  setAccount({ dto: ROW, balance: [], fetchedAt: 1 });
   const copied = [];
   // Node's own navigator is a getter: the page's is set the way a browser would have it.
   const clip = (writeText) =>
@@ -143,7 +148,7 @@ test("the link copies, and a copy the browser refuses says what to do instead", 
 });
 
 test("under the account, the workspaces brought: reading, then the back office's rows, and Open goes into one the way the switcher does", async () => {
-  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  setAccount({ dto: ROW, balance: [], fetchedAt: 1 });
   workspacesSay = {
     ok: true,
     vm: {
@@ -200,7 +205,7 @@ test("under the account, the workspaces brought: reading, then the back office's
 });
 
 test("a workspaces read that failed says so with a retry, and the account above it stands", async () => {
-  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  setAccount({ dto: ROW, balance: [], fetchedAt: 1 });
   workspacesSay = { ok: false, message: "Could not reach the server." };
   draw();
   await settle();
@@ -210,12 +215,12 @@ test("a workspaces read that failed says so with a retry, and the account above 
 });
 
 test("the daily letter (0014): a switch showing what is kept, pressed through the bridge; none on an older server", async () => {
-  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  setAccount({ dto: ROW, balance: [], fetchedAt: 1 });
   assert.equal(byTestId(draw(), "partner-letters-row"), null, "no letters on the row: no switch");
-  globalThis.window.__PARTNER = { dto: { ...ROW, letters: true }, balance: [], fetchedAt: 1 };
+  setAccount({ dto: { ...ROW, letters: true }, balance: [], fetchedAt: 1 });
   const asked = [];
   let answer = { ok: true, message: "" };
-  globalThis.window.__partner.setLetters = async (on) => (asked.push(on), answer);
+  partnerVerbs.setLetters = async (on) => (asked.push(on), answer);
   let tree = draw();
   const box = byTestId(tree, "partner-letters");
   assert.equal(box.props.checked, true);
@@ -243,10 +248,10 @@ const waitingRow = (over = {}) => ({
 });
 
 test("set up a workspace for a business: said before it starts, one form, the database's words on a refusal, and a send that failed said", async () => {
-  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  setAccount({ dto: ROW, balance: [], fetchedAt: 1 });
   workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
   const asked = [];
-  globalThis.window.__partner.setUp = async (input) => {
+  partnerVerbs.setUp = async (input) => {
     asked.push(input);
     if (input.email === "ada@example.com")
       return { ok: false, message: "That is your own address. Enter the business owner's." };
@@ -284,12 +289,12 @@ test("set up a workspace for a business: said before it starts, one form, the da
 });
 
 test("a paused partner is offered no set-up; ten waiting says why, instead of the form", async () => {
-  globalThis.window.__PARTNER = { dto: { ...ROW, status: "paused" }, balance: [], fetchedAt: 1 };
+  setAccount({ dto: { ...ROW, status: "paused" }, balance: [], fetchedAt: 1 });
   workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
   draw();
   await settle();
   assert.equal(byTestId(redraw(), "partner-setup"), null);
-  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  setAccount({ dto: ROW, balance: [], fetchedAt: 1 });
   workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: "10 workspaces are waiting for their owners." };
   draw();
   await settle();
@@ -299,7 +304,7 @@ test("a paused partner is offered no set-up; ten waiting says why, instead of th
 });
 
 test("handed over: each waiting or declined one says where it stands, and Send again goes to the address typed", async () => {
-  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  setAccount({ dto: ROW, balance: [], fetchedAt: 1 });
   workspacesSay = {
     ok: true,
     vm: EMPTY,
@@ -316,7 +321,7 @@ test("handed over: each waiting or declined one says where it stands, and Send a
     full: null,
   };
   const sent = [];
-  globalThis.window.__partner.resend = async (id, email) => {
+  partnerVerbs.resend = async (id, email) => {
     sent.push([id, email]);
     return { ok: true, sent: true };
   };
@@ -340,7 +345,7 @@ test("handed over: each waiting or declined one says where it stands, and Send a
 });
 
 test("an older server sends no handovers: the pane draws as before", async () => {
-  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  setAccount({ dto: ROW, balance: [], fetchedAt: 1 });
   workspacesSay = { ok: true, vm: EMPTY };
   draw();
   await settle();
@@ -372,10 +377,10 @@ const factorStub = (over = {}) => {
 };
 
 test("two-step sign-in: off says why and offers it; set up shows the code to scan and the key; the first code turns it on", async () => {
-  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  setAccount({ dto: ROW, balance: [], fetchedAt: 1 });
   workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
   const f = factorStub();
-  globalThis.window.__partner.secondFactor = f.api;
+  partnerVerbs.secondFactor = f.api;
   draw();
   await settle();
   let tree = redraw();
@@ -401,16 +406,16 @@ test("two-step sign-in: off says why and offers it; set up shows the code to sca
 });
 
 test("two-step sign-in: on says so; a project without it switched on says that; a read that failed is not 'off'", async () => {
-  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  setAccount({ dto: ROW, balance: [], fetchedAt: 1 });
   workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
-  globalThis.window.__partner.secondFactor = factorStub({ state: async () => ({ ok: true, on: true }) }).api;
+  partnerVerbs.secondFactor = factorStub({ state: async () => ({ ok: true, on: true }) }).api;
   draw();
   await settle();
   let tree = redraw();
   assert.ok(byTestId(tree, "partner-second-factor-on"));
   assert.equal(byTestId(tree, "partner-second-factor-start"), null);
 
-  globalThis.window.__partner.secondFactor = factorStub({
+  partnerVerbs.secondFactor = factorStub({
     start: async () => ({ ok: false, unavailable: true, message: SECOND_FACTOR_WORDS.unavailable }),
   }).api;
   draw();
@@ -420,7 +425,7 @@ test("two-step sign-in: on says so; a project without it switched on says that; 
   tree = redraw();
   assert.equal(textOf(byTestId(tree, "partner-second-factor-unavailable")), SECOND_FACTOR_WORDS.unavailable);
 
-  globalThis.window.__partner.secondFactor = factorStub({ state: async () => ({ ok: false, message: "offline" }) }).api;
+  partnerVerbs.secondFactor = factorStub({ state: async () => ({ ok: false, message: "offline" }) }).api;
   draw();
   await settle();
   tree = redraw();
@@ -439,16 +444,16 @@ const reread = async (paint) => {
 };
 
 test("the partner's pane: the workspaces asking for them, Join goes in and says what it earns, Decline takes it away", async () => {
-  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  setAccount({ dto: ROW, balance: [], fetchedAt: 1 });
   workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
-  globalThis.window.__partner.secondFactor = factorStub({ state: async () => ({ ok: true, on: true }) }).api;
+  partnerVerbs.secondFactor = factorStub({ state: async () => ({ ok: true, on: true }) }).api;
   let rows = [
     { workspaceId: "t1", sentence: "Harbor asks you to be its partner. Open until Oct 11." },
     { workspaceId: "t2", sentence: "Bayside asks you to be its partner. Open until Oct 12." },
   ];
   const answered = [];
-  globalThis.window.__partner.invitations = async () => ({ ok: true, rows });
-  globalThis.window.__partner.answer = async (id, join) => {
+  partnerVerbs.invitations = async () => ({ ok: true, rows });
+  partnerVerbs.answer = async (id, join) => {
     answered.push([id, join]);
     rows = rows.filter((r) => r.workspaceId !== id);
     return { ok: true, message: join ? "You're Harbor's partner." : "" };
@@ -472,10 +477,10 @@ test("the partner's pane: the workspaces asking for them, Join goes in and says 
 });
 
 test("the partner's pane: a read of who is asking that failed says so with a retry, never an empty list", async () => {
-  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  setAccount({ dto: ROW, balance: [], fetchedAt: 1 });
   workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
   let fails = true;
-  globalThis.window.__partner.invitations = async () =>
+  partnerVerbs.invitations = async () =>
     fails ? { ok: false, message: "offline" } : { ok: true, rows: [{ workspaceId: "t3", sentence: "Harbor asks." }] };
   draw();
   await settle();
@@ -489,11 +494,10 @@ test("the partner's pane: a read of who is asking that failed says so with a ret
 });
 
 test("Team: the owner asks a partner by code and may take it back; anyone else sees no card", async () => {
-  globalThis.window.TeamSection = () => null;
-  const W = globalThis.window.__partner.inviteWords;
+  const W = partnerVerbs.inviteWords;
   let card = { state: "none", sentence: null, canInvite: true, canWithdraw: false };
   const asked = [];
-  globalThis.window.__partner.team = {
+  partnerVerbs.team = {
     read: async () => ({ ok: true, vm: card }),
     invite: async (code) => {
       asked.push(code);
@@ -507,7 +511,7 @@ test("Team: the owner asks a partner by code and may take it back; anyone else s
       return { ok: true, message: "" };
     },
   };
-  const drawTeam = () => again(() => globalThis.React.createElement(globalThis.window.PanePartner.Team, { flash }));
+  const drawTeam = () => again(() => globalThis.React.createElement(PaneTeam, { flash }));
   fresh();
   drawTeam();
   await settle();
@@ -528,8 +532,8 @@ test("Team: the owner asks a partner by code and may take it back; anyone else s
   assert.ok(byTestId(tree, "team-partner-form"));
   assert.deepEqual(asked, ["nobody", "https://app.chanlytics.com/p/ada-co", "withdraw"]);
 
-  globalThis.window.__partner.team = {
-    ...globalThis.window.__partner.team,
+  partnerVerbs.team = {
+    ...partnerVerbs.team,
     read: async () => ({ ok: false, code: "forbidden", message: "Only an owner can do this." }),
   };
   fresh();
@@ -539,11 +543,10 @@ test("Team: the owner asks a partner by code and may take it back; anyone else s
 });
 
 test("Team: an owner's View as another role sees no card, as that role would; the ask is the team's gate; an email that did not go says how to send it again; a refusal reads the card again", async () => {
-  globalThis.window.TeamSection = () => null;
-  const W = globalThis.window.__partner.inviteWords;
+  const W = partnerVerbs.inviteWords;
   let reads = 0;
   let card = { state: "none", sentence: null, canInvite: true, canWithdraw: false };
-  globalThis.window.__partner.team = {
+  partnerVerbs.team = {
     read: async () => {
       reads += 1;
       return { ok: true, vm: card };
@@ -562,7 +565,7 @@ test("Team: an owner's View as another role sees no card, as that role would; th
       return { ok: true, message: "" };
     },
   };
-  const drawTeam = () => again(() => globalThis.React.createElement(globalThis.window.PanePartner.Team, { flash }));
+  const drawTeam = () => again(() => globalThis.React.createElement(PaneTeam, { flash }));
   const store = { viewAsRole: "viewer", can: () => false, myRole: () => "viewer" };
   globalThis.window.ST_STORE = store;
   try {
@@ -602,13 +605,13 @@ test("Team: an owner's View as another role sees no card, as that role would; th
 });
 
 test("the partner's pane: an answered invitation leaves the list at once, so it takes no second press while the list is read again", async () => {
-  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  setAccount({ dto: ROW, balance: [], fetchedAt: 1 });
   workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
   const rows = [{ workspaceId: "t4", sentence: "Harbor asks you to be its partner. Open until Oct 11." }];
   let first = true;
   let release;
   // The first read answers; the one after the join waits, as a slow network would.
-  globalThis.window.__partner.invitations = () => {
+  partnerVerbs.invitations = () => {
     if (first) {
       first = false;
       return Promise.resolve({ ok: true, rows });
@@ -616,7 +619,7 @@ test("the partner's pane: an answered invitation leaves the list at once, so it 
     return new Promise((r) => (release = () => r({ ok: true, rows: [] })));
   };
   const answered = [];
-  globalThis.window.__partner.answer = async (id, join) => {
+  partnerVerbs.answer = async (id, join) => {
     answered.push([id, join]);
     return { ok: true, message: "You're Harbor's partner." };
   };
@@ -634,7 +637,7 @@ test("the partner's pane: an answered invitation leaves the list at once, so it 
 
 test("over the real bridge: who is asking, joining and declining, and the owner's card, each at its route and said in contracts' words", async () => {
   // The tests above answer for the bridge; this one runs it, over a network the test answers.
-  installPartner(globalThis.window);
+  Object.assign(partnerVerbs, REAL, { team: { ...REAL.team }, secondFactor: { ...REAL.secondFactor } });
   const json = (status, body) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
   const calls = [];
@@ -686,7 +689,7 @@ test("over the real bridge: who is asking, joining and declining, and the owner'
     }
   };
   try {
-    const P = globalThis.window.__partner;
+    const P = partnerVerbs;
     const asking = await P.invitations();
     assert.equal(asking.ok, true);
     assert.deepEqual(asking.rows, [

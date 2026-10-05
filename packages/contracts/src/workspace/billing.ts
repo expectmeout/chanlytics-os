@@ -266,6 +266,20 @@ export interface BillingPlan {
 export const PAUSED_WORDS =
   "Calls are answered only to take a message, and new messages wait in the Inbox for you to answer.";
 
+/**
+ * What a campaign says while the workspace is paused, said the one way, in each place that says it in full: the composers'
+ * foot where Send would be (broadcasts and playbooks), the route's refusal of a broadcast made under a pause (core
+ * createBroadcast), an approval refused (core approveRun), Run now refused (the edge's 402, the dashboard's route), and the
+ * approval where it would be pressed: the run's sheet (contracts toApprovalVM) and Today's row for a run waiting on a person.
+ * Ask's run card reads no readiness and says it when the card is confirmed (approveRun's refusal). The Campaigns home's
+ * rows say it short, in their own words ("after billing resumes", contracts nextRunLabel; the lifecycle's coming row). The
+ * send door refuses every broadcast message under a pause (core deliver.ts `paused`), so a page that offered Send, or promised
+ * a run, said what would not happen. Today says its own, about the receptionist ("This workspace is paused — the receptionist
+ * is not answering anything."); this is the same fact said about what is sent.
+ */
+export const CAMPAIGNS_PAUSED_WORDS =
+  "This workspace is paused, so nothing is sent until billing resumes. Resume it from Settings › Billing.";
+
 export function planBilling(
   before: { mode: BillingMode; status: BillingStatus; tenant_status: string },
   sub: SubscriptionFacts,

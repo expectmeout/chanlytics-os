@@ -20,6 +20,7 @@ import {
   DEFAULT_TIMEZONE,
   roleAtLeast,
   type Role,
+  ROLE_PERMS,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import type { Me, Workspace } from "./surface-data";
@@ -199,3 +200,127 @@ export function installIdentity(win: Window = window): void {
 }
 
 export type { IdentityInput };
+
+/* ------------------------------------------------------------------ the role store ------------------------------------------------------------------ */
+
+/*
+ * The role store (`window.ST_STORE`), moved here from legacy/pages/settings.jsx with Settings' frame (decision 0015 step
+ * 11): which role the member acts as, an owner's preview of a lower one (View as), and the mockup's own team, which a
+ * demo session reads. Every gate in the app asks it (data-bits `gate` and `canDo`, legacy-verbs `actingRole`), so the
+ * app installs it at boot, before any page draws (seed-globals.ts), under the name the JSX made it by; installIdentity
+ * above completes it.
+ */
+interface Member {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+}
+
+/** The session store: what the JSX made (FL_STORE's pattern -- survives a move, resets on a reload). */
+interface SessionStore extends RoleStore {
+  defaults: Record<string, unknown>;
+  set(k: string, v: unknown): void;
+  get(k: string, fallback: unknown): unknown;
+  seatsIncluded: number;
+  meId: string;
+  team: Member[];
+  getTeam(): Member[];
+  me(): Member | undefined;
+  seatsUsed(): number;
+  ownerCount(): number;
+  can(action: string): boolean;
+  _emit(): void;
+  addMember(m: Member): void;
+  setRole(id: string, role: string): void;
+  removeMember(id: string): void;
+  setViewAs(role: string | null): void;
+}
+
+/** What each role may do: the table the SERVER enforces (contracts ROLE_PERMS), read where the JSX read the window's. */
+const permsOf = (role: string): Record<string, boolean> =>
+  (Reflect.get(window, "ROLE_PERMS") as Record<string, Record<string, boolean>> | undefined)?.[role] ??
+  (ROLE_PERMS as Record<string, Record<string, boolean>>)[role] ??
+  {};
+
+/** Who is signed in and how the session started, read when a gate asks. */
+const signedIn = (): { role?: string | null } | null | undefined =>
+  Reflect.get(window, "__ME") as { role?: string | null } | null | undefined;
+const inDemo = (): boolean => !!Reflect.get(window, "__DEMO_MODE");
+
+function makeRoleStore(): SessionStore {
+  return {
+    defaults: {}, // key -> chosen option
+    set(k, v) {
+      this.defaults[k] = v;
+    },
+    get(k, fallback) {
+      return this.defaults[k] !== undefined ? this.defaults[k] : fallback;
+    },
+
+    // ---- Team & roles (audit U3) ----
+    seatsIncluded: 5,
+    meId: "u-sarah",
+    viewAsRole: null, // owner-only preview; null = act as real role
+    team: [
+      { id: "u-sarah", name: "Sarah Chen", email: "sales@chanlytics.com", role: "owner", status: "active" },
+      { id: "u-marcus", name: "Marcus Webb", email: "ops@serenityspa.co", role: "operator", status: "active" },
+      { id: "u-lena", name: "Lena Park", email: "lena@serenityspa.co", role: "viewer", status: "active" },
+      { id: "u-jay", name: "Jay Rivera", email: "jay@serenityspa.co", role: "viewer", status: "active" },
+    ],
+    getTeam() {
+      return this.team;
+    },
+    me() {
+      return this.team.find((m) => m.id === this.meId);
+    },
+    myRole() {
+      // Real membership role when the bridge has it (E1) -- every gate() chip in the app starts telling the truth
+      // through this one line. View-as still previews a LOWER role on top of the real one (owner-only, client-side,
+      // harmless: the server re-checks with requireRole anyway).
+      // Fail CLOSED. __ME is absent during boot and whenever the workspace fetch fails (the seam swallows that), and
+      // defaulting to owner rendered every gated control as available to a viewer.
+      const me = signedIn();
+      if (me) return this.viewAsRole || me.role || "viewer";
+      const own = this.me();
+      return this.viewAsRole || (inDemo() && own ? own.role : "viewer");
+    },
+    seatsUsed() {
+      return this.team.filter((m) => m.status !== "revoked").length;
+    },
+    ownerCount() {
+      return this.team.filter((m) => m.role === "owner" && m.status === "active").length;
+    },
+    can(action) {
+      return !!permsOf(this.myRole())[action];
+    },
+    _emit() {
+      window.dispatchEvent(new CustomEvent("team:changed"));
+    },
+    addMember(m) {
+      this.team.push(m);
+      this._emit();
+    },
+    setRole(id, role) {
+      const m = this.team.find((x) => x.id === id);
+      if (m) {
+        m.role = role;
+        this._emit();
+      }
+    },
+    removeMember(id) {
+      this.team = this.team.filter((x) => x.id !== id);
+      this._emit();
+    },
+    setViewAs(role) {
+      this.viewAsRole = role;
+      this._emit();
+    },
+  };
+}
+
+/** The role store on the window, made once: a store already there (a test's, the mockup's) is kept, as the JSX kept it. */
+export function installRoleStore(win: Window = window): void {
+  win.ST_STORE = win.ST_STORE || makeRoleStore();
+}

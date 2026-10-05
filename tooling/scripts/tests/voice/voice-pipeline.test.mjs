@@ -230,8 +230,9 @@ test("the converger's plan is complete against the hand-typed agent, and idempot
 
 test("Settings collects the website and the notes; the transfer line is edited in its own row and normalised in one place", () => {
   // Task 3.7 deleted the form: the website is a row of the Business page, the notes and the rules are folds of it, and
-  // each patches only its own keys (business-tab-folds.jsx; business-tab-folds.test.mjs runs every one of them).
-  const pane = readRaw("apps/dashboard/src/legacy/pages/business-tab-folds.jsx");
+  // each patches only its own keys (surfaces/settings/business/folds.ts and fold-shapes.ts; business-tab-folds.test.mjs runs every one of them).
+  const B = "apps/dashboard/src/surfaces/settings/business/";
+  const pane = readCode(B + "folds.ts", B + "fold-shapes.ts", B + "fold-says.ts");
   assert.ok(pane.includes('btPutProfile(next, "notes", notes.length ? notes : undefined);'));
   assert.ok(pane.includes('"no_health_advice"'));
   // The transfer number and the website are rows edited where they are stated, so no FOLD writes either key: a fold

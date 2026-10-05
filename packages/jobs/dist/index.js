@@ -11,6 +11,8 @@ var CLAIM_FOR_MS = 2e4;
 var CLAIM_SLOTS = 3;
 var YIELD_AT_MS = 45e3;
 var FUNCTION_CEILING_MS = MIN_MS;
+var SEND_SETTLE_MS = 5e3;
+var sendByAt = (deadline) => deadline + (FUNCTION_CEILING_MS - YIELD_AT_MS) - SEND_SETTLE_MS;
 var LEAD_YIELD_AT_MS = FUNCTION_CEILING_MS - DEADLINE_MARGIN_MS;
 var REPLY_LATE_PAGE_MS = MIN_MS;
 var MAX_ATTEMPTS = 3;
@@ -204,7 +206,7 @@ import {
   signUnsubscribeToken,
   unsubscribeUrl
 } from "../../channels/dist/index.js";
-import { CAMPAIGN_EMAIL_TAG, OUTCOME_UNKNOWN, parseTenantConfig } from "../../contracts/dist/index.js";
+import { CAMPAIGN_EMAIL_TAG, EMAIL_HOLDS, OUTCOME_UNKNOWN, parseTenantConfig } from "../../contracts/dist/index.js";
 import {
   deliver,
   isWireUnavailable,
@@ -220,6 +222,7 @@ import {
   resolveOutboundTargetForContact,
   runGoesByOthers,
   withdrawEmail,
+  workspacePaused,
   writtenEmail
 } from "../../db/dist/index.js";
 
@@ -231,9 +234,10 @@ function must(what, r) {
 
 // src/broadcast-send.ts
 var sendLog = logger3();
-async function countRecipients(db, tenantId, broadcastId, state) {
+async function countRecipients(db, tenantId, broadcastId, state, reason) {
   let q = db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId);
   if (state) q = q.eq("state", state);
+  if (reason) q = q.eq("reason", reason);
   const { count, error } = await q;
   if (error) throw new Error(`broadcast_send: cannot count ${state ?? "all"} recipients: ${error.message}`);
   return count ?? 0;
@@ -248,7 +252,12 @@ function wireUnbound(ctx, channel) {
   return isWireUnavailable(wire) ? wire.error : null;
 }
 function wirePorts(ctx) {
-  return { wireUnavailable: async (channel) => wireUnbound(ctx, channel), ...ctx.page ? { page: ctx.page } : {} };
+  return {
+    wireUnavailable: async (channel) => wireUnbound(ctx, channel),
+    offersClosed: () => Promise.resolve(ctx.email?.campaignsClosed ?? null),
+    offersUnread: () => Promise.resolve(ctx.email?.campaignsUnread ?? null),
+    ...ctx.page ? { page: ctx.page } : {}
+  };
 }
 function emailRequestPort(ctx, tenantId) {
   let mailbox;
@@ -378,7 +387,7 @@ function peoplePorts(ctx, tenantId) {
       return prior;
     },
     // Whether anyone on the run goes by email or text: what WhatsApp's template not being approved asks (core sendBroadcastBatch).
-    byOtherChannels: (id) => runGoesByOthers(db, tenantId, id),
+    byOtherChannels: (id, than) => runGoesByOthers(db, tenantId, id, than),
     mark: markPort(db, tenantId)
   };
 }
@@ -408,14 +417,9 @@ async function broadcastSend(ctx, job) {
         return withTemplate(data);
       },
       // The billing gate, so it fails CLOSED: a tenants row that cannot be read
-      // is not a workspace that is paying.
-      workspacePaused: async () => {
-        const row = must(
-          "broadcast_send: cannot read the workspace's status",
-          await db.from("tenants").select("status").eq("id", job.tenant_id).maybeSingle()
-        );
-        return row?.status === "paused";
-      },
+      // is not a workspace that is paying. The one reading of it (packages/db workspacePaused), as the composers and the
+      // approval ask.
+      workspacePaused: () => workspacePaused(db, job.tenant_id),
       fail: async (id, failure) => {
         must(
           "broadcast_send: cannot mark the broadcast failed",
@@ -441,8 +445,10 @@ async function broadcastSend(ctx, job) {
       ),
       facts: () => workspaceFacts(db, job.tenant_id),
       ...peoplePorts(ctx, job.tenant_id),
-      // Offers by email go only where this runtime holds a verified campaigns domain (the edge binds it for this job).
-      deliver: (d) => deliver({ db, wire: ctx.wire, emailOffers: !!ctx.email?.campaigns }, d),
+      // Offers by email go only where this runtime holds a verified campaigns domain (the edge binds it for this job). An
+      // email is sent by the time this tick can still wait for it (ledger sendByAt), so one started late is bounded by
+      // what is left of the function rather than by the wire's own, longer deadline.
+      deliver: (d) => deliver({ db, wire: ctx.wire, emailOffers: !!ctx.email?.campaigns }, { ...d, sendBy: sendByAt(ctx.deadline) }),
       ...wirePorts(ctx),
       remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),
       // Read by the verb as "is this broadcast still wanted"; null is how a
@@ -464,6 +470,13 @@ async function broadcastSend(ctx, job) {
           countRecipients(db, job.tenant_id, id, "sent")
         ]);
         return { sent, held: all - sent };
+      },
+      // Counted, as the tally is: which of the workspace's holds on email the run skipped anyone for.
+      heldForEmail: async (id) => {
+        const counts = await Promise.all(
+          EMAIL_HOLDS.map((reason) => countRecipients(db, job.tenant_id, id, "skipped", reason))
+        );
+        return EMAIL_HOLDS.filter((_, i) => (counts[i] ?? 0) > 0);
       },
       finish: async (id, tally) => {
         must(
@@ -688,7 +701,7 @@ async function lineProvision(ctx, job) {
     { payload: job.payload }
   );
 }
-function incomingEmailOf(e) {
+function incomingEmailOf(e, authservId) {
   return {
     id: e.id,
     from: e.from,
@@ -702,7 +715,7 @@ function incomingEmailOf(e) {
     receivedAt: e.createdAt,
     claim: classifyReceived(e),
     attachments: e.attachments,
-    senderAuthenticated: senderAuthenticated(e)
+    senderAuthenticated: senderAuthenticated(e, authservId)
   };
 }
 async function emailIngest(ctx, job) {
@@ -717,7 +730,7 @@ async function emailIngest(ctx, job) {
       },
       fetch: async (receivedId) => {
         const e = await email.fetch(receivedId);
-        return e ? incomingEmailOf(e) : null;
+        return e ? incomingEmailOf(e, email.authservId ?? null) : null;
       },
       erasedBefore: email.erasedBefore,
       ours: (tenantId, rfcMessageId) => sentEmailWithMessageId(db, tenantId, rfcMessageId),
@@ -1132,8 +1145,10 @@ async function conclude(ports, job, reason, certain, end) {
     return;
   }
   let wreckage;
+  let resumed;
   try {
     const settled = await ports.settle(job, certain);
+    resumed = settled.some((s) => s.resumed === true && !s.error);
     for (const s of settled) {
       if (s.error) ports.log.error("job_settle_failed", { job_id: job.id, what: s.what, error: s.error });
       else if (s.notResumed)
@@ -1142,6 +1157,7 @@ async function conclude(ports, job, reason, certain, end) {
     wreckage = saySettled(settled);
   } catch (e) {
     ports.log.error("job_settle_failed", { job_id: job.id, error: errText(e) });
+    resumed = null;
     wreckage = "What it was in the middle of could not be checked, so a message or broadcast may still show as sending.";
   }
   ports.log.info("job_failed", {
@@ -1152,7 +1168,7 @@ async function conclude(ports, job, reason, certain, end) {
     reason
   });
   try {
-    const words = jobNewsWords(job.kind, end, job.attempts);
+    const words = jobNewsWords(job.kind, end, { attempts: job.attempts, resumed });
     const reference = `Reference: job ${job.id} (${job.kind}): ${reason}.`;
     await ports.alert(job, {
       kind: "job_failed",

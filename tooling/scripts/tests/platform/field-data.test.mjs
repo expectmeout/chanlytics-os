@@ -68,7 +68,10 @@ test("the five are the table's five, and a page is named for the route a load la
   assert.equal(landed({ hash: "" }), "today");
   assert.equal(landed({ pathname: "/w/acme" }), "today");
   assert.equal(landed({ hash: "#/settings?tab=team" }), "settings");
-  assert.equal(landed({ pathname: "/w/acme/settings", search: "?tab=team" }), "settings");
+  // Settings' path says the product's word, and the page is named for the shell's route that word is (contracts ROUTE_WORDS).
+  assert.equal(landed({ pathname: "/w/acme/settings", search: "?tab=team" }), "admin");
+  assert.equal(landed({ pathname: "/w/acme/settings/billing" }), "admin");
+  assert.equal(landed({ pathname: "/w/acme/admin/billing" }), "admin", "and the old name reads the same");
   assert.equal(landed({ hash: "#/Über" }), "other");
   assert.equal(landed({ hash: `#/${"a".repeat(40)}` }), "other");
 });

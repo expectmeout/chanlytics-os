@@ -1,7 +1,7 @@
 /**
  * The Settings rail, and the pane that is the business record.
  *
- * Task 3.7 replaced BusinessEditor with the Business page (pages/business-tab.jsx), so what this file used to prove
+ * Task 3.7 replaced BusinessEditor with the Business page (surfaces/settings/business/tab.tsx), so what this file used to prove
  * about a form is proved where those fields now live, by drawing them:
  *   every check said under its own field, and the toast only counting them  business-tab-page.test.mjs,
  *                                                                           business-tab-open/-offer/-answers.test.mjs;
@@ -9,13 +9,13 @@
  *   the instructions box (S4) and the three messages (S5)                   business-tab-answers.test.mjs;
  *   the three things a new workspace is asked for                           business-tab-create.test.mjs.
  *
- * What is left here is settings.jsx's own, and it is what the swap turned on: the rail's one question before it
+ * What is left here is the Settings page's own (surfaces/settings/frame/page.tsx), and it is what the swap turned on: the rail's one question before it
  * replaces a pane, the browser's before it unloads one, and which of the three cards the pane draws. Both questions
  * are the record kit's fold registry alone now -- the editor used to chain its own answer onto
  * window.__settingsUnsaved and put back what it found -- so a fold holding changes is the only thing either can be
  * holding on to.
  *
- * Run against settings.jsx on a stub React.
+ * Run against the page on a stub React.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -96,10 +96,14 @@ globalThis.Icon = "Icon";
 globalThis.StatStrip = "StatStrip";
 globalThis.StatCell = "StatCell";
 globalThis.Sparkline = "Sparkline";
+const MARKED = {};
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
+    // The Business page and the create card are drawn for real in business-tab-page.test.mjs and business-tab-create.test.mjs:
+    // here they are the marks the pane's choice is read by (the page imports them, so the stub stands in for them as drawn).
+    if (typeof type === "function" && MARKED[type.name]) type = MARKED[type.name];
     const node = { type, props };
     if (typeof type === "function") {
       const parent = frames[frames.length - 1];
@@ -240,11 +244,10 @@ Object.assign(globalThis.window, {
   __TEAM: [],
   __TEAM_INVITES: [],
 });
-await import("../../../../../apps/dashboard/src/legacy/pages/business-tab-save.jsx");
-// How it answers owns the languages the old form offers and its three messages' labels, which settings.jsx reads as
-// it loads (business-tab-answers.jsx, before it in both load lists).
-await import("../../../../../apps/dashboard/src/legacy/pages/business-tab-answers.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/settings.jsx");
+await import("./_business-parts.mjs");
+// The page and its tabs are the TSX module (decision 0015 step 11), imported as the app imports it.
+const { SettingsPage } = await import("../../../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
+const { SET_TABS } = await import("../../../../../apps/dashboard/src/surfaces/settings/frame/tabs.ts");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -290,7 +293,7 @@ const fresh = () => {
 };
 const draw = (tab, went = []) => {
   frames = [{ key: "root", hook: 0, kids: {} }];
-  return globalThis.window.SettingsPage({ tab, onTab: (id) => went.push(id) });
+  return SettingsPage({ tab, onTab: (id) => went.push(id) });
 };
 const again = draw;
 const railRow = (tree, label) =>
@@ -313,7 +316,7 @@ test("on a phone the sections are every page's strip: their words in order, the 
   const tabs = all(strip, (n) => n.type === "button");
   assert.deepEqual(
     tabs.map((t) => textOf(t).trim()),
-    globalThis.window.SET_TABS.map((t) => t.label),
+    SET_TABS.map((t) => t.label),
     "the words alone, in the rail's order",
   );
   assert.deepEqual(
@@ -334,11 +337,24 @@ test("a section opened comes in from its side, and keeps that while it stays ope
 
 /* ------------------------------ which card the pane draws ------------------------------ */
 
-// The page and the create card as PaneWorkspace reaches them: read from window at draw time, as everything the
-// shell shares is. Drawn for real in business-tab-page.test.mjs and business-tab-create.test.mjs.
+// The page and the create card as PaneWorkspace reaches them: it imports both, so the stub's createElement draws a mark
+// where either is written (MARKED, above). Drawn for real in business-tab-page.test.mjs and business-tab-create.test.mjs.
 const marker = (id) => () => globalThis.React.createElement("div", { "data-testid": id });
-globalThis.window.BusinessTab = marker("the-business-page");
-globalThis.window.BtCreateCard = marker("the-create-card");
+MARKED.BusinessTab = marker("the-business-page");
+MARKED.BtCreateCard = marker("the-create-card");
+// The other panes are each proved where they live; here the page is read by its rail and by which card Business draws.
+for (const pane of [
+  "PaneProfile",
+  "PanePartner",
+  "PaneTeam",
+  "PaneAutonomyReal",
+  "PaneIntegrationsReal",
+  "PaneNotificationsReal",
+  "PaneBillingReal",
+  "PanePlatform",
+  "PaneActivity",
+])
+  MARKED[pane] = marker(`the-${pane}`);
 
 test("the pane is the record, the card that sets one up, or the broken one -- and never a form", () => {
   const was = globalThis.window.__SETTINGS;

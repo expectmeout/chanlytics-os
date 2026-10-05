@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ResendConfig, EmailSendsAs, WaConfig, EmailRequest, ResendLimit, SendResult, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, ParamSpec, Audience, PersonRowVM, ListRef, ChannelsReady, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, ConsentChannel, CampaignHow, AskedPurpose, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, EmailHold, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, ParamSpec, Audience, PersonRowVM, ListRef, ChannelsReady, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, ConsentChannel, CampaignHow, AskedPurpose, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent } from '@chanlytics/contracts';
 export { DeliveryRefusal } from '@chanlytics/contracts';
 import { Json, Database, RoutedChannel, LeadContext, IngestResult } from '@chanlytics/db';
 
@@ -82,8 +82,8 @@ declare function whatsappWire(read: CredentialsRead<WaConfig>): Sender | null | 
 /**
  * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
  * on the platform's account, for replies, visit messages and everything but the two below; "campaigns" is the same mailbox
- * on the deployment's campaigns domain (the platform's account too), for offers and nothing else, so a complaint about an
- * offer never touches the domain replies leave from; "own" is one of the workspace's own verified domains on the cold
+ * on the deployment's campaigns domain (the platform's account too), for offers (and the business's own news, which is one at
+ * the door: decision D2) and nothing else, so a complaint about an offer never touches the domain replies leave from; "own" is one of the workspace's own verified domains on the cold
  * account, for outreach and nothing else.
  */
 interface EmailRoute {
@@ -177,6 +177,11 @@ interface WirePayload {
      * that domain's route when the route still holds it, and as `email` on the mailbox otherwise (N5).
      */
     ownEmail?: EmailRequest;
+    /**
+     * The most the wire may take to answer, in ms, from the moment the send is put on it (Delivery.sendBy, worked out at the
+     * wire). The email wire bounds its tries by it (channels sendEmail); absent, by its own deadline alone.
+     */
+    deadlineMs?: number;
 }
 /** How to put words on one channel's wire. Owns its own address format. */
 type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
@@ -201,6 +206,18 @@ interface Delivery {
     purpose: SendPurpose;
     /** True when this send starts a conversation rather than answering one. */
     proactive: boolean;
+    /**
+     * What the message is about (contracts MessageAbout, decision D1): theirs (a visit they booked, their proposal, the
+     * call they are on, a thread they wrote in) or ours (a broadcast, a moment's news). By email, ours asks for a yes
+     * covering email or a relationship on record; theirs asks no yes. Required: a sender says which.
+     */
+    about: MessageAbout;
+    /**
+     * The playbook moment a broadcast's run was made for (contracts audienceTrigger), null for any other send: only the
+     * day-before reminder passes the thread's 24-hour pause (contracts passesHandoverPause, decision D4). Required, as
+     * `about` is: a sender says which, so a new one cannot forget the moment and have its reminder held.
+     */
+    trigger: string | null;
     body: string;
     template?: TemplateSend;
     /** The frozen request, on the email wire (WirePayload.email). */
@@ -230,6 +247,13 @@ interface Delivery {
      * NotTakenError before anything is written, and the row stays queued. Without it, it fails as any refusal does.
      */
     holdIfNotTaken?: boolean;
+    /**
+     * Epoch ms: the latest moment the provider's answer may still be waited for. A caller that runs inside a function with
+     * a ceiling (a broadcast's batch: jobs sendByAt) says when the send must be over by, so one started late is bounded by
+     * what is left rather than by the wire's own deadline, which is longer than the time a late start has. An email that
+     * runs out of it settles as `failed` with an unknown outcome (the provider may have taken it), as any timeout does.
+     */
+    sendBy?: number;
 }
 type Delivered = {
     outcome: "sent";
@@ -777,6 +801,11 @@ interface RecipientRow {
     facts: unknown;
     /** The channel the run picked for them at enrolment (contracts reachFor); null or absent on a run made before: WhatsApp. */
     channel?: string | null;
+    /**
+     * How many times this person was claimed and given back (00301: the guard adds one on every release): what a broadcast's
+     * email to them is named by. Absent from the read of a database that has not reached that migration.
+     */
+    attempt?: number;
 }
 interface ContactRow {
     id: string;
@@ -911,11 +940,13 @@ interface BroadcastBatchPorts {
         sentAt: string | null;
     }>>;
     /**
-     * Whether any person on the run, whatever their state, goes by email or text (a recipient row's channel): the run's
-     * own question, asked when WhatsApp's template is not approved, because that holds the run's WhatsApp people alone.
-     * False on a database that keeps no channel on a recipient, where everyone goes by WhatsApp. Throws when it cannot be read.
+     * Whether any person on the run, whatever their state, goes another way than `than` (a recipient row's channel): the
+     * run's own question when one channel is held for everyone on it. WhatsApp's template not being approved holds the run's
+     * WhatsApp people alone, and a hold on the workspace's offers and news by email its email people alone: the run goes on
+     * for the others, and only a run with nobody else on it stops. On a database that keeps no channel on a recipient
+     * everyone goes by WhatsApp. Throws when it cannot be read.
      */
-    byOtherChannels(id: string): Promise<boolean>;
+    byOtherChannels(id: string, than: "whatsapp" | "email"): Promise<boolean>;
     /**
      * One person's row, written. The claim (failed, outcome_unknown) is a compare-and-set: it answers whether THIS call
      * took the person, true, or false when they were no longer queued (another run took them first), and then nobody is
@@ -930,6 +961,25 @@ interface BroadcastBatchPorts {
      * A number that is ABSENT is not this port's to say: the door answers that per person, as it always did.
      */
     wireUnavailable(channel: Channel): Promise<string | null>;
+    /**
+     * Why an OFFER by email cannot leave from this runtime right now though the deployment is meant to send them (it names
+     * a campaigns domain, and the mail provider says the domain is not verified for sending), or null when it can, and for a
+     * deployment that names none (an offer is then held person by person at enrolment and the door, as it always was).
+     * Asked BEFORE anyone is claimed, for a run whose message is an offer and whose batch has anyone going by email: the
+     * platform is paged with the reason, once (the pager's own quiet). A run of email alone stops, the reason said, rather
+     * than skip each of them, a skip that is final; a run that also goes another way (byOtherChannels) skips its email people
+     * (`email_marketing_disabled`) and goes on for everyone else. A domain that could not be read at all is not this port's:
+     * that is the email wire not bound (`wireUnavailable`), and the run waits.
+     */
+    offersClosed(): Promise<string | null>;
+    /**
+     * Why it cannot yet be known whether an OFFER by email may leave: the deployment names a campaigns domain and the mail
+     * provider could not be asked about it (a failed or slow read), or null. Asked where offersClosed is, before anyone is
+     * claimed: the run waits a minute and asks again (a stall), as a wire that could not be bound does. Only an offer asks
+     * it: a visit's email leaves from the mail domain, which is not in question, so a domain that could not be read holds
+     * no reminder back.
+     */
+    offersUnread(): Promise<string | null>;
     /** The platform's own pager, for a wire that could not be bound: said once per six hours by the pager's own quiet. */
     page?(key: string, subject: string, body: string): Promise<unknown>;
     /** How many are still queued; throws when it cannot be counted. */
@@ -947,6 +997,11 @@ interface BroadcastBatchPorts {
         sent: number;
         held: number;
     }>;
+    /**
+     * Which of the workspace's holds on email (contracts EMAIL_HOLDS) anyone on the run was skipped for: the finished run's
+     * news names those, and only those, among its reasons. Asked once nobody is queued, of a run that held someone back.
+     */
+    heldForEmail(id: string): Promise<EmailHold[]>;
     /** sending → sent, and the event with the tally. */
     finish(id: string, tally: {
         sent: number;
@@ -1358,11 +1413,14 @@ interface AssemblePorts {
      */
     assemble(row: NewBroadcast, recipients: NewRecipient[], sendAt: Date | null): Promise<string>;
     /**
-     * How many campaign emails or texts the workspace sent on this channel this calendar month, in its zone, that left, may
-     * have left or wait to go (packages/db campaignMonthSent): what its month's allowance has spent (contracts
-     * CAMPAIGN_MONTH_ALLOWANCE). Throws when it cannot be counted.
+     * How many campaign emails or texts the workspace sent on this channel in the calendar month `at` falls in, in its zone,
+     * that left, may have left or wait to go (packages/db campaignMonthSent): what that month's allowance has spent (contracts
+     * CAMPAIGN_MONTH_ALLOWANCE). `at` is the moment the run opens, which is when its people are counted against the month: a
+     * broadcast made on the 28th for the 1st counts against the new month, not the one it was made in, and a playbook's run
+     * against the month of the moment it goes. Required, so no caller counts the month it was made in by leaving it out.
+     * Throws when it cannot be counted.
      */
-    monthSent(channel: "email" | "sms"): Promise<number>;
+    monthSent(channel: "email" | "sms", at: Date): Promise<number>;
     /**
      * People of a run just assembled, held at once: each still queued is skipped, with `reason`, as the send would have
      * held them (allowance.ts). A person already settled is left as it is. Throws when it cannot be written, and then the
@@ -1595,6 +1653,8 @@ interface CreateBroadcastCommand {
 interface ApproveRunPorts {
     /** The business's clock, for the hours a send may go out in. */
     timezone(): Promise<string>;
+    /** Whether the workspace is paused (`tenants.status = 'paused'`): nothing is approved while it is. Throws when it cannot be read. */
+    paused(): Promise<boolean>;
     /** pending_approval → scheduled for `at`, only while pending. True iff a row changed. The row carries the time the job carries (00119). */
     release(broadcastId: string, at: Date): Promise<boolean>;
     /** Back to waiting, when the job could not be made. */
@@ -1669,7 +1729,8 @@ declare function versionsHeld(own: readonly string[], whatsapp: boolean): Record
 /**
  * The workspace's channels now, with the message in them: a channel that is ready but has no version of the message
  * is not ready, and says so in a sentence ("This message has no email version yet."). A channel the workspace is not
- * ready on keeps its own reason.
+ * ready on keeps its own reason. What else the channel carries stays (email's `offers`, which the news by email and an
+ * offer are judged by: closing the channel for a missing version must not make it say the campaigns domain is missing).
  */
 declare function readyForMessage(ready: ChannelsReady, has: Record<ConsentChannel, boolean>): ChannelsReady;
 /**
@@ -1720,7 +1781,9 @@ interface BroadcastReceipt {
  * over them (message-channels.ts readyForMessage). Refuses nothing: a playbook keeps a tick that cannot send yet, and
  * Ask counts a proposal by it.
  */
-declare function campaignHow(ports: Pick<CreateBroadcastPorts, "channels" | "versions">, tpl: Pick<TemplateRow, "name" | "language">, channels: ConsentChannel[]): Promise<{
+declare function campaignHow(ports: Pick<CreateBroadcastPorts, "channels" | "versions">, tpl: Pick<TemplateRow, "name" | "language">, channels: ConsentChannel[], 
+/** What the message is about: a broadcast's is ours, a visit or proposal moment's theirs (contracts MessageAbout). */
+about: MessageAbout): Promise<{
     how: CampaignHow;
     health: NumberHealth | null;
 }>;
@@ -1768,7 +1831,8 @@ interface ApproveReceipt {
  * Under the ask mode a playbook's run is made as pending_approval: the
  * recipients are enrolled, nothing is scheduled. Approving schedules the
  * send now and records the decision as the approver's; skipping is the
- * cancel. A job the ledger refused leaves the run waiting, as it was.
+ * cancel. A job the ledger refused leaves the run waiting, as it was. A
+ * paused workspace sends nothing, so nothing is approved in it.
  */
 declare function approveRun(ports: ApproveRunPorts, cmd: {
     row: BroadcastRef;
@@ -2605,8 +2669,10 @@ declare function runIdFor(roundId: string, phase: "probe" | "main" | "check", te
  *     and why the runner's margin (rules.ts JUDGE_MARGIN_MS) leaves room for it in a tick.
  *
  * The call itself is channels' leadJudge over the edge's model port (apps/edge/lib/leads/lead-wires.ts), which writes each
- * call to the usage ledger for the search's workspace (`tenantId`) and, while the switch is on, puts each place's criteria
- * to a second model in shadow (decision 0023). Nothing of that is seen here: the verb takes a LeadJudge and returns answers.
+ * call to the usage ledger for the search's workspace (the round's `tenant_id`), names the round it is paid in as the row's
+ * subject (`subject_id`: the judge's cost per search is the ledger's lead_judge rows joined to their round), and, while the
+ * switch is on, puts each place's criteria to a second model in shadow (decision 0023), its rows naming the same round.
+ * Nothing of that is seen here: the verb takes a LeadJudge and the round, and returns answers.
  */
 
 declare const JUDGE_REFUSED_REASON = "the judge could not read these";
@@ -2643,8 +2709,11 @@ interface JudgedBatch {
 declare function opIdFor(runId: string, fromOffset: number, batch: number): string;
 /** One batch, asked once and once more; a throw is the provider's trouble and propagates. */
 declare function judgeBatch(judge: LeadJudge, plan: LeadSearchPlan, places: PlaceFacts[], opId: string, 
-/** The search's workspace: the usage ledger's row for each call. */
-tenantId?: string): Promise<JudgedBatch>;
+/** The round the batch is paid in: its workspace is the usage ledger's row for each call, and its id the row's subject. */
+round?: {
+    id: string;
+    tenant_id: string;
+}): Promise<JudgedBatch>;
 
 /**
  * How much a round asks the provider for, and what each run may charge (PRD §0.5 "size from yield", S6, §13.3): the
@@ -3237,7 +3306,19 @@ interface InboundSink {
     on: boolean;
     /** The words leave through the one door (../deliver.ts), which re-reads consent, the pause and the workspace's status. */
     deliver(to: string, text: string, meta?: Record<string, Json>, purpose?: SendPurpose, kind?: SendKind): Promise<Delivered>;
-    processed(): Promise<unknown>;
+    /**
+     * The message is finished with, and says what it became (contracts Handled) and, where the model read it, what it was
+     * about; the adapter marks it processed and stamps both (K1, ./handled.ts). Both are optional so a caller with nothing
+     * to say still marks it.
+     */
+    processed(handled?: Handled, intent?: BrainIntent | null): Promise<unknown>;
+    /**
+     * Say what the message became WITHOUT marking it processed: for the one way out that leaves a message unfinished on
+     * purpose, a reply that could not be delivered, whose `send_failed` escalation landed (the deadman sweep finishes it,
+     * ./handled.ts). The adapter writes the same stamp `processed` does, through the same door and the same guard, and
+     * never touches processed_at.
+     */
+    noteHandled(handled: Handled, intent?: BrainIntent | null): Promise<unknown>;
     allowlistSkip(): Promise<unknown>;
     /** The sender cannot receive a reply (a short code). Recorded like any other message, and not answered. */
     unreachableSender(): Promise<unknown>;
@@ -3296,7 +3377,9 @@ interface InboundPorts {
         /** The rows as memory, or an UNKNOWN thread when they cannot be produced. */
         thread(db: InboundDb | null, tenantId: string | null, ing: IngestResult | null): Promise<ThreadState>;
         /** Persist first. Null when there is nothing to record for; IngestFailed when the write FAILED. */
-        ingest(db: InboundDb | null, tenantId: string | null, n: NormalizedInbound, channel?: InboundChannel): Promise<IngestResult | null>;
+        ingest(db: InboundDb | null, tenantId: string | null, n: NormalizedInbound, channel?: InboundChannel, 
+        /** The line the message came in on, a tenant_channels id: the first touch of the person it makes carries it (K3). */
+        line?: string | null): Promise<IngestResult | null>;
         sink(db: InboundDb | null, tenantId: string | null, ing: IngestResult | null, rt?: InboundRuntime | null, channel?: InboundChannel, wire?: Wire): InboundSink;
         /**
          * The thread's reply turn (00284, ./turn.ts): `claim` takes it for this message before the model is asked, and

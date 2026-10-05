@@ -480,11 +480,15 @@ function renamed(old, input) {
 /** Whose an action is, in the registry's refusal (tools/context.ts WHOSE). */
 const WHOSE = { owner: "an owner's", partner: "an owner's or a partner's" };
 
-/** The reads with the channels' two after the leading tenants reads: the number's row and the texting line's. */
+/**
+ * The reads with the channels' two after the leading tenants reads: the number's row and the texting line's; and, since 4 Oct
+ * 2026, whether the workspace is paused (tenants.status, db workspacePaused), which the playbooks' page says instead of a
+ * next run's time.
+ */
 const withChannelReads = (reads) => {
   const at = reads.findIndex((r) => r !== "tenants.select");
   const i = at < 0 ? reads.length : at;
-  return [...reads.slice(0, i), "tenant_channels.select", "lines.select", ...reads.slice(i)];
+  return [...reads.slice(0, i), "tenant_channels.select", "lines.select", "tenants.select", ...reads.slice(i)];
 };
 
 /** The old tools that read the threads through the conversations reader (readers/conversations.ts). */

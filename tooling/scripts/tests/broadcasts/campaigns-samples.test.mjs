@@ -22,7 +22,7 @@ test("Playbooks' sample: three playbooks in the words contracts gives them, one 
   assert.equal(s.rows.length, 3);
   for (const p of s.rows) {
     assert.equal(p.schedule, scheduleLine(p), `${p.name}: the schedule is contracts' line`);
-    assert.equal(p.next, nextRunLabel(p, s.timezone, NOW), `${p.name}: the next run is contracts' label`);
+    assert.equal(p.next, nextRunLabel(p, s.timezone, NOW, false), `${p.name}: the next run is contracts' label`);
     assert.equal(p.triggerLabel, triggerOf(p.trigger).label);
     assert.ok(
       s.templates.some((t) => t.id === p.template_id && t.meta_status === "approved"),

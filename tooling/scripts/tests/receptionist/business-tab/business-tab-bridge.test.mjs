@@ -75,7 +75,7 @@ const { installInboxVerbs } = await import(at("apps/dashboard/src/legacy-bridge/
 installBusinessTab();
 installInboxVerbs();
 const tab = W.__businessTab;
-// The save's own rules, before the tab has asked for them (it does as it mounts, business-tab.jsx): a draft the save
+// The save's own rules, before the tab has asked for them (it does as it mounts, surfaces/settings/business/tab.tsx): a draft the save
 // would refuse is judged by nothing yet, so nothing is said of it. Read here, once, before every test below loads them.
 const BEFORE_RULES = tab.saveIssues({ calendar: { ical_url: "https://localhost/feed.ics" } });
 await tab.loadSaveRules();

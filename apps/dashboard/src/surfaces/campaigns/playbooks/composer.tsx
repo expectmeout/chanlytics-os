@@ -25,12 +25,13 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { ConsentChannel } from "@chanlytics/contracts";
-import { tabDraft, unsavedAskPart, useLegacyUnsavedWork } from "../../legacy-parts";
 import { canDo } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { useLook } from "../../kit/look/look";
+import { UnsavedAsk, tabDraft, useUnsavedWork } from "../../kit/record/work";
+import type { UnsavedWork } from "../../kit/record/work";
 import { useSurface } from "../../use-surface";
 import { CM_VIA_WORDS, cmDefaultChannels } from "../parts/channels";
 import { CmPane } from "../parts/split";
@@ -52,7 +53,7 @@ interface ComposerProps {
 /** The sheet's foot: what stops Start, Cancel, and Start; with something changed, Cancel asks once first (UnsavedAsk). */
 function sheetFoot(p: {
   x: SectionCtx;
-  work: ReturnType<typeof useLegacyUnsavedWork>;
+  work: UnsavedWork;
   editing: PlaybookCardVM | null;
   busy: boolean;
   error: string | null;
@@ -60,7 +61,6 @@ function sheetFoot(p: {
 }) {
   const { x, work, editing, busy, error, save } = p;
   const { say, ready } = x;
-  const UnsavedAsk = unsavedAskPart();
   return (
     <div className="pb-foot">
       {/* Cancel, and Escape, with something changed: the one question first (UnsavedAsk), where the buttons were. */}
@@ -184,7 +184,7 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
   );
   // What the sheet holds, against what it opened as: changed, it is kept in the tab, and Cancel asks first.
   const held: Fields = { trigger, tplId, picked, name, hour, cap, gap, cadence, listId, cls, fills, typed, channels };
-  const work = useLegacyUnsavedWork("playbook", draftKey, {
+  const work = useUnsavedWork("playbook", draftKey, {
     value: held,
     dirty: JSON.stringify(held) !== JSON.stringify(opened),
     onLeave: onCancel,

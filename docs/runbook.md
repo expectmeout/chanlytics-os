@@ -893,13 +893,23 @@ Nothing of it runs until the five variables are set, and each app refuses in wor
    sealed under it in `ask_voice_sessions` for the hour the brain door may need it) and `ELEVENLABS_LLM_SECRET` (any
    long random string: the agent sends it in `x-chanlytics-agent` on every request to the brain door). Both are
    required in production (`env.ts`); a dashboard without them answers `upstream_voice` and the door 401.
-3. **The agent, from code:** `node tooling/scripts/voice/elevenlabs-agent.mjs --name chanlytics-ask --url https://<the dashboard's host>/api/ask/voice/llm --voice <voice_id>`
-   prints the body; `--apply` creates or converges the one agent by name and reads every field back (the key from
-   the environment or `apps/edge/.env.local`, the header's value from `ELEVENLABS_LLM_SECRET`). Its id is
-   `ELEVENLABS_AGENT_ID`. The body is `tooling/scripts/voice/elevenlabs-agent-config.mjs`, held to the spec by
-   `tooling/scripts/tests/ask-voice/elevenlabs-agent.test.mjs`: authentication on and no allowlist, `cascade_timeout_seconds` 15 (the
-   vendor's ceiling; the brain door sends the vendor's buffer words whenever ten seconds pass with nothing speakable,
-   contracts `ASK_VOICE_PULSE_MS`), audio not recorded, seven days' retention, the limits of the plan.
+3. **The agents, from code:** two from one body, production's `chanlytics-ask` and a laptop's `chanlytics-ask-dev`
+   (the spec's §3.7 as amended 4 Oct 2026). `node tooling/scripts/voice/elevenlabs-agent.mjs --url https://<the dashboard's host>/api/ask/voice/llm`
+   prints production's body; `--apply` creates or converges it by name, reads every field back and exits 1 on any that
+   differs (`agentDrift`), so a converge is proved and a vendor default cannot survive one; `--check` does the
+   read-back alone. The laptop's is `--name chanlytics-ask-dev --url https://<tunnel>/api/ask/voice/llm --apply`, and
+   `--set-url` refuses production's name. The key comes from the environment or `apps/edge/.env.local`, the header's
+   value from `ELEVENLABS_LLM_SECRET` (each agent its own). The id an edge mints on is its `ELEVENLABS_AGENT_ID`. The
+   body is `tooling/scripts/voice/elevenlabs-agent-config.mjs`, held to the spec by
+   `tooling/scripts/tests/ask-voice/elevenlabs-agent.test.mjs`: the agent says nothing on connect (the session comes
+   up during the hold; the first words are the person's), patient turns, the turn timeout at its longest (30) and the
+   silence end off (the session's microphone is muted; the brain door answers the vendor's "..." with the buffer words,
+   and the browser ends an idle session after a minute, `idle`), room voices detected and the listener's words
+   ignored, Ask's one voice (contracts `ASK_VOICE_ID`) on its one model (`ASK_VOICE_MODEL`, Turbo v2), `audio` among
+   the client events (it gates the agent's speech), no override but the extra body, the vendor's
+   transcript readers off, `cascade_timeout_seconds` 15 (the vendor's ceiling; the brain door sends the vendor's buffer
+   words whenever ten seconds pass with nothing speakable, contracts `ASK_VOICE_PULSE_MS`), audio not recorded, seven
+   days' retention, the limits of the plan.
 4. **The post-call webhook:** in the vendor's console (Agents › Settings › Post-call webhooks), one webhook at
    `https://<the edge's host>/api/elevenlabs-webhook` for `post_call_transcription`; its signing secret is
    `ELEVENLABS_WEBHOOK_SECRET`; then `--apply` again with `--webhook <the webhook's id>` so the agent names it. The
@@ -911,12 +921,50 @@ Nothing of it runs until the five variables are set, and each app refuses in wor
    (`--set-url <agent_id> --url https://<tunnel>/api/ask/voice/llm`); the pane cannot open a microphone, so a voice
    session is tried in a real browser at `http://localhost:<port>` after the sign-in helper.
 
+**Reading aloud is not a conversation** (4 Oct 2026): Today's Listen and an answer's Read aloud send the words on
+screen to `POST /api/v1/ask/speech`, which asks the edge's `POST /api/admin/voice/speech` (door E, the signed admin
+token and the spend check) for the vendor's text-to-speech stream in the same voice, and the browser plays the clip.
+No agent, no microphone, no row. Logged as `ask_speech` (`purpose`, `chars`, `ttfb_ms`) and `ask_speech_refused`
+on the dashboard, `voice_speech_spoken` and `voice_speech_refused` on the edge; counted as `speech`, sixty an hour a
+person. The browser's own synthesis is gone: a clip that cannot be made says why beside the button, and nothing
+else speaks. **The hold is the one mic** (4 Oct, evening): the mic's press asks for the agent's session (its microphone
+muted) and starts the browser's recogniser; the lift sends the words heard to the agent as a text turn, and the agent
+answers aloud at once, its words streaming into the Line as it speaks; a session not up by the lift leaves the words
+to the typed way, read aloud by the clip when the answer lands; the next hold cuts the agent off; a typed question is
+answered in text alone and ends the session. One voice at a time: a clip ends a session that is running, and a hold
+ends a clip. The
+words of each clip go into the vendor's text-to-speech history under the account's retention (zero retention is an
+Enterprise switch); deleting each after it plays is the spec's §8 follow-up.
+
 What to read: `ask_voice_session` (a conversation began: its thread and conversation ids), `ask_voice_turn` (one
 spoken turn: `ms`, `chars`, `pulses`, `followed` for a duplicate the vendor sent, `failed`), `ask_voice_door_refused`
-(`why`: `secret`, `session`, `no_session`, `ended`, `expired`, `member`, `rate`), `voice_session_minted` and
-`voice_session_refused` on the edge, `ask_voice_session_ended` from the webhook. The rows: `ask_voice_sessions`
-(the member's own under RLS; `turn_key` and `turn_started_at` are the door's claim), swept a day after their token
-expired (`sweep_voice_sessions`, 00288, nightly, judged on its runs).
+(`why`: `secret`, `session`, `no_session`, `ended`, `expired`, `member`, `rate`, and since 4 Oct the door's canned
+lines too, `silence` and `missed`), `ask_voice_session_end` (`reason`, `connect_ms`, `first_audio_ms`: the browser's
+word for how it ended and what it measured from the tap), `voice_session_minted` and `voice_session_refused` on the
+edge, `ask_voice_session_ended` from the webhook. The rows: `ask_voice_sessions` (the member's own under RLS;
+`turn_key` and `turn_started_at` are the door's claim; since 00300 `end_reason`, `connect_ms` and `first_audio_ms`
+say how it ended and how long each wait was), swept a day after their token expired (`sweep_voice_sessions`, 00288,
+nightly, judged on its runs).
+
+**The voice doctor.** The vendor erases its record of each conversation after the call, so the row is the one record,
+and one query answers how voice is doing without a log pulled:
+
+```sql
+select date_trunc('hour', created_at) as hour, end_reason, count(*) as n,
+       round(avg(extract(epoch from (ended_at - created_at))))::int as lived_s,
+       percentile_cont(0.5) within group (order by connect_ms) as connect_p50_ms,
+       percentile_cont(0.5) within group (order by first_audio_ms) as first_audio_p50_ms,
+       count(*) filter (where turn_key is not null) as spoke
+  from public.ask_voice_sessions
+ where created_at > now() - interval '7 days'
+ group by 1, 2 order by 1 desc, 3 desc;
+```
+
+A row with `end_reason` null ended by the webhook alone (the browser never said), `start` never came up, `vendor` was
+cut from the far side, `superseded` was replaced (a hold on another thread, a clip), `idle` waited a minute with
+nothing asked (the usual end since the hold became the one mic: most rows), `typed` and `navigated` are the person's.
+Healthy: `connect_p50_ms` under 3,000, `first_audio_p50_ms` under 6,000 (the press to the agent's first word of the
+answer: the hold itself is in it), `spoke` close to `n`, few `start` and `vendor`.
 
 The gate, as every phase's: `E2E_BASE_URL=https://<host> ELEVENLABS_LLM_SECRET=… REPS=3 node tooling/scripts/eval-ask.mjs --spoken`
 asks every first turn through the brain door as the agent would and adds the spoken rules to the judge
@@ -1057,9 +1105,20 @@ waiting who is not a customer, then bulk, each workspace taking its turn at bulk
 - **A kind the runner does not know** is kept, not failed: a newer deploy wrote it. It is looked at again every five minutes
   and fails as never run after a day, which is longer than any deploy takes.
 - **A broadcast that says it stopped.** "WhatsApp could not be reached" is a connection that never opened: nobody was
-  written to, the run waited through its waits and stopped. "Its people or its number's credentials could not be read" is
-  thirty minutes of failed reads. "The day's sending hours ran out" is a run that waited past the evening. Each says how
-  many got it, and sending it again reaches the whole list.
+  written to, the run waited through its waits and stopped. A run by email or text says its own provider
+  (`wire_unavailable:email`, `throttled:sms`, `stalled:email` in `broadcasts.failure`; a code with no channel is WhatsApp's,
+  as every run before 00298 was). "Its people or its number's credentials could not be read" is thirty minutes of failed
+  reads. "The day's sending hours ran out" is a run that had waited (a throttle, a stall) and woke past the last hour, or
+  a visit's run, whose words name the day; any other run still going at 21:00 is not stopped, it waits for nine the next
+  morning by the business's clock and goes on from there. "The domain offers by email leave from is not verified"
+  (`campaigns_domain_unverified`) is a run of offers that met a campaigns domain Resend does not verify: nobody was held
+  for it, and the platform was paged. A campaigns domain Resend could not be asked about is not a stop: a run of offers
+  waits a minute and asks again (paged as `campaigns_domain_unread`), and a visit's email, which leaves from the mail
+  domain, goes. Each says how many got it, and sending it again reaches the whole list.
+- **A yes by email is recorded only from a header the provider wrote.** Set `EMAIL_AUTHSERV_ID` on the edge to the name
+  Resend's receiving side puts at the start of the `Authentication-Results` header (the word before the first
+  semicolon), read off one real email received on `EMAIL_DOMAIN`. Blank, no yes by email is recorded (a STOP or an
+  UNSUBSCRIBE by email never needs it); a header that names anything else, or two that name it, is no proof.
 - **A statement that hangs.** The service role's statements end at 30 seconds (00283) and the client gives up on a request
   at 40, so a hung statement no longer holds a function until it is killed.
 

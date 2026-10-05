@@ -7,8 +7,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  BRAIN_INTENTS,
+  BRAIN_LANGUAGES,
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,
+  POLICY_COVERS,
   callOutcomeWords,
   tidyCallSummary,
   toCallVM,
@@ -228,14 +231,18 @@ test("the strip reads the same words: what they wanted from the people door, an 
   assert.equal(wanted.sentence, "Wanted tomorrow's opening hours.");
 });
 
-test("the agent's analysis fields: each has a type, a name and a description; the enum's choices are the six; the planner adds them, keeps a stranger's field, and re-sends one that changed", () => {
+test("the agent's analysis fields: each has a type, a name and a description; each enum's choices are a closed set the product already has, and its description says what each choice means; the planner adds them, keeps a stranger's field, and re-sends one that changed", () => {
   assert.deepEqual(
     CALL_ANALYSIS_FIELDS.map((f) => f.name),
-    ["caller_wanted", "outcome", "follow_up", "caller_name", "caller_email"],
+    ["caller_wanted", "outcome", "follow_up", "caller_name", "caller_email", "topic", "language"],
   );
+  const closed = { outcome: CALL_OUTCOMES, topic: BRAIN_INTENTS, language: BRAIN_LANGUAGES };
   for (const f of CALL_ANALYSIS_FIELDS) {
     assert.ok(["string", "enum"].includes(f.type) && f.name && f.description.length > 20, f.name);
-    if (f.type === "enum") assert.deepEqual([...f.choices], [...CALL_OUTCOMES]);
+    if (f.type === "enum") {
+      assert.deepEqual([...f.choices], [...closed[f.name]], `${f.name}: the closed set the product already has`);
+      for (const c of f.choices) assert.ok(f.description.includes(`${c}:`), `${f.name} says what ${c} means`);
+    }
     if (f.type === "string") assert.ok(f.examples.length >= 2, `${f.name} shows the analyst the shape`);
   }
   assert.ok(
@@ -271,6 +278,60 @@ test("the agent's analysis fields: each has a type, a name and a description; th
   assert.equal(sent.find((f) => f.name === "outcome").description, CALL_ANALYSIS_FIELDS[1].description);
   const none = planAgentSettings({ ...converged, post_call_analysis_data: null });
   assert.equal(none.agentPatch.post_call_analysis_data.length, CALL_ANALYSIS_FIELDS.length);
+});
+
+test("an agent that has the five fields it had is told it lacks topic and language, and the plan adds them without touching the rest", () => {
+  const converged = {
+    webhook_events: [...VOICE_WEBHOOK_EVENTS],
+    webhook_timeout_ms: 20000,
+    opt_in_signed_url: true,
+    data_storage_retention_days: null,
+  };
+  const stranger = { type: "system-presets", name: "call_summary" };
+  const plan = planAgentSettings({
+    ...converged,
+    post_call_analysis_data: [stranger, ...CALL_ANALYSIS_FIELDS.slice(0, 5).map((f) => ({ ...f }))],
+  });
+  assert.match(plan.drift[0], /^post_call_analysis_data lacks topic, language /);
+  assert.deepEqual(Object.keys(plan.agentPatch), ["post_call_analysis_data"], "nothing else is touched");
+  assert.deepEqual(
+    plan.agentPatch.post_call_analysis_data.map((f) => f.name),
+    ["call_summary", ...CALL_ANALYSIS_FIELDS.map((f) => f.name)],
+    "the stranger first, then the seven, in order",
+  );
+  const done = planAgentSettings({ ...converged, post_call_analysis_data: plan.agentPatch.post_call_analysis_data });
+  assert.equal(done.agentPatch, null, "applied once, the agent is converged: the converger is idempotent");
+});
+
+test("a call's topic reads the meaning the receptionist's texts read: the classes a rule covers are said in POLICY_COVERS' words, once", () => {
+  const topic = CALL_ANALYSIS_FIELDS.find((f) => f.name === "topic");
+  for (const [cls, words] of Object.entries(POLICY_COVERS)) {
+    assert.ok(topic.description.includes(words), `topic says ${cls} as the texts and the prompt say it: ${words}`);
+  }
+  assert.ok(
+    topic.description.includes(`money: ${POLICY_COVERS.money}`),
+    "money is the texts' sentence, not a second one",
+  );
+  assert.equal(
+    topic.description.split(POLICY_COVERS.money).length,
+    2,
+    "what money means is said once: no second statement of it beside the composed one",
+  );
+});
+
+test("a call's topic and language ride the normalised call into the door as the analysis, beside the fields that become columns", () => {
+  const n = normalizeCall({
+    call_id: "c9",
+    call_analysis: {
+      custom_analysis_data: { caller_wanted: "Asked a price.", outcome: "answered", topic: "pricing", language: "es" },
+    },
+  });
+  assert.deepEqual(n.analysis, {
+    caller_wanted: "Asked a price.",
+    outcome: "answered",
+    topic: "pricing",
+    language: "es",
+  });
 });
 
 test("the wiring: the door files the four columns and keeps them across retries, the people door prefers the request, the ingest passes the analysis, the dashboard selects the columns", () => {

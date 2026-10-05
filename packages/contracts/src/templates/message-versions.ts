@@ -15,6 +15,7 @@
  * email fills six named ones and keeps to a few rules more, and both are checked by the one `emailIssues` over the
  * rules of their kind (`EmailRules`), filled by the one `renderOwnVersion` over their slot set (slot-sets.ts).
  */
+import { senderWords } from "./sender-words";
 import { fillSlots, numberedSlots, slotOutside, slotsOut, slotsWritten } from "./slot-sets";
 import type { SlotSet, SlotValue } from "./slot-sets";
 
@@ -42,9 +43,9 @@ export const SMS_SEGMENTS_MAX = 4;
 /** Past this many segments a text version warns: each segment is billed. */
 const SMS_SEGMENTS_WARN = 2;
 
-/** The line the sender puts under every text, in the version's language. */
+/** The line the sender puts under every text, in the version's language (sender-words.ts: the words an email's foot shares). */
 export function smsStopLine(language: string): string {
-  return /^es/i.test(language) ? "Responde STOP para darte de baja" : "Reply STOP to opt out";
+  return senderWords(language).textStop;
 }
 
 // The GSM-7 basic set and its extension table (the form feed and ^ { } \ [ ~ ] | €): a text made only of these goes 160

@@ -39,6 +39,7 @@ export {
   PLAYBOOK_TOUCH_WINDOW_MS,
   eligibleForPlaybook,
   playbookRunReach,
+  touchesAfterRun,
   playbookReach,
   playbookReachDoor,
   playbookNoNumberWords,
@@ -50,15 +51,24 @@ export {
   localHour,
   nextOpenMoment,
   runDueNow,
+  inLastSendingHour,
   scheduleLine,
   runsWords,
   nextRunLabel,
   poolWords,
   reachLines,
   runDayPassed,
+  runApprovalRefusal,
   toApprovalVM,
 } from "./playbooks";
-export { MESSAGE_MOMENT_WORDS, messageFitsMoment, enrolPurpose } from "./playbook-purpose";
+export {
+  MESSAGE_MOMENT_WORDS,
+  messageFitsMoment,
+  enrolPurpose,
+  messageAboutOfTrigger,
+  passesHandoverPause,
+} from "./playbook-purpose";
+export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbook-failed";
 export { campaignsHomeOf, lifecycleKicker } from "./lifecycle";
 export { reachCountsOf } from "./lifecycle-tiles";
 export { LIFECYCLE_WORDS, LIFECYCLE_TOAST } from "./lifecycle-words";

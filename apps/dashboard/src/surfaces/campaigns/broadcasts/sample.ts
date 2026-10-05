@@ -9,11 +9,11 @@ import {
   BROADCAST_CHUNK,
   BROADCAST_SCHEDULE_MAX_DAYS,
   DAY_MS,
+  EVERYONE_HINT,
   EVERYONE_LABEL,
   GET_YES_ROUTE,
   HELD_REASONS,
   HOUR_MS,
-  OFFERS_BY_WHATSAPP_NOTE,
   OFFERS_OPT_IN_PHRASES,
   REPLY_WINDOW_WORDS,
   channelsReady,
@@ -165,6 +165,7 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
     }),
     // The demo sends nothing, so it has no month to say.
     month_sent: null,
+    month_sent_next: null,
     listsRead: true,
     audiences: [
       audience(
@@ -172,7 +173,7 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
           kind: "everyone",
           id: null,
           label: EVERYONE_LABEL,
-          hint: "Everyone with a number whose yes covers the message you pick",
+          hint: EVERYONE_HINT,
         },
         22,
       ),
@@ -217,7 +218,6 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
     getYes: GET_YES_ROUTE,
     businessName: "Marisa's Studio",
     bookingLink: true,
-    offersNote: OFFERS_BY_WHATSAPP_NOTE,
     more: false,
     scheduleMaxDays: BROADCAST_SCHEDULE_MAX_DAYS,
     fetchedAt: now.getTime(),

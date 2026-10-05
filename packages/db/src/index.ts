@@ -7,6 +7,7 @@ export { emitEvent, recordEvent, subjectsWith, recordActivation } from "./events
 export type { EmittedKind, EventData } from "./events";
 export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, usageMonth } from "./ai-usage";
 export type { AiFailures, UsageMonthRow } from "./ai-usage";
+export { keepInvoiceAmount } from "./billing-events";
 export { migrationHead } from "./ops";
 export type { MigrationHead } from "./ops";
 export { signUpOnPublicKey, inviteUserByEmail, listSecondFactors, deleteSecondFactor } from "./auth";
@@ -21,12 +22,14 @@ export {
   ingestInbound,
   recordCarrierOptOut,
   markProcessed,
+  stampHandled,
   recordOutbound,
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
   wireRowOf,
   countSentToday,
   recordStatusByExternalId,
+  keepMessageCost,
   recordEchoAndPause,
   pauseConversation,
   claimReplyTurn,
@@ -58,6 +61,7 @@ export {
   setEmailOffersYes,
   setEmailUnsubscribed,
   stopAllMessages,
+  offerLanguageOf,
   offersEmailReach,
 } from "./repositories/campaigns/email-offers";
 export type { Unsubscribed } from "./repositories/campaigns/email-offers";
@@ -184,7 +188,8 @@ export type {
   HeldNoticeRun,
   HandItem,
 } from "./repositories/reach-out-sheet";
-export { forgetNotification, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
+export { forgetNotification, noticeKept, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
+export { workspacePaused } from "./repositories/campaigns/workspace";
 export { resolveChannelDetailed, resolveChannel } from "./repositories/routing";
 export {
   whatsappChannelConfig,
@@ -228,7 +233,7 @@ export {
   endVoiceSession,
   moveVoiceSessionContext,
 } from "./ask-voice-session";
-export type { VoiceSessionRow, NewVoiceSession } from "./ask-voice-session";
+export type { VoiceSessionRow, NewVoiceSession, VoiceEndReason } from "./ask-voice-session";
 export {
   claimIdempotencyKey,
   takeIdempotencyKey,
@@ -249,6 +254,7 @@ export {
   ownVersionsFiled,
   saveTemplateVersion,
   removeTemplateVersion,
+  setTemplateQuality,
 } from "./repositories/templates";
 export type { TemplateRow, VersionRef } from "./repositories/templates";
 export {
@@ -361,6 +367,6 @@ export { watchedTables, watchedEvents, subscribeWorkspaceChanges } from "./realt
 export type { SubscribeOptions } from "./realtime";
 export { readAllRows, readAllRowsByKey, MAX_ROWS, DEFAULT_ROW_CAP } from "./paged";
 export type { Page } from "./paged";
-export { duePlaybooks, dueCalendars, stampPlaybooksTried } from "./sweeps";
-export type { DuePage, DuePlaybook, DueCalendar } from "./sweeps";
+export { duePlaybooks, dueCalendars, stampPlaybooksTried, whatsappNumbersToRead, keepChannelQuality } from "./sweeps";
+export type { DuePage, DuePlaybook, DueCalendar, WhatsappNumber } from "./sweeps";
 export type { Database, Json } from "./database.types";

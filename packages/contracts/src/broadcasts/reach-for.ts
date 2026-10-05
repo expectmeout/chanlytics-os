@@ -11,10 +11,13 @@
  *
  * What a channel never carries, whatever a person said: offers by text (the texting line is registered for replies and
  * appointment messages, deliver.ts), and offers by email until the workspace can send them (email-offers.ts: the
- * deployment's campaigns domain verified, the business's address on file, no pause). Over a channel's limit a person is
+ * deployment's campaigns domain verified, the business's address on file, no pause). The business's own news by email
+ * is an offer at the door (decision D2, consent.ts isOfferByEmail), so it waits for the same. Over a channel's limit a person is
  * held on that channel, never moved to another: nobody gets an email because WhatsApp ran out for the day (decision 9).
  */
-import type { AskedPurpose, SendPurpose } from "../consent/consent";
+import { isOfferByEmail, type AskedPurpose, type MessageAbout, type SendPurpose } from "../consent/consent";
+import { dayInZone } from "../calendar/zone-math";
+import { wallClockAt } from "../shared/clock";
 import { CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channels";
 import { type NotReceived, type ReceiveRow, whyNotReceive } from "../people/person-consent";
 import { triggerOf } from "../playbooks/playbook-triggers";
@@ -31,7 +34,16 @@ export interface ChannelReady {
    */
   offers?: EmailOffers;
 }
-export type ChannelsReady = Record<ConsentChannel, ChannelReady>;
+export type ChannelsReady = Record<ConsentChannel, ChannelReady> & {
+  /**
+   * The workspace is paused (tenants.status, billing): the send door refuses every message of a campaign (core deliver.ts
+   * `paused`), whatever its channels can do. The composers say so (CAMPAIGNS_PAUSED_WORDS) where Send would be, the
+   * route refuses a broadcast made under it, and the Campaigns home says it of every next run. Held apart from the
+   * channels, which keep saying what each can do, so who can be reached (People's rows, an audience's count) is as it was.
+   * Absent: not paused, or not known to be.
+   */
+  paused?: boolean;
+};
 
 /** The channels a campaign ticks when nobody picked any: WhatsApp alone, as every campaign went before. */
 export const DEFAULT_CAMPAIGN_CHANNELS: readonly ConsentChannel[] = ["whatsapp"];
@@ -65,19 +77,42 @@ export function channelNeverCarries(channel: ConsentChannel, purpose: AskedPurpo
 
 /**
  * Why a channel cannot carry a message of this purpose for this workspace now, whoever it is for, or null when it may:
- * what it never carries (channelNeverCarries), and offers by email until the workspace can send them
- * (`ready.email.offers`, email-offers.ts: the campaigns domain, the business's address, no pause). The workspace's
+ * what it never carries (channelNeverCarries), and an offer by email until the workspace can send one
+ * (`ready.email.offers`, email-offers.ts: the campaigns domain, the business's address, no pause). An offer by email is
+ * what the door says it is (consent.ts isOfferByEmail, decision D2): an offer, and the business's own news, which `about`
+ * says; a message about their visit or proposal goes by email whatever the workspace's offers are doing. The workspace's
  * channels are required, so no reader asks the question without the facts that answer it.
  */
-export function channelRefuses(channel: ConsentChannel, purpose: AskedPurpose, ready: ChannelsReady): string | null {
+export function channelRefuses(
+  channel: ConsentChannel,
+  purpose: AskedPurpose,
+  about: MessageAbout,
+  ready: ChannelsReady,
+): string | null {
   const never = channelNeverCarries(channel, purpose);
   if (never) return never;
-  if (purpose !== "marketing") return null;
-  if (channel === "email") {
-    const offers = ready.email.offers;
-    return offers?.ok ? null : (offers?.why ?? CHANNEL_WORDS.noOffersByEmailYet);
-  }
-  return null;
+  // A campaign always starts the conversation: it is proactive.
+  if (!isOfferByEmail({ channel, purpose, proactive: true, about })) return null;
+  const offers = ready.email.offers;
+  return offers?.ok ? null : (offers?.why ?? CHANNEL_WORDS.noOffersByEmailYet);
+}
+
+/**
+ * Said once on the Broadcasts page, where an owner picks an offer to send: which channels carry offers, so a customer who
+ * is absent from an offer's count reads as the rule it is and not as a bug. The refusal per customer is the wire's
+ * (consent.ts PURPOSE_REFUSALS); this is the rule, for the page, and it follows the workspace, since it is the same
+ * question the ticks ask (channelRefuses): WhatsApp always, email once the workspace can send offers by it
+ * (`ready.email.offers`: the campaigns domain, the business's address, no pause), a text never. A workspace whose offers by
+ * email are closed, for whatever reason, is told WhatsApp alone, so the note is never false on the day the domain verifies.
+ * The workspace's channels are required, as the ticks' are.
+ */
+export function offersNote(ready: ChannelsReady): string {
+  const byEmail = channelRefuses("email", "marketing", "ours", ready) === null;
+  const noText =
+    "The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text";
+  return byEmail
+    ? `Offers and news go by WhatsApp and by email. ${noText}; someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`
+    : `Offers and news go by WhatsApp only. ${noText}; someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
 }
 
 /**
@@ -93,6 +128,8 @@ export function channelsReady(f: {
   whatsapp: { canSend: boolean; refusal: string | null } | null;
   textLine: { sms_state: string | null; reg_mock: boolean | null } | null;
   email: { mailbox: boolean; domain: boolean | null; offers?: OfferFacts };
+  /** The workspace is paused (tenants.status): carried as `paused`, and the channels are as they were. Absent: not paused. */
+  paused?: boolean;
 }): ChannelsReady {
   const wa: ChannelReady = !f.whatsapp
     ? { ready: false, why: CHANNEL_WORDS.noWhatsApp }
@@ -117,16 +154,17 @@ export function channelsReady(f: {
   const email: ChannelReady = f.email.offers
     ? { ...emailNow, offers: emailOffersOpen(f.email.offers, CHANNEL_WORDS.unchecked) }
     : emailNow;
-  return { whatsapp: wa, sms, email };
+  return { whatsapp: wa, sms, email, ...(f.paused ? { paused: true } : {}) };
 }
 
 /** The channels a campaign may tick for this kind of message, each with whether it can and why not, in their order. */
 export function channelChoices(
   ready: ChannelsReady,
   purpose: AskedPurpose,
+  about: MessageAbout,
 ): Array<{ channel: ConsentChannel; ok: boolean; why: string | null }> {
   return CONSENT_CHANNELS.map((channel) => {
-    const refuses = channelRefuses(channel, purpose, ready);
+    const refuses = channelRefuses(channel, purpose, about, ready);
     if (refuses) return { channel, ok: false, why: refuses };
     return { channel, ok: ready[channel].ready, why: ready[channel].why };
   });
@@ -138,31 +176,49 @@ export type HeldOn = NotReceived | "no_channel";
 /** A person as the pick reads them: their answers, where to send, and the channel they last wrote on. */
 export type ReachRow = ReceiveRow & { lastChannel?: ConsentChannel | null };
 
-/** How far a refusal is from being the owner's to fix, first the one that ends everything, then the person's own no to email. */
-const STRICTEST: readonly NotReceived[] = ["stopped", "unsubscribed", "no_yes", "no_number", "no_address"];
+/**
+ * How far each reason is from being the owner's to fix: first the one that ends everything, then the person's own no to
+ * email, their missing yes, and last what the owner can mend on the person's page (a number, an address, one that stopped)
+ * or in the workspace (no channel). A Record, so a reason added to HeldOn cannot be left out of the order.
+ */
+const HELD_ORDER: Record<HeldOn, number> = {
+  stopped: 0,
+  unsubscribed: 1,
+  no_yes: 2,
+  no_number: 3,
+  no_address: 4,
+  address_stopped: 5,
+  no_channel: 6,
+};
+
+/** Every reason a person is held, in that order: the strictest of several is the one reachFor keeps, and a page lists them so. */
+export const HELD_ON: readonly HeldOn[] = (Object.keys(HELD_ORDER) as HeldOn[]).sort(
+  (a, b) => HELD_ORDER[a] - HELD_ORDER[b],
+);
 
 /**
  * The channel a campaign reaches this person on, or why it reaches them on none (the rules at the head of this file).
- * `channels` are the campaign's ticks; `ready` the workspace's channels now.
+ * `channels` are the campaign's ticks; `ready` the workspace's channels now; `about` what its message is about, which
+ * by email decides whether a yes is asked (consent.ts MessageAbout).
  */
 export function reachFor(
   r: ReachRow,
   purpose: AskedPurpose,
-  o: { channels: readonly string[]; ready: ChannelsReady },
+  o: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout },
 ): { channel: ConsentChannel; held: null } | { channel: null; held: HeldOn } {
   const usable = CONSENT_CHANNELS.filter(
-    (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.ready) === null,
+    (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.about, o.ready) === null,
   );
   if (usable.length === 0) return { channel: null, held: "no_channel" };
   const last = r.lastChannel ?? null;
   const order = last && usable.includes(last) ? [last, ...usable.filter((c) => c !== last)] : usable;
-  const why: NotReceived[] = [];
+  const why: HeldOn[] = [];
   for (const c of order) {
-    const w = whyNotReceive(r, purpose, c);
+    const w = whyNotReceive(r, purpose, c, o.about);
     if (w === null) return { channel: c, held: null };
     why.push(w);
   }
-  return { channel: null, held: STRICTEST.find((w) => why.includes(w)) ?? why[0] ?? "no_channel" };
+  return { channel: null, held: HELD_ON.find((w) => why.includes(w)) ?? "no_channel" };
 }
 
 /** How a campaign's people split: how many on each channel, and how many held, by why. */
@@ -177,7 +233,7 @@ export interface ReachSplit {
 export function reachSplit(
   rows: readonly ReachRow[],
   purpose: AskedPurpose,
-  o: { channels: readonly string[]; ready: ChannelsReady },
+  o: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout },
 ): ReachSplit {
   const out: ReachSplit = { reached: 0, byChannel: { whatsapp: 0, sms: 0, email: 0 }, held: 0, heldBy: {} };
   for (const r of rows) {
@@ -245,6 +301,40 @@ export type MonthSent = Record<Exclude<ConsentChannel, "whatsapp">, number>;
 export function heldByAllowance(trigger: string | null, purpose: SendPurpose): boolean {
   const t = trigger ? triggerOf(trigger) : null;
   return !(t?.cls === "booking" && purpose === "conversational");
+}
+
+/**
+ * The first instant of the calendar month after the one `atMs` falls in, by the workspace's clock: where one month's
+ * allowance ends and the next begins, which the database counts a month by (campaign_month_sent, 00301). Epoch ms.
+ */
+export function nextMonthStart(tz: string, atMs: number): number {
+  const { y, m } = dayInZone(tz, atMs);
+  const [year, month] = m === 12 ? [y + 1, 1] : [y, m + 1];
+  return wallClockAt(tz, `${year}-${String(month).padStart(2, "0")}-01`, 0, 0);
+}
+
+/** What a composer's read carries of the month: this month's count, and the next month's with the instant it begins. */
+export interface MonthSentRead {
+  /** What the workspace's campaigns have sent this calendar month; null where it could not be counted. */
+  month_sent?: MonthSent | null;
+  /**
+   * The month after it, for a send scheduled past the month's end (a broadcast may be set up to thirty days ahead): where
+   * it begins (`from`, epoch ms, nextMonthStart) and what has been sent in it (`sent`, null where it could not be counted).
+   * Absent on a read from before it was carried: every send is then judged by this month's.
+   */
+  month_sent_next?: { from: number; sent: MonthSent | null } | null;
+}
+
+/**
+ * The month's count a send is judged by, at the moment it is set to go: a send that goes in a later month counts against
+ * THAT month, as the enrolment counts it (core campaigns/allowance.ts pastTheMonth, at the run's opening moment), so the
+ * composer says "held back" for room that is the new month's and not the old month's, and says nothing for a month it has no
+ * count of (null: nothing is said that is not known).
+ */
+export function monthSentAt(read: MonthSentRead, at: number): MonthSent | null {
+  const next = read.month_sent_next;
+  if (next && at >= next.from) return next.sent;
+  return read.month_sent ?? null;
 }
 
 /** How many more of this channel the month holds once `sent` have gone: never below none. */

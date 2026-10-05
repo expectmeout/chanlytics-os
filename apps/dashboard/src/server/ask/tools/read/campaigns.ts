@@ -89,7 +89,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   });
   // Counted by WhatsApp, as a proposal names no other channel, the workspace ready on it or not (the composer counts by
   // the same): no number is none, and channels that could not be read count as the pages count them, WhatsApp able.
-  const how = whatsappHowOf(chans === null ? undefined : wa ? health : null);
+  const how = whatsappHowOf(chans === null ? undefined : wa ? health : null, "ours");
   const sizes = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => {
     const offers = audiencePreview(rows, kind, id, ids, "marketing", how);
     const messages = audiencePreview(rows, kind, id, ids, "conversational", how);
@@ -261,7 +261,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       policy_class: p.policy_class,
       mode: modeOf(p.policy_class),
       schedule: scheduleLine(p),
-      next_run: nextRunLabel(p, pb.timezone, t.now),
+      next_run: nextRunLabel(p, pb.timezone, t.now, pb.ready?.paused === true),
       // On a list (decision 0009): its token, and who a run on it reaches now, as the page counts that list.
       ...(() => {
         const ref = playbookListRef(p);

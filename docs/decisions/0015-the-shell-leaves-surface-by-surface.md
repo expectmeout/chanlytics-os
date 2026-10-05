@@ -701,3 +701,163 @@ pane says or checks: each role's name and what it may do, and the shape of an ad
   role and invents nobody; You is the signed-in address), `identity.test.mjs` reads the roster's words from the TSX,
   and the e2e harness's excuses for eight names `settings.jsx` no longer reads went. The role words are a lookup
   (`roleWords`) that says a role it does not know as stored, so the card reads no index the compiler lets pass.
+
+## Built: Settings › Partner, the sixth pane (4 October 2026, branch `shell-exit/settings-partner`)
+
+`legacy/pages/partner-real.jsx` (581 lines) is TSX in `surfaces/settings/partner/`: `pane.tsx` (the offer, the
+account), `account.tsx` (the daily letter, two-step sign-in), `workspaces.tsx` (what the link brought, a workspace set
+up for a business and its handover), `invitations.tsx` (who asks the partner in) and `team-card.tsx` (Team: the roster,
+then the workspace's partner card). Settings' page draws it by the name it published, `PanePartner`, and Team as
+`PanePartner.Team`, which seed-globals publishes (`settings/globals.ts`); `TeamSection` is no longer published, since
+the TSX Team imports it.
+
+- **Its read and its doors.** `legacy-bridge/partner.ts` moved beside the pane as `surface.ts`: the account is the
+  seam's value (`useSurface("partner")`: undefined until read, null when the read failed), written by the read and by
+  the two verbs that answer with the row (become, the letter), which say so on `surface:partner` as before. The verbs
+  are a module object a test stands a door in on, `partnerVerbs`; `__partner` and `__PARTNER` are no longer published.
+  View-as, the role gate and `team:changed` go through `legacy-verbs` (`viewAsRole`, `gate`, `onRolesChanged`).
+- **What fell with it.** Two window names and two publishing sites, a file of the legacy tree (`legacy/pages` 25 → 24
+  modules) and of the bridge (35 → 34), three casts. Nothing rose: the copied button's 1.5 seconds is named
+  (`COPIED_MS`). The standalone mockup loads no Partner pane, as it loads none of the moved panes.
+- **Proof.** A throwaway recorder drew HEAD's `PanePartner` and `PanePartner.Team` and the TSX over one world (the
+  account on the seam and the window, the same verbs object as `window.__partner`) and compared the host trees, every
+  toast and every door asked: 52 states (reading, failed and retried; the offer with the factor reading, off, on,
+  unreadable, set up, a code refused and taken, cancelled, unavailable, not started; the offer filled before the factor,
+  refused, taken; an account active and paused, with and without earnings, the server's count; the workspaces reading,
+  unreadable, with rows, one opened; set up full, opened, a one-letter name, refused, made without its invitation,
+  cancelled; a handover's resend opened, sent, not sent, refused; the letter turned off, refused; the link copied and
+  not; invitations joined, declined, refused, unreadable; Team asked, not sent, refused, waiting and taken back, refused,
+  a partner on it, forbidden, unreadable, previewed as an operator, an operator's and a viewer's gate). No difference;
+  15 of 17 one-change mutations of the TSX made it fail, and the two that did not are equivalent (the factor's code
+  cleared once it is on, which no state shows again; the gate's words for the shell's own toast). Then it was deleted.
+  `partner-pane.test.mjs` draws the TSX over the seam and `partnerVerbs`; the two Settings tests that open Team publish
+  `PanePartner` as the app does.
+
+## Built: Settings › AI memory, its twin retired (4 October 2026, same branch)
+
+AI memory has no pane to move: a workspace has always drawn `PaneSoon`, which says the receptionist does not learn rules
+on its own yet and points at Business, and that stays with the frame. What went is the mockup's twin, drawn wherever no
+settings read existed: five invented memories with sources, uses and attributed revenue, a Teach button that asked Ask
+for something no verb stores, and a Forget with an undo that kept nothing. `settings.jsx` is 444 lines (500 → 444), a
+function left the complexity list, and the twin's rules left `settings.css` and `components.css` (`set-mem-*`, drawn by
+nothing else). `truth-pass.test.mjs` pins the one branch the pane has now.
+
+## Built: Settings › Activity, the seventh pane (4 October 2026, same branch)
+
+`legacy/pages/activity.jsx` (245 lines) is `surfaces/settings/activity/pane.tsx`, published as `PaneActivity`, the name
+it had: the pane, its filters (`ActivityFilters`, with the person search as a hook, its 250 ms named
+`PERSON_SEARCH_MS`) and the log (`ActivityLog`), each under the function limits the settings tree holds as errors. Its
+reads stay the bridge's `activity` object (`legacy-bridge/activity.ts`), which the pane imports; `window.__activity`
+stays published only for the rail's warm read in `settings.jsx`, a line that goes with the frame. The clock is
+`pageClock()`, the gate `canDo`, a row's Open `navigate`. The branch for a page with no bridge (the standalone mockup)
+went: the app always has it, and the mockup no longer loads the pane, as it loads none of the moved ones.
+
+- **What fell.** A file of the legacy tree (`legacy/pages` 24 → 23), a publishing site, a function over the limits,
+  and two window names' reads (`__activity`, `__clock`). Under Rises: the two inline styles moved with the pane.
+- **Proof.** A throwaway recorder drew HEAD's `PaneActivity` and the TSX over the same `activity` object and compared
+  the host trees and every read and Open asked: 25 states (an operator and a viewer told it is the owner's; reading
+  with nothing and with last time's rows; the log across days with every actor and subject, a row's and every row's
+  Open; unreadable with and without words, retried; nothing there, nothing for a kind and for a person, cleared; more,
+  shown and while reading; the filters asked for and put away; a kind half typed, left, whole, entered; a day; a person
+  before the search, found, picked, dropped, matched by nobody, emptied). No difference, after the split too; 15 of 16
+  one-change mutations failed it (the survivor swaps the export gate for the team gate, which no role tells apart).
+  `settings-owner-panes.test.mjs` stands its feed in on the `activity` object; its test of the missing bridge went with
+  the branch.
+
+## Built: Settings › Back office, the eighth pane (4 October 2026, same branch)
+
+`legacy/pages/platform.jsx` (798 lines) is TSX in `surfaces/settings/platform/`: `pane.tsx` (the pane, the partners card
+and the every-workspace card), `detail.tsx` (a workspace opened: its Setup, its lines and what may be done to each, what
+has happened), `partners.tsx` (a payout, a partner's status and second factor, a workspace's standing) and `cards.tsx`
+(the waiting list, the platform's health, how fast the pages are, each workspace's day). Settings' page draws it by the
+name it had, `PanePlatform`; the four rows the JSX published only for its test (`PlatformLine`,
+`PlatformWaitingRow`, `PlatformPartnerRow`, `PlatformPartnerStandingRow`) are imports now.
+
+- **Its reads and its verbs.** `legacy-bridge/platform.ts` keeps them, read on demand as before: the verbs are one
+  object, which the pane reads through `backOffice.verbs` so a test stands a whole other set in, as it once replaced
+  `window.__platform`; `installPlatform` still publishes it for the rail's warm read, a line that goes with the frame.
+  The members a stand-in may lack (the peeks, the warms, the second factor's words) are optional in its type, and the
+  pane asks for them as the JSX did. A Setup row's tone is contracts' `stateOf`, the tip `showTip`, the toast
+  `useLegacyToast`.
+- **What fell.** A file of the legacy tree (`legacy/pages` 23 → 22), a function over the limits (`PanePlatform`, 204
+  lines), two non-null assertions, five publishing sites and three window names' reads (`__platform`, `__chrome`,
+  `__tip`). Under Rises: the Setup meter's width moved with it, and the three rows the test drives on their own are
+  exports knip counts as dead.
+- **Proof.** A throwaway recorder, built on `back-office.test.mjs`' own harness and fixtures, drew HEAD's `PanePlatform`
+  and the TSX over the same verbs through the same steps and compared the host trees after each step, every toast and
+  every verb asked: 54 scenarios (reading, refused and read again, thrown, empty, found and not, read again, painted
+  from what was held; health, timings with and without rows, each workspace's day; the queue marked, put off, refused,
+  thrown, empty, one waiting; a workspace opened and closed, by its row, with nothing recorded, unreadable and retried,
+  thrown, still reading, held from the hover with its read still out, waiting on its owner; a line failed with every
+  state and its mark, with none, refiled, put off, refused, released, acted on and read again; the partners card, none,
+  a payout recorded, put off, refused, thrown, its reference too long, the list read again after a refusal; a partner
+  paused, restored and refused, put off; a second factor reset, put off, thrown; a standing qualified, disqualified and
+  refused, put back under review, put off, thrown, its reason too long). No difference; 28 of 29 one-change mutations
+  failed it (the survivor clears the detail before a re-read that clears it anyway). The recorder's first version could
+  not see an armed row: the harness counts hooks across every walk, so each snapshot now starts from a fresh draw.
+  `back-office.test.mjs` draws the TSX (65 tests); its pins on the page's source read the four files.
+
+## Built: Settings › Business, the tab (4 October 2026, same branch)
+
+The twelve files of the Business tab (`legacy/pages/business-tab*.jsx` and `business-can.jsx`, 5,451 lines that spoke to
+each other through the window) are ES modules in `surfaces/settings/business/`: the saver and the rows' tables
+(`save.tsx`), each fold's helpers (`folds.ts`, `fold-shapes.ts`, `fold-says.ts`) and the one object the two make
+(`saver.ts`, published as `__businessTabSave`); the row, fold and sheet gestures (`gestures/`: `common`, `row`, `editor`,
+`fold`); each card (`who`, `open` with `open-week` and `open-calendar`, `offer`, `answers` with `answers-fields`, `can`,
+`services`, `prompt`, `create`); and the page (`tab.tsx`). The parts import each other; the bridge's helpers are
+imported (`BUSINESS_TAB`); and what the tab still reads of the shell (the settings read, the workspace, the calendar, the
+bridge's defaults and number helpers) reaches it through one module, `business/shell.ts`, each read when it is called,
+so a stand-in on the window is the one read. The app publishes fifteen names from `business/globals.ts`, the ones a page
+of the shell or the first run still reads (settings.jsx draws `BusinessTab` and `BtCreateCard`; the first run draws
+eleven of the tab's rows and takes its saver through setup/shell.ts); the rest are no longer published.
+
+- **How it moved.** Five agents converted the files from one written spec (every window name and its replacement, the
+  module map, the function limits), each against the JSX; the joins, the publishing, the wiring and the proof are this
+  step's own. The eight JSX functions over the limits were split into functions, hooks and hookless parts in the same
+  module; where a split added a component that takes children, a walk of the element tree met its parts in another
+  order (the sheet slot was no longer the page's last child; the can card's section came after what it holds), which the
+  page tests caught, and those two are calls again. Two branches went: the folds' answers for a page with no bridge (the
+  folds import it), with the two test halves that drove them.
+- **What fell.** Twelve files of the legacy tree (`legacy/pages` 22 → 10), the eight functions over the limits, the JSX's
+  casts, fifteen published names and the reads behind them (`__businessTab` and `__businessTabSave` twelve reads each
+  to one), three lint warnings (362 → 359), and a cast in `legacy-bridge/business-tab.ts` the declared window made
+  unnecessary. Every new file is under 800 lines and the folder holds 20. Under Rises: six lint warnings moved with
+  their effects as written, and `BtSheetSlot` exported for the tests that hold it last.
+- **Proof.** A throwaway twin of the tab's own test harness loaded the JSX at HEAD and the TSX side by side and drew the
+  page over seven records (Marisa's, an empty one, a sparse one resolved from facts, a business that books, one that
+  proposes, no Setup read, a viewer), then every row and fold the JSX offers on each, opened, typed into, saved, emptied
+  and saved, and cancelled; the host trees after each step, every toast and every save sent compared. No difference.
+  Of the one-change mutations, every one that touched what a state draws or sends made it fail; an Undo pressed after
+  its editor closed is reached by no recorded state and by no test, at HEAD or now. Every Business test draws the TSX
+  through the harness (`_business-tab-harness.mjs`, over `receptionist/business-tab/_business-parts.mjs`, which puts
+  each part on the test's window by its JSX name), its pins on the source read the TSX, and 355 test files across the
+  app's domains pass but for the two the voice lane left red on main. Read-only on the real app, desk and phone, the
+  cards stand in their order, every row offers its act, a link that is not one is refused under its box before any
+  save, the hours fold opens its week, and nothing is written.
+
+## Built: Settings' frame, the end of step 11 (4 October 2026, same branch)
+
+`legacy/pages/settings.jsx` is gone. Its frame is TSX in `surfaces/settings/frame/` -- `tabs.ts` (the rail's sections and
+the rule that names the pane a route opens, which the page and its crumb both ask), `page.tsx` (the rail, the phone's
+strip, the leave guard, and the pane the route names, every pane imported), `workspace.tsx` (the Business pane: the tab,
+the card that sets a receptionist up, a configuration only Chanlytics can repair, and the owner's copy of everything)
+and `route.tsx` -- on its own App Router page, `app/(os)/w/[workspace]/settings/[[...param]]/page.tsx`. The path says the
+product's word, `settings`, for the shell's own route, `admin` (contracts `ROUTE_WORDS`): a bell row, an email or a
+bookmark that says `admin/<pane>` is moved on load, as `clients` is to `people`. The frame's row in `SURFACE_ROUTES` takes
+every pane's address (`params`), its crumbs from the same rule; the shell's `drawSettings` row is gone. A pane that moved
+elsewhere (`admin/setup`, the first run) draws nothing while the frame takes the address there, as the row drew nothing.
+
+- **The role store.** settings.jsx also made `window.ST_STORE`, the role store every gate in the app asks. It moved to
+  `legacy-bridge/identity.ts` (`installRoleStore`, run by seed-globals.ts before any page loads, as the JSX ran as the
+  manifest loaded), the same object under the same name; identity.ts completes it as before.
+- **Nothing published for Settings.** With the page importing every pane, `settings/globals.ts` and its eleven
+  publications went, and the Business tab publishes only what the first run still reads.
+- **One cycle avoided.** The route table reads `tabs.ts` as the frame boots, so the rule holds no import: the warm reads
+  of Activity and the back office are the page's (`WARM`), which the activity bridge's read cache would otherwise have
+  been asked for before it had run.
+- **The standalone mockup no longer draws Settings** (Ruben, 4 October 2026), and the e2e harness's Settings scenarios
+  went with it. Ask is the one real surface left in the shell; CLAUDE.md's canonical example of one not yet moved names it.
+- **Proof.** A throwaway recorder drew HEAD's `SettingsPage` and the TSX over the Business harness's record, the same TSX
+  panes on both sides: every tab (and a route that names none) for an owner and for a viewer, the back office and the rail
+  for a platform admin, Business broken, with no receptionist and with no settings read, a tab pressed, AI memory's door,
+  and the leave guard over an unsaved fold, kept and then left. 32 states, no difference.

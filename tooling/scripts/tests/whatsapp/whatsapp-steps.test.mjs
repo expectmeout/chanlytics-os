@@ -1,7 +1,8 @@
 /**
  * The WhatsApp handler's named steps, run as truth tables: how late a
  * message is, whether the thread may be answered, how long a reply waits and
- * why, what layer two does to the words, and what a held thread says.
+ * why, what layer two does to the words, what a held thread says, and what a message became (the one rule behind every
+ * stamp, handled.ts).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -14,6 +15,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(here, "../../../..");
 const steps = await import(pathToFileURL(path.join(ROOT, "packages/core/src/inbound/steps.ts")).href);
 const { ageVerdict, threadVerdict, holdPlan, layerTwo, holdCopy, STALE_MS, STALE_REPLY_MS } = steps;
+const { handledOf, escalationOf, processedAfter } = await import(
+  pathToFileURL(path.join(ROOT, "packages/core/src/inbound/handled.ts")).href
+);
 
 const brainCfg = { phone_display: "(305) 555-0100", booking_link: "https://book.example/marisa", fallbacks: {} };
 const NOW = 1_800_000_000_000;
@@ -251,5 +255,73 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
         src.ingest,
       ),
     "the customer is texted on the tenant's credentials, through the door, or not at all",
+  );
+});
+
+/* ---------- what a message became (K1): the one rule behind every stamp ---------- */
+
+test("handled: a handoff exactly when an escalation landed; else a queued reply is held, a reply that left or covers it is ai, and nothing is blocked", () => {
+  // Every combination of the two facts a way out has: three of the escalation, four of the reply.
+  const table = {
+    landed: { sent: "handoff", queued: "handoff", covered: "handoff", none: "handoff" },
+    failed: { sent: "ai", queued: "held", covered: "ai", none: "blocked" },
+    none: { sent: "ai", queued: "held", covered: "ai", none: "blocked" },
+  };
+  let combinations = 0;
+  for (const [escalation, row] of Object.entries(table))
+    for (const [reply, want] of Object.entries(row)) {
+      assert.equal(handledOf({ escalation, reply }), want, `escalation ${escalation}, reply ${reply}`);
+      combinations += 1;
+    }
+  assert.equal(combinations, 12, "3 escalations x 4 replies");
+  // An escalation the database refused is no handoff, and asking nobody is the same as a refused write.
+  for (const reply of ["sent", "queued", "covered", "none"])
+    assert.equal(
+      handledOf({ escalation: "failed", reply }),
+      handledOf({ escalation: "none", reply }),
+      `a refused escalation changes nothing of a reply that is ${reply}`,
+    );
+});
+
+test("handled: an escalation landed when the sink says it opened, changed or refreshed one; a write that failed, or did not answer, asked nobody", () => {
+  for (const landed of ["opened", "changed", "refreshed"]) assert.equal(escalationOf(landed), "landed", landed);
+  assert.equal(escalationOf("failed"), "failed");
+  assert.equal(escalationOf(undefined), "failed", "Postgres off or a write that threw: the sink answers nothing");
+});
+
+test("handled: the message is processed once its escalation has answered, saying what it became; a refused or thrown escalation still marks it", async () => {
+  const sink = () => {
+    const calls = [];
+    return { calls, processed: async (how, intent) => calls.push([how ?? null, intent ?? null]) };
+  };
+  // Nobody was asked: it is marked at once, with the reply's own fate.
+  const quiet = sink();
+  await processedAfter(quiet, null, "covered", "hours");
+  assert.deepEqual(quiet.calls, [["ai", "hours"]]);
+  const bare = sink();
+  await processedAfter(bare, null, "none");
+  assert.deepEqual(bare.calls, [["blocked", null]]);
+
+  // A person was asked: the verdict waits for the write to answer, and is not made before it.
+  const waiting = sink();
+  let answer;
+  const asked = new Promise((resolve) => (answer = resolve));
+  const done = processedAfter(waiting, asked, "sent", "hours");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(waiting.calls, [], "not before the escalation has answered");
+  answer("refreshed");
+  await done;
+  assert.deepEqual(waiting.calls, [["handoff", "hours"]]);
+
+  // The write refused, or the call threw: nobody was asked, and the message is still marked processed.
+  const refusedWrite = sink();
+  await processedAfter(refusedWrite, Promise.resolve("failed"), "queued", "money");
+  assert.deepEqual(refusedWrite.calls, [["held", "money"]]);
+  const thrown = sink();
+  await processedAfter(thrown, Promise.reject(new Error("connection reset")), "none");
+  assert.deepEqual(
+    thrown.calls,
+    [["blocked", null]],
+    "an escalation that threw never costs the message its processed_at",
   );
 });

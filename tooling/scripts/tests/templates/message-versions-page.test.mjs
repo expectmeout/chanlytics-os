@@ -318,6 +318,36 @@ test("a marketing message has no text version and cannot have one: it says so in
   assert.equal(textOf(byTestId(paneOf(own), "template-version-none")), "Texts carry no offers.");
 });
 
+test("which messages a text may carry is the send's own reading of the category: one filed with none is an offer until Meta says otherwise", () => {
+  // contracts purposeOfTemplate fails safe: only utility and authentication are positively not offers. The Library judged
+  // it by a regex of its own, where a message with no category read as not an offer, and offered a text version of what a
+  // send would never send by text.
+  for (const category of [null, undefined, "", "promotional", "MARKETING", "marketing"]) {
+    const tree = viewing(page({ rows: [custom("filed_without", { category })] }), "filed_without", "sms");
+    assert.equal(
+      textOf(byTestId(paneOf(tree), "template-version-none")),
+      contracts.CHANNEL_WORDS.noOffersByText,
+      `${category}`,
+    );
+    assert.equal(byTestId(paneOf(tree), "template-version-write"), null, `${category}: nothing to write`);
+  }
+  // What is positively not an offer may have one, written from here.
+  for (const category of ["utility", "authentication"]) {
+    const tree = viewing(page({ rows: [custom("a_note", { category })] }), "a_note", "sms");
+    assert.match(
+      textOf(byTestId(paneOf(tree), "template-version-none")),
+      /^No text version in English yet\./,
+      category,
+    );
+    assert.ok(byTestId(paneOf(tree), "template-version-write"), `${category}: the act that writes it`);
+  }
+  // The email is never refused for it: every kind of message may go by email.
+  const email = viewing(page({ rows: [custom("filed_without", { category: null })] }), "filed_without", "email");
+  assert.ok(byTestId(paneOf(email), "template-version-write"));
+  // The words are contracts' (channelNeverCarries), said once.
+  assert.equal(contracts.channelNeverCarries("sms", "marketing"), contracts.CHANNEL_WORDS.noOffersByText);
+});
+
 /* ---------------------------------- writing one ---------------------------------- */
 
 test("a message with no version says so, and the act writes it from the starter's own words where it wrote them", () => {

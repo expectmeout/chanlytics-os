@@ -35,11 +35,17 @@ const { cmReadyOf } = await importSrc("apps/dashboard/src/surfaces/campaigns/par
 const WA = { canSend: true, refusal: null };
 const LINE = { sms_state: "active", reg_mock: false };
 /** What the workspace can send on, as channelsReady says it: WhatsApp by default, a texting line and a mailbox when asked. */
-const ready = ({ whatsapp = true, text = false, email = false } = {}) =>
+const ready = ({ whatsapp = true, text = false, email = false, offers = false } = {}) =>
   channelsReady({
     whatsapp: whatsapp ? WA : null,
     textLine: text ? LINE : null,
-    email: { mailbox: email, domain: email },
+    // `offers`: the campaigns domain verified, the address on file, no pause: what the business's own news by email waits for
+    // as an offer does (decision D2).
+    email: {
+      mailbox: email,
+      domain: email,
+      ...(offers ? { offers: { campaigns: true, address: true, paused: null } } : {}),
+    },
   });
 
 /** A person with an address and no number, whose only way to be reached is email. */
@@ -113,6 +119,28 @@ test("an email-only person can be sent a message where email is set up, and is n
     [false, true],
     "an email about a visit asks no yes",
   );
+  // A row's "can get your messages" is the visit and proposal moments' (theirs, decision D1). The business's own news by
+  // email, a broadcast's, asks more of the same person, a yes covering email or dealings with the business, and says so.
+  const byEmail = { channels: ["email"], ready: ready({ email: true, offers: true }) };
+  assert.deepEqual(contracts.reachFor(asked, "conversational", { ...byEmail, about: "theirs" }), {
+    channel: "email",
+    held: null,
+  });
+  assert.deepEqual(contracts.reachFor(asked, "conversational", { ...byEmail, about: "ours" }), {
+    channel: null,
+    held: "no_yes",
+  });
+  // Where the workspace's offers by email are not open, the news has no channel at all (decision D2): it waits for them as an
+  // offer does, and their visit's message does not.
+  const closed = { channels: ["email"], ready: ready({ email: true }) };
+  assert.deepEqual(contracts.reachFor(asked, "conversational", { ...closed, about: "ours" }), {
+    channel: null,
+    held: "no_channel",
+  });
+  assert.deepEqual(contracts.reachFor(asked, "conversational", { ...closed, about: "theirs" }), {
+    channel: "email",
+    held: null,
+  });
   const stopped = personRow(emailOnly({ consent: "opted_out", dnc: true }), { ready: ready({ email: true }) });
   assert.deepEqual([stopped.canReceive.messages, stopped.whyNot.messages], [false, "stopped"]);
 });
@@ -216,13 +244,19 @@ test("People's lists count the rows' facts: who can be sent an offer moves with 
 test("the empty-audience refusal says a yes was given by what they said, on any channel: a text-only yes is a yes, with no number to send to", () => {
   const dto = (over) => personRow(over, { ready: ready({ text: true }) });
   assert.equal(
-    emptyAudienceRefusal("conversational", "Regulars", [dto(TEXT_YES)]),
+    emptyAudienceRefusal("conversational", "Regulars", [dto(TEXT_YES)], { channels: ["whatsapp"], about: "ours" }),
     noNumberWords("“Regulars”", "conversational"),
     "somebody said yes: what is missing is a way to reach them (it was WhatsApp's yes alone before)",
   );
-  assert.match(emptyAudienceRefusal("conversational", "Regulars", [dto({ consent: "unknown" })]), /yes to messages/i);
   assert.match(
-    emptyAudienceRefusal("marketing", "Regulars", [dto(TEXT_YES)]),
+    emptyAudienceRefusal("conversational", "Regulars", [dto({ consent: "unknown" })], {
+      channels: ["whatsapp"],
+      about: "ours",
+    }),
+    /yes to messages/i,
+  );
+  assert.match(
+    emptyAudienceRefusal("marketing", "Regulars", [dto(TEXT_YES)], { channels: ["whatsapp"], about: "ours" }),
     /yes to offers/i,
     "a yes to messages is not one to offers",
   );

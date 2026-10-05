@@ -444,18 +444,14 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
     !page.includes("INT_NOT_AVAILABLE") && !page.includes("<GoogleCard />") && !page.includes("<ConnectWhatsAppRow />"),
     "one row model, no hand-built cards",
   );
-  // The pane is its own file; the settings shell only chooses between the
-  // mockup and it, the way it does for Billing, and the app publishes it from
-  // the settings globals until the frame moves.
-  const [shell, globals] = [
-    "apps/dashboard/src/legacy/pages/settings.jsx",
-    "apps/dashboard/src/surfaces/settings/globals.ts",
-  ].map((f) => readCode(f));
+  // The pane is its own file; Settings' page (surfaces/settings/frame, decision 0015 step 11) imports it and draws it
+  // for its tab, as it does Billing.
+  const shell = readCode("apps/dashboard/src/surfaces/settings/frame/page.tsx");
   assert.ok(
-    shell.includes("<window.PaneIntegrationsReal />") && !shell.includes("const PaneIntegrationsReal"),
-    "the shell renders the pane, it does not contain it",
+    shell.includes("<PaneIntegrationsReal />") && !shell.includes("const PaneIntegrationsReal"),
+    "the page renders the pane, it does not contain it",
   );
-  assert.match(globals, /export const SETTINGS_GLOBALS = \{[^}]*PaneIntegrationsReal[^}]*\};/);
+  assert.match(shell, /import \{ PaneIntegrationsReal \} from "\.\.\/connections\/pane";/);
   assert.ok(pane.includes("export const PaneIntegrationsReal = () => {"));
   // A file of its own never uses a helper that lives in the file it came
   // from: `useSetState` was an alias declared at the top of settings.jsx, so

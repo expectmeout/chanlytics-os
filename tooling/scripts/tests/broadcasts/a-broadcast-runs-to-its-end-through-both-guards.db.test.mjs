@@ -24,6 +24,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { takeLock } from "../_file-lock.mjs";
+import { middayZone } from "../shared/_midday-zone.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -55,15 +56,6 @@ const ok = (res) => {
   assert.equal(res.error, null, res.error?.message);
   return res.data;
 };
-
-/**
- * A zone where it is midday now, so a throttled batch's next try (a minute or two on) is inside the sending hours
- * (contracts PLAYBOOK_HOURS) whatever the hour this runs at.
- */
-function middayZone(now = new Date()) {
-  const k = 12 - now.getUTCHours();
-  return k === 0 ? "Etc/GMT" : k > 0 ? `Etc/GMT-${k}` : `Etc/GMT+${-k}`;
-}
 
 /* ---------------------------------------------------------------- Meta, at the network */
 
@@ -214,6 +206,12 @@ const troubleIn = (log) => log.lines.filter((l) => l.level !== "info");
 
 let phones = 100;
 /** A person who wrote in on WhatsApp: START (a yes to messages), or STOP. */
+/**
+ * People in the order a batch reads them: by contact id (campaign-channels.ts queuedRecipients, 00301), not the order
+ * they were made in, so a test that says who goes first names them so.
+ */
+const inBatchOrder = (...people) => [...people].sort((a, b) => (a.contactId < b.contactId ? -1 : 1));
+
 async function person(said = "START") {
   phones += 1;
   const digits = `1212555${String(phones).padStart(4, "0")}`;
@@ -416,9 +414,7 @@ test(
   "a run killed mid-send is given up and handed to a fresh run; the person it was sending to keeps the claim and is never sent twice",
   { skip },
   async () => {
-    const first = await person();
-    const midSend = await person();
-    const last = await person();
+    const [first, midSend, last] = inBatchOrder(await person(), await person(), await person());
     graphScript.set(midSend.digits, ["park"]);
     const b = await broadcastTo([first, midSend, last], "Visit note, again");
 
@@ -474,8 +470,7 @@ test(
   "the wire goes down: Meta refuses the credentials, the broadcast fails, and nobody after is burned",
   { skip },
   async () => {
-    const one = await person();
-    const two = await person();
+    const [one, two] = inBatchOrder(await person(), await person());
     graphScript.set(one.digits, ["revoked"]);
     const b = await broadcastTo([one, two], "Visit note, a third time");
     await comeDue(b.jobId);

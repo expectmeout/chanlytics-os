@@ -8,8 +8,8 @@
  *   focusable, described, inert, saying why when pressed, in contracts' words -- and each pane says why once.
  * - Activity (the wiring audit's S21): its filters had no names, the kind filter read the log on every keystroke and
  *   ate typed spaces, a slow answer could land over a newer one, and the first load showed nothing at all.
- * Run against settings.jsx, the panes it draws by name (Notifications is TSX: surfaces/settings/notifications) and
- * activity.jsx on a stub React, over data-bits' real gate and contracts' role table.
+ * Run against the Settings page (surfaces/settings/frame/page.tsx), which imports the panes it draws (every one TSX:
+ * surfaces/settings), on a stub React, over data-bits' real gate and contracts' role table.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -213,24 +213,24 @@ Object.assign(globalThis.window, {
   },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
 });
-await import("../../../../apps/dashboard/src/legacy/pages/business-tab-save.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/settings.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/activity.jsx");
-// Settings › Notifications is TSX (surfaces/settings/notifications), which the page draws by its old name, as the app
-// publishes it; it reads the settings read over the seam and saves through the bridge's saveSettings.
+await import("../receptionist/business-tab/_business-parts.mjs");
+// The role store the gates ask (window.ST_STORE): the bridge installs it as the app boots (seed-globals), settings.jsx used to.
+const { installRoleStore } = await import("../../../../apps/dashboard/src/legacy-bridge/identity.ts");
+installRoleStore();
+// The page is the TSX module (decision 0015 step 11); it imports every pane it draws. Activity's reads are the bridge's
+// `activity` object, which a test stands its own feed in on; Notifications reads the settings read over the seam and
+// saves through the bridge's saveSettings; Autonomy's rows are the seam's policies and its one door is a module object a
+// test stands a door in on; Team's roster is the seam's settings value.
+const { SettingsPage } = await import("../../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
+const { activity } = await import("../../../../apps/dashboard/src/legacy-bridge/activity.ts");
+/** The log's reads answered by `f`: the module's object, which the pane imports. */
+const stand = (f) => Object.assign(activity, f);
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
-const { PaneNotificationsReal } =
-  await import("../../../../apps/dashboard/src/surfaces/settings/notifications/pane.tsx");
-globalThis.window.PaneNotificationsReal = PaneNotificationsReal;
-// Settings › Autonomy is TSX too (surfaces/settings/autonomy): its rows are the seam's policies, and its one door is a
-// module object a test stands a door in on.
-const { PaneAutonomyReal } = await import("../../../../apps/dashboard/src/surfaces/settings/autonomy/pane.tsx");
 const { autonomyVerbs } = await import("../../../../apps/dashboard/src/surfaces/settings/autonomy/verbs.ts");
-globalThis.window.PaneAutonomyReal = PaneAutonomyReal;
-// And Profile and Team (surfaces/settings/profile, team): Team's roster is the seam's settings value.
-const { PaneProfile } = await import("../../../../apps/dashboard/src/surfaces/settings/profile/pane.tsx");
-const { TeamSection } = await import("../../../../apps/dashboard/src/surfaces/settings/team/team.tsx");
-Object.assign(globalThis.window, { PaneProfile, TeamSection });
+// The Team tab is the Partner pane's Team (settings/partner/team-card.tsx): the roster, then the workspace's partner
+// card, an owner's read answered here as refused, so the card stays out of what these tests look at.
+const { partnerVerbs } = await import("../../../../apps/dashboard/src/surfaces/settings/partner/surface.ts");
+partnerVerbs.team.read = async () => ({ ok: false, code: "forbidden", message: "Only an owner can do this." });
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -292,7 +292,7 @@ const fresh = () => {
 const draw = (tab) => {
   frames = [{ key: "root", hook: 0, kids: {} }];
   dirty = false;
-  lastTree = globalThis.window.SettingsPage({ tab, onTab() {} });
+  lastTree = SettingsPage({ tab, onTab() {} });
   return lastTree;
 };
 const settings = (tab) => {
@@ -448,7 +448,7 @@ test("REGRESSION (one gate): Team shows Invite to a role that may not invite, ga
 
 test("REGRESSION (one gate): Activity follows an owner's View-as preview like every other gate -- it asked the signed-in role", () => {
   workspace("owner");
-  const A = (globalThis.window.__activity = feed());
+  const A = stand(feed());
   globalThis.window.ST_STORE.viewAsRole = "viewer";
   const tree = settings("activity");
   assert.ok(
@@ -463,7 +463,7 @@ test("REGRESSION (one gate): Activity follows an owner's View-as preview like ev
 
 test("REGRESSION (S21): Activity says it is reading and names its filters -- the first load showed nothing, and three filters had no name", async () => {
   workspace("owner");
-  const A = (globalThis.window.__activity = feed([{ id: "c-ana", name: "Ana Ruiz", phone: null }]));
+  const A = stand(feed([{ id: "c-ana", name: "Ana Ruiz", phone: null }]));
   let tree = settings("activity");
   assert.equal(A.asked.length, 1, "the log is read once");
   assert.ok(byTestId(tree, "act-loading"), "REGRESSION: the pane was blank while it read");
@@ -493,7 +493,7 @@ test("REGRESSION (S21): Activity says it is reading and names its filters -- the
 
 test("REGRESSION (S21): the kind filter asks when a kind is chosen, not on every keystroke, and keeps what was typed", async () => {
   workspace("owner");
-  const A = (globalThis.window.__activity = feed());
+  const A = stand(feed());
   settings("activity");
   answer(A.waiting[0], []);
   await flush();
@@ -516,7 +516,7 @@ test("REGRESSION (S21): the kind filter asks when a kind is chosen, not on every
 
 test("REGRESSION (S21): a slow answer never lands over a newer one", async () => {
   workspace("owner");
-  const A = (globalThis.window.__activity = feed());
+  const A = stand(feed());
   settings("activity");
   answer(A.waiting[0], [entry("e0", "The first page")]);
   await flush();
@@ -537,14 +537,6 @@ test("REGRESSION (S21): a slow answer never lands over a newer one", async () =>
     [true],
     "REGRESSION: the older answer replaced the newer one",
   );
-});
-
-test("Activity without its bridge says it cannot be read here, instead of reading for ever", () => {
-  workspace("owner");
-  delete globalThis.window.__activity;
-  const tree = settings("activity");
-  assert.equal(byTestId(tree, "act-loading"), null, "REGRESSION: it read for ever");
-  assert.ok(byTestId(tree, "act-missing"));
 });
 
 /* ------------------------------- Autonomy ------------------------------- */
@@ -836,14 +828,21 @@ test("your name is a row on Profile, never in the Team card", () => {
 
 test("the rail asks before a pane holding changes goes, and in words that are true of a save that is out", () => {
   // Task 3.2's review: with a row's save out the rail still asked "Leave without saving?", of a change that was being
-  // saved, and its yes stopped nothing. The record kit says when a save is out (record-fold.jsx __settingsSaving).
-  const W = globalThis.window;
-  const was = { unsaved: W.__settingsUnsaved, saving: W.__settingsSaving };
+  // saved, and its yes stopped nothing. The record kit says when a save is out (kit/record/registry.ts saving()), and the
+  // page asks the registry itself (it imports recFolds), so an open fold with a dirty test and a save-is-out test is the question.
+  const folds = globalThis.window.__recordFolds;
+  let unsaved = false;
+  let saving = false;
+  const unbind = folds.bind(
+    "hours",
+    () => unsaved,
+    () => saving,
+  );
   const went = [];
   const drawRail = () => {
     frames = [{ key: "root", hook: 0, kids: {} }];
     dirty = false;
-    lastTree = W.SettingsPage({ tab: "profile", onTab: (id) => went.push(id) });
+    lastTree = SettingsPage({ tab: "profile", onTab: (id) => went.push(id) });
     return lastTree;
   };
   const railTab = (tree, label) =>
@@ -854,8 +853,10 @@ test("the rail asks before a pane holding changes goes, and in words that are tr
   try {
     workspace("owner");
     fresh();
-    W.__settingsUnsaved = () => true;
-    W.__settingsSaving = () => false;
+    folds.reset();
+    unsaved = true;
+    saving = false;
+    folds.request("hours");
     press(railTab(drawRail(), "Team"));
     let ask = byTestId(drawRail(), "set-leave-confirm");
     assert.match(textOf(ask), /Leave without saving\?/);
@@ -865,11 +866,12 @@ test("the rail asks before a pane holding changes goes, and in words that are tr
     assert.equal(byTestId(drawRail(), "set-leave-confirm"), null);
 
     // A save is out: the change is on its way, so nothing is "unsaved", and the words say what leaving does.
-    W.__settingsSaving = () => true;
+    unsaved = false;
+    saving = true;
     press(railTab(drawRail(), "Team"));
     // The words are kept from the moment it asked: the save landing while the question is up does not turn it into
     // "have not been saved", which by then is the opposite of true.
-    W.__settingsSaving = () => false;
+    saving = false;
     ask = byTestId(drawRail(), "set-leave-confirm");
     assert.match(textOf(ask), /Leave while this saves\?/);
     assert.match(textOf(ask), /on its way and carries on without this page/);
@@ -877,10 +879,8 @@ test("the rail asks before a pane holding changes goes, and in words that are tr
     press(byTestId(drawRail(), "set-leave-yes"));
     assert.deepEqual(went, ["team"]);
   } finally {
-    if (was.unsaved) W.__settingsUnsaved = was.unsaved;
-    else delete W.__settingsUnsaved;
-    if (was.saving) W.__settingsSaving = was.saving;
-    else delete W.__settingsSaving;
+    unbind();
+    folds.reset();
   }
 });
 

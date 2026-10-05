@@ -47,6 +47,12 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-send:disabled { background: var(--bg-active); color: var(--ink-faint); cursor: default; }
 .ask-send:not(:disabled):hover { background: oklch(from var(--ink) calc(l + 0.08) c h); }
 .ask-send.talk.on, .ask-send.talk.on:hover { background: var(--accent); color: var(--accent-fg); }
+/* The agent speaking (data-state, the hold's answer coming back aloud): a ring breathes out of the mic, so the voice
+   on the line is seen as well as heard; the next hold cuts it off. */
+.ask-send.talk { position: relative; }
+.ask-send.talk[data-state="speaking"]::after { content: ""; position: absolute; inset: -3px; border: 2px solid var(--accent); border-radius: inherit; opacity: 0; pointer-events: none; animation: ask-live 1s ease-out infinite; }
+@keyframes ask-live { 0% { opacity: .9; scale: .9; } 70%, 100% { opacity: 0; scale: 1.4; } }
+@media (prefers-reduced-motion: reduce) { .ask-send.talk[data-state="speaking"]::after { animation: none; opacity: .6; scale: 1.12; } }
 .ask-send .icon { animation: ask-bloom 160ms var(--ease-out) both; }
 @keyframes ask-bloom { from { transform: scale(.55); opacity: 0; } }
 /* The reading line: the latest trace, lined up with the field (84px face + 12px gap), a coral dot pulsing (S5). */

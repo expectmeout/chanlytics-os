@@ -339,7 +339,7 @@ test("Settings collects the rules and the feed; the feed address is whole only f
   // The rules and the feed are folds of the Business page now (Task 3.7 deleted the form), and each patches only its
   // own keys. What each writes, the row that states the feed and the sentence that it is only ever read are EXECUTED
   // in business-tab-folds.test.mjs and business-tab-open.test.mjs, so four pins that were here are gone.
-  const page = readRaw("apps/dashboard/src/legacy/pages/business-tab-folds.jsx");
+  const page = readRaw("apps/dashboard/src/surfaces/settings/business/folds.ts");
   assert.ok(page.includes('btPutProfile(next, "booking_rules", Object.keys(rules).length ? rules : undefined);'));
   assert.ok(page.includes('btPut(section, "ical_url", feed || undefined);'));
   // The feed address whole for an owner and masked for anyone else is RUN: through the route in settings-routes.test.mjs

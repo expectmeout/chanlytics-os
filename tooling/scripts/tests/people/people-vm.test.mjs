@@ -300,11 +300,20 @@ test("a bounced address (00298) rides the row as emailSuppressed, and by email t
     toPersonRowVM(row({ email: "ana@example.com", consent: "opted_in", ...over }), ZONE, NOW);
   const dead = withAddress({ email_suppressed_at: iso(3 * D) });
   assert.equal(dead.emailSuppressed, true);
-  assert.equal(contracts.whyNotReceive(dead, "conversational", "email"), "no_address");
-  assert.equal(contracts.whyNotReceive(dead, "conversational", "whatsapp"), null, "their number is still good");
+  // A People row's "can get your messages" is the visit and proposal moments' (theirs), which by email asks an address and no yes.
+  assert.equal(
+    contracts.whyNotReceive(dead, "conversational", "email", "theirs"),
+    "address_stopped",
+    "the address is on file and mail to it has stopped: not 'no address'",
+  );
+  assert.equal(
+    contracts.whyNotReceive(dead, "conversational", "whatsapp", "theirs"),
+    null,
+    "their number is still good",
+  );
   for (const good of [withAddress({ email_suppressed_at: null }), withAddress({})]) {
     assert.equal(good.emailSuppressed, false, "null, or a row read before the column: not suppressed");
-    assert.equal(contracts.whyNotReceive(good, "conversational", "email"), null);
+    assert.equal(contracts.whyNotReceive(good, "conversational", "email", "theirs"), null);
   }
 });
 

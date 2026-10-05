@@ -28,10 +28,11 @@ import { threadVerbs } from "../surfaces/inbox/thread/thread-verbs";
 import { KIT_GLOBALS } from "../surfaces/kit/kit-globals";
 import { PEOPLE_GLOBALS } from "../surfaces/people/people-globals";
 import { LEADS_GLOBALS } from "../surfaces/leads/globals";
-import { SETTINGS_GLOBALS } from "../surfaces/settings/globals";
+import { BUSINESS_GLOBALS } from "../surfaces/settings/business/globals";
 import { surfaceHook, type SurfaceNames } from "./surface-status";
 import { routeSurfaces } from "./surface-registry";
 import { pipelineHelpers, type PipelineHelpers } from "@/surfaces/people/pipeline-helpers";
+import { installRoleStore } from "./identity";
 
 declare global {
   interface Window {
@@ -119,13 +120,19 @@ if (typeof window !== "undefined") {
     AgendaOpen: KIT_GLOBALS.AgendaOpen,
     // Leads' plan card, which Ask's palette draws for a lead_search card until Ask moves (surfaces/leads/globals.ts).
     LeadPlanCard: LEADS_GLOBALS.LeadPlanCard,
-    // The panes of Settings that have moved, which settings.jsx still draws by name until its frame moves.
-    PaneAutonomyReal: SETTINGS_GLOBALS.PaneAutonomyReal,
-    PaneBillingReal: SETTINGS_GLOBALS.PaneBillingReal,
-    PaneIntegrationsReal: SETTINGS_GLOBALS.PaneIntegrationsReal,
-    PaneNotificationsReal: SETTINGS_GLOBALS.PaneNotificationsReal,
-    PaneProfile: SETTINGS_GLOBALS.PaneProfile,
-    TeamSection: SETTINGS_GLOBALS.TeamSection,
+    // The Business tab's parts the first run draws and the saver it saves through (settings/business/globals.ts).
+    __businessTabSave: BUSINESS_GLOBALS.__businessTabSave,
+    btSellsByChoice: BUSINESS_GLOBALS.btSellsByChoice,
+    BtAddressRow: BUSINESS_GLOBALS.BtAddressRow,
+    BtWebsiteRow: BUSINESS_GLOBALS.BtWebsiteRow,
+    BtBookingLinkRow: BUSINESS_GLOBALS.BtBookingLinkRow,
+    BtZoneRow: BUSINESS_GLOBALS.BtZoneRow,
+    BtHoursRow: BUSINESS_GLOBALS.BtHoursRow,
+    BtServicesRow: BUSINESS_GLOBALS.BtServicesRow,
+    BtLanguagesRow: BUSINESS_GLOBALS.BtLanguagesRow,
+    BtRulesRow: BUSINESS_GLOBALS.BtRulesRow,
+    BtCanCard: BUSINESS_GLOBALS.BtCanCard,
+    BtServicesSheet: BUSINESS_GLOBALS.BtServicesSheet,
     // And People's parts the shell still draws or calls by name: the strip's scopes (surface-tabs.jsx), the two sheets the
     // frame draws once and their doors (app-shell.jsx), and the demo's Lists page's mark and route (people-globals.ts).
     plScopes: PEOPLE_GLOBALS.plScopes,
@@ -185,6 +192,9 @@ if (typeof window !== "undefined") {
   window.__phoneDisplay = formatPhoneDisplay;
   // A broken configuration in the words Setup's row says (S8).
   window.__brokenConfigWords = BROKEN_CONFIG_WORDS;
+  // The role store every gate asks (identity.ts), made before any page loads, as settings.jsx made it as the
+  // manifest loaded: identity.ts completes it once its own install runs.
+  installRoleStore();
 }
 
 export {};

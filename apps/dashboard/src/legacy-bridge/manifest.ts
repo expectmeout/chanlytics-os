@@ -40,24 +40,6 @@ import "@/legacy/pages/clients-bits.jsx";
 
 // Before the Business tab, and so before settings.jsx: what the tab's saves write, the one saver they go through, the
 // one-key save and how a number is written, which the old card in settings.jsx uses too.
-import "@/legacy/pages/business-tab-save.jsx";
-import "@/legacy/pages/business-tab-folds.jsx";
-import "@/legacy/pages/business-tab-gestures.jsx";
-import "@/legacy/pages/business-tab-who.jsx";
-import "@/legacy/pages/business-tab-open.jsx";
-import "@/legacy/pages/business-tab-offer.jsx";
-import "@/legacy/pages/business-tab-answers.jsx";
-import "@/legacy/pages/business-can.jsx";
-import "@/legacy/pages/business-tab-services.jsx";
-import "@/legacy/pages/business-tab-prompt.jsx";
-import "@/legacy/pages/business-tab-create.jsx";
-import "@/legacy/pages/business-tab.jsx";
-import "@/legacy/pages/settings.jsx";
-// The partner pane (0012): the offer, or the link.
-import "@/legacy/pages/partner-real.jsx";
-// The back office: rendered by the settings shell, for the people who run Chanlytics.
-import "@/legacy/pages/platform.jsx";
-import "@/legacy/pages/activity.jsx";
 // The route table (SHELL_ROUTES, drawRoute): what each route draws, before the shell that reads it.
 import "@/legacy/pages/app-routes.jsx";
 import "@/legacy/pages/app-shell.jsx";

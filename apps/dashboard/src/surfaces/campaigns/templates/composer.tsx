@@ -12,7 +12,7 @@
  */
 import { useEffect, useRef } from "react";
 import { canDo } from "../../legacy-verbs";
-import { useLegacyUnsavedWork } from "../../legacy-parts";
+import { useUnsavedWork } from "../../kit/record/work";
 import { composerActs, composerFacts, useComposerState, wroteWords } from "./composer-acts";
 import type { TemplateMade, TemplateTranslation } from "./composer-acts";
 import { composerFields, composerPreview, newTemplateForm, translationForm } from "./composer-forms";
@@ -67,7 +67,7 @@ export function TemplateComposer({
   const st = useComposerState(translate, draftKey);
   const { brief, category, language, name, body, footer, examples, labels, buttonText, buttonUrl, warnings } = st;
   const asked = useRef(!!st.kept);
-  const work = useLegacyUnsavedWork("template", draftKey, {
+  const work = useUnsavedWork("template", draftKey, {
     value: { brief, category, language, name, body, footer, examples, labels, buttonText, buttonUrl, warnings },
     dirty: wroteWords(st),
     onLeave: () => {

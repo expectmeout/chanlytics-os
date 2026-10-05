@@ -64,6 +64,11 @@ test("a queued row goes through the door with the row's own sender, the template
     sender: "human",
     purpose: "conversational",
     proactive: false,
+    // One message to one person in their own thread (a reply, the receptionist's, a person's written one): theirs. A
+    // campaign's news goes by the broadcast's batch, which says ours (decision D1).
+    about: "theirs",
+    // No moment's: a reply is no playbook's run (Delivery.trigger).
+    trigger: null,
     body: "See you at 3",
     template: undefined,
     messageId: "m1",
@@ -117,7 +122,16 @@ test("a job may say what its send IS, and only ever more strictly: an offer is m
       [purpose, proactive],
       JSON.stringify({ payload, fromTemplate }),
     );
+    // And what it is about is never the job's to say: a queued row is one message in the person's own thread (decision D1).
+    assert.equal(log[0][1].about, "theirs", JSON.stringify({ payload, fromTemplate }));
   }
+  const { ports, log } = fakes({ purposeOf: "conversational" });
+  await core.sendQueued(ports, send({ proactive: true, about: "ours" }));
+  assert.equal(
+    log[0][1].about,
+    "theirs",
+    "a payload that names `ours` is not heard: the batch's door says it, never a job's",
+  );
 });
 
 test("a wire that could not carry it flags the thread and tells the owner; a provider's 401 or 403 pages the platform as well; a refusal does neither", async () => {
@@ -217,6 +231,8 @@ test("an email's queued row leaves as the request it was frozen with, to the add
     sender: "human",
     purpose: "conversational",
     proactive: false,
+    about: "theirs",
+    trigger: null,
     body: "We can do Saturday.",
     template: undefined,
     email: request,

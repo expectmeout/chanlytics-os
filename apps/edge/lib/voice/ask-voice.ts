@@ -13,10 +13,13 @@ import { env } from "../env.js";
 import {
   deleteConversation,
   mintConversationToken,
+  speakText,
   verifyElevenLabsWebhook,
   ELEVENLABS_SIGNATURE_HEADER,
   type ConversationMint,
+  type SpeechStream,
 } from "../packages/channels.js";
+import { ASK_VOICE_ID, ASK_VOICE_MODEL } from "../packages/contracts.js";
 import {
   endVoiceSession,
   readVoiceSessionByConversation,
@@ -37,6 +40,20 @@ export async function mintAskVoiceSession(): Promise<ConversationMint | null> {
   const agentId = env.ELEVENLABS_AGENT_ID;
   if (!apiKey || !agentId) return null;
   return mintConversationToken({ apiKey, agentId });
+}
+
+/** Whether this edge can speak at all: the key alone (no agent is involved in one-way speech). */
+export const askSpeechConfigured = (): boolean => !!env.ELEVENLABS_API_KEY;
+
+/**
+ * Words read aloud in Ask's one voice (door E, api/admin/voice/speech.ts): a brief or an answer, through the
+ * ElevenLabs port, as a stream of MP3 the door hands on unread. Null on an edge without the key. The voice and the
+ * model are contracts' (ASK_VOICE_ID, ASK_VOICE_MODEL), the same the agent speaks with.
+ */
+export async function speakAskVoice(text: string): Promise<SpeechStream | null> {
+  const apiKey = env.ELEVENLABS_API_KEY;
+  if (!apiKey) return null;
+  return speakText({ apiKey }, { voiceId: ASK_VOICE_ID, modelId: ASK_VOICE_MODEL, text });
 }
 
 /** Whether this edge holds the webhook's secret: without it there is no post-call door. */

@@ -11,7 +11,8 @@
  * - The slot length (S2's remainder): a save kept it, and no field could set it.
  * - The Calendar's words (C3): the Business card said the hours as 09:00–18:00 beside a Calendar in 9 AM, and the
  *   editor checked the calendar's address as "the link", the booking link's word.
- * Contracts run as they are; settings.jsx runs on a stub React, with the words the bridge publishes (seed-globals).
+ * Contracts run as they are; the Settings page (surfaces/settings/frame/page.tsx) runs on a stub React, with the words
+ * the bridge publishes (seed-globals).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -377,17 +378,12 @@ Object.assign(globalThis.window, {
   __unknownDetails: contracts.unknownDetails,
   __hoursLines: contracts.hoursLines,
 });
-await import("../../../../../apps/dashboard/src/legacy/pages/business-tab-save.jsx");
-// How it answers owns the languages the old form offers and its three messages' labels, which settings.jsx reads as
-// it loads (business-tab-answers.jsx, before it in both load lists).
-await import("../../../../../apps/dashboard/src/legacy/pages/business-tab-answers.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/settings.jsx");
-// Settings › Autonomy is TSX (surfaces/settings/autonomy), which the page draws by its old name, as the app publishes
-// it: its rows are the seam's policies, its one door a module object a test stands a door in on.
+await import("./_business-parts.mjs");
+// The page is the TSX module (decision 0015 step 11); it imports every pane it draws. Autonomy's rows are the seam's
+// policies, its one door a module object a test stands a door in on.
+const { SettingsPage } = await import("../../../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
 const { setSurfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
-const { PaneAutonomyReal } = await import("../../../../../apps/dashboard/src/surfaces/settings/autonomy/pane.tsx");
 const { autonomyVerbs } = await import("../../../../../apps/dashboard/src/surfaces/settings/autonomy/verbs.ts");
-globalThis.window.PaneAutonomyReal = PaneAutonomyReal;
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -434,7 +430,7 @@ const fresh = () => {
 };
 const draw = (tab) => {
   frames = [{ key: "root", hook: 0, kids: {} }];
-  lastTree = globalThis.window.SettingsPage({ tab, onTab() {} });
+  lastTree = SettingsPage({ tab, onTab() {} });
   return lastTree;
 };
 const settings = (tab) => {

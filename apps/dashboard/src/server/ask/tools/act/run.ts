@@ -11,7 +11,7 @@ import {
   nextOpenMoment,
   noteRows,
   plural,
-  runDayPassed,
+  runApprovalRefusal,
   toApprovalVM,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
@@ -54,18 +54,24 @@ async function proposeRun(
     );
   if (run.state !== "pending_approval")
     return refuse(`that run is not waiting for approval: it is ${BROADCAST_STATE_LABELS[run.state]}`);
-  // A day's run approved on a later day: the route's refusal, in its words, before a card; a skip still ends it.
-  const late = input.verb === "approve" ? runDayPassed(run, localDate(t.timezone, t.now)) : null;
+  // When an approval now sends it by the business's clock (approveRun's next open moment).
+  const open = nextOpenMoment(t.timezone, t.now);
+  const days = { today: localDate(t.timezone, t.now), sendsOn: localDate(t.timezone, open.at) };
+  // A day's run approved on a later day, or a visit's run that would go out on one: the route's refusal, in its words
+  // (contracts runApprovalRefusal), before a card; a skip still ends it.
+  const late = input.verb === "approve" ? runApprovalRefusal(run, days) : null;
   if (late) return refuse(late);
   // What its sheet says of it (contracts toApprovalVM, as the Broadcasts page draws a waiting run): how many it reaches,
-  // when an approval now sends it by the business's clock (approveRun's next open moment), and what a skip costs. The
-  // words' values are not on the card, so no business name is read for them.
-  const open = nextOpenMoment(t.timezone, t.now);
+  // when an approval now sends it, and what a skip costs. The words' values are not on the card, so no business name is
+  // read for them.
   const vm = toApprovalVM(read.data, {
     playbook: null,
     businessName: "",
-    today: localDate(t.timezone, t.now),
-    open: { time: clockTime(open.at.getTime(), t.timezone), moved: open.moved },
+    // The card reads no readiness (the run's own read carries none, and a pause is one more read): a paused workspace is
+    // refused when the card is confirmed, by approveRun, in the words every campaign says it.
+    paused: null,
+    today: days.today,
+    open: { time: clockTime(open.at.getTime(), t.timezone), moved: open.moved, on: days.sendsOn },
     day: fmtDay,
   });
   const approve = input.verb === "approve";

@@ -34,31 +34,31 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit            100   of which over 200 lines: 16
-files over 800 lines                  5
-directories over 20 modules           4
-window globals                      106   names
-window publishers                   202   sites in 69 files
+functions over the limit             88   of which over 200 lines: 14
+files over 800 lines                  3
+directories over 20 modules           3
+window globals                      100   names
+window publishers                   176   sites in 53 files
 copies                               73   of 21 names
-as unknown as                       146
+as unknown as                       141
 as never                             13
-non-null assertions, x!             121
+non-null assertions, x!             115
 index reads the compiler lets pass  484   in 128 files
-table names outside packages/db     487
+table names outside packages/db     485
 SQL functions outside packages/db   133   called by .rpc
 edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
-literal style values               1030   in 23 stylesheets
+literal style values               1028   in 23 stylesheets
 primitives outside the kit         1988   selectors naming 803 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
-dead exports, types and modules     298
-source-text reads in tests          775
-lint warnings                       362   in 155 files, 63 of them exhaustive-deps
-workspace route JS, KB gzipped      733   the shell included
+dead exports, types and modules     301
+source-text reads in tests          771
+lint warnings                       357   in 154 files, 59 of them exhaustive-deps
+workspace route JS, KB gzipped      702   the shell included
 workspace route CSS, KB gzipped     147
-workspace pages' own JS, KB         471   gzipped, each page's chunks once, beside the route
+workspace pages' own JS, KB         535   gzipped, each page's chunks once, beside the route
 trees the lint's limits hold         44   15 of them with max-params waiting
 ```
 

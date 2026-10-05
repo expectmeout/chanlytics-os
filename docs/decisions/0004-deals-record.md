@@ -345,7 +345,10 @@ create trigger contacts_erase_blanks_deals after update of erased_at on public.c
 
 Events, record kinds, kept: `deal.proposed`, `deal.won`, `deal.lost`,
 `deal.ended`, each with `{ deal_id, contact_id, stage, from, service, by }` and never a
-note or an evidence word, so the erasure scrub has nothing to reach.
+note or an evidence word, so the erasure scrub has nothing to reach. _Amended by
+00311 (Reports K6): each event also carries `amount_cents` when the deal has an
+amount (0 counts) and, on a pass, `lost_reason`; still never a note, an evidence
+word, a link, a `per` or a currency._
 
 ```ts
 // packages/contracts/src/deals.ts

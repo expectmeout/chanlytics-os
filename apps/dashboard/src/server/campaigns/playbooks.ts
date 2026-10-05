@@ -18,6 +18,7 @@ import {
   playbookRunReach,
   playbookPoolKey,
   enrolPurpose,
+  messageAboutOfTrigger,
   triggerOf,
   triggerOffered,
   dealsAreOn,
@@ -45,6 +46,7 @@ import {
   templatesFor,
   touchIndex,
   touchesSince,
+  workspacePaused,
   type Touch,
 } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
@@ -187,7 +189,7 @@ function whatsappStops(
  * it (core run-playbook). A read that fails throws.
  */
 export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Date): Promise<FollowUpFactsDto | null> {
-  const [pb, cls, tenant, number, out] = await Promise.all([
+  const [pb, cls, paused, number, out] = await Promise.all([
     ctx.supabase
       .from("playbooks")
       .select("id, state, run_hour, last_run_for, template_name, template_language")
@@ -201,17 +203,16 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
       .eq("class", "follow_up")
       .is("subject_type", null)
       .maybeSingle(),
-    ctx.supabase.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
+    workspacePaused(ctx.supabase, tenantId),
     // The number as the send screen reads it (channels-ready.ts): none, or its health.
     whatsappHealthOf(ctx, tenantId),
     proposalsOut(ctx, tenantId),
   ]);
   if (pb.error) throw new Error(pb.error.message);
   if (cls.error) throw new Error(cls.error.message);
-  if (tenant.error) throw new Error(tenant.error.message);
   const mode = cls.data?.mode ?? "ask";
   const p = pb.data;
-  if (!p || p.state !== "running" || mode === "never" || tenant.data?.status === "paused" || !out) return null;
+  if (!p || p.state !== "running" || mode === "never" || paused || !out) return null;
   // A moment always has its template (00228's CHECK); only a reach-out's hand step has none.
   if (!p.template_name || !p.template_language) return null;
   // The channels it ticks (step 3; null on a database before 00298, WhatsApp alone): the number and Meta's approval stop
@@ -281,8 +282,12 @@ interface PoolCounts {
    * list whose yes has no number from a list nobody said yes to (#663's rule).
    */
   saidYes: number;
-  /** No email address, where email was the only channel left; and no channel the playbook ticks could carry its message. */
+  /**
+   * No email address, where email was the only channel left; an address on file mail no longer goes to (it bounced, or they
+   * marked a message as spam); and no channel the playbook ticks could carry its message.
+   */
   no_address: number;
+  address_stopped: number;
   no_channel: number;
   /** Who a run reaches on each channel (step 3), adding up to `candidates`. */
   by_channel: Record<ConsentChannel, number>;
@@ -386,6 +391,7 @@ function poolCounter({ vms, breath, nowMs, pace, ready }: PoolCounting) {
       noNumber: reach.noNumber,
       saidYes,
       no_address: reach.no_address ?? 0,
+      address_stopped: reach.address_stopped ?? 0,
       no_channel: reach.no_channel ?? 0,
       by_channel: reach.by_channel ?? { whatsapp: 0, sms: 0, email: 0 },
     };
@@ -393,7 +399,9 @@ function poolCounter({ vms, breath, nowMs, pace, ready }: PoolCounting) {
   return (trigger: PlaybookDto["trigger"], listIds: ReadonlySet<string> | null, message: RunMessage): TriggerPool => {
     const base = countFor(trigger, listIds, message, DEFAULT_CAMPAIGN_CHANNELS);
     const purpose = enrolPurpose(triggerOf(trigger)?.cls, message);
-    const by = otherChannelSets(ready, purpose).map((channels) => ({
+    // The moment's message is about their visit or proposal, or the business's own news, which by email waits for the
+    // workspace's offers as an offer does (contracts isOfferByEmail, decision D2): the sets a composer may tick follow it.
+    const by = otherChannelSets(ready, purpose, messageAboutOfTrigger(trigger)).map((channels) => ({
       channels,
       ...countFor(trigger, listIds, message, channels),
     }));

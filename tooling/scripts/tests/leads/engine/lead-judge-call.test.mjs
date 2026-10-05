@@ -75,12 +75,15 @@ const reply = (json, over = {}) => ({
 });
 function client(fn) {
   const seen = [];
+  const calls = [];
   return {
     seen,
+    calls,
     beta: {
       messages: {
-        create: async (p) => {
+        create: async (p, call) => {
           seen.push(p);
+          calls.push(call);
           return fn(p, seen.length);
         },
       },
@@ -125,6 +128,22 @@ test("with fallbacks off nothing beta is sent; a 400 that names the beta is aske
     c.seen.map((p) => !!p.fallbacks),
     [true, false],
   );
+});
+
+test("the workspace and the round are handed to the client with every call, the retry without the beta included; none named, none handed", async () => {
+  const c = client((p) => {
+    if (p.fallbacks) throw Object.assign(new Error("fallbacks: unknown beta"), { status: 400 });
+    return reply(good);
+  });
+  await leadJudge(c, "claude-opus-5", true).judge(PLAN, places, "tenant-1", "round-1");
+  assert.deepEqual(c.calls, [
+    { tenantId: "tenant-1", roundId: "round-1" },
+    { tenantId: "tenant-1", roundId: "round-1" },
+  ]);
+  const bare = client(() => reply(good));
+  await leadJudge(bare, "claude-opus-5", false).judge(PLAN, places, "tenant-1");
+  assert.equal(bare.calls[0].tenantId, "tenant-1");
+  assert.equal(bare.calls[0].roundId, undefined);
 });
 
 test("a refusal, a capped answer, text that is not JSON and an answer the parser rejects are refusals with their reason, never a throw", async () => {

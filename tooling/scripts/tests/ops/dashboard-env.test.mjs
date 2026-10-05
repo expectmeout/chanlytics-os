@@ -32,8 +32,8 @@ const WHOLE = {
   EDGE_URL: "https://edge.example.com",
   EDGE_CALL_SECRET: "edge-call-secret-for-tests",
   CANONICAL_HOST: "app.example.com",
-  // Required since #1371 (Ask, spoken): a voice session's token at rest, and the voice agent's door.
-  ASK_VOICE_SECRET: "ask-voice-secret-for-tests-made-up-32-bytes",
+  // Ask, spoken (#1371): the voice door's secrets are required in production too.
+  ASK_VOICE_SECRET: "ask-voice-secret-for-tests",
   ELEVENLABS_LLM_SECRET: "elevenlabs-llm-secret-for-tests",
 };
 
@@ -114,8 +114,8 @@ test("the module names every variable the manifest declares, and nothing else", 
 
 test("production names what it cannot serve without; a preview or a laptop is never missing anything", () => {
   assert.deepEqual(problemsIn(WHOLE), { missing: [], malformed: [] });
-  // The names, in whatever order the schema declares them (the voice secrets of #1371 sit apart in each list).
-  assert.deepEqual(problemsIn({ VERCEL_ENV: "production" }).missing.sort(), [...REQUIRED_IN_PRODUCTION].sort());
+  // Every one named, whichever order the checks reach them in (the canonical host is judged on its own, after the rest).
+  assert.deepEqual(problemsIn({ VERCEL_ENV: "production" }).missing.toSorted(), [...REQUIRED_IN_PRODUCTION].toSorted());
   assert.deepEqual(problemsIn({ ...WHOLE, EDGE_URL: "  " }).missing, ["EDGE_URL"], "blank is unset");
   assert.deepEqual(problemsIn({}), { missing: [], malformed: [] }, "a laptop");
   assert.deepEqual(problemsIn({ VERCEL_ENV: "preview" }), { missing: [], malformed: [] }, "a preview");

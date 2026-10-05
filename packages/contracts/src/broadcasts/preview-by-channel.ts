@@ -3,13 +3,16 @@
  * Campaigns review's items 15, 17 and 18). A campaign goes by the channels it ticks and each person is reached once, on
  * one of them (reach-for.ts), so the preview is drawn for a person on their channel: WhatsApp's bubble from the
  * template, a text with the STOP line the sender adds, an email with its subject and the foot the sender adds
- * (templates/email-foot.ts: the one the send puts on the wire). The To line says the split as one short clause, and the
- * bar draws it. Pure: every sentence the composers say of this is here.
+ * (templates/email-foot.ts: the one the send puts on the wire, in the version's language). The To line says the split
+ * as one short clause, and the bar draws it. Pure: every sentence the composers say of this is here.
  */
 import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../consent/consent-channels";
 import { emailFoot } from "../templates/email-foot";
 import {
+  OWN_VERSION_CHANNELS,
+  renderOwnVersion,
   smsStopLine,
+  versionWords,
   VERSION_CHANNEL_WORDS,
   type OwnVersionChannel,
   type VersionWords,
@@ -48,6 +51,31 @@ export const PREVIEW_CHANNEL_WORDS: Record<ConsentChannel, string> = {
 
 /** A message's email and text versions as a page holds their words (templates versionWords), by channel. */
 export type PreviewVersions = Partial<Record<OwnVersionChannel, VersionWords>>;
+
+/**
+ * A message's email and text versions in a language, as the words a preview or a card draws, from the workspace's template
+ * rows of its name and language (templates versionWords): a channel the message has no row on is left out. The one reading of
+ * the rows: the composers' pages stamp it on each template they offer, and Ask's cards read the same rows through it.
+ */
+export function previewVersionsOf(
+  rows: readonly {
+    name: string;
+    channel: string;
+    language: string;
+    components?: unknown;
+    header?: string | null;
+    body_preview?: string | null;
+  }[],
+  name: string,
+  language: string,
+): PreviewVersions {
+  const out: PreviewVersions = {};
+  for (const channel of OWN_VERSION_CHANNELS) {
+    const row = rows.find((r) => r.channel === channel && r.name === name && r.language === language);
+    if (row) out[channel] = versionWords(row);
+  }
+  return out;
+}
 
 /** What a person reads on the channel they are reached on, short of the slots, which the page fills for them. */
 export interface PreviewOn {
@@ -103,8 +131,46 @@ export function previewOn(
           o.offer
             ? { kind: "offer", why: o.offer, unsubscribeUrl: PREVIEW_WORDS.unsubscribeLink }
             : { kind: "visit", facts: o.facts ?? {} },
+          o.language,
         );
   return { channel, label, version, foot, missing: null };
+}
+
+/** The fewest characters a card quotes of a message on one channel, however many channels share its room. */
+const SAID_MIN = 60;
+
+/**
+ * What an approving surface quotes of a message, for the channels the campaign goes by: each channel's own words as the person
+ * reached on it reads them, in the page's channel order, the slots filled with `values` --
+ * "On WhatsApp: Hi Dani, …", "By email: “A note, Dani” — Hi Dani, …", "By text: Hi Dani, … Reply STOP to opt out". WhatsApp's are
+ * the template's, which the caller has filled (`whatsapp`); an email's and a text's are their versions through the one fill a
+ * send makes (templates renderOwnVersion), so the card quotes what goes. A channel whose version is not in hand is `missing`,
+ * with the sentence for it, and the card is refused: never another channel's words under its name. `limit` is the room for
+ * the words in all, shared between the channels, none cut under a line's worth.
+ */
+export function previewSays(
+  channels: readonly ConsentChannel[],
+  o: { whatsapp: string; versions: PreviewVersions; values: readonly string[]; language: string; limit: number },
+): { says: string } | { missing: ConsentChannel; why: string } {
+  const named = CONSENT_CHANNELS.filter((c) => channels.includes(c));
+  const room = Math.max(SAID_MIN, Math.floor(o.limit / Math.max(1, named.length)));
+  const clip = (words: string): string => {
+    const one = words.replace(/\s+/g, " ").trim();
+    return one.length > room ? `${one.slice(0, room).trimEnd()}…` : one;
+  };
+  const parts: string[] = [];
+  for (const channel of named) {
+    const label = PREVIEW_CHANNEL_WORDS[channel];
+    if (channel === "whatsapp") {
+      parts.push(`${label}: ${clip(o.whatsapp)}`);
+      continue;
+    }
+    const words = o.versions[channel];
+    if (!words) return { missing: channel, why: PREVIEW_WORDS.noVersion(channel) };
+    const sent = renderOwnVersion(channel, words, o.values, o.language);
+    parts.push(`${label}: ${sent.subject ? `“${sent.subject}” — ` : ""}${clip(sent.body)}`);
+  }
+  return { says: parts.join(" · ") };
 }
 
 /** One channel's part of who a campaign reaches: how many, and what that says. */

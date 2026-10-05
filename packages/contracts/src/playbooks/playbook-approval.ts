@@ -2,10 +2,14 @@
  * The approval a run waits on: its view model, the pool it drew from and the lines that say who it reaches. Moved
  * whole from playbooks.ts (Reach out Part 2.5), which re-exports it.
  */
+import { audienceTrigger } from "../broadcasts/broadcast-audience";
 import type { BroadcastDto, BroadcastRecipientDto } from "../broadcasts/broadcasts";
 import { purposeOfPlaybook } from "../consent/consent";
+import { consentRuleWords } from "../consent/consent-asks";
 import type { ConsentChannel } from "../consent/consent-channels";
 import { GET_YES_ROUTE } from "../people/people-lists";
+import { CAMPAIGNS_PAUSED_WORDS } from "../workspace/billing";
+import { messageAboutOfTrigger } from "./playbook-purpose";
 import type { RunReach } from "./playbook-reach";
 import { triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
@@ -47,11 +51,17 @@ export interface ApprovalVM {
   values: string[];
   /** Whose message the words are: the first person on it with a name. Null for a run with nobody on it. */
   reader: string | null;
+  /** The channel the reader's message goes by (their recipient row's), WhatsApp where the run kept none: which version they read. */
+  readerChannel: ConsentChannel;
   /** How many a greeting by name reaches with no name on file: they get "Hi there" (resolveParams). */
   hiThere: number;
-  /** The act: "Approve — 186 now", or "at 9:00" after hours (approveRun sends at the next open moment). Null when its day has passed. */
+  /** The act: "Approve — 186 now", or "at 9:00" after hours (approveRun sends at the next open moment). Null when approveRun would refuse it. */
   approve: string | null;
-  /** Why it cannot be approved: a playbook's run is a day's run, and approveRun refuses it on a later day. */
+  /**
+   * Why it cannot be approved, in the verb's own words (runApprovalRefusal): a playbook's run is a day's run, and approveRun
+   * refuses it on a later day, and a visit's run that would go out on a later day than the one it was made for; or the
+   * workspace is paused (CAMPAIGNS_PAUSED_WORDS), which approveRun refuses first.
+   */
   expired: string | null;
   /** When it goes, for the line under its name. */
   goes: string;
@@ -91,6 +101,9 @@ export function reachLines(
   // A follow-up is owed once per proposal (0006): one already had is done, never waited out.
   const once = t?.kind === "deal";
   const one = (n: number, singular: string, plural: string) => (n === 1 ? singular : plural);
+  const noAddress = reach.no_address ?? 0;
+  const addressStopped = reach.address_stopped ?? 0;
+  const noChannel = reach.no_channel ?? 0;
   const reasons: { n: number; words: string; tone: "warn" | "plain"; door: { words: string; to: string } | null }[] = [
     {
       n: reach.noYes,
@@ -114,6 +127,34 @@ export function reachLines(
     {
       n: reach.noNumber,
       words: one(reach.noNumber, "has no number on file", "have no number on file"),
+      tone: "plain",
+      door: null,
+    },
+    // Where email was the only channel left, or no channel could carry the message: each is a person the run counted and
+    // leaves out, so each has its line (a run counted before runs kept them has none).
+    {
+      n: noAddress,
+      words: one(noAddress, "has no email address on file", "have no email address on file"),
+      tone: "plain",
+      door: null,
+    },
+    {
+      n: addressStopped,
+      words: one(
+        addressStopped,
+        "has an email address mail no longer goes to",
+        "have an email address mail no longer goes to",
+      ),
+      tone: "plain",
+      door: null,
+    },
+    {
+      n: noChannel,
+      words: one(
+        noChannel,
+        "has no channel this message can go by here",
+        "have no channel this message can go by here",
+      ),
       tone: "plain",
       door: null,
     },
@@ -162,10 +203,14 @@ function allowanceHeldOn(
   const held: Record<ConsentChannel, number> = { whatsapp: 0, sms: 0, email: 0 };
   for (const r of recipients) {
     if (r.state !== "skipped" || r.reason !== ALLOWANCE_REASON) continue;
-    const channel = r.channel === "sms" || r.channel === "email" ? r.channel : "whatsapp";
-    held[channel] += 1;
+    held[channelOfRecipient(r)] += 1;
   }
   return held;
+}
+
+/** The channel a recipient's message goes by: the row's own, WhatsApp where the run kept none (a run made before channels). */
+function channelOfRecipient(r: Partial<Pick<BroadcastRecipientDto, "channel">> | null): ConsentChannel {
+  return r?.channel === "sms" || r?.channel === "email" ? r.channel : "whatsapp";
 }
 
 /**
@@ -178,9 +223,58 @@ export function runDayPassed(
   run: { playbook_id: string | null; run_for?: string | null },
   today: string,
 ): string | null {
-  return run.playbook_id && run.run_for && run.run_for !== today
-    ? `This run was made for ${run.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`
-    : null;
+  const day = dayHasPassed(run, today);
+  return day ? dayGoneWords(day) : null;
+}
+
+/** The day a playbook's run was made for when it is not `today`, else null: the one reading of "its day has passed". */
+function dayHasPassed(run: { playbook_id: string | null; run_for?: string | null }, today: string): string | null {
+  return run.playbook_id && run.run_for && run.run_for !== today ? run.run_for : null;
+}
+
+/**
+ * The sentence a run is refused in when its day is gone: the route's, Ask's run card's, and the sheet's, which says the day
+ * in the business's own words (`say`) where the verb says it as the date.
+ */
+function dayGoneWords(runFor: string, say: (ymd: string) => string = (ymd) => ymd): string {
+  return `This run was made for ${say(runFor)} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`;
+}
+
+/**
+ * When an approval would send a run: the business's day now, and the day of the next open moment (nextOpenMoment),
+ * "2026-09-21". `say` words a day for the person reading the refusal (the sheet's); the verb's own is the date.
+ */
+interface ApprovalDays {
+  today: string;
+  sendsOn: string;
+  say?: (ymd: string) => string;
+}
+
+/**
+ * Whether a visit's run, made for today, would go out on a later day than the one it was made for: approved after the
+ * last sending hour it waits for nine the next morning, and its words (the visit's time as the calendar said it when the
+ * run was made, "tomorrow at 2:00 PM") are that day's, so they would reach the customer on the morning of the visit. Any
+ * other moment's words do not name a day.
+ */
+function visitRunTooLate(run: { run_for?: string | null; audience?: unknown }, days: ApprovalDays): boolean {
+  const moment = triggerOf(audienceTrigger(run.audience) ?? "");
+  return moment?.kind === "visit" && !!run.run_for && days.sendsOn > run.run_for;
+}
+
+/**
+ * Why a waiting playbook's run cannot be approved now, in one sentence, or null: its day has passed (dayHasPassed), or it
+ * is a visit's run that an approval now would send on a later day than the one it was made for (visitRunTooLate). THE
+ * predicate for the verb (core approveRun), Ask's run card and the sheet (toApprovalVM), so the sheet never offers a button
+ * the verb refuses, `playbook_id` guard and all: a run that is no playbook's has no day to pass.
+ */
+export function runApprovalRefusal(
+  run: { playbook_id: string | null; run_for?: string | null; audience?: unknown },
+  days: ApprovalDays,
+): string | null {
+  const day =
+    dayHasPassed(run, days.today) ??
+    (run.playbook_id && run.run_for && visitRunTooLate(run, days) ? run.run_for : null);
+  return day ? dayGoneWords(day, days.say) : null;
 }
 
 /**
@@ -191,8 +285,8 @@ export function runDayPassed(
  */
 export function toApprovalVM(
   d: {
-    broadcast: Pick<BroadcastDto, "recipient_count" | "run_for" | "params"> & {
-      audience?: { reach?: RunReach } | null;
+    broadcast: Pick<BroadcastDto, "recipient_count" | "run_for" | "params" | "playbook_id"> & {
+      audience?: { reach?: RunReach; trigger?: string } | null;
     };
     recipients: ReadonlyArray<
       Pick<BroadcastRecipientDto, "name" | "first_name"> &
@@ -204,10 +298,20 @@ export function toApprovalVM(
     businessName: string;
     /** The business's day now, "2026-09-21". */
     today: string;
-    /** When an approval now would send: the clock's next open moment, and whether it moved past the hours. */
-    open: { time: string; moved: boolean };
+    /**
+     * When an approval now would send: the clock's next open moment, whether it moved past the hours, and the business's
+     * day it falls on ("2026-09-21": a visit's run made for today does not go on a later one, runApprovalRefusal).
+     */
+    open: { time: string; moved: boolean; on: string };
     /** A run's day in words. */
     day: (ymd: string) => string;
+    /**
+     * Whether the workspace is paused (contracts ChannelsReady.paused, tenants.status), where the caller holds that readiness;
+     * null where it does not, and the sheet then says nothing of it (Ask's run card reads none). Approving under a pause is
+     * refused (core approveRun), so the sheet says so, in the words every campaign says it (CAMPAIGNS_PAUSED_WORDS), instead
+     * of offering the button.
+     */
+    paused: boolean | null;
   },
 ): ApprovalVM {
   const b = d.broadcast;
@@ -219,9 +323,9 @@ export function toApprovalVM(
   const t = opts.playbook ? triggerOf(opts.playbook.trigger) : null;
   const rules: string[] = [];
   if (t && opts.playbook) {
-    rules.push(
-      purposeOfPlaybook(t.cls) === "marketing" ? "each said yes to offers" : "each said yes to hearing from you",
-    );
+    // What each person on the run was asked for, on the channel they are reached on (consent-asks.ts): an email about a
+    // visit asks no yes, and an offer by email may go on a relationship on record, so it is not one sentence for all.
+    rules.push(...consentRuleWords(by, purposeOfPlaybook(t.cls), messageAboutOfTrigger(opts.playbook.trigger)));
     if (t.kind === "visit") {
       rules.push(
         opts.playbook.trigger === "visit_tomorrow"
@@ -262,7 +366,11 @@ export function toApprovalVM(
     }
   });
   const greets = params.some((p) => p.kind === "first_name");
-  const late = !!b.run_for && b.run_for !== opts.today;
+  // The verb's own rule, asked, not recomputed (runApprovalRefusal): its day has passed, or a visit's run would go out on a
+  // later day than it was made for. A paused workspace is refused first, as approveRun refuses it first.
+  const late = runApprovalRefusal(b, { today: opts.today, sendsOn: opts.open.on, say: opts.day });
+  const refusal = opts.paused ? CAMPAIGNS_PAUSED_WORDS : late;
+  const runFor = b.run_for ?? "";
   return {
     will,
     byChannel: by
@@ -276,16 +384,17 @@ export function toApprovalVM(
     of: reachLines(b.audience?.reach ?? null, opts.playbook, allowanceHeld),
     values,
     reader: reader ? reader.name : null,
+    readerChannel: channelOfRecipient(reader),
     hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,
-    approve: late ? null : `Approve — ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
-    expired: late
-      ? `Made for ${opts.day(b.run_for!)}, and that day has passed — its people and its words were that day's. Skip it; the next run starts over.`
-      : null,
+    approve: refusal ? null : `Approve — ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
+    expired: refusal,
     goes: late
-      ? `made for ${opts.day(b.run_for!)}`
-      : opts.open.moved
-        ? `goes at ${opts.open.time} once you approve it`
-        : "goes the moment you approve it",
+      ? `made for ${opts.day(runFor)}`
+      : opts.paused
+        ? "waits until billing resumes"
+        : opts.open.moved
+          ? `goes at ${opts.open.time} once you approve it`
+          : "goes the moment you approve it",
     skip: "Skipping loses this run only — the playbook keeps running.",
   };
 }

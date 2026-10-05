@@ -90,6 +90,9 @@ interface TenantRunContext extends RunContext {
   tenantId: string;
 }
 
+/** What a workspace's context answers when it is paused (`tenants.status`): not a failure to read it, and the callers tell the two apart. */
+export const CONTEXT_PAUSED = "paused";
+
 /**
  * What a run's channels are judged by (contracts channelsReady), read once per tenant: the WhatsApp number's config as
  * Meta last said it, the texting line a text would leave on, and whether the workspace has a mailbox where this
@@ -200,8 +203,8 @@ export async function loadTenantRunContext(
   if (channels.error) return { error: `channels: ${channels.error}` };
   if (touched.error) return { error: touched.error };
   if (kept.error) return { error: `lists: ${kept.error}` };
-  // A paused workspace runs nothing: the sweep counts it off, and says so once, quietly.
-  if (tenant?.status === "paused") return { error: "paused" };
+  // A paused workspace runs nothing: the sweep counts it off, and says so once, quietly; Run now refuses it in words.
+  if (tenant?.status === "paused") return { error: CONTEXT_PAUSED };
   const cfg = channels.whatsapp ?? {};
   const s = (k: string) => (typeof cfg[k] === "string" ? cfg[k] : null);
   // A touch is a message sent, or one on its way, dated by when it went or is due; a broadcast the owner sent by
@@ -363,7 +366,7 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
         }),
       // The month's allowance, counted before anyone is enrolled, and those past it held the moment the run exists (core
       // campaigns/allowance.ts): the send's own check at the wire stays as the backstop.
-      monthSent: (channel) => campaignMonthSent(db, tenantId, channel),
+      monthSent: (channel, at) => campaignMonthSent(db, tenantId, channel, at),
       holdRecipients: (broadcastId, contactIds, reason) =>
         holdRecipients(db, { tenantId, broadcastId, contactIds, reason }),
       // The ledger: a run the sweep sends is the system's decision under the

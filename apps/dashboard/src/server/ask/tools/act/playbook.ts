@@ -14,22 +14,22 @@ import {
   dealPaceOf,
   dealsAreOn,
   defaultParamSpecs,
-  exampleParams,
   parseListToken,
   parseParamSpec,
   playbookRunReach,
   proposalChannelsWords,
   purposeOfPlaybook,
-  renderTemplate,
   saidYesWords,
   scheduleLine,
   slotLabels,
   startersForTrigger,
+  messageAboutOfTrigger,
   triggerOf,
   triggerOffered,
   type CampaignHow,
   type ConsentChannel,
   type ListRef,
+  type MessageAbout,
   type ParamSpec,
 } from "@chanlytics/contracts";
 import { campaignHow } from "@chanlytics/core";
@@ -54,6 +54,7 @@ import {
   type ProposalOutcome,
   type ToolContext,
 } from "../context";
+import { cardSays } from "./says";
 
 /** What a run does under each mode, in the card's words. */
 const MODE_WORDS: Record<string, string> = {
@@ -169,9 +170,11 @@ async function playbookHow(
   t: ToolContext,
   tpl: { name: string; language: string },
   by: { channels: ConsentChannel[]; named: boolean },
+  /** The moment's (contracts messageAboutOfTrigger): a visit's or a follow-up's message is theirs. */
+  about: MessageAbout,
 ): Promise<CampaignHow> {
-  if (!by.named) return whatsappHow(t);
-  return (await campaignHow(createBroadcastPorts(t.ctx, t.tenantId, { fresh: false }), tpl, by.channels)).how;
+  if (!by.named) return whatsappHow(t, about);
+  return (await campaignHow(createBroadcastPorts(t.ctx, t.tenantId, { fresh: false }), tpl, by.channels, about)).how;
 }
 
 /**
@@ -308,7 +311,7 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
   // now" about a list whose yes had no number to send to. Said in the send screen's words (saidYesWords).
   // By the channels it names, WhatsApp alone when it names none.
   const by = { channels: checked.channels, named: input.channels !== undefined };
-  const how = await playbookHow(t, tpl, by);
+  const how = await playbookHow(t, tpl, by, messageAboutOfTrigger(trig.id));
   const drawn = playbookRunReach(
     pool.rows,
     // The yes its message needs, with its moment's: the check above held the two to agree, so the stricter is either.
@@ -327,16 +330,16 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
     dealPaceOf(paceRead),
     listIds,
   );
-  const candidates = drawn.reach.will;
   // A tick that cannot send yet stays on the playbook, and its run holds those people until it can: the card says so.
   const { goes, waiting } = playbookChannelsSaid(how, by, drawn.reach.by_channel);
   const cls = checked.policy_class;
   const mode = policies.find((r) => r.class === cls)?.mode ?? "ask";
-  const words = renderTemplate(tpl.body_preview, exampleParams(specs, "the business"));
+  const said = await cardSays(t, tpl, specs, by, 140);
+  if ("refusal" in said) return refuse(said.refusal);
   return propose({
     kind: "playbook",
     title: `Playbook: ${checked.name}`,
-    summary: `${listLabel ? `On ${listLabel}` : `${trig.label} — ${trig.hint.toLowerCase()}`} · ${scheduleLine(checked)}${goes} · ${waiting}${saidYesWords("the list", purposeOfPlaybook(cls), candidates, drawn.saidYes)} · under “${PLAYBOOK_CLASS_LABEL[cls]}” (${mode}): ${MODE_WORDS[mode] ?? mode}. Says: ${words.slice(0, 140)}${words.length > 140 ? "…" : ""}`,
+    summary: `${listLabel ? `On ${listLabel}` : `${trig.label} — ${trig.hint.toLowerCase()}`} · ${scheduleLine(checked)}${goes} · ${waiting}${saidYesWords("the list", purposeOfPlaybook(cls), drawn.reach.will, drawn.saidYes)} · under “${PLAYBOOK_CLASS_LABEL[cls]}” (${mode}): ${MODE_WORDS[mode] ?? mode}. Says: ${said.says}`,
     payload: {
       trigger: trig.id,
       trigger_label: trig.label,
@@ -348,7 +351,7 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
       gap_days: checked.gap_days,
       cadence_days: checked.cadence_days,
       name: checked.name,
-      candidates,
+      candidates: drawn.reach.will,
       policy_class: cls,
       // The list it runs on, when it runs on one: the commit names it as the composer does.
       list_id: checked.list_id,

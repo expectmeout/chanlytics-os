@@ -729,8 +729,22 @@ async function askSystemOne(key, ask, deps = {}) {
 }
 
 // src/whatsapp.ts
-import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, OPT_OUT_PATTERN } from "../../contracts/dist/index.js";
+import {
+  CONVERSATION_OPT_IN_PATTERN,
+  MARKETING_OPT_IN_PATTERN,
+  OPT_OUT_PATTERN,
+  REFERRAL_ID_MAX
+} from "../../contracts/dist/index.js";
 var GRAPH = "https://graph.facebook.com/v25.0";
+var UNSTORABLE_IN_ID = /[\p{Cc}\p{Cs}]/u;
+var REFERRAL_KIND = /^[\p{L}\p{N}_-]{1,32}$/u;
+function adReferralOf(r) {
+  if (typeof r !== "object" || r === null) return null;
+  const id = "source_id" in r && typeof r.source_id === "string" ? r.source_id.trim() : "";
+  if (id.length < 1 || id.length > REFERRAL_ID_MAX || UNSTORABLE_IN_ID.test(id)) return null;
+  const kind = "source_type" in r && typeof r.source_type === "string" ? r.source_type.trim() : "";
+  return { sourceId: id, sourceType: REFERRAL_KIND.test(kind) ? kind : null };
+}
 function chosenReply(m) {
   if (m.button) {
     const label = m.button.text ?? m.button.payload ?? "";
@@ -744,6 +758,16 @@ function chosenReply(m) {
     return label || id ? { label, id } : null;
   }
   return null;
+}
+function mediaRefOf(src) {
+  if (!src?.id) return null;
+  return {
+    provider_media_id: src.id,
+    mime_type: src.mime_type ?? null,
+    caption: src.caption ?? null,
+    filename: src.filename ?? null,
+    fetch_state: "pending"
+  };
 }
 function normalizeInbound(m, value) {
   const list = value.contacts || [];
@@ -780,16 +804,7 @@ function normalizeInbound(m, value) {
     rawType: m.type,
     body,
     channelTsIso: m.timestamp ? new Date(Number(m.timestamp) * 1e3).toISOString() : null,
-    media: mediaSrc?.id ? (() => {
-      const loose = mediaSrc;
-      return {
-        provider_media_id: mediaSrc.id,
-        mime_type: loose.mime_type ?? null,
-        caption: loose.caption ?? null,
-        filename: loose.filename ?? null,
-        fetch_state: "pending"
-      };
-    })() : null,
+    media: mediaRefOf(mediaSrc),
     optOut: isText && matches(OPT_OUT_PATTERN),
     // WHICH yes, and only that one. START, UNSTOP, RESUME and ALTA answer the
     // appointment question; YES OFFERS answers the offers question and nothing
@@ -799,8 +814,21 @@ function normalizeInbound(m, value) {
     // to confess it in the field the refusal named. The way back in from a STOP
     // is START, as the carriers' own reply to a STOP says.
     optIn: isText && matches(CONVERSATION_OPT_IN_PATTERN),
-    optInMarketing: isText && matches(MARKETING_OPT_IN_PATTERN)
+    optInMarketing: isText && matches(MARKETING_OPT_IN_PATTERN),
+    referral: adReferralOf(m.referral)
   };
+}
+var PRICING_WORD = /^[A-Za-z0-9_-]{1,40}$/;
+function waPricingOf(raw) {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw;
+  const out = {};
+  if (typeof r.billable === "boolean") out.billable = r.billable;
+  for (const key of ["pricing_model", "category", "type"]) {
+    const word = r[key];
+    if (typeof word === "string" && PRICING_WORD.test(word)) out[key] = word;
+  }
+  return out.category ? out : null;
 }
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -1158,7 +1186,14 @@ function verifyRetellSignature(rawBody, header, apiKey) {
 }
 
 // src/voice/voice-shell.ts
-import { CALL_OUTCOMES, greetingFor, GREETING_DEFAULT } from "../../contracts/dist/index.js";
+import {
+  BRAIN_INTENTS,
+  BRAIN_LANGUAGES,
+  CALL_OUTCOMES,
+  greetingFor,
+  GREETING_DEFAULT,
+  POLICY_COVERS
+} from "../../contracts/dist/index.js";
 var VOICE_SHELL_PROMPT = "{{business_facts}}\n\nWho you are speaking with:\n{{caller_context}}";
 var VOICE_SHELL_BEGIN = "{{greeting}}";
 var HANDOFF_VAR = "{{handoff_number}}";
@@ -1362,6 +1397,20 @@ var CALL_ANALYSIS_FIELDS = [
     name: "caller_email",
     description: "The email address the caller gave, exactly as they spelled it out. Leave empty if they did not give one.",
     examples: ["ana.ruiz@example.com", "daniela.r@example.net"]
+  },
+  {
+    type: "enum",
+    name: "topic",
+    // The classes a rule covers are said in the words the receptionist's prompt and its texts' intent say them
+    // (POLICY_COVERS), so a call and a text read one meaning; only what no rule covers is said here.
+    description: `What the call was mainly about. booking: ${POLICY_COVERS.booking}. pricing: ${POLICY_COVERS.faq}, when it is about what something costs. services: ${POLICY_COVERS.faq}, when it is about what the business offers. money: ${POLICY_COVERS.money}. hours: when the business is open. location: where it is or how to get there. complaint: they were unhappy about something. smalltalk: a greeting or a chat with no request. other: none of these.`,
+    choices: [...BRAIN_INTENTS]
+  },
+  {
+    type: "enum",
+    name: "language",
+    description: "The language the caller mostly spoke. en: English. es: Spanish. other: any other language.",
+    choices: [...BRAIN_LANGUAGES]
   }
 ];
 function sameAnalysisField(live, want) {
@@ -1392,7 +1441,7 @@ function planAgentSettings(live, opts = {}) {
   const missingFields = CALL_ANALYSIS_FIELDS.filter((f) => !liveFields.some((l) => sameAnalysisField(l, f)));
   if (missingFields.length) {
     drift.push(
-      `post_call_analysis_data lacks ${missingFields.map((f) => f.name).join(", ")} (the strip, the profile and the call card read what the caller wanted)`
+      `post_call_analysis_data lacks ${missingFields.map((f) => f.name).join(", ")} (the strip, the profile, the call card and Reports read what the call was about)`
     );
     patch.post_call_analysis_data = [
       ...liveFields.filter((l) => !CALL_ANALYSIS_FIELDS.some((f) => f.name === l.name)),
@@ -1580,6 +1629,7 @@ function planVoiceProvision(st) {
 // src/voice/elevenlabs.ts
 var ELEVENLABS_API = "https://api.elevenlabs.io";
 var ELEVENLABS_TIMEOUT_MS = 1e4;
+var ELEVENLABS_SPEECH_TIMEOUT_MS = 25e3;
 var ELEVENLABS_WEBHOOK_TOLERANCE_S = 30 * 60;
 var ELEVENLABS_SIGNATURE_HEADER = "elevenlabs-signature";
 function vendorWords(a) {
@@ -1609,6 +1659,23 @@ async function mintConversationToken(cfg, deps) {
   const conversationId = typeof j?.conversation_id === "string" ? j.conversation_id : "";
   if (!token || !conversationId) return { outcome: "rejected", status: a.status, error: "no token in the answer" };
   return { outcome: "ok", token, conversationId };
+}
+async function speakText(cfg, input, deps) {
+  const url = `${ELEVENLABS_API}/v1/text-to-speech/${encodeURIComponent(input.voiceId)}/stream?output_format=mp3_44100_128`;
+  const a = await providerFetch(
+    "elevenlabs",
+    url,
+    {
+      method: "POST",
+      headers: { "xi-api-key": cfg.apiKey, "content-type": "application/json", accept: "audio/mpeg" },
+      body: JSON.stringify({ text: input.text, model_id: input.modelId, apply_text_normalization: "on" }),
+      timeoutMs: ELEVENLABS_SPEECH_TIMEOUT_MS,
+      stream: true
+    },
+    deps
+  );
+  if (a.outcome !== "ok" || !a.body) return notOk(a);
+  return { outcome: "ok", body: a.body, contentType: a.headers?.get("content-type") || "audio/mpeg" };
 }
 async function deleteConversation(cfg, conversationId, deps) {
   const a = await providerFetch(
@@ -2798,6 +2865,16 @@ function headersOf(v) {
     for (const [k, val] of Object.entries(v)) put(k, Array.isArray(val) ? val[0] : val);
   return out;
 }
+function allValuesOf(v, name) {
+  const out = [];
+  const take = (k, val) => {
+    if (typeof k !== "string" || k.toLowerCase() !== name) return;
+    for (const x of Array.isArray(val) ? val : [val]) if (typeof x === "string") out.push(x);
+  };
+  if (Array.isArray(v)) for (const h of v) take(h?.name, h?.value);
+  else if (v && typeof v === "object") for (const [k, val] of Object.entries(v)) take(k, val);
+  return out;
+}
 function receivedEmailFrom(body) {
   const b = body;
   if (!b || typeof b !== "object" || typeof b.id !== "string") return null;
@@ -2812,6 +2889,7 @@ function receivedEmailFrom(body) {
     text: str2(b.text),
     html: str2(b.html),
     headers: headers2,
+    authResults: allValuesOf(b.headers, "authentication-results"),
     messageId: messageIdHeader(str2(b.message_id) ?? headers2["message-id"]),
     createdAt: str2(b.created_at),
     attachments: (Array.isArray(b.attachments) ? b.attachments : []).map((a) => {
@@ -2827,13 +2905,19 @@ function receivedEmailFrom(body) {
 function messageIdsIn(header) {
   return (header ?? "").split(/\s+/).map(messageIdHeader).filter((x) => x !== null);
 }
-function authResultsOf(header) {
+function withoutComments(header) {
   let said = header.toLowerCase().replace(/"[^"]*"/g, '""');
   for (let before = ""; before !== said; ) {
     before = said;
     said = said.replace(/\([^()]*\)/g, " ");
   }
-  return said.split(";").slice(1).flatMap((clause) => {
+  return said;
+}
+function authservIdOf(header) {
+  return withoutComments(header).split(";")[0]?.trim().split(/\s+/)[0] ?? "";
+}
+function authResultsOf(header) {
+  return withoutComments(header).split(";").slice(1).flatMap((clause) => {
     const [head, ...rest] = clause.trim().split(/\s+/);
     const m = /^([a-z0-9-]+)(?:\/\d+)?=([a-z]+)$/.exec(head ?? "");
     if (!m) return [];
@@ -2849,10 +2933,14 @@ var domainOf = (identity) => {
   const d = identity?.slice(identity.lastIndexOf("@") + 1).trim();
   return d || null;
 };
-function senderAuthenticated(e) {
+function senderAuthenticated(e, authservId) {
+  const expected = authservId?.trim().toLowerCase();
+  if (!expected) return false;
   const from = domainOf(e.from?.address.toLowerCase());
   if (!from) return false;
-  const results = authResultsOf(e.headers["authentication-results"] ?? "");
+  const own = (e.authResults ?? []).filter((h) => authservIdOf(h) === expected);
+  if (own.length !== 1) return false;
+  const results = authResultsOf(own[0] ?? "");
   const dmarc = results.filter((r) => r.method === "dmarc");
   if (dmarc.some((r) => r.result === "fail")) return false;
   const alignedDmarc = dmarc.some((r) => r.result === "pass" && domainOf(r.props.get("header.from")) === from);
@@ -2979,6 +3067,7 @@ function emailPlainText(e) {
 var RESEND_API = "https://api.resend.com";
 var SEND_TIMEOUT_MS2 = 15e3;
 var SEND_DEADLINE_MS = 32e3;
+var SEND_MIN_MS = 3e3;
 var RETRY_NEEDS_MS = 5e3;
 var LIMIT_WAIT_MAX_MS = 2e3;
 var LIMIT_WAIT_DEFAULT_MS = 1e3;
@@ -3059,7 +3148,7 @@ async function postEmail(cfg, request, timeoutMs) {
 async function sendEmail(cfg, request, opts = {}) {
   const wait = opts.wait ?? sleep;
   const now = opts.now ?? Date.now;
-  const deadline = now() + (opts.deadlineMs ?? SEND_DEADLINE_MS);
+  const deadline = now() + Math.min(opts.deadlineMs ?? SEND_DEADLINE_MS, SEND_DEADLINE_MS);
   const left = () => Math.max(0, deadline - now());
   const paced = async (p) => {
     if (p.result.ok && p.paceMs) await wait(Math.min(p.paceMs, LIMIT_WAIT_MAX_MS, left()));
@@ -4719,7 +4808,7 @@ function betaRejected(e) {
 }
 function leadJudge(client, model, fallbacks) {
   return {
-    async judge(plan, places, tenantId) {
+    async judge(plan, places, tenantId, roundId) {
       const system = judgeSystemPrompt(plan);
       const user = judgeUserContent(places);
       const requestHash = createHash2("sha256").update(`${system}
@@ -4735,11 +4824,11 @@ ${user}`).digest("hex");
       try {
         res = await client.beta.messages.create(
           fallbacks ? { ...base, betas: [LEAD_JUDGE_FALLBACK_BETA], fallbacks: "default" } : base,
-          { tenantId }
+          { tenantId, roundId }
         );
       } catch (e) {
         if (!(fallbacks && betaRejected(e))) throw e;
-        res = await client.beta.messages.create(base, { tenantId });
+        res = await client.beta.messages.create(base, { tenantId, roundId });
       }
       const tokens = (res.usage?.input_tokens ?? 0) + (res.usage?.output_tokens ?? 0);
       if (res.stop_reason === "refusal") return { refused: true, why: "the judge refused" };
@@ -4806,6 +4895,7 @@ export {
   RETELL_ORIGINATION,
   REVIEW_BELL_MAX,
   SEND_DEADLINE_MS,
+  SEND_MIN_MS,
   SEND_TIMEOUT_MS2 as SEND_TIMEOUT_MS,
   SMS_FOOTER,
   SMS_HELD_DETAILS,
@@ -5002,6 +5092,7 @@ export {
   smsStatusUrl,
   soleProprietorEndUserRequest,
   soleProprietorProfileRequest,
+  speakText,
   starRatingNumber,
   starterAttributes,
   starterEndUserRequest,
@@ -5045,6 +5136,7 @@ export {
   voiceNumberCreateBody,
   voiceShellDrift,
   voiceShellTools,
+  waPricingOf,
   withCarrierConsent,
   withKey,
   withRequestId

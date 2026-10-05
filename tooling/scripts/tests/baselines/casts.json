@@ -57,10 +57,6 @@
     "unknownAs": 3
   },
   "apps/dashboard/src/legacy-bridge/ask/speech.ts": {
-    "unknownAs": 1,
-    "nonNull": 3
-  },
-  "apps/dashboard/src/legacy-bridge/business-tab.ts": {
     "unknownAs": 1
   },
   "apps/dashboard/src/legacy-bridge/identity.ts": {
@@ -77,12 +73,6 @@
   },
   "apps/dashboard/src/legacy-bridge/notifications.ts": {
     "unknownAs": 4,
-    "nonNull": 2
-  },
-  "apps/dashboard/src/legacy-bridge/partner.ts": {
-    "unknownAs": 3
-  },
-  "apps/dashboard/src/legacy-bridge/platform.ts": {
     "nonNull": 2
   },
   "apps/dashboard/src/legacy-bridge/read-cache.ts": {
@@ -305,8 +295,7 @@
     "unknownAs": 1
   },
   "apps/edge/lib/whatsapp/webhook.ts": {
-    "unknownAs": 2,
-    "nonNull": 1
+    "unknownAs": 1
   },
   "apps/mobile/src/shell/Surface.tsx": {
     "nonNull": 1
@@ -358,9 +347,6 @@
   },
   "packages/contracts/src/people/person-timeline.ts": {
     "nonNull": 1
-  },
-  "packages/contracts/src/playbooks/playbook-approval.ts": {
-    "nonNull": 2
   },
   "packages/contracts/src/reach-out/reach-out-draft.ts": {
     "nonNull": 1

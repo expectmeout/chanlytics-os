@@ -87,48 +87,77 @@ export function noRelationshipColumn(error: { message: string } | null | undefin
   return !!error && /\bhas_relationship\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
 }
 
+/** Postgres's SQLSTATE for a column that is not there (undefined_column): what PostgREST answers a read that names one. */
+const UNDEFINED_COLUMN = "42703";
+
 /**
- * Up to `limit` people of a run still queued, each with their own words and the channel the run picked for them (00298):
- * what the batch sends from. A database 00298 has not reached keeps no channel on a recipient, so it is read again
- * without it and everyone goes by WhatsApp, as every run did. Any other failed read throws.
+ * Up to `limit` people of a run still queued, in the order of their ids, each with their own words, the channel the run
+ * picked for them (00298) and how many times they were claimed and given back (`attempt`, 00301): what the batch sends
+ * from. The order is part of the read: without one the database may hand back a different few of a long run's queued
+ * people on every read, and a person released and read again must come back the same way each time.
+ *
+ * A database that has not reached a migration lacks its column, and Postgres says so by its code (42703), whichever
+ * column it was: the read is made again without the newest one first (`attempt`: the batch then names its emails as it
+ * did before, by the run's waits), and without the channel too (everyone goes by WhatsApp, as every run did). Any other
+ * failed read throws.
  */
 export async function queuedRecipients(
   db: Db,
   p: { tenantId: string; broadcastId: string; limit: number },
-): Promise<Array<{ contact_id: string; facts: unknown; channel?: string | null }>> {
-  const first = await db
+): Promise<Array<{ contact_id: string; facts: unknown; channel?: string | null; attempt?: number }>> {
+  const withAttempt = await db
+    .from("broadcast_recipients")
+    .select("contact_id, facts, channel, attempt")
+    .eq("tenant_id", p.tenantId)
+    .eq("broadcast_id", p.broadcastId)
+    .eq("state", "queued")
+    .order("contact_id")
+    .limit(p.limit);
+  if (!withAttempt.error) return withAttempt.data ?? [];
+  if (withAttempt.error.code !== UNDEFINED_COLUMN) throw new Error(`queued_recipients: ${withAttempt.error.message}`);
+  const withChannel = await db
     .from("broadcast_recipients")
     .select("contact_id, facts, channel")
     .eq("tenant_id", p.tenantId)
     .eq("broadcast_id", p.broadcastId)
     .eq("state", "queued")
+    .order("contact_id")
     .limit(p.limit);
-  const { data, error } = noChannelColumns(first.error)
-    ? await db
-        .from("broadcast_recipients")
-        .select("contact_id, facts")
-        .eq("tenant_id", p.tenantId)
-        .eq("broadcast_id", p.broadcastId)
-        .eq("state", "queued")
-        .limit(p.limit)
-    : first;
-  if (error) throw new Error(`queued_recipients: ${error.message}`);
-  return data ?? [];
+  if (!withChannel.error) return withChannel.data ?? [];
+  if (withChannel.error.code !== UNDEFINED_COLUMN) throw new Error(`queued_recipients: ${withChannel.error.message}`);
+  const bare = await db
+    .from("broadcast_recipients")
+    .select("contact_id, facts")
+    .eq("tenant_id", p.tenantId)
+    .eq("broadcast_id", p.broadcastId)
+    .eq("state", "queued")
+    .order("contact_id")
+    .limit(p.limit);
+  if (bare.error) throw new Error(`queued_recipients: ${bare.error.message}`);
+  return bare.data ?? [];
 }
 
 /**
- * Whether anyone on a run, in any state, goes by email or text (a recipient's channel, 00298): the question WhatsApp's
- * template not being approved asks of it, because that holds the run's WhatsApp people alone. False on a database 00298
- * has not reached, where everyone goes by WhatsApp. Any other failed read throws.
+ * Whether anyone on a run, in any state, goes another way than `than` (a recipient's channel, 00298; none is WhatsApp, a
+ * row written before recipients had one): the question a hold on one channel asks of it. WhatsApp's template not being
+ * approved holds the run's WhatsApp people alone, and a hold on the workspace's offers and news by email its email people
+ * alone. On a database 00298 has not reached everyone goes by WhatsApp. Any other failed read throws.
  */
-export async function runGoesByOthers(db: Db, tenantId: string, broadcastId: string): Promise<boolean> {
-  const { count, error } = await db
+export async function runGoesByOthers(
+  db: Db,
+  tenantId: string,
+  broadcastId: string,
+  than: "whatsapp" | "email",
+): Promise<boolean> {
+  const of = db
     .from("broadcast_recipients")
     .select("contact_id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
-    .eq("broadcast_id", broadcastId)
-    .in("channel", ["sms", "email"]);
-  if (noChannelColumns(error)) return false;
+    .eq("broadcast_id", broadcastId);
+  const { count, error } = await (than === "whatsapp"
+    ? of.in("channel", ["sms", "email"])
+    : of.or("channel.is.null,channel.eq.whatsapp,channel.eq.sms"));
+  if (noChannelColumns(error)) return than === "email";
   if (error) throw new Error(`run_goes_by_others: ${error.message}`);
   return (count ?? 0) > 0;
 }

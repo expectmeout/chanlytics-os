@@ -208,7 +208,7 @@ export function extractContacts(
   return { phones: [...phones], emails: [...emails], names: [...names] };
 }
 
-const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** A whole-name matcher: four letters or more, on word edges ("Dani" is not in "Daniela"); null for a name that is none, or only a phone made words. */
 function nameMatcher(name: string): RegExp | null {

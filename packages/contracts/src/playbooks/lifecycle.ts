@@ -14,6 +14,7 @@
  */
 import { offersPausedLine } from "../broadcasts/email-offers";
 import { purposeOfPlaybook } from "../consent/consent";
+import { CONSENT_CHANNELS } from "../consent/consent-channels";
 import { emailTemplateRowsOf } from "../reach-out/reach-out-sheet";
 import { libraryCount } from "../templates/library-count";
 import { bookingTemplate } from "../templates/template-order";
@@ -88,8 +89,10 @@ function poolOf(playbooks: LifecyclePlaybooks, key: string) {
  * the broadcasts surface is out or failed, or could not say which channels are ready, nothing says there is none, so there is.
  */
 function hasLine(broadcasts: LifecycleBroadcasts | null | undefined): boolean {
-  if (!broadcasts || broadcasts.number.present || !broadcasts.ready) return true;
-  return Object.values(broadcasts.ready).some((c) => c.ready);
+  const ready = broadcasts?.ready;
+  if (!broadcasts || broadcasts.number.present || !ready) return true;
+  // The channels by name: the readiness also carries the workspace's pause, which is no channel.
+  return CONSENT_CHANNELS.some((c) => ready[c].ready);
 }
 
 /** One stage, with its playbook and its count. */

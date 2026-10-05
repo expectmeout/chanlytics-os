@@ -17,17 +17,17 @@ import path from "node:path";
 import { ROOT, readCode, readRaw } from "../../_source.mjs";
 
 test("AI memory is an honest pane that keeps the settings nav; Billing is real", () => {
-  const settings = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
+  const settings = readRaw("apps/dashboard/src/surfaces/settings/frame/page.tsx");
   assert.ok(
     settings.includes(
-      '{active.id === "memory" && (window.__SETTINGS === undefined ? <PaneMemory flash={flash} /> : <PaneSoon which="memory" onTab={onTab} />)}',
+      // The pane, wherever Settings is drawn: the mockup's twin, five invented memories with a Forget that kept nothing,
+      // went with step 11 of decision 0015.
+      '{id === "memory" && <PaneSoon which="memory" onTab={onTab} />}',
     ),
   );
   assert.ok(
-    settings.includes(
-      '{active.id === "billing" && window.PaneBillingReal && <window.PaneBillingReal flash={flash} />}',
-    ),
-    "Billing is real on a workspace: surfaces/settings/billing, published under its old name",
+    settings.includes('{id === "billing" && <PaneBillingReal flash={flash} />}'),
+    "Billing is real on a workspace: surfaces/settings/billing, imported by the page",
   );
   assert.ok(settings.includes("data-testid={`soon-${which}`}"), "the pane is addressable by the e2e");
   assert.ok(settings.includes("does not learn rules on its own yet"), "AI memory says what is true");

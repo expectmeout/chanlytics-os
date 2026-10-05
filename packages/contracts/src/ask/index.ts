@@ -8,6 +8,13 @@ export {
   ASK_VOICE_FIRST_WORDS_MS,
   ASK_VOICE_PULSE_MS,
   ASK_VOICE_TOKEN_MIN_MS,
+  ASK_VOICE_ID,
+  ASK_VOICE_MODEL,
+  ASK_SPEECH_MAX_CHARS,
+  ASK_VOICE_TIMING_MAX_MS,
+  ASK_VOICE_IDLE_MS,
+  ASK_VOICE_UP_WAIT_MS,
+  VOICE_END_REASONS,
   ASK_MAX_TOKENS,
   ASK_TOKENS_DAY,
   ASK_CAPS,
@@ -16,6 +23,7 @@ export {
   ASK_SURFACES,
   ASK_SCOPE_KINDS,
 } from "./ask";
+export type { VoiceEndReason } from "./ask";
 export { AskProposalOutcomeSchema } from "./ask-schemas";
 export type {
   AskRole,
@@ -32,7 +40,7 @@ export type { AskLanguage } from "./ask-language";
 export { cleanAnswer, isUngrounded, sameQuestion, navigateLabel, FOLLOWUP_ECHO } from "./answer-text";
 export { askJump, askPages, ASK_PAGES } from "./ask-jump";
 export type { JumpEntry } from "./ask-jump";
-export { buildAskSuggestions, askQuestionWords } from "./ask-suggestions";
+export { buildAskSuggestions } from "./ask-suggestions";
 export type { AskSuggestion, SuggestionInput } from "./ask-suggestions";
 export { dayFromQuestion, askIntent, callsToday } from "./ask-fast-paths";
 export type { FastCall, AskIntent } from "./ask-fast-paths";

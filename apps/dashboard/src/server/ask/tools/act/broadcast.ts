@@ -11,12 +11,10 @@ import {
   clockWhen,
   eligibleFor,
   emptyAudienceRefusal,
-  exampleParams,
   parseParamSpec,
   proposalChannelsWords,
   purposeOfTemplate,
   reachSplit,
-  renderTemplate,
   type AskedPurpose,
   type CampaignHow,
   type ConsentChannel,
@@ -42,6 +40,7 @@ import {
   type ProposalOutcome,
   type ToolContext,
 } from "../context";
+import { cardSays } from "./says";
 
 /** The values a proposal fills the template's slots with: typed text once, or one the job fills per person; or the refusal. */
 function proposedValues(params: unknown): { specs: ParamSpec[] } | { refusal: string } {
@@ -78,7 +77,8 @@ async function broadcastBy(
   if ("refusal" in given) return given;
   const { channels, named } = given;
   if (!named) {
-    const how = await whatsappHow(t);
+    // A broadcast is the business's news (contracts MessageAbout, decision D1).
+    const how = await whatsappHow(t, "ours");
     return how.ready.whatsapp.ready
       ? { how, channels, named }
       : { refusal: `${how.ready.whatsapp.why ?? "WhatsApp is not ready"}` };
@@ -188,29 +188,29 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   // In the route's words, which say which cause it is -- nobody said this yes, or the ones who did have no number.
   if (count === 0)
     return refuse(
-      `nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose, label, rows)} Say so, and name what to do about it`,
+      `nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose, label, rows, by.how)} Say so, and name what to do about it`,
     );
   const when = str(input.scheduled_for, 40) || null;
   // With its offset: a bare date is midnight UTC, the evening before here, and
   // the route refuses it after the person approved the card.
   if (when && (Number.isNaN(Date.parse(when)) || !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(when)))
     return refuse("scheduled_for must be an ISO time with its offset, like 2026-09-20T15:00:00-04:00");
-  const values = params;
-  const words = renderTemplate(tpl.body_preview, exampleParams(values, "the business"));
+  const said = await cardSays(t, tpl, params, by, 160);
+  if ("refusal" in said) return refuse(said.refusal);
   // Named for the business's day and said by its clock, as the route names it and the pages say it.
   const name = str(input.name, 80) || broadcastName(tpl.name, t.timezone, t.now);
   const whenWords = when ? clockWhen(Date.parse(when), t.timezone, t.now.getTime()) : "now";
   return propose({
     kind: "broadcast",
     title: `Broadcast to ${label}`,
-    summary: `${count} ${count === 1 ? "person" : "people"} who said yes${says} · “${tpl.name}” · ${whenWords}: ${words.slice(0, 160)}${words.length > 160 ? "…" : ""}`,
+    summary: `${count} ${count === 1 ? "person" : "people"} who said yes${says} · “${tpl.name}” · ${whenWords}: ${said.says}`,
     payload: {
       template_id: tpl.id,
       template_name: tpl.name,
       audience_kind: kind,
       audience_id: audienceId,
       audience_label: label,
-      params: values,
+      params,
       scheduled_for: when,
       name,
       count,

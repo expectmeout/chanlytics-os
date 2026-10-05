@@ -24,7 +24,7 @@ import {
   messageText,
   clipAtWord,
 } from "./message-words";
-import { messageVia, messageAuthor, lastWordLine, type MessageAuthor } from "./message-author";
+import { messageVia, messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "./message-author";
 import { ESCALATION_REASON_LABELS, ESCALATION_SUMMARIES, type EscalationDto } from "./escalations";
 import type { InboxThreadVM } from "./inbox-thread-vm";
 
@@ -120,7 +120,7 @@ export function toInboxThreadVM(
   const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
-    const why = m.sender === "ai" ? replyWhy(m.meta) : null;
+    const why = messageWhy(m);
     const subject = m.channel === "email" ? emailSubjectOf(m) : null;
     const leftOut = m.channel === "email" ? (emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta)) : null;
     // Only an email quotes; a WhatsApp message that happens to start a line with ">" is words.

@@ -31,7 +31,13 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const kernel = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { facts, sellsBy, policies, config } = await import(at("apps/dashboard/src/server/readers/facts.ts"));
+const {
+  facts,
+  sellsBy,
+  policies,
+  config,
+  channelsReady: channelsReadyReader,
+} = await import(at("apps/dashboard/src/server/readers/facts.ts"));
 const { metrics } = await import(at("apps/dashboard/src/server/readers/metrics.ts"));
 const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
 const { escalations } = await import(at("apps/dashboard/src/server/readers/escalations.ts"));
@@ -1037,6 +1043,39 @@ test("a thread this workspace does not hold is the page's 404, in the scope's ow
   );
 });
 
+test("what a message cost to send is never Ask's to read: the thread reader, the Inbox reader and the thread tool carry each message's meta as the page sends it, without it", async () => {
+  const pricing = { billable: true, pricing_model: "PMP", category: "utility", type: "regular" };
+  const tbls = threadTables();
+  tbls.messages[1] = { ...tbls.messages[1], meta: { source: "ai", handled: "ai", pricing } };
+  const metas = (messages) => messages.map((m) => m.meta);
+
+  const one = await kernel.load(turnIn(dayCtx(tbls), B), oneThread, { id: C1, before: null });
+  assert.deepEqual(metas(one.data.messages), [null, { source: "ai", handled: "ai" }], "the thread reader");
+  const route = await threadRoute.GET.run(req(), routeCtx(tbls, C1));
+  assert.deepEqual(route, one.data, "and the route is the reader");
+
+  const listed = await kernel.load(turnIn(dayCtx(tbls), B), conversations, { ids: [C1] });
+  assert.deepEqual(
+    metas(listed.data.conversations[0].messages),
+    [null, { source: "ai", handled: "ai" }],
+    "the Inbox reader",
+  );
+
+  const tc = newToolContext(dayCtx(tbls), B, "operator", "America/New_York", new Date());
+  const said = (await runTool(tc, { name: "inbox", input: { action: "thread", conversation_id: C1 } })).result;
+  assert.ok(JSON.parse(said).messages.length > 0, "the tool read the thread");
+  for (const [name, out] of [
+    ["thread reader", one],
+    ["Inbox reader", listed],
+    ["thread tool", said],
+  ])
+    assert.ok(
+      !JSON.stringify(out).includes("pricing"),
+      `REGRESSION: Ask's ${name} was handed what a message cost to send`,
+    );
+  assert.deepEqual(tbls.messages[1].meta.pricing, pricing, "the row itself is untouched");
+});
+
 test("one call for Ask: the Calls page's own columns and mapping for one call, read under the workspace's own filter -- another workspace's call, or one not there, is the call routes' 404 -- and the call and its person are the rows", async () => {
   const stored = {
     storage_path: "a/b.mp3",
@@ -1626,7 +1665,7 @@ test("the report reader hands the workspace's hours and closures beside the repo
   }
 });
 
-/** report_series's answer for a period: no day counted, `replies` each reply the receptionist sent (00286 gives each its hold). */
+/** report_series's answer for a period: no day counted, `replies` each reply the receptionist sent (00304 gives each its hold). */
 const replyReport =
   (replies, extra = {}) =>
   (a) => ({
@@ -2646,13 +2685,22 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
     // 3 Oct 2026: and whether each channel can send now (`ready`, server/campaigns/channels-ready.ts), which the composer's
     // Send by row is drawn from; these workspaces keep no WhatsApp number, so it says so.
-    assert.deepEqual(Object.keys(r.data), ["broadcasts", "more", "touched", "ready", "month_sent"]);
+    assert.deepEqual(Object.keys(r.data), ["broadcasts", "more", "touched", "ready", "month_sent", "month_sent_next"]);
     assert.equal(r.data.ready.whatsapp.why, "Connect a WhatsApp number first.");
     assert.deepEqual(
       r.data.month_sent,
       MONTH_SENT,
       "the month's emails and texts, for the head and the composer to say",
     );
+    // 4 Oct 2026: and the month after, with the instant it begins by the workspace's clock, which a send set to go past the
+    // month's end counts against (contracts monthSentAt): the composer reads the month at the time it is set for.
+    assert.deepEqual(r.data.month_sent_next.sent, MONTH_SENT);
+    assert.ok(r.data.month_sent_next.from > Date.now(), "the next month begins ahead");
+    assert.ok(
+      r.data.month_sent_next.from - Date.now() < 32 * 24 * HOUR,
+      "within thirty-one days: the very next month's first moment",
+    );
+    assert.deepEqual(r.data.ready.paused, undefined, "a workspace that is not paused says nothing of it");
     assert.deepEqual(
       r.rows,
       r.data.broadcasts.map((b) => ({ kind: "broadcast", id: b.id, route: `broadcasts/run:${b.id}`, label: b.name })),
@@ -2692,12 +2740,41 @@ test("the month a page says is null where it could not be counted, said in the l
       broadcastsRoute.GET.run(req(`?workspace=${A}`), worldCtx(bcWorld())),
     );
     assert.equal(result.month_sent, null);
+    assert.equal(result.month_sent_next.sent, null, "nor is the month after a month of nothing");
+    assert.equal(typeof result.month_sent_next.from, "number", "where it begins is the clock's, counted or not");
     assert.equal(result.broadcasts.length > 0, true, "the page is read all the same");
-    assert.equal(lines.length, 1, "one line for the one read");
+    assert.equal(lines.length, 2, "one line for each of the two months' reads");
     assert.match(String(lines[0].error), /cannot count the month's email campaign messages: the database is down/);
   } finally {
     setServiceClient(fakeDb({}, {}, { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] }));
   }
+});
+
+test("a paused workspace is said by the readiness the composers and the Campaigns home read -- the broadcasts' and the playbooks' -- and by People's reads never: it changes what is sent, not who can hear the business", async () => {
+  const paused = (w) => {
+    w.tables.tenants = [{ id: A, name: "Harbor", timezone: "America/New_York", status: "paused", sells_by: null }];
+    return w;
+  };
+  const read = async (w, reader) => (await kernel.load(turnIn(worldCtx(w)), reader, undefined)).data;
+  const bc = await read(paused(bcWorld()), broadcastsReader);
+  assert.equal(bc.ready.paused, true, "the composer says the pause where Send would be");
+  assert.deepEqual(
+    ["whatsapp", "sms", "email"].map((c) => typeof bc.ready[c].ready),
+    ["boolean", "boolean", "boolean"],
+    "and the channels are as they were: what each can do",
+  );
+  const active = bcWorld();
+  active.tables.tenants = [{ id: A, name: "Harbor", timezone: "America/New_York", status: "active", sells_by: null }];
+  assert.equal(
+    "paused" in (await read(active, broadcastsReader)).ready,
+    false,
+    "an active workspace says nothing of it",
+  );
+  const pb = await read(paused(playbooksWorld()), playbooksReader);
+  assert.equal(pb.ready.paused, true, "the playbooks' page says it too: its cards and the home's rows promise no time");
+  // People's reads ask for no such thing: the facts' channelsReady carries the channels alone.
+  const people = await read(paused(bcWorld()), channelsReadyReader);
+  assert.equal("paused" in people, false);
 });
 
 /** run-report.test.mjs's shape, in harbor: one run that reached two people and held one back, and what came back. */
@@ -3109,11 +3186,14 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
     // (server/campaigns/channels-ready.ts) with its first reads: the WhatsApp number's config and the texting line (no email
     // domain is set here, so no mailbox).
     for (const q of want) if (q[0] === "playbooks.select") q[1] += ", channels";
+    // 4 Oct 2026: and whether the workspace is paused (tenants.status, db workspacePaused), which the composers and the
+    // Campaigns home say instead of a time; read with the channels, for the pages that compose or promise a run.
     want.splice(
       want.findIndex(([k]) => k === "broadcasts.select"),
       0,
       ["tenant_channels.select", "config"],
       ["lines.select", "sms_state, reg_mock"],
+      ["tenants.select", "status"],
     );
     const w = playbooksWorld();
     const routed = worldCtx(w);

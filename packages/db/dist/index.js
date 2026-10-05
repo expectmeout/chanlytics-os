@@ -189,6 +189,17 @@ async function usageMonth(db, tenantId, month) {
   }));
 }
 
+// src/billing-events.ts
+async function keepInvoiceAmount(db, eventId, amountCents, currency) {
+  const { data, error } = await db.rpc("billing_event_keep_amount", {
+    p_id: eventId,
+    p_amount_cents: amountCents,
+    p_currency: currency
+  });
+  if (error) throw new Error(`billing_event_keep_amount: ${error.message}`);
+  return data === true;
+}
+
 // src/ops.ts
 async function migrationHead(db) {
   const { data, error } = await db.rpc("migration_head");
@@ -412,15 +423,22 @@ function noChannelColumns(error) {
 function noRelationshipColumn(error) {
   return !!error && /\bhas_relationship\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
 }
+var UNDEFINED_COLUMN = "42703";
 async function queuedRecipients(db, p) {
-  const first = await db.from("broadcast_recipients").select("contact_id, facts, channel").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").limit(p.limit);
-  const { data, error } = noChannelColumns(first.error) ? await db.from("broadcast_recipients").select("contact_id, facts").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").limit(p.limit) : first;
-  if (error) throw new Error(`queued_recipients: ${error.message}`);
-  return data ?? [];
+  const withAttempt = await db.from("broadcast_recipients").select("contact_id, facts, channel, attempt").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
+  if (!withAttempt.error) return withAttempt.data ?? [];
+  if (withAttempt.error.code !== UNDEFINED_COLUMN) throw new Error(`queued_recipients: ${withAttempt.error.message}`);
+  const withChannel = await db.from("broadcast_recipients").select("contact_id, facts, channel").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
+  if (!withChannel.error) return withChannel.data ?? [];
+  if (withChannel.error.code !== UNDEFINED_COLUMN) throw new Error(`queued_recipients: ${withChannel.error.message}`);
+  const bare = await db.from("broadcast_recipients").select("contact_id, facts").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
+  if (bare.error) throw new Error(`queued_recipients: ${bare.error.message}`);
+  return bare.data ?? [];
 }
-async function runGoesByOthers(db, tenantId, broadcastId) {
-  const { count, error } = await db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId).in("channel", ["sms", "email"]);
-  if (noChannelColumns(error)) return false;
+async function runGoesByOthers(db, tenantId, broadcastId, than) {
+  const of = db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId);
+  const { count, error } = await (than === "whatsapp" ? of.in("channel", ["sms", "email"]) : of.or("channel.is.null,channel.eq.whatsapp,channel.eq.sms"));
+  if (noChannelColumns(error)) return than === "email";
   if (error) throw new Error(`run_goes_by_others: ${error.message}`);
   return (count ?? 0) > 0;
 }
@@ -524,6 +542,15 @@ async function markProcessed(db, tenantId, messageId) {
   });
   if (error) throw new Error(`mark_processed: ${error.message}`);
 }
+async function stampHandled(db, tenantId, messageId, handled, intent) {
+  const { error } = await db.rpc("message_stamp_handled", {
+    p_tenant_id: tenantId,
+    p_message_id: messageId,
+    p_handled: handled,
+    ...intent ? { p_intent: intent } : {}
+  });
+  if (error) throw new Error(`message_stamp_handled: ${error.message}`);
+}
 async function recordOutbound(db, p) {
   if (p.channel === "email")
     throw new Error("record_outbound: an email's row is written before it is sent, never after");
@@ -624,6 +651,15 @@ async function recordStatusByExternalId(db, tenantId, externalId, status, errorD
   if (error && !/monotone|terminal/.test(error.message)) {
     dbLog().error("record_status_failed", { tenant_id: tenantId, external_id: externalId, error: error.message });
   }
+}
+async function keepMessageCost(db, tenantId, externalId, pricing) {
+  const { data, error } = await db.rpc("message_keep_cost", {
+    p_tenant_id: tenantId,
+    p_external_id: externalId,
+    p_pricing: pricing
+  });
+  if (error) throw new Error(`message_keep_cost: ${error.message}`);
+  return data === true;
 }
 async function recordEchoAndPause(db, p) {
   const phone = `+${p.customerPhoneDigits.replace(/^\+/, "")}`;
@@ -754,6 +790,11 @@ async function setEmailOffersYes(db, p) {
   const said = data ?? null;
   if (said?.changed === true) return "recorded";
   return said?.refused === "unsubscribed" ? "unsubscribed" : "unchanged";
+}
+async function offerLanguageOf(db, p) {
+  const { data, error } = await db.from("broadcasts").select("template_language").eq("tenant_id", p.tenantId).eq("id", p.broadcastId).maybeSingle();
+  if (error) throw new Error(`cannot read the language the offer was sent in: ${error.message}`);
+  return data?.template_language ?? null;
 }
 async function setEmailUnsubscribed(db, p) {
   const { data, error } = await db.rpc("set_email_marketing", {
@@ -1823,6 +1864,11 @@ async function forgetNotification(db, p) {
   const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
   if (error) throw new Error(`cannot take the notification back: ${error.message}`);
 }
+async function noticeKept(db, p) {
+  const { data, error } = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("kind", p.kind).eq("subject_type", p.subjectType).eq("subject_id", p.subjectId).limit(1);
+  if (error) throw new Error(`cannot read what the workspace was told: ${error.message}`);
+  return (data ?? []).length > 0;
+}
 async function activityTokensOf(db, tenantId, roles) {
   const { data: members, error: me } = await db.from("memberships").select("user_id").eq("tenant_id", tenantId).in("role", [...roles]);
   if (me) throw new Error(`cannot read who is in the workspace: ${me.message}`);
@@ -1836,6 +1882,13 @@ async function forgetActivityTokens(db, tokens) {
   if (!tokens.length) return;
   const { error } = await db.from("push_devices").update({ activity_token: null }).in("activity_token", [...tokens]);
   if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
+}
+
+// src/repositories/campaigns/workspace.ts
+async function workspacePaused(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  return data?.status === "paused";
 }
 
 // src/repositories/routing.ts
@@ -2207,7 +2260,12 @@ async function messageSenders(db, tenantId, ids) {
 }
 
 // src/ask-voice-session.ts
-var VOICE_SESSION_COLUMNS = "id, tenant_id, user_id, thread_id, conversation_id, token_cipher, token_expires_at, surface, scope, context, language, turn_key, turn_started_at, duration_s, created_at, ended_at";
+import { VOICE_END_REASONS } from "../../contracts/dist/index.js";
+var VOICE_SESSION_COLUMNS = "id, tenant_id, user_id, thread_id, conversation_id, token_cipher, token_expires_at, surface, scope, context, language, turn_key, turn_started_at, duration_s, created_at, ended_at, end_reason, connect_ms, first_audio_ms";
+function voiceRowOf(r) {
+  const ended = VOICE_END_REASONS.includes(r.end_reason ?? "") ? r.end_reason : null;
+  return { ...r, end_reason: ended };
+}
 async function insertVoiceSession(db, row) {
   const { error } = await db.from("ask_voice_sessions").insert(row);
   if (error) throw new Error(`ask voice session: ${error.message}`);
@@ -2215,12 +2273,12 @@ async function insertVoiceSession(db, row) {
 async function readVoiceSession(db, id) {
   const { data, error } = await db.from("ask_voice_sessions").select(VOICE_SESSION_COLUMNS).eq("id", id).maybeSingle();
   if (error) throw new Error(`ask voice session: ${error.message}`);
-  return data ?? null;
+  return data ? voiceRowOf(data) : null;
 }
 async function readVoiceSessionByConversation(db, conversationId) {
   const { data, error } = await db.from("ask_voice_sessions").select(VOICE_SESSION_COLUMNS).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(`ask voice session by conversation: ${error.message}`);
-  return data ?? null;
+  return data ? voiceRowOf(data) : null;
 }
 async function claimVoiceTurn(db, id, turnKey, now, staleMs) {
   const stale = new Date(now.getTime() - staleMs).toISOString();
@@ -2229,7 +2287,13 @@ async function claimVoiceTurn(db, id, turnKey, now, staleMs) {
   return (data ?? []).length > 0;
 }
 async function endVoiceSession(db, id, fields) {
-  const { data, error } = await db.from("ask_voice_sessions").update({ ended_at: fields.endedAt, ...fields.durationS === void 0 ? {} : { duration_s: fields.durationS } }).eq("id", id).select("id");
+  const { data, error } = await db.from("ask_voice_sessions").update({
+    ended_at: fields.endedAt,
+    ...fields.durationS === void 0 ? {} : { duration_s: fields.durationS },
+    ...fields.endReason === void 0 ? {} : { end_reason: fields.endReason },
+    ...fields.connectMs === void 0 ? {} : { connect_ms: fields.connectMs },
+    ...fields.firstAudioMs === void 0 ? {} : { first_audio_ms: fields.firstAudioMs }
+  }).eq("id", id).select("id");
   if (error) throw new Error(`ask voice session end: ${error.message}`);
   return (data ?? []).length > 0;
 }
@@ -2387,6 +2451,10 @@ async function templatesNamed(db, tenantId, names) {
 async function templateStatusOf(db, tenantId, name, language) {
   const { data } = await db.from("templates").select("meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
   return data;
+}
+async function setTemplateQuality(db, p) {
+  const { error } = await db.from("templates").update({ quality: p.quality }).eq("tenant_id", p.tenantId).eq("channel", "whatsapp").eq("name", p.name).eq("language", p.language);
+  if (error) throw new Error(`setTemplateQuality: ${error.message}`);
 }
 
 // src/repositories/control-plane.ts
@@ -3204,6 +3272,33 @@ async function dueCalendars(db, p) {
     remaining: remainingOf(rows)
   };
 }
+function readAtOf(config) {
+  if (config === null || typeof config !== "object" || Array.isArray(config)) return null;
+  const at = config.quality_read_at;
+  return typeof at === "string" ? at : null;
+}
+async function whatsappNumbersToRead(db, limit) {
+  const { data, error } = await db.from("tenant_channels").select("id, tenant_id, external_id, config").eq("kind", "whatsapp").eq("status", "active").order("config->>quality_read_at", { ascending: true, nullsFirst: true }).limit(limit);
+  if (error) throw new Error(`cannot read the WhatsApp numbers: ${error.message}`);
+  return (data ?? []).map((r) => ({
+    channel_id: r.id,
+    tenant_id: r.tenant_id,
+    phone_number_id: r.external_id,
+    read_at: readAtOf(r.config)
+  }));
+}
+var KEPT_ANSWERS = ["first", "changed", "same", "gone"];
+async function keepChannelQuality(db, tenantId, channelId, rating) {
+  const { data, error } = await db.rpc("channel_keep_quality", {
+    p_tenant_id: tenantId,
+    p_channel_id: channelId,
+    p_rating: rating
+  });
+  if (error) throw new Error(`channel_keep_quality: ${error.message}`);
+  const kept = KEPT_ANSWERS.find((a) => a === data);
+  if (kept === void 0) throw new Error(`channel_keep_quality: answered ${JSON.stringify(data)}`);
+  return kept;
+}
 export {
   CALL_CONTROL_S,
   DB_REQUEST_HEADER,
@@ -3300,7 +3395,10 @@ export {
   invitePartner,
   inviteUserByEmail,
   isWorkspaceCall,
+  keepChannelQuality,
   keepIdempotencyReceipt,
+  keepInvoiceAmount,
+  keepMessageCost,
   lastInboundEmail,
   leadAddressBounced,
   leadNamesByIds,
@@ -3331,7 +3429,9 @@ export {
   namedFetch,
   namesOfPeople,
   notesForReceptionist,
+  noticeKept,
   observeDb,
+  offerLanguageOf,
   offersEmailReach,
   outreachFactsOf,
   outreachModeOf,
@@ -3429,11 +3529,13 @@ export {
   setPersonReplyMode,
   setPlaybookState,
   setPolicyMode,
+  setTemplateQuality,
   signUpOnPublicKey,
   staleSends,
   stampEmailComplaint,
   stampEmailLeftAs,
   stampEmailSent,
+  stampHandled,
   stampMailboxReceived,
   stampPlaybooksTried,
   stampReachOutStep,
@@ -3464,6 +3566,7 @@ export {
   watchedEvents,
   watchedTables,
   whatsappChannelConfig,
+  whatsappNumbersToRead,
   wireRowOf,
   withdrawEmail,
   withdrawPartnerInvite,
@@ -3472,6 +3575,7 @@ export {
   workspaceMaySpend,
   workspaceMayUseModels,
   workspaceNameAndConfig,
+  workspacePaused,
   writtenEmail,
   writtenEmails,
   yesesSince

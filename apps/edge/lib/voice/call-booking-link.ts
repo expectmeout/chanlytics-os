@@ -94,6 +94,12 @@ const VOICE_SEND_SOURCE = "voice_booking_link";
 /** Per THREAD per day. A caller asking twice in one call is normal; thirty is not. */
 const VOICE_SENDS_PER_DAY = 3;
 
+/**
+ * The link to the caller answers them; to a number they named it starts a conversation. Either way it is about the call
+ * they are on: theirs (contracts MessageAbout, decision D1), and no playbook's run, so no moment's (Delivery.trigger).
+ */
+const onTheCall = (isCaller: boolean) => ({ proactive: !isCaller, about: "theirs" as const, trigger: null });
+
 /** Spoken when we cannot send. Never names a fallback number we cannot verify. */
 const CANNOT_SEND =
   "I could not send the WhatsApp message just now. Let the caller know they can book online, and offer to have someone follow up.";
@@ -303,7 +309,7 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
       // The row whole (an `OutboundTarget` is a `PurposeBearing`): no field's name re-mapped by hand to get wrong.
       contact,
       purpose,
-      proactive: !isCaller,
+      ...onTheCall(isCaller),
       channel: "whatsapp", // the delivery below: the yes it needs is a WhatsApp one
       paused: rt.paused,
       pausedUntilMs: contact.pausedUntil ? new Date(contact.pausedUntil).getTime() : null,
@@ -352,7 +358,7 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
         channel: "whatsapp",
         sender: "ai",
         purpose,
-        proactive: !isCaller,
+        ...onTheCall(isCaller),
         body: renderTemplate(booking.body_preview, params) || `[booking link] ${params.join(" — ")}`,
         template: { name: booking.name, language: booking.language, params },
         meta: { source: VOICE_SEND_SOURCE, call_id: call.call_id ?? null },

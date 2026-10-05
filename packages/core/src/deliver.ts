@@ -27,8 +27,6 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  graphThrottled,
-  resendLimitOf,
   smsRefusalOf,
   addressOf,
   logger,
@@ -40,10 +38,13 @@ import {
 import {
   CARRIER_CONSENT_SOURCE,
   domainDailyCap,
+  isOfferByEmail,
   mayMessageFor,
   outreachRefusalOf,
+  passesHandoverPause,
   purposeOfTemplate,
   type DeliveryRefusal,
+  type MessageAbout,
   type SendPurpose,
 } from "@chanlytics/contracts";
 import {
@@ -59,9 +60,9 @@ import {
   type EventData,
   type Json,
 } from "@chanlytics/db";
-import { isOfferByEmail, offerFacts, offerRefusal, type OfferFacts } from "./deliver-email";
+import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./deliver-email";
 import { textRefusal } from "./deliver-text";
-import { putOnWire, type WireUnavailable } from "./wire-senders";
+import { namedFailure, putOnWire, type WireUnavailable } from "./wire-senders";
 
 export type { DeliveryRefusal };
 
@@ -112,6 +113,11 @@ export interface WirePayload {
    * that domain's route when the route still holds it, and as `email` on the mailbox otherwise (N5).
    */
   ownEmail?: EmailRequest;
+  /**
+   * The most the wire may take to answer, in ms, from the moment the send is put on it (Delivery.sendBy, worked out at the
+   * wire). The email wire bounds its tries by it (channels sendEmail); absent, by its own deadline alone.
+   */
+  deadlineMs?: number;
 }
 
 /** How to put words on one channel's wire. Owns its own address format. */
@@ -139,6 +145,18 @@ export interface Delivery {
   purpose: SendPurpose;
   /** True when this send starts a conversation rather than answering one. */
   proactive: boolean;
+  /**
+   * What the message is about (contracts MessageAbout, decision D1): theirs (a visit they booked, their proposal, the
+   * call they are on, a thread they wrote in) or ours (a broadcast, a moment's news). By email, ours asks for a yes
+   * covering email or a relationship on record; theirs asks no yes. Required: a sender says which.
+   */
+  about: MessageAbout;
+  /**
+   * The playbook moment a broadcast's run was made for (contracts audienceTrigger), null for any other send: only the
+   * day-before reminder passes the thread's 24-hour pause (contracts passesHandoverPause, decision D4). Required, as
+   * `about` is: a sender says which, so a new one cannot forget the moment and have its reminder held.
+   */
+  trigger: string | null;
   body: string;
   template?: TemplateSend;
   /** The frozen request, on the email wire (WirePayload.email). */
@@ -168,6 +186,13 @@ export interface Delivery {
    * NotTakenError before anything is written, and the row stays queued. Without it, it fails as any refusal does.
    */
   holdIfNotTaken?: boolean;
+  /**
+   * Epoch ms: the latest moment the provider's answer may still be waited for. A caller that runs inside a function with
+   * a ceiling (a broadcast's batch: jobs sendByAt) says when the send must be over by, so one started late is bounded by
+   * what is left rather than by the wire's own deadline, which is longer than the time a late start has. An email that
+   * runs out of it settles as `failed` with an unknown outcome (the provider may have taken it), as any timeout does.
+   */
+  sendBy?: number;
 }
 
 /** The policy a send goes under: as declared, or as the door always derived it from who wrote the words. */
@@ -258,8 +283,12 @@ interface WireFacts {
  */
 async function wireFacts({ db, emailOffers }: DeliverPorts, d: Delivery): Promise<WireFacts> {
   // Read again without the channel arrays on a database 00297 has not reached (wireRowOf): a yes then covers WhatsApp alone.
-  const relationship = isOfferByEmail(d); // the one send that asks whether they have a relationship with the business
-  const { data, error } = await wireRowOf(db, { tenantId: d.tenantId, conversationId: d.conversationId, relationship });
+  // The sends that may rest on a relationship with the business: an offer by email, which is also the business's news (D1, D2).
+  const { data, error } = await wireRowOf(db, {
+    tenantId: d.tenantId,
+    conversationId: d.conversationId,
+    relationship: isOfferByEmail(d),
+  });
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data as unknown as {
@@ -408,7 +437,7 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   }
   // Consent outranks everything, asked with this message's own purpose.
   // A yes covers the channels it was given for: asked on the channel this message goes out on (consent-channels.ts).
-  const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive, channel: d.channel });
+  const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive, channel: d.channel, about: d.about });
   if (!may.ok) return may.reason;
   // Outreach's own rules, after the person's no and before any pause: only to a business the finder found, only with
   // the one-click unsubscribe the large mailbox providers require, only from a domain the workspace owns and has
@@ -438,17 +467,18 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   // and it respects the pause like the machine it is.
   if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
-  // Is somebody speaking on this thread right now (00132)? A person who took it
-  // over, or a call in progress. It is asked as a LIVE fact with an expiry,
-  // never as "does a column name somebody": the assignee it used to read is
-  // never cleared, so a thread taken over one Tuesday refused every draft
-  // after it for the life of the workspace.
+  return heldByThread(d, f, nowMs, kind);
+}
+
+/** Whether somebody holds the thread, or its pause stands, for this send (what a draft, a system message and a broadcast each meet). */
+function heldByThread(d: Delivery, f: WireFacts, nowMs: number, kind: SendKind): DeliveryRefusal | null {
+  // Is somebody speaking on this thread right now (00132)? A person who took it over, or a call in progress. It is asked
+  // as a LIVE fact with an expiry, never as "does a column name somebody": the assignee it used to read is never cleared,
+  // so a thread taken over one Tuesday refused every draft after it for the life of the workspace.
   const held = !!f.control && nowMs < new Date(f.control.until).getTime();
-  // A thread somebody holds does not take the receptionist's draft. Taking
-  // over withdraws the drafts written before it; this is the same promise
-  // kept at the wire, for the withdrawal that failed or the draft written in
-  // the same second. Only the draft: an answer meets the hold below, a
-  // system message is owed whoever holds the thread.
+  // A thread somebody holds does not take the receptionist's draft. Taking over withdraws the drafts written before it;
+  // this is the same promise kept at the wire, for the withdrawal that failed or the draft written in the same second.
+  // Only the draft: an answer meets the hold below, a system message is owed whoever holds the thread.
   if (kind === "draft" && held) return "human_has_it";
   // The thread's pause holds the receptionist answering now, and a broadcast.
   // It does not hold a queued draft, written before the pause it now meets --
@@ -460,12 +490,14 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   // system message: an opt-in confirmation is owed the moment the yes was
   // given, whoever holds the thread.
   //
-  // A live hold stops them too, and that is what keeps two of our own agents
-  // off one person: while a call is in progress the thread is held, so the
-  // text receptionist stores what the customer writes and answers none of it,
-  // rather than talking over the call the same customer is on.
-  if (kind !== "draft" && kind !== "system" && (held || (f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime())))
-    return "human_has_it";
+  // A live hold stops them too, and that is what keeps two of our own agents off one person: while a call is in progress
+  // the thread is held, so the text receptionist stores what the customer writes and answers none of it, rather than
+  // talking over the call the same customer is on.
+  //
+  // The day-before reminder alone passes the thread's 24-hour pause (contracts passesHandoverPause, decision D4): it is
+  // about their own booking. The live hold above still holds it, and the batch waits for that rather than skipping.
+  const paused = !!f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime() && !passesHandoverPause(d.trigger);
+  if (kind !== "draft" && kind !== "system" && (held || paused)) return "human_has_it";
   return null;
 }
 
@@ -499,7 +531,7 @@ async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
   // A campaign's email is no person speaking on this thread, whatever its row says wrote the words: a broadcast's, and
   // a reach-out's (written queued, and perhaps refused at this door, in a thread the receptionist is drafting in).
-  // public.automated_send (00285) lists the same sources in SQL, so the two change together.
+  // public.automated_send (00303) lists the same sources in SQL, so the two change together.
   const spoke = (newer ?? []).find((m) => {
     const source = (m.meta as { source?: unknown } | null)?.source;
     return source !== "broadcast" && source !== "reach_out";
@@ -571,20 +603,6 @@ async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch): Promise
   return !!data && data.length > 0;
 }
 
-/**
- * An email is written before it is sent, under the id its request was frozen with: every receipt names that row by the
- * request's tag, so a row written after the send (recordOutbound's) is one no receipt can find, and its bounce
- * suppresses nothing. A delivery that breaks this is a caller's mistake, said as one before anything is read.
- */
-function assertFrozenFor(d: Delivery): void {
-  if (d.channel !== "email") return;
-  const keys = [d.email, d.ownEmail].map((r) => r?.idempotency_key ?? d.messageId);
-  if (d.messageId && keys.every((k) => k === d.messageId)) return;
-  throw new Error(
-    `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`,
-  );
-}
-
 export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Delivered> {
   assertFrozenFor(d);
   const nowMs = (ports.now ?? Date.now)();
@@ -623,7 +641,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
   };
   if (reason) return refuse(reason);
 
-  const sent = await putOnWire(ports.wire, d, kindOf(d) === "reply");
+  const sent = await putOnWire(ports.wire, d, kindOf(d) === "reply", ports.now);
 
   // The carrier's own no, on the person's behalf (channels smsRefusalOf:
   // Twilio 21610, the recipient replied STOP to this number before we heard --
@@ -738,25 +756,6 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
     messageId,
     ...namedFailure(d.channel, sent),
   };
-}
-
-/**
- * What the provider's failure came to, named here at the wire, so a caller says it in words or waits without reading
- * the provider's answer itself: a limit of the mail provider's own (too fast, or the day's sending used up; channels
- * resendLimitOf), WhatsApp's "not now" (graphThrottled), or a send that may have gone all the same (provider-fetch
- * outcome unknown). A failure that is ours -- no wire, no credentials -- is none of them.
- */
-function namedFailure(
-  channel: Channel,
-  sent: SendResult & { reason?: string },
-): { limit?: ResendLimit; throttled?: true; mayHaveGone?: true } {
-  if (sent.reason) return {};
-  const gone = sent.outcome === "unknown" ? { mayHaveGone: true as const } : {};
-  if (channel === "email") {
-    const limit = resendLimitOf(sent);
-    return limit ? { limit, ...gone } : gone;
-  }
-  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true, ...gone } : gone;
 }
 
 /**

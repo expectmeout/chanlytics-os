@@ -14,10 +14,11 @@ import type { ReactNode } from "react";
 import type { BroadcastDetailDto, ReachOutDecision } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
 import { canDo, gateTitle } from "../../legacy-verbs";
-import { confirmPart, policyChipPart } from "../../legacy-parts";
 import { Button } from "../../kit/button/button";
+import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { reachOuts } from "./surface";
 
 /** A live reach-out run as its block says it: never null where the run is a reach-out's. */
@@ -139,7 +140,6 @@ interface ActsProps {
 
 /** The foot: Approve and Skip for a run waiting on its owner; the run's own verbs for one that is not. */
 function RoRunActs({ vm, sheet, acts, seeAll, onSeeAll }: ActsProps) {
-  const Confirm = confirmPart();
   const L = vm.labels;
   const waiting = !!(sheet && vm.approve);
   return (
@@ -231,7 +231,6 @@ interface RunProps {
 export function roRunHead(d: BroadcastDetailDto, sheet: RunSheet | null) {
   const vm = reachOuts.run(d);
   if (!vm) return null;
-  const PolicyChip = policyChipPart();
   const pos = sheet && sheet.position;
   return {
     title: vm.title,

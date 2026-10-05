@@ -9,9 +9,14 @@
  * token.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+// The closed set is contracts' (ask/ask.ts VOICE_END_REASONS): the route takes it from there, the row type reads it
+// from here, and 00300's CHECK holds the table to the same words.
+import { VOICE_END_REASONS, type VoiceEndReason } from "@chanlytics/contracts";
 import type { Database, Json } from "./database.types";
 
 type Db = SupabaseClient<Database>;
+
+export type { VoiceEndReason };
 
 export interface VoiceSessionRow {
   /** The sha256, hex, of the id the browser and the vendor carry. */
@@ -32,9 +37,14 @@ export interface VoiceSessionRow {
   duration_s: number | null;
   created_at: string;
   ended_at: string | null;
+  /** The browser's word for how it ended (00300); null while it runs, or when the webhook ended it first. */
+  end_reason: VoiceEndReason | null;
+  /** From the tap to the connection up, and to the first audio heard, as the browser measured them (00300). */
+  connect_ms: number | null;
+  first_audio_ms: number | null;
 }
 
-/** What the voice route writes: the rest is the door's and the webhook's. */
+/** What the voice route writes: the rest is the door's, the webhook's and the end's. */
 export type NewVoiceSession = Pick<
   VoiceSessionRow,
   | "id"
@@ -51,7 +61,18 @@ export type NewVoiceSession = Pick<
 >;
 
 const VOICE_SESSION_COLUMNS =
-  "id, tenant_id, user_id, thread_id, conversation_id, token_cipher, token_expires_at, surface, scope, context, language, turn_key, turn_started_at, duration_s, created_at, ended_at";
+  "id, tenant_id, user_id, thread_id, conversation_id, token_cipher, token_expires_at, surface, scope, context, language, turn_key, turn_started_at, duration_s, created_at, ended_at, end_reason, connect_ms, first_audio_ms";
+
+/** What the table's row type says of the closed-set column: text, which the database's CHECK holds to the set. */
+type StoredRow = Omit<VoiceSessionRow, "end_reason"> & { end_reason: string | null };
+
+/** The row as stored, with its closed set read as the set (00300's CHECK holds it; a value outside is read as none). */
+function voiceRowOf(r: StoredRow): VoiceSessionRow {
+  const ended = (VOICE_END_REASONS as readonly string[]).includes(r.end_reason ?? "")
+    ? (r.end_reason as VoiceEndReason)
+    : null;
+  return { ...r, end_reason: ended };
+}
 
 /** The row, as the member (RLS: their own, on a thread of their own in the workspace). */
 export async function insertVoiceSession(db: Db, row: NewVoiceSession): Promise<void> {
@@ -63,7 +84,7 @@ export async function insertVoiceSession(db: Db, row: NewVoiceSession): Promise<
 export async function readVoiceSession(db: Db, id: string): Promise<VoiceSessionRow | null> {
   const { data, error } = await db.from("ask_voice_sessions").select(VOICE_SESSION_COLUMNS).eq("id", id).maybeSingle();
   if (error) throw new Error(`ask voice session: ${error.message}`);
-  return data ?? null;
+  return data ? voiceRowOf(data) : null;
 }
 
 /** The row the vendor's post-call webhook names, by the conversation's id, or null (the service role: a provider's call). */
@@ -76,7 +97,7 @@ export async function readVoiceSessionByConversation(db: Db, conversationId: str
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`ask voice session by conversation: ${error.message}`);
-  return data ?? null;
+  return data ? voiceRowOf(data) : null;
 }
 
 /**
@@ -103,15 +124,30 @@ export async function claimVoiceTurn(
   return (data ?? []).length > 0;
 }
 
-/** The conversation over: by the browser (the member's own row), or by the post-call webhook with its minutes. */
+/**
+ * The conversation over: by the browser (the member's own row, with how it went: the reason and its two timings,
+ * 00300), or by the post-call webhook with its minutes.
+ */
 export async function endVoiceSession(
   db: Db,
   id: string,
-  fields: { endedAt: string; durationS?: number },
+  fields: {
+    endedAt: string;
+    durationS?: number;
+    endReason?: VoiceEndReason;
+    connectMs?: number | null;
+    firstAudioMs?: number | null;
+  },
 ): Promise<boolean> {
   const { data, error } = await db
     .from("ask_voice_sessions")
-    .update({ ended_at: fields.endedAt, ...(fields.durationS === undefined ? {} : { duration_s: fields.durationS }) })
+    .update({
+      ended_at: fields.endedAt,
+      ...(fields.durationS === undefined ? {} : { duration_s: fields.durationS }),
+      ...(fields.endReason === undefined ? {} : { end_reason: fields.endReason }),
+      ...(fields.connectMs === undefined ? {} : { connect_ms: fields.connectMs }),
+      ...(fields.firstAudioMs === undefined ? {} : { first_audio_ms: fields.firstAudioMs }),
+    })
     .eq("id", id)
     .select("id");
   if (error) throw new Error(`ask voice session end: ${error.message}`);

@@ -452,7 +452,6 @@ globalThis.useSurface = (await importSrc("apps/dashboard/src/legacy-bridge/surfa
   globalThis.React,
 );
 await import("../../../../../apps/dashboard/src/legacy/components/topbar.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/settings.jsx");
 // The route table the shell reads (SHELL_ROUTES, drawRoute), loaded where both lists load it: just before the shell.
 await import("../../../../../apps/dashboard/src/legacy/pages/app-routes.jsx");
 await import("../../../../../apps/dashboard/src/legacy/pages/app-shell.jsx");
@@ -580,7 +579,6 @@ for (const name of [
   "LeadsReal",
   "PipelineScope",
   "BroadcastsPage",
-  "SettingsPage",
 ])
   globalThis[name] = name;
 // The frame's rows for Leads and the Pipeline draw the pages by the window's names (app-routes.jsx drawLeads, drawPipeline).

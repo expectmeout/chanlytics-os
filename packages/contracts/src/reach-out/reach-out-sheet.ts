@@ -235,7 +235,13 @@ export function nextRunWords(
       text: "A run waits on you. Nothing more is planned until you answer it.",
       run_id: c.next.waiting_run_id,
     };
-  const at = nextRunLabel({ state: "running", run_hour: c.next.run_hour, last_run_for: c.next.last_run_for }, tz, now);
+  // A paused workspace is the chain's own line above (`may_spend`: held for billing), so the label is the moment's clock alone.
+  const at = nextRunLabel(
+    { state: "running", run_hour: c.next.run_hour, last_run_for: c.next.last_run_for },
+    tz,
+    now,
+    false,
+  );
   return { tone: "plain", text: `Next run ${at}.`, run_id: null };
 }
 

@@ -6,6 +6,7 @@ import {
   BROADCAST_NAME_MAX,
   BROADCAST_SCHEDULE_MAX_DAYS,
   BUILTIN_LISTS,
+  CAMPAIGNS_PAUSED_WORDS,
   EVERYONE_LABEL,
   broadcastName,
   emptyAudienceRefusal,
@@ -17,6 +18,7 @@ import {
   type Audience,
   type AudienceKind,
   type AskedPurpose,
+  type MessageAbout,
   type CampaignHow,
   type ConsentChannel,
   type NumberHealth,
@@ -25,6 +27,7 @@ import {
   type ListRef,
   DAY_MS,
 } from "@chanlytics/contracts";
+import { errField, logger } from "@chanlytics/channels";
 import { assembleRun } from "./assemble";
 import { allowanceRecord, pastTheMonth } from "./allowance";
 import { parseChannels, readyForMessage, refuseTicks, versionsHeld } from "./message-channels";
@@ -33,6 +36,12 @@ import type { CreateBroadcastCommand, CreateBroadcastPorts, TemplateRow } from "
 
 /** An instant names its offset: "Z" or "±hh:mm". A date alone, or a wall-clock time without one, is read on the server's clock. */
 const OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+
+/**
+ * A broadcast's own lines, by name: the step that failed, with the cause. The cause is the log's and never the answer's: a
+ * database's own text is not a person's to read, and the route sends an error's details to the browser as they stand.
+ */
+const createLog = logger();
 
 export interface BroadcastReceipt {
   id: string;
@@ -128,13 +137,15 @@ export async function campaignHow(
   ports: Pick<CreateBroadcastPorts, "channels" | "versions">,
   tpl: Pick<TemplateRow, "name" | "language">,
   channels: ConsentChannel[],
+  /** What the message is about: a broadcast's is ours, a visit or proposal moment's theirs (contracts MessageAbout). */
+  about: MessageAbout,
 ): Promise<{ how: CampaignHow; health: NumberHealth | null }> {
   const [{ ready, health }, own] = await Promise.all([
     ports.channels(),
     // WhatsApp's row is the template itself, read above; the other two are looked for only when ticked.
     channels.some((c) => c !== "whatsapp") ? ports.versions(tpl.name, tpl.language) : Promise.resolve([]),
   ]);
-  return { how: { channels, ready: readyForMessage(ready, versionsHeld(own, true)) }, health };
+  return { how: { channels, ready: readyForMessage(ready, versionsHeld(own, true)), about }, health };
 }
 
 /**
@@ -152,7 +163,12 @@ export async function campaignHowOf(
   channels: ConsentChannel[],
   purpose: AskedPurpose,
 ): Promise<{ how: CampaignHow; health: NumberHealth | null }> {
-  const made = await campaignHow(ports, tpl, channels);
+  // A broadcast is news the business chose to send, whatever its template's category (decision D1).
+  const made = await campaignHow(ports, tpl, channels, "ours");
+  // A paused workspace sends nothing: the door refuses every message of the run (deliver.ts `paused`), so a broadcast made
+  // under one would be enrolled, scheduled, and stopped by the first batch. It is refused here, in the words the composers
+  // say it in (their Send is not offered), before the people are read.
+  if (made.how.ready.paused) throw new AppError("payment_required", CAMPAIGNS_PAUSED_WORDS);
   refuseTicks(made.how, purpose);
   return made;
 }
@@ -225,40 +241,44 @@ export async function createBroadcast(
   const enrolled = enrolFor(pool, "everyone", null, null, purpose, how);
   // Nobody to send to says which of its two causes it is: nobody on it said this yes, or the ones who did have no
   // number. So the refusal is handed everyone on the audience, before anyone is left out.
-  if (enrolled.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose, label, pool), 409);
+  if (enrolled.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
   if (enrolled.length > BROADCAST_MAX_RECIPIENTS)
     throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   // An audience past the day's limit is split, not silently cut: WhatsApp's limit is Meta's, so it counts the people
   // who go by WhatsApp alone.
   const over = health ? overLimitRefusal(health, enrolled.filter((e) => e.channel === "whatsapp").length) : null;
   if (over) throw new AppError("validation", over);
-  // The month's allowance, read before anyone is enrolled: emails and texts are metered, and the people past the room are
-  // enrolled held, so the run's report says so up front. A count that could not be made is not room, and the broadcast
-  // waits for one rather than enrol past a month nobody counted. A broadcast has no moment, so every email and text is held.
-  const past = await pastTheMonth(
-    ports,
-    enrolled.map((e) => ({ id: e.row.id, channel: e.channel })),
-    null,
-    purpose,
-  ).catch((e: unknown) => {
-    throw new AppError(
-      "internal",
-      "This month's emails and texts could not be counted just now. Nothing was sent; try again.",
-      500,
-      e instanceof Error ? e.message : String(e),
-    );
-  });
 
   // 4b. Never at 3 AM. The same window the playbooks keep, by the business's
   // own clock: a time outside it -- asked for, or "now" at eleven at night --
   // moves to nine the next morning, and the receipt says so. The ceiling is
-  // judged on the moment it really goes, not the one asked for.
+  // judged on the moment it really goes, not the one asked for. Before the month is counted, which is counted at that
+  // moment.
   const tz = await ports.timezone();
   const open = nextOpenMoment(tz, when);
   const movedFrom = open.moved ? when.toISOString() : null;
   when = open.at;
   if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * DAY_MS)
     throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
+
+  // The month's allowance, read before anyone is enrolled: emails and texts are metered, and the people past the room are
+  // enrolled held, so the run's report says so up front. A count that could not be made is not room, and the broadcast
+  // waits for one rather than enrol past a month nobody counted. A broadcast has no moment, so every email and text is held.
+  // Counted in the month the run OPENS in, not the one it was made in: made on the 28th for the 1st, it sends in the new month.
+  const past = await pastTheMonth(
+    { monthSent: (channel) => ports.monthSent(channel, when) },
+    enrolled.map((e) => ({ id: e.row.id, channel: e.channel })),
+    null,
+    purpose,
+  ).catch((e: unknown) => {
+    createLog.error("campaign_step_failed", { step: "month_count", error: errField(e) });
+    throw new AppError(
+      "internal",
+      "This month's emails and texts could not be counted just now. Nothing was sent; try again.",
+      500,
+    );
+  });
+
   // Named for the business's day, not the server's (UTC on Vercel).
   const name =
     typeof want.name === "string" && want.name.trim()
@@ -290,9 +310,12 @@ export async function createBroadcast(
     sendAt: when,
     held: past.map((p) => p.id),
   });
-  if (!made.ok)
-    // A sentence for the person: nothing was written, and a bare error reached them as "Something went wrong".
-    throw new AppError("internal", "The broadcast could not be created. Nothing was sent; try again.", 500, made.error);
+  if (!made.ok) {
+    // A sentence for the person: nothing was written, and a bare error reached them as "Something went wrong". What the
+    // database said is the log's.
+    createLog.error("campaign_step_failed", { step: "assemble", error: made.error });
+    throw new AppError("internal", "The broadcast could not be created. Nothing was sent; try again.", 500);
+  }
   const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
     name,
     template: `${tpl.name}/${tpl.language}`,

@@ -6,7 +6,35 @@
  * changed, in these words: before, a moment for texts could carry an offer, enrol everyone who said yes to texts, and
  * see the send refuse each of them at the door.
  */
-import { type AskedPurpose, purposeOfPlaybook, purposeOfTemplate } from "../consent/consent";
+import { type AskedPurpose, type MessageAbout, purposeOfPlaybook, purposeOfTemplate } from "../consent/consent";
+import { triggerOf } from "./playbook-triggers";
+
+/**
+ * What a moment's message is about (consent.ts MessageAbout, decision D1): a visit's and a follow-up's are theirs, the
+ * visit they booked and the proposal their deal waits on; every other moment's, and a broadcast's (no moment at all), is news
+ * the business chose to send. THE one reading of it: the enrolment asks it of the playbook's moment, and the send asks it of
+ * the run's (the trigger its audience keeps), so the two cannot disagree about anyone.
+ * Kept here, beside the yes a moment's message needs, so the run's reach and the playbooks' words both import it without
+ * importing each other.
+ */
+export function messageAboutOfTrigger(trigger: string | null | undefined): MessageAbout {
+  const kind = triggerOf(trigger ?? "")?.kind;
+  return kind === "visit" || kind === "deal" ? "theirs" : "ours";
+}
+
+/**
+ * Whether a moment's send passes the 24-hour handover pause (a thread's `paused_until`, which any owner reply sets 24 hours
+ * ahead; the door is core deliver.ts), decision D4 of the Campaigns wiring review: only the day-before reminder does. It is
+ * about the customer's own booking, and booking systems send it whatever the chat is doing: a customer who writes the evening
+ * before and is answered by the team would otherwise lose it to a pause that runs past the visit. Every other moment keeps
+ * the pause: the after-visit message most often follows a complaint, where "how was your visit?" does harm, and an offer, the
+ * business's news, a win-back or a proposal's follow-up has no business in the middle of a conversation. THE one reading of
+ * it, asked by the batch of the run's moment and by the door of what the batch hands it. A LIVE hold (a call in progress, a
+ * teammate holding the thread right now) holds the reminder too, but for a while: the batch waits for it, never skips for it.
+ */
+export function passesHandoverPause(trigger: string | null | undefined): boolean {
+  return trigger === "visit_tomorrow";
+}
 
 /**
  * The message a run is counted for: its template's category, as Meta filed it. Null where no message is in view (a

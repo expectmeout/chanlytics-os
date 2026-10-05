@@ -74,6 +74,9 @@ const row = (id, over = {}) => ({
   last_message_sender: "client",
   last_inbound_text: "hi",
   last_inbound_at: ago(40 * DAY),
+  // They wrote in their own words once (people_list's last_wrote_at): a relationship on record, which is what lets an email
+  // the business chose to send reach a person with no yes covering email (decision D1). Not the card's subject here.
+  last_wrote_at: ago(40 * DAY),
   last_inbound_channel: null,
   last_call_at: null,
   last_outbound_call_at: null,
@@ -127,7 +130,21 @@ const tables = (over = {}) => ({
     { user_id: USER, tenant_id: A, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
   ],
   tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }],
-  tenant_config: [{ tenant_id: A, config: { brain: { business_name: "Harbor Moving" } }, version: 1 }],
+  // With its postal address: a broadcast's email is the business's news, an offer at the door, whose foot names it (decision D2).
+  tenant_config: [
+    {
+      tenant_id: A,
+      config: {
+        brain: {
+          business_name: "Harbor Moving",
+          system_prompt: "Answer as the front desk of Harbor Moving: brief and warm.",
+          fallbacks: { greeting: "g", error: "e", non_text: "n" },
+          profile: { address: "12 Main St, Springfield" },
+        },
+      },
+      version: 1,
+    },
+  ],
   tenant_channels: [
     {
       tenant_id: A,
@@ -166,6 +183,9 @@ const tables = (over = {}) => ({
 });
 
 /** What the edge answers about its email wire; an Error is a network that failed. */
+const OPEN_EDGE = { status: 200, body: { ok: true, ready: true, offers: true } };
+/** Email can send, and the campaigns domain is not verified: offers by email are closed. */
+const CLOSED_EDGE = { status: 200, body: { ok: true, ready: true, offers: false } };
 let edge;
 const real = globalThis.fetch;
 /** The edge answers `answer` from now on, and the dashboard's kept answer is the one it gives. */
@@ -182,7 +202,9 @@ beforeEach(async () => {
       headers: { "content-type": "application/json" },
     });
   };
-  await edgeSays({ status: 200, body: { ok: true, ready: true } });
+  // The deployment can send email, and the campaigns domain is verified: offers by email, and the business's own news with them
+  // (decision D2), can go. A case about them closed says so with `edgeSays(CLOSED_EDGE)`.
+  await edgeSays(OPEN_EDGE);
 });
 after(() => (globalThis.fetch = real));
 
@@ -225,13 +247,50 @@ test("a broadcast by WhatsApp and email says the channels and how many each reac
   assert.match(wa.proposal.summary, /^2 people who said yes · on WhatsApp · /);
 });
 
+test("a broadcast is the business's own news: by email it reaches whoever has dealt with it or said yes to email, and an address alone is not counted (decision D1)", async () => {
+  // The same three people, none of whom ever wrote to the business: b (an address, no number) has nothing but the address.
+  const strangers = PEOPLE.map((p) => ({ ...p, last_wrote_at: null }));
+  const none = await propose({ ...BROADCAST, channels: ["whatsapp", "email"] }, {}, strangers);
+  assert.equal(none.isError, false, none.result);
+  assert.deepEqual(none.proposal.payload.channels, ["whatsapp", "email"]);
+  assert.equal(none.proposal.payload.count, 2, "a and c by WhatsApp; b is held, not counted as reached by email");
+  // Only WhatsApp reaches anybody, so the card draws no split: the same words as a send by WhatsApp alone, the email tick kept.
+  assert.match(none.proposal.summary, /^2 people who said yes · on WhatsApp and by email · “visit_reminder” · /);
+  assert.doesNotMatch(none.proposal.summary, /by email \(/);
+  // A yes covering email puts b back (the reminder is a utility: the yes to messages, kept for email as well).
+  const withYes = strangers.map((p, i) => (i === 1 ? { ...p, consent_channels: ["whatsapp", "sms", "email"] } : p));
+  const yes = await propose({ ...BROADCAST, channels: ["whatsapp", "email"] }, {}, withYes);
+  assert.equal(yes.proposal.payload.count, 3);
+  assert.match(yes.proposal.summary, /\(2 on WhatsApp, 1 by email\)/);
+  // So does a relationship on record, a deal for one.
+  const dealt = strangers.map((p, i) => (i === 1 ? { ...p, deal_id: "deal-2", deal_stage: "won" } : p));
+  const deal = await propose({ ...BROADCAST, channels: ["whatsapp", "email"] }, {}, dealt);
+  assert.match(deal.proposal.summary, /\(2 on WhatsApp, 1 by email\)/);
+  // An unsubscribe from email holds them whatever else is on record (they wrote, so they have a relationship).
+  const unsubscribed = PEOPLE.map((p, i) => (i === 1 ? { ...p, email_marketing: "opted_out" } : p));
+  const out = await propose({ ...BROADCAST, channels: ["whatsapp", "email"] }, {}, unsubscribed);
+  assert.match(out.proposal.summary, /^2 people who said yes · on WhatsApp and by email · /);
+  assert.doesNotMatch(out.proposal.summary, /by email \(/);
+});
+
 test("a broadcast's channels are held to the route's own rule, in the composers' words, before anything is counted", async () => {
   // The purpose never carries it: texts carry no offers, and offers by email wait for their release.
   const offerByText = await propose({ ...BROADCAST, template_id: OFFER, channels: ["sms"] });
   assert.equal(offerByText.isError, true);
   assert.equal(said(offerByText), CHANNEL_WORDS.noOffersByText);
+  await edgeSays(CLOSED_EDGE);
   const offerByEmail = await propose({ ...BROADCAST, template_id: OFFER, channels: ["whatsapp", "email"] });
   assert.equal(said(offerByEmail), CHANNEL_WORDS.noOffersByEmailYet);
+  // The business's own news is held with them (decision D2): a utility message by email says the same, and by WhatsApp goes.
+  const newsByEmail = await propose({ ...BROADCAST, channels: ["whatsapp", "email"] });
+  assert.equal(said(newsByEmail), CHANNEL_WORDS.noOffersByEmailYet);
+  assert.equal(newsByEmail.proposal, null, "no card for the person to approve");
+  assert.equal(
+    (await propose({ ...BROADCAST, channels: ["whatsapp", "sms"] })).isError,
+    false,
+    "by WhatsApp and text it goes",
+  );
+  await edgeSays(OPEN_EDGE);
   // The message has no version there.
   const noVersion = await propose(
     { ...BROADCAST, channels: ["email"] },
@@ -241,8 +300,15 @@ test("a broadcast's channels are held to the route's own rule, in the composers'
   // The workspace cannot send there: no texting line, no mailbox, and a deployment whose edge holds no key.
   assert.equal(said(await propose({ ...BROADCAST, channels: ["sms"] }, { lines: [] })), CHANNEL_WORDS.noTextLine);
   assert.equal(said(await propose({ ...BROADCAST, channels: ["email"] }, { mailboxes: [] })), CHANNEL_WORDS.noMailbox);
+  // A deployment with no email wire cannot send the news either: offers by email wait for the campaigns domain, which is
+  // what its absence is (contracts channelsReady).
   await edgeSays({ status: 200, body: { ok: true, ready: false } });
-  assert.equal(said(await propose({ ...BROADCAST, channels: ["email"] })), CHANNEL_WORDS.noEmailDomain);
+  assert.equal(said(await propose({ ...BROADCAST, channels: ["email"] })), CHANNEL_WORDS.noOffersByEmailYet);
+  // A workspace with no postal address, which an offer's foot names: the same reason an offer's tick gives.
+  await edgeSays(OPEN_EDGE);
+  const bare = tables().tenant_config.map((r) => ({ ...r, config: { brain: { ...r.config.brain, profile: {} } } }));
+  const noAddress = await propose({ ...BROADCAST, channels: ["email"] }, { tenant_config: bare });
+  assert.equal(said(noAddress), "Add your business's address to send offers by email.");
   // An edge that could not be asked is not ready, and not guessed ready: the page's words for it.
   await edgeSays(new Error("connect ECONNREFUSED"));
   const unchecked = await propose({ ...BROADCAST, channels: ["email"] });
@@ -329,4 +395,99 @@ test("a proposal follow-up by WhatsApp and email: it answers their own request, 
     noMailbox.proposal.summary.includes(`${CHANNEL_WORDS.noMailbox} Its runs hold those people until it can.`),
     noMailbox.proposal.summary,
   );
+});
+
+/**
+ * A message's email or text version with words of its own, in Meta's component shape as the library files it: an email's
+ * subject its HEADER, the words its BODY. The test's `version` above carries the WhatsApp row's words under every channel,
+ * which is the one thing these cards must not do.
+ */
+const own = (channel, name, id, subject, body) =>
+  template(id, name, {
+    channel,
+    category: null,
+    body_preview: body,
+    components: [...(subject ? [{ type: "HEADER", format: "TEXT", text: subject }] : []), { type: "BODY", text: body }],
+  });
+const SAYING = {
+  templates: [
+    template(REMINDER, "visit_reminder", {
+      variables: [{ position: 1 }],
+      body_preview: "Hi {{1}}, your visit is tomorrow.",
+    }),
+    own(
+      "email",
+      "visit_reminder",
+      "ffffffff-ffff-4fff-8fff-ffffffffff01",
+      "Your visit, {{1}}",
+      "Hi {{1}},\nwe will see you tomorrow.",
+    ),
+    own("sms", "visit_reminder", "ffffffff-ffff-4fff-8fff-ffffffffff02", null, "Visit tomorrow, {{1}}."),
+  ],
+};
+const SAY = { ...BROADCAST, params: ["@first_name"] };
+const endsWith = (r, words) => assert.ok(r.proposal.summary.endsWith(words), r.proposal.summary);
+
+test("REGRESSION: a broadcast card quotes each channel's own words, named for the channel -- it quoted WhatsApp's under an email's and a text's name", async () => {
+  // Named: each channel the card goes by says its own version, slots filled as the preview fills them.
+  const both = await propose({ ...SAY, channels: ["whatsapp", "email"] }, SAYING);
+  assert.equal(both.isError, false, both.result);
+  endsWith(
+    both,
+    "now: On WhatsApp: Hi Dani, your visit is tomorrow. · By email: “Your visit, Dani” — Hi Dani, we will see you tomorrow.",
+  );
+  // A text's words carry the STOP line the sender adds: it is what goes.
+  const text = await propose({ ...SAY, channels: ["sms"] }, SAYING);
+  assert.equal(text.isError, false, text.result);
+  endsWith(text, "now: By text: Visit tomorrow, Dani. Reply STOP to opt out");
+  // By email alone, not one of WhatsApp's words is on the card.
+  const mail = await propose({ ...SAY, channels: ["email"] }, SAYING);
+  endsWith(mail, "now: By email: “Your visit, Dani” — Hi Dani, we will see you tomorrow.");
+  assert.doesNotMatch(mail.proposal.summary, /your visit is tomorrow/);
+  // Naming no channel is WhatsApp alone, and says the template's words as it always did: no channel's name before them.
+  const plain = await propose(SAY, SAYING);
+  endsWith(plain, "now: Hi Dani, your visit is tomorrow.");
+});
+
+test("a card whose version is not in hand is refused, never drawn as another channel's words", async () => {
+  // The route's own rule refuses it first (core campaignHowOf); the card holds the words as well: with the email row gone
+  // from the rows the composers read, nothing is quoted under email's name.
+  const gone = { templates: SAYING.templates.filter((r) => r.channel !== "email") };
+  assert.equal(said(await propose({ ...SAY, channels: ["email"] }, gone)), "This message has no email version yet.");
+  // A playbook keeps a channel that cannot send yet, but a card has nothing to say of one with no version: refused.
+  const offer = template(OFFER, "month_offer", { category: "marketing", body_preview: "This month: 20% off." });
+  const quiet = {
+    action: "playbook",
+    trigger: "quiet_30",
+    template_id: OFFER,
+    params: [],
+    channels: ["whatsapp", "email"],
+  };
+  const none = await propose(quiet, { templates: [offer] });
+  assert.equal(none.isError, true);
+  assert.match(said(none), /^This message has no email version to show here\. Say so: /);
+  assert.equal(none.proposal, null, "no card to approve");
+  // With the version, the card says each: the playbook's own words under "Says:".
+  const withMail = await propose(quiet, {
+    templates: [
+      offer,
+      own(
+        "email",
+        "month_offer",
+        "ffffffff-ffff-4fff-8fff-ffffffffff03",
+        "20% off this month",
+        "Save 20% on anything.",
+      ),
+    ],
+  });
+  assert.equal(withMail.isError, false, withMail.result);
+  assert.ok(
+    withMail.proposal.summary.endsWith(
+      "Says: On WhatsApp: This month: 20% off. · By email: “20% off this month” — Save 20% on anything.",
+    ),
+    withMail.proposal.summary,
+  );
+  // A playbook that names no channel says WhatsApp's words alone, as before.
+  const plain = await propose({ ...quiet, channels: undefined }, { templates: [offer] });
+  assert.ok(plain.proposal.summary.endsWith("Says: This month: 20% off."), plain.proposal.summary);
 });

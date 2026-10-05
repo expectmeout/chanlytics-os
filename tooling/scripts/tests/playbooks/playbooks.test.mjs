@@ -38,6 +38,7 @@ import {
   playbookRunReach,
   followUpRunAt,
   followUpStandOf,
+  messageAboutOfTrigger,
   policyClassOffered,
   poolWords,
   reachLines,
@@ -205,28 +206,28 @@ test("the reminder's words are relative to the moment it goes: tomorrow, today, 
   const sep6 = new Date("2026-09-06T15:00:00Z");
   const sep7 = new Date("2026-09-07T13:00:00Z"); // nine in the morning, the moment a night's run-now goes
   const sep5 = new Date("2026-09-05T15:00:00Z");
-  assert.deepEqual(visitFacts("visit_tomorrow", visit, TZ, sep6), {
+  assert.deepEqual(visitFacts("visit_tomorrow", visit, TZ, [], sep6), {
     visit_when: "tomorrow at 2:00 PM",
     visit_service: "Balayage",
   });
   assert.deepEqual(
-    visitFacts("visit_tomorrow", visit, TZ, sep7),
+    visitFacts("visit_tomorrow", visit, TZ, [], sep7),
     { visit_when: "today at 2:00 PM", visit_service: "Balayage" },
     "moved to nine the next morning, the visit is today",
   );
   assert.equal(
-    visitFacts("visit_tomorrow", visit, TZ, sep5).visit_when,
+    visitFacts("visit_tomorrow", visit, TZ, [], sep5).visit_when,
     "on Monday at 2:00 PM",
     "further off, the day's name",
   );
   assert.equal(
-    visitFacts("visit_tomorrow", visit, TZ).visit_when,
+    visitFacts("visit_tomorrow", visit, TZ, []).visit_when,
     "tomorrow at 2:00 PM",
     "without a moment, as the run assumes",
   );
-  assert.equal(visitFacts("visited", visit, TZ, new Date("2026-09-08T15:00:00Z")).visit_when, "yesterday");
+  assert.equal(visitFacts("visited", visit, TZ, [], new Date("2026-09-08T15:00:00Z")).visit_when, "yesterday");
   assert.equal(
-    visitFacts("visited", visit, TZ, new Date("2026-09-09T15:00:00Z")).visit_when,
+    visitFacts("visited", visit, TZ, [], new Date("2026-09-09T15:00:00Z")).visit_when,
     "on Monday",
     "a thank-you moved a day still names the day",
   );
@@ -370,18 +371,32 @@ test("when a run is due: the hour the owner picked, by the business's clock, onc
     "Every 30 days at 09:00 · up to 50 a day",
   );
   assert.equal(
-    nextRunLabel({ state: "running", run_hour: 11, last_run_for: null }, "America/New_York", now),
+    nextRunLabel({ state: "running", run_hour: 11, last_run_for: null }, "America/New_York", now, false),
     "today 11:00",
   );
   assert.equal(
-    nextRunLabel({ state: "running", run_hour: 10, last_run_for: null }, "America/New_York", now),
+    nextRunLabel({ state: "running", run_hour: 10, last_run_for: null }, "America/New_York", now, false),
     "today, within the hour",
   );
   assert.equal(
-    nextRunLabel({ state: "running", run_hour: 10, last_run_for: "2026-09-06" }, "America/New_York", now),
+    nextRunLabel({ state: "running", run_hour: 10, last_run_for: "2026-09-06" }, "America/New_York", now, false),
     "tomorrow 10:00",
   );
-  assert.equal(nextRunLabel({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now), "paused");
+  assert.equal(
+    nextRunLabel({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now, false),
+    "paused",
+  );
+  // A paused workspace promises no time: nothing a run sends leaves until billing resumes. A paused playbook is still paused.
+  for (const last_run_for of [null, "2026-09-06"])
+    assert.equal(
+      nextRunLabel({ state: "running", run_hour: 10, last_run_for }, "America/New_York", now, true),
+      "after billing resumes",
+      String(last_run_for),
+    );
+  assert.equal(
+    nextRunLabel({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now, true),
+    "paused",
+  );
 });
 
 test("a run that waits for a person is open, never sent by the job, approved through its own door, skipped through cancel", () => {
@@ -986,4 +1001,24 @@ test("a reach-out's step reaches nobody among People: its run is its own, and it
     );
     assert.deepEqual([drawn.eligible, drawn.reach.pool], [[], 0], trigger);
   }
+});
+
+test("what a moment's message is about (decision D1): a visit's and a proposal's are theirs, every other moment's the business's own news", () => {
+  // The visit they booked, and the proposal their deal waits on: by email these ask an address and no yes.
+  for (const trigger of ["visit_tomorrow", "visited", "proposal_waiting"])
+    assert.equal(messageAboutOfTrigger(trigger), "theirs", trigger);
+  // Everything else is news the business chose to send, by whatever list or cadence.
+  for (const trigger of ["everyone_monthly", "lapsed", "saved_list", "quiet_30", "new_week", "phoned_only"])
+    assert.equal(messageAboutOfTrigger(trigger), "ours", trigger);
+  // A reach-out's steps are no moment of People's; and a moment this build does not know, or none at all, reads as the
+  // stricter, the business's own news.
+  for (const trigger of ["lead_first", "after_step", "a_moment_nobody_made", "", null, undefined])
+    assert.equal(messageAboutOfTrigger(trigger), "ours", String(trigger));
+  // Every moment the product knows says one of the two, and only the booking and follow-up classes' say theirs.
+  for (const t of PLAYBOOK_TRIGGERS)
+    assert.equal(
+      messageAboutOfTrigger(t.id),
+      t.kind === "visit" || t.kind === "deal" ? "theirs" : "ours",
+      `${t.id} (${t.kind})`,
+    );
 });

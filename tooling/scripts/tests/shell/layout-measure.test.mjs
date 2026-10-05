@@ -103,6 +103,16 @@ test("Setup shares the settings column with the cards above and below it", () =>
   );
 });
 
+test("on a phone Settings' one column is as wide as the screen, whatever the strip of sections holds", () => {
+  // A bare 1fr is minmax(auto, 1fr): Safari sized it to the strip's tabs laid end to end (775px on a 393px iPhone,
+  // 4 Oct), and every pane under the strip ran off the screen. Chromium shrank it, so only a phone showed it.
+  assert.match(
+    MOBILE,
+    /\n {2}\.settings \{ grid-template-columns: minmax\(0, 1fr\);/,
+    "the phone's Settings column may shrink below what the strip and the panes hold",
+  );
+});
+
 test("the thread pane has ONE gutter, and the pane owns it", () => {
   const inbox = readRaw("apps/dashboard/src/legacy/styles/inbox.css");
   const scroll = inbox.slice(inbox.indexOf(".ix-th-scroll {"), inbox.indexOf(".ix-th-scroll::-webkit-scrollbar"));

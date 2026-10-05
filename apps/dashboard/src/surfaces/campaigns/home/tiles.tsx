@@ -15,11 +15,11 @@ import type {
   LifecycleResultsTile,
   LifecycleTileRead,
 } from "@chanlytics/contracts";
-import { statePillPart } from "../../legacy-parts";
 import { routeDoor } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { StatePill } from "../../kit/pill/state-pill";
 import { Meter } from "../../kit/meter/meter";
 import { Panel } from "../../kit/panel/panel";
 import { HomeFailed, HomeReading } from "./failed";
@@ -131,7 +131,6 @@ function Yes({ yes, acts }: { yes: NonNullable<LifecycleReachTile["yes"]>; acts:
 
 /** The phone's one short tile: how many can hear you, the offers pill, a meter and a line; its read, where there is none yet. */
 export function PhoneReach({ tile, failed }: ReachProps) {
-  const StatePill = statePillPart();
   const phone = tile.phone;
   return (
     <Panel
@@ -159,7 +158,6 @@ export function PhoneReach({ tile, failed }: ReachProps) {
 
 /** One line of "Coming up": when, what, who will get it, and its act. */
 function ComingLine({ r, acts }: { r: LifecycleComing; acts: RailActs }) {
-  const StatePill = statePillPart();
   const turnOn = r.act.kind === "turn_on";
   return (
     <li className="cmh-coming-line" data-kind={r.kind} data-testid="cmh-coming-line">

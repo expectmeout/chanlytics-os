@@ -96,8 +96,6 @@ const VOICE_LINES = {
   },
   /** The door's first words when the model is slow, spoken as a read's label is, so the chat draws them as a trace. */
   moment: { en: "One moment", es: "Un momento" },
-  /** The vendor's silence prompt (a transcript of "..." after turn_timeout): the agent says it is here, and no turn runs. */
-  silence: { en: "I'm here.", es: "Aquí estoy." },
 } as const;
 type Line = keyof typeof VOICE_LINES;
 const lineOf = (line: Line, language: AskLanguage): string => VOICE_LINES[line][language === "es" ? "es" : "en"];
@@ -231,7 +229,7 @@ async function admit(body: Record<string, unknown> | null, deps: VoiceDoorDeps):
     if (e instanceof AppError) return over(`member_${e.code}`);
     // The database could not be asked: the row is kept and the person hears to try again, never a status, which the
     // vendor would retry three times and then close the conversation on.
-    log.error("ask_voice_door_failed", { tenant_id: row.tenant_id, error: e });
+    log.error("ask_voice_door_failed", { tenant_id: row.tenant_id, error: e, why: "member_db" });
     return knockAnswered(spoken(lineOf("failed", language)));
   }
 }
@@ -432,7 +430,25 @@ async function answerAgent(req: Request, deps: VoiceDoorDeps): Promise<Response>
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const knock = await admit(body, deps);
   if (knock.kind === "answered") return knock.response;
-  // A voice turn is a turn: counted as the typed ones are, and a spent count is a line, not a 429.
+  const text = lastUserText(body?.messages);
+  // Every canned line is logged (4 Oct 2026): the doctor could not tell a conversation the agent nagged through its
+  // silence from one that spoke, since "I'm here." left no line.
+  if (!text) {
+    log.info("ask_voice_door_refused", { tenant_id: knock.row.tenant_id, why: "missed" });
+    return spoken(lineOf("missed", knock.language));
+  }
+  // Silence: after turn_timeout the vendor asks the model with "..." (seen 3 Oct, Chrome), and a transcript with no
+  // word in it is the same. The session's microphone is muted (the hold is the one mic, 4 Oct evening), so this is
+  // the vendor's own re-engage and not a person: the door answers with the buffer words, which the vendor voices as
+  // nothing and the Line draws as nothing; no turn is run and nothing is stored. ("I'm here." was the answer while
+  // the mic was open; with it muted it was "Are you still there?" every turn timeout, measured 4 Oct.)
+  if (!/[\p{L}\p{N}]/u.test(text)) {
+    log.info("ask_voice_door_refused", { tenant_id: knock.row.tenant_id, why: "silence" });
+    return spoken(BUFFER_WORDS);
+  }
+  // A voice turn is a turn: counted as the typed ones are, and a spent count is a line, not a 429. Counted here,
+  // after the two answers above: the vendor's own re-engage comes every turn timeout for as long as a session waits,
+  // and nobody asked it, so it takes nothing of the person's count and a spent count never speaks into the silence.
   try {
     await takeRate(knock.ctx.userId, "ask", now());
   } catch (e) {
@@ -442,11 +458,6 @@ async function answerAgent(req: Request, deps: VoiceDoorDeps): Promise<Response>
     }
     throw e;
   }
-  const text = lastUserText(body?.messages);
-  if (!text) return spoken(lineOf("missed", knock.language));
-  // Silence: after turn_timeout the vendor asks the model with "..." (seen 3 Oct, Chrome), and a transcript with no
-  // word in it is the same. The agent says it is here; no turn is run and nothing is stored.
-  if (!/[\p{L}\p{N}]/u.test(text)) return spoken(lineOf("silence", knock.language));
   // More than a turn takes: the typed route's 400 (ASK_MAX_CHARS), spoken; the vendor retries an empty stream.
   if (text.length > ASK_MAX_CHARS) {
     log.warn("ask_voice_door_refused", { tenant_id: knock.row.tenant_id, why: "long" });

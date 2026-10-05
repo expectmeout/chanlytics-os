@@ -4,16 +4,18 @@
  * asks and promises.
  */
 import { Fragment } from "react";
-import { CONSENT_CHANNELS } from "@chanlytics/contracts";
-import type { ApprovalVM, BroadcastDetailDto, BroadcastDto, RunPersonVM } from "@chanlytics/contracts";
+import { CONSENT_CHANNELS, messageAboutOfTrigger } from "@chanlytics/contracts";
+import type { ApprovalVM, BroadcastDetailDto, BroadcastDto, PreviewVersions, RunPersonVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
+import { Confirm } from "../../kit/confirm/confirm";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { confirmPart } from "../../legacy-parts";
 import { gateTitle, navigate } from "../../legacy-verbs";
 import { cmSplitWords } from "../parts/channels";
 import { mpParts } from "../parts/message-preview";
+import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
+import type { CmPreviewBy } from "../parts/preview-by";
 import type { PlaybookCardVM } from "../playbooks/surface";
 
 /**
@@ -25,8 +27,18 @@ export interface BcSheetAsk {
   position: readonly [number, number] | null;
   canSend: boolean;
   playbook: PlaybookCardVM | null;
-  template: { body_preview: string | null } | null;
+  /** The message: its WhatsApp words, and its email and text versions where the page holds them (page/runs.tsx). */
+  template: {
+    body_preview: string | null;
+    language: string;
+    category: string | null;
+    versions?: PreviewVersions;
+  } | null;
   businessName: string;
+  /** Its postal address where the Business record holds one: an offer's email names it in its foot. */
+  businessAddress: string | null;
+  /** Whether the workspace is paused, from the page's readiness (ChannelsReady.paused); null where that was not read. */
+  paused: boolean | null;
   armed: boolean;
   onArm: (on: boolean) => void;
   stopping: boolean;
@@ -178,25 +190,66 @@ function bcSheetReach(avm: ApprovalVM) {
   );
 }
 
-/** The words as its first person reads them, with the slots marked, and who reads them. */
-function bcSheetWords(parts: ReturnType<typeof mpParts>, avm: ApprovalVM) {
+/**
+ * The message as the run's reader reads it, on the channel their message goes by: that channel's own version (an email's subject
+ * and words, a text's words and the STOP line the sender adds), else WhatsApp's template. Where that version is not in hand
+ * WhatsApp's words stand under no channel's name, with the note that says so (parts/preview-by.ts): the same preview the
+ * composers draw, never another channel's words under this one's. The channel is named wherever the run goes by more than
+ * WhatsApp, or its reader is not on WhatsApp.
+ */
+function bcSheetSays(tpl: NonNullable<BcSheetAsk["template"]>, avm: ApprovalVM, sheet: BcSheetAsk): CmPreviewBy {
+  const by = avm.byChannel;
+  const labelled =
+    avm.readerChannel !== "whatsapp" || (!!by && CONSENT_CHANNELS.some((c) => c !== "whatsapp" && by[c] > 0));
+  return cmPreviewBy({ body: tpl.body_preview, header: null, footer: null, buttons: null }, avm.readerChannel, {
+    versions: tpl.versions,
+    language: tpl.language,
+    business: sheet.businessName,
+    address: sheet.businessAddress,
+    labelled,
+    // An offer's email reads with the offer's foot, which owes the postal address: with none the preview says so. A run's
+    // moment says what its message is about (the business's news is an offer by email too, decision D2).
+    ...cmOfferFoot(tpl.category, messageAboutOfTrigger(sheet.playbook?.trigger)),
+  });
+}
+
+/** Words with their slots marked: what varies by person, as the sheet shows the first person's. */
+function bcSheetMarked(words: string | null | undefined, values: readonly string[]) {
+  return mpParts(words, values).map((x, i) =>
+    x.kind === "slot" ? (
+      <span key={i} className="bc-sheet-slot">
+        {x.text}
+      </span>
+    ) : (
+      <Fragment key={i}>{x.text}</Fragment>
+    ),
+  );
+}
+
+/** The words as its first person reads them on their own channel, with the slots marked, and who reads them. */
+function bcSheetWords(says: CmPreviewBy, avm: ApprovalVM) {
+  // "by email", under the reader's name: the quiet label the composers' previews carry (contracts PREVIEW_CHANNEL_WORDS).
+  const via = says.via ? `${says.via.charAt(0).toLowerCase()}${says.via.slice(1)}` : null;
   return (
-    <div className="bc-sheet-words" data-testid="bc-sheet-words">
-      <p className="bc-sheet-quote">
-        “
-        {parts.map((x, i) =>
-          x.kind === "slot" ? (
-            <span key={i} className="bc-sheet-slot">
-              {x.text}
-            </span>
-          ) : (
-            <Fragment key={i}>{x.text}</Fragment>
-          ),
-        )}
-        ”
-      </p>
+    <div className="bc-sheet-words" data-testid="bc-sheet-words" data-channel={avm.readerChannel}>
+      {says.mail?.subject ? (
+        <p className="bc-approval-subject" data-testid="bc-sheet-subject">
+          {bcSheetMarked(says.mail.subject, avm.values)}
+        </p>
+      ) : null}
+      <p className="bc-sheet-quote">“{bcSheetMarked(says.body, avm.values)}”</p>
+      {says.footer ? <p className="bc-approval-says">{says.footer}</p> : null}
+      {says.note ? (
+        <p className="bc-approval-says" data-testid="bc-sheet-version-note">
+          {says.note}
+        </p>
+      ) : null}
       <div className="bc-sheet-reader">
-        {avm.reader && <span>as {avm.reader} reads it</span>}
+        {avm.reader && (
+          <span data-testid="bc-sheet-reader">
+            as {avm.reader} reads it{via ? ` · ${via}` : ""}
+          </span>
+        )}
         {avm.hiThere > 0 && (
           <span className="bc-sheet-hi" data-testid="bc-sheet-hi">
             {avm.hiThere} {avm.hiThere === 1 ? "gets" : "get"} “Hi there” — no name on file
@@ -216,7 +269,6 @@ function bcSheetActs(p: {
   onSeeAll: () => void;
 }) {
   const { b, avm, sheet, seeAll, onSeeAll } = p;
-  const Confirm = confirmPart();
   const stop = bcStopWords("pending_approval");
   return (
     <div className="bc-sheet-acts bc-approval-acts" data-testid="bc-sheet-acts">
@@ -279,8 +331,7 @@ export function BcSheet({ d, people, avm, sheet, seeAll, onSeeAll }: BcSheetProp
   const pb = sheet.playbook;
   const hint =
     pb && pb.triggerHint ? pb.triggerHint.charAt(0).toLowerCase() + pb.triggerHint.slice(1) : b.audience.label;
-  const body = sheet.template ? sheet.template.body_preview : null;
-  const parts = body ? mpParts(body, avm.values) : [];
+  const says = sheet.template && sheet.template.body_preview ? bcSheetSays(sheet.template, avm, sheet) : null;
   return (
     <div className="bc-sheet bc-approval" data-testid="bc-sheet">
       <div className="bc-sheet-body bc-approval-body">
@@ -288,7 +339,7 @@ export function BcSheet({ d, people, avm, sheet, seeAll, onSeeAll }: BcSheetProp
           Playbook · {hint} · {avm.goes}
         </div>
         {bcSheetReach(avm)}
-        {parts.length > 0 && bcSheetWords(parts, avm)}
+        {says && bcSheetWords(says, avm)}
       </div>
       {seeAll && (
         <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="bc-sheet-people">

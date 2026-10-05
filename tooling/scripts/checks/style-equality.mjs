@@ -52,25 +52,18 @@ const PERSON = "clients/5c0e0000-0000-4000-8000-000000000003";
 
 /**
  * The harness's records and the routes each is opened at (the address after `#/`). The salon draws the mockup's
- * pages, a seeded person and every Settings pane; the pipeline the real People, Pipeline and person's page; the
- * nightly its empty Business pane (its other pages are the salon's own, element for element); the kit its gallery,
- * which draws every class of the kit (e2e-harness/kit-gallery.mjs) and has no routes, so its one is a name.
+ * pages and a seeded person; the pipeline the real People, Pipeline and person's page; the kit its gallery, which draws
+ * every class of the kit (e2e-harness/kit-gallery.mjs) and has no routes, so its one is a name. Settings is not here: it
+ * left the mockup (decision 0015 step 11; Ruben, 4 Oct 2026), and with it the nightly's empty Business pane and the
+ * salon's panes and four scenes (a record sheet, a combobox, a segmented control and a switch, all drawn in Business).
  *
  * A route that has left the shell (decision 0015: an App Router page, src/surfaces/routes.ts) is not in the list: the harness
  * draws the shell's table and answers "No surface at" for it, so `record` refuses it. The Inbox, Reports and Campaigns' three
  * (outbound, broadcasts, messages) are out; a page that leaves takes its route out of this list in the same change.
  */
 export const PAGES = {
-  salon: [
-    ...["clients", "clients/c-aisha", "calendar"],
-    // Settings: Business is the bare route, and then each pane in the rail (settings.jsx SET_TABS).
-    "admin",
-    ...["profile", "partner", "team", "autonomy", "integrations", "notifications", "billing", "activity"].map(
-      (pane) => `admin/${pane}`,
-    ),
-  ],
+  salon: [...["clients", "clients/c-aisha", "calendar"]],
   pipeline: ["clients", "clients/pipeline", "clients/leads", PERSON],
-  nightly: ["admin"],
   kit: ["kit"],
 };
 
@@ -81,7 +74,7 @@ export const PAGES = {
  * the page once made, so it goes last.
  *
  * Most of the kit is drawn only in a state: the record kit's fold in place on a desk (the person's page) and as a
- * sheet (Settings › Business, and every fold on a phone), a combobox's list, a segmented control with its picked
+ * sheet (every fold on a phone), a combobox's list, a segmented control with its picked
  * segment, a switch that is on, a menu's danger item under the pointer, and a button focused as a keyboard focuses it.
  */
 export const SCENES = {
@@ -130,33 +123,6 @@ export const SCENES = {
     route: PERSON,
     steps: [["key", '[data-testid="person-open-thread"]', "Shift"]],
     sees: '[data-testid="person-open-thread"]:focus-visible',
-  },
-  "a record sheet": {
-    record: "salon",
-    route: "admin",
-    steps: [["click", '[data-testid="rec-row-act-services"]']],
-    sees: ".rec-sheet",
-  },
-  "a combobox open in a fold": {
-    record: "salon",
-    route: "admin",
-    steps: [
-      ["click", '[data-testid="rec-row-act-languages"]'],
-      ["key", '[data-testid="rec-fold-languages"] .rec-combo-input', "ArrowDown"],
-    ],
-    sees: '[data-testid="rec-fold-languages"] .rec-combo-list',
-  },
-  "a segmented control": {
-    record: "salon",
-    route: "admin",
-    steps: [["click", '[data-testid="rec-row-act-phone_display"]']],
-    sees: '[data-testid="rec-inline-phone_display"] .rec-seg-btn[aria-checked="true"]',
-  },
-  "a switch that is on": {
-    record: "salon",
-    route: "admin",
-    steps: [["click", '[data-testid="rec-row-act-guardrails"]']],
-    sees: '[data-testid="rec-fold-guardrails"] .rec-switch[aria-checked="true"]',
   },
   "a tooltip": { record: "salon", route: "today", steps: [["hover", ".tb-bell"]], sees: ".ui-tip.show" },
 };

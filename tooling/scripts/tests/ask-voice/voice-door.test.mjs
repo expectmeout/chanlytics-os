@@ -219,12 +219,12 @@ test("no user message speaks a refusal, never a 400, and nothing is stored; a sp
   assert.equal(w.tables.ask_messages.length, 0);
 });
 
-test("silence (the vendor's \"...\" after turn_timeout, or a transcript with no word in it) hears that the agent is here, in the person's language; no turn runs and nothing is stored", async () => {
+test("silence (the vendor's \"...\" after turn_timeout, or a transcript with no word in it) is answered with the buffer words, which the vendor voices as nothing: the session's mic is muted, so this is the vendor's re-engage and not a person; no turn runs and nothing is stored", async () => {
   const w = await world({ session: { language: "es" } });
   const asked = model();
   for (const content of ["...", "…", " . , ! "]) {
     assert.deepEqual(spoken(await frames(await knock(w, body(w.S, { messages: [{ role: "user", content }] })))), [
-      "Aquí estoy.",
+      "... ",
     ]);
   }
   assert.deepEqual(asked, [], "the model was not asked");
@@ -436,4 +436,25 @@ test("a Say the turn takes back (an answer written beside a read) cannot be unsp
   assert.ok(at > 0, `the real answer spoken whole, saw ${JSON.stringify(words)}`);
   assert.equal(words[at - 1], " ", "after a breath");
   assert.equal(w.tables.ask_messages.at(-1).content.answer.say.headline, HEADLINE, "the stored answer is the real one");
+});
+
+test("the vendor's own re-engage spends nothing of the person's count: silence and a turn with no words are answered before the count is taken, so a muted session waiting between questions never uses up Ask, and a spent count never speaks its line into the silence", async () => {
+  const w = await world();
+  model();
+  let taken = 0;
+  setRateStore({
+    take: async () => {
+      taken += 1;
+      return { allowed: false, retryAfterS: 30 };
+    },
+  });
+  assert.deepEqual(spoken(await frames(await knock(w, body(w.S, { messages: [{ role: "user", content: "..." }] })))), [
+    "... ",
+  ]);
+  assert.deepEqual(spoken(await frames(await knock(w, body(w.S, { messages: [{ role: "system", content: "x" }] })))), [
+    "I did not catch that. Say it again?",
+  ]);
+  assert.equal(taken, 0, "nothing taken for a turn nobody asked");
+  assert.deepEqual(spoken(await frames(await knock(w))), ["Give me a moment before the next question."]);
+  assert.equal(taken, 1, "a question is counted, as a typed one is");
 });

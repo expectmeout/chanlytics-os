@@ -2,22 +2,31 @@ import {
   BROADCAST_CHUNK,
   BROADCAST_GAP_MS,
   BROADCAST_THROTTLE_WAITS_MS,
+  finishedRunHeldWhy,
   OUTCOME_UNKNOWN,
+  type EmailHold,
   type JobNews,
   audienceTrigger,
   firstNameOf,
+  isOfferByEmail,
   isReachOutRun,
   jittered,
+  messageAboutOfTrigger,
   nextOpenMoment,
   parseParamSpecs,
   purposeOfTemplate,
   resolveParams,
+  triggerOf,
+  wireFailure,
 } from "@chanlytics/contracts";
 import { errField, logger } from "@chanlytics/channels";
 import type { Channel, Delivered, Delivery } from "../deliver";
 import { isNotTakenError } from "../wire-senders";
 import { channelOf, countSent, overAllowance, queueEmailRow, rowFacts, prepare, type Work } from "./broadcast-channels";
+import { afterRefusal, pageTheDomain, release, stopForTheWorkspace, type Verdict } from "./broadcast-stops";
 import type { BroadcastBatchCommand, BroadcastBatchPorts, BroadcastRow, ContactRow, RecipientRow } from "./ports";
+import { LIMIT_WORDS, WIRE_WORDS, gotIt } from "./broadcast-words";
+import { pageTheProvider } from "./provider-page";
 
 /**
  * How long a batch that reached nobody waits before it is tried again. The
@@ -33,83 +42,6 @@ export const BROADCAST_STALL_RETRY_MS = 60_000;
  * outage, and a run that waited through the evening would send at night the words written for the day.
  */
 export const BROADCAST_STALLS_MAX = 30;
-
-/**
- * What a run says of each wire it goes out on, in the owner's words: the credentials it could not read, why the wire is
- * down and what to do, when the provider limits it, and when it cannot be reached. One set per channel; WhatsApp's are
- * what every broadcast has always said.
- */
-const WIRE_WORDS: Record<
-  Channel,
-  {
-    credentials: string;
-    down: string;
-    notConnected: string;
-    noWire: string;
-    answered: string;
-    reconnect: string;
-    limiting: string;
-    lifts: string;
-    reach: string;
-    fine: string;
-    to: string;
-  }
-> = {
-  whatsapp: {
-    credentials: "This workspace's WhatsApp credentials",
-    down: "WhatsApp could not be reached on this workspace's number",
-    notConnected: "the number is not connected",
-    noWire: "this runtime has no WhatsApp wire",
-    answered: "WhatsApp answered HTTP",
-    reconnect: "Reconnect the number in Settings › Channels",
-    limiting: "WhatsApp kept limiting how fast this number may send",
-    lifts: "WhatsApp lifts these limits on its own",
-    reach: "WhatsApp could not be reached",
-    fine: "Nothing is wrong with the number",
-    to: "WhatsApp",
-  },
-  sms: {
-    credentials: "This workspace's texting line",
-    down: "Texts could not be sent on this workspace's line",
-    notConnected: "the line is not connected",
-    noWire: "this runtime has no texting wire",
-    answered: "the texting provider answered HTTP",
-    reconnect: "Check the line in Settings › Channels",
-    limiting: "The texting provider kept limiting how fast this line may send",
-    lifts: "It lifts these limits on its own",
-    reach: "The texting provider could not be reached",
-    fine: "Nothing is wrong with the line",
-    to: "the texting provider",
-  },
-  email: {
-    credentials: "This workspace's mailbox",
-    down: "Email could not be sent from this workspace's mailbox",
-    notConnected: "the mailbox is not set up",
-    noWire: "this runtime has no email wire",
-    answered: "the mail provider answered HTTP",
-    reconnect: "Check the mailbox in Settings › Connections",
-    limiting: "The mail provider kept limiting how fast this workspace may send",
-    lifts: "It lifts these limits on its own",
-    reach: "The mail provider could not be reached",
-    fine: "Nothing is wrong with the mailbox",
-    to: "the mail provider",
-  },
-};
-
-/**
- * What a run says when the mail provider's own limit is used up (channels resendLimitOf: the day's or the month's): a no
- * until it resets, which is longer than any wait of a run, and so a run's stop, not a person's refusal.
- */
-const LIMIT_WORDS: Record<"daily" | "monthly", { reached: string; again: string }> = {
-  daily: {
-    reached: "The mail provider's limit for the day was reached",
-    again: "It resets on its own; send it again tomorrow.",
-  },
-  monthly: {
-    reached: "The mail provider's limit for the month was reached",
-    again: "It resets with the new month; send it again then.",
-  },
-};
 
 /** A broadcast's own lines, by name: a batch or a person it could not read, a wire it could not bind. */
 const broadcastLog = logger();
@@ -145,18 +77,12 @@ class ThrownAtTheDoor {
 /**
  * Whether this batch may go now, asked before anyone is claimed; when it may not, it has already said so. A paused
  * workspace (tenants.status, written by billing) sends nothing: the run fails with its reason and the owner is told,
- * rather than a template going out under a subscription that stopped.
+ * rather than a template going out under a subscription that stopped. A pause that lands mid-batch is the door's
+ * `paused` for the next person, and takes the same way out (stopForTheWorkspace).
  */
 async function stoppedByBilling(ports: BroadcastBatchPorts, b: BroadcastRow): Promise<boolean> {
   if (!(await ports.workspacePaused())) return false;
-  await ports.fail(b.id, "paused");
-  await ports.alert({
-    kind: "broadcast_stopped",
-    route: "broadcasts",
-    about: { type: "broadcast", id: b.id },
-    subject: `Broadcast “${b.name}” not sent`,
-    body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings › Billing and send it again.",
-  });
+  await stopForTheWorkspace(ports, b, "paused");
   return true;
 }
 
@@ -250,6 +176,9 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
   // Meta no longer approves WhatsApp's template: that holds the people who go by WhatsApp, and by no other channel, who
   // stay as they were and go on their own versions (the run fails only when nobody else is on it, below).
   if (channel === "whatsapp" && !w.whatsappApproved) return skip("template_not_approved");
+  // The campaigns domain an offer by email leaves from cannot be used, on a run that also goes another way (the head,
+  // offersAtTheHead): each person who goes by email is held for it, the door's own reason; the run goes on for the others.
+  if (channel === "email" && w.offersClosed) return skip("email_marketing_disabled");
   // Chanlytics pays for emails and texts, so it meters them: a person past the month's allowance is held on their
   // channel, never moved to another (contracts CAMPAIGN_MONTH_ALLOWANCE).
   if (channel !== "whatsapp" && (await overAllowance(w, channel))) return skip("month_allowance");
@@ -324,17 +253,17 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
     await w.mark(r.contact_id, { state: "sent", reason: null, message_id: out.messageId });
     return "go on";
   }
-  if (out.outcome === "refused") return skip(out.reason);
+  if (out.outcome === "refused") return afterRefusal(w, r, out.reason);
   if (out.throttled) return giveBack(ports, { broadcastId: b.id, contactId: r.contact_id }, true, channel);
   // The mail provider's day or month is used up: nobody after this person can go either, so the run stops, as a wire
   // that is down stops it, and they stay queued with the rest (nobody is burned as refused for a limit that lifts).
   if (out.limit === "daily" || out.limit === "monthly") {
-    await stopForTheLimit(ports, b, r.contact_id, out.limit);
+    await stopForTheLimit(w, r.contact_id, out, out.limit);
     return "stop";
   }
   await w.mark(r.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
   if (!wireIsDown(out)) return "go on";
-  await stopForTheWire(ports, b, out, channel);
+  await stopForTheWire(w, out, channel);
   return "stop";
 }
 
@@ -358,6 +287,10 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // would end it as sent to nobody, and the clock would claim nothing more from it.
   if (isReachOutRun(b.audience)) return;
   if (await stoppedByBilling(ports, b)) return;
+  // The day's sending hours, asked at the head of every batch rather than only after a wait: a long run that began inside
+  // them would otherwise go on, batch after batch, past the last hour.
+  const facts = await ports.facts();
+  if (await outsideTheHours(ports, b, cmd, facts.timezone)) return;
   // Who is next, before the wires are asked about: the channels this batch goes by are its people's.
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
   if (await wireIsUnbound(ports, b, cmd, batch)) return;
@@ -370,7 +303,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // versions; only a run with nobody else on it fails, before a single send.
   const tpl = await ports.template(b.template_name, b.template_language, "whatsapp");
   const whatsappApproved = tpl?.meta_status === "approved";
-  if (!whatsappApproved && !(await ports.byOtherChannels(b.id))) {
+  if (!whatsappApproved && !(await ports.byOtherChannels(b.id, "whatsapp"))) {
     await ports.fail(b.id, "template_not_approved");
     await ports.alert({
       kind: "broadcast_stopped",
@@ -382,21 +315,24 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     return;
   }
 
-  // What fills each slot: typed text once, the rest per person. The
-  // workspace's own words for the slots that name it are read once.
-  const facts = await ports.facts();
-  if (await ranIntoTheNight(ports, b, cmd, facts.timezone)) return;
+  // WHICH yes this send needs. Meta's category is the authority — it can recategorise a live template — and
+  // purposeOfTemplate fails closed, so a template whose category we do not have reads as marketing and needs the stronger
+  // consent rather than the weaker one. Whichever channel it goes by. (What fills each slot, typed text once and the rest
+  // per person, and the workspace's own words for the slots that name it, are `facts`, read once above.)
+  const purpose = purposeOfTemplate(tpl?.category);
+  // The moment a playbook's run was made for (contracts audienceTrigger), null for a broadcast: a visit run is never held by the
+  // month's allowance, and what its message is about, the pause it passes and whether it is an offer by email follow from it.
+  const trigger = audienceTrigger(b.audience);
+  const offers = isOfferByEmail({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger(trigger) });
+  const head = await offersAtTheHead(ports, { b, cmd, batch, offers });
+  if (head === "wait" || head === "stopped") return;
   const { people, priors, unreadable } = await readPeople(ports, b, batch);
   const w: Work = {
     ports,
     cmd,
     b,
-    // WHICH yes this send needs. Meta's category is the authority — it can
-    // recategorise a live template — and purposeOfTemplate fails closed, so a
-    // template whose category we do not have reads as marketing and needs the
-    // stronger consent rather than the weaker one. Whichever channel it goes by.
-    // The message's own, kept when Meta no longer approves its WhatsApp row (a row that is gone reads as marketing).
-    purpose: purposeOfTemplate(tpl?.category),
+    // The message's own purpose, kept when Meta no longer approves its WhatsApp row (a row that is gone reads as marketing).
+    purpose,
     tpl: tpl ?? { body_preview: null },
     whatsappApproved,
     specs: parseParamSpecs(b.params),
@@ -405,9 +341,12 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     priors,
     versions: {},
     month: {},
-    // A visit run is never held by the month's allowance; its audience names the moment (contracts audienceTrigger).
-    trigger: audienceTrigger(b.audience),
+    offersClosed: head === "closed",
+    // The head asked, where the domain was closed: the run goes on, so somebody on it goes another way.
+    emailAlone: head === "closed" ? false : null,
+    trigger,
     marked: 0,
+    waiting: { count: 0, retryAt: null },
     mark: async (contactId, patch) => {
       w.marked += 1;
       await ports.mark(b.id, contactId, patch);
@@ -441,32 +380,50 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
 
-  const remaining = await ports.remaining(b.id);
-  if (remaining > 0) {
-    // Still wanted? A cancel during this batch stops here.
-    if ((await ports.state(b.id)) !== "sending") return;
-    // A batch that reached nobody waits before the next, a bounded number of times (stall): every read failed,
-    // and trying again this second is how a failing read spins the ledger.
-    if (batch.length > 0 && w.marked === 0) await stall(ports, b, cmd, "people");
-    else await ports.scheduleNext(b.id);
-    return;
-  }
-
-  const { sent, held } = await ports.tally(b.id);
-  await ports.finish(b.id, { sent, held });
-  await ports.alert(finishedNews(b, sent, held));
+  await afterTheBatch(w, batch.length);
 }
 
-/** How one person's turn ended: the next goes on, the run stops, or it backs off (throttled, or never reached) by channel. */
-type Verdict = "go on" | "stop" | { back: "throttled" | "unreachable"; channel: Channel };
+/**
+ * The batch is over: the run closes and tells the workspace when nobody is left, or places the next batch. A cancel during
+ * this batch stops here. A batch that reached nobody waits before the next, a bounded number of times (stall): every read
+ * failed, and trying again this second is how a failing read spins the ledger. Unless it reached nobody because everyone
+ * it could reach was given back to wait for a live hold (holdForLater), or all that is left is them: then the next batch is
+ * placed after the hold, in the day's hours, and is not a failing read to stall on.
+ */
+async function afterTheBatch(w: Work, picked: number): Promise<void> {
+  const { ports, b, cmd } = w;
+  const remaining = await ports.remaining(b.id);
+  if (remaining <= 0) {
+    const { sent, held } = await ports.tally(b.id);
+    // Which of the workspace's holds on email anyone was skipped for, read before the run is closed: a read that fails
+    // leaves the run open for the job's next try, where one after the close would lose the owner their news.
+    const emailHeld = held > 0 ? await ports.heldForEmail(b.id) : [];
+    await ports.finish(b.id, { sent, held });
+    await ports.alert(finishedNews(b, { sent, held, emailHeld }));
+    return;
+  }
+  if ((await ports.state(b.id)) !== "sending") return;
+  const { count, retryAt } = w.waiting;
+  if (retryAt && (w.marked === 0 || remaining === count))
+    await ports.scheduleNext(b.id, retryAt, {
+      ...(cmd.waits ? { waits: cmd.waits } : {}),
+      ...(cmd.stalls ? { stalls: cmd.stalls } : {}),
+    });
+  else if (picked > 0 && w.marked === 0) await stall(ports, b, cmd, "people");
+  else await ports.scheduleNext(b.id);
+}
 
 /**
  * The run FINISHED. Said as what it is, not as a job that did not finish, which is what every alert from this file was
  * kept as until 00141, so two completed broadcasts were counted into Today's "6 jobs did not finish". And as many as it
- * reached, of how many: a run that reached nobody is not "sent".
+ * reached, of how many: a run that reached nobody is not "sent". The reasons it gives for who was held name a hold of the
+ * workspace's on email only where it skipped someone for one (`emailHeld`, contracts finishedRunHeldWhy).
  */
-function finishedNews(b: { id: string; name: string }, sent: number, held: number): JobNews {
-  const why = "no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish";
+function finishedNews(
+  b: { id: string; name: string },
+  { sent, held, emailHeld }: { sent: number; held: number; emailHeld: readonly EmailHold[] },
+): JobNews {
+  const why = finishedRunHeldWhy(emailHeld);
   const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
   return {
     kind: "broadcast_sent",
@@ -481,20 +438,74 @@ function finishedNews(b: { id: string; name: string }, sent: number, held: numbe
 }
 
 /**
- * A run that waited (WhatsApp's "not now", a network that would not connect, a read that failed) looks at the clock
- * again before it sends: a wait that ran into the night ends the run, rather than sending tonight, or tomorrow, the
- * words written for today. True when it has ended.
+ * The day's sending hours (contracts nextOpenMoment: nine to the twenty-hundred hour, by the business's clock), asked at
+ * the head of EVERY batch. Asked only after a wait, a long run that began inside them went on past the last hour: a
+ * 2,000-person run started at 8:45 PM was sent batch after batch until it was done. True when nothing is to be sent now.
+ *
+ * The rest of an evening run WAITS for the open moment, as the pages promise ("Sends wait for 9:00–20:59"): the next batch
+ * is placed at nine by the business's clock, the run stays `sending`, and nobody it reached is reached again. Ending it was
+ * worse than late: the owner was told to send it again, and that reaches the whole list, those it reached included
+ * (broadcastFailureFix). Two runs END (`after_hours`) instead. A visit's, whose words name the day ("tomorrow at 2:00 PM",
+ * "yesterday"): at nine the next morning they would be wrong, which is why a late approval of one is refused
+ * (contracts runDayPassed). And one that waited (a throttle, a stall) and woke past the hours, as backOff and stall already
+ * end it: that wait is the run's own trouble, said as such.
  */
-async function ranIntoTheNight(
+async function outsideTheHours(
   ports: BroadcastBatchPorts,
-  b: { id: string; name: string },
+  b: BroadcastRow,
   cmd: BroadcastBatchCommand,
   timezone: string,
 ): Promise<boolean> {
+  const open = nextOpenMoment(timezone, new Date(ports.now()));
+  if (!open.moved) return false;
   const waited = (cmd.waits ?? 0) > 0 || (cmd.stalls ?? 0) > 0;
-  if (!waited || !nextOpenMoment(timezone, new Date(ports.now())).moved) return false;
-  await stopAfterHours(ports, b);
+  const dayBound = triggerOf(audienceTrigger(b.audience) ?? "")?.kind === "visit";
+  if (waited || dayBound) await stopAfterHours(ports, b, waited);
+  else await ports.scheduleNext(b.id, open.at);
   return true;
+}
+
+/**
+ * What this batch's offers by email wait on, asked before anyone is claimed: "wait" when the batch has already waited,
+ * "stopped" when the run has, "closed" when they cannot leave from here and the run goes on without them, "open" otherwise
+ * (and for a batch that asks nothing of the campaigns domain). A domain the provider could not be asked about is not a no:
+ * the run waits a minute and asks again (a stall, ports offersUnread), and the platform hears of it. Asked only when the
+ * run's message is an offer by email (`offers`: contracts isOfferByEmail, which is the business's own news as well,
+ * decision D2; a visit's message goes from the mail domain, which is not in question) and someone in the batch goes by email.
+ *
+ * A campaigns domain the deployment names and the provider does not verify (ports offersClosed) does one of two things, by
+ * who is on the run (ports byOtherChannels). A run of email alone stops, saying so, before anyone is claimed
+ * (stopForTheWorkspace): everyone left would be held alike, each a skip that is final, and the run would end as having
+ * reached nobody. A run that also goes by WhatsApp or text goes on: each person who goes by email is skipped with the
+ * door's own reason for it (`email_marketing_disabled`, sendOne: before they are claimed, since no link can be sealed for an
+ * offer that cannot leave and `prepare` would hold them as having no channel), and everyone else is reached. Stopped, such
+ * a run never reached a WhatsApp person behind the first email person, and the owner, told to send it again, reached the
+ * others twice. The platform is paged either way, with which (pageTheDomain).
+ */
+async function offersAtTheHead(
+  ports: BroadcastBatchPorts,
+  { b, cmd, batch, offers }: Pick<Work, "b" | "cmd"> & { batch: readonly RecipientRow[]; offers: boolean },
+): Promise<"wait" | "stopped" | "closed" | "open"> {
+  if (!offers || !batch.some((r) => channelOf(r) === "email")) return "open";
+  const unread = await ports.offersUnread();
+  if (unread) {
+    broadcastLog.error("broadcast_wire_unavailable", { broadcast_id: b.id, channel: "email", reason: unread });
+    const stopped = (await stall(ports, b, cmd, "email")) === "stopped";
+    await ports
+      .page?.(
+        "campaigns_domain_unread",
+        "email: a broadcast's offers wait, the campaigns domain could not be checked",
+        `Tenant ${cmd.tenantId}, broadcast ${b.id} ${stopped ? "stopped after waiting the most it may" : "waits"}, everyone still queued: ${unread}.`,
+      )
+      ?.catch(() => undefined);
+    return "wait";
+  }
+  const why = await ports.offersClosed();
+  if (!why) return "open";
+  const alone = !(await ports.byOtherChannels(b.id, "email"));
+  if (alone) await stopForTheWorkspace(ports, b, "campaigns_domain_unverified");
+  await pageTheDomain(ports, { tenantId: cmd.tenantId, id: b.id }, { stopped: alone, cause: why });
+  return alone ? "stopped" : "closed";
 }
 
 /**
@@ -513,12 +524,6 @@ async function giveBack(
 
 /** What the door's refusal to take a send becomes here: its status, 0 when the provider was never reached. */
 type NotTaken = { outcome: "not_taken"; status: number };
-
-/** "N people got it", "One person got it", "Nobody got it", or nothing when the count could not be read. */
-function gotIt(sent: number | null): string {
-  if (sent === null) return "";
-  return sent === 0 ? "Nobody got it." : sent === 1 ? "One person got it." : `${sent} people got it.`;
-}
 
 /**
  * A batch that reached nobody because a read failed (the number's credentials, or its people) waits a minute and tries
@@ -544,17 +549,17 @@ async function stall(
     (t) => t.sent,
     () => null,
   );
-  await ports.fail(b.id, "stalled");
-  const words = WIRE_WORDS[what === "people" ? "whatsapp" : what];
+  // The failure says what could not be read, and for a wire's credentials which wire: the words for each are the channel's own.
+  await ports.fail(b.id, what === "people" ? "people_unreadable" : wireFailure("stalled", what));
   await ports.alert({
     kind: "broadcast_stopped",
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
     body: [
-      `${what === "people" ? "The people on it" : words.credentials} could not be read for about half an hour, so the rest was not sent.`,
+      `${what === "people" ? "The people on it" : WIRE_WORDS[what].credentials} could not be read for about half an hour, so the rest was not sent.`,
       gotIt(sent),
-      `${words.fine}; send it again later.`,
+      `${what === "people" ? "Nothing is wrong with your channels" : WIRE_WORDS[what].fine}; send it again later.`,
     ]
       .filter(Boolean)
       .join(" "),
@@ -562,8 +567,15 @@ async function stall(
   return "stopped";
 }
 
-/** A run that waited and woke outside the day's sending hours stops there, and the owner is told. */
-async function stopAfterHours(ports: BroadcastBatchPorts, b: { id: string; name: string }): Promise<void> {
+/**
+ * A run that is found outside the day's sending hours, one that waited and woke there or one that went on into them, stops,
+ * and the owner is told.
+ */
+async function stopAfterHours(
+  ports: BroadcastBatchPorts,
+  b: { id: string; name: string },
+  waited: boolean,
+): Promise<void> {
   const sent = await ports.tally(b.id).then(
     (t) => t.sent,
     () => null,
@@ -575,7 +587,9 @@ async function stopAfterHours(ports: BroadcastBatchPorts, b: { id: string; name:
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
     body: [
-      "It was waiting to go on when the day's sending hours ran out, so the rest was not sent.",
+      waited
+        ? "It was waiting to go on when the day's sending hours ran out, so the rest was not sent."
+        : "The day's sending hours ran out before it was done, so the rest was not sent.",
       gotIt(sent),
       "Send it again tomorrow.",
     ]
@@ -585,15 +599,29 @@ async function stopAfterHours(ports: BroadcastBatchPorts, b: { id: string; name:
 }
 
 /**
+ * The platform hears what the provider said to this run, as it hears it of a reply (provider-page.ts: one helper, so the
+ * same refusal is paged under the same key whichever way the send was made). A pager that throws never turns a run that
+ * stopped for it into a run that failed to say so.
+ */
+async function pageForTheRun(w: Work, out: Extract<Delivered, { outcome: "failed" }>, channel: Channel): Promise<void> {
+  await pageTheProvider(
+    w.ports,
+    { channel, purpose: w.purpose, out },
+    `Tenant ${w.cmd.tenantId}, broadcast ${w.b.id}, everyone not yet sent still queued`,
+  ).catch(() => undefined);
+}
+
+/**
  * The wire, not the person: the run stops here and says so, rather than burning everyone still queued as refused and
- * ending as "sent".
+ * ending as "sent". A provider that refuses the key outright (401, 403) is paged, as a reply's refusal is; and where that
+ * key is the deployment's (email's) the owner is not told to fix their mailbox, which was never at fault.
  */
 async function stopForTheWire(
-  ports: BroadcastBatchPorts,
-  b: { id: string; name: string },
+  w: Work,
   out: Extract<Delivered, { outcome: "failed" }>,
   channel: Channel,
 ): Promise<void> {
+  const { ports, b } = w;
   const words = WIRE_WORDS[channel];
   const cause =
     out.reason === "no_credentials"
@@ -601,13 +629,17 @@ async function stopForTheWire(
       : out.reason === "no_sender_for_channel"
         ? words.noWire
         : `${words.answered} ${out.status}`;
-  await ports.fail(b.id, "wire_unavailable");
+  await ports.fail(b.id, wireFailure("wire_unavailable", channel));
+  await pageForTheRun(w, out, channel);
+  const theirs = out.reason === "provider" ? words.platformKey : null;
   await ports.alert({
     kind: "broadcast_stopped",
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
-    body: `${words.down} (${cause}), so the rest was not sent. ${words.reconnect} and send it again.`,
+    body: theirs
+      ? `${theirs.down} (HTTP ${out.status}), so the rest was not sent. ${theirs.fix}`
+      : `${words.down} (${cause}), so the rest was not sent. ${words.reconnect} and send it again.`,
   });
 }
 
@@ -615,14 +647,15 @@ async function stopForTheWire(
  * The mail provider's limit for the day or the month is used up (channels resendLimitOf): it refuses every email on its
  * key until it resets. This person's claim goes back (nothing left, so they wait queued with everyone after them) and
  * the run stops as a wire that is down stops it, saying so, rather than burn the rest of the list as refused and end as
- * sent. The platform hears it too, as a reply's limit is heard (send.ts pageTheProvider): every workspace's email waits.
+ * sent. The platform hears it too, as a reply's limit is heard (provider-page.ts): every workspace's email waits.
  */
 async function stopForTheLimit(
-  ports: BroadcastBatchPorts,
-  b: { id: string; name: string },
+  w: Work,
   contactId: string,
+  out: Extract<Delivered, { outcome: "failed" }>,
   limit: "daily" | "monthly",
 ): Promise<void> {
+  const { ports, b } = w;
   await release(ports, b.id, contactId, "throttled");
   const sent = await ports.tally(b.id).then(
     (t) => t.sent,
@@ -637,13 +670,7 @@ async function stopForTheLimit(
     subject: `Broadcast “${b.name}” stopped`,
     body: [`${words.reached}, so the rest was not sent.`, gotIt(sent), words.again].filter(Boolean).join(" "),
   });
-  await ports
-    .page?.(
-      "provider_quota:email",
-      `email: the ${limit === "daily" ? "day" : "month"}'s sending limit is used up`,
-      `Broadcast ${b.id} stopped on it, everyone not yet sent still queued. Every workspace's email is refused until it resets or the plan grows.`,
-    )
-    ?.catch(() => undefined);
+  await pageForTheRun(w, out, "email");
 }
 
 /**
@@ -657,29 +684,6 @@ async function withdrawQueued(ports: BroadcastBatchPorts, b: { id: string }, del
   if (!email) return;
   await ports.withdrawEmail(email).catch((e: unknown) => {
     broadcastLog.error("broadcast_email_not_withdrawn", { broadcast_id: b.id, message_id: email, error: errField(e) });
-  });
-}
-
-/**
- * The provider did not take the message: it said "not now" (channels graphThrottled, a 429), or the request never reached
- * it (a connection that never opened: providerFetch's `retryable`). Nothing left, so the claim is released, named for
- * which (00216 `throttled`, 00282 `not_taken`), and this person waits in the queue with everyone after them, rather
- * than be burned as refused with the rest of the list behind them. Every other failure keeps its claim: a timeout or a
- * 5xx may have been taken all the same. A database without the migration refuses the release; the run waits all the
- * same, and this one person keeps the claim, which is what such a person got before.
- */
-async function release(
-  ports: BroadcastBatchPorts,
-  broadcastId: string,
-  contactId: string,
-  reason: "throttled" | "not_taken",
-): Promise<void> {
-  await ports.mark(broadcastId, contactId, { state: "queued", reason, message_id: null }).catch((e: unknown) => {
-    broadcastLog.error("broadcast_release_refused", {
-      broadcast_id: broadcastId,
-      contact_id: contactId,
-      error: errField(e),
-    });
   });
 }
 
@@ -715,7 +719,7 @@ async function backOff(
     return;
   }
   const { sent } = await ports.tally(b.id);
-  await ports.fail(b.id, why === "throttled" ? "throttled" : "wire_unavailable");
+  await ports.fail(b.id, wireFailure(why === "throttled" ? "throttled" : "wire_unavailable", channel));
   const until = at ? "until the day's sending hours ran out" : "for about an hour";
   await ports.alert({
     kind: "broadcast_stopped",

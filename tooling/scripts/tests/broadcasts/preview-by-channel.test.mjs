@@ -15,7 +15,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { transform } from "lightningcss";
 import * as contracts from "@chanlytics/contracts";
+import { ROOT } from "../_source.mjs";
 import { installLegacyReact, fresh, all, find, byTestId, textOf, press } from "../_legacy-react.mjs";
 
 installLegacyReact({
@@ -39,20 +43,29 @@ installClock();
 const { CmSplitBar } = await import(`${SRC}/surfaces/campaigns/parts/split-bar.tsx`);
 const { MessagePreview, PreviewStepper } = await import(`${SRC}/surfaces/campaigns/parts/message-preview.tsx`);
 const { cmPreviewBy, cmChannelOfPerson } = await import(`${SRC}/surfaces/campaigns/parts/preview-by.ts`);
-const { cmVersionsOf, cmReachBy, cmChannelColour } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
+const { cmVersionsOf, cmReachBy, cmChannelColour, cmViaTicks } = await import(
+  `${SRC}/surfaces/campaigns/parts/channels.ts`
+);
+const { CmVia } = await import(`${SRC}/surfaces/campaigns/parts/send-by.tsx`);
 const { Meter } = await import(`${SRC}/surfaces/kit/meter/meter.tsx`);
 const { Tooltip } = await import(`${SRC}/surfaces/kit/tooltip/tooltip.tsx`);
 
 const h = (type, props, ...kids) => globalThis.React.createElement(type, props, ...kids);
 
+// A workspace whose offers by email can go: the business's own news by email waits for them as an offer does (decision D2).
+const OFFERS_OPEN = { campaigns: true, address: true, paused: null };
 const READY = contracts.channelsReady({
   whatsapp: { canSend: true, refusal: null },
   textLine: { sms_state: "active", reg_mock: false },
-  email: { mailbox: true, domain: true },
+  email: { mailbox: true, domain: true, offers: OFFERS_OPEN },
 });
 const ALL = ["whatsapp", "sms", "email"];
 
-/** A person as the pick and the preview read them: a yes on WhatsApp and by text, a number, an address, where they last wrote. */
+/**
+ * A person as the pick and the preview read them: a yes on WhatsApp and by text, a number, an address, where they last
+ * wrote. They have dealt with the business (a relationship on record), as a customer has, which is what lets an email the
+ * business chose to send reach them with no yes covering email (decision D1): the preview's subject is the channel.
+ */
 const row = (id, name, over = {}) => ({
   id,
   name,
@@ -67,6 +80,7 @@ const row = (id, name, over = {}) => ({
     marketing: "unknown",
     channels: ["whatsapp", "sms"],
     marketingChannels: null,
+    relationship: true,
   },
   ...over,
 });
@@ -103,6 +117,7 @@ test("a person in the preview carries the channel the send reaches them on, and 
   const pv = contracts.audiencePreview(PEOPLE(), "everyone", null, null, "conversational", {
     channels: ALL,
     ready: READY,
+    about: "ours",
   });
   assert.deepEqual(
     pv.people.map((p) => [p.label, p.channel, p.refusal === null]),
@@ -118,10 +133,35 @@ test("a person in the preview carries the channel the send reaches them on, and 
   const alone = contracts.audiencePreview(PEOPLE(), "everyone", null, null, "conversational", {
     channels: ["whatsapp"],
     ready: READY,
+    about: "ours",
   });
   assert.deepEqual(
     alone.people.filter((p) => p.refusal === null).map((p) => p.channel),
     ["whatsapp", "whatsapp", "whatsapp"],
+  );
+  // Decision D1: the same people with no relationship on record (and a yes that covers WhatsApp and text, not email): an
+  // email the business chose to send reaches none of them, and each says why.
+  const noDealings = PEOPLE().map((p) => ({ ...p, consent: { ...p.consent, relationship: false } }));
+  const cold = contracts.audiencePreview(noDealings, "everyone", null, null, "conversational", {
+    channels: ["email"],
+    ready: READY,
+    about: "ours",
+  });
+  assert.deepEqual(
+    [cold.sending, cold.held, cold.people.map((p) => p.channel)],
+    [0, 4, [null, null]],
+    "an address alone is no yes to the business's news by email: all four held, the preview naming two of them",
+  );
+  assert.ok(cold.people.every((p) => p.refusal !== null));
+  const theirs = contracts.audiencePreview(noDealings, "everyone", null, null, "conversational", {
+    channels: ["email"],
+    ready: READY,
+    about: "theirs",
+  });
+  assert.deepEqual(
+    theirs.people.map((p) => p.channel),
+    ["email", "email", "email", null],
+    "but a message about their visit asks no yes, only an address",
   );
   assert.equal(cmChannelOfPerson({ refusal: null, channel: "email" }), "email");
   assert.equal(cmChannelOfPerson({ refusal: null }), "whatsapp", "a reading made before channels were kept: WhatsApp");
@@ -146,8 +186,8 @@ test("an email carries the foot the sender adds, a text its STOP line, WhatsApp 
   );
   assert.equal(
     mail.foot,
-    contracts.emailFoot("Northside Studio", undefined, { kind: "visit", facts: {} }),
-    "the foot is the one the sender puts on the wire, from the one function core imports",
+    contracts.emailFoot("Northside Studio", undefined, { kind: "visit", facts: {} }, OPTS().language),
+    "the foot is the one the sender puts on the wire, from the one function core imports, in the version's language",
   );
   assert.ok(mail.foot.includes("Reply STOP to stop these emails."));
   assert.ok(mail.foot.includes("You're getting this because you've been in touch with Northside Studio."));
@@ -232,13 +272,27 @@ test("what the preview is handed for a person: the email as a mail, the text as 
   // An offer's email reads with the offer's foot (step 4: contracts emailFoot's "offer" kind), the visit's without it.
   const address = "12 Harbor Way";
   const offer = cmPreviewBy(WHATSAPP, "email", OPTS({ offer: "customer", address }));
-  const offerFoot = contracts.emailFoot(OPTS().business, address, {
-    kind: "offer",
-    why: "customer",
-    unsubscribeUrl: contracts.PREVIEW_WORDS.unsubscribeLink,
-  });
+  const offerFoot = contracts.emailFoot(
+    OPTS().business,
+    address,
+    { kind: "offer", why: "customer", unsubscribeUrl: contracts.PREVIEW_WORDS.unsubscribeLink },
+    OPTS().language,
+  );
   assert.equal(offer.mail.foot, offerFoot, "the foot the sender puts on an offer, its link a stand-in");
   assert.notEqual(offer.mail.foot, mail.mail.foot, "never a visit's foot on an offer");
+  // A Spanish version's email ends in Spanish, in the preview as on the wire, and a text in its own STOP line.
+  const es = (channel, over) => cmPreviewBy(WHATSAPP, channel, OPTS({ language: "es_MX", ...over }));
+  assert.equal(
+    es("email", { offer: "customer", address }).mail.foot,
+    contracts.emailFoot(
+      OPTS().business,
+      address,
+      { kind: "offer", why: "customer", unsubscribeUrl: contracts.PREVIEW_WORDS.unsubscribeLink },
+      "es_MX",
+    ),
+  );
+  assert.ok(es("email").mail.foot.includes("Responde STOP para dejar de recibir estos correos."));
+  assert.equal(es("sms").footer, contracts.smsStopLine("es_MX"));
   // An offer's foot owes the postal address (emailFoot refuses to be built without it, and the send holds everyone for it):
   // with none on file the preview says so, in WhatsApp's words under no channel's name, and never throws.
   for (const none of [undefined, null, "  "]) {
@@ -355,6 +409,69 @@ test("the stepper walks the people and wraps, each press one step, and says its 
   assert.equal(byTestId(h(PreviewStepper, { people: people.slice(0, 1), index: 0, onStep() {} }), "mp-step"), null);
 });
 
+/* ---------------------------------- why a channel is closed, to a finger ---------------------------------- */
+
+test("why a channel is closed is a line under the Send by row where there is no pointer -- the kit's tooltip never shows to a finger -- and each switch keeps the same words as its description", () => {
+  fresh();
+  // The workspace sends on WhatsApp alone: WhatsApp is the one on (and stays on), text and email are closed, each for its own reason.
+  const ready = contracts.channelsReady({
+    whatsapp: { canSend: true, refusal: null },
+    textLine: null,
+    email: { mailbox: false, domain: false },
+  });
+  const ticks = cmViaTicks(["whatsapp"], ready, { purpose: "conversational", about: "ours" }, false);
+  const tree = h(CmVia, { ticks, onTick() {}, testid: "bc-via" });
+  const whys = byTestId(tree, "bc-via-whys");
+  assert.deepEqual(
+    all(whys, (n) => n.type === "li").map((n) => [n.props["data-channel"], textOf(n)]),
+    ticks.map((t) => [t.channel, `${t.word} ${t.why}`]),
+    "a line for each channel that has a reason, under the row, with the channel's name before it",
+  );
+  assert.deepEqual(
+    ticks.map((t) => t.why !== null),
+    [true, true, true],
+    "(the one channel that is on says why it cannot be turned off, as the others say why they cannot be turned on)",
+  );
+  assert.equal(whys.props["aria-hidden"], "true", "hidden from a screen reader, which has the words already");
+  // The screen reader's own copy is each switch's description, as it was.
+  for (const t of ticks) {
+    const one = byTestId(tree, `bc-via-${t.channel}`);
+    const said = find(one, (n) => n.props?.className === "cm-sr");
+    assert.equal(textOf(said), t.why);
+    assert.equal(find(one, (n) => n.props?.describedBy !== undefined).props.describedBy, said.props.id);
+  }
+  // Nothing to say, no line: a row whose every channel is open and none is the last one on.
+  const open = contracts.channelsReady({
+    whatsapp: { canSend: true, refusal: null },
+    textLine: { sms_state: "active", reg_mock: false },
+    email: { mailbox: true, domain: true, offers: OFFERS_OPEN },
+  });
+  const quiet = h(CmVia, {
+    ticks: cmViaTicks(["whatsapp", "sms"], open, { purpose: "conversational", about: "ours" }, false),
+    onTick() {},
+    testid: "bc-via",
+  });
+  assert.equal(byTestId(quiet, "bc-via-whys"), null);
+});
+
+test("the line is drawn for a touch screen alone: hidden in the stylesheet, shown under (hover: none), in tokens", () => {
+  const file = "apps/dashboard/src/surfaces/campaigns/campaigns.css";
+  const css = transform({
+    filename: file,
+    code: fs.readFileSync(path.join(ROOT, file)),
+    minify: true,
+  }).code.toString();
+  const rule = /\.cm-via-whys\{([^}]*)\}/.exec(css);
+  assert.ok(rule, "a rule for the line");
+  assert.ok(rule[1].includes("display:none"), "off wherever there is a pointer, where the tooltip says it");
+  const touch = /@media \(hover:none\)\{\.cm-via-whys\{([^}]*)\}\}/.exec(css);
+  assert.ok(touch, "and on under (hover: none)");
+  assert.ok(touch[1].includes("display:flex"), touch?.[1]);
+  // Its size, ink and gap are the tokens', as every value in a stylesheet is.
+  assert.ok(rule[1].includes("font-size:var(--text-xs)") && rule[1].includes("color:var(--ink-dim)"), rule[1]);
+  assert.ok(touch[1].includes("gap:var(--space-1)"), touch[1]);
+});
+
 /* ---------------------------------- the split as a bar ---------------------------------- */
 
 const SPLIT = (byChannel, over = {}) => ({
@@ -438,4 +555,55 @@ test("the To line's clause says the split in the bar's words, and nothing where 
     ],
   );
   assert.equal(contracts.reachBarWords(SPLIT({ whatsapp: 0, sms: 0, email: 0 })), "Reaches nobody");
+});
+
+/* ---------------------------------- what an approving card quotes ---------------------------------- */
+
+test("previewSays quotes each channel's own words, in the page's order, named for the channel, from the one fill a send makes", () => {
+  const say = (channels, over = {}) =>
+    contracts.previewSays(channels, {
+      whatsapp: "Hi Dani, a quick note from Northside Studio.",
+      versions: VERSIONS,
+      values: ["Dani", "Northside Studio"],
+      language: "en_US",
+      limit: 400,
+      ...over,
+    });
+  assert.deepEqual(say(["email", "whatsapp"]), {
+    says: "On WhatsApp: Hi Dani, a quick note from Northside Studio. · By email: “A note, Dani” — Hi Dani, we are open late on Thursdays at Northside Studio.",
+  });
+  // A text is what is sent: its words, and the STOP line the sender adds.
+  assert.deepEqual(say(["sms"]), { says: "By text: Hi Dani, we are open late on Thursdays. Reply STOP to opt out" });
+  assert.equal(
+    contracts.renderOwnVersion("sms", VERSIONS.sms, ["Dani"], "en_US").body.replace(/\s+/g, " "),
+    "Hi Dani, we are open late on Thursdays. Reply STOP to opt out",
+    "the same fill, so the card cannot say what the send does not",
+  );
+  assert.equal(say(["sms"], { language: "es_MX" }).says.endsWith("Responde STOP para darte de baja"), true);
+  // A channel the message has no version on is named, with the sentence for it: never WhatsApp's words under its name.
+  assert.deepEqual(say(["whatsapp", "email"], { versions: { sms: VERSIONS.sms } }), {
+    missing: "email",
+    why: "This message has no email version to show here.",
+  });
+  // The room is shared between the channels, none cut under a line's worth, and a cut says so.
+  const long = say(["whatsapp", "email"], { whatsapp: "x".repeat(300), limit: 140 }).says;
+  assert.ok(long.startsWith(`On WhatsApp: ${"x".repeat(70)}…`), long);
+  assert.ok(
+    say(["whatsapp"], { whatsapp: "y".repeat(300), limit: 40 }).says.includes("y".repeat(60) + "…"),
+    "never under sixty",
+  );
+});
+
+test("previewVersionsOf is the one reading of a message's version rows, which the composers' stamp is", () => {
+  const rows = [
+    { name: "hours_note", channel: "email", language: "en_US", header: "A note", body_preview: "Hi" },
+    { name: "hours_note", channel: "sms", language: "en_US", body_preview: "Open late." },
+    { name: "hours_note", channel: "whatsapp", language: "en_US", body_preview: "WhatsApp's words" },
+    { name: "hours_note", channel: "email", language: "es_MX", header: "Una nota", body_preview: "Hola" },
+  ];
+  assert.deepEqual(contracts.previewVersionsOf(rows, "hours_note", "en_US"), cmVersionsOf(rows, "hours_note", "en_US"));
+  assert.deepEqual(contracts.previewVersionsOf(rows, "hours_note", "en_US"), {
+    email: { subject: "A note", body: "Hi" },
+    sms: { subject: null, body: "Open late." },
+  });
 });

@@ -17,7 +17,9 @@
  *     rules are core's campaigns/run-playbook.ts): a broadcast for the people who said yes, its send scheduled, held
  *     for a person or refused as the class's autonomy mode says (auto, veto, ask, never), recorded as a
  *     `playbook.run` event, the day remembered on the row so the next tick runs nothing. What the database calls due
- *     is asked again of runDueNow at the moment each runs, as "Run now" does.
+ *     is asked again of runDueNow at the moment each runs, as "Run now" does. The tick stops starting them at
+ *     MOMENTS_YIELD_AT_MS and counts what is left as remaining. A run or a context that failed pages the platform, and
+ *     tells the owner once at the day's last chance (playbook-failed.ts).
  *   - Reach-out steps (reachOutsDue). Each runs through runReachOutStep (lib/reach-out/run-step.ts, which the run-now
  *     door calls too). The tick stops starting them at REACH_OUT_YIELD_AT_MS and counts what is left as remaining.
  * A moment or step that could not run (its workspace paused since the page was read, its context unreadable, its run
@@ -45,12 +47,20 @@ import {
   type DuePage,
   type DuePlaybook,
 } from "../ops/sweep-rotation.js";
-import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../playbooks.js";
+import { CONTEXT_PAUSED, loadTenantRunContext, runPlaybook, type PlaybookRow } from "../playbooks.js";
+import { tellPlaybookFailed } from "./playbook-failed.js";
 import { runReachOutStep } from "./run-step.js";
 import { tellReachOutDays } from "./day-numbers.js";
 import { stampPlaybooksTried, stampReachOutStep } from "../packages/db.js";
 import { localDate, runDueNow, type PlaybookDto } from "../packages/contracts.js";
 import type { SweepTick } from "../ops/sweep-door.js";
+
+/**
+ * When the moments stop for the tick: what is not started stays due and runs next hour, as a moment is due all day from
+ * its hour. Ten seconds before the reach-outs' own (below), so the tick's later work keeps a little of the function's
+ * sixty seconds: the reach-out steps, the day's 6 PM lines, the backlog note and the closing line.
+ */
+export const MOMENTS_YIELD_AT_MS = 30_000;
 
 /** When the reach-outs stop for the tick: what is left runs next hour, as a step is due all day from its hour. */
 export const REACH_OUT_YIELD_AT_MS = 40_000;
@@ -79,8 +89,17 @@ interface Tick {
  * failed -- keeps its day open, so the next hour tries it again, but moves to the back of the page: it never holds a
  * place a moment that can run is waiting for. So does one the page called due and the edge's clock does not (a zone
  * the two read apart): nothing that is not run may keep the first places.
+ *
+ * A context that could not be read and a run that failed are told (playbook-failed.ts): the platform is paged, and the
+ * owner is told once, in the last hour the day's run is asked for. A workspace's playbooks run against one read of it,
+ * and each run adds its people to that read's touches (core runPlaybook), so a second moment in the same hour keeps the
+ * week's breath with the first one's people in it.
+ *
+ * The tick stops starting moments at MOMENTS_YIELD_AT_MS, as it does reach-out steps: what it did not start stays due and
+ * runs next hour, is counted as remaining, and the sweep always reaches its backlog note and its closing line.
  */
-async function runMoments({ db, now, L, out }: Tick, page: DuePage<DuePlaybook>) {
+async function runMoments(tick: Tick, page: DuePage<DuePlaybook>) {
+  const { db, now, L, out } = tick;
   // By workspace, each with the zone the page judged it in: a workspace is read once for all its playbooks.
   const byTenant = new Map<string, { tz: string; rows: PlaybookRow[] }>();
   for (const { playbook, timezone } of page.rows) {
@@ -95,7 +114,17 @@ async function runMoments({ db, now, L, out }: Tick, page: DuePage<DuePlaybook>)
       L.error("playbooks_stamp_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) }),
     );
   };
-  for (const [tenantId, { tz, rows }] of byTenant) {
+  const tenants = [...byTenant];
+  // Out of time for the tick: what is left is every moment not started, in this workspace (`own`) and in those after it.
+  const outOfTime = (after: number, own: number): boolean => {
+    if (Date.now() - tick.started <= MOMENTS_YIELD_AT_MS) return false;
+    const left = own + tenants.slice(after + 1).reduce((n, [, t]) => n + t.rows.length, 0);
+    L.info("playbooks_yielded", { left });
+    out.remaining += left;
+    return true;
+  };
+  for (const [i, [tenantId, { tz, rows }]] of tenants.entries()) {
+    if (outOfTime(i - 1, 0)) return;
     const due = rows.filter((p) => runDueNow(p as unknown as PlaybookDto, tz, now));
     const disputed = rows.filter((p) => !due.includes(p));
     if (disputed.length > 0) {
@@ -105,25 +134,30 @@ async function runMoments({ db, now, L, out }: Tick, page: DuePage<DuePlaybook>)
     if (due.length === 0) continue;
     out.tenants += 1;
     out.due += due.length;
+    const runFor = localDate(tz, now);
+    const told = (playbooks: readonly PlaybookRow[], error: string) =>
+      tellPlaybookFailed({ db, L, tenantId, tz, now, runFor, playbooks, error });
     const ctx = await loadTenantRunContext(db, tenantId, now);
     if ("error" in ctx) {
-      if (ctx.error === "paused") {
+      if (ctx.error === CONTEXT_PAUSED) {
         L.info("playbooks_skip_paused", { tenant_id: tenantId, due: due.length });
         out.off += due.length;
       } else {
         L.error("playbooks_context_failed", { tenant_id: tenantId, error: ctx.error });
         out.failed += due.length;
+        await told(due, ctx.error);
       }
       await tried(tenantId, due);
       continue;
     }
-    const runFor = localDate(tz, now);
-    for (const p of due) {
+    for (const [j, p] of due.entries()) {
+      if (outOfTime(i, due.length - j)) return;
       const r = await runPlaybook(ctx, p, { runFor, by: { kind: "system" } });
       if (r.outcome === "failed") {
         // A failed run records nothing on the row, so untouched it would stand first again next hour.
         L.error("playbook_run_failed", { playbook_id: p.id, error: r.error });
         await tried(tenantId, [p]);
+        await told([p], r.error);
       }
       out[r.outcome] += 1;
     }

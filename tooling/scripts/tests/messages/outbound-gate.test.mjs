@@ -45,6 +45,8 @@ const base = {
   purpose: "conversational",
   // A yes covers the channels it was given for (step 2): the booking link goes by WhatsApp.
   channel: "whatsapp",
+  // What the message is about (decision D1), required of every caller: the booking link a caller asks for, on the call they are on.
+  about: "theirs",
   proactive: false,
   pausedUntilMs: null,
   replyMode: "auto",
@@ -93,6 +95,26 @@ test("a THIRD party spoken aloud needs their own recorded yes", () => {
     true,
     "a third party who HAS said yes to messages may be texted",
   );
+});
+
+test("what the message is about reaches the one predicate (decision D1): by email, a message of the business's own choosing asks a yes or a relationship, one about their call does not", () => {
+  // The voice path sends by WhatsApp, where the question is not asked; the gate's facts carry it for any channel, so a
+  // sender cannot leave out which it is, and the predicate (not a copy of it) decides.
+  const email = { channel: "email", proactive: true };
+  assert.equal(gate({ ...email, about: "theirs" }).allowed, true, "about their own call: an address is all it asks");
+  assert.equal(
+    gate({ ...email, about: "ours" }).refusal,
+    "not_opted_in",
+    "news the business chose to send: no yes, no dealings",
+  );
+  assert.equal(gate({ ...email, about: "ours", contact: { ...NEVER_ASKED, has_relationship: true } }).allowed, true);
+  assert.equal(
+    gate({ ...email, about: "ours", contact: { ...NEVER_ASKED, email_marketing: "opted_out", has_relationship: true } })
+      .refusal,
+    "unsubscribed",
+  );
+  // WhatsApp asks the same of either.
+  for (const about of ["theirs", "ours"]) assert.equal(gate({ proactive: true, about }).refusal, "not_opted_in", about);
 });
 
 test("a promotional message needs the offers answer, on either kind of send", () => {

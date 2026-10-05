@@ -2,7 +2,7 @@
  * Who a broadcast is for: the audience kinds, who on it may receive, and the preview before sending. Moved whole from
  * broadcasts.ts (Reach out Part 2.5), which re-exports it.
  */
-import { type AskedPurpose, PURPOSE_REFUSALS } from "../consent/consent";
+import { type AskedPurpose, type MessageAbout, PURPOSE_REFUSALS } from "../consent/consent";
 import { CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channels";
 import { PEOPLE_LISTS } from "../people/lists/lists";
 import { saidYesTo } from "../people/person-consent";
@@ -56,6 +56,13 @@ export function audienceTrigger(audience: unknown): string | null {
 export const EVERYONE_LABEL = "Everyone";
 
 /**
+ * What the Everyone choice says under its name in the picker. Said before any channel is ticked, so it names no number and
+ * no address: who can be reached depends on the channels the send goes by, and the held lines say which of them is missing.
+ */
+export const EVERYONE_HINT =
+  "Everyone we can reach whose yes covers the message you pick, and by email whoever has dealt with you";
+
+/**
  * The people a broadcast may reach: the audience crossed with mayReceive.
  * The route enrols exactly these; the page shows exactly these counts.
  *
@@ -75,10 +82,12 @@ export function eligibleFor(
   return enrolFor(rows, kind, id, savedIds, purpose, how).map((e) => e.row);
 }
 
-/** The channels a campaign ticks, and whether the workspace can send on each now. */
+/** The channels a campaign ticks, whether the workspace can send on each now, and what its message is about. */
 export interface CampaignHow {
   channels: readonly string[];
   ready: ChannelsReady;
+  /** A visit or proposal moment's message is theirs, a broadcast ours (consent.ts MessageAbout, decision D1). */
+  about: MessageAbout;
 }
 
 /**
@@ -110,8 +119,8 @@ export function saidYesOnAny(r: PersonRowVM, purpose: AskedPurpose, how: Campaig
     (c) =>
       how.channels.includes(c) &&
       how.ready[c].ready &&
-      channelRefuses(c, purpose, how.ready) === null &&
-      saidYesTo(r, purpose, c),
+      channelRefuses(c, purpose, how.about, how.ready) === null &&
+      saidYesTo(r, purpose, c, how.about),
   );
 }
 
@@ -122,15 +131,42 @@ export function heldWords(held: HeldOn, purpose: AskedPurpose): string {
       return "No phone number on file, so nothing can be sent.";
     case "no_address":
       return "No email address on file, so nothing can be sent.";
+    // The address is on file and mail to it has stopped: the door's own sentence (deliver.ts email_suppressed), which
+    // says to correct it.
+    case "address_stopped":
+      return PURPOSE_REFUSALS.email_suppressed;
     case "no_channel":
       return "No channel this message can go by here.";
     case "stopped":
       return PURPOSE_REFUSALS.opted_out;
     case "unsubscribed":
       return "They unsubscribed from offers by email. Messages about their visits and replies still reach them.";
-    default:
+    case "no_yes":
       return PURPOSE_REFUSALS[purpose === "marketing" ? "no_marketing_consent" : "not_opted_in"];
+    default: {
+      const unreachable: never = held;
+      return unreachable;
+    }
   }
+}
+
+/** What a person lacks for a channel to reach them at all, as the line under a send names it. */
+const LACKS: Record<ConsentChannel, string> = {
+  whatsapp: "no phone number",
+  sms: "no phone number",
+  email: "no email address that works",
+};
+
+/**
+ * Who the wire holds back from a send by these channels, whatever they said, as one clause for the line under the list:
+ * a stop, no way to reach them on a channel it goes by (a number, an address that works) and a person's own hand on the
+ * conversation. They are heldWords' reasons said short, and the way to reach is named only for the channels ticked: a send
+ * by email alone does not say "no number".
+ */
+export function heldBackWords(channels: readonly ConsentChannel[]): string {
+  const lacks = [...new Set(CONSENT_CHANNELS.filter((c) => channels.includes(c)).map((c) => LACKS[c]))];
+  const reach = lacks.length > 0 ? [`have ${lacks.join(" or ")}`] : [];
+  return `people who ${["asked to stop", ...reach].join(", ")}, or are mid-thread with a person are held back at the wire`;
 }
 
 /**
