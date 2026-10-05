@@ -18,6 +18,7 @@ import { calendarChrome } from "./calendar/chrome";
 import { conversationsCrumbs, conversationsNav, inboxCrumbs } from "./inbox/routes";
 import { liveChrome } from "./live/routes";
 import { peopleChrome, peopleTakes } from "./people/chrome";
+import { settingsCrumbs } from "./settings/frame/tabs";
 
 /** A crumb: its words, and where it goes (`to`, or the page's own move, `go`, as a person's People crumb is). */
 type Crumb = string | { label: string; to: string } | { label: string; to?: string; go: unknown };
@@ -163,6 +164,15 @@ export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
   // The first run (setup/first-run/): every step's address (`start/phone`) is its page, which the frame draws full screen,
   // without its chrome; the crumb names the tab.
   start: { activeNav: "home", crumbs: [FIRST_RUN_WORDS.title], pane: false, params: true, mount: "start" },
+  // Settings, the shell's `admin` (path word `settings`): every pane's address (`admin/billing`) is the one page, which
+  // follows its address; the crumb names the pane by Settings' own rule (settings/frame/tabs.ts).
+  admin: {
+    activeNav: "admin",
+    crumbs: (param) => settingsCrumbs(param),
+    pane: true,
+    params: true,
+    mount: "admin",
+  },
 };
 
 const pageOf = (route: string): string => (route.includes("/") ? route.slice(0, route.indexOf("/")) : route);

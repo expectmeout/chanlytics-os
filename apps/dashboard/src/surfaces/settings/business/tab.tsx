@@ -1,4 +1,3 @@
-/* global React, Icon */
 // Chanlytics — Settings › Business, as a record.
 //
 // The tab was two surfaces that disagreed about what exists: a card showing nine facts, and a form editing about
@@ -6,26 +5,41 @@
 // (docs/superpowers/specs/2026-09-20-business-tab-design.md; the canvas's Record, Group-Who and Edit-Inline boards).
 // This file draws the gap line and composes the cards. The page's two gestures, a row edited in its
 // place (BtRow), a set of fields folded open under its row (BtFold) and a list in a sheet beside the page (BtSheet), are
-// pages/business-tab-gestures.jsx; each card is a file of its own (business-tab-who.jsx, business-tab-open.jsx,
-// business-tab-offer.jsx, business-tab-answers.jsx, business-can.jsx), loaded before this one and read from window as the page draws, and
-// the two sheets, the services list (business-tab-services.jsx) and what the receptionist is told
-// (business-tab-prompt.jsx), are drawn here through ONE slot, after every card (BtSheetSlot says why).
+// gestures/; each card is a module of its own (who.tsx, open.tsx, offer.tsx, answers.tsx, can.tsx), and the two
+// sheets, the services list (services.tsx) and what the receptionist is told (prompt.tsx), are drawn here through ONE
+// slot, after every card (BtSheetSlot says why).
 //
 // The page composes and never derives. Every sentence with a number or a judgement in it is contracts', through
-// window.__businessTab (legacy-bridge/business-tab.ts); every fact is the settings read's (window.__SETTINGS,
-// window.__FACTS), read as the page draws. What a save writes is pages/business-tab-save.jsx's, through
-// window.__businessTabSave: each row's check and patch, and the tab's one saver. That file loads before this one.
+// BUSINESS_TAB (legacy-bridge/business-tab.ts); every fact is the settings read's (settingsNow, factsNow), read as the
+// page draws. What a save writes is save.tsx's, through the tab's saver (saver.ts): each row's check and patch, and the
+// tab's one saver.
 //
 // Every component on the page that holds a hook is drawn on every render, and what comes and goes (a row at rest, a
 // Confirm, a note) holds none: the tests' old stub React kept every hook on a page as a cell in one order, and this
 // page was shaped to it. The stub now keeps each component's hooks where it sits, as React does, and throws as React
 // does when a component's hooks change in number (tooling/scripts/tests/_hook-frames.mjs), so the shape stands as a
-// habit and nothing new needs keeping to it. And no
-// object rest in a pattern anywhere in this file: the standalone mockup compiles every file into one global
-// scope, where Babel's `_excluded` for a rest is shared, and the last file compiled decides what every earlier rest
-// leaves out (record-field.jsx says how that bit).
+// habit and nothing new needs keeping to it.
 
-const { useState: useBizState, useEffect: useBizEffect } = React;
+import { useEffect, useState } from "react";
+import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
+import { canDo, gateTitle } from "../../legacy-verbs";
+import type { LegacyFlash } from "../../legacy-verbs";
+import { Icon } from "../../kit/icon/icon";
+import { recFolds } from "../../kit/record/registry";
+import { BtAnswersCard } from "./answers";
+import { BtCanCard } from "./can";
+import { BtOfferCard } from "./offer";
+import { BtOpenCard } from "./open";
+import { BtPromptSheet, BtPromptTold, useBtPromptSheet } from "./prompt";
+import type { BtPromptHold } from "./prompt";
+import type { Brain, Config, Saver } from "./save";
+import { businessTabSave } from "./saver";
+import { BtServicesSheet } from "./services";
+import { settingsNow } from "./shell";
+import { BtWhoCard } from "./who";
+
+/** The toast the shell raises (the page's `flash`). */
+type Flash = (flash: LegacyFlash) => void;
 
 /* ------------------------------------ the page ------------------------------------ */
 
@@ -43,11 +57,9 @@ const { useState: useBizState, useEffect: useBizEffect } = React;
  * where you are. Add one Address", in the row's own words and label (RecordRow's ids), so a screen reader hears where
  * it goes and not only a statement. A row not on the page yet adds nothing to the name, and the sentence stands alone.
  */
-const BtGap = ({ brain, door }) => {
-  const tab = window.__businessTab;
-  if (!tab || !tab.businessGap) return null;
+const BtGap = ({ brain, door }: { brain: Brain; door: ((id: string) => void) | null }) => {
   // With how customers buy, which decides whether a missing booking link is a gap (the first run's decision 2).
-  const gap = tab.businessGap(brain, window.__businessTabSave.answer());
+  const gap = BUSINESS_TAB.businessGap(brain, businessTabSave.answer());
   if (!gap) return null;
   return (
     <p className="bt-gap" data-testid="rec-gap">
@@ -69,16 +81,15 @@ const BtGap = ({ brain, door }) => {
   );
 };
 
-
 /**
  * A door opens a row by its id, as the row's own act would open it: the registry holds each row's dirty test by id,
- * bound as the row's hook mounted (record-fold.jsx), so a row opened from here asks before its changes are thrown away
- * like any other, and one open elsewhere holding changes is asked about first. The services sheet is not a fold, and
- * opens the same way: it holds the registry under its id as a fold does (BtSheet), and is open while the registry says
- * so. The voice's gap opens How it answers' voice fold (business-tab-answers.jsx) the same way.
+ * bound as the row's hook mounted (the kit's useRecordFold), so a row opened from here asks before its changes are
+ * thrown away like any other, and one open elsewhere holding changes is asked about first. The services sheet is not a
+ * fold, and opens the same way: it holds the registry under its id as a fold does (BtSheet), and is open while the
+ * registry says so. The voice's gap opens How it answers' voice fold (answers.tsx) the same way.
  */
-const btOpenRow = (id) => {
-  if (window.__recordFolds) window.__recordFolds.request(id);
+const btOpenRow = (id: string) => {
+  recFolds.request(id);
 };
 
 /**
@@ -93,59 +104,87 @@ const btOpenRow = (id) => {
  *     is drawn only while the registry has "prompt" open, after the services sheet's editor and never beside its sheet.
  * Whatever sheet comes next goes through this slot too (business-tab-prompt.test.mjs holds it to one sheet or none).
  *
- * A row's fold on a phone is a sheet as well (record-fold.jsx), and it is NOT drawn here. The slot is for what is drawn
+ * A row's fold is a sheet as well (the kit's RecordFold), and it is NOT drawn here. The slot is for what is drawn
  * only while open; a fold holds the same hooks open or closed, as a sheet or under its row, so it is drawn where its row
  * is and moves no cell after it. Both can be on the page because only one can be open: the registry opens one editor
  * or sheet at a time, so a row's sheet and this slot's never stand on screen together (business-tab-page.test.mjs).
  */
-const BtSheetSlot = ({ prompt, brain, canEdit, flash, saver }) => (
+export const BtSheetSlot = ({
+  prompt,
+  brain,
+  canEdit,
+  flash,
+  saver,
+}: {
+  prompt: BtPromptHold | null;
+  brain: Brain;
+  canEdit: boolean;
+  flash: Flash;
+  saver: Saver;
+}) => (
   <>
-    {window.BtServicesSheet ? <window.BtServicesSheet brain={brain} canEdit={canEdit} flash={flash} saver={saver} /> : null}
-    {prompt && prompt.open && window.BtPromptSheet ? <window.BtPromptSheet prompt={prompt} brain={brain} canEdit={canEdit} /> : null}
+    <BtServicesSheet brain={brain} canEdit={canEdit} flash={flash} saver={saver} />
+    {prompt && prompt.open ? <BtPromptSheet prompt={prompt} brain={brain} canEdit={canEdit} /> : null}
   </>
 );
 
 /**
- * Settings › Business, drawn from the settings read. A workspace with no brain -- none set up, or a config the parser
- * refused -- is PaneWorkspace's to draw, so the page draws nothing it cannot back.
+ * What the page draws once, on every draw, before any card: the tab's saver drawing the page again as a save moves, the
+ * workspace's own doors (the zone's and how customers buy's, which are the tab's for the same reason: save.tsx), and the
+ * settings surface read again.
  */
-const BusinessTab = ({ flash = () => {} }) => {
-  // The tab's one saver (business-tab-save.jsx), which outlives the page: a page drawn again on coming back to this tab
-  // finds the save still out and the answer to the last one. A save moving through it draws the page again, busy or
-  // done, for as long as the page is on screen.
-  const [, setTick] = useBizState(0);
-  const saver = window.__businessTabSave.saver;
+const useBtPageSubscriptions = (saver: Saver) => {
+  const [, setTick] = useState(0);
   // And the workspace's own doors, the zone's and how customers buy's, which are the tab's for the same reason
-  // (business-tab-save.jsx): one effect hears all three.
+  // (save.tsx): one effect hears all three.
   // And the settings surface read again (after a save, a zone saved through its own route, a conflict's re-read, a
   // Retry), which is where every row's value comes from: heard here, not only by whatever draws the page, since a zone
   // saved and read back left the card's "in New York time" and the closures counted on New York's day until something
   // else drew the page.
-  const zone = window.__businessTabSave.zone;
-  const buys = window.__businessTabSave.sellsBy;
-  useBizEffect(() => {
+  const zone = businessTabSave.zone;
+  const buys = businessTabSave.sellsBy;
+  useEffect(() => {
     const bump = () => setTick((n) => n + 1);
     const stops = [saver.subscribe(bump), zone ? zone.subscribe(bump) : null, buys ? buys.subscribe(bump) : null];
     window.addEventListener("surface:settings", bump);
     // The save's own rules come with this tab, never with the page (the bridge's loadSaveRules): drawn again when they
     // land, so a fold open by then says what they judge.
     let live = true;
-    const rules = window.__businessTab && window.__businessTab.loadSaveRules;
-    if (typeof rules === "function") rules().then(() => { if (live) bump(); }, () => {});
+    BUSINESS_TAB.loadSaveRules().then(
+      () => {
+        if (live) bump();
+      },
+      () => {},
+    );
     return () => {
       live = false;
-      stops.forEach((stop) => { if (stop) stop(); });
+      stops.forEach((stop) => {
+        if (stop) stop();
+      });
       window.removeEventListener("surface:settings", bump);
     };
   }, [saver, zone, buys]);
-  // What the receptionist is told: the prompt sheet's hold on the registry and the channel it shows (business-tab-prompt.jsx),
+};
+
+/**
+ * Settings › Business, drawn from the settings read. A workspace with no brain -- none set up, or a config the parser
+ * refused -- is PaneWorkspace's to draw, so the page draws nothing it cannot back.
+ */
+export const BusinessTab = ({ flash = () => {} }: { flash?: Flash }) => {
+  // The tab's one saver (save.tsx), which outlives the page: a page drawn again on coming back to this tab
+  // finds the save still out and the answer to the last one. A save moving through it draws the page again, busy or
+  // done, for as long as the page is on screen.
+  const saver = businessTabSave.saver;
+  useBtPageSubscriptions(saver);
+  // What the receptionist is told: the prompt sheet's hold on the registry and the channel it shows (prompt.tsx),
   // held here, on every draw and before every card, so the told section at rest says the channel last chosen and the
   // sheet itself is the one thing that comes and goes, in the slot (BtSheetSlot).
-  const prompt = window.useBtPromptSheet ? window.useBtPromptSheet() : null;
-  const settings = window.__SETTINGS || null;
-  const brain = (settings && settings.config && settings.config.brain) || null;
-  if (!brain) return null;
-  const canEdit = !window.canDo || window.canDo("settings");
+  const prompt = useBtPromptSheet();
+  const settings = settingsNow() || null;
+  const config = settings && (settings.config as Config | null);
+  const brain = (config && config.brain) || null;
+  if (!settings || !config || !brain) return null;
+  const canEdit = canDo("settings");
   // The config the next save goes on: what every row's "It will say" is worked out on.
   const base = saver.base();
   return (
@@ -154,24 +193,28 @@ const BusinessTab = ({ flash = () => {} }) => {
           so the page says why once, here. */}
       {canEdit ? null : (
         <p className="bt-viewer" data-testid="bt-viewer">
-          <Icon name="shield" size={11} /> {window.gateTitle ? window.gateTitle("settings", "change the business") : ""} You can read everything.
+          <Icon name="shield" size={11} /> {gateTitle("settings", "change the business")} You can read everything.
         </p>
       )}
       <BtGap brain={brain} door={canEdit ? btOpenRow : null} />
-      {/* Each card is a file of its own (business-tab-who.jsx, business-tab-open.jsx, business-tab-offer.jsx,
-          business-tab-answers.jsx), read from window as the page draws. */}
-      {window.BtWhoCard ? <window.BtWhoCard brain={brain} base={base} canEdit={canEdit} flash={flash} saver={saver} /> : null}
-      {window.BtOpenCard ? <window.BtOpenCard brain={brain} config={settings.config} prompt={settings.prompt || null} canEdit={canEdit} flash={flash} saver={saver} /> : null}
-      {window.BtOfferCard ? <window.BtOfferCard brain={brain} canEdit={canEdit} flash={flash} saver={saver} /> : null}
-      {window.BtAnswersCard ? <window.BtAnswersCard brain={brain} base={base} config={settings.config} canEdit={canEdit} flash={flash} saver={saver} /> : null}
-      {window.BtCanCard ? <window.BtCanCard brain={brain} config={settings.config} canEdit={canEdit} /> : null}
+      {/* Each card is a module of its own (who.tsx, open.tsx, offer.tsx, answers.tsx, can.tsx). */}
+      <BtWhoCard brain={brain} base={base} canEdit={canEdit} flash={flash} saver={saver} />
+      <BtOpenCard
+        brain={brain}
+        config={config}
+        prompt={settings.prompt || null}
+        canEdit={canEdit}
+        flash={flash}
+        saver={saver}
+      />
+      <BtOfferCard brain={brain} canEdit={canEdit} flash={flash} saver={saver} />
+      <BtAnswersCard brain={brain} base={base} config={config} canEdit={canEdit} flash={flash} saver={saver} />
+      <BtCanCard brain={brain} config={config} canEdit={canEdit} />
       {/* What the receptionist is told, at rest: a title, who reads it, and the door to the sheet. Hookless. */}
-      {window.BtPromptTold ? <window.BtPromptTold prompt={prompt} /> : null}
+      <BtPromptTold prompt={prompt} />
       {/* The sheets, LAST, after every card, through one slot (BtSheetSlot says why). Whatever card comes next goes above
           this line, and whatever sheet comes next goes through the slot; a page test holds it last. */}
       <BtSheetSlot prompt={prompt} brain={brain} canEdit={canEdit} flash={flash} saver={saver} />
     </>
   );
 };
-
-Object.assign(window, { BusinessTab, BtSheetSlot });

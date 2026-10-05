@@ -59,9 +59,6 @@
   "apps/dashboard/src/legacy-bridge/ask/speech.ts": {
     "unknownAs": 1
   },
-  "apps/dashboard/src/legacy-bridge/business-tab.ts": {
-    "unknownAs": 1
-  },
   "apps/dashboard/src/legacy-bridge/identity.ts": {
     "unknownAs": 1
   },
@@ -76,12 +73,6 @@
   },
   "apps/dashboard/src/legacy-bridge/notifications.ts": {
     "unknownAs": 4,
-    "nonNull": 2
-  },
-  "apps/dashboard/src/legacy-bridge/partner.ts": {
-    "unknownAs": 3
-  },
-  "apps/dashboard/src/legacy-bridge/platform.ts": {
     "nonNull": 2
   },
   "apps/dashboard/src/legacy-bridge/read-cache.ts": {

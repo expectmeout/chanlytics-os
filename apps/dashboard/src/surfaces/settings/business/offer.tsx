@@ -1,10 +1,9 @@
-/* global React, Icon */
 // Chanlytics — Settings › Business: What you offer.
 //
 // The third card of the record (docs/superpowers/specs/2026-09-20-business-tab-design.md §4.4; the canvas's Record,
 // Edit-Sheet and Edit-Fold boards): how customers buy, the services, the booking rules, and what needs a consult first,
 // each edited where it is stated. How customers buy is the workspace's answer, not a key of the settings, and saves
-// through the workspace's own door (docs/decisions/0008, "One switch"; BtwSellsBy, below). The services are a list:
+// through the workspace's own door (docs/decisions/0008, "One switch"; BtSellsBy, below). The services are a list:
 // thirty-three rows of three boxes on the live record, the "99 inputs in a 720px column" the redesign exists to remove,
 // so they open a sheet beside the page (BtSheet). The booking rules are five numbers and a box of notes, a fold
 // (BtFold). And consult-first, one of the two unlabelled textareas the old form had, is a fold of its own with its own
@@ -12,39 +11,80 @@
 // those learned came with them, comments and all.
 //
 // The page composes and never derives. Every sentence here with a number in it is contracts' (servicesWords,
-// servicesToldWords, servicesSaveWords, bookingRulesWords, BOOKING_RULE_HINTS, through window.__businessTab), and so is
+// servicesToldWords, servicesSaveWords, bookingRulesWords, BOOKING_RULE_HINTS, through BUSINESS_TAB), and so is
 // every word of how customers buy (sellsByVM, sellsBySaved); what a fold or the sheet opens with, refuses and writes is
-// business-tab-folds.jsx's; the gestures are BtFold and BtSheet (business-tab-gestures.jsx), read from window as each
-// draws.
+// folds.ts's; the gestures are BtFold and BtSheet (gestures/).
 //
-// The services sheet is a file of its own (business-tab-services.jsx), which the PAGE draws after every card: the
+// The services sheet is a file of its own (services.tsx), which the PAGE draws after every card: the
 // card's services row asks the registry for the sheet by its id, as the gap line's door does, and the sheet is
 // open while the registry says so.
 //
-// Loaded after business-tab-open.jsx and before business-tab-services.jsx (both load lists), and read by the page as
-// window.BtOfferCard. It holds no hook of its own (its folds hold theirs). Its top-level names are btw-prefixed, and no
-// pattern in it holds an object rest, for the reasons business-tab-save.jsx gives.
+// It holds no hook of its own (its folds hold theirs).
+
+import type { SellsBy, SellsByVM } from "@chanlytics/contracts";
+import type { ComponentProps, ReactNode } from "react";
+import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
+import { RecordField, RecordSwitch, RecordToggleGroup } from "../../kit/record/field";
+import { RecordRow, RecordChips } from "../../kit/record/row";
+import { recFolds } from "../../kit/record/registry";
+import { FieldError } from "../../kit/field-error/field-error";
+import { gate } from "../../legacy-verbs";
+import type { LegacyFlash } from "../../legacy-verbs";
+import { BtFold, BtSheet } from "./gestures/fold";
+import type { Brain, Saver } from "./save";
+import { businessTabSave } from "./saver";
+import { activeWorkspaceNow, workspaceApi, workspacesNow } from "./shell";
 
 /* ------------------------------------ how customers buy ------------------------------------ */
 
 /** The active workspace's answer to how its customers buy, as the workspace list carries it (0008); null is never said. */
-const btwAnswerNow = () => {
-  const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
-  return (ws && ws.sells_by) || null;
+export const btSellsByNow = () => {
+  const ws = (workspacesNow() || []).find((t) => t.id === activeWorkspaceNow()) || null;
+  // The workspace list is untyped data off the window: its answer is one of the two (isSellsBy), or never said.
+  return (ws && (ws.sells_by as SellsBy | undefined)) || null;
 };
+
+/** What a fold hands its body (gestures/ BtFold's contract says each), for a draft `D`. */
+type FoldFields<D> = Parameters<ComponentProps<typeof BtFold<D>>["body"]>[0];
+
+interface SellsByChoiceProps {
+  id: string;
+  vm: SellsByVM;
+  value: SellsBy | null;
+  set: (next: SellsBy) => void;
+  problem?: ReactNode;
+  readOnly?: boolean;
+  label?: boolean;
+  labelledBy?: string | null;
+  testid: string;
+}
 
 /**
  * The two answers as a choice, each with what choosing it means under it (the kit's RecordToggleGroup with its hints),
- * and what stops a Save under them. Every word is the view model's (contracts sellsByVM, through window.__businessTab).
- * Drawn by the fold below and by the create card (business-tab-create.jsx), so the choice and its words are written
+ * and what stops a Save under them. Every word is the view model's (contracts sellsByVM, through BUSINESS_TAB).
+ * Drawn by the fold below and by the create card (create.tsx), so the choice and its words are written
  * once. `id` names the group, and its options' words and its refusal are named from it; `label` draws the question
  * over it, where nothing else on screen says it (the create card), and `labelledBy` points at what does (the fold's own
  * label). Hookless.
  */
-const btwSellsByChoice = ({ id, vm, value, set, problem = null, readOnly = false, label = false, labelledBy = null, testid }) => (
+export const btSellsByChoice = ({
+  id,
+  vm,
+  value,
+  set,
+  problem = null,
+  readOnly = false,
+  label = false,
+  labelledBy = null,
+  testid,
+}: SellsByChoiceProps) => (
   <div className="rec-field" data-testid={testid}>
-    {label ? <span className="rec-field-label" id={`${id}-label`}>{vm.question}</span> : null}
-    <window.RecordToggleGroup
+    {label ? (
+      <span className="rec-field-label" id={`${id}-label`}>
+        {vm.question}
+      </span>
+    ) : null}
+    <RecordToggleGroup
       id={id}
       label={vm.question}
       labelledBy={label ? `${id}-label` : labelledBy}
@@ -54,7 +94,7 @@ const btwSellsByChoice = ({ id, vm, value, set, problem = null, readOnly = false
       readOnly={readOnly}
       testid={`${testid}-choice`}
     />
-    <window.FieldError id={`${id}-problem`} message={problem} testid={`${testid}-problem`} />
+    <FieldError id={`${id}-problem`} message={problem} testid={`${testid}-problem`} />
   </div>
 );
 
@@ -63,7 +103,7 @@ const btwSellsByChoice = ({ id, vm, value, set, problem = null, readOnly = false
  * deal layer on (contracts dealsAreOn). The row states the answer, or that it was never said; its fold is the choice.
  *
  * The answer is the workspace's (tenants.sells_by), not a key of the settings, as the zone is: it saves through the
- * workspace's own door (business-tab-save.jsx `sellsBy`, window.__workspace.patch, PATCH workspaces) and never through
+ * workspace's own door (save.tsx `sellsBy`, the workspace api's patch, PATCH workspaces) and never through
  * the settings save, where it could not live (0008: a key inside a section is refused by an older edge, and one beside
  * them dropped by an older page's next save). So the act is offered only where there is a door to save it through and
  * the role may change the business: an owner, the timezone's gate. It writes nothing the receptionist is told (the
@@ -71,34 +111,46 @@ const btwSellsByChoice = ({ id, vm, value, set, problem = null, readOnly = false
  * People, Reports and Today are read again (refresh-map.ts), so the deals come or go without a reload. A Save with
  * nothing chosen, on a workspace never asked, says why under the choice.
  */
-const BtwSellsBy = ({ vm, answer, canEdit, gate, flash }) => {
-  const Fold = window.BtFold;
-  const door = window.__businessTabSave.sellsBy;
-  const tab = window.__businessTab || {};
+const BtSellsBy = ({
+  vm,
+  answer,
+  canEdit,
+  gate: pressable,
+  flash,
+}: {
+  vm: SellsByVM;
+  answer: SellsBy | null;
+  canEdit: boolean;
+  gate: ReturnType<typeof gate>;
+  flash: (flash: LegacyFlash) => void;
+}) => {
+  const door = businessTabSave.sellsBy;
   return (
-    <Fold
+    <BtFold<SellsBy>
       id="sells_by"
       label={vm.question}
-      canEdit={canEdit && !!window.__workspace}
-      gate={gate}
+      canEdit={canEdit && !!workspaceApi()}
+      gate={pressable}
       flash={flash}
       door={{
         initial: answer,
-        save: (next, done) => door.save({ answer: next, said: tab.sellsBySaved ? tab.sellsBySaved(answer, next) : null, done, flash }),
+        save: (next, done) => door.save({ answer: next, said: BUSINESS_TAB.sellsBySaved(answer, next), done, flash }),
         pending: () => door.pending(),
       }}
-      check={(d) => (d ? {} : { sells_by: vm.refusal })}
+      check={(d): Record<string, string> => (d ? {} : { sells_by: vm.refusal })}
       row={{ value: vm.value, empty: vm.empty, act: vm.act, name: vm.name }}
-      body={(f) => btwSellsByChoice({
-        id: "bt-sells-by",
-        vm,
-        value: f.draft,
-        set: (v) => f.update(() => v, ["sells_by"]),
-        problem: f.problems.sells_by || null,
-        readOnly: f.readOnly,
-        labelledBy: "rec-fold-sells_by-label",
-        testid: "rec-sells-by",
-      })}
+      body={(f) =>
+        btSellsByChoice({
+          id: "bt-sells-by",
+          vm,
+          value: f.draft,
+          set: (v) => f.update(() => v, ["sells_by"]),
+          problem: f.problems.sells_by || null,
+          readOnly: f.readOnly,
+          labelledBy: "rec-fold-sells_by-label",
+          testid: "rec-sells-by",
+        })
+      }
     />
   );
 };
@@ -113,28 +165,39 @@ const BtwSellsBy = ({ vm, answer, canEdit, gate, flash }) => {
  * about first. A role that may not change the business is offered no act, and nor is anyone while the sheet could not
  * open (BtSheet.opens: nothing read to save onto, or a list whose draft cannot be worked out), as a fold offers none then.
  */
-const BtwServicesRow = ({ brain, canEdit, saver }) => {
+export const BtServicesRow = ({ brain, canEdit, saver }: { brain: Brain; canEdit: boolean; saver: Saver | null }) => {
   // Its own gate, wherever it is drawn: the tab's card and the first run's Check say it alike.
-  const gate = window.gate("settings", "change your services");
-  const tab = window.__businessTab || {};
-  const vm = tab.servicesWords ? tab.servicesWords((brain.profile || {}).services) : null;
-  const has = !!(vm && vm.count);
-  const opens = !!(window.BtSheet && window.BtSheet.opens && window.BtSheet.opens("services", saver));
+  const pressable = gate("settings", "change your services");
+  const vm = BUSINESS_TAB.servicesWords((brain.profile || {}).services);
+  const has = !!vm.count;
+  const opens = !!BtSheet.opens("services", saver);
   return (
-    <window.RecordRow
+    <RecordRow
       id="services"
       label="Services"
       value={has ? vm.line : null}
       empty="None yet"
-      act={canEdit && opens ? {
-        label: has ? "Open the list" : "Add one",
-        name: has ? "Open the list of services" : "Add one: a service",
-        onClick: () => { if (window.__recordFolds) window.__recordFolds.request("services"); },
-        gate,
-      } : null}
+      act={
+        canEdit && opens
+          ? {
+              label: has ? "Open the list" : "Add one",
+              name: has ? "Open the list of services" : "Add one: a service",
+              onClick: () => {
+                recFolds.request("services");
+              },
+              gate: pressable,
+            }
+          : null
+      }
     >
-      {has ? <window.RecordChips chips={vm.chips.map((c) => ({ label: c.name, meta: c.takes }))} more={vm.more} testid="rec-services-chips" /> : null}
-    </window.RecordRow>
+      {has ? (
+        <RecordChips
+          chips={vm.chips.map((c) => ({ label: c.name, meta: c.takes }))}
+          more={vm.more}
+          testid="rec-services-chips"
+        />
+      ) : null}
+    </RecordRow>
   );
 };
 
@@ -143,7 +206,7 @@ const BtwServicesRow = ({ brain, canEdit, saver }) => {
 // The five numbers, in the fold's order (the canvas's Edit-Fold), each with its label, its unit, and the old grid's
 // placeholder for its box. Each box is named by its label and unit, the words on screen (WCAG 2.5.3): the old grid's
 // names were kept as a second name, and "Offers times up to" was heard as "Days ahead", which nobody saying the words
-// on screen could reach. Their ranges are business-tab-folds.jsx's RULES, and what an empty box means is contracts'
+// on screen could reach. Their ranges are folds.ts's RULES, and what an empty box means is contracts'
 // (BOOKING_RULE_HINTS).
 const BTW_RULE_BOXES = [
   ["lead_hours", "Least notice", "hours", "2"],
@@ -151,48 +214,72 @@ const BTW_RULE_BOXES = [
   ["buffer_min", "Gap between appointments", "minutes", "0"],
   ["max_days_ahead", "Offers times up to", "days ahead", "14"],
   ["party_max", "Most people per booking", "people", "4"],
-];
+] as const;
+
+/** The booking rules' draft: five numbers as they are typed, the switch, and the notes one to a line. */
+interface RulesDraft {
+  lead_hours: string;
+  slot_min: string;
+  buffer_min: string;
+  max_days_ahead: string;
+  party_max: string;
+  ask_email: boolean;
+  notes: string;
+}
+
+/**
+ * The five rule boxes: each under its own label with its unit and what an empty box means. A number is kept as it
+ * is typed: the save's checks refuse a non-digit or a number outside its range under its box (problemsOf, the old
+ * form's sentences), where the old grid stripped anything but digits as it was typed and saved "2.5" as 25. A box takes
+ * no min or max: a text box ignores both, and the range is said in the refusal (folds.ts RULES), under the box, where
+ * the hint was.
+ */
+const BtRuleBoxes = ({ draft, update, problems, readOnly }: FoldFields<RulesDraft>) => {
+  const hints = BUSINESS_TAB.BOOKING_RULE_HINTS;
+  return (
+    <div className="bt-rules-grid">
+      {BTW_RULE_BOXES.map(([key, label, unit, placeholder]) => (
+        <RecordField
+          key={key}
+          id={`bt-rule-${key}`}
+          label={label}
+          unit={unit}
+          hint={hints[key] || null}
+          value={draft[key]}
+          onChange={(v) => update((d) => ({ ...d, [key]: v }), [key])}
+          problem={problems[key] || null}
+          inputMode="numeric"
+          placeholder={placeholder}
+          readOnly={readOnly || undefined}
+          testid={`rec-rule-${key}`}
+        />
+      ))}
+    </div>
+  );
+};
 
 /**
  * The booking rules' fields: five numbers, each under its own label with its unit and what an empty box means, and the
  * notes one to a line. Drawn on every render (BtFold's rule), and none comes or goes, so each is the kit's
- * RecordField. A number is kept as it is typed: the save's checks refuse a non-digit or a number outside its range
- * under its box (problemsOf, the old form's sentences), where the old grid stripped anything but digits as it was
- * typed and saved "2.5" as 25. A box takes no min or max: a text box ignores both, and the range is said in the
- * refusal (business-tab-folds.jsx RULES), under the box, where the hint was.
+ * RecordField.
  */
-const BtwRules = ({ draft, update, problems, readOnly }) => {
-  const hints = (window.__businessTab || {}).BOOKING_RULE_HINTS || {};
+const BtRules = (f: FoldFields<RulesDraft>) => {
+  const { draft, update, problems, readOnly } = f;
   return (
     <div className="bt-rules" data-testid="rec-rules-boxes">
-      <div className="bt-rules-grid">
-        {BTW_RULE_BOXES.map(([key, label, unit, placeholder]) => (
-          <window.RecordField
-            key={key}
-            id={`bt-rule-${key}`}
-            label={label}
-            unit={unit}
-            hint={hints[key] || null}
-            value={draft[key]}
-            onChange={(v) => update((d) => ({ ...d, [key]: v }), [key])}
-            problem={problems[key] || null}
-            inputMode="numeric"
-            placeholder={placeholder}
-            readOnly={readOnly || undefined}
-            testid={`rec-rule-${key}`}
-          />
-        ))}
-      </div>
+      <BtRuleBoxes {...f} />
       {/* Off by default: the receptionist asks for an email only where the owner wants the campaigns that follow (Part 0
           of the campaigns-on-every-channel spec). Drawn as the guardrails fold draws its switches (bt-rule): the words
           beside the switch name it, so a person saying them can press it. */}
       <div className="bt-rule">
         <span className="bt-rule-words">
           <span className="bt-rule-head">
-            <span className="bt-rule-label" id="bt-rule-ask_email-label">Ask for an email when sending the booking link</span>
+            <span className="bt-rule-label" id="bt-rule-ask_email-label">
+              Ask for an email when sending the booking link
+            </span>
           </span>
         </span>
-        <window.RecordSwitch
+        <RecordSwitch
           on={!!draft.ask_email}
           onChange={(v) => update((d) => ({ ...d, ask_email: v }), ["ask_email"])}
           labelledBy="bt-rule-ask_email-label"
@@ -200,7 +287,7 @@ const BtwRules = ({ draft, update, problems, readOnly }) => {
           testid="rec-rule-ask-email"
         />
       </div>
-      <window.RecordField
+      <RecordField
         id="bt-rule-notes"
         label="Anything else about booking"
         hint="One per line."
@@ -221,8 +308,8 @@ const BtwRules = ({ draft, update, problems, readOnly }) => {
  * label names it, the words on screen above it (RecordFold's rec-fold-<id>-label); a second name, as the old form gave
  * it, is one a person saying the words on screen could not reach.
  */
-const BtwConsult = ({ draft, update, problems, readOnly }) => (
-  <window.RecordField
+const BtConsult = ({ draft, update, problems, readOnly }: FoldFields<string>) => (
+  <RecordField
     id="bt-consult-first"
     label={null}
     aria-labelledby="rec-fold-consult_first-label"
@@ -240,85 +327,110 @@ const BtwConsult = ({ draft, update, problems, readOnly }) => (
 /* ------------------------------------ the card ------------------------------------ */
 
 /**
+ * The booking rules' row at rest: the sentence the five numbers make, the notes after it on its line in the dim ink
+ * (24 Sep: under it they were a second line on a row that states one fact), and, with none of the five set, what the
+ * openings are worked out with, which is not "no rule", the notes standing under it.
+ */
+const btRulesRow = (rules: BookingRulesOf) => {
+  const said = BUSINESS_TAB.bookingRulesWords(rules);
+  return {
+    value: said.line ? (
+      <>
+        {said.line}
+        {said.notes ? " · " : null}
+        {said.notes ? (
+          <span className="bt-rules-notes" data-testid="rec-rules-notes">
+            {said.notes}
+          </span>
+        ) : null}
+      </>
+    ) : null,
+    empty: said.none,
+    children:
+      !said.line && said.notes ? (
+        <span className="bt-rules-notes" data-testid="rec-rules-notes">
+          {said.notes}
+        </span>
+      ) : null,
+    act: "Change",
+    name: "Change the booking rules",
+  };
+};
+
+type BookingRulesOf = NonNullable<NonNullable<Brain["profile"]>["booking_rules"]>;
+
+/**
  * What you offer (spec §4.4): how customers buy (0008), the services, the rules for booking them, and the ones that
  * need a consult first. Consult-first is stored inside the booking rules, and its fold and the rules' fold each write
- * only their own keys of it (business-tab-folds.jsx PATHS_OF), so saving one never puts the other's back as it was.
+ * only their own keys of it (folds.ts PATHS_OF), so saving one never puts the other's back as it was.
  * Where deals are on, its row says what a consultation for them starts (sellsByVM's consultHint).
  *
  * `brain` is the settings read's, which the rows state; what a fold opens with and saves onto is the saver's base,
  * which BtFold asks for itself. How customers buy is the workspace list's, which its door keeps current.
  */
-const BtOfferCard = ({ brain, canEdit, flash, saver }) => {
-  // Whether it sends a link at all, by the resolver's own test; without the bridge, the words that have one.
-  const btwTab = window.__businessTab || {};
-  const btwOffers = !btwTab.offersBookingLink || btwTab.offersBookingLink(brain);
-  const tab = window.__businessTab || {};
-  const Fold = window.BtFold;
+export const BtOfferCard = ({
+  brain,
+  canEdit,
+  flash,
+  saver,
+}: {
+  brain: Brain;
+  canEdit: boolean;
+  flash: (flash: LegacyFlash) => void;
+  saver: Saver | null;
+}) => {
+  // Whether it sends a link at all, by the resolver's own test.
+  const btwOffers = BUSINESS_TAB.offersBookingLink(brain);
   const profile = brain.profile || {};
   const rules = profile.booking_rules || {};
-  const gate = (thing) => window.gate("settings", `change ${thing}`);
+  const pressable = (thing: string) => gate("settings", `change ${thing}`);
   const shared = { canEdit, flash, saver };
-  const said = tab.bookingRulesWords ? tab.bookingRulesWords(rules) : { line: null, notes: null, none: null };
   // A stored list that is not one (a hand-edited record) is none: joined as it stood, it threw as the card drew.
   const consult = (Array.isArray(rules.consult_first) ? rules.consult_first : []).join(", ");
-  const answer = btwAnswerNow();
-  const buys = tab.sellsByVM ? tab.sellsByVM(answer) : null;
+  const answer = btSellsByNow();
+  const buys = BUSINESS_TAB.sellsByVM(answer);
 
   return (
     <section className="rec-card" data-testid="rec-card-offer" aria-labelledby="bt-offer-title">
       <div className="rec-card-head">
-        <h2 className="rec-card-title" id="bt-offer-title">What you offer</h2>
+        <h2 className="rec-card-title" id="bt-offer-title">
+          What you offer
+        </h2>
         <span className="rec-card-sub">And the rules for offering it</span>
       </div>
 
-      {buys ? <BtwSellsBy vm={buys} answer={answer} canEdit={canEdit} gate={gate("how customers buy")} flash={flash} /> : null}
+      <BtSellsBy vm={buys} answer={answer} canEdit={canEdit} gate={pressable("how customers buy")} flash={flash} />
 
-      <BtwServicesRow brain={brain} canEdit={canEdit} saver={saver} />
+      <BtServicesRow brain={brain} canEdit={canEdit} saver={saver} />
 
-      <Fold
+      <BtFold<RulesDraft>
         {...shared}
         id="booking_rules"
         label="Booking rules"
-        hint={btwOffers ? "It never books. It says which times are open and sends the link." : "It never books. It says which times are open and takes their details."}
+        hint={
+          btwOffers
+            ? "It never books. It says which times are open and sends the link."
+            : "It never books. It says which times are open and takes their details."
+        }
         footNote="Saves these five rules, the switch and the notes, and nothing else on the page."
-        gate={gate("the booking rules")}
-        row={{
-          // The notes follow the sentence on its line, in the dim ink (24 Sep): under it they were a second line on a
-          // row that states one fact.
-          value: said.line ? (
-            <>
-              {said.line}
-              {said.notes ? " · " : null}
-              {said.notes ? <span className="bt-rules-notes" data-testid="rec-rules-notes">{said.notes}</span> : null}
-            </>
-          ) : null,
-          // With none of the five set, what the openings are worked out with, which is not "no rule"; the notes, if
-          // any, stand under it.
-          empty: said.none,
-          children: !said.line && said.notes ? <span className="bt-rules-notes" data-testid="rec-rules-notes">{said.notes}</span> : null,
-          act: "Change",
-          name: "Change the booking rules",
-        }}
-        body={(f) => <BtwRules {...f} />}
+        gate={pressable("the booking rules")}
+        row={btRulesRow(rules)}
+        body={(f) => <BtRules {...f} />}
       />
 
-      <Fold
+      <BtFold<string>
         {...shared}
         id="consult_first"
         label="Needs a consult first"
-        gate={gate("what needs a consult first")}
+        gate={pressable("what needs a consult first")}
         row={{
           value: consult || null,
           empty: "None",
-          hint: buys ? buys.consultHint : null,
+          hint: buys.consultHint,
           name: consult ? "Change what needs a consult first" : "Add one: a service that needs a consult first",
         }}
-        body={(f) => <BtwConsult {...f} />}
+        body={(f) => <BtConsult {...f} />}
       />
     </section>
   );
 };
-
-// The choice of how customers buy is the create card's too (business-tab-create.jsx), which loads after this file, and
-// the first run's Check draws it and the services row (first-run.jsx).
-Object.assign(window, { BtOfferCard, btSellsByChoice: btwSellsByChoice, btSellsByNow: btwAnswerNow, BtServicesRow: BtwServicesRow });

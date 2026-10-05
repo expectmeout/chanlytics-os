@@ -16,7 +16,10 @@ import assert from "node:assert/strict";
 import { ROLE_PERMS, parseTenantConfigResult, NOTIFICATION_KIND_GROUPS } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 
-const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
+// Settings' frame is TSX (surfaces/settings/frame, decision 0015 step 11): the page, its tabs and the Business pane.
+const frame = Object.fromEntries(
+  ["page.tsx", "tabs.ts", "workspace.tsx"].map((f) => [f, readRaw(`apps/dashboard/src/surfaces/settings/frame/${f}`)]),
+);
 const verbsBridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
 
 test("F4: a save re-reads the settings surface, so the next save carries the new version", async () => {
@@ -43,8 +46,12 @@ test("F32: a config the parser refuses is its own state, and no form can save ov
   // through its reader in readers.test.mjs, so the three pins on the route's text are gone.
   const surface = readCode("apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
   assert.ok(surface.includes("broken: { issues: cfg.issues ?? [] }"));
-  assert.ok(pane.includes("const broken = !!(settings && settings.broken);"));
-  assert.ok(pane.indexOf("if (broken) {") < pane.indexOf("if (real) {"), "the broken branch wins over the record");
+  const business = frame["workspace.tsx"];
+  assert.ok(business.includes("if (settings && settings.broken) return <BrokenConfig"));
+  assert.ok(
+    business.indexOf("if (settings && settings.broken)") < business.indexOf("if (real) {"),
+    "the broken branch wins over the record",
+  );
   // Every notifications write is closed on a broken config, and says why: drawn, in settings-owner-panes.test.mjs ("F32:
   // a config the parser refuses closes every notifications write"), since the pane is TSX (surfaces/settings/notifications).
   // The parser really does tell the two apart.
@@ -112,7 +119,10 @@ test("F36/F37: alerts that go to Chanlytics say so; switching a number off is de
   for (const r of platform) assert.ok(r.what.includes("Goes to Chanlytics, not to the addresses above"), r.title);
   // The card above them says so, drawn: settings-owner-panes.test.mjs, "Notifications lists what is sent in contracts'
   // groups" (surfaces/settings/notifications/pane.tsx).
-  assert.ok(!pane.includes("emails you every message instead"), "REGRESSION: promised an email nothing sends");
+  assert.ok(
+    !Object.values(frame).some((t) => t.includes("emails you every message instead")),
+    "REGRESSION: promised an email nothing sends",
+  );
   // The channels sentence moved with the pane it belongs to; the alerts
   // above it are the notifications pane and stay in the settings shell.
   assert.ok(
@@ -162,14 +172,17 @@ test("Settings is ordered you, then the business, then the people", () => {
   // buried in the Team card underneath a roster of other people. The account
   // menu's "Your name" item navigated there, so the one link that promised you
   // delivered the business.
-  assert.match(pane, /\{ id: "profile",\s+label: "Profile",\s+icon: "user",\s+group: "You" \}/, "you come first");
-  assert.match(pane, /\{ id: "workspace",\s+label: "Business",/, "and the business is called what it is");
-  assert.match(pane, /\{ id: "team",\s+label: "Team",/, "with the people on their own tab");
+  assert.match(
+    frame["tabs.ts"],
+    /\{ id: "profile",\s+label: "Profile",\s+icon: "user",\s+group: "You" \}/,
+    "you come first",
+  );
+  assert.match(frame["tabs.ts"], /\{ id: "workspace",\s+label: "Business",/, "and the business is called what it is");
+  assert.match(frame["tabs.ts"], /\{ id: "team",\s+label: "Team",/, "with the people on their own tab");
   // The route id stays `workspace`: the label is what a person reads, and
   // renaming the id would break bookmarks, an Ask answer and four e2e specs.
   assert.ok(
-    pane.includes('{ active.id === "workspace" && <PaneWorkspace flash={flash} />}') ||
-      pane.includes('{active.id === "workspace" && <PaneWorkspace flash={flash} />}'),
+    frame["page.tsx"].includes('{id === "workspace" && <PaneWorkspace flash={flash} />}'),
     "the old route still lands on the business",
   );
 
@@ -182,8 +195,11 @@ test("Settings is ordered you, then the business, then the people", () => {
 
   // AI memory is not in the rail: it renders the not-built pane for every real
   // workspace, so as a rail item it promised nothing. The route still answers.
-  assert.ok(!/\{ id: "memory",[^\n]*group:/.test(pane), "no rail item that never becomes content");
-  assert.ok(pane.includes('const SET_TABS_UNLISTED = [{ id: "memory"'), "but an old link still lands somewhere honest");
+  assert.ok(!/\{ id: "memory",[^\n]*group:/.test(frame["tabs.ts"]), "no rail item that never becomes content");
+  assert.ok(
+    frame["tabs.ts"].includes('const SET_TABS_UNLISTED: readonly SetTab[] = [{ id: "memory"'),
+    "but an old link still lands somewhere honest",
+  );
 });
 
 test("the workspace timezone is visible and an owner can change it", () => {
@@ -191,7 +207,7 @@ test("the workspace timezone is visible and an owner can change it", () => {
   // closures were upcoming and the hours the receptionist quoted -- with no
   // write path anywhere, so every workspace sat on 00001's America/New_York
   // default without being asked.
-  // The row is When you're open's (business-tab-open.jsx BtoZone, drawn as rec-row-timezone), beside the hours it
+  // The row is When you're open's (surfaces/settings/business/open.tsx BtoZone, drawn as rec-row-timezone), beside the hours it
   // qualifies; it saves through the workspace's own door and not the settings save, and the card a workspace with
   // no receptionist sees draws the same row. All three are drawn: business-tab-open.test.mjs, "the timezone row
   // says the zone and the time there, and saves through the workspace's own door", and business-tab-create.test.mjs.

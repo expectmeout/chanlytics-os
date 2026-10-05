@@ -5,17 +5,21 @@
  * tab's globals from the SAME scenario object (the server injects it into the bundle), so the spec and the page
  * cannot disagree the way two hand-built copies would.
  *
+ * Settings left the standalone mockup (decision 0015 step 11; Ruben, 4 Oct 2026), so no record is drawn as the Business
+ * tab any more: the nightly and the salon survive as the data the pipeline and the kit are built on, and as the
+ * workspaces the mockup's other pages are drawn for (the style-equality recorder's).
+ *
  *   nightly -- the seeded `chanlytics-e2e` workspace, DERIVED from tooling/scripts/ops/e2e-workspace.mjs rather than
  *              copied: the WHOLE config that converge writes (its notifications included, so what the read hands
  *              over is what the nightly's row holds), the line it provisions and the clock it sets. When the seed
  *              changes, this changes with it, which is the whole reason it imports rather than restates. No profile
- *              at all, which is what makes it the record the committed spec must pass on -- every list is empty and
- *              every fold opens on nothing.
+ *              at all: every list is empty and every fold opens on nothing.
  *   pipeline -- a studio that sends proposals (deals on, 0008) with People REAL over it: eight people across the
  *              Pipeline's four groups, in people_list's row shape and the person read's own, so e2e/people/people.spec.ts's
  *              Pipeline walk runs here -- the list, the peek, the person's page. Fictional, as the salon is.
  *   salon    -- a fuller record, for the branches the nightly's data cannot reach: a week of hours, closures AT the
- *              cap, services, and one language short of the cap so a single Add fills it. A FICTIONAL business: this
+ *              cap, services, and one language short of the cap so a single Add fills it (the Business tab's folds,
+ *              which were drawn here, are the app's own now). A FICTIONAL business: this
  *              file is committed, and no real business's name, address, number or link belongs in the tree.
  *   kit      -- no workspace of its own: the nightly's record, whose page is the kit's gallery
  *              (e2e-harness/kit-gallery.mjs) instead of the mockup, for e2e/kit/kit.spec.ts and for a person reviewing

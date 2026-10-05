@@ -1,7 +1,7 @@
 /**
  * Settings › Business, the page, EXECUTED on the stub React: the gap line, *Who you are* with each row
  * edited where it is stated, the tab's one saver, who may change it, and the two gestures every card draws its rows and
- * folds with (business-tab-gestures.jsx), tested through the rows and folds on the page. Each card's own tests are a
+ * folds with (surfaces/settings/business/gestures/), tested through the rows and folds on the page. Each card's own tests are a
  * file of their own (business-tab-open.test.mjs); the page, the fixture and the presses are _business-tab-harness.mjs.
  */
 import { test, after } from "node:test";
@@ -61,7 +61,7 @@ import {
 
 /**
  * The card PaneWorkspace draws INSTEAD of the page for a workspace whose config holds no brain
- * (pages/business-tab-create.jsx). Its own tests are business-tab-create.test.mjs; it is here because who may press
+ * (surfaces/settings/business/create.tsx). Its own tests are business-tab-create.test.mjs; it is here because who may press
  * its one act is the same question as who may press the page's, and the answer has to be one answer.
  */
 const drawCreateCard = () => {
@@ -2478,7 +2478,7 @@ test("on a phone a row open as a sheet is still drawn in its card behind it, so 
 });
 
 test("the line the page marks as changed is the line the kit draws as a new element, and no other", () => {
-  // changedLines (business-tab-folds.jsx) says which lines of a block are new; RecordSays keys each line by its words
+  // changedLines (surfaces/settings/business/folds.ts) says which lines of a block are new; RecordSays keys each line by its words
   // and which time they occur, so a line that is new to the browser is drawn as a new element, which is what lets the
   // wash play once as it arrives. The two must agree: a marked line that kept its element would never wash, and an
   // unmarked line that arrived new is simply drawn. Both count occurrences in order, so of two lines alike the LATER

@@ -51,7 +51,7 @@ test("an address is the slug encoded, with whatever rides after it; a hash route
   assert.equal(workspaceHref("a b", "#/inbox"), "/w/a%20b/inbox");
   assert.equal(
     workspaceHref("acme", "?billing=success#/admin/billing"),
-    "/w/acme/admin/billing?billing=success",
+    "/w/acme/settings/billing?billing=success",
     "and the query stays after the route, as a path's does",
   );
   assert.equal(workspaceHref("acme", "#/start"), "/w/acme/start", "the first run, for a workspace just made");
@@ -69,7 +69,7 @@ test("the home sends a tab to the last workspace used, else to the one the serve
   assert.equal(homeHref("acme", answer, "#/today"), "/w/acme/today", "the last one used wins");
   assert.equal(
     homeHref(null, answer, "?billing=success#/admin/billing"),
-    "/w/bayside/admin/billing?billing=success",
+    "/w/bayside/settings/billing?billing=success",
     "else the server's active one",
   );
   assert.equal(homeHref(null, { workspaces: [], activeWorkspaceId: null }), null, "nowhere: the create screen");

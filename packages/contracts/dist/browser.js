@@ -13432,7 +13432,8 @@ var ROUTE_WORDS = {
   clients: "people",
   segments: "lists",
   outbound: "playbooks",
-  messages: "templates"
+  messages: "templates",
+  admin: "settings"
 };
 var headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
 function doorOf(route) {

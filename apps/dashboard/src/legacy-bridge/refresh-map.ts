@@ -30,7 +30,7 @@ import { settingsOverride } from "./surfaces/settings";
 import { todayOverride } from "@/surfaces/today/surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
 import { billingOverride } from "@/surfaces/settings/billing/surface";
-import { partnerOverride } from "./partner";
+import { partnerOverride } from "@/surfaces/settings/partner/surface";
 import { googleOverride } from "./google";
 import { leadsOverride } from "@/surfaces/leads/surface";
 import { setupOverride } from "@/surfaces/setup/surface";
@@ -268,13 +268,13 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST vitals": "the page's field data, kept for the back office",
   "POST client-errors": "an error a boundary caught, told to the server's log; nothing on screen moves",
   // The partner's own pane and the team's partner card read their rows themselves, again after each act.
-  "POST partner": "the partner's account, published from the answer at once (partner.ts become)",
-  "PATCH partner": "the partner's letters, published from the answer at once (partner.ts setLetters)",
+  "POST partner": "the partner's account, published from the answer at once (settings/partner/surface.ts become)",
+  "PATCH partner": "the partner's letters, published from the answer at once (settings/partner/surface.ts setLetters)",
   "POST partner/workspaces": "the workspace set up, which the tab switches to when its invitation went",
   "POST partner/workspaces/[id]/resend": "an invitation sent again; the row says so from the answer",
   "POST partner/invitations/[id]/decline": "the invitation leaves the pane's own list, which it reads again",
-  "POST team/partner": "the team's partner card reads the workspace's partner again (partner-real.jsx)",
-  "DELETE team/partner": "the team's partner card reads the workspace's partner again (partner-real.jsx)",
+  "POST team/partner": "the team's partner card reads the workspace's partner again (settings/partner/team-card.tsx)",
+  "DELETE team/partner": "the team's partner card reads the workspace's partner again (settings/partner/team-card.tsx)",
   // The back office reads its own lists on demand (platform.ts): no surface holds them.
   "POST platform/jobs/requeue":
     "no pane shows the ledger: a support session asks, and the job runs on the next heartbeat",

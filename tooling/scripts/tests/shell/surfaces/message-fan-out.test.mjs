@@ -69,7 +69,7 @@ const REAL = [
   (await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts")).playbooksOverride,
   (await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts")).reachOutsOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/reach-out/replies.ts")).repliesOverride,
-  (await importSrc("apps/dashboard/src/legacy-bridge/partner.ts")).partnerOverride,
+  (await importSrc("apps/dashboard/src/surfaces/settings/partner/surface.ts")).partnerOverride,
   (await importSrc("apps/dashboard/src/surfaces/calendar/surface.ts")).calendarOverride,
   (await importSrc(`${S}/notifications.ts`)).notificationsOverride,
   (await importSrc("apps/dashboard/src/surfaces/setup/surface.ts")).setupOverride,

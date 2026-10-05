@@ -18,7 +18,7 @@
  * receptionist knows something it does not.
  *
  * What an owner sees of it is the Business tab's prompt sheet since Phase 5
- * (pages/business-tab-prompt.jsx), where PromptPreview's <pre> stood. This file
+ * (surfaces/settings/business/prompt.tsx), where PromptPreview's <pre> stood. This file
  * read the page's and the bridge's source for five guarantees; each is now held by
  * drawing the sheet, in business-tab-prompt.test.mjs, and named where it went:
  *   - the page reads only what the server composed, and composes nothing:

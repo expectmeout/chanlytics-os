@@ -247,7 +247,7 @@ export function consequenceFor(
 
 /** consequenceFor over this tab's window, at this moment: the one the page calls. */
 function consequenceOf(section: FoldSection, next: unknown, channel: "whatsapp" | "voice"): ConsequenceVM | null {
-  return consequenceFor(window as unknown as ConsequenceWindow, section, next, channel, new Date());
+  return consequenceFor(window, section, next, channel, new Date());
 }
 
 /**
