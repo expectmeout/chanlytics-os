@@ -5,9 +5,10 @@
  */
 import type { Tone } from "../shell/tone";
 import { FREE_MAIL_DOMAINS } from "./free-mail";
+import { formatterOnUse } from "../shared/time";
 
 /** "Sep 22": the day a hold began, as billing.ts says its dates. */
-const DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+const DAY_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
 
 export const SENDING_DOMAIN_STATES = ["records", "verifying", "verified", "held"] as const;
 export type SendingDomainState = (typeof SENDING_DOMAIN_STATES)[number];

@@ -167,7 +167,11 @@ var JITTER_SPREAD = 0.2;
 function jittered(ms2, random = Math.random) {
   return Math.round(ms2 * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
 }
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function formatterOnUse(locales, options) {
+  let built = null;
+  return { format: (date) => (built ??= new Intl.DateTimeFormat(locales, options)).format(date) };
+}
+var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
 function spanUnits(ms2) {
   const gap = Math.max(0, ms2);
   if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
@@ -16137,7 +16141,7 @@ function planBilling(before, sub, nowMs) {
   }
   return { row: row2, tenantStatus, switched, bell };
 }
-var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT2 = formatterOnUse("en-US", { month: "short", day: "numeric" });
 function dayWords(iso) {
   if (!iso) return "";
   const ms2 = Date.parse(iso);
@@ -19985,7 +19989,7 @@ var EMAIL_NOT_ANSWERED_SENTENCE = "The receptionist does not answer email yet: e
 var EMAIL_ELSEWHERE_SENTENCE = "Replies you send from another mail app do not show here.";
 
 // src/email/sending-domains.ts
-var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DAY_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
 var SENDING_DOMAIN_STATES = ["records", "verifying", "verified", "held"];
 var DOMAIN_HOLDS = ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"];
 var REPUTATION_HOLDS = ["bounces", "complaint", "unsubscribes"];
@@ -26210,7 +26214,7 @@ function bookedSeenOf(items, own) {
 
 // src/reports/campaign-report.ts
 var pct2 = (n, d) => d ? Math.round(n / d * 100) : null;
-var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN2 = formatterOnUse([], { month: "short", day: "numeric" });
 function toCampaignReportVM(dto) {
   const days = dto.days;
   const series = dto.series ?? [];

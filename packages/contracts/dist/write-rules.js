@@ -5,7 +5,11 @@ config({ jitless: true });
 // src/shared/time.ts
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function formatterOnUse(locales, options) {
+  let built = null;
+  return { format: (date) => (built ??= new Intl.DateTimeFormat(locales, options)).format(date) };
+}
+var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
 
 // src/calendar/feed-url.ts
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
