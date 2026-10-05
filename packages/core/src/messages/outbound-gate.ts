@@ -20,8 +20,12 @@
  * the defect 00095's own header names under UNDER-BLOCKING. It now takes the
  * person's consent row and the message's PURPOSE and asks `mayMessageFor`, so
  * there is one rule again and this file no longer holds a copy of it.
+ *
+ * WHY IT IS CORE'S. A rule the product enforces lives in packages/core (decision 0027): this one decides whether any
+ * automated message may go, for whichever sender asks, so it moved here from apps/edge/lib/receptionist (4 Oct 2026),
+ * unchanged, and the edge's voice path takes it through its package facade like every other rule it asks.
  */
-import { mayMessageFor, type PurposeBearing, type AskedPurpose, type MessageAbout } from "../packages/contracts.js";
+import { mayMessageFor, type PurposeBearing, type AskedPurpose, type MessageAbout } from "@chanlytics/contracts";
 
 interface OutboundFacts {
   /**
