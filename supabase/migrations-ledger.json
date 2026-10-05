@@ -38,7 +38,8 @@
     "00293": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00294": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00295": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
-    "00322": "another open pull request holds this number (the tables leave Postgres Changes, #1411); a stop ends the yes to offers was renumbered 00323 to land beside it"
+    "00322": "another open pull request holds this number (the tables leave Postgres Changes, #1411); a stop ends the yes to offers was renumbered 00323 to land beside it",
+    "00324": "another open pull request holds this number (the tables leave Postgres Changes, #1411); a message's status is told to its workspace took 00325 to land beside it"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -325,6 +326,7 @@
     "00319_a_message_keeps_what_it_cost_to_send.sql": "2eefe1efaa0727e6ea520443f115b25a5181e4e5abdd95a1e7e7cb2c3cdf504c",
     "00320_a_reply_and_where_they_last_wrote_are_a_person_s_own_words.sql": "857bed89a2fba1ed524dff69d997591ae2ec762ec712a4e2295a4a849c6b777e",
     "00321_a_run_made_or_moved_is_told_to_its_workspace.sql": "10ea22653db74d1d66481b2fe5c69e44dcb621e6233e1bf766ba34944b72760a",
-    "00323_a_stop_ends_the_yes_to_offers.sql": "6a9556aa23c09ad48bb6c0e5b09beae0352e5fad5aeae19e89ff0e0352d2eeef"
+    "00323_a_stop_ends_the_yes_to_offers.sql": "6a9556aa23c09ad48bb6c0e5b09beae0352e5fad5aeae19e89ff0e0352d2eeef",
+    "00325_a_message_s_status_is_told_to_its_workspace.sql": "c24601c42a66cfaa491b941803e23bb8806866dd6be21f4a73365c2e4634e59e"
   }
 }

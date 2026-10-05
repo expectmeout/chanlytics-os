@@ -2,7 +2,8 @@
  * The database tells each workspace what changed (decision 0019, 00265), on a real database.
  *
  * A statement on a watched table puts one notice per workspace it changed on that workspace's private topic,
- * `workspace:<id>:changes`, through realtime.send: the table and the operation, and a call's statuses, never the row.
+ * `workspace:<id>:changes`, through realtime.send: the table and the operation, and the statuses a call's or a
+ * message update's statement left, never the row.
  * The tables and events with a trigger are the ones packages/db realtime.ts lists (WATCHED), read from pg_trigger. And
  * Realtime lets a member listen to their workspaces' topics and nobody speak on them, which is probed here as Realtime
  * probes a join: a notice written, read back as the caller.
@@ -81,6 +82,11 @@ const messageIn = (body) => `
   insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body, status)
     values (a, conv, ca, 'whatsapp', 'inbound', 'customer', 'text', '${body}', 'received');`;
 
+/** An outbound message from the receptionist, in the workspace variable `tenant` on the thread `thread` with `contact`. */
+const messageOut = (tenant, thread, contact, body, status) => `
+  insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body, status)
+    values (${tenant}, ${thread}, ${contact}, 'whatsapp', 'outbound', 'ai', 'text', '${body}', '${status}');`;
+
 /** As Realtime probes a join: the caller's claims and the topic set, then the notice read back as them. */
 const asCaller = (claims, topic) => `
   perform set_config('request.jwt.claims', ${claims}::text, true);
@@ -95,7 +101,7 @@ let seen;
 function world() {
   seen ??= rolledBack(`
     declare
-      a uuid; b uuid; ta text; tb text; ca uuid; cb uuid; conv uuid; seg_a uuid; seg_b uuid;
+      a uuid; b uuid; ta text; tb text; ca uuid; cb uuid; conv uuid; conv_b uuid; seg_a uuid; seg_b uuid;
       member_a uuid := gen_random_uuid(); viewer_a uuid := gen_random_uuid(); partner_a uuid := gen_random_uuid();
       member_b uuid := gen_random_uuid(); probe_a uuid; probe_b uuid; n integer; spoke boolean; tr record;
       steps jsonb := '{}'; reads jsonb := '{}'; misfired jsonb := '[]';
@@ -117,6 +123,40 @@ function world() {
       update public.messages set status = 'read' where conversation_id = conv;
       delete from public.messages where conversation_id = conv;
       ${told("message_read_and_removed")}
+
+      -- A send's life in workspace a, and a send in b left where it was: the ticks, a failure, and a word on it later.
+      insert into public.conversations (tenant_id, contact_id) values (b, cb) returning id into conv_b;
+      ${messageOut("a", "conv", "ca", "We open at nine", "queued")}
+      ${messageOut("b", "conv_b", "cb", "We open at ten", "queued")}
+      ${told("sends_queued")}
+
+      update public.messages set status = 'sent' where tenant_id = a;
+      ${told("one_send_left")}
+
+      update public.messages set status = 'delivered' where tenant_id in (a, b);
+      ${told("a_receipt_for_each_workspace")}
+
+      ${messageOut("a", "conv", "ca", "Your slot is gone", "failed")}
+      ${told("a_send_failed")}
+      update public.messages set error = jsonb_build_object('detail', 'not on whatsapp') where tenant_id = a and status = 'failed';
+      ${told("the_failure_explained_later")}
+
+      update public.messages set meta = meta || '{"stamped": true}' where tenant_id = a;
+      ${told("two_statuses_in_one_statement")}
+
+      ${messageIn("A stamp will follow")}
+      ${told("message_in_before_its_stamp")}
+      update public.messages set meta = meta || '{"processed_at": "2026-10-05T10:00:00Z"}' where direction = 'inbound' and tenant_id = a;
+      ${told("an_arrival_stamped")}
+
+      -- One transaction: a receipt and the same status again is told once, a failure's own word apart.
+      update public.messages set status = 'read' where tenant_id = a and status = 'delivered';
+      update public.messages set meta = meta || '{"again": true}' where tenant_id = a and status = 'read';
+      update public.messages set meta = meta || '{"again": true}' where tenant_id = a and status = 'failed';
+      ${told("receipts_in_one_transaction")}
+
+      delete from public.messages where tenant_id in (a, b);
+      ${told("messages_removed")}
 
       insert into public.calls (tenant_id, retell_call_id, status) values
         (a, 'told-1', 'ongoing'), (a, 'told-2', 'ongoing'), (b, 'told-3', 'registered');
@@ -234,6 +274,12 @@ function world() {
   return seen;
 }
 
+/**
+ * The column a trigger's notice is judged by, as pg_trigger keeps its argument: a call's every event, and a message's
+ * update alone (an arrival names no status, and its notice is the one every tab heard before the update was told).
+ */
+const judgedBy = (tbl, event) => (tbl === "calls" || (tbl === "messages" && event === "UPDATE") ? "status\\000" : "");
+
 const notice = (to, event, table, statuses) => ({
   to,
   event,
@@ -253,7 +299,8 @@ test(
                      order by case when t.tgtype & 4 > 0 then 1 when t.tgtype & 16 > 0 then 2 else 3 end) as events,
            bool_and(t.tgtype & 1 = 0 and t.tgtype & 2 = 0 and t.tgtype & 64 = 0) as after_each_statement,
            bool_and(coalesce(t.tgnewtable, t.tgoldtable) = 'changed') as reads_what_changed,
-           array_agg(distinct encode(t.tgargs, 'escape')) as args
+           jsonb_object_agg(case when t.tgtype & 4 > 0 then 'INSERT' when t.tgtype & 16 > 0 then 'UPDATE' else 'DELETE' end,
+                            encode(t.tgargs, 'escape')) as args
       from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public' and t.tgname like 'workspace_tell_%' and not t.tgisinternal
        and t.tgfoid = 'public.workspace_tell_changes()'::regprocedure
@@ -266,8 +313,8 @@ test(
       assert.equal(r.reads_what_changed, true, `${r.tbl}: reads the rows its statement changed`);
       assert.deepEqual(
         r.args,
-        [r.tbl === "calls" ? "status\\000" : ""],
-        `${r.tbl}: the column its changes are judged by`,
+        Object.fromEntries(r.events.map((e) => [e, judgedBy(r.tbl, e)])),
+        `${r.tbl}: the column its changes are judged by, for each event`,
       );
     }
   },
@@ -297,13 +344,66 @@ test(
   },
 );
 
-test("a message is told when it arrives, not when it is read or removed", { skip }, () => {
+test("a message is told when it arrives and when its status moves, not when it is removed", { skip }, () => {
   const { steps } = world();
   assert.deepEqual(
     steps.message_read_and_removed.filter((n) => n.notice.table === "messages"),
-    [],
+    [notice("a", "UPDATE", "messages", ["read"])],
+    "the update that read it is told, with the status it left; its delete is not",
   );
 });
+
+const ofMessages = (told) => told.filter((n) => n.notice.table === "messages");
+
+test("a send's status moving is told to its workspace alone, with the status it left (00325)", { skip }, () => {
+  const { steps } = world();
+  assert.deepEqual(ofMessages(steps.sends_queued), [
+    notice("a", "INSERT", "messages"),
+    notice("b", "INSERT", "messages"),
+  ]);
+  assert.deepEqual(steps.one_send_left, [notice("a", "UPDATE", "messages", ["sent"])]);
+  assert.deepEqual(
+    steps.one_send_left.filter((n) => n.to === "b"),
+    [],
+    "the other workspace's queued send moved nowhere, and hears nothing",
+  );
+  assert.deepEqual(ofMessages(steps.a_receipt_for_each_workspace), [
+    notice("a", "UPDATE", "messages", ["delivered"]),
+    notice("b", "UPDATE", "messages", ["delivered"]),
+  ]);
+});
+
+test("a failure is told with its status, and a word written to it later says failed again", { skip }, () => {
+  const { steps } = world();
+  assert.deepEqual(ofMessages(steps.a_send_failed), [notice("a", "INSERT", "messages")]);
+  assert.deepEqual(ofMessages(steps.the_failure_explained_later), [notice("a", "UPDATE", "messages", ["failed"])]);
+  assert.deepEqual(
+    ofMessages(steps.two_statuses_in_one_statement),
+    [notice("a", "UPDATE", "messages", ["delivered", "failed"])],
+    "one statement over a delivered send and a failed one: one notice, both statuses",
+  );
+});
+
+test("an arrival's meta stamped after the fact is told as received, which no tick follows", { skip }, () => {
+  const { steps } = world();
+  assert.deepEqual(ofMessages(steps.message_in_before_its_stamp), [notice("a", "INSERT", "messages")]);
+  assert.deepEqual(ofMessages(steps.an_arrival_stamped), [notice("a", "UPDATE", "messages", ["received"])]);
+});
+
+test(
+  "a transaction tells a message's status once, and each other status a statement leaves; a delete tells nothing",
+  {
+    skip,
+  },
+  () => {
+    const { steps } = world();
+    assert.deepEqual(ofMessages(steps.receipts_in_one_transaction), [
+      notice("a", "UPDATE", "messages", ["failed"]),
+      notice("a", "UPDATE", "messages", ["read"]),
+    ]);
+    assert.deepEqual(ofMessages(steps.messages_removed), []);
+  },
+);
 
 test(
   "a call's notice carries its statuses: one statement ending one call and leaving another on carries both",

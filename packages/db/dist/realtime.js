@@ -1,8 +1,10 @@
 // src/realtime.ts
 var EVERY = ["INSERT", "UPDATE", "DELETE"];
 var INSERTS = ["INSERT"];
+var INSERTS_AND_UPDATES = ["INSERT", "UPDATE"];
 var WATCHED = [
-  { table: "messages", events: INSERTS },
+  { table: "messages", events: INSERTS_AND_UPDATES },
+  // arrivals, then a send's ticks and a failure written late: an update is told with its statuses (00325)
   { table: "conversations", events: EVERY },
   // the pause and snooze clocks, other tabs
   { table: "escalations", events: EVERY },

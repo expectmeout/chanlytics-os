@@ -2,10 +2,10 @@
  * The live feed (Blueprint §5, decision 0019): every surface hears the database through here, so no surface knows
  * how. The database tells each workspace what changed (00265): a notice on the private topic `workspace:<id>:changes`
  * when a statement on a watched table changes its rows, once a transaction for each table and event, naming the table
- * and the event, and a call's statuses. It never carries a row; a surface that wants one reads it. Realtime admits a
- * member to their workspaces' topics (the one policy on realtime.messages) and lets nobody speak on them. The session
- * token is pushed to Realtime EXPLICITLY before the channel joins: relying on supabase-js's auth-listener propagation
- * races the join, and a private channel that joins as `anon` is refused.
+ * and the event, and the statuses a call's or a message update's statement left. It never carries a row; a surface that
+ * wants one reads it. Realtime admits a member to their workspaces' topics (the one policy on realtime.messages) and
+ * lets nobody speak on them. The session token is pushed to Realtime EXPLICITLY before the channel joins: relying on
+ * supabase-js's auth-listener propagation races the join, and a private channel that joins as `anon` is refused.
  *
  * The topic is the authorization, so it carries no caller's suffix, and realtime-js hands back the channel it already
  * has for a topic and joins it once. So each client keeps one channel per topic and counts who listens on it: two
@@ -24,6 +24,7 @@ export interface SubscribeOptions {
 type Event = "INSERT" | "UPDATE" | "DELETE";
 const EVERY: readonly Event[] = ["INSERT", "UPDATE", "DELETE"];
 const INSERTS: readonly Event[] = ["INSERT"];
+const INSERTS_AND_UPDATES: readonly Event[] = ["INSERT", "UPDATE"];
 
 /**
  * Tables whose changes must repaint the live surfaces (Blueprint §5), and the events each is told for. 00265's loop
@@ -31,7 +32,7 @@ const INSERTS: readonly Event[] = ["INSERT"];
  * joins the live feed with its trigger, in one change.
  */
 const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
-  { table: "messages", events: INSERTS },
+  { table: "messages", events: INSERTS_AND_UPDATES }, // arrivals, then a send's ticks and a failure written late: an update is told with its statuses (00325)
   { table: "conversations", events: EVERY }, // the pause and snooze clocks, other tabs
   { table: "escalations", events: EVERY }, // opened by the edge, resolved elsewhere
   { table: "calls", events: EVERY }, // a call starting, each live turn, its end, its analysis: told with its statuses
@@ -74,7 +75,7 @@ export function watchedEvents(): Array<{ table: string; events: Event[] }> {
   return WATCHED.map((w) => ({ table: w.table, events: [...w.events] }));
 }
 
-/** What a surface hears of a change: the workspace, and a call's status. Never the row. */
+/** What a surface hears of a change: the workspace, and a call's or a message update's status. Never the row. */
 type OnChange = (row: { tenant_id: string; status?: string }, table: string, event: string) => void;
 
 interface Listener {
@@ -97,7 +98,7 @@ const hearings = new WeakMap<object, Map<string, Hearing>>();
 
 export function subscribeWorkspaceChanges(
   client: SupabaseClient<Database>,
-  /** Called with the table a change was told for, its event, and a row of the workspace and a call's status. */
+  /** Called with the table a change was told for, its event, and a row of the workspace and its status, where it has one. */
   onChange: OnChange,
   opts: SubscribeOptions = {},
 ): () => void {
@@ -180,9 +181,9 @@ function report(listener: Listener, topic: string, status: string): void {
 }
 
 /**
- * A notice, handed to each listener as a change: its table, its event, and a row of the workspace. A call's notice
- * carries the statuses its statement left, and each is a change of its own, so a rule that reads a call's status
- * reads every one.
+ * A notice, handed to each listener as a change: its table, its event, and a row of the workspace. A call's notice,
+ * and a message update's, carries the statuses its statement left, and each is a change of its own, so a rule that
+ * reads a status reads every one.
  */
 function tell(hearing: Hearing, tenantId: string, message: { event?: string; payload?: unknown }): void {
   const notice = (message.payload ?? {}) as { table?: unknown; statuses?: unknown };

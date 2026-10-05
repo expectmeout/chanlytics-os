@@ -24013,6 +24013,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.lines REFERENCING NE
 
 
 --
+-- Name: messages workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.messages REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes('status');
+
+
+--
 -- Name: person_notes workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
