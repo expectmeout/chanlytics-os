@@ -1225,8 +1225,8 @@ test("register: the one free path — a campaign the carriers sent back, correct
   const f = form(req);
   assert.match(
     f.get("Description"),
-    /^About Harbor Moving \(Harbor Moving LLC\): A moving company in Brooklyn[^]*\. Messages are sent by Harbor Moving \(Harbor Moving LLC\) to its own customers/,
-    "the workspace's CURRENT name, beside the registered one -- the corrections are the point",
+    /^Messages are sent by Harbor Moving LLC, doing business as Harbor Moving, to its own customers and prospects who opted in\. A moving company in Brooklyn/,
+    "the workspace's CURRENT name, doing business under the registered one -- the corrections are the point",
   );
   assert.ok(
     namesPage(f.get("MessageFlow"), "https://dash.test/yes/harbor-moving"),
@@ -1239,7 +1239,7 @@ test("register: the one free path — a campaign the carriers sent back, correct
   );
   assert.equal(f.get("TermsAndConditionsUrl"), "https://dash.test/b/harbor-moving/terms");
   const samples = f.getAll("MessageSamples");
-  assert.equal(samples.length, 4);
+  assert.equal(samples.length, 5, "five, in the shape the carriers approved (5 Oct 2026)");
   assert.ok(
     samples.some((s) => s.includes("+1 (305) 555-0100")),
     "the workspace's own line in the sample that shows a number",

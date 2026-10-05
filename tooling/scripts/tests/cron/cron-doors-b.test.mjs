@@ -2459,6 +2459,101 @@ test("registrations: nothing with the carriers is a quiet 200; both waiting stat
   );
 });
 
+test("registrations: a refused campaign is still asked about, so one corrected and resubmitted in Twilio's console turns texting on and its owner hears; a refused line whose campaign was taken off is not asked about at all, so the sweep never files one for it", async () => {
+  // 5 Oct 2026: the Chanlytics campaign was revised in the console after its ninth refusal and approved there, and the
+  // row still said `rejected` weeks later -- the sweep asked only about the two waiting states, so nothing read it
+  // again, and the workspace's texting stayed off for a filing the carriers had passed.
+  const T = tenant(410);
+  const resubmitted = uuid(411),
+    still = uuid(412),
+    bare = uuid(413);
+  const tables = {
+    tenants: [tenantRow(T)],
+    lines: [
+      waiting(T, resubmitted, {
+        sms_state: "rejected",
+        last_error: "provided Opt-in information (30896 · MESSAGE_FLOW)",
+        brand_sid: "BN0011",
+        messaging_service_sid: "MG0011",
+        campaign_sid: "QE0011",
+        updated_at: ago(5 * HOUR),
+      }),
+      waiting(T, still, {
+        sms_state: "rejected",
+        last_error: "the carriers sent the registration back",
+        brand_sid: "BN0012",
+        messaging_service_sid: "MG0012",
+        campaign_sid: "QE0012",
+        updated_at: ago(3 * HOUR),
+      }),
+      // Refused, its campaign taken off and never replaced: the brand is approved and nothing is on file, which for a
+      // waiting line means "file it now". For a refused one it is the owner's to decide, and a new filing is a fee.
+      waiting(T, bare, {
+        sms_state: "rejected",
+        brand_sid: "BN0013",
+        messaging_service_sid: "MG0013",
+        campaign_sid: null,
+        updated_at: ago(HOUR),
+      }),
+    ],
+    business_records: [{ tenant_id: T, ...RECORD }],
+    notifications: [],
+    events: [],
+  };
+  use(tables, VAULT);
+  const carrier = wired((req) => {
+    if (/\/BrandRegistrations\/BN001[123]$/.test(req.url))
+      return { status: 200, body: { status: "APPROVED", failure_reason: null } };
+    if (req.url.endsWith("/Services/MG0011/Compliance/Usa2p"))
+      return {
+        status: 200,
+        body: { compliance: [{ sid: "QE0011", campaign_status: "VERIFIED", mock: false, errors: [] }], meta: {} },
+      };
+    if (req.url.endsWith("/Services/MG0012/Compliance/Usa2p"))
+      return {
+        status: 200,
+        body: {
+          compliance: [
+            {
+              sid: "QE0012",
+              campaign_status: "FAILED",
+              mock: false,
+              errors: [{ error_code: 30896, description: "provided Opt-in information", fields: ["MESSAGE_FLOW"] }],
+            },
+          ],
+          meta: {},
+        },
+      };
+    if (req.url.endsWith("/Services/MG0013/Compliance/Usa2p"))
+      return { status: 200, body: { compliance: [], meta: {} } };
+    throw new Error(`unexpected ${req.method} ${req.url}`);
+  });
+  await withEnv(FILING, async () => {
+    const [status, body] = await answer(await knock("registrations"));
+    assert.equal(status, 200);
+    assert.equal(body.checked, 2, "every refused line with a campaign on file, and only those");
+    assert.equal(body.campaigns_filed, 0, "and none is filed for");
+  });
+  assert.ok(
+    carrier.calls.every((c) => c.method === "GET"),
+    "nothing but reads: a refused line's campaign is never filed, replaced or deleted by the sweep",
+  );
+  const row = (id) => tables.lines.find((l) => l.id === id);
+  assert.equal(row(resubmitted).sms_state, "active", "passed in the console: texting is on");
+  assert.equal(row(resubmitted).last_error, null, "and the old refusal is cleared");
+  assert.equal(row(still).sms_state, "rejected", "still refused: still refused");
+  assert.ok(
+    !carrier.calls.some((c) => c.url.includes("BN0013") || c.url.includes("MG0013")),
+    "a refused line with no campaign on file is not asked about: read as 'brand approved, nothing filed', the next hour would file one, a fee its owner never chose",
+  );
+  assert.equal(row(bare).sms_state, "rejected", "and it stays refused until its owner replaces the campaign");
+  assert.deepEqual(
+    tables.notifications.map((n) => [n.kind, n.title, n.subject_id]),
+    [["number", "Texting is on: +1 (305) 555-0100", resubmitted]],
+    "the owner hears once, for the one that moved",
+  );
+});
+
 test("registrations: a line the vault holds no token for is written to (last_error) so it moves down the queue instead of holding the page for ever; a refused token is re-read as the parent and kept; every line unreadable is a 503 for the sweep's watcher, some readable a 200", async () => {
   const T = tenant(401);
   const noToken = uuid(411),
@@ -2641,14 +2736,14 @@ test("registrations: once the carriers approve the brand, the campaign they were
     "linked in the flow too (30908, 30909)",
   );
   assert.ok(
-    filed.get("Description").startsWith("About Harbor Moving (Harbor Moving LLC): A moving company in Brooklyn"),
-    "what the business does comes first, so a reviewer can tell what kind of business sends (30919, 22 Sep 2026)",
+    filed
+      .get("Description")
+      .startsWith(
+        "Messages are sent by Harbor Moving LLC, doing business as Harbor Moving, to its own customers and prospects who opted in. A moving company in Brooklyn",
+      ),
+    "who sends to whom, then what the business does, so a reviewer can tell what kind of business sends (30919, 22 Sep 2026), in the shape the carriers approved (5 Oct 2026)",
   );
-  assert.ok(
-    filed.get("Description").includes(" Messages are sent by Harbor Moving (Harbor Moving LLC) to its own customers"),
-    "the registered name beside the trade name, so a reviewer matches the campaign to the brand",
-  );
-  assert.equal(filed.getAll("MessageSamples").length, 4);
+  assert.equal(filed.getAll("MessageSamples").length, 5);
 
   const row = tables.lines[0];
   assert.deepEqual(
