@@ -72,7 +72,7 @@ interface MessageRow {
  * A failed message's error as the DTO carries it: the object the row keeps, for a message that failed and nothing for
  * any other, so the owner's thread can say why (contracts sendFailureWords) and a message that arrived carries none.
  */
-export function failedErrorOf(status: string, error: unknown): Pick<MessageDto, "error"> {
+function failedErrorOf(status: string, error: unknown): Pick<MessageDto, "error"> {
   return status === "failed" && error !== null && typeof error === "object" && !Array.isArray(error)
     ? { error: error as Record<string, unknown> }
     : {};

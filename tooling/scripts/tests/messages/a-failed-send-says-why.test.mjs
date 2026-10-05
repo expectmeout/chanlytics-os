@@ -21,8 +21,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const kernel = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
-const { messagesOf } = await import(at("apps/dashboard/src/server/readers/conversation.ts"));
-const { failedErrorOf, groupMessages } = await import(at("apps/dashboard/src/server/dto.ts"));
+const { groupMessages } = await import(at("apps/dashboard/src/server/dto.ts"));
 
 const ZONE = "America/New_York";
 
@@ -188,12 +187,6 @@ test("a text's failure is read as Twilio's, an email's as the mail provider's, o
 /* -------------------------------------------------------------- what the server carries */
 
 test("a failed message's error travels in the DTO, and no other message carries one", () => {
-  assert.deepEqual(failedErrorOf("failed", REENGAGE), { error: REENGAGE });
-  for (const status of ["sent", "delivered", "read", "queued", "canceled", "received"])
-    assert.deepEqual(failedErrorOf(status, REENGAGE), {}, status);
-  for (const junk of [null, undefined, "x", 3, [REENGAGE]])
-    assert.deepEqual(failedErrorOf("failed", junk), {}, String(junk));
-
   const row = (id, status, error) => ({
     id,
     conversation_id: "c1",
@@ -217,6 +210,15 @@ test("a failed message's error travels in the DTO, and no other message carries 
   ]).get("c1");
   assert.deepEqual(bad.error, REENGAGE);
   assert.deepEqual([none.error, ok.error], [undefined, undefined]);
+  // What is not an object is no error: a string, a number or a list says nothing a person could read.
+  for (const junk of [null, "x", 3, [REENGAGE]]) {
+    const [m] = groupMessages([row("4", "failed", junk)]).get("c1");
+    assert.equal(m.error, undefined, String(junk));
+  }
+  for (const status of ["sent", "read", "queued", "canceled", "received"]) {
+    const [m] = groupMessages([row("5", status, REENGAGE)]).get("c1");
+    assert.equal(m.error, undefined, status);
+  }
 });
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -287,14 +289,4 @@ test("the Inbox's read asks for the errors of its failed messages, and of nothin
   const quiet = ctxOf({ conversations: [convo("c1")], messages: [row("m5", "c1")] });
   await kernel.load(turn(quiet), conversations, { ids: null });
   assert.equal(quiet.supabase.seen.filter((q) => q.table === "messages" && q.op === "select").length, 0);
-});
-
-test("a thread read by itself carries a failed message's error too", async () => {
-  const ctx = ctxOf({
-    conversations: [convo("c1")],
-    messages: [row("m1", "c1", { status: "failed", error: REENGAGE }), row("m2", "c1", { status: "sent" })],
-  });
-  const list = (await kernel.load(turn(ctx), messagesOf, { id: "c1", before: null })).data;
-  assert.deepEqual(list.find((m) => m.id === "m1").error, REENGAGE);
-  assert.equal(list.find((m) => m.id === "m2").error, undefined);
 });
