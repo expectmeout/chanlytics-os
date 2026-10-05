@@ -18,7 +18,9 @@ import {
   DECISION_VERBS,
   EVERYONE_LABEL,
   UNKNOWN_AUDIENCE_WORDS,
+  CONSENT_LIST_IDS,
   doorNamesNoAudience,
+  doorOf,
   PEOPLE_LISTS,
   broadcastName,
   channelsReady,
@@ -1094,8 +1096,13 @@ test("a door to the composer that names a list it does not offer says so: it ope
     assert.equal(doorNamesNoAudience(to, audiences), true, to);
   // Before the audiences are read nothing is known, so nothing is said.
   assert.equal(doorNamesNoAudience("s-archived", null), false);
+  // The consent lists are named once, for the composer's audiences and for this door (CONSENT_LIST_IDS).
+  assert.deepEqual([...CONSENT_LIST_IDS], ["opted_in", "offers_ok", "opted_out"]);
+  // People's own step for the Can receive offers list writes this door: the composer, on Everyone, with no word.
+  assert.equal(doorOf("broadcasts/offers_ok"), "campaigns/new:to:offers_ok");
+  assert.equal(doorNamesNoAudience("offers_ok", audiences), false);
   assert.equal(
     UNKNOWN_AUDIENCE_WORDS,
-    "That list isn't one a message can go to, so this is addressed to Everyone. Choose who it goes to before you send.",
+    "That list can't be messaged right now, so check who this is addressed to before you send.",
   );
 });

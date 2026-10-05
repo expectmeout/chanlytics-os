@@ -98,9 +98,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT contacts/marketing-consent": consentWrite,
   "PUT contacts/receptionist": people,
   "PUT contacts/notes": people,
-  "PUT contacts/[id]/details": personAndThreads,
+  // Their details carry the email address a campaign by email goes to: the audiences count by it.
+  "PUT contacts/[id]/details": () => [...personAndThreads(), ...audiences()],
   // A deal moves People's row and lists, and Reports' Deals section counts it (0004).
-  "POST contacts/[id]/deal": () => [peopleOverride, reportsOverride],
+  "POST contacts/[id]/deal": () => [peopleOverride, reportsOverride, ...audiences()],
   // A note may be a step, and a row carries the next one (00166): the Pipeline, Steps due and Today follow it.
   "POST contacts/[id]/notes": people,
   "POST contacts/[id]/notes/done": people,

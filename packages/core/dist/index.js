@@ -2038,8 +2038,8 @@ var READY_WHATSAPP_ALONE = {
   sms: { ready: false, why: CHANNEL_WORDS.unchecked },
   email: { ready: false, why: CHANNEL_WORDS.unchecked }
 };
-var EVERYONE_LABEL = "Everyone";
-var UNKNOWN_AUDIENCE_WORDS = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL}. Choose who it goes to before you send.`;
+var CONSENT_LIST_IDS = ["opted_in", "offers_ok", "opted_out"];
+var LISTS_THAT_MEAN_EVERYONE = CONSENT_LIST_IDS.filter((id) => id !== "opted_out");
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -4280,8 +4280,8 @@ var PLAYBOOK_VETO_DELAY_WORDS2 = delayWords2(PLAYBOOK_VETO_DELAY_MS2);
 function vetoRunNotice(name, people, when) {
   const who = `${people} ${people === 1 ? "person" : "people"}`;
   return {
-    subject: `Playbook \u201C${name}\u201D sends at ${when}: ${who}`,
-    body: `${who} will be sent \u201C${name}\u201D at ${when}. Stop the run on Today or in Campaigns before then if it should not go.`
+    subject: `Playbook \u201C${name}\u201D sends ${when}: ${who}`,
+    body: `${who} will be sent \u201C${name}\u201D ${when}. Stop the run on Today or in Campaigns before then if it should not go.`
   };
 }
 var PLAYBOOK_NAME_MAX = 80;
@@ -5043,6 +5043,9 @@ function wall(atMs, tz) {
   WALLS.set(id, made);
   return made;
 }
+function shiftDay(key, days) {
+  return new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)) + days)).toISOString().slice(0, 10);
+}
 function zoneDayKey(atMs, tz) {
   return wall(atMs, tz).key;
 }
@@ -5052,6 +5055,14 @@ function clockTime(atMs, tz) {
 function clockDate(atMs, tz, nowMs) {
   const f = formatsFor(tz);
   return wall(atMs, tz).year === wall(nowMs, tz).year ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
+}
+function clockWhen(atMs, tz, nowMs) {
+  const time = clockTime(atMs, tz);
+  const day = zoneDayKey(atMs, tz);
+  const today = zoneDayKey(nowMs, tz);
+  if (day === today) return `today ${time}`;
+  if (day === shiftDay(today, 1)) return `tomorrow ${time}`;
+  return `${clockDate(atMs, tz, nowMs)} \xB7 ${time}`;
 }
 function wallClockAt(tz, dayKey2, hh, mm) {
   return localToUtcMs(
@@ -7865,8 +7876,9 @@ function audienceTrigger(audience) {
   const t = audience && typeof audience === "object" ? audience.trigger : null;
   return typeof t === "string" ? t : null;
 }
-var EVERYONE_LABEL2 = "Everyone";
-var UNKNOWN_AUDIENCE_WORDS2 = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL2}. Choose who it goes to before you send.`;
+var EVERYONE_LABEL = "Everyone";
+var CONSENT_LIST_IDS2 = ["opted_in", "offers_ok", "opted_out"];
+var LISTS_THAT_MEAN_EVERYONE2 = CONSENT_LIST_IDS2.filter((id) => id !== "opted_out");
 function enrolFor(rows, kind, id, savedIds, purpose, how) {
   const out = [];
   for (const row2 of audienceMembers(rows, kind, id, savedIds)) {
@@ -12796,8 +12808,8 @@ var READY_WHATSAPP_ALONE3 = {
   sms: { ready: false, why: CHANNEL_WORDS3.unchecked },
   email: { ready: false, why: CHANNEL_WORDS3.unchecked }
 };
-var EVERYONE_LABEL3 = "Everyone";
-var UNKNOWN_AUDIENCE_WORDS3 = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL3}. Choose who it goes to before you send.`;
+var CONSENT_LIST_IDS3 = ["opted_in", "offers_ok", "opted_out"];
+var LISTS_THAT_MEAN_EVERYONE3 = CONSENT_LIST_IDS3.filter((id) => id !== "opted_out");
 var LIMIT_TIERS3 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -16558,8 +16570,8 @@ async function sayTheRun(run, made) {
     }
   });
   if (mode === "veto" && by.kind !== "user") {
-    const told = vetoRunNotice(p.name, n, clockTime(at.getTime(), ctx.tz));
-    await ports.notify(told.subject, told.body);
+    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
+    await ports.notify(told.subject, told.body).catch(() => void 0);
   }
 }
 async function runPlaybook(ports, cmd) {
@@ -16765,7 +16777,7 @@ async function campaignHowOf(ports, tpl, channels, purpose) {
 }
 async function audienceOf(ports, ref, now) {
   const rows = await ports.people(now);
-  if (!ref) return { pool: rows, label: EVERYONE_LABEL2, kept: void 0 };
+  if (!ref) return { pool: rows, label: EVERYONE_LABEL, kept: void 0 };
   const found = await ports.list(ref, now);
   if (!found) throw new AppError("not_found", "List not found.", 404);
   if ("unknown" in found) throw new AppError("conflict", `${found.label} can't be counted here. ${found.unknown}`, 409);

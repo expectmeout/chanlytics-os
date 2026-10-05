@@ -608,8 +608,8 @@ var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 function vetoRunNotice(name, people, when) {
   const who = `${people} ${people === 1 ? "person" : "people"}`;
   return {
-    subject: `Playbook \u201C${name}\u201D sends at ${when}: ${who}`,
-    body: `${who} will be sent \u201C${name}\u201D at ${when}. Stop the run on Today or in Campaigns before then if it should not go.`
+    subject: `Playbook \u201C${name}\u201D sends ${when}: ${who}`,
+    body: `${who} will be sent \u201C${name}\u201D ${when}. Stop the run on Today or in Campaigns before then if it should not go.`
   };
 }
 var PLAYBOOK_NAME_MAX = 80;
@@ -7908,12 +7908,13 @@ function audienceTrigger(audience) {
 }
 var EVERYONE_LABEL = "Everyone";
 var EVERYONE_HINT = "Everyone we can reach whose yes covers the message you pick, and by email whoever has dealt with you";
-var LISTS_THAT_MEAN_EVERYONE = ["opted_in", "offers_ok"];
+var CONSENT_LIST_IDS = ["opted_in", "offers_ok", "opted_out"];
+var LISTS_THAT_MEAN_EVERYONE = CONSENT_LIST_IDS.filter((id) => id !== "opted_out");
 function doorNamesNoAudience(to, audiences) {
   if (!to || !audiences || LISTS_THAT_MEAN_EVERYONE.includes(to)) return false;
   return !audiences.some((a) => (a.kind === "saved" || a.kind === "list") && a.id === to);
 }
-var UNKNOWN_AUDIENCE_WORDS = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL}. Choose who it goes to before you send.`;
+var UNKNOWN_AUDIENCE_WORDS = "That list can't be messaged right now, so check who this is addressed to before you send.";
 function eligibleFor(rows, kind, id, savedIds, purpose, how) {
   return enrolFor(rows, kind, id, savedIds, purpose, how).map((e) => e.row);
 }
@@ -8711,7 +8712,7 @@ function playbookName(trigger, tpl) {
 // src/people/people-lists.ts
 var GET_YES_ROUTE = "broadcasts/get-yes";
 var USE_IN_A_BROADCAST = "Use in a broadcast";
-var OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "campaigns/new", broadcast: true };
+var OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts/offers_ok", broadcast: true };
 var LIST_STEPS = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
   waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
@@ -23858,10 +23859,11 @@ function whoWill(p) {
   switch (reach) {
     case "sends": {
       const all = p.candidates ?? 0;
-      const next = p.cap_per_run && p.cap_per_run > 0 ? Math.min(all, p.cap_per_run) : all;
+      const cap = triggerOf(p.trigger)?.kind === "visit" ? 0 : p.cap_per_run ?? 0;
+      const next = cap > 0 ? Math.min(all, cap) : all;
       const later = all - next;
       return {
-        why: `${next}${of} will get it` + (later > 0 ? ` \xB7 ${later} more on later runs, ${p.cap_per_run} a run` : "") + (p.held ? ` \xB7 ${p.held} heard from you this week and wait` : ""),
+        why: `${next}${of} will get it` + (later > 0 ? ` \xB7 up to ${later} more on later runs, ${cap} a run` : "") + (p.held ? ` \xB7 ${p.held} heard from you this week and wait` : ""),
         pill: { tone: "ok", label: plural(next, "person", "people") }
       };
     }
@@ -31737,6 +31739,7 @@ export {
   CONNECTION_KINDS,
   CONSENT_CHANNELS,
   CONSENT_CHANNEL_WORDS,
+  CONSENT_LIST_IDS,
   CONSENT_PHRASE,
   CONSENT_PHRASE_ES,
   CONSENT_RESET_SOURCE,

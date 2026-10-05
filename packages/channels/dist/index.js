@@ -2179,8 +2179,8 @@ var READY_WHATSAPP_ALONE = {
   sms: { ready: false, why: CHANNEL_WORDS.unchecked },
   email: { ready: false, why: CHANNEL_WORDS.unchecked }
 };
-var EVERYONE_LABEL = "Everyone";
-var UNKNOWN_AUDIENCE_WORDS = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL}. Choose who it goes to before you send.`;
+var CONSENT_LIST_IDS = ["opted_in", "offers_ok", "opted_out"];
+var LISTS_THAT_MEAN_EVERYONE = CONSENT_LIST_IDS.filter((id) => id !== "opted_out");
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,

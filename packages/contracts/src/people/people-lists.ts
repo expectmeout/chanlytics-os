@@ -38,9 +38,12 @@ const USE_IN_A_BROADCAST = "Use in a broadcast";
 
 // Broadcasts has no audience for this list: its people are exactly who a broadcast reaches, so the composer opens on
 // Everyone, and the button says who that reaches. It said "New broadcast" here and "Use in a broadcast" on Lists,
-// and opened an audience with another name. The composer is Campaigns' New message (`campaigns/new`): `broadcasts`
-// alone is the Sent room, which is where this button landed, a list of what went out and nothing to write in.
-const OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "campaigns/new", broadcast: true };
+// and opened an audience with another name. The door names this list, as every list's step names its own
+// (`broadcasts/<list>` lands on `campaigns/new:to:<list>`, contracts doorOf): the composer reads a consent list as
+// Everyone (CONSENT_LIST_IDS), and a door that names a list wins over a draft kept in the tab, which a bare
+// `campaigns/new` does not. `broadcasts` alone is the Sent room, which is where this button landed: a list of what
+// went out and nothing to write in.
+const OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts/offers_ok", broadcast: true };
 
 /**
  * `answered`: what a step that is a door to the yes to offers becomes once everyone on the list has given it. Asking

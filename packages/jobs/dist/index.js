@@ -1880,8 +1880,8 @@ var READY_WHATSAPP_ALONE = {
   sms: { ready: false, why: CHANNEL_WORDS.unchecked },
   email: { ready: false, why: CHANNEL_WORDS.unchecked }
 };
-var EVERYONE_LABEL = "Everyone";
-var UNKNOWN_AUDIENCE_WORDS = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL}. Choose who it goes to before you send.`;
+var CONSENT_LIST_IDS = ["opted_in", "offers_ok", "opted_out"];
+var LISTS_THAT_MEAN_EVERYONE = CONSENT_LIST_IDS.filter((id) => id !== "opted_out");
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -5823,8 +5823,8 @@ var READY_WHATSAPP_ALONE2 = {
   sms: { ready: false, why: CHANNEL_WORDS2.unchecked },
   email: { ready: false, why: CHANNEL_WORDS2.unchecked }
 };
-var EVERYONE_LABEL2 = "Everyone";
-var UNKNOWN_AUDIENCE_WORDS2 = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL2}. Choose who it goes to before you send.`;
+var CONSENT_LIST_IDS2 = ["opted_in", "offers_ok", "opted_out"];
+var LISTS_THAT_MEAN_EVERYONE2 = CONSENT_LIST_IDS2.filter((id) => id !== "opted_out");
 var LIMIT_TIERS2 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -9548,8 +9548,8 @@ var READY_WHATSAPP_ALONE3 = {
   sms: { ready: false, why: CHANNEL_WORDS3.unchecked },
   email: { ready: false, why: CHANNEL_WORDS3.unchecked }
 };
-var EVERYONE_LABEL3 = "Everyone";
-var UNKNOWN_AUDIENCE_WORDS3 = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL3}. Choose who it goes to before you send.`;
+var CONSENT_LIST_IDS3 = ["opted_in", "offers_ok", "opted_out"];
+var LISTS_THAT_MEAN_EVERYONE3 = CONSENT_LIST_IDS3.filter((id) => id !== "opted_out");
 var LIMIT_TIERS3 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -13518,8 +13518,8 @@ var READY_WHATSAPP_ALONE4 = {
   sms: { ready: false, why: CHANNEL_WORDS4.unchecked },
   email: { ready: false, why: CHANNEL_WORDS4.unchecked }
 };
-var EVERYONE_LABEL4 = "Everyone";
-var UNKNOWN_AUDIENCE_WORDS4 = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL4}. Choose who it goes to before you send.`;
+var CONSENT_LIST_IDS4 = ["opted_in", "offers_ok", "opted_out"];
+var LISTS_THAT_MEAN_EVERYONE4 = CONSENT_LIST_IDS4.filter((id) => id !== "opted_out");
 var LIMIT_TIERS4 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -17778,8 +17778,8 @@ function audienceTrigger(audience) {
   const t = audience && typeof audience === "object" ? audience.trigger : null;
   return typeof t === "string" ? t : null;
 }
-var EVERYONE_LABEL22 = "Everyone";
-var UNKNOWN_AUDIENCE_WORDS22 = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL22}. Choose who it goes to before you send.`;
+var CONSENT_LIST_IDS22 = ["opted_in", "offers_ok", "opted_out"];
+var LISTS_THAT_MEAN_EVERYONE22 = CONSENT_LIST_IDS22.filter((id) => id !== "opted_out");
 var LIMIT_TIERS22 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -21397,8 +21397,8 @@ var READY_WHATSAPP_ALONE32 = {
   sms: { ready: false, why: CHANNEL_WORDS32.unchecked },
   email: { ready: false, why: CHANNEL_WORDS32.unchecked }
 };
-var EVERYONE_LABEL32 = "Everyone";
-var UNKNOWN_AUDIENCE_WORDS32 = `That list isn't one a message can go to, so this is addressed to ${EVERYONE_LABEL32}. Choose who it goes to before you send.`;
+var CONSENT_LIST_IDS32 = ["opted_in", "offers_ok", "opted_out"];
+var LISTS_THAT_MEAN_EVERYONE32 = CONSENT_LIST_IDS32.filter((id) => id !== "opted_out");
 var LIMIT_TIERS32 = {
   TIER_50: 50,
   TIER_250: 250,

@@ -7,6 +7,7 @@
 import { api, read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import {
+  CONSENT_LIST_IDS,
   PEOPLE_LISTS,
   savedListIds,
   savedListLookup,
@@ -201,9 +202,7 @@ function listIsAnAudience(
   has: { calendar: boolean; consultFirst: boolean; deals: boolean },
 ): boolean {
   return (
-    l.id !== "opted_in" &&
-    l.id !== "offers_ok" &&
-    l.id !== "opted_out" &&
+    !CONSENT_LIST_IDS.includes(l.id) &&
     (!l.needsCalendar || has.calendar) &&
     (!l.needsConsultFirst || has.consultFirst) &&
     (!l.needsDeals || has.deals)

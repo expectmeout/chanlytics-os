@@ -67,8 +67,10 @@ export function useBcList(initialSegment: string | null, audiences: AudienceOpti
 }
 
 /**
- * A door that names a list the composer does not offer opens on Everyone (useBcList): said once for each such door,
- * when the audiences are read, so a message meant for a few is not one press from everybody without a word.
+ * A door that names a list the composer does not offer leaves the composer on another audience (useBcList: Everyone on
+ * a first draw, wherever it was on a page already open): said when the audiences are read, so a message meant for one
+ * list is not one press from other people without a word. Each door is judged once, whatever it names, so the same
+ * door opened again after another is said again.
  */
 export function useUnknownAudienceNotice(
   initialSegment: string | null,
@@ -77,9 +79,10 @@ export function useUnknownAudienceNotice(
 ) {
   const told = useRef<string | null>(null);
   useEffect(() => {
-    if (told.current === initialSegment || !doorNamesNoAudience(initialSegment, audiences ?? null)) return;
+    // Not read yet: judged when they are.
+    if (told.current === initialSegment || !audiences) return;
     told.current = initialSegment;
-    flash({ tone: "warn", msg: UNKNOWN_AUDIENCE_WORDS });
+    if (doorNamesNoAudience(initialSegment, audiences)) flash({ tone: "warn", msg: UNKNOWN_AUDIENCE_WORDS });
   }, [initialSegment, audiences, flash]);
 }
 

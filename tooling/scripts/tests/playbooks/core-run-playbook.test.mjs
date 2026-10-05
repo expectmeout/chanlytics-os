@@ -529,9 +529,21 @@ test("auto: the row, the people, the send now, the system's decision, the run re
   // and when, by the business's clock. Until this nobody was told unless Campaigns happened to be open.
   assert.deepEqual(veto.ops(), ["assemble", "decide", "notify", "record"]);
   assert.deepEqual(veto.of("notify")[0].slice(1), [
-    "Playbook “Win-back” sends at 10:30 AM: 2 people",
-    "2 people will be sent “Win-back” at 10:30 AM. Stop the run on Today or in Campaigns before then if it should not go.",
+    "Playbook “Win-back” sends today 10:30 AM: 2 people",
+    "2 people will be sent “Win-back” today 10:30 AM. Stop the run on Today or in Campaigns before then if it should not go.",
   ]);
+  // Made past the day's hours, it goes at nine tomorrow, and the notice says which day: "9:00 AM" alone reads as gone.
+  const late = fakes();
+  await runPlaybook(
+    late.ports,
+    cmd({ ctx: context({ now: new Date("2026-09-07T01:00:00Z"), modes: new Map([["reengage", "veto"]]) }) }),
+  );
+  assert.equal(late.of("notify")[0][1], "Playbook “Win-back” sends tomorrow 9:00 AM: 2 people");
+  // The run is made and on the ledger: a bell that fails does not cost the run its record.
+  const deaf = fakes({ notify: new Error("the bell is down") });
+  const made = await runPlaybook(deaf.ports, cmd({ ctx: context({ modes: new Map([["reengage", "veto"]]) }) }));
+  assert.equal(made.outcome, "sent");
+  assert.ok(deaf.ops().includes("record"), "the run is recorded all the same");
   // A run that goes at once has nothing to stop, and a person who asked for a run decided it: neither is told.
   assert.ok(!ops().includes("notify"), "auto says nothing on the bell");
   const asked = fakes();

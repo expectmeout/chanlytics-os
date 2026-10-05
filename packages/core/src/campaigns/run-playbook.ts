@@ -1,5 +1,5 @@
 import {
-  clockTime,
+  clockWhen,
   localDate,
   nextOpenMoment,
   parseParamSpecs,
@@ -291,8 +291,11 @@ async function sayTheRun(
     },
   });
   if (mode === "veto" && by.kind !== "user") {
-    const told = vetoRunNotice(p.name, n, clockTime(at.getTime(), ctx.tz));
-    await ports.notify(told.subject, told.body);
+    // With its day: a run made past the day's hours goes at nine tomorrow, and "9:00 AM" alone reads as already gone.
+    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
+    // The run is made and on the ledger: telling of it must not cost the run its record, so a bell that fails is let
+    // go (the adapter says so in its own log), where the ask notice, the only way a waiting run is found, is not.
+    await ports.notify(told.subject, told.body).catch(() => undefined);
   }
 }
 

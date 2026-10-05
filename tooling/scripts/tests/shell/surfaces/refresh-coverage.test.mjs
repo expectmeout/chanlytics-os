@@ -47,7 +47,15 @@ test("REGRESSION: a contact's edit re-reads the threads with them -- their name 
     const keys = keysOf(route);
     for (const key of ["conversations", "inbox", "people", "today"]) assert.ok(keys.includes(key), `${route}: ${key}`);
   }
-  assert.deepEqual(keysOf("PUT contacts/[id]/details").sort(), ["conversations", "inbox", "people", "today"]);
+  // Their details carry the email address a campaign by email goes to, so the audiences read again with them.
+  assert.deepEqual(keysOf("PUT contacts/[id]/details").sort(), [
+    "broadcasts",
+    "conversations",
+    "inbox",
+    "people",
+    "playbooks",
+    "today",
+  ]);
   // What a thread does not carry re-reads People alone.
   assert.deepEqual(keysOf("PUT contacts/[id]/receptionist"), ["people"]);
 });
@@ -70,8 +78,15 @@ test("REGRESSION: a write that changes who a campaign reaches re-reads the pages
   }
   // One list for the four, so an answer recorded for one person and for many cannot drift apart.
   for (const route of answers) assert.deepEqual(keysOf(route).sort(), keysOf(answers[0]).sort(), route);
-  // A person added, imported or deleted is on an audience or off it.
-  for (const route of ["POST contacts", "POST contacts/import", "DELETE contacts/[id]"]) {
+  // A person added, imported or deleted is on an audience or off it; an address added reaches them by email; and a
+  // deal moved changes the deal lists and who a follow-up reaches.
+  for (const route of [
+    "POST contacts",
+    "POST contacts/import",
+    "DELETE contacts/[id]",
+    "PUT contacts/[id]/details",
+    "POST contacts/[id]/deal",
+  ]) {
     const keys = keysOf(route);
     for (const key of [...counted, "people"]) assert.ok(keys.includes(key), `${route} re-reads ${key}: ${keys}`);
   }

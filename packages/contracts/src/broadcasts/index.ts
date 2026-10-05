@@ -61,6 +61,7 @@ export {
   EVERYONE_LABEL,
   EVERYONE_HINT,
   UNKNOWN_AUDIENCE_WORDS,
+  CONSENT_LIST_IDS,
   doorNamesNoAudience,
   broadcastFailureFix,
   broadcastFailureWords,
