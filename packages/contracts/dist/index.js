@@ -326,6 +326,13 @@ function delayWords(ms2) {
   return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
 }
 var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
+function vetoRunNotice(name, people, when) {
+  const who = `${people} ${people === 1 ? "person" : "people"}`;
+  return {
+    subject: `Playbook \u201C${name}\u201D sends at ${when}: ${who}`,
+    body: `${who} will be sent \u201C${name}\u201D at ${when}. Stop the run on Today or in Campaigns before then if it should not go.`
+  };
+}
 var PLAYBOOK_NAME_MAX = 80;
 var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
 function triggerOf(id) {
@@ -35010,6 +35017,7 @@ export {
   versionSlotsRefusal,
   versionWords,
   versionsOf,
+  vetoRunNotice,
   viewerListWords,
   violatesNoPrices,
   visitAnswersAsk,

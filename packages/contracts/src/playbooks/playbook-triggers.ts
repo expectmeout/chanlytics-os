@@ -161,6 +161,19 @@ export function delayWords(ms: number): string {
  */
 export const PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 
+/**
+ * What the owner is told when the sweep makes a run under veto: it goes by itself at `when` (the business's clock)
+ * unless a person stops it, and the promise "unless you stop it" is only kept for someone who is told. A run a person
+ * asked for is not told: they decided it. Said on the bell and by mail (core run-playbook.ts).
+ */
+export function vetoRunNotice(name: string, people: number, when: string): { subject: string; body: string } {
+  const who = `${people} ${people === 1 ? "person" : "people"}`;
+  return {
+    subject: `Playbook “${name}” sends at ${when}: ${who}`,
+    body: `${who} will be sent “${name}” at ${when}. Stop the run on Today or in Campaigns before then if it should not go.`,
+  };
+}
+
 export const PLAYBOOK_NAME_MAX = 80;
 
 /** What a moment's doors say when handed a reach-out's step: the one refusal, in one place. */

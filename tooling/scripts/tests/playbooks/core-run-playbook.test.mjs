@@ -525,6 +525,21 @@ test("auto: the row, the people, the send now, the system's decision, the run re
   const at = new Date(NOW.getTime() + PLAYBOOK_VETO_DELAY_MS);
   assert.deepEqual(veto.of("assemble")[0][3], at);
   assert.equal(veto.of("assemble")[0][1].scheduled_for, at.toISOString());
+  // "Unless you stop it" is kept only for someone who is told: a run the sweep made under veto says it is on its way,
+  // and when, by the business's clock. Until this nobody was told unless Campaigns happened to be open.
+  assert.deepEqual(veto.ops(), ["assemble", "decide", "notify", "record"]);
+  assert.deepEqual(veto.of("notify")[0].slice(1), [
+    "Playbook “Win-back” sends at 10:30 AM: 2 people",
+    "2 people will be sent “Win-back” at 10:30 AM. Stop the run on Today or in Campaigns before then if it should not go.",
+  ]);
+  // A run that goes at once has nothing to stop, and a person who asked for a run decided it: neither is told.
+  assert.ok(!ops().includes("notify"), "auto says nothing on the bell");
+  const asked = fakes();
+  await runPlaybook(
+    asked.ports,
+    cmd({ ctx: context({ modes: new Map([["reengage", "veto"]]) }), by: { kind: "user", userId: "u1" } }),
+  );
+  assert.ok(!asked.ops().includes("notify"), "a person's own Run now is theirs");
 });
 
 test("never at 3 AM, whoever asks: a person's run now at eleven at night goes at nine, and the ledger says what was asked for", async () => {

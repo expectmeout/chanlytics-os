@@ -26,6 +26,7 @@ export {
   PLAYBOOK_VETO_DELAY_MS,
   PLAYBOOK_VETO_DELAY_WORDS,
   delayWords,
+  vetoRunNotice,
   PLAYBOOK_NAME_MAX,
   REACH_OUT_IS_NOT_A_MOMENT,
   triggerOf,

@@ -4277,6 +4277,13 @@ function delayWords2(ms2) {
   return minutes === 60 ? "an hour" : plural2(minutes / 60, "hour");
 }
 var PLAYBOOK_VETO_DELAY_WORDS2 = delayWords2(PLAYBOOK_VETO_DELAY_MS2);
+function vetoRunNotice(name, people, when) {
+  const who = `${people} ${people === 1 ? "person" : "people"}`;
+  return {
+    subject: `Playbook \u201C${name}\u201D sends at ${when}: ${who}`,
+    body: `${who} will be sent \u201C${name}\u201D at ${when}. Stop the run on Today or in Campaigns before then if it should not go.`
+  };
+}
 var PLAYBOOK_NAME_MAX = 80;
 var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
 function triggerOf2(id) {
@@ -5038,6 +5045,9 @@ function wall(atMs, tz) {
 }
 function zoneDayKey(atMs, tz) {
   return wall(atMs, tz).key;
+}
+function clockTime(atMs, tz) {
+  return formatsFor(tz).time.format(new Date(atMs));
 }
 function clockDate(atMs, tz, nowMs) {
   const f = formatsFor(tz);
@@ -16523,6 +16533,35 @@ function touchEnrolled(r4, goesAt, eligible, held) {
     eligible.filter((person) => !skipped.has(person.id)).map((person) => person.id)
   );
 }
+async function sayTheRun(run, made) {
+  const { ports, p, ctx, by, mode, channels } = run;
+  const { n, at } = made;
+  if (!at) {
+    await ports.notify(
+      `Playbook \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
+      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`
+    );
+    return;
+  }
+  await ports.decide({
+    broadcastId: made.madeId,
+    by,
+    payload: {
+      playbook_id: p.id,
+      playbook: p.name,
+      mode,
+      recipients: n,
+      channels: [...channels],
+      scheduled_for: at.toISOString(),
+      run_now: by.kind === "user",
+      ...made.movedFrom ? { moved_from: made.movedFrom } : {}
+    }
+  });
+  if (mode === "veto" && by.kind !== "user") {
+    const told = vetoRunNotice(p.name, n, clockTime(at.getTime(), ctx.tz));
+    await ports.notify(told.subject, told.body);
+  }
+}
 async function runPlaybook(ports, cmd) {
   const { playbook: p, ctx, by } = cmd;
   const now = ctx.now;
@@ -16598,27 +16637,7 @@ async function runPlaybook(ports, cmd) {
   });
   if (!made.ok) return { outcome: "failed", error: made.error };
   touchEnrolled(run, goesAt, eligible, past.held);
-  if (open) {
-    await ports.decide({
-      broadcastId: made.id,
-      by,
-      payload: {
-        playbook_id: p.id,
-        playbook: p.name,
-        mode,
-        recipients: n,
-        channels: [...channels],
-        scheduled_for: open.at.toISOString(),
-        run_now: by.kind === "user",
-        ...movedFrom ? { moved_from: movedFrom } : {}
-      }
-    });
-  } else {
-    await ports.notify(
-      `Playbook \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
-      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`
-    );
-  }
+  await sayTheRun(run, { madeId: made.id, n, at: open ? open.at : null, movedFrom });
   await record({
     mode,
     eligible: n,
