@@ -1163,6 +1163,11 @@ interface EmailIngestPorts {
         unsubscribe: boolean;
         /** The email's own words are YES OFFERS, from a sender the receiving side proved (asksForOffers): the yes to offers by email. */
         optInOffers: boolean;
+        /**
+         * A person wrote it, from a sender the receiving side proved: the address works, whatever a hard bounce once said of
+         * it, so that stop is lifted (a complaint's, and the provider's own, are not this email's to lift).
+         */
+        fromThemProven: boolean;
         /** What they wrote, as the ledger quotes it: the words of the reply, never the history their client quoted. */
         words: string | null;
     }): Promise<{

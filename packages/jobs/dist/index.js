@@ -3757,6 +3757,10 @@ async function ingestInboundEmail(db, p) {
       throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
     if (error) dbLog().error("ingest_email_address_taken", { tenant_id: p.tenantId, contact_id: out.contact_id });
   }
+  if (p.fromThemProven && !out.processed) {
+    const { error } = await db.from("contacts").update({ email_suppressed_at: null, email_suppressed_reason: null }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).eq("email", p.address).eq("email_suppressed_reason", "hard_bounce");
+    if (error) throw new Error(`ingest_email: cannot lift the bounce from the address: ${error.message}`);
+  }
   const evidence = { channel: "email", message_external_id: p.receivedId, words: (p.words ?? "").slice(0, 80) || null };
   if (p.unsubscribe && !out.processed)
     await setEmailUnsubscribed(db, {
@@ -23714,6 +23718,7 @@ async function ingestEmail(ports, cmd) {
     optIn: said.optIn,
     unsubscribe: said.unsubscribe,
     optInOffers: said.optInOffers,
+    fromThemProven: said.fromThemProven,
     words: replyTextOf(email.text).slice(0, 80) || null
   });
   if (!kept.is_new && kept.processed) return "already_handled";
@@ -23764,7 +23769,8 @@ function answersOf(e) {
     unsubscribe: !optOut && asksToUnsubscribe(e),
     optInOffers: yes && proven,
     optIn: start && proven,
-    unproven: (yes || start) && !proven
+    unproven: (yes || start) && !proven,
+    fromThemProven: e.claim === "person" && proven
   };
 }
 function asksToStop(e) {

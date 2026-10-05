@@ -32910,6 +32910,12 @@ interface IngestEmailParams {
      * repaired is logged, never a reason to fail their message.
      */
     optInOffers?: boolean;
+    /**
+     * A person wrote it, from a sender nothing says is forged. An address a hard bounce stopped is then one that works: the
+     * stop is lifted, for this address alone. A complaint's stop is the person's no and the provider's is the provider's:
+     * neither is lifted here.
+     */
+    fromThemProven?: boolean;
     /** What they wrote, as the ledger quotes it (at most eighty characters). */
     words?: string | null;
 }

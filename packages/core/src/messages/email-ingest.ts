@@ -94,6 +94,11 @@ export interface EmailIngestPorts {
     unsubscribe: boolean;
     /** The email's own words are YES OFFERS, from a sender the receiving side proved (asksForOffers): the yes to offers by email. */
     optInOffers: boolean;
+    /**
+     * A person wrote it, from a sender the receiving side proved: the address works, whatever a hard bounce once said of
+     * it, so that stop is lifted (a complaint's, and the provider's own, are not this email's to lift).
+     */
+    fromThemProven: boolean;
     /** What they wrote, as the ledger quotes it: the words of the reply, never the history their client quoted. */
     words: string | null;
   }): Promise<{ message_id: string; conversation_id: string; is_new: boolean; processed: boolean }>;
@@ -196,6 +201,7 @@ export async function ingestEmail(
     optIn: said.optIn,
     unsubscribe: said.unsubscribe,
     optInOffers: said.optInOffers,
+    fromThemProven: said.fromThemProven,
     words: replyTextOf(email.text).slice(0, 80) || null,
   });
   if (!kept.is_new && kept.processed) return "already_handled";
@@ -276,6 +282,8 @@ function answersOf(e: IncomingEmail): {
   optInOffers: boolean;
   optIn: boolean;
   unproven: boolean;
+  /** A person's own email from a proven sender, whatever it says: proof that their address takes and sends mail. */
+  fromThemProven: boolean;
 } {
   const optOut = asksToStop(e);
   const yes = !optOut && saysYesToOffers(e);
@@ -287,6 +295,7 @@ function answersOf(e: IncomingEmail): {
     optInOffers: yes && proven,
     optIn: start && proven,
     unproven: (yes || start) && !proven,
+    fromThemProven: e.claim === "person" && proven,
   };
 }
 

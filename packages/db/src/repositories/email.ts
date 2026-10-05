@@ -89,6 +89,12 @@ export interface IngestEmailParams {
    * repaired is logged, never a reason to fail their message.
    */
   optInOffers?: boolean;
+  /**
+   * A person wrote it, from a sender nothing says is forged. An address a hard bounce stopped is then one that works: the
+   * stop is lifted, for this address alone. A complaint's stop is the person's no and the provider's is the provider's:
+   * neither is lifted here.
+   */
+  fromThemProven?: boolean;
   /** What they wrote, as the ledger quotes it (at most eighty characters). */
   words?: string | null;
 }
@@ -141,6 +147,20 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     if (error && error.code !== "23505")
       throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
     if (error) dbLog().error("ingest_email_address_taken", { tenant_id: p.tenantId, contact_id: out.contact_id });
+  }
+
+  // They wrote from the address a hard bounce stopped: it works. Lifted for that address and that reason alone, and
+  // only for an email not yet handled, as their answers below are. A write that fails throws: the run that resumes
+  // writes it again, which changes nothing twice.
+  if (p.fromThemProven && !out.processed) {
+    const { error } = await db
+      .from("contacts")
+      .update({ email_suppressed_at: null, email_suppressed_reason: null })
+      .eq("id", out.contact_id)
+      .eq("tenant_id", p.tenantId)
+      .eq("email", p.address)
+      .eq("email_suppressed_reason", "hard_bounce");
+    if (error) throw new Error(`ingest_email: cannot lift the bounce from the address: ${error.message}`);
   }
 
   // Their word about offers by email, in their own message, once their address is on their row (an unsubscribe puts it on

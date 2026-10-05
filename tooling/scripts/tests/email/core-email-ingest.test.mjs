@@ -274,6 +274,28 @@ test("a START by email is the way back from a STOP: taken as the yes a text's ST
   assert.equal(await optInOf("START", { claim: "auto_reply" }), false, "nor a responder's");
 });
 
+test("a person's own email from a proven sender says their address works, whatever it says: that is what lifts a hard bounce, and a program's or an unproven sender's mail does not", async () => {
+  const provenOf = async (over) => {
+    const w = world({ fetch: email({ text: "Can I come Saturday?", ...over }) });
+    await run(w);
+    return w.call("record")[1].fromThemProven;
+  };
+  assert.equal(await provenOf({ senderAuthenticated: true }), true);
+  assert.equal(
+    await provenOf({ senderAuthenticated: true, text: "STOP" }),
+    true,
+    "a STOP came from a working address too",
+  );
+  assert.equal(await provenOf({ senderAuthenticated: false }), false, "a From anyone can write proves nothing");
+  assert.equal(await provenOf({ senderAuthenticated: undefined }), false, "nor one nothing was said about");
+  assert.equal(
+    await provenOf({ senderAuthenticated: true, claim: "auto_reply" }),
+    false,
+    "a responder is not the person",
+  );
+  assert.equal(await provenOf({ senderAuthenticated: true, claim: "automated" }), false);
+});
+
 /** What the intake handed the ingest for an email's words: the three answers it may carry, and the words quoted. */
 const saidOf = async (text, over = {}) => {
   const w = world({ fetch: email({ text, ...over }) });

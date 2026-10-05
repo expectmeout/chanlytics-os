@@ -15471,6 +15471,7 @@ async function ingestEmail(ports, cmd) {
     optIn: said.optIn,
     unsubscribe: said.unsubscribe,
     optInOffers: said.optInOffers,
+    fromThemProven: said.fromThemProven,
     words: replyTextOf(email.text).slice(0, 80) || null
   });
   if (!kept.is_new && kept.processed) return "already_handled";
@@ -15521,7 +15522,8 @@ function answersOf(e) {
     unsubscribe: !optOut && asksToUnsubscribe(e),
     optInOffers: yes && proven,
     optIn: start && proven,
-    unproven: (yes || start) && !proven
+    unproven: (yes || start) && !proven,
+    fromThemProven: e.claim === "person" && proven
   };
 }
 function asksToStop(e) {
