@@ -740,7 +740,7 @@ git commit -m "Every tile a report draws names the figure it says where its buil
 **Why:** `REPORT_RANGES` (7, 30, 90 days) has ten users; it is the one table, so Month joins it as a row (`days: null`: the days since the 1st in the workspace's zone, today included), and the functions that read it live beside it in `report-periods.ts`. The three routes take `period=7d|30d|90d|month` (Task 5); `days=` is read until 19 October 2026 because tabs opened before the deploy and the document head's old prefetch still send it, and a test holds the day.
 
 **Files:**
-- Create: `packages/contracts/src/reports/report-periods.ts`, `tooling/scripts/tests/reports/report-periods.test.mjs`
+- Create: `packages/contracts/src/reports/report-periods.ts`, `tooling/scripts/tests/reports/periods/report-periods.test.mjs`
 - Modify: `packages/contracts/src/reports/reports.ts` (the table, "1 day"), `report-tiles.ts`, `campaign-report.ts`, `reach-out-report.ts` and `packages/contracts/src/google/google.ts` ("1 day" where they count days), `packages/contracts/src/reports/index.ts`, `tooling/scripts/tests/reports/reports-vm.test.mjs`
 - Regenerate: `packages/contracts/src/browser.generated.ts`, `packages/*/dist`
 
@@ -781,7 +781,7 @@ test("a one-day period says one day: Month on the first of the month is read ove
 });
 ```
 
-Create `tooling/scripts/tests/reports/report-periods.test.mjs`:
+Create `tooling/scripts/tests/reports/periods/report-periods.test.mjs`:
 
 ```js
 /**
@@ -862,7 +862,7 @@ test("the days parameter ends on 19 October 2026: the change that removes it del
 - [ ] **Step 2: Run them to verify they fail**
 
 ```bash
-node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/report-periods.test.mjs
+node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/periods/report-periods.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/reports-vm.test.mjs
 ```
 Expected: `report-periods` FAILS (the names are not exported); `reports-vm` FAILS on the table and on `"1 days"`.
@@ -910,7 +910,7 @@ Create `packages/contracts/src/reports/report-periods.ts`:
  * count of days; Month is the days since the 1st in the workspace's own zone, today included, so on the 5th it is 5 days,
  * against the 5 before. A request names `period`; `days`, which every page sent before there was a Month, is read for a
  * release longer so a tab opened before the deploy still reads (either deploy order works), and the day it ends is held by
- * tests/reports/report-periods.test.mjs.
+ * tests/reports/periods/report-periods.test.mjs.
  */
 import { REPORT_RANGES } from "./reports";
 
@@ -967,10 +967,10 @@ export type { ReportPeriodId } from "./report-periods";
 - [ ] **Step 4: Build and run**
 
 ```bash
-corepack pnpm exec prettier --write packages/contracts/src/reports tooling/scripts/tests/reports/report-periods.test.mjs tooling/scripts/tests/reports/reports-vm.test.mjs
+corepack pnpm exec prettier --write packages/contracts/src/reports tooling/scripts/tests/reports/periods/report-periods.test.mjs tooling/scripts/tests/reports/reports-vm.test.mjs
 node tooling/scripts/gen/contracts-browser-entry.mjs
 corepack pnpm --filter "./packages/*" build
-node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/report-periods.test.mjs
+node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/periods/report-periods.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/reports-vm.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/repo/contracts-import-cycles.test.mjs
 corepack pnpm -r typecheck
@@ -981,7 +981,7 @@ Expected: all PASS. (Typecheck passes: the three routes and the surface still co
 
 ```bash
 for d in contracts db jobs channels core; do git diff -w --ignore-cr-at-eol --quiet -- packages/$d/dist && git checkout -- packages/$d/dist; done
-git add packages/contracts/src/reports packages/contracts/src/browser.generated.ts packages/*/dist tooling/scripts/tests/reports/report-periods.test.mjs tooling/scripts/tests/reports/reports-vm.test.mjs
+git add packages/contracts/src/reports packages/contracts/src/browser.generated.ts packages/*/dist tooling/scripts/tests/reports/periods/report-periods.test.mjs tooling/scripts/tests/reports/reports-vm.test.mjs
 git commit -m "Reports' one table of periods gains Month, the days since the 1st in the workspace's zone, and a request names a period, with the old days read until 19 October." -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 
@@ -1116,7 +1116,7 @@ import * as facts from "./facts";
 export const ReportQuery = z.object({
   /** `7d`, `30d`, `90d` or `month`; thirty days when none is named. */
   period: z.string().optional(),
-  /** What the pages sent before `period` existed: read until 19 October 2026 (contracts report-periods.ts, and the day is held by tests/reports/report-periods.test.mjs). */
+  /** What the pages sent before `period` existed: read until 19 October 2026 (contracts report-periods.ts, and the day is held by tests/reports/periods/report-periods.test.mjs). */
   days: z.string().optional(),
 });
 

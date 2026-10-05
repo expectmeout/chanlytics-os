@@ -19,7 +19,7 @@ import { closedOf, hoursUnsetOf, type ReportArrivalDto, type ReportProfile } fro
 import { REPORT_TILES, fmtSeconds, type ReportTileVM } from "./report-tiles";
 import { sumOf } from "../shared/numbers";
 import { DATE_FMT } from "../shared/time";
-import { capitalize } from "../shared/words";
+import { capitalize, plural } from "../shared/words";
 
 export interface ReportDayDto {
   day: string;
@@ -73,11 +73,17 @@ export interface ReportDto {
   error?: string;
 }
 
-export const REPORT_RANGES: readonly { days: number; id: string; label: string }[] = [
+/**
+ * The periods Reports offers, said once. Three are a count of days; Month has none of its own: it is the days since the 1st in
+ * the workspace's zone, today included (report-periods.ts), read against the same number of days before, as every period is.
+ * `id` is what a request, the tab's storage and the control's choice call the period.
+ */
+export const REPORT_RANGES = [
   { days: 7, id: "7d", label: "7 days" },
   { days: 30, id: "30d", label: "30 days" },
   { days: 90, id: "90d", label: "90 days" },
-];
+  { days: null, id: "month", label: "Month" },
+] as const;
 
 export interface ReportPointVM {
   day: string;
@@ -460,7 +466,7 @@ function periodFactsOf(dto: ReportDto) {
     calls: sumOf(previous.map((d) => d.calls)),
     newPeople: sumOf(previous.map((d) => d.new_contacts)),
   };
-  const noun = `${days} days`;
+  const noun = plural(days, "day");
   const answeredTotal = tot.ai + tot.you + tot.none;
   const prevAnsweredTotal = prev.ai + prev.you + prev.none;
   const sortedReply = [...(dto.reply_seconds ?? [])].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);

@@ -176,8 +176,14 @@ test("every chart has a table twin with the same numbers", () => {
   assert.equal(vm.table.rows.length, 7);
   assert.deepEqual(vm.table.rows[3].slice(1), [5, 3, 1, 1, 2, 2, 0]);
   assert.deepEqual(
-    REPORT_RANGES.map((r) => r.days),
-    [7, 30, 90],
+    REPORT_RANGES.map((r) => [r.id, r.days, r.label]),
+    [
+      ["7d", 7, "7 days"],
+      ["30d", 30, "30 days"],
+      ["90d", 90, "90 days"],
+      ["month", null, "Month"],
+    ],
+    "one table, and Month has no days of its own",
   );
 });
 
@@ -217,4 +223,18 @@ test("Booked is a tile of contracts', with its figure: a count where the calenda
     "no calendar to read",
   ]);
   assert.deepEqual(why(null), ["—", "no calendar to read"]);
+});
+
+test("a one-day period says one day: Month on the first of the month is read over one", () => {
+  const vm = toReportVM(
+    dto({
+      days: 1,
+      span_days: 2,
+      today: "2026-09-04",
+      series: [day("2026-09-03"), day("2026-09-04", { messages_in: 1, answered_ai: 1, conversations: 1 })],
+    }),
+    { profile: null },
+  );
+  assert.equal(vm.rangeLabel, "1 day");
+  assert.equal(vm.tiles[0].meta, "on 1 of 1 day", "and every line that counts the days says it so");
 });

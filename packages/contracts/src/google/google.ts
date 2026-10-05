@@ -554,7 +554,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
 
   const days = [...dto.days].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
   const { current: gained, previous } = gainedOver(days, periodDays);
-  const noun = `${periodDays} days`;
+  const noun = plural(periodDays, "day");
   const inPeriod = days.length
     ? days.filter((d) => d.day >= shiftDay(days[days.length - 1].day, -(periodDays - 1)))
     : [];

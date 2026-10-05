@@ -9,6 +9,7 @@
  */
 import type { BookingReportVM } from "../calendar/calendar-people";
 import { durationWords } from "../shared/clock";
+import { plural } from "../shared/words";
 import { holdNote } from "./report-speed";
 import type { PeriodFacts } from "./reports";
 
@@ -105,7 +106,9 @@ const messagesTile: ReportTile = ({ days, current, points, tot, prev, noun, rang
   metric: "customer_messages",
   label: "Customer messages",
   value: String(tot.in),
-  meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
+  meta: tot.in
+    ? `on ${current.filter((d) => d.messages_in > 0).length} of ${plural(days, "day")}`
+    : "none in this period",
   delta: deltaOf(tot.in, prev.in, true, noun),
   spark: points.map((p) => p.in),
   compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny),

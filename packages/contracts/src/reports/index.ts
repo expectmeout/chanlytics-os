@@ -43,6 +43,15 @@ export type {
 } from "./reports";
 export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./report-tiles";
 export type { ReportTileVM, ReportStripTile } from "./report-tiles";
+export {
+  REPORT_PERIOD_DEFAULT,
+  isReportPeriod,
+  fixedDaysOf,
+  monthDaysAt,
+  reportPeriodOf,
+  reportDaysAsked,
+} from "./report-periods";
+export type { ReportPeriodId } from "./report-periods";
 export { holdOf } from "./report-speed";
 export type { ReportHoldVM } from "./report-speed";
 export { closedOf } from "./report-closed";

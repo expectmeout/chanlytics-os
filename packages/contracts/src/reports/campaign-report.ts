@@ -14,6 +14,7 @@ import { deltaOf, pointsDelta, type ReportTileVM } from "./report-tiles";
 import { templateTitle } from "../templates/template-titles";
 import { sumOf } from "../shared/numbers";
 import { formatterOnUse } from "../shared/time";
+import { plural } from "../shared/words";
 
 export interface CampaignDayDto {
   day: string;
@@ -141,7 +142,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     optIns: sumOf(previous.map((d) => d.opt_ins)),
     optOuts: sumOf(previous.map((d) => d.opt_outs)),
   };
-  const noun = `${days} days`;
+  const noun = plural(days, "day");
   const rawSources = dto.sources ?? [];
   const sends = sumOf(rawSources.map((s) => s.runs));
   const maxSent = Math.max(1, ...rawSources.map((s) => s.sent));

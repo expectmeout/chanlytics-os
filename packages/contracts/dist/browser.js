@@ -16578,7 +16578,7 @@ var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorH
   metric: "customer_messages",
   label: "Customer messages",
   value: String(tot.in),
-  meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
+  meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${plural(days, "day")}` : "none in this period",
   delta: deltaOf(tot.in, prev.in, true, noun),
   spark: points.map((p) => p.in),
   compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny)
@@ -16672,7 +16672,8 @@ var REPORT_CHANNELS = [
 var REPORT_RANGES = [
   { days: 7, id: "7d", label: "7 days" },
   { days: 30, id: "30d", label: "30 days" },
-  { days: 90, id: "90d", label: "90 days" }
+  { days: 90, id: "90d", label: "90 days" },
+  { days: null, id: "month", label: "Month" }
 ];
 function dayDate(day) {
   const [y, m, d] = day.split("-").map(Number);
@@ -16844,7 +16845,7 @@ function periodFactsOf(dto) {
     calls: sumOf(previous.map((d) => d.calls)),
     newPeople: sumOf(previous.map((d) => d.new_contacts))
   };
-  const noun = `${days} days`;
+  const noun = plural(days, "day");
   const answeredTotal = tot.ai + tot.you + tot.none;
   const prevAnsweredTotal = prev.ai + prev.you + prev.none;
   const sortedReply = [...dto.reply_seconds ?? []].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
@@ -19651,7 +19652,7 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
   const source = canReply ? "every review, from your Business Profile" : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
   const days = [...dto.days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
   const { current: gained, previous } = gainedOver(days, periodDays);
-  const noun = `${periodDays} days`;
+  const noun = plural(periodDays, "day");
   const inPeriod = days.length ? days.filter((d) => d.day >= shiftDay2(days[days.length - 1].day, -(periodDays - 1))) : [];
   const ratingSpark = inPeriod.map((d) => d.rating ?? 0);
   const countSpark = inPeriod.map((d) => d.review_count);
@@ -25509,7 +25510,7 @@ function toCampaignReportVM(dto) {
     optIns: sumOf(previous.map((d) => d.opt_ins)),
     optOuts: sumOf(previous.map((d) => d.opt_outs))
   };
-  const noun = `${days} days`;
+  const noun = plural(days, "day");
   const rawSources = dto.sources ?? [];
   const sends2 = sumOf(rawSources.map((s) => s.runs));
   const maxSent = Math.max(1, ...rawSources.map((s) => s.sent));
@@ -25732,11 +25733,11 @@ function linesOf2(dto) {
   const t = dto.totals;
   const angled = dto.angles.reduce((n, a) => n + a.written, 0) + dto.other_angles.written;
   return {
-    funnel: t.written ? `Of ${plural(t.written, "email")} written in these ${dto.days} days. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.` : "Nothing was written in these days.",
+    funnel: t.written ? `Of ${plural(t.written, "email")} written in these ${plural(dto.days, "day")}. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.` : "Nothing was written in these days.",
     angles: angled ? `The opening written for each business, and who answered.${dto.no_angle ? ` ${plural(dto.no_angle, "email")} had no opening, so no angle.` : ""}` : "No email in these days had an opening, so there is no angle to compare.",
     domains: "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.",
     written: t.handed ? `${plural(t.handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
-    empty: `No reach-out wrote in the last ${dto.days} days.`
+    empty: `No reach-out wrote in the last ${plural(dto.days, "day")}.`
   };
 }
 var NO_COUNTS = {
@@ -25893,6 +25894,23 @@ function reportFacts(vm, campaigns) {
     }
   }
   return out.slice(0, 3);
+}
+
+// src/reports/report-periods.ts
+var REPORT_PERIOD_DEFAULT = "30d";
+var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
+var isReportPeriod = (value) => REPORT_RANGES.some((r2) => r2.id === value);
+var fixedDaysOf = (period) => REPORT_RANGES.find((r2) => r2.id === period)?.days ?? null;
+var monthDaysAt = (dayKey2) => Number(dayKey2.slice(8, 10));
+function reportPeriodOf(asked) {
+  if (asked.period !== void 0) return isReportPeriod(asked.period) ? asked.period : null;
+  if (asked.days !== void 0)
+    return REPORT_RANGES.find((r2) => r2.days !== null && r2.days === Number(asked.days))?.id ?? null;
+  return REPORT_PERIOD_DEFAULT;
+}
+function reportDaysAsked(view) {
+  const asked = Number(view);
+  return Number.isInteger(asked) && asked >= 1 && asked <= MOST_DAYS ? asked : null;
 }
 
 // src/route-keys.generated.ts
@@ -32760,6 +32778,7 @@ export {
   REPLY_WINDOW_WORDS,
   REPLY_WORDS_MAX,
   REPORT_CHANNELS,
+  REPORT_PERIOD_DEFAULT,
   REPORT_RANGES,
   REPORT_WEEK_LONG,
   REPORT_WEEK_SHORT,
@@ -33210,6 +33229,7 @@ export {
   firstRunStepRoute,
   firstRunTryOf,
   firstWorkspaceDoor,
+  fixedDaysOf,
   fmtClock,
   fmtDay,
   fmtSeconds,
@@ -33344,6 +33364,7 @@ export {
   isReplyIntent,
   isReplyTo,
   isReplyUndoRefusal,
+  isReportPeriod,
   isSellsBy,
   isSidebarPref,
   isSiteRoot,
@@ -33504,6 +33525,7 @@ export {
   momentOffered,
   mondayOf,
   moneyWords,
+  monthDaysAt,
   monthLabelOf,
   monthSentAt,
   monthSpan,
@@ -33817,8 +33839,10 @@ export {
   replyWaitsOnYou,
   replyWhy,
   replyWindow,
+  reportDaysAsked,
   reportFacts,
   reportHourWords,
+  reportPeriodOf,
   reputationHoldOf,
   requestCodeWords,
   rereadAt,
