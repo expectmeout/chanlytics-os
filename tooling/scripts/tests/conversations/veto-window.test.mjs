@@ -14,7 +14,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readCode } from "../_source.mjs";
-import { replyDelayMs, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MIN_MS, REPLY_DELAY_MAX_MS } from "@chanlytics/contracts";
+import {
+  noTemplateWords,
+  replyDelayMs,
+  REPLY_DELAY_DEFAULT_MS,
+  REPLY_DELAY_MIN_MS,
+  REPLY_DELAY_MAX_MS,
+} from "@chanlytics/contracts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../../..");
@@ -203,8 +209,8 @@ test("the event names the usual cause rather than making someone guess", () => {
     assert.ok(seam.includes('read("GET templates")'), "the workspace's approved templates are fetched");
     assert.match(
       seam,
-      /setSurfaceValue\("inbox", \{[\s\S]*?\btemplates,\s*\}\)/,
-      "and published with the Inbox's rows",
+      /setSurfaceValue\("inbox", \{[\s\S]*?\btemplates,\s*(templatesHeld,\s*)?\}\)/,
+      "and published with the Inbox's rows (and the count of what the picker left out)",
     );
   });
 
@@ -217,7 +223,9 @@ test("the event names the usual cause rather than making someone guess", () => {
   });
 
   test("with no approved template the composer says so instead of offering a send", () => {
-    assert.match(thread, /No approved template yet/);
+    // The composer says it in contracts' words (noTemplateWords), the plain sentence where nothing is counted.
+    assert.match(thread, /noTemplateWords\(/);
+    assert.match(noTemplateWords(null), /^No approved template yet/);
     // And the courier refuses rather than posting a request the server must
     // reject with a message the operator cannot act on.
     assert.match(verbs2, /has no approved template yet/);

@@ -249,6 +249,7 @@ export { claimControl, releaseControl, CALL_CONTROL_S } from "./repositories/con
 export type { ControlHolder, ControlOutcome } from "./repositories/control";
 export {
   templatesFor,
+  templatesToSend,
   templateIdOf,
   templatesNamed,
   templateStatusOf,
@@ -258,7 +259,7 @@ export {
   removeTemplateVersion,
   setTemplateQuality,
 } from "./repositories/templates";
-export type { TemplateRow, VersionRef } from "./repositories/templates";
+export type { TemplateRow, TemplateToSend, VersionRef } from "./repositories/templates";
 export {
   getTenantConfig,
   putTenantConfig,

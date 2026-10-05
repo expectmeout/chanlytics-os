@@ -43,7 +43,7 @@ import {
   resolveOutboundTarget,
   countSentToday,
   personReplyMode,
-  templatesFor,
+  templatesToSend,
 } from "../packages/db.js";
 import {
   bookingHeld,
@@ -271,7 +271,7 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
     // workspace that genuinely has none is told THAT, which is a different and
     // equally true thing, and the difference is what a business needs to hear
     // to fix it.
-    const booking = bookingTemplate(await templatesFor(db, routed.tenantId));
+    const booking = bookingTemplate(await templatesToSend(db, routed.tenantId));
     if (!booking) {
       // Unless it holds its bookings. Under the hold the link would not go whichever template there was, so the hold is
       // the reason given, and recorded as the gate records it. Answered first, the missing template told a caller of a
