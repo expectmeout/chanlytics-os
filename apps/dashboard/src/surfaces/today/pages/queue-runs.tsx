@@ -5,7 +5,7 @@
  * same grammar, with Approve or Stop where the button goes. What already went out is a line of the day's card. The
  * page keeps deciding WHICH rows wait or are scheduled; the words are contracts' (todayRunWords).
  */
-import { CAMPAIGNS_PAUSED_WORDS, type BroadcastVM } from "@chanlytics/contracts";
+import { CAMPAIGNS_PAUSED_WORDS, isReachOutRun, type BroadcastVM } from "@chanlytics/contracts";
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { gatedProps } from "../../legacy-verbs";
@@ -109,13 +109,21 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
         sentence={paused ? CAMPAIGNS_PAUSED_WORDS : words(r).waiting.sentence}
         status={words(r).waiting.status}
         tone="escalated"
-        cta={{
-          label: "Approve",
-          kind: verbKind(),
-          onClick: () => approve(r),
-          gate: paused ? gatedProps(CAMPAIGNS_PAUSED_WORDS) : gate("approve", "approve a run"),
-        }}
-        also={{ label: "See who's on it", onClick: () => nav(`broadcasts/run:${r.id}`) }}
+        // A reach-out's run is opened, never approved from here (decision D6): its sheet counts and names each send
+        // first, Ask refuses to approve one, and a one-tap send from Today is the wrong habit for a first cold email.
+        cta={
+          isReachOutRun(r.audience)
+            ? { label: "Open", kind: verbKind(), onClick: () => nav(`broadcasts/run:${r.id}`) }
+            : {
+                label: "Approve",
+                kind: verbKind(),
+                onClick: () => approve(r),
+                gate: paused ? gatedProps(CAMPAIGNS_PAUSED_WORDS) : gate("approve", "approve a run"),
+              }
+        }
+        also={
+          isReachOutRun(r.audience) ? null : { label: "See who's on it", onClick: () => nav(`broadcasts/run:${r.id}`) }
+        }
         onOpen={() => nav(`broadcasts/run:${r.id}`)}
         testid="brief-run-row"
       />
