@@ -394,7 +394,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     assert.ok(dayModule.includes(s), s);
   assert.match(
     dayModule,
-    /TODAY_HELPERS\.day\(C\.vm[^,]*,\s*\(P \? P\.rows : null\)[^,]*,\s*people \|\| null\)/,
+    /TODAY_HELPERS\.day\(C\.vm[^,]*,\s*\(?P \? P\.rows : null\)?[^,]*,\s*people \|\| null\)/,
     "the page composes the module: the calendar, the playbooks' rows or none, People or none",
   );
   // The hero and the card over a busy day, with a calendar the receptionist reads (what the one-line calendar beat drew
