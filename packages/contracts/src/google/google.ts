@@ -18,7 +18,8 @@ import type { SchemaSet } from "../shared/schema-sets";
 import { agoWords, DATE_FMT, WEEK_MS, HOUR_MS, DAY_MS } from "../shared/time";
 import { plural } from "../shared/words";
 import { reviewReplyWords, type ReviewReplyMode } from "./review-reply";
-import { dayDate, fmtDay, deltaOf, type ReportTileVM } from "../reports/reports";
+import { dayDate, fmtDay } from "../reports/reports";
+import { deltaOf, type ReportTileVM } from "../reports/report-tiles";
 import type { Hours } from "../config/workspace-config/business-profile";
 import { DAYS, dayProblems } from "../config/workspace-config/config-rules";
 import { WEEKDAY_KEYS } from "../calendar/zone-math";
@@ -553,7 +554,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
 
   const days = [...dto.days].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
   const { current: gained, previous } = gainedOver(days, periodDays);
-  const noun = `${periodDays} days`;
+  const noun = plural(periodDays, "day");
   const inPeriod = days.length
     ? days.filter((d) => d.day >= shiftDay(days[days.length - 1].day, -(periodDays - 1)))
     : [];
@@ -580,6 +581,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
   const tiles: ReportTileVM[] = [
     {
       id: "rating",
+      metric: "rating",
       label: "Rating on Google",
       value: typeof l.rating === "number" ? l.rating.toFixed(1) : "—",
       meta: `${reviewsWords(l.review_count)} · ${checked.toLowerCase()}`,
@@ -589,6 +591,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
     },
     {
       id: "reviews",
+      metric: "reviews",
       label: "Reviews on Google",
       value: typeof l.review_count === "number" ? String(l.review_count) : "—",
       meta: "as Google counts them, with or without words",
@@ -598,6 +601,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
     },
     {
       id: "gained",
+      metric: "ratings_gained",
       label: `Gained in ${noun}`,
       value: gained.total === null ? "—" : String(gained.total),
       meta:
@@ -612,6 +616,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
     },
     {
       id: "newest",
+      metric: "newest_review",
       label: "Newest review",
       value: newest?.when || "—",
       meta: newest

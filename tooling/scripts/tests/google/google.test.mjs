@@ -573,6 +573,11 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
   assert.equal(vm.tiles[0].delta, null, "no day before the period to compare the rating with");
   assert.equal(vm.tiles[2].meta, "since Aug 31, the first day on record");
   assert.equal(vm.tiles[3].meta, "★★★★★ · Ana P.");
+  assert.deepEqual(
+    vm.tiles.map((t) => t.metric),
+    ["rating", "reviews", "ratings_gained", "newest_review"],
+    "each names its figure where it is built",
+  );
   assert.equal(vm.latest.length, 1);
   assert.equal(vm.latest[0].isNew, true);
   assert.equal(vm.latest[0].text, "Fast, careful, and on time. Would hire again.");
@@ -868,7 +873,8 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   // The page draws the section under the period (executed: reports-page.test.mjs, Google's reviews under the period).
   assert.ok(
     reports.includes('useSurface("google")') &&
-      reports.includes("if (!G || (!G.dto.ready.places && !G.dto.ready.profile && !G.dto.listing)) return null;"),
+      reports.includes("export const googleReadable = ") &&
+      reports.includes("if (!googleReadable(G)) return null;"),
   );
   assert.ok(
     reports.includes("vm.reply.words ? `${vm.source} · ${vm.reply.words}` : vm.source"),

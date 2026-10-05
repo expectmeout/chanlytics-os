@@ -1,8 +1,8 @@
 import "server-only";
 import {
-  REPORT_RANGES,
   dealsAreOn,
   nextRunLabel,
+  reportDaysAsked,
   setupSteps,
   toBookingReportVM,
   toBroadcastVM,
@@ -30,8 +30,8 @@ const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) =>
 
 /** Reports: the period the page shows, its tiles and its lines, as the report tool says them. */
 export const reports: Provider = async (rc, ctx) => {
-  const asked = Number(ctx.view);
-  const days = REPORT_RANGES.some((r) => r.days === asked) ? asked : 30;
+  // The days the page shows (Reports' view is a count): any whole count the report can read, so Month is described over the days it has run.
+  const days = reportDaysAsked(ctx.view) ?? 30;
   const r = (await load(rc, reportReader, { days })).data;
   const vm = toReportVM(r.report, { profile: r.profile });
   const booking = r.booking ? toBookingReportVM(r.booking) : null;

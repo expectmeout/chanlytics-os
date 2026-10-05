@@ -202,12 +202,13 @@ test("the countdown is a timer; past its deadline a real draft says it is sendin
 
 /* -------------------------------- the engine -------------------------------- */
 
-test("past a draft's deadline the Inbox reads again every five seconds while the draft is still there, six times at most", () => {
+test("past a draft's deadline the Inbox reads again once per job tick while the draft is still there, three times at most", () => {
+  // The send itself reaches the tab through the feed since 00327; these looks are the fallback when the feed is down.
   const st = {};
-  const at = [0, 1000, 5000, 5200, 10_000, 15_000, 20_000, 25_000, 30_000, 35_000];
+  const at = [0, 1000, 5000, 9_900, 10_000, 15_000, 20_000, 30_000, 40_000];
   assert.deepEqual(
     at.map((ms) => ixReadAgain(st, ms)),
-    [true, false, true, false, true, true, true, true, false, false],
+    [true, false, false, false, true, false, true, false, false],
     "REGRESSION: it read once at zero, and 'Auto-sends in 0s' stayed until something else moved",
   );
 });

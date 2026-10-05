@@ -493,6 +493,33 @@ const kitTooltip = () =>
   `<div class="tip-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
   `<div class="ui-tip show" tabindex="-1">Only an owner can export this workspace's people.</div></div>`;
 
+/** The kit's Figure as its component draws it: a term and its definitions, in the page's list (`.gx-figs` is the gallery's). */
+const figure = ({
+  term = "Customer messages",
+  value = "17",
+  change = null,
+  meta = "on 6 of 7 days",
+  door = null,
+} = {}) => {
+  const number =
+    door === "a"
+      ? `<a class="figure-door" href="#">${value}</a>`
+      : door === "button"
+        ? `<button type="button" class="figure-door">${value}</button>`
+        : value;
+  return (
+    `<dl class="gx-figs"><div class="figure"><dt class="figure-label">${term}</dt>` +
+    `<dd class="figure-value">${number}${change ? `<span class="figure-change">${change}</span>` : ""}</dd>` +
+    `${meta ? `<dd class="figure-meta">${meta}</dd>` : ""}</div></dl>`
+  );
+};
+
+/** The figure whose label carries a definition, shown: the kit's Tooltip over the term. */
+const figureDefined = () =>
+  figure({ term: `<span class="figure-term" tabindex="0">Customer messages</span>` }) +
+  `<div class="tip-place" role="presentation" ${placed("top: 64px; left: 16px;")}>` +
+  `<div class="ui-tip show" tabindex="-1">What customers wrote or phoned in. Your replies and your campaigns are not counted.</div></div>`;
+
 /** An option of the kit's select or combobox: its words and its word at the end, walked to, chosen, or neither. */
 const kitOption = (label, meta, { chosen = false, walked = false, focus = null } = {}) =>
   `<div role="option" aria-selected="${chosen}"${focus === null ? "" : ` tabindex="${focus}"`} class="rec-combo-opt"` +
@@ -1592,6 +1619,19 @@ export const FAMILIES = [
     ],
   },
   {
+    family: "Figure",
+    about:
+      "The kit's figure (surfaces/kit/figure/figure.tsx): a term and its definitions in the page's list -- what it counts, " +
+      "the number at the large step, the period before beside it in plain ink, one line under it. The number a link where " +
+      "it has an address and a button where it acts. Reports' strip is drawn with it.",
+    entries: [
+      { id: "figure", html: figure() },
+      { id: "figure-change", html: figure({ change: "up from 7" }) },
+      { id: "figure-door", html: figure({ door: "a" }) },
+      { id: "figure-door-act", html: figure({ door: "button" }) },
+    ],
+  },
+  {
     family: "Sheet",
     about:
       "kit.css's sheet (step 2.2): on a desk a side pane at the window's right edge, the page faded behind it; on a " +
@@ -1680,6 +1720,13 @@ export const FAMILIES = [
     about:
       "The kit's Tooltip (surfaces/kit/tooltip/tooltip.tsx), shown: the house's tip on Base UI's positioner (.tip-place).",
     entries: [{ id: "tooltip-kit", stage: "pop", html: kitTooltip() }],
+  },
+  {
+    family: "Figure, on Base UI",
+    about:
+      "The kit's Figure (surfaces/kit/figure/figure.tsx) with a definition on its label: the label is a stop for the kit's " +
+      "Tooltip, shown over the term, never a native title.",
+    entries: [{ id: "figure-defined", stage: "pop", html: figureDefined() }],
   },
   {
     family: "Select, on Base UI",
@@ -1806,6 +1853,7 @@ const GALLERY_CSS = `
     .gx-panel-row { padding: var(--space-2) var(--space-3); }
     .gx-panel-row + .gx-panel-row { border-top: 1px solid var(--line); }
     .gx-narrow { max-width: 220px; }
+    .gx-figs { margin: 0; max-width: 240px; }
     .gx-pop-words { margin: 0; }
 `;
 

@@ -38,3 +38,13 @@ test("a Setup that failed is done waiting, and never holds a page that waits for
     delete reg.ROUTE_WAITS.inbox;
   }
 });
+
+test("Reports waits for the workspace list beside its own surface, so the strip of lenses never gains a tab after it is drawn", () => {
+  assert.deepEqual(reg.ROUTE_WAITS.reports, ["workspace"]);
+  assert.equal(gate("reports"), false, "nothing in yet");
+  status.setStatus("reports", "live");
+  assert.equal(gate("reports"), false, "REGRESSION: the page drawn before the list that decides its strip");
+  assert.equal(gate("reports", null, true), true, "its own surface is in: the shell draws after the wait regardless");
+  status.setStatus("workspace", "live");
+  assert.equal(gate("reports"), true, "the strip and the page draw together");
+});

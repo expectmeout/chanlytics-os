@@ -2010,6 +2010,23 @@ async function workspaceAbout(db, tenantId) {
   return data?.about?.trim() || null;
 }
 
+// src/repositories/reports/report-series.ts
+async function reportSeries(db, tenantId, days) {
+  const { data, error } = await db.rpc("report_series", { p_tenant_id: tenantId, p_days: days });
+  if (error) throw new Error(`report_series: ${error.message}`);
+  return data;
+}
+async function campaignSeries(db, tenantId, days) {
+  const { data, error } = await db.rpc("campaign_series", { p_tenant_id: tenantId, p_days: days });
+  if (error) throw new Error(`campaign_series: ${error.message}`);
+  return data;
+}
+async function reachOutReport(db, tenantId, days) {
+  const { data, error } = await db.rpc("reach_out_report", { p_tenant_id: tenantId, p_days: days });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, data };
+}
+
 // src/repositories/notifications.ts
 async function forgetNotification(db, p) {
   const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
@@ -3497,6 +3514,7 @@ export {
   callerNameOf,
   callersOf,
   campaignMonthSent,
+  campaignSeries,
   claimCallActivity,
   claimCallNotification,
   claimControl,
@@ -3634,6 +3652,7 @@ export {
   reachOutPerson,
   reachOutRecord,
   reachOutReplyOf,
+  reachOutReport,
   reachOutRootOf,
   reachOutRunSendsOf,
   reachOutSendRefOf,
@@ -3674,6 +3693,7 @@ export {
   replyReadingOf,
   replyReadingRefOf,
   replyUndoableOf,
+  reportSeries,
   reputationHoldsSince,
   resendHandover,
   reserveSendingDomain,

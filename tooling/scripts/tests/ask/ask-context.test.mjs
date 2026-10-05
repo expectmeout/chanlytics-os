@@ -874,6 +874,13 @@ test("Reports: the period the page shows, its tiles and lines, as the report too
     ["page://reports"],
   );
   assert.match(textOf(b.blocks[0]), /^Reports, 7 days · /);
+  // A page on Month shows however many days the month has run: described over those, not over thirty.
+  clearContextCache();
+  const month = await buildContext(
+    rcIn(ctxFor(tables(), { ...RPCS, report_series: series })),
+    page("reports", [], { view: "5" }),
+  );
+  assert.match(textOf(month.blocks[0]), /^Reports, 5 days · /);
 });
 
 test("Reports: the reply time's line names the hold it includes where replies waited one, and says what it said before where none did", async () => {

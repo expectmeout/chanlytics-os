@@ -1,25 +1,27 @@
 /**
- * The Reports override: the range the page shows (kept in this browser) and the
- * report over it. Part of the SurfaceData seam (legacy-bridge/surface-data.ts); the
- * page reads what it publishes through `useSurface("reports")`.
+ * The Reports override: the period the page shows (kept in this browser) and the report over it. Part of the SurfaceData
+ * seam (legacy-bridge/surface-data.ts); the page reads what it publishes through `useSurface("reports")`. The lens on screen
+ * is the address's, not this surface's: every lens draws from this one read, so a move between lenses asks for nothing.
  */
 
 import { read } from "@/legacy-bridge/api";
 import { heldViews } from "@/legacy-bridge/held-views";
 import {
-  toReportVM,
+  REPORT_PERIOD_DEFAULT,
+  isReportPeriod,
   reportFacts,
-  type ReportFactVM,
-  REPORT_RANGES,
-  type ReportVM,
-  toCampaignReportVM,
-  type CampaignReportVM,
   toBookingReportVM,
-  type BookingReportVM,
+  toCampaignReportVM,
   toDealReportVM,
-  type DealReportVM,
   toReachOutReportVM,
+  toReportVM,
+  type BookingReportVM,
+  type CampaignReportVM,
+  type DealReportVM,
   type ReachOutReportVM,
+  type ReportFactVM,
+  type ReportPeriodId,
+  type ReportVM,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
@@ -31,23 +33,23 @@ declareSurfaceValue("reports", "__REPORTS");
 
 /* ------------------------------- Reports --------------------------------- */
 
-const REPORT_DAYS_KEY = "chanlytics.report.days";
-let reportDays = 30;
+const REPORT_PERIOD_KEY = "chanlytics.report.period";
+let reportPeriod: ReportPeriodId = REPORT_PERIOD_DEFAULT;
 try {
   if (typeof window !== "undefined") {
-    const saved = Number(window.localStorage.getItem(REPORT_DAYS_KEY));
-    if (REPORT_RANGES.some((r) => r.days === saved)) reportDays = saved;
+    const saved = window.localStorage.getItem(REPORT_PERIOD_KEY);
+    if (isReportPeriod(saved)) reportPeriod = saved;
   }
 } catch {
-  /* storage unavailable: the default range stands */
+  /* storage unavailable: the default period stands */
 }
 
-/** The one period every chart on Reports is scoped to. Only the presets. */
-export function setReportDays(days: number): void {
-  if (!REPORT_RANGES.some((r) => r.days === days)) return;
-  reportDays = days;
+/** The one period every chart on Reports is scoped to, kept in this browser. */
+export function keepReportPeriod(period: ReportPeriodId): void {
+  if (!isReportPeriod(period)) return;
+  reportPeriod = period;
   try {
-    window.localStorage.setItem(REPORT_DAYS_KEY, String(days));
+    window.localStorage.setItem(REPORT_PERIOD_KEY, period);
   } catch {
     /* a preference, not a fact */
   }
@@ -68,6 +70,9 @@ export interface ReportsSurface {
   reachOuts?: ReachOutReportVM | null;
   /** Worth knowing: at most three facts from these same numbers (contracts' reportFacts). */
   facts: ReportFactVM[];
+  /** The period this is of: what the control says is chosen, and what the views are held by. */
+  period: ReportPeriodId;
+  /** The days the period is (Month: the days since the 1st): what Today and Ask read. */
   days: number;
   fetchedAt: number;
 }
@@ -84,7 +89,7 @@ export interface ReportsSurface {
 const reportsHeld = heldViews<ReportsSurface>(4);
 /** Paint a period this tab holds for the period now asked for; whether it did. The read behind it is the caller's. */
 export function paintHeldReports(): boolean {
-  const have = reportsHeld.get(String(reportDays));
+  const have = reportsHeld.get(reportPeriod);
   if (!have) return false;
   setSurfaceValue("reports", have);
   window.dispatchEvent(new CustomEvent("surface:reports"));
@@ -101,23 +106,23 @@ export const reportsOverride: SurfaceOverride = {
   refreshWhen: onlyOnItsPage("reports", DEFAULT_REFRESH_TABLES),
   debounceMs: 800,
   // A period's reads take their turn; a pick of another period is read at once (activateOverride).
-  view: () => String(reportDays),
+  view: () => reportPeriod,
   apply: async () => {
-    const days = reportDays;
+    const period = reportPeriod;
     const [data, campaigns, reachOuts] = await Promise.all([
-      read("GET reports", { query: { days: String(days) } }),
+      read("GET reports", { query: { period } }),
       // The offers' numbers are their own read. A failure there used to fail
       // the whole surface -- the page went blank, and its own "could not be
       // read" line could never render (the audit's D9). Null is its state.
-      read("GET reports/campaigns", { query: { days: String(days) } }).catch((e: unknown) => e as Error),
+      read("GET reports/campaigns", { query: { period } }).catch((e: unknown) => e as Error),
       // The reach-outs' are too (Part 6): their section says it could not read them, and the rest stands.
-      read("GET reports/reach-outs", { query: { days: String(days) } }).catch((e: unknown) => e as Error),
+      read("GET reports/reach-outs", { query: { period } }).catch((e: unknown) => e as Error),
     ]);
     if (campaigns instanceof Error) console.error("reports_campaigns_fetch_failed", campaigns.message);
     if (reachOuts instanceof Error) console.error("reports_reach_outs_fetch_failed", reachOuts.message);
     // A pick of another period while this read was out: its answer is for a period left, and never lands on the new
     // one. A held period answers a pick at once and is read again behind it, so two reads can be out together.
-    if (days !== reportDays) return;
+    if (period !== reportPeriod) return;
     const vm = toReportVM(data.report, { profile: data.profile });
     const surface: Omit<ReportsSurface, "facts"> = {
       vm,
@@ -126,12 +131,13 @@ export const reportsOverride: SurfaceOverride = {
       // The period's name is the report's, so the two sentences never disagree about the range.
       deals: toDealReportVM(data.deals, vm.rangeLabel),
       reachOuts: reachOuts instanceof Error ? null : toReachOutReportVM(reachOuts.report),
-      days,
+      period,
+      days: vm.days,
       fetchedAt: Date.now(),
     };
     // Worth knowing is derived here, once, from the same two view models the page draws: never in the page.
     const whole: ReportsSurface = { ...surface, facts: reportFacts(surface.vm, surface.campaigns) };
-    reportsHeld.hold(String(days), whole);
+    reportsHeld.hold(period, whole);
     setSurfaceValue("reports", whole);
   },
 };

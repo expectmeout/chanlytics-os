@@ -45,21 +45,21 @@ as never                             13
 non-null assertions, x!             111
 index reads the compiler lets pass  482   in 128 files
 table names outside packages/db     485
-SQL functions outside packages/db   133   called by .rpc
+SQL functions outside packages/db   130   called by .rpc
 edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
 breakpoints outside the set          37   in 11 files
-literal style values                997   in 23 stylesheets
-primitives outside the kit         1930   selectors naming 786 classes
+literal style values                995   in 23 stylesheets
+primitives outside the kit         1909   selectors naming 779 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     298
 source-text reads in tests          769
 lint warnings                       355   in 153 files, 59 of them exhaustive-deps
-workspace route JS, KB gzipped      701   the shell included
+workspace route JS, KB gzipped      703   the shell included
 workspace route CSS, KB gzipped     144
-workspace pages' own JS, KB         534   gzipped, each page's chunks once, beside the route
+workspace pages' own JS, KB         558   gzipped, each page's chunks once, beside the route
 trees the lint's limits hold         44   15 of them with max-params waiting
 ```
 

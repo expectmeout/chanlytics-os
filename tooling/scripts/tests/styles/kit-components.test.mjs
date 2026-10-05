@@ -30,6 +30,7 @@ import { fresh, installLegacyReact } from "../_legacy-react.mjs";
 import { Button } from "../../../../apps/dashboard/src/surfaces/kit/button/button.tsx";
 import { EmptyState, FailedRead } from "../../../../apps/dashboard/src/surfaces/kit/empty/empty.tsx";
 import { Face } from "../../../../apps/dashboard/src/surfaces/kit/face/face.tsx";
+import { Figure } from "../../../../apps/dashboard/src/surfaces/kit/figure/figure.tsx";
 import { LinkButton } from "../../../../apps/dashboard/src/surfaces/kit/link-button/link-button.tsx";
 import { ListRow } from "../../../../apps/dashboard/src/surfaces/kit/list-row/list-row.tsx";
 import { Meter } from "../../../../apps/dashboard/src/surfaces/kit/meter/meter.tsx";
@@ -705,4 +706,46 @@ test("EmptyState and FailedRead draw the gallery's Empty state and failed read f
     false,
     "with nothing to press (no runner, no retry of its own) there is no Retry: a state support repairs",
   );
+});
+
+/** The gallery's Figure family, entry by entry, as a surface draws it with the kit's component. */
+const FIGURES = {
+  figure: () => h(Figure, { label: "Customer messages", value: "17", meta: "on 6 of 7 days" }),
+  "figure-change": () =>
+    h(Figure, { label: "Customer messages", value: "17", change: "up from 7", meta: "on 6 of 7 days" }),
+  "figure-door": () =>
+    h(Figure, {
+      label: "Customer messages",
+      value: "17",
+      meta: "on 6 of 7 days",
+      door: { href: "/w/harbor/inbox" },
+    }),
+  "figure-door-act": () =>
+    h(Figure, { label: "Customer messages", value: "17", meta: "on 6 of 7 days", door: { onClick } }),
+};
+
+test("Figure draws the gallery's Figure family: a term and its definitions, the number a door where it opens something, the page's class last", () => {
+  assert.deepEqual(parting(FAMILIES, "Figure", FIGURES), HELD);
+  const defined = (node) => keysOf(node).filter((k) => node.props[k] !== undefined);
+  const fig = drawn(
+    h(Figure, { label: "Calls", value: "3", id: "calls", "data-testid": "fig", className: "rpt-cell" }),
+  );
+  assert.equal(fig.props.className, "figure rpt-cell", "the page's layout class comes last");
+  assert.deepEqual(defined(fig), ["className", "data-figure", "data-testid"]);
+  assert.equal(fig.props["data-figure"], "calls");
+  assert.deepEqual(defined(drawn(h(Figure, { label: "Calls", value: "3" }))), ["className"], "no id, no attribute");
+  const rows = (props) =>
+    drawn(h(Figure, { label: "Calls", value: "3", ...props }))
+      .props.children.filter(Boolean)
+      .map((c) => c.props.className);
+  assert.deepEqual(rows({}), ["figure-label", "figure-value"], "no line under it where there is nothing to say");
+  assert.deepEqual(rows({ meta: "no calls" }), ["figure-label", "figure-value", "figure-meta"]);
+  assert.deepEqual(rows({ meta: null, change: null }), ["figure-label", "figure-value"]);
+  // The number is a link where the door has an address, and a button that acts where it has none.
+  const numberOf = (door) => drawn(h(Figure, { label: "Calls", value: "3", door })).props.children[1].props.children[0];
+  const link = numberOf({ href: "/w/harbor/inbox" }).rendered;
+  assert.deepEqual([link.type, link.props.href, link.props.className], ["a", "/w/harbor/inbox", "figure-door"]);
+  const act = numberOf({ onClick }).rendered;
+  assert.deepEqual([act.type, act.props.type, act.props.className], ["button", "button", "figure-door"]);
+  assert.equal(drawn(h(Figure, { label: "Calls", value: "3" })).props.children[1].props.children[0], "3");
 });

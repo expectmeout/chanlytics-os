@@ -135,6 +135,7 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
     ready: ".rec-combo-pop .rec-combo-input",
   },
   { entry: "tooltip-kit", bring: (p) => p.getByTestId("tooltip-trigger").hover(), ready: ".ui-tip.show" },
+  { entry: "figure-defined", bring: (p) => p.getByTestId("figure-kit-term").hover(), ready: ".ui-tip.show" },
   {
     entry: "select-kit",
     bring: (p) => p.locator('[data-entry="select-kit"] .rec-select').click(),

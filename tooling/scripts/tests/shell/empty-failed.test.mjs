@@ -516,8 +516,8 @@ test("a period the page has read paints at once when picked again and is read ag
   const asked = [];
   globalThis.window.fetch = async (url) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
-    asked.push(`${u.pathname.replace("/api/v1/", "")} ${u.searchParams.get("days")}`);
-    await new Promise((r) => parked.push({ days: u.searchParams.get("days"), r }));
+    asked.push(`${u.pathname.replace("/api/v1/", "")} ${u.searchParams.get("period")}`);
+    await new Promise((r) => parked.push({ period: u.searchParams.get("period"), r }));
     if (u.pathname.endsWith("/reports/campaigns")) return json(200, { ok: true, data: { report: campaignsDto() } });
     return json(200, {
       ok: true,
@@ -527,45 +527,45 @@ test("a period the page has read paints at once when picked again and is read ag
   const keepDoc = globalThis.document;
   globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
   const pause = () => new Promise((r) => setTimeout(r, 5));
-  // Let parked answers go -- only those for `days` when named -- so a test can say which lands first.
-  const release = async (days = null) => {
+  // Let parked answers go -- only those for `id` when named -- so a test can say which lands first.
+  const release = async (id = null) => {
     for (let i = 0; i < 40; i += 1) {
       for (const p of [...parked])
-        if (days === null || p.days === days) {
+        if (id === null || p.period === id) {
           parked.splice(parked.indexOf(p), 1);
           p.r();
         }
       await pause();
     }
   };
-  const shown = () => globalThis.window.__REPORTS?.days;
+  const shown = () => globalThis.window.__REPORTS?.period;
   // A runner to refresh through (setReportRange reads the real surface through it); this one joins no live feed.
   const stop = startSurfaces([{ ...reportsOverride, refreshOnMessageInserts: false }]);
   try {
     await release();
-    assert.equal(shown(), 30, "the saved period, read at boot");
-    const to7 = setReportRange(7);
+    assert.equal(shown(), "30d", "the saved period, read at boot");
+    const to7 = setReportRange("7d");
     await release();
     assert.equal(await to7, true);
-    assert.equal(shown(), 7);
+    assert.equal(shown(), "7d");
     // Back to 30: held, painted before any read lands, and read again behind.
     asked.length = 0;
     let back = null;
-    setReportRange(30).then((ok) => {
+    setReportRange("30d").then((ok) => {
       back = ok;
     });
     await pause();
-    assert.equal(shown(), 30, "REGRESSION: the period the page had shown waited on a read of its own");
+    assert.equal(shown(), "30d", "REGRESSION: the period the page had shown waited on a read of its own");
     assert.equal(back, true, "the pick answered at once");
-    assert.ok(asked.includes("reports 30"), "and 30 is read again behind");
+    assert.ok(asked.includes("reports 30d"), "and 30 days is read again behind");
     // A pick while that read is out: 90 lands first, then 30's refresh -- a late answer for a period left, which must
     // never land on the new one.
-    const to90 = setReportRange(90);
-    await release("90");
+    const to90 = setReportRange("90d");
+    await release("90d");
     await to90;
-    assert.equal(shown(), 90);
-    await release("30");
-    assert.equal(shown(), 90, "REGRESSION: 30's refresh landed last and put the old period back over 90");
+    assert.equal(shown(), "90d");
+    await release("30d");
+    assert.equal(shown(), "90d", "REGRESSION: 30's refresh landed last and put the old period back over 90");
   } finally {
     stop();
     await release();

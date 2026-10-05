@@ -18,6 +18,7 @@ import { calendarChrome } from "./calendar/chrome";
 import { conversationsCrumbs, conversationsNav, inboxCrumbs } from "./inbox/routes";
 import { liveChrome } from "./live/routes";
 import { peopleChrome, peopleTakes } from "./people/chrome";
+import { reportsChrome, reportsTakes } from "./reports/chrome";
 import { settingsCrumbs } from "./settings/frame/tabs";
 
 /** A crumb: its words, and where it goes (`to`, or the page's own move, `go`, as a person's People crumb is). */
@@ -93,7 +94,15 @@ interface SurfaceRoute {
  * module had run, in whichever order they were first imported.
  */
 export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
-  reports: { activeNav: "reports", crumbs: ["Reports"], pane: true },
+  // Reports, one page of lenses: the Overview's address and each lens's (reports/chrome.ts), one mount across them.
+  reports: {
+    activeNav: "reports",
+    crumbs: ["Reports"],
+    pane: true,
+    takes: (param) => reportsTakes(param),
+    mount: "reports",
+    chrome: (at) => reportsChrome(at),
+  },
   today: {
     activeNav: "home",
     crumbs: ["Today"],

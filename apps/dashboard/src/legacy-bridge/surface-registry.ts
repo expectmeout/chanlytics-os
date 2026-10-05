@@ -215,6 +215,9 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
  */
 export const ROUTE_WAITS: Record<string, readonly string[]> = {
   today: ["setup"],
+  // Reports' strip of lenses is decided from the workspace list (how its customers buy: the Pipeline is shown only where deals
+  // are on) and draws above the page's body, so a list that landed after it would add a tab to a strip already drawn.
+  reports: ["workspace"],
 };
 export const ROUTE_WAIT_MS = 3000;
 

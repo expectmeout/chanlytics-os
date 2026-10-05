@@ -17,7 +17,7 @@ import {
 import { lists } from "../people-lists";
 import { plMakeListWith, plUndoList } from "../lists/doors";
 import { PL_BATCH, plCsv } from "../words";
-import { downloadCsv } from "./download";
+import { downloadCsv } from "../../kit/download";
 import type { BulkCtx, BulkProps, BulkState } from "./bulk-state";
 import type { SavedList } from "../types";
 
