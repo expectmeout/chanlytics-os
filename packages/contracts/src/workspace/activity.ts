@@ -387,7 +387,9 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
   ["google.reply_held", (p, base) => joinBits(base, [wordOf(REPLY_HELD_WHY, textAt(p, "why"))])],
   ["message.send_blocked", sendBlockedWords],
   ["message.send_failed", sendFailedWords],
-  ...EVENT_KINDS.filter((k) => k.startsWith("partner.")).map(
+  // A partner's standing is between the platform and the partner: the owner reads that it was judged, never the
+  // verdict or who gave it (the raw label said no more before these words).
+  ...EVENT_KINDS.filter((k) => k.startsWith("partner.") && k !== "partner.standing_set").map(
     (k): [string, (p: Record<string, unknown>, base: string) => string] => [
       k,
       (p, base) => joinBits(base, partnerEventBits(k, p)),

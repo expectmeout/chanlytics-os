@@ -752,19 +752,14 @@ test("the partner programme reads in the owner's words, with what each writer fi
   );
   assert.equal(w("partner.reversed", { kind: "dispute" }), "A partner's share changed · a payment was disputed");
   assert.equal(w("partner.reversed", { kind: "dispute_won" }), "A partner's share changed · a dispute was won");
-  assert.equal(
-    w("partner.standing_set", { standing: "review", by: "sweep" }),
-    "A partner's share was judged · Under review (the nightly check)",
-  );
-  assert.equal(
-    w("partner.standing_set", { standing: "disqualified", from: "review", by: "person" }),
-    "A partner's share was judged · Disqualified (decided by a person)",
-  );
-  assert.equal(
-    w("partner.standing_set", { standing: "disqualified", by: "joining" }),
-    "A partner's share was judged · Disqualified (as the partner joined)",
-  );
-  assert.equal(w("partner.standing_set", { standing: "qualified" }), "A partner's share was judged · Qualified");
+  // A partner's standing is between the platform and the partner: the owner reads that it was judged, not the verdict.
+  for (const p of [
+    { standing: "review", by: "sweep" },
+    { standing: "disqualified", from: "review", by: "person" },
+    { standing: "disqualified", by: "joining" },
+    { standing: "qualified" },
+  ])
+    assert.equal(w("partner.standing_set", p), "A partner's share was judged", JSON.stringify(p));
   assert.equal(w("partner.paid", { payout_id: "o1", earned_cents: 4900 }), "A partner was paid their share");
   assert.equal(w("partner.handover_sent", {}), "A partner sent the workspace to its owner");
   assert.equal(w("partner.handover_sent", { again: true }), "A partner sent the workspace to its owner · sent again");
