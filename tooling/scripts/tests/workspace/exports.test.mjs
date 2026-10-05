@@ -411,13 +411,14 @@ test("the pages link to the routes, and only where the bridge can name the works
     if (had) Object.defineProperty(globalThis, "window", had);
     else delete globalThis.window;
   }
-  // The desk's button is the page's own (page/screen.tsx), drawn and pressed in people-honest.test.mjs (people-export).
+  // The desk's file is an item of the page's file menu (page/screen.tsx, canvas P1), drawn and pressed in
+  // people-honest.test.mjs (people-file-menu): the link is opened in place.
   const people = readRaw("apps/dashboard/src/surfaces/people/page/screen.tsx");
-  assert.ok(people.includes("href={exportHref}"));
+  assert.ok(people.includes('window.open(exportHref, "_self")'));
   assert.ok(
-    people.includes('{!canDo("export") ? (') &&
-      people.includes('<button className="btn btn-ghost btn-sm" {...gate("export")}>'),
-    "a non-owner sees a disabled button that says why, not a refusal",
+    people.includes('!canDo("export")') &&
+      people.includes('{ label: "Export CSV", icon: "external", gate: gate("export") }'),
+    "a non-owner sees an item that says why, not a refusal",
   );
   const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
   assert.ok(bridge.includes("window.__href = href;"));
