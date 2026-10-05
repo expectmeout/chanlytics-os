@@ -62,6 +62,8 @@ const baselineFiles = fs
 
 const total = (o) => Object.values(o ?? {}).reduce((a, v) => a + (typeof v === "number" ? v : 1), 0);
 const keys = (o) => Object.keys(o ?? {}).length;
+/** How many files a `file::…` baseline names, each counted once however many of its keys it holds. */
+const files = (o) => new Set(Object.keys(o ?? {}).map((k) => k.split("::")[0])).size;
 /** Every field of every entry, summed: a stylesheet's literal values are counted by kind. */
 const fieldsTotal = (o) => Object.values(o ?? {}).reduce((a, v) => a + Object.values(v).reduce((b, n) => b + n, 0), 0);
 /** One field of every entry, summed: casts.json holds each module's casts by family. */
@@ -107,6 +109,7 @@ function blockFrom(by, scanCounts) {
       `imports in ${keys(by["route-doors.json"])} files`,
     ],
     ["unnamed durations", total(by["durations.json"]), `in ${keys(by["durations.json"])} files`],
+    ["breakpoints outside the set", total(by["breakpoints.json"]), `in ${files(by["breakpoints.json"])} files`],
     ["literal style values", fieldsTotal(by["style-values.json"]), `in ${keys(by["style-values.json"])} stylesheets`],
     [
       "primitives outside the kit",
