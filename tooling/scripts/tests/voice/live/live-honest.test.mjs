@@ -197,6 +197,23 @@ test("REGRESSION (A20, L8): an ended call's card leads with what the caller want
   assert.ok(!textOf(tree).includes("Open client"));
 });
 
+test("a call that is over says how it ended in the pill, by the ladder Conversations reads: asked for a call back, hung up in seconds, voicemail, failed -- 'Ended' only where it was handled (audit of 2 Oct 2026, A6)", () => {
+  const pillOf = (over) => {
+    withLive([ended({ id: "c-done", ...over })]);
+    const tree = mount({ initialCallId: "c-done" });
+    return find(headName(tree), (n) => n.type === StatePill).props.value;
+  };
+  assert.equal(pillOf({}), "callback", "REGRESSION: the card said 'Ended' of a caller who asked for a call back");
+  assert.equal(pillOf({ outcome: "answered" }), "ended", "handled is still just ended");
+  assert.equal(pillOf({ outcome: "answered", duration_ms: 6_000, ended_at: iso(3_594_000) }), "abandoned");
+  assert.equal(
+    pillOf({ outcome: "voicemail", in_voicemail: true, disconnection_reason: "voicemail_reached" }),
+    "voicemail",
+  );
+  assert.equal(pillOf({ outcome: null, status: "error", duration_ms: 0 }), "failed");
+  assert.equal(pillOf({ outcome: null, status: "not_connected", duration_ms: 0 }), "missed");
+});
+
 test("REGRESSION: who is calling opens their page, and their number rings them -- the name was words beside an Open profile button, and the number words to type again", () => {
   withLive([ended()]);
   const tree = mount({ initialCallId: "c-done" });

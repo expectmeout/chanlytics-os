@@ -735,6 +735,73 @@ test("REGRESSION (B17): the timeline narrows by kind, and each linked item opens
   );
 });
 
+test("a call's to-do and what the caller gave are on the person's page, under the call they came from -- the history said only what they wanted (audit of 2 Oct 2026, #8)", async () => {
+  const call = (over) => ({
+    id: "k1",
+    retell_call_id: "r1",
+    direction: "inbound",
+    call_type: "phone_call",
+    status: "ended",
+    from_e164: "+17865550181",
+    from_raw: null,
+    to_e164: null,
+    started_at: iso(2 * D),
+    ended_at: iso(2 * D - 100_000),
+    duration_ms: 100_000,
+    disconnection_reason: "agent_hangup",
+    sentiment: null,
+    call_successful: true,
+    in_voicemail: false,
+    summary: "Asked about a bridal trial.",
+    wanted: "Wants a bridal trial in August",
+    outcome: "callback_needed",
+    follow_up: "Call back to confirm the bridal trial",
+    caller_name: "Daniela Reyes-Ortiz",
+    caller_email: "daniela@example.com",
+    transcript_object: null,
+    recording: { fetch_state: "stored" },
+    conversation_id: "cv1",
+    contact_id: "p1",
+    message_id: null,
+    contact: null,
+    ...over,
+  });
+  const vm = toPersonVM(
+    detail({
+      calls: [
+        call({}),
+        call({ id: "k2", started_at: iso(5 * D), follow_up: null, caller_name: null, caller_email: null }),
+      ],
+    }),
+    ZONE,
+    new Date(NOW),
+  );
+  const tree = (await profile(vm))();
+  const rows = all(tree, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes("cl-tl-row"),
+  );
+  const callRows = rows.filter((r) => /Inbound call/.test(textOf(r)));
+  assert.equal(callRows.length, 2, "both calls are in the history");
+  const said = (r) => all(r, (n) => n.props?.["data-testid"] === "timeline-note").map((n) => textOf(n));
+  assert.deepEqual(
+    said(callRows[0]),
+    [
+      "To do: Call back to confirm the bridal trial",
+      "Gave their name as Daniela Reyes-Ortiz",
+      "Gave their email as daniela@example.com",
+    ],
+    "REGRESSION: the call-back to-do was nowhere on the person's page",
+  );
+  assert.match(
+    textOf(callRows[0]),
+    /Wants a bridal trial in August/,
+    "what they wanted still leads, and the lines follow it",
+  );
+  assert.deepEqual(said(callRows[1]), [], "a call that left nothing has no lines");
+});
+
 test("REGRESSION (B26): the profile's next visit opens that day on the Calendar -- the tile opened nothing", async () => {
   const draw = await profile(toPersonVM(detail(), ZONE, new Date(NOW)));
   const tree = draw();

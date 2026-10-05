@@ -52,6 +52,12 @@ function rowBody(e: Item, initials: string) {
           <span className="cl-tl-time">{e.time}</span>
         </div>
         <div className={`cl-tl-text ${e.kind === "customer" ? "" : "muted"}`}>{e.text}</div>
+        {/* What the call's analysis left (its to-do, what the caller gave), a line each under what they wanted. */}
+        {e.notes?.map((n) => (
+          <div key={n} className="cl-tl-sub" data-testid="timeline-note">
+            {n}
+          </div>
+        ))}
         {e.sub && <div className="cl-tl-sub">{e.sub}</div>}
       </div>
       {e.link && (

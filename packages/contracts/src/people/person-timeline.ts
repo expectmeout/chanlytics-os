@@ -6,7 +6,7 @@
  * by value. index.ts names the item types and consentChangeWords; the builders are internal.
  */
 import { visitDateKey, visitDay, visitTime } from "../calendar/calendar-people";
-import { tidyCallSummary } from "../voice/call-words";
+import { callNoteLines, callNotesOf, tidyCallSummary } from "../voice/call-words";
 import type { ConsentChange } from "../consent/consent";
 import { DEAL_LOST_REASON_WORDS, DEAL_STAGE_WORDS, isDealLostReason } from "../deals/deal-words";
 import { amountWords } from "../deals/deal-amount";
@@ -38,6 +38,8 @@ export interface PersonTimelineItemVM {
   who: string;
   text: string;
   sub?: string;
+  /** More lines under the row's text, each said once: what a call's analysis left (its to-do, what the caller gave). */
+  notes?: string[];
   link?: { label: string; to: string };
   /** A visit that has not ended yet: the page says it under Coming up (comingUp), not in what has happened. */
   ahead?: boolean;
@@ -226,6 +228,9 @@ function callItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[
     const wanted = (k.wanted || "").trim();
     const summary = tidyCallSummary(k.summary) ?? "";
     const missed = k.status === "not_connected";
+    // What the call's own row holds beyond what they wanted: the to-do the receptionist noted, what they gave about
+    // themselves. A dial that never connected has no analysis, and so nothing here.
+    const notes = callNoteLines(callNotesOf(k));
     const sentence = missed
       ? "The call never connected."
       : wanted ||
@@ -243,6 +248,7 @@ function callItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[
         ? callAttemptWords(k.direction)
         : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""}`,
       text: sentence,
+      ...(notes.length ? { notes } : {}),
       sub: missed
         ? "Never connected"
         : k.recording?.fetch_state === "stored"
