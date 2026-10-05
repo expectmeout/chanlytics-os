@@ -34,7 +34,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
-import { ingestInbound, type IngestResult } from "./ingest";
+import { ingestInbound, stoppedNow, type IngestResult } from "./ingest";
 import { setEmailOffersYes, setEmailUnsubscribed } from "./campaigns/email-offers";
 import { dbLog } from "../observe";
 
@@ -192,7 +192,10 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
       messageId: out.message_id,
       evidence: { ...evidence, via: "reply" },
     });
-  if (p.optInOffers && !out.processed) {
+  if (p.optInOffers && !out.processed && stoppedNow(out)) {
+    // The same rule a texted YES OFFERS has (ingest.ts stoppedNow): a yes under a stop is not recorded.
+    dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: "email" });
+  } else if (p.optInOffers && !out.processed) {
     try {
       const yes = await setEmailOffersYes(db, {
         tenantId: p.tenantId,

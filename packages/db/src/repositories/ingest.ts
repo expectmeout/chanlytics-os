@@ -62,6 +62,17 @@ export interface IngestResult {
 }
 
 /**
+ * They have said stop, and it stands: a yes to offers that arrives now is not recorded (stoppedNow, read from the
+ * ingest's own answer, which is the row after this message was applied). The way back in from a STOP is START, never
+ * YES OFFERS (one word opening both programs is what the carriers refuse, 30913), and a yes stored under a stop would
+ * be a yes nobody confirmed and no later stop could end (00323 ends a yes when the stop is RECORDED, and a second STOP
+ * from a person already stopped records nothing). After START, the confirmation on WhatsApp says how to get offers.
+ */
+export function stoppedNow(r: Pick<IngestResult, "consent" | "dnc"> | null | undefined): boolean {
+  return r?.consent === "opted_out" || r?.dnc === true;
+}
+
+/**
  * A START is a yes on the channel it came on, and ingest_inbound writes its consent event only when the answer
  * changes: a START by text from someone already opted in on WhatsApp left no event and covered no text. This door
  * (00297) writes the event when their list lacks the channel, and the database adds it to the list. Best-effort, for the
@@ -121,7 +132,9 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   // and answered by the time this runs; failing their message because a second
   // write did not land would be a worse outcome than a consent record that has
   // to be repaired. It is logged loudly instead.
-  if (p.optInMarketing && out?.contact_id) {
+  if (p.optInMarketing && out?.contact_id && stoppedNow(out)) {
+    dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: p.channel });
+  } else if (p.optInMarketing && out?.contact_id) {
     const args = {
       p_tenant_id: p.tenantId,
       p_contact_id: out.contact_id,

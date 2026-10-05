@@ -7,7 +7,9 @@
  * (steps.ts ageVerdict). A yes to a program is confirmed before anything can hold it, in the campaign's own filed
  * opt-in words (contracts optInConfirmation), as a system message: never a model call, sent whatever the reply mode,
  * and not held back by a thread a person holds. A marketing yes (YES OFFERS) that arrives by text is recorded, not
- * confirmed, because offers go by WhatsApp. A yes whose confirmation did not go out is escalated and told, never
+ * confirmed, because offers go by WhatsApp. A START on WhatsApp from a person whose yes to offers ended with their STOP
+ * (00323) says so after the filed words, with the phrase that turns offers on again (contracts offersAfterStart); a
+ * text's confirmation is the filed words alone. A yes whose confirmation did not go out is escalated and told, never
  * only logged.
  *
  * heldForThePerson: the thread's pause and its day's reply cap, the workspace's day of model tokens (off when its limit
@@ -19,11 +21,28 @@
  * thread's pause and the workspace's billing pause are two), and those names do not change. The pure verdicts, limits
  * and copy are steps.ts's; the token count comes through the budget port.
  */
-import { optInConfirmation, tokenBudgetSpent, tokenCapOf } from "@chanlytics/contracts";
+import { errField } from "@chanlytics/channels";
+import { offersAfterStart, optInConfirmation, tokenBudgetSpent, tokenCapOf } from "@chanlytics/contracts";
 import type { SendPurpose } from "@chanlytics/contracts";
 import { ageVerdict, threadVerdict, holdCopy } from "./steps";
 import { GO, type Answering } from "./context";
 import { escalationOf, handledOf, processedAfter, SET_ASIDE, type Asked } from "./handled";
+
+/**
+ * What a START's confirmation adds about offers, or nothing: one row, read by the id the ingest answered. Never fatal
+ * and never a reason to hold the confirmation back: a row that cannot be read adds nothing.
+ */
+async function offersNoteFor(at: Answering): Promise<string | null> {
+  const { db, tenantId, ing, ports, channel, L } = at;
+  if (channel !== "whatsapp" || !db || !tenantId || !ing?.contact_id) return null;
+  try {
+    const answer = await ports.leads.offersAnswer?.(db, tenantId, ing.contact_id);
+    return answer ? offersAfterStart(answer, channel) : null;
+  } catch (e) {
+    L.warn("lead_context_unavailable", { error: errField(e) });
+    return null;
+  }
+}
 
 /** A message too old to answer automatically, and a yes to confirm in the campaign's own words. */
 export async function lateOrConfirmed(at: Answering, bodyText: string): Promise<typeof GO | undefined> {
@@ -74,7 +93,10 @@ export async function lateOrConfirmed(at: Answering, bodyText: string): Promise<
   // like any other words, not confirmed as a subscription on this number.
   if (n.optIn || (n.optInMarketing && channel === "whatsapp")) {
     const purpose: SendPurpose = n.optInMarketing ? "marketing" : "conversational";
-    const words = optInConfirmation(brainCfg?.business_name ?? rt?.known?.workspace?.name ?? "", purpose);
+    const filed = optInConfirmation(brainCfg?.business_name ?? rt?.known?.workspace?.name ?? "", purpose);
+    // The yes to offers a STOP ended does not come back with a START: said here, on WhatsApp alone.
+    const offers = n.optInMarketing ? null : await offersNoteFor(at);
+    const words = offers ? `${filed} ${offers}` : filed;
     // Sent FIRST, and what happened is reported from the outcome. The send's
     // outcome used to be dropped on the floor — so a confirmation the wire
     // refused or could not deliver left nobody aware that the one message the

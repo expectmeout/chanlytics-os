@@ -3,11 +3,19 @@
  * sent, delivered, read and failed moves its message by the provider's id (recordStatusByExternalId), and what Meta says
  * the message cost to send is kept beside the status, once (K8, keepMessageCost). Moved out of the webhook whole: its
  * order, its log line and its failure rules are the ones it had, and the cost is one more statement after the status in
- * its own guard, so a cost the database refuses never costs a receipt its status.
+ * its own guard, so a cost the database refuses never costs a receipt its status. A failed receipt that says the person
+ * stopped marketing messages from this business (131050) is their no to offers, recorded as one in a guard of its own
+ * too (recordWhatsAppOffersStop): the refusal was stored and nothing learned from it, so the next offer went to them again.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { waPricingOf, type WaChangeValue } from "../packages/channels.js";
-import { keepMessageCost, recordStatusByExternalId, type Database, type Json } from "../packages/db.js";
+import { waPricingOf, waStoppedMarketing, type WaChangeValue } from "../packages/channels.js";
+import {
+  keepMessageCost,
+  recordStatusByExternalId,
+  recordWhatsAppOffersStop,
+  type Database,
+  type Json,
+} from "../packages/db.js";
 import { phoneTail } from "../packages/contracts.js";
 import { logger, type Logger } from "../log.js";
 import { pgSafe } from "./persist.js";
@@ -60,6 +68,11 @@ export async function recordReceipts(
         recordStatusByExternalId(db, tenantId, id, status, s.errors ? asJson({ errors: s.errors }) : undefined),
       );
       await keepCost(L, db, tenantId, id, s);
+      if (status === "failed" && waStoppedMarketing(s.errors)) {
+        const recorded = await pgSafe("offers_stop", () => recordWhatsAppOffersStop(db, { tenantId, externalId: id }));
+        // A write that threw has said so itself (pg_offers_stop_failed): this line is for an answer the database gave.
+        if (recorded !== undefined) L.info("wa_marketing_stopped", { id, recorded });
+      }
     }),
   );
 }

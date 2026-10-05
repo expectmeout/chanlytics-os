@@ -65,6 +65,7 @@ export {
   offersEmailReach,
 } from "./repositories/campaigns/email-offers";
 export type { Unsubscribed } from "./repositories/campaigns/email-offers";
+export { offersAnswerOf, recordWhatsAppOffersStop } from "./repositories/campaigns/offers-answer";
 export {
   sendingDomainsOf,
   sendingDomainOf,

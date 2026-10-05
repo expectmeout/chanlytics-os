@@ -38028,7 +38028,19 @@ async function photoOf(at, seen) {
 }
 
 // src/inbound/reply-gates.ts
-import { optInConfirmation, tokenBudgetSpent, tokenCapOf } from "../../contracts/dist/index.js";
+import { errField as errField8 } from "../../channels/dist/index.js";
+import { offersAfterStart, optInConfirmation, tokenBudgetSpent, tokenCapOf } from "../../contracts/dist/index.js";
+async function offersNoteFor(at) {
+  const { db, tenantId, ing, ports, channel, L } = at;
+  if (channel !== "whatsapp" || !db || !tenantId || !ing?.contact_id) return null;
+  try {
+    const answer = await ports.leads.offersAnswer?.(db, tenantId, ing.contact_id);
+    return answer ? offersAfterStart(answer, channel) : null;
+  } catch (e) {
+    L.warn("lead_context_unavailable", { error: errField8(e) });
+    return null;
+  }
+}
 async function lateOrConfirmed(at, bodyText) {
   const { raw, sink, tell, n, L, channel, brainCfg, rt, send } = at;
   const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? void 0);
@@ -38048,7 +38060,9 @@ async function lateOrConfirmed(at, bodyText) {
   if (age === "late") L.info("wa_late_but_answering", { age_ms: ageMs });
   if (n.optIn || n.optInMarketing && channel === "whatsapp") {
     const purpose = n.optInMarketing ? "marketing" : "conversational";
-    const words = optInConfirmation(brainCfg?.business_name ?? rt?.known?.workspace?.name ?? "", purpose);
+    const filed = optInConfirmation(brainCfg?.business_name ?? rt?.known?.workspace?.name ?? "", purpose);
+    const offers = n.optInMarketing ? null : await offersNoteFor(at);
+    const words = offers ? `${filed} ${offers}` : filed;
     const confirmed = await send(words, { ack: true, confirmation: purpose }, purpose, "system");
     let asked2 = null;
     if (confirmed.outcome !== "sent") {
@@ -38168,7 +38182,7 @@ async function heldForThePerson(at, bodyText) {
 
 // src/inbound/model-turn.ts
 import { resolveSystemPrompt, describeNow, shadowWordsOf } from "../../contracts/dist/index.js";
-import { errField as errField8 } from "../../channels/dist/index.js";
+import { errField as errField9 } from "../../channels/dist/index.js";
 async function leadNoteFor(at) {
   const { db, tenantId, from, ports, rt, L, channel } = at;
   let leadNote;
@@ -38181,7 +38195,7 @@ async function leadNoteFor(at) {
       if (visits) leadNote = `${leadNote}
 ${visits}`;
     } catch (e) {
-      L.warn("lead_context_unavailable", { error: errField8(e) });
+      L.warn("lead_context_unavailable", { error: errField9(e) });
     }
   }
   return leadNote;
@@ -38254,7 +38268,7 @@ ${openings}` : ""}`,
       brainMs = Date.now() - tBrain;
       ({ replyText, escalate, escalationReason } = checked(at, brainCfg, r));
     } catch (e) {
-      L.error("brain_failed", { error: errField8(e) });
+      L.error("brain_failed", { error: errField9(e) });
       replyText = fallbacks.error;
       escalate = true;
       escalationReason = "brain_error";
@@ -38269,7 +38283,7 @@ ${openings}` : ""}`,
       try {
         await ports.page({ db }, NO_MODEL_PAGE.key, NO_MODEL_PAGE.subject, NO_MODEL_PAGE.body);
       } catch (e) {
-        L.error("wa_no_model_page_failed", { error: errField8(e) });
+        L.error("wa_no_model_page_failed", { error: errField9(e) });
       }
     }
   }
@@ -38406,13 +38420,13 @@ async function sendNow(at, turn, hold, bodyText) {
 }
 
 // src/inbound/turn.ts
-import { errField as errField9 } from "../../channels/dist/index.js";
+import { errField as errField10 } from "../../channels/dist/index.js";
 async function claimTheTurn(at, photo) {
   const { ports, db, tenantId, ing, L, sink } = at;
   const turn = ports.persist.turn;
   if (!turn || photo || !db || !tenantId || !ing) return GO;
   const held = await turn.claim(db, tenantId, ing.conversation_id, ing.message_id).catch((e) => {
-    L.warn("wa_turn_unreadable", { error: errField9(e) });
+    L.warn("wa_turn_unreadable", { error: errField10(e) });
     return true;
   });
   if (held) return GO;
@@ -38425,7 +38439,7 @@ async function stillOurs(at, t, photo) {
   const turn = ports.persist.turn;
   if (!turn || photo || !db || !ing) return GO;
   const held = await turn.holds(db, ing.conversation_id, ing.message_id).catch((e) => {
-    L.warn("wa_turn_unreadable", { error: errField9(e) });
+    L.warn("wa_turn_unreadable", { error: errField10(e) });
     return true;
   });
   if (held) return GO;

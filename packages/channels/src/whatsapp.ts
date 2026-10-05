@@ -307,6 +307,22 @@ export function waPricingOf(raw: unknown): WaPricing | null {
   return out.category ? out : null;
 }
 
+/**
+ * Meta's code for a message it did not deliver because the person chose, in WhatsApp, to stop marketing messages from
+ * this business (Cloud API error 131050, "This recipient has chosen to stop receiving marketing messages on WhatsApp
+ * from your business"). It comes in a failed receipt's `errors`. Not 131049 (Meta's own per-person limit on marketing
+ * templates) and not 131047 (the reply window): neither is the person's answer.
+ */
+const WA_STOPPED_MARKETING = 131050;
+
+/** Whether a receipt's `errors` say the person stopped marketing messages from this business. Never throws. */
+export function waStoppedMarketing(errors: unknown): boolean {
+  if (!Array.isArray(errors)) return false;
+  return errors.some(
+    (e) => e !== null && typeof e === "object" && Number((e as { code?: unknown }).code) === WA_STOPPED_MARKETING,
+  );
+}
+
 /* -------------------------------- sends -------------------------------- */
 
 export interface SendResult {

@@ -3475,6 +3475,15 @@ interface InboundPorts {
         /** People → profile → "Receptionist for …": this person's own mode, or null. */
         personReplyMode(db: InboundDb, tenantId: string, contactId: string): Promise<string | null>;
         /**
+         * This person's answer about offers and how it was given, or null where there is no such person: what a START's
+         * confirmation on WhatsApp reads to say a STOP ended their yes (reply-gates.ts). Absent in an adapter that has
+         * none: the confirmation is then the filed words alone.
+         */
+        offersAnswer?(db: InboundDb, tenantId: string, contactId: string): Promise<{
+            marketingConsent: string | null;
+            marketingConsentSource: string | null;
+        } | null>;
+        /**
          * That context in a line or two, for the model. A VALUE from the db package
          * on the edge, so it arrives as a port rather than as an import. The zone is
          * the business's, for the dates a deal's sentence says (0004). The channel is the conversation's: a text rides this
