@@ -5,9 +5,11 @@ Method note for the report writer: every WebFetch in this environment was blocke
 ## Key question 1: Robo-advisors and AI-managed accounts (Wealthfront, Betterment, Schwab, Vanguard, Q.ai, Magnifi, Titan, Robinhood Strategies)
 
 ### Takeaway
+
 The big robo-advisors remain deterministic rules engines (Modern Portfolio Theory allocation, drift rebalancing, tax-loss harvesting); where an LLM has appeared (Vanguard, September 2026) it is a chat layer that explicitly does not change the advice algorithm. Fees cluster at 0.15–0.40% of assets, minimums at $0–$5,000. Q.ai (Forbes) is dead; Magnifi and Titan are SEC-registered advisers; Robinhood Strategies is the fastest-growing new entrant (~$2B AUM in 15 months).
 
 ### Cited Findings
+
 - Fee on a $100,000 balance: Vanguard Digital Advisor roughly $150/yr (0.15% net), Betterment and Wealthfront $250/yr (0.25%), Schwab Intelligent Portfolios $0 in stated management fees — [Real Cost Report](https://www.realcostreport.com/investing/brokerage-tools/robo-advisor-comparison/)
 - Wealthfront: 0.25% annual management fee, $500 minimum; Betterment Digital 0.25% with $0 account minimum ($10 to begin investing), Betterment Premium 0.40% for accounts over $100,000; Schwab Intelligent Portfolios $0 management fee but a $5,000 minimum; Vanguard Digital Advisor $100 minimum, ~0.20% all-in including fund expenses, CFP access at 0.30% above $50,000 — [NerdWallet, Best Robo-Advisors 2026](https://www.nerdwallet.com/investing/best/robo-advisors)
 - In 2026 Schwab discontinued its Intelligent Portfolios Premium tier (CFP access for $30/month), leaving the digital-only option — [MyPersonalFi 2026 comparison](https://mypersonalfi.com/blog/robo-advisors-betterment-wealthfront-schwab-2026) (secondary source; not confirmed on schwab.com)
@@ -20,11 +22,13 @@ The big robo-advisors remain deterministic rules engines (Modern Portfolio Theor
 - Robinhood Strategies: 0.25% annually, capped at $250/year for Gold members (i.e. nothing above the first $100,000), $50 minimum, automated ETF portfolios with tax-loss harvesting and rebalancing — [AlgoAlpha Cortex review](https://algoalpha.co/blog/robinhood-cortex-review) (secondary). Adviser is Robinhood Asset Management, LLC — [Form ADV Part 2 brochure](https://cdn.robinhood.com/assets/robinhood/legal/RAM_Brochure_and_Brochure_Supplements.pdf). As of Q2 2026 (30 June) Strategies had over 300,000 funded customers and nearly $2 billion AUM — [Robinhood Q2 2026 results](https://investors.robinhood.com/news-releases/news-release-details/robinhood-reports-second-quarter-2026-results)
 
 ### Inferences
+
 - None of the four incumbents (Wealthfront, Betterment, Schwab, Vanguard) uses an LLM to make allocation decisions; the only confirmed LLM deployment (Vanguard) is a wrapped explainer. Marketing use of "AI" by these firms is largely about predictive/rules analytics.
 - Robinhood Strategies' $250 fee cap makes it the cheapest option for Gold members above ~$100k, undercutting even Vanguard on large balances; its growth suggests fee caps rather than "AI" are what move retail money.
 - Q.ai's shutdown and Titan's Marketing Rule episode are the two cautionary tales in this category; both involved "AI/hedge-fund-style" marketing to retail.
 
 ### Gaps
+
 - Could not read Form ADV filings for Wealthfront, Betterment, Schwab, Titan or Robinhood Asset Management (sec.gov blocked); performance disclosures and exact AUM are therefore not captured.
 - Whether Betterment or Wealthfront have shipped any LLM feature as of October 2026 was not found in results (no evidence either way).
 - Titan's current product mix (managed strategies vs. alternatives/accredited focus) in 2026 unclear; one review headline says "Alternative Investing App for Accredited Investors".
@@ -32,9 +36,11 @@ The big robo-advisors remain deterministic rules engines (Modern Portfolio Theor
 ## Key question 2: "AI picks" and signal services (Danelfin, Tickeron, Trade Ideas/Holly, Kavout, Candlestick.ai, Intellectia, StockHero, Zen Ratings)
 
 ### Takeaway
+
 These are software subscriptions, not advisers; most are recommend-only, with Trade Ideas (Brokerage+) and Tickeron being the ones that route orders to a broker. Every performance figure found is self-reported or backtested by the vendor; I found no independently audited track record for any of them, and Trustpilot threads show recurring refund disputes at Tickeron and Trade Ideas.
 
 ### Cited Findings
+
 - Division of the category: Danelfin, Kavout and Intellectia provide signals the user acts on manually; Trade Ideas, TrendSpider, Tickeron and others support automated or semi-automated execution through integrated brokers — [Toolworthy, 13 Best AI Trading Tools 2026](https://www.toolworthy.ai/blog/best-ai-trading-tools) (affiliate review)
 - Danelfin (vendor claim relayed): a portfolio of its highest-rated stocks returned +376% from January 2017 through June 2026 versus +166% for the S&P 500; stocks with AI Score 10/10 showed +21.05% average outperformance after three months — [ChartingLens AI stock screeners](https://chartinglens.com/blog/best-ai-stock-screener); [AlphaLog](https://alphalog.ai/blog/best-ai-stock-screeners-2026). Danelfin offers a 30-day money-back guarantee and Trustpilot reviewers report refunds honoured — [Trustpilot Danelfin](https://www.trustpilot.com/review/danelfin.com); [WallStreetZen Danelfin review 2026](https://www.wallstreetzen.com/blog/danelfin-review/)
 - Trade Ideas: Basic $127/month, Premium $254/month; Premium adds Holly AI signals, OddsMaker backtesting, Smart Risk Levels and automated execution through Brokerage+ — [TradingToolsHub](https://tradingtoolshub.com/review/trade-ideas/); [Curved Trading review 2026](https://curvedtrading.com/articles/en/reviews/trade-ideas-review/). Brokerage+ supports Interactive Brokers, E*TRADE and TradeStation in 2026 — [FinancialTechWiz](https://www.financialtechwiz.com/post/trade-ideas-review/). A 45-day independent test logged 280 Holly signals at ~62–64% accuracy; the company claims a 63.4% annualized return in its "2024 audit" — [AlphaGainDaily](https://alphagaindaily.com/en/blog/trade-ideas-holly-ai-review) (blog; the "audit" is the vendor's own). Trustpilot: a refund refused; one customer filed a complaint with the California Attorney General — [Trustpilot Trade Ideas](https://www.trustpilot.com/review/trade-ideas.com)
@@ -45,10 +51,12 @@ These are software subscriptions, not advisers; most are recommend-only, with Tr
 - Candlestick.ai: described as mobile-first, flat monthly fee for 3 top picks per week; price not found — [Toolworthy](https://www.toolworthy.ai/blog/best-ai-trading-tools)
 
 ### Inferences
+
 - The "track records" in this category are backtests or vendor-selected windows; none cited a third-party auditor or GIPS-style verification. A report should describe them as marketing claims.
 - Refund friction (Tickeron, Trade Ideas) is the most consistent consumer-harm signal; it is a contract/consumer issue, not a securities one, which is consistent with these being unregulated software vendors.
 
 ### Gaps
+
 - StockHero: no result surfaced; status and pricing unknown.
 - Candlestick.ai pricing and whether it still operates in 2026: not found.
 - Registration status: no result confirmed any of these as an RIA or broker-dealer; absence of a Form CRS in results is weak evidence they are software-only. Verify on adviserinfo.sec.gov.
@@ -57,9 +65,11 @@ These are software subscriptions, not advisers; most are recommend-only, with Tr
 ## Key question 3: No-code / semi-code strategy platforms and crypto bots (Composer, Alpaca, QuantConnect, Tradetron, TrendSpider, Option Alpha, Trality, Capitalise.ai, Pionex, 3Commas, Cryptohopper, Coinrule, Bitsgap, Kryll, Shrimpy)
 
 ### Takeaway
+
 Plain-English-to-execution exists in three forms: Composer (now SoFi-owned broker-dealer, AI editor writes the strategy), Capitalise.ai (free via partner brokers, English compiled to rules) and Public.com's agents (see Q4). Crypto bots are mature but have a shutdown/breach history: Trality (bankrupt 2023), Shrimpy (closed July 2023), 3Commas (2022 API-key leak, ~150k keys).
 
 ### Cited Findings
+
 - Composer: SoFi acquired Composer in June 2026; product now "Composer by SoFi"; Composer Securities LLC remains the registered broker-dealer; existing symphonies, pricing, fees, custody and SIPC protection unchanged at announcement — [SoFi investor release](https://investors.sofi.com/news/news-details/2026/Introducing-Composer-by-SoFi-AI-Powered-Investing-From-Idea-to-Execution/default.aspx); [The Paypers](https://thepaypers.com/mergers-aquisitions-and-investments/news/sofi-acquires-ai-startup-composer-to-democratise-trading-strategies); [Composer Securities LLC Form X-17A-5 FY2025](https://www.sec.gov/Archives/edgar/data/1965825/000196582526000001/COM-Public-Report.pdf). Pricing: $0/month to automate a first strategy, upgrade as you grow; Annual Trading Pass $384/year (~$32/month), 20% below the monthly rate; the AI-assisted editor turns a natural-language description of goals, strategy and risk concerns into a strategy — [Composer.trade](https://www.composer.trade/); [The Rundown AI, Composer](https://www.therundown.ai/tools/composer)
 - Option Alpha: no-code options automation with a visual workflow builder ("SmartPricing"), backtesting and autotrading; free when using Tradier brokerage — [OfficeChai AI tools for trading](https://officechai.com/learn/ai-tools-for-trading/)
 - Capitalise.ai: natural-language strategy builder, plain English compiled into executable automation (price triggers, indicators, multi-condition logic); free through partner brokers Interactive Brokers, FXCM and AvaTrade, no direct subscription — [Slashdot Capitalise.ai](https://slashdot.org/software/p/Capitalise.ai/alternatives); [OfficeChai](https://officechai.com/learn/ai-tools-for-trading/)
@@ -72,10 +82,12 @@ Plain-English-to-execution exists in three forms: Composer (now SoFi-owned broke
 - Trality: "discontinued as of 31.7.2023"; filed for bankruptcy August 2023; recommended Cryptohopper as alternative — [Cryptohopper blog](https://www.cryptohopper.com/blog/trading-bot-trality-stops-consumer-offering-and-recommends-cryptohopper-as-an-alternative-9466); [CoinCodeCap Trality review](https://coincodecap.com/trality-review)
 
 ### Inferences
+
 - Risk controls in this category are built into the rule the user writes (stop, position size, symbol list) rather than imposed as account-level caps; the platforms that are also broker-dealers (Composer) or run inside a broker (Option Alpha/Tradier, Capitalise/IBKR) are the ones where the account's own margin/buying-power limits act as the hard backstop.
 - Crypto bot platforms hold exchange API keys, so the dominant failure mode has been credential exposure (3Commas) and vendor insolvency (Trality, Shrimpy), not "bad AI decisions".
 
 ### Gaps
+
 - QuantConnect cloud pricing/retail live-trading status: not researched (no result).
 - Pionex/3Commas/Cryptohopper/Coinrule/Bitsgap 2026 price tiers, supported exchanges and US availability: not captured in detail.
 - Composer's exact 2026 tier table (monthly price, AUM-based fees, crypto/options support) could not be read (composer.trade blocked).
@@ -84,9 +96,11 @@ Plain-English-to-execution exists in three forms: Composer (now SoFi-owned broke
 ## Key question 4: Broker-native AI as of 2026 (Robinhood Cortex/Strategies/Agentic, Public Alpha/agents, eToro Tori, IBKR Ask IBKR/iBot, Schwab, Fidelity, Coinbase, Kraken, Gemini, Revolut)
 
 ### Takeaway
+
 2026 is the year brokers opened accounts to external agents over MCP: Robinhood (27 May 2026, stocks; crypto July 2026), Gemini (27 April 2026), Coinbase (11 June 2026), Revolut X (c. July 2026), eToro, Alpaca, IBKR (Claude integration), plus Public's own in-house agents. The safeguards differ sharply: Robinhood and Coinbase use ring-fenced agent accounts with user-set limits and kill switches; Revolut X and Kraken require human approval on every trade; Gemini gives agents "full account control". Schwab and Fidelity remain research/servicing chatbots.
 
 ### Cited Findings
+
 - Robinhood Cortex: bundled with Robinhood Gold ($5/month or $50/year); explains stock moves, builds custom chart indicators and scans from natural language; described as "a copilot, not an autopilot. It suggests, explains, and places the specific orders you request in conversation" — [AlgoAlpha Cortex review](https://algoalpha.co/blog/robinhood-cortex-review) (secondary). Legal terms: [Cortex assistant disclosure](https://cdn.robinhood.com/assets/robinhood/legal/cortex_assistant_disclosure.pdf); [Cortex agreement](https://cdn.robinhood.com/assets/robinhood/legal/cortex_agreement.pdf). A UK support article exists for "Cortex Digests" — [Robinhood UK support](https://robinhood.com/gb/en/support/articles/cortex-digests)
 - Robinhood Agentic Trading launched 27 May 2026; users connect external models (Claude, ChatGPT, Cursor, Grok, Codex) via an MCP server to research, place orders and rebalance — [TechCrunch, 27 May 2026](https://techcrunch.com/2026/05/27/robinhood-now-lets-your-ai-agents-trade-stocks/); [Robinhood newsroom](https://robinhood.com/us/en/newsroom/robinhood-is-now-open-to-agents/); [Robinhood support: onboarding an external agent](https://robinhood.com/us/en/support/articles/agentic-trading-overview/). Safeguards: the agent trades only funds in a separate ring-fenced "Agentic" account, not the main portfolio; one-tap kill switch; real-time trade alerts; configurable human approval on high-risk orders — [Finder, Robinhood Agentic Trading review](https://www.finder.com/stock-trading/robinhood-agentic-accounts); [SecProve step-by-step](https://secprove.com/trading-agent-safety/connect-chatgpt). Crypto added July 2026 — [Genfinity, 21 Jul 2026](https://genfinity.io/2026/07/21/robinhood-agentic-trading-crypto-ai-agents/). Beta offered to 27M customers; agent-specific credit cards also announced — [BitsMinds](https://www.bitsminds.com/news/robinhood-agentic-trading-claude-chatgpt-mcp-2026); [TNW](https://thenextweb.com/news/robinhood-is-letting-ai-agents-trade-stocks-and-spend-money-on-your-credit-card)
 - On 30 September 2026 CoinDesk reported Robinhood giving customers an AI agent that trades 24/7 "and you carry the risk", alongside 10x crypto bets; Robinhood's terms say agents can misinterpret instructions or act on stale data and Robinhood is not responsible for losses from agent decisions — [CoinDesk, 30 Sep 2026](https://www.coindesk.com/markets/2026/09/30/robinhood-is-giving-customers-an-ai-agent-that-trades-for-them-plus-10x-crypto-bets); [Robinhood support: trading with your agent](https://robinhood.com/us/en/support/articles/trading-with-your-agent/)
@@ -101,10 +115,12 @@ Plain-English-to-execution exists in three forms: Composer (now SoFi-owned broke
 - Gemini (exchange): Agentic Trading rolled out 27 April 2026; users connect Claude or ChatGPT; agents can monitor, place and execute trades and manage risk on predefined strategies; Gemini called it "the first agentic trading tool to be available directly through a regulated US-based exchange" — [The Block, 27 Apr 2026](https://www.theblock.co/news/markets/2026-04-27-gemini-rolls-out-agentic-trading-allowing-ai-bots-to-directly-manage-crypto-exchange-trading-accounts-399001); described as "full account control capabilities" — [MEXC news](https://www.mexc.com/news/1058403); community warnings that it "just adds more complexity" — [CCN](https://www.ccn.com/news/crypto/geminis-ai-trading-launch-warnings-crypto-community/)
 
 ### Inferences
+
 - The industry has converged on MCP as the connector, so "which AI" matters less than "which broker" for safeguards. A buyer's checklist should be: separate agent sub-account (Robinhood, Coinbase), approval-per-trade (Revolut X, Kraken), user-set spend/risk caps (Coinbase), kill switch (Robinhood), versus full-account keys (Gemini, exchange API-key bots).
 - Robinhood's liability language ("not responsible for losses resulting from agent-generated decisions") is likely the template others follow; the economic risk of agent error sits entirely with the customer.
 
 ### Gaps
+
 - Exact numeric limits users can set on Robinhood Agentic accounts (max position, daily loss cap, symbol allowlist) were not readable; only "ring-fenced account", "kill switch" and "approval on high-risk orders" are reported.
 - Coinbase's and Gemini's concrete limit options, geography and fee schedules not captured.
 - IBKR Ask IBKR/iBot: whether orders execute without confirmation, and which regions, not confirmed from IBKR itself.
@@ -114,9 +130,11 @@ Plain-English-to-execution exists in three forms: Composer (now SoFi-owned broke
 ## Key question 5: Consumer AI assistants with brokerage connectors (ChatGPT apps/agents, Claude connectors, Gemini, Perplexity Finance/Computer) as of 2026
 
 ### Takeaway
+
 The general-purpose assistants do not execute trades themselves; they execute through a broker's MCP server or app, and the safeguards are the broker's. Perplexity Computer is the one assistant marketed as placing real multi-asset trades end-to-end from natural language (via Public), while Perplexity Finance's own Portfolio feature is read-only via Plaid.
 
 ### Cited Findings
+
 - Robinhood's agentic integration runs through MCP, the open protocol Anthropic released in late 2024, which "has since become the connective tissue between LLMs and SaaS APIs"; ChatGPT, Claude, Cursor, Grok and Codex are supported clients — [BitsMinds](https://www.bitsminds.com/news/robinhood-agentic-trading-claude-chatgpt-mcp-2026); [TechCrunch](https://techcrunch.com/2026/05/27/robinhood-now-lets-your-ai-agents-trade-stocks/)
 - Coinbase's agent platform "can also work in ChatGPT or Claude through its MCP server" — [TechCrunch](https://techcrunch.com/2026/06/11/coinbase-debuts-mcp-for-agent-trading/); crypto press headline "ChatGPT Can Now Trade Crypto for You via Coinbase" — [Cryptonews](https://cryptonews.net/news/market/33043558/)
 - Interactive Brokers integrated with Claude in 2026 for research and trade instructions — [DayTrading.com](https://www.daytrading.com/ai/brokers)
@@ -126,10 +144,12 @@ The general-purpose assistants do not execute trades themselves; they execute th
 - Alpaca's MCP server is explicitly built for Claude, ChatGPT, Cursor and Gemini CLI as clients — [Alpaca MCP docs](https://docs.alpaca.markets/us/v1.4.2/docs/alpaca-mcp-server)
 
 ### Inferences
+
 - There is no evidence of OpenAI, Anthropic or Google operating their own brokerage connector with proprietary trade safeguards; each assistant is a client, and whatever limits exist (approval, caps, sub-accounts) live at the broker/exchange. A report should warn that an assistant with a full-permission API key (e.g. a Gemini exchange key or a self-hosted Alpaca MCP) has no guardrail other than the user's prompt.
 - Perplexity's two-layer design (read-only Portfolio in Perplexity Finance; execution only through Computer + Public) suggests the vendors themselves separate "advice/analysis" from "execution" for liability reasons.
 
 ### Gaps
+
 - Nothing found on Google Gemini (the assistant) having a brokerage connector; the "Gemini" results all refer to the Winklevoss exchange.
 - No found statement from OpenAI or Anthropic on trading-specific safeguards (confirmation prompts, disallowed instructions) in their apps; this may exist in usage policies but did not surface.
 - Whether ChatGPT's app directory lists Robinhood/Coinbase/Public as first-party apps (vs. user-added MCP) not confirmed.
@@ -137,9 +157,11 @@ The general-purpose assistants do not execute trades themselves; they execute th
 ## Key question 6: Documented losses, bugs, scams and regulatory actions (SEC "AI washing", FINRA, FCA, ESMA; failures of these products)
 
 ### Takeaway
+
 Enforcement so far targets false AI claims (Delphia, Global Predictions, Rimar Capital, Presto, Nate) and outright AI-themed scams ($14–15M crypto cases, December 2025), not losses from a genuine AI making bad trades; no public, verified case of a mainstream agentic-trading product losing customer money through a bug surfaced in results. ESMA has issued retail warnings and a 2026 algorithmic-trading supervisory briefing; nothing FCA-specific was found.
 
 ### Cited Findings
+
 - 18 March 2024: SEC settled charges against Delphia (USA) Inc. and Global Predictions, Inc. for false or misleading statements about AI use; penalties $225,000 and $175,000; Delphia never used AI/ML on client data as claimed; first explicit SEC AI-washing actions — [Mayer Brown](https://www.mayerbrown.com/en/insights/publications/2024/04/securities-and-exchange-commission-brings-first-enforcement-actions-over-aiwashing); [Harvard Law Forum](https://corpgov.law.harvard.edu/2024/04/09/sec-fines-two-investment-advisers-for-ai-washing/)
 - Rimar Capital (Liptz, Boro): raised ~$4 million from 45 investors on false claims of an AI-driven automated trading platform, misrepresented AUM and returns; $310,000 civil penalties, $213,611 disgorgement, 5-year prohibition — [Weil Gotshal enforcement alert, 12 May 2025](https://www.weil.com/-/media/mailings/2025/q2/recent-sec-and-doj-enforcement-actions-and-charges-signal-that-aiwashing-is-firmly-within-the-crossh.pdf)
 - 14 January 2025: SEC charged Presto Automation for misleading AI claims (voice AI built by a third party; human intervention downplayed) — [Cooley PubCo](https://cooleypubco.com/2025/01/30/sec-charges-ai-washing/); [Ropes & Gray](https://www.ropesgray.com/en/insights/alerts/2025/01/ai-washing-enforcement-in-the-final-days-of-the-gensler-administration)
@@ -157,10 +179,12 @@ Enforcement so far targets false AI claims (Delphia, Global Predictions, Rimar C
 - Searches for a specific 2026 incident of an agentic-trading bug or AI decision causing user losses at Robinhood, Gemini or Coinbase returned nothing — (no source; see Gaps)
 
 ### Inferences
+
 - The enforcement pattern is "AI washing" (misrepresenting AI) plus classic fraud dressed as AI; regulators have not yet brought a case premised on a genuine model trading badly. The exposure for a retail user is therefore contractual: the broker disclaims agent error.
 - Vendor insolvency (Q.ai, Trality, Shrimpy) is a bigger realised loss vector for retail than model error so far; a report should recommend checking whether assets are custodied at a regulated broker (Composer Securities, Robinhood, Public) versus held behind a third-party bot's API key.
 
 ### Gaps
+
 - No FCA-specific statement or enforcement on AI investment apps surfaced; the search returned only ESMA and US material.
 - No verified, dated incident of an LLM agent producing a loss for a named retail customer at a mainstream broker (this may be absence of reporting rather than absence of events; agentic trading is only four to five months old).
 - SEC's December 2025 case details (defendant names, court) not readable (page blocked).

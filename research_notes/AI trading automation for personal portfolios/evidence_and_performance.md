@@ -5,9 +5,11 @@ Scope note on method: web search worked throughout; direct fetch of most primary
 ## Key question 1: LLM price-prediction studies (Lopez-Lira & Tang and successors; replication; look-ahead bias; costs)
 
 ### Takeaway
+
 The headline Lopez-Lira & Tang result (GPT-4 news-headline sentiment predicts next-day returns, long-short Sharpe ~3-4) is real in its post-cutoff sample but decays sharply year by year, concentrates in small stocks and bad news, and is largely eaten by realistic transaction costs; the 2025-2026 literature adds that any in-sample LLM "forecasting" result is contaminated by memorised outcomes (look-ahead bias) and that strategy-discovery pipelines produce nothing that survives search-aware deflation.
 
 ### Cited Findings
+
 - Lopez-Lira & Tang (University of Florida; first version April 2023, later versions 2024) have GPT-4 score news headlines and find a long-short strategy that buys positive-scored and sells negative-scored stocks delivers a Sharpe ratio of 3.8 for GPT-4 vs 3.1 for GPT-3.5 in one version; a later analysis reports an annualised Sharpe of 2.97 for GPT-4 next-day drift returns vs 1.66 for GPT-3.5 — [arXiv 2304.07619](https://arxiv.org/pdf/2304.07619); [FoFI 2024 version](http://wp.lancs.ac.uk/fofi2024/files/2024/04/FoFI-2024-139-Alejandro-Lopez-Lira.pdf)
 - Sample deliberately starts after GPT-4's September 2021 training cutoff (October 2021 to May 2024) so the test is out-of-sample with respect to memorisation; the paper reports ~90% portfolio-day hit rates for the non-tradable initial market reaction (93.3% of days for overnight news, 88.8% for intraday news) — [arXiv 2304.07619v6](https://arxiv.org/pdf/2304.07619v6)
 - Decay: the annualised Sharpe of the GPT-4 overnight strategy drops from 6.54 in 2021Q4 to 3.68 in 2022, 2.33 in 2023 and 1.22 over January-May 2024, which the authors read as market learning / declining predictability — [FoFI 2024 version](http://wp.lancs.ac.uk/fofi2024/files/2024/04/FoFI-2024-139-Alejandro-Lopez-Lira.pdf); [AdvisorAnalyst summary, Sept 2026](https://advisoranalyst.com/2026/09/03/can-chatgpt-accurately-forecast-stock-price-direction.html/)
@@ -22,11 +24,13 @@ The headline Lopez-Lira & Tang result (GPT-4 news-headline sentiment predicts ne
 - Lopez-Lira's 2025 follow-up, "Can Large Language Models Trade? Testing Financial Theories with LLM Agents in Market Simulations" (arXiv 2504.10789), is a simulation framework, not a profitability claim: LLM agents follow instructed strategies (value, momentum, market-making), reproduce bubbles and underreaction, and show an asymmetry in correcting under- vs over-valuation; it warns prompts can generate correlated behaviour affecting stability — [arXiv 2504.10789](https://arxiv.org/abs/2504.10789); [Bank of Finland slides](https://www.suomenpankki.fi/globalassets/bof/en/financial-stability/events/can-large-language-models-trade-ai-agents-competing-in-stock-markets_alejandro-lopez-lira.pdf)
 
 ### Inferences
+
 - The strongest published LLM-prediction signal is a news-reaction effect that (a) is mostly priced in the first, non-tradable reaction, (b) decays fast as it becomes known, and (c) sits in small, costly-to-trade names. For an individual paying retail spreads and taxes, the tradable residual after 2024 is plausibly close to zero.
 - Anything that backtests an LLM over dates before its training cutoff (most "AI stock picker" blog posts and several papers) is not evidence; the Gao-Jiang-Yan LAP test is the cleanest tool to date for demonstrating this.
 - The 2026 leakage-safe discovery paper is the most direct answer to "can I have an LLM invent me a strategy": with honest accounting for how many ideas were tried, none survived while plain market beta did.
 
 ### Gaps
+
 - I could not open the latest Lopez-Lira & Tang PDF directly; the Sharpe decay figures (6.54 -> 1.22) and cost figures come from search extracts of the FoFI 2024 version and a September 2026 secondary summary, not from my own reading of the paper.
 - No peer-reviewed replication with a different data vendor was found; the "replication" language in search results refers to Gao-Jiang-Yan re-running the design, not an independent team on independent data.
 - Post-cutoff point estimate for return predictability in Gao-Jiang-Yan (the counterpart to the 0.21% in-sample figure) was not visible in the extracts.
@@ -34,9 +38,11 @@ The headline Lopez-Lira & Tang result (GPT-4 news-headline sentiment predicts ne
 ## Key question 2: Public live experiments (nof1 Alpha Arena Seasons 1 and 1.5; TradeRank; Finder; individual real-money logs)
 
 ### Takeaway
+
 Across the only real-money, public, multi-model LLM trading experiment (nof1's Alpha Arena), the models in aggregate lost money in both seasons (4 of 6 lost in Season 1; 26 of 32 accounts lost and the pool fell 35% in Season 1.5), rankings flipped between seasons, and nof1 itself says statistical power is limited; no Season 2 results were public as of October 2026.
 
 ### Cited Findings
+
 - Season 1 design: six LLMs (Qwen3 Max, DeepSeek V3.1, Claude Sonnet 4.5, Gemini 2.5 Pro, Grok 4, GPT-5), $10,000 each of real money, same prompts, trading crypto perpetual futures on Hyperliquid, 18 Oct to 3 Nov 2025 (about 17 days), no human intervention — [news.bitcoin.com](https://news.bitcoin.com/6-bots-with-real-money-hyperliquid-hosts-first-ever-ai-trading-showdown/); [nof1 blog TechPost1 (listed, not fetchable here)](https://nof1.ai/blog/TechPost1); [Phemex](https://phemex.com/news/article/alpha-arena-ai-trading-competition-to-conclude-on-november-4-30877)
 - Season 1 outcome: Qwen3 Max finished first at about +22.3%; DeepSeek V3.1 second at about +4.9%; the other four finished with losses; GPT-5 lost more than 60% ("63%" in some reports); Grok 4 was down roughly 58% (about $4,208 left); Gemini 2.5 Pro also lost more than half — [gncrypto](https://www.gncrypto.news/news/qwen-wins-alpha-arena-season-1-with-22-percent-returns/); [ForkLog](https://forklog.com/en/four-out-of-six-ai-models-suffer-losses-in-trading-tournament/); [Benzinga](https://fr.benzinga.com/quote/cryptocurrency/25/11/48651974/chatgpt-lost-63-trying-to-trade-crypto-but-one-china-ai-made-a-healthy-profit); [iWeaver](https://www.iweaver.ai/blog/alpha-arena-ai-trading-season-1-results/)
 - Conflicting end-balance set: one widely shared X post lists final balances as Qwen3 Max $11,149, DeepSeek V3.1 $8,637, Claude Sonnet 4.5 $5,714, Gemini 2.5 Pro $5,438, Grok 4 $4,702, GPT-5 $4,426 — which would make DeepSeek a loser, contradicting the "+4.9%" reports. The difference is probably snapshot timing on the final day; treat exact per-model numbers as uncertain to within several percentage points — [Harshith on X](https://x.com/HarshithLucky3/status/1985623428918100145); contradicted by [gncrypto](https://www.gncrypto.news/news/qwen-wins-alpha-arena-season-1-with-22-percent-returns/)
@@ -53,10 +59,12 @@ Across the only real-money, public, multi-model LLM trading experiment (nof1's A
 - A paper-trading "AI hedge fund" of five frontier models (Claude Opus 4.7, GPT-5.5, Gemini 3.1 Pro, DeepSeek V4 Pro, Grok 4.3) with $10k each started May 2026; no results found yet — [GT Protocol](https://www.gt-protocol.io/learn/can-ai-predict-crypto-what-5-llms-actually-did/)
 
 ### Inferences
+
 - With one 17-day crypto run and one two-week equities run, the only robust conclusion is the aggregate: the fleet lost money, mostly to fees and over-trading, and the identity of the "winner" was not stable (Qwen first, then last-quartile). Any ranking of which lab's model "is best at trading" is noise.
 - The Finder result is the single public LLM pick list that beat something, and it did so by being a static, low-turnover, US-tech-heavy basket held through a 2023-2026 bull market — closer to "buy and hold" than to "AI trading".
 
 ### Gaps
+
 - Could not reach nof1.ai directly; all Season 1/1.5 figures are via secondary coverage or a third-party compilation of nof1's pages. Per-model Season 1 end balances differ between sources (see conflict above).
 - No Season 2 data found; whether it ran privately is unknown.
 - I found no WSJ or Bloomberg real-money LLM experiment with documented outcomes; the Finder experiment is tracked, not funded. No Matt Levine column specifically on Alpha Arena was located by search.
@@ -65,9 +73,11 @@ Across the only real-money, public, multi-model LLM trading experiment (nof1's A
 ## Key question 3: Agent frameworks' claimed results (TradingAgents, FinGPT/FinRL, StockBench, LiveTradeBench) and the backtest-to-live gap
 
 ### Takeaway
+
 Published LLM-agent frameworks report spectacular backtests (TradingAgents: Sharpe 8.21 on AAPL over ~5 months) that do not survive scrutiny (its buy-and-hold baseline is wrong by ~14 points; no slippage, taxes or market impact; three large-cap tech names; model trained after the test window), and contamination-free live benchmarks released in late 2025 find most LLM agents fail to beat buy-and-hold.
 
 ### Cited Findings
+
 - TradingAgents (Tauric Research, arXiv 2412.20138, Dec 2024) claims at least 23.21% cumulative and 24.90% annualised return on AAPL/GOOGL/AMZN, beating the best baseline by 6.1%; the AAPL result is 26.62% cumulative with Sharpe 8.21 between 2024-06-19 and 2024-11-19 and a 0.91% max drawdown — [arXiv 2412.20138](https://arxiv.org/pdf/2412.20138); [project page](https://tradingagents-ai.github.io/)
 - Critique: the paper reports buy-and-hold losing 5.23% in that window while AAPL actually gained about 9.12%, a ~14-point baseline error; a Sharpe of 8.21 with 0.91% max drawdown over ~105 trading days in a single name "usually points to an evaluation artifact rather than alpha" — [DEV Community analysis](https://dev.to/trow126/the-most-starred-llm-trading-paper-claims-buy-and-hold-lost-523-it-actually-gained-912-1jj6)
 - Further critiques logged on the repository: no slippage, taxes or market impact modelled, zero latency assumed, only three large-cap US tech stocks, backtesting engine never named; and a "temporal knowledge leakage" issue (a 2026-trained model backtesting 2023-24 already "knows" the NVDA boom, SVB, FTX, rate path) with no maintainer response as of the fetch — [TradingAgents issue #119](https://github.com/TauricResearch/TradingAgents/issues/119); [TradingAgents issue #805](https://github.com/TauricResearch/TradingAgents/issues/805)
@@ -79,19 +89,23 @@ Published LLM-agent frameworks report spectacular backtests (TradingAgents: Shar
 - Other 2026 benchmarks that reach the same direction (Backtrader-Bench, CLQT, memory-controlled stock agent benchmark, FIDES concordance protocol, HindsightBench for parametric hindsight) are listed for the writer's reference — [arXiv 2608.11232](https://arxiv.org/pdf/2608.11232); [arXiv 2606.29771](https://arxiv.org/pdf/2606.29771); [arXiv 2605.28359](https://arxiv.org/html/2605.28359v1); [arXiv 2608.23308](https://arxiv.org/html/2608.23308); [arXiv 2607.18867](https://arxiv.org/pdf/2607.18867)
 
 ### Inferences
+
 - The gap between claimed and honest results in this literature is not a few percentage points but the difference between "Sharpe 8" and "does not beat buy-and-hold". The field's own 2026 surveys say the evaluation protocols, not the models, are the binding constraint.
 - A retail user running an open-source agent framework is running the backtested version, with none of the live-benchmark corrections.
 
 ### Gaps
+
 - I could not fetch the TradingAgents paper or the dev.to verification directly; the baseline discrepancy figures are from search extracts of that article.
 - No live, real-money record for TradingAgents, FinGPT or FinRL was found.
 
 ## Key question 4: Institutional evidence (Renaissance, Two Sigma, Man AHL / Man Numeric, AQR, Bridgewater; LLMs in research vs execution)
 
 ### Takeaway
+
 The quant firms that do use ML profitably use it on abundant data (execution, fast signals, text/NLP as one input among many), run it through human research committees, and describe LLMs as a research accelerator ("AlphaGPT" at Man Numeric, "operational alpha" at Two Sigma); no firm has disclosed an LLM that trades on its own judgment, and the one new AI-run fund with a public number (Bridgewater AIA, +11-12% in 2025) is unexceptional.
 
 ### Cited Findings
+
 - Man AHL has traded ML components inside multi-strategy programmes since early 2014; it says ML works "especially in applications where there is a relative abundance of data" (faster systematic strategies, trade execution, smart order routing) and more recently NLP on text — [Man "The Rise of Machine Learning"](https://www.man.com/insights/the-rise-of-machine-learning); [Man "Intro to ML"](https://www.man.com/insights/intro-machine-learning)
 - Man Group went public with "AlphaGPT" in July 2025: an agentic system at Man Numeric that proposes signals, writes the code and runs backtests before a human sees the output, after which ideas enter the normal research and investment committee process; senior PM Ziang Fang said it had produced "several dozen" signals approved for live trading and cut idea generation from days to minutes — [Bloomberg, 10 July 2025](https://www.bloomberg.com/news/articles/2025-07-10/man-group-says-agentic-ai-is-now-devising-quant-trading-signals); [Hedgeweek](https://www.hedgeweek.com/man-group-deploys-agentic-ai-for-quant-signal-discovery/); [AI Street interview, Dec 2025](https://www.ai-street.co/p/inside-man-group-s-alphagpt); [Man "What AI Can (and Can't Yet) Do for Alpha"](https://www.man.com/insights/what-ai-can-do-for-alpha)
 - AQR: Cliff Asness, once sceptical, says ML now has "a much bigger role" (June 2024); Bloomberg reported ML powering about a fifth of signals in the flagship multi-strategy fund and AQR raising external capital for two ML strategies; head of ML Bryan Kelly names three uses — generating signals (NLP "definitely the current most-used thing at AQR"), weighting signals, and productivity; Asness calls earnings-call-to-position signals "pure machine learning" that "worked out quite nicely for us" but calls generative AI "evolutionary, not revolutionary" and "still just statistics" — [Bloomberg Law](https://news.bloomberglaw.com/private-equity/aqr-bets-on-machine-learning-as-cliff-asness-becomes-ai-believer); [Bloomberg, 25 June 2024](https://www.bloomberg.com/news/articles/2024-06-25/cliff-asness-says-computers-are-consolidating-power-at-aqr); [Hedgeweek](https://www.hedgeweek.com/ai-is-still-just-statistics-says-aqrs-cliff-asness/); [BNN Bloomberg, Dec 2024](https://bnnbloomberg.ca/business/technology/2024/12/03/aqrs-cliff-asness-says-ai-has-now-taken-over-parts-of-his-job)
@@ -102,19 +116,23 @@ The quant firms that do use ML profitably use it on abundant data (execution, fa
 - Renaissance Medallion: average annual return ~66% before fees since 1988 and ~$100bn of trading profits, per Zuckerman's book; the fund is closed to outsiders and its methods (statistical / ML pattern-finding since the 1990s, e.g., Carmona's recommendation) are not reproducible by a retail investor — [The Economist review](https://econ.st/2UdBMbi); [Advisor Perspectives](https://www.advisorperspectives.com/articles/2019/12/09/was-renaissances-success-luck-or-skill-and-was-it-behind-trumps-victory)
 
 ### Inferences
+
 - The institutions that profit from ML have proprietary data, execution at institutional cost, dozens of signals diversified across thousands of names, and a human committee as the last gate; the LLM's job is to propose, code and backtest, which is exactly the step the "What survives honest evaluation" paper shows is prone to search-induced overfitting unless trial counts are logged.
 - No disclosed case of LLM judgment directly setting positions at a major fund was found; the direction of 2025-2026 disclosure is "LLMs in research and operations, not execution".
 
 ### Gaps
+
 - Could not open Bloomberg, Man or AQR pages directly; "about a fifth of signals" and "several dozen signals" are from search extracts of those outlets.
 - No performance attribution for AlphaGPT-sourced signals has been published. Medallion's net-of-fee figure and any Renaissance LLM usage were not found.
 
 ## Key question 5: Base rates (SPIVA 2025, Morningstar Barometer, day-trader studies, retail crypto)
 
 ### Takeaway
+
 Over 15-20 years roughly 90-93% of active US large-cap funds trail the S&P 500 and only ~21% of active funds survive and beat passive peers over 10 years; 97% of persistent Brazilian day traders lost money, about 1% of Taiwanese day traders earned reliable profits, and roughly three-quarters of retail Bitcoin app users lost money — the hurdle any AI trader must clear is set by these numbers, not by a backtest.
 
 ### Cited Findings
+
 - SPIVA U.S. Year-End 2025: 79% of active large-cap US equity funds underperformed the S&P 500 in 2025 (65% in 2024), the fourth-worst year in the 25-year SPIVA history; over 10 years 85.59%, 15 years 89.93%, 20 years 92.89% of large-cap funds underperformed; after 15 years there was no category in which a majority of active managers outperformed — [SPIVA U.S. Year-End 2025 PDF](https://spglobal.com/spdji/en/documents/spiva/spiva-us-year-end-2025.pdf); [SPIVA institutional scorecard page](https://www.spglobal.com/spdji/en/spiva/article/institutional-spiva-scorecard/); [IFA summary](https://www.ifa.com/articles/spiva-report-active-vs-passive)
 - Morningstar US Active/Passive Barometer (year-end 2025 edition, published H1 2026): one-year success rate for active equity managers across 39 categories 31.2%; only 21% of active strategies survived and beat their passive counterparts over the 10 years to end-2025; diversified emerging-market funds were the best category at 64%; active corporate-bond funds 4%; active real estate 12% — [Morningstar H1 2026 PDF](https://www.morningstar.com/content/cs-assets/v3/assets/blt9415ea4cc4157833/blt5aba5776f3a651af/6994e7ad0d21c50008e81800/US-Active-Passive-Barometer-H12026.pdf); [WealthManagement.com](https://www.wealthmanagement.com/investment-news/morningstar-active-funds-underperformed-passive-peers-in-2025); [InvestmentNews](https://www.investmentnews.com/practice-management/active-managers-face-shrinking-odds-of-beating-indexes-morningstar-finds/265335)
 - Brazil (Chague, De-Losso & Giovannetti, "Day Trading for a Living?", 2019/2020): 19,646 individuals began day trading Bovespa index futures 2013-2015; 1,551 (7.9%) persisted more than 300 sessions; of those, only 11% had positive gross and 3.0% positive net average daily returns; 1.1% earned more than the Brazilian minimum wage; 0.5% more than a bank teller; no evidence of learning with experience — [SSRN 3423101](https://papers.ssrn.com/sol3/papers....act_id%3D3423101); [CXO Advisory summary](https://www.cxoadvisory.com/investing-expertise/day-trading-a-bust/); [FGV repository](https://repositorio.fgv.br/items/e87d04fc-4b4c-4a56-ab5a-1c84c1afde1b/full)
@@ -125,19 +143,23 @@ Over 15-20 years roughly 90-93% of active US large-cap funds trail the S&P 500 a
 - Critique (Fulkerson, Jordan, Riley & Yan, Financial Analysts Journal vol. 82 no. 3, 2026, "Bad Timing Does Not Cost Investors 15% of Their Funds' Returns"): decomposing the gap, the part attributable to genuinely harmful timing is only about 0.10%/yr; much of the rest is a measurement artefact of money flowing in after strong past performance — [FAJ article](https://www.tandfonline.com/doi/full/10.1080/0015198X.2026.2657253); [Univ. of Arkansas summary](https://walton.uark.edu/insights/posts/do_investors_really_lose_fund_returns_to_bad_timing.php)
 
 ### Inferences
+
 - For an individual, the relevant comparison is not "AI vs human stock picker" but "AI trader vs the ~1-3% of active traders who are reliably profitable after costs". Nothing in the LLM evidence suggests an LLM lifts a retail account into that tail.
 - The behaviour-gap literature cuts both ways for "AI discipline" products: the 1.2-point headline gap is the marketing number, but the FAJ decomposition suggests the pure cost of bad timing is an order of magnitude smaller.
 
 ### Gaps
+
 - SPIVA and Morningstar PDFs could not be opened; figures are from search extracts of those PDFs and secondary summaries.
 - No 2024-2026 academic study of retail perpetual-futures (Hyperliquid/Binance) P&L was found; only exchange-level anecdotes.
 
 ## Key question 6: Systematic failure modes and LLM financial-reasoning accuracy (overfitting, look-ahead, costs, crowding, hallucination; FinanceBench, Vals Finance Agent)
 
 ### Takeaway
+
 The failure modes are well quantified: backtested index products outperform by ~5-10%/yr before launch and ~0% after; with hundreds of tried strategies a t-stat of 3 (not 2) is the minimum; LLM backtests add memorisation on top; and on real financial-analyst tasks the best 2026 models still score only 52-65%, so "LLM financial reasoning" is not yet a reliable input even before any trading is attempted.
 
 ### Cited Findings
+
 - Backtest overfitting: Bailey & Lopez de Prado's Deflated Sharpe Ratio corrects for selection bias under multiple testing and non-normality; Bailey, Borwein, Lopez de Prado & Zhu's Probability of Backtest Overfitting is the fraction of combinatorial splits in which the in-sample winner is below median out-of-sample — [SSRN 2460551 (DSR)](https://papers.ssrn.com/abstract=2460551); [SSRN 2326253 (PBO)](https://papers.ssrn.com/abstract=2326253)
 - Data snooping: Harvey, Liu & Zhu (2016, "...and the Cross-Section of Expected Returns") catalogue 316 published factors (mid-1960s-2012) and argue a new factor needs t > 3.0; one-third to one-half of published factors are likely false positives — [SSRN 2513152](https://papers.ssrn.com/abstract=2513152); [NBER w20592](https://nber.org/papers/w20592)
 - Backtest vs live for products: Research Affiliates found smart-beta indices outperform cap-weight before launch, peaking about six months pre-launch, then "hover around the baseline" after; a Vanguard analysis found new index funds beat the US market by 10.29%/yr annualised in the 60 months before launch and lagged by 0.99%/yr in the 60 months after; a separate study of ETFs launched 1994-2014 found pre-launch backtests implied ~5%/yr outperformance vs ~0% live, with live 5- and 10-year excess returns of 0.7% and 0.5% not significantly different from zero — [Research Affiliates via etf.com](https://www.etf.com/sections/news/research-affiliates-live-newport-beach-its-smart-beta); [Math Investor summary of Vanguard study](https://mathinvestor.org/2014/04/do-new-backtested-index-etfs-outperform-the-market/); [I&O summary](https://ioandc.com/back-test-backlash-why-financial-research-could-be-blowing-smoke)
@@ -152,19 +174,23 @@ The failure modes are well quantified: backtested index products outperform by ~
 - LLM return forecasts extrapolate and are miscalibrated (arXiv 2409.11540) — [arXiv 2409.11540](https://arxiv.org/pdf/2409.11540)
 
 ### Inferences
+
 - A retail "AI strategy" typically combines every failure mode at once: a backtest (overfit), on an LLM trained after the test window (look-ahead), on a short arbitrary period (1.3 years average), with no costs, selected from many prompts tried (search bias). The leakage-safe paper's result — nothing survives — is the expected outcome of that stack.
 - Even as a research assistant, a 52-65% task accuracy with numerical sign and unit errors means LLM output needs the same verification an analyst's intern would get.
 
 ### Gaps
+
 - Vals' own page was unreachable; v2 figures are from secondary coverage and search extracts.
 - No study quantifying "LLM hallucination rate in investment recommendations" specifically (as opposed to analyst-task accuracy) was found.
 
 ## Key question 7: Where automation demonstrably adds value for a retail investor (rebalancing, drawdown de-risking, DCA, tax-loss harvesting, news summarisation, behaviour)
 
 ### Takeaway
+
 The automation with real evidence behind it is boring and rules-based: tax-loss harvesting is worth roughly 0.5-1.1%/yr before fees for investors with taxable gains to offset; rebalancing ~0.35%/yr risk-adjusted; robo-advice improves outcomes mainly for people who were under-diversified; lump-sum beats DCA 68% of the time (so DCA is a behavioural tool, not a return enhancer); and trend/volatility rules cut drawdowns but at a cost in return after costs — none of these needs an LLM, and none is "AI trading".
 
 ### Cited Findings
+
 - Tax-loss harvesting (Chaudhuri, Burnham & Lo, "An Empirical Evaluation of Tax-Loss Harvesting Alpha", MIT; data 1926-2018): tax alpha 1.10%/yr at 15% long-term / 35% short-term rates, falling to 0.85%/yr once the wash-sale rule binds; benefit depends on having gains to offset and on market path — [MIT DSpace PDF](https://dspace.mit.edu/bitstream/handle/1721.1/135992/SSRN-id3351382.pdf)
 - Vanguard research puts gross tax alpha at 0.47% to 1.27%/yr over 15 years; Wealthfront reports a dollar-weighted "harvesting yield" of 4.23% (losses harvested, not after-tax return) and >$1.09bn cumulative client tax savings — industry figures, not independent — summarised in [Truthifi guide](https://truthifi.com/education/tax-loss-harvesting); [Surmount](https://surmount.ai/blogs/tax-loss-harvesting-robo-advisors)
 - Kitces' critique: platforms rarely tailor to individual tax situations, so generalised benefits are overstated, and for many investors a 0.25%+ advisory fee is not recovered by harvesting alone — [Kitces](https://www.kitces.com/blog/automated-tax-loss-harvesting-technology-software-value-risks-gaps-benefits/)
@@ -178,10 +204,12 @@ The automation with real evidence behind it is boring and rules-based: tax-loss 
 - News/sentiment summarisation: institutions use NLP as a signal input (AQR: NLP "most-used" ML application; Man AHL text strategies), but the retail-facing evidence is only the Lopez-Lira headline effect, which decayed to Sharpe ~1.2 by 2024 before costs; and LLM analyst-task accuracy is 52-65% (KQ6) — [Hedgeweek on Asness](https://www.hedgeweek.com/ai-is-still-just-statistics-says-aqrs-cliff-asness/); [FoFI 2024](http://wp.lancs.ac.uk/fofi2024/files/2024/04/FoFI-2024-139-Alejandro-Lopez-Lira.pdf)
 
 ### Inferences
+
 - Ranked by strength of evidence for a retail investor: (1) low-cost indexing itself (SPIVA/Barometer base rates); (2) tax-loss harvesting, conditional on a taxable account with gains and a low or zero platform fee; (3) automated rebalancing and diversification nudges, with the largest effect for the least diversified; (4) rules-based trend de-risking as a drawdown-control choice that costs some return; (5) LLM news summarisation as research convenience, with no demonstrated return benefit; (6) LLM short-horizon price prediction, where the live and honest-backtest evidence is negative.
 - None of (2)-(4) requires a language model; an LLM adds value only as an interface or as a code-writing assistant for those rules, and adds risk if allowed to pick trades.
 
 ### Gaps
+
 - No controlled study was found measuring whether an AI "coach" reduces panic selling in practice; the behavioural-coaching value is an advisory-industry estimate.
 - No retail-level study of LLM news summarisation improving portfolio outcomes was found.
 - TLH figures from the MIT paper could not be verified against the PDF (blocked); they match multiple secondary summaries.

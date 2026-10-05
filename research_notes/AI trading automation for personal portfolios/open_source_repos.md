@@ -5,11 +5,13 @@ Method note for the writer: star counts, last-push dates, language, licence and 
 ## Key question 1: LLM/agent frameworks that reason about markets (category a): what they do, whether they trade live, what their READMEs say
 
 ### Takeaway
+
 The big-name LLM "hedge fund" frameworks (TradingAgents ~110k stars, ai-hedge-fund ~64k, FinRobot, FinGPT, OpenBB) do not place orders: every one of them ends at a simulated exchange, a paper portfolio or a research report and carries an "educational/research only" disclaimer. The 2025–2026 newcomers that do execute (NOFX, QuantDinger, HKUDS AI-Trader, OpenAlice, Hyper-Alpha-Arena, Gajesh2007/ai-trading-agent, Lumibot's agent mode) are mostly crypto-perp or multi-broker terminals that wrap an LLM in deterministic risk gates; the one with the widest adoption (NOFX) also had the most serious documented security incident.
 
 ### Cited Findings
 
 Established research-style frameworks (none place live orders):
+
 - TauricResearch/TradingAgents: 109,786 stars, pushed 2026-10-03, Python, Apache-2.0, 79 open issues — [GitHub](https://github.com/TauricResearch/TradingAgents)
 - TradingAgents' README: multi-agent LangGraph pipeline (fundamentals/sentiment/news/technical analysts, bull vs bear researchers, trader, risk management, portfolio manager); orders go to a "simulated exchange", it does not place real trades; providers include OpenAI, Google, Anthropic, xAI, DeepSeek, Qwen, GLM, MiniMax, OpenRouter, Mistral, Kimi, Groq, NVIDIA NIM, Ollama, Azure and any OpenAI-compatible endpoint; data from SEC EDGAR (point-in-time), Yahoo Finance, FRED, Alpha Vantage, StockTwits, Reddit, Polymarket; disclaimer verbatim: "TradingAgents framework is designed for research purposes. Trading performance may vary based on many factors, including the chosen backbone language models, model temperature, trading periods, the quality of data, and other non-deterministic factors. It is not intended as financial, investment, or trading advice." — [GitHub README](https://github.com/TauricResearch/TradingAgents)
 - TradingAgents release trail: v0.6.0 (2026-10: HTML reports, provider-per-model-tier, decision settlement), v0.5.2 (2026-09: parallel analysts, `--ticker`/`--date` CLI flags), v0.5.1 (2026-09: optional Jev screening, "GPT-6 Sol/Luna" defaults), v0.5.0 (2026-09: point-in-time integrity, SEC EDGAR fundamentals, backtesting grid, portfolio-aware); Trading-R1 technical report 2026-01, "Terminal expected"; paper arXiv:2412.20138 — [GitHub README](https://github.com/TauricResearch/TradingAgents)
@@ -28,6 +30,7 @@ Established research-style frameworks (none place live orders):
 - ginlix-ai/LangAlpha ("Claude Code for Financial Market"): 1,802 stars, created 2026-01-18, Apache-2.0; LangGraph + Claude research platform; "does not place trades"; BYOK multi-provider; disclaimer "LangAlpha is a research tool, not a financial advisor" — [GitHub](https://github.com/ginlix-ai/LangAlpha)
 
 2025–2026 newcomers that do execute (or can be authorised to):
+
 - HKUDS/AI-Trader ("100% Fully-Automated Agent-Native Trading"): 22,651 stars, created 2025-10-23, Python, MIT; hosted platform ai4trade.ai; "$100K Paper Trading"; Polymarket paper trading; "sync trades" from Binance, Coinbase, Interactive Brokers; works with OpenClaw, nanobot, Claude Code, Codex, Cursor; README updates dated March–June 2026; no performance results and no explicit risk disclaimer in the README — [GitHub](https://github.com/HKUDS/AI-Trader)
 - NoFxAiOS/nofx: 12,997 stars, created 2025-10-28, Go backend + React/TS, AGPL-3.0, 522 open issues; "AI trading terminal where the strategy is a language model"; venues Binance, Bybit, OKX, Hyperliquid, Bitget, KuCoin, Gate, Aster, Lighter (Hyperliquid route also gives US equities, commodities, indices, forex); hard limits the model cannot override: max concurrent positions with notional caps as equity ratios, leverage caps at sizing time, mandatory exchange-side stop-loss/take-profit after entry, drawdown auto-close from peak, minimum hold times and re-entry cooldowns, "safe mode" after repeated model failures, per-cycle and per-hour entry limits; public leaderboard at vergex.trade; disclaimer "AI-driven strategies are experimental and can lose money" — [GitHub](https://github.com/NoFxAiOS/nofx)
 - NOFX incident: on 17 November (2025) SlowMist founder Yu Xian warned that NOFX shipped with an "admin mode" enabled by default and a publicly known default JWT secret, leading to leakage of users' wallet private keys and CEX/DEX API keys (Binance, Hyperliquid, Aster users at risk); reports said the core issue remained after initial patches — [MEXC news summary of SlowMist warning](https://www.mexc.com/en-GB/news/slow-fog-warning-a-vulnerability-in-the-nofx-ai-system-has-led-to-the-leakage-of-user-private-keys-users/169114); [ThreatCluster](https://threatcluster.io/cluster/nofx-ai-vulnerability-exposes-user-api-and-private-keys-b234bfc6); the repository's GitHub security tab lists no published advisories — [nofx advisories](https://github.com/NoFxAiOS/nofx/security/advisories)
@@ -43,15 +46,18 @@ Established research-style frameworks (none place live orders):
 - LLMQuant/awesome-trading-agents (curated index of LLM trading agents, MCP servers and skills): 874 stars, created 2026-04-22; it classes HKUDS/AI-Trader as "live trading capability", NOFX as "self-hosted with hard risk limits", Gajesh2007/ai-trading-agent as "Hyperliquid execution", and lists LLM-Trading-Lab and nof1.ai under "real-money experiments" — [GitHub](https://github.com/LLMQuant/awesome-trading-agents)
 
 nof1 / Alpha Arena:
+
 - No official open-source Alpha Arena repository was found on GitHub; the closest is a community clone, wfnuser/OpenNof1 ("Your custom 24/7 AI trading agent. Inspired by nof1.ai", 210 stars) — [gittrend listing](https://gittrend.io/repo/wfnuser/OpenNof1)
 - Alpha Arena Season 1 (18 Oct – 3 Nov 2025, $10,000 per model, crypto perps): Qwen3 Max finished at $12,231, DeepSeek $10,489, Claude Sonnet 4.5 $5,799, Gemini 2.5 Pro $5,445, Grok $4,208, GPT-5 $4,126, i.e. four of six lost money; organisers said the setup was deliberately hard (numeric time series only, narrow asset and action space) — [ForkLog](https://forklog.com/en/four-out-of-six-ai-models-suffer-losses-in-trading-tournament/amp); a later ForkLog headline reports "Grok 4.2 triumphs" in a subsequent season — [ForkLog](https://forklog.com/en/ai-model-grok-4-2-triumphs-in-trading-tournament/amp)
 
 ### Inferences
+
 - The star-count leaders are decision engines, not traders: a user who wants TradingAgents or ai-hedge-fund to move money must bolt on their own broker adapter and risk layer, which is exactly the layer where the newcomers (NOFX, QuantDinger, ALTA, OpenAlice) differentiate.
 - Projects born in Oct 2025 – Feb 2026 (NOFX, AI-Trader, QuantDinger, OpenAlice, Hyper-Alpha-Arena) cluster around the nof1 Alpha Arena moment and Hyperliquid; their risk vocabulary ("hard limits the model cannot override", "human approval", "paper-only by default") is a direct response to that experiment's losses.
 - The NOFX key-leak shows the dominant real-world risk of self-hosted LLM traders is credential handling in the web shell, not model reasoning.
 
 ### Gaps
+
 - Whether ai-hedge-fund is being rebuilt as a persistent service with opt-in live trading: a search snippet asserted it, but the README fetched today still says it does not trade; treat as unverified.
 - Numeric results of the LLM-Trading-Lab six-month experiment (hackernoon.com was blocked by the proxy).
 - Exact nof1 Alpha Arena Season 1.5/2 standings (forklog.com blocked); no nof1 code release found.
@@ -61,9 +67,11 @@ nof1 / Alpha Arena:
 ## Key question 2: Rule/ML-based bot frameworks (category b): which are maintained in 2026 and what risk controls they ship
 
 ### Takeaway
+
 freqtrade (55k stars, pushed the day of research), Hummingbot (20k), Jesse (8.6k), OctoBot (6.7k) and Superalgos (5.7k) are all actively maintained in 2026 and all crypto-first; Gekko (archived 2020) and Zenbot (archived 2022) are dead. freqtrade has the most explicit, documented guardrails (dry-run on by default, StoplossGuard/MaxDrawdown/LowProfitPairs/CooldownPeriod protections, whitelists, `/stop`).
 
 ### Cited Findings
+
 - freqtrade/freqtrade: 55,031 stars, pushed 2026-10-05, Python, GPL-3.0, 32 open issues — [GitHub](https://github.com/freqtrade/freqtrade)
 - freqtrade README: spot on Binance, BingX, Bitget, Bybit, Gate, HTX, Hyperliquid, Kraken, OKX and others via CCXT; futures on Binance, Bitget, Bybit, Gate, Hyperliquid, Kraken, OKX; community-tested Bitvavo and Kucoin; Python ≥3.11; features include dry-run, backtesting, hyperopt, FreqAI adaptive ML, WebUI, Telegram control, dynamic whitelist/blacklist; disclaimer "This software is for educational purposes only. Do not risk money which you are afraid to lose. USE THE SOFTWARE AT YOUR OWN RISK." — [GitHub README](https://github.com/freqtrade/freqtrade)
 - freqtrade configuration defaults: `dry_run` default `true`; `dry_run_wallet` default 1000; `tradable_balance_ratio` default 0.99; `max_open_trades`, `stake_amount`, `stoploss`, `minimal_roi` are required; `trailing_stop` default false; `exchange.pair_whitelist` / `pair_blacklist`; `/stop` RPC command; force entries only when `force_entry_enable` is set — [docs/configuration.md](https://github.com/freqtrade/freqtrade/blob/develop/docs/configuration.md)
@@ -82,11 +90,13 @@ freqtrade (55k stars, pushed the day of research), Hummingbot (20k), Jesse (8.6k
 - charliedream1/ai_quant_trade (Chinese A-share learning/sim/live platform with LLM content): 6,592 stars, Jupyter — [GitHub](https://github.com/charliedream1/ai_quant_trade)
 
 ### Inferences
+
 - For a personal crypto portfolio, freqtrade is the only bot framework whose guardrails (dry-run default, protections, whitelist, `/stop`) are both documented and on by default; Hummingbot's safety story is "paper trade first" plus executor-level barriers; Jesse and OctoBot put risk logic inside the strategy.
 - OctoBot is the only mature rule-based bot that ships an LLM decision mode out of the box, which makes it the shortest path from "ChatGPT opinion" to a live crypto order with an existing paper-trading harness around it.
 - None of the maintained bot frameworks target US equities natively; equities need category (c) infrastructure (Lean, Nautilus, Lumibot) or an MCP server (category d).
 
 ### Gaps
+
 - Hummingbot kill-switch parameters (hummingbot.org and the hummingbot-site docs path were unreachable/404).
 - Whether Jesse's live-trading mode still requires a paid plugin/licence (docs.jesse.trade blocked; README is silent).
 - OctoBot's configurable risk limits (not in README).
@@ -95,9 +105,11 @@ freqtrade (55k stars, pushed the day of research), Hummingbot (20k), Jesse (8.6k
 ## Key question 3: Execution/backtest infrastructure (category c): what's alive, what each connects to, which risk controls exist
 
 ### Takeaway
+
 Alive and current: NautilusTrader (29.6k, Rust core, 20+ venue adapters incl. IBKR, Binance, Bybit, Coinbase, Kraken, OKX, Hyperliquid, Polymarket), QuantConnect Lean (21.9k, with five framework risk models), CCXT (44k, now also prediction markets), vectorbt (backtest only), backtesting.py, zipline-reloaded, Lumibot (12 brokers, agent mode), alpaca-py and ib_async. Stale: backtrader (last push Aug 2024), quantopian/zipline (Feb 2024), ib_insync (archived March 2024 after its author's death), Blankly (Dec 2024, README still lists FTX).
 
 ### Cited Findings
+
 - nautechsystems/nautilus_trader: 29,631 stars, pushed 2026-10-04, Rust (Python API), LGPL-3.0, 147 open issues; README lists integrations with status: CEX Binance, Bybit, Coinbase, Kraken, OKX, Deribit; DEX dYdX, Hyperliquid, Derive, Lighter; Interactive Brokers; Betfair; Polymarket; AX Exchange; data via Databento and Tardis; "All current production integrations are marked stable"; caveats "still under active development ... breaking changes can occur between releases" and "live execution still introduces venue, transport, timing, persistence, external-activity, and reconciliation behavior that a simulation may not reproduce"; CLA required — [GitHub](https://github.com/nautechsystems/nautilus_trader)
 - NautilusTrader live docs cover startup and continuous reconciliation against venue reports and `LiveNodeConfig.shutdown_on_error=True` — [docs/concepts/live.md](https://github.com/nautechsystems/nautilus_trader/blob/develop/docs/concepts/live.md)
 - A May 2026 r/algotrading thread recommends NautilusTrader for IBKR via TWS and still names ib_insync as "clean, well-maintained" (it is archived; see below) — [Reddit snapshot](https://reddit.sentinel-team.org/posts/1tby5um/snapshots/2026-05-15T19%3A02%3A50.96329Z)
@@ -118,11 +130,13 @@ Alive and current: NautilusTrader (29.6k, Rust core, 20+ venue adapters incl. IB
 - financial-datasets/mcp-server (data MCP used by ai-hedge-fund's data provider): 2,300 stars — [GitHub](https://github.com/financial-datasets/mcp-server)
 
 ### Inferences
+
 - For stocks plus crypto under one engine with real pre-trade controls, the realistic 2026 choices are NautilusTrader (self-hosted, Rust, IBKR + major CEX/DEX), Lean (needs QuantConnect cloud or a self-hosted brokerage plugin) and Lumibot (simplest, 12 brokers, GPL).
 - backtrader/zipline results still circulate in tutorials, but a new build on them inherits unpatched dependency drift; zipline-reloaded and vectorbt are the live backtest-only options.
 - The IBKR Python path for a personal account is ib_async (or Nautilus's IB adapter), not ib_insync.
 
 ### Gaps
+
 - NautilusTrader RiskEngine parameters (max notional per order, order-rate limits, HALTED trading state): the docs site was blocked and the risk config source file paths tried returned 404; not confirmed.
 - Lean's supported brokerage list for self-hosted live trading (quantconnect.com blocked).
 - CCXT sandbox/testnet mode: not visible in the README fetch; not confirmed here.
@@ -130,9 +144,11 @@ Alive and current: NautilusTrader (29.6k, Rust core, 20+ venue adapters incl. IB
 ## Key question 4: MCP servers and assistant integrations (category d): which connect Claude/ChatGPT to a brokerage, and whether they enforce limits or confirmations
 
 ### Takeaway
+
 Official vendor tools now exist for Alpaca (MCP, paper by default, no confirmations), Kraken (kraken-cli with MCP "guarded mode" confirmation gates and paper sandbox) and OKX (agent-trade-kit with `--read-only` and module filtering); Interactive Brokers, Binance and Coinbase exchange trading have only community MCP servers (IB_MCP 141 stars; five Binance servers under 100 stars each; Coinbase's official repo is a wallet toolkit). Hard spend limits come from third-party wrappers (alpaca-guard: $10/day default, live blocked without an explicit env flag) rather than from the brokers' own servers.
 
 ### Cited Findings
+
 - alpacahq/alpaca-mcp-server (official): 1,007 stars, created 2025-06-03, pushed 2026-09-25, Python, MIT, 24 open issues; trades stocks, ETFs, crypto, options (incl. multi-leg) and fixed income with market/limit/stop/trailing/bracket orders; `ALPACA_PAPER_TRADE` defaults to `true`; transports stdio, HTTP, Docker (`uvx alpaca-mcp-server`); "V2" is a complete rewrite without V1 compatibility; no built-in order confirmation or spend cap, README warns "This server can place real trades and access your portfolio" and to "review all actions proposed by the LLM carefully" — [GitHub](https://github.com/alpacahq/alpaca-mcp-server)
 - alpaca-guard-mcp (third party, publisher "evidai"): wraps the Alpaca API, defaults to paper trading, pre-flights every order against a daily USD cap stored in `~/.alpaca-guard/cap.json` (default $10, resets at UTC midnight, survives restarts), and blocks live trading unless the operator sets `ALPACA_GUARD_ALLOW_LIVE=yes-i-understand`, "no agent-side override" — [npm listing via Socket](https://socket.dev/npm/package/alpaca-guard-mcp); [Claude marketplace listing](https://claudemarketplaces.com/mcp/io.github.evidai/alpaca-guard)
 - Alpaca runs hackathons where Claude-brained agents trade paper accounts via MCP (e.g. "BARCO-Alpaca"), and Composio documents wiring the Alpaca MCP into the Claude Agent SDK — [lablab.ai](https://lablab.ai/ai-hackathons/alpaca-ai-trading-agents-hackathon/guacalita/barco-alpaca-ai-trading-agent); [Composio](https://composio.dev/toolkits/alpaca/framework/claude-agents-sdk)
@@ -148,11 +164,13 @@ Official vendor tools now exist for Alpaca (MCP, paper by default, no confirmati
 - Industry context reported by aggregators: "At least 10 retail brokers and platform vendors connected AI agents to live client accounts between January and June 2026", including a Robinhood "Agentic Trading" beta on 27 May 2026 with a dedicated agentic account authorising third-party agents, and dedicated agent infrastructure from Kraken, Binance, OKX and Coinbase — [Finance Magnates Datalab](https://datalab.financemagnates.com/market-insights/ten-cfd-brokers-six-months-how-ai-agents-crossed-into-live-trading-accounts/); [rpcfast](https://rpcfast.com/blog/ai-agents-for-crypto-trading) (page bodies not retrievable; see Gaps)
 
 ### Inferences
+
 - Among official broker tools, only Kraken's documents a confirmation gate; Alpaca and OKX rely on paper-mode defaults and read-only switches, so the enforcement layer for an individual is either a wrapper like alpaca-guard or the agent host's own tool-approval prompts.
 - The IBKR MCP path is community code over the Client Portal Web API with no documented safeguards; pairing it with IBKR's own paper account and the account's trading permissions is the only control available.
 - MCP bridges to bots (freqtrade-mcp) widen the blast radius: an assistant can force-enter trades and clear protection locks, which undoes the bot's own guardrails.
 
 ### Gaps
+
 - Direct verification of alpaca-guard's repository (not returned by GitHub search; npm/socket pages blocked), its licence and version.
 - Robinhood agentic trading, Binance and Coinbase official agent products: the Finance Magnates and rpcfast pages were blocked and the search budget ran out; treat the aggregator claims as unverified.
 - Whether any official IBKR MCP exists (no search results; web-search budget exhausted before confirmation).
@@ -160,9 +178,11 @@ Official vendor tools now exist for Alpaca (MCP, paper by default, no confirmati
 ## Key question 5: Documented real-money results and incidents
 
 ### Takeaway
+
 Real-money evidence is thin and mostly negative or inconclusive: nof1's Alpha Arena Season 1 saw four of six frontier models lose money on $10k each; the only long-running open ChatGPT portfolio (LLM-Trading-Lab, $100 start) published a 40-page evaluation whose author calls the results "mixed"; Gajesh2007's live Hyperliquid agents are mostly paused; and NOFX's default-admin/JWT flaw leaked users' exchange keys in November 2025. No incident was found for freqtrade, Hummingbot, Lean or Nautilus.
 
 ### Cited Findings
+
 - Alpha Arena Season 1 standings (start $10,000 each, 18 Oct–3 Nov 2025): Qwen3 Max $12,231; DeepSeek $10,489; Claude Sonnet 4.5 $5,799; Gemini 2.5 Pro $5,445; Grok $4,208; GPT-5 $4,126 — [ForkLog](https://forklog.com/en/four-out-of-six-ai-models-suffer-losses-in-trading-tournament/amp)
 - LLM-Trading-Lab: six-month real-money micro-cap experiment from $100 with automated stop-losses, 40-page evaluation vs S&P 500 and Russell 2000; author's own summary of overall analysis: "mixed" — [README](https://raw.githubusercontent.com/LuckyOne7777/LLM-Trading-Lab/main/README.md); [Substack report notice](https://nathanbsmith729.substack.com/p/report-and-project-news)
 - Gajesh2007/ai-trading-agent: three live Hyperliquid agents ($200 GPT-5 Pro; $100 DeepSeek R1, paused; $100 Grok 4, paused), no P&L published, "not audited" — [GitHub](https://github.com/Gajesh2007/ai-trading-agent)
@@ -174,10 +194,12 @@ Real-money evidence is thin and mostly negative or inconclusive: nof1's Alpha Ar
 - Polymarket/agents (archived 11 May 2026) reminded users that US persons are prohibited from trading via UI, API or agents — [GitHub](https://github.com/Polymarket/agents)
 
 ### Inferences
+
 - No open-source LLM trading project publishes audited, broker-statement-backed returns; the closest things to evidence are a tournament run by a startup and a $100 Substack experiment, both of which show the model's stop-loss discipline mattering more than its analysis.
 - The one material user-harm incident (NOFX) was a web-app security default, which argues for running any self-hosted agent terminal on localhost with exchange keys restricted to trade-only, no-withdrawal permissions.
 
 ### Gaps
+
 - Exact LLM-Trading-Lab return figures (hackernoon blocked).
 - Alpha Arena later-season figures and any losses attributed to specific models (forklog blocked).
 - Any broker/exchange bans attributed to these tools: none found, but the search budget was exhausted before a targeted Binance/Kraken ToS search could be run.
@@ -185,9 +207,11 @@ Real-money evidence is thin and mostly negative or inconclusive: nof1's Alpha Ar
 ## Key question 6: Built-in guardrails matrix (max order size, daily loss limits, symbol whitelists, dry-run default, kill switch, paper trading)
 
 ### Takeaway
+
 Dry-run/paper by default is the norm (freqtrade `dry_run: true`, Alpaca MCP `ALPACA_PAPER_TRADE=true`, QuantDinger paper-only for agents, Hyper-Alpha-Arena testnet first); genuine notional caps and daily spend limits are rare and come from NOFX (equity-ratio notional caps, leverage caps, entry-rate limits), alpaca-guard ($10/day) and ALTA (whole-share DAY limit orders only); symbol whitelists are explicit only in freqtrade (`pair_whitelist`/`pair_blacklist`); human confirmation per order exists in Kraken CLI's guarded MCP mode, OpenAlice ("Trading as Git") and ALTA's authorisation flow.
 
 ### Cited Findings
+
 - freqtrade: `dry_run` default true; `dry_run_wallet` 1000; `tradable_balance_ratio` 0.99; `max_open_trades`; `stake_amount`; required `stoploss`; `trailing_stop`; `pair_whitelist`/`pair_blacklist`; `/stop` command; `force_entry_enable` gate — [configuration.md](https://github.com/freqtrade/freqtrade/blob/develop/docs/configuration.md); protections StoplossGuard, MaxDrawdown (`max_allowed_drawdown`), LowProfitPairs, CooldownPeriod — [protections.md](https://github.com/freqtrade/freqtrade/blob/develop/docs/includes/protections.md)
 - Hummingbot: paper trading without API keys; executors with triple-barrier (take-profit / stop-loss / time) controls — [GitHub](https://github.com/hummingbot/hummingbot)
 - Lean: five framework risk models (per-security and portfolio max drawdown, max sector exposure, max unrealized profit, trailing stop) — [Algorithm.Framework/Risk](https://github.com/QuantConnect/Lean/tree/master/Algorithm.Framework/Risk)
@@ -203,57 +227,59 @@ Dry-run/paper by default is the norm (freqtrade `dry_run: true`, Alpaca MCP `ALP
 - TradingAgents, ai-hedge-fund, FinRobot, FinGPT, LangAlpha, OpenBB: no execution path, therefore no order-level guardrails to configure — [TradingAgents](https://github.com/TauricResearch/TradingAgents); [ai-hedge-fund](https://github.com/virattt/ai-hedge-fund); [FinRobot](https://github.com/AI4Finance-Foundation/FinRobot); [FinGPT](https://github.com/AI4Finance-Foundation/FinGPT); [LangAlpha](https://github.com/ginlix-ai/LangAlpha); [OpenBB](https://github.com/openbq-org/OpenBB)
 
 ### Inferences
+
 - A personal stack that wants an LLM to reason but a machine to enforce limits is assembled, not downloaded: a research agent (TradingAgents/ai-hedge-fund/LangAlpha) feeding a rule engine with real caps (freqtrade protections for crypto, Lean/Nautilus risk models or Lumibot gates for equities) behind a paper-default broker door (Alpaca MCP + alpaca-guard, Kraken CLI guarded mode).
 - "Daily loss limit" as a first-class config exists only in freqtrade's MaxDrawdown protection and alpaca-guard's daily cap; everywhere else it has to be written in strategy code.
 
 ### Gaps
+
 - Hummingbot kill-switch thresholds and NautilusTrader RiskEngine caps (docs unreachable) — both are believed to exist but could not be cited here.
 - Jesse and OctoBot configurable account-level limits (not in READMEs; docs blocked).
 
 ## Compact reference table (stars and last push as of 2026-10-05, from the GitHub API)
 
-| Repo | Category | Stars | Last push | Lang | Licence | Places live orders? | Markets |
-|---|---|---|---|---|---|---|---|
-| TauricResearch/TradingAgents | a | 109,786 | 2026-10-03 | Python | Apache-2.0 | No (simulated exchange) | US equities research |
-| virattt/ai-hedge-fund | a | 63,858 | 2026-10-02 | Python | MIT | No (paper + backtest) | Equities |
-| hsliuping/TradingAgents-CN | a | 32,149 | active | Python | hybrid | No (paper) | A-shares |
-| virattt/dexter | a | 27,642 | active | TypeScript | n/a | No (research) | Equities |
-| HKUDS/AI-Trader | a | 22,651 | active | Python | MIT | Via platform/broker sync; $100K paper | Stocks, crypto, forex, options, futures, Polymarket |
-| AI4Finance/FinGPT | a | 21,351 | 2026-09-23 | Jupyter | MIT | No | Equities |
-| AI4Finance/FinRL | b/ML | 16,555 | 2026-09-28 | Jupyter | MIT | Alpaca paper only | Equities, crypto |
-| NoFxAiOS/nofx | a | 12,997 | active | Go/TS | AGPL-3.0 | Yes (9 crypto venues; Hyperliquid for equities) | Crypto perps, tokenised stocks |
-| OpenByteInc/QuantDinger | a | 12,446 | active | Python | Apache-2.0 + source-available | Yes, after explicit authorisation | Crypto, IBKR, Alpaca |
-| AI4Finance/FinRobot | a | 8,140 | 2026-09-28 | Python | Apache-2.0 | No | Equities research |
-| TraderAlice/OpenAlice | a | 7,208 | active | TypeScript | AGPL-3.0 | Beta, human-approved | Multi-asset |
-| LuckyOne7777/LLM-Trading-Lab | a (experiment) | 7,501 | active | Python | n/a | Real money ($100) | US micro-caps |
-| openbq-org/OpenBB | data/MCP | 73,851 | active | Python | Apache-2.0 | No | Multi-asset data |
-| microsoft/qlib | b/ML | 49,142 | 2026-09-22 | Python | MIT | No (research) | Equities |
-| freqtrade/freqtrade | b | 55,031 | 2026-10-05 | Python | GPL-3.0 | Yes; dry-run default | Crypto spot/futures |
-| hummingbot/hummingbot | b | 20,306 | 2026-09-28 | Python | Apache-2.0 | Yes; paper mode | Crypto CEX/DEX |
-| jesse-ai/jesse | b | 8,612 | 2026-10-01 | Python | MIT | Yes; paper mode | Crypto |
-| Drakkar-Software/OctoBot | b (+LLM mode) | 6,679 | 2026-10-01 | Python | GPL-3.0 | Yes; simulator | Crypto |
-| Superalgos/Superalgos | b | 5,677 | 2026-10-04 | JavaScript | Apache-2.0 | Yes; paper | Crypto |
-| askmike/gekko | b | 10,177 | 2020-02-16 | JS | MIT | archived (STALE) | Crypto |
-| DeviaVir/zenbot | b | 8,260 | 2022-02-14 | JS | MIT | archived (STALE) | Crypto |
-| nautechsystems/nautilus_trader | c | 29,631 | 2026-10-04 | Rust/Python | LGPL-3.0 | Yes (IBKR, Binance, Bybit, Coinbase, Kraken, OKX, dYdX, Hyperliquid, Polymarket...) | Multi-asset |
-| QuantConnect/Lean | c | 21,859 | 2026-10-02 | C#/Python | Apache-2.0 | Yes | Multi-asset |
-| ccxt/ccxt | c | 44,254 | 2026-10-03 | multi | MIT | Library (100+ exchanges + prediction markets) | Crypto |
-| mementum/backtrader | c | 23,393 | 2024-08-19 | Python | GPL-3.0 | STALE | — |
-| quantopian/zipline | c | 20,137 | 2024-02-13 | Python | Apache-2.0 | STALE | — |
-| stefan-jansen/zipline-reloaded | c | ~2,000 | active | Python | Apache-2.0 | No (backtest) | Equities |
-| polakowo/vectorbt | c | 9,277 | 2026-09-26 | Python | Apache-2.0 + Commons Clause | No (backtest) | Any |
-| kernc/backtesting.py | c | 9,014 | 2026-08-05 | Python | AGPL-3.0 | No (backtest) | Any |
-| Lumiwealth/lumibot | c (+agents) | 2,103 | 2026-10-03 | Python | GPL-3.0 | Yes (12 brokers) | Stocks, options, futures, forex, crypto, Polymarket |
-| blankly-finance/blankly | c | 2,481 | 2024-12-30 | Python | LGPL-3.0 | STALE | — |
-| alpacahq/alpaca-py | c | 1,542 | 2026-10-02 | Python | Apache-2.0 | SDK | Stocks, options, crypto |
-| erdewit/ib_insync | c | 3,283 | archived 2024-03-14 | Python | BSD-2 | STALE | IBKR |
-| ib-api-reloaded/ib_async | c | 1,748 | 2026-08-19 | Python | BSD-2 | SDK | IBKR |
-| alpacahq/alpaca-mcp-server | d | 1,007 | 2026-09-25 | Python | MIT | Yes; paper default; no confirmations | Stocks, ETFs, options, crypto, bonds |
-| krakenfx/kraken-cli | d | 743 | active | Rust | MIT | Yes; guarded-mode confirmations; paper | Crypto, xStocks, forex, futures |
-| okx/agent-trade-kit | d | 462 | active | TypeScript | MIT | Yes; --read-only flag | Crypto |
-| rcontesti/IB_MCP | d | 141 | n/a | Python | MIT | Yes; no safeguards documented | IBKR |
-| ariadng/metatrader-mcp-server | d | 818 | active | Python | n/a | Yes | MT5 (forex/CFD) |
-| kukapay/freqtrade-mcp | d | 147 | active | Python | MIT | Controls freqtrade incl. force trades | Crypto |
-| coinbase/agentkit | d (wallet) | 1,323 | active | TypeScript | n/a | On-chain wallet actions | Crypto/on-chain |
-| Polymarket/agents | d | 3,796 | archived 2026-05-11 | Python | MIT | STALE | Prediction markets |
-| LLMQuant/awesome-trading-agents | index | 874 | active | — | — | — | — |
+| Repo                            | Category       | Stars   | Last push           | Lang        | Licence                       | Places live orders?                                                                 | Markets                                             |
+| ------------------------------- | -------------- | ------- | ------------------- | ----------- | ----------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------- |
+| TauricResearch/TradingAgents    | a              | 109,786 | 2026-10-03          | Python      | Apache-2.0                    | No (simulated exchange)                                                             | US equities research                                |
+| virattt/ai-hedge-fund           | a              | 63,858  | 2026-10-02          | Python      | MIT                           | No (paper + backtest)                                                               | Equities                                            |
+| hsliuping/TradingAgents-CN      | a              | 32,149  | active              | Python      | hybrid                        | No (paper)                                                                          | A-shares                                            |
+| virattt/dexter                  | a              | 27,642  | active              | TypeScript  | n/a                           | No (research)                                                                       | Equities                                            |
+| HKUDS/AI-Trader                 | a              | 22,651  | active              | Python      | MIT                           | Via platform/broker sync; $100K paper                                               | Stocks, crypto, forex, options, futures, Polymarket |
+| AI4Finance/FinGPT               | a              | 21,351  | 2026-09-23          | Jupyter     | MIT                           | No                                                                                  | Equities                                            |
+| AI4Finance/FinRL                | b/ML           | 16,555  | 2026-09-28          | Jupyter     | MIT                           | Alpaca paper only                                                                   | Equities, crypto                                    |
+| NoFxAiOS/nofx                   | a              | 12,997  | active              | Go/TS       | AGPL-3.0                      | Yes (9 crypto venues; Hyperliquid for equities)                                     | Crypto perps, tokenised stocks                      |
+| OpenByteInc/QuantDinger         | a              | 12,446  | active              | Python      | Apache-2.0 + source-available | Yes, after explicit authorisation                                                   | Crypto, IBKR, Alpaca                                |
+| AI4Finance/FinRobot             | a              | 8,140   | 2026-09-28          | Python      | Apache-2.0                    | No                                                                                  | Equities research                                   |
+| TraderAlice/OpenAlice           | a              | 7,208   | active              | TypeScript  | AGPL-3.0                      | Beta, human-approved                                                                | Multi-asset                                         |
+| LuckyOne7777/LLM-Trading-Lab    | a (experiment) | 7,501   | active              | Python      | n/a                           | Real money ($100)                                                                   | US micro-caps                                       |
+| openbq-org/OpenBB               | data/MCP       | 73,851  | active              | Python      | Apache-2.0                    | No                                                                                  | Multi-asset data                                    |
+| microsoft/qlib                  | b/ML           | 49,142  | 2026-09-22          | Python      | MIT                           | No (research)                                                                       | Equities                                            |
+| freqtrade/freqtrade             | b              | 55,031  | 2026-10-05          | Python      | GPL-3.0                       | Yes; dry-run default                                                                | Crypto spot/futures                                 |
+| hummingbot/hummingbot           | b              | 20,306  | 2026-09-28          | Python      | Apache-2.0                    | Yes; paper mode                                                                     | Crypto CEX/DEX                                      |
+| jesse-ai/jesse                  | b              | 8,612   | 2026-10-01          | Python      | MIT                           | Yes; paper mode                                                                     | Crypto                                              |
+| Drakkar-Software/OctoBot        | b (+LLM mode)  | 6,679   | 2026-10-01          | Python      | GPL-3.0                       | Yes; simulator                                                                      | Crypto                                              |
+| Superalgos/Superalgos           | b              | 5,677   | 2026-10-04          | JavaScript  | Apache-2.0                    | Yes; paper                                                                          | Crypto                                              |
+| askmike/gekko                   | b              | 10,177  | 2020-02-16          | JS          | MIT                           | archived (STALE)                                                                    | Crypto                                              |
+| DeviaVir/zenbot                 | b              | 8,260   | 2022-02-14          | JS          | MIT                           | archived (STALE)                                                                    | Crypto                                              |
+| nautechsystems/nautilus_trader  | c              | 29,631  | 2026-10-04          | Rust/Python | LGPL-3.0                      | Yes (IBKR, Binance, Bybit, Coinbase, Kraken, OKX, dYdX, Hyperliquid, Polymarket...) | Multi-asset                                         |
+| QuantConnect/Lean               | c              | 21,859  | 2026-10-02          | C#/Python   | Apache-2.0                    | Yes                                                                                 | Multi-asset                                         |
+| ccxt/ccxt                       | c              | 44,254  | 2026-10-03          | multi       | MIT                           | Library (100+ exchanges + prediction markets)                                       | Crypto                                              |
+| mementum/backtrader             | c              | 23,393  | 2024-08-19          | Python      | GPL-3.0                       | STALE                                                                               | —                                                   |
+| quantopian/zipline              | c              | 20,137  | 2024-02-13          | Python      | Apache-2.0                    | STALE                                                                               | —                                                   |
+| stefan-jansen/zipline-reloaded  | c              | ~2,000  | active              | Python      | Apache-2.0                    | No (backtest)                                                                       | Equities                                            |
+| polakowo/vectorbt               | c              | 9,277   | 2026-09-26          | Python      | Apache-2.0 + Commons Clause   | No (backtest)                                                                       | Any                                                 |
+| kernc/backtesting.py            | c              | 9,014   | 2026-08-05          | Python      | AGPL-3.0                      | No (backtest)                                                                       | Any                                                 |
+| Lumiwealth/lumibot              | c (+agents)    | 2,103   | 2026-10-03          | Python      | GPL-3.0                       | Yes (12 brokers)                                                                    | Stocks, options, futures, forex, crypto, Polymarket |
+| blankly-finance/blankly         | c              | 2,481   | 2024-12-30          | Python      | LGPL-3.0                      | STALE                                                                               | —                                                   |
+| alpacahq/alpaca-py              | c              | 1,542   | 2026-10-02          | Python      | Apache-2.0                    | SDK                                                                                 | Stocks, options, crypto                             |
+| erdewit/ib_insync               | c              | 3,283   | archived 2024-03-14 | Python      | BSD-2                         | STALE                                                                               | IBKR                                                |
+| ib-api-reloaded/ib_async        | c              | 1,748   | 2026-08-19          | Python      | BSD-2                         | SDK                                                                                 | IBKR                                                |
+| alpacahq/alpaca-mcp-server      | d              | 1,007   | 2026-09-25          | Python      | MIT                           | Yes; paper default; no confirmations                                                | Stocks, ETFs, options, crypto, bonds                |
+| krakenfx/kraken-cli             | d              | 743     | active              | Rust        | MIT                           | Yes; guarded-mode confirmations; paper                                              | Crypto, xStocks, forex, futures                     |
+| okx/agent-trade-kit             | d              | 462     | active              | TypeScript  | MIT                           | Yes; --read-only flag                                                               | Crypto                                              |
+| rcontesti/IB_MCP                | d              | 141     | n/a                 | Python      | MIT                           | Yes; no safeguards documented                                                       | IBKR                                                |
+| ariadng/metatrader-mcp-server   | d              | 818     | active              | Python      | n/a                           | Yes                                                                                 | MT5 (forex/CFD)                                     |
+| kukapay/freqtrade-mcp           | d              | 147     | active              | Python      | MIT                           | Controls freqtrade incl. force trades                                               | Crypto                                              |
+| coinbase/agentkit               | d (wallet)     | 1,323   | active              | TypeScript  | n/a                           | On-chain wallet actions                                                             | Crypto/on-chain                                     |
+| Polymarket/agents               | d              | 3,796   | archived 2026-05-11 | Python      | MIT                           | STALE                                                                               | Prediction markets                                  |
+| LLMQuant/awesome-trading-agents | index          | 874     | active              | —           | —                             | —                                                                                   | —                                                   |
