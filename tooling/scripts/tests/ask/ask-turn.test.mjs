@@ -885,6 +885,45 @@ test("a page's context or a shape that fails costs its block, never the turn; a 
   );
 });
 
+test("the questions production paid a second round for (the week to 5 Oct 2026) are answered in one: each read the table plans for them runs through its own tool, as the model would have called it, and rides in before the first round", async () => {
+  for (const [text, surface, reads] of [
+    ["Hey how's the business", "calendar", ["today", "report"]],
+    ["What do I have tomorrow?", "today", ["calendar.week"]],
+    ["Who has a proposal out?", "calendar", ["people.pipeline"]],
+    ["Who wrote today?", "today", ["inbox.list"]],
+    ["Were there any calls today?", "today", ["calls.list"]],
+  ]) {
+    const s = scripted([ROUND([answer("Here it is.")])]);
+    // The day's metrics and the period's series, which the default world leaves unmodelled: a quiet week.
+    const rpcs = {
+      ...RPCS,
+      metrics_summary: () => METRICS,
+      report_series: (a) => ({
+        timezone: TZ,
+        days: a.p_days,
+        span_days: a.p_days * 2,
+        today: iso(NOW.getTime()).slice(0, 10),
+        series: [],
+        reasons: {},
+        reply_seconds: [],
+        sentiments: {},
+        voicemail: 0,
+      }),
+    };
+    const r = await runAskTurn(turn(ctxFor(tables(), rpcs), { text, surface }).input, ports(s.round));
+    assert.equal(r.failed, false, r.failure ?? text);
+    assert.deepEqual(r.tools, reads, `${text}: read ahead, none refused`);
+    assert.deepEqual(r.shape.cross_page, reads, text);
+    assert.equal(r.rounds, 1, `${text}: one round`);
+    const q = s.requests[0].messages.at(-1).content;
+    for (const read of reads)
+      assert.ok(
+        q.some((b) => b.type === "search_result" && b.source === `read://${read}`),
+        `${text}: ${read} rides in as data`,
+      );
+  }
+});
+
 test("a question that names another page's rows reads them before the model is asked, and the read rides in as data, never in system", async () => {
   const s = scripted([ROUND([answer("Quiet week.")])]);
   const t = tables();
@@ -6940,7 +6979,9 @@ test("a cold follow-up's request (the Phase 5 plan, PR 5.5): turn 1 -- two reads
   assert.notEqual(answerText(r1.answer), line, "not the answer's words: its detail is not the line's");
   assert.equal(r.shape.replay, "rebuilt");
   sameBytes(r.raw.base, pairs, "its base: the lines as sent");
-  assert.deepEqual(markersOf(s.requests[0]), ["system.0", "system.1", "messages.2.0", "messages.2.2"]);
+  // The request's last block is the fourth: "the call", asked on Today, reads the calls' list ahead (cross-page.ts,
+  // 5 Oct 2026), so a read rides between the page and the words.
+  assert.deepEqual(markersOf(s.requests[0]), ["system.0", "system.1", "messages.2.0", "messages.2.3"]);
 });
 
 test("the rebuild is frozen, and knows what it told (the Phase 5 plan, PR 5.5): a cold turn keeps its lines as its base and every outcome they said (`told`); a card approved after it is not in its line, which the next live turn replays as it was sent, and that turn tells the approval once, in its words; the turn after tells it no more; a card the line already called dismissed is never told again", async () => {

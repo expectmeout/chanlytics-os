@@ -11,6 +11,11 @@ import { calledName, type ToolRun } from "./tools";
  * read runs beside the context instead and rides into the first round as data. A noun the page itself shows is not
  * read again. The table is deliberately narrow: a wrong read costs tokens and says nothing false, a missed one costs the
  * round it always cost, and the model may still call any tool.
+ *
+ * Widened 5 Oct 2026 from the turns production stored (ask_messages' shape, the week before): a second round cost
+ * about three seconds, and the questions that paid it were asked in words the table did not hold -- how the business
+ * stands, what is booked ("what do I have tomorrow"), who wrote, where the deals stand, and the day's calls asked of
+ * Today, which counts them and lists none. Each is a row below; a read is 100 to 300 ms beside the page's own.
  */
 export const CROSS_PAGE_MAX = 2;
 
@@ -41,7 +46,16 @@ const REPORT =
   /\breports?\b|\binforme\b|\b(last|past|previous|these|últimos?|ultimos?)\s+(7|seven|30|thirty|90|ninety|siete|treinta|noventa)\s*(days|días|dias)\b|\bhow (did|was|were|are|is)\b.*\b(week|month|days|semana|mes)\b|\bcómo (fue|va|nos fue|estuvo)\b/i;
 const OPENINGS =
   /\bopenings?\b|\bavailab|\bfree (slots?|times?|spots?)\b|\bslots?\b|\bhuecos?\b|\bdisponib|\bopen (on |this |next |el |este |próximo |proximo )?(mon|tue|wed|thu|fri|sat|sun|today|tomorrow|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|hoy|mañana)/i;
-const CALENDAR = /\bcalendar\b|\bcalendario\b|\bagenda\b|\bappointments?\b|\bcitas?\b|\bwhat'?s on\b|\bqué hay\b/i;
+/** How things stand, asked in the open: Today's own read off Today, and the week's report. */
+const OVERVIEW =
+  /\bhow('?s| is| are| was)? (the |my |our )?(business|things|everything|we doing|it going)\b|\b(brief|update) me\b|\bcatch me up\b|\bwhat('?s| is) (new|going on|happening)\b|\bwhat did i miss\b|\bwhat should i do (next|now|today|first)\b|\bc[oó]mo (va|est[aá]) (el|mi|nuestro) negocio\b|\bc[oó]mo vamos\b|\bqu[eé] hay de nuevo\b|\bponme al d[ií]a\b/i;
+const CALENDAR =
+  /\bcalendar\b|\bcalendario\b|\bagenda\b|\bappointments?\b|\bcitas?\b|\bwhat'?s on\b|\bqué hay\b|\b(what|who) do (i|we) have\b|\bwho('?s| is) coming\b|\bupcoming\b|\bbookings?\b(?! (link|page|notes?))|\b(my|our|the|today'?s|tomorrow'?s) schedule\b|\bqu[eé] tengo\b|\breservas?\b/i;
+/** Where the deals stand (the Pipeline's own read, which says so where deals are off). */
+const PIPELINE = /\bpipeline\b|\bproposals?\b|\bdeals?\b|\bpropuestas?\b/i;
+/** Who wrote: the Inbox's threads, newest first. */
+const WROTE =
+  /\bwho (wrote|texted|messaged|emailed|reached out)\b|\b(any|new|latest|recent|unread) (messages?|texts?|emails?)\b|\bqui[eé]n (escribi[oó]|mand[oó])\b|\bmensajes? nuevos?\b/i;
 const PLAYBOOKS = /\bplaybooks?\b|\bwin-?back\b|\bsave our number\b|\bmonth'?s offer\b|\bstanding (rules?|offers?)\b/i;
 const AUDIENCES =
   /\baudiences?\b|\bsaid yes\b|\bopted[- ]in\b|\boffers?\b|\bbroadcasts?\b|\bcampaigns?\b|\btemplates?\b|\bquiet (clients|customers|people)\b|\bdijeron que s[ií]\b|\bofertas?\b|\bplantillas?\b/i;
@@ -54,7 +68,8 @@ const HELD = /\bheld\b|\bdrafts?\b|\bwaiting (for|on) (my |your )?approval\b|\bb
 const ON_PAGE: Partial<Record<AskSurface, ReadonlySet<string>>> = {
   calendar: new Set(["calendar.openings", "calendar.week"]),
   campaigns: new Set(["campaigns.playbooks", "campaigns.audiences"]),
-  today: new Set(["calls.list"]),
+  today: new Set(["today"]),
+  pipeline: new Set(["people.pipeline"]),
   conversations: new Set(["calls.list"]),
   live: new Set(["calls.list"]),
   inbox: new Set(["inbox.list"]),
@@ -72,17 +87,21 @@ export function crossPagePlan(text: string, surface: string | null, view: string
     const called = calledName(name, input);
     if (!own.has(called) && !out.some((r) => calledName(r.name, r.input) === called)) out.push({ name, input });
   };
-  if (REPORT.test(q)) {
+  const overview = OVERVIEW.test(q);
+  if (overview) add("today", {});
+  if (overview || REPORT.test(q)) {
     const days = daysOf(q);
     if (surface !== "reports" || String(days) !== view) add("report", { days });
   }
   if (OPENINGS.test(q)) add("calendar", { action: "openings", day: dayOf(q, ""), service: "" });
   else if (CALENDAR.test(q)) add("calendar", { action: "week", day: dayOf(q, "today") });
+  if (PIPELINE.test(q)) add("people", { action: "pipeline" });
   if (PLAYBOOKS.test(q)) add("campaigns", { action: "playbooks" });
   if (AUDIENCES.test(q)) add("campaigns", { action: "audiences" });
   if (MISSED.test(q)) add("calls", { action: "list", filter: "missed" });
   else if (CALLS.test(q)) add("calls", { action: "list", filter: "recent" });
   if (HELD.test(q)) add("inbox", { action: "list", filter: "held" });
+  else if (WROTE.test(q)) add("inbox", { action: "list", filter: "recent" });
   return out.slice(0, CROSS_PAGE_MAX);
 }
 

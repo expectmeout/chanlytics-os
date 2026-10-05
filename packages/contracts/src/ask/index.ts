@@ -11,10 +11,12 @@ export {
   ASK_VOICE_ID,
   ASK_VOICE_MODEL,
   ASK_SPEECH_MAX_CHARS,
+  SPEECH_PURPOSES,
   ASK_VOICE_TIMING_MAX_MS,
   ASK_VOICE_IDLE_MS,
   ASK_VOICE_UP_WAIT_MS,
   VOICE_END_REASONS,
+  isVoiceEndReason,
   ASK_MAX_TOKENS,
   ASK_TOKENS_DAY,
   ASK_CAPS,
@@ -23,7 +25,7 @@ export {
   ASK_SURFACES,
   ASK_SCOPE_KINDS,
 } from "./ask";
-export type { VoiceEndReason } from "./ask";
+export type { SpeechPurpose, VoiceEndReason } from "./ask";
 export { AskProposalOutcomeSchema } from "./ask-schemas";
 export type {
   AskRole,

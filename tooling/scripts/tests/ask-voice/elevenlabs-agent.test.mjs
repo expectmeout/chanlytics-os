@@ -223,3 +223,12 @@ test("a write to one agent by id (--delete, --set-url) is a dry run until --appl
   // An id that reads as nothing (a typo, an agent already gone): nothing is sent.
   assert.match(agentWritePlan({ verb: "delete", id: "agent_typo", agentName: null, apply: true }).refused, /no agent/);
 });
+
+test("the member's token outlives a session and no more is asked of it: the least life a press requires is the agent's ceiling and a margin of five to ten minutes, so a press rarely waits on a refresh", async () => {
+  const { ASK_VOICE_TOKEN_MIN_MS, MIN_MS } = await import("@chanlytics/contracts");
+  const ceilingMs =
+    agentConfig({ name: PRODUCTION_AGENT_NAME, url: URL, secret: "s" }).conversation_config.conversation
+      .max_duration_seconds * 1000;
+  assert.ok(ASK_VOICE_TOKEN_MIN_MS >= ceilingMs + 5 * MIN_MS, "the token lasts the longest session, with a margin");
+  assert.ok(ASK_VOICE_TOKEN_MIN_MS <= ceilingMs + 10 * MIN_MS, "and a fresh enough token is not refreshed first");
+});

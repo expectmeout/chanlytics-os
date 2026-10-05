@@ -15,7 +15,7 @@ import type {
   PageContext,
   VoiceEndReason,
 } from "@chanlytics/contracts";
-import { MIN_MS, refusalOf } from "@chanlytics/contracts";
+import { MIN_MS, refusalOf, type SpeechPurpose } from "@chanlytics/contracts";
 import { api } from "../api";
 import { unwrap, type Api, type ApiOptions, type ApiResult, type Output, type RouteKey } from "../../client/api";
 
@@ -74,6 +74,12 @@ const TURN_MS = 300_000;
 
 export type { VoiceEndReason };
 /** What the browser measured, from the tap: to the connection, and to the first audio it heard (null: none came). */
+/**
+ * What a page says of a session the page before it died under (voice.ts `diedWord`): how it came back and on what.
+ * Not one of the row's closed set: the end route keeps it on its log line alone.
+ */
+export type VoiceDiedWord = `died:${string}`;
+
 export interface VoiceEndTiming {
   connectMs: number | null;
   firstAudioMs: number | null;
@@ -112,7 +118,11 @@ function voiceCalls(client: Api) {
         /* the next turn reads its page itself */
       }
     },
-    voiceEnd: async (session: string, reason: VoiceEndReason, timing?: VoiceEndTiming): Promise<void> => {
+    voiceEnd: async (
+      session: string,
+      reason: VoiceEndReason | VoiceDiedWord,
+      timing?: VoiceEndTiming,
+    ): Promise<void> => {
       try {
         await client.raw("POST ask/voice/end", {
           body: {
@@ -136,7 +146,7 @@ function voiceCalls(client: Api) {
  */
 function speechCalls(client: Api) {
   return {
-    speech: async (text: string, purpose: "brief" | "answer"): Promise<Blob> => {
+    speech: async (text: string, purpose: SpeechPurpose): Promise<Blob> => {
       const res = await client.raw("POST ask/speech", { body: { text, purpose }, timeoutMs: SPEECH_MS });
       if (!res.ok) {
         const j = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;

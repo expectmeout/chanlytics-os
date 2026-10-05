@@ -954,8 +954,9 @@ var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
 function isDealStage(s) {
   return typeof s === "string" && DEAL_STAGES.includes(s);
 }
-var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
+var ASK_VOICE_TOKEN_MIN_MS = 15 * MIN_MS;
 var VOICE_END_REASONS = ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"];
+var isVoiceEndReason = (word) => VOICE_END_REASONS.includes(word ?? "");
 var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
@@ -5943,8 +5944,7 @@ async function messageSenders(db, tenantId, ids) {
 // src/ask-voice-session.ts
 var VOICE_SESSION_COLUMNS = "id, tenant_id, user_id, thread_id, conversation_id, token_cipher, token_expires_at, surface, scope, context, language, turn_key, turn_started_at, duration_s, created_at, ended_at, end_reason, connect_ms, first_audio_ms";
 function voiceRowOf(r2) {
-  const ended = VOICE_END_REASONS.includes(r2.end_reason ?? "") ? r2.end_reason : null;
-  return { ...r2, end_reason: ended };
+  return { ...r2, end_reason: isVoiceEndReason(r2.end_reason) ? r2.end_reason : null };
 }
 async function insertVoiceSession(db, row) {
   const { error } = await db.from("ask_voice_sessions").insert(row);
