@@ -141,10 +141,18 @@ test.describe("Leads on a real workspace", () => {
     await page.goto("/#/clients/leads");
     await page.waitForLoadState("networkidle");
     const search = await waitingSearch(page);
-    const needs = page.getByTestId("leads-standing-needs");
-    await expect(needs).toBeInViewport({ ratio: 1 });
-    await expect(needs).toHaveText("1 search needs you");
-    await needs.click();
+    // The standing says it needs you. In Glass the standing is the frame's head's sentence, which on a desk is kept for
+    // a reader and the frame's focus alone, and the page's own line is drawn on a phone alone (clients.css, "The page's
+    // standing line is the head's sentence now"), so on a desk the line is read, not pressed.
+    await expect(page.locator(".pg-head .pg-sentence").getByTestId("leads-standing-needs")).toHaveText(
+      "1 search needs you",
+    );
+    // The desk's door is the rail's row: its "?" says the search needs you, and a waiting search opens on the pile its
+    // question is about (leads/page/routes.tsx, waitsOn).
+    const door = page.getByTestId(`leads-search-${search.id}`);
+    await expect(door).toBeInViewport({ ratio: 1 });
+    await expect(door.locator(".rail-q")).toHaveAttribute("title", "This search needs you");
+    await door.click();
     await expect.poll(() => routeOf(page.url())).toBe(search.route);
     await expect(page.locator(".cl-rail-row", { hasText: WAITING_SEARCH_NAME })).toBeVisible();
 
@@ -264,7 +272,8 @@ test.describe("Leads on a real workspace", () => {
   test("an old #/leads bookmark lands on the Leads scope", async ({ page }) => {
     await page.goto("/#/leads");
     await expect.poll(() => routeOf(page.url()), { message: "leads is a scope of People now" }).toBe("clients/leads");
-    await expect(page.getByTestId("leads-standing")).toBeVisible();
+    // The Leads scope's own standing, the frame's head's sentence in Glass.
+    await expect(page.locator(".pg-head .pg-sentence")).toContainText(/\d+ leads?\b/);
   });
 
   test("the keyboard walks the leads: J focuses, Enter peeks, C dials, F opens Ask on Leads, Esc backs out in order", async ({

@@ -156,13 +156,14 @@ export async function expectWarningsFirst(page: Page): Promise<void> {
  * says nothing about whether the owner can see what the search found.
  */
 export async function expectLeadsScope(page: Page, want: { standing: string; first: string }): Promise<void> {
-  const tabs = page.getByRole("tablist", { name: "Which people" });
+  // People's scopes are the frame's strip, links (since #1412): the one picked is the page.
+  const tabs = page.getByRole("navigation", { name: "Which people" });
   await expect(tabs).toBeVisible();
-  await expect(tabs.getByRole("tab", { name: "Leads" })).toHaveAttribute("aria-selected", "true");
-  const standing = page.getByTestId("leads-standing");
-  await expect(standing).toBeInViewport({ ratio: 1 });
-  // "3 leads · 2 ready · 1 search" is three adjacent spans (PeopleStanding), so the
-  // line's own text has no space around the dots: each part is read on its own.
+  await expect(tabs.getByRole("link", { name: "Leads" })).toHaveAttribute("aria-current", "page");
+  // In Glass the standing line is the frame's head's sentence (the page's own line, leads-standing, is drawn on a
+  // phone alone): "3 leads · 2 ready · 1 search", each part read on its own. On a desk the head is kept for a reader
+  // and the frame's focus alone (components.css, the head's slot, 1 Oct 2026), so it is read, not looked for on screen.
+  const standing = page.locator(".pg-head .pg-sentence");
   for (const part of want.standing.split("·")) await expect(standing).toContainText(part.trim());
   await expect(page.locator(".cl-table tbody tr").first()).toContainText(want.first);
 }
