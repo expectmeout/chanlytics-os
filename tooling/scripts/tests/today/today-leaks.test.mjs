@@ -900,7 +900,7 @@ test("the last seven days in one sentence, in Reports' own numbers and words, ea
 
 test("the period line reads the view model Reports itself draws: a round trip through toReportVM", () => {
   // The mockup's sample is a real ReportsSurface: reportDto → toReportVM, nothing typed by hand.
-  const surface = reportsSample(7, "2026-09-18");
+  const surface = reportsSample("7d", "2026-09-18");
   const { vm } = surface;
   const line = todayPeriodLine(surface);
   assert.equal(line.to, "reports");

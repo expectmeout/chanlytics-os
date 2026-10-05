@@ -8,7 +8,16 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toReportVM, deltaOf, quantile, fmtSeconds, fmtDay, REPORT_RANGES } from "@chanlytics/contracts";
+import {
+  toReportVM,
+  deltaOf,
+  quantile,
+  fmtSeconds,
+  fmtDay,
+  REPORT_RANGES,
+  bookedTileOf,
+  toBookingReportVM,
+} from "@chanlytics/contracts";
 
 function day(d, over = {}) {
   return {
@@ -167,7 +176,65 @@ test("every chart has a table twin with the same numbers", () => {
   assert.equal(vm.table.rows.length, 7);
   assert.deepEqual(vm.table.rows[3].slice(1), [5, 3, 1, 1, 2, 2, 0]);
   assert.deepEqual(
-    REPORT_RANGES.map((r) => r.days),
-    [7, 30, 90],
+    REPORT_RANGES.map((r) => [r.id, r.days, r.label]),
+    [
+      ["7d", 7, "7 days"],
+      ["30d", 30, "30 days"],
+      ["90d", 90, "90 days"],
+      ["month", null, "Month"],
+    ],
+    "one table, and Month has no days of its own",
   );
+});
+
+test("each tile names the figure it says where it is built, once: the report's six, in the order the view model lists them", () => {
+  assert.deepEqual(
+    toReportVM(dto(), { profile: null }).tiles.map((t) => [t.id, t.metric]),
+    [
+      ["messages", "customer_messages"],
+      ["answered", "answered_share"],
+      ["reply", "reply_median"],
+      ["needed", "handovers"],
+      ["calls", "calls"],
+      ["people", "new_people"],
+    ],
+  );
+});
+
+test("Booked is a tile of contracts', with its figure: a count where the calendar was read, and why there is none where not", () => {
+  assert.deepEqual(bookedTileOf(toBookingReportVM({ calendar: "ok", days: 7, asked: 8, booked: 3 })), {
+    id: "booked",
+    metric: "booked",
+    label: "Booked",
+    value: "3",
+    meta: "of 8 who asked",
+    compare: null,
+  });
+  const why = (b) => {
+    const t = bookedTileOf(b);
+    return [t.value, t.meta];
+  };
+  assert.deepEqual(why(toBookingReportVM({ calendar: "unavailable", days: 7, asked: 4, booked: 0 })), [
+    "—",
+    "the calendar could not be read",
+  ]);
+  assert.deepEqual(why(toBookingReportVM({ calendar: "none", days: 7, asked: 0, booked: 0 })), [
+    "—",
+    "no calendar to read",
+  ]);
+  assert.deepEqual(why(null), ["—", "no calendar to read"]);
+});
+
+test("a one-day period says one day: Month on the first of the month is read over one", () => {
+  const vm = toReportVM(
+    dto({
+      days: 1,
+      span_days: 2,
+      today: "2026-09-04",
+      series: [day("2026-09-03"), day("2026-09-04", { messages_in: 1, answered_ai: 1, conversations: 1 })],
+    }),
+    { profile: null },
+  );
+  assert.equal(vm.rangeLabel, "1 day");
+  assert.equal(vm.tiles[0].meta, "on 1 of 1 day", "and every line that counts the days says it so");
 });

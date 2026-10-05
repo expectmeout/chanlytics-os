@@ -1,8 +1,9 @@
 /**
  * Ask's citation grammar: the kinds a citation may name, the rule that keeps one honest (a row a reader returned this
  * turn, or a page) and where each opens. Read by ask.ts's message, the answer's normaliser (ask-answer.ts) and the
- * format the model writes (answer-format.ts). Pure; it imports nothing.
+ * format the model writes (answer-format.ts). Pure; it imports only Reports' lens table, whose routes are pages.
  */
+import { LENS_ROUTES } from "../reports/lenses";
 
 /* ----------------------------------------------------------- the citation */
 
@@ -70,7 +71,7 @@ export function noteRows(read: AskReadSet, refs: Iterable<AskRowRef>): void {
  * The pages a citation or a navigate target may point at without a read: every page the palette jumps to (askPages;
  * the Pipeline and the back office only where the workspace and the person have them), and People's lists.
  */
-export const ASK_PAGE_ROUTES = [
+export const ASK_PAGE_ROUTES: readonly string[] = [
   "today",
   "inbox",
   "clients",
@@ -84,7 +85,7 @@ export const ASK_PAGE_ROUTES = [
   "outbound",
   "broadcasts",
   "messages",
-  "reports",
+  ...LENS_ROUTES,
   "start",
   "admin/workspace",
   "admin/team",
@@ -96,7 +97,7 @@ export const ASK_PAGE_ROUTES = [
   "admin/profile",
   "admin/partner",
   "admin/platform",
-] as const;
+];
 
 // A list of the workspace's own is a row (`clients/list:<id>`, its reader's route), so its address is no page; a People
 // list's `clients/seg:<id>` is People's own view, and stays one.

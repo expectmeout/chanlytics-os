@@ -1,0 +1,46 @@
+/**
+ * The periods Reports offers and how a request names one (the table is REPORT_RANGES, reports.ts: said once). Three are a
+ * count of days; Month is the days since the 1st in the workspace's own zone, today included, so on the 5th it is 5 days,
+ * against the 5 before. A request names `period`; `days`, which every page sent before there was a Month, is read for a
+ * release longer so a tab opened before the deploy still reads (either deploy order works), and the day it ends is held by
+ * tests/reports/periods/report-periods.test.mjs.
+ */
+import { REPORT_RANGES } from "./reports";
+
+/** What a period is called in a request, the tab's storage and the control. */
+export type ReportPeriodId = (typeof REPORT_RANGES)[number]["id"];
+
+/** The period a report is read over when none is named. */
+export const REPORT_PERIOD_DEFAULT: ReportPeriodId = "30d";
+
+/** The most days the report reads: the SQL clamps its `p_days` there. */
+const MOST_DAYS = Math.max(...REPORT_RANGES.map((r) => r.days ?? 0));
+
+export const isReportPeriod = (value: unknown): value is ReportPeriodId => REPORT_RANGES.some((r) => r.id === value);
+
+/** The days of a period that is a count of days; null for Month. */
+export const fixedDaysOf = (period: ReportPeriodId): number | null =>
+  REPORT_RANGES.find((r) => r.id === period)?.days ?? null;
+
+/** Month to date at a business day ("2026-10-05" is 5): the day of the month, today included. */
+export const monthDaysAt = (dayKey: string): number => Number(dayKey.slice(8, 10));
+
+/**
+ * The period a request names: `period`, else (until its day) the `days` a page sent before there was a Month, else the
+ * default. Null when what it names is none of ours.
+ */
+export function reportPeriodOf(asked: {
+  period?: string | undefined;
+  days?: string | undefined;
+}): ReportPeriodId | null {
+  if (asked.period !== undefined) return isReportPeriod(asked.period) ? asked.period : null;
+  if (asked.days !== undefined)
+    return REPORT_RANGES.find((r) => r.days !== null && r.days === Number(asked.days))?.id ?? null;
+  return REPORT_PERIOD_DEFAULT;
+}
+
+/** The days a page said it shows (Ask's view of Reports): a whole count the report can read, else null. */
+export function reportDaysAsked(view: string | null | undefined): number | null {
+  const asked = Number(view);
+  return Number.isInteger(asked) && asked >= 1 && asked <= MOST_DAYS ? asked : null;
+}

@@ -104,8 +104,8 @@ test("Reports: the chart's hit targets are not keyboard stops; the zone is a too
   // "every message was answered without you" only when true: executed in reports-page.test.mjs.
   assert.ok(page.includes("Couldn't load"), "a failed period switch says so");
   const verbs = readCode("apps/dashboard/src/surfaces/reports/period.ts");
-  assert.ok(verbs.includes("export async function setReportRange(days: number): Promise<boolean>"));
-  assert.ok(verbs.includes("setReportDays(prev);"), "the preferred period goes back on failure");
+  assert.ok(verbs.includes("export async function setReportRange(period: ReportPeriodId): Promise<boolean>"));
+  assert.ok(verbs.includes("keepReportPeriod(prev);"), "the preferred period goes back on failure");
 });
 
 /* -------------------------------- Today ----------------------------------- */

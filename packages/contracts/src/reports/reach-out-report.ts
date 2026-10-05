@@ -272,14 +272,14 @@ function linesOf(dto: ReachOutReportDto): ReachOutReportVM["lines"] {
   const angled = dto.angles.reduce((n, a) => n + a.written, 0) + dto.other_angles.written;
   return {
     funnel: t.written
-      ? `Of ${plural(t.written, "email")} written in these ${dto.days} days. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.`
+      ? `Of ${plural(t.written, "email")} written in these ${plural(dto.days, "day")}. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.`
       : "Nothing was written in these days.",
     angles: angled
       ? `The opening written for each business, and who answered.${dto.no_angle ? ` ${plural(dto.no_angle, "email")} had no opening, so no angle.` : ""}`
       : "No email in these days had an opening, so there is no angle to compare.",
     domains: "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.",
     written: t.handed ? `${plural(t.handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
-    empty: `No reach-out wrote in the last ${dto.days} days.`,
+    empty: `No reach-out wrote in the last ${plural(dto.days, "day")}.`,
   };
 }
 

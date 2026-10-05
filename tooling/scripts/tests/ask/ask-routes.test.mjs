@@ -544,7 +544,7 @@ test("the reports: the three presets and no other, the series from the function 
     reports.GET.run(get(`?days=10&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs)),
     "validation",
     400,
-    "days must be 7, 30 or 90.",
+    "period must be 7d, 30d, 90d or month.",
   );
   const week = await reports.GET.run(get(`?days=7&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs));
   assert.deepEqual(week.report, { days: 7, tenant: A });
@@ -555,7 +555,7 @@ test("the reports: the three presets and no other, the series from the function 
     campaigns.GET.run(get(`?days=45&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs)),
     "validation",
     400,
-    "days must be 7, 30 or 90.",
+    "period must be 7d, 30d, 90d or month.",
   );
   assert.deepEqual(await campaigns.GET.run(get(`?days=90&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs)), {
     report: { days: 90 },

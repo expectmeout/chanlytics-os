@@ -88,11 +88,11 @@ test.describe("Today on a real workspace", () => {
     await door.click();
     await expect(page).toHaveURL(atRoute(/^reports/));
     await page.waitForLoadState("networkidle");
-    // Reports' messages tile, over the same range, prints the same count (the tiles are one list since #928, each
-    // named by data-tile).
-    await expect(page.getByTestId("reports-tiles").locator('[data-tile="messages"] .rpt-tile-value')).toContainText(
-      m![2],
-    );
+    // Reports' messages figure, over the same range, prints the same count (the strip is one list of the kit's figures, each
+    // named by its metric in data-figure).
+    await expect(
+      page.getByTestId("reports-tiles").locator('[data-figure="customer_messages"] .figure-value'),
+    ).toContainText(m![2]);
   });
 
   test("no day pane beside the queue: the strip says the day, and the Calendar has the rest", async ({ page }) => {

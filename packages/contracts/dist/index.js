@@ -5322,6 +5322,147 @@ var FOLLOWUP_ECHO = [
   [/thread|hilo|conversation/i, /^inbox\/th-/]
 ];
 
+// src/config/roles.ts
+var ROLE_RANK = { viewer: 0, operator: 1, partner: 2, owner: 3 };
+function roleAtLeast(role, atLeast) {
+  const have = Object.prototype.hasOwnProperty.call(ROLE_RANK, role) ? ROLE_RANK[role] : void 0;
+  return have !== void 0 && have >= ROLE_RANK[atLeast];
+}
+
+// src/deals/sells-by.ts
+var SELLS_BY = ["booking", "proposal"];
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+function isSellsBy(s) {
+  return typeof s === "string" && SELLS_BY.includes(s);
+}
+var SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
+function dealsAreOn(sellsBy) {
+  return sellsBy === "proposal";
+}
+function bookingLinkOptional(sellsBy) {
+  return dealsAreOn(sellsBy);
+}
+var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
+var SELLS_BY_FIRST = "booking";
+var CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
+function sellsByVM(answer) {
+  const said = isSellsBy(answer) ? answer : null;
+  const on = dealsAreOn(said);
+  const verb = said ? "Change" : "Choose";
+  return {
+    question: SELLS_BY_QUESTION,
+    value: said ? SELLS_BY_WORDS[said].label : null,
+    empty: "Not said yet",
+    act: said ? "Change" : "Choose one",
+    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
+    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
+    refusal: SELLS_BY_REFUSAL,
+    first: said ?? SELLS_BY_FIRST,
+    dealsOn: on,
+    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null
+  };
+}
+function sellsBySaved(was, now) {
+  if (dealsAreOn(now)) return "Saved \u2014 deals are on.";
+  return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
+}
+
+// src/reports/lenses.ts
+var NOTHING_CAME_IN = (r2) => ({
+  title: "Nothing came in",
+  body: `Nobody wrote or called between ${r2.since} and ${r2.until}.`,
+  door: null
+});
+var REPORT_LENSES = [
+  {
+    id: "overview",
+    label: "Overview",
+    sub: "how the period went, and what needs a look",
+    shownWhen: "always",
+    role: "viewer",
+    empty: NOTHING_CAME_IN
+  },
+  {
+    id: "receptionist",
+    label: "Receptionist",
+    sub: "who answered, how fast, and why it stopped",
+    shownWhen: "always",
+    role: "viewer",
+    empty: NOTHING_CAME_IN
+  },
+  {
+    id: "people",
+    label: "People",
+    sub: "who reached you, and where and when",
+    shownWhen: "always",
+    role: "viewer",
+    empty: NOTHING_CAME_IN
+  },
+  {
+    id: "pipeline",
+    label: "Pipeline",
+    sub: "proposals, and what became of them",
+    shownWhen: "deals_on",
+    role: "viewer",
+    empty: () => ({
+      title: "No proposals to report",
+      body: "Proposals you send, and what became of them, show here. Where your customers book directly, there is nothing to report.",
+      door: { label: "Open Settings", to: "admin/workspace" }
+    })
+  },
+  {
+    id: "campaigns",
+    label: "Campaigns",
+    sub: "what went out, and who wrote back",
+    shownWhen: "always",
+    role: "viewer",
+    empty: (r2) => ({
+      title: "Nothing went out",
+      body: `No broadcast or playbook run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
+      door: { label: "Open Sent", to: "broadcasts" }
+    })
+  },
+  {
+    id: "reviews",
+    label: "Reviews",
+    sub: "what customers say on Google",
+    shownWhen: "always",
+    role: "viewer",
+    empty: () => ({
+      title: "Find your business on Google once.",
+      body: "Its rating, its count and its newest reviews show here for the period, with a line on Today and a row on the bell when one lands.",
+      door: { label: "Find it", to: "start/find" }
+    })
+  }
+];
+var lensRoute = (id) => id === "overview" ? "reports" : `reports/${id}`;
+var LENS_ROUTES = REPORT_LENSES.map((l) => lensRoute(l.id));
+var isLensParam = (param) => REPORT_LENSES.some((l) => l.id === param && l.id !== "overview");
+function lensOfRoute(route) {
+  if (route === "reports") return "overview";
+  const param = route.startsWith("reports/") ? route.slice("reports/".length) : "";
+  return isLensParam(param) ? param : null;
+}
+function lensesFor(who) {
+  return REPORT_LENSES.filter(
+    (l) => (l.shownWhen === "always" || dealsAreOn(who.sellsBy)) && roleAtLeast(who.role ?? "viewer", l.role)
+  );
+}
+var lensIsShown = (id, who) => lensesFor(who).some((l) => l.id === id);
+function lensOf(id) {
+  const found = REPORT_LENSES.find((l) => l.id === id);
+  if (!found) throw new Error(`Reports has no lens ${id}`);
+  return found;
+}
+var lensEmpty = (id, range) => lensOf(id).empty(range);
+
 // src/ask/citations.ts
 var ASK_CITATION_KINDS = [
   "thread",
@@ -5361,7 +5502,7 @@ var ASK_PAGE_ROUTES = [
   "outbound",
   "broadcasts",
   "messages",
-  "reports",
+  ...LENS_ROUTES,
   "start",
   "admin/workspace",
   "admin/team",
@@ -5819,13 +5960,6 @@ function leadTileSrc(url, px = LEAD_TILE_PX) {
   if (!url) return null;
   if (!/^https:\/\/lh3\.googleusercontent\.com\//.test(url)) return url;
   return url.replace(/=w\d+-h\d+(?:-[a-z0-9-]+)?$/i, `=s${px}-c`);
-}
-
-// src/config/roles.ts
-var ROLE_RANK = { viewer: 0, operator: 1, partner: 2, owner: 3 };
-function roleAtLeast(role, atLeast) {
-  const have = Object.prototype.hasOwnProperty.call(ROLE_RANK, role) ? ROLE_RANK[role] : void 0;
-  return have !== void 0 && have >= ROLE_RANK[atLeast];
 }
 
 // src/people/person-name.ts
@@ -7371,51 +7505,6 @@ var LIST_DRAFT_JSON_SCHEMA = {
     }
   }
 };
-
-// src/deals/sells-by.ts
-var SELLS_BY = ["booking", "proposal"];
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
-function isSellsBy(s) {
-  return typeof s === "string" && SELLS_BY.includes(s);
-}
-var SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
-function dealsAreOn(sellsBy) {
-  return sellsBy === "proposal";
-}
-function bookingLinkOptional(sellsBy) {
-  return dealsAreOn(sellsBy);
-}
-var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
-var SELLS_BY_FIRST = "booking";
-var CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
-function sellsByVM(answer) {
-  const said = isSellsBy(answer) ? answer : null;
-  const on = dealsAreOn(said);
-  const verb = said ? "Change" : "Choose";
-  return {
-    question: SELLS_BY_QUESTION,
-    value: said ? SELLS_BY_WORDS[said].label : null,
-    empty: "Not said yet",
-    act: said ? "Change" : "Choose one",
-    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
-    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
-    refusal: SELLS_BY_REFUSAL,
-    first: said ?? SELLS_BY_FIRST,
-    dealsOn: on,
-    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null
-  };
-}
-function sellsBySaved(was, now) {
-  if (dealsAreOn(now)) return "Saved \u2014 deals are on.";
-  return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
-}
 
 // src/people/lists/lists.ts
 var SAVED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -9213,6 +9302,16 @@ function detectLanguage(text) {
 }
 
 // src/ask/ask-jump.ts
+var lensJump = (lens) => ({
+  label: `Reports \u203A ${lens.label}`,
+  to: lensRoute(lens.id),
+  kind: "page",
+  sub: lens.sub
+});
+var LENS_JUMPS = REPORT_LENSES.filter((l) => l.id !== "overview" && l.shownWhen === "always").map(
+  lensJump
+);
+var DEALS_LENS_JUMPS = REPORT_LENSES.filter((l) => l.shownWhen === "deals_on").map(lensJump);
 var ASK_PAGES = [
   { label: "Today", to: "today", kind: "page" },
   { label: "Inbox", to: "inbox", kind: "page" },
@@ -9251,6 +9350,7 @@ var ASK_PAGES = [
     also: ["templates", "messages", "wording"]
   },
   { label: "Reports", to: "reports", kind: "page" },
+  ...LENS_JUMPS,
   { label: "Settings", to: "admin/workspace", kind: "page" },
   {
     label: "Setting up",
@@ -9293,9 +9393,11 @@ var BACK_OFFICE = {
 };
 function askPages(has3) {
   const out = [];
+  const lastLens = LENS_JUMPS.at(-1)?.to;
   for (const p of ASK_PAGES) {
     out.push(p);
     if (p.to === "clients/leads" && has3.dealsOn) out.push(PIPELINE);
+    if (p.to === lastLens && has3.dealsOn) out.push(...DEALS_LENS_JUMPS);
   }
   if (has3.platformAdmin) out.push(BACK_OFFICE);
   return out;
@@ -15631,38 +15733,10 @@ function hoursUnsetOf(arrivals, profile) {
   return arrivals !== void 0 && profile != null && !hasHours(profile.hours);
 }
 
-// src/shared/numbers.ts
-var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
-
-// src/reports/reports.ts
-var REPORT_CHANNELS = [
-  { key: "whatsapp", label: "WhatsApp" },
-  { key: "voice", label: "Calls" },
-  { key: "email", label: "Email" },
-  { key: "sms", label: "Text" }
-];
-var REPORT_RANGES = [
-  { days: 7, id: "7d", label: "7 days" },
-  { days: 30, id: "30d", label: "30 days" },
-  { days: 90, id: "90d", label: "90 days" }
-];
-function dayDate(day) {
-  const [y, m, d] = day.split("-").map(Number);
-  return new Date(y, (m ?? 1) - 1, d ?? 1);
-}
-function fmtDay(day) {
-  return DATE_FMT.format(dayDate(day));
-}
+// src/reports/report-tiles.ts
 function fmtSeconds(s) {
   if (s == null || !Number.isFinite(s)) return "\u2014";
   return durationWords(s);
-}
-function quantile(sorted, q) {
-  if (!sorted.length) return null;
-  const pos = (sorted.length - 1) * q;
-  const lo = Math.floor(pos);
-  const hi = Math.ceil(pos);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 function deltaOf(current, previous, upIsGood, noun) {
   if (!previous) return null;
@@ -15682,6 +15756,122 @@ function compareWords(current, previous, rangeLabel, priorHadAny) {
   if (previous === 0) return `none the ${rangeLabel} before`;
   if (current === previous) return `same as the ${rangeLabel} before`;
   return `${current > previous ? "up" : "down"} from ${previous}`;
+}
+var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "messages",
+  metric: "customer_messages",
+  label: "Customer messages",
+  value: String(tot.in),
+  meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${plural(days, "day")}` : "none in this period",
+  delta: deltaOf(tot.in, prev.in, true, noun),
+  spark: points.map((p) => p.in),
+  compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny)
+});
+var answeredTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) => ({
+  id: "answered",
+  metric: "answered_share",
+  label: "Receptionist answered",
+  value: aiShare === null ? "\u2014" : `${aiShare}%`,
+  meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
+  // A share compares in POINTS. Against counts, the share could fall from
+  // 100% to 60% while the delta read +20% in green.
+  delta: pointsDelta(aiShare, prevShare, noun),
+  spark: points.map((p) => p.ai),
+  compare: null
+});
+var replyTile = ({ sortedReply, median, p90, hold }) => ({
+  id: "reply",
+  metric: "reply_median",
+  label: "Median reply time",
+  value: fmtSeconds(median),
+  // The reply time includes the hold the owner set, and says so where replies waited one (spec D14).
+  meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies${holdNote(hold)}` : "no receptionist replies yet",
+  delta: null,
+  spark: [],
+  compare: null
+});
+var neededTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "needed",
+  metric: "handovers",
+  label: "Needed you",
+  value: String(tot.escalations),
+  meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
+  delta: deltaOf(tot.escalations, prev.escalations, false, noun),
+  spark: points.map((p) => p.escalations),
+  compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny)
+});
+var callsTile = ({ dto, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "calls",
+  metric: "calls",
+  label: "Calls",
+  value: String(tot.calls),
+  meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone \xB7 ${dto.voicemail ?? 0} to voicemail` : "no calls",
+  delta: deltaOf(tot.calls, prev.calls, true, noun),
+  spark: points.map((p) => p.calls),
+  compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny)
+});
+var peopleTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "people",
+  metric: "new_people",
+  label: "New people",
+  value: String(tot.newPeople),
+  meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
+  delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
+  spark: points.map((p) => p.newPeople),
+  compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny)
+});
+var REPORT_TILES = [
+  messagesTile,
+  answeredTile,
+  replyTile,
+  neededTile,
+  callsTile,
+  peopleTile
+];
+function bookedTileOf(booking) {
+  const tile = { id: "booked", metric: "booked", label: "Booked", compare: null };
+  if (booking && booking.present)
+    return {
+      ...tile,
+      value: String(booking.booked),
+      meta: booking.asked ? `of ${booking.asked} who asked` : "nobody asked"
+    };
+  return {
+    ...tile,
+    value: "\u2014",
+    meta: booking && booking.calendar === "unavailable" ? "the calendar could not be read" : "no calendar to read"
+  };
+}
+
+// src/shared/numbers.ts
+var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
+
+// src/reports/reports.ts
+var REPORT_CHANNELS = [
+  { key: "whatsapp", label: "WhatsApp" },
+  { key: "voice", label: "Calls" },
+  { key: "email", label: "Email" },
+  { key: "sms", label: "Text" }
+];
+var REPORT_RANGES = [
+  { days: 7, id: "7d", label: "7 days" },
+  { days: 30, id: "30d", label: "30 days" },
+  { days: 90, id: "90d", label: "90 days" },
+  { days: null, id: "month", label: "Month" }
+];
+function dayDate(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
+}
+function fmtDay(day) {
+  return DATE_FMT.format(dayDate(day));
+}
+function quantile(sorted, q) {
+  if (!sorted.length) return null;
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 function bars(entries) {
   const max = Math.max(1, ...entries.map((e) => e[2]));
@@ -15839,7 +16029,7 @@ function periodFactsOf(dto) {
     calls: sumOf(previous.map((d) => d.calls)),
     newPeople: sumOf(previous.map((d) => d.new_contacts))
   };
-  const noun = `${days} days`;
+  const noun = plural(days, "day");
   const answeredTotal = tot.ai + tot.you + tot.none;
   const prevAnsweredTotal = prev.ai + prev.you + prev.none;
   const sortedReply = [...dto.reply_seconds ?? []].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
@@ -15866,64 +16056,6 @@ function periodFactsOf(dto) {
     hold: holdOf(dto.replies)
   };
 }
-var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "messages",
-  label: "Customer messages",
-  value: String(tot.in),
-  meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
-  delta: deltaOf(tot.in, prev.in, true, noun),
-  spark: points.map((p) => p.in),
-  compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny)
-});
-var answeredTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) => ({
-  id: "answered",
-  label: "Receptionist answered",
-  value: aiShare === null ? "\u2014" : `${aiShare}%`,
-  meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
-  // A share compares in POINTS. Against counts, the share could fall from
-  // 100% to 60% while the delta read +20% in green.
-  delta: pointsDelta(aiShare, prevShare, noun),
-  spark: points.map((p) => p.ai),
-  compare: null
-});
-var replyTile = ({ sortedReply, median, p90, hold }) => ({
-  id: "reply",
-  label: "Median reply time",
-  value: fmtSeconds(median),
-  // The reply time includes the hold the owner set, and says so where replies waited one (spec D14).
-  meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies${holdNote(hold)}` : "no receptionist replies yet",
-  delta: null,
-  spark: [],
-  compare: null
-});
-var neededTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "needed",
-  label: "Needed you",
-  value: String(tot.escalations),
-  meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
-  delta: deltaOf(tot.escalations, prev.escalations, false, noun),
-  spark: points.map((p) => p.escalations),
-  compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny)
-});
-var callsTile = ({ dto, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "calls",
-  label: "Calls",
-  value: String(tot.calls),
-  meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone \xB7 ${dto.voicemail ?? 0} to voicemail` : "no calls",
-  delta: deltaOf(tot.calls, prev.calls, true, noun),
-  spark: points.map((p) => p.calls),
-  compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny)
-});
-var peopleTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "people",
-  label: "New people",
-  value: String(tot.newPeople),
-  meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
-  delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
-  spark: points.map((p) => p.newPeople),
-  compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny)
-});
-var REPORT_TILES = [messagesTile, answeredTile, replyTile, neededTile, callsTile, peopleTile];
 var reasonBarsOf = (reasons) => bars(
   Object.entries(reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r2, n]) => [r2, capitalize(reasonShort(r2)) || r2, n])
 );
@@ -16255,7 +16387,7 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
   const source = canReply ? "every review, from your Business Profile" : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
   const days = [...dto.days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
   const { current: gained, previous } = gainedOver(days, periodDays);
-  const noun = `${periodDays} days`;
+  const noun = plural(periodDays, "day");
   const inPeriod = days.length ? days.filter((d) => d.day >= shiftDay2(days[days.length - 1].day, -(periodDays - 1))) : [];
   const ratingSpark = inPeriod.map((d) => d.rating ?? 0);
   const countSpark = inPeriod.map((d) => d.review_count);
@@ -16274,6 +16406,7 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
   const tiles = [
     {
       id: "rating",
+      metric: "rating",
       label: "Rating on Google",
       value: typeof l.rating === "number" ? l.rating.toFixed(1) : "\u2014",
       meta: `${reviewsWords(l.review_count)} \xB7 ${checked.toLowerCase()}`,
@@ -16283,6 +16416,7 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
     },
     {
       id: "reviews",
+      metric: "reviews",
       label: "Reviews on Google",
       value: typeof l.review_count === "number" ? String(l.review_count) : "\u2014",
       meta: "as Google counts them, with or without words",
@@ -16292,6 +16426,7 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
     },
     {
       id: "gained",
+      metric: "ratings_gained",
       label: `Gained in ${noun}`,
       value: gained.total === null ? "\u2014" : String(gained.total),
       meta: gained.total === null ? "needs a second day of reading" : gained.sinceLabel ? `since ${gained.sinceLabel}, the first day on record` : `new ratings, words or not`,
@@ -16301,6 +16436,7 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
     },
     {
       id: "newest",
+      metric: "newest_review",
       label: "Newest review",
       value: newest?.when || "\u2014",
       meta: newest ? `${newest.stars} \xB7 ${newest.author}` : canReply ? "no review yet" : "none of the five Google shows has a date",
@@ -16823,8 +16959,16 @@ var PREFETCH_READS = {
   clients: ["contacts", "segments", "views"],
   segments: ["contacts", "segments", "views"],
   live: ["calls", "channels"],
-  // The Campaigns home reads what the offers earned over its 30 days (broadcasts/surface.ts HOME_REPORT_DAYS).
-  broadcasts: ["broadcasts", "contacts", "segments", "templates", "channels", "settings", "reports/campaigns?days=30"],
+  // The Campaigns home reads what the offers earned over its 30 days (broadcasts/surface.ts HOME_REPORT_PERIOD).
+  broadcasts: [
+    "broadcasts",
+    "contacts",
+    "segments",
+    "templates",
+    "channels",
+    "settings",
+    "reports/campaigns?period=30d"
+  ],
   outbound: ["playbooks", "templates", "channels", "settings"],
   // Templates and every pane of Settings are drawn from the settings surface.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],
@@ -26765,7 +26909,7 @@ function toCampaignReportVM(dto) {
     optIns: sumOf(previous.map((d) => d.opt_ins)),
     optOuts: sumOf(previous.map((d) => d.opt_outs))
   };
-  const noun = `${days} days`;
+  const noun = plural(days, "day");
   const rawSources = dto.sources ?? [];
   const sends2 = sumOf(rawSources.map((s) => s.runs));
   const maxSent = Math.max(1, ...rawSources.map((s) => s.sent));
@@ -26790,6 +26934,7 @@ function toCampaignReportVM(dto) {
   const tiles = [
     {
       id: "sent",
+      metric: "messages_sent",
       label: "Messages sent",
       value: String(tot.sent),
       meta: tot.sent ? `over ${sends2} ${sends2 === 1 ? "send" : "sends"}` : "none in this period",
@@ -26799,6 +26944,7 @@ function toCampaignReportVM(dto) {
     },
     {
       id: "delivered",
+      metric: "delivered_share",
       label: "Delivered",
       value: pct2(tot.delivered, tot.sent) === null ? "\u2014" : `${pct2(tot.delivered, tot.sent)}%`,
       meta: tot.sent ? `${tot.delivered} of ${tot.sent} \xB7 ${DELIVERY_RECEIPTS_WORDS}` : "nothing sent",
@@ -26808,6 +26954,7 @@ function toCampaignReportVM(dto) {
     },
     {
       id: "replied",
+      metric: "replied_share",
       label: "Replied",
       value: pct2(tot.replied, tot.sent) === null ? "\u2014" : `${pct2(tot.replied, tot.sent)}%`,
       meta: tot.sent ? `${tot.replied} wrote back ${REPLY_WINDOW_WORDS}` : "nothing sent",
@@ -26817,6 +26964,7 @@ function toCampaignReportVM(dto) {
     },
     {
       id: "optins",
+      metric: "said_yes",
       label: "Said yes",
       value: String(tot.optIns),
       meta: tot.optIns ? "at the desk, or in their own words" : "nobody in this period",
@@ -26826,6 +26974,7 @@ function toCampaignReportVM(dto) {
     },
     {
       id: "optouts",
+      metric: "asked_to_stop",
       label: "Asked to stop",
       value: String(tot.optOuts),
       meta: tot.optOuts ? "STOP, or recorded at the desk" : "nobody in this period",
@@ -26853,6 +27002,42 @@ function toCampaignReportVM(dto) {
       sent: sends2 ? sends2 === 1 ? "From one broadcast or playbook run." : `From ${sends2} broadcast and playbook runs.` : null
     }
   };
+}
+
+// src/reports/lens-answer.ts
+function lensAnswerOf(lens, parts2) {
+  const { vm, campaigns, deals } = parts2;
+  switch (lens) {
+    case "overview":
+      return vm.empty ? void 0 : vm.lines.hero;
+    case "receptionist":
+      return vm.empty ? void 0 : vm.lines.answered ?? void 0;
+    case "people":
+      return vm.empty ? void 0 : vm.lines.channels ?? void 0;
+    case "pipeline":
+      return deals?.present ? deals.headline : void 0;
+    case "campaigns":
+      return campaigns && !campaigns.empty ? campaigns.lines.funnel : void 0;
+    case "reviews":
+      return void 0;
+  }
+}
+
+// src/reports/report-periods.ts
+var REPORT_PERIOD_DEFAULT = "30d";
+var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
+var isReportPeriod = (value) => REPORT_RANGES.some((r2) => r2.id === value);
+var fixedDaysOf = (period) => REPORT_RANGES.find((r2) => r2.id === period)?.days ?? null;
+var monthDaysAt = (dayKey2) => Number(dayKey2.slice(8, 10));
+function reportPeriodOf(asked) {
+  if (asked.period !== void 0) return isReportPeriod(asked.period) ? asked.period : null;
+  if (asked.days !== void 0)
+    return REPORT_RANGES.find((r2) => r2.days !== null && r2.days === Number(asked.days))?.id ?? null;
+  return REPORT_PERIOD_DEFAULT;
+}
+function reportDaysAsked(view) {
+  const asked = Number(view);
+  return Number.isInteger(asked) && asked >= 1 && asked <= MOST_DAYS ? asked : null;
 }
 
 // src/reports/report-facts.ts
@@ -27076,11 +27261,11 @@ function linesOf2(dto) {
   const t = dto.totals;
   const angled = dto.angles.reduce((n, a) => n + a.written, 0) + dto.other_angles.written;
   return {
-    funnel: t.written ? `Of ${plural(t.written, "email")} written in these ${dto.days} days. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.` : "Nothing was written in these days.",
+    funnel: t.written ? `Of ${plural(t.written, "email")} written in these ${plural(dto.days, "day")}. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.` : "Nothing was written in these days.",
     angles: angled ? `The opening written for each business, and who answered.${dto.no_angle ? ` ${plural(dto.no_angle, "email")} had no opening, so no angle.` : ""}` : "No email in these days had an opening, so there is no angle to compare.",
     domains: "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.",
     written: t.handed ? `${plural(t.handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
-    empty: `No reach-out wrote in the last ${dto.days} days.`
+    empty: `No reach-out wrote in the last ${plural(dto.days, "day")}.`
   };
 }
 var NO_COUNTS = {
@@ -33940,6 +34125,7 @@ export {
   LEAD_UNREACHABLE_KEY,
   LEAD_UNREACHABLE_WORD,
   LEAD_WORDS,
+  LENS_ROUTES,
   LIBRARY_WORDS,
   LIFECYCLE_TOAST,
   LIFECYCLE_WORDS,
@@ -34234,6 +34420,8 @@ export {
   REPLY_WINDOW_WORDS,
   REPLY_WORDS_MAX,
   REPORT_CHANNELS,
+  REPORT_LENSES,
+  REPORT_PERIOD_DEFAULT,
   REPORT_RANGES,
   REPORT_WEEK_LONG,
   REPORT_WEEK_SHORT,
@@ -34436,6 +34624,7 @@ export {
   blockShareWords,
   bookedAfterAsk,
   bookedSeenOf,
+  bookedTileOf,
   bookingHeld,
   bookingLinkAction,
   bookingLinkOptional,
@@ -34703,6 +34892,7 @@ export {
   firstRunStepRoute,
   firstRunTryOf,
   firstWorkspaceDoor,
+  fixedDaysOf,
   fmtClock,
   fmtDay,
   fmtSeconds,
@@ -34814,6 +35004,7 @@ export {
   isHeldDraft,
   isIdentifierName,
   isLeadList,
+  isLensParam,
   isLibrarySample,
   isLiveCall,
   isLookPref,
@@ -34838,6 +35029,7 @@ export {
   isReplyIntent,
   isReplyTo,
   isReplyUndoRefusal,
+  isReportPeriod,
   isSellsBy,
   isSidebarPref,
   isSiteRoot,
@@ -34938,6 +35130,13 @@ export {
   legacyErasedEmailHash,
   legacyErasedPhoneHash,
   legacyLeadSuppressionHash,
+  lensAnswerOf,
+  lensEmpty,
+  lensIsShown,
+  lensOf,
+  lensOfRoute,
+  lensRoute,
+  lensesFor,
   libraryCount,
   lifecycleKicker,
   lineCredentialFailure,
@@ -35005,6 +35204,7 @@ export {
   momentOffered,
   mondayOf,
   moneyWords,
+  monthDaysAt,
   monthLabelOf,
   monthSentAt,
   monthSpan,
@@ -35332,8 +35532,10 @@ export {
   replyWaitsOnYou,
   replyWhy,
   replyWindow,
+  reportDaysAsked,
   reportFacts,
   reportHourWords,
+  reportPeriodOf,
   reputationHoldOf,
   requestCodeWords,
   rereadAt,

@@ -376,19 +376,26 @@ inside the repository is refused: recordings stay out of it. Name them for the b
 that directory. Record the base first, before you edit: the harness reads the pages and the stylesheets from disk on
 every request, so what is recorded is the working tree as it stands.
 
-`record` starts the harness above for each record and opens each route at 1440 by 900 and at a phone's 390 by 844 with
-a coarse pointer, dark and light: the salon's pages, a seeded person and every Settings pane; the pipeline's People,
-Pipeline, Leads and person's page; the nightly's empty Business pane; the kit's gallery, which draws every class of the
-kit (a recording made before the gallery joined is not compared with one after: exit 2). Then eleven scenes, each a
-route and a press or two (a click, a hover, a focus or a key): a menu open, a Confirm, a toast, the person's fold open
-in place, the menu's danger item under the pointer, a button focused by a key, a record sheet, a combobox's list open
-in a fold, a segmented control with its picked segment, a switch that is on, and a tooltip. Motion is stopped before a
-page draws, and its clock stands still at one moment and moves only as the recorder steps it, ten simulated seconds a
-route, so a timer's work is in every recording or in none. It writes every element's edges, to 1/64 of a pixel, and every computed longhand, a
-`::before`, `::after`, `::marker` and `::placeholder`'s included, and which rules of each stylesheet the pages drew. It
-refuses a page that did not draw what it opened: an empty root, a "No surface at" card, the wrong theme, an error the
-page threw, a stylesheet or a font that did not load or answered with an error, 4xx or 5xx (a page drawn without its
-rules or in a fallback face is another page), or a request that never ended. A full recording takes ten to fifteen minutes.
+`record` starts the harness above for each record and opens each route at 1440 by 900 and at a phone's 390 by 844 with a
+coarse pointer, dark and light. The harness is the mockup's static server, so it draws the shell's own table and the kit's
+gallery and nothing else: a page that has left the shell (an App Router page, `apps/dashboard/src/surfaces/routes.ts`:
+Today, the Inbox, People, Leads, the Calendar, Reports, Campaigns, Settings, the first run) is drawn by Next alone, and the
+harness answers it with "No surface at", which `record` refuses. What `record` opens today is the kit's gallery, which draws
+every class of the kit (a recording made before the gallery joined, or with other records, is not compared with one after:
+exit 2); the salon's and the pipeline's pages and the eleven scenes it once pressed left with the pages they pressed
+(`styles/style-equality-pages.test.mjs` fails a list that names a page that has left). Motion is stopped before a page
+draws, and its clock stands still at one moment and moves only as the recorder steps it, ten simulated seconds a route, so a
+timer's work is in every recording or in none. It writes every element's edges, to 1/64 of a pixel, and every computed
+longhand, a `::before`, `::after`, `::marker` and `::placeholder`'s included, and which rules of each stylesheet the pages
+drew. It refuses a page that did not draw what it opened: an empty root, a "No surface at" card, the wrong theme, an error
+the page threw, a stylesheet or a font that did not load or answered with an error, 4xx or 5xx (a page drawn without its
+rules or in a fallback face is another page), or a request that never ended. A full recording takes a few minutes.
+
+A change to a page that has left the shell is proved by what can draw it: a **move** by value, in a test that draws the old
+and the new on the page's stub React and compares them (decision 0015; Reports' lenses, `tooling/scripts/tests/reports/`);
+a **kit part** by the gallery's spec (`e2e/kit/kit.spec.ts`), which holds each rule to the tokens it reads in both themes,
+both widths and the one look; and a page's **own restyle** by the running app, looked at at 1440 and at 390 in both themes
+("See a real page", above), with the change's list of what must differ written in the pull request.
 
 `compare`, and `record` with `--against`, exits 0 when the two are equal: every edge within an eighth of a pixel (the
 browser once laid one line of text out 2/64 of a pixel apart in two recordings of one tree), a pseudo-element's laid-out
@@ -402,8 +409,8 @@ What it cannot prove, so a pull request does not claim it:
 
 - a state no scene reaches: hover and focus but the scenes', a menu, sheet, fold or toast other than theirs, anything
   after typing;
-- a route it does not record, and the real surfaces the mockup stubs: Today, the Inbox, the Calendar and Live draw the
-  seeded page, and Leads waits and then says it could not be read;
+- a page that has left the shell, which the harness cannot draw (above), and the real surfaces the mockup stubs: Today, the
+  Inbox, the Calendar and Live draw the seeded page, and Leads waits and then says it could not be read;
 - what the three's canvas draws, or any canvas;
 - motion: animations and transitions are stopped, so a change to one is not seen;
 - text: what an element says is not recorded, only its style and where it stands;

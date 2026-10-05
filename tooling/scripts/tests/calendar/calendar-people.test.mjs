@@ -1452,7 +1452,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
       !/Booked/.test(textOf(byTestId(page, "people-standing"))),
     "REGRESSION: the rail said it and a card said it again",
   );
-  assert.ok(readCode("apps/dashboard/src/surfaces/reports/sections.tsx").includes('testid="chart-booking"'));
+  assert.ok(readCode("apps/dashboard/src/surfaces/reports/lenses/receptionist.tsx").includes('testid="chart-booking"'));
 });
 
 test("a name the owner gives and notes the receptionist reads: two doors, one route, the profile's rename and Notes, the VM's givenName", async () => {

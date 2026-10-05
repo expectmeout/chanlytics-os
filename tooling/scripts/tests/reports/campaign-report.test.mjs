@@ -93,6 +93,11 @@ test("totals, shares of sent, and deltas over the prior period", () => {
     "a share moves in points, never a percentage of a percentage",
   );
   assert.equal(by.replied.value, "20%");
+  assert.deepEqual(
+    vm.tiles.map((t) => t.metric),
+    ["messages_sent", "delivered_share", "replied_share", "said_yes", "asked_to_stop"],
+    "each names its figure where it is built",
+  );
   assert.equal(by.optins.value, "3");
   assert.equal(by.optins.delta.text, "+200% vs prior 7 days");
   assert.equal(by.optouts.value, "2");
@@ -197,19 +202,29 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
   assert.deepEqual([week, asked], [{ report: { days: 7 } }, [{ p_tenant_id: W, p_days: 7 }]]);
   await assert.rejects(
     route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?days=45&workspace=${W}`), ctx()),
-    (e) => e.status === 400 && e.message === "days must be 7, 30 or 90.",
-    "the same three presets as the receptionist's report",
+    (e) => e.status === 400 && e.message === "period must be 7d, 30d, 90d or month.",
+    "the same periods as the receptionist's report",
+  );
+  assert.deepEqual(
+    await route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?period=90d&workspace=${W}`), ctx()),
+    { report: { days: 90 } },
+    "one period parameter: `period` names the window",
+  );
+  await assert.rejects(
+    route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?period=14d&workspace=${W}`), ctx()),
+    (e) => e.status === 400,
   );
   const s = readCode("apps/dashboard/src/surfaces/reports/surface.ts");
   assert.ok(
-    s.includes('read("GET reports/campaigns", { query: { days: String(days) } })'),
+    s.includes('read("GET reports/campaigns", { query: { period } })'),
     "fetched with the same period, beside the receptionist's numbers",
   );
   assert.ok(
     s.includes("campaigns: campaigns instanceof Error ? null : toCampaignReportVM(campaigns.report)"),
     "its own read: null when it fails, never a blank page (D9)",
   );
-  const p = readCode("apps/dashboard/src/surfaces/reports/sections.tsx");
+  const lens = (name) => readCode(`apps/dashboard/src/surfaces/reports/lenses/${name}.tsx`);
+  const p = lens("campaigns");
   assert.ok(
     p.includes('testid="chart-funnel"'),
     "the funnel: sent, delivered, wrote back (the campaign tiles folded into it: each number once)",
@@ -223,11 +238,13 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
     "the sources card",
   );
   assert.ok(
-    p.includes('<RptSection title="Campaigns"') && p.includes("<RptTiles "),
+    p.includes('<RptSection title="Campaigns"') && lens("overview").includes("<RptTiles "),
     "the page is sectioned, and the strip is one frame (its testid is executed: reports-page.test.mjs)",
   );
   assert.ok(
-    !/\$\d|revenue|booked from/i.test(p.slice(p.indexOf("export function ReportsSections"))),
+    !/\$\d|revenue|booked from/i.test(
+      ["overview", "receptionist", "people", "pipeline", "campaigns", "reviews"].map(lens).join("\n"),
+    ),
     "nothing in dollars",
   );
 });

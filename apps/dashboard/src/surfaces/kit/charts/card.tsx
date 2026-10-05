@@ -8,6 +8,7 @@ import { useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import { csvCell } from "@chanlytics/contracts";
 import { holdStill } from "../../legacy-verbs";
+import { downloadCsv } from "../download";
 import { Icon } from "../icon/icon";
 import { ckVars } from "./geometry";
 import type { ChartConfig } from "./geometry";
@@ -28,31 +29,13 @@ interface ChartTwin {
 
 // A CSV of the table, each cell spelled by contracts' csvCell (quoted where it must be, and a cell a spreadsheet would
 // run as a formula made text), one rule for every file the product writes.
-const CK_BOM = String.fromCharCode(0xfeff);
-/** The browser has started the save by then: the address made for it is let go. */
-const REVOKE_AFTER_MS = 1000;
 function ckSaveCsv(title: string, table: ChartTableData): void {
   const body = [table.columns, ...table.rows].map((r) => r.map((v) => csvCell(v)).join(",")).join("\r\n");
   const name = `${String(title)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")}.csv`;
-  // Inside the phone app a WebView cannot save a file made in the page: the app's bridge takes it to the share sheet
-  // and cancels the event (legacy-bridge/app-bridge.ts); anywhere else nothing listens, and the browser saves it.
-  const asked = new CustomEvent("app:file", {
-    cancelable: true,
-    detail: { name, type: "text/csv", text: CK_BOM + body },
-  });
-  if (typeof window.dispatchEvent === "function" && !window.dispatchEvent(asked)) return;
-  const blob = new Blob([CK_BOM + body], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
+  downloadCsv(name, body);
 }
 
 // A number sits right, in tabular figures; a missing value is the tree's own dash, and an empty cell in the CSV.

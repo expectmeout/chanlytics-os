@@ -1,26 +1,42 @@
 /**
- * Chanlytics, Reports: the page shell (moved from legacy/pages/reports.jsx, decision 0015). One row above everything
- * (the period, its days and the Ask door), then the sections (sections.tsx), then the reach-outs and Google's reviews.
- * A real workspace draws the bridge's own numbers (`useSurface("reports")`); a demo session draws the same page from the
- * contracts sample (sample.ts); without either, the page says what Reports reads.
+ * Chanlytics, Reports: the page on its App Router route (`reports/[[...lens]]`, decision 0015, and the lenses spec). One page of
+ * lenses, each at its own address (`/w/<slug>/reports/<lens>`, the Overview at `/w/<slug>/reports`). The page follows its own
+ * address, as People's does (the path the App Router page hands it), so a move between two lenses is a pushed or replaced entry and
+ * never a request for a page, and every lens draws from the one read the surface holds, so a move asks for nothing and never
+ * blanks the body. The frame draws the strip of lenses (chrome.ts, its `views`) and the head (head.ts); the page draws one row above
+ * everything (the period, its days and the Ask door) and the lens's body (lenses/). A real workspace draws the bridge's own numbers
+ * (`useSurface("reports")`); a demo session draws the same page from the contracts sample (sample.ts); without either, the page says
+ * what Reports reads.
  */
 import { useEffect, useState } from "react";
+import {
+  REPORT_PERIOD_DEFAULT,
+  REPORT_RANGES,
+  lensIsShown,
+  lensOfRoute,
+  routeOfPath,
+  type LensId,
+  type ReportPeriodId,
+} from "@chanlytics/contracts";
+import { workspaceOverride } from "@/legacy-bridge/surface-data";
 import { askAbout, demoSession } from "../legacy-verbs";
+import { Button } from "../kit/button/button";
 import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
+import { Segmented } from "../kit/segmented/segmented";
 import { useSurface } from "../use-surface";
-import { GoogleSection } from "./google";
+import { useRptPhone } from "./blocks";
+import { useReportsStanding } from "./head";
+import { CampaignsLens } from "./lenses/campaigns";
+import { OverviewLens } from "./lenses/overview";
+import { PeopleLens } from "./lenses/people";
+import { PipelineLens } from "./lenses/pipeline";
+import { ReceptionistLens } from "./lenses/receptionist";
+import { ReviewsLens } from "./lenses/reviews";
+import { LensEmpty, type LensProps } from "./lenses/shared";
 import { setReportRange } from "./period";
-import { RptReachOuts } from "./reach-outs";
 import { reportsSample } from "./sample";
-import { ReportsSections } from "./sections";
 import type { ReportsSurface } from "./surface";
-
-const RP2_RANGES: ReadonlyArray<readonly [number, string]> = [
-  [7, "7 days"],
-  [30, "30 days"],
-  [90, "90 days"],
-];
 
 /** Reports read nothing: a session with no workspace, and no demo to draw. */
 function readsAWorkspace() {
@@ -42,37 +58,31 @@ function readsAWorkspace() {
 function periodRow(p: {
   R: ReportsSurface;
   busy: boolean;
-  failed: number | null;
-  pick: (days: number) => Promise<void>;
+  failed: ReportPeriodId | null;
+  pick: (period: ReportPeriodId) => Promise<void>;
 }) {
   const { R, busy, failed, pick } = p;
   const vm = R.vm;
   return (
     <div className="rpt-head">
-      <div className="rpt-range" role="group" aria-label="Period">
-        {RP2_RANGES.map(([d, l]) => (
-          <button
-            key={d}
-            type="button"
-            className={R.days === d ? "on" : ""}
-            aria-pressed={R.days === d}
-            aria-disabled={busy}
-            onClick={() => void pick(d)}
-          >
-            {l}
-          </button>
-        ))}
-      </div>
+      {/* While a period loads the control keeps its choice and says so (readOnly), rather than start a second load over the first. */}
+      <Segmented
+        label="Period"
+        value={R.period}
+        onValueChange={(next) => void pick(next)}
+        options={REPORT_RANGES.map((r) => ({ value: r.id, label: r.label, testid: `period-${r.id}` }))}
+        readOnly={busy}
+      />
       <span className="rpt-dates" title={`Days follow ${vm.timezone}`}>
         {vm.since} to {vm.until}
       </span>
       {failed && (
         <span className="rpt-failed" role="status" aria-live="polite">
-          Couldn't load {RP2_RANGES.find(([d]) => d === failed)?.[1]}. Still showing {vm.rangeLabel}.
+          Couldn't load {REPORT_RANGES.find((r) => r.id === failed)?.label}. Still showing {vm.rangeLabel}.
         </span>
       )}
-      <button
-        type="button"
+      <Button
+        size="sm"
         className="rpt-ask"
         aria-label="Ask about this period"
         onClick={() => askAbout({ prompt: `What stood out in my last ${vm.rangeLabel}?` })}
@@ -80,52 +90,80 @@ function periodRow(p: {
       >
         <Icon name="sparkle" size={13} />
         <span className="rpt-ask-label">Ask about this period</span>
-      </button>
+      </Button>
     </div>
   );
 }
 
-export function ReportsPage() {
+/** The lens's body, or what it says where this workspace has no use for it. */
+function lensBody(lens: LensId, props: LensProps, shown: boolean) {
+  if (!shown) return <LensEmpty lens={lens} vm={props.R.vm} />;
+  switch (lens) {
+    case "overview":
+      return <OverviewLens {...props} />;
+    case "receptionist":
+      return <ReceptionistLens {...props} />;
+    case "people":
+      return <PeopleLens {...props} />;
+    case "pipeline":
+      return <PipelineLens {...props} />;
+    case "campaigns":
+      return <CampaignsLens {...props} />;
+    case "reviews":
+      return <ReviewsLens {...props} />;
+  }
+}
+
+export function ReportsPage({ pathname }: { pathname: string | null }) {
+  // The lens the address names; the frame hands the page only the addresses it takes (surfaces/routes.ts), so an address that is no
+  // lens is not drawn here at all.
+  const lens = lensOfRoute(routeOfPath(pathname) ?? "reports") ?? "overview";
+  const phone = useRptPhone();
   const live = useSurface("reports");
   // A demo's own period: the sample answers at once, so the tabs switch it here.
-  const [sampleDays, setSampleDays] = useState(30);
+  const [samplePeriod, setSamplePeriod] = useState<ReportPeriodId>(REPORT_PERIOD_DEFAULT);
   const [busy, setBusy] = useState(false);
   // The period that failed to load, if any: the page keeps the old one and says so, instead of dimming forever and
   // switching later on its own.
-  const [failed, setFailed] = useState<number | null>(null);
+  const [failed, setFailed] = useState<ReportPeriodId | null>(null);
   const fetchedAt = live ? live.fetchedAt : 0;
   useEffect(() => {
     setBusy(false);
   }, [fetchedAt]);
-  const R = live || (demoSession() ? reportsSample(sampleDays) : null);
+  const R = live || (demoSession() ? reportsSample(samplePeriod) : null);
+  useReportsStanding(lens, R);
   if (!R) return readsAWorkspace();
-  const pick = async (days: number) => {
+  const pick = async (period: ReportPeriodId) => {
     // One period at a time: while one loads the tabs hold, rather than start a second load over the first.
-    if (busy || days === R.days) return;
+    if (busy || period === R.period) return;
     if (!live) {
-      setSampleDays(days);
+      setSamplePeriod(period);
       return;
     }
     setBusy(true);
     setFailed(null);
-    const ok = await setReportRange(days);
+    const ok = await setReportRange(period);
     if (!ok) {
       setBusy(false);
-      setFailed(days);
+      setFailed(period);
     }
   };
+  const ws = workspaceOverride.current();
+  const shown = lensIsShown(lens, { sellsBy: ws?.sells_by, role: ws?.role });
   return (
     // A period on its way dims by the one rule every page uses (components.css [data-loading] [data-dims]).
-    <div className="rpt" data-testid={live ? "reports-real" : "reports-sample"} data-loading={busy ? "" : undefined}>
+    <div
+      className="rpt"
+      data-testid={live ? "reports-real" : "reports-sample"}
+      data-lens={lens}
+      data-loading={busy ? "" : undefined}
+    >
       <div className="rpt-inner">
-        {/* One row above everything: the period, the days it covers, and a door to ask about them. The top bar says
-            Reports; the page does not title itself. */}
+        {/* One row above everything: the period, the days it covers, and a door to ask about them. The frame's head says
+            Reports and the lens's answer; the page does not title itself. */}
         {periodRow({ R, busy, failed, pick })}
         <div className="rpt-body" data-dims aria-busy={busy ? "true" : "false"}>
-          <ReportsSections R={R} pick={pick} />
-          {/* What the reach-outs wrote and what came back (Reach out Part 6, H3): a section of its own, after Campaigns. */}
-          <RptReachOuts R={R} />
-          <GoogleSection days={R.days} />
+          {lensBody(lens, { R, pick, phone }, shown)}
         </div>
       </div>
     </div>

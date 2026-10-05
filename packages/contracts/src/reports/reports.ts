@@ -14,12 +14,12 @@
  * page composes no sentence of its own.
  */
 import { reasonShort } from "../people/person-row-facts";
-import { absoluteBuckets, heroSpeed, holdBuckets, holdLine, holdNote, holdOf, type ReportHoldVM } from "./report-speed";
+import { absoluteBuckets, heroSpeed, holdBuckets, holdLine, holdOf, type ReportHoldVM } from "./report-speed";
 import { closedOf, hoursUnsetOf, type ReportArrivalDto, type ReportProfile } from "./report-closed";
-import { durationWords } from "../shared/clock";
+import { REPORT_TILES, fmtSeconds, type ReportTileVM } from "./report-tiles";
 import { sumOf } from "../shared/numbers";
 import { DATE_FMT } from "../shared/time";
-import { capitalize } from "../shared/words";
+import { capitalize, plural } from "../shared/words";
 
 export interface ReportDayDto {
   day: string;
@@ -73,25 +73,17 @@ export interface ReportDto {
   error?: string;
 }
 
-export const REPORT_RANGES: readonly { days: number; id: string; label: string }[] = [
+/**
+ * The periods Reports offers, said once. Three are a count of days; Month has none of its own: it is the days since the 1st in
+ * the workspace's zone, today included (report-periods.ts), read against the same number of days before, as every period is.
+ * `id` is what a request, the tab's storage and the control's choice call the period.
+ */
+export const REPORT_RANGES = [
   { days: 7, id: "7d", label: "7 days" },
   { days: 30, id: "30d", label: "30 days" },
   { days: 90, id: "90d", label: "90 days" },
-];
-
-export interface ReportTileVM {
-  id: string;
-  label: string;
-  value: string;
-  meta: string;
-  /** Signed change against the previous period, or null when there is no
-   *  prior data to compare with (never a fabricated 0%). Ask reads it. */
-  delta: { text: string; tone: "pos" | "neg" | "" } | null;
-  /** One point per day of the current period (Ask and Today read these). */
-  spark: number[];
-  /** The period before, in counts ("up from 99"); null when there is nothing to compare with. */
-  compare: string | null;
-}
+  { days: null, id: "month", label: "Month" },
+] as const;
 
 export interface ReportPointVM {
   day: string;
@@ -248,62 +240,12 @@ export function fmtDay(day: string): string {
   return DATE_FMT.format(dayDate(day));
 }
 
-/** A duration in an owner's words (durationWords), or a dash where there is none. */
-export function fmtSeconds(s: number | null | undefined): string {
-  if (s == null || !Number.isFinite(s)) return "—";
-  return durationWords(s);
-}
-
 export function quantile(sorted: number[], q: number): number | null {
   if (!sorted.length) return null;
   const pos = (sorted.length - 1) * q;
   const lo = Math.floor(pos);
   const hi = Math.ceil(pos);
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
-}
-
-/**
- * Signed change vs the previous period. Null when the previous period has
- * nothing to compare against: "+∞%" and "vs 0" are not information.
- * `upIsGood` decides the tone; a change of zero has none.
- */
-export function deltaOf(current: number, previous: number, upIsGood: boolean, noun: string): ReportTileVM["delta"] {
-  if (!previous) return null;
-  const pct = Math.round(((current - previous) / previous) * 100);
-  if (pct === 0) return { text: `same as the prior ${noun}`, tone: "" };
-  const up = pct > 0;
-  return { text: `${up ? "+" : ""}${pct}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
-}
-
-/**
- * A share against the prior period's share, in percentage points — never a
- * percentage of a percentage, and null when either period has nothing to
- * take a share of.
- */
-export function pointsDelta(current: number | null, previous: number | null, noun: string): ReportTileVM["delta"] {
-  if (current === null || previous === null) return null;
-  const pts = current - previous;
-  if (pts === 0) return { text: `same share as the prior ${noun}`, tone: "" };
-  return { text: `${pts > 0 ? "+" : ""}${pts} pts vs prior ${noun}`, tone: pts > 0 ? "pos" : "neg" };
-}
-
-/**
- * A count against the period before, in counts: "up from 99", "down from 23", "same as the 30 days before", and
- * "none the 30 days before" when the period before had people reaching the business but none of this. Null when
- * the period before had no customer message and no call at all (a workspace too young to compare), and when both
- * are zero (nothing against nothing says nothing). Never a percentage: #557 took those out because they lied on
- * small counts.
- */
-export function compareWords(
-  current: number,
-  previous: number,
-  rangeLabel: string,
-  priorHadAny: boolean,
-): string | null {
-  if (!priorHadAny || (current === 0 && previous === 0)) return null;
-  if (previous === 0) return `none the ${rangeLabel} before`;
-  if (current === previous) return `same as the ${rangeLabel} before`;
-  return `${current > previous ? "up" : "down"} from ${previous}`;
 }
 
 function bars(entries: [string, string, number][]): ReportBarVM[] {
@@ -524,7 +466,7 @@ function periodFactsOf(dto: ReportDto) {
     calls: sumOf(previous.map((d) => d.calls)),
     newPeople: sumOf(previous.map((d) => d.new_contacts)),
   };
-  const noun = `${days} days`;
+  const noun = plural(days, "day");
   const answeredTotal = tot.ai + tot.you + tot.none;
   const prevAnsweredTotal = prev.ai + prev.you + prev.none;
   const sortedReply = [...(dto.reply_seconds ?? [])].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
@@ -553,82 +495,7 @@ function periodFactsOf(dto: ReportDto) {
 }
 
 /** The facts every part of the report is built from (periodFactsOf). */
-type PeriodFacts = ReturnType<typeof periodFactsOf>;
-
-/** A tile: a number over the period, what it is, a line under it, and the period before beside it. */
-type ReportTile = (f: PeriodFacts) => ReportTileVM;
-
-const messagesTile: ReportTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "messages",
-  label: "Customer messages",
-  value: String(tot.in),
-  meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
-  delta: deltaOf(tot.in, prev.in, true, noun),
-  spark: points.map((p) => p.in),
-  compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny),
-});
-
-const answeredTile: ReportTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) => ({
-  id: "answered",
-  label: "Receptionist answered",
-  value: aiShare === null ? "—" : `${aiShare}%`,
-  meta: answeredTotal
-    ? `${tot.ai} of ${answeredTotal} · ${tot.you} by you · ${tot.none} unanswered`
-    : "nothing to answer",
-  // A share compares in POINTS. Against counts, the share could fall from
-  // 100% to 60% while the delta read +20% in green.
-  delta: pointsDelta(aiShare, prevShare, noun),
-  spark: points.map((p) => p.ai),
-  compare: null,
-});
-
-const replyTile: ReportTile = ({ sortedReply, median, p90, hold }) => ({
-  id: "reply",
-  label: "Median reply time",
-  value: fmtSeconds(median),
-  // The reply time includes the hold the owner set, and says so where replies waited one (spec D14).
-  meta: sortedReply.length
-    ? `slowest tenth ${fmtSeconds(p90)} · ${sortedReply.length} replies${holdNote(hold)}`
-    : "no receptionist replies yet",
-  delta: null,
-  spark: [],
-  compare: null,
-});
-
-const neededTile: ReportTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "needed",
-  label: "Needed you",
-  value: String(tot.escalations),
-  meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
-  delta: deltaOf(tot.escalations, prev.escalations, false, noun),
-  spark: points.map((p) => p.escalations),
-  compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny),
-});
-
-const callsTile: ReportTile = ({ dto, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "calls",
-  label: "Calls",
-  value: String(tot.calls),
-  meta: tot.calls
-    ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone · ${dto.voicemail ?? 0} to voicemail`
-    : "no calls",
-  delta: deltaOf(tot.calls, prev.calls, true, noun),
-  spark: points.map((p) => p.calls),
-  compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny),
-});
-
-const peopleTile: ReportTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "people",
-  label: "New people",
-  value: String(tot.newPeople),
-  meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
-  delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
-  spark: points.map((p) => p.newPeople),
-  compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny),
-});
-
-/** The six tiles, in the order the view model has always listed them. */
-const REPORT_TILES: readonly ReportTile[] = [messagesTile, answeredTile, replyTile, neededTile, callsTile, peopleTile];
+export type PeriodFacts = ReturnType<typeof periodFactsOf>;
 
 /** Why the receptionist handed over, the most frequent first, in the owner's words. */
 const reasonBarsOf = (reasons: ReportDto["reasons"]): ReportBarVM[] =>

@@ -282,7 +282,6 @@ export const BASE_UI_INDEX = {
  * as they hold the rest of src/surfaces. repo/lint-boundaries.test.mjs fails an entry that names no surface's folder.
  */
 export const KIT_PENDING = [
-  "apps/dashboard/src/surfaces/reports",
   "apps/dashboard/src/surfaces/inbox",
   "apps/dashboard/src/surfaces/today",
   "apps/dashboard/src/surfaces/live",

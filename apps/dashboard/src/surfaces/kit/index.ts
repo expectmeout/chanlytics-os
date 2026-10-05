@@ -15,6 +15,8 @@ export { DatePicker } from "./datepicker/datepicker";
 export type { DatePickerProps } from "./datepicker/datepicker";
 export { Face } from "./face/face";
 export type { FaceProps } from "./face/face";
+export { Figure } from "./figure/figure";
+export type { FigureProps } from "./figure/figure";
 export { Field } from "./field/field";
 export type { FieldProps } from "./field/field";
 export { LinkButton } from "./link-button/link-button";

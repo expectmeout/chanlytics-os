@@ -12,11 +12,7 @@ export type {
 export {
   dayDate,
   fmtDay,
-  fmtSeconds,
   quantile,
-  deltaOf,
-  pointsDelta,
-  compareWords,
   priorOf,
   weekOf,
   reportHourWords,
@@ -36,7 +32,6 @@ export type {
   ReportChannelKey,
   ReportChannelCounts,
   ReportDto,
-  ReportTileVM,
   ReportPointVM,
   ReportBarVM,
   ReportSpeedPointVM,
@@ -46,6 +41,30 @@ export type {
   ReportLinesVM,
   ReportVM,
 } from "./reports";
+export {
+  REPORT_LENSES,
+  LENS_ROUTES,
+  lensRoute,
+  isLensParam,
+  lensOfRoute,
+  lensOf,
+  lensesFor,
+  lensIsShown,
+  lensEmpty,
+} from "./lenses";
+export type { LensId, LensRow, LensRange, LensEmpty, LensWho } from "./lenses";
+export { lensAnswerOf } from "./lens-answer";
+export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./report-tiles";
+export type { ReportTileVM, ReportStripTile } from "./report-tiles";
+export {
+  REPORT_PERIOD_DEFAULT,
+  isReportPeriod,
+  fixedDaysOf,
+  monthDaysAt,
+  reportPeriodOf,
+  reportDaysAsked,
+} from "./report-periods";
+export type { ReportPeriodId } from "./report-periods";
 export { holdOf } from "./report-speed";
 export type { ReportHoldVM } from "./report-speed";
 export { closedOf } from "./report-closed";

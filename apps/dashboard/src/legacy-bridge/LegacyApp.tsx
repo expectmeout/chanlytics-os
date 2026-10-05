@@ -308,7 +308,8 @@ type ChanlyticsAppComponent = React.ComponentType<{
 const SharedReports = lazy(() => import("@/surfaces/reports/reports-page").then((m) => ({ default: m.ReportsPage })));
 const SHARED_PAGE = (
   <Suspense fallback={null}>
-    <SharedReports />
+    {/* The shared viewer has no workspace path: it shows the Overview. */}
+    <SharedReports pathname={null} />
   </Suspense>
 );
 

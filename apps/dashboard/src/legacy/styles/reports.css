@@ -103,8 +103,6 @@
 .rp2-review-composer { display: grid; gap: 6px; }
 .rp2-review-drafted { font-size: 11.5px; line-height: 1.4; color: var(--ink-muted); }
 .rp2-review-drafted.dim { color: var(--ink-dim); }
-.rp2-review-textarea { width: 100%; resize: vertical; font: inherit; font-size: var(--text-sm); line-height: 1.45; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); color: var(--ink); }
-.rp2-review-textarea:focus { outline: none; border-color: var(--line-strong); box-shadow: var(--focus-ring); }
 
 /* ====================================================================
    The Reports page: pages/reports.jsx (the shell and Google) and
@@ -121,16 +119,10 @@
 
 /* The one row above everything; it stays while the page scrolls, with a hairline so cards pass under an edge. */
 .rpt-head { position: sticky; top: 0; z-index: 8; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
-.rpt-range { display: inline-flex; }
-.rpt-range button { font-size: var(--text-sm); line-height: 1; padding: 7px 12px; color: var(--ink-dim); transition: background var(--duration-fast), color var(--duration-fast); }
-.rpt-range button:hover { color: var(--ink); }
-.rpt-range button.on { color: var(--ink); font-weight: 500; }
-.rpt-range button[aria-disabled="true"] { cursor: progress; }
-.rpt-range button:focus-visible, .rpt-ask:focus-visible, .rpt-fact-row:focus-visible, .rpt-src:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.rpt-fact-row:focus-visible, .rpt-src:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .rpt-dates { font-size: var(--text-sm); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .rpt-failed { font-size: 12px; color: var(--warn-ink); }
-.rpt-ask { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; font-size: var(--text-sm); color: var(--ink-muted); border: 1px solid var(--line); transition: color var(--duration-fast), border-color var(--duration-fast); }
-.rpt-ask:hover { color: var(--ink); border-color: var(--line-strong); }
+.rpt-ask { margin-left: auto; }
 
 .rpt-body { display: flex; flex-direction: column; padding-top: 12px; transition: opacity var(--duration-base) var(--ease-out); }
 /* A period on its way: the one rule (components.css [data-loading] [data-dims]). */
@@ -170,7 +162,7 @@
 .rpt-fact-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .rpt-fact + .rpt-fact { border-top: 1px solid var(--line); }
 /* A fact is one row; with a door the whole row is the button. */
-.rpt-fact-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 7px 0; text-align: left; border-radius: var(--radius-sm); }
+.rpt-fact .rpt-fact-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 7px 0; text-align: left; border-radius: var(--radius-sm); }
 button.rpt-fact-row { cursor: pointer; }
 button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--ink); }
 /* The fact's kind is the one mark (.mark), neutral; a fact that asks for a look says so in its words. */
@@ -182,15 +174,10 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
 .rpt-fact-door { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--ink-muted); white-space: nowrap; transition: background var(--duration-fast), color var(--duration-fast); }
 .rpt-fact-quiet { margin: 4px 0 6px; font-size: 13px; color: var(--ink-dim); }
 
-/* The strip: five counts in one frame with hairline dividers, a list of terms and their values. */
-.rpt-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); }
-.rpt-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 18px 13px; min-width: 0; }
-.rpt-tile + .rpt-tile { border-left: 1px solid var(--line); }
-.rpt-tile dt, .rpt-tile dd { margin: 0; }
-.rpt-tile-label { font-size: var(--text-sm); color: var(--ink-muted); }
-.rpt-tile-value { display: flex; align-items: baseline; gap: 8px; font-size: var(--text-2xl); font-weight: 500; letter-spacing: -0.025em; color: var(--ink); line-height: 1.2; min-width: 0; }
-.rpt-tile-compare { font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rpt-tile-meta { font-size: 12px; color: var(--ink-dim); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The strip: five figures (the kit's Figure) in one frame with hairline dividers, a list of terms and their values. */
+.rpt-figures { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.rpt-cell { padding: 12px 18px 13px; }
+.rpt-cell + .rpt-cell { border-left: 1px solid var(--line); }
 /* Google's tiles further down are the shared RpTile (Today draws its week with it); on this page they wear this look. */
 .rpt .rp2-tiles { border-radius: var(--radius-lg); }
 .rpt .rp2-tile { padding: 12px 18px 13px; }
@@ -221,8 +208,8 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
 .rpt-deals-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
 .rpt-grid > .rpt-deals-lines { align-self: center; padding-left: 8px; }
 .rpt-sources { max-height: none; }
-.rpt-src { font-size: 13px; color: var(--ink); font-weight: 500; text-align: left; border-radius: var(--radius-xs); }
-.rpt-src:hover { text-decoration: underline; text-underline-offset: 3px; }
+.rpt-sources .rpt-src { font-size: 13px; color: var(--ink); font-weight: 500; text-align: left; border-radius: var(--radius-xs); }
+.rpt-sources .rpt-src:hover { text-decoration: underline; text-underline-offset: 3px; }
 .rpt-src-meta { display: block; font-size: 11.5px; color: var(--ink-dim); }
 .rpt-dim { color: var(--ink-dim); }
 
@@ -232,9 +219,9 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
   .rpt-grid > .rpt-span-4 { grid-column: span 6; }
   .rpt-grid > .rpt-span-5, .rpt-grid > .rpt-span-7, .rpt-grid > .rpt-span-8 { grid-column: 1 / -1; }
   .rpt-grid > .rpt-deals-lines { padding-left: 0; }
-  .rpt-tiles, .rpt .rp2-tiles, .rpt .rp2-tiles.four { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .rpt-tile:nth-child(4) { border-left: none; }
-  .rpt-tile:nth-child(n + 4) { border-top: 1px solid var(--line); }
+  .rpt-figures, .rpt .rp2-tiles, .rpt .rp2-tiles.four { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .rpt-cell:nth-child(4) { border-left: none; }
+  .rpt-cell:nth-child(n + 4) { border-top: 1px solid var(--line); }
 }
 @media (max-width: 760px) {
   .rpt-inner { padding: 0 16px 40px; }
@@ -246,7 +233,6 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
   .rpt-head { position: static; flex: none; }
   .rpt-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-inline: -16px; padding: 12px 16px 40px; }
   .rpt-dates { display: none; }
-  .rpt-ask { padding: 8px 10px; }
   .rpt-ask-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .rpt-hero, .rpt-facts, .rpt-grid > .rpt-span-4, .rpt-grid > .rpt-span-5, .rpt-grid > .rpt-span-7, .rpt-grid > .rpt-span-8 { grid-column: 1 / -1; }
   .rpt-hero { padding: 18px; gap: 16px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; }
@@ -257,13 +243,11 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
   .rpt-fact-copy { white-space: normal; }
   .rpt-fact-sub::before { content: ""; }
   .rpt-fact-sub { display: block; }
-  .rpt-tiles, .rpt .rp2-tiles, .rpt .rp2-tiles.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .rpt-tile:nth-child(n) { border-left: none; border-top: none; }
-  .rpt-tile:nth-child(even) { border-left: 1px solid var(--line); }
-  .rpt-tile:nth-child(n + 3) { border-top: 1px solid var(--line); }
-  .rpt-tile:last-child { grid-column: 1 / -1; border-left: none; }
-  /* Half a phone is narrow for a meta line: it may take two lines rather than lose its end ("1 to voicemail"). */
-  .rpt-tile-meta { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .rpt-figures, .rpt .rp2-tiles, .rpt .rp2-tiles.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rpt-cell:nth-child(n) { border-left: none; border-top: none; }
+  .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
+  .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  .rpt-cell:last-child { grid-column: 1 / -1; border-left: none; }
   .rpt .ck-card:not(.rpt-hero) { padding: 16px; }
   .rpt .ck-pie { flex-direction: column; align-items: stretch; }
   .rpt .ck-pie-figure { align-self: center; }
@@ -281,34 +265,13 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
 
 /* ====================================================================
    Glass: Reports (no canvas of its own; the panes the other surfaces wear). The period row stands on the page under the
-   frame's head, its range a capsule of the control layer and Ask's door another; the tiles are one pane with hairlines
+   frame's head with the kit's segmented control and Ask's door; the tiles are one pane with hairlines
    between them, and every card of the grid a pane. Each rule names the look inside :where(); none matches in Classic.
    ==================================================================== */
 .rpt-head {
   background: transparent;
   box-shadow: none;
   padding: 2px 0 12px;
-}
-.rpt-range {
-  padding: 3px;
-  gap: 2px;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: var(--surface-control-fill);
-  box-shadow: var(--surface-control-depth);
-}
-.rpt-range button {
-  border-radius: var(--radius-full);
-}
-.rpt-range button.on {
-  background: var(--selected-fill);
-  box-shadow: var(--selected-depth);
-}
-.rpt-ask {
-  border-color: var(--surface-inset-edge);
-  border-radius: var(--radius-full);
-  background: var(--surface-inset-fill);
-  box-shadow: var(--surface-inset-depth);
 }
 .rpt :is(.rpt-grid, .rpt-top) > * {
   border: 0;

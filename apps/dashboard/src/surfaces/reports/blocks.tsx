@@ -8,10 +8,18 @@
  */
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import type { BookingReportVM, CampaignSourceVM, ReportFactVM, ReportTileVM, ReportVM } from "@chanlytics/contracts";
+import {
+  bookedTileOf,
+  type BookingReportVM,
+  type CampaignSourceVM,
+  type ReportFactVM,
+  type ReportStripTile,
+  type ReportVM,
+} from "@chanlytics/contracts";
 import { listRoute, navigate } from "../legacy-verbs";
 import { titleOf } from "../campaigns/templates/verbs";
 import { EmptyState, FailedRead } from "../kit/empty/empty";
+import { Figure } from "../kit/figure/figure";
 import { Icon } from "../kit/icon/icon";
 import { LinkButton } from "../kit/link-button/link-button";
 import { RadialChart } from "../kit/charts/radial";
@@ -130,9 +138,9 @@ function factRow(f: ReportFactVM) {
   return (
     <li key={f.id} className={`rpt-fact${f.tone ? ` is-${f.tone}` : ""}`} data-fact={f.id}>
       {door ? (
-        <button type="button" className="rpt-fact-row" title={said} onClick={() => navigate(door.to)}>
+        <LinkButton className="rpt-fact-row" title={said} onClick={() => navigate(door.to)}>
           {body}
-        </button>
+        </LinkButton>
       ) : (
         <div className="rpt-fact-row" title={said}>
           {body}
@@ -157,46 +165,26 @@ export function RptFacts({ facts }: { facts: ReportFactVM[] }) {
   );
 }
 
-/** What the strip draws of a tile: its words, and the period before beside it. */
-type StripTile = Pick<ReportTileVM, "id" | "label" | "value" | "meta" | "compare">;
-
-/** Booked, from the calendar: a count where one was read, and why there is none where not. */
-function bookedTile(booking: BookingReportVM | null): StripTile {
-  if (booking && booking.present)
-    return {
-      id: "booked",
-      label: "Booked",
-      value: String(booking.booked),
-      meta: booking.asked ? `of ${booking.asked} who asked` : "nobody asked",
-      compare: null,
-    };
-  return {
-    id: "booked",
-    label: "Booked",
-    value: "—",
-    meta: booking && booking.calendar === "unavailable" ? "the calendar could not be read" : "no calendar to read",
-    compare: null,
-  };
-}
-
-// The strip: three of the receptionist's counts, the one conversion and the handovers, each with the period before
-// in counts beside its value. The answered share and the reply time are the hero's.
+// The strip: three of the receptionist's counts, the one conversion and the handovers, each the kit's figure with the period
+// before in counts beside its value. The answered share and the reply time are the hero's. Each figure is named by its tile's
+// metric (contracts report-tiles.ts); the grid, the dividers and the padding are the page's.
 export function RptTiles({ vm, booking }: { vm: ReportVM; booking: BookingReportVM | null }) {
   const by = Object.fromEntries(vm.tiles.map((t) => [t.id, t]));
-  const tiles = [by.messages, by.calls, by.people, bookedTile(booking), by.needed].filter((t): t is StripTile => !!t);
+  const tiles = [by.messages, by.calls, by.people, bookedTileOf(booking), by.needed].filter(
+    (t): t is ReportStripTile => !!t,
+  );
   return (
-    <dl className="rpt-tiles" data-testid="reports-tiles">
+    <dl className="rpt-figures" data-testid="reports-tiles">
       {tiles.map((t) => (
-        <div className="rpt-tile" key={t.id} data-tile={t.id}>
-          <dt className="rpt-tile-label">{t.label}</dt>
-          <dd className="rpt-tile-value">
-            {t.value}
-            {t.compare && <span className="rpt-tile-compare">{t.compare}</span>}
-          </dd>
-          <dd className="rpt-tile-meta" title={t.meta}>
-            {t.meta}
-          </dd>
-        </div>
+        <Figure
+          key={t.id}
+          className="rpt-cell"
+          id={t.metric}
+          label={t.label}
+          value={t.value}
+          change={t.compare}
+          meta={t.meta}
+        />
       ))}
     </dl>
   );
@@ -263,14 +251,13 @@ function sourceRow(s: CampaignSourceVM) {
   return (
     <tr key={s.id} data-testid="source-row">
       <td>
-        <button
-          type="button"
+        <LinkButton
           className="rpt-src"
           onClick={() => navigate(s.kind === "broadcast" ? `broadcasts/run:${s.id}` : `outbound/${s.id}`)}
           data-testid="source-open"
         >
           {s.name}
-        </button>
+        </LinkButton>
         <span className="rpt-src-meta">
           {s.kindLabel}
           {s.kind === "playbook" ? ` · ${rptPlural(s.runs, "run")}` : ""}

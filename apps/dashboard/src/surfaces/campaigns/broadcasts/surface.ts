@@ -182,8 +182,8 @@ export interface BroadcastsSurface {
   fetchedAt: number;
 }
 
-/** The period Campaigns' home reports over: one of the campaign report's three presets (the route refuses any other). */
-const HOME_REPORT_DAYS = 30;
+/** The period Campaigns' home reports over (the route's `period`): thirty days, which the document head starts too (contracts PREFETCH_READS). */
+const HOME_REPORT_PERIOD = "30d";
 
 /** The month's emails and texts the read carries; null where it could not be counted, and on a server from before it was. */
 const monthSentOf = (read: { month_sent?: MonthSent | null }): MonthSent | null => read.month_sent ?? null;
@@ -302,7 +302,7 @@ export const broadcastsOverride: SurfaceOverride = {
       workspaceZone(),
       // What the last thirty days sent and what came back: Campaigns' home draws it. Its own read, as Reports' is, so a
       // failure there leaves the runs and the audiences standing and the home says it could not read the numbers.
-      read("GET reports/campaigns", { query: { days: String(HOME_REPORT_DAYS) } }).catch((e: unknown) => e as Error),
+      read("GET reports/campaigns", { query: { period: HOME_REPORT_PERIOD } }).catch((e: unknown) => e as Error),
     ]);
     const wa =
       ch instanceof Error
