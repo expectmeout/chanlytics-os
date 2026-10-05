@@ -24450,7 +24450,7 @@ function campaignsOf(d, tz, nowMs) {
   for (const c of d.conversations) {
     for (const m of c.messages) {
       threadOf2.set(m.id, c.id);
-      if (m.direction === "inbound") repliesIn.set(c.id, [...repliesIn.get(c.id) ?? [], m.created_at]);
+      if (isTheirOwnWords(m)) repliesIn.set(c.id, [...repliesIn.get(c.id) ?? [], m.created_at]);
     }
   }
   return (d.campaigns ?? []).map((c) => {
@@ -24466,7 +24466,8 @@ function campaignsOf(d, tz, nowMs) {
       title: c.playbook_id ? c.playbook_name || c.name : c.name,
       when: at3 !== null ? clockDate(at3, tz, nowMs) : "\u2014",
       outcome,
-      line: `${c.playbook_id ? "Playbook" : "Broadcast"} \xB7 ${outcome}`,
+      // Which wire it went by, or would have: a person on three channels is not told "Sent" with nowhere to look.
+      line: `${c.playbook_id ? "Playbook" : "Broadcast"} \xB7 ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} \xB7 ${outcome}`,
       tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
       to: `broadcasts/run:${c.broadcast_id}`
     };

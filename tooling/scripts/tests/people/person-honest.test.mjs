@@ -1566,6 +1566,8 @@ const run = (over) => ({
   sent_at: null,
   scheduled_for: null,
   message_id: null,
+  // The channel the run picked for them; null on a run made before runs had channels, which went by WhatsApp.
+  channel: null,
   ...over,
 });
 /** Five runs, newest first, as the route hands them: one answered, one not, one held, one refused, one on its way. */
@@ -1587,7 +1589,7 @@ const withRuns = () => {
     ...d.conversations[0].messages,
   ];
   d.campaigns = [
-    run({ broadcast_id: "b-queued", name: "Autumn offer", state: "queued", scheduled_for: ahead(D) }),
+    run({ broadcast_id: "b-queued", name: "Autumn offer", state: "queued", scheduled_for: ahead(D), channel: "email" }),
     run({
       broadcast_id: "b-win",
       name: "Win-back · Sep 1",
@@ -1595,6 +1597,7 @@ const withRuns = () => {
       playbook_name: "Win-back",
       sent_at: iso(10 * D),
       message_id: "mb-win",
+      channel: "whatsapp",
     }),
     run({ broadcast_id: "b-spring", name: "Spring offer", sent_at: iso(20 * D), message_id: "mb-spring" }),
     run({
@@ -1603,6 +1606,7 @@ const withRuns = () => {
       state: "skipped",
       reason: "no_marketing_consent",
       scheduled_for: iso(40 * D),
+      channel: "sms",
     }),
     run({
       broadcast_id: "b-refused",
@@ -1620,15 +1624,17 @@ test("a person's page names the runs that reached them and what came of each -- 
   assert.deepEqual(
     vm.campaigns.map((c) => [c.id, c.title, c.line, c.tone, c.to]),
     [
-      ["b-queued", "Autumn offer", "Broadcast · Waiting to send", "plain", "broadcasts/run:b-queued"],
-      ["b-win", "Win-back", "Playbook · Replied", "ok", "broadcasts/run:b-win"],
-      ["b-spring", "Spring offer", "Broadcast · Sent", "plain", "broadcasts/run:b-spring"],
-      ["b-held", "Summer offer", "Broadcast · Held — no yes to offers", "warn", "broadcasts/run:b-held"],
-      // A person's page does not carry the channel a run went by, so a refusal is the provider's, never WhatsApp's by default.
+      // Each says the wire it went by, or would have: a person on three channels knows where to look.
+      ["b-queued", "Autumn offer", "Broadcast · Email · Waiting to send", "plain", "broadcasts/run:b-queued"],
+      ["b-win", "Win-back", "Playbook · WhatsApp · Replied", "ok", "broadcasts/run:b-win"],
+      // A run made before runs had channels went by WhatsApp, and says so.
+      ["b-spring", "Spring offer", "Broadcast · WhatsApp · Sent", "plain", "broadcasts/run:b-spring"],
+      ["b-held", "Summer offer", "Broadcast · Text · Held — no yes to offers", "warn", "broadcasts/run:b-held"],
+      // The refusal's own words stay the provider's, never WhatsApp's by default: the wire is said beside them.
       [
         "b-refused",
         "May offer",
-        "Broadcast · Didn't send — the provider refused it",
+        "Broadcast · WhatsApp · Didn't send — the provider refused it",
         "warn",
         "broadcasts/run:b-refused",
       ],
@@ -1639,6 +1645,19 @@ test("a person's page names the runs that reached them and what came of each -- 
     vm.campaigns.every((c) => c.when && c.when !== "—"),
     "each is dated",
   );
+});
+
+test("a run's row on a person's page says Replied only for their own words: not a call's note, not their mailbox answering for them", () => {
+  const d = withRuns();
+  const [reply] = d.conversations[0].messages.filter((m) => m.id === "mr-win");
+  const outcomeOf = (over) => {
+    Object.assign(reply, { sender: "customer", type: "text", meta: null, ...over });
+    return toPersonVM(d, ZONE, new Date(NOW)).campaigns.find((c) => c.id === "b-win").outcome;
+  };
+  assert.equal(outcomeOf({}), "Replied");
+  assert.equal(outcomeOf({ sender: "system", type: "call_summary" }), "Sent", "a call's note is not a reply");
+  assert.equal(outcomeOf({ meta: { email: { claim: "auto_reply" } } }), "Sent", "nor an out-of-office");
+  assert.equal(outcomeOf({ meta: { email: { claim: "person" } } }), "Replied", "an email they wrote is");
 });
 
 test("REGRESSION: the timeline says who sent each of ours in the Inbox's words -- every one read 'You', a playbook's run among them", () => {
@@ -1822,7 +1841,10 @@ test("the profile's Campaigns rows open each run's report, and its Lists name th
   const draw = await profile(vm);
   const rows = all(draw(), (n) => n.props?.["data-testid"] === "person-campaign");
   assert.equal(rows.length, 5);
-  assert.ok(textOf(rows[1]).includes("Win-back") && textOf(rows[1]).includes("Playbook · Replied"), textOf(rows[1]));
+  assert.ok(
+    textOf(rows[1]).includes("Win-back") && textOf(rows[1]).includes("Playbook · WhatsApp · Replied"),
+    textOf(rows[1]),
+  );
   press(rows[1]);
   assert.deepEqual(went, ["broadcasts/run:b-win"]);
   const quiet = await profile(toPersonVM(detail(), ZONE, new Date(NOW)));
