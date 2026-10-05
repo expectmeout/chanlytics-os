@@ -18329,9 +18329,14 @@ function proposalAction(replyVia, win, sentWords2) {
     ready: false
   };
 }
+var EMAIL_STOPPED_TAG = "stopped accepting mail";
+function emailFactWords(email, stopped) {
+  return stopped ? `${email} \xB7 ${EMAIL_STOPPED_TAG}` : email;
+}
 function repliesWords(via, window, stop) {
   if (stop.optedOut) return optOutWords(stop.who);
-  if (via === "Email") return "Any time, by email";
+  if (via === "Email")
+    return stop.emailStopped ? `Email can't reach them: their address ${EMAIL_STOPPED_TAG}` : "Any time, by email";
   if (via === "Text") return "Any time, by text";
   if (via !== "WhatsApp" || !window) return null;
   if (!window.open) return "Approved messages only, until they write again";
@@ -18876,8 +18881,15 @@ function pipelinePeekDetail(p) {
     const dial = p.phone.replace(/[^\d+]/g, "");
     reach.push({ id: "phone", label: W.phone, words: p.phone, call: dial ? `tel:${dial}` : null, copy: p.phone });
   }
-  if (p.email) reach.push({ id: "email", label: W.email, words: p.email, call: null, copy: p.email });
-  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name }) : null;
+  if (p.email)
+    reach.push({
+      id: "email",
+      label: W.email,
+      words: emailFactWords(p.email, p.emailSuppressed),
+      call: null,
+      copy: p.email
+    });
+  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name, emailStopped: p.emailSuppressed }) : null;
   if (replies) reach.push({ id: "replies", label: W.replies, words: replies, call: null, copy: null });
   const history = p.timeline.filter((t) => t.kind === "deal" && !t.ahead).sort((a, b) => b.ts - a.ts).slice(0, 3).map((t) => ({ id: t.id, words: t.text, when: t.day }));
   return { reach, history };
@@ -22343,7 +22355,7 @@ function lastChannelOf(c) {
   return c === "whatsapp" || c === "sms" || c === "email" ? c : null;
 }
 function rowReachOf(r2, consent, ready) {
-  const facts = { lastChannel: lastChannelOf(r2.last_inbound_channel), emailSuppressed: !!r2.email_suppressed_at };
+  const facts = { lastChannel: lastChannelOf(r2.last_inbound_channel), emailSuppressed: isEmailStopped(r2) };
   return { ...facts, ...personReachOf({ consent, phone: r2.phone_e164, email: r2.email ?? null, ...facts }, ready) };
 }
 function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null, ready) {
@@ -23415,7 +23427,7 @@ function aboutOf({
 }) {
   const about = [];
   if (base.phone) about.push({ k: "Phone", v: base.phone });
-  if (base.email) about.push({ k: "Email", v: base.email });
+  if (base.email) about.push({ k: "Email", v: emailFactWords(base.email, base.emailSuppressed) });
   if (proposal) about.push({ k: "Proposal", v: proposal.host });
   if (base.waName) about.push({ k: "WhatsApp name", v: base.waName });
   about.push({
@@ -23424,7 +23436,11 @@ function aboutOf({
   });
   about.push({ k: "Channels", v: base.channels.map((c) => PERSON_CHANNEL_WORDS[c]).join(" \xB7 ") || "\u2014" });
   if (base.hasChat && reply) {
-    const v = repliesWords(REPLY_VIA[reply.via], reply.window, { optedOut: base.stopped, who: base.name });
+    const v = repliesWords(REPLY_VIA[reply.via], reply.window, {
+      optedOut: base.stopped,
+      who: base.name,
+      emailStopped: base.emailSuppressed
+    });
     if (v) about.push({ k: "Replies", v });
   }
   if (profile.visits) {

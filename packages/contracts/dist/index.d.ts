@@ -18064,10 +18064,15 @@ declare function repliesWords(via: "WhatsApp" | "Text" | "Email" | null, window:
     open: boolean;
     hoursLeft: number;
 } | null, 
-/** Whether they asked to stop: required, because a reader that forgets it says "Any time" over a STOP. */
+/**
+ * Whether they asked to stop: required, because a reader that forgets it says "Any time" over a STOP. And whether mail
+ * to their address has stopped (isEmailStopped): required for the same reason, since "Any time, by email" over an
+ * address that bounced is the reply a person writes and the route refuses.
+ */
 stop: {
     optedOut: boolean;
     who: string;
+    emailStopped: boolean;
 }): string | null;
 /**
  * Whether the page may reach them at all: a conversation to write in, no stop, and no do-not-contact. It is not
