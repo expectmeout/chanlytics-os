@@ -261,7 +261,9 @@ test("past the last tab a page gives a quarter of the drag, 48px at most, and se
   assert.deepEqual(went, []);
 });
 
-test("let go past a third, a page leaves the way it went, and then the tab beside is pressed", async () => {
+test("let go past a third, a page leaves the way it went, and the tab beside is pressed as the finger lets go", async () => {
+  // The tab waited for the leaving (180 ms) before its page began to draw, and the screen stood empty for it on both
+  // strips (5 Oct 2026); the page beside draws now while this one leaves.
   const went = [];
   const hows = [];
   const el = element();
@@ -271,9 +273,9 @@ test("let go past a third, a page leaves the way it went, and then the tab besid
   drag(h, el, [300, 300], [240, 300], [160, 300]);
   assert.equal(el.style.transform, "translate3d(-375px, 0, 0)", "away, a page's width");
   assert.equal(hows.at(-1), "leave");
-  assert.deepEqual(went, [], "the tab waits for the leaving");
+  assert.deepEqual(went, [1], "pressed as the finger lets go");
   await wait(220);
-  assert.deepEqual(went, [1]);
+  assert.deepEqual(went, [1], "and once");
   // Short of a flick and of a third, it settles back.
   const near = element();
   drag(h, near, [300, 300], [285, 300], [280, 300]);

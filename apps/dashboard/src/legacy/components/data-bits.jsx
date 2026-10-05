@@ -366,12 +366,17 @@ const swipeArrive = (g) => {
     }
   }, SETTLE_MS + 20);
 };
-// Away the way it was pulled, then the close; still on screen after it (the page asked first), it settles back.
+// Away the way it was pulled, then the close; still on screen after it (the page asked first), it settles back. A page
+// walked across to another view is the exception: its tab is pressed as the finger lets go, so the page beside draws while
+// this one leaves (it waited the leave out, and the screen stood empty for it, 5 Oct 2026). A page that stays turns
+// in place after the leave, as before.
 const swipeLeave = (g, close) => {
   const { el, wash, way } = g;
   const them = (g.moving || [el]).filter((m) => m && m.style);
+  const early = way === "page" && !(g.pages && g.pages.stays);
+  if (early) close();
   const done = () => {
-    close();
+    if (!early) close();
     if (way === "page" && g.pages && g.pages.stays) {
       swipeArrive(g);
       return;
