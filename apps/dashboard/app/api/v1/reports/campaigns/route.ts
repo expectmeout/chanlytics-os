@@ -1,7 +1,7 @@
 import { read, workspace } from "@/server/route";
 import { load, readerContext } from "@/server/readers";
 import { campaignReport } from "@/server/readers/campaign-report";
-import { ReportQuery, reportDaysFor } from "@/server/readers/report-period";
+import { ReportQuery, reportDaysFor } from "@/server/readers/report";
 
 /**
  * GET /api/v1/reports/campaigns?period=7d|30d|90d|month — what the offers earned.

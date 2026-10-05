@@ -1,5 +1,5 @@
 /**
- * The one query the three report routes take (readers/report-period.ts): `period` names the window, `days` is read until
+ * The one query the three report routes take (readers/report.ts): `period` names the window, `days` is read until
  * its day (report-periods.test.mjs holds it), and Month is the days since the 1st in the workspace's own zone, read from the
  * membership's facts and only when Month is asked.
  */
@@ -11,7 +11,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const { readerContext } = await importSrc("apps/dashboard/src/server/readers/index.ts");
-const { reportDaysFor } = await importSrc("apps/dashboard/src/server/readers/report-period.ts");
+const { reportDaysFor } = await importSrc("apps/dashboard/src/server/readers/report.ts");
 
 const W = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 /** A reader context for a workspace in `timezone` at `iso`; its supabase is never touched (the facts are seeded). */

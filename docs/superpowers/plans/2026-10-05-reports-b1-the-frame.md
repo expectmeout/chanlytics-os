@@ -62,7 +62,7 @@ It is PR 1 of phase B, "the frame". It adds no migration and no route to the API
 | `packages/contracts/src/shell/chrome.ts` | modify | `PREFETCH_READS.broadcasts` says `period=30d` |
 | `packages/contracts/src/browser.generated.ts`, `packages/*/dist` | regenerate | From the barrels and the sources |
 | `packages/db/src/repositories/reports.ts`, `packages/db/src/index.ts` | create, modify | `reportSeries`, `campaignSeries`, `reachOutReport`: the one place the three functions are called by name |
-| `apps/dashboard/src/server/readers/report-period.ts` | create | The one query the three report routes take and the days it means |
+| `apps/dashboard/src/server/readers/report.ts` | create | The one query the three report routes take and the days it means |
 | `apps/dashboard/src/server/readers/report.ts`, `campaign-report.ts`, `apps/dashboard/src/server/campaigns/reach-out-report.ts` | modify | Call `packages/db` |
 | `apps/dashboard/app/api/v1/reports/route.ts`, `campaigns/route.ts`, `reach-outs/route.ts` | modify | One `period` parameter (and `days` until its day) |
 | `apps/dashboard/src/server/ask/context/pages.ts` | modify | Reports' context reads any count of days from 1 to 90 |
@@ -991,7 +991,7 @@ git commit -m "Reports' one table of periods gains Month, the days since the 1st
 **Why:** One query, one place that says what it means. `period=7d|30d|90d|month` on `GET reports`, `GET reports/campaigns` and `GET reports/reach-outs`, with `days=` read until 19 October (Task 4's test). Month's days are read in the workspace's zone and only when Month is asked (the zone is the membership's own, `readerContext` seeds it, so no read is added). The Campaigns home and the head's prefetch move to `period=30d` in the same task, so a client and a server from either side of the deploy still agree.
 
 **Files:**
-- Create: `apps/dashboard/src/server/readers/report-period.ts`, `tooling/scripts/tests/reports/periods/report-routes.test.mjs`
+- Create: `apps/dashboard/src/server/readers/report.ts`, `tooling/scripts/tests/reports/periods/report-routes.test.mjs`
 - Modify: `apps/dashboard/app/api/v1/reports/route.ts`, `apps/dashboard/app/api/v1/reports/campaigns/route.ts`, `apps/dashboard/app/api/v1/reports/reach-outs/route.ts`, `apps/dashboard/src/server/ask/context/pages.ts`, `apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts`, `packages/contracts/src/shell/chrome.ts`
 - Modify (tests): `tooling/scripts/tests/reports/campaign-report.test.mjs`, `tooling/scripts/tests/ask/ask-routes.test.mjs`, `tooling/scripts/tests/ask/ask-context.test.mjs`
 - Regenerate: `docs/api.md`, `packages/contracts/dist`
@@ -1002,7 +1002,7 @@ Create `tooling/scripts/tests/reports/periods/report-routes.test.mjs`:
 
 ```js
 /**
- * The one query the three report routes take (readers/report-period.ts): `period` names the window, `days` is read until
+ * The one query the three report routes take (readers/report.ts): `period` names the window, `days` is read until
  * its day (report-periods.test.mjs holds it), and Month is the days since the 1st in the workspace's own zone, read from the
  * membership's facts and only when Month is asked.
  */
@@ -1014,7 +1014,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const { readerContext } = await importSrc("apps/dashboard/src/server/readers/index.ts");
-const { reportDaysFor } = await importSrc("apps/dashboard/src/server/readers/report-period.ts");
+const { reportDaysFor } = await importSrc("apps/dashboard/src/server/readers/report.ts");
 
 const W = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 /** A reader context for a workspace in `timezone` at `iso`; its supabase is never touched (the facts are seeded). */
@@ -1100,7 +1100,7 @@ Expected: `report-routes` FAILS (the module is not there); the others FAIL on th
 
 - [ ] **Step 3: The shared query**
 
-Create `apps/dashboard/src/server/readers/report-period.ts`:
+Create `apps/dashboard/src/server/readers/report.ts`:
 
 ```ts
 import "server-only";
@@ -1142,15 +1142,14 @@ Replace `apps/dashboard/app/api/v1/reports/route.ts` with:
 ```ts
 import { read, workspace } from "@/server/route";
 import { load, readerContext } from "@/server/readers";
-import { report } from "@/server/readers/report";
-import { ReportQuery, reportDaysFor } from "@/server/readers/report-period";
+import { ReportQuery, report, reportDaysFor } from "@/server/readers/report";
 
 /**
  * GET /api/v1/reports?period=7d|30d|90d|month — the receptionist's numbers, day by day.
  *
  * One SECURITY INVOKER function computes the series in the tenant's own time zone under the caller's RLS. The payload spans
  * two periods so the client can show deltas without a second round trip. Only the four periods are accepted: a report that
- * anyone can point at a different window than the one beside it stops agreeing with itself (readers/report-period.ts says
+ * anyone can point at a different window than the one beside it stops agreeing with itself (readers/report.ts says
  * what each means, and the `days` the pages sent before). Counted with the other aggregate reads. The body is its reader's
  * (readers/report.ts), which Ask reads too.
  */
@@ -1171,7 +1170,7 @@ Replace `apps/dashboard/app/api/v1/reports/campaigns/route.ts` with:
 import { read, workspace } from "@/server/route";
 import { load, readerContext } from "@/server/readers";
 import { campaignReport } from "@/server/readers/campaign-report";
-import { ReportQuery, reportDaysFor } from "@/server/readers/report-period";
+import { ReportQuery, reportDaysFor } from "@/server/readers/report";
 
 /**
  * GET /api/v1/reports/campaigns?period=7d|30d|90d|month — what the offers earned.
@@ -1196,7 +1195,7 @@ Replace `apps/dashboard/app/api/v1/reports/reach-outs/route.ts` with:
 ```ts
 import { read, workspace } from "@/server/route";
 import { readerContext } from "@/server/readers";
-import { ReportQuery, reportDaysFor } from "@/server/readers/report-period";
+import { ReportQuery, reportDaysFor } from "@/server/readers/report";
 import { reachOutReportOf } from "@/server/campaigns/reach-out-report";
 
 /**
@@ -1249,7 +1248,7 @@ In `packages/contracts/src/shell/chrome.ts`: in `PREFETCH_READS`, change `"repor
 - [ ] **Step 5: Regenerate and run**
 
 ```bash
-corepack pnpm exec prettier --write apps/dashboard/app/api/v1/reports apps/dashboard/src/server/readers/report-period.ts apps/dashboard/src/server/ask/context/pages.ts apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts packages/contracts/src/shell/chrome.ts tooling/scripts/tests/reports tooling/scripts/tests/ask/ask-routes.test.mjs tooling/scripts/tests/ask/ask-context.test.mjs
+corepack pnpm exec prettier --write apps/dashboard/app/api/v1/reports apps/dashboard/src/server/readers/report.ts apps/dashboard/src/server/ask/context/pages.ts apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts packages/contracts/src/shell/chrome.ts tooling/scripts/tests/reports tooling/scripts/tests/ask/ask-routes.test.mjs tooling/scripts/tests/ask/ask-context.test.mjs
 corepack pnpm --filter "./packages/*" build
 corepack pnpm gen:api-reference
 node tooling/scripts/gen/route-types.mjs --check
@@ -1271,7 +1270,7 @@ Expected: all PASS; `docs/api.md` now lists `period` and `days` under the three 
 
 ```bash
 for d in contracts db jobs channels core; do git diff -w --ignore-cr-at-eol --quiet -- packages/$d/dist && git checkout -- packages/$d/dist; done
-git add apps/dashboard/app/api/v1/reports apps/dashboard/src/server/readers/report-period.ts apps/dashboard/src/server/ask/context/pages.ts apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts packages/contracts/src/shell/chrome.ts packages/*/dist docs/api.md tooling/scripts/tests/reports tooling/scripts/tests/ask/ask-routes.test.mjs tooling/scripts/tests/ask/ask-context.test.mjs
+git add apps/dashboard/app/api/v1/reports apps/dashboard/src/server/readers/report.ts apps/dashboard/src/server/ask/context/pages.ts apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts packages/contracts/src/shell/chrome.ts packages/*/dist docs/api.md tooling/scripts/tests/reports tooling/scripts/tests/ask/ask-routes.test.mjs tooling/scripts/tests/ask/ask-context.test.mjs
 git commit -m "The three report routes take one period, Month included in the workspace's own zone, and the Campaigns home and the head's prefetch ask for it by that name." -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 

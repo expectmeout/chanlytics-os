@@ -1,6 +1,6 @@
 import { read, workspace } from "@/server/route";
 import { readerContext } from "@/server/readers";
-import { ReportQuery, reportDaysFor } from "@/server/readers/report-period";
+import { ReportQuery, reportDaysFor } from "@/server/readers/report";
 import { reachOutReportOf } from "@/server/campaigns/reach-out-report";
 
 /**
