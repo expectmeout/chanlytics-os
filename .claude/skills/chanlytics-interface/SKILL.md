@@ -138,6 +138,10 @@ A new token says, in a comment beside it, what it is for.
   corepack pnpm check:style-equality -- record before-<branch>.json
   corepack pnpm check:style-equality -- record after-<branch>.json --against before-<branch>.json
   ```
+  The recorder draws the kit's gallery and the shell's table, and nothing else: a surface that has left the shell is drawn by
+  Next, so the recorder refuses it (`docs/runbook.md`, "Prove a style change"). For such a page prove a move by value (a test
+  that draws the old and the new on the stub React and compares them), a kit part by the gallery's spec, and a page's own
+  restyle by looking at the running app at 1440 and 390 in both themes.
 
   The pull request names each changed rule no recorded page drew, and how it was checked. `docs/runbook.md`, "Prove a
   style change", says what the recorder cannot see.

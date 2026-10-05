@@ -14,8 +14,7 @@
  *
  * `record` starts the e2e harness (tooling/scripts/e2e-harness/server.mjs) for each of its records at one fixed
  * moment, and opens each route of PAGES and each scene of SCENES (a route and a press or two, for what is drawn only
- * after one: a menu, a confirm, a toast, a sheet, a fold, a combobox's list, a control in its hovered, focused, picked
- * or on state, a tooltip) at a desk width and at a phone's with a coarse pointer,
+ * after one; none today) at a desk width and at a phone's with a coarse pointer,
  * in the dark theme and the light one. Every animation and transition is stopped before the page draws, and the
  * page's clock stands still: it moves only when the recorder steps it, the same simulated seconds on every route, so
  * what a timer draws is in every recording or in none. Then it writes every element's edges and every computed
@@ -47,85 +46,27 @@ const FORMAT = 2;
 /** The moment every record is built at and every page's clock stands at: a Monday afternoon, 28 September 2026. */
 export const FIXED_NOW = Date.UTC(2026, 8, 28, 20, 2, 0);
 
-/** The pipeline record's third person (scenarios.mjs `uuidOf`): a proposal out, a conversation, a number. */
-const PERSON = "clients/5c0e0000-0000-4000-8000-000000000003";
-
 /**
- * The harness's records and the routes each is opened at (the address after `#/`). The salon draws the mockup's
- * pages and a seeded person; the pipeline the real People, Pipeline and person's page; the kit its gallery, which draws
- * every class of the kit (e2e-harness/kit-gallery.mjs) and has no routes, so its one is a name. Settings is not here: it
- * left the mockup (decision 0015 step 11; Ruben, 4 Oct 2026), and with it the nightly's empty Business pane and the
- * salon's panes and four scenes (a record sheet, a combobox, a segmented control and a switch, all drawn in Business).
- *
- * A route that has left the shell (decision 0015: an App Router page, src/surfaces/routes.ts) is not in the list: the harness
- * draws the shell's table and answers "No surface at" for it, so `record` refuses it. The Inbox, Reports and Campaigns' three
- * (outbound, broadcasts, messages) are out; a page that leaves takes its route out of this list in the same change.
+ * The harness's records and the routes each is opened at (the address after `#/`). The harness is the standalone mockup's
+ * static server (e2e-harness/server.mjs): it draws the shell's own table and the kit's gallery, and nothing else. A page that
+ * has left the shell (an App Router page, src/surfaces/routes.ts: Today, the Inbox, People, Leads, the Calendar, Reports,
+ * Campaigns, Settings, the first run) is drawn by Next alone, so the harness answers it with "No surface at", which `record`
+ * refuses. What is left to record is the kit's gallery, which draws every class of the kit (e2e-harness/kit-gallery.mjs) and has
+ * no routes, so its one is a name. A page that leaves the shell takes its route out of this list in the same change, and
+ * styles/style-equality-pages.test.mjs fails the one that does not. A change to a page that has left is proved elsewhere
+ * (docs/runbook.md, "Prove a style change").
  */
 export const PAGES = {
-  salon: [...["clients", "clients/c-aisha", "calendar"]],
-  pipeline: ["clients", "clients/pipeline", "clients/leads", PERSON],
   kit: ["kit"],
 };
 
 /**
- * What is drawn only after a press, each recorded as a page of its own: the record and route it opens, its presses
- * (`click`, `hover` or `focus` on the first element a selector finds, or `key`, the key named third pressed there),
- * and what must then be on screen. A record's scenes run after its routes, in this order: the tooltip's node stays in
- * the page once made, so it goes last.
- *
- * Most of the kit is drawn only in a state: the record kit's fold in place on a desk (the person's page) and as a
- * sheet (every fold on a phone), a combobox's list, a segmented control with its picked
- * segment, a switch that is on, a menu's danger item under the pointer, and a button focused as a keyboard focuses it.
+ * What is drawn only after a press, each recorded as a page of its own: the record and route it opens, its presses (`click`,
+ * `hover` or `focus` on the first element a selector finds, or `key`, the key named third pressed there), and what must then be
+ * on screen. None now: the scenes pressed the pages that left (a person's menu, a confirm, a toast, a fold, a danger item, a
+ * focused button, the tooltip on Today's bell), and the kit's states are held in a browser by e2e/kit/kit-behaves.spec.ts.
  */
-export const SCENES = {
-  "a menu": {
-    record: "pipeline",
-    route: PERSON,
-    steps: [["click", '[data-testid="person-more"]']],
-    sees: ".more-menu",
-  },
-  "a confirm": {
-    record: "pipeline",
-    route: PERSON,
-    steps: [
-      ["click", '[data-testid="person-more"]'],
-      ["click", '.more-menu [role="menuitem"]:has-text("Delete person")'],
-    ],
-    sees: ".confirm",
-  },
-  "a toast": {
-    record: "pipeline",
-    route: PERSON,
-    steps: [
-      ["click", '[data-testid="person-more"]'],
-      ["click", '.more-menu [role="menuitem"]:has-text("Copy number")'],
-    ],
-    sees: ".pp-toast",
-  },
-  "a fold in place": {
-    record: "pipeline",
-    route: PERSON,
-    steps: [["click", '[data-testid="rec-row-act-person-receptionist"]']],
-    sees: '[data-testid="rec-fold-person-receptionist"]',
-  },
-  "a danger item under the pointer": {
-    record: "pipeline",
-    route: PERSON,
-    steps: [
-      ["click", '[data-testid="person-more"]'],
-      ["hover", ".more-menu .more-item.danger"],
-    ],
-    sees: ".more-menu .more-item.danger",
-  },
-  // Focused by a key, as a keyboard focuses it: once the pointer has pressed anything, `focus` alone is not :focus-visible.
-  "a focused button": {
-    record: "pipeline",
-    route: PERSON,
-    steps: [["key", '[data-testid="person-open-thread"]', "Shift"]],
-    sees: '[data-testid="person-open-thread"]:focus-visible',
-  },
-  "a tooltip": { record: "salon", route: "today", steps: [["hover", ".tb-bell"]], sees: ".ui-tip.show" },
-};
+export const SCENES = {};
 
 /** A desk and a phone. The phone is a touch screen, so the shell's 44px floor under a coarse pointer is drawn. */
 export const VIEWPORTS = {
