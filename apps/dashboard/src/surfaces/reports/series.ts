@@ -3,7 +3,7 @@
  * data hue; unanswered wears the warn status with its icon; a channel keeps its colour whatever its rank (moved from
  * legacy/pages/reports-sections.jsx, decision 0015).
  */
-import type { ReportBarVM, ReportVM } from "@chanlytics/contracts";
+import { REPORT_CHANNELS, type ReportBarVM, type ReportChannelKey, type ReportVM } from "@chanlytics/contracts";
 import type { ChartConfig } from "../kit/charts/geometry";
 
 export const RPT_ANSWERED: ChartConfig = {
@@ -12,13 +12,18 @@ export const RPT_ANSWERED: ChartConfig = {
   none: { label: "Unanswered", color: "var(--warn)", icon: "alert" },
 };
 
-export const RPT_CHANNELS: ChartConfig = {
-  whatsapp: { label: "WhatsApp", color: "var(--chart-cat-1)" },
-  voice: { label: "Calls", color: "var(--chart-cat-2)" },
-  email: { label: "Email", color: "var(--chart-cat-3)" },
-  sms: { label: "SMS", color: "var(--chart-cat-4)" },
-  instagram: { label: "Instagram", color: "var(--chart-cat-5)" },
+/** A channel's colour, by the channel and never its place in a list, so the colour follows it whatever its rank. */
+const RPT_CHANNEL_COLORS: Record<ReportChannelKey, string> = {
+  whatsapp: "var(--chart-cat-1)",
+  voice: "var(--chart-cat-2)",
+  email: "var(--chart-cat-3)",
+  sms: "var(--chart-cat-4)",
 };
+
+/** The channels as the chart kit draws them: each one's words are contracts' (REPORT_CHANNELS), its colour is above. */
+export const RPT_CHANNELS: ChartConfig = Object.fromEntries(
+  REPORT_CHANNELS.map(({ key, label }) => [key, { label, color: RPT_CHANNEL_COLORS[key] }]),
+);
 
 export const RPT_CALLS: ChartConfig = { calls: { label: "Calls", color: "var(--chart-1)" } };
 export const RPT_SENT: ChartConfig = { sent: { label: "Sent", color: "var(--chart-1)" } };

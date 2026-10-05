@@ -14,6 +14,9 @@
  * page composes no sentence of its own.
  */
 import { reasonShort } from "../people/person-row-facts";
+import { absoluteBuckets, heroSpeed, holdBuckets, holdLine, holdNote, holdOf, type ReportHoldVM } from "./report-speed";
+import { closedOf, hoursUnsetOf, type ReportArrivalDto, type ReportProfile } from "./report-closed";
+import { durationWords } from "../shared/clock";
 import { sumOf } from "../shared/numbers";
 import { DATE_FMT } from "../shared/time";
 import { capitalize } from "../shared/words";
@@ -33,15 +36,15 @@ export interface ReportDayDto {
   new_contacts: number;
 }
 
-/** The channels a report names, in the order their colours are fixed (a channel keeps its colour whatever its rank). */
-export type ReportChannelKey = "whatsapp" | "voice" | "email" | "sms" | "instagram";
+/** The channels a report names, in the order a chart lists them; each keeps its own colour whatever its rank.
+ *  No Instagram: the messages CHECK admits none, so a report would only ever say zero (spec A5). */
+export type ReportChannelKey = "whatsapp" | "voice" | "email" | "sms";
 
 export const REPORT_CHANNELS: readonly { key: ReportChannelKey; label: string }[] = [
   { key: "whatsapp", label: "WhatsApp" },
   { key: "voice", label: "Calls" },
   { key: "email", label: "Email" },
-  { key: "sms", label: "SMS" },
-  { key: "instagram", label: "Instagram" },
+  { key: "sms", label: "Text" },
 ];
 
 export type ReportChannelCounts = Record<ReportChannelKey, number>;
@@ -58,12 +61,15 @@ export interface ReportDto {
   reply_seconds: number[];
   sentiments: Record<string, number>;
   voicemail: number;
-  /** v3 (00139): each receptionist first reply this period, with the day it was asked (tenant zone). */
-  replies?: { day: string; s: number }[];
+  /** v3 (00139): each receptionist first reply this period, with the day it was asked (tenant zone); 00286 adds the
+   *  hold it waited in seconds (0: none). Absent on a report from before 00286. */
+  replies?: { day: string; s: number; hold?: number }[];
   /** v3: inbound customer messages by channel, and connected calls as voice, this period and the one before. */
   channels?: { current: ReportChannelCounts; previous: ReportChannelCounts };
   /** v3: inbound customer messages plus connected calls this period, 7 rows (Monday first) of 24 hours. */
   hours?: number[][];
+  /** 00286: this period's customer messages and connected calls by local day and quarter hour. */
+  arrivals?: ReportArrivalDto[];
   error?: string;
 }
 
@@ -143,8 +149,9 @@ export interface ReportHoursVM {
   values: number[];
   /** The first hour of the busiest two-hour window; null when nothing came in. */
   peak: number | null;
-  /** How many came in before 8am or from 8pm (said so in words until a workspace has business hours). */
-  outside: number;
+  /** How many came while the business was closed by its own hours and closures (closedOf); null where the workspace
+   *  has not said its hours or the report has no arrivals. Never 8 to 8. */
+  closed: number | null;
   /** Each hour in words, "12am" to "11pm", for the page's axis, tooltips and table. */
   labels: string[];
 }
@@ -158,7 +165,7 @@ export interface ReportChannelVM {
 
 /** The one sentence under each chart, or null for none. Each adds the next thing, never a number a tile, the hero or a legend gives. */
 export interface ReportLinesVM {
-  /** The headline beside the receptionist's share: how many of how many, and how fast half its replies went out. */
+  /** The headline beside the receptionist's share: how many of how many, and how fast: against the hold, where replies waited one. */
   hero: string;
   /** The share the period before, said beside the tick it draws on the ring; null with nothing answered then. */
   heroBefore: string | null;
@@ -196,6 +203,7 @@ export interface ReportVM {
     medianLabel: string;
     p90Label: string;
     buckets: ReportBarVM[];
+    hold: ReportHoldVM | null;
   };
   calls: {
     points: ReportPointVM[];
@@ -219,6 +227,8 @@ export interface ReportVM {
   week: ReportWeekVM;
   /** v3: null on a v2 payload. */
   hours: ReportHoursVM | null;
+  /** True only when the workspace's profile was read and has no open day, on a report with arrivals: closed is unsaid. */
+  hoursUnset: boolean;
   /** v3: null on a v2 payload; channels with nothing now or before are left out. */
   channels: ReportChannelVM[] | null;
   /** The two periods by name, said the same way in every legend, tooltip and table: "Last 30 days", "The 30 days before". */
@@ -238,14 +248,10 @@ export function fmtDay(day: string): string {
   return DATE_FMT.format(dayDate(day));
 }
 
-/** "12s", "1m 05s", "14m", "2h 10m". */
+/** A duration in an owner's words (durationWords), or a dash where there is none. */
 export function fmtSeconds(s: number | null | undefined): string {
   if (s == null || !Number.isFinite(s)) return "—";
-  const v = Math.max(0, Math.round(s));
-  if (v < 60) return `${v}s`;
-  if (v < 600) return `${Math.floor(v / 60)}m ${String(v % 60).padStart(2, "0")}s`;
-  if (v < 3600) return `${Math.round(v / 60)}m`;
-  return `${Math.floor(v / 3600)}h ${String(Math.round((v % 3600) / 60)).padStart(2, "0")}m`;
+  return durationWords(s);
 }
 
 export function quantile(sorted: number[], q: number): number | null {
@@ -300,14 +306,6 @@ export function compareWords(
   return `${current > previous ? "up" : "down"} from ${previous}`;
 }
 
-const REPLY_BUCKETS: { id: string; label: string; max: number }[] = [
-  { id: "lt15", label: "under 15s", max: 15 },
-  { id: "lt60", label: "15s – 1m", max: 60 },
-  { id: "lt300", label: "1 – 5m", max: 300 },
-  { id: "lt1800", label: "5 – 30m", max: 1800 },
-  { id: "gte1800", label: "over 30m", max: Infinity },
-];
-
 function bars(entries: [string, string, number][]): ReportBarVM[] {
   const max = Math.max(1, ...entries.map((e) => e[2]));
   return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
@@ -360,11 +358,12 @@ export function reportHourWords(h: number): string {
   return x === 0 ? "12am" : x < 12 ? `${x}am` : x === 12 ? "12pm" : `${x - 12}pm`;
 }
 
-/**
- * The hours of the day, the period summed; the busiest two-hour window's first hour (the earliest on a tie); and how
- * many came in before 8am or from 8pm. Null without v3's grid.
- */
-export function hoursOf(grid: readonly (readonly number[])[] | undefined): ReportHoursVM | null {
+/** The hours of the day, the period summed; the busiest two-hour window's first hour (the earliest on a tie); and
+ *  what came while closed, as closedOf counted it. Null without v3's grid. */
+export function hoursOf(
+  grid: readonly (readonly number[])[] | undefined,
+  closed: number | null = null,
+): ReportHoursVM | null {
   if (!grid || !grid.length) return null;
   const values = Array.from({ length: 24 }, (_, h) => grid.reduce((s, row) => s + (Number(row?.[h]) || 0), 0));
   const total = values.reduce((a, b) => a + b, 0);
@@ -373,8 +372,7 @@ export function hoursOf(grid: readonly (readonly number[])[] | undefined): Repor
     peak = 0;
     for (let h = 1; h < 23; h++) if (values[h] + values[h + 1] > values[peak] + values[peak + 1]) peak = h;
   }
-  const outside = values.reduce((s, v, h) => s + (h < 8 || h >= 20 ? v : 0), 0);
-  return { values, peak, outside, labels: values.map((_, h) => reportHourWords(h)) };
+  return { values, peak, closed, labels: values.map((_, h) => reportHourWords(h)) };
 }
 
 /** The channels in their fixed order; one with nothing now and nothing before is left out. Null without v3. */
@@ -444,9 +442,9 @@ const moodRank = (s: string): number => (s === "Positive" ? 0 : s === "Negative"
 const listWords = (names: readonly string[], last: "or" | "and"): string =>
   names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} ${last} ${names[names.length - 1]}`;
 
-/** A channel inside a sentence: "calls" and "email" are common nouns there, the rest are names. */
+/** A channel inside a sentence: calls, email and texts are common nouns there; WhatsApp is a name. */
 const channelNoun = (c: ReportChannelVM): string =>
-  c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.label;
+  c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.key === "sms" ? "texts" : c.label;
 
 /** Where people reached the business, beside where they reached it the period before. */
 function channelsLine(channels: ReportChannelVM[] | null, rangeLabel: string): string | null {
@@ -457,7 +455,7 @@ function channelsLine(channels: ReportChannelVM[] | null, rangeLabel: string): s
   const lead =
     top.value * 2 > reached
       ? `Mostly ${channelNoun(top)}`
-      : `${capitalize(channelNoun(top))} ${top.key === "voice" ? "lead" : "leads"}`;
+      : `${capitalize(channelNoun(top))} ${top.key === "voice" || top.key === "sms" ? "lead" : "leads"}`;
   const before = channels.reduce((s, c) => s + c.prior, 0);
   if (!before) return `${lead}.`;
   const wasTop = channels.reduce((a, c) => (c.prior > a.prior ? c : a));
@@ -549,6 +547,8 @@ function periodFactsOf(dto: ReportDto) {
     sortedReply,
     median: quantile(sortedReply, 0.5),
     p90: quantile(sortedReply, 0.9),
+    // The replies against their holds, said once for the tile, the bars, the hero and the line (holdOf).
+    hold: holdOf(dto.replies),
   };
 }
 
@@ -582,12 +582,13 @@ const answeredTile: ReportTile = ({ points, tot, noun, answeredTotal, aiShare, p
   compare: null,
 });
 
-const replyTile: ReportTile = ({ sortedReply, median, p90 }) => ({
+const replyTile: ReportTile = ({ sortedReply, median, p90, hold }) => ({
   id: "reply",
   label: "Median reply time",
   value: fmtSeconds(median),
+  // The reply time includes the hold the owner set, and says so where replies waited one (spec D14).
   meta: sortedReply.length
-    ? `slowest tenth ${fmtSeconds(p90)} · ${sortedReply.length} replies`
+    ? `slowest tenth ${fmtSeconds(p90)} · ${sortedReply.length} replies${holdNote(hold)}`
     : "no receptionist replies yet",
   delta: null,
   spark: [],
@@ -673,19 +674,17 @@ function answeredOf(f: PeriodFacts): ReportVM["answered"] {
   };
 }
 
-/** The receptionist's reply times: how many, the median and the slowest tenth, and how many in each span. */
-function replyTimeOf({ sortedReply, median, p90 }: PeriodFacts): ReportVM["replyTime"] {
-  const bucketCounts = REPLY_BUCKETS.map((b, i) => {
-    const lo = i === 0 ? -Infinity : REPLY_BUCKETS[i - 1].max;
-    return [b.id, b.label, sortedReply.filter((s) => s >= lo && s < b.max).length] as [string, string, number];
-  });
+/** The receptionist's reply times: how many, the median and the slowest tenth, the bars, and the hold. The bars count
+ *  against the hold where replies waited one, as the hero and the line do, else on the seconds a reply took. */
+function replyTimeOf({ dto, sortedReply, median, p90, hold }: PeriodFacts): ReportVM["replyTime"] {
   return {
     count: sortedReply.length,
     median,
     p90,
     medianLabel: fmtSeconds(median),
     p90Label: fmtSeconds(p90),
-    buckets: bars(bucketCounts),
+    buckets: bars(holdBuckets(dto.replies) ?? absoluteBuckets(sortedReply)),
+    hold,
   };
 }
 
@@ -718,34 +717,37 @@ function peopleOf({ current, previous, points, tot, prev }: PeriodFacts): Report
   };
 }
 
+/** The line under the speed chart: what took longer than the hold, or, with no hold, the slowest tenth. */
+function replyLine({ sortedReply, p90, hold }: PeriodFacts): string | null {
+  if (hold) return holdLine(hold);
+  // Nine in ten is a claim about a tenth: under ten replies it would be a guess, so the slowest one is said instead.
+  if (sortedReply.length >= 10) return `Nine in ten within ${fmtSeconds(p90)}.`;
+  return sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null;
+}
+
 /** The one sentence under each chart, each adding the next thing (ReportLinesVM). */
 function linesOf(f: PeriodFacts, week: ReportWeekVM, channels: ReportChannelVM[] | null): ReportLinesVM {
-  const { points, tot, prev, rangeLabel, answeredTotal, prevAnsweredTotal, sortedReply, median, p90 } = f;
+  const { points, tot, prev, rangeLabel, answeredTotal, prevAnsweredTotal } = f;
   // The busiest date (the first of a tie): Worth knowing names the busiest weekday, this the one day.
   const busiestDay = tot.in ? points.reduce((b, p) => (p.in > b.in ? p : b)) : null;
   return {
     hero: answeredTotal
-      ? `${tot.ai} of ${answeredTotal} customer messages, without you.${sortedReply.length ? ` Half of its replies went out within ${fmtSeconds(median)}.` : ""}`
+      ? `${tot.ai} of ${answeredTotal} customer messages, without you.${heroSpeed(f.sortedReply.length, fmtSeconds(f.median), f.hold)}`
       : "No customer wrote in this period.",
     heroBefore: prevAnsweredTotal
       ? `${Math.round((prev.ai / prevAnsweredTotal) * 100)}% the ${rangeLabel} before`
       : null,
     answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
-    // Nine in ten is a claim about a tenth: under ten replies it would be a guess, so the slowest one is said instead.
-    reply:
-      sortedReply.length >= 10
-        ? `Nine in ten within ${fmtSeconds(p90)}.`
-        : sortedReply.length
-          ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.`
-          : null,
+    reply: replyLine(f),
     calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
     channels: channelsLine(channels, rangeLabel),
     rhythm: rhythmLine(week),
   };
 }
 
-/** The Reports page's view model: a builder per part, over the facts counted once. */
-export function toReportVM(dto: ReportDto): ReportVM {
+/** The Reports page's view model: a builder per part, over the facts counted once. `profile` is the workspace's hours
+ *  and closures, null where they could not be read; required, so each caller says (the node tests may leave it off). */
+export function toReportVM(dto: ReportDto, opts: { profile: ReportProfile | null }): ReportVM {
   const f = periodFactsOf(dto);
   // Built first, in the order the DTO has always been read: the calls take the moods, the lines the week and channels.
   const tiles = REPORT_TILES.map((tile) => tile(f));
@@ -775,7 +777,8 @@ export function toReportVM(dto: ReportDto): ReportVM {
         )
       : null,
     week,
-    hours: hoursOf(dto.hours),
+    hours: hoursOf(dto.hours, closedOf(dto.arrivals, opts?.profile)),
+    hoursUnset: hoursUnsetOf(dto.arrivals, opts?.profile),
     channels,
     period: { now: `Last ${f.rangeLabel}`, before: `The ${f.rangeLabel} before` },
     lines: linesOf(f, week, channels),

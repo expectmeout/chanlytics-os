@@ -245,6 +245,19 @@ COMMENT ON FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_reci
 
 
 --
+-- Name: automated_send(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.automated_send(p_meta jsonb) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  -- A send written as 'human' that no person made; it lists every source packages/core/src/deliver.ts treats as automated.
+  select coalesce(p_meta->>'source', '') in ('broadcast', 'reach_out')
+$$;
+
+
+--
 -- Name: billing_card_mark(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -353,6 +366,19 @@ $$;
 --
 
 COMMENT ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) IS 'The workspaces with a calendar feed never read or last read before p_before, never read first, then least recently read, each with its zone, with due_total the count of all that were due. The calendar sweep''s page (00245).';
+
+
+--
+-- Name: call_connected(text, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.call_connected(p_status text, p_duration_ms integer) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  -- Someone spoke: the call is under way or ended, or it errored after it had a length.
+  select coalesce(p_status in ('ongoing', 'ended') or (p_status = 'error' and coalesce(p_duration_ms, 0) > 0), false)
+$$;
 
 
 --
@@ -869,6 +895,31 @@ begin
   end if;
   return new;
 end $$;
+
+
+--
+-- Name: contact_first_moments(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contact_first_moments(p_tenant_id uuid) RETURNS TABLE(contact_id uuid, first_at timestamp with time zone)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- Each person's first word or connected call, whichever came first. Absent: the erased (a deletion is never
+  -- growth, 00026), a person whose history was imported (no true first moment), and a person with neither (00254).
+  -- Each aggregate runs once per contact, in its own lateral, so the first moment is read once and filtered on.
+  select c.id as contact_id, least(msg.at, call.at) as first_at
+    from contacts c
+    left join lateral (select min(m.channel_ts) as at from messages m where m.contact_id = c.id) msg on true
+    left join lateral (select min(k.started_at) as at from calls k
+                        where k.contact_id = c.id and public.call_connected(k.status, k.duration_ms)) call on true
+   where c.tenant_id = p_tenant_id
+     and c.erased_at is null
+     and least(msg.at, call.at) is not null
+     and not exists (select 1 from messages b
+                      where b.contact_id = c.id
+                        and coalesce(b.meta->>'backfill', 'false') = 'true')
+$$;
 
 
 --
@@ -2229,7 +2280,7 @@ COMMENT ON FUNCTION public.expire_stale_pauses() IS 'Ends what has run out on a 
 -- Name: first_replies(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with time zone) RETURNS TABLE(asked_at timestamp with time zone, conversation_id uuid, ai_at timestamp with time zone, human_at timestamp with time zone, who text, ai_seconds numeric)
+CREATE FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with time zone) RETURNS TABLE(asked_at timestamp with time zone, conversation_id uuid, ai_at timestamp with time zone, human_at timestamp with time zone, who text, ai_seconds numeric, ai_hold_s numeric)
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
@@ -2244,35 +2295,44 @@ CREATE FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with ti
      where m.created_at >= p_start
        and m.direction = 'inbound' and m.sender = 'customer'
   ),
-  -- when each outbound row actually LEFT: the send event for the queued path,
-  -- the row itself for an immediate send
+  -- when each outbound row actually LEFT: the send event for the queued path, the row itself for an immediate send
   sent as not materialized (
     select o.id, o.conversation_id, o.sender, o.created_at,
            coalesce((select min(e.created_at) from events e
                       where e.tenant_id = p_tenant_id
                         and e.kind = 'message.sent'
                         and e.subject_type = 'message'
-                        and e.subject_id = o.id), o.created_at) as sent_at
+                        and e.subject_id = o.id), o.created_at) as sent_at,
+           -- the hold the owner set, as the reply was queued (draft-queue.ts); none for a reply sent at once
+           case when jsonb_typeof(o.meta->'delay_ms') = 'number'
+                then (o.meta->>'delay_ms')::numeric / 1000.0 else 0 end as hold_s,
+           -- written as 'human' and nobody's answer (00285)
+           public.automated_send(o.meta) as automated
       from real_msgs o
      where o.direction = 'outbound'
        and o.status in ('sent', 'delivered', 'read')
   ),
   firsts as (
-    select a.asked_at, a.conversation_id,
+    select a.asked_at, a.conversation_id, ai.sent_at as ai_at, ai.hold_s,
            (select min(s.sent_at) from sent s
-             where s.conversation_id = a.conversation_id and s.sender = 'ai'
-               and s.created_at > a.asked_at) as ai_at,
-           (select min(s.sent_at) from sent s
-             where s.conversation_id = a.conversation_id and s.sender = 'human'
+             where s.conversation_id = a.conversation_id and s.sender = 'human' and not s.automated
                and s.created_at > a.asked_at) as human_at
       from asks a
+      left join lateral (
+        select s.sent_at, s.hold_s from sent s
+         where s.conversation_id = a.conversation_id and s.sender = 'ai' and s.created_at > a.asked_at
+         order by s.sent_at
+         limit 1
+      ) ai on true
   )
   select asked_at, conversation_id, ai_at, human_at,
          case when ai_at is not null and (human_at is null or ai_at <= human_at) then 'ai'
               when human_at is not null then 'you'
               else 'none' end as who,
          case when ai_at is not null and (human_at is null or ai_at <= human_at)
-              then extract(epoch from (ai_at - asked_at)) end as ai_seconds
+              then extract(epoch from (ai_at - asked_at)) end as ai_seconds,
+         case when ai_at is not null and (human_at is null or ai_at <= human_at)
+              then hold_s end as ai_hold_s
     from firsts
 $$;
 
@@ -6895,25 +6955,13 @@ begin
   replies as (select * from public.first_replies(p_tenant_id, v_start)),
   calls_win as (
     select * from calls where tenant_id = p_tenant_id and started_at >= v_start
-       and status <> 'not_connected'   -- ADDED (00031): a dial that never connected is not a call
+       and public.call_connected(status, duration_ms)   -- 00286: a call someone spoke on, one rule with Reports (00285)
   ),
+  -- Each person's first moment, one rule with report_series (00285): never the erased, never a person with neither.
   fresh_contacts as (
-    select c.id from contacts c
-     where c.tenant_id = p_tenant_id
-       -- ADDED (00026): a deletion must never be reported as growth.
-       and c.erased_at is null
-       and not exists (select 1 from messages b
-                        where b.contact_id = c.id
-                          and coalesce(b.meta->>'backfill', 'false') = 'true')
-       -- Their first word or call, whichever came first: least() passes over
-       -- the one they never had. A person with neither has no first moment, so
-       -- no window holds it (00254); they scored 'infinity' and were new in
-       -- every window.
-       and least(
-             (select min(m.channel_ts) from messages m where m.contact_id = c.id),
-             (select min(k.started_at) from calls k
-               where k.contact_id = c.id and k.status <> 'not_connected')   -- ADDED (00031)
-           ) >= v_start
+    select f.contact_id as id
+      from public.contact_first_moments(p_tenant_id) f
+     where f.first_at >= v_start
   ),
   -- live state: whose turn is it? the last thing said in the thread was theirs.
   awaiting as (
@@ -6959,7 +7007,8 @@ begin
     'period', jsonb_build_object(
       'messages_in',  (select count(*) from msgs where direction = 'inbound' and sender = 'customer'),
       'messages_out_ai',  (select count(*) from out_sent where sender = 'ai'),
-      'messages_out_you', (select count(*) from out_sent where sender = 'human'),
+      'messages_out_you', (select count(*) from out_sent where sender = 'human'
+                             and not public.automated_send(meta)),
       'conversations_active',
         (select count(distinct conversation_id) from msgs
           where direction = 'inbound' and sender = 'customer'),
@@ -13487,46 +13536,29 @@ begin
     select * from msgs
      where direction = 'outbound' and status in ('sent', 'delivered', 'read')
   ),
-  -- ONE definition of "who answered" and "how fast", shared with metrics_summary (00035).
+  -- ONE definition of "who answered" and "how fast", shared with metrics_summary (00035, 00285).
   answered as (
     select r.*, (r.asked_at at time zone v_tz)::date as day
       from public.first_replies(p_tenant_id, v_start) r
   ),
+  -- A call someone spoke on (00285).
   calls_w as (
     select k.*, (k.started_at at time zone v_tz)::date as day
       from calls k
      where k.tenant_id = p_tenant_id and k.started_at >= v_start
-       and k.status <> 'not_connected'
+       and public.call_connected(k.status, k.duration_ms)
   ),
   escs as (
     select e.*, (e.created_at at time zone v_tz)::date as day
       from escalations e
      where e.tenant_id = p_tenant_id and e.created_at >= v_start
   ),
-  firsts as (
-    select c.id,
-           least(
-             coalesce((select min(m.channel_ts) from messages m
-                        where m.contact_id = c.id
-                          and coalesce(m.meta->>'backfill', 'false') <> 'true'),
-                      'infinity'::timestamptz),
-             coalesce((select min(k.started_at) from calls k
-                        where k.contact_id = c.id and k.status <> 'not_connected'),
-                      'infinity'::timestamptz)
-           ) as first_at
-      from contacts c
-     where c.tenant_id = p_tenant_id
-       and not exists (select 1 from messages b
-                        where b.contact_id = c.id
-                          and coalesce(b.meta->>'backfill', 'false') = 'true')
-  ),
+  -- Each person's first moment, one rule with metrics_summary (00285).
   fresh as (
-    select (first_at at time zone v_tz)::date as day
-      from firsts
-     where first_at >= v_start and first_at < 'infinity'::timestamptz
+    select (f.first_at at time zone v_tz)::date as day
+      from public.contact_first_moments(p_tenant_id) f
+     where f.first_at >= v_start
   ),
-  -- Each day from one pass over each source, grouped by the day (00251). A scalar subquery per day and per count
-  -- scanned every source again for every day, and ran the contacts pass (firsts, fresh) once a day.
   per_day as (
     select d.day,
            coalesce(i.messages_in, 0)   as messages_in,
@@ -13549,22 +13581,24 @@ begin
                         count(*) filter (where a.who = 'none') as unanswered
                    from answered a group by a.day) a on a.day = d.day
       left join (select o.day,
-                        count(*) filter (where o.sender = 'ai')    as out_ai,
-                        count(*) filter (where o.sender = 'human') as out_you
+                        count(*) filter (where o.sender = 'ai') as out_ai,
+                        -- the owner's own sends; a broadcast's, a playbook's or a reach-out's are not (00286)
+                        count(*) filter (where o.sender = 'human' and not public.automated_send(o.meta)) as out_you
                    from out_sent o group by o.day) o on o.day = d.day
       left join (select e.day, count(*) as escalations from escs e group by e.day) e on e.day = d.day
       left join (select k.day, count(*) as calls, round(sum(k.duration_ms) / 1000.0) as call_seconds
                    from calls_w k group by k.day) k on k.day = d.day
       left join (select f.day, count(*) as new_contacts from fresh f group by f.day) f on f.day = d.day
   ),
-  -- v3: when people reached the business, this period, in the tenant's zone.
+  -- When people reached the business this period, on the tenant's clock: one source for the hours and the arrivals.
+  arrivals_now as (
+    select (i.created_at at time zone v_tz) as t from inbound i where i.day > v_today - v_days
+    union all
+    select (k.started_at at time zone v_tz) as t from calls_w k where k.day > v_today - v_days
+  ),
   hour_counts as (
     select extract(isodow from x.t)::int as dow, extract(hour from x.t)::int as hr, count(*)::int as n
-      from (
-        select (i.created_at at time zone v_tz) as t from inbound i where i.day > v_today - v_days
-        union all
-        select (k.started_at at time zone v_tz) as t from calls_w k where k.day > v_today - v_days
-      ) x
+      from arrivals_now x
      group by 1, 2
   ),
   hour_grid as (
@@ -13573,6 +13607,14 @@ begin
      cross join generate_series(0, 23) as h(hr)
       left join hour_counts hc on hc.dow = d.dow and hc.hr = h.hr
      group by d.dow
+  ),
+  -- 00286: each local day and quarter hour something came in, for the page's while-you-were-closed (openAt).
+  arrival_counts as (
+    select to_char(x.t::date, 'YYYY-MM-DD') as d,
+           (extract(hour from x.t)::int * 4 + floor(extract(minute from x.t) / 15)::int) as q,
+           count(*)::int as n
+      from arrivals_now x
+     group by 1, 2
   )
   select jsonb_build_object(
     'timezone', v_tz,
@@ -13604,25 +13646,27 @@ begin
                      where day > v_today - v_days
                      group by sentiment) s), '{}'::jsonb),
     'voicemail', (select count(*) from calls_w where day > v_today - v_days and in_voicemail),
-    -- v3
-    'replies', coalesce((select jsonb_agg(jsonb_build_object('day', to_char(a.day, 'YYYY-MM-DD'), 's', round(a.ai_seconds))
-                                          order by a.asked_at)
+    'replies', coalesce((select jsonb_agg(jsonb_build_object(
+                                  'day', to_char(a.day, 'YYYY-MM-DD'),
+                                  's', round(a.ai_seconds),
+                                  'hold', round(coalesce(a.ai_hold_s, 0)))
+                                order by a.asked_at)
                            from answered a
                           where a.day > v_today - v_days and a.ai_seconds is not null), '[]'::jsonb),
     'channels', jsonb_build_object(
       'current', jsonb_build_object(
-        'whatsapp',  (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'whatsapp'),
-        'sms',       (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'sms'),
-        'email',     (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'email'),
-        'instagram', (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'instagram'),
-        'voice',     (select count(*) from calls_w k where k.day > v_today - v_days)),
+        'whatsapp', (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'whatsapp'),
+        'sms',      (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'sms'),
+        'email',    (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'email'),
+        'voice',    (select count(*) from calls_w k where k.day > v_today - v_days)),
       'previous', jsonb_build_object(
-        'whatsapp',  (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'whatsapp'),
-        'sms',       (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'sms'),
-        'email',     (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'email'),
-        'instagram', (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'instagram'),
-        'voice',     (select count(*) from calls_w k where k.day <= v_today - v_days))),
-    'hours', (select jsonb_agg(g.cells order by g.dow) from hour_grid g)
+        'whatsapp', (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'whatsapp'),
+        'sms',      (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'sms'),
+        'email',    (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'email'),
+        'voice',    (select count(*) from calls_w k where k.day <= v_today - v_days))),
+    'hours', (select jsonb_agg(g.cells order by g.dow) from hour_grid g),
+    'arrivals', coalesce((select jsonb_agg(jsonb_build_object('d', a.d, 'q', a.q, 'n', a.n) order by a.d, a.q)
+                            from arrival_counts a), '[]'::jsonb)
   ) into v_result;
 
   return v_result;
@@ -24535,6 +24579,15 @@ GRANT ALL ON FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_re
 
 
 --
+-- Name: FUNCTION automated_send(p_meta jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.automated_send(p_meta jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.automated_send(p_meta jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.automated_send(p_meta jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION billing_card_mark(p_tenant_id uuid, p_fingerprint text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -24566,6 +24619,15 @@ GRANT ALL ON FUNCTION public.broadcasts_guard() TO service_role;
 
 REVOKE ALL ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION call_connected(p_status text, p_duration_ms integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.call_connected(p_status text, p_duration_ms integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.call_connected(p_status text, p_duration_ms integer) TO authenticated;
+GRANT ALL ON FUNCTION public.call_connected(p_status text, p_duration_ms integer) TO service_role;
 
 
 --
@@ -24666,6 +24728,15 @@ GRANT ALL ON FUNCTION public.contact_email_on_erase() TO service_role;
 
 REVOKE ALL ON FUNCTION public.contact_events_on_erase() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.contact_events_on_erase() TO service_role;
+
+
+--
+-- Name: FUNCTION contact_first_moments(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contact_first_moments(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contact_first_moments(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.contact_first_moments(p_tenant_id uuid) TO service_role;
 
 
 --

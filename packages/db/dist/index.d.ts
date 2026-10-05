@@ -5311,6 +5311,12 @@ type Database = {
                 };
                 Returns: string;
             };
+            automated_send: {
+                Args: {
+                    p_meta: Json;
+                };
+                Returns: boolean;
+            };
             billing_card_mark: {
                 Args: {
                     p_fingerprint: string;
@@ -5330,6 +5336,13 @@ type Database = {
                     tenant_id: string;
                     timezone: string;
                 }[];
+            };
+            call_connected: {
+                Args: {
+                    p_duration_ms: number;
+                    p_status: string;
+                };
+                Returns: boolean;
             };
             call_status_rank: {
                 Args: {
@@ -5407,6 +5420,15 @@ type Database = {
                     sent: number;
                     tenant_id: string;
                     unanswered: number;
+                }[];
+            };
+            contact_first_moments: {
+                Args: {
+                    p_tenant_id: string;
+                };
+                Returns: {
+                    contact_id: string;
+                    first_at: string;
                 }[];
             };
             create_mailbox: {
@@ -5613,6 +5635,7 @@ type Database = {
                 };
                 Returns: {
                     ai_at: string;
+                    ai_hold_s: number;
                     ai_seconds: number;
                     asked_at: string;
                     conversation_id: string;
@@ -13491,6 +13514,12 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
             };
             Returns: string;
         };
+        automated_send: {
+            Args: {
+                p_meta: Json;
+            };
+            Returns: boolean;
+        };
         billing_card_mark: {
             Args: {
                 p_fingerprint: string;
@@ -13510,6 +13539,13 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
                 tenant_id: string;
                 timezone: string;
             }[];
+        };
+        call_connected: {
+            Args: {
+                p_duration_ms: number;
+                p_status: string;
+            };
+            Returns: boolean;
         };
         call_status_rank: {
             Args: {
@@ -13587,6 +13623,15 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
                 sent: number;
                 tenant_id: string;
                 unanswered: number;
+            }[];
+        };
+        contact_first_moments: {
+            Args: {
+                p_tenant_id: string;
+            };
+            Returns: {
+                contact_id: string;
+                first_at: string;
             }[];
         };
         create_mailbox: {
@@ -13793,6 +13838,7 @@ declare function builderOf<T extends TenantTable>(db: Db$l, table: T): _supabase
             };
             Returns: {
                 ai_at: string;
+                ai_hold_s: number;
                 ai_seconds: number;
                 asked_at: string;
                 conversation_id: string;

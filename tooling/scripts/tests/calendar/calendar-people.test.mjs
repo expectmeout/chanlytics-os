@@ -1374,7 +1374,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     }
   };
   const whole = await reportOf();
-  assert.deepEqual(Object.keys(whole.out), ["report", "booking", "deals"]);
+  assert.deepEqual(Object.keys(whole.out), ["report", "booking", "deals", "profile"]);
   assert.deepEqual(whole.out.booking, { calendar: "none", days: 30, asked: 0, booked: 0 });
   assert.equal(whole.asked.filter((x) => x === "people_list").length, 1, "People read once for the whole report");
   assert.ok(

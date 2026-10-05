@@ -5,6 +5,8 @@ export type { BusyBlock, FeedAttendee, FeedItem, ParsedFeed, ParseOptions } from
 export {
   dayIntervals,
   closedOn,
+  openAt,
+  hasHours,
   freeWindows,
   filterOpenings,
   describeOpenings,

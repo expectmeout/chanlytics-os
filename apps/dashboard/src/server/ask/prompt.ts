@@ -55,7 +55,7 @@ export const ASK_DEFINITIONS: Record<string, string> = {
   "veto window": "The reply policy mode where every draft waits a short while before sending, so a person can stop it.",
   "missed call": "A phone call the receptionist did not answer, or that ended before anyone spoke.",
   "median reply time":
-    "The middle value of how long the receptionist took to answer, over the period; half the replies were faster.",
+    "The middle value of how long a customer waited for the receptionist's answer over the period; half the replies were faster. Where the reply policy holds each reply (the hold window the owner set), that wait is part of it: the hold is the owner's setting, not the receptionist's speed, so say it, and use the report's reply_time.hold for how many went out as the hold ended and how many took longer.",
   "said yes":
     "A recorded answer that the person wants offers and news by WhatsApp: the desk recorded it on their profile, or they sent YES OFFERS or START themselves. Only these people can be on a broadcast.",
   broadcast:
