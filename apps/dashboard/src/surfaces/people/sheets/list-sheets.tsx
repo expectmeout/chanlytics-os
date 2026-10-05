@@ -3,29 +3,34 @@
  * decision 0015). Add a person: the two fields stacked, 16px, a number pad for the number, one wide button; the
  * desktop's form stands inline in its controls row. The open list's acts -- rename it, delete it, or keep what is shown
  * as a list -- a desktop does on the list's title line, which a phone does not draw; the doors are the desktop's.
+ * Each is the kit's Sheet in a job's shape (kit/sheet/sheet.tsx), drawn while the page says it is `open`, so it leaves
+ * the way it came; Escape, its wash and a pull down close it as its word does.
  */
 import { FieldError } from "../../kit/field-error/field-error";
 import { Confirm } from "../../kit/confirm/confirm";
+import { Sheet } from "../../kit/sheet/sheet";
 import type { ListRule } from "@chanlytics/contracts";
 import { RuleEditor } from "../lists/rule-editor";
 import { SaveModes } from "../lists/save-shown";
 import type { Flash, SavedList } from "../types";
 import type { AddDraft, ListDraft } from "../words";
-import { PhoneSheet } from "./phone-sheet";
+import { JOB_CANCEL } from "./phone-sheet";
 
 export function PeopleAddSheet({
+  open,
   draft,
   onDraft,
   onAdd,
   onClose,
 }: {
+  open: boolean;
   draft: AddDraft;
   onDraft: (patch: Partial<AddDraft>) => void;
   onAdd: () => void;
   onClose: () => void;
 }) {
   return (
-    <PhoneSheet title="Add a person" onClose={onClose} testid="add-person-sheet">
+    <Sheet open={open} shape="job" title="Add a person" close={JOB_CANCEL} onClose={onClose} testid="add-person-sheet">
       <label className="pp-field">
         <span className="pp-field-label">
           Name <span className="pp-field-opt">(optional)</span>
@@ -71,11 +76,12 @@ export function PeopleAddSheet({
       >
         {draft.busy ? "Adding…" : "Add"}
       </button>
-    </PhoneSheet>
+    </Sheet>
   );
 }
 
 export function PeopleListActSheet({
+  open,
   act,
   list,
   count,
@@ -86,7 +92,8 @@ export function PeopleListActSheet({
   rule = null,
   flash = () => undefined,
 }: {
-  act: string;
+  open: boolean;
+  act: string | null;
   list: SavedList | null;
   count: number;
   draft: ListDraft;
@@ -96,16 +103,17 @@ export function PeopleListActSheet({
   rule?: ListRule | null;
   flash?: Flash;
 }) {
+  // Its own button is the way out of these two: no word in the head.
   if (act === "rule") {
     return (
-      <PhoneSheet title="Who is on it" onClose={onClose} closeLabel={null} testid="list-act-sheet">
+      <Sheet open={open} shape="job" title="Who is on it" close={null} onClose={onClose} testid="list-act-sheet">
         <RuleEditor list={list as SavedList} flash={flash} onDone={onClose} />
-      </PhoneSheet>
+      </Sheet>
     );
   }
   if (act === "delete") {
     return (
-      <PhoneSheet title="Delete the list" onClose={onClose} closeLabel={null} testid="list-act-sheet">
+      <Sheet open={open} shape="job" title="Delete the list" close={null} onClose={onClose} testid="list-act-sheet">
         <Confirm
           block
           question={`Delete “${(list as SavedList).name}”?`}
@@ -118,13 +126,16 @@ export function PeopleListActSheet({
           onNo={onClose}
           testid="delete-list"
         />
-      </PhoneSheet>
+      </Sheet>
     );
   }
   const renaming = act === "rename";
   return (
-    <PhoneSheet
+    <Sheet
+      open={open}
+      shape="job"
       title={renaming ? "Rename the list" : count ? `Save these ${count} as a list` : "Keep this list as yours"}
+      close={JOB_CANCEL}
       onClose={onClose}
       testid="list-act-sheet"
     >
@@ -163,6 +174,6 @@ export function PeopleListActSheet({
       >
         {draft.busy ? "Saving…" : renaming ? "Save" : "Keep it"}
       </button>
-    </PhoneSheet>
+    </Sheet>
   );
 }

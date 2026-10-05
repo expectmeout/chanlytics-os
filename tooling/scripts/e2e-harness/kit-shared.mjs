@@ -14,6 +14,7 @@ export const GLYPHS = {
   "chevron-down": '<path d="M4 6l4 4 4-4"/>',
   copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 00-1-1h-6a1 1 0 00-1 1v6a1 1 0 001 1h2"/>',
   edit: '<path d="M3 13h2.5l7-7-2.5-2.5-7 7V13z"/><path d="M11 4l1 1"/>',
+  eye: '<path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/>',
   inbox:
     '<path d="M2 9l1.5-5.5A1 1 0 014.5 3h7a1 1 0 011 .5L14 9"/><path d="M2 9v3.5a1 1 0 001 1h10a1 1 0 001-1V9"/><path d="M2 9h3.5l1 2h3l1-2H14"/>',
   info: '<circle cx="8" cy="8" r="5.5"/><path d="M8 7.5v3.5M8 5.25v.5"/>',
