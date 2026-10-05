@@ -577,6 +577,7 @@ function errorOf(a) {
   return m ?? a.error ?? `status ${a.status}`;
 }
 var neverCame = (a) => a.outcome === "unknown";
+var modelUnknown = (a) => a.status === 404;
 function messageOf(json) {
   const j = json && typeof json === "object" ? json : {};
   const content = Array.isArray(j.content) ? j.content : [];
@@ -624,7 +625,7 @@ function tryModel(key, ask, p, model, stream) {
   );
 }
 function fallbackFor(ask, p, failed) {
-  if (!neverCame(failed) || ask.signal?.aborted) return null;
+  if (!(neverCame(failed) || modelUnknown(failed)) || ask.signal?.aborted) return null;
   const next = fallbackModel(ask.purpose, p.first);
   if (!next) return null;
   const left = ask.deadlineMs === void 0 ? Infinity : ask.deadlineMs - (p.d.now() - p.started);
