@@ -21385,7 +21385,7 @@ declare function noChannelWords(who: string, purpose: AskedPurpose): string;
 /**
  * How many on an audience said yes to what a message needs, as the send screen's line under the audience says it.
  * The number is who it reaches (`sending`: a yes and a number), in the shorthand People's list step uses ("N of M on
- * this list said yes to offers — a broadcast reaches them") -- except when that is 0 and somebody DID say yes
+ * this list said yes to offers — an offer reaches them") -- except when that is 0 and somebody DID say yes
  * (`saidYes`, audiencePreview's): "0 people … said yes" stood over `noNumberWords` and was false, so it says how many
  * did, and what they are missing.
  */
@@ -26669,7 +26669,8 @@ interface CalendarLike {
 interface PlaybookCardLike {
     trigger: string;
     state: string;
-    candidates: number;
+    /** How many its next run would reach; null when the server could not count them. */
+    candidates: number | null;
     next: string;
 }
 interface TodayDayItemVM {

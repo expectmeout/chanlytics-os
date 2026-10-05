@@ -222,7 +222,7 @@ test("People's lists count the rows' facts: who can be sent an offer moves with 
     );
   assert.equal(
     step(ready(), [{ ...OFFERS_YES }]).text,
-    "1 of 1 on this list said yes to offers — a broadcast reaches them.",
+    "1 of 1 on this list said yes to offers — an offer reaches them.",
   );
   assert.equal(
     step(ready(), [{ ...OFFERS_YES, phone_e164: null }]).text,

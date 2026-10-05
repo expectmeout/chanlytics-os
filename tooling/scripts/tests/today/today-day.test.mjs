@@ -200,6 +200,20 @@ test("without a feed the day says nothing; with one and no visit playbook it off
     { trigger: "visited", state: "paused", run_hour: 18, candidates: 1, next: "paused" },
   ]);
   assert.match(paused.reminders.text, /^No visit reminders yet/, "a paused playbook is not a reminder going out");
+  // A playbook goes by WhatsApp, text or email, so the offer to start one says "write", not "text".
+  assert.equal(
+    on.reminders.text,
+    "No visit reminders yet — a playbook can write the day before an appointment and the day after a visit.",
+  );
+  // A count the server could not make is left out, never said as "null people".
+  const uncounted = todayDay(cal([day("2026-09-06", { today: true })]), [
+    { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: null, next: "today 10:00" },
+    { trigger: "visited", state: "running", run_hour: 18, candidates: 1, next: "today 18:00" },
+  ]);
+  assert.equal(
+    uncounted.reminders.text,
+    "Visit reminder: next run today 10:00 · After the visit: 1 person · next run today 18:00",
+  );
 });
 
 test("five rows on Today, the rest a line to the Calendar: what is over goes first, what is coming stays", () => {

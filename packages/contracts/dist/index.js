@@ -9961,7 +9961,7 @@ function broadcastStep(cta, to, members) {
     const said = members.filter((m) => m.saidYes.offers);
     if (members.length && said.length === 0) {
       return {
-        text: "Nobody on this list has said yes to offers yet \u2014 a broadcast reaches only that answer.",
+        text: "Nobody on this list has said yes to offers yet \u2014 an offer reaches only that answer.",
         cta: "Get their yes",
         to: GET_YES_ROUTE,
         enabled: true
@@ -9972,7 +9972,7 @@ function broadcastStep(cta, to, members) {
     return { text: members.length ? why : "Nobody here right now.", cta, to, enabled: false };
   }
   return {
-    text: `${offersYes} of ${members.length} on this list said yes to offers \u2014 a broadcast reaches them.`,
+    text: `${offersYes} of ${members.length} on this list said yes to offers \u2014 an offer reaches them.`,
     cta,
     to,
     enabled: true
@@ -30526,11 +30526,15 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
       (p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.state === "running"
     );
     reminders = visit.length === 0 ? {
-      text: "No visit reminders yet \u2014 a playbook can text the day before an appointment and the day after a visit.",
+      // "Write", not "text": a playbook goes by WhatsApp, text or email, whichever each person is reached on.
+      text: "No visit reminders yet \u2014 a playbook can write the day before an appointment and the day after a visit.",
       to: "outbound"
     } : {
       text: visit.map(
-        (p) => `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 next run ${p.next}`
+        (p) => (
+          // A count that could not be read is left out, never said as "null people".
+          `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 `}next run ${p.next}`
+        )
       ).join(" \xB7 "),
       to: "outbound"
     };
