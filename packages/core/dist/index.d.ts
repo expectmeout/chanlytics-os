@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ResendConfig, EmailSendsAs, WaConfig, EmailRequest, ResendLimit, SendResult, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, ParamSpec, Audience, PersonRowVM, ListRef, ChannelsReady, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, ConsentChannel, CampaignHow, AskedPurpose, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, ParamSpec, Audience, PersonRowVM, ListRef, ChannelsReady, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, ConsentChannel, CampaignHow, AskedPurpose, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent } from '@chanlytics/contracts';
 export { DeliveryRefusal } from '@chanlytics/contracts';
 import { Json, Database, RoutedChannel, LeadContext, IngestResult } from '@chanlytics/db';
 
@@ -2647,8 +2647,10 @@ declare function runIdFor(roundId: string, phase: "probe" | "main" | "check", te
  *     and why the runner's margin (rules.ts JUDGE_MARGIN_MS) leaves room for it in a tick.
  *
  * The call itself is channels' leadJudge over the edge's model port (apps/edge/lib/leads/lead-wires.ts), which writes each
- * call to the usage ledger for the search's workspace (`tenantId`) and, while the switch is on, puts each place's criteria
- * to a second model in shadow (decision 0023). Nothing of that is seen here: the verb takes a LeadJudge and returns answers.
+ * call to the usage ledger for the search's workspace (the round's `tenant_id`), names the round it is paid in as the row's
+ * subject (`subject_id`: the judge's cost per search is the ledger's lead_judge rows joined to their round), and, while the
+ * switch is on, puts each place's criteria to a second model in shadow (decision 0023), its rows naming the same round.
+ * Nothing of that is seen here: the verb takes a LeadJudge and the round, and returns answers.
  */
 
 declare const JUDGE_REFUSED_REASON = "the judge could not read these";
@@ -2685,8 +2687,11 @@ interface JudgedBatch {
 declare function opIdFor(runId: string, fromOffset: number, batch: number): string;
 /** One batch, asked once and once more; a throw is the provider's trouble and propagates. */
 declare function judgeBatch(judge: LeadJudge, plan: LeadSearchPlan, places: PlaceFacts[], opId: string, 
-/** The search's workspace: the usage ledger's row for each call. */
-tenantId?: string): Promise<JudgedBatch>;
+/** The round the batch is paid in: its workspace is the usage ledger's row for each call, and its id the row's subject. */
+round?: {
+    id: string;
+    tenant_id: string;
+}): Promise<JudgedBatch>;
 
 /**
  * How much a round asks the provider for, and what each run may charge (PRD §0.5 "size from yield", S6, §13.3): the
@@ -3279,7 +3284,19 @@ interface InboundSink {
     on: boolean;
     /** The words leave through the one door (../deliver.ts), which re-reads consent, the pause and the workspace's status. */
     deliver(to: string, text: string, meta?: Record<string, Json>, purpose?: SendPurpose, kind?: SendKind): Promise<Delivered>;
-    processed(): Promise<unknown>;
+    /**
+     * The message is finished with, and says what it became (contracts Handled) and, where the model read it, what it was
+     * about; the adapter marks it processed and stamps both (K1, ./handled.ts). Both are optional so a caller with nothing
+     * to say still marks it.
+     */
+    processed(handled?: Handled, intent?: BrainIntent | null): Promise<unknown>;
+    /**
+     * Say what the message became WITHOUT marking it processed: for the one way out that leaves a message unfinished on
+     * purpose, a reply that could not be delivered, whose `send_failed` escalation landed (the deadman sweep finishes it,
+     * ./handled.ts). The adapter writes the same stamp `processed` does, through the same door and the same guard, and
+     * never touches processed_at.
+     */
+    noteHandled(handled: Handled, intent?: BrainIntent | null): Promise<unknown>;
     allowlistSkip(): Promise<unknown>;
     /** The sender cannot receive a reply (a short code). Recorded like any other message, and not answered. */
     unreachableSender(): Promise<unknown>;
@@ -3338,7 +3355,9 @@ interface InboundPorts {
         /** The rows as memory, or an UNKNOWN thread when they cannot be produced. */
         thread(db: InboundDb | null, tenantId: string | null, ing: IngestResult | null): Promise<ThreadState>;
         /** Persist first. Null when there is nothing to record for; IngestFailed when the write FAILED. */
-        ingest(db: InboundDb | null, tenantId: string | null, n: NormalizedInbound, channel?: InboundChannel): Promise<IngestResult | null>;
+        ingest(db: InboundDb | null, tenantId: string | null, n: NormalizedInbound, channel?: InboundChannel, 
+        /** The line the message came in on, a tenant_channels id: the first touch of the person it makes carries it (K3). */
+        line?: string | null): Promise<IngestResult | null>;
         sink(db: InboundDb | null, tenantId: string | null, ing: IngestResult | null, rt?: InboundRuntime | null, channel?: InboundChannel, wire?: Wire): InboundSink;
         /**
          * The thread's reply turn (00284, ./turn.ts): `claim` takes it for this message before the model is asked, and
