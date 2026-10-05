@@ -5726,20 +5726,21 @@ function assembleHistory(rows, limit) {
 var HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
 async function readThreadState(db, tenantId, conversationId, pausedUntilIso, historyLimit = 16) {
   const since = new Date(Date.now() - DAY_MS).toISOString();
-  const [recent, replies] = await Promise.all([
+  const [recent, replies, texted] = await Promise.all([
     db.from("messages").select(HISTORY_COLUMNS).eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(historyLimit * 3),
     // headroom: duplicates and blanks drop out below
-    db.from("messages").select("created_at, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("sender", "ai").eq("direction", "outbound").in("status", DELIVERED).gte("created_at", since)
+    db.from("messages").select("created_at, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("sender", "ai").eq("direction", "outbound").in("status", DELIVERED).gte("created_at", since),
+    // One row is the answer: a text of ours that left, at any time. Not read off `recent`, which is the last few
+    // rows of every wire: a long thread's first text would fall out of it, and a campaign by WhatsApp or email is in it.
+    db.from("messages").select("id").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").eq("channel", "sms").in("status", DELIVERED).limit(1)
   ]);
   if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
   if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
+  if (texted.error) throw new Error(`readThreadState/texted: ${texted.error.message}`);
   const history = assembleHistory(recent.data ?? [], historyLimit);
-  const repliedBefore = (recent.data ?? []).some(
-    (m) => m.direction === "outbound" && DELIVERED.includes(String(m.status))
-  );
   return {
     history,
-    repliedBefore,
+    textedBefore: (texted.data ?? []).length > 0,
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
     // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
     // them would let a backfill silence the bot for a day against a cap it

@@ -6,7 +6,7 @@
  * contacts, conversations, deals and person_notes, and the search_messages function). Its groups:
  *   - A thread's state (readThreadState, assembleHistory, HISTORY_COLUMNS): the turns the model is shown, the pause a
  *     human set (handed in by the caller), the receptionist's own sends in the last day (its rate cap), and whether
- *     anything ever left (repliedBefore, which decides the A2P footer). assembleHistory alone decides what counts as a
+ *     a text of ours ever reached them (textedBefore, which decides the A2P footer). assembleHistory alone decides what counts as a
  *     turn, so the WhatsApp receptionist and the voice agent cannot disagree about what was said. Called by the edge's
  *     WhatsApp persistence, steer door and reach-out reply draft.
  *   - A lead's context (readLeadContext, readDealForPhone, describeLead, notesForReceptionist): one person by phone
@@ -48,16 +48,16 @@ export interface PgThreadState {
   pausedUntil: number;
   replies: number[];
   /**
-   * Anything has ever LEFT on this conversation, at any time, from anyone.
+   * A TEXT of ours has ever reached this person on this conversation, at any time, from anyone: an outbound row on the
+   * texting wire that left. The A2P footer on a first text reply is decided by this alone (the campaign filing promises
+   * the rates/STOP/HELP line on the first text), so it is asked of the database outright.
    *
-   * `history` cannot answer this: a voice call note is an inbound row whose
-   * sender is "system" and assembleHistory maps every non-customer sender to
-   * an assistant turn, so a customer who only ever phoned looks like one we
-   * have written to. `replies` cannot either — it is a 24h window, and it
-   * counts only the machine. The A2P footer on a first text reply is decided
-   * by this, so it is computed from what actually went out.
+   * Nothing else in hand can answer it. `history` reads a voice call note, an inbound row whose sender is "system", as
+   * an assistant turn, so a customer who only ever phoned looked like one we had written to. `replies` is a 24-hour
+   * window of the machine's sends on any wire. And "anything ever left", which this was until W2, said yes for a
+   * person a WhatsApp or email campaign had reached: their first text reply then went out without the line.
    */
-  repliedBefore: boolean;
+  textedBefore: boolean;
 }
 
 /** Outbound rows only count as memory once they actually left. A canceled or
@@ -143,7 +143,7 @@ export async function readThreadState(
 ): Promise<PgThreadState> {
   const since = new Date(Date.now() - DAY_MS).toISOString();
 
-  const [recent, replies] = await Promise.all([
+  const [recent, replies, texted] = await Promise.all([
     db
       .from("messages")
       .select(HISTORY_COLUMNS)
@@ -160,23 +160,28 @@ export async function readThreadState(
       .eq("direction", "outbound")
       .in("status", DELIVERED)
       .gte("created_at", since),
+    // One row is the answer: a text of ours that left, at any time. Not read off `recent`, which is the last few
+    // rows of every wire: a long thread's first text would fall out of it, and a campaign by WhatsApp or email is in it.
+    db
+      .from("messages")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("conversation_id", conversationId)
+      .eq("direction", "outbound")
+      .eq("channel", "sms")
+      .in("status", DELIVERED)
+      .limit(1),
   ]);
 
   if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
   if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
+  if (texted.error) throw new Error(`readThreadState/texted: ${texted.error.message}`);
 
   const history = assembleHistory(recent.data ?? [], historyLimit);
-  // From the rows already in hand, so this costs no extra round trip: an
-  // outbound row that actually left is the only proof that we have written to
-  // this person before.
-  const repliedBefore = (recent.data ?? []).some(
-    (m: { direction?: string | null; status?: string | null }) =>
-      m.direction === "outbound" && DELIVERED.includes(String(m.status)),
-  );
 
   return {
     history,
-    repliedBefore,
+    textedBefore: (texted.data ?? []).length > 0,
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
     // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
     // them would let a backfill silence the bot for a day against a cap it

@@ -52056,8 +52056,7 @@ async function ingestMessage(cx) {
     const given = addressInMessage(n.body);
     if (given) await sink.noteEmail(given);
   }
-  const repliedBefore = thread.repliedBefore ?? thread.history.some((h) => h.role === "assistant");
-  const firstReply = thread.replies.length === 0 && !repliedBefore;
+  const firstReply = thread.textedBefore === void 0 ? thread.replies.length === 0 && !thread.history.some((h) => h.role === "assistant") : !thread.textedBefore;
   const wire = (text) => carrier ? carrier.body(text, firstReply) : text;
   const send = (text, meta, purpose, kind) => sink.deliver(from, wire(text), meta, purpose, kind);
   const tell = (userText, botText, reason, pausedHours = null) => ports.alertStaff(from, userText, botText, reason, {
