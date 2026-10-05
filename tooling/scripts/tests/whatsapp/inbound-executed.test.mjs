@@ -20,7 +20,13 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { optInConfirmation, formatPhoneDisplay, HANDLED_OUTCOMES, HOUR_MS } from "@chanlytics/contracts";
+import {
+  optInConfirmation,
+  formatPhoneDisplay,
+  HANDLED_OUTCOMES,
+  HOUR_MS,
+  STOP_ENDED_OFFERS_SOURCE,
+} from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -504,6 +510,73 @@ test("YES OFFERS is not the way back in from a STOP: an opted-out person gets no
   await w.run(text("START", "wamid.2"));
   assert.equal(w.seen.sent.length, 1);
   assert.equal(w.seen.sent[0].body, optInConfirmation("Harbor Nails", "conversational"));
+});
+
+test("a START does not bring back a yes to offers a STOP ended: WhatsApp says how to get them again, a text says the filed words alone", async () => {
+  // A STOP ends the yes to offers (00322), and a START is a yes to messages about their visit and nothing more. The
+  // person is told once, after the filed words, on WhatsApp alone: the texting line's confirmation is the campaign's
+  // filed opt-in message word for word, and offers are never offered there (30896).
+  const filed = optInConfirmation("Harbor Nails", "conversational");
+  const ended = { name: null, marketingConsent: "unknown", marketingConsentSource: STOP_ENDED_OFFERS_SOURCE };
+  const leads = (read) => ({ leads: { read, personReplyMode: async () => null } });
+
+  const w = world();
+  await w.run(
+    text("START"),
+    leads(async () => ended),
+  );
+  assert.deepEqual(w.seen.sent, [
+    {
+      to: FROM,
+      body: `${filed} Offers and news stay off. Reply YES OFFERS to get them here again.`,
+      meta: { ack: true, confirmation: "conversational" },
+      channel: "whatsapp",
+    },
+  ]);
+
+  // By text, the filed words and not one more.
+  const sms = world({
+    carrier: {
+      channel: "sms",
+      send: async () => ({ ok: true, wamid: "s1", status: 200 }),
+      body: (t) => t,
+      held: null,
+      consent: null,
+    },
+  });
+  await sms.run(
+    text("START"),
+    leads(async () => ended),
+  );
+  assert.equal(sms.seen.sent.length, 1);
+  assert.equal(sms.seen.sent[0].body, filed);
+
+  // Nobody is asked a second time, and a no is not argued with: only a yes a stop ended is spoken of.
+  for (const lead of [
+    { name: null, marketingConsent: "unknown", marketingConsentSource: null },
+    { name: null, marketingConsent: "unknown", marketingConsentSource: "operator" },
+    { name: null, marketingConsent: "opted_out", marketingConsentSource: "customer_message" },
+    { name: null, marketingConsent: "opted_in", marketingConsentSource: "customer_message" },
+  ]) {
+    const other = world();
+    await other.run(
+      text("START"),
+      leads(async () => lead),
+    );
+    assert.equal(other.seen.sent[0].body, filed, JSON.stringify(lead));
+  }
+
+  // A row that cannot be read costs the sentence, never the confirmation.
+  const unread = world();
+  await unread.run(
+    text("START"),
+    leads(async () => {
+      throw new Error("the database is away");
+    }),
+  );
+  assert.equal(unread.seen.sent.length, 1);
+  assert.equal(unread.seen.sent[0].body, filed);
+  assert.equal(unread.seen.escalations.length, 0);
 });
 
 /* -------------------------------------------------------------------------

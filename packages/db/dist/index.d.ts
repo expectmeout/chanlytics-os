@@ -34398,6 +34398,11 @@ interface LeadContext {
      */
     marketingChannels?: string[] | null;
     offersAskedAt?: string | null;
+    /**
+     * How that answer was given (contacts.marketing_consent_source): 'stop' where a STOP ended their yes to offers
+     * (00322), which a START's confirmation on WhatsApp says (contracts offersAfterStart). Undefined where unread.
+     */
+    marketingConsentSource?: string | null;
     /** The owner's notes on them — facts for the receptionist, never read aloud. The field 00157 superseded: said only
      *  where the notes themselves could not be read (`noteList` null or absent). */
     notes?: string | null;

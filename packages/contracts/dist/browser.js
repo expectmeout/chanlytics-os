@@ -2924,6 +2924,7 @@ var CONSENT_SOURCES = [
 ];
 var CONSENT_RESET_SOURCE = "operator";
 var CARRIER_CONSENT_SOURCE = "carrier";
+var STOP_ENDED_OFFERS_SOURCE = "stop";
 var OFFERS_YES_SOURCES = ["form", "customer_message"];
 function offersYesRefusal(source) {
   if (source && OFFERS_YES_SOURCES.includes(source)) return null;
@@ -2950,6 +2951,7 @@ function consentSourceLabel(source) {
   const known = CONSENT_SOURCES.find((s) => s.id === source);
   if (known) return known.label;
   if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
+  if (source === STOP_ENDED_OFFERS_SOURCE) return "Ended when they said stop";
   return source === CONSENT_RESET_SOURCE ? null : source;
 }
 function mayReceive(r2, purpose, channel, about) {
@@ -3050,7 +3052,8 @@ function firstContactOf(r2, tz, nowMs) {
 }
 function offersSub(r2, marketing, tz, nowMs) {
   if (marketing === "opted_out") return "no offers";
-  if (marketing !== "opted_in") return "never asked about offers";
+  if (marketing !== "opted_in")
+    return r2.marketing_consent_source === STOP_ENDED_OFFERS_SOURCE ? "their yes ended when they said stop" : "never asked about offers";
   const when = ts(r2.marketing_consent_updated_at ?? null);
   const how = consentSourceLabel(r2.marketing_consent_source ?? null);
   const date = when !== null ? fmtDate(when, tz, nowMs) : "recorded";
@@ -12517,6 +12520,11 @@ function offersFacts(p, channel, now, tz) {
     } else if (asked === null && channel === "whatsapp" && !p.optedOut) out.push(FACT.never);
   }
   return out;
+}
+function offersAfterStart(p, channel) {
+  if (channel !== "whatsapp") return null;
+  if (p.marketingConsent !== "unknown" || p.marketingConsentSource !== STOP_ENDED_OFFERS_SOURCE) return null;
+  return `Offers and news stay off. Reply ${OFFERS_OPT_IN_PHRASES.en} to get them here again.`;
 }
 function offersAskRule() {
   const { en, es } = OFFERS_OPT_IN_PHRASES;
@@ -22973,6 +22981,12 @@ function consentChangeWords(c) {
       ...c.source === "unsubscribe" ? { sub: c.words ? `Wrote \u201C${c.words}\u201D in reply to an email` : "Pressed Unsubscribe in an email" } : c.source === "reply_undone" ? { sub: "A reply read as no, undone" } : c.consent === "opted_in" && c.source === "customer_message" ? { sub: `In their own words by email${c.words ? `: \u201C${c.words}\u201D` : ""}` } : {}
     };
   const offers = c.purpose === "marketing";
+  if (offers && c.source === STOP_ENDED_OFFERS_SOURCE)
+    return {
+      who: "Offers",
+      text: "Their yes to offers ended",
+      sub: "They said stop, which ends it. Offers start again only on a new yes of their own"
+    };
   const text = c.consent === "opted_in" ? offers ? "Said yes to offers and news" : "Said yes to messages about their visit" : c.consent === "opted_out" ? offers ? "Said no to offers" : "Said stop \u2014 nothing goes out to them" : offers ? "Offers: back to not asked" : "Back to not asked";
   let sub;
   if (c.source === "customer_message") {
@@ -32305,6 +32319,7 @@ export {
   START_PLAN_WORDS,
   STEP_SHEET_WORDS,
   STOP_ALL_REFUSALS,
+  STOP_ENDED_OFFERS_SOURCE,
   TEAM_ROLES,
   TEMPLATE_BODY_MAX,
   TEMPLATE_BUTTON_TEXT_MAX,
@@ -33001,6 +33016,7 @@ export {
   offerPauseOf,
   offerUnsubscribeWords,
   offeringHorizon,
+  offersAfterStart,
   offersBookingLink,
   offersFacts,
   offersNote,

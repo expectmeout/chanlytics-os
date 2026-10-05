@@ -16,6 +16,7 @@ import {
   OFFERS_IN_WRITING_WORDS,
   offersYesRefusal,
   stateOf,
+  STOP_ENDED_OFFERS_SOURCE,
   verbalOptInScript,
 } from "@chanlytics/contracts";
 import { FieldError } from "../../kit/field-error/field-error";
@@ -249,6 +250,8 @@ function offersHint(c: PageCtx): string {
   if (consent.marketing === "opted_in") return `Yes — ${consent.marketingSub}. This is the answer a broadcast needs.`;
   if (consent.marketing === "opted_out")
     return `No — ${consent.marketingSub}. Messages about their own visit still reach them.`;
+  if (consent.marketingSource === STOP_ENDED_OFFERS_SOURCE)
+    return `Not asked — ${consent.marketingSub}. A new yes has to come from them, in writing.`;
   return "Not asked. Separate and optional — the one answer a broadcast may be sent on.";
 }
 

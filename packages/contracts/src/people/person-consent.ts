@@ -76,6 +76,13 @@ export const CONSENT_RESET_SOURCE = "operator";
 export const CARRIER_CONSENT_SOURCE = "carrier";
 
 /**
+ * How a yes to offers ended when the person said stop to every message (00322): the answer about offers goes back to
+ * not asked with this source, whichever door recorded the stop, and only a new yes of their own turns offers on again.
+ * A source the database writes (contact_stop_ends_offers_yes), never one a member is offered.
+ */
+export const STOP_ENDED_OFFERS_SOURCE = "stop";
+
+/**
  * The ways a yes to OFFERS may have been given: in writing, and only in writing.
  *
  * Promotional texts need the customer's express WRITTEN consent. The carriers
@@ -136,12 +143,13 @@ export function ownMessageRefusal(
   return messageId ? OWN_MESSAGE_REFUSALS.notOwnMessage : null;
 }
 
-/** The words for a source; the reset has none, the carrier's report its own, an unknown one is shown as itself. */
+/** The words for a source; the reset has none, the carrier's report and a stop's end of a yes their own, an unknown one is shown as itself. */
 export function consentSourceLabel(source: string | null | undefined): string | null {
   if (!source) return null;
   const known = CONSENT_SOURCES.find((s) => s.id === source);
   if (known) return known.label;
   if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
+  if (source === STOP_ENDED_OFFERS_SOURCE) return "Ended when they said stop";
   return source === CONSENT_RESET_SOURCE ? null : source;
 }
 

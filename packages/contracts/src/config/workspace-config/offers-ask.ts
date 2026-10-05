@@ -17,6 +17,7 @@
  * lets the receptionist ask is never said on a text or a call.
  */
 import { yesCovers } from "../../consent/consent-channels";
+import { STOP_ENDED_OFFERS_SOURCE } from "../../people/person-consent";
 import { clockDate } from "../../shared/clock";
 import { OFFERS_OPT_IN_PHRASES } from "../../shared/enums";
 
@@ -80,6 +81,25 @@ export function offersFacts(
     } else if (asked === null && channel === "whatsapp" && !p.optedOut) out.push(FACT.never);
   }
   return out;
+}
+
+/**
+ * What a START's confirmation adds for a person whose yes to offers ended with their STOP (00322), or null.
+ *
+ * A START is a yes to messages about their own visit and nothing more, so a person who had offers before they stopped
+ * would otherwise wait for news that no longer comes. The confirmation says so once, with the phrase that turns offers
+ * on again (the inbound path records it as their own yes). On WHATSAPP ALONE: the texting line's confirmation is the
+ * campaign's filed opt-in message, word for word (consent-page.ts optInConfirmation), and offers are never offered on
+ * that line (30896). Nothing for a person who never said yes, who was asked and did not answer, or who said no: the
+ * receptionist's own ask is once (offersAskRule), and this is not a second one.
+ */
+export function offersAfterStart(
+  p: { marketingConsent?: string | null; marketingConsentSource?: string | null },
+  channel: LeadChannel | undefined,
+): string | null {
+  if (channel !== "whatsapp") return null;
+  if (p.marketingConsent !== "unknown" || p.marketingConsentSource !== STOP_ENDED_OFFERS_SOURCE) return null;
+  return `Offers and news stay off. Reply ${OFFERS_OPT_IN_PHRASES.en} to get them here again.`;
 }
 
 /**

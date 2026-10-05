@@ -13,7 +13,12 @@ import { amountWords } from "../deals/deal-amount";
 import type { PersonCampaignDto } from "./person-dto";
 import { reasonShort } from "./person-row-facts";
 import { visitTitleFor } from "./person-row";
-import { CARRIER_CONSENT_SOURCE, CONSENT_RESET_SOURCE, consentSourceLabel } from "./person-consent";
+import {
+  CARRIER_CONSENT_SOURCE,
+  CONSENT_RESET_SOURCE,
+  consentSourceLabel,
+  STOP_ENDED_OFFERS_SOURCE,
+} from "./person-consent";
 import { addedBy, ts } from "./person-helpers";
 import { capitalize } from "../shared/words";
 import { callLength } from "../shared/clock";
@@ -90,6 +95,13 @@ export function consentChangeWords(c: ConsentChange): { who: string; text: strin
             : {}),
     };
   const offers = c.purpose === "marketing";
+  // A stop to every message ended their yes to offers (00322): the database's own entry, beside the stop's.
+  if (offers && c.source === STOP_ENDED_OFFERS_SOURCE)
+    return {
+      who: "Offers",
+      text: "Their yes to offers ended",
+      sub: "They said stop, which ends it. Offers start again only on a new yes of their own",
+    };
   const text =
     c.consent === "opted_in"
       ? offers

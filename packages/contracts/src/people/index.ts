@@ -147,4 +147,4 @@ export {
 } from "./audience-pool";
 export type { PoolCalendar, PoolOptions } from "./audience-pool";
 export { legacyErasedPhoneHash, legacyErasedEmailHash, legacyLeadSuppressionHash } from "./erasure";
-export { CARRIER_CONSENT_SOURCE } from "./person-consent";
+export { CARRIER_CONSENT_SOURCE, STOP_ENDED_OFFERS_SOURCE } from "./person-consent";

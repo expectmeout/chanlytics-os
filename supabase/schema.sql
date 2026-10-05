@@ -1236,6 +1236,42 @@ end $$;
 
 
 --
+-- Name: contact_stop_ends_offers_yes(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contact_stop_ends_offers_yes() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  update public.contacts c
+     set marketing_consent            = 'unknown',
+         marketing_consent_source     = 'stop',
+         marketing_consent_updated_at = now()
+   where c.id = new.id and c.tenant_id = new.tenant_id and c.marketing_consent = 'opted_in';
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (new.tenant_id, 'contact.consent_changed', 'contact', 'contact', new.id,
+            jsonb_build_object('purpose', 'marketing', 'consent', 'unknown', 'previous', 'opted_in',
+                               'source', 'stop', 'stopped_by', new.consent_source));
+  end if;
+  return null;
+exception when others then
+  -- The stop is the person's word and is never refused for this: do-not-contact holds every message back while it
+  -- stands. A yes left on the row is a warning to read, not a reason to lose the stop.
+  raise warning 'contact_stop_ends_offers_yes: %', sqlerrm;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION contact_stop_ends_offers_yes(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.contact_stop_ends_offers_yes() IS 'After a person''s consent becomes opted_out while their answer about offers is a yes (00322): the answer about offers goes back to unknown with the source stop, and a contact.consent_changed entry with purpose marketing says so (00297''s trigger then empties marketing_channels). A no to offers is left a no. Whichever door recorded the stop: ingest_inbound, stop_all_messages, set_contact_consent or the carrier''s report. A failure warns and never refuses the stop.';
+
+
+--
 -- Name: create_mailbox(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -23116,6 +23152,13 @@ CREATE TRIGGER contacts_set_updated_at BEFORE UPDATE ON public.contacts FOR EACH
 
 
 --
+-- Name: contacts contacts_stop_ends_offers_yes; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_stop_ends_offers_yes AFTER UPDATE OF consent ON public.contacts FOR EACH ROW WHEN (((new.consent = 'opted_out'::text) AND (old.consent IS DISTINCT FROM 'opted_out'::text) AND (new.marketing_consent = 'opted_in'::text) AND (new.erased_at IS NULL))) EXECUTE FUNCTION public.contact_stop_ends_offers_yes();
+
+
+--
 -- Name: conversations conversations_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -26903,6 +26946,14 @@ GRANT ALL ON FUNCTION public.contact_first_moments(p_tenant_id uuid) TO service_
 REVOKE ALL ON FUNCTION public.contact_proposal_on_erase() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.contact_proposal_on_erase() TO authenticated;
 GRANT ALL ON FUNCTION public.contact_proposal_on_erase() TO service_role;
+
+
+--
+-- Name: FUNCTION contact_stop_ends_offers_yes(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contact_stop_ends_offers_yes() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contact_stop_ends_offers_yes() TO service_role;
 
 
 --

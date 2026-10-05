@@ -11,8 +11,9 @@
  *     converted, with a phone and without), the lead-insert trigger lead_link_contact, reach_out_person;
  *   - contact.consent_changed <- ingest_inbound (a STOP and a START), note_yes_on_channel (a START by text from
  *     someone already opted in), set_contact_consent, set_marketing_consent, set_email_marketing (a no, and a reply's
- *     no taken back), set_email_offers_yes (a yes to offers by email, 00299) and stop_all_messages (the unsubscribe page's
- *     second act: a STOP, and the email unsubscribe with it);
+ *     no taken back), set_email_offers_yes (a yes to offers by email, 00299), stop_all_messages (the unsubscribe page's
+ *     second act: a STOP, and the email unsubscribe with it) and contact_stop_ends_offers_yes (the trigger that ends a
+ *     yes to offers when a stop is recorded, 00322);
  *   - platform.acted <- partner_status_set, partner_standing_set, partner_second_factor_reset (a platform admin's).
  * And the list of writers is not this file's word for it: the catalog is asked which functions insert into events with
  * one of the three kinds named in them, and the answer must be the list above, so a new SQL writer fails here until it
@@ -57,6 +58,7 @@ const skip =
 const WRITERS = {
   "contact.added": ["create_person", "import_person", "lead_link_contact", "lead_set_stage", "reach_out_person"],
   "contact.consent_changed": [
+    "contact_stop_ends_offers_yes",
     "ingest_inbound",
     "note_yes_on_channel",
     "set_contact_consent",
@@ -589,6 +591,35 @@ test(
     assert.ok(
       rows.some((r) => r.purpose === "email_marketing" && r.consent === "opted_out"),
       "and the email unsubscribe",
+    );
+  },
+);
+
+test(
+  "contact_stop_ends_offers_yes (00322): a stop to every message ends the yes to offers, as its own entry",
+  { skip },
+  async () => {
+    const c = await contact(w.t, {
+      email: `ended-${RUN}@example.com`,
+      consent: "opted_in",
+      marketing_consent: "opted_in",
+    });
+    const stopped = await wrote(w.t, "contact.consent_changed", async () =>
+      ok(
+        await db.rpc("stop_all_messages", { p_tenant_id: w.t, p_contact_id: c, p_message_id: null }),
+        "stop_all_messages",
+      ),
+    );
+    const [ended] = holds(
+      "contact.consent_changed",
+      "contact_stop_ends_offers_yes",
+      stopped.rows.filter((r) => r.data?.source === "stop"),
+      1,
+    );
+    assert.deepEqual(
+      [ended.purpose, ended.consent, ended.previous, ended.stopped_by],
+      ["marketing", "unknown", "opted_in", "customer_message"],
+      "whose answer, what it is now, what it was, and which stop ended it",
     );
   },
 );
