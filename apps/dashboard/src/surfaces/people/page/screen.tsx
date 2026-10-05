@@ -238,11 +238,8 @@ function peopleDeskControls(s: PeopleState) {
     exportBlocked,
     exportHref,
     exportName,
-    colsOpen,
-    setColsOpen,
     colOptions,
     pickColumn,
-    colsButton,
   } = s;
   return (
     <div className="cl-controls">
@@ -254,13 +251,7 @@ function peopleDeskControls(s: PeopleState) {
         {canEditLists && <AddPersonButton onAdded={onOpenProfile} flash={plFlash} />}
         {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside them only
             turned round an order the table already shows and changes. */}
-        <PeopleColumnsMenu
-          open={colsOpen}
-          onOpenChange={setColsOpen}
-          options={colOptions}
-          onPick={pickColumn}
-          buttonRef={colsButton}
-        />
+        <PeopleColumnsMenu options={colOptions} onPick={pickColumn} />
         {/* The canvas (P1) folds the file acts under one ⋯ after Columns: Import (a client list as a file, read in the
             browser, counted, then written in parts of fifty, import/import-sheet.tsx), and Export CSV (everyone, from
             the route: owner only) with its gate or the reason it is held. */}
@@ -593,28 +584,26 @@ export function peopleScreen(s: PeopleState) {
         {/* The phone's rail, as a sheet (the rail itself is not drawn at 900px and under), last in the tree. Its switch is
             the bar's; its first row is Everyone. */}
         {listsOpen && listsSheet(s)}
-        {/* People's own two sheets on a phone, last in the tree like the Lists sheet. */}
-        {phone && addOpen && (
-          <PeopleAddSheet
-            draft={addDraft}
-            onDraft={(patch) => setAddDraft((d) => ({ ...d, ...patch }))}
-            onAdd={addOnPhone}
-            onClose={closePhoneSheet}
-          />
-        )}
-        {phone && listAct && (listAct === "save" || activeSaved) && (
-          <PeopleListActSheet
-            act={listAct}
-            list={activeSaved}
-            count={shown.length}
-            rule={viewRule}
-            flash={plFlash}
-            draft={listDraft}
-            onDraft={(patch) => setListDraft((d) => ({ ...d, ...patch }))}
-            onGo={listActGo}
-            onClose={closePhoneSheet}
-          />
-        )}
+        {/* People's own two sheets on a phone, the kit's: drawn while open, and on their way out. */}
+        <PeopleAddSheet
+          open={phone && addOpen}
+          draft={addDraft}
+          onDraft={(patch) => setAddDraft((d) => ({ ...d, ...patch }))}
+          onAdd={addOnPhone}
+          onClose={closePhoneSheet}
+        />
+        <PeopleListActSheet
+          open={phone && !!listAct && (listAct === "save" || !!activeSaved)}
+          act={listAct}
+          list={activeSaved}
+          count={shown.length}
+          rule={viewRule}
+          flash={plFlash}
+          draft={listDraft}
+          onDraft={(patch) => setListDraft((d) => ({ ...d, ...patch }))}
+          onGo={listActGo}
+          onClose={closePhoneSheet}
+        />
         {/* Import people, at every width: the record kit's sheet, drawn in .app-root, where the page's keys hold still
             while it is open (PL_OVERLAY) and it closes on its own Esc. */}
         {importOpen && <PeopleImportSheet onClose={() => setImportOpen(false)} flash={plFlash} />}

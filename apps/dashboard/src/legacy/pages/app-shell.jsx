@@ -38,10 +38,12 @@ const SurfaceUnavailable = ({ onNavigate }) => (
 );
 
 // ---- Route helpers ----------------------------------------------------
-const parseRoute = () => {
-  const [page, param] = window.CHANLY.address.route().split("/");
+/** A route's page and its param, from the route as written (`inbox/th-1`). */
+const routeParts = (route) => {
+  const [page, param] = route.split("/");
   return { page: page || "today", param: param || null };
 };
+const parseRoute = () => routeParts(window.CHANLY.address.route());
 
 /**
  * The route an address opens, resolved for the table and the gates: `page` and `param` as drawn, `raw` as written,
@@ -332,9 +334,13 @@ const useShellNavigate = (setRoute) => {
   return { navigate, backToPeople };
 };
 
-/** The address, followed: its route, the phone's keyboard, the old list route, and a person's crumb once People lands. */
-const useShellRouting = ({ route, setRoute, setReadyTick }) => {
-  useShellEffect(() => window.CHANLY.address.hear(() => setRoute(parseRoute())), []);
+/**
+ * The address, followed: its route, the phone's keyboard, the old list route, and a person's crumb once People lands.
+ * `follows`: the shell hears the address itself only where nobody hands it the route (the standalone mockup, a test);
+ * in the app the route is the router's (ChanlyticsApp's `routeNow`).
+ */
+const useShellRouting = ({ route, setRoute, setReadyTick, follows }) => {
+  useShellEffect(() => (follows ? window.CHANLY.address.hear(() => setRoute(parseRoute())) : undefined), [follows]);
   // What a phone's keyboard covers, as --kb, for Ask's screen and every sheet (data-bits watchKeyboard).
   useShellEffect(() => (window.watchKeyboard ? window.watchKeyboard() : undefined), []);
   // A list's own route (`segments/<id>`) is People with that list picked on a real workspace: its App Router page replaces
@@ -483,11 +489,13 @@ const usePageFocus = (page, routeLoading) => {
 };
 
 /**
- * How the route view comes in. A move that stays on the page -- People to Leads or the Pipeline and back -- is still
- * a remount (each scope is a mount of its own), and the route fade played on every one, on top of the rows' own
- * draw: the switch read as a wait. The fade is for arriving somewhere else, and for a page landing where the reading
- * pane stood; a view that follows another of the same page draws at once. A person's profile is somewhere else,
- * though its route starts with the list's word.
+ * How the route view comes in. A move between two views of one strip -- the Inbox's Needs you to Conversations, People
+ * to Leads or the Pipeline -- arrives as a tab does: the route fade on a desk, from the side its tab stands on on a
+ * phone (components.css route-slide-*). People's scopes once drew at once instead, when a switch drew the whole scope
+ * before anything answered and a fade on top read as a wait; the press answers first now and the page is drawn once
+ * (5 Oct 2026). A view that follows another of the same family and is no strip's move (one person's page to the next)
+ * draws at once; a page landing where the reading pane stood fades in. A person's profile is somewhere else, though
+ * its route starts with the list's word.
  * Decided as the view changes, in the draw that mounts it, and kept for that view's life: decided after the mount
  * (an effect, a state) it re-drew the same element with the class, which cancelled the fade on every page one
  * frame in. `mountKey` is what the view is mounted under, the route table's answer (drawRoute).
@@ -501,16 +509,17 @@ const useViewFade = ({ page, param }, mountKey, routeLoading) => {
   const viewRef = useShellRef({ key: null, family: null, reading: false, stay: false, place: null, slide: null });
   if (viewRef.current.key !== viewKey) {
     const prev = viewRef.current;
+    const slide = prev.key !== null && !prev.reading && window.stripSlide ? window.stripSlide(prev.place, place) : null;
     viewRef.current = {
       key: viewKey,
       family,
       reading: routeLoading,
       place,
-      stay: !routeLoading && prev.key !== null && prev.family === family && !prev.reading,
-      slide: prev.key !== null && !prev.reading && window.stripSlide ? window.stripSlide(prev.place, place) : null,
+      stay: !routeLoading && prev.key !== null && prev.family === family && !prev.reading && !slide,
+      slide,
     };
   }
-  return { viewKey, routeStay: viewRef.current.stay, routeSlide: viewRef.current.slide };
+  return { viewKey, routeStay: viewRef.current.stay, routeSlide: viewRef.current.slide, routeStrip: place ? place.strip : null };
 };
 
 // ---- The chrome ---------------------------------------------------------------
@@ -580,12 +589,14 @@ const glassHead = ({ glass, pane, where, page, param, views, navigate, primaryAc
 
 const appChrome = (s) => {
   const { theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace } = s;
-  const { page, param, views, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeLoading, surfaceUnavailable } = s;
+  const { page, param, views, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeStrip, routeLoading, surfaceUnavailable } = s;
   const glass = look === "glass";
   return (
     <div className="app-root" data-theme={theme} data-look={look}>
       {/* The first stop for Tab: a way past the sidebar and the bars to the page (drawn only while it has focus). */}
       <button type="button" className="skip-link" onClick={() => focusPage(true)}>Skip to the page</button>
+      {/* Glass's three pools of light, a layer each, which a desk drifts by a transform (components.css .pg-light). */}
+      {glass && <div className="pg-light" aria-hidden="true"><span /><span /><span /></div>}
       {/* On a phone the sidebar is a drawer. Open, it is a dialog, so a page's keys hold still behind it (People's Esc
           cleared its selection as the drawer closed). Not aria-modal: it does not move focus into itself. */}
       <div className={`side-wrap ${navOpen ? "open" : ""} ${sidebar === "rail" ? "rail" : ""}`} role={navOpen ? "dialog" : undefined} aria-label={navOpen ? "Navigation" : undefined} onPointerOver={sideWarm}>
@@ -630,6 +641,7 @@ const appChrome = (s) => {
           id="main"
           key={viewKey}
           className={`main-scroll route-view ${pane ? "pane" : ""} ${routeStay ? "route-stay" : ""} ${routeSlide ? `route-slide-${routeSlide}` : ""}`}
+          data-strip={routeStrip || undefined}
           aria-busy={routeLoading ? "true" : undefined}
           {...(window.stripSwipe ? window.stripSwipe() : {})}
         >
@@ -673,8 +685,14 @@ const appChrome = (s) => {
 // asks for both -- a look's dark side is [data-look][data-theme="dark"] -- matches wherever the theme's own rules do.
 // `routePage` is the page of a route that has left the shell (an App Router page, drawn by the layout's children) and
 // `surfaceRoutes` says how the frame wraps it (src/surfaces/routes.ts); `sharedPage` is the shared viewer's report.
-const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sidebar = "open", onSidebar = () => {}, inboxDensity, showInboxAgentRail, routePage = null, surfaceRoutes = null, sharedPage = null }) => {
-  const [route, setRoute] = useShellState(parseRoute());
+// `routeNow` is the route of the router's pathname, which the bridge hands the frame (LegacyHost), the same the pages
+// read: the frame and the page move in one render, the router's, so a move is drawn once, in the background, and the
+// press that asked for it answers first. The frame heard the address itself before, at once, while the page heard the
+// router a beat later: People's view remounted with the scope it was leaving, and every Inbox tab drew its page twice.
+// Without it (the standalone mockup, a test) the frame hears the address, as it always did.
+const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sidebar = "open", onSidebar = () => {}, inboxDensity, showInboxAgentRail, routePage = null, surfaceRoutes = null, sharedPage = null, routeNow = null }) => {
+  const [heard, setRoute] = useShellState(parseRoute());
+  const route = routeNow !== null ? routeParts(routeNow) : heard;
   const [askOpen, setAskOpen] = useShellState(false);
   const inboxNeeds = useInboxNeeds();
   const at = routeAt(route);
@@ -695,7 +713,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   // People view it was opened from.)
   Object.assign(window, { appNavigate: navigate, appAsk: openAsk, appBackToPeople: backToPeople });
 
-  useShellRouting({ route, setRoute, setReadyTick: gate.setReadyTick });
+  useShellRouting({ route, setRoute, setReadyTick: gate.setReadyTick, follows: routeNow === null });
   useShellKeys({ setAskOpen, sidebar, onSidebar });
   const { navOpen, setNavOpen } = useNavDrawer();
 

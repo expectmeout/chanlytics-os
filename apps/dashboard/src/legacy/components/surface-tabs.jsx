@@ -66,6 +66,19 @@ const ST_GROUPS = {
 // or a finger reaches a tab, so the move that follows asks the server for nothing (workspace.ts warmRoute).
 const stAddress = () => (window.CHANLY && window.CHANLY.address) || null;
 const stWarm = (route) => { const a = stAddress(); if (a && a.warm) a.warm(route); };
+// The press is answered on the screen before the page it asks for is drawn: the tab lit and its underline on its way in
+// one painted frame, then the move. A page drawn in one long piece (People's scope, 60 to 120 ms on a phone) began
+// before the browser had painted, and the tab lit only with the page (5 Oct 2026); the Inbox's moves had a pause of the
+// router's own in between. One frame, where there are frames (the node suite has none and moves at once).
+const stAfterPaint = (fn) => {
+  if (typeof requestAnimationFrame !== "function") { fn(); return; }
+  requestAnimationFrame(() => setTimeout(fn, 0));
+};
+// A tab is a link, as every door is (data-bits routeDoor): its address the route's, so a middle click, a long press or a
+// new tab opens that view; a plain press is the app's own move. A press with a key held, or not the main button, is the
+// browser's.
+const stHref = (route) => { const a = stAddress(); return a && a.href ? a.href(route) : `#/${route}`; };
+const stOwnPress = (e) => !(e && (e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey));
 
 // `views` is a page that says its own views (surfaces/routes.ts SurfaceViews: People's scopes, from its chrome): the same strip,
 // drawn here once for every page, whether the views are a group's below or the page's own. A page's views are its tabs,
@@ -107,11 +120,11 @@ const SurfaceTabs = ({ page, param, views, onNavigate }) => {
         const badge = t.badge ? t.badge() : null;
         const pulse = t.pulse ? t.pulse() : false;
         return (
-          <button key={t.id} className={`stabs-tab ${(pending || pickedId) === t.id ? "active" : ""}`} aria-current={pickedId === t.id ? "page" : undefined} data-testid={t.testid} data-tip={t.tip || null} data-tip-side="bottom" onPointerEnter={() => stWarm(t.to)} onTouchStart={() => stWarm(t.to)} onFocus={() => stWarm(t.to)} onClick={(e) => { if (pickedId !== t.id) { stripTap(e.currentTarget.parentElement, e.currentTarget); setPending(t.id); } onNavigate(t.to); }}>
+          <a key={t.id} href={stHref(t.to)} className={`stabs-tab ${(pending || pickedId) === t.id ? "active" : ""}`} aria-current={pickedId === t.id ? "page" : undefined} data-testid={t.testid} data-tip={t.tip || null} data-tip-side="bottom" onPointerEnter={() => stWarm(t.to)} onTouchStart={() => stWarm(t.to)} onFocus={() => stWarm(t.to)} onClick={(e) => { if (!stOwnPress(e)) return; e.preventDefault(); if (pickedId !== t.id) { stripTap(e.currentTarget.parentElement, e.currentTarget); setPending(t.id); } stAfterPaint(() => onNavigate(t.to)); }}>
             {t.label}
             {pulse && <span className="live-dot" style={{ width: 5, height: 5 }} />}
             {badge ? <span className={`stabs-badge tally${t.tone === "warn" ? " tally-warn" : ""}`} data-tone={t.tone || "plain"}>{badge}</span> : null}
-          </button>
+          </a>
         );
       })}
     </nav>
@@ -144,7 +157,11 @@ const stripSlide = (from, to) => (from && to && from.strip === to.strip && from.
 // finds the strip (the shell's, over the route view, or People's own inside it), glides its underline toward the tab
 // the page is going to, keeps it where it is, and presses the tab beside, so a swipe is exactly a tap. A touch that begins in something that takes touches for itself is never the page's.
 const ST_OWN_TOUCH = '[role="dialog"], [aria-modal="true"], [role="menu"], .sb-sheet, .pp-toast, [data-own-drag]';
-const stripPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+// A strip is walked where its page is one column: the shell's phone (720px and under), and People's page to 900px,
+// where its rows are already a phone's (PL_PHONE_QUERY). The view says whose strip it stands on (app-shell.jsx data-strip).
+const stripWide = (q) => !!(window.matchMedia && window.matchMedia(q).matches);
+const stripPhone = () => stripWide("(max-width: 900px)");
+const stripPhoneFor = (view) => stripWide("(max-width: 720px)") || !!(view && view.dataset && view.dataset.strip === "people");
 // The picked tab's own underline comes back at once: eased, it faded in under a glide that had already gone.
 const stripUnglide = (strip) => {
   const tabs = Array.from(strip.querySelectorAll(".stabs-tab"));
@@ -167,6 +184,7 @@ const stripAround = (strip, view) => {
 };
 const stripPager = (view, from) => {
   if (from && from.closest && from.closest(ST_OWN_TOUCH)) return null;
+  if (!stripPhoneFor(view)) return null;
   const main = view && view.parentElement;
   const strip = main ? main.querySelector(".stabs") : null;
   if (!strip || strip.getClientRects().length === 0) return null;
