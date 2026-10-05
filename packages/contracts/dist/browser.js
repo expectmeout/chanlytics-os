@@ -28354,67 +28354,6 @@ function templatePreview(t, own = {}) {
   return fill(String(t.body_preview ?? ""), templatePreviewValues(t, own));
 }
 
-// src/today/notification-kinds.ts
-var NOTIFICATION_KIND_GROUPS = [
-  {
-    title: "Customers",
-    rows: [
-      {
-        title: "A customer needs a person",
-        what: "It stopped on a thread and someone is waiting. The alert carries their message."
-      },
-      { title: "Still waiting", what: "A handoff has gone unanswered for a while." },
-      { title: "After every phone call", what: "Who called, how long, how it went." },
-      { title: "A reply failed to send", what: "It wrote an answer and the channel refused it." }
-    ]
-  },
-  {
-    // Reach out, Part 5 (N2): what a reach-out tells its owner, each the moment it happens; and Part 6 (H12), the
-    // day's numbers at 6 PM, the one row that is a line in the bell rather than an email.
-    title: "Reach-outs",
-    rows: [
-      {
-        title: "They wrote back",
-        what: "A business answered a reach-out: what the reply was read as, what was done, and the receptionist's draft when it wrote one."
-      },
-      {
-        title: "A reach-out waits for you",
-        what: "A run is planned and waits for your yes before anything sends."
-      },
-      {
-        title: "A reach-out holds an email for you",
-        what: "The check held an email of a run it could not pass, and it waits for your call."
-      },
-      {
-        title: "A sending domain is held, and when it sends again",
-        what: "A domain stopped sending (bounces, a complaint, its records), which stops its runs; and when it sends again."
-      },
-      {
-        // Part 6 (H12): a line in the bell, never an email.
-        title: "The day's numbers",
-        what: "At 6 PM your time, a line in the bell, not an email: what your reach-outs wrote that day, who wrote back, and what waits for you."
-      }
-    ]
-  },
-  {
-    // A switched-off number has no workspace to address, and a stalled sweep belongs to nobody's workspace. Listing
-    // them beside "goes to each of these addresses" without saying so promised an email the owner never receives.
-    title: "To Chanlytics",
-    rows: [
-      {
-        title: "Messages arriving for a switched-off number",
-        what: "Someone is texting a channel this workspace switched off. Goes to Chanlytics, not to the addresses above: a switched-off number has no workspace to alert.",
-        platform: true
-      },
-      {
-        title: "Background checks",
-        what: "When the watchdog over unanswered threads stops, and when it recovers. Goes to Chanlytics, not to the addresses above.",
-        platform: true
-      }
-    ]
-  }
-];
-
 // src/voice/live.ts
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
@@ -28901,6 +28840,168 @@ function nameKnownCustomers(rows, threads, calls) {
     return who ? { ...r2, title: r2.title.replace(NUMBER_IN_WORDS, who) } : r2;
   });
 }
+
+// src/today/notification-kinds.ts
+var NOTIFICATION_DELIVERY = {
+  handoff: "email",
+  deadman: "email",
+  call: "email",
+  number: "email",
+  sweep: "email",
+  job_failed: "email",
+  playbook: "email",
+  calendar_people: "bell",
+  alert: "email",
+  review: "bell",
+  billing: "email",
+  template_ready: "email",
+  template_blocked: "email",
+  broadcast_sent: "email",
+  broadcast_stopped: "email",
+  leads_ready: "bell",
+  leads_question: "email",
+  note_for_you: "bell",
+  reach_out_replied: "email",
+  reach_out_day: "bell"
+};
+var EMAILED_NOTIFICATION_KINDS = SERVER_NOTIFICATION_KINDS.filter(
+  (k) => NOTIFICATION_DELIVERY[k] === "email"
+);
+function emailsNotificationKind(kind) {
+  const known = SERVER_NOTIFICATION_KINDS.includes(kind ?? "");
+  return NOTIFICATION_DELIVERY[known ? kind : "alert"] === "email";
+}
+var NOTIFICATION_KIND_GROUPS = [
+  {
+    title: "Customers",
+    rows: [
+      {
+        title: "A customer needs a person",
+        what: "It stopped on a thread and someone is waiting. The alert carries their message.",
+        kinds: ["handoff"]
+      },
+      { title: "Still waiting", what: "A handoff has gone unanswered for a while.", kinds: ["deadman"] },
+      { title: "After every phone call", what: "Who called, how long, how it went.", kinds: ["call"] }
+    ]
+  },
+  {
+    // What stopped, finished or was paused in the sending: a reply, a broadcast, a playbook, the offers by email, a job.
+    title: "Sending",
+    rows: [
+      {
+        title: "Something did not finish",
+        what: "A reply may not have been sent, or a search, a broadcast or another background job stopped partway. It says what stopped and whether it carries on in a fresh run.",
+        kinds: ["job_failed"]
+      },
+      {
+        title: "A broadcast finished, or stopped",
+        what: "When a broadcast has gone to everyone it could reach, with how many got it and how many were held back; and when one stops partway or never goes out.",
+        kinds: ["broadcast_sent", "broadcast_stopped"]
+      },
+      {
+        title: "A playbook could not run",
+        what: "It could not run for the day, or could not read your calendar, so nobody was sent it. Tomorrow's run tries again.",
+        kinds: ["playbook"]
+      },
+      {
+        title: "Offers and news by email are paused",
+        what: "Complaints or bounces went over the line, so they wait until it is fixed. Messages about a visit, replies by email and everything on WhatsApp go on.",
+        kinds: ["sweep"]
+      }
+    ]
+  },
+  {
+    title: "Numbers and templates",
+    rows: [
+      {
+        title: "Your WhatsApp number needs attention",
+        what: "WhatsApp flagged it, lowered how many new conversations it can start, restricted the account or rejected its review, or the business removed Chanlytics from it. Good news about the number is not emailed.",
+        kinds: ["number"]
+      },
+      {
+        title: "A WhatsApp template was approved or blocked",
+        what: "WhatsApp approved a template, or rejected, paused or disabled it, or moved it to marketing, where a send needs the customer's recorded yes.",
+        kinds: ["template_ready", "template_blocked"]
+      },
+      {
+        title: "Your phone number is going back",
+        what: "Your subscription ended: a warning with the day your receptionist's number goes back to the phone company, and a note once it has. A card declined or a trial ending is on the bell, not emailed.",
+        kinds: ["billing"]
+      }
+    ]
+  },
+  {
+    title: "Lead searches",
+    rows: [
+      {
+        title: "A search is waiting for your answer",
+        what: `A lead search stopped to ask you something. ${LEAD_QUESTION_WAIT_LINE}`,
+        kinds: ["leads_question"]
+      }
+    ]
+  },
+  {
+    // Reach out, Part 5 (N2): what a reach-out tells its owner, each the moment it happens; and Part 6 (H12), the
+    // day's numbers at 6 PM, the one row that is a line in the bell rather than an email.
+    title: "Reach-outs",
+    rows: [
+      {
+        title: "They wrote back",
+        what: "A business answered a reach-out: what the reply was read as, what was done, and the receptionist's draft when it wrote one.",
+        kinds: ["reach_out_replied"]
+      },
+      {
+        title: "A reach-out waits for you",
+        what: "A run is planned and waits for your yes before anything sends.",
+        kinds: ["playbook"]
+      },
+      {
+        title: "A reach-out holds an email for you",
+        what: "The check held an email of a run it could not pass, and it waits for your call.",
+        kinds: ["playbook"]
+      },
+      {
+        title: "A sending domain is held, and when it sends again",
+        what: "A domain stopped sending (bounces, a complaint, its records), which stops its runs; and when it sends again.",
+        kinds: ["sweep"]
+      },
+      {
+        // Part 6 (H12): a line in the bell, never an email.
+        title: "The day's numbers",
+        what: "At 6 PM your time, a line in the bell, not an email: what your reach-outs wrote that day, who wrote back, and what waits for you.",
+        kinds: ["reach_out_day"],
+        bell: true
+      }
+    ]
+  },
+  {
+    // A switched-off number has no workspace to address, and a stalled sweep belongs to nobody's workspace. Listing
+    // them beside "goes to each of these addresses" without saying so promised an email the owner never receives.
+    title: "To Chanlytics",
+    rows: [
+      {
+        title: "Messages arriving for a switched-off number",
+        what: "Someone is texting a channel this workspace switched off. Goes to Chanlytics, not to the addresses above: a switched-off number has no workspace to alert.",
+        kinds: ["alert"],
+        platform: true
+      },
+      {
+        title: "Background checks",
+        what: "When the watchdog over unanswered threads stops, and when it recovers. Goes to Chanlytics, not to the addresses above.",
+        kinds: ["alert"],
+        platform: true
+      }
+    ]
+  }
+];
+var NOTIFICATION_PANE_WORDS = {
+  recipients: "Each alert below is emailed to every one of these, except the two marked for Chanlytics and the day's numbers, a line in the bell.",
+  kinds: "By email, the moment it happens; the day's reach-out numbers are a line in the bell. What is not listed here is not emailed.",
+  /** The address the alerts come from, said before the config's own `from` where an operator set one (nothing in the app writes it). */
+  sentFrom: "Sent from",
+  /** And where none is set, which is every workspace the app made: the platform's own. Nothing swaps it for a verified sending domain of the workspace's. */
+  sentFromPlatform: "Sent from the Chanlytics alert address."
+};
 
 // src/today/today-away.ts
 var readyRunTitle = (label) => `Playbook \u201C${label}\u201D is ready`;
@@ -32106,6 +32207,7 @@ export {
   E164,
   EARLIER_FALLBACK_DEFAULTS,
   EDGE_ERROR_CODES,
+  EMAILED_NOTIFICATION_KINDS,
   EMAIL_BODY_MAX,
   EMAIL_ELSEWHERE_SENTENCE,
   EMAIL_HOLDS,
@@ -32343,6 +32445,7 @@ export {
   NOTE_SUGGEST_SCHEMA,
   NOTE_WORDS,
   NOTIFICATION_KIND_GROUPS,
+  NOTIFICATION_PANE_WORDS,
   NO_CHANNEL_REACH,
   NO_FIELDS_COMPOSED_WORDS,
   NO_LINK_DETAILS,
@@ -32941,6 +33044,7 @@ export {
   emailTemplateWords,
   emailWires,
   emailWordCount,
+  emailsNotificationKind,
   emptyAudienceRefusal,
   emptyBusinessRecord,
   emptyReadSet,
