@@ -12,8 +12,8 @@
  */
 import type { ComponentProps, ReactElement, RefObject } from "react";
 import type { Exactly, Holds } from "@chanlytics/contracts";
-import type { MenuChoice, MenuGroup, MenuItem, MenuProps, MenuToggles } from "../index";
-import { Menu } from "../index";
+import type { MenuChoice, MenuGroup, MenuItem, MenuProps, MenuToggles, SharedMenuProps } from "../index";
+import { Menu, MenuTrigger, SharedMenu, menuHandle } from "../index";
 
 /** Never called: the compiler reads it, and nothing runs it. */
 function _menuTakes(
@@ -94,6 +94,20 @@ function _menuTakes(
   Menu({ trigger, groups: [{ items: [], toggles: { onToggle: act, tick: glyph, items: [] } }] });
   // @ts-expect-error a switch says whether it is on: one with no state draws nothing true
   Menu({ trigger, groups: [{ toggles: { onToggle: act, tick: glyph, items: [{ value: "email", label: "Email" }] } }] });
+  // A menu its controls share (a table's rows): each control carries its row, and the menu's items are that row's.
+  const calls = menuHandle<{ name: string; dial: () => void }>();
+  MenuTrigger({ handle: calls, payload: { name: "Sam's Gym", dial: act }, trigger });
+  SharedMenu({
+    handle: calls,
+    label: (row) => `Call ${row.name}`,
+    groups: (row) => [{ header: row.name, items: [{ label: "Call from your phone", onSelect: row.dial }] }],
+  });
+  type _Shares = [Holds<Exactly<Parameters<SharedMenuProps<{ name: string }>["groups"]>[0], { name: string }>>];
+  // @ts-expect-error a control carries what its menu is about, in the shape the menu reads
+  MenuTrigger({ handle: calls, payload: { name: "Sam's Gym" }, trigger });
+  // @ts-expect-error the shared menu reads its items from the payload, not a list of its own
+  SharedMenu({ handle: calls, groups: [] });
+
   // @ts-expect-error it hangs from its control's start or its end
   Menu({ trigger, align: "center", groups: [] });
   // @ts-expect-error a menu opens from the page's control, which it is drawn as

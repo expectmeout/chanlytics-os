@@ -5,7 +5,7 @@
 import { shiftKey, zoneMidnight } from "../calendar/day-keys";
 import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
-import { HOUR_MS } from "../shared/time";
+import { dateFormat, HOUR_MS } from "../shared/time";
 
 export type RunPlan =
   { kind: "send"; state: "scheduled"; at: Date } | { kind: "hold"; state: "pending_approval" } | { kind: "off" };
@@ -26,7 +26,7 @@ export function planRun(mode: string | null | undefined, now: Date): RunPlan {
 
 function parts(tz: string, now: Date): { date: string; hour: number } {
   try {
-    const f = new Intl.DateTimeFormat("en-CA", {
+    const f = dateFormat("en-CA", {
       timeZone: tz,
       year: "numeric",
       month: "2-digit",

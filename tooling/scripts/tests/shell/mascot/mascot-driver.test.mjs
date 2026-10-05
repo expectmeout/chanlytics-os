@@ -152,6 +152,28 @@ test("the published mount tells who listens once per face that mounts, a face th
   b.destroy();
 });
 
+test("the canvas is asked its size once, not on every frame, and again when it resizes: asking lays the page out", () => {
+  const C = fakeCanvas();
+  let asked = 0;
+  let side = 64;
+  const canvas = { ...C.canvas };
+  Object.defineProperty(canvas, "clientWidth", { get: () => (asked++, side) });
+  Object.defineProperty(canvas, "clientHeight", { get: () => side });
+  const F = fakeEnv();
+  let resized = () => {};
+  F.env.onResize = (_el, fn) => ((resized = fn), () => {});
+  const m = mountCharacter(canvas, { env: F.env });
+  assert.ok(m);
+  F.run(1);
+  assert.equal(asked, 1, "sixty frames, one question");
+  side = 96;
+  resized();
+  F.run(0.5);
+  assert.equal(asked, 2, "a resize asks once more");
+  assert.equal(canvas.width, 96 * 2, "and the drawing follows the new size");
+  m.destroy();
+});
+
 test("mounting draws three tiles, each over its shadow, and the three have grown in within a second", () => {
   const C = fakeCanvas();
   const F = fakeEnv();

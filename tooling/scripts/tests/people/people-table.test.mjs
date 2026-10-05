@@ -19,7 +19,9 @@ const { PeopleTable } = await importSrc("apps/dashboard/src/surfaces/people/tabl
 const { plColumnChoices, plColumnOptions, plDrawnColumns, plShownColumns, plSortKeys } = await importSrc(
   "apps/dashboard/src/surfaces/people/table/columns.ts",
 );
-const { PL_FIRST_ROWS } = await importSrc("apps/dashboard/src/surfaces/people/table/row-window.ts");
+const { PL_FIRST_ROWS, PL_WINDOW_ROWS, usePlRowWindow } = await importSrc(
+  "apps/dashboard/src/surfaces/people/table/row-window.ts",
+);
 
 /* --------------------------------- the table --------------------------------- */
 
@@ -414,4 +416,39 @@ test("a list drawn in groups rises group by group as its view changes, and the t
     withMotion(true, () => swapRise(list)),
     0,
   );
+});
+
+test("a long list draws its first rows, a few screens the next frame, and the rest of its window once the page is idle", () => {
+  // At 200 rows a switch to Leads spent 0.7 s of a 4x-slowed CPU on style and layout drawing the whole window after its
+  // first paint (5 Oct 2026): the rest waits for an idle moment, where nobody waits on it.
+  const frames = [];
+  const idles = [];
+  const kept = ["requestAnimationFrame", "cancelAnimationFrame", "requestIdleCallback", "cancelIdleCallback"].map(
+    (k) => [k, globalThis[k]],
+  );
+  globalThis.requestAnimationFrame = (fn) => frames.push(fn);
+  globalThis.cancelAnimationFrame = () => undefined;
+  globalThis.requestIdleCallback = (fn) => idles.push(fn);
+  globalThis.cancelIdleCallback = () => undefined;
+  try {
+    fresh();
+    const ids = Array.from({ length: 500 }, (_, i) => `p${i}`);
+    let budget = null;
+    const Probe = () => {
+      budget = usePlRowWindow({ place: null, windowed: true, ids, cursor: null }).budget;
+      return null;
+    };
+    const draw = () => again(() => globalThis.React.createElement(Probe, {}));
+    draw();
+    assert.equal(budget, PL_FIRST_ROWS, "the first rows, painted at once");
+    assert.equal(idles.length, 0, "nothing waits for idle before the first frame");
+    frames.splice(0).forEach((fn) => fn());
+    draw();
+    assert.ok(budget > PL_FIRST_ROWS && budget < PL_WINDOW_ROWS, `a few screens, the next frame (${budget})`);
+    idles.splice(0).forEach((fn) => fn());
+    draw();
+    assert.equal(budget, PL_WINDOW_ROWS, "the rest of the window, once the page is idle");
+  } finally {
+    for (const [k, v] of kept) globalThis[k] = v;
+  }
 });

@@ -121,6 +121,7 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
   { entry: "menu-kit", bring: (p) => p.getByTestId("menu-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-set", bring: (p) => p.getByTestId("menu-set-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-switches", bring: (p) => p.getByTestId("menu-switches-open").click(), ready: ".more-menu" },
+  { entry: "menu-kit-shared", bring: (p) => p.getByTestId("shared-call-1").click(), ready: ".more-menu" },
   { entry: "popover-kit", bring: (p) => p.getByTestId("popover-open").click(), ready: ".panel-pop" },
   { entry: "datepicker-kit", bring: (p) => p.getByTestId("datepicker-open").click(), ready: ".date-pick" },
   {
@@ -442,6 +443,37 @@ const sheetJob: Check = async (page) => {
   await page.getByTestId("job-next").click();
   await page.keyboard.press("Escape");
   if (!(await gone())) out.push("the job's sheet: Escape on a step left it open");
+  return out;
+};
+
+/**
+ * One menu its rows' controls share: each control opens it with its own row's words, an item acts on that row and gives
+ * focus back to the control that opened it, and Escape does the same for the other.
+ */
+const menuShared: Check = async (page) => {
+  const out: string[] = [];
+  const header = () => page.evaluate(() => document.querySelector(".more-menu .more-header")?.textContent ?? null);
+  const gone = () => met(page, () => !document.querySelector(".more-menu"), null);
+  await page.getByTestId("shared-call-0").click();
+  if (!(await met(page, () => !!document.querySelector(".more-menu"), null)))
+    return ["the shared menu: a row's control did not open it"];
+  if ((await header()) !== "(512) 555-0142")
+    out.push(`the shared menu: the first row opened it saying ${await header()}`);
+  await page.locator(".more-item", { hasText: "Call from your phone" }).click();
+  if (!(await captionSays(page, "menu-kit-shared", "called Sam's Gym")))
+    out.push("the shared menu: its item did not act on the row");
+  if (!(await gone())) out.push("the shared menu: an item's act left it open");
+  else if ((await focused(page)) !== "shared-call-0")
+    out.push(`the shared menu: focus went to ${await focused(page)} after an item, not its control`);
+  await page.getByTestId("shared-call-1").click();
+  if (!(await met(page, () => !!document.querySelector(".more-menu"), null)))
+    return [...out, "the shared menu: the second row's control did not open it"];
+  if ((await header()) !== "(512) 555-0177")
+    out.push(`the shared menu: the second row opened it saying ${await header()}`);
+  await page.keyboard.press("Escape");
+  if (!(await gone())) out.push("the shared menu: Escape left it open");
+  else if ((await focused(page)) !== "shared-call-1")
+    out.push(`the shared menu: focus went to ${await focused(page)} after Escape, not the control that opened it`);
   return out;
 };
 
@@ -868,6 +900,7 @@ const CHECKS: [string, Check][] = [
   ["the menu's arrows and typing", menuKeys],
   ["the menu acts, opens a page as a link, and closes for a press outside", menuActs],
   ["a menu of switches stays open as each flips, the one kept on refuses, Escape closes it", menuSwitches],
+  ["a menu its rows share opens with each row's words and gives focus back to the row's control", menuShared],
   ["the popover stays for a press inside and closes for one outside", popoverPresses],
   ["the date picker's keys walk its days and choose", datePickerKeys],
   ["the select opens, is walked, and chooses", selectChooses],

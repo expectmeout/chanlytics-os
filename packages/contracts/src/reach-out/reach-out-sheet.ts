@@ -18,6 +18,7 @@ import type {
 } from "./reach-out-dtos";
 import { HOLD_DOOR_WORDS, holdDoors, holdWords, type HoldDoor } from "./reach-out-words";
 import type { HandKind } from "./reach-out-hand";
+import { dateFormat } from "../shared/time";
 
 export const REACH_OUT_SHEET_WORDS = {
   sub: "Your email, opened differently for each business, from a domain you own. Whoever writes back lands in your Inbox, and the receptionist drafts the answer.",
@@ -344,9 +345,7 @@ export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share:
 
 /** A run's day as its history line says it: "Sep 24". */
 const runDayWords = (runFor: string): string =>
-  new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(
-    new Date(`${runFor}T12:00:00Z`),
-  );
+  dateFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${runFor}T12:00:00Z`));
 
 /**
  * A chain's pace as its domains allow it: how many a day across them (each domain's ramp, D15), and the one domain's

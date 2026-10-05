@@ -145,7 +145,7 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
 function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: string) => void): LeadsPage {
   const { people, leads, swap, nav, leadView, hasCenter, controls, st, read, rows, place, deckMove } = v;
   const { canExport, plFlash, setSel, setAllMatching, setSortBy, setSortDir, columns } = controls;
-  const { listsOpen, peekId, setPeekId, finder, closeFinder, peekMode, setPeekMode, armed, setArmed } = st;
+  const { peekId, setPeekId, finder, closeFinder, peekMode, setPeekMode, armed, setArmed } = st;
   const { values, lightboxId, setLightboxId } = st;
   const acts = leadActs({ leads, leadView, plFlash, setSel, setAllMatching, ...st });
   const { canFind, callLead } = acts;
@@ -167,9 +167,7 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
   place.keysWith({
     open: setPeekId,
     canSelect: canFind || canExport,
-    // The Lists sheet is the page's own; the selection's is the kit's, in PL_OVERLAY while open, closed on its own Esc.
-    sheetOpen: listsOpen,
-    closeSheet: null,
+    // The Lists sheet and the selection's are the kit's, in PL_OVERLAY while open, each closed on its own Esc.
     peekOpen: !!peekId || !!lightboxId,
     // The order OUT here is the page's: the peek, the plan panel, the selection.
     closePeek,

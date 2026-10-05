@@ -7,7 +7,7 @@
 import type { LeadRowVM } from "@chanlytics/contracts";
 import { StatePill } from "../../kit/pill/state-pill";
 import { LeadCallMenu, ldCallProps } from "./call-menu";
-import { LeadCard, ldPlacePop } from "./hover";
+import { LeadCard, LeadHover } from "./hover";
 import { LeadTile } from "./tile";
 import type { LeadCellCtx } from "./types";
 
@@ -98,7 +98,7 @@ export const ldBusinessCell = (l: LeadRowVM, x: LeadCellCtx) => (
   <td key="business" className={`cl-name-cell pl-pin ld-biz-cell ${l.cls}`}>
     <div className="cl-row-name ld-row-name">
       <LeadTile l={l} onExpand={x.onExpand} />
-      <div className="cl-row-name-block ld-hover" onMouseEnter={ldPlacePop} onFocus={ldPlacePop}>
+      <LeadHover as="div" className="cl-row-name-block ld-hover" card={<LeadNameCard l={l} x={x} />}>
         <div className="cl-row-fullname">
           <button
             type="button"
@@ -132,8 +132,7 @@ export const ldBusinessCell = (l: LeadRowVM, x: LeadCellCtx) => (
         <div className={`cl-row-meta ld-sub${l.waitsOn ? " waits" : ""}`} data-testid="lead-sub">
           {l.cls === "excluded" ? l.fitLabel : l.waitsOn || l.sub}
         </div>
-        <LeadNameCard l={l} x={x} />
-      </div>
+      </LeadHover>
     </div>
   </td>
 );

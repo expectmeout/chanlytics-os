@@ -20,7 +20,7 @@ import { dayInZone, dayPlusInZone } from "./zone-math";
 import type { FeedItem } from "./feed";
 import { normalizeEmail } from "../shared/email-address";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
-import { DAY_MS } from "../shared/time";
+import { dateFormat, DAY_MS } from "../shared/time";
 
 export interface EventContacts {
   /** E.164. */
@@ -384,7 +384,7 @@ export function visitDay(start: number | string, tz: string, nowMs: number): str
   const tomorrow = dayPlusInZone(tz, nowMs, 1).key;
   if (key === today) return "Today";
   if (key === tomorrow) return "Tomorrow";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(
+  return dateFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(
     new Date(ms(start)),
   );
 }
@@ -395,7 +395,7 @@ export function visitTime(
   tz: string,
 ): string {
   if (v.allDay || v.all_day) return "all day";
-  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  const f = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
   const a = f.format(new Date(ms(v.start)));
   const b = f.format(new Date(ms(v.end)));
   const sameHalf = a.slice(-2) === b.slice(-2);
@@ -411,9 +411,7 @@ export function visitDateKey(start: number | string, tz: string): string {
 /** "2:00 PM" — the start alone, for a reminder's sentence. */
 export function visitStartTime(v: { start: number | string; allDay?: boolean; all_day?: boolean }, tz: string): string {
   if (v.allDay || v.all_day) return "all day";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(
-    new Date(ms(v.start)),
-  );
+  return dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
 }
 
 export function visitLine(
@@ -447,7 +445,7 @@ export function describeVisits(
   if (visits.last) {
     const l = visits.last;
     out.push(
-      `Their last visit on the calendar: ${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`,
+      `Their last visit on the calendar: ${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`,
     );
   }
   return out.length ? out.join(" ") : null;

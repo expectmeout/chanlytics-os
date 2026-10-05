@@ -3,6 +3,7 @@
  * page's doors behind one context that holds still, and the few values a cell's drawing depends on.
  */
 import type { PersonRowVM } from "@chanlytics/contracts";
+import type { MenuHandle } from "../../kit/menu/menu";
 import type { TableCtx } from "../../people/types";
 import type { ReachOutLines } from "../reach-out/lines";
 
@@ -31,6 +32,8 @@ export interface LeadCellCtx extends TableCtx {
   onKeep: (id: string) => void;
   onExclude: (id: string) => void;
   onPutBack: (id: string) => void;
+  /** What ties each row's Call to the one menu the rows share (call-menu.tsx LeadRowsCallMenu), made once by the page. */
+  callMenu: LeadCallHandle;
   /** Under a group's own heading on a phone (Needs review's sections): the reason is said once, above. */
   sectioned?: boolean;
 }
@@ -41,3 +44,11 @@ export interface CallActs {
   onCopyPhone: (id: string) => void;
   onLogCall: (id: string) => void;
 }
+
+/** What a row's Call carries to the menu the rows share: the lead, its name, and its number as a person reads it. */
+export interface LeadCallPayload {
+  id: string;
+  name: string;
+  number: string | null;
+}
+export type LeadCallHandle = MenuHandle<LeadCallPayload>;

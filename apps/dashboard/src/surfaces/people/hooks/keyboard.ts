@@ -52,8 +52,8 @@ function ownOverlayKey(k: KeyDoors, e: KeyboardEvent): boolean {
     }
     return true;
   }
-  // The page's own sheets hold every key: the Lists sheet, which closes on its own Esc listener, and on a desk the
-  // Pipeline's New proposal. The kit's sheets (a phone's small jobs) are in PL_OVERLAY and close on their own Esc.
+  // The page's own sheet holds every key: on a desk the Pipeline's New proposal. The kit's sheets (the Lists sheet, a
+  // phone's small jobs) are in PL_OVERLAY and close on their own Esc.
   if (k.sheetOpen) {
     if (e.key === "Escape" && k.closeSheet) {
       e.preventDefault();

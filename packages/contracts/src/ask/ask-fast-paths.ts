@@ -4,6 +4,7 @@
  * ask-answer.ts words each answer.
  */
 import { dayPlusInZone } from "../calendar/zone-math";
+import { dateFormat } from "../shared/time";
 
 /* -------------------------------------------------------------- fast paths */
 
@@ -35,7 +36,7 @@ const DAY_WORDS: Array<[RegExp, string]> = [
 /** The day `atMs` falls on in `tz`; with no zone, or one Intl cannot use, the day in UTC -- never the machine's. */
 function dayKey(atMs: number, tz: string | null | undefined): string {
   try {
-    return new Intl.DateTimeFormat("en-CA", {
+    return dateFormat("en-CA", {
       timeZone: tz || "UTC",
       year: "numeric",
       month: "2-digit",
