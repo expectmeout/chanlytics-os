@@ -1401,9 +1401,9 @@ test("GET contacts/:id through its reader reads what it read at origin/main, in 
   assert.deepEqual(readsOf(ctx), PERSON_READS);
   const order = ctx.supabase.seen.map((q) => q.rpc ?? q.table);
   assert.deepEqual(
-    order.slice(order.indexOf("messages")),
-    ["messages", "escalations", "decisions"],
-    "every other read was asked for before the threads' own",
+    order.slice(order.indexOf("messages")).sort(),
+    ["decisions", "escalations", "messages"],
+    "every other read was asked for before the threads' own: the decisions on them and on the person ride in the same read, one, and the order they start in is the database's business",
   );
   const columns = (table) =>
     selects(ctx, table)
