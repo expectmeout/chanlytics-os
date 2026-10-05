@@ -98,6 +98,19 @@ export function menuGroups(items: readonly PeopleMenuItem[]): MenuGroup[] {
   return groups;
 }
 
+/**
+ * A menu standing where a press would also reach what holds it (a row that opens its lead, a card, a peek): its presses
+ * are kept to itself, its control's and its items' alike (the kit's Menu is drawn on the body, and a press on it still
+ * reaches its holders through React), in the `more-wrap` box the pages' layout names, as the house's MoreMenu drew it.
+ */
+export function MenuInPlace({ children }: { children: ReactNode }) {
+  return (
+    <div className="more-wrap" role="presentation" onClick={(e) => e.stopPropagation()}>
+      {children}
+    </div>
+  );
+}
+
 /** The control that opens a menu of acts: the quiet glyph (the ⋯), named for a screen reader; the page places it. */
 export function moreButton(o: {
   title: string;

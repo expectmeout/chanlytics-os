@@ -9,7 +9,8 @@
 import type { ReactNode } from "react";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { PhoneSheet, PhoneSheetRow } from "../sheets/phone-sheet";
+import { Sheet } from "../../kit/sheet/sheet";
+import { JOB_CANCEL, PhoneSheetRow, jobBack } from "../sheets/phone-sheet";
 import { PL_MODES, PL_SOURCE_GLYPH, plModeWord } from "../words";
 import { addToListMenu } from "./bar-menu";
 import type { BulkActs } from "./bulk-acts";
@@ -352,11 +353,17 @@ export function phoneBulk(b: BulkCtx, a: BulkActs) {
           </Button>
         )}
       </div>
-      {step && (
-        <PhoneSheet title={step.title} onBack={step.onBack || null} onClose={() => onSheet(null)} testid="bulk-sheet">
-          {step.body}
-        </PhoneSheet>
-      )}
+      <Sheet
+        open={!!step}
+        shape="job"
+        title={step ? step.title : ""}
+        close={JOB_CANCEL}
+        back={step && step.onBack ? jobBack(step.onBack) : null}
+        onClose={() => onSheet(null)}
+        testid="bulk-sheet"
+      >
+        {step ? step.body : null}
+      </Sheet>
     </>
   );
 }

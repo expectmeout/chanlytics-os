@@ -6,7 +6,8 @@
 import { LEAD_WORDS as W } from "@chanlytics/contracts";
 import type { LeadPeekVM } from "@chanlytics/contracts";
 import { confirmPart } from "../../legacy-parts";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { Menu } from "../../kit/menu/menu";
+import { MenuInPlace, menuGroups, moreButton } from "../../people/menu-groups";
 import type { Armed, Deck, PeekActs, PeekMode } from "./types";
 
 /** "What makes it not a fit?" -- five whys, one tap each (PRD 9.5). It teaches nothing in this release. */
@@ -31,22 +32,25 @@ export const LeadNotFitWhy = ({ busy, on }: { busy?: boolean; on: Pick<PeekActs,
 
 /**
  * The lead's ⋯ (PR 9): what contracts' leadPeekMenu offers this member -- Erase, to the owner alone. A role that may
- * not press it is offered no menu at all, never a gated item (an item's secondary act stays out of sight). It escapes
- * the peek, which scrolls and would cut it off.
+ * not press it is offered no menu at all, never a gated item (an item's secondary act stays out of sight). The kit's
+ * Menu, drawn on the body, where the peek, which scrolls, cannot cut it off.
  */
 export const LeadPeekMore = ({ on }: { on: Pick<PeekActs, "menu" | "onEraseAsk"> }) => {
   return on.menu && on.menu.length ? (
-    <MoreMenu
-      escape
-      title={W.more}
-      testid="peek-more"
-      items={on.menu.map((m) => ({
-        label: m.label,
-        icon: "x",
-        danger: m.danger,
-        onClick: m.id === "erase" ? on.onEraseAsk : undefined,
-      }))}
-    />
+    <MenuInPlace>
+      <Menu
+        label={W.more}
+        trigger={moreButton({ title: W.more, testid: "peek-more" })}
+        groups={menuGroups(
+          on.menu.map((m) => ({
+            label: m.label,
+            icon: "x",
+            danger: m.danger,
+            onClick: m.id === "erase" ? on.onEraseAsk : undefined,
+          })),
+        )}
+      />
+    </MenuInPlace>
   ) : null;
 };
 

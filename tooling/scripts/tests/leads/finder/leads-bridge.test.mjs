@@ -415,6 +415,40 @@ test("leadsMore appends only under the same view; its late answer after a view c
   );
 });
 
+test("a view the tab read since the last change paints with no read behind it; after a change, or two minutes, it is read again behind its paint", async () => {
+  // Every switch to Leads asked the server for its searches and its first 500 rows again, though Realtime had said
+  // nothing had changed (5 Oct 2026). A change is what Realtime or a write's re-read says (the surface's apply).
+  const w = wire({
+    searches: [SEARCH_DONE],
+    counts: COUNTS,
+    rows: (q) => (q.list === "ready" ? READY : NURTURE),
+  });
+  await leadsView("clients/leads:l-ready");
+  await leadsView("clients/leads:l-nurture");
+  let at = w.reads.length;
+  await leadsView("clients/leads:l-ready");
+  assert.equal(w.reads.length, at, "back to a view held since the last change: nothing is read");
+  assert.equal(L().view.list, "ready", "and it paints");
+  assert.equal(L().rows.length, READY.length);
+  // A change: the view on screen is read again (apply), and a view held from before it is read again behind its paint.
+  await leadsOverride.apply();
+  at = w.reads.length;
+  await leadsView("clients/leads:l-nurture");
+  assert.ok(w.reads.length > at, "a view read before the change is read again");
+  assert.equal(L().view.list, "nurture");
+  // Two minutes on, a view is read again behind its paint, change or none: a change Realtime missed is not kept for long.
+  const keepNow = Date.now;
+  const then = Date.now();
+  try {
+    Date.now = () => then + 2 * 60_000 + 1;
+    at = w.reads.length;
+    await leadsView("clients/leads:l-ready");
+    assert.ok(w.reads.length > at, "held past two minutes: read again");
+  } finally {
+    Date.now = keepNow;
+  }
+});
+
 test("a failed read is its own state, never an empty list", async () => {
   wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, fail: "GET /api/v1/leads" });
   await leadsOverride.apply().catch(() => {});
@@ -818,7 +852,7 @@ test("a bulk act over ids shows on every row at once; one over a whole view show
 
 /* ------------------------------ views, held ------------------------------ */
 
-test("a view the surface has already read paints at once on the way back, with its Show more pages, and is refreshed behind: a rail pick used to be a round trip each way", async () => {
+test("a view the surface has already read paints at once on the way back, with its Show more pages, and once Leads has changed it is refreshed behind: a rail pick used to be a round trip each way", async () => {
   wire({
     searches: [SEARCH_DONE],
     counts: COUNTS,
@@ -830,6 +864,8 @@ test("a view the surface has already read paints at once on the way back, with i
   assert.equal(L().rows.length, PAGE1.length + PAGE2.length);
   await leadsView("clients/leads:l-ready");
   assert.equal(L().rows.length, READY.length);
+  // Leads changes (Realtime, a write): the view held from before is read again when it is shown.
+  await leadsOverride.apply();
   // Back to all leads, with every answer held: what is on the page is what the surface held, before any read lands.
   const held = wire({
     keep: true,

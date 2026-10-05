@@ -192,7 +192,7 @@ TSX (Draw with the kit, step 2).
 | close or back button | `Button` with `iconOnly` and its `aria-label` (`.btn.btn-icon`) |
 | segmented control | `Segmented` (`.rec-seg`); `RecordToggleGroup` on a legacy page |
 | switch | `Switch` (`.rec-switch`); `RecordSwitch` on a legacy page |
-| sheet, modal | `Sheet` (`.sheet`), which no page draws yet; `RecordSheet` (`.rec-sheet`) on a legacy page |
+| sheet, modal | `Sheet` (`.sheet`): a record's composer, or a phone's small job (`shape="job"`); `RecordSheet` (`.rec-sheet`) on a legacy page |
 | menu, popover | `Menu` (`.more-*`), `Popover` (the panel's pop); `MoreMenu` on a legacy page |
 | select, picker, field | `Select` and `Combobox` (`.rec-combo-*`), in a `Field` (`.rec-field`); `RecordCombobox`, `RecordField` and `.input` on a legacy page |
 | face, initials | `Face` (`.face`) |
@@ -217,7 +217,7 @@ told), and the kit's classes draw its parts, since Base UI draws nothing.
 
 | Component | Base UI's part | What it draws |
 | --- | --- | --- |
-| `Sheet` | Dialog, modal | `.sheet-backdrop`, and `.sheet` with its handle and the record sheet's head, tools, rows and foot; Base UI's closing state is the kit's `data-leaving` |
+| `Sheet` | Dialog, modal | `.sheet-backdrop`, and `.sheet` with its handle and the record sheet's head, tools, rows and foot, or a job's short head (`.sheet-job-*`: a step's way back, its title, a word to close it) over the job; Base UI's closing state is the kit's `data-leaving`, and on a phone a pull down closes it (data-bits `touchSwipe`) |
 | `Menu` | Menu | `.more-menu` on its positioner (`.pop-place`): `.more-item` (a link where it opens a page, `danger` where it destroys), `.more-header` over a group, `.more-divider` between two, a set to choose one of as radio items |
 | `Popover` | Popover | the panel's pop (`Panel`, `variant="pop"`) on `.pop-place` |
 | `DatePicker` | Popover | the same pop holding a month in the ARIA grid (`.date-pick*`): one tab stop, the arrows, Page Up and Down, Home and End, Today; a day is the page's "YYYY-MM-DD" and the page says which is today. Base UI has no calendar, so the grid (`datepicker/days.ts`) is the kit's |
