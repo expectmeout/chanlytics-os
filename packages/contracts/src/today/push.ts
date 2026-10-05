@@ -94,6 +94,15 @@ export function unreadFor(
   return rows.filter((r) => Date.parse(r.created_at) > seen && !gone.has(r.id)).length;
 }
 
+/**
+ * Whether a kept row is on this member's bell: the workspace's own (no recipient) or a note left for them
+ * (notifications.recipient_user_id, 00158). The page never sees another member's note, since the table's row policy
+ * narrows its read to exactly this; a read the policy does not narrow (the service role's, which counts a phone's
+ * badge) narrows by this, so the number on the icon is the number on the bell.
+ */
+export const isForReader = (row: { recipient_user_id: string | null }, userId: string): boolean =>
+  row.recipient_user_id === null || row.recipient_user_id === userId;
+
 /** The first line of a kept row's body: what the bell shows under the title, and what a phone shows. */
 export function firstLine(body: string, max = 160): string {
   return (

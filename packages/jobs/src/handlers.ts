@@ -7,6 +7,7 @@
 import {
   pushFor,
   type JobKind,
+  isForReader,
   unreadFor,
   PUSH_RECEIPTS_AFTER_MS,
   BELL_WINDOW_DAYS,
@@ -281,21 +282,22 @@ const READ_PAGE = 1000;
 const IN_BATCH = 100;
 
 /**
- * The bell's number for each reader (contracts unreadFor): the workspace's kept rows of the bell's window, each
- * reader's seen moment and their own marks. Read once per send, for every reader at once.
+ * The bell's number for each reader (contracts unreadFor): the workspace's kept rows of the bell's window that are
+ * theirs to read (contracts isForReader: the workspace's own, and a note left for them), each reader's seen moment and
+ * their own marks. Read once per send, for every reader at once.
  */
 async function badgesFor(ctx: JobContext, tenantId: string, readers: readonly string[]): Promise<Map<string, number>> {
   const since = new Date(Date.now() - BELL_WINDOW_DAYS * 86_400_000).toISOString();
   // The window's rows, a page at a time: PostgREST answers at most a thousand rows to one read and says nothing
   // about the rest, so a busy month's bell was counted short.
-  const rows: { id: string; created_at: string }[] = [];
+  const rows: { id: string; created_at: string; recipient_user_id: string | null }[] = [];
   for (let from = 0; ; from += READ_PAGE) {
     const page =
       must(
         "push_send: cannot read the bell",
         await ctx.db
           .from("notifications")
-          .select("id, created_at")
+          .select("id, created_at, recipient_user_id")
           .eq("tenant_id", tenantId)
           .gte("created_at", since)
           .order("created_at", { ascending: true })
@@ -334,10 +336,12 @@ async function badgesFor(ctx: JobContext, tenantId: string, readers: readonly st
   const out = new Map<string, number>();
   for (const u of readers) {
     const mine = seen.find((s) => s.user_id === u);
+    // This read is the service role's, which the notes' row policy (00158) does not narrow as it narrows the page's:
+    // a note left for another member is not on this reader's bell, so it is not on their badge.
     out.set(
       u,
       unreadFor(
-        rows,
+        rows.filter((r) => isForReader(r, u)),
         mine?.seen_at ?? null,
         marks.filter((m) => m.user_id === u),
       ),

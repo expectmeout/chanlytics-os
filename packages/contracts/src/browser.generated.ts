@@ -264,7 +264,7 @@ export { TEMPLATE_TITLE_MAX, templateTitle, playbookName } from "./templates/tem
 export { templateNameOk, slugTemplateName, placeholdersOf, placeholdersSequential, validateTemplateDraft, templateComponents, parseParamSpec, parseParamSpecs, paramLabel, playbooksStillSending, firstNameOf, resolveParams, exampleParams, templateUsage, templateUseWords, templateUseNote, templateUnused, templateSends, templateSentWords, TEMPLATE_LANGUAGES, TEMPLATE_CATEGORIES, TEMPLATE_BODY_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_EXAMPLE_MAX, TEMPLATE_NAME_MAX, TEMPLATE_BUTTON_TEXT_MAX, PARAM_SOURCES, PARAM_SOURCE_LABELS, PARAM_SOURCE_HINTS } from "./templates/templates";
 export { NOTIFICATION_KIND_GROUPS } from "./today/notification-kinds";
 export { buildNotificationFeed, applyReadState, unreadCount, agoLabel, jobNewsWords, verbForRoute, conversationOfNeedsKey, callOfKey, serverNotificationRows, dedupeFeed, nameKnownCustomers, EMPTY_READ_STATE, ALERT_KINDS, SERVER_NOTIFICATION_KINDS, SERVER_KEY_PREFIX } from "./today/notifications";
-export { parseDevice, firstLine, pushFor, PUSH_PLATFORMS, PUSH_KINDS, isPushKind, unreadFor, PUSH_RECEIPTS_AFTER_MS, BELL_WINDOW_DAYS } from "./today/push";
+export { parseDevice, firstLine, pushFor, PUSH_PLATFORMS, PUSH_KINDS, isPushKind, unreadFor, isForReader, PUSH_RECEIPTS_AFTER_MS, BELL_WINDOW_DAYS } from "./today/push";
 export { todayAwayGrouped, bellSections } from "./today/today-away";
 export { toTodayVM } from "./today/today-brief";
 export { todayBriefWords } from "./today/today-brief-words";
