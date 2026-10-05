@@ -294,6 +294,7 @@ export {
   peopleCursorOf,
   everyoneIn,
   erasureDigests,
+  mergePeople,
 } from "./repositories/people";
 export type { PeopleCursor } from "./repositories/people";
 export {

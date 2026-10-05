@@ -32,7 +32,7 @@ const INSERTS_AND_UPDATES: readonly Event[] = ["INSERT", "UPDATE"];
  * joins the live feed with its trigger, in one change.
  */
 const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
-  { table: "messages", events: INSERTS_AND_UPDATES }, // arrivals, then a send's ticks and a failure written late: an update is told with its statuses (00325)
+  { table: "messages", events: INSERTS_AND_UPDATES }, // arrivals, then a send's ticks and a failure written late: an update is told with its statuses (00327)
   { table: "conversations", events: EVERY }, // the pause and snooze clocks, other tabs
   { table: "escalations", events: EVERY }, // opened by the edge, resolved elsewhere
   { table: "calls", events: EVERY }, // a call starting, each live turn, its end, its analysis: told with its statuses

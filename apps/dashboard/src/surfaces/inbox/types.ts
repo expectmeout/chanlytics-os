@@ -222,6 +222,7 @@ export interface SeededThread extends ThreadBase {
   windowOpen?: undefined;
   optedOut?: undefined;
   offersOk?: undefined;
+  emailStopped?: undefined;
   proposalUrl?: undefined;
   claimedByOther?: undefined;
   assigneeUserId?: undefined;

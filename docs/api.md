@@ -8,7 +8,7 @@ the workspace's money, and the fields it takes. A workspace-scoped route names i
 reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a
 stale copy.
 
-212 handlers in 46 domains.
+213 handlers in 46 domains.
 
 ## activity
 
@@ -423,6 +423,14 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `source` | string | no |  |
 | `note` | string | no |  |
 | `message_id` | string (uuid) | no |  |
+
+### `POST /api/v1/contacts/[id]/merge`
+
+Writes; for a member of the row's own workspace, owner or above; counts against the `merge` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `merge` | string (uuid) | yes |  |
 
 ### `POST /api/v1/contacts/[id]/notes`
 

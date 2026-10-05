@@ -355,7 +355,7 @@ test("a message is told when it arrives and when its status moves, not when it i
 
 const ofMessages = (told) => told.filter((n) => n.notice.table === "messages");
 
-test("a send's status moving is told to its workspace alone, with the status it left (00325)", { skip }, () => {
+test("a send's status moving is told to its workspace alone, with the status it left (00327)", { skip }, () => {
   const { steps } = world();
   assert.deepEqual(ofMessages(steps.sends_queued), [
     notice("a", "INSERT", "messages"),

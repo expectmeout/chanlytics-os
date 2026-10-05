@@ -10,7 +10,7 @@
  * page comes on screen. And the shell (app-shell.jsx on a stub React, over the real signal): the reads of a message
  * move nothing for a page that draws none of them, and one redraw for Today.
  *
- * A message's UPDATE (00325: a send's ticks, a failure written late) is told for each receipt, so it is heard by
+ * A message's UPDATE (00327: a send's ticks, a failure written late) is told for each receipt, so it is heard by
  * status and by three surfaces alone: the Inbox and Conversations for a tick, Today for a failure.
  */
 import { test } from "node:test";
@@ -143,7 +143,7 @@ test("a message re-reads the Inbox, Conversations and Today, not the four surfac
 
 const THREADS = ["conversations", "inbox"];
 
-test("a message's update is heard by status: the threads' two surfaces for a tick, Today for a failure, none for an arrival's stamp (00325)", async () => {
+test("a message's update is heard by status: the threads' two surfaces for a tick, Today for a failure, none for an arrival's stamp (00327)", async () => {
   assert.deepEqual(toldFor("messages"), ["INSERT", "UPDATE"], "the database tells a workspace of a message's update");
   win.location.hash = "#/today";
   const r = await running();

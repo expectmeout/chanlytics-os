@@ -13,7 +13,8 @@
  *     someone already opted in), set_contact_consent, set_marketing_consent, set_email_marketing (a no, and a reply's
  *     no taken back), set_email_offers_yes (a yes to offers by email, 00299), stop_all_messages (the unsubscribe page's
  *     second act: a STOP, and the email unsubscribe with it) and contact_stop_ends_offers_yes (the trigger that ends a
- *     yes to offers when a stop is recorded, 00323);
+ *     yes to offers when a stop is recorded, 00323) and merge_people (two records of one person become one, 00326:
+ *     the more careful answer, from the merge);
  *   - platform.acted <- partner_status_set, partner_standing_set, partner_second_factor_reset (a platform admin's).
  * And the list of writers is not this file's word for it: the catalog is asked which functions insert into events with
  * one of the three kinds named in them, and the answer must be the list above, so a new SQL writer fails here until it
@@ -60,6 +61,7 @@ const WRITERS = {
   "contact.consent_changed": [
     "contact_stop_ends_offers_yes",
     "ingest_inbound",
+    "merge_people",
     "note_yes_on_channel",
     "set_contact_consent",
     "set_email_marketing",
@@ -625,6 +627,30 @@ test(
 );
 
 /* ------------------------------------------------------------------------------------------ platform.acted */
+
+test("merge_people (00326): the more careful answer, written as the merge's", { skip }, async () => {
+  const kept = await contact(w.t, { consent: "opted_in", marketing_consent: "opted_in" });
+  // A record known by its address alone: two numbers would be two people, and the door refuses them.
+  const merged = await contact(w.t, {
+    email: `merged-${RUN}@example.com`,
+    phone_e164: null,
+    consent: "opted_out",
+    dnc: true,
+  });
+  const done = await wrote(w.t, "contact.consent_changed", async () =>
+    ok(await w.owner.client.rpc("merge_people", { p_keep: kept, p_merge: merged }), "merge_people"),
+  );
+  assert.equal(done.answered.consent, "opted_out");
+  const rows = holds("contact.consent_changed", "merge_people", done.rows, 2);
+  assert.deepEqual(
+    rows.map((r) => [r.purpose ?? "conversational", r.consent, r.previous, r.source]).sort(),
+    [
+      ["conversational", "opted_out", "opted_in", "merge"],
+      ["marketing", "unknown", "opted_in", "merge"],
+    ],
+    "a stop on the merged record stops the person, and ends the kept record's yes to offers",
+  );
+});
 
 test("the partner functions: a status set, a standing set, a second factor reset", { skip }, async () => {
   const paused = await wrote(w.tp, "platform.acted", async () =>

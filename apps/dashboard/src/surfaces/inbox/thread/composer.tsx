@@ -410,6 +410,19 @@ function optedOutComposer(thread: Thread) {
   );
 }
 
+// The reply would go by email and the address has stopped (it bounced, or they reported a message): the route would
+// refuse it after the owner had written it, so the box says so first, in contracts' sentence, and offers no email to write.
+function emailStoppedComposer(words: string) {
+  return (
+    <div className="ix-composer" data-testid="ix-composer-email-stopped">
+      <div className="ix-composer-banner">
+        <Icon name="mail" size={11} />
+        <span>{words}</span>
+      </div>
+    </div>
+  );
+}
+
 // A caller with no WhatsApp thread: the window never opened, so the honest
 // verbs are the phone and an approved message that starts a thread.
 function noChatComposer(thread: Thread, onSend: OnSend) {
@@ -616,6 +629,7 @@ export const Composer = ({ thread, reply, hasApproval, onType = null, onSend = (
   useEffect(() => growWithWords(taRef, thread.real), [text, thread.real]);
 
   if (thread.real && thread.optedOut) return optedOutComposer(thread);
+  if (thread.real && thread.emailStopped) return emailStoppedComposer(thread.emailStopped);
   if (thread.real && thread.hasChat === false) return noChatComposer(thread, onSend);
   if (thread.real && thread.windowOpen === false) return closedComposer(thread, onSend);
   const c: ComposerDraw = {

@@ -19,7 +19,7 @@ import {
  */
 
 export const CONVERSATION_COLUMNS =
-  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url)";
+  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url, email_suppressed_at, email_suppressed_reason)";
 
 export const MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts, channel";
@@ -47,6 +47,9 @@ interface ConversationRow {
     marketing_consent: string | null;
     /** The owner's proposal link for this person (00154): the thread's Actions put it in the reply. */
     proposal_url: string | null;
+    /** When mail to their address stopped, and why (00126): the reply box says it before anyone writes (contracts emailStoppedWords). */
+    email_suppressed_at: string | null;
+    email_suppressed_reason: string | null;
   } | null;
 }
 
@@ -206,6 +209,8 @@ export function toConversationDto(c: ConversationRow, messages: MessageDto[], us
       // Yes to offers, for the composer to offer only the templates the reply route sends (I4).
       marketing_consent: c.contacts?.marketing_consent ?? null,
       proposal_url: c.contacts?.proposal_url ?? null,
+      email_suppressed_at: c.contacts?.email_suppressed_at ?? null,
+      email_suppressed_reason: c.contacts?.email_suppressed_reason ?? null,
     },
     messages,
   };

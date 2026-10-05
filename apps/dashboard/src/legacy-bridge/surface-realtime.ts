@@ -42,7 +42,7 @@ export interface RefreshPreference {
    */
   refreshWhen?: (change: RealtimeChange) => boolean;
   /**
-   * The statuses a message's UPDATE re-applies this surface for (00325). A message's update is told for every receipt
+   * The statuses a message's UPDATE re-applies this surface for (00327). A message's update is told for every receipt
    * a provider sends, and the default tables were an arrival's before it, so a surface hears an update only by naming
    * what it draws of it: the Inbox and Conversations their ticks, Today a send that failed. Absent, it hears none, as
    * before. An update's notice carries the statuses its statement left, each a change of its own.

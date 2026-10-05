@@ -88,6 +88,9 @@ export interface ConversationDto {
     dnc?: boolean | null;
     /** Yes to OFFERS: a promotional template goes only to someone who said it (the reply route's rule). */
     marketing_consent?: string | null;
+    /** When mail to their address stopped (00126), and why: 'hard_bounce', 'complaint' or 'provider'. Absent on payloads read without it; isEmailStopped says what it means. */
+    email_suppressed_at?: string | null;
+    email_suppressed_reason?: string | null;
   };
   messages: MessageDto[];
 }

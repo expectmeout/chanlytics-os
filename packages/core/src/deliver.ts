@@ -39,6 +39,7 @@ import {
   CARRIER_CONSENT_SOURCE,
   domainDailyCap,
   isAutomatedSend,
+  isEmailStopped,
   isOfferByEmail,
   mayMessageFor,
   outreachRefusalOf,
@@ -430,7 +431,7 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
     if (offer) return offer;
     // A permanent bounce, a complaint or the provider's own list: a fact about
     // the address, kept apart from any one message's delivery (00126).
-    if (f.contact.email_suppressed_at) return "email_suppressed";
+    if (isEmailStopped(f.contact)) return "email_suppressed";
     // The request was frozen for one address. If the person's address on file
     // is no longer that one -- corrected, removed -- these words were approved
     // for somewhere they should no longer go: canceled, and written again.

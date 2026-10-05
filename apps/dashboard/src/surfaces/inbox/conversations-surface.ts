@@ -57,7 +57,7 @@ export const conversationsOverride: SurfaceOverride = {
   value: "conversations",
   events: ["surface:conversations"],
   refreshOnMessageInserts: true,
-  // The rows' last words carry the same ticks as the thread (00325): see the Inbox's.
+  // The rows' last words carry the same ticks as the thread (00327): see the Inbox's.
   refreshOnMessageStatuses: LEFT_THE_QUEUE,
   apply: async () => {
     // The open escalations too: a row's standing is the Inbox's rule over the thread AND its escalation

@@ -12,13 +12,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { NOTE_WORDS } from "@chanlytics/contracts";
-import type { PersonVM } from "@chanlytics/contracts";
+import type { PersonRowVM, PersonVM } from "@chanlytics/contracts";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { useRecordFold } from "../../kit/record/hooks";
 import { mayAtLeast } from "../../legacy-verbs";
 import { PersonDealCard } from "../deal/person-deal";
 import { backToPeople, hear, saidBy, usePersonToast } from "../person-verbs";
-import type { DelState, PageCtx, RmState } from "./ctx";
+import type { DelState, MergeState, PageCtx, RmState } from "./ctx";
 import { hero, openWith } from "./hero";
 import { PersonLists } from "./lists";
 import { PersonNotes } from "./notes";
@@ -143,6 +143,8 @@ function ClientProfileReal({ id }: { id: string }) {
   // "Delete this person" is a typed-name confirmation, not a click: it erases messages, media and recordings and cannot be
   // undone. The one Confirm draws it; the typed text and the match stay here, with the record.
   const [del, setDel] = useState<DelState>({ open: false, typed: "", busy: false, error: null });
+  // "Merge with another record" is the same kind of act (0028): the other record chosen, then the kept name typed.
+  const [merge, setMerge] = useState<MergeState>({ open: false, pick: null, typed: "", busy: false, error: null });
   const [rm, setRm] = useState<RmState>({ busy: false, error: null });
   // What the timeline shows, and whether the fold is open; the timeline itself stays a plain function of its props.
   const [tlFilter, setTlFilter] = useState("all");
@@ -201,6 +203,9 @@ function ClientProfileReal({ id }: { id: string }) {
     onBack: backToPeople,
     del,
     setDel,
+    merge,
+    setMerge,
+    others: people && people.rows ? people.rows.filter((r) => r.id !== id && mayMergeWith(vm, r)) : null,
     rm,
     setRm,
     tlFilter,
@@ -210,6 +215,16 @@ function ClientProfileReal({ id }: { id: string }) {
     folds,
   };
   return personPage(c, toastNode);
+}
+
+/**
+ * The door refuses a pair with two different numbers or two different addresses as two people (0028): the page does not
+ * offer one it would refuse. Everyone else People holds is offered; the door judges the rest (deals, deleted, merged).
+ */
+function mayMergeWith(p: PersonVM, r: PersonRowVM): boolean {
+  if (p.phone && r.phone && p.phone !== r.phone) return false;
+  if (p.email && r.email && p.email !== r.email) return false;
+  return true;
 }
 
 /** The page a route draws for `clients/<id>`: a real workspace's person, in full. */

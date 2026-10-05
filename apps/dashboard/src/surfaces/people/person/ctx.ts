@@ -3,13 +3,25 @@
  * page's own state, and the one toast. `ClientProfileReal` builds it once a draw and every part of the page is a function of it.
  */
 import type { Dispatch, SetStateAction } from "react";
-import type { PersonVM } from "@chanlytics/contracts";
+import type { PersonRowVM, PersonVM } from "@chanlytics/contracts";
 import type { useRecordFold } from "../../kit/record/hooks";
 import type { FlashFn } from "../person-verbs";
 
 /** The typed-name confirmation to delete a person: open, what was typed, whether the delete is out, and what went wrong. */
 export interface DelState {
   open: boolean;
+  typed: string;
+  busy: boolean;
+  error: string | null;
+}
+
+/**
+ * Two records of one person becoming one (0028): open, the other record chosen, what was typed (the kept person's name,
+ * as Delete asks), whether the merge is out, and what went wrong.
+ */
+export interface MergeState {
+  open: boolean;
+  pick: string | null;
   typed: string;
   busy: boolean;
   error: string | null;
@@ -41,6 +53,13 @@ export interface PageCtx {
   onBack: () => void;
   del: DelState;
   setDel: Dispatch<SetStateAction<DelState>>;
+  merge: MergeState;
+  setMerge: Dispatch<SetStateAction<MergeState>>;
+  /**
+   * What a merge may choose from: People's other rows the door could take with this person (not one with a different
+   * number or address, which it refuses as two people). Null while People has not been read.
+   */
+  others: PersonRowVM[] | null;
   rm: RmState;
   setRm: Dispatch<SetStateAction<RmState>>;
   tlFilter: string;

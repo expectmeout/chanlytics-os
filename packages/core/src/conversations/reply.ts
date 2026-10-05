@@ -2,6 +2,7 @@ import {
   AppError,
   firstNameOf,
   inboxSlots,
+  isEmailStopped,
   isOptedOutContact,
   normalizeEmail,
   OPT_OUT_REFUSAL,
@@ -237,7 +238,7 @@ async function shapeEmailReply(
   text: string,
   agreedTo: string | undefined,
 ): Promise<{ id: string; meta: Json }> {
-  if (conv.email_suppressed_at) {
+  if (isEmailStopped(conv)) {
     throw new AppError(
       "conflict",
       "Email to this address has stopped: it bounced, or they reported it. Correct the address on their page, or reach them another way.",

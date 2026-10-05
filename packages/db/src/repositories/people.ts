@@ -125,3 +125,52 @@ export async function erasureDigests(db: Db, tenantId: string, values: string[])
   }
   return out;
 }
+
+/** What the merge door answers (merge_people, 00326): the kept record, the merged one, and what moved. */
+interface MergedPeople {
+  contact_id: string;
+  merged: string;
+  tenant_id: string;
+  decision_id: string;
+  consent: string;
+  marketing_consent: string;
+  email_marketing: string;
+  counts: Record<string, number | string>;
+}
+
+/**
+ * Two records of one person become one (decision 0028): the one door, `merge_people`, as the signed-in owner. The caller
+ * is `auth.uid()` inside the door, so the session client is what is handed in, never the service role. The door's
+ * refusals come back as the database's error with the sentence contracts holds (MERGE_REFUSALS); the route turns one
+ * into its own status (dbRefusal). Everything the door moves, it moves in one transaction.
+ */
+export async function mergePeople(db: Db, keep: string, merge: string): Promise<MergedPeople> {
+  const { data, error } = await db.rpc("merge_people", { p_keep: keep, p_merge: merge });
+  if (error) throw error;
+  return mergedOf(data);
+}
+
+/**
+ * The door's answer read key by key: a word where it said one, the counts as it gave them, never a cast. An answer
+ * that names no kept or merged record is not the door's, and is refused rather than read as a success: the merge has
+ * committed by then, and the route answers that something went wrong, never a page with nobody on it.
+ */
+function mergedOf(v: unknown): MergedPeople {
+  const o = v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  const word = (k: string): string => (typeof o[k] === "string" ? o[k] : "");
+  if (!word("contact_id") || !word("merged")) throw new Error("merge_people answered without the two records");
+  const counts =
+    o.counts && typeof o.counts === "object" && !Array.isArray(o.counts) ? (o.counts as Record<string, unknown>) : {};
+  const out: Record<string, number | string> = {};
+  for (const [k, n] of Object.entries(counts)) if (typeof n === "number" || typeof n === "string") out[k] = n;
+  return {
+    contact_id: word("contact_id"),
+    merged: word("merged"),
+    tenant_id: word("tenant_id"),
+    decision_id: word("decision_id"),
+    consent: word("consent"),
+    marketing_consent: word("marketing_consent"),
+    email_marketing: word("email_marketing"),
+    counts: out,
+  };
+}

@@ -1,4 +1,4 @@
--- 00325 · A message's status is told to its workspace.
+-- 00327 · A message's status is told to its workspace.
 --
 -- The live feed heard a message when it arrived and never again (00265): a statement that moved a message's status,
 -- the provider's receipt (sent, delivered, read), a failure, a cancel, an error written to a row later, told nobody. So

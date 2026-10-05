@@ -52,7 +52,7 @@ export const inboxOverride: SurfaceOverride = {
   // sidebar badge; the reseeded Inbox emits the real count itself.
   events: ["surface:inbox"],
   refreshOnMessageInserts: true,
-  // A send's ticks, and a failure written late, repaint the thread without a reload (00325): a message's update, by the
+  // A send's ticks, and a failure written late, repaint the thread without a reload (00327): a message's update, by the
   // status it leaves the row in. Not an inbound row's meta stamped after its arrival.
   refreshOnMessageStatuses: LEFT_THE_QUEUE,
   apply: async () => {

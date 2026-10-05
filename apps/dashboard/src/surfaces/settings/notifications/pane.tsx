@@ -3,13 +3,14 @@
  * alerted, and what they are alerted about.
  *
  * What the system actually does: it emails the addresses in notifications.escalation_emails, for the kinds of alert the
- * edge really sends, and nothing else. No switch is offered that no code reads. The kinds, grouped (Customers,
- * Reach-outs, To Chanlytics), and when each is sent, are contracts' (notification-kinds.ts). Settings' page
+ * edge really sends, and nothing else. No switch is offered that no code reads. The kinds, grouped, and when each is
+ * sent, and the sentences around them, are contracts' (notification-kinds.ts), whose one closed list of what is emailed
+ * is what notify() asks before it mails. Settings' page
  * (settings.jsx) still draws it by its old name, which seed-globals publishes (settings/globals.ts), until Settings'
  * frame moves; the mockup's seeded twin (six switches kept in the browser, which nothing read) left with it.
  */
 import { useState, type ReactNode } from "react";
-import { NOTIFICATION_KIND_GROUPS, type NotificationsConfig } from "@chanlytics/contracts";
+import { NOTIFICATION_KIND_GROUPS, NOTIFICATION_PANE_WORDS, type NotificationsConfig } from "@chanlytics/contracts";
 import { saveSettings } from "@/legacy-bridge/inbox-verbs";
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
 import { Icon } from "../../kit/icon/icon";
@@ -43,9 +44,7 @@ function recipientsCard(o: Recipients): ReactNode {
     <section className="fl-card set-card" data-testid="notif-recipients">
       <div className="fl-card-head">
         <h2 className="fl-card-title">Who gets alerted</h2>
-        <span className="fl-card-sub">
-          Every alert below goes to each of these, except the two marked for Chanlytics.
-        </span>
+        <span className="fl-card-sub">{NOTIFICATION_PANE_WORDS.recipients}</span>
       </div>
       {emails.length === 0 && (
         <div className="set-row">
@@ -127,9 +126,7 @@ function kindsCard(): ReactNode {
     <section className="fl-card set-card" data-testid="notif-kinds">
       <div className="fl-card-head">
         <h2 className="fl-card-title">What you&apos;ll get</h2>
-        <span className="fl-card-sub">
-          By email, the moment it happens; the day&apos;s reach-out numbers are a line in the bell.
-        </span>
+        <span className="fl-card-sub">{NOTIFICATION_PANE_WORDS.kinds}</span>
       </div>
       {NOTIFICATION_KIND_GROUPS.map((g) => (
         <div className="set-notif-group" key={g.title} data-testid="notif-group">
@@ -178,8 +175,13 @@ function howCard(from: string | undefined): ReactNode {
         <li>
           <Icon name="check" size={11} />
           <span>
-            Sent from {from ? <b>{from}</b> : "the Chanlytics alert address"}
-            {from ? "" : " until your own sending domain is verified"}.
+            {from ? (
+              <>
+                {NOTIFICATION_PANE_WORDS.sentFrom} <b>{from}</b>.
+              </>
+            ) : (
+              NOTIFICATION_PANE_WORDS.sentFromPlatform
+            )}
           </span>
         </li>
         <li>
