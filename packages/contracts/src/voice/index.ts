@@ -17,6 +17,7 @@ export {
   liveBar,
   toLiveCallVM,
   toLiveVM,
+  missedCallIsNews,
   LIVE_STALE_MS,
   LIVE_OVERLONG_MS,
   ANALYSIS_GRACE_MS,

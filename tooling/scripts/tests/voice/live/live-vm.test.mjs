@@ -18,6 +18,8 @@ import {
   ANALYSIS_GRACE_MS,
   RECENT_MAX,
   CALL_HEARTBEAT_MS,
+  DAY_MS,
+  missedCallIsNews,
 } from "@chanlytics/contracts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -101,6 +103,44 @@ test("right now = ongoing under the heartbeat rule; oldest first; recent newest 
   );
   assert.equal(vm.heartbeatMs, CALL_HEARTBEAT_MS);
   assert.equal(vm.fetchedAtMs, NOW.getTime());
+});
+
+test("missedCalls: every dial that never connected inside the bell's day, uncapped and newest first, while recent stays the page's capped list", () => {
+  const missed = (id, startedAgo, over = {}) =>
+    call(id, { status: "not_connected", started_at: ago(startedAgo), updated_at: ago(startedAgo), ...over });
+  const calls = [
+    ...Array.from({ length: RECENT_MAX + 5 }, (_, i) =>
+      call(`e${i}`, {
+        status: "ended",
+        started_at: ago(60_000 * (i + 1)),
+        ended_at: ago(30_000 * (i + 1)),
+        duration_ms: 30_000,
+      }),
+    ),
+    missed("m-late", 3_600_000),
+    missed("m-nine", 9 * 3_600_000),
+    missed("m-out", 4 * 3_600_000, { direction: "outbound" }),
+    missed("m-edge", DAY_MS),
+    missed("m-old", DAY_MS + 1_000),
+  ];
+  const vm = toLiveVM(calls, [voice], ZONE, NOW);
+  assert.equal(vm.recent.length, RECENT_MAX);
+  assert.ok(
+    vm.recent.every((c) => !c.missed),
+    "the page's eight are the newest finished calls",
+  );
+  assert.deepEqual(
+    vm.missedCalls.map((c) => c.callId),
+    ["m-late", "m-out", "m-nine", "m-edge"],
+    "every missed dial of the last day, the morning's too; the day-and-a-second-old one is history",
+  );
+  // The one rule the feed asks too: a live call, a call that connected and one past the day are not news.
+  const now = NOW.getTime();
+  assert.equal(missedCallIsNews({ missed: true, live: false, startedAtMs: now - DAY_MS }, now), true);
+  assert.equal(missedCallIsNews({ missed: true, live: false, startedAtMs: now - DAY_MS - 1 }, now), false);
+  assert.equal(missedCallIsNews({ missed: true, live: true, startedAtMs: now }, now), false);
+  assert.equal(missedCallIsNews({ missed: false, live: false, startedAtMs: now }, now), false);
+  assert.equal(missedCallIsNews({ missed: true, live: false, startedAtMs: null }, now), false);
 });
 
 test("a live call carries its real start for the page's clock and no invented duration", () => {

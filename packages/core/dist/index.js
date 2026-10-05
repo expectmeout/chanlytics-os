@@ -9,6 +9,7 @@ import {
   CARRIER_CONSENT_SOURCE,
   domainDailyCap,
   isAutomatedSend,
+  isEmailStopped,
   isOfferByEmail as isOfferByEmail3,
   mayMessageFor,
   outreachRefusalOf,
@@ -263,7 +264,7 @@ function refusalFor(d, f, nowMs, o) {
   if (d.channel === "email") {
     const offer = offerRefusal(d, f.offers);
     if (offer) return offer;
-    if (f.contact.email_suppressed_at) return "email_suppressed";
+    if (isEmailStopped(f.contact)) return "email_suppressed";
     if (f.contact.email !== d.to) return "recipient_changed";
   }
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive, channel: d.channel, about: d.about });
@@ -569,6 +570,7 @@ import {
   AppError as AppError8,
   firstNameOf,
   inboxSlots,
+  isEmailStopped as isEmailStopped2,
   isOptedOutContact,
   normalizeEmail,
   OPT_OUT_REFUSAL,
@@ -585,7 +587,7 @@ var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
 var HOLD_EXPIRY_MS = 2 * MIN_MS;
 var REPLY_IN_PROGRESS_REFUSAL = "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
 async function shapeEmailReply(ports, conv, to, text, agreedTo) {
-  if (conv.email_suppressed_at) {
+  if (isEmailStopped2(conv)) {
     throw new AppError8(
       "conflict",
       "Email to this address has stopped: it bounced, or they reported it. Correct the address on their page, or reach them another way."

@@ -47,11 +47,22 @@ export type {
   BellSectionVM,
 } from "./today-away";
 export { todaySteps } from "./today-steps";
-export { NOTIFICATION_KIND_GROUPS } from "./notification-kinds";
-export type { NotificationKindRow, NotificationKindGroup } from "./notification-kinds";
+export {
+  NOTIFICATION_KIND_GROUPS,
+  NOTIFICATION_PANE_WORDS,
+  EMAILED_NOTIFICATION_KINDS,
+  emailsNotificationKind,
+} from "./notification-kinds";
+export type {
+  NotificationKindRow,
+  NotificationKindGroup,
+  EmailedNotificationKind,
+  BellNotificationKind,
+} from "./notification-kinds";
 export type { TodayStepVM, TodayStepsVM } from "./today-steps";
 export {
   buildNotificationFeed,
+  bellCalls,
   applyReadState,
   unreadCount,
   agoLabel,
@@ -72,6 +83,7 @@ export type {
   NotificationItem,
   FeedThread,
   FeedCall,
+  FeedLive,
   FeedInvite,
   FeedInput,
   NotificationReadState,
