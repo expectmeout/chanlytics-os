@@ -20,7 +20,7 @@ import type { RouteKey } from "../client/api";
 import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
 import { calendarOverride } from "@/surfaces/calendar/surface";
 import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
-import { inboxOverride } from "@/surfaces/inbox/surface";
+import { forgetInboxTemplates, inboxOverride } from "@/surfaces/inbox/surface";
 import { liveOverride } from "@/surfaces/live/surface";
 import { notificationsOverride } from "./surfaces/notifications";
 import { peopleOverride } from "@/surfaces/people/surface";
@@ -64,7 +64,11 @@ const runsAndChains = () => [...runs(), reachOutsOverride];
 // changes one of them moves the Send by row, the count of who each campaign reaches and People's own reach, so it
 // re-reads all three, or a channel just opened stays closed on the composer until something else reads it again.
 const readiness = () => [broadcastsOverride, playbooksOverride, peopleOverride];
-const templates = () => [settingsOverride, inboxOverride];
+// A template written here is read again by the Inbox at once, not when its kept read goes stale (inbox/surface.ts).
+const templates = () => {
+  forgetInboxTemplates();
+  return [settingsOverride, inboxOverride];
+};
 // An email or text version, written or taken away: the one list, so the two writes cannot drift apart.
 const versionWrite = () => [settingsOverride, reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride];
 const leads = () => [leadsOverride];
