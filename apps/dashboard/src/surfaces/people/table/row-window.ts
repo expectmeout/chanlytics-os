@@ -18,7 +18,7 @@ const IDLE_FALLBACK_MS = 400;
 /** The rows a fresh mount draws first; the page lifts the budget a frame later. */
 export const PL_FIRST_ROWS = 24;
 /** A long list draws this many rows once the first frame is out: a few screens. */
-export const PL_NEAR_ROWS = 100;
+const PL_NEAR_ROWS = 100;
 /** And this many once the page is idle, and this many more each time its foot comes near. */
 export const PL_WINDOW_ROWS = 300;
 export const PL_WINDOW_STEP = 200;

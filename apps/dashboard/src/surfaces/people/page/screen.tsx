@@ -502,7 +502,6 @@ export function peopleScreen(s: PeopleState) {
     restoreList,
     newListSignal,
     activeSaved,
-    listsOpen,
     selecting,
     sel,
     shown,

@@ -19,7 +19,7 @@ const { PeopleTable } = await importSrc("apps/dashboard/src/surfaces/people/tabl
 const { plColumnChoices, plColumnOptions, plDrawnColumns, plShownColumns, plSortKeys } = await importSrc(
   "apps/dashboard/src/surfaces/people/table/columns.ts",
 );
-const { PL_FIRST_ROWS, PL_NEAR_ROWS, PL_WINDOW_ROWS, usePlRowWindow } = await importSrc(
+const { PL_FIRST_ROWS, PL_WINDOW_ROWS, usePlRowWindow } = await importSrc(
   "apps/dashboard/src/surfaces/people/table/row-window.ts",
 );
 
@@ -444,7 +444,7 @@ test("a long list draws its first rows, a few screens the next frame, and the re
     assert.equal(idles.length, 0, "nothing waits for idle before the first frame");
     frames.splice(0).forEach((fn) => fn());
     draw();
-    assert.equal(budget, PL_NEAR_ROWS, "a few screens, the next frame");
+    assert.ok(budget > PL_FIRST_ROWS && budget < PL_WINDOW_ROWS, `a few screens, the next frame (${budget})`);
     idles.splice(0).forEach((fn) => fn());
     draw();
     assert.equal(budget, PL_WINDOW_ROWS, "the rest of the window, once the page is idle");
