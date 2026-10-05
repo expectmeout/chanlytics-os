@@ -52,7 +52,7 @@ It is PR 1 of phase B, "the frame". It adds no migration and no route to the API
 | `apps/dashboard/src/surfaces/kit/download.ts` | create | The one file-download helper (`downloadCsv`) |
 | `apps/dashboard/src/surfaces/kit/charts/card.tsx`, `apps/dashboard/src/surfaces/people/bulk/bulk-acts.tsx` | modify | Both import it |
 | `apps/dashboard/src/surfaces/people/bulk/download.ts` | delete | Its twin |
-| `tooling/scripts/tests/shell/kit-download.test.mjs` | create | The helper, in the browser and in the phone app |
+| `tooling/scripts/tests/styles/kit-download.test.mjs` | create | The helper, in the browser and in the phone app |
 | `packages/contracts/src/reports/report-tiles.ts` | create | The tile builders, their metric ids, `bookedTileOf`, the words that compare (moved out of `reports.ts`) |
 | `packages/contracts/src/reports/report-periods.ts` | create | `ReportPeriodId`, how a request names a period, Month's days |
 | `packages/contracts/src/reports/lenses.ts` | create | The lens registry and every list derived from it |
@@ -256,13 +256,13 @@ git commit -m "The style recorder opens only what the harness draws, the kit's g
 **Why:** `kit/charts/card.tsx` (`ckSaveCsv`) and `people/bulk/download.ts` (`downloadCsv`) each build a CSV blob, click an anchor and revoke the address; only the card's hands the file to the phone app first. One helper, with the phone app's door, in the kit.
 
 **Files:**
-- Create: `apps/dashboard/src/surfaces/kit/download.ts`, `tooling/scripts/tests/shell/kit-download.test.mjs`
+- Create: `apps/dashboard/src/surfaces/kit/download.ts`, `tooling/scripts/tests/styles/kit-download.test.mjs`
 - Modify: `apps/dashboard/src/surfaces/kit/charts/card.tsx`, `apps/dashboard/src/surfaces/people/bulk/bulk-acts.tsx`
 - Delete: `apps/dashboard/src/surfaces/people/bulk/download.ts`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `tooling/scripts/tests/shell/kit-download.test.mjs`:
+Create `tooling/scripts/tests/styles/kit-download.test.mjs`:
 
 ```js
 /**
@@ -339,7 +339,7 @@ test("inside the phone app the same words go to its share sheet, mark and all, a
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `node tooling/scripts/checks/test.mjs tooling/scripts/tests/shell/kit-download.test.mjs`
+Run: `node tooling/scripts/checks/test.mjs tooling/scripts/tests/styles/kit-download.test.mjs`
 Expected: FAIL, `apps/dashboard/src/surfaces/kit/download.ts` cannot be found.
 
 - [ ] **Step 3: Write the helper**
@@ -396,7 +396,7 @@ In `apps/dashboard/src/surfaces/people/bulk/bulk-acts.tsx` change line 20 `impor
 - [ ] **Step 5: Run the helper's test and the two users' regressions**
 
 ```bash
-node tooling/scripts/checks/test.mjs tooling/scripts/tests/shell/kit-download.test.mjs
+node tooling/scripts/checks/test.mjs tooling/scripts/tests/styles/kit-download.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/shell/chart-kit.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/people/people-honest.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/mobile/app-bridge-page.test.mjs
@@ -406,8 +406,8 @@ Expected: all PASS (the chart card's CSV and the phone app's hand-off, People's 
 - [ ] **Step 6: Format and commit**
 
 ```bash
-corepack pnpm exec prettier --write apps/dashboard/src/surfaces/kit/download.ts apps/dashboard/src/surfaces/kit/charts/card.tsx apps/dashboard/src/surfaces/people/bulk/bulk-acts.tsx tooling/scripts/tests/shell/kit-download.test.mjs
-git add apps/dashboard/src/surfaces/kit/download.ts apps/dashboard/src/surfaces/kit/charts/card.tsx apps/dashboard/src/surfaces/people/bulk/bulk-acts.tsx tooling/scripts/tests/shell/kit-download.test.mjs
+corepack pnpm exec prettier --write apps/dashboard/src/surfaces/kit/download.ts apps/dashboard/src/surfaces/kit/charts/card.tsx apps/dashboard/src/surfaces/people/bulk/bulk-acts.tsx tooling/scripts/tests/styles/kit-download.test.mjs
+git add apps/dashboard/src/surfaces/kit/download.ts apps/dashboard/src/surfaces/kit/charts/card.tsx apps/dashboard/src/surfaces/people/bulk/bulk-acts.tsx tooling/scripts/tests/styles/kit-download.test.mjs
 git rm apps/dashboard/src/surfaces/people/bulk/download.ts
 git commit -m "A CSV is saved by one helper in the kit, with the phone app's hand-off, for the chart card and People's export alike." -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
