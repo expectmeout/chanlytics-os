@@ -3083,6 +3083,47 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
   );
 });
 
+test("inbox.thread says nothing of reasoning beside a customer's words, though their message carries an intent since 00287: a reply of the receptionist's keeps its why", async () => {
+  const brain = {
+    intent: "pricing",
+    confidence: 0.62,
+    reason: "asked a price",
+    facts_used: [],
+    language: "en",
+    model: "m",
+  };
+  const t = tables({
+    messages: [
+      message(M1, C1, {
+        direction: "inbound",
+        sender: "customer",
+        body: "How much is a refill?",
+        meta: { raw_type: "text", processed_at: iso(NOW.getTime() - 3590_000), handled: "ai", intent: "pricing" },
+      }),
+      message(M2, C1, {
+        direction: "outbound",
+        sender: "ai",
+        body: "Refills are $40.",
+        status: "sent",
+        created_at: iso(NOW.getTime() - 3580_000),
+        meta: brain,
+      }),
+    ],
+  });
+  const tc = newToolContext(ctxFor(t), A, "operator", TZ, NOW);
+  const read = JSON.parse(
+    (await runTool(tc, { name: "inbox", input: { action: "thread", conversation_id: C1 } })).result,
+  );
+  assert.deepEqual(
+    read.messages.map((m) => [m.from, m.text, m.why ?? null]),
+    [
+      ["customer", "How much is a refill?", null],
+      ["receptionist", "Refills are $40.", "Pricing question · 62% sure"],
+    ],
+    "the customer's stamped message carries no why; the receptionist's reply does",
+  );
+});
+
 test("people.get is the person page's one read (ledger #3): the reader's one round, every read keyed on the person asked for at once and only their threads' own waiting for the ids; the config and sells_by the turn already read are not read again; read once a turn; the page's own view model over the page's payload, so the About rows and the timeline say what the profile says; another workspace's person is an error, never a row", async () => {
   const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
   const P2 = "abababab-abab-4aba-8aba-abababababa2";

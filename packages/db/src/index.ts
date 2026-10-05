@@ -7,6 +7,7 @@ export { emitEvent, recordEvent, subjectsWith, recordActivation } from "./events
 export type { EmittedKind, EventData } from "./events";
 export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, usageMonth } from "./ai-usage";
 export type { AiFailures, UsageMonthRow } from "./ai-usage";
+export { keepInvoiceAmount } from "./billing-events";
 export { migrationHead } from "./ops";
 export type { MigrationHead } from "./ops";
 export { createServiceClient } from "./service-client";
@@ -19,10 +20,12 @@ export {
   ingestInbound,
   recordCarrierOptOut,
   markProcessed,
+  stampHandled,
   recordOutbound,
   resolveOutboundTarget,
   countSentToday,
   recordStatusByExternalId,
+  keepMessageCost,
   recordEchoAndPause,
   pauseConversation,
   claimReplyTurn,
@@ -208,7 +211,7 @@ export { readJobToRequeue, hasNewerCopy, assembleBroadcast } from "./jobs";
 export type { JobToRequeue } from "./jobs";
 export { claimControl, releaseControl, CALL_CONTROL_S } from "./repositories/control";
 export type { ControlHolder, ControlOutcome } from "./repositories/control";
-export { templatesFor } from "./repositories/templates";
+export { templatesFor, setTemplateQuality } from "./repositories/templates";
 export type { TemplateRow } from "./repositories/templates";
 export {
   getTenantConfig,
@@ -307,6 +310,6 @@ export { watchedTables, watchedEvents, subscribeWorkspaceChanges } from "./realt
 export type { SubscribeOptions } from "./realtime";
 export { readAllRows, readAllRowsByKey, MAX_ROWS, DEFAULT_ROW_CAP } from "./paged";
 export type { Page } from "./paged";
-export { duePlaybooks, dueCalendars, stampPlaybooksTried } from "./sweeps";
-export type { DuePage, DuePlaybook, DueCalendar } from "./sweeps";
+export { duePlaybooks, dueCalendars, stampPlaybooksTried, whatsappNumbersToRead, keepChannelQuality } from "./sweeps";
+export type { DuePage, DuePlaybook, DueCalendar, WhatsappNumber } from "./sweeps";
 export type { Database, Json } from "./database.types";

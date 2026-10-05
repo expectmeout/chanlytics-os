@@ -108,6 +108,28 @@ export function mapCategory(c: string | null | undefined): TemplateCategory | nu
   }
 }
 
+const TEMPLATE_QUALITIES = ["GREEN", "YELLOW", "RED", "UNKNOWN"] as const;
+type TemplateQuality = (typeof TEMPLATE_QUALITIES)[number];
+/** A number's quality has the template's four words and Meta's NA, a number it has not rated; no template has it. */
+const NUMBER_QUALITIES = [...TEMPLATE_QUALITIES, "NA"] as const;
+type NumberQuality = (typeof NUMBER_QUALITIES)[number];
+
+/** Which of `words` Meta's word is, however it cased or padded it, else null: the one rule behind every quality. */
+function qualityIn<W extends string>(words: readonly W[], q: unknown): W | null {
+  const word = typeof q === "string" ? q.trim().toUpperCase() : "";
+  return words.find((w) => w === word) ?? null;
+}
+
+/** A template's quality in Meta's own words (the Templates page's pill is keyed by them); any other value is no quality. */
+export function mapQuality(q: unknown): TemplateQuality | null {
+  return qualityIn(TEMPLATE_QUALITIES, q);
+}
+
+/** A number's quality in Meta's own words (the channel-quality sweep keeps it); any other value is no quality. */
+export function mapNumberQuality(q: unknown): NumberQuality | null {
+  return qualityIn(NUMBER_QUALITIES, q);
+}
+
 function bodyComponent(t: MetaTemplate): MetaTemplateComponent | undefined {
   return (t.components ?? []).find((c) => String(c.type).toUpperCase() === "BODY");
 }
@@ -158,7 +180,7 @@ interface TemplateRow {
   category: TemplateCategory | null;
   meta_id: string;
   components: MetaTemplateComponent[] | null;
-  quality: string | null;
+  quality: TemplateQuality | null;
   rejected_reason: string | null;
   body_preview: string | null;
   variables: TemplateVariable[];
@@ -182,7 +204,7 @@ export function templateRow(
     category: mapCategory(t.category),
     meta_id: t.id,
     components: t.components ?? null,
-    quality: t.quality_score?.score ?? null,
+    quality: mapQuality(t.quality_score?.score),
     rejected_reason: status === "rejected" ? reason : null,
     body_preview: bodyOf(t),
     variables: variablesOf(t, keepLabels),

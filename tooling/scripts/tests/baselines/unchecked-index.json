@@ -98,7 +98,7 @@
   "packages/contracts/src/reach-out/reach-out-reply-words.ts": 1,
   "packages/contracts/src/reach-out/reach-out-sheet.ts": 3,
   "packages/contracts/src/reach-out/reach-out-timetable.ts": 5,
-  "packages/contracts/src/reports/reports.ts": 21,
+  "packages/contracts/src/reports/reports.ts": 20,
   "packages/contracts/src/setup/capabilities.ts": 2,
   "packages/contracts/src/setup/first-run.ts": 20,
   "packages/contracts/src/shared/email-address.ts": 2,

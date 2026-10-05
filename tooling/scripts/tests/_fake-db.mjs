@@ -720,8 +720,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
           const rank = (v, o) => (v == null ? (o.nullsFirst ? "" : "￿") : String(v));
           out = [...out].sort((a, b) => {
             for (const o of q.orders) {
-              const x = rank(a[o.col], o),
-                y = rank(b[o.col], o);
+              const x = rank(cell(a, o.col), o),
+                y = rank(cell(b, o.col), o);
               const d = x < y ? -1 : x > y ? 1 : 0;
               if (d) return o.desc ? -d : d;
             }

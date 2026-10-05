@@ -320,6 +320,48 @@ test("one thread: any member reads it where it lives, older messages page back, 
   await refused(thread.GET.run(get(), ctxFor(harborOnly, { id: C1 })), "not_found", 404);
 });
 
+test("one thread sends its messages' meta as a member may be sent it: what a message cost to send is dropped, in the first page and the page before it, and every other key stays", async () => {
+  const pricing = { billable: true, pricing_model: "PMP", category: "utility", type: "regular" };
+  const tables = {
+    memberships: both("viewer", "operator"),
+    conversations: [conversation(C1, B)],
+    messages: [
+      message("m1", C1, B, {
+        created_at: "2026-09-01T00:00:00Z",
+        direction: "outbound",
+        sender: "ai",
+        status: "delivered",
+        meta: { source: "ai", pricing },
+      }),
+      message("m2", C1, B, {
+        created_at: "2026-09-02T00:00:00Z",
+        direction: "outbound",
+        sender: "ai",
+        status: "read",
+        meta: { source: "ai", handled: "ai", pricing },
+      }),
+      message("m3", C1, B, { created_at: "2026-09-03T00:00:00Z" }),
+    ],
+  };
+  const out = await thread.GET.run(get(), ctxFor(tables, { id: C1 }));
+  assert.deepEqual(
+    out.messages.map((m) => [m.id, m.meta]),
+    [
+      ["m1", { source: "ai" }],
+      ["m2", { source: "ai", handled: "ai" }],
+      ["m3", null],
+    ],
+    "REGRESSION: a member's browser was sent what a message cost to send",
+  );
+  const older = await thread.GET.run(get("?before=2026-09-02T00:00:00Z"), ctxFor(tables, { id: C1 }));
+  assert.deepEqual(
+    older.messages.map((m) => m.meta),
+    [{ source: "ai" }],
+  );
+  assert.ok(!JSON.stringify([out, older]).includes("pricing"));
+  assert.deepEqual(tables.messages[0].meta.pricing, pricing, "the row itself is untouched");
+});
+
 test("a reply: a viewer is refused as a viewer whatever the body says, the body is judged before any row is touched, an opt-out refuses before anything is queued, and a closed window wants a template", async () => {
   const tables = {
     memberships: both("viewer", "operator"),

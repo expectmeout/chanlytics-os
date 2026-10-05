@@ -20,6 +20,7 @@
  */
 import { errField } from "@chanlytics/channels";
 import { GO, type Answering } from "./context";
+import { handledOf } from "./handled";
 import type { Turn } from "./model-turn";
 
 /**
@@ -37,7 +38,7 @@ export async function claimTheTurn(at: Answering, photo: unknown): Promise<typeo
   if (held) return GO;
   // A newer message of this thread is being answered, and its reply covers this one's words too.
   L.info("wa_superseded", { at: "claim", conversation_id: ing.conversation_id });
-  await sink.processed();
+  await sink.processed(handledOf({ escalation: "none", reply: "covered" }));
   return undefined;
 }
 
@@ -58,6 +59,6 @@ export async function stillOurs(at: Answering, t: Turn, photo: unknown): Promise
   // Held, in the usage event's own word for a reply that did not go out: the first-reply milestone (recordUsage) is not
   // reached by an answer nobody read.
   if (t.usage) await sink.usage({ ...t.usage, held: "superseded" });
-  await sink.processed();
+  await sink.processed(handledOf({ escalation: "none", reply: "covered" }), t.brainMeta?.intent ?? null);
   return undefined;
 }

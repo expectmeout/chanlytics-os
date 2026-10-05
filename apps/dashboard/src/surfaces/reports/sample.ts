@@ -157,7 +157,6 @@ function reportDto(all: readonly SampleDay[], n: number, today: string): ReportD
     voice: sumOf(xs.map((d) => d.report.calls)),
     email: sumOf(xs.map((d) => d.email)),
     sms: sumOf(xs.map((d) => d.sms)),
-    instagram: 0,
   });
   const hours = Array.from({ length: 7 }, () => Array<number>(24).fill(0));
   for (const d of cur)
@@ -256,7 +255,7 @@ export function reportsSample(days: number, today: string = todayIn(ZONE)): Repo
   const hit = keptReports.get(key);
   if (hit) return hit;
   const all = business(today);
-  const vm = toReportVM(reportDto(all, n, today));
+  const vm = toReportVM(reportDto(all, n, today), { profile: null });
   const campaigns = toCampaignReportVM(campaignDto(all, n, today));
   const surface: ReportsSurface = {
     vm,

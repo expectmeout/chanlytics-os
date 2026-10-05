@@ -490,6 +490,15 @@ const FIXTURE = JSON.parse(
   fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/fixtures/ask-tool-results-7405e34b.json"), "utf8"),
 );
 
+/**
+ * The report's reply_time says the hold the owner set since the Reports fix wave (spec D14): null where the report
+ * carries none, as the report this suite reads does. The one change to the bytes of an answer that has a reply_time.
+ */
+function withHold(result) {
+  const said = JSON.parse(result);
+  return said.reply_time ? JSON.stringify({ ...said, reply_time: { ...said.reply_time, hold: null } }) : result;
+}
+
 test("the mapping names every old tool once, each to a tool and action the registry has", () => {
   assert.equal(Object.keys(NAMES).length, 26, "the twenty-six old tools");
   assert.equal(new Set(Object.values(NAMES)).size, 26, "each to its own name.action");
@@ -528,6 +537,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     let result = want.result;
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
+    if (NAMES[old] === "report") result = withHold(result);
     // An action above the caller is refused by the registry first since PR 4.3 (the Phase 4 plan, D2), in its words,
     // before anything is read, as its builder refused it: the other change to these bytes.
     const act = ACT_DEFS.find((x) => x.name === call.name)?.actions[call.input.action ?? ""];

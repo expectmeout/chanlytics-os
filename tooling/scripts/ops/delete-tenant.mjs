@@ -131,6 +131,7 @@ const TABLES = [
   "reply_turns",
   "segment_members",
   "segments",
+  "sending_domain_days",
   "sending_domains",
   "templates",
   "tenant_channels",

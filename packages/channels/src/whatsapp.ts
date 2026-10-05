@@ -3,7 +3,12 @@
  * canonical events and performs sends. No persistence, no decisions — the edge
  * wires this to the repositories. Config is passed in; env is never read here.
  */
-import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, OPT_OUT_PATTERN } from "@chanlytics/contracts";
+import {
+  CONVERSATION_OPT_IN_PATTERN,
+  MARKETING_OPT_IN_PATTERN,
+  OPT_OUT_PATTERN,
+  REFERRAL_ID_MAX,
+} from "@chanlytics/contracts";
 import { answerObject, providerFetch, type SendOutcome } from "./provider-fetch";
 import { errField, logger } from "./log/logger";
 
@@ -43,13 +48,19 @@ export interface WaRawMessage {
   contacts?: Array<{ name?: { formatted_name?: string }; phones?: Array<{ phone?: string }> }>;
   /** Platform housekeeping (a customer changed their number). Not from a person. */
   system?: { body?: string; type?: string };
+  /**
+   * Present when the person came in through a click-to-WhatsApp ad or post: Meta names it (`source_id`) and says what
+   * it was (`source_type`). The rest of it (headline, link, click id) is never kept. This is the shape Meta documents,
+   * not one a message is trusted to have: `adReferralOf` reads it without assuming any of it.
+   */
+  referral?: { source_id?: string; source_type?: string };
 }
 
 export interface WaChangeValue {
   metadata?: { phone_number_id?: string; display_phone_number?: string };
   contacts?: Array<{ wa_id?: string; profile?: { name?: string } }>;
   messages?: WaRawMessage[];
-  statuses?: Array<{ id?: string; status?: string; recipient_id?: string; errors?: unknown }>;
+  statuses?: Array<{ id?: string; status?: string; recipient_id?: string; errors?: unknown; pricing?: unknown }>;
   message_echoes?: Array<{ to?: string; id?: string; text?: { body?: string } }>;
 }
 
@@ -93,6 +104,41 @@ export interface NormalizedInbound {
   optIn: boolean;
   /** The words were the OFFERS ones specifically -- express written consent to be marketed to, which is a separate answer. */
   optInMarketing: boolean;
+  /** The ad or post this person clicked to write, when Meta says: its id and kind (K3). Null for a message with none. */
+  referral: { sourceId: string; sourceType: string | null } | null;
+}
+
+/**
+ * What a referral's id may not hold: a control character (a NUL among them) or a lone surrogate. Postgres refuses both
+ * inside the `p_meta` the id travels in (jsonb has no \u0000, and no lone surrogate is valid JSON), which would fail
+ * `ingest_inbound`, make `pgIngest` throw IngestFailed and the door answer 503, and Meta would redeliver the same payload
+ * for ever: the customer's message would never land. A whitespace control at either end is padding, trimmed before this
+ * is asked; one inside the id is refused.
+ */
+const UNSTORABLE_IN_ID = /[\p{Cc}\p{Cs}]/u;
+
+/**
+ * What a referral's kind may be: Meta's own are the words `ad` and `post`, so a word of letters, digits, `_` and `-`, at
+ * most 32 long. Anything else (a control character, a lone surrogate, a sentence, megabytes) is not a kind Meta sent and
+ * is kept as none; the kind has no column to agree with, so the 32 is said here and nowhere else.
+ */
+const REFERRAL_KIND = /^[\p{L}\p{N}_-]{1,32}$/u;
+
+/**
+ * The ad or post a message came from (K3), read defensively. A click-to-WhatsApp referral's shape is Meta's to change
+ * and unverified here, so nothing is assumed of `r`: it may be absent, not an object, or hold an id that is not a string.
+ * Only the id and the kind are kept, and only when what they hold can always be written. The id is trimmed (padding is
+ * not part of an id, and the trigger trims the same), then it is none when blank, longer than `REFERRAL_ID_MAX` (the one
+ * length the column keeps, contracts first-touch.ts; never cut, a cut id would name another ad) or holding what
+ * `UNSTORABLE_IN_ID` names: the stamp the database would refuse for it is the person's wire instead. The kind that is
+ * not a plain word is null, and the id stands. Never throws, so a referral can cost a message nothing.
+ */
+function adReferralOf(r: unknown): NormalizedInbound["referral"] {
+  if (typeof r !== "object" || r === null) return null;
+  const id = "source_id" in r && typeof r.source_id === "string" ? r.source_id.trim() : "";
+  if (id.length < 1 || id.length > REFERRAL_ID_MAX || UNSTORABLE_IN_ID.test(id)) return null;
+  const kind = "source_type" in r && typeof r.source_type === "string" ? r.source_type.trim() : "";
+  return { sourceId: id, sourceType: REFERRAL_KIND.test(kind) ? kind : null };
 }
 
 /**
@@ -121,6 +167,20 @@ function chosenReply(m: WaRawMessage): { label: string; id: string } | null {
     return label || id ? { label, id } : null;
   }
   return null;
+}
+
+/** The attachment a message carries, as a reference to fetch later: nothing is downloaded here. Null without an id. */
+function mediaRefOf(
+  src: { id?: string; mime_type?: string; caption?: string; filename?: string } | null,
+): WaMediaRef | null {
+  if (!src?.id) return null;
+  return {
+    provider_media_id: src.id,
+    mime_type: src.mime_type ?? null,
+    caption: src.caption ?? null,
+    filename: src.filename ?? null,
+    fetch_state: "pending",
+  };
 }
 
 export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): NormalizedInbound {
@@ -199,18 +259,7 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
     rawType: m.type,
     body,
     channelTsIso: m.timestamp ? new Date(Number(m.timestamp) * 1000).toISOString() : null,
-    media: mediaSrc?.id
-      ? (() => {
-          const loose = mediaSrc as { mime_type?: string; caption?: string; filename?: string };
-          return {
-            provider_media_id: mediaSrc.id,
-            mime_type: loose.mime_type ?? null,
-            caption: loose.caption ?? null,
-            filename: loose.filename ?? null,
-            fetch_state: "pending" as const,
-          };
-        })()
-      : null,
+    media: mediaRefOf(mediaSrc),
     optOut: isText && matches(OPT_OUT_PATTERN),
     // WHICH yes, and only that one. START, UNSTOP, RESUME and ALTA answer the
     // appointment question; YES OFFERS answers the offers question and nothing
@@ -221,7 +270,41 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
     // is START, as the carriers' own reply to a STOP says.
     optIn: isText && matches(CONVERSATION_OPT_IN_PATTERN),
     optInMarketing: isText && matches(MARKETING_OPT_IN_PATTERN),
+    referral: adReferralOf(m.referral),
   };
+}
+
+/**
+ * What Meta says a message was billed as, on a `sent`, `delivered` or `read` receipt (K8): whether it is billable, the
+ * model that priced it and its category and type. Meta sends no amount and no currency, so none is kept: the operator
+ * prices a category by the recipient's country with Meta's rate card. A type alias, so it is a Json without a cast.
+ */
+export type WaPricing = { billable?: boolean; pricing_model?: string; category?: string; type?: string };
+
+/**
+ * A word of Meta's pricing (`PMP`, `utility`, `authentication-international`, `free_customer_service`): letters, digits, `_`
+ * and `-`, at most 40. Anything else (a sentence, a control character, a megabyte) is not one. The same word the
+ * database's message_keep_cost (00301) accepts, so what this keeps is what it stores: tied to it by
+ * tooling/scripts/tests/messages/a-message-keeps-what-it-cost-to-send.db.test.mjs, which runs one table of pricings
+ * through both, so an edit to either alone is a red test (database files run in CI when database paths change: run it).
+ */
+const PRICING_WORD = /^[A-Za-z0-9_-]{1,40}$/;
+
+/**
+ * Meta's `pricing` as kept, read without trusting any of it: each key stands or falls on its own, and nothing but the four
+ * is kept. The category is the key the operator prices by, and the cost door refuses an answer without one, so a pricing
+ * without a valid category is none (null), and the caller says it was dropped. Never throws.
+ */
+export function waPricingOf(raw: unknown): WaPricing | null {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const out: WaPricing = {};
+  if (typeof r.billable === "boolean") out.billable = r.billable;
+  for (const key of ["pricing_model", "category", "type"] as const) {
+    const word = r[key];
+    if (typeof word === "string" && PRICING_WORD.test(word)) out[key] = word;
+  }
+  return out.category ? out : null;
 }
 
 /* -------------------------------- sends -------------------------------- */

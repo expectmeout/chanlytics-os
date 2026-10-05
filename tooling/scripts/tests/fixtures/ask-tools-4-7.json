@@ -275,7 +275,7 @@
     },
     {
       "name": "report",
-      "description": "The Reports page for the last 7, 30 or 90 days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time, calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes 7, 30 or 90 and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.",
+      "description": "The Reports page for the last 7, 30 or 90 days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time (both include the hold the owner set before a reply goes out; reply_time.hold splits the replies against it: with no hold, as the hold ended, or later, and the most any took past it), calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes 7, 30 or 90 and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1162,7 +1162,7 @@
     },
     {
       "name": "report",
-      "description": "The Reports page for the last 7, 30 or 90 days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time, calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes 7, 30 or 90 and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.",
+      "description": "The Reports page for the last 7, 30 or 90 days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time (both include the hold the owner set before a reply goes out; reply_time.hold splits the replies against it: with no hold, as the hold ended, or later, and the most any took past it), calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes 7, 30 or 90 and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -2285,7 +2285,7 @@
     },
     {
       "name": "report",
-      "description": "The Reports page for the last 7, 30 or 90 days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time, calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes 7, 30 or 90 and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.",
+      "description": "The Reports page for the last 7, 30 or 90 days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time (both include the hold the owner set before a reply goes out; reply_time.hold splits the replies against it: with no hold, as the hold ended, or later, and the most any took past it), calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes 7, 30 or 90 and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -3446,7 +3446,7 @@
     },
     {
       "name": "report",
-      "description": "The Reports page for the last 7, 30 or 90 days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time, calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes 7, 30 or 90 and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.",
+      "description": "The Reports page for the last 7, 30 or 90 days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time (both include the hold the owner set before a reply goes out; reply_time.hold splits the replies against it: with no hold, as the hold ended, or later, and the most any took past it), calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes 7, 30 or 90 and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.",
       "input_schema": {
         "type": "object",
         "properties": {

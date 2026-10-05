@@ -55,6 +55,19 @@ export interface ActivityPageDto {
 export const ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."] as const;
 
 /**
+ * Kinds, one by one, that are a record kept for Reports and that no owner reads as activity: hidden unless asked for by
+ * name. Each is named, never its family, so an owner-facing kind added under the same prefix later (an `escalation.` one)
+ * is shown and not hidden with them.
+ */
+export const ACTIVITY_NOISE_KINDS = [
+  "escalation.changed",
+  "lead.set_aside",
+  "call.transferred",
+  "booking_link.sent",
+  "channel.quality_rating",
+] as const;
+
+/**
  * Whether a row of the log is about money: an event its emitter filed under billing -- the subscription's
  * (billing.updated, .paused, .resumed, apps/edge/lib/billing/billing.ts) and a partner's share, its reversal, its payment and
  * its standing (partner.earned, .reversed, .paid, .standing_set, written by 00203/00205/00207/00214). Read from the row's
@@ -135,9 +148,13 @@ const WORDS: Record<string, string> = {
   "conversation.reopened": "A thread reopened",
   "conversation.pause_expired": "A pause ended",
   "conversation.snooze_expired": "A snooze ended",
+  "escalation.changed": "A handover's reason changed",
   "call.recorded": "A call was recorded",
+  "call.transferred": "A call was passed to a person",
+  "booking_link.sent": "The booking link was sent",
   "broadcast.sent": "A broadcast finished",
   "playbook.run": "A playbook ran",
+  "channel.quality_rating": "A WhatsApp number's quality rating changed",
   "setup.requested": "Setup was requested",
   "voice.provisioned": "The phone receptionist was provisioned",
   "line.answering": "A line started answering",
@@ -166,6 +183,7 @@ const WORDS: Record<string, string> = {
   "lead.round": "A search for businesses",
   "lead.no_card": "An ask no source covers yet",
   "lead.converted": "A lead is Talking",
+  "lead.set_aside": "A lead was set aside",
   // A reply to a reach-out, read (Reach out Part 5): the case below says who and what it meant.
   "reach_out.replied": "A business wrote back to a reach-out",
   "reach_out.reply_undone": "A reply read as no was undone",
@@ -474,7 +492,10 @@ export const ACTIVITY_KINDS: readonly string[] = [...DECISION_VERBS, ...EVENT_KI
 
 /** true for a kind an owner is not shown unless they ask for it by name. */
 export function isActivityNoise(kind: string): boolean {
-  return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p));
+  return (
+    ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p)) ||
+    (ACTIVITY_NOISE_KINDS as readonly string[]).includes(kind)
+  );
 }
 
 export type { DecisionVerb as ActivityVerb };

@@ -63,9 +63,10 @@ function leadJudgeFallbacks(v: string | undefined = env.LEAD_JUDGE_FALLBACKS): b
 /**
  * The judge's client over the model port (lib/model.ts): the registry's route for the judge (its bound, no retry and no
  * fallback of its own: a slow or overloaded answer is the jobs ledger's retry to make, inside JUDGE_MARGIN_MS), each call
- * written to the usage ledger for the search's workspace. The API's refusal of the request (a 400 naming the beta or the
- * format) is thrown with its status, so the judge asks again without the beta, as it did over the SDK; any other call
- * that got no answer throws, and the job retries.
+ * written to the usage ledger for the search's workspace, with the round it was paid in as the row's subject
+ * (`subject_id`; `purpose` already says the row is the judge's, and a call that names no round leaves it empty). The
+ * API's refusal of the request (a 400 naming the beta or the format) is thrown with its status, so the judge asks again
+ * without the beta, as it did over the SDK; any other call that got no answer throws, and the job retries.
  */
 const portJudgeClient = (): LeadJudgeClient => ({
   beta: {
@@ -74,7 +75,7 @@ const portJudgeClient = (): LeadJudgeClient => ({
         const { model, betas, ...body } = params as { model?: string; betas?: string[] } & Record<string, unknown>;
         const r = await callModel(
           { purpose: "lead_judge", body, ...(typeof model === "string" ? { model } : {}), ...(betas ? { betas } : {}) },
-          { tenantId: call?.tenantId ?? null },
+          { tenantId: call?.tenantId ?? null, subjectId: call?.roundId ?? null },
         );
         if (!r || r.outcome === "held") throw new Error("lead judge: no model to ask");
         if (r.outcome !== "ok") throw Object.assign(new Error(r.error), { status: r.status });
@@ -93,16 +94,18 @@ function judgedLabel(out: LeadJudgeAnswer | undefined, ref: string, criterion: s
 
 /**
  * The judge, with each place's criteria also put to a second model in shadow when it is on (decision 0023): one call a
- * place, its answers compared with the judge's and kept, never read by the run. The judge's own answer, its refusals
- * and its throws pass through as they were.
+ * place, its answers compared with the judge's and kept, never read by the run, each row naming the round the judge's own
+ * row names. The judge's own answer, its refusals and its throws pass through as they were.
  */
 function shadowed(inner: LeadJudge): LeadJudge {
   return {
-    async judge(plan, places, tenantId) {
-      const shadow = startShadow("lead_judge", { tenantId: tenantId ?? null }, () => judgeShadowSpecs(plan, places));
+    async judge(plan, places, tenantId, roundId) {
+      const shadow = startShadow("lead_judge", { tenantId: tenantId ?? null, subjectId: roundId ?? null }, () =>
+        judgeShadowSpecs(plan, places),
+      );
       let out: LeadJudgeAnswer | undefined;
       try {
-        out = await inner.judge(plan, places, tenantId);
+        out = await inner.judge(plan, places, tenantId, roundId);
         return out;
       } finally {
         await shadow?.settle((ref, criterion) => judgedLabel(out, ref, criterion));

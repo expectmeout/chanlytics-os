@@ -231,8 +231,16 @@ test(
 
     const closed = ok(await db.from("events").select("subject_id, data").eq("tenant_id", A).eq("kind", "lead.stage"));
     assert.deepEqual(closed.map((e) => e.subject_id).sort(), [leads.ready.id, leads.nurture.id].sort());
+    // Each lead's event says the stage that lead came from (00292), whichever the order they were closed in.
+    const cameFrom = { [leads.ready.id]: "ready", [leads.nurture.id]: "nurture" };
     for (const e of closed)
-      assert.deepEqual(e.data, { stage: "archived", reason: "said_no", by: null, source: "unsubscribe" });
+      assert.deepEqual(e.data, {
+        stage: "archived",
+        reason: "said_no",
+        by: null,
+        source: "unsubscribe",
+        from: cameFrom[e.subject_id],
+      });
     const ops = ok(await db.from("lead_operations").select("id").eq("tenant_id", A));
     assert.equal(ops.length, 0, "no operation to undo: the stop is the person's");
 

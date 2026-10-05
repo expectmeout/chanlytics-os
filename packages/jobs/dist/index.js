@@ -2177,6 +2177,8 @@ var EVENT_KINDS = [
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00295): { channel, sender }. */
+  "booking_link.sent",
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
@@ -2220,6 +2222,8 @@ var EVENT_KINDS = [
   "billing.resumed",
   /** A call: the row (00007) and the seconds it cost. */
   "call.recorded",
+  /** A call ended in a transfer to a person (00294): { answered }, whether they picked up. */
+  "call.transferred",
   "usage.voice_seconds",
   /** The assistant's model usage, per turn (ask-gateway). */
   "usage.ask_tokens",
@@ -2250,11 +2254,15 @@ var EVENT_KINDS = [
   "policy.veto_window_skipped",
   /** The sweep woke a snooze whose time had passed (00082). */
   "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00290): { from, to }, reasons only, never the words. */
+  "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00297): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
@@ -2277,6 +2285,15 @@ var EVENT_KINDS = [
   "lead.call",
   "lead.converted",
   "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00291): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",
@@ -5670,6 +5687,8 @@ var EVENT_KINDS2 = [
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00295): { channel, sender }. */
+  "booking_link.sent",
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
@@ -5713,6 +5732,8 @@ var EVENT_KINDS2 = [
   "billing.resumed",
   /** A call: the row (00007) and the seconds it cost. */
   "call.recorded",
+  /** A call ended in a transfer to a person (00294): { answered }, whether they picked up. */
+  "call.transferred",
   "usage.voice_seconds",
   /** The assistant's model usage, per turn (ask-gateway). */
   "usage.ask_tokens",
@@ -5743,11 +5764,15 @@ var EVENT_KINDS2 = [
   "policy.veto_window_skipped",
   /** The sweep woke a snooze whose time had passed (00082). */
   "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00290): { from, to }, reasons only, never the words. */
+  "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00297): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
@@ -5770,6 +5795,15 @@ var EVENT_KINDS2 = [
   "lead.call",
   "lead.converted",
   "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00291): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",
@@ -8974,6 +9008,8 @@ var EVENT_KINDS3 = [
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00295): { channel, sender }. */
+  "booking_link.sent",
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
@@ -9017,6 +9053,8 @@ var EVENT_KINDS3 = [
   "billing.resumed",
   /** A call: the row (00007) and the seconds it cost. */
   "call.recorded",
+  /** A call ended in a transfer to a person (00294): { answered }, whether they picked up. */
+  "call.transferred",
   "usage.voice_seconds",
   /** The assistant's model usage, per turn (ask-gateway). */
   "usage.ask_tokens",
@@ -9047,11 +9085,15 @@ var EVENT_KINDS3 = [
   "policy.veto_window_skipped",
   /** The sweep woke a snooze whose time had passed (00082). */
   "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00290): { from, to }, reasons only, never the words. */
+  "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00297): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
@@ -9074,6 +9116,15 @@ var EVENT_KINDS3 = [
   "lead.call",
   "lead.converted",
   "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00291): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",
@@ -9945,6 +9996,20 @@ var CALL_ANALYSIS_FIELDS = [
     name: "caller_email",
     description: "The email address the caller gave, exactly as they spelled it out. Leave empty if they did not give one.",
     examples: ["ana.ruiz@example.com", "daniela.r@example.net"]
+  },
+  {
+    type: "enum",
+    name: "topic",
+    // The classes a rule covers are said in the words the receptionist's prompt and its texts' intent say them
+    // (POLICY_COVERS), so a call and a text read one meaning; only what no rule covers is said here.
+    description: `What the call was mainly about. booking: ${POLICY_COVERS3.booking}. pricing: ${POLICY_COVERS3.faq}, when it is about what something costs. services: ${POLICY_COVERS3.faq}, when it is about what the business offers. money: ${POLICY_COVERS3.money}. hours: when the business is open. location: where it is or how to get there. complaint: they were unhappy about something. smalltalk: a greeting or a chat with no request. other: none of these.`,
+    choices: [...BRAIN_INTENTS3]
+  },
+  {
+    type: "enum",
+    name: "language",
+    description: "The language the caller mostly spoke. en: English. es: Spanish. other: any other language.",
+    choices: [...BRAIN_LANGUAGES3]
   }
 ];
 var VOICE_LLM_DEFAULTS = {
@@ -12427,6 +12492,8 @@ var EVENT_KINDS4 = [
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00295): { channel, sender }. */
+  "booking_link.sent",
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
@@ -12470,6 +12537,8 @@ var EVENT_KINDS4 = [
   "billing.resumed",
   /** A call: the row (00007) and the seconds it cost. */
   "call.recorded",
+  /** A call ended in a transfer to a person (00294): { answered }, whether they picked up. */
+  "call.transferred",
   "usage.voice_seconds",
   /** The assistant's model usage, per turn (ask-gateway). */
   "usage.ask_tokens",
@@ -12500,11 +12569,15 @@ var EVENT_KINDS4 = [
   "policy.veto_window_skipped",
   /** The sweep woke a snooze whose time had passed (00082). */
   "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00290): { from, to }, reasons only, never the words. */
+  "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00297): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
@@ -12527,6 +12600,15 @@ var EVENT_KINDS4 = [
   "lead.call",
   "lead.converted",
   "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00291): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",
@@ -13403,6 +13485,20 @@ var CALL_ANALYSIS_FIELDS2 = [
     name: "caller_email",
     description: "The email address the caller gave, exactly as they spelled it out. Leave empty if they did not give one.",
     examples: ["ana.ruiz@example.com", "daniela.r@example.net"]
+  },
+  {
+    type: "enum",
+    name: "topic",
+    // The classes a rule covers are said in the words the receptionist's prompt and its texts' intent say them
+    // (POLICY_COVERS), so a call and a text read one meaning; only what no rule covers is said here.
+    description: `What the call was mainly about. booking: ${POLICY_COVERS4.booking}. pricing: ${POLICY_COVERS4.faq}, when it is about what something costs. services: ${POLICY_COVERS4.faq}, when it is about what the business offers. money: ${POLICY_COVERS4.money}. hours: when the business is open. location: where it is or how to get there. complaint: they were unhappy about something. smalltalk: a greeting or a chat with no request. other: none of these.`,
+    choices: [...BRAIN_INTENTS4]
+  },
+  {
+    type: "enum",
+    name: "language",
+    description: "The language the caller mostly spoke. en: English. es: Spanish. other: any other language.",
+    choices: [...BRAIN_LANGUAGES4]
   }
 ];
 var VOICE_LLM_DEFAULTS2 = {
@@ -16227,6 +16323,8 @@ var EVENT_KINDS22 = [
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00295): { channel, sender }. */
+  "booking_link.sent",
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
@@ -16270,6 +16368,8 @@ var EVENT_KINDS22 = [
   "billing.resumed",
   /** A call: the row (00007) and the seconds it cost. */
   "call.recorded",
+  /** A call ended in a transfer to a person (00294): { answered }, whether they picked up. */
+  "call.transferred",
   "usage.voice_seconds",
   /** The assistant's model usage, per turn (ask-gateway). */
   "usage.ask_tokens",
@@ -16300,11 +16400,15 @@ var EVENT_KINDS22 = [
   "policy.veto_window_skipped",
   /** The sweep woke a snooze whose time had passed (00082). */
   "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00290): { from, to }, reasons only, never the words. */
+  "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00297): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
@@ -16327,6 +16431,15 @@ var EVENT_KINDS22 = [
   "lead.call",
   "lead.converted",
   "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00291): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",
@@ -19345,6 +19458,8 @@ var EVENT_KINDS32 = [
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00295): { channel, sender }. */
+  "booking_link.sent",
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
@@ -19388,6 +19503,8 @@ var EVENT_KINDS32 = [
   "billing.resumed",
   /** A call: the row (00007) and the seconds it cost. */
   "call.recorded",
+  /** A call ended in a transfer to a person (00294): { answered }, whether they picked up. */
+  "call.transferred",
   "usage.voice_seconds",
   /** The assistant's model usage, per turn (ask-gateway). */
   "usage.ask_tokens",
@@ -19418,11 +19535,15 @@ var EVENT_KINDS32 = [
   "policy.veto_window_skipped",
   /** The sweep woke a snooze whose time had passed (00082). */
   "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00290): { from, to }, reasons only, never the words. */
+  "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00297): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
@@ -19445,6 +19566,15 @@ var EVENT_KINDS32 = [
   "lead.call",
   "lead.converted",
   "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00291): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",

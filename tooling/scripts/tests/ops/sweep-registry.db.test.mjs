@@ -98,6 +98,11 @@ const EVERY_CLOCK = {
   purge_page_vitals: "purge-page-vitals",
   // Each workspace's day, counted (00277): nightly at 00:17 UTC, judged by its run.
   platform_metrics_roll: "platform-metrics-roll",
+  // Each sending domain's day (00296): nightly at 00:23 UTC, judged by its run.
+  sending_domain_days: "sending-domain-days",
+  // A connected WhatsApp number's rating (00297): a six-hour clock that asks the edge only when a number is connected,
+  // and records that it looked otherwise.
+  channel_quality: "channel-quality-sweep",
 };
 const RUN_JUDGED = [
   "partitions",
@@ -111,6 +116,7 @@ const RUN_JUDGED = [
   "purge_notifications",
   "purge_page_vitals",
   "purge_rate_hits",
+  "sending_domain_days",
   "snoozes",
 ];
 

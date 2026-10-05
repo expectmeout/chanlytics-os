@@ -2215,6 +2215,20 @@ function mmss(ms2) {
 function callLength(ms2) {
   return ms2 != null && Number.isFinite(ms2) && ms2 > 0 ? mmss(ms2) : void 0;
 }
+function durationWords(seconds) {
+  const v = Math.max(0, Math.round(seconds));
+  if (v < 60) return `${v}s`;
+  if (v < 600) {
+    const m2 = Math.floor(v / 60);
+    const r2 = v % 60;
+    return r2 ? `${m2}m ${r2}s` : `${m2}m`;
+  }
+  const minutes = Math.round(v / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
 
 // src/reach-out/reach-out-words.ts
 import { z as z8 } from "zod";
@@ -11289,6 +11303,24 @@ function dayIntervals(h) {
 function closedOn(closures, key) {
   return !!closures?.some((c) => c.date <= key && key <= (c.until && c.until >= c.date ? c.until : c.date));
 }
+var minutesOf = (s) => {
+  const t = hhmm(s);
+  return t ? t[0] * 60 + t[1] : null;
+};
+function openAt(hours, closures, dateKey, minute) {
+  if (closedOn(closures, dateKey)) return false;
+  const { y, m, d } = keyParts(dateKey);
+  const weekday = WEEKDAY_KEYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  if (!weekday) return false;
+  return dayIntervals(hours?.[weekday]).some(([o, c]) => {
+    const from = minutesOf(o);
+    const to = minutesOf(c);
+    return from !== null && to !== null && from <= minute && minute < to;
+  });
+}
+function hasHours(hours) {
+  return DAYS.some((d) => dayIntervals(hours?.[d]).length > 0);
+}
 function onTheGrid(tz, atMs, slotMin) {
   const grid = slotMin > 0 && 60 % slotMin === 0 ? slotMin : 15;
   const c = clockInZone(tz, atMs);
@@ -12299,6 +12331,8 @@ var EVENT_KINDS = [
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00295): { channel, sender }. */
+  "booking_link.sent",
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
@@ -12342,6 +12376,8 @@ var EVENT_KINDS = [
   "billing.resumed",
   /** A call: the row (00007) and the seconds it cost. */
   "call.recorded",
+  /** A call ended in a transfer to a person (00294): { answered }, whether they picked up. */
+  "call.transferred",
   "usage.voice_seconds",
   /** The assistant's model usage, per turn (ask-gateway). */
   "usage.ask_tokens",
@@ -12372,11 +12408,15 @@ var EVENT_KINDS = [
   "policy.veto_window_skipped",
   /** The sweep woke a snooze whose time had passed (00082). */
   "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00290): { from, to }, reasons only, never the words. */
+  "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00297): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
@@ -12399,6 +12439,15 @@ var EVENT_KINDS = [
   "lead.call",
   "lead.converted",
   "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00291): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",
@@ -14074,6 +14123,96 @@ function reviewReplyWords(mode, canReply) {
   return "";
 }
 
+// src/reports/report-speed.ts
+var REPLY_BUCKETS = [
+  { id: "lt15", label: "under 15s", max: 14 },
+  { id: "lt60", label: "15s \u2013 1m", max: 60 },
+  { id: "lt300", label: "1 \u2013 5m", max: 300 },
+  { id: "lt1800", label: "5 \u2013 30m", max: 1800 },
+  { id: "gte1800", label: "over 30m", max: Infinity }
+];
+var LATER_BUCKETS = [
+  { id: "lt60", label: "up to 1m later", max: 60 },
+  { id: "lt300", label: "1 \u2013 5m later", max: 300 },
+  { id: "gte300", label: "over 5m later", max: Infinity }
+];
+var HOLD_SLACK_S = 10;
+var holdWords2 = (s) => s < 60 ? `${s}-second` : s % 60 === 0 && s < 3600 ? `${s / 60}-minute` : durationWords(s);
+function classOf(r2) {
+  if (r2.hold === void 0 || !(r2.hold > 0)) return { kind: "unheld" };
+  const past = r2.s - r2.hold;
+  return past > HOLD_SLACK_S ? { kind: "later", past } : { kind: "atEnd" };
+}
+function classified(replies) {
+  const rs = (replies ?? []).filter((r2) => Number.isFinite(r2.s));
+  if (!rs.some((r2) => r2.hold !== void 0)) return null;
+  const all = rs.map((r2) => ({ hold: r2.hold ?? 0, c: classOf(r2) }));
+  return all.some((x) => x.c.kind !== "unheld") ? all : null;
+}
+var countOf = (all, kind) => all.filter((x) => x.c.kind === kind).length;
+var pastOf = (all) => all.flatMap((x) => x.c.kind === "later" ? [x.c.past] : []);
+function holdOf(replies) {
+  const all = classified(replies);
+  if (!all) return null;
+  const counts = /* @__PURE__ */ new Map();
+  for (const x of all) if (x.c.kind !== "unheld") counts.set(x.hold, (counts.get(x.hold) ?? 0) + 1);
+  const [seconds] = [...counts].reduce((a, b) => b[1] > a[1] || b[1] === a[1] && b[0] < a[0] ? b : a);
+  const past = pastOf(all);
+  return {
+    seconds,
+    label: holdWords2(seconds),
+    atEnd: countOf(all, "atEnd"),
+    unheld: countOf(all, "unheld"),
+    later: past.length,
+    laterMost: past.length ? Math.max(...past) : null
+  };
+}
+function spanCounts(spans, seconds) {
+  const rounded = seconds.map(Math.round);
+  const rows = [];
+  let lo = -Infinity;
+  for (const { id, label, max } of spans) {
+    rows.push([id, label, rounded.filter((s) => s > lo && s <= max).length]);
+    lo = max;
+  }
+  return rows;
+}
+function holdBuckets(replies) {
+  const all = classified(replies);
+  if (!all) return null;
+  return [
+    ["unheld", "with no hold", countOf(all, "unheld")],
+    ["atEnd", "as the hold ended", countOf(all, "atEnd")],
+    ...spanCounts(LATER_BUCKETS, pastOf(all))
+  ];
+}
+var absoluteBuckets = (sortedReply) => spanCounts(REPLY_BUCKETS, sortedReply);
+function heroSpeed(replies, medianLabel, hold) {
+  if (!replies) return "";
+  const held = hold ? hold.atEnd + hold.later : 0;
+  const seen = hold ? hold.unheld + held : 0;
+  if (!hold || held * 2 <= seen) return ` Half of its replies went out within ${medianLabel}.`;
+  if (hold.atEnd >= hold.later) return ` ${hold.atEnd} of ${seen} went out as your ${hold.label} hold ended.`;
+  return ` ${hold.later} of ${seen} took longer than your ${hold.label} hold.`;
+}
+function holdLine(hold) {
+  if (hold.laterMost !== null) {
+    const more = durationWords(hold.laterMost);
+    return `${hold.later} ${hold.later === 1 ? "reply" : "replies"} took longer than the hold, at most ${more} more.`;
+  }
+  return hold.unheld ? `None waited longer than your hold; ${hold.unheld} had no hold.` : "None waited longer than your hold.";
+}
+var holdNote = (hold) => hold ? ` \xB7 includes your ${hold.label} hold` : "";
+
+// src/reports/report-closed.ts
+function closedOf(arrivals, profile) {
+  if (!arrivals || !profile || !hasHours(profile.hours)) return null;
+  return arrivals.reduce((s, a) => s + (openAt(profile.hours, profile.closures, a.d, a.q * 15) ? 0 : a.n), 0);
+}
+function hoursUnsetOf(arrivals, profile) {
+  return arrivals !== void 0 && profile != null && !hasHours(profile.hours);
+}
+
 // src/shared/numbers.ts
 var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
 
@@ -14082,8 +14221,7 @@ var REPORT_CHANNELS = [
   { key: "whatsapp", label: "WhatsApp" },
   { key: "voice", label: "Calls" },
   { key: "email", label: "Email" },
-  { key: "sms", label: "SMS" },
-  { key: "instagram", label: "Instagram" }
+  { key: "sms", label: "Text" }
 ];
 var REPORT_RANGES = [
   { days: 7, id: "7d", label: "7 days" },
@@ -14099,11 +14237,7 @@ function fmtDay(day) {
 }
 function fmtSeconds(s) {
   if (s == null || !Number.isFinite(s)) return "\u2014";
-  const v = Math.max(0, Math.round(s));
-  if (v < 60) return `${v}s`;
-  if (v < 600) return `${Math.floor(v / 60)}m ${String(v % 60).padStart(2, "0")}s`;
-  if (v < 3600) return `${Math.round(v / 60)}m`;
-  return `${Math.floor(v / 3600)}h ${String(Math.round(v % 3600 / 60)).padStart(2, "0")}m`;
+  return durationWords(s);
 }
 function quantile(sorted, q) {
   if (!sorted.length) return null;
@@ -14131,13 +14265,6 @@ function compareWords(current, previous, rangeLabel, priorHadAny) {
   if (current === previous) return `same as the ${rangeLabel} before`;
   return `${current > previous ? "up" : "down"} from ${previous}`;
 }
-var REPLY_BUCKETS = [
-  { id: "lt15", label: "under 15s", max: 15 },
-  { id: "lt60", label: "15s \u2013 1m", max: 60 },
-  { id: "lt300", label: "1 \u2013 5m", max: 300 },
-  { id: "lt1800", label: "5 \u2013 30m", max: 1800 },
-  { id: "gte1800", label: "over 30m", max: Infinity }
-];
 function bars(entries) {
   const max = Math.max(1, ...entries.map((e) => e[2]));
   return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
@@ -14171,7 +14298,7 @@ function reportHourWords(h) {
   const x = (h % 24 + 24) % 24;
   return x === 0 ? "12am" : x < 12 ? `${x}am` : x === 12 ? "12pm" : `${x - 12}pm`;
 }
-function hoursOf2(grid) {
+function hoursOf2(grid, closed = null) {
   if (!grid || !grid.length) return null;
   const values = Array.from({ length: 24 }, (_, h) => grid.reduce((s, row2) => s + (Number(row2?.[h]) || 0), 0));
   const total = values.reduce((a, b) => a + b, 0);
@@ -14180,8 +14307,7 @@ function hoursOf2(grid) {
     peak = 0;
     for (let h = 1; h < 23; h++) if (values[h] + values[h + 1] > values[peak] + values[peak + 1]) peak = h;
   }
-  const outside = values.reduce((s, v, h) => s + (h < 8 || h >= 20 ? v : 0), 0);
-  return { values, peak, outside, labels: values.map((_, h) => reportHourWords(h)) };
+  return { values, peak, closed, labels: values.map((_, h) => reportHourWords(h)) };
 }
 function channelsOf(ch) {
   if (!ch) return null;
@@ -14231,13 +14357,13 @@ function callMoodTone(sentiment) {
 }
 var moodRank = (s) => s === "Positive" ? 0 : s === "Negative" ? 2 : 1;
 var listWords = (names3, last) => names3.length <= 1 ? names3.join("") : `${names3.slice(0, -1).join(", ")} ${last} ${names3[names3.length - 1]}`;
-var channelNoun = (c) => c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.label;
+var channelNoun = (c) => c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.key === "sms" ? "texts" : c.label;
 function channelsLine(channels, rangeLabel) {
   if (!channels) return null;
   const reached = channels.reduce((s, c) => s + c.value, 0);
   if (!reached) return null;
   const top = channels.reduce((a, c) => c.value > a.value ? c : a);
-  const lead = top.value * 2 > reached ? `Mostly ${channelNoun(top)}` : `${capitalize(channelNoun(top))} ${top.key === "voice" ? "lead" : "leads"}`;
+  const lead = top.value * 2 > reached ? `Mostly ${channelNoun(top)}` : `${capitalize(channelNoun(top))} ${top.key === "voice" || top.key === "sms" ? "lead" : "leads"}`;
   const before = channels.reduce((s, c) => s + c.prior, 0);
   if (!before) return `${lead}.`;
   const wasTop = channels.reduce((a, c) => c.prior > a.prior ? c : a);
@@ -14317,7 +14443,9 @@ function periodFactsOf(dto) {
     prevShare: prevAnsweredTotal ? Math.round(prev.ai / prevAnsweredTotal * 100) : null,
     sortedReply,
     median: quantile(sortedReply, 0.5),
-    p90: quantile(sortedReply, 0.9)
+    p90: quantile(sortedReply, 0.9),
+    // The replies against their holds, said once for the tile, the bars, the hero and the line (holdOf).
+    hold: holdOf(dto.replies)
   };
 }
 var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
@@ -14340,11 +14468,12 @@ var answeredTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) =>
   spark: points.map((p) => p.ai),
   compare: null
 });
-var replyTile = ({ sortedReply, median, p90 }) => ({
+var replyTile = ({ sortedReply, median, p90, hold }) => ({
   id: "reply",
   label: "Median reply time",
   value: fmtSeconds(median),
-  meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies` : "no receptionist replies yet",
+  // The reply time includes the hold the owner set, and says so where replies waited one (spec D14).
+  meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies${holdNote(hold)}` : "no receptionist replies yet",
   delta: null,
   spark: [],
   compare: null
@@ -14407,18 +14536,15 @@ function answeredOf(f) {
     priorShare: prevAnsweredTotal ? prev.ai / prevAnsweredTotal : null
   };
 }
-function replyTimeOf({ sortedReply, median, p90 }) {
-  const bucketCounts = REPLY_BUCKETS.map((b, i) => {
-    const lo = i === 0 ? -Infinity : REPLY_BUCKETS[i - 1].max;
-    return [b.id, b.label, sortedReply.filter((s) => s >= lo && s < b.max).length];
-  });
+function replyTimeOf({ dto, sortedReply, median, p90, hold }) {
   return {
     count: sortedReply.length,
     median,
     p90,
     medianLabel: fmtSeconds(median),
     p90Label: fmtSeconds(p90),
-    buckets: bars(bucketCounts)
+    buckets: bars(holdBuckets(dto.replies) ?? absoluteBuckets(sortedReply)),
+    hold
   };
 }
 function callsOf({ dto, current, previous, points, tot }, sentiments) {
@@ -14446,21 +14572,25 @@ function peopleOf({ current, previous, points, tot, prev }) {
     }
   };
 }
+function replyLine({ sortedReply, p90, hold }) {
+  if (hold) return holdLine(hold);
+  if (sortedReply.length >= 10) return `Nine in ten within ${fmtSeconds(p90)}.`;
+  return sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null;
+}
 function linesOf(f, week, channels) {
-  const { points, tot, prev, rangeLabel, answeredTotal, prevAnsweredTotal, sortedReply, median, p90 } = f;
+  const { points, tot, prev, rangeLabel, answeredTotal, prevAnsweredTotal } = f;
   const busiestDay = tot.in ? points.reduce((b, p) => p.in > b.in ? p : b) : null;
   return {
-    hero: answeredTotal ? `${tot.ai} of ${answeredTotal} customer messages, without you.${sortedReply.length ? ` Half of its replies went out within ${fmtSeconds(median)}.` : ""}` : "No customer wrote in this period.",
+    hero: answeredTotal ? `${tot.ai} of ${answeredTotal} customer messages, without you.${heroSpeed(f.sortedReply.length, fmtSeconds(f.median), f.hold)}` : "No customer wrote in this period.",
     heroBefore: prevAnsweredTotal ? `${Math.round(prev.ai / prevAnsweredTotal * 100)}% the ${rangeLabel} before` : null,
     answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
-    // Nine in ten is a claim about a tenth: under ten replies it would be a guess, so the slowest one is said instead.
-    reply: sortedReply.length >= 10 ? `Nine in ten within ${fmtSeconds(p90)}.` : sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null,
+    reply: replyLine(f),
     calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
     channels: channelsLine(channels, rangeLabel),
     rhythm: rhythmLine(week)
   };
 }
-function toReportVM(dto) {
+function toReportVM(dto, opts) {
   const f = periodFactsOf(dto);
   const tiles = REPORT_TILES.map((tile) => tile(f));
   const reasons = reasonBarsOf(dto.reasons);
@@ -14487,7 +14617,8 @@ function toReportVM(dto) {
       f.current.map((d) => d.day)
     ) : null,
     week,
-    hours: hoursOf2(dto.hours),
+    hours: hoursOf2(dto.hours, closedOf(dto.arrivals, opts?.profile)),
+    hoursUnset: hoursUnsetOf(dto.arrivals, opts?.profile),
     channels,
     period: { now: `Last ${f.rangeLabel}`, before: `The ${f.rangeLabel} before` },
     lines: linesOf(f, week, channels),
@@ -15519,6 +15650,13 @@ function deskSignMetadata(f) {
 function messageAt(m) {
   return m.channel_ts ?? m.created_at;
 }
+var OPERATOR_META_KEYS = ["pricing"];
+function memberMetaOf(meta) {
+  if (meta === null || typeof meta !== "object" || Array.isArray(meta)) return null;
+  const kept = { ...meta };
+  for (const key of OPERATOR_META_KEYS) delete kept[key];
+  return kept;
+}
 function isOptedOut(dto) {
   return isOptedOutContact(dto.contact);
 }
@@ -15548,6 +15686,15 @@ function lastWordLine(needsHuman, last, author) {
   if (author.kind === "team") return "Answered by your team";
   return `Last message: ${author.words}`;
 }
+function messageWhy(m) {
+  return m.sender === "ai" ? replyWhy(m.meta) : null;
+}
+
+// src/conversations/handled.ts
+var HANDLED_OUTCOMES = ["ai", "held", "handoff", "blocked"];
+
+// src/conversations/first-touch.ts
+var REFERRAL_ID_MAX = 200;
 
 // src/conversations/escalations.ts
 var ESCALATION_REASON_LABELS = {
@@ -15753,7 +15900,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
   const timeline = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
-    const why = m.sender === "ai" ? replyWhy(m.meta) : null;
+    const why = messageWhy(m);
     const subject = m.channel === "email" ? emailSubjectOf(m) : null;
     const leftOut2 = m.channel === "email" ? emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta) : null;
     const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
@@ -15926,7 +16073,7 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     at: bubbleTime(messageAt(m), tz, now),
     text: messageWords(m),
     ...mediaVM(m) ? { media: mediaVM(m) } : {},
-    ...m.sender === "ai" && replyWhy(m.meta) ? { why: replyWhy(m.meta) } : {},
+    ...messageWhy(m) ? { why: messageWhy(m) } : {},
     ...messageAuthor(m) ? { by: messageAuthor(m).words } : {},
     // Only for OUR messages. A customer's inbound message has no send status,
     // and labelling it would be inventing one.
@@ -23466,16 +23613,35 @@ function reportFacts(vm, campaigns) {
     });
   }
   const b = vm.week.busiest;
+  const h = vm.hours;
+  const peak = h && h.peak !== null ? `peak ${reportHourWords(h.peak)} to ${reportHourWords(h.peak + 2)}` : "";
   if (b !== null) {
-    const h = vm.hours;
-    const peak = h && h.peak !== null ? `peak ${reportHourWords(h.peak)} to ${reportHourWords(h.peak + 2)}` : "";
-    const outside = h && h.outside > 0 ? `${h.outside} outside 8am to 8pm` : "";
+    const closed = h && h.closed ? `${h.closed} while you were closed` : "";
     out.push({
       id: "busiest",
       tone: "",
       icon: "calendar",
       text: vm.week.unit === "average" ? `${vm.week.long[b]}s are your busiest day` : `${vm.week.long[b]} was your busiest day`,
-      sub: [peak, outside].filter(Boolean).join(", "),
+      sub: [peak, closed].filter(Boolean).join(", "),
+      door: null
+    });
+  }
+  if (vm.hoursUnset) {
+    out.push({
+      id: "hours",
+      tone: "",
+      icon: "clock",
+      text: "Set your business hours to see what came in while you were closed",
+      sub: "",
+      door: { label: "Open Settings", to: "admin/workspace" }
+    });
+  } else if (b === null && h && h.closed) {
+    out.push({
+      id: "closed",
+      tone: "",
+      icon: "clock",
+      text: `${h.closed} came in while you were closed`,
+      sub: peak,
       door: null
     });
   }
@@ -25354,6 +25520,7 @@ var SCHEMA_SETS = {
   "calls.status": ["registered", "ongoing", "ended", "error", "not_connected"],
   "capability_activations.capability": ["voice", "whatsapp", "sms"],
   "contact_identities.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
+  "contacts.acquired_via": ["whatsapp", "sms", "email", "call", "ad", "calendar", "import", "lead", "manual"],
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
   "contacts.email_marketing": ["unknown", "opted_in", "opted_out"],
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],
@@ -25611,6 +25778,7 @@ var SCHEMA_SETS = {
   "reach_out_replies.intent": ["interested", "question", "not_now", "no", "wrong_person", "away", "other"],
   "reach_out_replies.unread": ["no_model", "may_not_spend", "day_spent", "model_failed"],
   "reach_out_sends.state": ["planned", "held", "claimed", "queued", "sent", "skipped", "failed", "handed"],
+  "sending_domain_days.state": ["verified", "held"],
   "sending_domains.dmarc": ["found", "missing"],
   "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"],
   "sending_domains.resume_by": ["owner", "platform"],
@@ -26743,10 +26911,7 @@ function todayFacts(input) {
 // src/today/today-bands.ts
 var andList = (xs) => xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
 function secondsPhrase(s) {
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  const r2 = s % 60;
-  return r2 ? `${m}m ${r2}s` : `${m}m`;
+  return durationWords(s);
 }
 function todayStanding(f) {
   const { metrics, wires } = f;
@@ -27509,11 +27674,11 @@ function todayQueue(f, callRows, empty) {
     if (row2) queueAll.push(row2);
   }
   queueAll.sort((a, b) => b.waitedMs - a.waitedMs);
-  const countOf2 = (...kinds) => queueAll.filter((r2) => kinds.includes(r2.kind)).length;
-  const needN = countOf2("handoff", "callback");
-  const winN = countOf2("window");
-  const earN = countOf2("call");
-  const searchN = countOf2("search");
+  const countOf3 = (...kinds) => queueAll.filter((r2) => kinds.includes(r2.kind)).length;
+  const needN = countOf3("handoff", "callback");
+  const winN = countOf3("window");
+  const earN = countOf3("call");
+  const searchN = countOf3("search");
   const parts2 = [
     needN ? `${needN} need you` : "",
     searchN ? `${searchN} ${searchN === 1 ? "search" : "searches"} waiting for your answer` : "",
@@ -29025,6 +29190,13 @@ function platformQueue(q, nowMs = Date.now()) {
 
 // src/workspace/activity.ts
 var ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
+var ACTIVITY_NOISE_KINDS = [
+  "escalation.changed",
+  "lead.set_aside",
+  "call.transferred",
+  "booking_link.sent",
+  "channel.quality_rating"
+];
 var isActivityMoney = (row2) => row2.category === "billing";
 var WORDS2 = {
   // decisions
@@ -29098,9 +29270,13 @@ var WORDS2 = {
   "conversation.reopened": "A thread reopened",
   "conversation.pause_expired": "A pause ended",
   "conversation.snooze_expired": "A snooze ended",
+  "escalation.changed": "A handover's reason changed",
   "call.recorded": "A call was recorded",
+  "call.transferred": "A call was passed to a person",
+  "booking_link.sent": "The booking link was sent",
   "broadcast.sent": "A broadcast finished",
   "playbook.run": "A playbook ran",
+  "channel.quality_rating": "A WhatsApp number's quality rating changed",
   "setup.requested": "Setup was requested",
   "voice.provisioned": "The phone receptionist was provisioned",
   "line.answering": "A line started answering",
@@ -29129,6 +29305,7 @@ var WORDS2 = {
   "lead.round": "A search for businesses",
   "lead.no_card": "An ask no source covers yet",
   "lead.converted": "A lead is Talking",
+  "lead.set_aside": "A lead was set aside",
   // A reply to a reach-out, read (Reach out Part 5): the case below says who and what it meant.
   "reach_out.replied": "A business wrote back to a reach-out",
   "reach_out.reply_undone": "A reply read as no was undone",
@@ -29367,7 +29544,7 @@ function activityTone(kind) {
 }
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 function isActivityNoise(kind) {
-  return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p));
+  return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p)) || ACTIVITY_NOISE_KINDS.includes(kind);
 }
 
 // src/workspace/event-data.ts
@@ -29837,7 +30014,7 @@ function partnerLetter(news, opts) {
   return { subject: letterSubject(news), body };
 }
 var sharesOf = (news) => news.written.filter((w) => w.kind === "share");
-var countOf = (rows) => rows.reduce((k, w) => k + w.count, 0);
+var countOf2 = (rows) => rows.reduce((k, w) => k + w.count, 0);
 var nonZero = (rows) => rows.filter((r2) => r2.cents !== 0);
 function letterLines(news) {
   const lines = [];
@@ -29846,14 +30023,14 @@ function letterLines(news) {
     lines.push(`Paid: ${moneyWords(p.cents, p.currency)} on ${dayWords2(p.sent_at)}, reference ${p.reference}.`);
   const shares = sharesOf(news);
   if (shares.length) {
-    const n = countOf(shares);
+    const n = countOf2(shares);
     lines.push(
       `You earned ${money(shares)} from ${n === 1 ? "1 payment" : `${n} payments`}, held ${PARTNER_HOLD_DAYS} days.`
     );
   }
   for (const kind of PARTNER_REVERSAL_KINDS) {
     const of = news.written.filter((w) => w.kind === kind);
-    if (of.length) lines.push(REVERSAL_LINES[kind](countOf(of), money(of)));
+    if (of.length) lines.push(REVERSAL_LINES[kind](countOf2(of), money(of)));
   }
   const matured = nonZero(news.matured);
   if (matured.length) lines.push(`${money(matured)} became payable.`);
@@ -30196,6 +30373,7 @@ export {
   ABOUT_MIN,
   ACTIVATION_MILESTONES,
   ACTIVITY_KINDS,
+  ACTIVITY_NOISE_KINDS,
   ACTIVITY_NOISE_PREFIXES,
   ACTOR_TYPES,
   ALERT_KINDS,
@@ -30394,6 +30572,7 @@ export {
   GREETING_DEFAULT,
   GUARDRAIL_KEYS,
   GuardrailsSchema,
+  HANDLED_OUTCOMES,
   HANDOFF_FORWARDS_BACK,
   HANDOVER_DAYS,
   HANDOVER_WAITING_MAX,
@@ -30692,6 +30871,7 @@ export {
   POLICY_CLASSES,
   POLICY_CLASS_MODES,
   POLICY_CLASS_WORDS,
+  POLICY_COVERS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
   PREFETCH_SLOT,
@@ -30764,6 +30944,7 @@ export {
   RECIPIENT_STATES,
   RECORDING_PURGED_WORDS,
   RECORDING_RETENTION_DAYS,
+  REFERRAL_ID_MAX,
   REGISTRATION_COST_WORDS,
   REGISTRATION_PATHS,
   REGISTRATION_PATH_WORDS,
@@ -31064,6 +31245,7 @@ export {
   clockStamp,
   clockTime,
   clockWhen,
+  closedOf,
   closedOn,
   closureDatesLabel,
   closuresAheadWords,
@@ -31157,6 +31339,7 @@ export {
   draftSendsAtMs,
   dueStepDay,
   durationLabel,
+  durationWords,
   eligibleFor,
   eligibleForPlaybook,
   emailDomainOf,
@@ -31260,6 +31443,7 @@ export {
   handoverRoom,
   handoverUntilWords,
   hardLimitsWords,
+  hasHours,
   hasProfile,
   heardSinceProposal,
   heardWords,
@@ -31267,6 +31451,7 @@ export {
   heldNoticeWords,
   hexOf,
   holdDoors,
+  holdOf,
   holdWords,
   hoursFromGoogle,
   hoursLines2 as hoursLines,
@@ -31472,6 +31657,7 @@ export {
   mediaKind,
   mediaVM,
   medianWait,
+  memberMetaOf,
   memberWords,
   membersOf,
   messageAt,
@@ -31480,6 +31666,7 @@ export {
   messageStatusLabel,
   messageText,
   messageVia,
+  messageWhy,
   messageWords,
   modelRoute,
   mondayOf,
@@ -31523,6 +31710,7 @@ export {
   ok,
   onDomain,
   oneDoor,
+  openAt,
   openWeekWords,
   openingProblemWords,
   openingSystemPrompt,

@@ -286,6 +286,23 @@
     "00281_a_reply_goes_first_and_each_workspace_takes_its_turn.sql": "45e9a8fefeb76be5da1d9546815d86dfbf844d44dc850d198cc02ca5f6eb2966",
     "00282_a_broadcast_is_assembled_whole.sql": "26b4f5ea713483f3c502b04dc8fc88719854f25ae82fbaf49962edf32a38b300",
     "00283_the_service_role_s_statements_have_a_bound.sql": "1faddcc8898b6efdef12d3cffab38200638aae5fb35c060750d8396261fba443",
-    "00284_a_thread_is_answered_one_turn_at_a_time.sql": "566085bccfb1629b0f5607a181251e62c9dde7e05e717061b4211014740f2ff8"
+    "00284_a_thread_is_answered_one_turn_at_a_time.sql": "566085bccfb1629b0f5607a181251e62c9dde7e05e717061b4211014740f2ff8",
+    "00285_a_connected_call_a_first_moment_and_an_answer_are_each_said_once.sql": "7f949382917b2debe9030192ba7c4b41adcb5b51994159011ab34b5c6d41a6c7",
+    "00286_a_report_counts_only_what_it_says.sql": "b0eeb2b16542ee9b2b54c620498f21599ac288c3e58cd11765ff0525b73ae718",
+    "00287_a_message_says_what_it_became.sql": "de44cb774c3ec3089199b60d67ea664143667943581a46f96a2ee0a3f0a81b07",
+    "00288_a_person_keeps_how_they_first_reached_us.sql": "89cb87470024187e3af53b318a10db7ccbf235784325e9b1c0db1ed29f61fc1f",
+    "00289_a_person_added_at_a_door_keeps_how.sql": "2dc35fb40b338098cb09d8783011f95e1837535670945eeecb570b024b6dce17",
+    "00290_an_escalation_keeps_when_it_ended_and_why_it_changed.sql": "9cb6b67d6b5c4f113fcd3b74855c0ef10e2305f05f48e58749272467f98ae3d8",
+    "00291_a_lead_keeps_when_it_changed_stage.sql": "6d90a150325f64dc28bb1523edc0858d9c03f58fe4a0fe5445fe3553c58d676d",
+    "00292_a_lead_s_stage_event_says_where_it_came_from.sql": "9dc0e0e29457d909dd56aaf25ab67d8f958c199174374c5e185f98069cc5002f",
+    "00293_a_deal_s_event_keeps_its_amount_and_why_it_was_lost.sql": "76fbb71e0411fcac020d00e2d593b2309a688cf6f72c5907e887c151a0a55033",
+    "00294_a_transferred_call_says_whether_it_was_answered.sql": "42a348e42e2f4ffa53e9e56322b1bfa41498384f37000fc3589ad5612ccf1e14",
+    "00295_a_booking_link_sent_in_chat_is_said_once.sql": "c28631ffc573ddc0cc9a5c9a81844549becb267be0af621528bea4641beed9be",
+    "00296_a_sending_domain_keeps_each_day_s_counters.sql": "8332df0c5aa17da6717147681d2a263d83c30c0b13ac1e1303fbc5727d7eee52",
+    "00297_a_number_s_quality_is_read_on_a_clock.sql": "c914ff9bb8b3c1fadbc53667ddf2e2b33e39c4b3e87f559e128987dfc3ecd183",
+    "00298_a_day_keeps_what_the_lenses_read.sql": "2e4437d1c9cd14558bf0e3278ca9e72b24ab9b6c83bdf290db9ffadb29e3e580",
+    "00299_a_member_reads_their_workspace_s_days.sql": "f2e0dddbb704a164b8b8faf7fe42b291d777df361748565b0e4e9d1e95cbe25f",
+    "00300_an_invoice_keeps_what_it_moved.sql": "fd9ae886275fb8d5bba99259db1d3c2b362e96326c6975c6a9d888f1f471dc71",
+    "00301_a_message_keeps_what_it_cost_to_send.sql": "7bcd4c7fd0831d053f38502063bccdcf37d41d40991e14e054fd56052e18065f"
   }
 }

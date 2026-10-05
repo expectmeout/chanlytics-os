@@ -130,8 +130,8 @@ test("v3 says where, when and how fast, and every older field is as it was", { s
 
   // Where: a message counts on its own channel, a connected call as voice; the import and the dial that never
   // connected are not there.
-  assert.deepEqual(r.channels.current, { whatsapp: 2, sms: 1, email: 1, instagram: 0, voice: 1 });
-  assert.deepEqual(r.channels.previous, { whatsapp: 0, sms: 0, email: 0, instagram: 0, voice: 0 });
+  assert.deepEqual(r.channels.current, { whatsapp: 2, sms: 1, email: 1, voice: 1 });
+  assert.deepEqual(r.channels.previous, { whatsapp: 0, sms: 0, email: 0, voice: 0 });
 
   // When: 7 rows of 24, Monday first, each message and the one connected call in the hour it happened.
   assert.equal(r.hours.length, 7);
@@ -140,10 +140,11 @@ test("v3 says where, when and how fast, and every older field is as it was", { s
   for (const t of [...asks.map((a) => a.at), callAt]) want[isoDow(t) - 1][t.getUTCHours()] += 1;
   assert.deepEqual(r.hours, want);
 
-  // How fast: each receptionist first reply, with the day it was asked, oldest first.
+  // How fast: each receptionist first reply, with the day it was asked and the hold it waited (00286; none here, each
+  // reply was sent at once), oldest first.
   assert.deepEqual(r.replies, [
-    { day: utcDay(asks[0].at), s: 30 },
-    { day: utcDay(asks[1].at), s: 90 },
+    { day: utcDay(asks[0].at), s: 30, hold: 0 },
+    { day: utcDay(asks[1].at), s: 90, hold: 0 },
   ]);
 
   // Unchanged: two periods of days, the same four messages and one call, the same reply seconds.

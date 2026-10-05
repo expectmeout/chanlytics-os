@@ -118,7 +118,7 @@ export const reportsOverride: SurfaceOverride = {
     // A pick of another period while this read was out: its answer is for a period left, and never lands on the new
     // one. A held period answers a pick at once and is read again behind it, so two reads can be out together.
     if (days !== reportDays) return;
-    const vm = toReportVM(data.report);
+    const vm = toReportVM(data.report, { profile: data.profile });
     const surface: Omit<ReportsSurface, "facts"> = {
       vm,
       campaigns: campaigns instanceof Error ? null : toCampaignReportVM(campaigns.report),

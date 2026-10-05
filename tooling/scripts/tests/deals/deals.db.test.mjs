@@ -291,15 +291,38 @@ test(
       p_lost_reason: "timing",
     });
     assert.equal(told.deal.lost_reason, null, "a reason is a pass's alone, whatever a call names");
-    // Events carry exactly what they did: a stage, never a link, an amount, a note or a reason.
+    // Events carry what they did: a stage; the amount the deal held at the move and, for a pass, its reason (00293, K6);
+    // never a link or a note. The deal held 120000 when proposed, lost its amount to the cleared field before the pass
+    // (so the pass says none), and the reason is the pass's alone.
+    const SIX = ["by", "contact_id", "deal_id", "from", "service", "stage"];
     const events = ok(await w.admin.from("events").select("kind, data").eq("subject_id", id).order("created_at"));
     assert.deepEqual(
       events.map((e) => e.kind),
       ["deal.proposed", "deal.lost", "deal.proposed"],
     );
-    for (const e of events) {
-      assert.deepEqual(Object.keys(e.data).sort(), ["by", "contact_id", "deal_id", "from", "service", "stage"]);
-    }
+    assert.deepEqual(
+      events.map((e) =>
+        Object.keys(e.data)
+          .filter((k) => !SIX.includes(k))
+          .sort(),
+      ),
+      [["amount_cents"], ["lost_reason"], []],
+    );
+    assert.deepEqual(
+      events.map((e) => [e.data.amount_cents ?? null, e.data.lost_reason ?? null]),
+      [
+        [120000, null],
+        [null, "price"],
+        [null, null],
+      ],
+    );
+    for (const e of events)
+      assert.deepEqual(
+        Object.keys(e.data)
+          .filter((k) => SIX.includes(k))
+          .sort(),
+        SIX,
+      );
   },
 );
 

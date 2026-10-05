@@ -372,8 +372,8 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   // nothing about the one that might have dropped the channel.
   assert.equal(
     (code.match(/ports\.persist\.ingest\(/g) ?? []).length,
-    (code.match(/ports\.persist\.ingest\(db, tenantId, n, channel\)/g) ?? []).length,
-    "every ingest carries the channel",
+    (code.match(/ports\.persist\.ingest\(db, tenantId, n, channel[,)]/g) ?? []).length,
+    "every ingest carries the channel (and the line it came in on, as its fifth argument: run in inbound-executed.test.mjs)",
   );
   assert.ok(
     code.includes("...(carrier ? { sms: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),") &&

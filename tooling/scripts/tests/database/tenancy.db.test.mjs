@@ -229,6 +229,18 @@ before(async () => {
     from_local: "sam",
     from_name: "Tenancy",
   });
+  // One day of that domain (00296): the clock's function writes it, a member of the workspace reads it.
+  await seed(
+    "sending_domain_days",
+    {
+      tenant_id: A,
+      domain_id: ctx.domain,
+      day: "2026-09-01",
+      host: `tenancy-${Date.now().toString(36)}.example`,
+      state: "verified",
+    },
+    null,
+  );
   await seed("tenant_channels", { tenant_id: A, kind: "whatsapp", external_id: "tenancy-wa-1" });
   await seed("google_connections", { tenant_id: A, account_name: "accounts/tenancy" }, null);
   await seed("google_listings", { tenant_id: A, place_id: "ChIJtenancy1", name: "Tenancy Salon" }, null);
@@ -595,6 +607,17 @@ const TENANT_TABLES = {
       host: `stranger-${Date.now().toString(36)}.example`,
       from_local: "sam",
       from_name: "Stranger",
+    }),
+  ],
+  // A sending domain's day (00296): members read their own workspace's, and only the nightly function writes one.
+  sending_domain_days: [
+    "member",
+    () => ({
+      tenant_id: A,
+      domain_id: ctx.domain,
+      day: "2026-09-02",
+      host: `stranger-${Date.now().toString(36)}.example`,
+      state: "verified",
     }),
   ],
   tenant_channels: ["member", () => ({ tenant_id: A, kind: "sms", external_id: "tenancy-sms-2" })],

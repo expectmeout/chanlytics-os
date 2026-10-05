@@ -242,6 +242,7 @@ test("ACCEPTANCE: the probe fixture, 12 of 24 fitting, stops to ask from the mos
     [13, 11],
     "one call per batch: the first term's 13, then the second's 12 with the closed one left out by rule",
   );
+  assert.deepEqual(w.judge.rounds, [w.round().id, w.round().id], "each call names the round it is paid in");
   assert.equal(w.T.lead_judgments.length, 2);
   const q = w.round().question;
   assert.equal(
@@ -407,6 +408,7 @@ test("a change that asks something new judges the first places once under it, a 
     [24],
     "the 24 the probe judged, in one batch: no stored answer says anything about big box gyms",
   );
+  assert.deepEqual(w.judge.rounds.slice(paid), [w.round().id], "and the re-judge names the round too");
   assert.deepEqual([out.judged, out.reused, out.unread], [24, 0, 0]);
   assert.equal(w.T.lead_judgments.length, 3, "the answer kept once, beside the probe's two");
   assert.ok(

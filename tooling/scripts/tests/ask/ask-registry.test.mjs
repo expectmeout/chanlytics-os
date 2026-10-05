@@ -55,7 +55,13 @@ const PR_4_3 = fixture("ask-tools-4-3.json");
  * schema and examples); propose_thread_verb no longer points every role to a person's mode, which only an owner is
  * offered since PR 4.6.
  */
-const CHANGED = ["propose_campaign", "propose_list", "propose_thread_verb"];
+const CHANGED = ["propose_campaign", "propose_list", "propose_thread_verb", "report"];
+/**
+ * What the report tool's description gained after PR 4.7 (the Reports fix wave, spec D14): its median and p90 reply time
+ * include the hold the owner set, and reply_time.hold splits the replies against it. Nothing else of it moved.
+ */
+const REPORT_HOLD_WORDS =
+  "(both include the hold the owner set before a reply goes out; reply_time.hold splits the replies against it: with no hold, as the hold ended, or later, and the most any took past it)";
 /** The tool PR 4.5 gave an action, search: that action's words, fields and example are all that moved in it. */
 const SEARCHED = "inbox";
 /**
@@ -241,7 +247,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign and propose_thread_verb reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb and report (its reply times say the hold) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
@@ -272,6 +278,18 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign and 
   );
   const was = (role, name) => TODAY[role].find((t) => t.name === name);
   const words = ({ description: _, ...rest }) => rest;
+  // report (spec D14): the sentence about the reply times says the hold is in them, and nothing else it says moved.
+  for (const role of ROLES) {
+    assert.equal(
+      tool(role, "report").description,
+      was(role, "report").description.replace(
+        "the median and p90 reply time,",
+        `the median and p90 reply time ${REPORT_HOLD_WORDS},`,
+      ),
+      role,
+    );
+    assert.deepEqual(words(tool(role, "report")), words(was(role, "report")), role);
+  }
   for (const role of ["operator", "partner", "owner"]) {
     // propose_thread_verb: the sentence that sent every role to an owner's action now says whose it is, which is true for
     // every role, and nothing else moved.

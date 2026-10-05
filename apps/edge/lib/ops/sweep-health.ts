@@ -87,6 +87,10 @@ const CONSEQUENCE: Record<string, string> = {
   purge_page_vitals: "page timings are kept past the thirty days the privacy page states",
   platform_metrics_roll:
     "each workspace's day stops being counted, so the back office's card goes stale and the alarm for a workspace nobody answered all day has nothing to read",
+  channel_quality:
+    "a WhatsApp number's refreshed rating and the history of its changes stop being kept and go stale; no send is gated on them, and broadcasts and the channels page keep reading the rating stored at connection either way",
+  sending_domain_days:
+    "a day's counters for each sending domain are not kept, and a missed day is never filled in later (the counters are only ever the row's current ones), so how a domain's reputation went that day cannot be read afterwards",
 };
 
 /**

@@ -1,5 +1,13 @@
 import "server-only";
-import { AppError, dealsAreOn, type BookingReportDto, type DealReportDto, type ReportDto } from "@chanlytics/contracts";
+import {
+  AppError,
+  dealsAreOn,
+  parseTenantConfigResult,
+  type BookingReportDto,
+  type DealReportDto,
+  type ReportDto,
+  type ReportProfile,
+} from "@chanlytics/contracts";
 import { everyone } from "../people/people";
 import { bookingReport } from "../calendar/people-visits";
 import { dealReport } from "../people/deals";
@@ -13,11 +21,13 @@ import { log } from "@/server/log";
  * Reports page and Ask's report tool read the same rows the same way. One SECURITY INVOKER function computes the series
  * in the tenant's own zone under the caller's RLS; a function that answers nothing is the route's 404, in its words,
  * before anything else is read. The calendar's zone and settings, and how the workspace's customers buy, come through
- * their readers, once in a turn. The page is the row a citation names.
+ * their readers, once in a turn. It returns the workspace's profile too: the hours and closures the while-you-were-closed
+ * count is made from, `{}` where it was read with none, null where it could not be read. The page is the row a citation
+ * names.
  */
 export const report: Reader<
   { days: number },
-  { report: ReportDto; booking: BookingReportDto | null; deals: DealReportDto | null }
+  { report: ReportDto; booking: BookingReportDto | null; deals: DealReportDto | null; profile: ReportProfile | null }
 > = {
   name: "report",
   async read(rc, { days }) {
@@ -58,8 +68,21 @@ export const report: Reader<
       .then((r) => r.data)
       .then(async (sellsBy) => dealReport(ctx, tenantId, days, dealsAreOn(sellsBy), await people.catch(() => [])))
       .catch(() => null);
+    // The workspace's hours and closures, which Reports' while-you-were-closed counts against (spec A2): the turn's
+    // config, which the booking line above already read, parsed as the calendar parses it, without its log line. Null
+    // is a profile that could not be read (no row, a config the parser refuses, a read that failed): the report then
+    // says nothing of the hours. A config read whole that keeps none is an empty profile, which is how the report
+    // knows the workspace has not set them.
+    const profile: ReportProfile | null = await load(rc, facts.config, undefined)
+      .then((s) => {
+        const parsed = s.data ? parseTenantConfigResult(s.data.config) : null;
+        if (!parsed?.ok) return null;
+        const { hours, closures } = parsed.config.brain?.profile ?? {};
+        return { ...(hours && { hours }), ...(closures && { closures }) };
+      })
+      .catch(() => null);
     return {
-      data: { report, booking, deals },
+      data: { report, booking, deals, profile },
       rows: [{ kind: "page", id: "reports", route: "reports", label: `Reports, ${days} days` }],
       stamp: stamp(),
     };

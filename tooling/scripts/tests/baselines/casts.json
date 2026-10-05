@@ -260,8 +260,7 @@
     "nonNull": 1
   },
   "apps/edge/api/whatsapp.ts": {
-    "unknownAs": 2,
-    "nonNull": 1
+    "unknownAs": 1
   },
   "apps/edge/lib/email/dmarc.ts": {
     "nonNull": 2
