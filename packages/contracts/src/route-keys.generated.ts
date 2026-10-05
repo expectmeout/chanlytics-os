@@ -114,6 +114,7 @@ export const ROUTE_KEYS = [
   "POST client-errors",
   "POST contacts",
   "POST contacts/[id]/deal",
+  "POST contacts/[id]/merge",
   "POST contacts/[id]/notes",
   "POST contacts/[id]/notes/decide",
   "POST contacts/[id]/notes/done",

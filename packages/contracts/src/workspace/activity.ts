@@ -96,6 +96,7 @@ const WORDS: Record<string, string> = {
   change_role: "Changed a member's role",
   remove_member: "Removed a member",
   erase: "Erased a person",
+  merge: "Merged two records of one person",
   whisper: "Whispered to the phone receptionist",
   connect_channel: "Connected a channel",
   consent_change: "Recorded a consent answer",
@@ -143,6 +144,7 @@ const WORDS: Record<string, string> = {
   "deal.ended": "An engagement ended",
   "contact.email_suppressed": "A person's email address stopped being sent to",
   "contact.erased": "A person was erased",
+  "contact.merged": "Two records of one person became one",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",

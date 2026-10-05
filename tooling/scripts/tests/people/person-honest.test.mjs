@@ -351,6 +351,8 @@ globalThis.window.fetch = async (url, init) => {
     world.pending -= 1;
   }
 };
+/** The wire as this file installs it: a test that puts its own in front of it gives it back, or the next test reads nothing. */
+const worldFetch = globalThis.window.fetch;
 /** The People read over a fake wire: these people, a calendar that reads, one saved list. */
 const wire = (people, lists = []) => {
   world.people = people;
@@ -491,6 +493,8 @@ await import("../../../../apps/dashboard/src/legacy-bridge/refresh-map.ts");
 const { StatePill } = kitPages;
 // The person's More is the kit's Menu (surfaces/kit/menu): its trigger is the page's Button, its items in groups.
 const { Menu } = await import(`${P}/../kit/menu/menu.tsx`);
+const { Picker } = await import(`${P}/../kit/picker/picker.tsx`);
+const { Confirm: KitConfirm } = await import(`${P}/../kit/confirm/confirm.tsx`);
 const { SubTabs } = await import(`${P}/../kit/sub-tabs/sub-tabs.tsx`);
 const itemsIn = (menu) => menu.props.groups.flatMap((g) => g.items);
 /** The kit Menu's items as the page built them: an item's act is `onSelect`, given here as `onClick` too. */
@@ -3148,5 +3152,207 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
     globalThis.window.openStepSheet = keep.sheet;
     globalThis.window.__ME = keep.me;
     globalThis.window.fetch = keep.fetch;
+  }
+});
+
+test("Merge with another record (0028): the owner's act opens the picker over People and the typed confirmation, and the merge is the kept record's request", async () => {
+  const { MERGE_WORDS } = contracts;
+  const vm = toPersonVM(detail(), ZONE, new Date(NOW));
+  const other = toPersonRowVM(
+    row({
+      id: "p2",
+      display_name: "Daniela by email",
+      phone_e164: null,
+      email: "daniela@example.com",
+      channels: ["email"],
+    }),
+    ZONE,
+    new Date(NOW),
+  );
+  const saved = surfaceValue("people");
+  const me = globalThis.window.__ME;
+  globalThis.window.__ME = { role: "owner" };
+  // People as the tab holds it: this person and the other record. The page offers every other row.
+  setSurfaceValue("people", {
+    ...(saved ?? {}),
+    lists: saved?.lists ?? [],
+    rows: [toPersonRowVM(row(), ZONE, new Date(NOW)), other],
+  });
+  try {
+    globalThis.window.fetch = worldFetch;
+    world.holding.clear();
+    const draw = await profile(vm);
+    await settle();
+    const more = find(
+      find(draw(), (n) => n.props?.className === "cl-prof-queue-actions"),
+      (n) => n.type === Menu,
+    );
+    const act = actsIn(more).find((i) => i.label === MERGE_WORDS.act);
+    assert.ok(act, "the owner's menu offers the merge");
+    assert.equal(act.title, MERGE_WORDS.actHint);
+    assert.equal(byTestId(draw(), "merge"), null, "nothing is drawn until the act is pressed");
+
+    act.onSelect();
+    let box = byTestId(draw(), "merge");
+    assert.ok(box, "the merge box");
+    const picker = find(box, (n) => n.type === Picker);
+    assert.deepEqual(
+      picker.props.groups.flatMap((g) => g.options).map((o) => [o.value, o.label, o.sub]),
+      [["p2", "Daniela by email", "daniela@example.com"]],
+      "the other records of People, this person left out",
+    );
+    assert.equal(picker.props.placeholder, MERGE_WORDS.pickNone);
+    let confirm = find(box, (n) => n.type === KitConfirm);
+    assert.equal(confirm.props.ready, false, "nothing chosen, nothing typed");
+    assert.equal(textOf(confirm.props.question), MERGE_WORDS.question(vm.name, "the other record"));
+
+    picker.props.onValueChange("p2");
+    box = byTestId(draw(), "merge");
+    confirm = find(box, (n) => n.type === KitConfirm);
+    assert.equal(textOf(confirm.props.question), MERGE_WORDS.question(vm.name, "Daniela by email"));
+    assert.equal(confirm.props.ready, false, "chosen, but the kept name is not typed");
+    confirm.props.onType(vm.name);
+    box = byTestId(draw(), "merge");
+    confirm = find(box, (n) => n.type === KitConfirm);
+    assert.equal(confirm.props.ready, true);
+    assert.equal(textOf(confirm.props.yes), MERGE_WORDS.yes);
+
+    const before = world.seen.length;
+    confirm.props.onYes();
+    await settle();
+    const sent = world.seen.slice(before).find((r) => r.method === "POST");
+    assert.deepEqual(
+      [sent?.path, sent?.body],
+      ["/api/v1/contacts/p1/merge", { merge: "p2" }],
+      "the kept record's route, the other in the body",
+    );
+    assert.ok(
+      world.seen.slice(before).some((r) => r.method === "GET" && r.path === "/api/v1/contacts/p1"),
+      "and the page is read again, whole",
+    );
+    assert.equal(byTestId(draw(), "merge"), null, "the box closes");
+  } finally {
+    globalThis.window.__ME = me;
+    setSurfaceValue("people", saved);
+  }
+});
+
+test("the merge is the owner's: an operator's menu does not offer it; the picker leaves out a record the door would refuse, and says when People is not read", async () => {
+  const { MERGE_WORDS } = contracts;
+  const vm = toPersonVM(detail(), ZONE, new Date(NOW));
+  const at = (over) => toPersonRowVM(row(over), ZONE, new Date(NOW));
+  const saved = surfaceValue("people");
+  const me = globalThis.window.__ME;
+  const menuOf = (tree) =>
+    find(
+      find(tree, (n) => n.props?.className === "cl-prof-queue-actions"),
+      (n) => n.type === Menu,
+    );
+  try {
+    globalThis.window.fetch = worldFetch;
+    world.holding.clear();
+    // An operator: the act is not in their menu.
+    globalThis.window.__ME = { role: "operator" };
+    setSurfaceValue("people", { ...(saved ?? {}), lists: saved?.lists ?? [], rows: [at({})] });
+    let draw = await profile(vm);
+    await settle();
+    assert.equal(
+      actsIn(menuOf(draw())).some((i) => i.label === MERGE_WORDS.act),
+      false,
+      "an operator is not offered what the route would refuse them",
+    );
+
+    // An owner: every other record the door could take, and none it would refuse as two people.
+    globalThis.window.__ME = { role: "owner" };
+    setSurfaceValue("people", {
+      ...(saved ?? {}),
+      lists: saved?.lists ?? [],
+      rows: [
+        at({}),
+        at({ id: "p2", display_name: "By email", phone_e164: null, email: "one@example.com", channels: ["email"] }),
+        at({ id: "p3", display_name: "Another number", phone_e164: "+17865550199" }),
+      ],
+    });
+    draw = await profile(vm);
+    await settle();
+    actsIn(menuOf(draw()))
+      .find((i) => i.label === MERGE_WORDS.act)
+      .onSelect();
+    let picker = find(byTestId(draw(), "merge"), (n) => n.type === Picker);
+    assert.deepEqual(
+      picker.props.groups.flatMap((g) => g.options).map((o) => o.value),
+      ["p2"],
+      "a record with a different number is two people to the door, and is not offered",
+    );
+    assert.equal(picker.props.note, undefined);
+
+    // People not read yet: nothing to choose from, and the picker says why.
+    setSurfaceValue("people", undefined);
+    picker = find(byTestId(draw(), "merge"), (n) => n.type === Picker);
+    assert.deepEqual(
+      picker.props.groups.flatMap((g) => g.options),
+      [],
+    );
+    assert.equal(picker.props.note, MERGE_WORDS.pickReading);
+  } finally {
+    globalThis.window.__ME = me;
+    setSurfaceValue("people", saved);
+  }
+});
+
+test("a merge the door refuses says so in the box, in the door's sentence, and a second press while one is out sends nothing", async () => {
+  const { MERGE_REFUSALS } = contracts;
+  const vm = toPersonVM(detail(), ZONE, new Date(NOW));
+  const other = toPersonRowVM(
+    row({ id: "p2", display_name: "By email", phone_e164: null, email: "one@example.com", channels: ["email"] }),
+    ZONE,
+    new Date(NOW),
+  );
+  const saved = surfaceValue("people");
+  const me = globalThis.window.__ME;
+  globalThis.window.__ME = { role: "owner" };
+  setSurfaceValue("people", {
+    ...(saved ?? {}),
+    lists: saved?.lists ?? [],
+    rows: [toPersonRowVM(row(), ZONE, new Date(NOW)), other],
+  });
+  const key = "POST /api/v1/contacts/p1/merge";
+  try {
+    globalThis.window.fetch = worldFetch;
+    world.holding.clear();
+    world.answers[key] = () => refused(400, MERGE_REFUSALS.deals, "validation");
+    const draw = await profile(vm);
+    await settle();
+    const menu = find(
+      find(draw(), (n) => n.props?.className === "cl-prof-queue-actions"),
+      (n) => n.type === Menu,
+    );
+    actsIn(menu)
+      .find((i) => i.label === contracts.MERGE_WORDS.act)
+      .onSelect();
+    const confirmOf = () => find(byTestId(draw(), "merge"), (n) => n.type === KitConfirm);
+    find(byTestId(draw(), "merge"), (n) => n.type === Picker).props.onValueChange("p2");
+    confirmOf().props.onType(vm.name);
+    const before = world.seen.length;
+    // Two presses in one turn: the first is out, and the second finds it out and sends nothing.
+    confirmOf().props.onYes();
+    confirmOf().props.onYes();
+    await settle();
+    assert.equal(world.seen.slice(before).filter((r) => r.method === "POST").length, 1, "one request for two presses");
+    const after = confirmOf();
+    assert.ok(after, "the box stays open on a refusal");
+    assert.equal(
+      textOf(after.props.error),
+      MERGE_REFUSALS.deals,
+      "the door's own sentence, where the owner is looking",
+    );
+    assert.equal(after.props.busy, false);
+    // Choosing again clears what the last try said.
+    find(byTestId(draw(), "merge"), (n) => n.type === Picker).props.onValueChange("p2");
+    assert.equal(confirmOf().props.error, null);
+  } finally {
+    delete world.answers[key];
+    globalThis.window.__ME = me;
+    setSurfaceValue("people", saved);
   }
 });

@@ -10,6 +10,7 @@ import { DEAL_ACT_WORDS } from "../deals/deal-words";
 import type { DealVM } from "../deals/deal-vm";
 import { dealPaceOf, type DealPaceVM } from "../deals/deal-waits";
 import type { PersonCampaignVM, PersonDetailDto } from "./person-dto";
+import { MERGE_WORDS } from "./person-merge";
 import type { PersonMode } from "./person-receptionist";
 import { mayReach, type PersonProposalVM, proposalAction } from "./person-reach";
 import type { PersonRowVM } from "./person-row";
@@ -133,7 +134,7 @@ export interface PersonVM extends PersonRowVM {
  * who may "record", or the "owner"). The page draws them; which exist, and their words, are here.
  */
 export interface PersonActVM {
-  id: "booking" | "proposal" | "call" | "copy-phone" | "copy-email" | "delete";
+  id: "booking" | "proposal" | "call" | "copy-phone" | "copy-email" | "merge" | "delete";
   label: string;
   hint: string | null;
   group: "send" | "reach" | "delete";
@@ -183,6 +184,8 @@ export function personActs(p: Omit<PersonVM, "acts">): PersonActVM[] {
     acts.push({ id: "copy-phone", label: "Copy number", hint: null, group: "reach", needs: "any" });
   }
   if (p.email) acts.push({ id: "copy-email", label: "Copy email", hint: null, group: "reach", needs: "any" });
+  // Two records of one person become one (0028): the owner's, as Delete is, and beside it.
+  acts.push({ id: "merge", label: MERGE_WORDS.act, hint: MERGE_WORDS.actHint, group: "delete", needs: "owner" });
   acts.push({ id: "delete", label: "Delete person…", hint: null, group: "delete", needs: "owner", danger: true });
   return acts;
 }

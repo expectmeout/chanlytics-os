@@ -6212,6 +6212,7 @@ export type Database = {
         Args: { p_page: string; p_tenant_id: string; p_view: Json }
         Returns: Json
       }
+      merge_people: { Args: { p_keep: string; p_merge: string }; Returns: Json }
       message_carries_link: {
         Args: { p_body: string; p_link: string }
         Returns: boolean

@@ -253,7 +253,7 @@ test(
 );
 
 test(
-  "ACCEPTANCE: the definer doors a member can call that write consent are the two answer doors and the erasure",
+  "ACCEPTANCE: the definer doors a member can call that write consent are the two answer doors, the erasure and the merge",
   { skip },
   () => {
     const rows = query(`select p.proname as name from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -261,10 +261,12 @@ test(
        and p.prosrc ~* 'update\\s+(public\\.)?contacts\\s+set[^;]*consent\\s*=' order by 1`);
     assert.deepEqual(
       rows.map((r) => r.name),
-      ["erase_contact", "set_contact_consent", "set_marketing_consent"],
+      ["erase_contact", "merge_people", "set_contact_consent", "set_marketing_consent"],
     );
-    // The third is the right to be forgotten (00027), and the only value it
+    // erase_contact is the right to be forgotten (00027), and the only value it
     // writes is the absence of an answer: it can record no yes for anybody.
+    // merge_people (00326) writes the more careful of two answers the person
+    // already gave, never a new one (people/merge/merge-people.db.test.mjs).
     const erase = query(`select p.prosrc ~ 'consent\\s*=\\s*''unknown''' as clears,
                               p.prosrc ~ 'consent\\s*=\\s*''opted_in''' as grants
        from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'erase_contact'`);

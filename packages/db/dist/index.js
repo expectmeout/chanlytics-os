@@ -395,6 +395,29 @@ async function erasureDigests(db, tenantId, values) {
   }
   return out;
 }
+async function mergePeople(db, keep, merge) {
+  const { data, error } = await db.rpc("merge_people", { p_keep: keep, p_merge: merge });
+  if (error) throw error;
+  return mergedOf(data);
+}
+function mergedOf(v) {
+  const o = v && typeof v === "object" && !Array.isArray(v) ? v : {};
+  const word = (k) => typeof o[k] === "string" ? o[k] : "";
+  if (!word("contact_id") || !word("merged")) throw new Error("merge_people answered without the two records");
+  const counts = o.counts && typeof o.counts === "object" && !Array.isArray(o.counts) ? o.counts : {};
+  const out = {};
+  for (const [k, n] of Object.entries(counts)) if (typeof n === "number" || typeof n === "string") out[k] = n;
+  return {
+    contact_id: word("contact_id"),
+    merged: word("merged"),
+    tenant_id: word("tenant_id"),
+    decision_id: word("decision_id"),
+    consent: word("consent"),
+    marketing_consent: word("marketing_consent"),
+    email_marketing: word("email_marketing"),
+    counts: out
+  };
+}
 
 // src/repositories/campaigns/campaign-channels.ts
 async function whatsappChannelConfig(db, tenantId) {
@@ -3518,6 +3541,7 @@ export {
   markReplyTold,
   markWaitlistInvited,
   membershipCountOf,
+  mergePeople,
   messageByExternalId,
   messageSenders,
   messageSlots,
