@@ -100,6 +100,11 @@ const EVERY_CLOCK = {
   platform_metrics_roll: "platform-metrics-roll",
   // A voice conversation's row, a day after its token expired (00288): nightly, judged by its run.
   sweep_voice_sessions: "sweep-voice-sessions",
+  // Each sending domain's day (00314): nightly at 00:23 UTC, judged by its run.
+  sending_domain_days: "sending-domain-days",
+  // A connected WhatsApp number's rating (00315): a six-hour clock that asks the edge only when a number is connected,
+  // and records that it looked otherwise.
+  channel_quality: "channel-quality-sweep",
 };
 const RUN_JUDGED = [
   "partitions",
@@ -113,6 +118,7 @@ const RUN_JUDGED = [
   "purge_notifications",
   "purge_page_vitals",
   "purge_rate_hits",
+  "sending_domain_days",
   "snoozes",
   "sweep_voice_sessions",
 ];

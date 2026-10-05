@@ -15,6 +15,7 @@ import {
   holdsReplyTurn,
   ingestInbound,
   markProcessed,
+  stampHandled,
   pauseConversation,
   emitEvent,
   recordActivation,
@@ -35,7 +36,7 @@ import {
 import { waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
 import { queueDraft } from "../receptionist/draft-queue.js";
 import { recordTokens } from "../receptionist/budget.js";
-import type { BrainMeta, SendPurpose } from "../packages/contracts.js";
+import type { BrainIntent, BrainMeta, Handled, SendPurpose } from "../packages/contracts.js";
 import { logger, errField } from "../log.js";
 
 /**
@@ -153,6 +154,7 @@ export async function pgIngest(
   tenantId: string | null,
   n: NormalizedInbound,
   channel: "whatsapp" | "sms" = "whatsapp",
+  line: string | null = null,
 ): Promise<IngestResult | null> {
   if (!db || !tenantId) return null;
   try {
@@ -167,7 +169,13 @@ export async function pgIngest(
       body: n.body,
       channelTs: n.channelTsIso,
       media: n.media ? (n.media as unknown as Json) : null,
-      meta: { raw_type: n.rawType },
+      meta: {
+        raw_type: n.rawType,
+        // K3: the line it came in on and the ad it came from ride in the row's meta, where the database's own trigger
+        // (00306) reads them for the first touch of the person this message made. Absent keys, never nulls.
+        ...(line ? { line } : {}),
+        ...(n.referral ? { referral: { source_id: n.referral.sourceId, source_type: n.referral.sourceType } } : {}),
+      },
       optOut: n.optOut,
       optIn: n.optIn,
       optInMarketing: n.optInMarketing,
@@ -181,8 +189,10 @@ export async function pgIngest(
 /** The steps pgSafe guards; each logs `pg_<step>_failed`, a name in LOG_EVENTS, when it throws. */
 type PgStep =
   | "allowlist_evt"
+  | "cost"
   | "echo"
   | "escalation"
+  | "handled"
   | "media_fetch"
   | "note_email"
   | "pause"
@@ -223,6 +233,55 @@ async function recordUsage(
 ): Promise<void> {
   await recordTokens(db, tenantId, conversationId, u);
   if (u.held == null) await recordActivation(db, tenantId, "first_reply", "receptionist");
+}
+
+/**
+ * The message is finished with: marked processed (the deadman sweep reads it), and, when the way out says what it
+ * became, stamped with that (K1, core's handled.ts). Two doors in parallel, each guarded alone, so a stamp the database
+ * refuses never costs the message its processed_at and the reverse, and neither is ever thrown into the handling path.
+ */
+function pgProcessed(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  messageId: string,
+  handled?: Handled,
+  intent?: BrainIntent | null,
+) {
+  return Promise.all([
+    pgSafe("processed", () => markProcessed(db, tenantId, messageId)),
+    handled ? pgStamp(db, tenantId, messageId, handled, intent) : undefined,
+  ]);
+}
+
+/**
+ * What the message became, and nothing else: the one stamp, behind its one guard and its one log line (`pg_handled_failed`).
+ * `processed` writes it beside processed_at; `noteHandled` writes it alone, for the message a failed send leaves
+ * unprocessed on purpose (core's handled.ts).
+ */
+function pgStamp(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  messageId: string,
+  handled: Handled,
+  intent?: BrainIntent | null,
+) {
+  return pgSafe("handled", () => stampHandled(db, tenantId, messageId, handled, intent ?? null));
+}
+
+/** What the sink's `processed` says: what the message became, and what it was about where the model read it. */
+type Said = [handled?: Handled, intent?: BrainIntent | null];
+
+/**
+ * The two ways a way out says its message is finished with, as the sink's methods: `processed` marks it and stamps it,
+ * `noteHandled` only stamps it. Both resolve at once where there is no database, a workspace and an ingested row.
+ */
+function pgFinishing(db: SupabaseClient<Database> | null, tenantId: string | null, ing: IngestResult | null) {
+  const on = !!(db && tenantId && ing);
+  return {
+    processed: (...said: Said) => (on ? pgProcessed(db, tenantId, ing.message_id, ...said) : Promise.resolve()),
+    noteHandled: (handled: Handled, intent?: BrainIntent | null) =>
+      on ? pgStamp(db, tenantId, ing.message_id, handled, intent) : Promise.resolve(),
+  };
 }
 
 /**
@@ -303,7 +362,7 @@ export function pgSink(
             errorBody: "no_database",
             messageId: null,
           }),
-    processed: () => (on ? pgSafe("processed", () => markProcessed(db, tenantId, ing.message_id)) : Promise.resolve()),
+    ...pgFinishing(db, tenantId, ing),
     allowlistSkip: () =>
       on
         ? pgSafe("allowlist_evt", () => emitEvent(db, tenantId, "ingest.allowlist_skip", "message", ing.message_id, {}))

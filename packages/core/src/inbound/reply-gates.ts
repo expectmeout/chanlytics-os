@@ -23,6 +23,7 @@ import { optInConfirmation, tokenBudgetSpent, tokenCapOf } from "@chanlytics/con
 import type { SendPurpose } from "@chanlytics/contracts";
 import { ageVerdict, threadVerdict, holdCopy } from "./steps";
 import { GO, type Answering } from "./context";
+import { escalationOf, handledOf, processedAfter, SET_ASIDE, type Asked } from "./handled";
 
 /** A message too old to answer automatically, and a yes to confirm in the campaign's own words. */
 export async function lateOrConfirmed(at: Answering, bodyText: string): Promise<typeof GO | undefined> {
@@ -43,13 +44,14 @@ export async function lateOrConfirmed(at: Answering, bodyText: string): Promise<
   // arrive out of nowhere, so a person picks it up — but a person is told.
   const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? undefined);
   if (age === "stale") {
+    const asked = sink.escalate(
+      "stale",
+      `Message arrived ${Math.round(ageMs / 60000)} minutes late — too old to answer automatically.`,
+    );
     await Promise.all([
-      sink.escalate(
-        "stale",
-        `Message arrived ${Math.round(ageMs / 60000)} minutes late — too old to answer automatically.`,
-      ),
+      asked,
       tell(n.body ?? `[${raw.type}]`, "(no reply sent — arrived too late to answer automatically)", "late message"),
-      sink.processed(),
+      processedAfter(sink, asked, "none"),
     ]);
     L.info("wa_stale_escalated", { age_ms: ageMs });
     return;
@@ -81,6 +83,7 @@ export async function lateOrConfirmed(at: Answering, bodyText: string): Promise<
     // A system message, so a thread a person holds does not hold it back: the
     // yes is owed its confirmation whoever holds the thread.
     const confirmed = await send(words, { ack: true, confirmation: purpose }, purpose, "system");
+    let asked: Asked | null = null;
     if (confirmed.outcome !== "sent") {
       // A yes nobody confirmed is the carriers' complaint, whether the wire
       // failed or the door refused. A refusal is NOT quietly logged here the
@@ -91,15 +94,16 @@ export async function lateOrConfirmed(at: Answering, bodyText: string): Promise<
       // did not land would otherwise leave a customer subscribed to nothing,
       // told nothing, with a log line as the only trace.
       const why = confirmed.outcome === "failed" ? `${confirmed.reason}, HTTP ${confirmed.status}` : confirmed.reason;
+      asked = sink.escalate(
+        "send_failed",
+        `The customer said yes and their confirmation did not go out (${why}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`,
+      );
       await Promise.all([
-        sink.escalate(
-          "send_failed",
-          `The customer said yes and their confirmation did not go out (${why}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`,
-        ),
+        asked,
         tell(bodyText, `(the confirmation of their yes was not delivered — ${why})`, "opt-in not confirmed"),
       ]);
     }
-    await sink.processed();
+    await processedAfter(sink, asked, confirmed.outcome === "sent" ? "sent" : "none");
     L.info("wa_opt_in_confirmed", {
       purpose,
       channel,
@@ -131,7 +135,7 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
   const gate = threadVerdict(thread, maxRepliesDay);
   if (gate === "paused") {
     L.info("wa_skip_paused", { paused_until: thread.pausedUntil });
-    await sink.processed();
+    await sink.processed(handledOf(SET_ASIDE));
     return;
   }
   if (gate === "ratecap") {
@@ -141,13 +145,14 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     // CHECK-allowed, LABELLED escalation reason this whole time with no
     // emitter anywhere in the repo. At the shipped default of 20/day this
     // fires on a busy thread, not only when someone lowers the limit.
+    const asked = sink.escalate(
+      "rate_cap",
+      `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`,
+    );
     await Promise.all([
-      sink.escalate(
-        "rate_cap",
-        `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`,
-      ),
+      asked,
       tell(bodyText, "(no reply sent — daily automatic-reply limit reached)", "rate cap"),
-      sink.processed(),
+      processedAfter(sink, asked, "none"),
     ]);
     return;
   }
@@ -162,13 +167,14 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
     if (tokenBudgetSpent(replyLimits, used)) {
       L.info("wa_skip_budget", { cap: tokenCap, used });
+      const asked = sink.escalate(
+        "budget",
+        `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours — the receptionist stopped and is waiting for a human.`,
+      );
       await Promise.all([
-        sink.escalate(
-          "budget",
-          `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours — the receptionist stopped and is waiting for a human.`,
-        ),
+        asked,
         tell(bodyText, "(no reply sent — the day's model budget is used up)", "budget"),
-        sink.processed(),
+        processedAfter(sink, asked, "none"),
       ]);
       return;
     }
@@ -184,13 +190,14 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     // pause above logs, so nothing reading the stream could tell a human
     // taking one conversation over from a workspace-wide billing stop.
     L.info("wa_skip_workspace_paused");
+    const asked = sink.escalate(
+      "paused",
+      "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
+    );
     await Promise.all([
-      sink.escalate(
-        "paused",
-        "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
-      ),
+      asked,
       tell(bodyText, "(no reply sent — the workspace is paused until billing resumes)", "paused"),
-      sink.processed(),
+      processedAfter(sink, asked, "none"),
     ]);
     return;
   }
@@ -216,7 +223,10 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     });
     const outcome = await sink.escalate(hold.reason, hold.details);
     const alertNeeded = !hold.personHold || outcome !== "refreshed";
-    await Promise.all([...(alertNeeded ? [tell(bodyText, hold.botText, hold.why)] : []), sink.processed()]);
+    await Promise.all([
+      ...(alertNeeded ? [tell(bodyText, hold.botText, hold.why)] : []),
+      sink.processed(handledOf({ escalation: escalationOf(outcome), reply: "none" })),
+    ]);
     L.info("wa_held_by_policy", {
       mode: replyMode,
       person_mode: personMode,

@@ -11,6 +11,8 @@ import { execFileSync } from "node:child_process";
 import { ROOT, readRaw } from "../_source.mjs";
 import { LEASE_SECONDS, SEND_SETTLE_MS, YIELD_AT_MS, sendByAt } from "../../../../packages/jobs/src/ledger.ts";
 import { YIELD_AT_MS as DOMAINS_YIELD_AT_MS } from "../../../../apps/edge/api/cron/domains.ts";
+import { YIELD_AT_MS as QUALITY_YIELD_AT_MS } from "../../../../apps/edge/api/cron/channel-quality.ts";
+import { GRAPH_TIMEOUT_MS } from "../../../../apps/edge/lib/whatsapp/meta-graph.ts";
 import { CHECK_CALLS_UNTIL_MS, CHECK_CALL_MS, CHECK_DONE_BY_MS } from "../../../../apps/edge/lib/reach-out/check.ts";
 import { PREVIEW_LIMITS } from "../../../../apps/edge/lib/reach-out/preview.ts";
 import {
@@ -215,6 +217,17 @@ test("the domains sweep yields before its limit, with a row's whole check still 
   assert.ok(
     worst <= ceiling,
     `${DOMAINS_YIELD_AT_MS} + ${SEND_TIMEOUT_MS} + ${NOTIFY_TIMEOUT_MS} + ${WRITES_MS} = ${worst} ms must fit in ${ceiling} ms`,
+  );
+});
+
+test("the channel-quality sweep yields before its limit, with a read of Meta still to come", () => {
+  // Its last read may start just before QUALITY_YIELD_AT_MS (counted from the door's first line) and wait out Graph's own
+  // bound, then write. Past the limit the platform kills the function mid-write.
+  const WRITES_MS = 3_000;
+  const ceiling = FUNCTIONS["api/cron/channel-quality.ts"].maxDuration * 1000;
+  assert.ok(
+    QUALITY_YIELD_AT_MS + GRAPH_TIMEOUT_MS + WRITES_MS <= ceiling,
+    `${QUALITY_YIELD_AT_MS} + ${GRAPH_TIMEOUT_MS} + ${WRITES_MS} must fit in ${ceiling} ms`,
   );
 });
 

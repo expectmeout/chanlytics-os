@@ -212,6 +212,7 @@ function world() {
     notifications: [],
   };
   let people = 0;
+  let costRefused = false;
   return {
     i,
     T,
@@ -221,8 +222,21 @@ function world() {
     tables,
     /** A phone number id no workspace holds. */
     stranger: String(106540000500000 + i),
+    /** The cost door (00319) refuses from now on, as a database ahead of its migration, or one that is down, does. */
+    refuseCost: () => {
+      costRefused = true;
+    },
     open: (faults = {}) => {
-      const db = fakeDb(tables, faults, { runtime_stamp: () => `stamp-${i}` });
+      const db = fakeDb(tables, faults, {
+        runtime_stamp: () => `stamp-${i}`,
+        message_keep_cost: ({ p_tenant_id, p_external_id, p_pricing }) => {
+          if (costRefused) throw new Error("function message_keep_cost does not exist");
+          const row = tables.messages.find((m) => m.tenant_id === p_tenant_id && m.external_id === p_external_id);
+          if (!row || row.meta?.pricing) return false;
+          row.meta = { ...(row.meta ?? {}), pricing: p_pricing };
+          return true;
+        },
+      });
       setPg(db);
       return db;
     },
@@ -862,6 +876,77 @@ test("receipts land on the routed workspace's own messages by external id, a fai
     kind(w.tables, "ingest.unroutable").map((e) => e.data),
     [{ channel: "whatsapp", phone_number_id: w.stranger }],
   );
+});
+
+test("a receipt that carries Meta's pricing has it kept on the message it is about, once, through the real door; the status moves as always and the answer is 200", async () => {
+  const w = world();
+  const to = w.customer();
+  const wamid = `wamid.${w.i}.price`;
+  w.tables.messages.push({
+    id: "out",
+    tenant_id: w.T,
+    external_id: wamid,
+    status: "queued",
+    direction: "outbound",
+    meta: {},
+  });
+  w.open();
+  receptionist();
+  const pricing = { billable: true, pricing_model: "PMP", category: "utility", type: "regular" };
+  const receipt = (status, over = {}) => ({ id: wamid, status, timestamp: now(), recipient_id: to, ...over });
+  assert.deepEqual(await answer(await deliver(w.change({ statuses: [receipt("sent", { pricing })] }))), [
+    200,
+    { ok: true },
+  ]);
+  const row = w.tables.messages.find((m) => m.id === "out");
+  assert.deepEqual([row.status, row.meta.pricing], ["sent", pricing]);
+  // Meta says it once; a second pricing (a retry, a delivered after a sent that carried it) finds the key there.
+  await deliver(w.change({ statuses: [receipt("delivered", { pricing: { ...pricing, category: "marketing" } })] }));
+  assert.deepEqual([row.status, row.meta.pricing.category], ["delivered", "utility"]);
+});
+
+test("a cost the database refuses costs the delivery nothing: the door is asked after the status has landed, says so on its log, answers 200, and finishes the whole body, the rest of the receipts and the messages after it", async () => {
+  const w = world();
+  const to = w.customer();
+  const from = w.customer();
+  const wamid = (k) => `wamid.${w.i}.cost.${k}`;
+  w.tables.messages.push(
+    { id: "priced", tenant_id: w.T, external_id: wamid(1), status: "queued", direction: "outbound", meta: {} },
+    { id: "after", tenant_id: w.T, external_id: wamid(2), status: "queued", direction: "outbound", meta: {} },
+  );
+  w.open();
+  w.refuseCost();
+  const seen = receptionist();
+  const pricing = { billable: true, pricing_model: "PMP", category: "utility", type: "regular" };
+  const receipt = (k, status, over = {}) => ({ id: wamid(k), status, timestamp: now(), recipient_id: to, ...over });
+  // One delivery, three changes: the priced receipt whose cost is refused, then another change with a receipt and a
+  // customer's message. Everything after the refusal is still the door's to do.
+  const body = w.change({ statuses: [receipt(1, "sent", { pricing })] });
+  body.entry[0].changes.push(
+    w.change({ statuses: [receipt(2, "delivered")] }).entry[0].changes[0],
+    w.change({ messages: [text(from, `wamid.${w.i}.in`, "hello after the refused cost")] }).entry[0].changes[0],
+  );
+  await listening(async (log) => {
+    assert.deepEqual(await answer(await deliver(body)), [200, { ok: true }], "the cost never changes the answer");
+    const row = (id) => w.tables.messages.find((m) => m.id === id);
+    assert.deepEqual(
+      [row("priced").status, "pricing" in row("priced").meta],
+      ["sent", false],
+      "the status landed, no cost",
+    );
+    assert.equal(row("after").status, "delivered", "the next change's receipt landed");
+    assert.deepEqual(
+      seen.ingested.map((x) => x.body),
+      ["hello after the refused cost"],
+      "and so did the customer's message after it",
+    );
+    assert.deepEqual(
+      log.lines.filter((l) => l.event.startsWith("pg_")).map((l) => l.event),
+      ["pg_cost_failed"],
+      "one line says the cost was lost, and nothing else of the delivery failed",
+    );
+    assert.equal(log.said("wa_webhook_error").length, 0, "no throw reached the door's own catch");
+  });
 });
 
 test("an owner's reply from the Business app pauses the receptionist for the workspace's own hours: recorded as a person's words, the conversation handed over, no thread touched", async () => {

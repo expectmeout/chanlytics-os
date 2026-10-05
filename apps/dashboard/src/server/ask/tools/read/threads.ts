@@ -6,8 +6,8 @@ import {
   PERSON_CHANNEL_WORDS,
   clockStamp,
   messageText,
+  messageWhy,
   noteRows,
-  replyWhy,
   toInboxThreadVM,
   type PersonChannel,
 } from "@chanlytics/contracts";
@@ -142,7 +142,7 @@ async function getThread(t: ToolContext, input: { conversation_id: string; more?
         }
       : null,
     messages: dto.messages.slice(-cap).map((m) => {
-      const why = replyWhy(m.meta as Record<string, unknown> | null);
+      const why = messageWhy(m);
       return {
         // By the business's clock, as the pages say it: the time today, the date and the time before.
         at: clockStamp(Date.parse(m.created_at), t.timezone, t.now.getTime()),

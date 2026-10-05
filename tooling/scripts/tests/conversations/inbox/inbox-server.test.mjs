@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
-import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { toInboxThreadVM, stateOf, memberWords, memberMetaOf } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, find } from "../../_legacy-react.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -454,4 +454,62 @@ test("the composer of a text thread says Text, not WhatsApp", async () => {
     "Text to Ada…",
     "REGRESSION: a text was said to go out on WhatsApp",
   );
+});
+
+/* ------------------------------ what a member is sent ------------------------------ */
+
+test("a thread's messages carry their meta as a member may be sent it: what a message cost to send is dropped, every other key stays", () => {
+  const cost = { pricing: { billable: true, pricing_model: "PMP", category: "utility", type: "regular" } };
+  const meta = {
+    source: "ai",
+    confidence: 0.9,
+    handled: "ai",
+    intent: "pricing",
+    status_at: { sent: "2026-10-03T10:00:00Z" },
+  };
+  const rows = [
+    message("m1", uuid(1), A, {
+      direction: "outbound",
+      sender: "ai",
+      status: "delivered",
+      created_at: ago(2 * HOUR),
+      channel_ts: ago(2 * HOUR),
+      meta: { ...meta, ...cost },
+    }),
+    message("m2", uuid(1), A, { meta: null }),
+  ];
+  const [out, inbound] = groupMessages(rows).get(uuid(1));
+  assert.deepEqual(out.meta, meta, "REGRESSION: a member's browser was sent what it cost to send");
+  assert.equal(inbound.meta, null);
+  assert.deepEqual(memberMetaOf({ pricing: 1 }), {});
+  assert.deepEqual(memberMetaOf({ source: "ai" }), { source: "ai" });
+  for (const odd of [undefined, "x", [1], 7]) assert.equal(memberMetaOf(odd), null);
+  const stored = { ...meta, ...cost };
+  memberMetaOf(stored);
+  assert.deepEqual(stored, { ...meta, ...cost }, "the stored row's meta is read, never changed");
+});
+
+test("the Inbox's list sends each thread's messages without what they cost to send, and the cost stays in the row", async () => {
+  const pricing = { billable: true, pricing_model: "PMP", category: "marketing", type: "regular" };
+  const tables = {
+    memberships: both("viewer", "viewer"),
+    conversations: [conversation(uuid(1), A)],
+    messages: [
+      message("m1", uuid(1), A, {
+        direction: "outbound",
+        sender: "ai",
+        status: "delivered",
+        created_at: ago(2 * HOUR),
+        channel_ts: ago(2 * HOUR),
+        meta: { source: "ai", handled: "ai", pricing },
+      }),
+    ],
+  };
+  const out = await list.GET.run(get(inA), ctxFor(tables));
+  assert.deepEqual(
+    out.conversations[0].messages.map((m) => m.meta),
+    [{ source: "ai", handled: "ai" }],
+  );
+  assert.ok(!JSON.stringify(out).includes("pricing"), "REGRESSION: the list's payload carries a message's cost");
+  assert.deepEqual(tables.messages[0].meta.pricing, pricing, "the row itself is untouched");
 });

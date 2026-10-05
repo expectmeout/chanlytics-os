@@ -41,6 +41,7 @@ import {
   subscriptionFacts,
   tenantOf,
 } from "./billing.js";
+import { noteInvoiceAmount } from "./invoice-amount.js";
 import {
   earnFromInvoice,
   invoiceOfPayment,
@@ -308,6 +309,9 @@ async function onInvoice(event: EventOf<"invoice.payment_failed" | "invoice.paid
   if (row) await notePayment(d.db, row, event.type === "invoice.paid" ? "paid" : "failed", inv.amount_paid);
   const earned =
     row && event.type === "invoice.paid" ? await earnFromInvoice(d.db, row.tenant_id, inv, event.id, d.L) : null;
+  // What the invoice moved, kept on the event's row (K8): last, best-effort and never an answer of its own, so
+  // nothing above it changes and nothing here fails the door (lib/billing/invoice-amount.ts).
+  await noteInvoiceAmount(d.db, event.id, event.type, inv);
   return () => ledgerAnswer(d, earned, "partner_earned");
 }
 

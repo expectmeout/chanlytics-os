@@ -11,6 +11,9 @@
  *                        each with its zone. A row whose calendar has no address is not a feed and is never due.
  *   stampPlaybooksTried  a due moment that could not run this tick is stamped last_run_at with its day left open,
  *                        which sorts it behind the moments that can run, so it never holds the page's first places.
+ *   whatsappNumbersToRead  the active WhatsApp numbers, never read first and then the longest unread: what the
+ *                          channel-quality sweep (apps/edge/api/cron/channel-quality.ts, every six hours) reads.
+ *   keepChannelQuality     the one write that sweep makes, through channel_keep_quality (00315).
  * The functions are the service role's alone. The edge's calendar and playbooks sweeps read the pages through
  * lib/ops/sweep-rotation.ts, and the playbooks sweep calls the stamp. A read that fails throws, and so does a page
  * whose rows lack the count, so a database without the function is a sweep that says so, never a quiet tick.
@@ -119,4 +122,68 @@ export async function dueCalendars(
     rows: rows.map((r) => ({ tenant_id: r.tenant_id, config: r.config, timezone: r.timezone })),
     remaining: remainingOf(rows),
   };
+}
+
+/** A connected WhatsApp number as the channel-quality sweep sees it. */
+export interface WhatsappNumber {
+  channel_id: string;
+  tenant_id: string;
+  /** Meta's phone number id: the channel's external_id. */
+  phone_number_id: string;
+  /** When a rating was last kept for it (config.quality_read_at); null before its first read. */
+  read_at: string | null;
+}
+
+/** The moment config.quality_read_at holds, when it holds one. */
+function readAtOf(config: Json): string | null {
+  if (config === null || typeof config !== "object" || Array.isArray(config)) return null;
+  const at = config.quality_read_at;
+  return typeof at === "string" ? at : null;
+}
+
+/**
+ * The active WhatsApp numbers, never read first and then the longest unread, at most `limit`: the order is the
+ * database's (the moment of the last read, read out of config), so the numbers a tick has no time for are the first
+ * of the next, however many there are. A read that fails throws.
+ */
+export async function whatsappNumbersToRead(db: Db, limit: number): Promise<WhatsappNumber[]> {
+  const { data, error } = await db
+    .from("tenant_channels")
+    .select("id, tenant_id, external_id, config")
+    .eq("kind", "whatsapp")
+    .eq("status", "active")
+    .order("config->>quality_read_at", { ascending: true, nullsFirst: true })
+    .limit(limit);
+  if (error) throw new Error(`cannot read the WhatsApp numbers: ${error.message}`);
+  return (data ?? []).map((r) => ({
+    channel_id: r.id,
+    tenant_id: r.tenant_id,
+    phone_number_id: r.external_id,
+    read_at: readAtOf(r.config),
+  }));
+}
+
+const KEPT_ANSWERS = ["first", "changed", "same", "gone"] as const;
+type ChannelQualityKept = (typeof KEPT_ANSWERS)[number];
+
+/**
+ * A number's rating, kept (channel_keep_quality, 00315): first read, changed, the same as the last, or gone (not this
+ * workspace's WhatsApp channel any more). Throws on the database's refusal and on an answer it does not know, so a
+ * sweep counts the number as unread and tries it next tick.
+ */
+export async function keepChannelQuality(
+  db: Db,
+  tenantId: string,
+  channelId: string,
+  rating: string,
+): Promise<ChannelQualityKept> {
+  const { data, error } = await db.rpc("channel_keep_quality", {
+    p_tenant_id: tenantId,
+    p_channel_id: channelId,
+    p_rating: rating,
+  });
+  if (error) throw new Error(`channel_keep_quality: ${error.message}`);
+  const kept = KEPT_ANSWERS.find((a) => a === data);
+  if (kept === undefined) throw new Error(`channel_keep_quality: answered ${JSON.stringify(data)}`);
+  return kept;
 }

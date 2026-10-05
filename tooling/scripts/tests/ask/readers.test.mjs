@@ -1043,6 +1043,39 @@ test("a thread this workspace does not hold is the page's 404, in the scope's ow
   );
 });
 
+test("what a message cost to send is never Ask's to read: the thread reader, the Inbox reader and the thread tool carry each message's meta as the page sends it, without it", async () => {
+  const pricing = { billable: true, pricing_model: "PMP", category: "utility", type: "regular" };
+  const tbls = threadTables();
+  tbls.messages[1] = { ...tbls.messages[1], meta: { source: "ai", handled: "ai", pricing } };
+  const metas = (messages) => messages.map((m) => m.meta);
+
+  const one = await kernel.load(turnIn(dayCtx(tbls), B), oneThread, { id: C1, before: null });
+  assert.deepEqual(metas(one.data.messages), [null, { source: "ai", handled: "ai" }], "the thread reader");
+  const route = await threadRoute.GET.run(req(), routeCtx(tbls, C1));
+  assert.deepEqual(route, one.data, "and the route is the reader");
+
+  const listed = await kernel.load(turnIn(dayCtx(tbls), B), conversations, { ids: [C1] });
+  assert.deepEqual(
+    metas(listed.data.conversations[0].messages),
+    [null, { source: "ai", handled: "ai" }],
+    "the Inbox reader",
+  );
+
+  const tc = newToolContext(dayCtx(tbls), B, "operator", "America/New_York", new Date());
+  const said = (await runTool(tc, { name: "inbox", input: { action: "thread", conversation_id: C1 } })).result;
+  assert.ok(JSON.parse(said).messages.length > 0, "the tool read the thread");
+  for (const [name, out] of [
+    ["thread reader", one],
+    ["Inbox reader", listed],
+    ["thread tool", said],
+  ])
+    assert.ok(
+      !JSON.stringify(out).includes("pricing"),
+      `REGRESSION: Ask's ${name} was handed what a message cost to send`,
+    );
+  assert.deepEqual(tbls.messages[1].meta.pricing, pricing, "the row itself is untouched");
+});
+
 test("one call for Ask: the Calls page's own columns and mapping for one call, read under the workspace's own filter -- another workspace's call, or one not there, is the call routes' 404 -- and the call and its person are the rows", async () => {
   const stored = {
     storage_path: "a/b.mp3",

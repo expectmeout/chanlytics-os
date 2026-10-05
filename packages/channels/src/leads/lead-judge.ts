@@ -33,10 +33,15 @@ export const LEAD_JUDGE_DEFAULT_MODEL = MODEL_ROUTES.lead_judge.model;
 
 /**
  * The client as this call uses it: the edge builds one over the model port (apps/edge/lib/leads/lead-wires.ts), which
- * writes each call to the usage ledger for the workspace named in `call`.
+ * writes each call to the usage ledger for the workspace named in `call`, with the round it was paid in as the row's
+ * subject.
  */
 export interface LeadJudgeClient {
-  beta: { messages: { create(params: Record<string, unknown>, call?: { tenantId?: string }): Promise<unknown> } };
+  beta: {
+    messages: {
+      create(params: Record<string, unknown>, call?: { tenantId?: string; roundId?: string }): Promise<unknown>;
+    };
+  };
 }
 
 export type LeadJudgeAnswer =
@@ -44,8 +49,12 @@ export type LeadJudgeAnswer =
   | { refused: true; why: string };
 
 export interface LeadJudge {
-  /** One batch judged; `tenantId` is the search's workspace, the usage ledger's row. */
-  judge(plan: LeadSearchPlan, places: PlaceFacts[], tenantId?: string): Promise<LeadJudgeAnswer>;
+  /**
+   * One batch judged; `tenantId` is the search's workspace, the usage ledger's row, and `roundId` the round the batch is
+   * paid in, the row's subject (and the second model's rows for the same call): what the judge cost a search is read off
+   * the ledger by it. A call that names no round leaves the subject empty.
+   */
+  judge(plan: LeadSearchPlan, places: PlaceFacts[], tenantId?: string, roundId?: string): Promise<LeadJudgeAnswer>;
 }
 
 interface RawResponse {
@@ -63,7 +72,7 @@ function betaRejected(e: unknown): boolean {
 
 export function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boolean): LeadJudge {
   return {
-    async judge(plan, places, tenantId) {
+    async judge(plan, places, tenantId, roundId) {
       const system = judgeSystemPrompt(plan);
       const user = judgeUserContent(places);
       const requestHash = createHash("sha256").update(`${system}\n${user}`).digest("hex");
@@ -78,11 +87,11 @@ export function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boo
       try {
         res = (await client.beta.messages.create(
           fallbacks ? { ...base, betas: [LEAD_JUDGE_FALLBACK_BETA], fallbacks: "default" } : base,
-          { tenantId },
+          { tenantId, roundId },
         )) as RawResponse;
       } catch (e) {
         if (!(fallbacks && betaRejected(e))) throw e;
-        res = (await client.beta.messages.create(base, { tenantId })) as RawResponse;
+        res = (await client.beta.messages.create(base, { tenantId, roundId })) as RawResponse;
       }
       const tokens = (res.usage?.input_tokens ?? 0) + (res.usage?.output_tokens ?? 0);
       if (res.stop_reason === "refusal") return { refused: true, why: "the judge refused" };

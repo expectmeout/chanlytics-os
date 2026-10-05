@@ -1,5 +1,5 @@
 /** A thread as the pages draw it: the view models, and who has it. */
-export { messageAt, isOptedOut } from "./thread-dto";
+export { messageAt, isOptedOut, memberMetaOf } from "./thread-dto";
 export type { MessageDto, ConversationDto } from "./thread-dto";
 export { agentFor, writtenChannelOf, threadChannelOf, threadChannelWords } from "./thread-channel";
 export { contactName, isIdentifierName, contactMeta, initialsOf } from "./thread-contact";
@@ -16,7 +16,10 @@ export {
   messageText,
   clipAtWord,
 } from "./message-words";
-export { messageVia, messageAuthor } from "./message-author";
+export { messageVia, messageAuthor, messageWhy } from "./message-author";
+export { HANDLED_OUTCOMES } from "./handled";
+export type { Handled } from "./handled";
+export { REFERRAL_ID_MAX } from "./first-touch";
 export type { MessageAuthor } from "./message-author";
 export { ESCALATION_REASON_LABELS } from "./escalations";
 export type { EscalationDto } from "./escalations";

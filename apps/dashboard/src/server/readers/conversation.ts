@@ -1,5 +1,5 @@
 import "server-only";
-import { AppError, personName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
+import { AppError, memberMetaOf, personName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
 import { mediaPublic } from "../dto";
 import { loadConversation, type VerbConversation } from "../verbs";
 import { load, stamp, type Reader, type RowRef } from "./index";
@@ -32,7 +32,7 @@ export const messagesOf: Reader<{ id: string; before: string | null }, MessageDt
       type: m.type,
       body: m.body,
       media: mediaPublic(m.media),
-      meta: m.meta as MessageDto["meta"],
+      meta: memberMetaOf(m.meta),
       status: m.status,
       created_at: m.created_at,
       channel_ts: m.channel_ts,

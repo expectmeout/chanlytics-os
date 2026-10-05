@@ -181,9 +181,9 @@ directories over 20 modules           4
 window globals                      106   names
 window publishers                   202   sites in 69 files
 copies                               73   of 21 names
-as unknown as                       146
+as unknown as                       145
 as never                             13
-non-null assertions, x!             116
+non-null assertions, x!             115
 index reads the compiler lets pass  484   in 128 files
 table names outside packages/db     485
 SQL functions outside packages/db   133   called by .rpc
@@ -196,7 +196,7 @@ inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     297
 source-text reads in tests          775
-lint warnings                       362   in 155 files, 63 of them exhaustive-deps
+lint warnings                       361   in 154 files, 63 of them exhaustive-deps
 workspace route JS, KB gzipped      733   the shell included
 workspace route CSS, KB gzipped     147
 workspace pages' own JS, KB         483   gzipped, each page's chunks once, beside the route

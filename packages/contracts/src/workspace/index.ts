@@ -51,6 +51,7 @@ export {
   isActivityMoney,
   isActivityNoise,
   ACTIVITY_NOISE_PREFIXES,
+  ACTIVITY_NOISE_KINDS,
   ACTIVITY_KINDS,
 } from "./activity";
 export type { ActivityRowDto, ActivityPageDto, ActivityVerb } from "./activity";

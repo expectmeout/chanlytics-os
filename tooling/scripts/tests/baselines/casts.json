@@ -304,8 +304,7 @@
     "unknownAs": 1
   },
   "apps/edge/lib/whatsapp/webhook.ts": {
-    "unknownAs": 2,
-    "nonNull": 1
+    "unknownAs": 1
   },
   "apps/mobile/src/shell/Surface.tsx": {
     "nonNull": 1
