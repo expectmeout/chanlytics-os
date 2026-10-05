@@ -2226,6 +2226,7 @@ var ASK_VOICE_IDLE_MS = MIN_MS;
 var ASK_VOICE_UP_WAIT_MS = 2500;
 var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_MAX_TOKENS = 4e3;
+var ASK_WARM_MAX_TOKENS = 64;
 var ASK_TOKENS_DAY = 15e5;
 var ASK_CAPS = {
   threads: 20,
@@ -25816,6 +25817,7 @@ var ROUTE_KEYS = [
   "POST ask/voice/end",
   "POST ask/voice/page",
   "POST ask/warm",
+  "POST ask/warm/model",
   "POST billing/checkout",
   "POST billing/portal",
   "POST billing/resume",
@@ -31901,6 +31903,7 @@ export {
   ASK_VOICE_TIMING_MAX_MS,
   ASK_VOICE_TOKEN_MIN_MS,
   ASK_VOICE_UP_WAIT_MS,
+  ASK_WARM_MAX_TOKENS,
   AUDIENCE_KINDS,
   AppError,
   BELL_WINDOW_DAYS,

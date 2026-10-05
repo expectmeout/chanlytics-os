@@ -110,8 +110,9 @@ function useSavedView<R extends TableRow, X extends TableCtx>({
   const [sortBy, setSortBy] = useState(firstBy);
   const [sortDir, setSortDir] = useState(firstDir);
   // The columns this member chose to show or hide with the Columns menu; a column they never touched keeps its default
-  // (PL_COLUMNS). The menu is the kit's, which opens and closes itself (table/columns-menu.tsx).
+  // (PL_COLUMNS). The menu's open state is the page's, so its one keyboard listener closes it on Esc.
   const [colChoices, setColChoices] = useState(() => plColumnChoices(cols, remembered.columns));
+  const [colsOpen, setColsOpen] = useState(false);
   // Whether the table has scrolled sideways, for the hairline beside Person: kept here so the table stays hookless.
   const [scrolledX, setScrolledX] = useState(false);
   const pickExtra = (v: View | null): View | null => {
@@ -191,6 +192,8 @@ function useSavedView<R extends TableRow, X extends TableCtx>({
     setSortDir,
     colChoices,
     setColChoices,
+    colsOpen,
+    setColsOpen,
     scrolledX,
     setScrolledX,
     extraView,
@@ -296,6 +299,8 @@ export function usePlControls<R extends TableRow, X extends TableCtx>(args: Cont
       delete rest[key];
       return on === plShows(c, {}, colCtx) ? rest : { ...rest, [key]: on };
     });
+  // Where Esc puts focus when it closes the menu: back on the button that opened it.
+  const colsButton = useRef<HTMLButtonElement>(null);
   return {
     phone,
     searchOpen: phoneState.searchOpen,
@@ -319,11 +324,14 @@ export function usePlControls<R extends TableRow, X extends TableCtx>(args: Cont
     setSortDir,
     onSort,
     pickSort,
+    colsOpen: view.colsOpen,
+    setColsOpen: view.setColsOpen,
     scrolledX: view.scrolledX,
     setScrolledX: view.setScrolledX,
     columns,
     colOptions,
     pickColumn,
+    colsButton,
     q: search.q,
     setQ: search.setQ,
     searchRef: search.searchRef,

@@ -125,7 +125,7 @@
     "depth": 3
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
-    "lines": 472,
+    "lines": 468,
     "branches": 74,
     "depth": 6
   },

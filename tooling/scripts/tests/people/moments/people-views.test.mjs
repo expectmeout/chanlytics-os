@@ -48,13 +48,7 @@ globalThis.React = {
 const warmed = [];
 globalThis.window = {
   __DEMO_MODE: false,
-  CHANLY: {
-    address: {
-      warmSoon: (routes) => warmed.push(...routes),
-      warm: (r) => warmed.push(r),
-      href: (r) => `/w/acme/${r}`,
-    },
-  },
+  CHANLY: { address: { warmSoon: (routes) => warmed.push(...routes), warm: (r) => warmed.push(r) } },
   addEventListener() {},
   removeEventListener() {},
   setTimeout: () => 1,
@@ -76,7 +70,7 @@ const walk = (n, fn) => {
 };
 const tabsOf = (tree) => {
   const out = [];
-  walk(tree, (n) => n.type === "a" && /\bstabs-tab\b/.test(String(n.props?.className)) && out.push(n));
+  walk(tree, (n) => n.type === "button" && out.push(n));
   return out;
 };
 const strip = (props) => {
@@ -160,33 +154,9 @@ test("the strip draws the page's views as the Inbox's: the picked one active and
       ["scope-pipeline", false, undefined],
     ],
   );
-  // A tab is a link (a door is a link, data-bits routeDoor): its address is the route's, so a middle click, a long press
-  // or a new tab opens that view, and a plain press is the app's own move, which the browser is kept from making.
-  assert.deepEqual(
-    tabs.map((b) => b.props.href),
-    ["/w/acme/clients", "/w/acme/clients/leads", "/w/acme/clients/pipeline"],
-  );
-  const press = (over = {}) => {
-    const e = {
-      button: 0,
-      prevented: false,
-      preventDefault() {
-        this.prevented = true;
-      },
-      currentTarget: { parentElement: { querySelector: () => null, hasAttribute: () => true } },
-      ...over,
-    };
-    return e;
-  };
-  const plain = press();
-  tabs[2].props.onClick(plain);
-  tabs[0].props.onClick(press());
+  tabs[2].props.onClick({ currentTarget: { parentElement: { querySelector: () => null, hasAttribute: () => true } } });
+  tabs[0].props.onClick({ currentTarget: { parentElement: { querySelector: () => null, hasAttribute: () => true } } });
   assert.deepEqual(moved, ["clients/pipeline", "clients"], "a view is a move to the route its tab names");
-  assert.equal(plain.prevented, true, "the app moves, not the browser");
-  const aside = press({ metaKey: true });
-  tabs[1].props.onClick(aside);
-  assert.deepEqual(moved, ["clients/pipeline", "clients"], "a press with a key held is the browser's: a new tab");
-  assert.equal(aside.prevented, false);
   setSurfaceValue("people", undefined);
 });
 

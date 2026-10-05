@@ -116,17 +116,6 @@ test("a page that asks first keeps its sheet: it leaves, the page asks, and it s
   assert.equal(el.style.transform, "translate3d(0, 0, 0)", "still on screen after the close: back");
 });
 
-test("a sheet still on the page as it plays its leaving (the kit's Sheet, which Base UI lets go after) stays where the pull took it", async () => {
-  const w = wash();
-  const el = element({ previousElementSibling: w, dataset: {} });
-  const h = touchSwipe({ onDown: () => (el.dataset.leaving = "true") });
-  drag(h, el, [100, 100], [100, 300], [100, 400]);
-  await wait(300);
-  assert.equal(el.dataset.leaving, "true", "the close was asked, and the sheet is leaving");
-  assert.equal(el.style.transform, "translate3d(0, 100%, 0)", "not settled back into view, nor put back for a frame");
-  assert.equal(w.style.opacity, "0", "and its wash stays gone");
-});
-
 test("a thread swipes back across, following the finger, and the page is told while it moves", async () => {
   const back = [];
   const grabs = [];
@@ -272,9 +261,7 @@ test("past the last tab a page gives a quarter of the drag, 48px at most, and se
   assert.deepEqual(went, []);
 });
 
-test("let go past a third, a page leaves the way it went, and the tab beside is pressed as the finger lets go", async () => {
-  // The tab waited for the leaving (180 ms) before its page began to draw, and the screen stood empty for it on both
-  // strips (5 Oct 2026); the page beside draws now while this one leaves.
+test("let go past a third, a page leaves the way it went, and then the tab beside is pressed", async () => {
   const went = [];
   const hows = [];
   const el = element();
@@ -284,9 +271,9 @@ test("let go past a third, a page leaves the way it went, and the tab beside is 
   drag(h, el, [300, 300], [240, 300], [160, 300]);
   assert.equal(el.style.transform, "translate3d(-375px, 0, 0)", "away, a page's width");
   assert.equal(hows.at(-1), "leave");
-  assert.deepEqual(went, [1], "pressed as the finger lets go");
+  assert.deepEqual(went, [], "the tab waits for the leaving");
   await wait(220);
-  assert.deepEqual(went, [1], "and once");
+  assert.deepEqual(went, [1]);
   // Short of a flick and of a third, it settles back.
   const near = element();
   drag(h, near, [300, 300], [285, 300], [280, 300]);
@@ -453,54 +440,4 @@ test("nothing leaves from a frame mounted and let go of at once, under reduced m
   }
   leaveOverlay(node("sb-sheet"));
   assert.ok(true, "a node already taken off the page is left alone");
-});
-
-test("People's strip is walked to 900px, where its page is one column; any other strip only on a phone (720px)", async () => {
-  // Between 721 and 900px People drew a phone's rows and no swipe crossed its strip (5 Oct 2026). The view says whose
-  // strip it stands on (app-shell.jsx data-strip), and the strip's pager answers for it (surface-tabs.jsx stripPhoneFor).
-  await import("../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
-  const keep = globalThis.window.matchMedia;
-  let width = 800;
-  globalThis.window.matchMedia = (q) => {
-    const m = /max-width: (\d+)px/.exec(q);
-    return { matches: q.includes("reduce") ? false : m ? width <= Number(m[1]) : false };
-  };
-  const walked = (strip) => {
-    const pressed = [];
-    const tab = (active, name) => ({
-      style: {},
-      offsetLeft: active ? 0 : 90,
-      offsetWidth: 80,
-      isConnected: true,
-      classList: { contains: (c) => c === "active" && active },
-      click: () => pressed.push(name),
-    });
-    const tabs = [tab(true, "people"), tab(false, "leads")];
-    const bar = {
-      style: { setProperty() {}, removeProperty() {} },
-      offsetWidth: 300,
-      getClientRects: () => [1],
-      querySelectorAll: () => tabs,
-      setAttribute() {},
-      removeAttribute() {},
-      hasAttribute: () => false,
-    };
-    const view = element({
-      parentElement: { querySelector: () => bar },
-      dataset: strip ? { strip } : {},
-      contains: () => false,
-    });
-    drag(globalThis.window.stripSwipe(), view, [300, 300], [200, 300], [100, 300]);
-    return pressed;
-  };
-  try {
-    assert.deepEqual(walked("people"), ["leads"], "at 800px People's strip is walked");
-    assert.deepEqual(walked("inbox"), [], "and the Inbox's, two panes there, is not");
-    width = 600;
-    assert.deepEqual(walked("inbox"), ["leads"], "on a phone every strip is walked");
-    width = 1000;
-    assert.deepEqual(walked("people"), [], "past 900px nothing is");
-  } finally {
-    globalThis.window.matchMedia = keep;
-  }
 });

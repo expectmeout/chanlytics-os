@@ -8,7 +8,7 @@ the workspace's money, and the fields it takes. A workspace-scoped route names i
 reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a
 stale copy.
 
-211 handlers in 46 domains.
+212 handlers in 46 domains.
 
 ## activity
 
@@ -112,6 +112,12 @@ Writes; for a member of the workspace the request names, viewer or above; counts
 | `focus` | object or null | no |  |
 | `rows` | array of object | yes | at most 40 |
 | `askedAt` | integer | yes | ≥ 0; ≤ 9007199254740991 |
+
+### `POST /api/v1/ask/warm/model`
+
+Writes; for a member of the workspace the request names, viewer or above; counts against the `ask` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/warm/model/route.ts`).
 
 ## billing
 

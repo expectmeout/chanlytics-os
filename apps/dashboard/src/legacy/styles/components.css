@@ -638,12 +638,6 @@
   .route-slide-next .stabs { animation: route-slide-prev 220ms var(--ease-out); }
   .route-slide-prev .stabs { animation: route-slide-next 220ms var(--ease-out); }
 }
-/* People's page is one column to 900px (its rows are a phone's there, PL_PHONE_QUERY), so its strip is walked and a
-   view comes in from its side to there too (surface-tabs.jsx stripPhoneFor; the view says its strip, data-strip). */
-@media (min-width: 721px) and (max-width: 900px) and (prefers-reduced-motion: no-preference) {
-  .route-view[data-strip="people"].route-slide-next { animation: route-slide-next 220ms var(--ease-out); }
-  .route-view[data-strip="people"].route-slide-prev { animation: route-slide-prev 220ms var(--ease-out); }
-}
 @keyframes route-slide-next { from { translate: 40px 0; } }
 @keyframes route-slide-prev { from { translate: -40px 0; } }
 
@@ -1707,8 +1701,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    the thread's Actions already do. Ask on a phone is no sheet but the whole screen (ask.css, the takeover): it fades
    in, and leaves as a dialog does, by the kit's modal-out over its wash's wash-out, above. */
 @media (max-width: 900px) {
-  .sb-sheet.pl-sheet, .sb-sheet.pl-plan { animation: sheet-in 260ms var(--ease-out); }
-  .sb-sheet.pl-sheet[data-leaving="true"], .sb-sheet.pl-plan[data-leaving="true"] {
+  .sb-sheet.pl-sheet, .sb-sheet.pp-sheet, .sb-sheet.pl-plan { animation: sheet-in 260ms var(--ease-out); }
+  .sb-sheet.pl-sheet[data-leaving="true"], .sb-sheet.pp-sheet[data-leaving="true"], .sb-sheet.pl-plan[data-leaving="true"] {
     animation: sheet-out 180ms var(--ease-in) forwards;
   }
 }
@@ -2326,88 +2320,35 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
      canvas's swipe between them was not found); the buckets' capsule is the list's own, under it. */
 }
 
-/* The pools of light move as the canvases' do (their glow drifts over twenty seconds), on a desk, each on a layer of its
-   own moved by a transform, which the compositor runs (app-shell.jsx draws the three in .pg-light, the app root's first
-   child). They moved as the pools' centres before, six properties every element inherits, so every element of the page
-   was styled again on every frame for as long as it was open: on a phone the main thread 37% to 79% busy and iPhones
-   reloading the page, on a desk at 4x CPU 3.6 to 4.1 s of long tasks in every 5 s (5 Oct 2026). On a desk the ground is
-   the document's (html's --surface-page-fill): the body and the app's root let it through, and the layers stand between,
-   each 10% past every edge of the window so a moving pool never shows its layer's side, the pool drawn where the
-   tokens put it (--pool-*-x and -y, measured from the window as the root measured them). A phone keeps the root's own
-   paint (the page's top over the pools) and no layers, and its pools stand still; so does every pool where less motion
-   is asked (styles/page-light-drift.test.mjs). */
-.pg-light {
-  display: none;
+/* The pools of light move as the canvases' do (their glow drifts over twenty seconds): the app's root carries their
+   centres from the tokens' registered properties, on a desk, and never where less motion is asked. Not on a phone:
+   the centres are properties every element inherits, so while they move every element of the page is styled again on
+   every frame, for as long as the page is open. Measured on production at a phone's size (5 Oct 2026, nothing
+   touched): the main thread 37% to 79% busy, 6% with the drift stilled, and iPhones reloaded the page under their
+   owners. A phone's pools stand where the canvases put them, which gives up about a pixel of motion a second
+   (styles/page-light-drift.test.mjs holds the three cases). The drift comes back to a phone when it is drawn on
+   layers of its own, moved by a transform, which costs the page nothing. */
+@keyframes pg-drift {
+  0% {
+    --pool-a-x: 23%;
+    --pool-a-y: 6%;
+    --pool-b-x: 89%;
+    --pool-b-y: 40%;
+    --pool-c-x: 39%;
+    --pool-c-y: 91%;
+  }
+  100% {
+    --pool-a-x: 29%;
+    --pool-a-y: 12%;
+    --pool-b-x: 84%;
+    --pool-b-y: 46%;
+    --pool-c-x: 45%;
+    --pool-c-y: 86%;
+  }
 }
-@media (min-width: 901px) {
-  html:has(.app-root) body,
+@media (prefers-reduced-motion: no-preference) and (min-width: 901px) {
   .app-root {
-    background: transparent;
-  }
-  .pg-light {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    overflow: hidden;
-    pointer-events: none;
-  }
-  .pg-light > span {
-    position: absolute;
-    inset: -10%;
-  }
-  .pg-light > :nth-child(1) {
-    background: radial-gradient(
-      calc(39% / 1.2) calc(40% / 1.2) at calc((var(--pool-a-x) + 10%) / 1.2) calc((var(--pool-a-y) + 10%) / 1.2),
-      var(--pool-a-tint),
-      transparent
-    );
-  }
-  .pg-light > :nth-child(2) {
-    background: radial-gradient(
-      calc(43% / 1.2) calc(36% / 1.2) at calc((var(--pool-b-x) + 10%) / 1.2) calc((var(--pool-b-y) + 10%) / 1.2),
-      var(--pool-b-tint),
-      transparent
-    );
-  }
-  .pg-light > :nth-child(3) {
-    background: radial-gradient(
-      calc(37% / 1.2) calc(33% / 1.2) at calc((var(--pool-c-x) + 10%) / 1.2) calc((var(--pool-c-y) + 10%) / 1.2),
-      var(--pool-c-tint),
-      transparent
-    );
-  }
-}
-@media (min-width: 901px) and (prefers-reduced-motion: no-preference) {
-  .pg-light > span {
-    will-change: transform;
-  }
-  .pg-light > :nth-child(1) {
-    animation: pg-pool-a 20s ease-in-out infinite alternate;
-  }
-  .pg-light > :nth-child(2) {
-    animation: pg-pool-b 20s ease-in-out infinite alternate;
-  }
-  .pg-light > :nth-child(3) {
-    animation: pg-pool-c 20s ease-in-out infinite alternate;
-  }
-}
-/* The canvases' drift, as each layer moved by a share of the window (a layer is 1.2 windows wide and tall, and a
-   translate's percentage is of the layer): a from 23% 6% to 29% 12%, b from 89% 40% to 84% 46%, c from 39% 91% to
-   45% 86%. */
-@keyframes pg-pool-a {
-  to {
-    transform: translate(calc(6% / 1.2), calc(6% / 1.2));
-  }
-}
-@keyframes pg-pool-b {
-  to {
-    transform: translate(calc(-5% / 1.2), calc(6% / 1.2));
-  }
-}
-@keyframes pg-pool-c {
-  to {
-    transform: translate(calc(6% / 1.2), calc(-5% / 1.2));
+    animation: pg-drift 20s ease-in-out infinite alternate;
   }
 }
 

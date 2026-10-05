@@ -8,26 +8,11 @@
  * One menu wherever Call is: a lead's row, its card, the map's card and the lead's own panel. It takes what it says and
  * what each way does, not a lead, because the row and the panel hold a lead in two shapes. `number` is the menu's heading
  * where the button is only a glyph; a button that says the number already leaves it out.
- *
- * The kit's Menu (Base UI's, the interface kit's decision 15), as People's are (people/menu-groups.tsx): it was the
- * house's hand-written MoreMenu until 5 Oct 2026. `look` is how its control is drawn: the row's quiet glyph, or a card's
- * or the panel's filled button with its words.
  */
 import type { ReactNode } from "react";
 import { LEAD_WORDS, formatPhoneDisplay, type LeadRowVM } from "@chanlytics/contracts";
-import { Button } from "../../kit/button/button";
-import { Icon } from "../../kit/icon/icon";
-import { Menu } from "../../kit/menu/menu";
-import { MenuInPlace, menuGroups } from "../../people/menu-groups";
+import { MoreMenu } from "../../kit/more-menu/more-menu";
 import type { CallActs } from "./types";
-
-/** How Call's control is drawn: the kit Button's kind and size, a glyph alone or words, and its place in the page's layout. */
-interface CallLook {
-  variant: "quiet" | "primary";
-  size: "sm" | "md";
-  iconOnly: boolean;
-  className?: string;
-}
 
 interface LeadCallMenuProps {
   name: string;
@@ -35,7 +20,7 @@ interface LeadCallMenuProps {
   onDial: () => void;
   onCopy: () => void;
   onLog: () => void;
-  look: CallLook;
+  btnClass: string;
   label?: ReactNode;
   heading?: boolean;
   size?: number;
@@ -48,45 +33,30 @@ export const LeadCallMenu = ({
   onDial,
   onCopy,
   onLog,
-  look,
+  btnClass,
   label = null,
   heading = true,
   size = 11,
   testid = "lead-call",
 }: LeadCallMenuProps) => {
   const W = LEAD_WORDS.callWays;
-  const title = `Call ${name}`;
-  const trigger = look.iconOnly ? (
-    <Button
-      iconOnly
-      variant={look.variant}
-      size={look.size}
-      aria-label={title}
-      title={title}
-      data-testid={testid}
-      className={look.className}
-    >
-      <Icon name="phone" size={size} />
-    </Button>
-  ) : (
-    <Button variant={look.variant} size={look.size} title={title} data-testid={testid} className={look.className}>
-      {label} <Icon name="chevron-down" size={10} />
-    </Button>
-  );
   return (
-    // Its presses are its own: the row and the card under it open the lead (people/menu-groups.tsx MenuInPlace).
-    <MenuInPlace>
-      <Menu
-        label={title}
-        trigger={trigger}
-        groups={menuGroups([
-          ...(heading && number ? [{ header: number }] : []),
-          { label: W.dial.label, icon: "phone", onClick: onDial },
-          { label: W.copy.label, icon: "copy", onClick: onCopy },
-          { label: W.log.label, icon: "check", meta: W.log.meta, onClick: onLog },
-        ])}
-      />
-    </MenuInPlace>
+    <MoreMenu
+      align="right"
+      escape
+      icon="phone"
+      size={size}
+      title={`Call ${name}`}
+      btnClass={btnClass}
+      label={label}
+      testid={testid}
+      items={[
+        ...(heading ? [{ header: number }] : []),
+        { label: W.dial.label, icon: "phone", onClick: onDial },
+        { label: W.copy.label, icon: "copy", onClick: onCopy },
+        { label: W.log.label, icon: "check", meta: W.log.meta, onClick: onLog },
+      ]}
+    />
   );
 };
 
