@@ -124,3 +124,21 @@ test("a write that changes what a channel can send re-reads the composers and Pe
   // A line's forwarding is the voice line's: it changes no channel a campaign goes by.
   assert.deepEqual(keysOf("POST lines/forwarding").sort(), ["settings", "setup"]);
 });
+
+test("a run made or moved is heard by Campaigns' two surfaces wherever the tab is: Today's Approve row is drawn from them", async () => {
+  // The sweep makes a run on the edge, and a teammate approves or stops one in another tab (00321). Both surfaces hear
+  // the table as their own, away from their pages too; a message, which only moves a run's replies, they still hear
+  // on their own page alone (the table the on-screen rule names).
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
+  assert.ok(watchedTables().includes("broadcasts"), "the database tells a workspace about its runs");
+  const change = (table) => ({ table, event: "INSERT", row: {} });
+  for (const route of ["POST broadcasts", "POST playbooks"]) {
+    for (const o of AFTER[route]().filter((s) => s.key === "broadcasts" || s.key === "playbooks")) {
+      assert.equal(wantsRefresh(o, "broadcasts"), true, `${o.key} listens for runs`);
+      assert.equal(wantsRefresh(o, "broadcasts", change("broadcasts")), true, `${o.key}: heard on any page`);
+      assert.equal(wantsRefresh(o, "messages"), true, `${o.key}: the default tables still`);
+      assert.equal(wantsRefresh(o, "broadcast_recipients"), false, `${o.key}: a run's people are read when it opens`);
+    }
+  }
+});

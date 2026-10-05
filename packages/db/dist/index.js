@@ -6825,7 +6825,10 @@ var WATCHED = [
   { table: "segments", events: EVERY },
   { table: "segment_members", events: EVERY },
   // a reply to a reach-out read, drafted or undone: the Inbox's strip and chip repaint (00222)
-  { table: "reach_out_replies", events: EVERY }
+  { table: "reach_out_replies", events: EVERY },
+  // a run made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
+  // repaint (00321). Its people are not watched: a run's page reads them when it opens.
+  { table: "broadcasts", events: EVERY }
 ];
 function watchedTables() {
   return WATCHED.map((w) => w.table);
