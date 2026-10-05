@@ -1250,10 +1250,24 @@ begin
          marketing_consent_updated_at = now()
    where c.id = new.id and c.tenant_id = new.tenant_id and c.marketing_consent = 'opted_in';
   if found then
-    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data, created_at)
     values (new.tenant_id, 'contact.consent_changed', 'contact', 'contact', new.id,
             jsonb_build_object('purpose', 'marketing', 'consent', 'unknown', 'previous', 'opted_in',
-                               'source', 'stop', 'stopped_by', new.consent_source));
+                               'source', 'stop', 'stopped_by', new.consent_source),
+            clock_timestamp());
+  end if;
+  -- Email's own yes to offers (00299) is a yes to offers too, and ends the same way. An unsubscribe is left a no.
+  update public.contacts c
+     set email_marketing            = 'unknown',
+         email_marketing_source     = 'stop',
+         email_marketing_updated_at = now()
+   where c.id = new.id and c.tenant_id = new.tenant_id and c.email_marketing = 'opted_in';
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data, created_at)
+    values (new.tenant_id, 'contact.consent_changed', 'contact', 'contact', new.id,
+            jsonb_build_object('purpose', 'email_marketing', 'consent', 'unknown', 'previous', 'opted_in',
+                               'source', 'stop', 'stopped_by', new.consent_source, 'channel', 'email'),
+            clock_timestamp());
   end if;
   return null;
 exception when others then
@@ -1268,7 +1282,7 @@ end $$;
 -- Name: FUNCTION contact_stop_ends_offers_yes(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.contact_stop_ends_offers_yes() IS 'After a person''s consent becomes opted_out while their answer about offers is a yes (00322): the answer about offers goes back to unknown with the source stop, and a contact.consent_changed entry with purpose marketing says so (00297''s trigger then empties marketing_channels). A no to offers is left a no. Whichever door recorded the stop: ingest_inbound, stop_all_messages, set_contact_consent or the carrier''s report. A failure warns and never refuses the stop.';
+COMMENT ON FUNCTION public.contact_stop_ends_offers_yes() IS 'After a person''s consent becomes opted_out while an answer about offers is a yes (00322): marketing_consent and email_marketing, where opted_in, go back to unknown with the source stop, and a contact.consent_changed entry with the purpose named says so for each (00297''s trigger then empties marketing_channels). A no to offers and an unsubscribe are left as they are. Whichever door recorded the stop: ingest_inbound, stop_all_messages, set_contact_consent or the carrier''s report. A failure warns and never refuses the stop.';
 
 
 --
@@ -23155,7 +23169,7 @@ CREATE TRIGGER contacts_set_updated_at BEFORE UPDATE ON public.contacts FOR EACH
 -- Name: contacts contacts_stop_ends_offers_yes; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER contacts_stop_ends_offers_yes AFTER UPDATE OF consent ON public.contacts FOR EACH ROW WHEN (((new.consent = 'opted_out'::text) AND (old.consent IS DISTINCT FROM 'opted_out'::text) AND (new.marketing_consent = 'opted_in'::text) AND (new.erased_at IS NULL))) EXECUTE FUNCTION public.contact_stop_ends_offers_yes();
+CREATE TRIGGER contacts_stop_ends_offers_yes AFTER UPDATE OF consent ON public.contacts FOR EACH ROW WHEN (((new.consent = 'opted_out'::text) AND (old.consent IS DISTINCT FROM 'opted_out'::text) AND ((new.marketing_consent = 'opted_in'::text) OR (new.email_marketing = 'opted_in'::text)) AND (new.erased_at IS NULL))) EXECUTE FUNCTION public.contact_stop_ends_offers_yes();
 
 
 --

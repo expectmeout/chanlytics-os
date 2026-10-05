@@ -224,11 +224,6 @@ export interface LeadContext {
    */
   marketingChannels?: string[] | null;
   offersAskedAt?: string | null;
-  /**
-   * How that answer was given (contacts.marketing_consent_source): 'stop' where a STOP ended their yes to offers
-   * (00322), which a START's confirmation on WhatsApp says (contracts offersAfterStart). Undefined where unread.
-   */
-  marketingConsentSource?: string | null;
   /** The owner's notes on them — facts for the receptionist, never read aloud. The field 00157 superseded: said only
    *  where the notes themselves could not be read (`noteList` null or absent). */
   notes?: string | null;
@@ -304,7 +299,7 @@ export async function readLeadContext(
   const withAnswer = await db
     .from("contacts")
     .select(
-      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_consent_source, marketing_channels, offers_asked_at, tenants(sells_by)",
+      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)",
     )
     .eq("tenant_id", tenantId)
     .eq("phone_e164", phoneE164)
@@ -320,7 +315,6 @@ export async function readLeadContext(
     proposal_url: string | null;
     email: string | null;
     marketing_consent: string;
-    marketing_consent_source?: string | null;
     marketing_channels?: string[] | null;
     offers_asked_at?: string | null;
     sellsBy: string | null;
@@ -415,7 +409,6 @@ export async function readLeadContext(
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     hasEmail: !!contact.email,
     marketingConsent: contact.marketing_consent,
-    marketingConsentSource: contact.marketing_consent_source,
     marketingChannels: contact.marketing_channels,
     // Undefined where the column could not be read: not null, which says "never asked".
     offersAskedAt: contact.offers_asked_at,

@@ -70,7 +70,8 @@ export async function recordReceipts(
       await keepCost(L, db, tenantId, id, s);
       if (status === "failed" && waStoppedMarketing(s.errors)) {
         const recorded = await pgSafe("offers_stop", () => recordWhatsAppOffersStop(db, { tenantId, externalId: id }));
-        L.info("wa_marketing_stopped", { id, recorded: recorded === true });
+        // A write that threw has said so itself (pg_offers_stop_failed): this line is for an answer the database gave.
+        if (recorded !== undefined) L.info("wa_marketing_stopped", { id, recorded });
       }
     }),
   );

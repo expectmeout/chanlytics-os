@@ -22987,11 +22987,17 @@ function howKnown(c) {
     return "Reported by the carrier: they had texted STOP to your number, so a text to them was not sent";
   }
   if (c.source === WHATSAPP_CONSENT_SOURCE) {
-    return "Reported by WhatsApp: they chose there to stop marketing messages from your business, so an offer to them was not delivered";
+    return "Reported by WhatsApp: they chose there to stop marketing messages from your business, so a message to them was not delivered";
   }
   return `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` \xB7 ${c.note}` : ""}`;
 }
 function consentChangeWords(c) {
+  if (c.source === STOP_ENDED_OFFERS_SOURCE && c.purpose !== "conversational")
+    return {
+      who: c.purpose === "email_marketing" ? "Email" : "Offers",
+      text: c.purpose === "email_marketing" ? "Their yes to offers by email ended" : "Their yes to offers ended",
+      sub: "They said stop, which ends it. Offers start again only on a new yes of their own"
+    };
   if (c.purpose === "email_marketing")
     return {
       who: "Email",
@@ -22999,12 +23005,6 @@ function consentChangeWords(c) {
       ...c.source === "unsubscribe" ? { sub: c.words ? `Wrote \u201C${c.words}\u201D in reply to an email` : "Pressed Unsubscribe in an email" } : c.source === "reply_undone" ? { sub: "A reply read as no, undone" } : c.consent === "opted_in" && c.source === "customer_message" ? { sub: `In their own words by email${c.words ? `: \u201C${c.words}\u201D` : ""}` } : {}
     };
   const offers = c.purpose === "marketing";
-  if (offers && c.source === STOP_ENDED_OFFERS_SOURCE)
-    return {
-      who: "Offers",
-      text: "Their yes to offers ended",
-      sub: "They said stop, which ends it. Offers start again only on a new yes of their own"
-    };
   const text = c.consent === "opted_in" ? offers ? "Said yes to offers and news" : "Said yes to messages about their visit" : c.consent === "opted_out" ? offers ? "Said no to offers" : "Said stop \u2014 nothing goes out to them" : offers ? "Offers: back to not asked" : "Back to not asked";
   return { who: offers ? "Offers" : "Consent", text, sub: howKnown(c) };
 }

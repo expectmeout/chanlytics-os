@@ -63,6 +63,17 @@ export interface IngestResult {
 }
 
 /**
+ * They have said stop, and it stands: a yes to offers that arrives now is not recorded (stoppedNow, read from the
+ * ingest's own answer, which is the row after this message was applied). The way back in from a STOP is START, never
+ * YES OFFERS (one word opening both programs is what the carriers refuse, 30913), and a yes stored under a stop would
+ * be a yes nobody confirmed and no later stop could end (00322 ends a yes when the stop is RECORDED, and a second STOP
+ * from a person already stopped records nothing). After START, the confirmation on WhatsApp says how to get offers.
+ */
+export function stoppedNow(r: Pick<IngestResult, "consent" | "dnc"> | null | undefined): boolean {
+  return r?.consent === "opted_out" || r?.dnc === true;
+}
+
+/**
  * A START is a yes on the channel it came on, and ingest_inbound writes its consent event only when the answer
  * changes: a START by text from someone already opted in on WhatsApp left no event and covered no text. This door
  * (00297) writes the event when their list lacks the channel, and the database adds it to the list. Best-effort, for the
@@ -122,7 +133,9 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   // and answered by the time this runs; failing their message because a second
   // write did not land would be a worse outcome than a consent record that has
   // to be repaired. It is logged loudly instead.
-  if (p.optInMarketing && out?.contact_id) {
+  if (p.optInMarketing && out?.contact_id && stoppedNow(out)) {
+    dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: p.channel });
+  } else if (p.optInMarketing && out?.contact_id) {
     const args = {
       p_tenant_id: p.tenantId,
       p_contact_id: out.contact_id,
@@ -190,6 +203,28 @@ export async function recordCarrierOptOut(
   const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE, channel: p.channel };
   await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", p.contactId, change);
   return true;
+}
+
+/**
+ * One person's answer about offers and how it was given (contacts.marketing_consent and its source), or null where
+ * there is no such person. Read by the edge when a START arrives on WhatsApp, to say whether a STOP ended their yes to
+ * offers (00322; contracts offersAfterStart): one row on the primary key, by the id the ingest answered.
+ */
+export async function offersAnswerOf(
+  db: Db,
+  tenantId: string,
+  contactId: string,
+): Promise<{ marketingConsent: string | null; marketingConsentSource: string | null } | null> {
+  const { data, error } = await db
+    .from("contacts")
+    .select("marketing_consent, marketing_consent_source")
+    .eq("tenant_id", tenantId)
+    .eq("id", contactId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data
+    ? { marketingConsent: data.marketing_consent, marketingConsentSource: data.marketing_consent_source }
+    : null;
 }
 
 /**

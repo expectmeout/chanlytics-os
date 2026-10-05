@@ -86,9 +86,9 @@ function howKnown(c: ConsentChange): string {
     return "Reported by the carrier: they had texted STOP to your number, so a text to them was not sent";
   }
   if (c.source === WHATSAPP_CONSENT_SOURCE) {
-    // WhatsApp's report of a no to offers we never heard (131050 on an offer we sent): their own choice, made in
-    // WhatsApp, said by WhatsApp. Neither their words to us nor a member's record.
-    return "Reported by WhatsApp: they chose there to stop marketing messages from your business, so an offer to them was not delivered";
+    // WhatsApp's report of a no to offers we never heard (131050 on a message Meta counts as marketing): their own
+    // choice, made in WhatsApp, said by WhatsApp. Neither their words to us nor a member's record.
+    return "Reported by WhatsApp: they chose there to stop marketing messages from your business, so a message to them was not delivered";
   }
   return `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` · ${c.note}` : ""}`;
 }
@@ -100,6 +100,14 @@ function howKnown(c: ConsentChange): string {
  * ones the page has, so an owner reads "how do we know" without a database.
  */
 export function consentChangeWords(c: ConsentChange): { who: string; text: string; sub?: string } {
+  // A stop to every message ended a yes to offers (00322): the database's own entry, beside the stop's. Either yes:
+  // the one for offers, or email's own.
+  if (c.source === STOP_ENDED_OFFERS_SOURCE && c.purpose !== "conversational")
+    return {
+      who: c.purpose === "email_marketing" ? "Email" : "Offers",
+      text: c.purpose === "email_marketing" ? "Their yes to offers by email ended" : "Their yes to offers ended",
+      sub: "They said stop, which ends it. Offers start again only on a new yes of their own",
+    };
   // Marketing email is its own answer (00174), and the one thing a person says to it is no: a press of the
   // Unsubscribe link in a campaign email, a complaint, or a reply to a reach-out read as no (00220). A reply's no is
   // the one a member may take back ("read as no · undo"), to the answer it had. Texting and WhatsApp are untouched.
@@ -125,13 +133,6 @@ export function consentChangeWords(c: ConsentChange): { who: string; text: strin
             : {}),
     };
   const offers = c.purpose === "marketing";
-  // A stop to every message ended their yes to offers (00322): the database's own entry, beside the stop's.
-  if (offers && c.source === STOP_ENDED_OFFERS_SOURCE)
-    return {
-      who: "Offers",
-      text: "Their yes to offers ended",
-      sub: "They said stop, which ends it. Offers start again only on a new yes of their own",
-    };
   const text =
     c.consent === "opted_in"
       ? offers

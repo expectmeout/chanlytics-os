@@ -517,8 +517,21 @@ test("a START does not bring back a yes to offers a STOP ended: WhatsApp says ho
   // person is told once, after the filed words, on WhatsApp alone: the texting line's confirmation is the campaign's
   // filed opt-in message word for word, and offers are never offered there (30896).
   const filed = optInConfirmation("Harbor Nails", "conversational");
-  const ended = { name: null, marketingConsent: "unknown", marketingConsentSource: STOP_ENDED_OFFERS_SOURCE };
-  const leads = (read) => ({ leads: { read, personReplyMode: async () => null } });
+  const ended = { marketingConsent: "unknown", marketingConsentSource: STOP_ENDED_OFFERS_SOURCE };
+  // The gate reads one row, by the id the ingest answered: never the whole account of the person the reply reads.
+  const asked = [];
+  const leads = (answer) => ({
+    leads: {
+      read: async () => {
+        throw new Error("the START gate does not read the lead context");
+      },
+      personReplyMode: async () => null,
+      offersAnswer: async (_db, tenant, contact) => {
+        asked.push([tenant, contact]);
+        return answer();
+      },
+    },
+  });
 
   const w = world();
   await w.run(
@@ -533,6 +546,8 @@ test("a START does not bring back a yes to offers a STOP ended: WhatsApp says ho
       channel: "whatsapp",
     },
   ]);
+  assert.equal(asked.length, 1, "one read");
+  assert.equal(asked[0][1], "k1", "by the person the ingest named");
 
   // By text, the filed words and not one more.
   const sms = world({
@@ -550,13 +565,18 @@ test("a START does not bring back a yes to offers a STOP ended: WhatsApp says ho
   );
   assert.equal(sms.seen.sent.length, 1);
   assert.equal(sms.seen.sent[0].body, filed);
+  assert.equal(asked.length, 1, "and a text does not even ask");
 
   // Nobody is asked a second time, and a no is not argued with: only a yes a stop ended is spoken of.
   for (const lead of [
-    { name: null, marketingConsent: "unknown", marketingConsentSource: null },
-    { name: null, marketingConsent: "unknown", marketingConsentSource: "operator" },
-    { name: null, marketingConsent: "opted_out", marketingConsentSource: "customer_message" },
-    { name: null, marketingConsent: "opted_in", marketingConsentSource: "customer_message" },
+    { marketingConsent: "unknown", marketingConsentSource: null },
+    { marketingConsent: "unknown", marketingConsentSource: "operator" },
+    { marketingConsent: "opted_out", marketingConsentSource: "customer_message" },
+    // A no WhatsApp reported, and a yes that stands (one given again since the stop).
+    { marketingConsent: "opted_out", marketingConsentSource: "whatsapp" },
+    { marketingConsent: "opted_in", marketingConsentSource: "customer_message" },
+    // Nobody by that id.
+    null,
   ]) {
     const other = world();
     await other.run(

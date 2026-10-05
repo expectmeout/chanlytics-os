@@ -24,6 +24,7 @@ import {
 } from "../../../../packages/contracts/src/people/person-consent.ts";
 import {
   ingestInbound,
+  offersAnswerOf,
   recordCarrierOptOut,
   recordWhatsAppOffersStop,
 } from "../../../../packages/db/src/repositories/ingest.ts";
@@ -894,7 +895,9 @@ const answers = async (contactId) =>
   ok(
     await db
       .from("contacts")
-      .select("consent, dnc, consent_source, marketing_consent, marketing_consent_source, marketing_channels")
+      .select(
+        "consent, dnc, consent_source, marketing_consent, marketing_consent_source, marketing_channels, email_marketing, email_marketing_source",
+      )
       .eq("id", contactId)
       .single(),
   );
@@ -1032,9 +1035,15 @@ test(
 
     const text = fs.readFileSync(STOP_MIGRATION, "utf8").replace(/\r\n/g, "\n");
     const from = text.indexOf("with ended as (");
-    assert.ok(from > 0, "the statement for the stops already on record is in the migration");
-    const statement = text.slice(from).trim().replace(/;\s*$/, "");
-    query(statement);
+    assert.ok(from > 0, "the statements for the stops already on record are in the migration");
+    const statements = text
+      .slice(from)
+      .split(/;\s*(?:\n|$)/)
+      .map((q) => q.trim())
+      .filter(Boolean);
+    assert.equal(statements.length, 2, "one for the yes to offers, one for the yes to offers by email");
+    const replay = () => statements.forEach((q) => query(q));
+    replay();
     const row = await answers(id);
     assert.deepEqual(
       [row.consent, row.marketing_consent, row.marketing_consent_source, row.marketing_channels],
@@ -1045,8 +1054,34 @@ test(
     assert.equal(said[0].via, "migration_00322");
 
     // Re-runnable: a second run finds nobody.
-    query(statement);
+    replay();
     assert.equal((await endings(id)).length, 1);
+
+    // A yes dated after their stop is a newer word than the stop, and is kept; email's yes on a stopped row ends too.
+    const q = phone();
+    const later = (await inbound(q)).contact_id;
+    await inbound(q, { p_body: "STOP", p_opt_out: true });
+    ok(
+      await db
+        .from("contacts")
+        .update({
+          marketing_consent: "opted_in",
+          marketing_consent_source: "customer_message",
+          marketing_consent_updated_at: new Date(Date.now() + 60_000).toISOString(),
+          email_marketing: "opted_in",
+          email_marketing_source: "customer_message",
+          email_marketing_updated_at: new Date(Date.now() - 86_400_000).toISOString(),
+        })
+        .eq("id", later),
+    );
+    replay();
+    const kept = await answers(later);
+    assert.deepEqual(
+      [kept.marketing_consent, kept.marketing_consent_source, kept.email_marketing, kept.email_marketing_source],
+      ["opted_in", "customer_message", "unknown", STOP_ENDED_OFFERS_SOURCE],
+      "the newer yes stands; the yes to offers by email, older than the stop, ends",
+    );
+    assert.equal((await endings(later)).length, 0);
   },
 );
 
@@ -1104,5 +1139,140 @@ test(
     // A second report of the same refusal, and a message nobody knows: nothing more is written.
     assert.equal(await recordWhatsAppOffersStop(db, { tenantId, externalId: offer }), false);
     assert.equal(await recordWhatsAppOffersStop(db, { tenantId, externalId: "wamid.nobody-knows" }), false);
+  },
+);
+
+test("a stop ends email's own yes to offers too, and leaves an unsubscribe a no", { skip }, async () => {
+  const emailYes = async (id) =>
+    ok(
+      await db.rpc("set_email_offers_yes", {
+        p_tenant_id: tenantId,
+        p_contact_id: id,
+        p_source: "customer_message",
+        p_evidence: { channel: "email", words: "YES OFFERS" },
+      }),
+    );
+  const emailEndings = async (id) =>
+    ok(
+      await db
+        .from("events")
+        .select("data")
+        .eq("tenant_id", tenantId)
+        .eq("kind", "contact.consent_changed")
+        .eq("subject_id", id),
+    )
+      .map((e) => e.data)
+      .filter((d) => d.purpose === "email_marketing" && d.source === STOP_ENDED_OFFERS_SOURCE);
+
+  // A yes to offers by email and none to offers by WhatsApp: the stop still ends it.
+  const p = phone();
+  const id = (await inbound(p, { p_body: "START", p_opt_in: true })).contact_id;
+  assert.deepEqual(await emailYes(id), { changed: true, found: true });
+  await inbound(p, { p_body: "STOP", p_opt_out: true });
+  const stopped = await answers(id);
+  assert.deepEqual(
+    [stopped.consent, stopped.email_marketing, stopped.email_marketing_source, stopped.marketing_consent],
+    ["opted_out", "unknown", STOP_ENDED_OFFERS_SOURCE, "unknown"],
+  );
+  const said = await emailEndings(id);
+  assert.equal(said.length, 1);
+  assert.deepEqual(
+    [said[0].consent, said[0].previous, said[0].channel, said[0].stopped_by],
+    ["unknown", "opted_in", "email", "customer_message"],
+  );
+  await inbound(p, { p_body: "START", p_opt_in: true });
+  assert.equal((await answers(id)).email_marketing, "unknown", "a START does not bring it back");
+
+  // Both yeses, ended by the page's stop for everything: the page's own unsubscribe is the last word on email.
+  const both = await subscriber();
+  await emailYes(both.id);
+  ok(await db.rpc("stop_all_messages", { p_tenant_id: tenantId, p_contact_id: both.id, p_message_id: null }));
+  const after = await answers(both.id);
+  assert.deepEqual(
+    [after.consent, after.marketing_consent, after.marketing_consent_source, after.email_marketing],
+    ["opted_out", "unknown", STOP_ENDED_OFFERS_SOURCE, "opted_out"],
+  );
+
+  // An unsubscribe is a no, and a stop leaves it one.
+  const u = phone();
+  const gone = (await inbound(u, { p_body: "START", p_opt_in: true })).contact_id;
+  ok(
+    await db.rpc("set_email_marketing", {
+      p_tenant_id: tenantId,
+      p_contact_id: gone,
+      p_state: "opted_out",
+      p_source: "unsubscribe",
+    }),
+  );
+  await inbound(u, { p_body: "STOP", p_opt_out: true });
+  const no = await answers(gone);
+  assert.deepEqual([no.email_marketing, no.email_marketing_source], ["opted_out", "unsubscribe"]);
+  assert.equal((await emailEndings(gone)).length, 0);
+});
+
+test(
+  "a YES OFFERS from a person who is stopped is not recorded: START is the way back, and the gate then reads a yes a stop ended",
+  { skip },
+  async () => {
+    // Through the repository the edge calls. A yes stored under a stop would be one no later stop could end: a second
+    // STOP from a person already stopped records nothing, so the trigger would never see it.
+    const { p, id } = await subscriber();
+    const base = {
+      tenantId,
+      identityExternalId: p,
+      phoneE164: p,
+      waProfileName: null,
+      type: "text",
+      channel: "whatsapp",
+    };
+    const at = () => new Date().toISOString();
+    await ingestInbound(db, {
+      ...base,
+      body: "STOP",
+      channelTs: at(),
+      messageExternalId: `wamid.stop-${p}`,
+      optOut: true,
+    });
+    const yes = await ingestInbound(db, {
+      ...base,
+      body: "YES OFFERS",
+      channelTs: at(),
+      messageExternalId: `wamid.yes-${p}`,
+      optInMarketing: true,
+    });
+    assert.equal(yes.consent, "opted_out");
+    const under = await answers(id);
+    assert.deepEqual(
+      [under.marketing_consent, under.marketing_consent_source],
+      ["unknown", STOP_ENDED_OFFERS_SOURCE],
+      "nothing was written under the stop",
+    );
+    // What the START gate reads to say so (contracts offersAfterStart), by the person's id.
+    assert.deepEqual(await offersAnswerOf(db, tenantId, id), {
+      marketingConsent: "unknown",
+      marketingConsentSource: STOP_ENDED_OFFERS_SOURCE,
+    });
+    assert.equal(await offersAnswerOf(db, tenantId, "00000000-0000-4000-8000-000000000000"), null);
+
+    // After START, their YES OFFERS is their yes again.
+    await ingestInbound(db, {
+      ...base,
+      body: "START",
+      channelTs: at(),
+      messageExternalId: `wamid.start-${p}`,
+      optIn: true,
+    });
+    await ingestInbound(db, {
+      ...base,
+      body: "YES OFFERS",
+      channelTs: at(),
+      messageExternalId: `wamid.yes2-${p}`,
+      optInMarketing: true,
+    });
+    const back = await answers(id);
+    assert.deepEqual(
+      [back.consent, back.marketing_consent, back.marketing_consent_source, back.marketing_channels],
+      ["opted_in", "opted_in", "customer_message", ["whatsapp"]],
+    );
   },
 );

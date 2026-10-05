@@ -38017,11 +38017,11 @@ async function photoOf(at, seen) {
 import { errField as errField8 } from "../../channels/dist/index.js";
 import { offersAfterStart, optInConfirmation, tokenBudgetSpent, tokenCapOf } from "../../contracts/dist/index.js";
 async function offersNoteFor(at) {
-  const { db, tenantId, from, ports, channel, L } = at;
-  if (channel !== "whatsapp" || !db || !tenantId) return null;
+  const { db, tenantId, ing, ports, channel, L } = at;
+  if (channel !== "whatsapp" || !db || !tenantId || !ing?.contact_id) return null;
   try {
-    const lead = await ports.leads.read(db, tenantId, from.startsWith("+") ? from : `+${from}`, 1);
-    return offersAfterStart(lead, channel);
+    const answer = await ports.leads.offersAnswer?.(db, tenantId, ing.contact_id);
+    return answer ? offersAfterStart(answer, channel) : null;
   } catch (e) {
     L.warn("lead_context_unavailable", { error: errField8(e) });
     return null;

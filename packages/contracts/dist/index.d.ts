@@ -14450,11 +14450,13 @@ declare function offersFacts(p: {
  * What a START's confirmation adds for a person whose yes to offers ended with their STOP (00322), or null.
  *
  * A START is a yes to messages about their own visit and nothing more, so a person who had offers before they stopped
- * would otherwise wait for news that no longer comes. The confirmation says so once, with the phrase that turns offers
+ * would otherwise wait for news that no longer comes. The confirmation says so, with the phrase that turns offers
  * on again (the inbound path records it as their own yes). On WHATSAPP ALONE: the texting line's confirmation is the
  * campaign's filed opt-in message, word for word (consent-page.ts optInConfirmation), and offers are never offered on
  * that line (30896). Nothing for a person who never said yes, who was asked and did not answer, or who said no: the
- * receptionist's own ask is once (offersAskRule), and this is not a second one.
+ * receptionist's own ask is once (offersAskRule), and this is not a second one. It is said on each START while the
+ * ended yes is the answer on their row, and no longer once they answer about offers again. The sentence holds the
+ * phrase, so the database counts it as the ask (offers_asked_at) and the receptionist does not ask after it.
  */
 declare function offersAfterStart(p: {
     marketingConsent?: string | null;

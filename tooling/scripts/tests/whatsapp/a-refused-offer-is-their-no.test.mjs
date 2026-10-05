@@ -32,7 +32,7 @@ const STOPPED = [
   },
 ];
 
-/** One workspace: three people an offer was written to, and the offers themselves. */
+/** One workspace: four people an offer was written to, and the offers themselves. */
 function world(over = {}) {
   const person = (id, marketing, more = {}) => ({
     id,
@@ -50,8 +50,9 @@ function world(over = {}) {
       person("yes", "opted_in"),
       person("no", "opted_out"),
       person("gone", "opted_in", { erased_at: "2026-09-20T10:00:00Z" }),
+      person("never", "unknown"),
     ],
-    messages: ["yes", "no", "gone"].map((who, i) => ({
+    messages: ["yes", "no", "gone", "never"].map((who, i) => ({
       id: `m${i + 1}`,
       tenant_id: T,
       contact_id: who,
@@ -165,6 +166,17 @@ test("a person who already said no, one who was erased, and a message nobody kno
   assert.equal(ledger(w).length, 0);
 });
 
+test("a person who was never asked is a no from then on too: Meta refused them for their own choice, whatever our row said", async () => {
+  const w = world();
+  await recordReceipts(w.db, T, [receipt("wamid.never", "failed", { errors: STOPPED })]);
+  const never = w.tables.contacts[3];
+  assert.deepEqual([never.marketing_consent, never.marketing_consent_source], ["opted_out", WHATSAPP_CONSENT_SOURCE]);
+  assert.deepEqual(
+    ledger(w).map((e) => [e.subject_id, e.data.previous, e.data.consent]),
+    [["never", "unknown", "opted_out"]],
+  );
+});
+
 test("any other failure, and any receipt that is not a failure, records no answer", async () => {
   const w = world();
   const lines = await logged(() =>
@@ -192,9 +204,9 @@ test("a database that refuses the answer costs the receipt nothing, and says so 
   assert.equal(w.tables.messages[0].status, "failed", "the status landed first");
   assert.deepEqual(
     lines.filter((l) => l.event === "pg_offers_stop_failed" || l.event === "wa_marketing_stopped").map((l) => l.event),
-    ["pg_offers_stop_failed", "wa_marketing_stopped"],
+    ["pg_offers_stop_failed"],
+    "the failure says so once, and no line says an answer the database never gave",
   );
-  assert.equal(lines.find((l) => l.event === "wa_marketing_stopped").recorded, false);
 });
 
 test("the person's page says whose word it is: WhatsApp's report, never their words to us and never a member's record", () => {
@@ -216,6 +228,6 @@ test("the person's page says whose word it is: WhatsApp's report, never their wo
   assert.deepEqual(consentChangeWords(change), {
     who: "Offers",
     text: "Said no to offers",
-    sub: "Reported by WhatsApp: they chose there to stop marketing messages from your business, so an offer to them was not delivered",
+    sub: "Reported by WhatsApp: they chose there to stop marketing messages from your business, so a message to them was not delivered",
   });
 });

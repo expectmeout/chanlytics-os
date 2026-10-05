@@ -153,6 +153,23 @@ test("the words say what was answered and how we know, for every kind of change"
       sub: "They said stop, which ends it. Offers start again only on a new yes of their own",
     },
   );
+  // Email's own yes to offers ends the same way, and is said as email's.
+  assert.deepEqual(
+    consentChangeWords(
+      change({
+        purpose: "email_marketing",
+        consent: "unknown",
+        previous: "opted_in",
+        source: STOP_ENDED_OFFERS_SOURCE,
+        channel: "email",
+      }),
+    ),
+    {
+      who: "Email",
+      text: "Their yes to offers by email ended",
+      sub: "They said stop, which ends it. Offers start again only on a new yes of their own",
+    },
+  );
 });
 
 test("an unsubscribe is email's own answer: read as one, and never said as a stop to everything (00174)", () => {

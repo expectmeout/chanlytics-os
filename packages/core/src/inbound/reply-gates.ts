@@ -29,15 +29,15 @@ import { GO, type Answering } from "./context";
 import { escalationOf, handledOf, processedAfter, SET_ASIDE, type Asked } from "./handled";
 
 /**
- * What a START's confirmation adds about offers, or nothing: read from the person's row, by the reader the reply uses.
- * Never fatal and never a reason to hold the confirmation back: a row that cannot be read adds nothing.
+ * What a START's confirmation adds about offers, or nothing: one row, read by the id the ingest answered. Never fatal
+ * and never a reason to hold the confirmation back: a row that cannot be read adds nothing.
  */
 async function offersNoteFor(at: Answering): Promise<string | null> {
-  const { db, tenantId, from, ports, channel, L } = at;
-  if (channel !== "whatsapp" || !db || !tenantId) return null;
+  const { db, tenantId, ing, ports, channel, L } = at;
+  if (channel !== "whatsapp" || !db || !tenantId || !ing?.contact_id) return null;
   try {
-    const lead = await ports.leads.read(db, tenantId, from.startsWith("+") ? from : `+${from}`, 1);
-    return offersAfterStart(lead, channel);
+    const answer = await ports.leads.offersAnswer?.(db, tenantId, ing.contact_id);
+    return answer ? offersAfterStart(answer, channel) : null;
   } catch (e) {
     L.warn("lead_context_unavailable", { error: errField(e) });
     return null;
@@ -94,7 +94,7 @@ export async function lateOrConfirmed(at: Answering, bodyText: string): Promise<
   if (n.optIn || (n.optInMarketing && channel === "whatsapp")) {
     const purpose: SendPurpose = n.optInMarketing ? "marketing" : "conversational";
     const filed = optInConfirmation(brainCfg?.business_name ?? rt?.known?.workspace?.name ?? "", purpose);
-    // The yes to offers a STOP ended does not come back with a START: said once, here, on WhatsApp alone.
+    // The yes to offers a STOP ended does not come back with a START: said here, on WhatsApp alone.
     const offers = n.optInMarketing ? null : await offersNoteFor(at);
     const words = offers ? `${filed} ${offers}` : filed;
     // Sent FIRST, and what happened is reported from the outcome. The send's

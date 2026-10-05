@@ -462,6 +462,9 @@ async function holdRecipients(db, p) {
 }
 
 // src/repositories/ingest.ts
+function stoppedNow(r) {
+  return r?.consent === "opted_out" || r?.dnc === true;
+}
 async function noteYesOnChannel(db, p, contactId) {
   const failed = (error) => dbLog().error("consent_channel_write_failed", { tenant_id: p.tenantId, contact_id: contactId, error });
   try {
@@ -497,7 +500,9 @@ async function ingestInbound(db, p) {
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   const out = data;
   if (p.optIn && out?.contact_id) await noteYesOnChannel(db, p, out.contact_id);
-  if (p.optInMarketing && out?.contact_id) {
+  if (p.optInMarketing && out?.contact_id && stoppedNow(out)) {
+    dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: p.channel });
+  } else if (p.optInMarketing && out?.contact_id) {
     const args = {
       p_tenant_id: p.tenantId,
       p_contact_id: out.contact_id,
@@ -535,6 +540,11 @@ async function recordCarrierOptOut(db, p) {
   const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE, channel: p.channel };
   await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", p.contactId, change);
   return true;
+}
+async function offersAnswerOf(db, tenantId, contactId) {
+  const { data, error } = await db.from("contacts").select("marketing_consent, marketing_consent_source").eq("tenant_id", tenantId).eq("id", contactId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? { marketingConsent: data.marketing_consent, marketingConsentSource: data.marketing_consent_source } : null;
 }
 async function recordWhatsAppOffersStop(db, p) {
   const sent = await db.from("messages").select("contact_id").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
@@ -913,7 +923,9 @@ async function ingestInboundEmail(db, p) {
       messageId: out.message_id,
       evidence: { ...evidence, via: "reply" }
     });
-  if (p.optInOffers && !out.processed) {
+  if (p.optInOffers && !out.processed && stoppedNow(out)) {
+    dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: "email" });
+  } else if (p.optInOffers && !out.processed) {
     try {
       const yes = await setEmailOffersYes(db, {
         tenantId: p.tenantId,
@@ -2138,7 +2150,7 @@ var EMPTY_LEAD = {
 };
 async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
   const withAnswer = await db.from("contacts").select(
-    "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_consent_source, marketing_channels, offers_asked_at, tenants(sells_by)"
+    "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)"
   ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
   let contact = withAnswer.data ? { ...withAnswer.data, sellsBy: sellsByOf(withAnswer.data.tenants) } : null;
   let cErr = withAnswer.error;
@@ -2184,7 +2196,6 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     hasEmail: !!contact.email,
     marketingConsent: contact.marketing_consent,
-    marketingConsentSource: contact.marketing_consent_source,
     marketingChannels: contact.marketing_channels,
     // Undefined where the column could not be read: not null, which says "never asked".
     offersAskedAt: contact.offers_asked_at,
@@ -3474,6 +3485,7 @@ export {
   noticeKept,
   observeDb,
   offerLanguageOf,
+  offersAnswerOf,
   offersEmailReach,
   outreachFactsOf,
   outreachModeOf,

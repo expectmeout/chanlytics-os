@@ -22,6 +22,7 @@ export {
   ingestInbound,
   recordCarrierOptOut,
   recordWhatsAppOffersStop,
+  offersAnswerOf,
   markProcessed,
   stampHandled,
   recordOutbound,

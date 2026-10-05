@@ -276,6 +276,7 @@ export const LOG_EVENTS = [
   "notify_rejected",
   "notify_skipped_no_api_key",
   "notify_tenant_unaddressable",
+  "offers_yes_while_stopped",
   "operator_page_memory_unreadable",
   "operator_page_memory_unwritable",
   "operator_page_send_threw",
