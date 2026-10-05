@@ -577,6 +577,57 @@ export function platformPartnerStanding(w: PlatformPartnerWorkspaceDto): Platfor
   };
 }
 
+/**
+ * Why a code a workspace was made with credited nobody (00202 `partner.code_ignored`'s `why`): the code names no partner,
+ * or the partner it names is not active (their status), or it was the code of the person making the workspace.
+ */
+const CODE_IGNORED_WHY: Record<string, string> = {
+  unknown: "no partner has that code",
+  paused: "that partner's account is paused",
+  closed: "that partner's account is closed",
+  self: "it was their own code",
+};
+
+/** What came off a share, or came back (00203, 00207 `partner.reversed`'s `kind`), without an amount. */
+const REVERSED_WORDS: Record<string, string> = {
+  refund: "a payment was refunded",
+  dispute: "a payment was disputed",
+  dispute_won: "a dispute was won",
+};
+
+/**
+ * What an event of the partner programme says beyond its kind's words in the workspace's own activity log: the one or two
+ * fields a sentence names, and never an amount, an invoice or a partner's id. Read from what each writer files (migrations
+ * 00202, 00203, 00207, 00214, 00218, 00225): why a code was not used, what came off a share, the standing a share was judged
+ * at and who judged it, a handover sent again, a partner who joined a workspace already paying. A field it does not know
+ * says nothing.
+ */
+export function partnerEventBits(kind: string, p: Record<string, unknown>): string[] {
+  const text = (k: string): string | null => (typeof p[k] === "string" && p[k] ? p[k] : null);
+  const known = (words: Record<string, string>, k: string): string[] => {
+    const said = text(k);
+    return said !== null && Object.hasOwn(words, said) ? [words[said]] : [];
+  };
+  switch (kind) {
+    case "partner.code_ignored":
+      return known(CODE_IGNORED_WHY, "why");
+    case "partner.reversed":
+      return known(REVERSED_WORDS, "kind");
+    case "partner.standing_set": {
+      const label = known(STANDING_LABELS, "standing")[0];
+      const by = text("by");
+      const whose = by !== null && Object.hasOwn(DECIDED_BY_WORDS, by) ? DECIDED_BY_WORDS[by] : "";
+      return label ? [`${label}${whose}`] : [];
+    }
+    case "partner.handover_sent":
+      return p.again === true ? ["sent again"] : [];
+    case "partner.invite_accepted":
+      return p.earns === false ? ["it was already paying, so it earns no share"] : [];
+    default:
+      return [];
+  }
+}
+
 /** What partner_payout_mark answered, as the toast says it. */
 export function partnerPayoutOutcomeWords(
   code: string,

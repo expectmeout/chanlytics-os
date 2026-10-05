@@ -30832,380 +30832,6 @@ function todaySteps(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
 // src/workspace/activation.ts
 var ACTIVATION_MILESTONES = ["line_live", "first_reply", "first_lead_search"];
 
-// src/workspace/activity.ts
-var ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
-var ACTIVITY_NOISE_KINDS = [
-  "escalation.changed",
-  "lead.set_aside",
-  "call.transferred",
-  "booking_link.sent",
-  "channel.quality_rating"
-];
-var isActivityMoney = (row2) => row2.category === "billing";
-var WORDS2 = {
-  // decisions
-  approve: "Approved a reply",
-  edit: "Edited a reply",
-  decline: "Declined a reply",
-  snooze: "Snoozed a thread",
-  wake: "Woke a thread",
-  take_over: "Took over a thread",
-  hand_back: "Handed a thread back to the receptionist",
-  resolve: "Resolved an escalation",
-  archive: "Archived a thread",
-  reply: "Replied from the dashboard",
-  cancel_send: "Stopped a reply before it sent",
-  pause_agent: "Paused the receptionist",
-  resume_agent: "Resumed the receptionist",
-  invite: "Invited a member",
-  revoke_invite: "Withdrew an invitation",
-  change_role: "Changed a member's role",
-  remove_member: "Removed a member",
-  erase: "Erased a person",
-  merge: "Merged two records of one person",
-  whisper: "Whispered to the phone receptionist",
-  connect_channel: "Connected a channel",
-  consent_change: "Recorded a consent answer",
-  send_broadcast: "Sent a broadcast",
-  cancel_broadcast: "Canceled a broadcast",
-  start_playbook: "Started a playbook",
-  pause_playbook: "Paused a playbook",
-  reply_review: "Replied to a Google review",
-  export: "Exported data",
-  import: "Imported people from a spreadsheet",
-  open_recording: "Listened to a call's recording",
-  end_call: "Ended a call",
-  record_deal: "Recorded a deal",
-  make_list: "Made a list",
-  rename_list: "Renamed a list",
-  change_list_rule: "Changed who is on a list",
-  add_to_list: "Put people on a list",
-  drop_from_list: "Took people off a list",
-  archive_list: "Archived a list",
-  restore_list: "Restored a list",
-  delete_list: "Deleted a list",
-  // events
-  "message.received": "A customer wrote",
-  "message.sent": "A message went out",
-  "message.send_failed": "A message could not be sent",
-  "message.send_blocked": "A message was held at the wire",
-  "message.send_raced_cancel": "A send raced a cancel",
-  "contact.consent_changed": "A consent answer changed",
-  "contact.added": "A person was added",
-  "contact.named": "A person was named",
-  "contact.noted": "A note was written",
-  "contact.note_changed": "A note was changed",
-  "contact.note_removed": "A note was taken away",
-  "contact.note_suggested": "The receptionist suggested a note",
-  "contact.note_kept": "A suggested note was kept",
-  "contact.note_dismissed": "A suggested note was dismissed",
-  "contact.note_done": "A step was done",
-  "contact.note_undone": "A step was opened again",
-  "contact.email_set": "A person's email address changed",
-  "contact.proposal_set": "A person's proposal link changed",
-  // A deal is a record (0004): each move of one, in the owner's words.
-  "deal.proposed": "A proposal went out",
-  "deal.won": "A person became a client",
-  "deal.lost": "A person passed on a proposal",
-  "deal.ended": "An engagement ended",
-  "contact.email_suppressed": "A person's email address stopped being sent to",
-  "contact.erased": "A person was erased",
-  "contact.merged": "Two records of one person became one",
-  // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
-  "contact.blob_erased": "A person's stored thread was erased",
-  "conversation.reopened": "A thread reopened",
-  "conversation.pause_expired": "A pause ended",
-  "conversation.snooze_expired": "A snooze ended",
-  "escalation.changed": "A handover's reason changed",
-  "call.recorded": "A call was recorded",
-  "call.transferred": "A call was passed to a person",
-  "booking_link.sent": "The booking link was sent",
-  "broadcast.sent": "A broadcast finished",
-  "playbook.run": "A playbook ran",
-  "channel.quality_rating": "A WhatsApp number's quality rating changed",
-  "setup.requested": "Setup was requested",
-  "voice.provisioned": "The phone receptionist was provisioned",
-  "line.answering": "A line started answering",
-  "line.failed": "A line failed",
-  "line.released": "A line was released",
-  "line.forwarding_verified": "Forwarding was verified",
-  "line.texting_on": "Texting turned on",
-  "line.texting_approved": "The carriers approved texting",
-  "line.texting_rejected": "The carriers sent the registration back",
-  "business.recorded": "The business record was saved",
-  "platform.acted": "Chanlytics acted on the workspace",
-  "google.linked": "A Google listing was linked",
-  "google.unlinked": "The Google listing was unlinked",
-  "google.reviews": "New Google reviews were read",
-  "google.connected": "Google Business Profile was connected",
-  "google.disconnected": "Google Business Profile was disconnected",
-  "google.replied": "A Google review was answered",
-  "mailbox.created": "The workspace's email address was set up",
-  "mailbox.renamed": "The name on the workspace's email changed",
-  "mailbox.offers_paused": "Offers by email were paused",
-  "mailbox.offers_resumed": "Offers by email were turned back on",
-  "sending_domain.added": "A domain to send from was added",
-  "sending_domain.verified": "A domain to send from was verified",
-  "sending_domain.held": "A domain to send from was held",
-  "sending_domain.released": "A domain to send from is sending again",
-  "sending_domain.resumed": "A domain to send from was resumed",
-  "sending_domain.removed": "A domain to send from was removed",
-  "lead.round": "A search for businesses",
-  "lead.no_card": "An ask no source covers yet",
-  "lead.converted": "A lead is Talking",
-  "lead.set_aside": "A lead was set aside",
-  // A reply to a reach-out, read (Reach out Part 5): the case below says who and what it meant.
-  "reach_out.replied": "A business wrote back to a reach-out",
-  "reach_out.reply_undone": "A reply read as no was undone",
-  "workspace.created": "The workspace was created",
-  "settings.changed": "Settings changed",
-  "policy.changed": "An autonomy setting changed",
-  "billing.updated": "Billing changed",
-  "billing.paused": "Billing paused the workspace",
-  "billing.resumed": "Billing resumed the workspace",
-  "ingest.allowlist_skip": "A message was skipped by the allowlist",
-  "ingest.unreachable_sender": "A sender could not be answered",
-  "ingest.unroutable": "A message could not be placed on a workspace",
-  "policy.veto_window_skipped": "A veto window was skipped",
-  "usage.llm_tokens": "Model usage",
-  "usage.ask_tokens": "Assistant usage",
-  "usage.voice_seconds": "Call minutes",
-  "usage.wa_conversation": "A WhatsApp conversation opened",
-  "webhook.auth": "A webhook signature was checked",
-  "webhook.delivery": "A webhook was delivered"
-};
-function humanize(kind) {
-  const [family, rest] = kind.split(".", 2);
-  const tail = (rest ?? "").replace(/_/g, " ");
-  return `${family.charAt(0).toUpperCase()}${family.slice(1)}${tail ? ` \xB7 ${tail}` : ""}`;
-}
-var textAt = (o, k) => typeof o[k] === "string" && o[k] ? o[k] : null;
-var numberAt = (o, k) => typeof o[k] === "number" ? o[k] : null;
-function importWords(p) {
-  const n = (k) => numberAt(p, k) ?? 0;
-  const counts = `${n("added")} new, ${n("existed")} already here, ${n("skipped")} skipped`;
-  const stopped = n("failed") > 0 ? ", then stopped at a fault" : "";
-  return `Imported ${n("rows")} rows from a spreadsheet: ${counts}${stopped}`;
-}
-var CONVERTED_HOW = {
-  call: "after a call",
-  reply: "they wrote back",
-  booking: "they booked",
-  deal: "a deal was opened"
-};
-function readingWords(kind, p, base) {
-  if (kind === "lead.converted") {
-    const how = CONVERTED_HOW[textAt(p, "how") ?? ""];
-    return how ? `${base} \xB7 ${how}` : base;
-  }
-  const who = textAt(p, "business") ?? "A business";
-  if (textAt(p, "unread")) return `${who} wrote back \xB7 not read yet`;
-  return isReplyIntent(p.intent) && p.intent !== "other" ? `${who} wrote back \xB7 ${REPLY_INTENT_WORDS[p.intent]}` : `${who} wrote back`;
-}
-var OFFERS_PAUSED_WHY = {
-  complaints: "too many offers were marked as spam",
-  bounces: "too many offers bounced"
-};
-function offersPausedWords(p, base) {
-  const why = OFFERS_PAUSED_WHY[textAt(p, "reason") ?? ""];
-  return why ? `${base} \xB7 ${why}` : base;
-}
-var WHOLE_SENTENCE = /* @__PURE__ */ new Map([
-  ["import", (p) => importWords(p)],
-  ["lead.converted", (p, base) => readingWords("lead.converted", p, base)],
-  ["reach_out.replied", (p, base) => readingWords("reach_out.replied", p, base)],
-  ["mailbox.offers_paused", offersPausedWords]
-]);
-function activityWords(kind, payload) {
-  const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
-  const base = kind === "take_over" && textAt(p, "how") === "transfer" ? "Took over a call" : WORDS2[kind] ?? humanize(kind);
-  const whole = WHOLE_SENTENCE.get(kind);
-  if (whole) return whole(p, base);
-  const bits2 = [];
-  switch (kind) {
-    case "take_over": {
-      if (textAt(p, "how") === "transfer") bits2.push("passed to the business's line");
-      break;
-    }
-    case "sending_domain.added":
-    case "sending_domain.verified":
-    case "sending_domain.held":
-    case "sending_domain.released":
-    case "sending_domain.resumed":
-    case "sending_domain.removed": {
-      const host = textAt(p, "host");
-      if (host) bits2.push(host);
-      const why = textAt(p, "why");
-      if (kind === "sending_domain.held" && why) bits2.push(domainHoldWords(why));
-      break;
-    }
-    case "consent_change":
-    case "contact.consent_changed": {
-      const purpose = textAt(p, "purpose") === "marketing" ? "offers" : textAt(p, "purpose") === "email_marketing" ? "marketing email" : "messages about their visit";
-      const consent = textAt(p, "consent");
-      bits2.push(
-        consent === "opted_in" ? `yes to ${purpose}` : consent === "opted_out" ? `no to ${purpose}` : `${purpose}: not asked`
-      );
-      const source = textAt(p, "source");
-      if (source && source !== "operator") bits2.push(source.replace(/_/g, " "));
-      break;
-    }
-    case "change_role": {
-      const role = textAt(p, "role") ?? textAt(p, "to");
-      if (role) bits2.push(`to ${role}`);
-      break;
-    }
-    case "export": {
-      const what = textAt(p, "what");
-      if (what) bits2.push(what === "workspace" ? "everything" : what === "people" ? "everyone as a CSV" : `a ${what}`);
-      const rows = numberAt(p, "rows");
-      if (rows !== null) bits2.push(`${rows} rows`);
-      break;
-    }
-    case "pause_agent":
-    case "resume_agent": {
-      const mode = textAt(p, "receptionist_mode");
-      if (mode) bits2.push(mode === "inherit" ? "follows the workspace" : mode);
-      const batch = numberAt(p, "batch");
-      if (batch) bits2.push(`one of ${batch}`);
-      break;
-    }
-    case "send_broadcast": {
-      const name = textAt(p, "name");
-      if (name) bits2.push(name);
-      const n = numberAt(p, "recipients");
-      if (n !== null) bits2.push(`${n} people`);
-      if (p.approved === true) bits2.push("approved by hand");
-      break;
-    }
-    case "broadcast.sent": {
-      const sent2 = numberAt(p, "sent");
-      const held = numberAt(p, "held");
-      if (sent2 !== null) bits2.push(`${sent2} got it`);
-      if (held) bits2.push(`${held} held`);
-      break;
-    }
-    case "settings.changed": {
-      const fields = Array.isArray(p.fields) ? p.fields.filter((f) => typeof f === "string") : [];
-      if (fields.length) bits2.push(fields.slice(0, 4).join(", "));
-      break;
-    }
-    case "policy.changed": {
-      const cls = textAt(p, "class");
-      const mode = textAt(p, "mode");
-      if (cls) bits2.push(cls);
-      if (mode) bits2.push(mode);
-      break;
-    }
-    case "line.texting_rejected":
-    case "line.failed": {
-      const why = textAt(p, "error") ?? textAt(p, "reason");
-      if (why) bits2.push(why.slice(0, 80));
-      break;
-    }
-    case "platform.acted": {
-      const action = textAt(p, "action");
-      if (action) bits2.push(action);
-      break;
-    }
-    case "playbook.run": {
-      const outcome = textAt(p, "outcome");
-      if (outcome) bits2.push(outcome);
-      const n = numberAt(p, "recipients") ?? numberAt(p, "count");
-      if (n !== null) bits2.push(`${n} people`);
-      break;
-    }
-    case "lead.round": {
-      const state = textAt(p, "state");
-      if (state === "ended") {
-        bits2.push("finished");
-        const ending = textAt(p, "ending");
-        if (ending && ending in LEAD_ENDING_WORDS) bits2.push(LEAD_ENDING_WORDS[ending]);
-        const counted2 = numberAt(p, "counted");
-        if (counted2 !== null) bits2.push(`${counted2} found`);
-      } else if (state) {
-        bits2.push(
-          state === "queued" ? "started" : state === "waiting_on_owner" ? "waiting on your answer" : state.replace(/_/g, " ")
-        );
-      }
-      break;
-    }
-    case "lead.no_card": {
-      const card = textAt(p, "card");
-      if (card) bits2.push(card.replace(/_/g, " "));
-      const asked = textAt(p, "asked");
-      if (asked) bits2.push(asked.slice(0, 80));
-      break;
-    }
-    default:
-      break;
-  }
-  return bits2.length ? `${base} \xB7 ${bits2.join(" \xB7 ")}` : base;
-}
-var TONES2 = {
-  // danger -- it failed, it was refused, or something is gone
-  "message.send_failed": "danger",
-  "message.send_blocked": "danger",
-  "line.failed": "danger",
-  "line.texting_rejected": "danger",
-  "contact.erased": "danger",
-  "contact.blob_erased": "danger",
-  "ingest.unroutable": "danger",
-  "ingest.unreachable_sender": "danger",
-  erase: "danger",
-  decline: "danger",
-  remove_member: "danger",
-  // ok -- it completed, it connected, it is answering
-  "line.answering": "ok",
-  "line.texting_approved": "ok",
-  "line.forwarding_verified": "ok",
-  "voice.provisioned": "ok",
-  "google.linked": "ok",
-  "google.connected": "ok",
-  "broadcast.sent": "ok",
-  "billing.resumed": "ok",
-  "mailbox.created": "ok",
-  "mailbox.offers_resumed": "ok",
-  "sending_domain.verified": "ok",
-  "sending_domain.released": "ok",
-  "sending_domain.resumed": "ok",
-  "workspace.created": "ok",
-  approve: "ok",
-  resolve: "ok",
-  connect_channel: "ok",
-  "deal.won": "ok",
-  // warn -- somebody stopped something, or a rule was stepped around
-  "billing.paused": "warn",
-  "policy.veto_window_skipped": "warn",
-  "line.released": "warn",
-  "google.unlinked": "warn",
-  "google.disconnected": "warn",
-  "sending_domain.held": "warn",
-  "mailbox.offers_paused": "warn",
-  "message.send_raced_cancel": "warn",
-  "ingest.allowlist_skip": "warn",
-  pause_agent: "warn",
-  pause_playbook: "warn",
-  cancel_send: "warn",
-  cancel_broadcast: "warn",
-  revoke_invite: "warn",
-  snooze: "warn",
-  // info -- it is on its way, or a person took it on
-  "message.received": "info",
-  "conversation.reopened": "info",
-  "line.texting_on": "info",
-  take_over: "info",
-  hand_back: "info",
-  reply: "info"
-};
-function activityTone(kind) {
-  return TONES2[kind] ?? "plain";
-}
-var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
-function isActivityNoise(kind) {
-  return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p)) || ACTIVITY_NOISE_KINDS.includes(kind);
-}
-
 // src/workspace/platform.ts
 var PLATFORM_VERDICTS = {
   broken: { label: "Broken", tone: "danger", rank: 100 },
@@ -31722,6 +31348,42 @@ function platformPartnerStanding(w) {
     choices: partnerStandingChoices(w.standing).map((s) => ({ standing: s, label: PARTNER_STANDING_VERBS[s] }))
   };
 }
+var CODE_IGNORED_WHY = {
+  unknown: "no partner has that code",
+  paused: "that partner's account is paused",
+  closed: "that partner's account is closed",
+  self: "it was their own code"
+};
+var REVERSED_WORDS = {
+  refund: "a payment was refunded",
+  dispute: "a payment was disputed",
+  dispute_won: "a dispute was won"
+};
+function partnerEventBits(kind, p) {
+  const text = (k) => typeof p[k] === "string" && p[k] ? p[k] : null;
+  const known = (words2, k) => {
+    const said = text(k);
+    return said !== null && Object.hasOwn(words2, said) ? [words2[said]] : [];
+  };
+  switch (kind) {
+    case "partner.code_ignored":
+      return known(CODE_IGNORED_WHY, "why");
+    case "partner.reversed":
+      return known(REVERSED_WORDS, "kind");
+    case "partner.standing_set": {
+      const label = known(STANDING_LABELS, "standing")[0];
+      const by = text("by");
+      const whose = by !== null && Object.hasOwn(DECIDED_BY_WORDS, by) ? DECIDED_BY_WORDS[by] : "";
+      return label ? [`${label}${whose}`] : [];
+    }
+    case "partner.handover_sent":
+      return p.again === true ? ["sent again"] : [];
+    case "partner.invite_accepted":
+      return p.earns === false ? ["it was already paying, so it earns no share"] : [];
+    default:
+      return [];
+  }
+}
 function partnerPayoutOutcomeWords(code2, r2) {
   if (r2.changed)
     return `Nothing was recorded: what is payable to ${code2} is now ${moneyWords(r2.total_cents, r2.currency)}, not what the card showed. Read the card again before you mark it.`;
@@ -31833,6 +31495,454 @@ var LETTER_SUBJECTS = [
 function letterSubject(news) {
   const rule = LETTER_SUBJECTS.find(([holds2]) => holds2(news));
   return rule ? rule[1](news) : "What changed in your partner account";
+}
+
+// src/workspace/activity.ts
+var ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
+var ACTIVITY_NOISE_KINDS = [
+  "escalation.changed",
+  "lead.set_aside",
+  "call.transferred",
+  "booking_link.sent",
+  "channel.quality_rating"
+];
+var isActivityMoney = (row2) => row2.category === "billing";
+var WORDS2 = {
+  // decisions
+  approve: "Approved a reply",
+  edit: "Edited a reply",
+  decline: "Declined a reply",
+  snooze: "Snoozed a thread",
+  wake: "Woke a thread",
+  take_over: "Took over a thread",
+  hand_back: "Handed a thread back to the receptionist",
+  resolve: "Resolved an escalation",
+  archive: "Archived a thread",
+  reply: "Replied from the dashboard",
+  cancel_send: "Stopped a reply before it sent",
+  pause_agent: "Paused the receptionist",
+  resume_agent: "Resumed the receptionist",
+  invite: "Invited a member",
+  revoke_invite: "Withdrew an invitation",
+  change_role: "Changed a member's role",
+  remove_member: "Removed a member",
+  erase: "Erased a person",
+  merge: "Merged two records of one person",
+  whisper: "Whispered to the phone receptionist",
+  connect_channel: "Connected a channel",
+  consent_change: "Recorded a consent answer",
+  send_broadcast: "Sent a broadcast",
+  cancel_broadcast: "Canceled a broadcast",
+  start_playbook: "Started a playbook",
+  pause_playbook: "Paused a playbook",
+  reply_review: "Replied to a Google review",
+  export: "Exported data",
+  import: "Imported people from a spreadsheet",
+  open_recording: "Listened to a call's recording",
+  end_call: "Ended a call",
+  record_deal: "Recorded a deal",
+  make_list: "Made a list",
+  rename_list: "Renamed a list",
+  change_list_rule: "Changed who is on a list",
+  add_to_list: "Put people on a list",
+  drop_from_list: "Took people off a list",
+  archive_list: "Archived a list",
+  restore_list: "Restored a list",
+  delete_list: "Deleted a list",
+  // events
+  "message.received": "A customer wrote",
+  "message.sent": "A message went out",
+  "message.send_failed": "A message could not be sent",
+  "message.send_blocked": "A message was held at the wire",
+  "message.send_raced_cancel": "A send raced a cancel",
+  "contact.consent_changed": "A consent answer changed",
+  "contact.added": "A person was added",
+  "contact.named": "A person was named",
+  "contact.noted": "A note was written",
+  "contact.note_changed": "A note was changed",
+  "contact.note_removed": "A note was taken away",
+  "contact.note_suggested": "The receptionist suggested a note",
+  "contact.note_kept": "A suggested note was kept",
+  "contact.note_dismissed": "A suggested note was dismissed",
+  "contact.note_done": "A step was done",
+  "contact.note_undone": "A step was opened again",
+  "contact.email_set": "A person's email address changed",
+  "contact.proposal_set": "A person's proposal link changed",
+  // A deal is a record (0004): each move of one, in the owner's words.
+  "deal.proposed": "A proposal went out",
+  "deal.won": "A person became a client",
+  "deal.lost": "A person passed on a proposal",
+  "deal.ended": "An engagement ended",
+  "contact.email_suppressed": "A person's email address stopped being sent to",
+  "contact.erased": "A person was erased",
+  "contact.merged": "Two records of one person became one",
+  // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
+  "contact.blob_erased": "A person's stored thread was erased",
+  "conversation.reopened": "A thread reopened",
+  "conversation.pause_expired": "A pause ended",
+  "conversation.snooze_expired": "A snooze ended",
+  "escalation.changed": "A handover's reason changed",
+  "call.recorded": "A call was recorded",
+  "call.transferred": "A call was passed to a person",
+  "booking_link.sent": "The booking link was sent",
+  "broadcast.sent": "A broadcast finished",
+  "playbook.run": "A playbook ran",
+  "channel.quality_rating": "A WhatsApp number's quality rating changed",
+  "setup.requested": "Setup was requested",
+  "voice.provisioned": "The phone receptionist was provisioned",
+  "line.answering": "A line started answering",
+  "line.failed": "A line failed",
+  "line.released": "A line was released",
+  "line.forwarding_verified": "Forwarding was verified",
+  "line.texting_on": "Texting turned on",
+  "line.texting_approved": "The carriers approved texting",
+  "line.texting_rejected": "The carriers sent the registration back",
+  "business.recorded": "The business record was saved",
+  "platform.acted": "Chanlytics acted on the workspace",
+  "google.linked": "A Google listing was linked",
+  "google.unlinked": "The Google listing was unlinked",
+  "google.reviews": "New Google reviews were read",
+  "google.connected": "Google Business Profile was connected",
+  "google.disconnected": "Google Business Profile was disconnected",
+  "google.replied": "A Google review was answered",
+  "google.reply_held": "A review reply was written and not posted",
+  "mailbox.created": "The workspace's email address was set up",
+  "mailbox.renamed": "The name on the workspace's email changed",
+  "mailbox.offers_paused": "Offers by email were paused",
+  "mailbox.offers_resumed": "Offers by email were turned back on",
+  "sending_domain.added": "A domain to send from was added",
+  "sending_domain.verified": "A domain to send from was verified",
+  "sending_domain.held": "A domain to send from was held",
+  "sending_domain.released": "A domain to send from is sending again",
+  "sending_domain.resumed": "A domain to send from was resumed",
+  "sending_domain.removed": "A domain to send from was removed",
+  "channel.connected": "A WhatsApp number was connected",
+  "lead.stage": "A lead moved",
+  "lead.emailed": "A lead was marked as emailed",
+  "lead.call": "A call to a lead was logged",
+  "lead.not_a_fit": "A lead was marked not a fit",
+  "lead.round": "A search for businesses",
+  "lead.no_card": "An ask no source covers yet",
+  "lead.converted": "A lead is Talking",
+  "lead.set_aside": "A lead was set aside",
+  // A reply to a reach-out, read (Reach out Part 5): the case below says who and what it meant.
+  "reach_out.replied": "A business wrote back to a reach-out",
+  "reach_out.reply_undone": "A reply read as no was undone",
+  "workspace.created": "The workspace was created",
+  "workspace.activated": "The workspace passed a milestone",
+  // The partner programme (0012), as the workspace's owner reads it; partnerEventBits says the rest of each.
+  "partner.attributed": "The workspace was made through a partner's link",
+  "partner.code_ignored": "A partner's code was not used",
+  "partner.earned": "A partner earned a share of a payment",
+  "partner.reversed": "A partner's share changed",
+  "partner.standing_set": "A partner's share was judged",
+  "partner.paid": "A partner was paid their share",
+  "partner.handover_sent": "A partner sent the workspace to its owner",
+  "partner.handover_accepted": "The owner accepted the workspace from its partner",
+  "partner.handover_declined": "The owner declined the workspace from its partner",
+  "partner.invited": "The workspace asked a partner to join",
+  "partner.invite_withdrawn": "The invitation to a partner was taken back",
+  "partner.invite_accepted": "A partner joined the workspace",
+  "partner.invite_declined": "A partner declined to join the workspace",
+  "settings.changed": "Settings changed",
+  "policy.changed": "An autonomy setting changed",
+  "billing.updated": "Billing changed",
+  "billing.paused": "Billing paused the workspace",
+  "billing.resumed": "Billing resumed the workspace",
+  "ingest.allowlist_skip": "A message was skipped by the allowlist",
+  "ingest.unreachable_sender": "A sender could not be answered",
+  "ingest.unroutable": "A message could not be placed on a workspace",
+  "policy.veto_window_skipped": "A veto window was skipped",
+  "usage.llm_tokens": "Model usage",
+  "usage.ask_tokens": "Assistant usage",
+  "usage.voice_seconds": "Call minutes",
+  "usage.wa_conversation": "A WhatsApp conversation opened",
+  "webhook.auth": "A webhook signature was checked",
+  "webhook.delivery": "A webhook was delivered"
+};
+function humanize(kind) {
+  const [family, rest] = kind.split(".", 2);
+  const tail = (rest ?? "").replace(/_/g, " ");
+  return `${family.charAt(0).toUpperCase()}${family.slice(1)}${tail ? ` \xB7 ${tail}` : ""}`;
+}
+var textAt = (o, k) => typeof o[k] === "string" && o[k] ? o[k] : null;
+var numberAt = (o, k) => typeof o[k] === "number" ? o[k] : null;
+function importWords(p) {
+  const n = (k) => numberAt(p, k) ?? 0;
+  const counts = `${n("added")} new, ${n("existed")} already here, ${n("skipped")} skipped`;
+  const stopped = n("failed") > 0 ? ", then stopped at a fault" : "";
+  return `Imported ${n("rows")} rows from a spreadsheet: ${counts}${stopped}`;
+}
+var CONVERTED_HOW = {
+  call: "after a call",
+  reply: "they wrote back",
+  booking: "they booked",
+  deal: "a deal was opened"
+};
+function readingWords(kind, p, base) {
+  if (kind === "lead.converted") {
+    const how = CONVERTED_HOW[textAt(p, "how") ?? ""];
+    return how ? `${base} \xB7 ${how}` : base;
+  }
+  const who = textAt(p, "business") ?? "A business";
+  if (textAt(p, "unread")) return `${who} wrote back \xB7 not read yet`;
+  return isReplyIntent(p.intent) && p.intent !== "other" ? `${who} wrote back \xB7 ${REPLY_INTENT_WORDS[p.intent]}` : `${who} wrote back`;
+}
+var OFFERS_PAUSED_WHY = {
+  complaints: "too many offers were marked as spam",
+  bounces: "too many offers bounced"
+};
+function offersPausedWords(p, base) {
+  const why = OFFERS_PAUSED_WHY[textAt(p, "reason") ?? ""];
+  return why ? `${base} \xB7 ${why}` : base;
+}
+var joinBits = (base, bits2) => {
+  const said = bits2.filter((b) => !!b);
+  return said.length ? `${base} \xB7 ${said.join(" \xB7 ")}` : base;
+};
+var wordOf = (words2, key) => key !== null && Object.hasOwn(words2, key) ? words2[key] : null;
+function leadStageWords(p, base) {
+  const n = numberAt(p, "count");
+  const head = p.bulk === true && n !== null ? `${plural(n, "lead")} moved` : base;
+  return joinBits(head, [wordOf(LEAD_STAGE_WORDS, textAt(p, "stage")), wordOf(LEAD_CLOSED_WORDS, textAt(p, "reason"))]);
+}
+function leadNotAFitWords(p, base) {
+  const n = numberAt(p, "count");
+  const head = p.bulk === true && n !== null ? `${plural(n, "lead")} ${n === 1 ? "was" : "were"} marked not a fit` : base;
+  return joinBits(head, [wordOf(LEAD_NOT_A_FIT_WORDS, textAt(p, "why"))]);
+}
+function leadEmailedWords(p, base) {
+  return textAt(p, "by") === "reach_out" ? "A reach-out email went to a lead" : base;
+}
+var ACTIVATED_WORDS = {
+  line_live: "its first line is answering",
+  first_reply: "its first reply went to a customer",
+  first_lead_search: "its first lead search was made"
+};
+var REPLY_HELD_WHY = { price: "it named a price", money: "it named money" };
+function sendBlockedWords(p, base) {
+  return joinBits(base, [wordOf(HELD_REASONS, textAt(p, "reason"))]);
+}
+var SEND_FAILED_WHY = {
+  receipt: "the provider reported it as not delivered, after taking it",
+  no_credentials: "the channel has no credentials to send with",
+  no_sender_for_channel: "nothing is set up to send on that channel"
+};
+function sendFailedWords(p, base) {
+  const reason = textAt(p, "reason");
+  const provider = numberAt(p, "http_status") === 0 ? "the provider gave no answer" : HELD_REASONS.send_failed;
+  const why = p.outcome === "unknown" ? "the provider didn't answer in time, so it may have gone" : wordOf(SEND_FAILED_WHY, reason) ?? (reason === "provider" ? provider : null);
+  return joinBits(base, [why]);
+}
+var WHOLE_SENTENCE = new Map([
+  ["import", (p) => importWords(p)],
+  ["lead.converted", (p, base) => readingWords("lead.converted", p, base)],
+  ["reach_out.replied", (p, base) => readingWords("reach_out.replied", p, base)],
+  ["mailbox.offers_paused", offersPausedWords],
+  ["lead.stage", leadStageWords],
+  ["lead.not_a_fit", leadNotAFitWords],
+  ["lead.emailed", leadEmailedWords],
+  ["lead.call", (p, base) => joinBits(base, [wordOf(LEAD_CALL_OUTCOME_WORDS, textAt(p, "outcome"))])],
+  ["channel.connected", (p, base) => joinBits(base, [textAt(p, "verified_name")])],
+  ["workspace.activated", (p, base) => joinBits(base, [wordOf(ACTIVATED_WORDS, textAt(p, "milestone"))])],
+  ["google.reply_held", (p, base) => joinBits(base, [wordOf(REPLY_HELD_WHY, textAt(p, "why"))])],
+  ["message.send_blocked", sendBlockedWords],
+  ["message.send_failed", sendFailedWords],
+  ...EVENT_KINDS.filter((k) => k.startsWith("partner.")).map(
+    (k) => [
+      k,
+      (p, base) => joinBits(base, partnerEventBits(k, p))
+    ]
+  )
+]);
+function activityWords(kind, payload) {
+  const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+  const base = kind === "take_over" && textAt(p, "how") === "transfer" ? "Took over a call" : WORDS2[kind] ?? humanize(kind);
+  const whole = WHOLE_SENTENCE.get(kind);
+  if (whole) return whole(p, base);
+  const bits2 = [];
+  switch (kind) {
+    case "take_over": {
+      if (textAt(p, "how") === "transfer") bits2.push("passed to the business's line");
+      break;
+    }
+    case "sending_domain.added":
+    case "sending_domain.verified":
+    case "sending_domain.held":
+    case "sending_domain.released":
+    case "sending_domain.resumed":
+    case "sending_domain.removed": {
+      const host = textAt(p, "host");
+      if (host) bits2.push(host);
+      const why = textAt(p, "why");
+      if (kind === "sending_domain.held" && why) bits2.push(domainHoldWords(why));
+      break;
+    }
+    case "consent_change":
+    case "contact.consent_changed": {
+      const purpose = textAt(p, "purpose") === "marketing" ? "offers" : textAt(p, "purpose") === "email_marketing" ? "marketing email" : "messages about their visit";
+      const consent = textAt(p, "consent");
+      bits2.push(
+        consent === "opted_in" ? `yes to ${purpose}` : consent === "opted_out" ? `no to ${purpose}` : `${purpose}: not asked`
+      );
+      const source = textAt(p, "source");
+      if (source && source !== "operator") bits2.push(source.replace(/_/g, " "));
+      break;
+    }
+    case "change_role": {
+      const role = textAt(p, "role") ?? textAt(p, "to");
+      if (role) bits2.push(`to ${role}`);
+      break;
+    }
+    case "export": {
+      const what = textAt(p, "what");
+      if (what) bits2.push(what === "workspace" ? "everything" : what === "people" ? "everyone as a CSV" : `a ${what}`);
+      const rows = numberAt(p, "rows");
+      if (rows !== null) bits2.push(`${rows} rows`);
+      break;
+    }
+    case "pause_agent":
+    case "resume_agent": {
+      const mode = textAt(p, "receptionist_mode");
+      if (mode) bits2.push(mode === "inherit" ? "follows the workspace" : mode);
+      const batch = numberAt(p, "batch");
+      if (batch) bits2.push(`one of ${batch}`);
+      break;
+    }
+    case "send_broadcast": {
+      const name = textAt(p, "name");
+      if (name) bits2.push(name);
+      const n = numberAt(p, "recipients");
+      if (n !== null) bits2.push(`${n} people`);
+      if (p.approved === true) bits2.push("approved by hand");
+      break;
+    }
+    case "broadcast.sent": {
+      const sent2 = numberAt(p, "sent");
+      const held = numberAt(p, "held");
+      if (sent2 !== null) bits2.push(`${sent2} got it`);
+      if (held) bits2.push(`${held} held`);
+      break;
+    }
+    case "settings.changed": {
+      const fields = Array.isArray(p.fields) ? p.fields.filter((f) => typeof f === "string") : [];
+      if (fields.length) bits2.push(fields.slice(0, 4).join(", "));
+      break;
+    }
+    case "policy.changed": {
+      const cls = textAt(p, "class");
+      const mode = textAt(p, "mode");
+      if (cls) bits2.push(cls);
+      if (mode) bits2.push(mode);
+      break;
+    }
+    case "line.texting_rejected":
+    case "line.failed": {
+      const why = textAt(p, "error") ?? textAt(p, "reason");
+      if (why) bits2.push(why.slice(0, 80));
+      break;
+    }
+    case "platform.acted": {
+      const action = textAt(p, "action");
+      if (action) bits2.push(action);
+      break;
+    }
+    case "playbook.run": {
+      const outcome = textAt(p, "outcome");
+      if (outcome) bits2.push(outcome);
+      const n = numberAt(p, "recipients") ?? numberAt(p, "count");
+      if (n !== null) bits2.push(`${n} people`);
+      break;
+    }
+    case "lead.round": {
+      const state = textAt(p, "state");
+      if (state === "ended") {
+        bits2.push("finished");
+        const ending = textAt(p, "ending");
+        if (ending && ending in LEAD_ENDING_WORDS) bits2.push(LEAD_ENDING_WORDS[ending]);
+        const counted2 = numberAt(p, "counted");
+        if (counted2 !== null) bits2.push(`${counted2} found`);
+      } else if (state) {
+        bits2.push(
+          state === "queued" ? "started" : state === "waiting_on_owner" ? "waiting on your answer" : state.replace(/_/g, " ")
+        );
+      }
+      break;
+    }
+    case "lead.no_card": {
+      const card = textAt(p, "card");
+      if (card) bits2.push(card.replace(/_/g, " "));
+      const asked = textAt(p, "asked");
+      if (asked) bits2.push(asked.slice(0, 80));
+      break;
+    }
+    default:
+      break;
+  }
+  return bits2.length ? `${base} \xB7 ${bits2.join(" \xB7 ")}` : base;
+}
+var TONES2 = {
+  // danger -- it failed, it was refused, or something is gone
+  "message.send_failed": "danger",
+  "message.send_blocked": "danger",
+  "line.failed": "danger",
+  "line.texting_rejected": "danger",
+  "contact.erased": "danger",
+  "contact.blob_erased": "danger",
+  "ingest.unroutable": "danger",
+  "ingest.unreachable_sender": "danger",
+  erase: "danger",
+  decline: "danger",
+  remove_member: "danger",
+  // ok -- it completed, it connected, it is answering
+  "line.answering": "ok",
+  "line.texting_approved": "ok",
+  "line.forwarding_verified": "ok",
+  "voice.provisioned": "ok",
+  "google.linked": "ok",
+  "google.connected": "ok",
+  "broadcast.sent": "ok",
+  "billing.resumed": "ok",
+  "mailbox.created": "ok",
+  "mailbox.offers_resumed": "ok",
+  "sending_domain.verified": "ok",
+  "sending_domain.released": "ok",
+  "sending_domain.resumed": "ok",
+  "workspace.created": "ok",
+  approve: "ok",
+  resolve: "ok",
+  connect_channel: "ok",
+  "deal.won": "ok",
+  // warn -- somebody stopped something, or a rule was stepped around
+  "billing.paused": "warn",
+  "policy.veto_window_skipped": "warn",
+  "line.released": "warn",
+  "google.unlinked": "warn",
+  "google.disconnected": "warn",
+  "sending_domain.held": "warn",
+  "mailbox.offers_paused": "warn",
+  "message.send_raced_cancel": "warn",
+  "ingest.allowlist_skip": "warn",
+  pause_agent: "warn",
+  pause_playbook: "warn",
+  cancel_send: "warn",
+  cancel_broadcast: "warn",
+  revoke_invite: "warn",
+  snooze: "warn",
+  // info -- it is on its way, or a person took it on
+  "message.received": "info",
+  "conversation.reopened": "info",
+  "line.texting_on": "info",
+  take_over: "info",
+  hand_back: "info",
+  reply: "info"
+};
+function activityTone(kind) {
+  return TONES2[kind] ?? "plain";
+}
+var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+function isActivityNoise(kind) {
+  return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p)) || ACTIVITY_NOISE_KINDS.includes(kind);
 }
 
 // src/workspace/handover.ts
