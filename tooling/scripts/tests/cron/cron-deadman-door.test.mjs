@@ -54,7 +54,10 @@ const waiting = (id, tenant, over = {}) => ({
 
 /* -------------------------------------------------------------- the world */
 
-function world(candidates, { deadman_candidates = () => candidates, messages = [], jobs = [], fail = {} } = {}) {
+function world(
+  candidates,
+  { deadman_candidates = () => candidates, messages = [], jobs = [], broadcasts = [], fail = {} } = {},
+) {
   const tables = {
     tenant_config: [
       { tenant_id: A, config: { notifications: { escalation_emails: [OWNER] } } },
@@ -68,6 +71,7 @@ function world(candidates, { deadman_candidates = () => candidates, messages = [
     operator_pages: [],
     messages,
     jobs,
+    broadcasts,
     escalations: [],
   };
   const marks = [];
@@ -90,7 +94,7 @@ function world(candidates, { deadman_candidates = () => candidates, messages = [
 }
 const bell = (w, tenant) => w.tables.notifications.filter((n) => n.tenant_id === tenant);
 /** The two newer questions the tick asks (lib/unfinished.ts), finding nothing. */
-const quiet = { unanswered: 0, orphaned: 0, told: 0 };
+const quiet = { unanswered: 0, orphaned: 0, told: 0, stranded: 0 };
 
 /* -------------------------------------------------------------- the door */
 
@@ -284,7 +288,7 @@ test("a customer's message the handler never finished with: flagged for a person
   try {
     assert.deepEqual(await answer(await w.tick()), [
       200,
-      { ok: true, flagged: 0, unanswered: 1, orphaned: 0, told: 1 },
+      { ok: true, flagged: 0, unanswered: 1, orphaned: 0, told: 1, stranded: 0 },
     ]);
     assert.equal(w.tables.escalations.length, 1);
     assert.equal(w.tables.escalations[0].conversation_id, "cv-m-old");
@@ -310,7 +314,7 @@ test("a customer's message the handler never finished with: flagged for a person
     // The next tick finds nothing: raised once.
     assert.deepEqual(await answer(await w.tick()), [
       200,
-      { ok: true, flagged: 0, unanswered: 0, orphaned: 0, told: 0 },
+      { ok: true, flagged: 0, unanswered: 0, orphaned: 0, told: 0, stranded: 0 },
     ]);
     assert.equal(w.tables.escalations.length, 1);
   } finally {
@@ -324,7 +328,7 @@ test("a reply that went out before the stamp is not a customer with no answer: s
   try {
     assert.deepEqual(await answer(await w.tick()), [
       200,
-      { ok: true, flagged: 0, unanswered: 0, orphaned: 0, told: 0 },
+      { ok: true, flagged: 0, unanswered: 0, orphaned: 0, told: 0, stranded: 0 },
     ]);
     assert.equal(w.tables.escalations.length, 0);
     assert.equal(bell(w, A).length, 0);
@@ -359,7 +363,7 @@ test("a queued reply with no job to send it is failed with an honest note and th
   try {
     assert.deepEqual(await answer(await w.tick()), [
       200,
-      { ok: true, flagged: 0, unanswered: 0, orphaned: 1, told: 1 },
+      { ok: true, flagged: 0, unanswered: 0, orphaned: 1, told: 1, stranded: 0 },
     ]);
     const row = w.tables.messages.find((m) => m.id === "q-orphan");
     assert.equal(row.status, "failed");
@@ -399,7 +403,7 @@ test("a campaign's email with no job is failed the same way, and flags no thread
   try {
     assert.deepEqual(await answer(await w.tick()), [
       200,
-      { ok: true, flagged: 0, unanswered: 0, orphaned: 1, told: 0 },
+      { ok: true, flagged: 0, unanswered: 0, orphaned: 1, told: 0, stranded: 0 },
     ]);
     const row = w.tables.messages.find((m) => m.id === "q-cold");
     assert.deepEqual(
@@ -462,11 +466,228 @@ test("REGRESSION: an email still being taken in is not this sweep's to claim", a
   try {
     assert.deepEqual(
       await answer(await w.tick()),
-      [200, { ok: true, flagged: 0, unanswered: 0, orphaned: 0, told: 0 }],
+      [200, { ok: true, flagged: 0, unanswered: 0, orphaned: 0, told: 0, stranded: 0 }],
       "nothing found, because nothing here was abandoned",
     );
     assert.deepEqual(w.tables.escalations, [], "no hold invented for work in flight");
     assert.equal(email.meta.processed_at, undefined, "and the intake's own mark is left for the intake");
+  } finally {
+    line.restore();
+  }
+});
+
+test("a run still scheduled past its time with nothing on the ledger to send it is marked not sent and its owner told, once; one with a live job, a reach-out's, and one not yet due are left alone", async () => {
+  // An approval moved the run and could neither write its job nor put it back to wait (core approveRun): the page said
+  // "Scheduled" for ever, and the ledger, which settles a run whose JOB died, never heard of it (wiring review P2 9).
+  const run = (id, over = {}) => ({
+    id,
+    tenant_id: A,
+    name: `Run ${id}`,
+    state: "scheduled",
+    playbook_id: null,
+    audience: { kind: "everyone", id: null, label: "Everyone" },
+    scheduled_for: ago(30 * M),
+    failure: null,
+    finished_at: null,
+    ...over,
+  });
+  const w = world([], {
+    broadcasts: [
+      run("b-stranded"),
+      run("b-moment", {
+        playbook_id: "pb-1",
+        audience: { kind: "playbook", id: "pb-1", label: "Win-back", trigger: "quiet_30" },
+      }),
+      run("b-live"),
+      run("b-reach", {
+        playbook_id: "st-1",
+        audience: { kind: "reach_out", root_id: "st-1", step_id: "st-1", label: "Dentists" },
+      }),
+      run("b-soon", { scheduled_for: ago(2 * M) }),
+      run("b-old", { scheduled_for: ago(9 * 24 * H) }),
+    ],
+    jobs: [{ id: "j-live", tenant_id: A, kind: "broadcast_send", state: "fired", payload: { broadcast_id: "b-live" } }],
+  });
+  const line = wire();
+  try {
+    assert.deepEqual(await answer(await w.tick()), [200, { ok: true, flagged: 0, ...quiet, stranded: 2 }]);
+    const state = Object.fromEntries(w.tables.broadcasts.map((b) => [b.id, [b.state, b.failure]]));
+    assert.deepEqual(state, {
+      "b-stranded": ["failed", "run_interrupted"],
+      "b-moment": ["failed", "run_interrupted"],
+      "b-live": ["scheduled", null],
+      "b-reach": ["scheduled", null],
+      "b-soon": ["scheduled", null],
+      "b-old": ["scheduled", null],
+    });
+    const told = bell(w, A);
+    assert.deepEqual(
+      told.map((n) => [n.kind, n.title, n.route, n.subject_type, n.subject_id]),
+      [
+        [
+          "broadcast_stopped",
+          "Broadcast “Run b-stranded” not sent",
+          "broadcasts/run:b-stranded",
+          "broadcast",
+          "b-stranded",
+        ],
+        ["broadcast_stopped", "Broadcast “Run b-moment” not sent", "broadcasts/run:b-moment", "broadcast", "b-moment"],
+      ],
+    );
+    assert.equal(
+      told[0].body,
+      "It was due to go out, and nothing was left to send it, so it is marked not sent. Nobody got it, so sending it again reaches nobody twice.",
+    );
+    assert.match(
+      told[1].body,
+      /tomorrow's run reaches the people this one did not/,
+      "a playbook's run is never told to send it again",
+    );
+    assert.doesNotMatch(told[1].body, /send it again/i);
+    assert.equal(
+      line.mail().filter((m) => m.to.includes(OWNER)).length,
+      2,
+      "and by mail, to the workspace's own mailbox",
+    );
+
+    // The next tick finds nothing: each is told once.
+    assert.deepEqual(await answer(await w.tick()), [200, { ok: true, flagged: 0, ...quiet }]);
+    assert.equal(bell(w, A).length, 2);
+  } finally {
+    line.restore();
+  }
+});
+
+test("a page of reach-out runs ahead of it does not hide a stranded run, and only a job that is scheduled or fired counts as one coming", async () => {
+  // A reach-out's run waits scheduled with no broadcast job until its clock writes its first email: sixty of them, older
+  // than the run this is for, filled the page the watchdog reads before it could see that run.
+  const reach = (i) => ({
+    id: `b-reach-${i}`,
+    tenant_id: A,
+    name: `Reach ${i}`,
+    state: "scheduled",
+    playbook_id: `st-${i}`,
+    audience: { kind: "reach_out", root_id: `st-${i}`, step_id: `st-${i}`, label: "Dentists" },
+    scheduled_for: ago(2 * H + i * M),
+    failure: null,
+    finished_at: null,
+  });
+  const run = (id, over = {}) => ({
+    id,
+    tenant_id: A,
+    name: `Run ${id}`,
+    state: "scheduled",
+    playbook_id: null,
+    audience: null,
+    scheduled_for: ago(30 * M),
+    failure: null,
+    finished_at: null,
+    ...over,
+  });
+  const job = (id, state, broadcast) => ({
+    id,
+    tenant_id: A,
+    kind: "broadcast_send",
+    state,
+    payload: { broadcast_id: broadcast },
+  });
+  const w = world([], {
+    broadcasts: [
+      ...Array.from({ length: 60 }, (_, i) => reach(i)),
+      // An audience with no kind at all (a run made before audiences had one) is not a reach-out's.
+      run("b-kindless"),
+      run("b-waiting", { audience: { kind: "everyone" } }),
+      run("b-done-job", { audience: { kind: "everyone" } }),
+      run("b-canceled-job", { audience: { kind: "everyone" } }),
+    ],
+    jobs: [
+      job("j-1", "scheduled", "b-waiting"),
+      job("j-2", "done", "b-done-job"),
+      job("j-3", "canceled", "b-canceled-job"),
+    ],
+  });
+  const line = wire();
+  try {
+    const [, body] = await answer(await w.tick());
+    assert.equal(body.stranded, 3);
+    const failed = w.tables.broadcasts.filter((b) => b.state === "failed").map((b) => b.id);
+    assert.deepEqual(
+      failed,
+      ["b-kindless", "b-done-job", "b-canceled-job"],
+      "a job done or canceled is not one coming",
+    );
+    assert.equal(w.tables.broadcasts.find((b) => b.id === "b-waiting").state, "scheduled", "its job will start it");
+    assert.ok(w.tables.broadcasts.filter((b) => b.id.startsWith("b-reach")).every((b) => b.state === "scheduled"));
+  } finally {
+    line.restore();
+  }
+});
+
+test("a notice that cannot be given is an error line, and the run stays marked not sent; past the tick's budget the rest wait for the next", async () => {
+  const run = (id) => ({
+    id,
+    tenant_id: A,
+    name: `Run ${id}`,
+    state: "scheduled",
+    playbook_id: null,
+    audience: null,
+    scheduled_for: ago(30 * M),
+    failure: null,
+    finished_at: null,
+  });
+  // The bell row cannot be written, so nobody is told: the mail is not sent without it (notifyOnce).
+  const w = world([], { broadcasts: [run("b-1")], fail: { "notifications.insert": { message: "bell is down" } } });
+  const line = wire();
+  const logged = [];
+  // Both streams: the logger writes an error line where the platform reads errors.
+  const kept = { out: process.stdout.write.bind(process.stdout), err: process.stderr.write.bind(process.stderr) };
+  process.stdout.write = (chunk, ...rest) => (logged.push(String(chunk)), kept.out(chunk, ...rest));
+  process.stderr.write = (chunk, ...rest) => (logged.push(String(chunk)), kept.err(chunk, ...rest));
+  try {
+    const [, body] = await answer(await w.tick());
+    assert.equal(body.stranded, 1);
+    assert.equal(w.tables.broadcasts[0].state, "failed");
+    assert.deepEqual(
+      line.mail().filter((m) => m.to.includes(OWNER)),
+      [],
+      "no mail without its row",
+    );
+    assert.ok(
+      logged.some((l) => l.includes('"stranded_run_untold"')),
+      "said where alerting reads it",
+    );
+    assert.ok(!logged.some((l) => l.includes('"stranded_run_failed"')));
+  } finally {
+    process.stdout.write = kept.out;
+    process.stderr.write = kept.err;
+    line.restore();
+  }
+  // The budget: the watchdog stops telling once the tick has spent it.
+  const { sweepStrandedRuns } = await import(at("apps/edge/lib/ops/stranded-runs.ts"));
+  const late = world([], { broadcasts: [run("b-2"), run("b-3")] });
+  const quietLog = { warn() {}, error() {}, info() {} };
+  const r = await sweepStrandedRuns({
+    db: late.db,
+    L: quietLog,
+    notifyOnce: async () => true,
+    loadTenantNotifications: async () => ({ notifications: null, isEnvDefault: false }),
+    deadline: Date.now() - 1,
+  });
+  assert.deepEqual(r, { stranded: 0 });
+  assert.ok(
+    late.tables.broadcasts.every((b) => b.state === "scheduled"),
+    "left for the next tick",
+  );
+});
+
+test("the stranded runs failing to read does not cost the watchdog its tick", async () => {
+  const w = world([waiting("e-a1", A)], { fail: { "broadcasts.select": { message: "connection reset" } } });
+  const line = wire();
+  try {
+    const [status, body] = await answer(await w.tick());
+    assert.equal(status, 200);
+    assert.equal(body.flagged, 1, "the escalation nobody picked up is still raised");
+    assert.equal(body.stranded, 0);
   } finally {
     line.restore();
   }

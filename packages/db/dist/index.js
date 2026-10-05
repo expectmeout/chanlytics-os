@@ -1137,6 +1137,32 @@ async function recordLateCarrierOptOut(db, p) {
   return wrote ? "recorded" : "already_stopped";
 }
 
+// src/repositories/campaigns/stranded-runs.ts
+import { isReachOutRun } from "../../contracts/dist/index.js";
+async function strandedRuns(db, p) {
+  const { data, error } = await db.from("broadcasts").select("id, tenant_id, name, playbook_id, audience, scheduled_for").eq("state", "scheduled").gt("scheduled_for", p.since.toISOString()).lt("scheduled_for", p.before.toISOString()).or("audience->>kind.is.null,audience->>kind.neq.reach_out").order("scheduled_for", { ascending: true }).limit(p.limit);
+  if (error) throw new Error(`stranded runs: cannot read the scheduled runs: ${error.message}`);
+  const runs = (data ?? []).filter((r) => !isReachOutRun(r.audience));
+  if (!runs.length) return [];
+  const jobs = await db.from("jobs").select("payload").eq("kind", "broadcast_send").in("state", ["scheduled", "fired"]).in(
+    "payload->>broadcast_id",
+    runs.map((r) => r.id)
+  );
+  if (jobs.error) throw new Error(`stranded runs: cannot read their jobs: ${jobs.error.message}`);
+  const live = new Set(
+    (jobs.data ?? []).map((j) => {
+      const id = j.payload?.broadcast_id;
+      return typeof id === "string" ? id : "";
+    })
+  );
+  return runs.filter((r) => !live.has(r.id));
+}
+async function failStrandedRun(db, p) {
+  const { data, error } = await db.from("broadcasts").update({ state: "failed", failure: "run_interrupted", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", p.id).eq("tenant_id", p.tenantId).eq("state", "scheduled").select("id");
+  if (error) throw new Error(`stranded runs: cannot mark run ${p.id} not sent: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
 // src/repositories/sending-domains.ts
 var must = (what, r) => {
   if (r.error) throw new Error(`sending_domains: ${what}: ${r.error.message}`);
@@ -3529,6 +3555,7 @@ export {
   endVoiceSession,
   erasureDigests,
   everyoneIn,
+  failStrandedRun,
   failedMessageErrors,
   finishableRuns,
   followUpTouchesSince,
@@ -3714,6 +3741,7 @@ export {
   stampPlaybooksTried,
   stampReachOutStep,
   stopAllMessages,
+  strandedRuns,
   stuckClaims,
   subjectsWith,
   subscribeWorkspaceChanges,

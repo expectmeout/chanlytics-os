@@ -72,6 +72,8 @@ export {
   recordWhatsAppOffersStop,
 } from "./repositories/campaigns/offers-answer";
 export type { LateCarrierStop } from "./repositories/campaigns/offers-answer";
+export { failStrandedRun, strandedRuns } from "./repositories/campaigns/stranded-runs";
+export type { StrandedRun } from "./repositories/campaigns/stranded-runs";
 export {
   sendingDomainsOf,
   sendingDomainOf,
