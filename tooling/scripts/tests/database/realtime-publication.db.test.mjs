@@ -1,5 +1,5 @@
 /**
- * No table is published to Postgres Changes (decision 0019, step 3, 00322).
+ * No table is published to Postgres Changes (decision 0019, step 3, 00324).
  *
  * The tabs hear each workspace's notices on its private topic (00265): a statement trigger on each table the live feed
  * watches (packages/db realtime.ts, WATCHED), held to that list by each-workspace-is-told-what-changed.db.test.mjs. A
@@ -53,7 +53,7 @@ const published = () =>
   ).map((r) => r.tablename);
 
 test(
-  "no table is published to Postgres Changes: the live feed is each workspace's notices (00265, 00322)",
+  "no table is published to Postgres Changes: the live feed is each workspace's notices (00265, 00324)",
   { skip },
   async () => {
     const { watchedTables } = await import(pathToFileURL(path.join(ROOT, "packages/db/src/realtime.ts")).href);

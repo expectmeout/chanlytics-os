@@ -1,7 +1,7 @@
 # 0019 · The database tells each workspace what changed
 
 **Status:** Accepted by Ruben, 28 Sep 2026, with the answers its open questions give. Built: steps 1 and 2 (00265,
-#1333) and step 3 (00322, written the day step 2 deployed and landed on 5 October 2026), where they differ from this
+#1333) and step 3 (00324, written the day step 2 deployed and landed on 5 October 2026), where they differ from this
 note as Built says; step 4, a replay on a rejoin, only if wanted. One thing step 3 leaves owed: "Allow public access"
 turned off in Realtime's settings.
 Written against commit `0c8225d5` (main, 28 September 2026, after
@@ -304,9 +304,9 @@ and the tab's side in `packages/db/src/realtime.ts`. Where it differs from Shape
   stranger's join was refused, and every change reached the member's tab as its table, its event and a call's
   statuses, within half a second.
 
-### Step 3 (written 29 September 2026, landed 5 October as 00322)
+### Step 3 (written 29 September 2026, landed 5 October as 00324)
 
-`supabase/migrations/00322_the_tables_leave_postgres_changes.sql` takes every public table out of
+`supabase/migrations/00324_the_tables_leave_postgres_changes.sql` takes every public table out of
 `supabase_realtime`: the 24 the live feed hears and `decisions` and `mailboxes`, which nothing heard (26 in production
 on 5 October; 23 and the two when this was written, as 00266). It walks the publication rather than a list, so it
 re-runs, and it leaves Realtime's own publication of `realtime.messages`, which carries the notices, alone.

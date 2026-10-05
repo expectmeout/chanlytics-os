@@ -1,4 +1,4 @@
--- 00322 · The tables leave Postgres Changes.
+-- 00324 · The tables leave Postgres Changes.
 --
 -- Decision 0019, step 3 (docs/decisions/0019-the-database-tells-each-workspace-what-changed.md). Since step 2
 -- (#1333, 29 September 2026) every tab hears its workspace's notices on its private topic (00265) and binds no table,
