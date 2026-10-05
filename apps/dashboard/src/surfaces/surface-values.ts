@@ -94,17 +94,19 @@ export function shareUnchanged<T>(was: unknown, now: T): T {
   if (Object.is(was, now)) return now;
   if (Array.isArray(now)) {
     if (!Array.isArray(was)) return now;
+    const before: readonly unknown[] = was;
+    const after: readonly unknown[] = now;
     const byId =
-      now.every((v) => listItemId(v) !== null) && was.every((v) => listItemId(v) !== null)
-        ? new Map(was.map((v) => [listItemId(v), v]))
+      after.every((v) => listItemId(v) !== null) && before.every((v) => listItemId(v) !== null)
+        ? new Map<string | null, unknown>(before.map((v): [string | null, unknown] => [listItemId(v), v]))
         : null;
-    let same = was.length === now.length;
-    const kept = now.map((v, i) => {
-      const it = shareUnchanged(byId ? byId.get(listItemId(v)) : was[i], v);
-      if (it !== was[i]) same = false;
+    let same = before.length === after.length;
+    const kept = after.map((v, i): unknown => {
+      const it: unknown = shareUnchanged(byId ? byId.get(listItemId(v)) : before[i], v);
+      if (it !== before[i]) same = false;
       return it;
     });
-    return (same ? was : kept) as T;
+    return (same ? before : kept) as T;
   }
   if (!isRecord(now) || !isRecord(was)) return now;
   const keys = Object.keys(now);
