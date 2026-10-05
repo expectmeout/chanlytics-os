@@ -1,4 +1,5 @@
 import {
+  clockWhen,
   localDate,
   nextOpenMoment,
   parseParamSpecs,
@@ -14,6 +15,7 @@ import {
   touchesAfterRun,
   triggerOf,
   triggerOffered,
+  vetoRunNotice,
   visitFactsFor,
   type CampaignHow,
   type ConsentChannel,
@@ -256,6 +258,48 @@ function touchEnrolled(r: Run, goesAt: Date, eligible: readonly PersonRowVM[], h
 }
 
 /**
+ * A run is made: the ledger, and the bell. A run that sends is on the ledger as whose decision it was (the system's
+ * under the mode the owner chose; a person's when they asked for it). One that waits for a person tells them. And one
+ * the sweep made under veto, which goes by itself, tells them when: "unless you stop it" is kept only for someone who
+ * is told, and until this nobody was unless Campaigns happened to be open.
+ */
+async function sayTheRun(
+  run: Run,
+  made: { madeId: string; n: number; at: Date | null; movedFrom: string | null },
+): Promise<void> {
+  const { ports, p, ctx, by, mode, channels } = run;
+  const { n, at } = made;
+  if (!at) {
+    await ports.notify(
+      `Playbook “${p.name}” is ready: ${n} ${n === 1 ? "person" : "people"}`,
+      `${n} ${n === 1 ? "person has" : "people have"} become eligible for “${p.name}”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`,
+    );
+    return;
+  }
+  await ports.decide({
+    broadcastId: made.madeId,
+    by,
+    payload: {
+      playbook_id: p.id,
+      playbook: p.name,
+      mode,
+      recipients: n,
+      channels: [...channels],
+      scheduled_for: at.toISOString(),
+      run_now: by.kind === "user",
+      ...(made.movedFrom ? { moved_from: made.movedFrom } : {}),
+    },
+  });
+  if (mode === "veto" && by.kind !== "user") {
+    // With its day: a run made past the day's hours goes at nine tomorrow, and "9:00 AM" alone reads as already gone.
+    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
+    // The run is made and on the ledger: telling of it must not cost the run its record, so a bell that fails is let
+    // go (the adapter says so in its own log), where the ask notice, the only way a waiting run is found, is not.
+    await ports.notify(told.subject, told.body).catch(() => undefined);
+  }
+}
+
+/**
  * One playbook's run, the one implementation.
  *
  * The hourly sweep runs every playbook whose hour it is; "Run now" on the
@@ -374,29 +418,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   if (!made.ok) return { outcome: "failed", error: made.error };
   touchEnrolled(run, goesAt, eligible, past.held);
 
-  if (open) {
-    // The ledger: a run the sweep sends is the system's decision under the
-    // mode the owner chose; a run a person asked for is theirs.
-    await ports.decide({
-      broadcastId: made.id,
-      by,
-      payload: {
-        playbook_id: p.id,
-        playbook: p.name,
-        mode,
-        recipients: n,
-        channels: [...channels],
-        scheduled_for: open.at.toISOString(),
-        run_now: by.kind === "user",
-        ...(movedFrom ? { moved_from: movedFrom } : {}),
-      },
-    });
-  } else {
-    await ports.notify(
-      `Playbook “${p.name}” is ready: ${n} ${n === 1 ? "person" : "people"}`,
-      `${n} ${n === 1 ? "person has" : "people have"} become eligible for “${p.name}”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`,
-    );
-  }
+  await sayTheRun(run, { madeId: made.id, n, at: open ? open.at : null, movedFrom });
   await record({
     mode,
     eligible: n,

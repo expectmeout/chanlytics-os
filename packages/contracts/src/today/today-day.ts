@@ -46,7 +46,8 @@ export interface CalendarLike {
 export interface PlaybookCardLike {
   trigger: string;
   state: string;
-  candidates: number;
+  /** How many its next run would reach; null when the server could not count them. */
+  candidates: number | null;
   next: string;
 }
 
@@ -207,14 +208,16 @@ export function todayDay(
     reminders =
       visit.length === 0
         ? {
-            text: "No visit reminders yet — a playbook can text the day before an appointment and the day after a visit.",
+            // "Write", not "text": a playbook goes by WhatsApp, text or email, whichever each person is reached on.
+            text: "No visit reminders yet — a playbook can write the day before an appointment and the day after a visit.",
             to: "outbound",
           }
         : {
             text: visit
               .map(
                 (p) =>
-                  `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates} ${p.candidates === 1 ? "person" : "people"} · next run ${p.next}`,
+                  // A count that could not be read is left out, never said as "null people".
+                  `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} · `}next run ${p.next}`,
               )
               .join(" · "),
             to: "outbound",

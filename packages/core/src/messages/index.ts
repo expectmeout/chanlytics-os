@@ -27,3 +27,5 @@ export type {
   DraftMark,
 } from "./reply-read";
 export { sendBroadcastBatch, BROADCAST_STALL_RETRY_MS, BROADCAST_STALLS_MAX } from "./broadcast";
+export { outboundGate, refusalScript } from "./outbound-gate";
+export type { OutboundRefusal } from "./outbound-gate";

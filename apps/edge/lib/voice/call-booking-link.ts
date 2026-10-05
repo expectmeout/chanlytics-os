@@ -57,7 +57,7 @@ import {
   resolveFacts,
   resolveParams,
 } from "../packages/contracts.js";
-import { outboundGate, refusalScript, type OutboundRefusal } from "../receptionist/outbound-gate.js";
+import { outboundGate, refusalScript, type OutboundRefusal } from "../packages/core.js";
 import { voiceDoorAuth } from "./voice-door-auth.js";
 import { logger, errField, type Logger } from "../log.js";
 

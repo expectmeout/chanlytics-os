@@ -827,6 +827,36 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   );
 });
 
+test("a reach-out's run waiting on Today is opened, never approved from the row (D6): its sheet counts and names each send first", async () => {
+  clear();
+  const approvals = [];
+  const opened = [];
+  set({
+    today: busy(),
+    __BROADCASTS: {
+      rows: [
+        run("b-reach", "pending_approval", { audience: { kind: "reach_out", label: "Movers nearby" } }),
+        run("b-wait", "pending_approval"),
+      ],
+    },
+    __broadcasts: {
+      approve: async (id) => (approvals.push(id), { ok: true, data: { recipient_count: 3 } }),
+      cancel: async () => ({ ok: true, data: {} }),
+    },
+    __nav: (to) => opened.push(to),
+  });
+  const queue = byTestId(draw(AgentCommand), "today-queue");
+  const rows = all(queue, (n) => n.props?.["data-testid"] === "brief-run-row");
+  assert.equal(rows.length, 2, "both runs wait on the card");
+  const [reach, playbook] = rows;
+  assert.equal(buttons(reach, "Approve").length, 0, "no one-tap send of a reach-out from Today");
+  assert.equal(buttons(reach, "Open").length, 1, "the row opens the run");
+  assert.equal(buttons(reach, "See who's on it").length, 0, "one door, not the same door twice");
+  // A playbook's run keeps its Approve, as before.
+  assert.equal(buttons(playbook, "Approve").length, 1);
+  assert.deepEqual(approvals, [], "nothing was approved by drawing the card");
+});
+
 test("a run's Approve from the queue is said the moment the server takes it, with what it scheduled, not after the runs are read again", async () => {
   clear();
   let reread = () => {};

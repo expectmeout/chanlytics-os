@@ -504,7 +504,7 @@ test("UNDER-BLOCKING, pinned: the voice path asks the one predicate, with the me
   // sends, two different bars, decided per call site rather than by anything about
   // the message." The broadcast wire was moved to `mayMessageFor`; this was not, so
   // for a while the product had two bars again. Nothing in this file read it.
-  const gate = readCode("apps/edge/lib/receptionist/outbound-gate.ts");
+  const gate = readCode("packages/core/src/messages/outbound-gate.ts");
   assert.match(gate, /import \{\s*mayMessageFor/, "the gate asks the one predicate rather than holding a copy");
   // Asked on the channel the message goes out on (step 2): a yes covers the channels it was given for. And with what the
   // message is about (decision D1), a fact the caller states: by email the business's own news asks for a yes, a visit's

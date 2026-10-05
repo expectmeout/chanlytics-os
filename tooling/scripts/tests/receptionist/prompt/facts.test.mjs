@@ -374,7 +374,7 @@ test("every voice line a caller hears comes through the resolver too", async () 
 
   // Optional means a workspace can have none, and a receptionist reading
   // "reach the team on undefined" to a caller is worse than offering nothing.
-  const { refusalScript } = await importSrc("apps/edge/lib/receptionist/outbound-gate.ts");
+  const { refusalScript } = await importSrc("packages/core/src/messages/outbound-gate.ts");
   for (const none of [null, undefined]) {
     const said = refusalScript("policy_hold", none);
     assert.doesNotMatch(said, /undefined|null|reach the team on/, `the script takes an absent number (${none})`);

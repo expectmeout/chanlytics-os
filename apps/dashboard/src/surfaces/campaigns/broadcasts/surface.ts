@@ -7,6 +7,7 @@
 import { api, read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import {
+  CONSENT_LIST_IDS,
   PEOPLE_LISTS,
   savedListIds,
   savedListLookup,
@@ -201,9 +202,7 @@ function listIsAnAudience(
   has: { calendar: boolean; consultFirst: boolean; deals: boolean },
 ): boolean {
   return (
-    l.id !== "opted_in" &&
-    l.id !== "offers_ok" &&
-    l.id !== "opted_out" &&
+    !CONSENT_LIST_IDS.includes(l.id) &&
     (!l.needsCalendar || has.calendar) &&
     (!l.needsConsultFirst || has.consultFirst) &&
     (!l.needsDeals || has.deals)
@@ -285,9 +284,10 @@ export const broadcastsOverride: SurfaceOverride = {
   key: "broadcasts",
   value: "broadcasts",
   events: ["surface:broadcasts"],
-  refreshOnMessageInserts: true,
-  // A message moves a run's replies: read again only while its page is on screen, and once when it comes back
-  // (surface-registry.ts).
+  // A run made by the sweep, approved in another tab, sending or finished (00321) is this surface's own row: heard
+  // wherever the tab is, since Today draws its Approve and Stop rows from here. A message moves a run's replies: read
+  // again only while its page is on screen, and once when it comes back (surface-registry.ts).
+  refreshOnTables: [...DEFAULT_REFRESH_TABLES, "broadcasts"],
   refreshWhen: onlyOnItsPage("broadcasts", DEFAULT_REFRESH_TABLES),
   apply: async () => {
     const [bc, people, saved, tpl, ch, cfg, tz, campaigns] = await Promise.all([

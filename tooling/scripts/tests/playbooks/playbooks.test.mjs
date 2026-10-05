@@ -545,10 +545,16 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
   ])
     assert.deepEqual(
       AFTER[k]().map((o) => o.key),
-      // A reach-out's row moves with its first step's pause and resume, and with its run's approval (Part 4 PR 8).
-      ["PUT playbooks/[id]", "POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel"].includes(k)
-        ? ["playbooks", "broadcasts", "reach_outs"]
-        : ["playbooks", "broadcasts"],
+      [
+        "playbooks",
+        "broadcasts",
+        // A reach-out's row moves with its first step's pause and resume, and with its run's approval (Part 4 PR 8).
+        ...(["PUT playbooks/[id]", "POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel"].includes(k)
+          ? ["reach_outs"]
+          : []),
+        // A playbook made, changed or removed moves what People's rows say of it (their follow-up, W3).
+        ...(["POST playbooks", "PUT playbooks/[id]", "DELETE playbooks/[id]"].includes(k) ? ["people"] : []),
+      ],
       `${k}: every write re-fetches both surfaces`,
     );
   const pools = readCode("apps/dashboard/src/server/campaigns/playbooks.ts");

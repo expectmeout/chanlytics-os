@@ -525,6 +525,33 @@ test("auto: the row, the people, the send now, the system's decision, the run re
   const at = new Date(NOW.getTime() + PLAYBOOK_VETO_DELAY_MS);
   assert.deepEqual(veto.of("assemble")[0][3], at);
   assert.equal(veto.of("assemble")[0][1].scheduled_for, at.toISOString());
+  // "Unless you stop it" is kept only for someone who is told: a run the sweep made under veto says it is on its way,
+  // and when, by the business's clock. Until this nobody was told unless Campaigns happened to be open.
+  assert.deepEqual(veto.ops(), ["assemble", "decide", "notify", "record"]);
+  assert.deepEqual(veto.of("notify")[0].slice(1), [
+    "Playbook “Win-back” sends today 10:30 AM: 2 people",
+    "2 people will be sent “Win-back” today 10:30 AM. Stop the run on Today or in Campaigns before then if it should not go.",
+  ]);
+  // Made past the day's hours, it goes at nine tomorrow, and the notice says which day: "9:00 AM" alone reads as gone.
+  const late = fakes();
+  await runPlaybook(
+    late.ports,
+    cmd({ ctx: context({ now: new Date("2026-09-07T01:00:00Z"), modes: new Map([["reengage", "veto"]]) }) }),
+  );
+  assert.equal(late.of("notify")[0][1], "Playbook “Win-back” sends tomorrow 9:00 AM: 2 people");
+  // The run is made and on the ledger: a bell that fails does not cost the run its record.
+  const deaf = fakes({ notify: new Error("the bell is down") });
+  const made = await runPlaybook(deaf.ports, cmd({ ctx: context({ modes: new Map([["reengage", "veto"]]) }) }));
+  assert.equal(made.outcome, "sent");
+  assert.ok(deaf.ops().includes("record"), "the run is recorded all the same");
+  // A run that goes at once has nothing to stop, and a person who asked for a run decided it: neither is told.
+  assert.ok(!ops().includes("notify"), "auto says nothing on the bell");
+  const asked = fakes();
+  await runPlaybook(
+    asked.ports,
+    cmd({ ctx: context({ modes: new Map([["reengage", "veto"]]) }), by: { kind: "user", userId: "u1" } }),
+  );
+  assert.ok(!asked.ops().includes("notify"), "a person's own Run now is theirs");
 });
 
 test("never at 3 AM, whoever asks: a person's run now at eleven at night goes at nine, and the ledger says what was asked for", async () => {

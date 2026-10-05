@@ -8,7 +8,7 @@
  */
 import { useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { PLAYBOOK_DELETE_WORDS, pipelineRoute, poolWords } from "@chanlytics/contracts";
+import { DELIVERY_RECEIPTS_TIP, PLAYBOOK_DELETE_WORDS, pipelineRoute, poolWords } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { pageClock } from "@/legacy-bridge/zone";
 import { canRestoreList, gate, navigate, restoreList } from "../../legacy-verbs";
@@ -399,7 +399,7 @@ function cardFacts(c: CardCtx) {
         <p className="ob-sentence ob-sentence-dim" data-testid="pb-results">
           <span className="tabular">{p.totals.runs}</span> {p.totals.runs === 1 ? "run" : "runs"} so far:{" "}
           <span className="tabular">{p.totals.sent}</span> sent,{" "}
-          <span className="tabular" data-tip="WhatsApp's own receipts">
+          <span className="tabular" data-tip={DELIVERY_RECEIPTS_TIP}>
             {p.totals.delivered}
           </span>{" "}
           delivered,{" "}

@@ -1658,7 +1658,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   const yes = lapsedWith({ consent: "opted_in", marketing_consent: "opted_in" });
   const talkOnly = lapsedWith({ consent: "opted_in", marketing_consent: null });
   assert.deepEqual(peopleListAction("lapsed", [lapsed, yes]), {
-    text: "1 of 2 on this list said yes to offers — a broadcast reaches them.",
+    text: "1 of 2 on this list said yes to offers — an offer reaches them.",
     cta: "Bring them back",
     to: "broadcasts/lapsed",
     enabled: true,
@@ -1666,7 +1666,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   // Nobody on the list has said yes to offers: the list's own step cannot run, and the step that CAN is the
   // door to that yes. It printed "The phrase and the QR are on Broadcasts" beside a disabled "Win them back".
   assert.deepEqual(peopleListAction("lapsed", [lapsed]), {
-    text: "Nobody on this list has said yes to offers yet — a broadcast reaches only that answer.",
+    text: "Nobody on this list has said yes to offers yet — an offer reaches only that answer.",
     cta: "Get their yes",
     to: GET_YES_ROUTE,
     enabled: true,
@@ -1720,7 +1720,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   // REGRESSION: once everyone on the list has given that yes, the door asked for an answer they gave (#663's rule).
   // The step is the list's broadcast, in the words every list's broadcast step says it.
   assert.deepEqual(peopleListAction("new_week", [yes]), {
-    text: "1 of 1 on this list said yes to offers — a broadcast reaches them.",
+    text: "1 of 1 on this list said yes to offers — an offer reaches them.",
     cta: "Use in a broadcast",
     to: "broadcasts/new_week",
     enabled: true,
@@ -1728,16 +1728,18 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   assert.deepEqual(
     peopleListAction("opted_in", [yes]),
     {
-      text: "1 of 1 on this list said yes to offers — a broadcast reaches them.",
+      text: "1 of 1 on this list said yes to offers — an offer reaches them.",
       cta: "Broadcast to everyone who said yes",
-      to: "broadcasts",
+      // The composer, on Everyone: the door names this list, which the composer reads as Everyone, and a door that
+      // names a list wins over a draft kept in the tab. `broadcasts` alone is the Sent room, with nothing to write in.
+      to: "broadcasts/offers_ok",
       enabled: true,
     },
     "the Can receive offers list's own step",
   );
   // Everyone said it and nobody has a number: the broadcast waits, and says what is missing.
   const answeredNoNumber = peopleListAction("opted_in", [yesNoNumber]);
-  assert.deepEqual([answeredNoNumber.to, answeredNoNumber.enabled], ["broadcasts", false]);
+  assert.deepEqual([answeredNoNumber.to, answeredNoNumber.enabled], ["broadcasts/offers_ok", false]);
   assert.match(answeredNoNumber.text, /a recorded yes with a number to send to/);
   assert.deepEqual(peopleListAction("booked_week", [week]), {
     text: "Their appointments are on the Calendar.",

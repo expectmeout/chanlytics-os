@@ -89,6 +89,14 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
 };
 
 /**
+ * Whose word "delivered" is, under a count of it: a campaign goes by WhatsApp, text and email, and each wire reports
+ * its own deliveries. The pages said "WhatsApp's receipts" over totals that had come to include the other two.
+ */
+export const DELIVERY_RECEIPTS_WORDS = "each channel's own receipts";
+/** The same, alone in a tooltip. */
+export const DELIVERY_RECEIPTS_TIP = "Each channel's own receipts";
+
+/**
  * The two reasons the workspace, not the person, holds an email for: its offers and news by email paused by a gate, and a
  * campaigns domain that cannot be used. A run that also goes another way skips each email person for them, one by one, and
  * goes on (core broadcast-stops.ts).

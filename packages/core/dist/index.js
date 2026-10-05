@@ -1900,6 +1900,52 @@ async function backOff(ports, b, cmd, how) {
   });
 }
 
+// src/messages/outbound-gate.ts
+import { mayMessageFor as mayMessageFor2 } from "../../contracts/dist/index.js";
+function outboundGate(f) {
+  const may = mayMessageFor2(f.contact, f.purpose, { proactive: f.proactive, channel: f.channel, about: f.about });
+  if (!may.ok) return { allowed: false, refusal: may.reason ?? "opted_out" };
+  if (f.paused) return { allowed: false, refusal: "paused" };
+  if (f.pausedUntilMs !== null && f.nowMs < f.pausedUntilMs) {
+    return { allowed: false, refusal: "human_has_it" };
+  }
+  if (f.bookingHeld) return { allowed: false, refusal: "booking_needs_a_person" };
+  if (f.replyMode !== "auto" && f.replyMode !== "veto") return { allowed: false, refusal: "policy_hold" };
+  if (f.sentToday >= f.dailyCap) return { allowed: false, refusal: "daily_cap" };
+  return { allowed: true, refusal: null };
+}
+function refusalScript(refusal, phoneDisplay) {
+  switch (refusal) {
+    case "opted_out":
+      return "That number has asked us to stop sending messages, so I cannot send them a WhatsApp message. Offer to book them on the call instead.";
+    // Reachable only when a caller asks us to text a THIRD party — the person on
+    // the line is answering us, so their own send is never proactive. Spoken to
+    // the caller, so it says what to do and never that we hold a record on
+    // somebody else.
+    case "not_opted_in":
+      return "I can only send WhatsApp messages to the number the caller is phoning from. Offer to send it to their own mobile, or to book them on the call.";
+    case "no_marketing_consent":
+      return "I cannot send that on WhatsApp, because it is a promotional message and that number has not asked for those. Offer to book them on the call instead.";
+    // The texting line's own refusal: the door returns it on channel "sms" only
+    // (core deliver), so the WhatsApp booking link never meets it, and "text" here
+    // means the texting line.
+    case "sms_carries_no_promotions":
+      return "I cannot send that as a text: this business sends offers on WhatsApp only, never by text message. Offer to book them on the call instead.";
+    case "paused":
+      return "WhatsApp messages are paused for this business right now, so I cannot send anything. Take the caller's name and number and say someone will call them back.";
+    case "human_has_it":
+      return "Someone from the team is already messaging that number, so I will not send a WhatsApp message over them. Tell the caller a person is on it and will follow up there.";
+    case "policy_hold":
+      return phoneDisplay ? `I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book online, or reach the team on ${phoneDisplay}.` : "I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book online, and take their name.";
+    // The same sentence the prompt already gives a workspace on this setting
+    // (contracts policyRules, voice): a person confirms, so take their name.
+    case "booking_needs_a_person":
+      return "This business confirms bookings itself, so I cannot send the booking link. Tell the caller a member of the team will call or text them to confirm, and take their name.";
+    case "daily_cap":
+      return "I have already sent that number several WhatsApp messages today, so I will not send another. Tell the caller to check their WhatsApp for the earlier message.";
+  }
+}
+
 // src/campaigns/assemble.ts
 import { errField as errField4, logger as logger5 } from "../../channels/dist/index.js";
 
@@ -1945,6 +1991,7 @@ async function assembleRun(ports, cmd) {
 
 // src/campaigns/run-playbook.ts
 import {
+  clockWhen,
   localDate,
   nextOpenMoment as nextOpenMoment3,
   parseParamSpecs as parseParamSpecs2,
@@ -1960,6 +2007,7 @@ import {
   touchesAfterRun,
   triggerOf as triggerOf2,
   triggerOffered,
+  vetoRunNotice,
   visitFactsFor
 } from "../../contracts/dist/index.js";
 
@@ -2118,6 +2166,35 @@ function touchEnrolled(r, goesAt, eligible, held) {
     eligible.filter((person) => !skipped.has(person.id)).map((person) => person.id)
   );
 }
+async function sayTheRun(run, made) {
+  const { ports, p, ctx, by, mode, channels } = run;
+  const { n, at } = made;
+  if (!at) {
+    await ports.notify(
+      `Playbook \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
+      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`
+    );
+    return;
+  }
+  await ports.decide({
+    broadcastId: made.madeId,
+    by,
+    payload: {
+      playbook_id: p.id,
+      playbook: p.name,
+      mode,
+      recipients: n,
+      channels: [...channels],
+      scheduled_for: at.toISOString(),
+      run_now: by.kind === "user",
+      ...made.movedFrom ? { moved_from: made.movedFrom } : {}
+    }
+  });
+  if (mode === "veto" && by.kind !== "user") {
+    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
+    await ports.notify(told.subject, told.body).catch(() => void 0);
+  }
+}
 async function runPlaybook(ports, cmd) {
   const { playbook: p, ctx, by } = cmd;
   const now = ctx.now;
@@ -2193,27 +2270,7 @@ async function runPlaybook(ports, cmd) {
   });
   if (!made.ok) return { outcome: "failed", error: made.error };
   touchEnrolled(run, goesAt, eligible, past.held);
-  if (open) {
-    await ports.decide({
-      broadcastId: made.id,
-      by,
-      payload: {
-        playbook_id: p.id,
-        playbook: p.name,
-        mode,
-        recipients: n,
-        channels: [...channels],
-        scheduled_for: open.at.toISOString(),
-        run_now: by.kind === "user",
-        ...movedFrom ? { moved_from: movedFrom } : {}
-      }
-    });
-  } else {
-    await ports.notify(
-      `Playbook \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
-      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`
-    );
-  }
+  await sayTheRun(run, { madeId: made.id, n, at: open ? open.at : null, movedFrom });
   await record({
     mode,
     eligible: n,
@@ -38532,6 +38589,7 @@ export {
   nearestAreas,
   noModelPlan,
   opIdFor,
+  outboundGate,
   parseChannels,
   photoUserText,
   probeAsk,
@@ -38542,6 +38600,7 @@ export {
   readReply,
   readyForMessage,
   reconcileUnknownRuns,
+  refusalScript,
   rejudgeProbe,
   replyPosture,
   replyToConversation,
