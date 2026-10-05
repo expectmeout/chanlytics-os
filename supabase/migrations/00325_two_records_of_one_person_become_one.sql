@@ -13,11 +13,14 @@
 --   messages_guard                  00177's, with ONE exception to "a message never changes thread": into the thread of
 --                                   the person its own was merged into.
 --   decisions_verb_check            00277's list, with 'merge'.
+--   erase_contact                   00151's, erasing the records merged into the person with them.
 --
 -- CONSENT is the review's decision D5: the most careful answer wins on each question. A stop on either is a stop. A no
 -- to offers wins, and so does an unsubscribe; a yes survives only where neither said no and nobody is stopped, and the
 -- channels it covers join. contracts' mergedAnswers says the same rule, and people/merge/merge-people.db.test.mjs holds the
--- two equal case by case. Each answer that changes on the kept record is written to the ledger with the source 'merge'.
+-- two equal case by case. Each answer that changes on the kept record is written to the ledger with the source 'merge'
+-- (a list of channels that only widens is not a change of answer and writes none). A yes to offers that ends because
+-- the person is stopped keeps 00323's source on the row, so a START on WhatsApp says how to get offers again.
 --
 -- REFUSED, each in a sentence contracts holds too (MERGE_REFUSALS): two different phone numbers or two different email
 -- addresses (they may be two people); a record that is erased, being erased or already merged; two open deals for one
@@ -108,6 +111,260 @@ begin
   return NEW;
 end $$;
 
+/* ------------------------------------------------------------------------------------------------ erasure -- */
+
+-- 00151's, with the records merged into the person erased with them (they held no answer, no number and no address
+-- since the merge, and their rows had moved; what is left is a name and a note, which an erasure must not leave).
+create or replace function public.erase_contact(p_contact_id uuid, p_legs jsonb default '{}'::jsonb) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user          uuid := auth.uid();
+  v_tenant        uuid;
+  v_erased        timestamptz;
+  v_conversations uuid[];
+  v_messages      uuid[];
+  v_escalations   uuid[];
+  v_calls         uuid[];
+  v_paths         text[];
+  v_subjects      uuid[];
+  v_jobs_canceled int := 0;
+  v_counts        jsonb;
+  v_decision_id   uuid;
+begin
+  -- The caller is auth.uid(), read HERE. It is not a parameter, so it cannot
+  -- be spoofed by anyone who can reach the RPC (00021's rule).
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+
+  if p_legs is not null and length(p_legs::text) > 4000 then
+    raise exception 'Leg report too large.' using errcode = '22023';
+  end if;
+
+  select c.tenant_id, c.erased_at into v_tenant, v_erased
+    from contacts c where c.id = p_contact_id;
+  if v_tenant is null then
+    raise exception 'Contact not found.' using errcode = 'P0002';
+  end if;
+
+  -- A signed-in stranger must not learn that this uuid exists. The lookup
+  -- above found the row because this function bypasses RLS, so the membership
+  -- test has to restore what RLS would have said: no membership at all is
+  -- indistinguishable from no such contact.
+  if not exists (
+    select 1 from memberships m
+     where m.tenant_id = v_tenant and m.user_id = v_user
+  ) then
+    raise exception 'Contact not found.' using errcode = 'P0002';
+  end if;
+
+  -- OWNER, not merely a member. This is the most destructive verb in the
+  -- product and it is irreversible; an operator who can reply to a customer
+  -- must not be able to delete them.
+  if not exists (
+    select 1 from memberships m
+     where m.tenant_id = v_tenant and m.user_id = v_user and m.role = 'owner'
+  ) then
+    raise exception 'Only an owner can erase a customer''s data.' using errcode = '42501';
+  end if;
+
+  -- Idempotent: a second request is answered, not re-executed. The route uses
+  -- this to re-drive the legs it runs itself without destroying anything twice.
+  if v_erased is not null then
+    return jsonb_build_object(
+      'already_erased', true,
+      'contact_id',     p_contact_id,
+      'tenant_id',      v_tenant,
+      'erased_at',      v_erased,
+      'storage_paths',  '[]'::jsonb,
+      'counts',         '{}'::jsonb);
+  end if;
+
+  /* ---- COLLECT FIRST. Everything below this block is destructive, and each
+     of these sets is unrecoverable the moment the row it comes from is gone. */
+
+  select coalesce(array_agg(cv.id), '{}') into v_conversations
+    from conversations cv
+   where cv.tenant_id = v_tenant and cv.contact_id = p_contact_id;
+
+  select coalesce(array_agg(m.id), '{}') into v_messages
+    from messages m
+   where m.tenant_id = v_tenant
+     and (m.contact_id = p_contact_id or m.conversation_id = any (v_conversations));
+
+  select coalesce(array_agg(e.id), '{}') into v_escalations
+    from escalations e
+   where e.tenant_id = v_tenant and e.conversation_id = any (v_conversations);
+
+  select coalesce(array_agg(k.id), '{}') into v_calls
+    from calls k
+   where k.tenant_id = v_tenant
+     and (k.contact_id = p_contact_id or k.conversation_id = any (v_conversations));
+
+  -- Every private object this person's data put in Storage: the copied call
+  -- recording (retell-webhook.ts writes
+  -- <tenant>/calls/<call_id>.<ext>) and any inbound media (whatsapp.ts writes
+  -- <tenant>/<conversation_id>/<message_id>.<ext>). Returned to the caller,
+  -- which is the only party that can talk to the Storage API.
+  select coalesce(array_agg(distinct q.p), '{}') into v_paths
+    from (
+      select k.recording->>'storage_path' as p
+        from calls k
+       where k.tenant_id = v_tenant
+         and (k.contact_id = p_contact_id or k.conversation_id = any (v_conversations))
+         and k.recording->>'storage_path' is not null
+      union
+      select m.media->>'storage_path' as p
+        from messages m
+       where m.tenant_id = v_tenant
+         and (m.contact_id = p_contact_id or m.conversation_id = any (v_conversations))
+         and m.media->>'storage_path' is not null
+    ) q;
+
+  v_counts := jsonb_build_object(
+    'conversations',  coalesce(array_length(v_conversations, 1), 0),
+    'messages',       coalesce(array_length(v_messages, 1), 0),
+    'escalations',    coalesce(array_length(v_escalations, 1), 0),
+    'calls',          coalesce(array_length(v_calls, 1), 0),
+    'storage_objects',coalesce(array_length(v_paths, 1), 0));
+
+  /* ---- Nothing scheduled may fire at a thread that is about to stop
+     existing. Done HERE, in the same transaction as the delete, rather than by
+     the caller beforehand: a job scheduled between the caller's cancel and this
+     commit would otherwise survive. Comparison is on text, never
+     (payload->>'x')::uuid, because a payload key holding a non-uuid would then
+     abort the whole erasure. claim_job is the real gate and refuses anything
+     not 'scheduled'.
+
+     NO KIND IS SPARED. One was: the route used to queue a blob_thread_erase
+     job before calling this function, and cancelling it would have cancelled
+     the leg that removed the second copy of the conversation. There is no
+     second copy and no such kind (00151), so every scheduled job that names
+     this person is withdrawn -- and its payload scrubbed in the same
+     statement (jobs_guard allows a payload change on any row): the number it
+     carried must not outlive the row, and a re-driven erasure has no digits
+     to find it by. */
+  update jobs
+     set state = 'canceled', last_error = 'contact erased',
+         payload = jsonb_build_object('scrubbed_at', now(), 'reason', 'contact erased')
+   where tenant_id = v_tenant
+     and state = 'scheduled'
+     and (payload->>'conversation_id' = any (v_conversations::text[])
+          or payload->>'message_id'   = any (v_messages::text[])
+          or payload->>'contact_id'   = p_contact_id::text);
+  get diagnostics v_jobs_canceled = row_count;
+
+  /* ---- Calls FIRST and EXPLICITLY. calls.contact_id and calls.conversation_id
+     are ON DELETE SET NULL, so letting the contact cascade run would leave
+     every one of these rows behind carrying from_e164, from_raw, the verbatim
+     transcript, the summary and the recording path -- the defect 00027 was
+     written to close, unchanged here. */
+  delete from calls
+   where tenant_id = v_tenant
+     and (contact_id = p_contact_id or conversation_id = any (v_conversations));
+
+  /* ---- Messages EXPLICITLY, before the cascade. The conversation cascade
+     reaches only messages inside this contact's own conversations; a message
+     carrying this contact_id in someone else's thread is reached by nothing,
+     and because the contact row survives as a tombstone the NO ACTION FK never
+     raises to tell us. It would simply keep the customer's words.
+     calls.message_id is ON DELETE SET NULL, so another contact's call that
+     linked one of these notes degrades instead of blocking. */
+  delete from messages
+   where tenant_id = v_tenant and id = any (v_messages);
+
+  -- The cascade: conversations -> messages -> escalations.
+  delete from conversations
+   where tenant_id = v_tenant and contact_id = p_contact_id;
+
+  -- Not reached by any cascade now that the contact row survives, and these
+  -- carry the wa_id and the caller's E.164 verbatim.
+  delete from contact_identities
+   where tenant_id = v_tenant and contact_id = p_contact_id;
+
+  /* ---- The free-form half of the ledger.
+     verb, subject_type, subject_id, actor and created_at stay: that IS the
+     audit. payload is the only operator-shaped column in decisions, and 'edit'
+     is a declared verb meaning "the operator changed the words" -- so even
+     though every payload written today holds ids and booleans only (verified
+     against the live tenant: paused_until, message_id, template, window_open),
+     the erasure must not depend on that staying true. */
+  v_subjects := array[p_contact_id] || v_conversations || v_messages
+                || v_escalations || v_calls;
+  update decisions
+     set payload = jsonb_build_object('scrubbed_at', now())
+   where tenant_id = v_tenant
+     and subject_id = any (v_subjects)
+     and payload <> '{}'::jsonb;
+
+  /* ---- events.data is deliberately NOT scrubbed. Verified against the live
+     tenant, every key is a count or an enum -- call.recorded {direction,status},
+     message.received {channel,type}, message.sent {sender},
+     usage.voice_seconds {seconds}, conversation.reopened {from_state,trigger} --
+     and two of them ARE the billing record. Once the contact, conversation,
+     messages and calls are gone, those subject_ids resolve to nothing and the
+     only surviving link (subject_type='contact') resolves to a tombstone with
+     no identifiers. Deleting them would destroy metering, not personal data.
+     tooling/scripts/tests/erasure.integration.test.mjs pins that. */
+
+  /* ---- The tombstone. */
+  update contacts
+     set phone_e164         = null,
+         display_name       = null,
+         wa_profile_name    = null,
+         consent            = 'unknown',
+         consent_source     = 'erasure',
+         consent_updated_at = now(),
+         dnc                = true,
+         erased_at          = now()
+   where id = p_contact_id;
+
+  -- The records merged into this person ARE this person (00325, decision 0028): each is erased with them, the way
+  -- this row is, so none returns as a person of its own once the pointer no longer matters. Their rows moved here
+  -- when they were merged and are gone with these. Tenant-scoped, as every statement here is.
+  update contacts
+     set phone_e164         = null,
+         display_name       = null,
+         wa_profile_name    = null,
+         notes              = null,
+         proposal_url       = null,
+         consent            = 'unknown',
+         consent_source     = 'erasure',
+         consent_updated_at = now(),
+         dnc                = true,
+         erased_at          = now()
+   where tenant_id = v_tenant and merged_into_contact_id = p_contact_id and erased_at is null;
+
+  insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'contact.erased', 'contact', 'contact', p_contact_id,
+          v_counts || jsonb_build_object('jobs_canceled', v_jobs_canceled));
+
+  -- The ledger row. p_legs is what the caller already did (the Storage
+  -- objects it removed) so one row tells the whole story and a failed leg is
+  -- visible without joining anything.
+  insert into decisions (tenant_id, subject_type, subject_id, verb,
+                         actor_type, actor_user_id, payload)
+  values (v_tenant, 'contact', p_contact_id, 'erase', 'user', v_user,
+          jsonb_build_object(
+            'counts',        v_counts,
+            'jobs_canceled', v_jobs_canceled,
+            'storage_paths', to_jsonb(v_paths),
+            'legs',          coalesce(p_legs, '{}'::jsonb)))
+  returning id into v_decision_id;
+
+  return jsonb_build_object(
+    'already_erased', false,
+    'contact_id',     p_contact_id,
+    'tenant_id',      v_tenant,
+    'decision_id',    v_decision_id,
+    'storage_paths',  to_jsonb(v_paths),
+    'counts',         v_counts,
+    'jobs_canceled',  v_jobs_canceled);
+end $$;
+
 /* ----------------------------------------------------------------------------------------------- the door -- */
 
 create or replace function public.merge_people(p_keep uuid, p_merge uuid)
@@ -129,6 +386,7 @@ declare
   v_email    text;
   v_offers_ended boolean;
   v_email_ended  boolean;
+  v_take_control boolean;
   v_n        int;
   v_counts   jsonb := '{}'::jsonb;
   v_decision uuid;
@@ -188,9 +446,16 @@ begin
 
   /* ---- THE MARK FIRST. From here the guard's exception is true for these two threads, and the merged row holds no
      number and no address: one address, one person (contacts_tenant_phone_uq, contacts_tenant_email_uq), and the
-     inbound door, which finds a person by identity and then by number, cannot find the merged row again. */
+     inbound door, which finds a person by identity and then by number, cannot find the merged row again. Its
+     answers are read into the kept record below (k and m hold them) and cleared here, so one person is counted
+     once wherever a count reads the table. */
   update contacts
-     set merged_into_contact_id = p_keep, phone_e164 = null, email = null
+     set merged_into_contact_id = p_keep, phone_e164 = null, email = null,
+         consent = 'unknown', consent_source = null, consent_updated_at = null, dnc = false,
+         consent_channels = '{}'::text[],
+         marketing_consent = 'unknown', marketing_consent_source = null, marketing_consent_updated_at = null,
+         marketing_channels = '{}'::text[], offers_asked_at = null,
+         email_marketing = 'unknown', email_marketing_source = null, email_marketing_updated_at = null
    where id = p_merge;
 
   update contact_identities set contact_id = p_keep
@@ -223,12 +488,16 @@ begin
      where tenant_id = v_tenant and conversation_id = m_conv.id;
     update reach_out_replies set conversation_id = k_conv.id
      where tenant_id = v_tenant and conversation_id = m_conv.id;
-    -- The reply turn is the thread's own (one row per thread): the kept thread's stands.
+    -- The reply turn is the thread's own (one row per thread): a reply being written on the merged thread goes on
+    -- as the kept thread's where the kept thread holds none, and the kept thread's own stands otherwise.
+    update reply_turns set conversation_id = k_conv.id
+     where conversation_id = m_conv.id
+       and not exists (select 1 from reply_turns t where t.conversation_id = k_conv.id);
     delete from reply_turns where conversation_id = m_conv.id;
-    -- Nothing scheduled may fire at a thread that is about to stop existing: it fires at the kept one.
+    -- Nothing scheduled or running may name a thread that is about to stop existing: it names the kept one.
     update jobs
        set payload = payload || jsonb_build_object('conversation_id', k_conv.id::text)
-     where tenant_id = v_tenant and state = 'scheduled'
+     where tenant_id = v_tenant and state in ('scheduled', 'fired')
        and payload->>'conversation_id' = m_conv.id::text;
     update decisions set subject_id = k_conv.id
      where tenant_id = v_tenant and subject_type = 'conversation' and subject_id = m_conv.id;
@@ -236,12 +505,27 @@ begin
      where tenant_id = v_tenant and subject_type = 'conversation' and subject_id = m_conv.id;
     update notifications set subject_id = k_conv.id::text
      where tenant_id = v_tenant and subject_type = 'conversation' and subject_id = m_conv.id::text;
-    -- The kept thread takes the later of each clock, stays held if either was, and is as open as the more open one.
+    update notifications set route = 'inbox/th-' || k_conv.id::text
+     where tenant_id = v_tenant and route = 'inbox/th-' || m_conv.id::text;
+    -- The kept thread takes the later of each clock, stays held if either was (a hold with no end stays one), is
+    -- as open as the more open one, keeps who it was assigned to, and is answered by whoever was answering either
+    -- (the later hold on it wins: a person typing, or a call in progress).
+    v_take_control := k_conv.control_kind is null
+                      or (m_conv.control_until is not null and m_conv.control_until > k_conv.control_until);
     update conversations
        set last_message_at    = greatest(k_conv.last_message_at, m_conv.last_message_at),
            last_inbound_at    = greatest(k_conv.last_inbound_at, m_conv.last_inbound_at),
            last_wa_inbound_at = greatest(k_conv.last_wa_inbound_at, m_conv.last_wa_inbound_at),
-           paused_until       = greatest(k_conv.paused_until, m_conv.paused_until),
+           paused_until       = case
+                                  when (k_conv.state = 'needs_human' and k_conv.paused_until is null)
+                                    or (m_conv.state = 'needs_human' and m_conv.paused_until is null) then null
+                                  else greatest(k_conv.paused_until, m_conv.paused_until)
+                                end,
+           assignee_user_id   = coalesce(k_conv.assignee_user_id, m_conv.assignee_user_id),
+           control_kind       = case when v_take_control then m_conv.control_kind else k_conv.control_kind end,
+           control_by         = case when v_take_control then m_conv.control_by else k_conv.control_by end,
+           control_ref        = case when v_take_control then m_conv.control_ref else k_conv.control_ref end,
+           control_until      = case when v_take_control then m_conv.control_until else k_conv.control_until end,
            state = case
                      when 'needs_human' in (k_conv.state, m_conv.state) then 'needs_human'
                      when 'open' in (k_conv.state, m_conv.state) then 'open'
@@ -291,7 +575,7 @@ begin
    where r.tenant_id = v_tenant and r.contact_id = p_merge
      and not exists (
        select 1 from broadcast_recipients h where h.broadcast_id = r.broadcast_id and h.contact_id = p_keep);
-  -- A person's own receptionist mode, one per class: the kept person's stands where both set one. A policy row keeps
+  -- A person's own receptionist mode, one per class. A policy row keeps
   -- its subject for life (00029's guard), so the kept person gets a row of their own and the merged one's goes.
   insert into policies (tenant_id, class, mode, subject_type, subject_id, limits)
   select p.tenant_id, p.class, p.mode, 'contact', p_keep, p.limits
@@ -300,6 +584,14 @@ begin
      and not exists (
        select 1 from policies h
         where h.tenant_id = v_tenant and h.class = p.class and h.subject_type = 'contact' and h.subject_id = p_keep);
+  -- Where both set one for a class, the stricter stands (never over ask over veto over auto): the most careful answer.
+  update policies h
+     set mode = p.mode
+    from policies p
+   where h.tenant_id = v_tenant and h.subject_type = 'contact' and h.subject_id = p_keep
+     and p.tenant_id = v_tenant and p.subject_type = 'contact' and p.subject_id = p_merge and p.class = h.class
+     and array_position(array['auto', 'veto', 'ask', 'never'], p.mode)
+       > array_position(array['auto', 'veto', 'ask', 'never'], h.mode);
   delete from policies where tenant_id = v_tenant and subject_type = 'contact' and subject_id = p_merge;
   -- The ledger and the audit are the person's: what the merged record answered, and what was decided about it.
   update events set subject_id = p_keep
@@ -310,7 +602,7 @@ begin
    where tenant_id = v_tenant and subject_type = 'contact' and subject_id = p_merge::text;
   update jobs
      set payload = payload || jsonb_build_object('contact_id', p_keep::text)
-   where tenant_id = v_tenant and state = 'scheduled' and payload->>'contact_id' = p_merge::text;
+   where tenant_id = v_tenant and state in ('scheduled', 'fired') and payload->>'contact_id' = p_merge::text;
 
   /* ---- CONSENT (D5): the most careful answer wins on each question. contracts' mergedAnswers is this, case by case. */
   v_stop := k.consent = 'opted_out' or k.dnc or m.consent = 'opted_out' or m.dnc;

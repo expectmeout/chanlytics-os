@@ -546,3 +546,175 @@ test(
     assert.match(r.error?.message ?? "", immutable, "and nothing else about a message became changeable");
   },
 );
+
+test(
+  "erasing the kept person erases the records merged into them: none returns as a person of its own",
+  { skip },
+  async () => {
+    const k = await byPhone();
+    const m = await byEmail();
+    ok(await db.from("contacts").update({ display_name: "Maria Lopez", notes: "Prefers mornings" }).eq("id", m.id));
+    ok(await merge(owner, k.id, m.id));
+    ok(await owner.client.rpc("erase_contact", { p_contact_id: k.id }));
+    const gone = await row(m.id);
+    assert.ok(gone.erased_at, "erased with the person");
+    assert.deepEqual(
+      [gone.display_name, gone.notes, gone.phone_e164, gone.email, gone.consent, gone.dnc],
+      [null, null, null, null, "unknown", true],
+      "and left nothing of them",
+    );
+    const listed = ok(await db.rpc("people_list", { p_tenant_id: A, p_contact_id: m.id }));
+    assert.equal(listed.length, 0, "not a person on the page");
+  },
+);
+
+test("the merged record holds no answer afterwards, so one person is counted once", { skip }, async () => {
+  const k = await bare({ phone_e164: phone(), consent: "opted_in" });
+  const m = await bare({
+    email: address(),
+    consent: "opted_in",
+    marketing_consent: "opted_in",
+    marketing_channels: ["email"],
+  });
+  ok(await merge(owner, k, m));
+  const gone = await row(m);
+  assert.deepEqual(
+    [gone.consent, gone.marketing_consent, gone.email_marketing, gone.marketing_channels, gone.consent_channels],
+    ["unknown", "unknown", "unknown", [], []],
+  );
+  const kept = await row(k);
+  assert.deepEqual(
+    [kept.consent, kept.marketing_consent, kept.marketing_channels],
+    ["opted_in", "opted_in", ["email"]],
+  );
+});
+
+test("where both records set a receptionist mode, the stricter stands: never over auto", { skip }, async () => {
+  const k = await bare({ phone_e164: phone() });
+  const m = await bare({ email: address() });
+  ok(
+    await db
+      .from("policies")
+      .insert({ tenant_id: A, class: "reply", mode: "auto", subject_type: "contact", subject_id: k }),
+  );
+  ok(
+    await db
+      .from("policies")
+      .insert({ tenant_id: A, class: "reply", mode: "never", subject_type: "contact", subject_id: m }),
+  );
+  ok(await merge(owner, k, m));
+  assert.deepEqual(
+    ok(
+      await db
+        .from("policies")
+        .select("subject_id, mode")
+        .eq("tenant_id", A)
+        .eq("subject_type", "contact")
+        .in("subject_id", [k, m]),
+    ),
+    [{ subject_id: k, mode: "never" }],
+  );
+  // And the other way round: a stricter kept mode is not loosened.
+  const k2 = await bare({ phone_e164: phone() });
+  const m2 = await bare({ email: address() });
+  ok(
+    await db
+      .from("policies")
+      .insert({ tenant_id: A, class: "reply", mode: "ask", subject_type: "contact", subject_id: k2 }),
+  );
+  ok(
+    await db
+      .from("policies")
+      .insert({ tenant_id: A, class: "reply", mode: "veto", subject_type: "contact", subject_id: m2 }),
+  );
+  ok(await merge(owner, k2, m2));
+  assert.equal(ok(await db.from("policies").select("mode").eq("subject_id", k2).single()).mode, "ask");
+});
+
+test(
+  "the fold keeps who was answering, who it was assigned to, a hold with no end, the reply turn and a scheduled send",
+  { skip },
+  async () => {
+    const k = await byPhone();
+    const m = await byEmail();
+    const later = new Date(Date.now() + 3600_000).toISOString();
+    ok(await db.from("conversations").update({ state: "needs_human", paused_until: null }).eq("id", k.conversation));
+    ok(
+      await db
+        .from("conversations")
+        .update({
+          paused_until: later,
+          assignee_user_id: owner.id,
+          control_kind: "person",
+          control_by: owner.id,
+          control_until: later,
+        })
+        .eq("id", m.conversation),
+    );
+    ok(await db.from("reply_turns").insert({ tenant_id: A, conversation_id: m.conversation, message_id: m.message }));
+    const job = ok(
+      await db
+        .from("jobs")
+        .insert({
+          tenant_id: A,
+          kind: "reply_read",
+          due_at: later,
+          payload: { conversation_id: m.conversation, contact_id: m.id },
+        })
+        .select("id")
+        .single(),
+    ).id;
+    ok(
+      await db.from("notifications").insert({
+        tenant_id: A,
+        kind: "handoff",
+        title: "t",
+        body: "b",
+        route: `inbox/th-${m.conversation}`,
+        subject_type: "conversation",
+        subject_id: m.conversation,
+      }),
+    );
+    ok(await merge(owner, k.id, m.id));
+    const thread = ok(
+      await db
+        .from("conversations")
+        .select("state, paused_until, assignee_user_id, control_kind, control_by, control_until")
+        .eq("id", k.conversation)
+        .single(),
+    );
+    assert.deepEqual(
+      [thread.state, thread.paused_until, thread.assignee_user_id, thread.control_kind, thread.control_by],
+      ["needs_human", null, owner.id, "person", owner.id],
+      "a hold with no end stays one, and the person answering the merged thread answers the kept one",
+    );
+    assert.deepEqual(
+      ok(
+        await db
+          .from("reply_turns")
+          .select("conversation_id, message_id")
+          .in("conversation_id", [k.conversation, m.conversation]),
+      ),
+      [{ conversation_id: k.conversation, message_id: m.message }],
+    );
+    const payload = ok(await db.from("jobs").select("payload").eq("id", job).single()).payload;
+    assert.deepEqual([payload.conversation_id, payload.contact_id], [k.conversation, k.id]);
+    const told = ok(
+      await db
+        .from("notifications")
+        .select("route, subject_id")
+        .eq("tenant_id", A)
+        .eq("subject_type", "conversation")
+        .in("subject_id", [k.conversation, m.conversation]),
+    );
+    assert.deepEqual(told, [{ route: `inbox/th-${k.conversation}`, subject_id: k.conversation }]);
+  },
+);
+
+test("two records with no thread merge too, and a yes by text and a yes on WhatsApp cover both", { skip }, async () => {
+  const k = await bare({ phone_e164: phone(), consent: "opted_in", consent_channels: ["sms"] });
+  const m = await bare({ email: address(), consent: "opted_in", consent_channels: ["whatsapp"] });
+  const answered = ok(await merge(owner, k, m));
+  assert.equal("threads" in answered.counts, false, "no thread to fold or take");
+  assert.deepEqual((await row(k)).consent_channels, ["whatsapp", "sms"]);
+});

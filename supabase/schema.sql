@@ -2339,13 +2339,21 @@ begin
          erased_at          = now()
    where id = p_contact_id;
 
-  -- A contact merged INTO this one must stop pointing at it. No merge path
-  -- exists today and every value is null; this is here because
-  -- contacts_merged_into_contact_id_fkey is NO ACTION and would otherwise be
-  -- the thing that breaks the day one does. Tenant-scoped: this function runs
-  -- as its owner, so an unscoped predicate would be a cross-tenant write.
-  update contacts set merged_into_contact_id = null
-   where tenant_id = v_tenant and merged_into_contact_id = p_contact_id;
+  -- The records merged into this person ARE this person (00325, decision 0028): each is erased with them, the way
+  -- this row is, so none returns as a person of its own once the pointer no longer matters. Their rows moved here
+  -- when they were merged and are gone with these. Tenant-scoped, as every statement here is.
+  update contacts
+     set phone_e164         = null,
+         display_name       = null,
+         wa_profile_name    = null,
+         notes              = null,
+         proposal_url       = null,
+         consent            = 'unknown',
+         consent_source     = 'erasure',
+         consent_updated_at = now(),
+         dnc                = true,
+         erased_at          = now()
+   where tenant_id = v_tenant and merged_into_contact_id = p_contact_id and erased_at is null;
 
   insert into events (tenant_id, kind, category, subject_type, subject_id, data)
   values (v_tenant, 'contact.erased', 'contact', 'contact', p_contact_id,
@@ -7699,6 +7707,7 @@ declare
   v_email    text;
   v_offers_ended boolean;
   v_email_ended  boolean;
+  v_take_control boolean;
   v_n        int;
   v_counts   jsonb := '{}'::jsonb;
   v_decision uuid;
@@ -7758,9 +7767,16 @@ begin
 
   /* ---- THE MARK FIRST. From here the guard's exception is true for these two threads, and the merged row holds no
      number and no address: one address, one person (contacts_tenant_phone_uq, contacts_tenant_email_uq), and the
-     inbound door, which finds a person by identity and then by number, cannot find the merged row again. */
+     inbound door, which finds a person by identity and then by number, cannot find the merged row again. Its
+     answers are read into the kept record below (k and m hold them) and cleared here, so one person is counted
+     once wherever a count reads the table. */
   update contacts
-     set merged_into_contact_id = p_keep, phone_e164 = null, email = null
+     set merged_into_contact_id = p_keep, phone_e164 = null, email = null,
+         consent = 'unknown', consent_source = null, consent_updated_at = null, dnc = false,
+         consent_channels = '{}'::text[],
+         marketing_consent = 'unknown', marketing_consent_source = null, marketing_consent_updated_at = null,
+         marketing_channels = '{}'::text[], offers_asked_at = null,
+         email_marketing = 'unknown', email_marketing_source = null, email_marketing_updated_at = null
    where id = p_merge;
 
   update contact_identities set contact_id = p_keep
@@ -7793,12 +7809,16 @@ begin
      where tenant_id = v_tenant and conversation_id = m_conv.id;
     update reach_out_replies set conversation_id = k_conv.id
      where tenant_id = v_tenant and conversation_id = m_conv.id;
-    -- The reply turn is the thread's own (one row per thread): the kept thread's stands.
+    -- The reply turn is the thread's own (one row per thread): a reply being written on the merged thread goes on
+    -- as the kept thread's where the kept thread holds none, and the kept thread's own stands otherwise.
+    update reply_turns set conversation_id = k_conv.id
+     where conversation_id = m_conv.id
+       and not exists (select 1 from reply_turns t where t.conversation_id = k_conv.id);
     delete from reply_turns where conversation_id = m_conv.id;
-    -- Nothing scheduled may fire at a thread that is about to stop existing: it fires at the kept one.
+    -- Nothing scheduled or running may name a thread that is about to stop existing: it names the kept one.
     update jobs
        set payload = payload || jsonb_build_object('conversation_id', k_conv.id::text)
-     where tenant_id = v_tenant and state = 'scheduled'
+     where tenant_id = v_tenant and state in ('scheduled', 'fired')
        and payload->>'conversation_id' = m_conv.id::text;
     update decisions set subject_id = k_conv.id
      where tenant_id = v_tenant and subject_type = 'conversation' and subject_id = m_conv.id;
@@ -7806,12 +7826,27 @@ begin
      where tenant_id = v_tenant and subject_type = 'conversation' and subject_id = m_conv.id;
     update notifications set subject_id = k_conv.id::text
      where tenant_id = v_tenant and subject_type = 'conversation' and subject_id = m_conv.id::text;
-    -- The kept thread takes the later of each clock, stays held if either was, and is as open as the more open one.
+    update notifications set route = 'inbox/th-' || k_conv.id::text
+     where tenant_id = v_tenant and route = 'inbox/th-' || m_conv.id::text;
+    -- The kept thread takes the later of each clock, stays held if either was (a hold with no end stays one), is
+    -- as open as the more open one, keeps who it was assigned to, and is answered by whoever was answering either
+    -- (the later hold on it wins: a person typing, or a call in progress).
+    v_take_control := k_conv.control_kind is null
+                      or (m_conv.control_until is not null and m_conv.control_until > k_conv.control_until);
     update conversations
        set last_message_at    = greatest(k_conv.last_message_at, m_conv.last_message_at),
            last_inbound_at    = greatest(k_conv.last_inbound_at, m_conv.last_inbound_at),
            last_wa_inbound_at = greatest(k_conv.last_wa_inbound_at, m_conv.last_wa_inbound_at),
-           paused_until       = greatest(k_conv.paused_until, m_conv.paused_until),
+           paused_until       = case
+                                  when (k_conv.state = 'needs_human' and k_conv.paused_until is null)
+                                    or (m_conv.state = 'needs_human' and m_conv.paused_until is null) then null
+                                  else greatest(k_conv.paused_until, m_conv.paused_until)
+                                end,
+           assignee_user_id   = coalesce(k_conv.assignee_user_id, m_conv.assignee_user_id),
+           control_kind       = case when v_take_control then m_conv.control_kind else k_conv.control_kind end,
+           control_by         = case when v_take_control then m_conv.control_by else k_conv.control_by end,
+           control_ref        = case when v_take_control then m_conv.control_ref else k_conv.control_ref end,
+           control_until      = case when v_take_control then m_conv.control_until else k_conv.control_until end,
            state = case
                      when 'needs_human' in (k_conv.state, m_conv.state) then 'needs_human'
                      when 'open' in (k_conv.state, m_conv.state) then 'open'
@@ -7861,7 +7896,7 @@ begin
    where r.tenant_id = v_tenant and r.contact_id = p_merge
      and not exists (
        select 1 from broadcast_recipients h where h.broadcast_id = r.broadcast_id and h.contact_id = p_keep);
-  -- A person's own receptionist mode, one per class: the kept person's stands where both set one. A policy row keeps
+  -- A person's own receptionist mode, one per class. A policy row keeps
   -- its subject for life (00029's guard), so the kept person gets a row of their own and the merged one's goes.
   insert into policies (tenant_id, class, mode, subject_type, subject_id, limits)
   select p.tenant_id, p.class, p.mode, 'contact', p_keep, p.limits
@@ -7870,6 +7905,14 @@ begin
      and not exists (
        select 1 from policies h
         where h.tenant_id = v_tenant and h.class = p.class and h.subject_type = 'contact' and h.subject_id = p_keep);
+  -- Where both set one for a class, the stricter stands (never over ask over veto over auto): the most careful answer.
+  update policies h
+     set mode = p.mode
+    from policies p
+   where h.tenant_id = v_tenant and h.subject_type = 'contact' and h.subject_id = p_keep
+     and p.tenant_id = v_tenant and p.subject_type = 'contact' and p.subject_id = p_merge and p.class = h.class
+     and array_position(array['auto', 'veto', 'ask', 'never'], p.mode)
+       > array_position(array['auto', 'veto', 'ask', 'never'], h.mode);
   delete from policies where tenant_id = v_tenant and subject_type = 'contact' and subject_id = p_merge;
   -- The ledger and the audit are the person's: what the merged record answered, and what was decided about it.
   update events set subject_id = p_keep
@@ -7880,7 +7923,7 @@ begin
    where tenant_id = v_tenant and subject_type = 'contact' and subject_id = p_merge::text;
   update jobs
      set payload = payload || jsonb_build_object('contact_id', p_keep::text)
-   where tenant_id = v_tenant and state = 'scheduled' and payload->>'contact_id' = p_merge::text;
+   where tenant_id = v_tenant and state in ('scheduled', 'fired') and payload->>'contact_id' = p_merge::text;
 
   /* ---- CONSENT (D5): the most careful answer wins on each question. contracts' mergedAnswers is this, case by case. */
   v_stop := k.consent = 'opted_out' or k.dnc or m.consent = 'opted_out' or m.dnc;

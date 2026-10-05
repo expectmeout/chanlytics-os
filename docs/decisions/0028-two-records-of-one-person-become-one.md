@@ -70,10 +70,12 @@ does to consent), which Ruben delegated on 4 October.
   (the kept thread takes the later of each clock, stays paused if either was, and is open if either was; where both
   had an open escalation the merged one is resolved by the merging owner, the kept one stands); re-point `messages`,
   `calls`, `deals`, `leads`, `person_notes`, `reach_out_sends`, `reach_out_replies`, `policies`, `events`,
-  `decisions`, `notifications` and scheduled jobs' payloads; add list memberships the kept person lacks; move
-  broadcast rows where the kept person has none for that broadcast (the rest stay on the merged row); rebuild
-  `person_moments` for the kept person and drop the merged one's; take the merged row's number or address where the
-  kept one has none; apply 4; write the `decisions` row (verb `merge`) and a `contact.merged` event with the counts.
+  `decisions`, `notifications` (their routes too) and the payloads of scheduled and running jobs; add list memberships
+  the kept person lacks; where both set a receptionist mode for a class, the stricter stands; move broadcast rows
+  where the kept person has none for that broadcast (the rest stay on the merged row); recompute `person_moments` for
+  both rows; take the merged row's number or address where the kept one has none; apply 4; clear the merged row's
+  answers (one person, counted once); write the `decisions` row (verb `merge`) and a `contact.merged` event with the
+  counts. `erase_contact` erases the records merged into a person with them, so none returns as a person of its own.
 - **The route:** `POST /api/v1/contacts/[id]/merge` with the record to merge in, `role: "owner"`, its own rate, a row
   in `route-policy.json`.
 - **The page:** on a person, in the same menu as Delete: "Merge with another record…", a picker over People, then a
@@ -108,6 +110,9 @@ Each is its own pull request, shippable in either deploy order.
   their answers from then on. The refusals in 5, the typed confirmation and owner-only are what stand against it.
 - **The guard's exception is a change to P3.** It is the narrowest one that folds two threads, and it is decided by
   rows a member cannot write (`merged_into_contact_id` is written by this door alone). The alternative is below.
+- **Erasure after a merge.** Before this note `erase_contact` cleared `merged_into_contact_id` on the rows merged into
+  the person, which would have left each as a person of its own with a name and a note. It now erases them with the
+  person.
 - **A reader that assumed a merged row has no rows.** Broadcast rows that stay on the merged record still name it:
   a run's report shows that person under the merged record's name. Each reader of `merged_into_contact_id is null`
   is read once in step 1.
