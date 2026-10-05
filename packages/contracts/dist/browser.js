@@ -14309,6 +14309,13 @@ function conversationMoveAllowed(move, state) {
 function messageAt(m) {
   return m.channel_ts ?? m.created_at;
 }
+var OPERATOR_META_KEYS = ["pricing"];
+function memberMetaOf(meta) {
+  if (meta === null || typeof meta !== "object" || Array.isArray(meta)) return null;
+  const kept = { ...meta };
+  for (const key of OPERATOR_META_KEYS) delete kept[key];
+  return kept;
+}
 function isOptedOut(dto) {
   return isOptedOutContact(dto.contact);
 }
@@ -14573,6 +14580,12 @@ var ESCALATION_SUMMARIES = {
   carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
   email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
 };
+
+// src/conversations/first-touch.ts
+var REFERRAL_ID_MAX = 200;
+
+// src/conversations/handled.ts
+var HANDLED_OUTCOMES = ["ai", "held", "handoff", "blocked"];
 
 // src/email/email-subject.ts
 var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
@@ -31347,6 +31360,7 @@ export {
   ABOUT_MIN,
   ACTIVATION_MILESTONES,
   ACTIVITY_KINDS,
+  ACTIVITY_NOISE_KINDS,
   ACTIVITY_NOISE_PREFIXES,
   ACTOR_TYPES,
   ALERT_KINDS,
@@ -31554,6 +31568,7 @@ export {
   GOOGLE_SHOWN_REVIEWS,
   GREETING_DEFAULT,
   GUARDRAIL_KEYS,
+  HANDLED_OUTCOMES,
   HANDOFF_FORWARDS_BACK,
   HANDOVER_DAYS,
   HANDOVER_WAITING_MAX,
@@ -31840,6 +31855,7 @@ export {
   POLICY_CLASSES,
   POLICY_CLASS_MODES,
   POLICY_CLASS_WORDS,
+  POLICY_COVERS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
   PREFETCH_READS,
@@ -31906,6 +31922,7 @@ export {
   RECIPIENT_STATES,
   RECORDING_PURGED_WORDS,
   RECORDING_RETENTION_DAYS,
+  REFERRAL_ID_MAX,
   REGISTRATION_COST_WORDS,
   REGISTRATION_PATHS,
   REGISTRATION_PATH_WORDS,
@@ -32631,6 +32648,7 @@ export {
   mediaKind,
   mediaVM,
   medianWait,
+  memberMetaOf,
   memberWords,
   membersOf,
   messageAboutOfTrigger,
@@ -32641,6 +32659,7 @@ export {
   messageStatusLabel,
   messageText,
   messageVia,
+  messageWhy,
   messageWords,
   modelRoute,
   momentOffered,
