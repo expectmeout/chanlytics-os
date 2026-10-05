@@ -1281,3 +1281,29 @@ test("a flag the database would not take leaves the message as it was and the de
   assert.deepEqual(await answer(await deliver(failed())), [200, { ok: true }]);
   assert.deepEqual([row.status, holds(w).length, w.tables.notifications.length], ["failed", 1, 1]);
 });
+
+test("a failure that is the person's own no to offers (131050) is recorded as that no and is not a send the owner has to fix: no hold, no bell, no failure on the ledger", async () => {
+  const w = world();
+  w.tables.contacts.push({
+    id: "k1",
+    tenant_id: w.T,
+    consent: "opted_in",
+    dnc: false,
+    marketing_consent: "opted_in",
+    marketing_consent_source: "customer_message",
+    erased_at: null,
+  });
+  const { row, wamid } = accepted(w, { contact_id: "k1" });
+  w.open();
+  receptionist();
+  const stopped = [{ code: 131050, title: "User stopped marketing messages", message: "stopped" }];
+  const receipt = { id: wamid, status: "failed", timestamp: now(), recipient_id: w.customer(), errors: stopped };
+  assert.deepEqual(await answer(await deliver(w.change({ statuses: [receipt] }))), [200, { ok: true }]);
+  assert.deepEqual([row.status, row.error], ["failed", { errors: stopped }], "the receipt is kept as it always was");
+  assert.equal(w.tables.contacts[0].marketing_consent, "opted_out", "and it is their no to offers (wiring W4)");
+  assert.deepEqual(
+    [holds(w).length, w.tables.notifications.length, kind(w.tables, "message.send_failed").length],
+    [0, 0, 0],
+    "their answer, not a send that failed",
+  );
+});
