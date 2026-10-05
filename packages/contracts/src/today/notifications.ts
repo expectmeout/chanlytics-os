@@ -1,5 +1,6 @@
 import { agoShort as spanAgo, MIN_MS } from "../shared/time";
 import { callAttemptWords } from "../conversations/call-dto";
+import { replyWaitsOnYou } from "../conversations/standing";
 import { missedCallIsNews } from "../voice/live";
 import { FINISH_SETTING_UP } from "../setup/first-run";
 import { firstLine } from "./push";
@@ -134,7 +135,8 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
         action: "Open in Inbox",
       });
     }
-    if (t.veto && t.veto.endsAtMs > now) {
+    // A reply counting down to send waits on you while it can still be stopped: the Inbox's own rule (replyWaitsOnYou).
+    if (t.veto && replyWaitsOnYou({ endsAtMs: t.veto.endsAtMs }, now)) {
       const held =
         t.veto.why?.heldFor === "low_confidence" ? "Not sure enough to send alone" : "Waiting in the hold window";
       items.push({

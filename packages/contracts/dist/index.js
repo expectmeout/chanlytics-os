@@ -30523,8 +30523,11 @@ function liveStillUp(c, heartbeatMs, nowMs) {
   if (!c.live) return false;
   return nowMs - (c.heartbeatAtMs ?? c.startedAtMs ?? 0) < heartbeatMs;
 }
+function callsStillUp(read, nowMs) {
+  return (read?.now ?? []).filter((c) => liveStillUp(c, read?.heartbeatMs ?? 0, nowMs));
+}
 function liveBar(vm, nowMs) {
-  const up = (vm?.now ?? []).filter((c2) => liveStillUp(c2, vm?.heartbeatMs ?? 0, nowMs));
+  const up = callsStillUp(vm, nowMs);
   if (up.length === 0) return null;
   if (up.length > 1) {
     return {
@@ -31504,7 +31507,7 @@ function buildNotificationFeed(input) {
         action: "Open in Inbox"
       });
     }
-    if (t.veto && t.veto.endsAtMs > now) {
+    if (t.veto && replyWaitsOnYou({ endsAtMs: t.veto.endsAtMs }, now)) {
       const held = t.veto.why?.heldFor === "low_confidence" ? "Not sure enough to send alone" : "Waiting in the hold window";
       items.push({
         key: `draft:${t.veto.messageId}`,
@@ -34686,6 +34689,7 @@ export {
   callTodoWords,
   callerName,
   callsAnswer,
+  callsStillUp,
   callsToday,
   cameFromOf,
   campaignEmailRules,

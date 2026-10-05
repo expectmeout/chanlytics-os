@@ -287,7 +287,7 @@ export { todaySteps } from "./today/today-steps";
 export { callOutcomeOf, callOutcomeWords, callNoteLines, callNotesOf, callTodoWords, tidyCallSummary, CALL_OUTCOMES, CALL_OUTCOME_WORDS } from "./voice/call-words";
 export { telHref, forwardingDialLabel, forwardingCodes, forwardingMatch, divertedNumbers, forwardingProof, forwardingTestOpen, CARRIERS, FORWARDING_MODES, CARRIER_WORDS, FORWARDING_MODE_WORDS, FORWARDING_TEST_WINDOW_MS, isCarrier, isForwardingMode } from "./voice/forwarding";
 export { greetingFor, pausedGreetingFor, GREETING_DEFAULT } from "./voice/greeting";
-export { fmtClock, liveStillUp, liveBar, toLiveCallVM, toLiveVM, missedCallIsNews, LIVE_STALE_MS, LIVE_OVERLONG_MS, ANALYSIS_GRACE_MS, RECENT_MAX } from "./voice/live";
+export { fmtClock, liveStillUp, callsStillUp, liveBar, toLiveCallVM, toLiveVM, missedCallIsNews, LIVE_STALE_MS, LIVE_OVERLONG_MS, ANALYSIS_GRACE_MS, RECENT_MAX } from "./voice/live";
 export { frameWhisper, frameGuardrail, frameSteer, whisperText, frameHandOver, injectedTurn } from "./voice/whisper";
 export { ACTIVATION_MILESTONES } from "./workspace/activation";
 export { activityWords, activityTone, isActivityMoney, isActivityNoise, ACTIVITY_NOISE_PREFIXES, ACTIVITY_NOISE_KINDS, ACTIVITY_KINDS } from "./workspace/activity";
