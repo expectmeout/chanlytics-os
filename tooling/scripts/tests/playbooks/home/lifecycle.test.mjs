@@ -250,7 +250,7 @@ test("the head says offers by email are paused while the email channel's own rea
   const pausedFor = { at: "2026-10-01T00:00:00Z", reason: "complaints" };
   const line = home({ broadcasts: withEmail(offers(pausedFor)) }).head.pausedLine;
   assert.equal(line, C.offersPausedLine({ paused: pausedFor }), "contracts' own sentence, from the read");
-  assert.match(line, /Offers by email are paused: too many people marked offers as spam\./);
+  assert.match(line, /Offers and news by email are paused: too many people marked offers as spam\./);
   assert.equal(
     home({ broadcasts: withEmail(offers(null)) }).head.pausedLine,
     null,

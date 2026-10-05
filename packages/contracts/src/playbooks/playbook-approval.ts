@@ -8,6 +8,7 @@ import { purposeOfPlaybook } from "../consent/consent";
 import { consentRuleWords } from "../consent/consent-asks";
 import type { ConsentChannel } from "../consent/consent-channels";
 import { GET_YES_ROUTE } from "../people/people-lists";
+import { CAMPAIGNS_PAUSED_WORDS } from "../workspace/billing";
 import { messageAboutOfTrigger } from "./playbook-purpose";
 import type { RunReach } from "./playbook-reach";
 import { triggerOf } from "./playbook-triggers";
@@ -57,8 +58,9 @@ export interface ApprovalVM {
   /** The act: "Approve — 186 now", or "at 9:00" after hours (approveRun sends at the next open moment). Null when approveRun would refuse it. */
   approve: string | null;
   /**
-   * Why it cannot be approved: a playbook's run is a day's run, and approveRun refuses it on a later day, and a visit's
-   * run that would go out on a later day than the one it was made for (runApprovalRefusal).
+   * Why it cannot be approved, in the verb's own words (runApprovalRefusal): a playbook's run is a day's run, and approveRun
+   * refuses it on a later day, and a visit's run that would go out on a later day than the one it was made for; or the
+   * workspace is paused (CAMPAIGNS_PAUSED_WORDS), which approveRun refuses first.
    */
   expired: string | null;
   /** When it goes, for the line under its name. */
@@ -221,18 +223,31 @@ export function runDayPassed(
   run: { playbook_id: string | null; run_for?: string | null },
   today: string,
 ): string | null {
-  return run.playbook_id && run.run_for && run.run_for !== today ? dayGoneWords(run.run_for) : null;
+  const day = dayHasPassed(run, today);
+  return day ? dayGoneWords(day) : null;
 }
 
-/** The sentence a run is refused in when its day is gone: the route's, Ask's run card's, and the sheet's for a visit's run that waited past the day. */
-function dayGoneWords(runFor: string): string {
-  return `This run was made for ${runFor} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`;
+/** The day a playbook's run was made for when it is not `today`, else null: the one reading of "its day has passed". */
+function dayHasPassed(run: { playbook_id: string | null; run_for?: string | null }, today: string): string | null {
+  return run.playbook_id && run.run_for && run.run_for !== today ? run.run_for : null;
 }
 
-/** When an approval would send a run: the business's day now, and the day of the next open moment (nextOpenMoment), "2026-09-21". */
+/**
+ * The sentence a run is refused in when its day is gone: the route's, Ask's run card's, and the sheet's, which says the day
+ * in the business's own words (`say`) where the verb says it as the date.
+ */
+function dayGoneWords(runFor: string, say: (ymd: string) => string = (ymd) => ymd): string {
+  return `This run was made for ${say(runFor)} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`;
+}
+
+/**
+ * When an approval would send a run: the business's day now, and the day of the next open moment (nextOpenMoment),
+ * "2026-09-21". `say` words a day for the person reading the refusal (the sheet's); the verb's own is the date.
+ */
 interface ApprovalDays {
   today: string;
   sendsOn: string;
+  say?: (ymd: string) => string;
 }
 
 /**
@@ -247,18 +262,19 @@ function visitRunTooLate(run: { run_for?: string | null; audience?: unknown }, d
 }
 
 /**
- * Why a waiting playbook's run cannot be approved now, in one sentence, or null: its day has passed (runDayPassed), or it
+ * Why a waiting playbook's run cannot be approved now, in one sentence, or null: its day has passed (dayHasPassed), or it
  * is a visit's run that an approval now would send on a later day than the one it was made for (visitRunTooLate). THE
- * predicate for both the verb (core approveRun, Ask's run card) and the sheet (toApprovalVM), so the sheet never offers a
- * button the verb refuses.
+ * predicate for the verb (core approveRun), Ask's run card and the sheet (toApprovalVM), so the sheet never offers a button
+ * the verb refuses, `playbook_id` guard and all: a run that is no playbook's has no day to pass.
  */
 export function runApprovalRefusal(
   run: { playbook_id: string | null; run_for?: string | null; audience?: unknown },
   days: ApprovalDays,
 ): string | null {
-  const gone = runDayPassed(run, days.today);
-  if (gone) return gone;
-  return run.playbook_id && run.run_for && visitRunTooLate(run, days) ? dayGoneWords(run.run_for) : null;
+  const day =
+    dayHasPassed(run, days.today) ??
+    (run.playbook_id && run.run_for && visitRunTooLate(run, days) ? run.run_for : null);
+  return day ? dayGoneWords(day, days.say) : null;
 }
 
 /**
@@ -269,7 +285,7 @@ export function runApprovalRefusal(
  */
 export function toApprovalVM(
   d: {
-    broadcast: Pick<BroadcastDto, "recipient_count" | "run_for" | "params"> & {
+    broadcast: Pick<BroadcastDto, "recipient_count" | "run_for" | "params" | "playbook_id"> & {
       audience?: { reach?: RunReach; trigger?: string } | null;
     };
     recipients: ReadonlyArray<
@@ -289,6 +305,13 @@ export function toApprovalVM(
     open: { time: string; moved: boolean; on: string };
     /** A run's day in words. */
     day: (ymd: string) => string;
+    /**
+     * Whether the workspace is paused (contracts ChannelsReady.paused, tenants.status), where the caller holds that readiness;
+     * null where it does not, and the sheet then says nothing of it (Ask's run card reads none). Approving under a pause is
+     * refused (core approveRun), so the sheet says so, in the words every campaign says it (CAMPAIGNS_PAUSED_WORDS), instead
+     * of offering the button.
+     */
+    paused: boolean | null;
   },
 ): ApprovalVM {
   const b = d.broadcast;
@@ -343,10 +366,10 @@ export function toApprovalVM(
     }
   });
   const greets = params.some((p) => p.kind === "first_name");
-  // The verb's own rule (runApprovalRefusal): its day has passed, or a visit's run would go out on a later day than it was made for.
-  const dayPassed = !!b.run_for && b.run_for !== opts.today;
-  const tooLate = !dayPassed && visitRunTooLate(b, { today: opts.today, sendsOn: opts.open.on });
-  const late = dayPassed || tooLate;
+  // The verb's own rule, asked, not recomputed (runApprovalRefusal): its day has passed, or a visit's run would go out on a
+  // later day than it was made for. A paused workspace is refused first, as approveRun refuses it first.
+  const late = runApprovalRefusal(b, { today: opts.today, sendsOn: opts.open.on, say: opts.day });
+  const refusal = opts.paused ? CAMPAIGNS_PAUSED_WORDS : late;
   const runFor = b.run_for ?? "";
   return {
     will,
@@ -363,17 +386,15 @@ export function toApprovalVM(
     reader: reader ? reader.name : null,
     readerChannel: channelOfRecipient(reader),
     hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,
-    approve: late ? null : `Approve — ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
-    expired: dayPassed
-      ? `Made for ${opts.day(runFor)}, and that day has passed — its people and its words were that day's. Skip it; the next run starts over.`
-      : tooLate
-        ? dayGoneWords(runFor)
-        : null,
+    approve: refusal ? null : `Approve — ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
+    expired: refusal,
     goes: late
       ? `made for ${opts.day(runFor)}`
-      : opts.open.moved
-        ? `goes at ${opts.open.time} once you approve it`
-        : "goes the moment you approve it",
+      : opts.paused
+        ? "waits until billing resumes"
+        : opts.open.moved
+          ? `goes at ${opts.open.time} once you approve it`
+          : "goes the moment you approve it",
     skip: "Skipping loses this run only — the playbook keeps running.",
   };
 }

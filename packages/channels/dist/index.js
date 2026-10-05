@@ -2076,6 +2076,16 @@ var UNASKED = {
   has_relationship: false
 };
 var DEALT = { ...UNASKED, has_relationship: true };
+var RUN_STOP_REMEDY = {
+  paused: "Resume from Settings \u203A Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
+};
+var RUN_STOP_AGAIN = {
+  paused: `${RUN_STOP_REMEDY.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY.campaigns_domain_unverified}; send it again once the domain is verified.`
+};
 var OFFERS_BY_EMAIL_WORDS = {
   /** The deployment's campaigns domain is not set up or not verified yet. */
   noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",

@@ -2417,6 +2417,7 @@ async function broadcastBatchByEmail({ who, facts, trigger = null }) {
       remaining: async () => 0,
       state: async () => "sending",
       tally: async () => ({ sent: 1, held: 0 }),
+      heldForEmail: async () => [],
       scheduleNext: async () => {},
       finish: async () => {},
       alert: async () => {},

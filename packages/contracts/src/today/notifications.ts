@@ -324,15 +324,17 @@ const JOB_WORK_OTHER = { stopped: "Something in the background did not finish", 
  * it left to a fresh run, or one is already coming, jobs settle.ts and tick.ts conclude). A broadcast that stopped partway
  * is carried on that way up to MAX_RESUMES times, and its alert said "will not start again on its own" each of them, the
  * opposite of what happened, in the only line the bell and the phone show: an owner who believed it and sent again reached
- * the whole audience twice. Only a job nothing carries on says it will not start again.
+ * the whole audience twice. Only a job nothing carries on says it will not start again. `resumed` is null where settling
+ * threw, so nobody knows whether anything carries on: the line then says neither (its body says what could not be checked).
  */
 export function jobNewsWords(
   jobKind: string,
   end: JobEnd,
-  how: { attempts: number; resumed: boolean },
+  how: { attempts: number; resumed: boolean | null },
 ): { title: string; lead: string; to: string } {
   const w = (JOB_WORK as Record<string, typeof JOB_WORK_OTHER>)[jobKind] ?? JOB_WORK_OTHER;
   const { attempts, resumed } = how;
+  const tries = attempts > 1 ? ` after ${attempts} tries` : "";
   const lead =
     end === "unfinished"
       ? jobKind === "outbound_send"
@@ -340,7 +342,9 @@ export function jobNewsWords(
         : `It started and never reported back, so how it ended is unknown${resumed ? ", and the rest carries on in a fresh run" : ""}.`
       : end === "unknown_kind"
         ? "Nothing ran: this is work the app does not know how to do."
-        : `It stopped${attempts > 1 ? ` after ${attempts} tries` : ""} and ${resumed ? "carries on in a fresh run" : "will not start again on its own"}.`;
+        : resumed === null
+          ? `It stopped${tries}, and whether it carries on in a fresh run could not be checked.`
+          : `It stopped${tries} and ${resumed ? "carries on in a fresh run" : "will not start again on its own"}.`;
   return { title: w.stopped, lead, to: w.to };
 }
 

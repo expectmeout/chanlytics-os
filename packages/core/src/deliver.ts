@@ -152,10 +152,11 @@ export interface Delivery {
    */
   about: MessageAbout;
   /**
-   * The playbook moment a broadcast's run was made for (contracts audienceTrigger), absent for any other send. Only the
-   * day-before reminder passes the thread's 24-hour pause (contracts passesHandoverPause, decision D4).
+   * The playbook moment a broadcast's run was made for (contracts audienceTrigger), null for any other send: only the
+   * day-before reminder passes the thread's 24-hour pause (contracts passesHandoverPause, decision D4). Required, as
+   * `about` is: a sender says which, so a new one cannot forget the moment and have its reminder held.
    */
-  trigger?: string | null;
+  trigger: string | null;
   body: string;
   template?: TemplateSend;
   /** The frozen request, on the email wire (WirePayload.email). */

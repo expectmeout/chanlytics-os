@@ -112,6 +112,7 @@ export function bcSheetOf({
       template,
       businessName: data.businessName || "",
       businessAddress: data.businessAddress ?? null,
+      paused: data.ready ? data.ready.paused === true : null,
       armed: armId === row.id,
       onArm: (on: boolean) => setArmId(on ? row.id : null),
       stopping: stopping === row.id,

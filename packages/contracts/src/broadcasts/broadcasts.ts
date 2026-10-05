@@ -79,10 +79,11 @@ export {
   BROADCAST_FAILURE_FIX,
   broadcastFailureFix,
   broadcastFailureWords,
+  emailRunStop,
+  stoppedRunFix,
   wireFailure,
-  workspaceRefusalFailure,
 } from "./broadcast-failures";
-export type { BroadcastFailure, WireFailure, WorkspaceFailure } from "./broadcast-failures";
+export type { BroadcastFailure, EmailRunStop, RunStop, WireFailure } from "./broadcast-failures";
 export { LIMIT_TIERS, dailyLimit, numberHealth, overLimitRefusal } from "./broadcast-number";
 export type { NumberHealthInput, NumberHealth } from "./broadcast-number";
 export { RUN_REPORT_STEPS, RUN_FILTERS, consentAnswerWords, receiptWords, toRunReportVM } from "./run-report";
@@ -152,7 +153,16 @@ export const BROADCAST_PARAM_MAX = 1024;
 export const BROADCAST_SCHEDULE_MAX_DAYS = 30;
 export const BROADCAST_NAME_MAX = 80;
 // The reply window and the held reasons live in run-words.ts, where a person's page reads them too.
-export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, isReplyTo } from "./run-words";
+export {
+  REPLY_WINDOW_HOURS,
+  REPLY_WINDOW_MS,
+  REPLY_WINDOW_WORDS,
+  HELD_REASONS,
+  EMAIL_HOLDS,
+  finishedRunHeldWhy,
+  isReplyTo,
+} from "./run-words";
+export type { EmailHold } from "./run-words";
 
 /** The words a person will read: the body with its numbered slots filled. */
 export function renderTemplate(body: string | null | undefined, params: readonly string[]): string {

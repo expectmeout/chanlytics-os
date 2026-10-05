@@ -417,7 +417,9 @@ export function BroadcastDetail({
   if (ro) return pane(roRunHead(d, sheet) || {}, ro);
   const vm = broadcasts.report(d);
   const avm =
-    sheet && b.state === "pending_approval" ? broadcasts.approval(d, sheet.playbook, sheet.businessName) : null;
+    sheet && b.state === "pending_approval"
+      ? broadcasts.approval(d, sheet.playbook, sheet.businessName, sheet.paused)
+      : null;
   if (sheet && avm) {
     return pane(
       bcSheetHead(d, sheet),

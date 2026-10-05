@@ -1777,6 +1777,16 @@ var UNASKED = {
   has_relationship: false
 };
 var DEALT = { ...UNASKED, has_relationship: true };
+var RUN_STOP_REMEDY = {
+  paused: "Resume from Settings \u203A Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
+};
+var RUN_STOP_AGAIN = {
+  paused: `${RUN_STOP_REMEDY.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY.campaigns_domain_unverified}; send it again once the domain is verified.`
+};
 var OFFERS_BY_EMAIL_WORDS = {
   /** The deployment's campaigns domain is not set up or not verified yet. */
   noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
@@ -3531,9 +3541,10 @@ async function queuedRecipients(db, p) {
   if (bare.error) throw new Error(`queued_recipients: ${bare.error.message}`);
   return bare.data ?? [];
 }
-async function runGoesByOthers(db, tenantId, broadcastId) {
-  const { count, error } = await db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId).in("channel", ["sms", "email"]);
-  if (noChannelColumns(error)) return false;
+async function runGoesByOthers(db, tenantId, broadcastId, than) {
+  const of = db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId);
+  const { count, error } = await (than === "whatsapp" ? of.in("channel", ["sms", "email"]) : of.or("channel.is.null,channel.eq.whatsapp,channel.eq.sms"));
+  if (noChannelColumns(error)) return than === "email";
   if (error) throw new Error(`run_goes_by_others: ${error.message}`);
   return (count ?? 0) > 0;
 }
@@ -3882,6 +3893,11 @@ async function writtenEmail(db, p) {
     status: data.status,
     to: Array.isArray(to) && typeof to[0] === "string" ? to[0] : null
   };
+}
+async function workspacePaused(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  return data?.status === "paused";
 }
 var POS_TTL_MS = 5 * MIN_MS;
 async function readJobToRequeue(db, tenantId, jobId) {
@@ -5672,6 +5688,16 @@ var UNASKED2 = {
   has_relationship: false
 };
 var DEALT2 = { ...UNASKED2, has_relationship: true };
+var RUN_STOP_REMEDY2 = {
+  paused: "Resume from Settings \u203A Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
+};
+var RUN_STOP_AGAIN2 = {
+  paused: `${RUN_STOP_REMEDY2.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY2.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY2.campaigns_domain_unverified}; send it again once the domain is verified.`
+};
 var OFFERS_BY_EMAIL_WORDS2 = {
   /** The deployment's campaigns domain is not set up or not verified yet. */
   noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
@@ -5724,6 +5750,10 @@ var LIMIT_TIERS2 = {
 var REPLY_WINDOW_HOURS2 = 72;
 var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * HOUR_MS2;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
+var EMAIL_HOLDS = [
+  "email_offers_paused",
+  "email_marketing_disabled"
+];
 var BROADCAST_THROTTLE_WAITS_MS2 = [
   MIN_MS2,
   2 * MIN_MS2,
@@ -7182,7 +7212,8 @@ var JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to
 function jobNewsWords(jobKind, end, how) {
   const w = JOB_WORK[jobKind] ?? JOB_WORK_OTHER;
   const { attempts, resumed } = how;
-  const lead = end === "unfinished" ? jobKind === "outbound_send" ? "It started and never reported back, so it may or may not have reached the customer. Check the conversation before sending it again." : `It started and never reported back, so how it ended is unknown${resumed ? ", and the rest carries on in a fresh run" : ""}.` : end === "unknown_kind" ? "Nothing ran: this is work the app does not know how to do." : `It stopped${attempts > 1 ? ` after ${attempts} tries` : ""} and ${resumed ? "carries on in a fresh run" : "will not start again on its own"}.`;
+  const tries = attempts > 1 ? ` after ${attempts} tries` : "";
+  const lead = end === "unfinished" ? jobKind === "outbound_send" ? "It started and never reported back, so it may or may not have reached the customer. Check the conversation before sending it again." : `It started and never reported back, so how it ended is unknown${resumed ? ", and the rest carries on in a fresh run" : ""}.` : end === "unknown_kind" ? "Nothing ran: this is work the app does not know how to do." : resumed === null ? `It stopped${tries}, and whether it carries on in a fresh run could not be checked.` : `It stopped${tries} and ${resumed ? "carries on in a fresh run" : "will not start again on its own"}.`;
   return { title: w.stopped, lead, to: w.to };
 }
 var SIGNUP_NAME_MIN2 = 2;
@@ -9362,6 +9393,16 @@ var UNASKED3 = {
   has_relationship: false
 };
 var DEALT3 = { ...UNASKED3, has_relationship: true };
+var RUN_STOP_REMEDY3 = {
+  paused: "Resume from Settings \u203A Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
+};
+var RUN_STOP_AGAIN3 = {
+  paused: `${RUN_STOP_REMEDY3.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY3.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY3.campaigns_domain_unverified}; send it again once the domain is verified.`
+};
 var OFFERS_BY_EMAIL_WORDS3 = {
   /** The deployment's campaigns domain is not set up or not verified yet. */
   noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
@@ -13288,6 +13329,16 @@ var UNASKED4 = {
   has_relationship: false
 };
 var DEALT4 = { ...UNASKED4, has_relationship: true };
+var RUN_STOP_REMEDY4 = {
+  paused: "Resume from Settings \u203A Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
+};
+var RUN_STOP_AGAIN4 = {
+  paused: `${RUN_STOP_REMEDY4.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY4.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY4.campaigns_domain_unverified}; send it again once the domain is verified.`
+};
 var OFFERS_BY_EMAIL_WORDS4 = {
   /** The deployment's campaigns domain is not set up or not verified yet. */
   noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
@@ -17427,17 +17478,25 @@ var UNASKED22 = {
   has_relationship: false
 };
 var DEALT22 = { ...UNASKED22, has_relationship: true };
-function workspaceRefusalFailure(reason) {
-  switch (reason) {
-    case "paused":
-      return "paused";
-    case "email_offers_paused":
-      return "email_offers_paused";
-    case "email_marketing_disabled":
-      return "campaigns_domain_unverified";
-    default:
-      return null;
-  }
+function emailRunStop(reason) {
+  if (reason === "email_offers_paused") return "email_offers_paused";
+  return reason === "email_marketing_disabled" ? "campaigns_domain_unverified" : null;
+}
+var RUN_STOP_REMEDY22 = {
+  paused: "Resume from Settings \u203A Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
+};
+var RUN_STOP_AGAIN22 = {
+  paused: `${RUN_STOP_REMEDY22.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY22.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY22.campaigns_domain_unverified}; send it again once the domain is verified.`
+};
+function stoppedRunFix(why, run) {
+  if (!run.playbook_id) return RUN_STOP_AGAIN22[why];
+  if (triggerOf22(run.trigger ?? "")?.kind === "visit")
+    return `${RUN_STOP_REMEDY22[why]}. It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.`;
+  return `${RUN_STOP_REMEDY22[why]}. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.`;
 }
 function wireFailure(code2, channel) {
   return channel === "whatsapp" ? code2 : `${code2}:${channel}`;
@@ -17552,6 +17611,79 @@ var LIMIT_TIERS22 = {
 var REPLY_WINDOW_HOURS22 = 72;
 var REPLY_WINDOW_MS22 = REPLY_WINDOW_HOURS22 * HOUR_MS22;
 var REPLY_WINDOW_WORDS22 = `within ${REPLY_WINDOW_HOURS22 / 24} days`;
+var HELD_REASONS = {
+  opted_out: "asked to stop",
+  not_opted_in: "no recorded yes",
+  // The reason the send job writes when the OTHER yes is the missing one. It was
+  // added to the wire (00095) and not to these words, so the owner read the raw
+  // enum `no_marketing_consent` on the broadcast's own detail pane -- and the
+  // distinction it draws is the entire point of the split, so it is the last one
+  // that should have arrived untranslated.
+  no_marketing_consent: "no yes to offers",
+  no_phone: "no number",
+  // The channel picked was email and no address is on file (step 3), or no channel the send ticks could carry it.
+  no_address: "no email address",
+  no_channel: "no channel it can go by",
+  sms_line_not_active: "the texting line is not active",
+  // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
+  month_allowance: "this month's allowance is used up",
+  // Meta no longer approves the message's WhatsApp template: it holds the people who go by WhatsApp, and only them.
+  template_not_approved: "WhatsApp no longer approves its template",
+  // The number is on file but no thread answers to it on this line: a stored
+  // number that does not normalise, or one no contact row matches.
+  no_thread: "no thread for that number",
+  human_has_it: "a person had the thread",
+  paused: "the workspace was paused",
+  superseded_by_human: "a person answered first",
+  sms_carries_no_promotions: "no offers by text",
+  // The campaigns domain offers leave from is not this deployment's to use, or the provider does not verify it: the business's
+  // news by email is an offer at the door (decision D2), so it waits as an offer does. Each person's own skip, final.
+  email_marketing_disabled: "offers and news by email can't leave yet: the campaigns domain isn't switched on",
+  // The workspace's offers by email are paused while complaints or bounces settle (email-offers.ts), and the business's news
+  // by email with them (decision D2); a visit's reminder and a reply still go.
+  email_offers_paused: "offers and news by email are paused",
+  // An offer's foot names the business's address, and it has none on file: the person is held until it does.
+  no_business_address: "no business address on file",
+  email_suppressed: "their email address stopped accepting mail",
+  recipient_changed: "their email address changed",
+  erased: "deleted",
+  // The provider refused the send, on whichever channel the person was reached by: a page that knows the channel says
+  // it by SEND_REFUSED_WORDS, and a row that does not (a person's own page, a run made before rows kept theirs) says this.
+  send_failed: "the provider refused it",
+  missing_value: "a value was missing",
+  // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
+  // this object opaque to the bundler, which then carries the whole map into
+  // every package that imports anything from here. core-broadcast.test.mjs
+  // holds the two spellings together.
+  outcome_unknown: "a run that did not finish",
+  // Reach out's (a cold email), short, for a run's line.
+  unsubscribed: "unsubscribed",
+  outreach_is_email_only: "cold email goes by email only",
+  outreach_not_a_lead: "not a business your searches found",
+  outreach_lead_closed: "no longer being written to",
+  outreach_suppressed: "on the never-again list",
+  outreach_wrote_back: "wrote back or called",
+  outreach_away: "away until the day they're back",
+  outreach_stopped: "you stopped writing to them",
+  outreach_without_unsubscribe: "no unsubscribe link",
+  outreach_needs_own_domain: "not from your own domain",
+  sending_domain_not_ready: "the domain isn't sending",
+  sending_domain_at_cap: "the domain's day is full"
+};
+var EMAIL_HOLDS2 = [
+  "email_offers_paused",
+  "email_marketing_disabled"
+];
+function finishedRunHeldWhy(emailHeld) {
+  const why = [
+    HELD_REASONS.not_opted_in,
+    HELD_REASONS.opted_out,
+    HELD_REASONS.no_phone,
+    HELD_REASONS.human_has_it,
+    ...EMAIL_HOLDS2.filter((r222) => emailHeld.includes(r222)).map((r222) => HELD_REASONS[r222])
+  ];
+  return `${why.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
+}
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
 var BROADCAST_THROTTLE_WAITS_MS22 = [
@@ -21007,6 +21139,16 @@ var UNASKED32 = {
   has_relationship: false
 };
 var DEALT32 = { ...UNASKED32, has_relationship: true };
+var RUN_STOP_REMEDY32 = {
+  paused: "Resume from Settings \u203A Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
+};
+var RUN_STOP_AGAIN32 = {
+  paused: `${RUN_STOP_REMEDY32.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY32.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY32.campaigns_domain_unverified}; send it again once the domain is verified.`
+};
 var OFFERS_BY_EMAIL_WORDS32 = {
   /** The deployment's campaigns domain is not set up or not verified yet. */
   noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
@@ -23311,6 +23453,8 @@ async function sendQueued(ports, cmd) {
       // One message to one person in their own thread (a reply, the receptionist's, a person's written one): theirs.
       // A campaign's news goes by the broadcast's batch, which says ours (contracts MessageAbout, decision D1).
       about: "theirs",
+      // No moment's: a reply is no playbook's run, so there is nothing for the door to pass the handover pause for.
+      trigger: null,
       body: p.body ?? msg.body ?? "",
       template: p.template,
       // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
@@ -23803,23 +23947,15 @@ function gotIt(sent42) {
   if (sent42 === null) return "";
   return sent42 === 0 ? "Nobody got it." : sent42 === 1 ? "One person got it." : `${sent42} people got it.`;
 }
-var WORKSPACE_STOP_WORDS = {
-  paused: {
-    cause: (sent42) => sent42 === 0 ? "The workspace is paused until billing resumes, so nothing went out." : ["The workspace is paused until billing resumes, so the rest was not sent.", gotIt(sent42)].filter(Boolean).join(" "),
-    fix: "Resume from Settings \u203A Billing and send it again."
-  },
-  email_offers_paused: {
-    cause: (sent42) => ["Offers by email are paused while complaints and bounces settle, so the rest was not sent.", gotIt(sent42)].filter(Boolean).join(" "),
-    fix: "Check your list for old or wrong addresses; offers by email come back on once it looks right. Send it again then."
-  },
-  campaigns_domain_unverified: {
-    cause: (sent42) => [
-      "The domain offers by email go out from is not verified with the mail provider right now, so the rest was not sent.",
-      gotIt(sent42)
-    ].filter(Boolean).join(" "),
-    fix: "Nothing is wrong with your mailbox, and the platform has been told; send it again once the domain is verified."
-  }
+var RUN_STOP_CAUSE = {
+  paused: "The workspace is paused until billing resumes, so the rest was not sent.",
+  email_offers_paused: "Offers by email are paused while complaints and bounces settle, so the rest was not sent.",
+  campaigns_domain_unverified: "The domain offers by email go out from is not verified with the mail provider right now, so the rest was not sent."
 };
+function stoppedRunCause(why, sent42) {
+  if (why === "paused" && sent42 === 0) return "The workspace is paused until billing resumes, so nothing went out.";
+  return [RUN_STOP_CAUSE[why], gotIt(sent42)].filter(Boolean).join(" ");
+}
 var LIMIT_WORDS = {
   daily: {
     reached: "The mail provider's limit for the day was reached",
@@ -23832,45 +23968,58 @@ var LIMIT_WORDS = {
 };
 var stopLog = logger2();
 async function release(ports, broadcastId, contactId, reason) {
-  await ports.mark(broadcastId, contactId, { state: "queued", reason, message_id: null }).catch((e) => {
+  try {
+    return await ports.mark(broadcastId, contactId, { state: "queued", reason, message_id: null }) !== false;
+  } catch (e) {
     stopLog.error("broadcast_release_refused", {
       broadcast_id: broadcastId,
       contact_id: contactId,
       error: errField2(e)
     });
-  });
+    return false;
+  }
 }
-async function stopForTheWorkspace(ports, b, cmd, stop) {
-  const { failure, cause } = stop;
+async function stopForTheWorkspace(ports, b, why) {
   const sent42 = await ports.tally(b.id).then(
     (t) => t.sent,
     () => null
   );
-  await ports.fail(b.id, failure);
-  const words = WORKSPACE_STOP_WORDS[failure];
+  await ports.fail(b.id, why);
   await ports.alert({
     kind: "broadcast_stopped",
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast \u201C${b.name}\u201D ${failure === "paused" && sent42 === 0 ? "not sent" : "stopped"}`,
-    body: `${words.cause(sent42)} ${words.fix}`
+    subject: `Broadcast \u201C${b.name}\u201D ${why === "paused" && sent42 === 0 ? "not sent" : "stopped"}`,
+    body: `${stoppedRunCause(why, sent42)} ${stoppedRunFix(why, { playbook_id: b.playbook_id, trigger: audienceTrigger(b.audience) })}`
   });
-  if (failure === "campaigns_domain_unverified")
-    await ports.page?.(
-      "campaigns_domain_unverified",
-      "email: a broadcast's offers could not leave, the campaigns domain is not verified",
-      `Tenant ${cmd.tenantId}, broadcast ${b.id} stopped, everyone not yet sent still queued: ${cause ?? "the campaigns domain is not this runtime's to use"}.`
-    )?.catch(() => void 0);
+}
+async function emailAlone(w) {
+  w.emailAlone ??= !await w.ports.byOtherChannels(w.b.id, "email");
+  return w.emailAlone;
+}
+async function pageTheDomain(ports, run, how) {
+  await ports.page?.(
+    "campaigns_domain_unverified",
+    "email: a broadcast's offers could not leave, the campaigns domain is not verified",
+    how.stopped ? `Tenant ${run.tenantId}, broadcast ${run.id} stopped, everyone not yet sent still queued: ${how.cause}.` : `Tenant ${run.tenantId}, broadcast ${run.id}: its offers and news by email are skipped person by person while this lasts, and the run goes on for everyone else: ${how.cause}.`
+  )?.catch(() => void 0);
 }
 async function afterRefusal(w, r42, reason) {
   const { ports, b } = w;
-  const failure = workspaceRefusalFailure(reason);
-  if (failure) {
+  const emailStop = emailRunStop(reason);
+  const stop = reason === "paused" ? "paused" : emailStop && await emailAlone(w) ? emailStop : null;
+  if (stop) {
     await release(ports, b.id, r42.contact_id, "not_taken");
-    await stopForTheWorkspace(ports, b, w.cmd, {
-      failure,
-      ...failure === "campaigns_domain_unverified" ? { cause: `the door refused an offer by email (${reason}): this runtime holds no verified campaigns domain` } : {}
-    });
+    await stopForTheWorkspace(ports, b, stop);
+    if (stop === "campaigns_domain_unverified")
+      await pageTheDomain(
+        ports,
+        { tenantId: w.cmd.tenantId, id: b.id },
+        {
+          stopped: true,
+          cause: `the door refused an offer by email (${reason}): this runtime holds no verified campaigns domain`
+        }
+      );
     return "stop";
   }
   if (reason === "human_has_it" && passesHandoverPause(w.trigger) && await holdForLater(w, r42)) return "go on";
@@ -23880,7 +24029,7 @@ async function afterRefusal(w, r42, reason) {
 async function holdForLater(w, r42) {
   const retryAt = new Date(w.ports.now() + jittered2(BROADCAST_HOLD_WAIT_MS22, w.ports.random));
   if (nextOpenMoment(w.facts.timezone, retryAt).moved) return false;
-  await release(w.ports, w.b.id, r42.contact_id, "not_taken");
+  if (!await release(w.ports, w.b.id, r42.contact_id, "not_taken")) return false;
   w.waiting.count += 1;
   w.waiting.retryAt ??= retryAt;
   return true;
@@ -23897,9 +24046,9 @@ var ThrownAtTheDoor = class {
     this.error = error;
   }
 };
-async function stoppedByBilling(ports, b, cmd) {
+async function stoppedByBilling(ports, b) {
   if (!await ports.workspacePaused()) return false;
-  await stopForTheWorkspace(ports, b, cmd, { failure: "paused" });
+  await stopForTheWorkspace(ports, b, "paused");
   return true;
 }
 async function wireIsUnbound(ports, b, cmd, batch) {
@@ -23949,6 +24098,7 @@ async function sendOne(w, r42) {
     return "go on";
   }
   if (channel === "whatsapp" && !w.whatsappApproved) return skip("template_not_approved");
+  if (channel === "email" && w.offersClosed) return skip("email_marketing_disabled");
   if (channel !== "whatsapp" && await overAllowance(w, channel)) return skip("month_allowance");
   const target = channel === "email" ? await ports.targetOfContact(c.id) : await ports.target(where.to);
   if (!target) return skip("no_thread");
@@ -24001,7 +24151,7 @@ async function sendBroadcastBatch(ports, cmd) {
   if (!b) return;
   if (b.state !== "scheduled" && b.state !== "sending") return;
   if (isReachOutRun(b.audience)) return;
-  if (await stoppedByBilling(ports, b, cmd)) return;
+  if (await stoppedByBilling(ports, b)) return;
   const facts = await ports.facts();
   if (await outsideTheHours(ports, b, cmd, facts.timezone)) return;
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
@@ -24009,7 +24159,7 @@ async function sendBroadcastBatch(ports, cmd) {
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
   const tpl = await ports.template(b.template_name, b.template_language, "whatsapp");
   const whatsappApproved = tpl?.meta_status === "approved";
-  if (!whatsappApproved && !await ports.byOtherChannels(b.id)) {
+  if (!whatsappApproved && !await ports.byOtherChannels(b.id, "whatsapp")) {
     await ports.fail(b.id, "template_not_approved");
     await ports.alert({
       kind: "broadcast_stopped",
@@ -24023,7 +24173,8 @@ async function sendBroadcastBatch(ports, cmd) {
   const purpose = purposeOfTemplate(tpl?.category);
   const trigger = audienceTrigger(b.audience);
   const offers = isOfferByEmail({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger(trigger) });
-  if (await offersAreClosed(ports, { b, cmd, batch, offers })) return;
+  const head = await offersAtTheHead(ports, { b, cmd, batch, offers });
+  if (head === "wait" || head === "stopped") return;
   const { people, priors, unreadable } = await readPeople(ports, b, batch);
   const w = {
     ports,
@@ -24039,6 +24190,9 @@ async function sendBroadcastBatch(ports, cmd) {
     priors,
     versions: {},
     month: {},
+    offersClosed: head === "closed",
+    // The head asked, where the domain was closed: the run goes on, so somebody on it goes another way.
+    emailAlone: head === "closed" ? false : null,
     trigger,
     marked: 0,
     waiting: { count: 0, retryAt: null },
@@ -24071,8 +24225,9 @@ async function afterTheBatch(w, picked) {
   const remaining = await ports.remaining(b.id);
   if (remaining <= 0) {
     const { sent: sent42, held } = await ports.tally(b.id);
+    const emailHeld = held > 0 ? await ports.heldForEmail(b.id) : [];
     await ports.finish(b.id, { sent: sent42, held });
-    await ports.alert(finishedNews(b, sent42, held));
+    await ports.alert(finishedNews(b, { sent: sent42, held, emailHeld }));
     return;
   }
   if (await ports.state(b.id) !== "sending") return;
@@ -24085,8 +24240,8 @@ async function afterTheBatch(w, picked) {
   else if (picked > 0 && w.marked === 0) await stall(ports, b, cmd, "people");
   else await ports.scheduleNext(b.id);
 }
-function finishedNews(b, sent42, held) {
-  const why = "no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish";
+function finishedNews(b, { sent: sent42, held, emailHeld }) {
+  const why = finishedRunHeldWhy(emailHeld);
   const people = (n) => `${n} ${n === 1 ? "person" : "people"}`;
   return {
     kind: "broadcast_sent",
@@ -24105,8 +24260,8 @@ async function outsideTheHours(ports, b, cmd, timezone) {
   else await ports.scheduleNext(b.id, open.at);
   return true;
 }
-async function offersAreClosed(ports, { b, cmd, batch, offers }) {
-  if (!offers || !batch.some((r42) => channelOf(r42) === "email")) return false;
+async function offersAtTheHead(ports, { b, cmd, batch, offers }) {
+  if (!offers || !batch.some((r42) => channelOf(r42) === "email")) return "open";
   const unread = await ports.offersUnread();
   if (unread) {
     broadcastLog.error("broadcast_wire_unavailable", { broadcast_id: b.id, channel: "email", reason: unread });
@@ -24116,12 +24271,14 @@ async function offersAreClosed(ports, { b, cmd, batch, offers }) {
       "email: a broadcast's offers wait, the campaigns domain could not be checked",
       `Tenant ${cmd.tenantId}, broadcast ${b.id} ${stopped ? "stopped after waiting the most it may" : "waits"}, everyone still queued: ${unread}.`
     )?.catch(() => void 0);
-    return true;
+    return "wait";
   }
   const why = await ports.offersClosed();
-  if (!why) return false;
-  await stopForTheWorkspace(ports, b, cmd, { failure: "campaigns_domain_unverified", cause: why });
-  return true;
+  if (!why) return "open";
+  const alone = !await ports.byOtherChannels(b.id, "email");
+  if (alone) await stopForTheWorkspace(ports, b, "campaigns_domain_unverified");
+  await pageTheDomain(ports, { tenantId: cmd.tenantId, id: b.id }, { stopped: alone, cause: why });
+  return alone ? "stopped" : "closed";
 }
 async function giveBack(ports, who, reached, channel) {
   await release(ports, who.broadcastId, who.contactId, reached ? "throttled" : "not_taken");
@@ -24422,9 +24579,10 @@ function must(what, r5) {
 
 // src/broadcast-send.ts
 var sendLog = logger();
-async function countRecipients(db, tenantId, broadcastId, state) {
+async function countRecipients(db, tenantId, broadcastId, state, reason) {
   let q = db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId);
   if (state) q = q.eq("state", state);
+  if (reason) q = q.eq("reason", reason);
   const { count, error } = await q;
   if (error) throw new Error(`broadcast_send: cannot count ${state ?? "all"} recipients: ${error.message}`);
   return count ?? 0;
@@ -24574,7 +24732,7 @@ function peoplePorts(ctx, tenantId) {
       return prior;
     },
     // Whether anyone on the run goes by email or text: what WhatsApp's template not being approved asks (core sendBroadcastBatch).
-    byOtherChannels: (id) => runGoesByOthers(db, tenantId, id),
+    byOtherChannels: (id, than) => runGoesByOthers(db, tenantId, id, than),
     mark: markPort(db, tenantId)
   };
 }
@@ -24604,14 +24762,9 @@ async function broadcastSend(ctx, job) {
         return withTemplate(data);
       },
       // The billing gate, so it fails CLOSED: a tenants row that cannot be read
-      // is not a workspace that is paying.
-      workspacePaused: async () => {
-        const row = must(
-          "broadcast_send: cannot read the workspace's status",
-          await db.from("tenants").select("status").eq("id", job.tenant_id).maybeSingle()
-        );
-        return row?.status === "paused";
-      },
+      // is not a workspace that is paying. The one reading of it (packages/db workspacePaused), as the composers and the
+      // approval ask.
+      workspacePaused: () => workspacePaused(db, job.tenant_id),
       fail: async (id, failure) => {
         must(
           "broadcast_send: cannot mark the broadcast failed",
@@ -24662,6 +24815,13 @@ async function broadcastSend(ctx, job) {
           countRecipients(db, job.tenant_id, id, "sent")
         ]);
         return { sent: sent5, held: all - sent5 };
+      },
+      // Counted, as the tally is: which of the workspace's holds on email the run skipped anyone for.
+      heldForEmail: async (id) => {
+        const counts = await Promise.all(
+          EMAIL_HOLDS.map((reason) => countRecipients(db, job.tenant_id, id, "skipped", reason))
+        );
+        return EMAIL_HOLDS.filter((_, i) => (counts[i] ?? 0) > 0);
       },
       finish: async (id, tally) => {
         must(
@@ -25311,7 +25471,7 @@ async function conclude(ports, job, reason, certain, end) {
     return;
   }
   let wreckage;
-  let resumed = false;
+  let resumed;
   try {
     const settled = await ports.settle(job, certain);
     resumed = settled.some((s) => s.resumed === true && !s.error);
@@ -25323,6 +25483,7 @@ async function conclude(ports, job, reason, certain, end) {
     wreckage = saySettled(settled);
   } catch (e) {
     ports.log.error("job_settle_failed", { job_id: job.id, error: errText3(e) });
+    resumed = null;
     wreckage = "What it was in the middle of could not be checked, so a message or broadcast may still show as sending.";
   }
   ports.log.info("job_failed", {

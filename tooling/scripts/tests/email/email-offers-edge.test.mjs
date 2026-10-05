@@ -547,7 +547,11 @@ test("the owner is told once when a gate pauses their offers by email: a row on 
     "a warning on Campaigns' home (the route Campaigns' old name opens), in contracts' words",
   );
   assert.match(row.body, /too many people marked offers as spam/);
-  assert.match(row.body, /Offers and news by email wait until it is fixed/, "the news is held with the offers (D2)");
+  assert.match(
+    row.body,
+    /^We paused your offers and news by email: .*They wait until it is fixed/,
+    "the news is held with the offers (D2)",
+  );
   assert.match(row.body, /everything on WhatsApp go on/);
   // The mail: to the address the workspace keeps for its notices, the same subject and words.
   const sent = mailed.filter((m) => m.url.includes("api.resend.com/emails"));

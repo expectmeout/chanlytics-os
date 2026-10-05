@@ -3153,7 +3153,7 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
     // (server/campaigns/channels-ready.ts) with its first reads: the WhatsApp number's config and the texting line (no email
     // domain is set here, so no mailbox).
     for (const q of want) if (q[0] === "playbooks.select") q[1] += ", channels";
-    // 4 Oct 2026: and whether the workspace is paused (tenants.status, db workspaceIsPaused), which the composers and the
+    // 4 Oct 2026: and whether the workspace is paused (tenants.status, db workspacePaused), which the composers and the
     // Campaigns home say instead of a time; read with the channels, for the pages that compose or promise a run.
     want.splice(
       want.findIndex(([k]) => k === "broadcasts.select"),

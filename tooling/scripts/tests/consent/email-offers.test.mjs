@@ -568,7 +568,7 @@ test("the pause as the mailbox keeps it, and what the Campaigns head and the tic
   const paused = emailOffersOpen({ ...OPEN, paused: offerPauseOf("2026-10-01T10:00:00Z", "complaints") }, "");
   assert.equal(
     offersPausedLine(paused),
-    "Offers by email are paused: too many people marked offers as spam. Appointment messages and replies still go by email.",
+    "Offers and news by email are paused: too many people marked offers as spam. Appointment messages and replies still go by email.",
   );
   assert.match(OFFERS_PAUSED_WORDS.head("bounces"), /did not accept them/);
   assert.match(OFFERS_PAUSED_WORDS.head(null), /complaints and bounces need a look/);

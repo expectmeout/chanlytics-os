@@ -83,6 +83,21 @@ test("a job's first line is worded from how the ledger settled it: carrying on i
   // Never started again: not carried on, and not claimed to be.
   assert.doesNotMatch(lead("broadcast_send", "failed", { attempts: 1, resumed: true }), /will not start again/);
   assert.doesNotMatch(lead("broadcast_send", "failed", { attempts: 1, resumed: false }), /fresh run/);
+  // Settling threw (resumed null): nobody knows whether anything carries on, and the line says neither.
+  assert.equal(
+    lead("broadcast_send", "failed", { attempts: 1, resumed: null }),
+    "It stopped, and whether it carries on in a fresh run could not be checked.",
+  );
+  assert.equal(
+    lead("broadcast_send", "failed", { attempts: 4, resumed: null }),
+    "It stopped after 4 tries, and whether it carries on in a fresh run could not be checked.",
+  );
+  assert.doesNotMatch(lead("broadcast_send", "failed", { attempts: 1, resumed: null }), /will not start again/);
+  assert.equal(
+    lead("lead_collect", "unfinished", { attempts: 1, resumed: null }),
+    "It started and never reported back, so how it ended is unknown.",
+    "an unfinished job already claims nothing about what comes next",
+  );
   // Unfinished: how it ended is unknown, and where the rest carries on the line says so. A reply's words keep their warning.
   assert.equal(
     lead("broadcast_send", "unfinished", { attempts: 1, resumed: true }),

@@ -80,6 +80,7 @@ function fakes(jobs, o = {}) {
     },
     settle: async (j, certain) => {
       calls.settle.push([j.id, certain]);
+      if (o.settleThrows) throw new Error("the ledger could not be read");
       return o.settled ?? [{ what: "message", changed: true }];
     },
     alert: async (j, news) => {
@@ -249,6 +250,41 @@ test("a broadcast the ledger handed to a fresh run is told as carrying on, never
     await runTick(ports, OPTS);
     assert.match(calls.alert[0].body, /^It stopped and will not start again on its own\./, what);
   }
+});
+
+test("a job whose settling threw is told as neither carrying on nor not starting again: the first line claims nothing the second line says is unknown", async () => {
+  // The bell and the phone show the first line alone. Settling threw, so nobody knows whether a fresh run was handed the rest:
+  // "will not start again on its own" over a body that said the outcome could not be checked was a claim with nothing behind it.
+  for (const [what, attempts, first] of [
+    ["a broadcast that failed", 1, /^It stopped, and whether it carries on in a fresh run could not be checked\./],
+    [
+      "one that never reported back",
+      MAX_ATTEMPTS,
+      /^It started and never reported back, so how it ended is unknown\.$/,
+    ],
+  ]) {
+    const { ports, calls, logged } = fakes([job("b", "broadcast_send", attempts)], {
+      throwOn: new Set(["b"]),
+      settleThrows: true,
+    });
+    await runTick(ports, OPTS);
+    const [first_line, ...rest] = calls.alert[0].body.split("\n\n");
+    assert.match(first_line, first, what);
+    assert.doesNotMatch(first_line, /will not start again|carries on in a fresh run\./, what);
+    assert.match(
+      rest[0],
+      /What it was in the middle of could not be checked/,
+      `${what}: the body says what is unknown`,
+    );
+    assert.ok(logged("error", "job_settle_failed"), what);
+  }
+  // A job that settled keeps its words: the neutral line is for a settle that threw, and for no other.
+  const settled = fakes([job("b", "broadcast_send", 1)], {
+    throwOn: new Set(["b"]),
+    settled: [{ what: "message", changed: true }],
+  });
+  await runTick(settled.ports, OPTS);
+  assert.match(settled.calls.alert[0].body, /^It stopped and will not start again on its own\./);
 });
 
 test("the last try of an intake fails it for good and tells the owner how many tries it took", async () => {

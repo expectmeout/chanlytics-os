@@ -31,7 +31,7 @@ export { cacheHitOf } from "./ask/ask-shape";
 export { buildAskSuggestions } from "./ask/ask-suggestions";
 export { emptyReadSet, noteRows, groundCitations, citationRoute, ASK_CITATION_KINDS, ASK_PAGE_ROUTES, ASK_ROW_WORDS } from "./ask/citations";
 export { eligibleFor, enrolFor, saidYesOnAny, heldWords, heldBackWords, audienceMembers, heardWords, audiencePreview, audienceTrigger, AUDIENCE_KINDS, EVERYONE_LABEL, EVERYONE_HINT } from "./broadcasts/broadcast-audience";
-export { broadcastFailureFix, broadcastFailureWords, wireFailure, workspaceRefusalFailure, BROADCAST_FAILURES, BROADCAST_FAILURE_WORDS, BROADCAST_FAILURE_FIX } from "./broadcasts/broadcast-failures";
+export { broadcastFailureFix, broadcastFailureWords, emailRunStop, stoppedRunFix, wireFailure, BROADCAST_FAILURES, BROADCAST_FAILURE_WORDS, BROADCAST_FAILURE_FIX } from "./broadcasts/broadcast-failures";
 export { dailyLimit, numberHealth, overLimitRefusal, LIMIT_TIERS } from "./broadcasts/broadcast-number";
 export { renderTemplate, cleanParam, broadcastName, whenLabel, toBroadcastVM, emptyAudienceRefusal, BROADCAST_STATES, RECIPIENT_STATES, REACH_OUT_SEND_STATES, BROADCAST_STATE_LABELS, BROADCAST_CHUNK, BROADCAST_GAP_MS, BROADCAST_THROTTLE_WAITS_MS, BROADCAST_HOLD_WAIT_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_NAME_MAX, OUTCOME_UNKNOWN } from "./broadcasts/broadcasts";
 export { OFFERS_BY_EMAIL_WORDS, OFFERS_PAUSED_WORDS, OFFERS_NOTICE_WORDS, OFFER_GATES, offerGate, offerPauseOf, emailOffersOpen, offersPausedLine } from "./broadcasts/email-offers";
@@ -39,7 +39,7 @@ export { PREVIEW_WORDS, PREVIEW_CHANNEL_WORDS, previewOn, previewSays, previewVe
 export { READY_WHATSAPP_ALONE, readyOrWhatsApp, answeredYes, personReachOf } from "./broadcasts/reach-any";
 export { DEFAULT_CAMPAIGN_CHANNELS, CHANNEL_WORDS, CAMPAIGN_MONTH_ALLOWANCE, HELD_ON, channelRefuses, channelNeverCarries, offersNote, channelsReady, channelChoices, reachFor, reachSplit, reachSplitWords, heldByAllowance, allowanceRoom, pastAllowance, nextMonthStart, monthSentAt, allowanceBeforeSend, allowanceLine, allowanceLines } from "./broadcasts/reach-for";
 export { consentAnswerWords, receiptWords, toRunReportVM, RUN_REPORT_STEPS, RUN_FILTERS } from "./broadcasts/run-report";
-export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, isReplyTo } from "./broadcasts/run-words";
+export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, EMAIL_HOLDS, finishedRunHeldWhy, isReplyTo } from "./broadcasts/run-words";
 export { SEND_WHEN_WORDS } from "./broadcasts/send-when-words";
 export { dayIntervals, closedOn, openAt, hasHours, freeWindows, filterOpenings, describeOpenings, BOOKING_DEFAULTS } from "./calendar/availability";
 export { serviceOf, toCalendarVM } from "./calendar/calendar";

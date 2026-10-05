@@ -97,9 +97,9 @@ const pausedBecause = (reason: OfferPauseReason | null): string =>
 /** The Campaigns head's and Connections' words for a pause: what it holds, why, and what it does not. */
 export const OFFERS_PAUSED_WORDS = {
   head: (reason: OfferPauseReason | null): string =>
-    `Offers by email are paused: ${pausedBecause(reason)}. Appointment messages and replies still go by email.`,
+    `Offers and news by email are paused: ${pausedBecause(reason)}. Appointment messages and replies still go by email.`,
   /** Where it is told once more, to the person who can do something about it. */
-  fix: "Check your list for old or wrong addresses. We'll turn offers by email back on once it looks right.",
+  fix: "Check your list for old or wrong addresses. We'll turn them back on once it looks right.",
 } as const;
 
 /**
@@ -111,11 +111,12 @@ export const OFFERS_PAUSED_WORDS = {
  */
 export const OFFERS_NOTICE_WORDS = {
   paused: (reason: OfferPauseReason | null): { title: string; body: string } => ({
-    title: "Offers by email are paused",
+    title: "Offers and news by email are paused",
     body:
-      `We paused your offers by email: ${pausedBecause(reason)}. Offers and news by email wait until it is fixed, so a ` +
-      `broadcast or a playbook that goes by email stops when it reaches them. Messages about a visit, replies by email and ` +
-      `everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`,
+      `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a ` +
+      `playbook that goes only by email stops when it reaches them, and one that also goes another way skips the people ` +
+      `it would reach by email and goes on for everyone else. Messages about a visit, replies by email and everything on ` +
+      `WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`,
   }),
 } as const;
 

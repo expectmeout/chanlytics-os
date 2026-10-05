@@ -72,6 +72,16 @@ export interface Work {
   /** The month's emails and texts already sent, read once for the first person who needs it and counted as the batch sends. */
   month: Partial<Record<"email" | "sms", number>>;
   /**
+   * The campaigns domain an offer by email leaves from cannot be used (the head, broadcast.ts offersAtTheHead), and this
+   * run's message is such an offer: each person who goes by email is held, `email_marketing_disabled`, never claimed.
+   */
+  offersClosed: boolean;
+  /**
+   * Whether nobody on the run goes another way than email, once the batch has asked (broadcast-stops.ts emailAlone): a hold
+   * on the workspace's offers and news by email stops such a run, and skips the email people of any other. Null until asked.
+   */
+  emailAlone: boolean | null;
+  /**
    * The moment a playbook's run was made for (contracts audienceTrigger), null for a broadcast and for a run that kept
    * none. The month's allowance asks it, with the message's purpose: a booking moment's message about a visit is never held
    * by it (heldByAllowance).

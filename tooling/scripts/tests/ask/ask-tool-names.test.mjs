@@ -482,7 +482,7 @@ const WHOSE = { owner: "an owner's", partner: "an owner's or a partner's" };
 
 /**
  * The reads with the channels' two after the leading tenants reads: the number's row and the texting line's; and, since 4 Oct
- * 2026, whether the workspace is paused (tenants.status, db workspaceIsPaused), which the playbooks' page says instead of a
+ * 2026, whether the workspace is paused (tenants.status, db workspacePaused), which the playbooks' page says instead of a
  * next run's time.
  */
 const withChannelReads = (reads) => {

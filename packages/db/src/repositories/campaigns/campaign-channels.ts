@@ -48,17 +48,6 @@ export async function textLineFacts(
 }
 
 /**
- * Whether the workspace is paused (tenants.status, written by billing): nothing a campaign sends leaves until it resumes,
- * whatever its channels can do. Asked beside the channels a composer reads, so the page says so instead of offering Send, and
- * the route refuses a broadcast made under it. A read that fails throws: "we could not check" is not "not paused".
- */
-export async function workspaceIsPaused(db: Db, tenantId: string): Promise<boolean> {
-  const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
-  if (error) throw new Error(`workspace_is_paused: ${error.message}`);
-  return data?.status === "paused";
-}
-
-/**
  * The channels a playbook ticks (`playbooks.channels`), for an edit that names none: the row's own, and null when the
  * row has none or the column is not there yet (a database 00298 has not reached), which the check reads as WhatsApp
  * alone. Any other failed read throws.
@@ -149,18 +138,26 @@ export async function queuedRecipients(
 }
 
 /**
- * Whether anyone on a run, in any state, goes by email or text (a recipient's channel, 00298): the question WhatsApp's
- * template not being approved asks of it, because that holds the run's WhatsApp people alone. False on a database 00298
- * has not reached, where everyone goes by WhatsApp. Any other failed read throws.
+ * Whether anyone on a run, in any state, goes another way than `than` (a recipient's channel, 00298; none is WhatsApp, a
+ * row written before recipients had one): the question a hold on one channel asks of it. WhatsApp's template not being
+ * approved holds the run's WhatsApp people alone, and a hold on the workspace's offers and news by email its email people
+ * alone. On a database 00298 has not reached everyone goes by WhatsApp. Any other failed read throws.
  */
-export async function runGoesByOthers(db: Db, tenantId: string, broadcastId: string): Promise<boolean> {
-  const { count, error } = await db
+export async function runGoesByOthers(
+  db: Db,
+  tenantId: string,
+  broadcastId: string,
+  than: "whatsapp" | "email",
+): Promise<boolean> {
+  const of = db
     .from("broadcast_recipients")
     .select("contact_id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
-    .eq("broadcast_id", broadcastId)
-    .in("channel", ["sms", "email"]);
-  if (noChannelColumns(error)) return false;
+    .eq("broadcast_id", broadcastId);
+  const { count, error } = await (than === "whatsapp"
+    ? of.in("channel", ["sms", "email"])
+    : of.or("channel.is.null,channel.eq.whatsapp,channel.eq.sms"));
+  if (noChannelColumns(error)) return than === "email";
   if (error) throw new Error(`run_goes_by_others: ${error.message}`);
   return (count ?? 0) > 0;
 }

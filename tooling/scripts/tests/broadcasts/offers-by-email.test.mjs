@@ -451,6 +451,40 @@ test("where the deployment names a campaigns domain the provider does not verify
   // The same words a page gives the owner afterwards.
   const { broadcastFailureWords } = await import("@chanlytics/contracts");
   assert.match(broadcastFailureWords(closed.broadcasts[0].failure), /not verified with the mail provider/);
+  // A run that also goes another way is not stopped: somebody on it went by WhatsApp (a recipient's channel, any state),
+  // so the email person is skipped for the door's own reason, the run finishes, and its news names what held them.
+  const [ada, bo] = [customer(1), customer(2)];
+  const mixed = world({
+    contacts: [ada, bo],
+    broadcast_recipients: [
+      { ...recipient(ada.id), channel: "whatsapp", state: "sent", sent_at: "2026-10-01T10:00:00Z" },
+      recipient(bo.id),
+    ],
+  });
+  const paged = [];
+  const wentOn = await attempt(mixed, (ctx) => {
+    ctx.email = {
+      domain: MAIL,
+      campaignsClosed: "the campaigns domain campaigns.example.com is not verified for sending",
+    };
+    ctx.page = async (...args) => paged.push(args);
+  });
+  assert.deepEqual(outcomes(mixed), [
+    ["1", "sent", null],
+    ["2", "skipped", "email_marketing_disabled"],
+  ]);
+  assert.deepEqual([mixed.broadcasts[0].state, mixed.broadcasts[0].failure], ["sent", null]);
+  assert.equal(wentOn.w.posted.length, 0, "nothing left from any domain");
+  assert.equal(wentOn.news.length, 1);
+  assert.equal(
+    wentOn.news[0].body,
+    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the thread, offers and news by email can't leave yet: the campaigns domain isn't switched on, or a run that did not finish). Replies land in the Inbox.",
+  );
+  assert.deepEqual(
+    paged.map((p) => [p[0], /goes on for everyone else/.test(p[2])]),
+    [["campaigns_domain_unverified", true]],
+    "the platform hears of it, once, and that the run went on",
+  );
   // Unread: the provider could not be asked. The email wire is bound as ever, and the intake says the domain could not be
   // checked (core offersUnread): a run of offers waits a minute and asks again, nobody claimed.
   const UNREAD = "the campaigns domain campaigns.example.com could not be checked";

@@ -4,11 +4,15 @@
  */
 import type { DeliveryRefusal } from "../consent/consent";
 import { CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channels";
+import { triggerOf } from "../playbooks/playbook-triggers";
 
 /**
  * The codes a run's `failure` holds: what the send job writes (core messages/broadcast.ts) and the one the job ledger
  * writes when a run died and none took it up again (jobs settle.ts). The column is free text, so the set is closed
  * here, and each table below is keyed by it: a code added without its words does not compile.
+ *
+ * `campaigns_domain_unverified` and `email_offers_paused` are written only for a run with nobody on it who goes another
+ * way than email (RUN_STOPS): on any other run the email person is skipped, their own, and the run goes on.
  */
 export const BROADCAST_FAILURES = [
   "paused",
@@ -26,30 +30,54 @@ export const BROADCAST_FAILURES = [
 export type BroadcastFailure = (typeof BROADCAST_FAILURES)[number];
 
 /**
- * The door's refusals that are a fact about the whole workspace, or about the deployment's lane for its offers by email,
- * and never about the person it was asked of, with the failure a run stops with when it meets one: a billing pause, the
- * workspace's offers by email paused by a gate (email-offers.ts), and the campaigns domain this runtime does not hold, which
- * the business's news by email needs as an offer does (decision D2). Everyone left on the run would meet the same refusal,
- * so the run stops with that failure and leaves them unsent, rather than burn each as a final skip and end as "sent" (core
- * messages/broadcast.ts). THE one list, below; a refusal that is the person's own (a stop, an address that bounced) is not on it.
+ * The failures a run stops with for a fact about the whole workspace, never about the person the door was asked of: a
+ * billing pause, and the two holds on its offers and news by email (the workspace's offers paused by a gate,
+ * email-offers.ts; a campaigns domain this runtime cannot use). A billing pause stops any run. The two of email stop only a
+ * run with nobody on it who goes another way (core broadcast-stops.ts): everyone left would meet the same refusal, so the
+ * run stops with it and leaves them unsent, rather than burn each as a final skip and end as "reached nobody". On a run
+ * that also goes by WhatsApp or text the email person is skipped, their own, and the run goes on: stopped, it would never
+ * reach the others, and the owner, told to send it again, would reach the rest twice.
  */
-export type WorkspaceFailure = Extract<
-  BroadcastFailure,
-  "paused" | "email_offers_paused" | "campaigns_domain_unverified"
->;
+export type RunStop = Extract<BroadcastFailure, "paused" | "email_offers_paused" | "campaigns_domain_unverified">;
+export type EmailRunStop = Exclude<RunStop, "paused">;
 
-/** The failure a run stops with for a refusal that holds for the whole workspace, or null for the person's own. */
-export function workspaceRefusalFailure(reason: DeliveryRefusal): WorkspaceFailure | null {
-  switch (reason) {
-    case "paused":
-      return "paused";
-    case "email_offers_paused":
-      return "email_offers_paused";
-    case "email_marketing_disabled":
-      return "campaigns_domain_unverified";
-    default:
-      return null;
-  }
+/** The stop a run of email alone makes for a refusal at the door, or null for a refusal that is the person's own. */
+export function emailRunStop(reason: DeliveryRefusal): EmailRunStop | null {
+  if (reason === "email_offers_paused") return "email_offers_paused";
+  return reason === "email_marketing_disabled" ? "campaigns_domain_unverified" : null;
+}
+
+/** What the owner does about each stop, before what becomes of the run (stoppedRunFix). */
+const RUN_STOP_REMEDY: Record<RunStop, string> = {
+  paused: "Resume from Settings › Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told",
+};
+
+/** A broadcast the owner made is sent again, once what stopped it is over. */
+const RUN_STOP_AGAIN: Record<RunStop, string> = {
+  paused: `${RUN_STOP_REMEDY.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY.campaigns_domain_unverified}; send it again once the domain is verified.`,
+};
+
+const isRunStop = (code: BroadcastFailure): code is RunStop => code in RUN_STOP_REMEDY;
+
+/**
+ * What an owner is told to do about a run that stopped for the workspace (RunStop), in one sentence, by whose run it was:
+ * the alert says it after the run's cause (core broadcast-stops.ts), and the run's page says it as its fix
+ * (broadcastFailureFix). A broadcast the owner made is sent again. A playbook's run is not: it was made for today, one run
+ * to a local day, so Run now answers that it already ran, and sending its message again by hand reaches the whole list.
+ * Tomorrow's run is made over who is eligible then. A person it never reached was never counted as touched (db touches.ts:
+ * a stopped run touched only the people it had sent to), so a moment of a list, a cadence or a deal reaches them tomorrow,
+ * and those who got it wait out the playbook's gap. A visit's moment does not: its message belongs to the day of the
+ * visit, and tomorrow's run is for tomorrow's.
+ */
+export function stoppedRunFix(why: RunStop, run: { playbook_id: string | null; trigger: string | null }): string {
+  if (!run.playbook_id) return RUN_STOP_AGAIN[why];
+  if (triggerOf(run.trigger ?? "")?.kind === "visit")
+    return `${RUN_STOP_REMEDY[why]}. It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.`;
+  return `${RUN_STOP_REMEDY[why]}. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.`;
 }
 
 /** The failures whose words name the wire the run went out on: the rest read the same whichever channel it was. */
@@ -179,11 +207,19 @@ const BROADCAST_FAILURE_FIX_AFTER: Partial<Record<BroadcastFailure, (n: number, 
     `The first ${n === 1 ? "one" : n} got it, then the workspace's offers by email were paused. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
 };
 
-/** The next step past a failed run's reason, by how many it reached first; null for a code nobody has written words for. */
-export function broadcastFailureFix(failure: string | null | undefined, reached = 0): string | null {
+/**
+ * The next step past a failed run's reason, by how many it reached first; null for a code nobody has written words for. A
+ * playbook's run that stopped for the workspace is told what its own next step is (stoppedRunFix), never to send it again.
+ */
+export function broadcastFailureFix(
+  failure: string | null | undefined,
+  reached = 0,
+  run?: { playbook_id: string | null; trigger: string | null },
+): string | null {
   if (!failure) return null;
   const read = readFailure(failure);
   if (!read) return null;
+  if (isRunStop(read.code) && run?.playbook_id) return stoppedRunFix(read.code, run);
   const after = reached > 0 ? BROADCAST_FAILURE_FIX_AFTER[read.code] : undefined;
   return after ? after(reached, read.channel) : wordsFor(BROADCAST_FAILURE_FIX[read.code], read.channel) || null;
 }

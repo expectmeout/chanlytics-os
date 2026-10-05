@@ -273,8 +273,9 @@ async function conclude(
 
   let wreckage: string | null;
   // Whether the ledger handed what the job left to a fresh run (or one is already coming): the news is worded from it, so a
-  // run that carries on is not told as one that will not start again.
-  let resumed = false;
+  // run that carries on is not told as one that will not start again. Null when settling threw: nobody knows, and the news
+  // says neither (contracts jobNewsWords).
+  let resumed: boolean | null;
   try {
     const settled = await ports.settle(job, certain);
     resumed = settled.some((s) => s.resumed === true && !s.error);
@@ -288,6 +289,7 @@ async function conclude(
     wreckage = saySettled(settled);
   } catch (e) {
     ports.log.error("job_settle_failed", { job_id: job.id, error: errText(e) });
+    resumed = null;
     wreckage =
       "What it was in the middle of could not be checked, so a message or broadcast may still show as sending.";
   }

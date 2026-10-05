@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ResendConfig, EmailSendsAs, WaConfig, EmailRequest, ResendLimit, SendResult, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, ParamSpec, Audience, PersonRowVM, ListRef, ChannelsReady, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, ConsentChannel, CampaignHow, AskedPurpose, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, EmailHold, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, ParamSpec, Audience, PersonRowVM, ListRef, ChannelsReady, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, ConsentChannel, CampaignHow, AskedPurpose, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
 export { DeliveryRefusal } from '@chanlytics/contracts';
 import { Json, Database, RoutedChannel, LeadContext, IngestResult } from '@chanlytics/db';
 
@@ -213,10 +213,11 @@ interface Delivery {
      */
     about: MessageAbout;
     /**
-     * The playbook moment a broadcast's run was made for (contracts audienceTrigger), absent for any other send. Only the
-     * day-before reminder passes the thread's 24-hour pause (contracts passesHandoverPause, decision D4).
+     * The playbook moment a broadcast's run was made for (contracts audienceTrigger), null for any other send: only the
+     * day-before reminder passes the thread's 24-hour pause (contracts passesHandoverPause, decision D4). Required, as
+     * `about` is: a sender says which, so a new one cannot forget the moment and have its reminder held.
      */
-    trigger?: string | null;
+    trigger: string | null;
     body: string;
     template?: TemplateSend;
     /** The frozen request, on the email wire (WirePayload.email). */
@@ -939,11 +940,13 @@ interface BroadcastBatchPorts {
         sentAt: string | null;
     }>>;
     /**
-     * Whether any person on the run, whatever their state, goes by email or text (a recipient row's channel): the run's
-     * own question, asked when WhatsApp's template is not approved, because that holds the run's WhatsApp people alone.
-     * False on a database that keeps no channel on a recipient, where everyone goes by WhatsApp. Throws when it cannot be read.
+     * Whether any person on the run, whatever their state, goes another way than `than` (a recipient row's channel): the
+     * run's own question when one channel is held for everyone on it. WhatsApp's template not being approved holds the run's
+     * WhatsApp people alone, and a hold on the workspace's offers and news by email its email people alone: the run goes on
+     * for the others, and only a run with nobody else on it stops. On a database that keeps no channel on a recipient
+     * everyone goes by WhatsApp. Throws when it cannot be read.
      */
-    byOtherChannels(id: string): Promise<boolean>;
+    byOtherChannels(id: string, than: "whatsapp" | "email"): Promise<boolean>;
     /**
      * One person's row, written. The claim (failed, outcome_unknown) is a compare-and-set: it answers whether THIS call
      * took the person, true, or false when they were no longer queued (another run took them first), and then nobody is
@@ -963,8 +966,10 @@ interface BroadcastBatchPorts {
      * a campaigns domain, and the mail provider says the domain is not verified for sending), or null when it can, and for a
      * deployment that names none (an offer is then held person by person at enrolment and the door, as it always was).
      * Asked BEFORE anyone is claimed, for a run whose message is an offer and whose batch has anyone going by email: the
-     * run stops with the reason said, rather than skip each of them as having no channel, a skip that is final. A domain
-     * that could not be read at all is not this port's: that is the email wire not bound (`wireUnavailable`), and the run waits.
+     * platform is paged with the reason, once (the pager's own quiet). A run of email alone stops, the reason said, rather
+     * than skip each of them, a skip that is final; a run that also goes another way (byOtherChannels) skips its email people
+     * (`email_marketing_disabled`) and goes on for everyone else. A domain that could not be read at all is not this port's:
+     * that is the email wire not bound (`wireUnavailable`), and the run waits.
      */
     offersClosed(): Promise<string | null>;
     /**
@@ -992,6 +997,11 @@ interface BroadcastBatchPorts {
         sent: number;
         held: number;
     }>;
+    /**
+     * Which of the workspace's holds on email (contracts EMAIL_HOLDS) anyone on the run was skipped for: the finished run's
+     * news names those, and only those, among its reasons. Asked once nobody is queued, of a run that held someone back.
+     */
+    heldForEmail(id: string): Promise<EmailHold[]>;
     /** sending → sent, and the event with the tally. */
     finish(id: string, tally: {
         sent: number;

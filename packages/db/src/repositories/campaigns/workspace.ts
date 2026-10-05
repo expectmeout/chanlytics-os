@@ -10,7 +10,12 @@ import type { Database } from "../../database.types";
 
 type Db = SupabaseClient<Database>;
 
-/** Whether the workspace is paused. A read that fails throws: "we could not check" is not "it is not paused". */
+/**
+ * Whether the workspace is paused (tenants.status, written by billing): THE one reading of it for a campaign, which the
+ * dashboard's composers and routes (so the page says so where Send would be, and a broadcast made under it is refused),
+ * the approval verb and the send job (so a run stops, core broadcast-stops.ts) all ask. A read that fails throws: "we could
+ * not check" is not "it is not paused".
+ */
 export async function workspacePaused(db: Db, tenantId: string): Promise<boolean> {
   const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
   if (error) throw new Error(`cannot read the workspace: ${error.message}`);

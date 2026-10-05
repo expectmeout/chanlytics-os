@@ -428,7 +428,7 @@ test("the job's ports fail CLOSED: a read that did not happen never answers 'not
 
   // The billing gate. `data?.status === "paused"` on a failed read is false,
   // and a paid template blast then goes out under a subscription that stopped.
-  await assert.rejects(dispatchJob(ctx(fakeDb(world(), { "tenants.select": blip })), job), /workspace's status/);
+  await assert.rejects(dispatchJob(ctx(fakeDb(world(), { "tenants.select": blip })), job), /cannot read the workspace/);
 
   // The worst of the three. A null template reads as "no longer approved by
   // WhatsApp": the broadcast is terminally failed and the owner is emailed

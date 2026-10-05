@@ -1863,6 +1863,16 @@ var UNASKED = {
   has_relationship: false
 };
 var DEALT = { ...UNASKED, has_relationship: true };
+var RUN_STOP_REMEDY = {
+  paused: "Resume from Settings \u203A Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
+};
+var RUN_STOP_AGAIN = {
+  paused: `${RUN_STOP_REMEDY.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY.campaigns_domain_unverified}; send it again once the domain is verified.`
+};
 var OFFERS_BY_EMAIL_WORDS = {
   /** The deployment's campaigns domain is not set up or not verified yet. */
   noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
@@ -4053,11 +4063,6 @@ async function textLineFacts(db, tenantId) {
   if (error) throw new Error(`text_line_facts: ${error.message}`);
   return data ?? null;
 }
-async function workspaceIsPaused(db, tenantId) {
-  const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
-  if (error) throw new Error(`workspace_is_paused: ${error.message}`);
-  return data?.status === "paused";
-}
 async function playbookChannels(db, playbookId) {
   const { data, error } = await db.from("playbooks").select("channels").eq("id", playbookId).maybeSingle();
   if (error) {
@@ -4084,9 +4089,10 @@ async function queuedRecipients(db, p) {
   if (bare.error) throw new Error(`queued_recipients: ${bare.error.message}`);
   return bare.data ?? [];
 }
-async function runGoesByOthers(db, tenantId, broadcastId) {
-  const { count, error } = await db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId).in("channel", ["sms", "email"]);
-  if (noChannelColumns(error)) return false;
+async function runGoesByOthers(db, tenantId, broadcastId, than) {
+  const of = db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId);
+  const { count, error } = await (than === "whatsapp" ? of.in("channel", ["sms", "email"]) : of.or("channel.is.null,channel.eq.whatsapp,channel.eq.sms"));
+  if (noChannelColumns(error)) return than === "email";
   if (error) throw new Error(`run_goes_by_others: ${error.message}`);
   return (count ?? 0) > 0;
 }
@@ -7144,7 +7150,6 @@ export {
   withdrawPartnerInvite,
   workspaceAbout,
   workspaceAnswersOnItsOwn,
-  workspaceIsPaused,
   workspaceMaySpend,
   workspaceMayUseModels,
   workspaceNameAndConfig,

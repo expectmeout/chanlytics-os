@@ -37,6 +37,8 @@ export interface BcSheetAsk {
   businessName: string;
   /** Its postal address where the Business record holds one: an offer's email names it in its foot. */
   businessAddress: string | null;
+  /** Whether the workspace is paused, from the page's readiness (ChannelsReady.paused); null where that was not read. */
+  paused: boolean | null;
   armed: boolean;
   onArm: (on: boolean) => void;
   stopping: boolean;

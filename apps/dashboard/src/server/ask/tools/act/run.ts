@@ -67,6 +67,9 @@ async function proposeRun(
   const vm = toApprovalVM(read.data, {
     playbook: null,
     businessName: "",
+    // The card reads no readiness (the run's own read carries none, and a pause is one more read): a paused workspace is
+    // refused when the card is confirmed, by approveRun, in the words every campaign says it.
+    paused: null,
     today: days.today,
     open: { time: clockTime(open.at.getTime(), t.timezone), moved: open.moved, on: days.sendsOn },
     day: fmtDay,

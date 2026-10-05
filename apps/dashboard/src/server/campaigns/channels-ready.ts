@@ -12,7 +12,7 @@ import {
   mailboxOfTenant,
   textLineFacts,
   whatsappChannelConfig,
-  workspaceIsPaused,
+  workspacePaused,
 } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import { emailWire } from "../connections/email-readiness";
@@ -47,7 +47,7 @@ export async function channelsReadyOf(
   const [whatsapp, textLine, paused] = await Promise.all([
     whatsappHealthOf(ctx, tenantId),
     textLineFacts(ctx.supabase, tenantId),
-    o.withPause ? workspaceIsPaused(ctx.supabase, tenantId) : Promise.resolve(false),
+    o.withPause ? workspacePaused(ctx.supabase, tenantId) : Promise.resolve(false),
   ]);
   const { ready: domain, offers } = await wire;
   // The mailbox is read only where the wire says it can send: with no wire, or none known, there is nothing to offer.

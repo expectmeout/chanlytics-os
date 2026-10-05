@@ -46,6 +46,7 @@ import {
   templatesFor,
   touchIndex,
   touchesSince,
+  workspacePaused,
   type Touch,
 } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
@@ -188,7 +189,7 @@ function whatsappStops(
  * it (core run-playbook). A read that fails throws.
  */
 export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Date): Promise<FollowUpFactsDto | null> {
-  const [pb, cls, tenant, number, out] = await Promise.all([
+  const [pb, cls, paused, number, out] = await Promise.all([
     ctx.supabase
       .from("playbooks")
       .select("id, state, run_hour, last_run_for, template_name, template_language")
@@ -202,17 +203,16 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
       .eq("class", "follow_up")
       .is("subject_type", null)
       .maybeSingle(),
-    ctx.supabase.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
+    workspacePaused(ctx.supabase, tenantId),
     // The number as the send screen reads it (channels-ready.ts): none, or its health.
     whatsappHealthOf(ctx, tenantId),
     proposalsOut(ctx, tenantId),
   ]);
   if (pb.error) throw new Error(pb.error.message);
   if (cls.error) throw new Error(cls.error.message);
-  if (tenant.error) throw new Error(tenant.error.message);
   const mode = cls.data?.mode ?? "ask";
   const p = pb.data;
-  if (!p || p.state !== "running" || mode === "never" || tenant.data?.status === "paused" || !out) return null;
+  if (!p || p.state !== "running" || mode === "never" || paused || !out) return null;
   // A moment always has its template (00228's CHECK); only a reach-out's hand step has none.
   if (!p.template_name || !p.template_language) return null;
   // The channels it ticks (step 3; null on a database before 00298, WhatsApp alone): the number and Meta's approval stop
