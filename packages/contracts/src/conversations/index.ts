@@ -18,6 +18,7 @@ export type { MediaVM } from "./message-media";
 export { emailLeftOutOf, splitQuotedReply } from "./message-email";
 export {
   messageStatusLabel,
+  sendFailureWords,
   reachedCustomer,
   isHeldDraft,
   isChatMessage,

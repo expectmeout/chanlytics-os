@@ -107,6 +107,13 @@ export const ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
  */
 export const ASK_MAX_TOKENS = 4000;
 /**
+ * The most a warm may write (server/ask/warm.ts): a warm is a turn's own head sent ahead of the question so the
+ * model's cache is written before the question arrives, and what it writes back is thrown away. The API takes no
+ * request for nothing at all beside an answer format and a stream, so it is the least the gateway lets a request ask
+ * for; the edge clamps a warm to it, whatever the request says.
+ */
+export const ASK_WARM_MAX_TOKENS = 64;
+/**
  * Ask's own daily token budget per workspace, apart from the receptionist's.
  * Counted on uncached input plus output. With the page's context riding into
  * every round behind its own cache breakpoint (a cache read is not counted),

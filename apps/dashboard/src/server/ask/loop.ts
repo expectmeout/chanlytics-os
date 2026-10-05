@@ -23,7 +23,7 @@ import {
   type AskTurnShape,
   type PageContext,
 } from "@chanlytics/contracts";
-import type { MembershipRole } from "@chanlytics/contracts";
+import type { AskModelProfile, MembershipRole } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { load, type ReaderContext } from "../readers";
 import { log } from "@/server/log";
@@ -272,6 +272,25 @@ function wordsBlock(
   });
 }
 
+/**
+ * The head of a turn's first request: everything before its messages. The same bytes for every member of a role in a
+ * workspace on one model, and so what the model's cache is keyed by (system's two breakpoints end it). A turn builds
+ * its requests on it and a warm sends it alone (warm.ts), so what a warm writes is what the next question reads.
+ */
+export function turnHead(model: AskModelProfile, role: MembershipRole, facts: WorkspaceFacts, shape: string | null) {
+  return {
+    model: model.id,
+    system: systemBlocks(stableSystem(facts), shape),
+    // The tools as the API takes them (registry.ts), their examples with them.
+    tools: toApiTools(role, true),
+    tool_choice: { type: "auto" as const },
+    output_config: {
+      effort: model.effort,
+      format: { type: "json_schema" as const, schema: ASK_ANSWER_FORMAT as unknown as Record<string, unknown> },
+    },
+  };
+}
+
 export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts()): Promise<TurnResult> {
   const t0 = Date.now();
   const model = askModel();
@@ -337,7 +356,8 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // cache's life. A follow-up does not: its earlier turns come before the page, as text, so its prefix after the
   // shape is new bytes and the page is written to the cache again. The clock, the person and the question come after
   // it; the fourth is on each request's last block (withMarkers), so the next round reads all before it.
-  const system = systemBlocks(stableSystem(input.facts), shape);
+  const head = turnHead(model, input.role, input.facts, shape);
+  const { system } = head;
   const pageBlocks: SearchResultBlock[] = [
     ...(built?.blocks ?? []),
     ...(scopedRow ? [readBlock(scopedRow.run, scopedRow.out.result)] : []),
@@ -350,7 +370,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const question = { type: "text", text: input.text };
   // The tools as the API takes them (registry.ts): the same bytes every round, until the API refuses their examples.
   let examples = true;
-  let tools = toApiTools(input.role, examples);
+  let { tools } = head;
   // The answer has its format until the API refuses it: then it is dropped and
   // the same round is asked again. No tool is strict: the API takes twenty
   // strict tools and twenty-four optional parameters across them (26 tools,
@@ -359,19 +379,14 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   let format = true;
   // A round's request: its messages a copy with the cache's markers (withMarkers), at `at` and on its last block.
   const requestOf = (msgs: Msg[], at: unknown, last: boolean) => ({
-    model: model.id,
+    model: head.model,
     max_tokens: ASK_MAX_TOKENS,
     system,
     messages: withMarkers(msgs, at),
     tools,
     // The last round may call no tool: all that is left is the answer.
-    tool_choice: last ? { type: "none" } : { type: "auto" },
-    output_config: format
-      ? {
-          effort: model.effort,
-          format: { type: "json_schema" as const, schema: ASK_ANSWER_FORMAT as unknown as Record<string, unknown> },
-        }
-      : { effort: model.effort },
+    tool_choice: last ? { type: "none" as const } : head.tool_choice,
+    output_config: format ? head.output_config : { effort: model.effort },
   });
   // The earlier turns (memory.ts, the Phase 5 plan, D1–D4): replayed as the model was sent them while the thread is
   // warm, round one on the same model and prefix and within the bound (bpR where the last request ended); else the

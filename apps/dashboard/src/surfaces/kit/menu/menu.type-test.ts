@@ -12,7 +12,7 @@
  */
 import type { ComponentProps, ReactElement, RefObject } from "react";
 import type { Exactly, Holds } from "@chanlytics/contracts";
-import type { MenuChoice, MenuGroup, MenuItem, MenuProps, MenuToggles } from "../index";
+import type { MenuChoice, MenuGroup, MenuItem, MenuProps } from "../index";
 import { Menu } from "../index";
 
 /** Never called: the compiler reads it, and nothing runs it. */
@@ -30,27 +30,7 @@ function _menuTakes(
     Holds<Exactly<MenuItem["label"], string>>,
     Holds<Exactly<MenuGroup["header"], string | undefined>>,
     Holds<Exactly<MenuChoice["onChoose"], (value: string) => void>>,
-    Holds<Exactly<MenuToggles["onToggle"], (value: string) => void>>,
-    Holds<Exactly<MenuToggles["items"][number]["locked"], string | undefined>>,
   ];
-  // A set of switches the menu stays open over (a table's columns), one locked on with its word.
-  Menu({
-    trigger,
-    label: "Columns",
-    groups: [
-      {
-        header: "Show on the table",
-        toggles: {
-          onToggle: act,
-          tick: glyph,
-          items: [
-            { value: "name", label: "Person", on: true, locked: "Always" },
-            { value: "email", label: "Email", on: false },
-          ],
-        },
-      },
-    ],
-  });
   Menu({ trigger, groups: [{ items: [{ label: "Copy number", glyph, onSelect: act }] }] });
   // A heading over a group, a second line, a word at the end, a door, the danger item, one off as the page runs, and
   // a set to choose one of; hung from its control's start, named where its control's words do not, with the ref.
@@ -90,10 +70,6 @@ function _menuTakes(
   Menu({ trigger, groups: [{ items: [{ label: "Pause", tone: "warn", onSelect: act }] }] });
   // @ts-expect-error a group holds items or a set to choose from, never both
   Menu({ trigger, groups: [{ items: [], choose: { value: "a", onChoose: act, tick: glyph, options: [] } }] });
-  // @ts-expect-error a group is one kind of thing: items, a set to choose one of, or switches, never two
-  Menu({ trigger, groups: [{ items: [], toggles: { onToggle: act, tick: glyph, items: [] } }] });
-  // @ts-expect-error a switch says whether it is on: one with no state draws nothing true
-  Menu({ trigger, groups: [{ toggles: { onToggle: act, tick: glyph, items: [{ value: "email", label: "Email" }] } }] });
   // @ts-expect-error it hangs from its control's start or its end
   Menu({ trigger, align: "center", groups: [] });
   // @ts-expect-error a menu opens from the page's control, which it is drawn as

@@ -327,6 +327,7 @@ declare global {
     touchSwipe?: (options: SwipeOptions) => SwipeHandlers;
     leaving?: (key: string) => RefCallback<HTMLElement>;
     trapFocus?: (box: HTMLElement | null) => () => void;
+    dialogRef?: (key: string) => RefCallback<HTMLElement>;
     keyPress?: (fn: (e: KeyboardEvent<HTMLElement>) => void) => (e: KeyboardEvent<HTMLElement>) => void;
     routeDoor?: (to: string, go?: ((to: string) => void) | null) => RouteDoor;
     refusalToast?: (r: Refusal | null | undefined, what?: string | null) => LegacyFlash;
@@ -365,6 +366,11 @@ export function hasTouchSwipe(): boolean {
 /** The ref that plays an overlay out as React lets go of it (data-bits `leaving`), one per key. */
 export function leaving(key: string): RefCallback<HTMLElement> | undefined {
   return window.leaving ? window.leaving(key) : undefined;
+}
+
+/** A dialog's ref: it holds focus while it is open and plays out as it goes (data-bits `dialogRef`), one per key. */
+export function dialogRef(key: string): RefCallback<HTMLElement> | undefined {
+  return window.dialogRef ? window.dialogRef(key) : undefined;
 }
 
 /** Focus goes into a box and Tab stays inside it (data-bits `trapFocus`); the answer puts focus back where it was. */

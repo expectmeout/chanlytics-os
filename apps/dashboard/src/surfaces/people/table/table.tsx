@@ -5,11 +5,10 @@
  * how many rows it draws (row-window.ts), where the page's one keyboard listener can move them. It stays a
  * `<table class="cl-table">`, so the page's selectors and the phone's card rules hold.
  */
-import { cloneElement, memo, useCallback } from "react";
+import { cloneElement, memo } from "react";
 import type { ReactElement, ReactNode, RefObject } from "react";
 import { holdStill } from "../../legacy-verbs";
 import { EmptyState } from "../../kit/empty/empty";
-import { useRowsArrive } from "../../kit/motion/use-rows-arrive";
 import type { TableColumn, TableCtx, TableEmpty, TableRow } from "../types";
 
 /** The table's default for a door its page does not pass: one function, one set, for the page's life. */
@@ -211,15 +210,9 @@ interface PeopleTableProps<R extends TableRow, X extends TableCtx> {
   busy?: boolean;
   selectMode?: boolean;
   sections?: readonly TableSection<R>[] | null;
-  /**
-   * The table's element for the kit's swap motion (kit/motion, the page's hook, asked with `TABLE_BODIES`): its row
-   * groups rise as the list under the view changes, one body or the sections' several, and the heads hold still.
-   */
-  swapRef?: RefObject<HTMLTableElement | null> | null;
+  /** The rows' element for the kit's swap motion (kit/motion, the page's hook): they rise as the list under the view changes. */
+  swapRef?: RefObject<HTMLTableSectionElement | null> | null;
 }
-
-/** What of the table rises on a swap (kit/motion use-swap-motion.ts `parts`): its row groups, never its heads. */
-export const TABLE_BODIES = ":scope > tbody";
 
 /** The table's heading row: the select-all box, and a heading for each column (a heading that sorts is a button). */
 function tableHead<R extends TableRow, X extends TableCtx>(p: {
@@ -306,16 +299,6 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
   swapRef = null,
 }: PeopleTableProps<R, X>) {
   const words = PL_NOUNS[noun] || PERSON_NOUN;
-  // The first rows rise in as the table arrives, as the Inbox's do (kit/motion/use-rows-arrive.ts).
-  const arrive = useRowsArrive<HTMLTableElement>();
-  // One element for both: the rows arrive and swap in under the table's heads.
-  const tableRef = useCallback(
-    (el: HTMLTableElement | null) => {
-      arrive.current = el;
-      if (swapRef) swapRef.current = el;
-    },
-    [arrive, swapRef],
-  );
   // `selectMode`: the page's Select people (a phone's more-menu), a selection begun with nobody picked yet.
   const selecting = selectMode || rows.some((p) => sel.has(p.id));
   const span = columns.length + (selectable ? 1 : 0);
@@ -366,13 +349,13 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
       >
         {/* pl-table is the phone's hook: on a narrow screen these rows stop being a sideways scroll and stack, so the
             state is on the row instead of off the right edge. */}
-        <table className="cl-table pl-table" ref={tableRef}>
+        <table className="cl-table pl-table">
           {tableHead({ words, columns, selectable, rows, sel, onToggleAll, sortBy, sortDir, onSort })}
           {/* What a view on its way dims (components.css [data-loading] [data-dims]): the rows, never the heads. */}
           {sections && sections.some((s) => s.rows.length > 0) ? (
             plSectionBodies(sections, span, budget, row)
           ) : (
-            <tbody data-dims>
+            <tbody data-dims ref={swapRef ?? undefined}>
               {/* The cursor's row is the table's one tab stop (the first row until there is a cursor), and a row focused --
                   by Tab, or by a click -- takes the cursor, so what a screen reader hears and what the keys act on agree.
                   J and K move focus with the cursor (the page's effect on `cursor`). */}

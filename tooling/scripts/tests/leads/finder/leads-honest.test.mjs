@@ -530,38 +530,6 @@ const { LeadsRailRows } = await importSrc("apps/dashboard/src/surfaces/leads/sco
 const { LEAD_COLUMNS, LEAD_PHONE_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/leads/cells/columns.tsx");
 const { ldPlacePop } = await importSrc("apps/dashboard/src/surfaces/leads/cells/hover.tsx");
 recorded.set(MoreMenu, menus);
-// Leads' menus are the kit's Menu (Base UI's) since 5 Oct 2026, read here as every menu in this file is read: its name as
-// `title`, its control's test id, and its groups as one list, a heading where a group has one and a line between two.
-const { Menu } = await importSrc("apps/dashboard/src/surfaces/kit/menu/menu.tsx");
-const { Sheet } = await importSrc("apps/dashboard/src/surfaces/kit/sheet/sheet.tsx");
-const asMenuRecord = (p) => ({
-  title: p.label,
-  testid: p.trigger?.props?.["data-testid"] ?? null,
-  // The control's glyph, where it draws one (Call's phone, the ⋯).
-  icon: [p.trigger?.props?.children ?? []].flat(Infinity).find((c) => c?.props?.name)?.props.name,
-  align: p.align,
-  trigger: p.trigger,
-  items: p.groups.flatMap((g, at) => [
-    ...(at > 0 ? [{ divider: true }] : []),
-    ...(g.header !== undefined ? [{ header: g.header }] : []),
-    ...(g.items ?? []).map((it) => ({
-      label: it.label,
-      icon: it.glyph?.props?.name,
-      meta: it.meta,
-      hint: it.hint,
-      title: it.title,
-      gate: it.gate,
-      danger: it.tone === "danger",
-      onClick: it.onSelect,
-      href: it.href,
-    })),
-  ]),
-  // A group of switches (the Columns menu's), as the page hands it.
-  toggles: p.groups.find((g) => g.toggles)?.toggles,
-});
-recorded.set(Menu, { push: (p) => menus.push(asMenuRecord(p)) });
-/** A switch of the Columns menu (people/table/columns-menu.tsx) as last drawn, flipped as Base UI's checkbox item flips it. */
-const flipColumn = (key) => menus.findLast((m) => m.title === "Columns").toggles.onToggle(key);
 recorded.set(Confirm, confirms);
 recorded.set(LeadPeek, peeks);
 recorded.set(LeadPlanPanel, panels);
@@ -782,11 +750,6 @@ const all = (tree, pred) => {
   return out;
 };
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
-/**
- * A sheet of the page's while it is open, by its test id: the kit's Sheet (kit/sheet/sheet.tsx), read by what the page
- * hands it; its Escape, wash and pull are Base UI's and the thumb reader's, each asking through `onClose`.
- */
-const openSheet = (tree, id) => find(tree, (n) => n.type === Sheet && n.props.testid === id && n.props.open) ?? null;
 const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
 const textOf = (n) => {
   if (n == null || typeof n === "boolean") return "";
@@ -982,16 +945,6 @@ test("a fresh mount of Leads draws its first rows and the next draw every row", 
     `the first draw carries the first rows only, saw ${rowsOf(first)}`,
   );
   assert.equal(rowsOf(draw()), 40, "the next draw carries every row");
-});
-
-test("Leads' rows swap in with the kit's rise as a view's rows land, as People's and the Inbox's lists do", async () => {
-  // A rail pick came in at once while People's lists rose (5 Oct 2026): the page hands its table the swap's ref
-  // (kit/motion/use-swap-motion.ts, keyed on the view the surface's rows are of).
-  const { PeopleTable } = await import("../../../../../apps/dashboard/src/surfaces/people/table/table.tsx");
-  await fresh();
-  const table = find(draw(), (n) => n.type === PeopleTable);
-  assert.ok(table, "the Leads scope draws People's table");
-  assert.ok(table.props.swapRef && "current" in table.props.swapRef, "and hands it the swap's ref");
 });
 
 /* ---------------------------------- the rows ---------------------------------- */
@@ -1625,7 +1578,9 @@ test("the Leads view is saved with its list, sort and columns every time, over t
   let tree = draw();
   assert.ok(headings(tree).includes("Website"), "the member's own columns");
   assert.deepEqual(held, [], "the view it already holds is not saved again");
-  flipColumn("source");
+  click(byTestId(tree, "people-columns"));
+  tree = draw();
+  click(byTestId(tree, "column-source"));
   tree = draw();
   assert.equal(held.length, 1);
   assert.deepEqual(
@@ -1661,11 +1616,10 @@ test("REGRESSION: a cold open of Leads still takes the view the workspace rememb
   const held = viewSaves;
   holdViewSaves = true;
   let tree = draw();
-  // The view the page asks for is the one the boot read, held since with nothing changed: nothing is read again for it.
   assert.deepEqual(
-    [L().view.sort, L().view.dir, pageReads().length, headings(tree).includes("Website")],
-    ["fit", "asc", 0, false],
-    "nothing to go on yet: the page's own defaults, as the boot read them",
+    [lastRead().sort, lastRead().dir, headings(tree).includes("Website")],
+    ["fit", "asc", false],
+    "nothing to go on yet: the page's own defaults",
   );
   // People lands, carrying what this member chose on another computer.
   publishPeople(peopleWith({ leads: { list: "all", sortBy: "rating", sortDir: "desc", columns: { website: true } } }));
@@ -1688,16 +1642,12 @@ test("REGRESSION: a cold open of Leads still takes the view the workspace rememb
 test("a sort is the surface's to read, not the page's to re-order: the rows hold their order until the read lands", async () => {
   await fresh();
   let tree = draw();
-  assert.deepEqual(
-    pageReads().length,
-    0,
-    "nothing read for the view the address names: the boot read it, and nothing has changed since",
-  );
+  assert.deepEqual(pageReads().length, 1, "one read for the view the address names");
   sortByHeading(tree, "Rated");
   tree = draw();
   const views = pageReads();
-  assert.equal(views.length, 1, "the new sort is one read, keyed by the whole view");
-  assert.deepEqual([views[0].sort, views[0].dir, views[0].list], ["rating", "desc", "all"]);
+  assert.equal(views.length, 2, "the new sort is one more read, keyed by the whole view");
+  assert.deepEqual([views[1].sort, views[1].dir, views[1].list], ["rating", "desc", "all"]);
   assert.deepEqual(
     names(tree),
     ["Zilker Strength Lab", "Barton Creek Coaching", "Lamar Strength Co.", "GigaFit Austin", "Pflugerville Training"],
@@ -1830,8 +1780,7 @@ test("REGRESSION: Leads draws no key -- its search box drew a / and Find leads a
   assert.equal(asks.at(-1), "open");
 });
 
-// The Columns menu is the kit's, which keeps its own Esc while it is open (PL_OVERLAY): no step of the page's order.
-test("Esc closes the peek, then the plan panel, then the selection -- one press each, in that order", async () => {
+test("Esc closes the peek, then the plan panel, then the Columns menu, then the selection -- one press each, in that order", async () => {
   await fresh();
   byTestId(draw(), "select-all").props.onChange();
   draw();
@@ -1843,10 +1792,13 @@ test("Esc closes the peek, then the plan panel, then the selection -- one press 
   menuOf("Personal trainers · Austin")
     .items.find((i) => i.label === "Search again, changed")
     .onClick();
-  // Everything of the page's own that can be open at once, opened: the peek, the plan panel and a selection.
   draw();
+  click(byTestId(draw(), "people-columns"));
+  // Everything the page can have open at once, opened: the peek, the plan panel, the Columns menu and a selection.
+  let tree = draw();
   const drawn = { peeks: peeks.length, panels: panels.length };
-  assert.equal(peeks.at(-1).vm.id, "l1", "the peek is open");
+  assert.ok(byTestId(tree, "people-columns-menu"), "the menu is open");
+  assert.equal(peeks.at(-1).vm.id, "l1", "so is the peek");
   assert.equal(panels.at(-1).open, true, "and the plan panel");
   assert.equal(press("j"), false, "the plan panel holds every key while it is open");
   assert.equal(press("Escape"), true);
@@ -1854,8 +1806,12 @@ test("Esc closes the peek, then the plan panel, then the selection -- one press 
   assert.equal(peeks.length, drawn.peeks, "the peek went first: it is not drawn any more");
   assert.equal(panels.length, drawn.panels + 1, "and the plan panel is still open");
   assert.equal(press("Escape"), true);
-  const tree = draw();
+  tree = draw();
   assert.equal(panels.length, drawn.panels + 1, "the plan panel went second");
+  assert.ok(byTestId(tree, "people-columns-menu"), "the Columns menu is still open");
+  assert.equal(press("Escape"), true);
+  tree = draw();
+  assert.equal(byTestId(tree, "people-columns-menu"), null, "the Columns menu went third");
   assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /5 selected/, "and the selection is still there");
   assert.equal(press("Escape"), true);
   assert.equal(byTestId(draw(), "leads-bulk-bar"), null, "the selection goes last");
@@ -2056,11 +2012,7 @@ test("a lead opened over a view is not a new view: nothing is read again, the se
   at("leads");
   at(`leads:p-${UA}`);
   const tree = at(`leads:p-${UA}`);
-  assert.equal(
-    pageReads().length,
-    0,
-    "nothing read for the view (held since the last change), however many leads are opened over it",
-  );
+  assert.equal(pageReads().length, 1, "one read for the view, however many leads are opened over it");
   assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /3 selected/, "and the selection is still there");
   const said = navs.length;
   at(`leads:s-${SEARCH_A}`);
@@ -2073,7 +2025,7 @@ test("a lead opened over a view is not a new view: nothing is read again, the se
     "and a selection never outlives its view",
   );
   assert.equal(navs.length, said, "and the old view's lead is not written onto the new view's address");
-  assert.equal(pageReads().length, 1, "the new view is read, once");
+  assert.equal(pageReads().length, 2, "the new view is read, once");
 });
 
 /* ------------------------------ the page keeps your place ------------------------------ */
@@ -2660,8 +2612,8 @@ test("REGRESSION: on a phone Leads' selection is one row -- ✕, the count, Mark
     assert.equal(byTestId(bar, "leads-bulk-copy"), null, "the rest are the sheet's");
     click(byTestId(tree, "leads-bulk-more"));
     tree = draw();
-    const sheet = openSheet(tree, "leads-bulk-sheet");
-    assert.equal(sheet.props.title, "5 selected");
+    const sheet = byTestId(tree, "leads-bulk-sheet");
+    assert.equal(sheet.props["aria-label"], "5 selected");
     const rows = all(
       sheet,
       (n) =>
@@ -2681,9 +2633,9 @@ test("REGRESSION: on a phone Leads' selection is one row -- ✕, the count, Mark
     click(byTestId(sheet, "leads-bulk-not-a-fit"));
     tree = draw();
     assert.equal(byTestId(tree, "peek-why"), null, "REGRESSION: the peek's own list, which a phone draws full screen");
-    const whys = openSheet(tree, "leads-bulk-why");
+    const whys = byTestId(tree, "leads-bulk-why");
     assert.ok(whys, "the five whys, as the sheet's step");
-    assert.ok(whys.props.back, "with a way back to the list");
+    assert.ok(byTestId(whys, "leads-bulk-why-back"), "with a way back to the list");
     click(byTestId(whys, "leads-bulk-why-chain"));
     await settle();
     // bulkNotAFit sends LeadsBulkSchema's body, which carries no reason: the ids shown and selected.
@@ -2691,17 +2643,13 @@ test("REGRESSION: on a phone Leads' selection is one row -- ✕, the count, Mark
       key: "POST /api/v1/leads/bulk",
       body: { by: "ids", action: "not_a_fit", ids: ["l1", "l2", "l3", "l4", "l5"] },
     });
-    assert.equal(openSheet(draw(), "leads-bulk-why"), null, "the sheet shuts on the pick");
-    // Esc is the sheet's own (Base UI's), which asks; the page holds still behind it, and the selection stays.
+    assert.equal(byTestId(draw(), "leads-bulk-why"), null, "the sheet shuts on the pick");
+    // Esc shuts the sheet and keeps the selection; the next Esc clears it.
     click(byTestId(draw(), "leads-bulk-more"));
-    const more = openSheet(draw(), "leads-bulk-sheet");
-    assert.ok(more);
-    overlayOpen = { role: "dialog", inApp: false, className: "sheet" };
-    assert.equal(press("Escape"), false, "its Esc is its own");
-    overlayOpen = null;
-    more.props.onClose();
+    assert.ok(byTestId(draw(), "leads-bulk-sheet"));
+    assert.equal(press("Escape"), true);
     tree = draw();
-    assert.equal(openSheet(tree, "leads-bulk-sheet"), null);
+    assert.equal(byTestId(tree, "leads-bulk-sheet"), null);
     assert.ok(byTestId(tree, "leads-bulk-bar"), "the selection stays");
   } finally {
     globalThis.__phone = false;
@@ -3507,10 +3455,13 @@ test("an ending's one next step opens the plan and starts nothing until it is ap
   reads.length = 0;
   off.onAction("sort_fit");
   draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  assert.deepEqual(
+    pageReads().map((q) => [q.search, q.sort, q.dir]),
+    [[SEARCH_A, "fit", "asc"]],
+    "Sort by fit is a new read of the same view, never a re-order of the rows on the page",
+  );
   await quiesce();
-  // The surface's, never a re-order on the page: the fit order it read a moment ago, held, with nothing changed since.
-  assert.deepEqual(pageReads(), [], "the fit view read since the last change paints as it was read");
-  assert.deepEqual([L().view.sort, L().view.dir], ["fit", "asc"], "Sort by fit is the surface's view of fit");
+  assert.deepEqual([L().view.sort, L().view.dir], ["fit", "asc"]);
 });
 
 test("the search menu removes the untouched leads and credits the month, named for what it does, and its toast puts them back", async () => {
@@ -3852,13 +3803,12 @@ test("a pop hangs above its row when the room is there, every hover asks where i
   place({ currentTarget: {} });
   place(null);
 
-  // A search's menu escapes the rail it lives in: held inside the rail it was 196px and broke its words onto three to six
-  // lines. It is the kit's Menu (Base UI's), drawn on the body and placed against the window, which the rail's edge cannot
-  // cut off or squeeze; it opens rightward, over the table.
+  // A search's menu escapes the rail it lives in (MoreMenu `escape`, placed against the window by moreFit): held
+  // inside the rail it was 196px and broke its words onto three to six lines. It opens rightward, over the table.
   const menu = menus.find((m) => /^More for .+$/.test(m.title || ""));
   assert.ok(menu, "a kept search has its menu");
-  assert.ok(menu.trigger, "the kit's Menu, opened by its control, drawn on the body");
-  assert.equal(menu.align, "start", "hung from its trigger's start, so it opens over the table");
+  assert.equal(menu.escape, true, "it escapes the rail, so the rail's edge cannot cut it off or squeeze it");
+  assert.equal(menu.align, "left", "hung from its trigger's left edge, so it opens over the table");
 });
 
 /* ------------------------------ a lead that became a client ------------------------------ */
@@ -3977,13 +3927,6 @@ test("at a phone's width Needs review is rows in groups: the group's acts on its
     );
     const card = find(first, (n) => n.props?.className === "pl-card");
     assert.equal(typeof card.props.onTouchStart, "function", "a thumb has the row");
-    // The row takes its own touch, so a slide on it never walks the strip of views over the page as well: a slide right
-    // kept the lead and moved to People in one stroke (5 Oct 2026; surface-tabs.jsx ST_OWN_TOUCH).
-    assert.equal(
-      find(first, (n) => n.props?.className === "pl-card-cell").props["data-own-drag"],
-      "",
-      "the sliding row is marked as taking its own touch",
-    );
     assert.deepEqual(
       all(first, (n) => /pl-card-ground/.test(String(n.props?.className || ""))).map(textOf),
       ["Keep", "Exclude"],

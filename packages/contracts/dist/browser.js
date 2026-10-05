@@ -2226,6 +2226,7 @@ var ASK_VOICE_IDLE_MS = MIN_MS;
 var ASK_VOICE_UP_WAIT_MS = 2500;
 var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_MAX_TOKENS = 4e3;
+var ASK_WARM_MAX_TOKENS = 64;
 var ASK_TOKENS_DAY = 15e5;
 var ASK_CAPS = {
   threads: 20,
@@ -14656,7 +14657,8 @@ function splitQuotedReply(body) {
 }
 
 // src/conversations/message-words.ts
-function messageStatusLabel(status) {
+var EMAIL_DELIVERED = "Reached their mail server";
+function messageStatusLabel(status, channel) {
   switch (status) {
     case "queued":
       return "Sending\u2026";
@@ -14667,10 +14669,108 @@ function messageStatusLabel(status) {
     case "read":
       return "Read";
     case "delivered":
-      return "Delivered";
+      return channel === "email" ? EMAIL_DELIVERED : "Delivered";
     default:
       return void 0;
   }
+}
+var WHATSAPP_FAILURES = {
+  130429: "Your number has reached WhatsApp's message limit for now",
+  131026: "WhatsApp couldn't deliver it: their number may not be on WhatsApp, or they haven't accepted its latest terms or updated the app",
+  131031: "Your WhatsApp Business account is restricted or disabled, or WhatsApp couldn't verify its details",
+  131042: "WhatsApp reports a problem with your payment method",
+  131047: "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now",
+  131048: "WhatsApp is limiting how many messages your number can send, because earlier ones were blocked or flagged as spam",
+  131049: "WhatsApp chose not to deliver it, to maintain healthy engagement, and advises waiting at least 24 hours before sending again",
+  131050: "They've chosen to stop receiving marketing messages from your business on WhatsApp",
+  131053: "WhatsApp couldn't upload the attachment, for a reason such as a file type it doesn't support",
+  131056: "Your number sent them too many messages in a short while, and WhatsApp asks you to wait before sending more to them",
+  132e3: "The template's variable values didn't match the ones it defines",
+  132001: "That template doesn't exist in this language, or hasn't been approved",
+  132012: "The template's variable values were formatted wrongly",
+  132015: "That template is paused because of its low quality",
+  132016: "That template was permanently disabled for low quality"
+};
+var SMS_FAILURES = {
+  21211: "That isn't a valid phone number",
+  21408: "Texts to that region are turned off for your account",
+  21610: "They've opted out of texts from your number",
+  21614: "That number isn't a valid mobile number",
+  30003: "Their phone couldn't be reached: it may be off, out of signal, or unable to receive texts",
+  30004: "The text was blocked from reaching this number",
+  30005: "The carrier says this number is unknown and may no longer exist",
+  30006: "This number can't receive texts, which is typical of a landline",
+  30007: "The text was filtered as a possible policy violation",
+  30008: "The carrier gave no reason for not delivering it",
+  30034: "Your texting line isn't registered with the carriers yet, so they blocked it"
+};
+var SMS_STATUS_WORDS = {
+  undelivered: "The carrier didn't deliver it.",
+  failed: "The text couldn't be sent.",
+  canceled: "The text was canceled before it left."
+};
+var EMAIL_FAILURES = {
+  bounced: "The email bounced: their address didn't accept it.",
+  failed: "The mail provider couldn't send it.",
+  suppressed: "The mail provider has stopped sending to this address after an earlier bounce or complaint."
+};
+var SETTLED_FAILURES = {
+  never_delivered: "It was never sent: the job that would have sent it never ran.",
+  run_interrupted: "It may not have gone: the run that was sending it did not finish.",
+  orphaned: "It was never sent: no job was left to send it."
+};
+var record = (v) => v !== null && typeof v === "object" && !Array.isArray(v) ? v : null;
+function codeOf(v) {
+  if (typeof v === "number") return Number.isInteger(v) && v > 0 ? v : null;
+  return typeof v === "string" && /^\d{3,6}$/.test(v.trim()) ? Number(v.trim()) : null;
+}
+function providerCodeOf(error) {
+  const listed = Array.isArray(error.errors) ? record(error.errors[0]) : null;
+  const direct = codeOf(listed?.code) ?? codeOf(error.code);
+  if (direct !== null) return direct;
+  const body = error.body;
+  if (typeof body === "string") {
+    const graph = /"code"\s*:\s*(\d{3,6})/.exec(body);
+    if (graph) return Number(graph[1]);
+    const twilio = /^Twilio (\d{5})$/.exec(body.trim());
+    return twilio ? Number(twilio[1]) : null;
+  }
+  return codeOf(record(record(body)?.error)?.code);
+}
+function sendFailureWords(error, channel) {
+  const e = record(error);
+  if (!e) return null;
+  const wire = writtenChannelOf(channel);
+  if (wire === "email") {
+    const provider = typeof e.provider === "string" ? e.provider : "";
+    return EMAIL_FAILURES[provider] ?? settledWords(e);
+  }
+  const code2 = providerCodeOf(e);
+  const sms = wire === "sms";
+  if (code2 !== null) {
+    const meaning = (sms ? SMS_FAILURES : WHATSAPP_FAILURES)[code2];
+    if (meaning) return `${meaning} (${sms ? "Twilio" : "WhatsApp"} error ${code2}).`;
+    return sms ? `Twilio didn't deliver it (error ${code2}).` : `WhatsApp didn't deliver it (error ${code2}).`;
+  }
+  const carrier = typeof e.carrier === "string" ? SMS_STATUS_WORDS[e.carrier] : void 0;
+  return carrier ?? settledWords(e);
+}
+function messageFailedWhy(m) {
+  return m.status === "failed" ? sendFailureWords(m.error, m.channel) : null;
+}
+function sentFactsOf(m) {
+  const statusLabel = messageStatusLabel(m.status, m.channel);
+  const failedWhy = messageFailedWhy(m);
+  return {
+    ...statusLabel ? { statusLabel } : {},
+    ...failedWhy ? { failedWhy } : {},
+    reachedCustomer: reachedCustomer(m.status)
+  };
+}
+function settledWords(e) {
+  const settled = typeof e.reason === "string" ? SETTLED_FAILURES[e.reason] : void 0;
+  if (settled) return settled;
+  return e.outcome === "unknown" ? "The provider didn't answer in time, so it may have gone: check the thread before sending it again." : null;
 }
 function isChatMessage(m) {
   return m.type !== "call_summary" && m.type !== "note";
@@ -14728,10 +14828,7 @@ function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date())
     ...messageAuthor(m) ? { by: messageAuthor(m).words } : {},
     // Only for OUR messages. A customer's inbound message has no send status,
     // and labelling it would be inventing one.
-    ...m.sender !== "customer" ? {
-      ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
-      reachedCustomer: reachedCustomer(m.status)
-    } : {}
+    ...m.sender !== "customer" ? sentFactsOf(m) : {}
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const chat = dto.messages.filter(isChatMessage);
@@ -15853,15 +15950,10 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       // The words Conversations says too (messageAuthor): a person's reply is the team's.
       ...m.sender === "human" && messageAuthor(m) ? { byWords: messageAuthor(m).words } : {},
       ...messageVia(m) ? { via: messageVia(m) } : {},
-      ...m.sender !== "customer" && m.status ? {
-        status: m.status,
-        // The words themselves live in messageStatusLabel, so this pane and
-        // the Conversations pane cannot describe the same message
-        // differently — which is exactly what they were doing.
-        ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
-        // Whether the words left: the receptionist's failed reply was drawn as a sent bubble (I1).
-        reachedCustomer: reachedCustomer(m.status)
-      } : {},
+      // What became of it: the words for its status, why it failed (one sentence for the owner, drawn under "Didn't send"),
+      // and whether the words left (the receptionist's failed reply was drawn as a sent bubble, I1). Said in message-words.ts,
+      // so this pane and the Conversations pane cannot describe the same message differently.
+      ...m.sender !== "customer" && m.status ? { status: m.status, ...sentFactsOf(m) } : {},
       // A held draft is not a sent message and must not read as one.
       ...isHeldDraft(m) ? { pending: true, sendsAtMs: draftSendsAtMs(m) } : {}
     };
@@ -25027,9 +25119,18 @@ function replyRowOf(row2, r2) {
     cta: { label: drafted(r2) ? "Read the draft" : "Open and reply", to: row2.cta.to }
   };
 }
-function withReplies(rows, readings) {
+function newestReadings(readings) {
   const newest = /* @__PURE__ */ new Map();
   for (const r2 of readings) if (!newest.has(r2.conversation_id)) newest.set(r2.conversation_id, r2);
+  return newest;
+}
+function withoutWrongPerson(waiting, readings) {
+  const gone = /* @__PURE__ */ new Set();
+  for (const [thread, r2] of newestReadings(readings)) if (r2.intent === "wrong_person" && !r2.undone) gone.add(thread);
+  return gone.size ? waiting.filter((w) => !gone.has(w.conversationId)) : [...waiting];
+}
+function withReplies(rows, readings) {
+  const newest = newestReadings(readings);
   return rows.map((row2) => {
     const r2 = row2.kind === "handoff" && row2.conversationId ? newest.get(row2.conversationId) : void 0;
     return r2 && rowWorthy(r2) ? replyRowOf(row2, r2) : row2;
@@ -25779,6 +25880,7 @@ var ROUTE_KEYS = [
   "POST ask/voice/end",
   "POST ask/voice/page",
   "POST ask/warm",
+  "POST ask/warm/model",
   "POST billing/checkout",
   "POST billing/portal",
   "POST billing/resume",
@@ -31861,6 +31963,7 @@ export {
   ASK_VOICE_TIMING_MAX_MS,
   ASK_VOICE_TOKEN_MIN_MS,
   ASK_VOICE_UP_WAIT_MS,
+  ASK_WARM_MAX_TOKENS,
   AUDIENCE_KINDS,
   AppError,
   BELL_WINDOW_DAYS,
@@ -33536,6 +33639,7 @@ export {
   sellsBySaved,
   sellsByVM,
   sendFailureIsOurs,
+  sendFailureWords,
   sendWindowsOf,
   sendableTemplates,
   senderLanguage,
@@ -33787,6 +33891,7 @@ export {
   wireFailure,
   withReplies,
   withVisitsOf,
+  withoutWrongPerson,
   wordCount,
   wordsIssueWords,
   wordsNeedOpening,

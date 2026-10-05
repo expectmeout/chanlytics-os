@@ -20,6 +20,12 @@ export interface MessageDto {
   media: { mime_type?: string | null; fetch_state?: string; filename?: string | null; caption?: string | null } | null;
   meta: Record<string, unknown> | null;
   status?: string;
+  /**
+   * What the provider (or the ledger) said when this message failed: its code and words, as the row keeps them
+   * (messages.error). Present only on a failed message, and only where the reader asked for it; for the owner, who
+   * reads it as one sentence (sendFailureWords), never raw. Absent from older readers.
+   */
+  error?: Record<string, unknown> | null;
   created_at: string;
   /**
    * When the event actually happened on its channel, as the provider reported

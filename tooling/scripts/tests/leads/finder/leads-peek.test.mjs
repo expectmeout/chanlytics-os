@@ -141,12 +141,11 @@ globalThis.window = {
 // (`touchSwipe`), the refusal toast and the overlay's `leaving` ref. The role store is each test's own (roleIs).
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 // The verdict's pill and the Erase question are the kit's (surfaces/kit), which the peek draws by way of legacy-parts
-// off the window, where seed-globals publishes them. The ⋯ and the ways of calling are the kit's Menu (Base UI's since
-// 5 Oct 2026), found by its type and read by what the peek hands it (kitItem). The kit's parts take their hooks from
-// the react module, which the stub reaches here.
+// off the window, where seed-globals publishes them. The ⋯ and the ways of calling are the kit's MoreMenu, imported by
+// the peek itself and drawn for real: pressing it opens it. The kit's parts take their hooks from the react module,
+// which the stub reaches here.
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
-const { Menu } = await import("../../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
 // The peek and what the page leans on, from where they live (surfaces/leads/peek, decision 0015).
 const { LeadPeek } = await import("../../../../../apps/dashboard/src/surfaces/leads/peek/peek.tsx");
 const { LeadPeekActions } = await import("../../../../../apps/dashboard/src/surfaces/leads/peek/acts.tsx");
@@ -162,8 +161,6 @@ const walk = (n, fn) => {
   fn(n);
   for (const k of n.props?.children ?? []) walk(k, fn);
   if (n.rendered) walk(n.rendered, fn);
-  // A kit Menu draws the page's control it is handed: Call's button, the ⋯.
-  if (n.type === Menu) walk(n.props.trigger, fn);
 };
 const all = (tree, pred) => {
   const out = [];
@@ -181,22 +178,22 @@ const textOf = (n) => {
   if (n.rendered !== undefined) return textOf(n.rendered);
   return (n.props?.children ?? []).map(textOf).join("");
 };
-/** A control pressed; a kit Menu's item (kitItem) is pressed through its act, as Base UI's item calls it. */
 const press = async (node) => {
   assert.ok(node, "no such control");
-  if (typeof node.onSelect === "function") return node.onSelect();
   await node.props.onClick({ preventDefault() {}, stopPropagation() {}, currentTarget: node });
 };
-/**
- * A kit Menu's item by its words, the menu found by its control's test id (kit/menu/menu.tsx). Its opening is Base UI's,
- * driven in a browser by e2e/kit/kit-behaves.spec.ts; what the page hands it is its groups, read here.
- */
-const kitItem = (tree, testid, label) => {
-  const m = find(tree, (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === testid);
-  return m?.props.groups.flatMap((g) => g.items ?? []).find((i) => i.label.includes(label)) ?? null;
+// Call opens the ways of calling (LeadCallMenu, the house MoreMenu): a way is one of its items, pressed after the button.
+const callWay = async (P, label) => {
+  await press(byTestId(P.draw().tree, "peek-act-call"));
+  const item = find(
+    P.draw().tree,
+    (n) =>
+      String(n.props?.className || "")
+        .split(" ")
+        .includes("more-item") && textOf(n).includes(label),
+  );
+  await press(item);
 };
-// Call opens the ways of calling (LeadCallMenu, the kit's Menu): a way is one of its items.
-const callWay = async (P, label) => press(kitItem(P.draw().tree, "peek-act-call", label));
 const settle = async (n = 6) => {
   for (let i = 0; i < n; i += 1) await new Promise((r) => setTimeout(r, 0));
 };
@@ -779,8 +776,17 @@ test("an operator sees Not a fit, Keep, Exclude and Put back disabled with the g
 const roleIs = (role) => {
   globalThis.window.ST_STORE = { can: (a) => role === "owner" || a !== "find", myRole: () => role };
 };
-/** The ⋯'s item by its words: the kit's Menu. */
-const menuItem = async (P, label) => kitItem(P.draw().tree, "peek-more", label);
+/** The ⋯'s item by its words, once the ⋯ is pressed: the house MoreMenu, drawn for real. */
+const menuItem = async (P, label) => {
+  await press(byTestId(P.draw().tree, "peek-more"));
+  return find(
+    P.draw().tree,
+    (n) =>
+      String(n.props?.className || "")
+        .split(" ")
+        .includes("more-item") && textOf(n).includes(label),
+  );
+};
 
 test("the owner's ⋯ offers Erase this lead; it asks first in contracts' words, and yes erases through the one door, closes the peek and says it is gone", async () => {
   reset();
@@ -790,7 +796,11 @@ test("the owner's ⋯ offers Erase this lead; it asks first in contracts' words,
   assert.equal(P.draw().tree && byTestId(P.draw().tree, "peek-erase-confirm"), null, "nothing asked before the press");
   const item = await menuItem(P, LEAD_WORDS.erase.act);
   assert.ok(item, "the ⋯ holds Erase this lead");
-  assert.equal(item.tone, "danger", "drawn as the act that destroys, in the menu's own way");
+  assert.equal(
+    String(item.props.className).includes("danger"),
+    true,
+    "drawn as the act that destroys, in the menu's own way",
+  );
   await press(item);
   assert.equal(P.st.mode, "erase");
   assert.deepEqual(courier.seen, [], "the menu's press asks; it does not erase");
@@ -1133,23 +1143,28 @@ test("Copy copies the subject and the body and arms the same question", async ()
 test("Call dials tel: from the peek and asks how it went when the tab comes back; the six are one radiogroup and the note says its cap", async () => {
   reset();
   const P = page();
-  // Call asks how first: its button opens the ways (Base UI's menu) and rings nobody; "Call from your phone" rings.
-  const call = find(
-    P.draw().tree,
-    (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "peek-act-call",
-  );
+  // Call asks how first: pressing it opens the ways and rings nobody; "Call from your phone" rings.
+  await press(byTestId(P.draw().tree, "peek-act-call"));
   assert.deepEqual(dialled, [], "REGRESSION: the panel's Call rang the business the moment it was pressed");
+  const ways = all(P.draw().tree, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes("more-item"),
+  ).map((n) => textOf(n).trim());
   assert.deepEqual(
-    call.props.groups.map((g) => g.header),
-    [undefined],
-    "the button already says the number, so no heading repeats it",
-  );
-  assert.deepEqual(
-    call.props.groups.flatMap((g) => g.items).map((i) => `${i.label}${i.meta || ""}`),
+    ways,
     Object.values(LEAD_WORDS.callWays).map((w) => `${w.label}${w.meta || ""}`),
-    "the three ways",
+    "the three ways, and the button already says the number, so no heading repeats it",
   );
-  await callWay(P, LEAD_WORDS.callWays.dial.label);
+  await press(
+    find(
+      P.draw().tree,
+      (n) =>
+        String(n.props?.className || "")
+          .split(" ")
+          .includes("more-item") && textOf(n).includes(LEAD_WORDS.callWays.dial.label),
+    ),
+  );
   assert.deepEqual(dialled, ["tel:+15125550142"]);
   assert.deepEqual([P.st.armed.kind, P.st.armed.asked], ["call", false]);
   assert.equal(byTestId(P.draw().tree, "peek-call-ask"), null);

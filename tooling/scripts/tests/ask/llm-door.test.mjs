@@ -27,7 +27,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { signEdgeToken } from "@chanlytics/channels";
-import { ASK_TOKENS_DAY, ASK_MODEL, ASK_MAX_TOKENS, MODEL_ROUTES } from "@chanlytics/contracts";
+import { ASK_TOKENS_DAY, ASK_MODEL, ASK_MAX_TOKENS, ASK_WARM_MAX_TOKENS, MODEL_ROUTES } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 // Each test file is its own process: this is the whole environment. No
@@ -480,6 +480,41 @@ test("under the budget: the day's usage is read once for this workspace and Ask'
       stream: true,
     },
     "no model named is the fallback an older dashboard expects; max_tokens is clamped to Ask's ceiling, temperature to one; nothing the dashboard did not send is added",
+  );
+});
+
+test("a warm is Ask's own request under a purpose of its own (ask_warm): asked of the model it names by Ask's rule, never past sixty-four tokens whatever it asks for, its usage said as a warm so the day's report and the eval count no round of it, and its dollars Ask's in the ledger", async () => {
+  const ws = T(21);
+  const tables = { events: [] };
+  use(tables);
+  const net = model();
+  const t0 = Date.now();
+  const named = "claude-some-model-9";
+  const res = await knock(ws, turn({ purpose: "ask_warm", request: { ...REQUEST, model: named, max_tokens: 4000 } }));
+  assert.equal(res.status, 200);
+  await res.text();
+  assert.equal(ASK_WARM_MAX_TOKENS, 64);
+  assert.deepEqual(
+    [net.calls[0].body.model, net.calls[0].body.max_tokens],
+    [named, ASK_WARM_MAX_TOKENS],
+    "any model that reads as one, as Ask's turn may name; the ceiling is the warm's, not Ask's",
+  );
+  assert.deepEqual(
+    net.calls[0].body.system,
+    REQUEST.system,
+    "the head rides through as a turn's does: it is what is cached",
+  );
+  const [row] = tables.events.filter((e) => e.tenant_id === ws && Date.parse(e.created_at) >= t0);
+  assert.deepEqual([row.kind, row.data.purpose], [ASK_USAGE_KIND, "ask_warm"], "Ask's kind, said as a warm");
+  assert.deepEqual(
+    tables.ai_usage.map((r) => [r.purpose, r.outcome, r.model_asked]),
+    [["ask", "answered", named]],
+    "one row of the ledger, Ask's",
+  );
+  assert.deepEqual(
+    validateGatewayRequest({ ...REQUEST, model: "gpt-9" }, "ask_warm"),
+    { ok: false, error: "bad_request", detail: "unknown model" },
+    "and held to what a turn is held to",
   );
 });
 

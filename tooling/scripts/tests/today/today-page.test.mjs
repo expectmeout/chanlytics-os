@@ -477,6 +477,7 @@ const clear = () => {
     __REPORTS: undefined,
     __PEOPLE: undefined,
     __BROADCASTS: undefined,
+    __REPLIES: undefined,
     __CALENDAR: undefined,
     __PLAYBOOKS: undefined,
     __SETUP: undefined,
@@ -1263,6 +1264,31 @@ test("worth a look: the tone once, as the row's pill; who is waiting as chips; A
   assert.match(textOf(byTestId(draw(TodayLeaks), "today-leaks-failed")), /Couldn't read People/);
   failed.clear();
   assert.equal(draw(TodayLeaks).rendered, null, "not read yet is not failed");
+  set({ __chrome: undefined });
+});
+
+test("worth a look names no one a reply to a reach-out read as a wrong person: the replies the page already holds are laid over who waits, and a failed read excludes nobody", () => {
+  clear();
+  const vm = busy();
+  set({ today: vm, __REPORTS: reports(), __PEOPLE: people(), __chrome: { state: stateOf } });
+  const waiting = () =>
+    all(byTestId(draw(TodayLeaks), "today-leak-unanswered"), (n) => classes(n).includes("tl-person")).map(textOf);
+  const reading = (conversation_id, intent) => ({ conversation_id, intent, undone: false, claim: "person" });
+  assert.deepEqual(waiting(), ["Dulce Amaro"], "the fixture: the thread the view model lists");
+  // The replies surface (legacy-bridge/reach-out/replies.ts) holds the readings; Today reads none of its own.
+  set({ __REPLIES: { replies: [reading("cv-d", "wrong_person")], mailbox: null } });
+  assert.deepEqual(waiting(), [], "they are not the one to ask: nobody there is waiting");
+  set({ __REPLIES: { replies: [reading("cv-d", "not_now")], mailbox: null } });
+  assert.deepEqual(waiting(), ["Dulce Amaro"], "a not-now is still someone to answer");
+  // Not read yet, or read and failed (the surface holds null): nobody is taken for gone.
+  set({ __REPLIES: null });
+  assert.deepEqual(waiting(), ["Dulce Amaro"]);
+  set({ __REPLIES: undefined });
+  assert.deepEqual(waiting(), ["Dulce Amaro"]);
+  // The count is Reports' over its period and is not touched: only the names under it are.
+  set({ __REPLIES: { replies: [reading("cv-d", "wrong_person")], mailbox: null } });
+  assert.match(textOf(byTestId(draw(TodayLeaks), "today-leak-unanswered")), /never got an answer at all/);
+  clear();
   set({ __chrome: undefined });
 });
 

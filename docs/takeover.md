@@ -51,12 +51,12 @@ doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
 breakpoints outside the set          37   in 11 files
 literal style values                997   in 23 stylesheets
-primitives outside the kit         1955   selectors naming 790 classes
+primitives outside the kit         1983   selectors naming 802 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
-dead exports, types and modules     300
+dead exports, types and modules     298
 source-text reads in tests          769
-lint warnings                       355   in 153 files, 59 of them exhaustive-deps
+lint warnings                       357   in 154 files, 59 of them exhaustive-deps
 workspace route JS, KB gzipped      701   the shell included
 workspace route CSS, KB gzipped     144
 workspace pages' own JS, KB         534   gzipped, each page's chunks once, beside the route

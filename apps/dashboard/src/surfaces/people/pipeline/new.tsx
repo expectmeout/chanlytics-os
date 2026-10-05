@@ -1,8 +1,8 @@
 /**
  * People › Pipeline's New proposal (docs/decisions/0008-a-proposal-is-part-of-the-deal.md), moved from
  * legacy/pages/pipeline-new.jsx (decision 0015): who a proposal is for, before the one deal sheet opens. A desk's record
- * sheet (the kit's RecordSheet) with no Save -- the pick is the act -- or a phone's, the kit's Sheet in a job's shape.
- * A search over the People rows the page already holds, by People's own rule (plMatcher), the first eight;
+ * sheet (the kit's RecordSheet) with no Save -- the pick is the act -- or a phone's sheet (sheets/phone-sheet.tsx
+ * PhoneSheet). A search over the People rows the page already holds, by People's own rule (plMatcher), the first eight;
  * or Add someone new, by name and number, through People's own door and words (plAddPerson). A pick, or an add, closes
  * it and asks for the deal sheet in its propose mode. Hookless: what is open and what was typed are PipelineScope's.
  * Every word is contracts' (PIPELINE_WORDS.newProposal).
@@ -10,15 +10,14 @@
  * Focus: on a desk the record sheet takes it as it opens and hands it to the field `focusOn` names (the search, then
  * the name as Add someone new opens), so the sheet keeps New proposal as what opened it and gives focus back to it.
  * An autoFocus there ran before the sheet did: the sheet took the search box for its opener, and closing dropped focus
- * on the page's body. A phone's sheet keeps a field that takes focus as it draws, so there the fields autoFocus.
+ * on the page's body. A phone's sheet has no focus rule of its own, so there the fields autoFocus.
  */
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import type { FocusOn } from "../../kit/record/focus";
 import { RecordSheet } from "../../kit/record/sheet";
-import { Sheet } from "../../kit/sheet/sheet";
-import { JOB_CANCEL } from "../sheets/phone-sheet";
+import { PhoneSheet } from "../sheets/phone-sheet";
 import { plFace, plMatcher } from "../words";
 import { P } from "./pipe";
 
@@ -177,22 +176,17 @@ const PipelineNewBody = (b: BodyProps) => {
   );
 };
 
-export const PipelineNew = (
-  props: BodyProps & { open: boolean; phone?: boolean; onClose: () => void; focusOn?: FocusOn | null },
-) => {
-  const { open, phone = false, onClose, focusOn = null, ...body } = props;
+export const PipelineNew = (props: BodyProps & { phone?: boolean; onClose: () => void; focusOn?: FocusOn | null }) => {
+  const { phone = false, onClose, focusOn = null, ...body } = props;
   const W = P.words.newProposal;
-  // A phone's is the kit's sheet in a job's shape, drawn while open and on its way out; it keeps the field the body
-  // focuses as it draws.
   if (phone) {
     return (
-      <Sheet open={open} shape="job" title={W.title} close={JOB_CANCEL} onClose={onClose} testid="pipeline-new-sheet">
-        {/* eslint-disable-next-line jsx-a11y-x/no-autofocus -- the kit's sheet keeps a field focused as it opens */}
+      <PhoneSheet title={W.title} onClose={onClose} testid="pipeline-new-sheet">
+        {/* eslint-disable-next-line jsx-a11y-x/no-autofocus -- kept as the JSX drew it: a phone's sheet has no focus rule of its own */}
         <PipelineNewBody {...body} autoFocus />
-      </Sheet>
+      </PhoneSheet>
     );
   }
-  if (!open) return null;
   return (
     <RecordSheet
       id="pipeline-new"

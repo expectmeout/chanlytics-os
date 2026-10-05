@@ -19,7 +19,7 @@ export { PROPOSAL_SPECS, proposalSpec, proposalBelowNeeds, PROPOSAL_GATE, askUnd
 export { PROPOSAL_WORDS } from "./ask-proposals/spec";
 export { ASK_ANSWER_FORMAT } from "./ask/answer-format";
 export { cleanAnswer, isUngrounded, sameQuestion, navigateLabel, FOLLOWUP_ECHO } from "./ask/answer-text";
-export { scopeFromRoute, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_TURN_BUDGET_MS, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_PULSE_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_ID, ASK_VOICE_MODEL, ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_IDLE_MS, ASK_VOICE_UP_WAIT_MS, VOICE_END_REASONS, isVoiceEndReason, ASK_MAX_TOKENS, ASK_TOKENS_DAY, ASK_CAPS, ASK_THREAD_VERBS, ASK_UNDO_MS, ASK_SURFACES, ASK_SCOPE_KINDS } from "./ask/ask";
+export { scopeFromRoute, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_TURN_BUDGET_MS, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_PULSE_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_ID, ASK_VOICE_MODEL, ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_IDLE_MS, ASK_VOICE_UP_WAIT_MS, VOICE_END_REASONS, isVoiceEndReason, ASK_MAX_TOKENS, ASK_WARM_MAX_TOKENS, ASK_TOKENS_DAY, ASK_CAPS, ASK_THREAD_VERBS, ASK_UNDO_MS, ASK_SURFACES, ASK_SCOPE_KINDS } from "./ask/ask";
 export { answerText, cardOpenRoute, oneDoor, answerFromV1, rightNowLine, rightNowCounts, needsAnswer, callsAnswer, openingsAnswer, normalizeAnswer, answerWords, partialSay, answerForCards, failedAnswer, proseAnswer, v1FromAnswer, clip, ASK_ANSWER_CAPS } from "./ask/ask-answer";
 export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, itemFocus } from "./ask/ask-context";
 export { dayFromQuestion, askIntent, callsToday } from "./ask/ask-fast-paths";
@@ -94,7 +94,7 @@ export { threadStanding, conversationWaitsOnYou, toInboxThreadVM } from "./conve
 export { isAutomatedSend, isPersonsWords, messageVia, messageAuthor, messageWhy } from "./conversations/message-author";
 export { emailLeftOutOf, splitQuotedReply } from "./conversations/message-email";
 export { mediaKind, mediaVM } from "./conversations/message-media";
-export { messageStatusLabel, reachedCustomer, isHeldDraft, isChatMessage, draftSendsAtMs, messageWords, messageText, clipAtWord } from "./conversations/message-words";
+export { messageStatusLabel, sendFailureWords, reachedCustomer, isHeldDraft, isChatMessage, draftSendsAtMs, messageWords, messageText, clipAtWord } from "./conversations/message-words";
 export { standingOf, replyWaitsOnYou } from "./conversations/standing";
 export { agentFor, isFromTheirSide, isTheirOwnWords, lastWroteOn, writtenChannelOf, threadChannelOf, threadChannelWords, THREAD_CHANNEL_WORDS } from "./conversations/thread-channel";
 export { shortTime, formatWaited } from "./conversations/thread-clock";
@@ -196,7 +196,7 @@ export { reachOutLineOf, reachOutStripOf, reachOutTimelineOf, reachOutPersonOf, 
 export { REACH_OUT_MODEL, OPENING_SCHEMA, READING_SCHEMA, openingSystemPrompt, openingUserContent, readingSystemPrompt, readingUserContent, parseOpening, parseReading, openingVerdict } from "./reach-out/reach-out-opening";
 export { REPLY_INTENTS, REPLY_INTENT_WORDS, REPLY_SCHEMA, REACH_OUT_READS_PER_DAY, REACH_OUT_REPLY_DAYS, REACH_OUT_AWAY_DAYS, REACH_OUT_AWAY_MAX_DAYS, REPLY_SUMMARY_WORDS, REPLY_REREADS, REPLY_REREAD_DAYS, REPLY_REFER_TO_MAX, REPLY_ANSWERED_MAX, REPLY_QUOTE_MAX, REPLY_WORDS_MAX, REPLY_SUBJECT_MAX, REPLY_READ_MAX_TOKENS, REPLY_NOT_NOW_DAYS, REPLY_UNREADS, UNREAD_READING, isReplyIntent, isUnread, replySystemPrompt, replyIntentQuestion, replyUserContent, parseReplyReading, replyTextOf, stepDayFor, notNowDayOf, awayUntilOf, rereadAt, ownedDomainOf, replyStepWords, readingPlan, replyNoticeWords } from "./reach-out/reach-out-replies";
 export { DRAFT_WHYS, isDraftWhy, DRAFT_NEEDS_MS, DRAFT_NOTICE_MAX, draftRefusal, leadReplyNote, draftExcerpt } from "./reach-out/reach-out-reply-draft";
-export { replyRowOf, withReplies, bellActionOf } from "./reach-out/reach-out-reply-today";
+export { replyRowOf, withReplies, withoutWrongPerson, bellActionOf } from "./reach-out/reach-out-reply-today";
 export { REPLIES_PAGE, REPLY_UNDO_REFUSALS, isReplyUndoRefusal, replyStripOf, replyChipOf, replyFromLineOf, replyLeftAsOf } from "./reach-out/reach-out-reply-words";
 export { outreachRefusalOf, isWaitRefusal, isReachOutRun, reachOutEmailOf, reachOutExampleValues, REACH_OUT_LANGUAGE, OUTREACH_WAIT_REFUSALS, REACH_OUT_MONTH_EMAILS, REACH_OUT_CHECKS_PER_DAY } from "./reach-out/reach-out-rules";
 export { REACH_OUT_SHEET_WORDS, REACH_OUT_REFUSALS, isReachOutRefusal, reachLineOf, paceWords, sheetFootWords, stepLabel, stepLabelOf, stepWhenWords, startWords, nextRunWords, approvalWordsOf, chainHintOf, chainReportWordsOf, emailTemplateWords, emailTemplateRowsOf, emailRowWrittenOf, EMAIL_TEMPLATE_LIST_WORDS, chainPaceOf, chainPathWords, REACH_OUT_ROW_WORDS } from "./reach-out/reach-out-sheet";

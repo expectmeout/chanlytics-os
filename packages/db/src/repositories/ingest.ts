@@ -572,6 +572,32 @@ export async function recordStatusByExternalId(
 }
 
 /**
+ * The message of this workspace a provider's id names (Meta's wamid, Twilio's sid), as it stands, and where it went:
+ * what a receipt that reports a failure needs to know before it moves the row (core raiseLateFailure). Null when none
+ * carries the id: a receipt for history we never wrote. `to` is the number a text or a WhatsApp message went to, or the
+ * address an email did, as the person's row has it now. A read that fails THROWS.
+ */
+export async function messageByExternalId(db: Db, tenantId: string, externalId: string) {
+  const { data, error } = await db
+    .from("messages")
+    .select("id, conversation_id, direction, sender, channel, status, meta, contacts (phone_e164, email)")
+    .eq("tenant_id", tenantId)
+    .eq("external_id", externalId)
+    .maybeSingle();
+  if (error) throw new Error(`messageByExternalId: ${error.message}`);
+  if (!data) return null;
+  return {
+    messageId: data.id,
+    conversationId: data.conversation_id,
+    direction: data.direction,
+    sender: data.sender,
+    status: data.status,
+    meta: data.meta,
+    to: (data.channel === "email" ? data.contacts?.email : data.contacts?.phone_e164) ?? null,
+  };
+}
+
+/**
  * What it cost to send a message, as Meta's receipt said it, kept once on its outbound row (message_keep_cost, 00319):
  * the `pricing` object (billable, pricing_model, category, type; no amount), checked key by key by the door, the first
  * answer standing. A refusal throws with the database's words; the receipt door that calls it catches that and logs it,

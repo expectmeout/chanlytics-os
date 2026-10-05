@@ -125,7 +125,7 @@
     "depth": 3
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
-    "lines": 472,
+    "lines": 468,
     "branches": 74,
     "depth": 6
   },
@@ -310,7 +310,7 @@
     "depth": 1
   },
   "packages/contracts/src/conversations/inbox-thread.ts::toInboxThreadVM#1": {
-    "lines": 218,
+    "lines": 211,
     "branches": 49,
     "depth": 2
   },
