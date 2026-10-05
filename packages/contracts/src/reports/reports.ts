@@ -61,14 +61,14 @@ export interface ReportDto {
   reply_seconds: number[];
   sentiments: Record<string, number>;
   voicemail: number;
-  /** v3 (00139): each receptionist first reply this period, with the day it was asked (tenant zone); 00286 adds the
-   *  hold it waited in seconds (0: none). Absent on a report from before 00286. */
+  /** v3 (00139): each receptionist first reply this period, with the day it was asked (tenant zone); 00304 adds the
+   *  hold it waited in seconds (0: none). Absent on a report from before 00304. */
   replies?: { day: string; s: number; hold?: number }[];
   /** v3: inbound customer messages by channel, and connected calls as voice, this period and the one before. */
   channels?: { current: ReportChannelCounts; previous: ReportChannelCounts };
   /** v3: inbound customer messages plus connected calls this period, 7 rows (Monday first) of 24 hours. */
   hours?: number[][];
-  /** 00286: this period's customer messages and connected calls by local day and quarter hour. */
+  /** 00304: this period's customer messages and connected calls by local day and quarter hour. */
   arrivals?: ReportArrivalDto[];
   error?: string;
 }
