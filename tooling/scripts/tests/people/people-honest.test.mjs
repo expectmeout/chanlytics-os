@@ -353,6 +353,30 @@ test("a saved list keeps every member the server holds, for an Undo, and counts 
   assert.deepEqual(s1.members, ["p1", "p-erased"], "who is on it, as the server keeps it");
 });
 
+test("a refresh keeps every row, list and need that did not change as the object it was, so the table draws again only what moved", async () => {
+  // Every refresh built every row anew and the table's row memo never held: one person's new message drew the whole
+  // table again (5 Oct 2026; surface-values.ts shareUnchanged).
+  const lists = [{ id: "s1", name: "Regulars", ids: ["p1", "p3"] }];
+  wire({ people: [person(1), person(2), person(3)], lists });
+  await peopleOverride.apply();
+  const before = globalThis.window.__PEOPLE;
+  wire({ people: [person(1), person(2, { display_name: "Rosa Changed" }), person(3)], lists });
+  await peopleOverride.apply();
+  const after = globalThis.window.__PEOPLE;
+  const row = (P, id) => P.rows.find((r) => r.id === id);
+  assert.notEqual(after, before, "what was published is new: something changed");
+  assert.equal(row(after, "p1"), row(before, "p1"), "a person who did not change is the row they were");
+  assert.equal(row(after, "p3"), row(before, "p3"));
+  assert.notEqual(row(after, "p2"), row(before, "p2"), "the one who changed is a new row");
+  assert.equal(row(after, "p2").name, "Rosa Changed");
+  assert.equal(after.attention.p1, before.attention.p1, "and what each unchanged person needs is what it was");
+  assert.equal(after.saved, before.saved, "the lists, unchanged, are the lists they were");
+  // Read again with nothing changed: the rows and the needs are the very objects the table already drew.
+  await peopleOverride.apply();
+  assert.equal(globalThis.window.__PEOPLE.rows, after.rows);
+  assert.equal(globalThis.window.__PEOPLE.attention, after.attention);
+});
+
 /* ----------------------------------- the pages ----------------------------------- */
 
 let cells = [];

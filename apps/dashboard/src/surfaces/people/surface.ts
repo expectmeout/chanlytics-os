@@ -23,7 +23,7 @@ import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { peopleSurfaceOf, personRowOf } from "./surface-map";
 import type { PeopleLoaded } from "./surface-map";
-import { declareSurfaceValue, setSurfaceValue, surfaceValue } from "../surface-values";
+import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 
 // Today, Ask, the Calendar, Leads and the pages that have not moved still read this under its old name.
 declareSurfaceValue("people", "__PEOPLE");
@@ -127,7 +127,11 @@ export function viewerId(): string | null {
 /** The surface from what is loaded, published: the seam's value, and the window's mirror of it. */
 export function publishPeople(): void {
   if (!peopleLoaded) return;
-  setSurfaceValue("people", peopleSurfaceOf(peopleLoaded, viewerId(), new Date()));
+  // What did not change keeps its object, so the table's rows that did not change are not drawn again (surface-values.ts).
+  setSurfaceValue(
+    "people",
+    shareUnchanged(surfaceValue("people"), peopleSurfaceOf(peopleLoaded, viewerId(), new Date())),
+  );
 }
 
 /** The views this tab has saved (the latest by page), how many saves it has made, and how many still wait on their reply. */
@@ -147,9 +151,12 @@ export function keepSavedView(page: string, view: Record<string, unknown>): () =
       keptViews.waiting -= 1;
     }
   };
-  const views = peopleLoaded ? peopleLoaded.views : surfaceValue("people")?.views;
+  const shown = surfaceValue("people")?.views;
+  const views = peopleLoaded ? peopleLoaded.views : shown;
   if (!views) return landed;
   views[page] = view;
+  // The published copy can be an earlier read's, equal and kept as it was (publishPeople, shareUnchanged): it takes it too.
+  if (shown && shown !== views) shown[page] = view;
   // A reload paints the tab's cached People before anything is read again, so the cached copy takes the save too.
   resnapshotSurface(
     peopleOverride.key,
