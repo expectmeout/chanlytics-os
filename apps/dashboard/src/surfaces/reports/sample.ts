@@ -17,6 +17,11 @@ import {
   type BookingReportDto,
   HOUR_MS,
   sumOf,
+  REPORT_PERIOD_DEFAULT,
+  fixedDaysOf,
+  isReportPeriod,
+  monthDaysAt,
+  type ReportPeriodId,
 } from "@chanlytics/contracts";
 import type { ReportsSurface } from "./surface";
 
@@ -248,10 +253,11 @@ const todayIn = (zone: string): string =>
 
 const keptReports = new Map<string, ReportsSurface>();
 
-/** The demo's report for 7, 30 or 90 days (anything else is 30) as of `today`, a YYYY-MM-DD key in the business's zone. */
-export function reportsSample(days: number, today: string = todayIn(ZONE)): ReportsSurface {
-  const n = days === 7 || days === 90 ? days : 30;
-  const key = `${n}:${today}`;
+/** The demo's report for a period (anything that is none of ours is the default) as of `today`, a YYYY-MM-DD key in the business's zone. */
+export function reportsSample(period: ReportPeriodId, today: string = todayIn(ZONE)): ReportsSurface {
+  const id = isReportPeriod(period) ? period : REPORT_PERIOD_DEFAULT;
+  const n = fixedDaysOf(id) ?? monthDaysAt(today);
+  const key = `${id}:${today}`;
   const hit = keptReports.get(key);
   if (hit) return hit;
   const all = business(today);
@@ -264,6 +270,7 @@ export function reportsSample(days: number, today: string = todayIn(ZONE)): Repo
     // The demo is a salon: no deal was ever recorded, so Reports draws no Deals section (0004).
     deals: toDealReportVM(null, vm.rangeLabel),
     facts: reportFacts(vm, campaigns),
+    period: id,
     days: n,
     fetchedAt: 0,
   };

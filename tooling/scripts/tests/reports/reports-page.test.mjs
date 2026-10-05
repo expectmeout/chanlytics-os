@@ -261,6 +261,7 @@ const surface = ({
     booking: toBookingReportVM(booking),
     deals,
     facts: reportFacts(vm, cm),
+    period: "7d",
     days: 7,
     fetchedAt: 1,
   };
@@ -270,22 +271,31 @@ const surface = ({
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const period = { asked: [], held: [], mode: "hold" };
-const answer = (days) =>
-  json(200, { ok: true, data: { report: reportDto({ days }), booking: { ...CALENDAR, days }, deals: null } });
+/** The days each period's answer says it covers (Month on this fixture's day: four). */
+const DAYS_OF = { "7d": 7, "30d": 30, "90d": 90, month: 4 };
+const answer = (id) =>
+  json(200, {
+    ok: true,
+    data: {
+      report: reportDto({ days: DAYS_OF[id] }),
+      booking: { ...CALENDAR, days: DAYS_OF[id] },
+      deals: null,
+    },
+  });
 globalThis.window.fetch = async (url) => {
   const u = new URL(String(url), "https://app.test");
   if (/\/reports\/(campaigns|reach-outs)$/.test(u.pathname))
     return json(500, { ok: false, error: { code: "internal", message: "not read here" } });
   if (!u.pathname.endsWith("/reports")) return json(404, { ok: false, error: { code: "not_found", message: "no" } });
-  const days = Number(u.searchParams.get("days"));
-  period.asked.push(days);
+  const id = u.searchParams.get("period");
+  period.asked.push(id);
   if (period.mode === "refuse") return json(500, { ok: false, error: { code: "internal", message: "down" } });
-  if (period.mode === "answer") return answer(days);
-  return new Promise((res) => period.held.push({ days, res }));
+  if (period.mode === "answer") return answer(id);
+  return new Promise((res) => period.held.push({ id, res }));
 };
 /** A period asked for and held is answered (it lands) or refused (it fails), and the read behind it is over. */
 const land = async () => {
-  for (const h of period.held.splice(0)) h.res(answer(h.days));
+  for (const h of period.held.splice(0)) h.res(answer(h.id));
   for (let i = 0; i < 12; i++) await settle();
 };
 const refuse = async () => {
@@ -640,7 +650,7 @@ test("a period with nothing in it: one card that says so, no Worth knowing, and 
     assert.equal(card(tree, "chart-answered"), null, "no chart of nothing");
     assert.equal(card(tree, "reports-facts"), null, "the headline and this card already say it");
     press(find(empty, (n) => n.type === "button"));
-    assert.deepEqual(period.asked, [90]);
+    assert.deepEqual(period.asked, ["90d"]);
     await settle();
   });
 });
@@ -958,8 +968,27 @@ test("REGRESSION (C27): the period tabs hold while a period loads -- a second pr
     tree = redraw();
     assert.equal(tabOf(tree, "90 days").props["aria-disabled"], true, "REGRESSION: pressable while a period loaded");
     press(tabOf(tree, "90 days"));
-    assert.deepEqual(period.asked, [30], "REGRESSION: a second load began");
+    assert.deepEqual(period.asked, ["30d"], "REGRESSION: a second load began");
     await land();
+  });
+});
+
+test("Month is a period of its own: its tab, its read by that name, and the page says the days it holds", async () => {
+  await inPeriodTest("hold", async () => {
+    let tree = page();
+    assert.deepEqual(all(cls(tree, "rpt-range"), (n) => n.type === "button").map(textOf), [
+      "7 days",
+      "30 days",
+      "90 days",
+      "Month",
+    ]);
+    press(tabOf(tree, "Month"));
+    assert.deepEqual(period.asked, ["month"]);
+    await land();
+    redraw();
+    tree = redraw();
+    assert.equal(tabOf(tree, "Month").props["aria-pressed"], true);
+    assert.equal(cls(tree, "rpt-failed"), null, "nothing failed");
   });
 });
 

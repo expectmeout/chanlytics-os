@@ -9,7 +9,7 @@
  * Each card is a function that returns its element, called by the section that holds it and not drawn as a component
  * of its own, so the page's tree is the tree it was.
  */
-import type { CampaignReportVM, DealReportVM, ReportVM } from "@chanlytics/contracts";
+import type { CampaignReportVM, DealReportVM, ReportPeriodId, ReportVM } from "@chanlytics/contracts";
 import { navigate } from "../legacy-verbs";
 import { EmptyState, FailedRead } from "../kit/empty/empty";
 import { BarChart, BarList } from "../kit/charts/bar";
@@ -552,7 +552,7 @@ function campaignsBody(vm: ReportVM, cm: CampaignReportVM | null, days: number) 
 }
 
 /** Nothing came in: the period said so, and a door to a longer one. */
-function nothingCameIn(vm: ReportVM, days: number, pick: (days: number) => Promise<void>) {
+function nothingCameIn(vm: ReportVM, period: ReportPeriodId, pick: (period: ReportPeriodId) => Promise<void>) {
   return (
     <EmptyState
       kind="card"
@@ -560,14 +560,14 @@ function nothingCameIn(vm: ReportVM, days: number, pick: (days: number) => Promi
       title="Nothing came in"
       testid="reports-empty"
       body={`Nobody wrote or called between ${vm.since} and ${vm.until}.`}
-      action={days !== 90 ? { label: "Look at 90 days", onClick: () => void pick(90) } : null}
+      action={period !== "90d" ? { label: "Look at 90 days", onClick: () => void pick("90d") } : null}
     />
   );
 }
 
-// Everything the period row scopes. R is the published surface ({ vm, campaigns, booking, facts, days }); pick(days)
+// Everything the period row scopes. R is the published surface ({ vm, campaigns, booking, facts, days }); pick(period)
 // is the row's own period switch, for the empty period's door.
-export function ReportsSections({ R, pick }: { R: ReportsSurface; pick: (days: number) => Promise<void> }) {
+export function ReportsSections({ R, pick }: { R: ReportsSurface; pick: (period: ReportPeriodId) => Promise<void> }) {
   const vm = R.vm;
   const days = R.days;
   const phone = useRptPhone();
@@ -582,7 +582,7 @@ export function ReportsSections({ R, pick }: { R: ReportsSurface; pick: (days: n
 
       {vm.empty ? (
         <>
-          {nothingCameIn(vm, days, pick)}
+          {nothingCameIn(vm, R.period, pick)}
           {deals}
         </>
       ) : (

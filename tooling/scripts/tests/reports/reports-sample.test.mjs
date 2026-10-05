@@ -5,23 +5,25 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { fixedDaysOf } from "@chanlytics/contracts";
 import { reportsSample } from "../../../../apps/dashboard/src/surfaces/reports/sample.ts";
 
 const TODAY = "2026-09-18";
 
 test("the same period on the same day is the same report, kept rather than rebuilt on every draw", () => {
-  const a = reportsSample(30, TODAY);
-  assert.equal(a, reportsSample(30, TODAY));
+  const a = reportsSample("30d", TODAY);
+  assert.equal(a, reportsSample("30d", TODAY));
   assert.equal(a.days, 30);
   assert.equal(a.vm.until, "Sep 18", "the period ends today");
-  assert.equal(reportsSample(7, TODAY).vm.answered.points.length, 7);
-  assert.equal(reportsSample(90, TODAY).vm.answered.points.length, 90);
-  assert.equal(reportsSample(14, TODAY).days, 30, "a period Reports does not offer is the default one");
+  assert.equal(reportsSample("7d", TODAY).vm.answered.points.length, 7);
+  assert.equal(reportsSample("90d", TODAY).vm.answered.points.length, 90);
+  assert.equal(reportsSample("14d", TODAY).days, 30, "a period Reports does not offer is the default one");
 });
 
 test("every total agrees with its parts, in every period", () => {
-  for (const days of [7, 30, 90]) {
-    const { vm, campaigns, booking } = reportsSample(days, TODAY);
+  for (const id of ["7d", "30d", "90d"]) {
+    const days = fixedDaysOf(id);
+    const { vm, campaigns, booking } = reportsSample(id, TODAY);
     const t = vm.answered.totals;
     const reached = t.in + vm.calls.total;
     assert.equal(
@@ -68,11 +70,18 @@ test("every total agrees with its parts, in every period", () => {
 });
 
 test("it is a report worth showing: traffic, a period before to compare with, campaigns, facts", () => {
-  for (const days of [7, 30, 90]) {
-    const s = reportsSample(days, TODAY);
+  for (const id of ["7d", "30d", "90d"]) {
+    const days = fixedDaysOf(id);
+    const s = reportsSample(id, TODAY);
     assert.equal(s.vm.empty, false, `${days}`);
     assert.ok(s.vm.tiles.find((x) => x.id === "messages").compare, `${days}: compared with the period before`);
     assert.ok(s.campaigns && !s.campaigns.empty && s.campaigns.totals.sent > 0, `${days}: something went out`);
     assert.ok(s.facts.length >= 1 && s.facts.length <= 3, `${days}: Worth knowing has something to say`);
   }
+});
+
+test("Month is the days since the 1st: eighteen on the 18th, said as a period of its own", () => {
+  const month = reportsSample("month", TODAY);
+  assert.deepEqual([month.period, month.days, month.vm.answered.points.length], ["month", 18, 18]);
+  assert.equal(reportsSample("90d", TODAY).period, "90d");
 });

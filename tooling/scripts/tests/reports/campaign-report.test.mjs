@@ -216,7 +216,7 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
   );
   const s = readCode("apps/dashboard/src/surfaces/reports/surface.ts");
   assert.ok(
-    s.includes('read("GET reports/campaigns", { query: { days: String(days) } })'),
+    s.includes('read("GET reports/campaigns", { query: { period } })'),
     "fetched with the same period, beside the receptionist's numbers",
   );
   assert.ok(

@@ -5,6 +5,7 @@
  * contracts sample (sample.ts); without either, the page says what Reports reads.
  */
 import { useEffect, useState } from "react";
+import { REPORT_PERIOD_DEFAULT, REPORT_RANGES, type ReportPeriodId } from "@chanlytics/contracts";
 import { askAbout, demoSession } from "../legacy-verbs";
 import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
@@ -15,12 +16,6 @@ import { RptReachOuts } from "./reach-outs";
 import { reportsSample } from "./sample";
 import { ReportsSections } from "./sections";
 import type { ReportsSurface } from "./surface";
-
-const RP2_RANGES: ReadonlyArray<readonly [number, string]> = [
-  [7, "7 days"],
-  [30, "30 days"],
-  [90, "90 days"],
-];
 
 /** Reports read nothing: a session with no workspace, and no demo to draw. */
 function readsAWorkspace() {
@@ -42,24 +37,24 @@ function readsAWorkspace() {
 function periodRow(p: {
   R: ReportsSurface;
   busy: boolean;
-  failed: number | null;
-  pick: (days: number) => Promise<void>;
+  failed: ReportPeriodId | null;
+  pick: (period: ReportPeriodId) => Promise<void>;
 }) {
   const { R, busy, failed, pick } = p;
   const vm = R.vm;
   return (
     <div className="rpt-head">
       <div className="rpt-range" role="group" aria-label="Period">
-        {RP2_RANGES.map(([d, l]) => (
+        {REPORT_RANGES.map((r) => (
           <button
-            key={d}
+            key={r.id}
             type="button"
-            className={R.days === d ? "on" : ""}
-            aria-pressed={R.days === d}
+            className={R.period === r.id ? "on" : ""}
+            aria-pressed={R.period === r.id}
             aria-disabled={busy}
-            onClick={() => void pick(d)}
+            onClick={() => void pick(r.id)}
           >
-            {l}
+            {r.label}
           </button>
         ))}
       </div>
@@ -68,7 +63,7 @@ function periodRow(p: {
       </span>
       {failed && (
         <span className="rpt-failed" role="status" aria-live="polite">
-          Couldn't load {RP2_RANGES.find(([d]) => d === failed)?.[1]}. Still showing {vm.rangeLabel}.
+          Couldn't load {REPORT_RANGES.find((r) => r.id === failed)?.label}. Still showing {vm.rangeLabel}.
         </span>
       )}
       <button
@@ -88,30 +83,30 @@ function periodRow(p: {
 export function ReportsPage() {
   const live = useSurface("reports");
   // A demo's own period: the sample answers at once, so the tabs switch it here.
-  const [sampleDays, setSampleDays] = useState(30);
+  const [samplePeriod, setSamplePeriod] = useState<ReportPeriodId>(REPORT_PERIOD_DEFAULT);
   const [busy, setBusy] = useState(false);
   // The period that failed to load, if any: the page keeps the old one and says so, instead of dimming forever and
   // switching later on its own.
-  const [failed, setFailed] = useState<number | null>(null);
+  const [failed, setFailed] = useState<ReportPeriodId | null>(null);
   const fetchedAt = live ? live.fetchedAt : 0;
   useEffect(() => {
     setBusy(false);
   }, [fetchedAt]);
-  const R = live || (demoSession() ? reportsSample(sampleDays) : null);
+  const R = live || (demoSession() ? reportsSample(samplePeriod) : null);
   if (!R) return readsAWorkspace();
-  const pick = async (days: number) => {
+  const pick = async (period: ReportPeriodId) => {
     // One period at a time: while one loads the tabs hold, rather than start a second load over the first.
-    if (busy || days === R.days) return;
+    if (busy || period === R.period) return;
     if (!live) {
-      setSampleDays(days);
+      setSamplePeriod(period);
       return;
     }
     setBusy(true);
     setFailed(null);
-    const ok = await setReportRange(days);
+    const ok = await setReportRange(period);
     if (!ok) {
       setBusy(false);
-      setFailed(days);
+      setFailed(period);
     }
   };
   return (
