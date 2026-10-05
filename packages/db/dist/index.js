@@ -1161,6 +1161,7 @@ async function deleteSendingDomain(db, tenantId, id) {
 }
 
 // src/repositories/outreach.ts
+import { conversationPatch as conversationPatch2 } from "../../contracts/dist/index.js";
 async function outreachFactsOf(db, p) {
   const { data, error } = await db.rpc("outreach_facts", {
     p_tenant_id: p.tenantId,
@@ -1302,6 +1303,16 @@ async function markReplyTold(db, p) {
     p_claimed_at: p.claim
   });
   if (error) throw new Error(`cannot mark the reply's notice told: ${error.message}`);
+}
+async function resolveEscalationByReason(db, p) {
+  const { data, error } = await db.from("escalations").update({ state: "resolved" }).eq("tenant_id", p.tenantId).eq("conversation_id", p.conversationId).eq("reason", p.reason).eq("state", "open").select("id");
+  if (error) throw new Error(`cannot resolve the thread's flag: ${error.message}`);
+  return !!data && data.length > 0;
+}
+async function archiveConversation(db, p) {
+  const { data, error } = await db.from("conversations").update(conversationPatch2("archive")).eq("tenant_id", p.tenantId).eq("id", p.conversationId).neq("state", "archived").select("id");
+  if (error) throw new Error(`cannot archive the thread: ${error.message}`);
+  return !!data && data.length > 0;
 }
 var REPLY_LIST_COLUMNS = "message_id, conversation_id, read_at, intent, claim, summary, named_day, refer_to, unread, rereads, undone_at, draft, draft_state, draft_why, plan, until_at, lead_id, send_id";
 async function repliesFor(db, p) {
@@ -3332,6 +3343,7 @@ export {
   answeredReachOutEmail,
   applyDomainCheck,
   applyReplyReading,
+  archiveConversation,
   archiveList,
   assembleBroadcast,
   assembleHistory,
@@ -3514,6 +3526,7 @@ export {
   reserveSendingDomain,
   resolveChannel,
   resolveChannelDetailed,
+  resolveEscalationByReason,
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
   runGoesByOthers,

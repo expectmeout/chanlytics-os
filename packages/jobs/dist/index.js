@@ -125,6 +125,7 @@ async function requeueFailedJob(db, tenantId, jobId, record) {
 // src/handlers.ts
 import {
   pushFor,
+  isForReader,
   unreadFor,
   PUSH_RECEIPTS_AFTER_MS,
   BELL_WINDOW_DAYS,
@@ -533,11 +534,13 @@ import {
 import { readReply } from "../../core/dist/index.js";
 import {
   applyReplyReading,
+  archiveConversation,
   claimReplyTell,
   markReplyDraft,
   markReplyTold,
   reachOutReplyOf,
-  replyReadingOf
+  replyReadingOf,
+  resolveEscalationByReason
 } from "../../db/dist/index.js";
 import { logger as logger4 } from "../../channels/dist/index.js";
 function planJson(plan) {
@@ -627,6 +630,10 @@ async function replyRead(ctx, job) {
       markDraft: (tenantId, id, mark) => markReplyDraft(db, { ...where(tenantId, id), ...draftMarkOf(mark) }),
       told: (tenantId, id, claim) => markReplyTold(db, { ...where(tenantId, id), claim }),
       scheduleOnce: (at, payload) => ctx.scheduleOnce("reply_read", new Date(at), payload),
+      // What the intake opened, the reading closes: the flag by its reason, the thread whole, on the service role (the
+      // platform's own close, so the rows are counted there rather than trusted).
+      resolveEscalation: (tenantId, conversationId, reason) => resolveEscalationByReason(db, { tenantId, conversationId, reason }),
+      archiveConversation: (tenantId, conversationId) => archiveConversation(db, { tenantId, conversationId }),
       now: Date.now
     },
     // A claim on the notice is stale once no run that could hold it is still alive: the lease less the function's
@@ -814,7 +821,7 @@ async function badgesFor(ctx, tenantId, readers) {
   for (let from = 0; ; from += READ_PAGE) {
     const page = must(
       "push_send: cannot read the bell",
-      await ctx.db.from("notifications").select("id, created_at").eq("tenant_id", tenantId).gte("created_at", since).order("created_at", { ascending: true }).range(from, from + READ_PAGE - 1)
+      await ctx.db.from("notifications").select("id, created_at, recipient_user_id").eq("tenant_id", tenantId).gte("created_at", since).order("created_at", { ascending: true }).range(from, from + READ_PAGE - 1)
     ) ?? [];
     rows.push(...page);
     if (page.length < READ_PAGE) break;
@@ -841,7 +848,7 @@ async function badgesFor(ctx, tenantId, readers) {
     out.set(
       u,
       unreadFor(
-        rows,
+        rows.filter((r) => isForReader(r, u)),
         mine?.seen_at ?? null,
         marks.filter((m) => m.user_id === u)
       )

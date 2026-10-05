@@ -28244,6 +28244,7 @@ function unreadFor(rows, seenAt, marks) {
   const gone = new Set(marks.filter((m) => m.read_at || m.dismissed_at).map((m) => m.notification_id));
   return rows.filter((r2) => Date.parse(r2.created_at) > seen && !gone.has(r2.id)).length;
 }
+var isForReader = (row2, userId) => row2.recipient_user_id === null || row2.recipient_user_id === userId;
 function firstLine(body, max = 160) {
   return body.split("\n").find((l) => l.trim())?.trim().slice(0, max) ?? "";
 }
@@ -29438,7 +29439,7 @@ function todayNoReply(f) {
     );
     if (standing !== "quiet" && standing !== "needs_you") return [];
     const last = c.messages[c.messages.length - 1];
-    if (!last || last.sender !== "customer") return [];
+    if (!last || !isTheirOwnWords(last)) return [];
     const lastMs = new Date(last.created_at).getTime();
     if (now.getTime() - lastMs < NO_REPLY_AFTER_MS) return [];
     return [{ conversationId: c.id, who: contactName(c), sinceMs: lastMs, to: `inbox/th-${c.id}` }];
@@ -29449,7 +29450,7 @@ function todayReceipts(f) {
   const { conversations, sinceMs, tz } = f;
   return conversations.flatMap(
     (c) => c.messages.filter(
-      (x) => x.direction === "outbound" && SENT.includes(String(x.status)) && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
+      (x) => x.direction === "outbound" && messageAuthor(x)?.kind === "receptionist" && SENT.includes(String(x.status)) && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
     ).map((x) => ({ conv: c, msg: x }))
   ).sort((a, b) => b.msg.created_at.localeCompare(a.msg.created_at)).slice(0, 3).map(({ conv, msg }) => ({
     at: tzTime(msg.created_at, tz) ?? "",
@@ -32841,6 +32842,7 @@ export {
   isDealStage,
   isDraftWhy,
   isE164,
+  isForReader,
   isForwardingMode,
   isFreeMail,
   isFromTheirSide,
