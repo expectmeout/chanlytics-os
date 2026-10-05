@@ -51,7 +51,7 @@ doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
 breakpoints outside the set          37   in 11 files
 literal style values                997   in 23 stylesheets
-primitives outside the kit         1955   selectors naming 790 classes
+primitives outside the kit         1930   selectors naming 786 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     298
