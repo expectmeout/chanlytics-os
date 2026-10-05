@@ -109,6 +109,43 @@ test("a run's report counts who said yes and who asked to stop AFTER it reached 
   assert.equal(by["c-held"].consent_at, null);
 });
 
+test("an unsubscribe from offers by email is the answer of a person the run reached by email, and of nobody it reached another way", async () => {
+  // The one-click unsubscribe is what an offer by email invites (00174 writes it to the same ledger, its purpose named).
+  // A run that counted none of them read "Asked to stop: 0" over the people who had.
+  const mail = { data: { consent: "opted_out", purpose: "email_marketing" } };
+  const world = {
+    broadcasts: [bRow()],
+    broadcast_recipients: [
+      rec("c-mail", { channel: "email" }),
+      rec("c-mail-yes", { channel: "email" }),
+      rec("c-wa", { channel: "whatsapp" }),
+      rec("c-old"), // a run made before recipients had a channel: WhatsApp's
+    ],
+    messages: [],
+    events: [
+      ev("c-mail", "opted_out", H, mail),
+      ev("c-mail-yes", "opted_in", H, { data: { consent: "opted_in", purpose: "email_marketing" } }),
+      // The same person has an email address and unsubscribed there, but this run reached them by WhatsApp.
+      ev("c-wa", "opted_out", H, mail),
+      ev("c-old", "opted_out", H, mail),
+    ],
+  };
+  const d = await getBroadcast({ supabase: fakeDb(world) }, TID, B);
+  const by = Object.fromEntries(d.recipients.map((r) => [r.contact_id, [r.consent_after, r.consent_purpose]]));
+  assert.deepEqual(by, {
+    "c-mail": ["opted_out", "email_marketing"],
+    "c-mail-yes": ["opted_in", "email_marketing"],
+    "c-wa": [null, null],
+    "c-old": [null, null],
+  });
+  // In the owner's words: it is the email's own answer, and it stops offers by email alone.
+  assert.equal(C.consentAnswerWords("opted_out", "email_marketing"), "unsubscribed from offers by email");
+  assert.equal(C.consentAnswerWords("opted_in", "email_marketing"), "said yes to offers by email");
+  const vm = C.toRunReportVM(d, { windowMs: C.REPLY_WINDOW_MS, nowMs: Date.parse(at(2 * H)) });
+  assert.equal(vm.figures.find((f) => f.id === "stopped").sub, "unsubscribed from offers by email");
+  assert.equal(vm.groups.stopped, 1);
+});
+
 test("a run over a thousand people is read whole: its recipients page past PostgREST's 1,000 rows, and each is counted", async () => {
   const world = {
     broadcasts: [bRow()],
@@ -417,6 +454,22 @@ test("the report's five figures are the ones Reports draws, scoped to the run: s
     { windowMs: C.REPLY_WINDOW_MS, nowMs: T0 },
   );
   assert.equal(both.figures.find((f) => f.id === "stopped").sub, "1 stopped offers · 1 stopped everything");
+  const three = C.toRunReportVM(
+    {
+      broadcast: detail.broadcast,
+      recipients: [
+        r({ contact_id: "m", consent_after: "opted_out", consent_purpose: "marketing" }),
+        r({ contact_id: "e", consent_after: "opted_out", consent_purpose: "email_marketing" }),
+        r({ contact_id: "n", consent_after: "opted_out", consent_purpose: "conversational" }),
+      ],
+    },
+    { windowMs: C.REPLY_WINDOW_MS, nowMs: T0 },
+  );
+  assert.equal(
+    three.figures.find((f) => f.id === "stopped").sub,
+    "2 stopped offers · 1 stopped everything",
+    "an unsubscribe from offers by email is a stop to offers",
+  );
   assert.deepEqual(vm.groups, { all: 6, replied: 1, held: 2, stopped: 1 });
   // A run that reached nobody says so in words, and draws no percentage of nothing.
   const none = C.toRunReportVM(

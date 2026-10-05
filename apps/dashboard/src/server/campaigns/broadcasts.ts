@@ -376,14 +376,24 @@ export async function listRuns(ctx: RouteContext, tenantId: string): Promise<Bro
  * ledger by day for the whole workspace (00064); this is one run's share of it.
  * Someone the run never reached did not answer it.
  */
-type ConsentAnswer = { consent: "opted_in" | "opted_out"; purpose: "marketing" | "conversational"; at: string };
+type ConsentAnswer = {
+  consent: "opted_in" | "opted_out";
+  purpose: "marketing" | "email_marketing" | "conversational";
+  at: string;
+};
 async function consentAfter(
   ctx: RouteContext,
   tenantId: string,
   rows: RecipientRow[],
 ): Promise<Map<string, ConsentAnswer>> {
   const sentAt = new Map<string, number>();
-  for (const r of rows) if (r.state === "sent" && r.sent_at) sentAt.set(r.contact_id, Date.parse(r.sent_at));
+  // Who the run reached by email: an answer about offers by email (00174) is theirs to give it, and nobody else's.
+  const byEmail = new Set<string>();
+  for (const r of rows) {
+    if (r.state !== "sent" || !r.sent_at) continue;
+    sentAt.set(r.contact_id, Date.parse(r.sent_at));
+    if (r.channel === "email") byEmail.add(r.contact_id);
+  }
   const out = new Map<string, ConsentAnswer>();
   if (sentAt.size === 0) return out;
   const ids = [...sentAt.keys()];
@@ -398,18 +408,22 @@ async function consentAfter(
       .gt("created_at", since);
     if (error) throw new Error(error.message);
     for (const e of (data ?? []) as { subject_id: string | null; data: unknown; created_at: string }[]) {
-      const from = e.subject_id ? sentAt.get(e.subject_id) : undefined;
+      const who = e.subject_id;
+      const from = who ? sentAt.get(who) : undefined;
       const t = Date.parse(e.created_at);
-      if (from === undefined || !(t > from) || t - from > REPLY_WINDOW_MS) continue;
+      if (!who || from === undefined || !(t > from) || t - from > REPLY_WINDOW_MS) continue;
       const data = e.data as { consent?: unknown; purpose?: unknown } | null;
       const consent = data?.consent;
       if (consent !== "opted_in" && consent !== "opted_out") continue;
-      // An unsubscribe from email (00174) is no answer to a WhatsApp broadcast.
-      if (data?.purpose === "email_marketing") continue;
+      // An unsubscribe from email (00174) is no answer to a WhatsApp broadcast or a text. It is the answer of a person
+      // the run reached by email: the one-click unsubscribe is what an offer by email invites, and a run that counted
+      // none of them read "Asked to stop: 0" over the people who had.
+      const byMail = data?.purpose === "email_marketing";
+      if (byMail && !byEmail.has(who)) continue;
       // The offers door names its purpose (00095); the conversational one names none.
-      const purpose = data?.purpose === "marketing" ? "marketing" : "conversational";
-      const had = out.get(e.subject_id!);
-      if (!had || e.created_at > had.at) out.set(e.subject_id!, { consent, purpose, at: e.created_at });
+      const purpose = byMail ? "email_marketing" : data?.purpose === "marketing" ? "marketing" : "conversational";
+      const had = out.get(who);
+      if (!had || e.created_at > had.at) out.set(who, { consent, purpose, at: e.created_at });
     }
   }
   return out;

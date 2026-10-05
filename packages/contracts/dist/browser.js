@@ -9003,12 +9003,16 @@ var RUN_FILTERS = [
   { id: "stopped", label: "Stopped" }
 ];
 function consentAnswerWords(consent, purpose) {
+  if (purpose === "email_marketing")
+    return consent === "opted_in" ? "said yes to offers by email" : "unsubscribed from offers by email";
   if (consent === "opted_in") return purpose === "marketing" ? "said yes to offers" : "said yes to hearing from you";
   return purpose === "marketing" ? "stopped offers, not messages" : "asked to stop hearing from you";
 }
 function answersWords(rows, consent) {
-  const offers = rows.filter((r2) => r2.consent_purpose === "marketing").length;
+  const byEmail = rows.filter((r2) => r2.consent_purpose === "email_marketing").length;
+  const offers = byEmail + rows.filter((r2) => r2.consent_purpose === "marketing").length;
   const rest = rows.length - offers;
+  if (rest === 0 && byEmail === offers) return consentAnswerWords(consent, "email_marketing");
   if (offers === 0 || rest === 0) return consentAnswerWords(consent, offers > 0 ? "marketing" : "conversational");
   return consent === "opted_in" ? `${offers} to offers \xB7 ${rest} to hearing from you` : `${offers} stopped offers \xB7 ${rest} stopped everything`;
 }

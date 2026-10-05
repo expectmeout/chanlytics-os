@@ -120,23 +120,28 @@ type ReportRecipient = Pick<
   | "waiting_on_you"
 >;
 
+/** Which question a person's answer after a run was to: offers, offers by email (their own answer, 00174), or everything. */
+type AnswerPurpose = NonNullable<BroadcastRecipientDto["consent_purpose"]>;
+
 /**
  * Which answer a yes or a stop was, said once for a person and once for a
  * figure: a stop to offers leaves every other message going, so the canvas's
- * "they hear nothing again" is only true of a stop to everything.
+ * "they hear nothing again" is only true of a stop to everything. An answer about offers by email is the email's own
+ * (the one-click unsubscribe an offer by email invites, or YES OFFERS by email): it stops or starts those alone.
  */
-export function consentAnswerWords(
-  consent: "opted_in" | "opted_out",
-  purpose: "marketing" | "conversational" | null,
-): string {
+export function consentAnswerWords(consent: "opted_in" | "opted_out", purpose: AnswerPurpose | null): string {
+  if (purpose === "email_marketing")
+    return consent === "opted_in" ? "said yes to offers by email" : "unsubscribed from offers by email";
   if (consent === "opted_in") return purpose === "marketing" ? "said yes to offers" : "said yes to hearing from you";
   return purpose === "marketing" ? "stopped offers, not messages" : "asked to stop hearing from you";
 }
 
-/** "said yes to offers", or both kinds counted apart: "1 to offers · 2 to hearing from you". */
+/** "said yes to offers", or both kinds counted apart: "1 to offers · 2 to hearing from you". An answer about offers by email is one about offers. */
 function answersWords(rows: readonly ReportRecipient[], consent: "opted_in" | "opted_out"): string {
-  const offers = rows.filter((r) => r.consent_purpose === "marketing").length;
+  const byEmail = rows.filter((r) => r.consent_purpose === "email_marketing").length;
+  const offers = byEmail + rows.filter((r) => r.consent_purpose === "marketing").length;
   const rest = rows.length - offers;
+  if (rest === 0 && byEmail === offers) return consentAnswerWords(consent, "email_marketing");
   if (offers === 0 || rest === 0) return consentAnswerWords(consent, offers > 0 ? "marketing" : "conversational");
   return consent === "opted_in"
     ? `${offers} to offers · ${rest} to hearing from you`

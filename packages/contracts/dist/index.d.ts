@@ -10458,12 +10458,15 @@ interface RunReportVM {
     } | null;
 }
 type ReportRecipient = Pick<BroadcastRecipientDto, "contact_id" | "name" | "channel" | "first_name" | "state" | "reason" | "sent_at" | "message_status" | "conversation_id" | "delivered_at" | "read_at" | "replied" | "replied_at" | "consent_after" | "consent_at" | "consent_purpose" | "reply_words" | "answered_by" | "answered_at" | "waiting_on_you">;
+/** Which question a person's answer after a run was to: offers, offers by email (their own answer, 00174), or everything. */
+type AnswerPurpose = NonNullable<BroadcastRecipientDto["consent_purpose"]>;
 /**
  * Which answer a yes or a stop was, said once for a person and once for a
  * figure: a stop to offers leaves every other message going, so the canvas's
- * "they hear nothing again" is only true of a stop to everything.
+ * "they hear nothing again" is only true of a stop to everything. An answer about offers by email is the email's own
+ * (the one-click unsubscribe an offer by email invites, or YES OFFERS by email): it stops or starts those alone.
  */
-declare function consentAnswerWords(consent: "opted_in" | "opted_out", purpose: "marketing" | "conversational" | null): string;
+declare function consentAnswerWords(consent: "opted_in" | "opted_out", purpose: AnswerPurpose | null): string;
 /** What happened to one person, with the times WhatsApp's receipts gave (00111): "sent 10:31 · delivered 10:32 · read 10:40 · replied 10:52". */
 declare function receiptWords(r: Pick<BroadcastRecipientDto, "sent_at" | "message_status" | "delivered_at" | "read_at" | "replied" | "replied_at">, clock: (iso: string | null) => string | null): string;
 /**
@@ -10708,7 +10711,7 @@ interface BroadcastRecipientDto {
     consent_after: "opted_in" | "opted_out" | null;
     consent_at: string | null;
     /** Which answer that was: to offers (the offers door names its purpose, 00095), or to hearing from the business at all. */
-    consent_purpose: "marketing" | "conversational" | null;
+    consent_purpose: "marketing" | "email_marketing" | "conversational" | null;
     /** Their first reply's words, on one line. Null when it had none -- a photo, a voice note -- or there was no reply. */
     reply_words: string | null;
     /** Who answered that reply first, and when: the receptionist, or someone on the team. A note or a later template is not an answer. */
