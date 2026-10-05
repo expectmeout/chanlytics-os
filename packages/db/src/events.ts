@@ -80,7 +80,8 @@ interface TableData {
   "line.texting_on": TextingData;
   "line.texting_rejected": TextingData;
   "message.send_blocked": { reason: string | null } & Open;
-  "message.send_failed": { http_status: number; body: string | null; reason: string } & Open;
+  /** `http_status` is the send's own answer: absent when the failure came later, in the provider's receipt (reason "receipt"). */
+  "message.send_failed": { http_status?: number; body: string | null; reason: string } & Open;
   "message.send_raced_cancel": { wamid: string | null };
   "message.sent": { sender: string };
   "platform.acted": PlatformActedData;

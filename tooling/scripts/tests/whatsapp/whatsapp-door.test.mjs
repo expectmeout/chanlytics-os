@@ -1162,3 +1162,122 @@ test("the ack rule: a message the database refused is not acknowledged, 503 with
     );
   });
 });
+
+/* ---------------------------- a failure Meta reports later raises its hand ---------------------------- */
+
+/** One reply of ours Meta accepted, and the receipt that says it then failed. */
+function accepted(w, over = {}) {
+  const wamid = `wamid.${w.i}.late`;
+  const row = {
+    id: `late-${w.i}`,
+    tenant_id: w.T,
+    conversation_id: `cv-${w.i}`,
+    contact_id: null,
+    direction: "outbound",
+    sender: "human",
+    channel: "whatsapp",
+    external_id: wamid,
+    status: "sent",
+    error: null,
+    meta: {},
+    ...over,
+  };
+  w.tables.messages.push(row);
+  const errors = [{ code: 131047, title: "Re-engagement message", message: "Re-engagement message" }];
+  const failed = (status = "failed") =>
+    w.change({ statuses: [{ id: wamid, status, timestamp: now(), recipient_id: w.customer(), errors }] });
+  return { row, wamid, errors, failed };
+}
+const holds = (w) => (w.tables.escalations ?? []).filter((e) => e.state !== "resolved");
+
+test("a WhatsApp message Meta then reports failed flags its thread, rings the bell and writes the ledger, saying why", async () => {
+  const w = world();
+  const { row, errors, failed } = accepted(w);
+  w.open();
+  receptionist();
+  assert.deepEqual(await answer(await deliver(failed())), [200, { ok: true }]);
+  assert.deepEqual([row.status, row.error], ["failed", { errors }]);
+
+  assert.equal(holds(w).length, 1);
+  const [hold] = holds(w);
+  assert.deepEqual([hold.conversation_id, hold.reason], [`cv-${w.i}`, "send_failed"]);
+  assert.match(hold.details, /^A reply from your team was accepted for sending but did not reach them\. /);
+  assert.match(hold.details, /more than 24 hours have passed since they last replied.*\(WhatsApp error 131047\)\.$/);
+  assert.equal(w.tables.notifications.length, 1);
+  assert.deepEqual(
+    [w.tables.notifications[0].kind, w.tables.notifications[0].route, w.tables.notifications[0].subject_id],
+    ["handoff", `inbox/th-cv-${w.i}`, `cv-${w.i}`],
+  );
+  const failures = kind(w.tables, "message.send_failed");
+  assert.equal(failures.length, 1);
+  assert.deepEqual(
+    [failures[0].subject_id, failures[0].data.reason, failures[0].data.outcome],
+    [row.id, "receipt", "refused"],
+  );
+});
+
+test("the same failure said twice, in one delivery or two, raises once", async () => {
+  const w = world();
+  const { row, failed } = accepted(w);
+  w.open();
+  receptionist();
+  await deliver(failed());
+  await deliver(failed());
+  const twice = failed();
+  twice.entry[0].changes[0].value.statuses.push(twice.entry[0].changes[0].value.statuses[0]);
+  await deliver(twice);
+  assert.equal(row.status, "failed");
+  assert.deepEqual(
+    [holds(w).length, w.tables.notifications.length, kind(w.tables, "message.send_failed").length],
+    [1, 1, 1],
+  );
+});
+
+test("a campaign's message, a customer's row and a delivery raise nothing; the failure still lands on the row", async () => {
+  for (const [name, over] of [
+    ["a broadcast's send", { meta: { source: "broadcast", broadcast_id: "b1", broadcast_name: "Spring" } }],
+    ["a reach-out's step", { meta: { source: "reach_out" } }],
+    ["a system note", { sender: "system" }],
+  ]) {
+    const w = world();
+    const { row, failed } = accepted(w, over);
+    w.open();
+    receptionist();
+    assert.deepEqual(await answer(await deliver(failed())), [200, { ok: true }], name);
+    assert.equal(row.status, "failed", name);
+    assert.deepEqual(
+      [holds(w).length, w.tables.notifications.length, kind(w.tables, "message.send_failed").length],
+      [0, 0, 0],
+      name,
+    );
+  }
+  const ok = world();
+  const { row, wamid } = accepted(ok);
+  ok.open();
+  receptionist();
+  await deliver(
+    ok.change({ statuses: [{ id: wamid, status: "delivered", timestamp: now(), recipient_id: ok.customer() }] }),
+  );
+  assert.deepEqual([row.status, holds(ok).length, ok.tables.notifications.length], ["delivered", 0, 0]);
+});
+
+test("a flag the database would not take leaves the message as it was and the delivery unacknowledged, so Meta says it again; the bell is not rung for a thread that is not flagged", async () => {
+  const w = world();
+  const { row, failed } = accepted(w);
+  w.open({ "escalations.insert": { message: "the database is down" } });
+  receptionist();
+  await listening(async (log) => {
+    assert.deepEqual(await answer(await deliver(failed())), [503, { ok: false, unrecorded: 1 }]);
+    assert.ok(log.said("pg_escalation_failed").length >= 1, "and it is said");
+  });
+  assert.deepEqual([row.status, row.error], ["sent", null]);
+  assert.deepEqual(
+    [holds(w).length, w.tables.notifications.length, kind(w.tables, "message.send_failed").length],
+    [0, 0, 0],
+  );
+
+  // Meta redelivers, the database is back: the failure lands and is raised, once.
+  w.open();
+  assert.deepEqual(await answer(await deliver(failed())), [200, { ok: true }]);
+  assert.deepEqual([row.status, holds(w).length, w.tables.notifications.length], ["failed", 1, 1]);
+});

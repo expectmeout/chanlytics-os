@@ -29,6 +29,7 @@ export {
   wireRowOf,
   countSentToday,
   recordStatusByExternalId,
+  messageByExternalId,
   keepMessageCost,
   recordEchoAndPause,
   pauseConversation,

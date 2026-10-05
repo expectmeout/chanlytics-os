@@ -657,6 +657,20 @@ async function recordStatusByExternalId(db, tenantId, externalId, status, errorD
     dbLog().error("record_status_failed", { tenant_id: tenantId, external_id: externalId, error: error.message });
   }
 }
+async function messageByExternalId(db, tenantId, externalId) {
+  const { data, error } = await db.from("messages").select("id, conversation_id, direction, sender, channel, status, meta, contacts (phone_e164, email)").eq("tenant_id", tenantId).eq("external_id", externalId).maybeSingle();
+  if (error) throw new Error(`messageByExternalId: ${error.message}`);
+  if (!data) return null;
+  return {
+    messageId: data.id,
+    conversationId: data.conversation_id,
+    direction: data.direction,
+    sender: data.sender,
+    status: data.status,
+    meta: data.meta,
+    to: (data.channel === "email" ? data.contacts?.email : data.contacts?.phone_e164) ?? null
+  };
+}
 async function keepMessageCost(db, tenantId, externalId, pricing) {
   const { data, error } = await db.rpc("message_keep_cost", {
     p_tenant_id: tenantId,
@@ -3504,6 +3518,7 @@ export {
   markReplyTold,
   markWaitlistInvited,
   membershipCountOf,
+  messageByExternalId,
   messageSenders,
   messageSlots,
   migrationHead,

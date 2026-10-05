@@ -177,24 +177,43 @@ async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, f: Fa
   // the row says why.
   const cause = causeOf(out, channel);
   const receptionist = msg.sender === "ai";
-  await ports.escalate(
-    p.conversation_id,
-    "send_failed",
-    `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`,
-  );
-  // The line above just flagged the thread, so this is a conversation that
-  // needs a person: the same thing a WhatsApp handoff is, drawn the same way,
-  // and its button opens THAT thread rather than the Inbox's front page. The
-  // job itself completes; it never was "a job did not finish". (Today drops an
-  // away-row whose conversation the queue already shows, so this row usually
-  // appears only as the thread at the top of the page, which is where it is.)
-  await ports.alert({
-    kind: "handoff",
-    route: `inbox/th-${p.conversation_id}`,
-    about: { type: "conversation", id: p.conversation_id },
+  await raiseSendFailed(ports, {
+    conversationId: p.conversation_id,
+    details: `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`,
     subject: `Reply delivery failed: ${to}`,
     body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`,
   });
+}
+
+/**
+ * A reply that did not reach the customer: THE statement of what it owes, whichever way it was found out. The thread is
+ * flagged for a person (reason send_failed, with why in `details`) and the owner told, in a hand-off that opens THAT
+ * thread rather than the Inbox's front page. Said here by a send the wire could not carry (sayItFailed) and by a delivery
+ * the provider reported failed after taking it (late-failure.ts), so the two cannot come to say it differently. Answers
+ * what the flag came to. A send that fails at the wire tells the owner whatever the flag came to (the job completes and
+ * nothing will say it again); a caller that WILL be told again (`again`: a receipt the provider redelivers) is spared a
+ * bell for a thread that is not flagged: a flag that could not be written throws, and the owner is told once, when it is.
+ *
+ * The flag is a conversation that needs a person: the same thing a WhatsApp handoff is, drawn the same way. The job
+ * itself completes; it never was "a job did not finish". (Today drops an away-row whose conversation the queue already
+ * shows, so this row usually appears only as the thread at the top of the page, which is where it is.)
+ */
+export async function raiseSendFailed(
+  ports: Pick<SendQueuedPorts, "escalate" | "alert">,
+  f: { conversationId: string; details: string; subject: string; body: string },
+  again = false,
+): Promise<unknown> {
+  const flagged = await ports.escalate(f.conversationId, "send_failed", f.details);
+  if (again && flagged === "failed")
+    throw new Error(`send failed: its thread ${f.conversationId} could not be flagged`);
+  await ports.alert({
+    kind: "handoff",
+    route: `inbox/th-${f.conversationId}`,
+    about: { type: "conversation", id: f.conversationId },
+    subject: f.subject,
+    body: f.body,
+  });
+  return flagged;
 }
 
 /** Why it did not leave, in words for the owner: a number with no credentials is not "HTTP 503". */
