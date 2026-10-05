@@ -974,8 +974,182 @@ function splitQuotedReply(body) {
   return { text, quoted };
 }
 
+// src/config/brain.ts
+var BRAIN_INTENTS = [
+  "booking",
+  "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var INTENT_LABELS = {
+  booking: "Booking",
+  pricing: "Pricing question",
+  money: "Money question",
+  hours: "Hours",
+  services: "Services",
+  location: "Location",
+  complaint: "Complaint",
+  smalltalk: "Small talk",
+  other: "Other"
+};
+var BRAIN_LANGUAGES = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS],
+      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
+function brainMetaOf(out, model, stamp) {
+  return {
+    intent: out.intent,
+    confidence: Math.round(out.confidence * 100) / 100,
+    reason: out.reason,
+    facts_used: out.facts_used,
+    language: out.language,
+    model,
+    ...stamp ? { prompt_hash: stamp.promptHash, config_version: stamp.configVersion } : {}
+  };
+}
+function replyWhy(meta) {
+  if (!meta || typeof meta !== "object") return null;
+  const intent = BRAIN_INTENTS.includes(String(meta.intent)) ? meta.intent : null;
+  const conf = typeof meta.confidence === "number" && Number.isFinite(meta.confidence) ? Math.round(Math.min(1, Math.max(0, meta.confidence)) * 100) : null;
+  if (intent === null && conf === null) return null;
+  const facts = Array.isArray(meta.facts_used) ? meta.facts_used.filter((f) => typeof f === "string" && !!f.trim()) : [];
+  const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
+  const source = typeof meta.source === "string" ? meta.source : null;
+  const heldFor2 = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
+  const label = intent ? INTENT_LABELS[intent] : "Reply";
+  return {
+    intent: intent ?? "other",
+    intentLabel: label,
+    confidence: conf,
+    reason,
+    facts,
+    heldFor: heldFor2,
+    summary: conf === null ? label : `${label} \xB7 ${conf}% sure`
+  };
+}
+var CONFIDENCE_STEPS = [0, 0.6, 0.75, 0.9];
+
+// src/conversations/message-author.ts
+var metaKey = (meta, key) => meta !== null && typeof meta === "object" ? meta[key] : void 0;
+var AUTOMATED_SEND_SOURCES = ["broadcast", "reach_out"];
+function isAutomatedSend(meta) {
+  const source = metaKey(meta, "source");
+  return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
+}
+var NOT_A_PERSONS_CLAIMS = ["automated", "auto_reply", "report"];
+function isPersonsWords(meta) {
+  const claim = metaKey(metaKey(meta, "email"), "claim");
+  return !(typeof claim === "string" && NOT_A_PERSONS_CLAIMS.includes(claim));
+}
+function messageVia(m) {
+  if (m.meta?.source !== "broadcast") return null;
+  return m.meta.playbook_name ? { kind: "playbook", name: String(m.meta.playbook_name) } : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") };
+}
+function messageAuthor(m) {
+  if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
+  const via = messageVia(m);
+  if (via) {
+    return via.kind === "playbook" ? (
+      // A playbook named "The month's offer" is not "the The month's offer playbook".
+      { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
+    ) : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
+  }
+  return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
+}
+function lastWordLine(needsHuman, last, author) {
+  if (needsHuman) return "Receptionist paused \u2014 a human has this thread";
+  if (!last) return "No messages yet";
+  if (last.direction === "inbound") return "They wrote last \u2014 no reply yet";
+  if (!author) return "Answered automatically";
+  if (author.kind === "receptionist") return "Answered by the receptionist";
+  if (author.kind === "team") return "Answered by your team";
+  return `Last message: ${author.words}`;
+}
+function messageWhy(m) {
+  return m.sender === "ai" ? replyWhy(m.meta) : null;
+}
+
+// src/conversations/thread-channel.ts
+var AGENTS = {
+  whatsapp: { glyph: "W", name: "WhatsApp Receptionist" },
+  sms: { glyph: "T", name: "Text Receptionist" },
+  email: { glyph: "Y", name: "Your team" },
+  phone: { glyph: "P", name: "Phone Receptionist" }
+};
+function agentFor(channel) {
+  return AGENTS[channel] ?? AGENTS.whatsapp;
+}
+function writtenChannelOf(channel) {
+  return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
+}
+var THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
+function lastWroteOn(messages) {
+  const theirs = [...messages].reverse().find(isTheirOwnWords);
+  return theirs ? writtenChannelOf(theirs.channel) : null;
+}
+var WRITTEN_TYPES = ["text", "template", "media"];
+function isFromTheirSide(m) {
+  return m.sender === "customer" && m.direction !== "outbound" && WRITTEN_TYPES.includes(m.type);
+}
+function isTheirOwnWords(m) {
+  return isFromTheirSide(m) && isPersonsWords(m.meta);
+}
+function threadChannelOf(messages) {
+  const wrote = lastWroteOn(messages);
+  if (wrote) return wrote;
+  const newest = [...messages].reverse();
+  const written = newest.find(isFromTheirSide) ?? newest.find((m) => m.type !== "call_summary");
+  return written ? writtenChannelOf(written.channel) : "phone";
+}
+function threadChannelWords(messages) {
+  return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
+}
+
 // src/conversations/message-words.ts
-function messageStatusLabel(status) {
+var EMAIL_DELIVERED = "Reached their mail server";
+function messageStatusLabel(status, channel) {
   switch (status) {
     case "queued":
       return "Sending\u2026";
@@ -986,10 +1160,108 @@ function messageStatusLabel(status) {
     case "read":
       return "Read";
     case "delivered":
-      return "Delivered";
+      return channel === "email" ? EMAIL_DELIVERED : "Delivered";
     default:
       return void 0;
   }
+}
+var WHATSAPP_FAILURES = {
+  130429: "Your number has reached WhatsApp's message limit for now",
+  131026: "WhatsApp couldn't deliver it: their number may not be on WhatsApp, or they haven't accepted its latest terms or updated the app",
+  131031: "Your WhatsApp Business account is restricted or disabled, or WhatsApp couldn't verify its details",
+  131042: "WhatsApp reports a problem with your payment method",
+  131047: "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now",
+  131048: "WhatsApp is limiting how many messages your number can send, because earlier ones were blocked or flagged as spam",
+  131049: "WhatsApp chose not to deliver it, to maintain healthy engagement, and advises waiting at least 24 hours before sending again",
+  131050: "They've chosen to stop receiving marketing messages from your business on WhatsApp",
+  131053: "WhatsApp couldn't upload the attachment, for a reason such as a file type it doesn't support",
+  131056: "Your number sent them too many messages in a short while, and WhatsApp asks you to wait before sending more to them",
+  132e3: "The template's variable values didn't match the ones it defines",
+  132001: "That template doesn't exist in this language, or hasn't been approved",
+  132012: "The template's variable values were formatted wrongly",
+  132015: "That template is paused because of its low quality",
+  132016: "That template was permanently disabled for low quality"
+};
+var SMS_FAILURES = {
+  21211: "That isn't a valid phone number",
+  21408: "Texts to that region are turned off for your account",
+  21610: "They've opted out of texts from your number",
+  21614: "That number isn't a valid mobile number",
+  30003: "Their phone couldn't be reached: it may be off, out of signal, or unable to receive texts",
+  30004: "The text was blocked from reaching this number",
+  30005: "The carrier says this number is unknown and may no longer exist",
+  30006: "This number can't receive texts, which is typical of a landline",
+  30007: "The text was filtered as a possible policy violation",
+  30008: "The carrier gave no reason for not delivering it",
+  30034: "Your texting line isn't registered with the carriers yet, so they blocked it"
+};
+var SMS_STATUS_WORDS = {
+  undelivered: "The carrier didn't deliver it.",
+  failed: "The text couldn't be sent.",
+  canceled: "The text was canceled before it left."
+};
+var EMAIL_FAILURES = {
+  bounced: "The email bounced: their address didn't accept it.",
+  failed: "The mail provider couldn't send it.",
+  suppressed: "The mail provider has stopped sending to this address after an earlier bounce or complaint."
+};
+var SETTLED_FAILURES = {
+  never_delivered: "It was never sent: the job that would have sent it never ran.",
+  run_interrupted: "It may not have gone: the run that was sending it did not finish.",
+  orphaned: "It was never sent: no job was left to send it."
+};
+var record = (v) => v !== null && typeof v === "object" && !Array.isArray(v) ? v : null;
+function codeOf(v) {
+  if (typeof v === "number") return Number.isInteger(v) && v > 0 ? v : null;
+  return typeof v === "string" && /^\d{3,6}$/.test(v.trim()) ? Number(v.trim()) : null;
+}
+function providerCodeOf(error) {
+  const listed = Array.isArray(error.errors) ? record(error.errors[0]) : null;
+  const direct = codeOf(listed?.code) ?? codeOf(error.code);
+  if (direct !== null) return direct;
+  const body = error.body;
+  if (typeof body === "string") {
+    const graph = /"code"\s*:\s*(\d{3,6})/.exec(body);
+    if (graph) return Number(graph[1]);
+    const twilio = /^Twilio (\d{5})$/.exec(body.trim());
+    return twilio ? Number(twilio[1]) : null;
+  }
+  return codeOf(record(record(body)?.error)?.code);
+}
+function sendFailureWords(error, channel) {
+  const e = record(error);
+  if (!e) return null;
+  const wire = writtenChannelOf(channel);
+  if (wire === "email") {
+    const provider = typeof e.provider === "string" ? e.provider : "";
+    return EMAIL_FAILURES[provider] ?? settledWords(e);
+  }
+  const code2 = providerCodeOf(e);
+  const sms = wire === "sms";
+  if (code2 !== null) {
+    const meaning = (sms ? SMS_FAILURES : WHATSAPP_FAILURES)[code2];
+    if (meaning) return `${meaning} (${sms ? "Twilio" : "WhatsApp"} error ${code2}).`;
+    return sms ? `Twilio didn't deliver it (error ${code2}).` : `WhatsApp didn't deliver it (error ${code2}).`;
+  }
+  const carrier = typeof e.carrier === "string" ? SMS_STATUS_WORDS[e.carrier] : void 0;
+  return carrier ?? settledWords(e);
+}
+function messageFailedWhy(m) {
+  return m.status === "failed" ? sendFailureWords(m.error, m.channel) : null;
+}
+function sentFactsOf(m) {
+  const statusLabel = messageStatusLabel(m.status, m.channel);
+  const failedWhy = messageFailedWhy(m);
+  return {
+    ...statusLabel ? { statusLabel } : {},
+    ...failedWhy ? { failedWhy } : {},
+    reachedCustomer: reachedCustomer(m.status)
+  };
+}
+function settledWords(e) {
+  const settled = typeof e.reason === "string" ? SETTLED_FAILURES[e.reason] : void 0;
+  if (settled) return settled;
+  return e.outcome === "unknown" ? "The provider didn't answer in time, so it may have gone: check the thread before sending it again." : null;
 }
 function isChatMessage(m) {
   return m.type !== "call_summary" && m.type !== "note";
@@ -7512,179 +7784,6 @@ function bubbleTime(iso, tz, now) {
 }
 function formatWaited(ms2) {
   return waitedLabel(ms2);
-}
-
-// src/config/brain.ts
-var BRAIN_INTENTS = [
-  "booking",
-  "pricing",
-  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
-  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
-  "money",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var INTENT_LABELS = {
-  booking: "Booking",
-  pricing: "Pricing question",
-  money: "Money question",
-  hours: "Hours",
-  services: "Services",
-  location: "Location",
-  complaint: "Complaint",
-  smalltalk: "Small talk",
-  other: "Other"
-};
-var BRAIN_LANGUAGES = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS],
-      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
-function brainMetaOf(out, model, stamp) {
-  return {
-    intent: out.intent,
-    confidence: Math.round(out.confidence * 100) / 100,
-    reason: out.reason,
-    facts_used: out.facts_used,
-    language: out.language,
-    model,
-    ...stamp ? { prompt_hash: stamp.promptHash, config_version: stamp.configVersion } : {}
-  };
-}
-function replyWhy(meta) {
-  if (!meta || typeof meta !== "object") return null;
-  const intent = BRAIN_INTENTS.includes(String(meta.intent)) ? meta.intent : null;
-  const conf = typeof meta.confidence === "number" && Number.isFinite(meta.confidence) ? Math.round(Math.min(1, Math.max(0, meta.confidence)) * 100) : null;
-  if (intent === null && conf === null) return null;
-  const facts = Array.isArray(meta.facts_used) ? meta.facts_used.filter((f) => typeof f === "string" && !!f.trim()) : [];
-  const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
-  const source = typeof meta.source === "string" ? meta.source : null;
-  const heldFor2 = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
-  const label = intent ? INTENT_LABELS[intent] : "Reply";
-  return {
-    intent: intent ?? "other",
-    intentLabel: label,
-    confidence: conf,
-    reason,
-    facts,
-    heldFor: heldFor2,
-    summary: conf === null ? label : `${label} \xB7 ${conf}% sure`
-  };
-}
-var CONFIDENCE_STEPS = [0, 0.6, 0.75, 0.9];
-
-// src/conversations/message-author.ts
-var metaKey = (meta, key) => meta !== null && typeof meta === "object" ? meta[key] : void 0;
-var AUTOMATED_SEND_SOURCES = ["broadcast", "reach_out"];
-function isAutomatedSend(meta) {
-  const source = metaKey(meta, "source");
-  return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
-}
-var NOT_A_PERSONS_CLAIMS = ["automated", "auto_reply", "report"];
-function isPersonsWords(meta) {
-  const claim = metaKey(metaKey(meta, "email"), "claim");
-  return !(typeof claim === "string" && NOT_A_PERSONS_CLAIMS.includes(claim));
-}
-function messageVia(m) {
-  if (m.meta?.source !== "broadcast") return null;
-  return m.meta.playbook_name ? { kind: "playbook", name: String(m.meta.playbook_name) } : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") };
-}
-function messageAuthor(m) {
-  if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
-  const via = messageVia(m);
-  if (via) {
-    return via.kind === "playbook" ? (
-      // A playbook named "The month's offer" is not "the The month's offer playbook".
-      { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
-    ) : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
-  }
-  return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
-}
-function lastWordLine(needsHuman, last, author) {
-  if (needsHuman) return "Receptionist paused \u2014 a human has this thread";
-  if (!last) return "No messages yet";
-  if (last.direction === "inbound") return "They wrote last \u2014 no reply yet";
-  if (!author) return "Answered automatically";
-  if (author.kind === "receptionist") return "Answered by the receptionist";
-  if (author.kind === "team") return "Answered by your team";
-  return `Last message: ${author.words}`;
-}
-function messageWhy(m) {
-  return m.sender === "ai" ? replyWhy(m.meta) : null;
-}
-
-// src/conversations/thread-channel.ts
-var AGENTS = {
-  whatsapp: { glyph: "W", name: "WhatsApp Receptionist" },
-  sms: { glyph: "T", name: "Text Receptionist" },
-  email: { glyph: "Y", name: "Your team" },
-  phone: { glyph: "P", name: "Phone Receptionist" }
-};
-function agentFor(channel) {
-  return AGENTS[channel] ?? AGENTS.whatsapp;
-}
-function writtenChannelOf(channel) {
-  return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
-}
-var THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
-function lastWroteOn(messages) {
-  const theirs = [...messages].reverse().find(isTheirOwnWords);
-  return theirs ? writtenChannelOf(theirs.channel) : null;
-}
-var WRITTEN_TYPES = ["text", "template", "media"];
-function isFromTheirSide(m) {
-  return m.sender === "customer" && m.direction !== "outbound" && WRITTEN_TYPES.includes(m.type);
-}
-function isTheirOwnWords(m) {
-  return isFromTheirSide(m) && isPersonsWords(m.meta);
-}
-function threadChannelOf(messages) {
-  const wrote = lastWroteOn(messages);
-  if (wrote) return wrote;
-  const newest = [...messages].reverse();
-  const written = newest.find(isFromTheirSide) ?? newest.find((m) => m.type !== "call_summary");
-  return written ? writtenChannelOf(written.channel) : "phone";
-}
-function threadChannelWords(messages) {
-  return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
 }
 
 // src/people/person-helpers.ts
@@ -17299,15 +17398,10 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       // The words Conversations says too (messageAuthor): a person's reply is the team's.
       ...m.sender === "human" && messageAuthor(m) ? { byWords: messageAuthor(m).words } : {},
       ...messageVia(m) ? { via: messageVia(m) } : {},
-      ...m.sender !== "customer" && m.status ? {
-        status: m.status,
-        // The words themselves live in messageStatusLabel, so this pane and
-        // the Conversations pane cannot describe the same message
-        // differently — which is exactly what they were doing.
-        ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
-        // Whether the words left: the receptionist's failed reply was drawn as a sent bubble (I1).
-        reachedCustomer: reachedCustomer(m.status)
-      } : {},
+      // What became of it: the words for its status, why it failed (one sentence for the owner, drawn under "Didn't send"),
+      // and whether the words left (the receptionist's failed reply was drawn as a sent bubble, I1). Said in message-words.ts,
+      // so this pane and the Conversations pane cannot describe the same message differently.
+      ...m.sender !== "customer" && m.status ? { status: m.status, ...sentFactsOf(m) } : {},
       // A held draft is not a sent message and must not read as one.
       ...isHeldDraft(m) ? { pending: true, sendsAtMs: draftSendsAtMs(m) } : {}
     };
@@ -17447,10 +17541,7 @@ function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date())
     ...messageAuthor(m) ? { by: messageAuthor(m).words } : {},
     // Only for OUR messages. A customer's inbound message has no send status,
     // and labelling it would be inventing one.
-    ...m.sender !== "customer" ? {
-      ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
-      reachedCustomer: reachedCustomer(m.status)
-    } : {}
+    ...m.sender !== "customer" ? sentFactsOf(m) : {}
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const chat = dto.messages.filter(isChatMessage);
@@ -26537,9 +26628,18 @@ function replyRowOf(row2, r2) {
     cta: { label: drafted(r2) ? "Read the draft" : "Open and reply", to: row2.cta.to }
   };
 }
-function withReplies(rows, readings) {
+function newestReadings(readings) {
   const newest = /* @__PURE__ */ new Map();
   for (const r2 of readings) if (!newest.has(r2.conversation_id)) newest.set(r2.conversation_id, r2);
+  return newest;
+}
+function withoutWrongPerson(waiting, readings) {
+  const gone = /* @__PURE__ */ new Set();
+  for (const [thread, r2] of newestReadings(readings)) if (r2.intent === "wrong_person" && !r2.undone) gone.add(thread);
+  return gone.size ? waiting.filter((w) => !gone.has(w.conversationId)) : [...waiting];
+}
+function withReplies(rows, readings) {
+  const newest = newestReadings(readings);
   return rows.map((row2) => {
     const r2 = row2.kind === "handoff" && row2.conversationId ? newest.get(row2.conversationId) : void 0;
     return r2 && rowWorthy(r2) ? replyRowOf(row2, r2) : row2;
@@ -35097,6 +35197,7 @@ export {
   sellsBySaved,
   sellsByVM,
   sendFailureIsOurs,
+  sendFailureWords,
   sendWindowsOf,
   sendableTemplates,
   senderLanguage,
@@ -35357,6 +35458,7 @@ export {
   withReplies,
   withStoredKeysKept,
   withVisitsOf,
+  withoutWrongPerson,
   wordCount,
   wordsIssueWords,
   wordsNeedOpening,

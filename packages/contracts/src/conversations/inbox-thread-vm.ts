@@ -138,6 +138,8 @@ export interface InboxThreadVM {
         status?: string;
         /** "Didn't send", "Canceled before sending", "Read" (messageStatusLabel). */
         statusLabel?: string;
+        /** Why a failed message did not arrive, in one sentence for the owner (sendFailureWords); absent when the row does not say. */
+        failedWhy?: string;
         /** False when these words never reached the customer: the page dashes them, as Conversations does. */
         reachedCustomer?: boolean;
         /** The message's own id, on every bubble: a call's note finds its call by it, and a link opens the thread there. */

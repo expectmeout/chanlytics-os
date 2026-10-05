@@ -12,6 +12,8 @@ export type {
 } from "./ports";
 export { sendQueued, SEND_RETRY_WAITS_MS } from "./send";
 export type { SendQueuedCommand } from "./send";
+export { raiseLateFailure } from "./late-failure";
+export type { LateFailureCommand, LateFailureFacts, LateFailureOutcome, LateFailurePorts } from "./late-failure";
 export { provisionLine } from "./provision-line";
 export { ingestEmail, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS } from "./email-ingest";
 export type { EmailClaim, IncomingEmail, EmailIngestPorts, EmailIngestOutcome } from "./email-ingest";

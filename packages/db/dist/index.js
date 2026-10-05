@@ -680,6 +680,20 @@ async function recordStatusByExternalId(db, tenantId, externalId, status, errorD
     dbLog().error("record_status_failed", { tenant_id: tenantId, external_id: externalId, error: error.message });
   }
 }
+async function messageByExternalId(db, tenantId, externalId) {
+  const { data, error } = await db.from("messages").select("id, conversation_id, direction, sender, channel, status, meta, contacts (phone_e164, email)").eq("tenant_id", tenantId).eq("external_id", externalId).maybeSingle();
+  if (error) throw new Error(`messageByExternalId: ${error.message}`);
+  if (!data) return null;
+  return {
+    messageId: data.id,
+    conversationId: data.conversation_id,
+    direction: data.direction,
+    sender: data.sender,
+    status: data.status,
+    meta: data.meta,
+    to: (data.channel === "email" ? data.contacts?.email : data.contacts?.phone_e164) ?? null
+  };
+}
 async function keepMessageCost(db, tenantId, externalId, pricing) {
   const { data, error } = await db.rpc("message_keep_cost", {
     p_tenant_id: tenantId,
@@ -2336,6 +2350,17 @@ async function searchMessages(db, tenantId, words, since, limit) {
     snippet: r.snippet ?? ""
   }));
 }
+async function failedMessageErrors(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db.from("messages").select("id, error").eq("tenant_id", tenantId).eq("status", "failed").in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`failedMessageErrors: ${error.message}`);
+    for (const r of data ?? [])
+      if (r.error !== null && typeof r.error === "object" && !Array.isArray(r.error))
+        out.push({ id: r.id, error: r.error });
+  }
+  return out;
+}
 async function messageSenders(db, tenantId, ids) {
   const out = [];
   for (let i = 0; i < ids.length; i += IDS_PER_READ) {
@@ -3459,6 +3484,7 @@ export {
   endVoiceSession,
   erasureDigests,
   everyoneIn,
+  failedMessageErrors,
   finishableRuns,
   followUpTouchesSince,
   forgetActivityTokens,
@@ -3516,6 +3542,7 @@ export {
   markWaitlistInvited,
   membershipCountOf,
   mergePeople,
+  messageByExternalId,
   messageSenders,
   messageSlots,
   migrationHead,

@@ -16,8 +16,10 @@ import {
   todayRunsSub,
   todayRunApproved,
   withReplies,
+  withoutWrongPerson,
   NOTIFICATION_KIND_GROUPS,
   type ReachOutRepliesDto,
+  type TodayNoReplyVM,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
 
@@ -38,6 +40,9 @@ export const TODAY_HELPERS = {
   steps: todaySteps,
   // The queue's handoffs whose thread's reply to a reach-out was read, as that reply's row (Reach out Part 5, PR 8).
   withReplies: (rows: TodayQueueRowVM[]) => withReplies(rows, readings()),
+  // Who is waiting with nothing back, less a reply read as a wrong person: nobody there is to answer (contracts
+  // withoutWrongPerson), over the same readings as the queue's, so the page asks for the replies once.
+  withoutWrongPerson: (waiting: TodayNoReplyVM[]) => withoutWrongPerson(waiting, readings()),
   // What Settings › Notifications says the workspace is told (contracts notification-kinds.ts).
   notificationKinds: NOTIFICATION_KIND_GROUPS,
 };

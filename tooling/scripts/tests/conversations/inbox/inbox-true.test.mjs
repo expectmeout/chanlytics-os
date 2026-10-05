@@ -369,6 +369,28 @@ test("the pane: a quiet thread says its last word once, in its tone; the reply t
   );
 });
 
+test("the pane: a reply that didn't send says why under its words, once, from the provider's own code", () => {
+  const failed = ours("m2", "human", "See you at 3", 29, "failed");
+  failed.channel = "whatsapp";
+  failed.error = { errors: [{ code: 131047, title: "Re-engagement message" }] };
+  const tree = paneOf(vmOf(quiet([wrote("m1", "Can I book at 3?", 30), failed])));
+  const bubble = all(tree, hasClass("tl-msg")).find((b) => textOf(b).includes("See you at 3"));
+  const why = all(bubble, byTestId("tl-msg-failed-why"));
+  assert.equal(why.length, 1, "one line, in the bubble that did not leave");
+  assert.match(
+    textOf(why[0]).trim(),
+    /^WhatsApp wouldn't send it: more than 24 hours have passed since they last replied/,
+  );
+  assert.match(textOf(why[0]).trim(), /\(WhatsApp error 131047\)\.$/);
+
+  // A failure whose row says nothing readable draws no line, and a bubble that arrived never does.
+  const unsaid = paneOf(vmOf(quiet([wrote("m1", "Hi", 30), ours("m2", "ai", "Hello", 29, "failed")])));
+  assert.equal(all(unsaid, byTestId("tl-msg-failed-why")).length, 0);
+  const sent = ours("m2", "ai", "Hello", 29, "delivered");
+  sent.error = failed.error;
+  assert.equal(all(paneOf(vmOf(quiet([wrote("m1", "Hi", 30), sent]))), byTestId("tl-msg-failed-why")).length, 0);
+});
+
 test("the pane: a thread you have says why it was flagged, where 'Where this stands' said it, and that the receptionist is quiet while you have it", () => {
   const later = new Date(NOW.getTime() + 3_600_000).toISOString();
   const mine = vmOf(
