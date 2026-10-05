@@ -2086,8 +2086,21 @@ test("export follows the list that is open, and is not offered for a list that c
     const blocked = exportItem(draw({ initialSaved: "s3" }));
     assert.equal(blocked.title, globalThis.window.__PEOPLE.saved[0].unknown);
     const before = opened.length;
+    const said = flashes.length;
     blocked.onSelect();
     assert.equal(opened.length, before, "held: nothing opens");
+    assert.equal(
+      flashes.length,
+      said + 1,
+      "REGRESSION: pressing it did nothing at all, and the reason was only a hover title",
+    );
+    assert.equal(flashes.at(-1).msg, blocked.title, "and what it says is the reason, in contracts' words");
+    // A list that is not here: the same, in the words of the empty page where it was (its title, then its body).
+    draw({ initialSaved: "gone" });
+    const gone = exportItem(draw({ initialSaved: "gone" }));
+    gone.onSelect();
+    assert.equal(flashes.at(-1).msg, "This list isn't here. It was deleted, or the link is from another workspace.");
+    assert.equal(opened.length, before, "and nothing opens");
   } finally {
     globalThis.window.open = open;
   }
