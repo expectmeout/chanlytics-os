@@ -52,6 +52,7 @@ export type { NotificationKindRow, NotificationKindGroup } from "./notification-
 export type { TodayStepVM, TodayStepsVM } from "./today-steps";
 export {
   buildNotificationFeed,
+  bellCalls,
   applyReadState,
   unreadCount,
   agoLabel,
@@ -72,6 +73,7 @@ export type {
   NotificationItem,
   FeedThread,
   FeedCall,
+  FeedLive,
   FeedInvite,
   FeedInput,
   NotificationReadState,

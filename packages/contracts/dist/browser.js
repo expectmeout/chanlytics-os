@@ -28415,6 +28415,149 @@ var NOTIFICATION_KIND_GROUPS = [
   }
 ];
 
+// src/voice/live.ts
+var LIVE_STALE_MS = 5 * MIN_MS;
+var LIVE_OVERLONG_MS = 30 * MIN_MS;
+var ANALYSIS_GRACE_MS = 10 * MIN_MS;
+var RECENT_MAX = 8;
+var MISSED_CALL_NEWS_MS = DAY_MS;
+function missedCallIsNews(c, now) {
+  return c.missed && !c.live && typeof c.startedAtMs === "number" && now - c.startedAtMs <= MISSED_CALL_NEWS_MS;
+}
+function fmtClock(seconds) {
+  return mmss(Math.max(0, seconds) * 1e3);
+}
+function liveStillUp(c, heartbeatMs, nowMs) {
+  if (!c.live) return false;
+  return nowMs - (c.heartbeatAtMs ?? c.startedAtMs ?? 0) < heartbeatMs;
+}
+function liveBar(vm, nowMs) {
+  const up = (vm?.now ?? []).filter((c2) => liveStillUp(c2, vm?.heartbeatMs ?? 0, nowMs));
+  if (up.length === 0) return null;
+  if (up.length > 1) {
+    return {
+      callId: null,
+      text: `${up.length} calls on your line now`,
+      sinceMs: null,
+      checking: up.some((c2) => c2.checking)
+    };
+  }
+  const c = up[0];
+  return {
+    callId: c.callId,
+    text: `On the phone now \xB7 ${c.whoShort}`,
+    // A call whose provider has gone quiet gets no running clock: the number
+    // would keep climbing for something that may already have ended.
+    sinceMs: c.checking || c.startedAtMs === null ? null : Math.max(0, nowMs - c.startedAtMs),
+    checking: c.checking
+  };
+}
+function turnsOf(dto) {
+  return (dto.transcript_object ?? []).filter((turn) => turn.role === "agent" || turn.role === "user" || turn.role === "injected").map((turn) => {
+    const start = turn.start ?? turn.words?.[0]?.start;
+    if (turn.role === "injected") {
+      const said = injectedTurn(turn.content);
+      return { speaker: said.speaker, text: said.text, t: "\u2014" };
+    }
+    return {
+      speaker: turn.role === "agent" ? "agent" : "client",
+      text: turn.content ?? "",
+      t: typeof start === "number" ? mmss(start * 1e3) : "\u2014"
+    };
+  });
+}
+function checkingOf(live, startedAtMs, heartbeatAtMs, nowMs) {
+  if (!live) return { checking: false, checkingWhy: null };
+  const sinceBeat = heartbeatAtMs === null ? 0 : nowMs - heartbeatAtMs;
+  const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
+  if (sinceBeat > LIVE_STALE_MS) {
+    return {
+      checking: true,
+      checkingWhy: `no word from the phone provider for ${Math.round(sinceBeat / MIN_MS)} minutes`
+    };
+  }
+  if (sinceStart > LIVE_OVERLONG_MS) {
+    return { checking: true, checkingWhy: `live for over ${Math.floor(sinceStart / MIN_MS)} minutes` };
+  }
+  return { checking: false, checkingWhy: null };
+}
+function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
+  const nowMs = now.getTime();
+  const withheld = !dto.from_e164 && !dto.from_raw;
+  const phone = formatPhoneDisplay(dto.from_e164);
+  const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
+  const who = callerName(dto);
+  const whoShort = name ? /^[+\d(]/.test(name) ? name : name.split(" ")[0] : "the caller";
+  const live = isLiveCall(dto, now);
+  const missed = dto.status === "not_connected";
+  const startedAtMs = dto.started_at ? new Date(dto.started_at).getTime() : null;
+  const beat = dto.updated_at ?? dto.started_at;
+  const heartbeatAtMs = beat ? new Date(beat).getTime() : null;
+  const { checking, checkingWhy } = checkingOf(live, startedAtMs, heartbeatAtMs, nowMs);
+  const endedMs = dto.ended_at ? new Date(dto.ended_at).getTime() : null;
+  const summary = (dto.summary ?? "").trim() || null;
+  const summaryState = missed ? "missed" : summary ? "ready" : live || endedMs !== null && nowMs - endedMs < ANALYSIS_GRACE_MS ? "pending" : "none";
+  const recordingState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording?.fetch_state === "purged" ? "purged" : dto.recording ? "pending" : "none";
+  return {
+    callId: dto.id,
+    cvId: `cv-${dto.id}`,
+    clientId: dto.contact_id,
+    who,
+    whoShort,
+    initials: withheld ? "\u2013" : initialsOf(who),
+    // The CUSTOMER's number: on a call the receptionist placed, that is the one it dialled. The bell's missed-call
+    // row named the business's own line under an outbound dial that never connected (the 2 Oct 2026 audit).
+    number: withheld ? null : dto.direction === "outbound" ? formatPhoneDisplay(dto.to_e164) : phone ?? dto.from_raw,
+    from: withheld ? null : dto.from_e164,
+    direction: dto.direction,
+    status: dto.status,
+    live,
+    missed,
+    outcome: callOutcomeFor(dto, live),
+    stale: dto.status === "ongoing" && !live,
+    checking,
+    checkingWhy,
+    startedAtMs,
+    heartbeatAtMs,
+    startedLabel: shortTime(dto.started_at, tz, now),
+    duration: live || missed ? null : callLength(dto.duration_ms) ?? null,
+    summaryState,
+    summary,
+    sentiment: dto.sentiment,
+    endedHow: dto.disconnection_reason ? DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ") : null,
+    recordingState,
+    // The analysis's words, as toCallVM reads them; none while the call is still on the line.
+    wanted: live ? null : dto.wanted?.trim() || null,
+    outcomeWords: live ? null : callOutcomeWords(dto.outcome),
+    followUp: live ? null : dto.follow_up?.trim() || null,
+    callerName: dto.caller_name?.trim() || null,
+    lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
+    transcript: turnsOf(dto)
+  };
+}
+function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {
+  const vms = calls.map((c) => toLiveCallVM(c, tz, now));
+  const nowList = vms.filter((c) => c.live).sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
+  const finished = vms.filter((c) => !c.live).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
+  const recent = finished.slice(0, RECENT_MAX);
+  const missedCalls = finished.filter((c) => missedCallIsNews(c, now.getTime()));
+  const voice = channels?.find((ch) => ch.kind === "voice") ?? null;
+  const line = voice ? {
+    number: formatPhoneDisplay(voice.number_e164),
+    on: voice.status === "active",
+    lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, tz, now) : null
+  } : null;
+  return {
+    now: nowList,
+    recent,
+    missedCalls,
+    line,
+    lineRead: channels !== null,
+    heartbeatMs: CALL_HEARTBEAT_MS,
+    fetchedAtMs: now.getTime()
+  };
+}
+
 // src/today/push.ts
 var PUSH_PLATFORMS = ["ios", "android"];
 var TOKEN_MAX = 200;
@@ -28473,6 +28616,16 @@ var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var BELL_WINDOW_DAYS = 30;
 
 // src/today/notifications.ts
+function bellCalls(live) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const c of [...live?.now ?? [], ...live?.missedCalls ?? [], ...live?.recent ?? []]) {
+    if (seen.has(c.callId)) continue;
+    seen.add(c.callId);
+    out.push(c);
+  }
+  return out;
+}
 function buildNotificationFeed(input) {
   const { now } = input;
   const items = [];
@@ -28510,8 +28663,7 @@ function buildNotificationFeed(input) {
     }
   }
   for (const c of input.calls ?? []) {
-    if (!c.missed || c.live || typeof c.startedAtMs !== "number") continue;
-    if (now - c.startedAtMs > DAY_MS) continue;
+    if (!missedCallIsNews(c, now)) continue;
     items.push({
       key: `call:${c.callId}`,
       kind: "missed_call",
@@ -29459,142 +29611,6 @@ function quietFigures(live, tz, now) {
     { id: "calls", label: "calls", value: 0, meta: "none yet", receipt: null },
     { id: "new", label: "new people", value: 0, meta: "nobody new yet", receipt: null }
   ];
-}
-
-// src/voice/live.ts
-var LIVE_STALE_MS = 5 * MIN_MS;
-var LIVE_OVERLONG_MS = 30 * MIN_MS;
-var ANALYSIS_GRACE_MS = 10 * MIN_MS;
-var RECENT_MAX = 8;
-function fmtClock(seconds) {
-  return mmss(Math.max(0, seconds) * 1e3);
-}
-function liveStillUp(c, heartbeatMs, nowMs) {
-  if (!c.live) return false;
-  return nowMs - (c.heartbeatAtMs ?? c.startedAtMs ?? 0) < heartbeatMs;
-}
-function liveBar(vm, nowMs) {
-  const up = (vm?.now ?? []).filter((c2) => liveStillUp(c2, vm?.heartbeatMs ?? 0, nowMs));
-  if (up.length === 0) return null;
-  if (up.length > 1) {
-    return {
-      callId: null,
-      text: `${up.length} calls on your line now`,
-      sinceMs: null,
-      checking: up.some((c2) => c2.checking)
-    };
-  }
-  const c = up[0];
-  return {
-    callId: c.callId,
-    text: `On the phone now \xB7 ${c.whoShort}`,
-    // A call whose provider has gone quiet gets no running clock: the number
-    // would keep climbing for something that may already have ended.
-    sinceMs: c.checking || c.startedAtMs === null ? null : Math.max(0, nowMs - c.startedAtMs),
-    checking: c.checking
-  };
-}
-function turnsOf(dto) {
-  return (dto.transcript_object ?? []).filter((turn) => turn.role === "agent" || turn.role === "user" || turn.role === "injected").map((turn) => {
-    const start = turn.start ?? turn.words?.[0]?.start;
-    if (turn.role === "injected") {
-      const said = injectedTurn(turn.content);
-      return { speaker: said.speaker, text: said.text, t: "\u2014" };
-    }
-    return {
-      speaker: turn.role === "agent" ? "agent" : "client",
-      text: turn.content ?? "",
-      t: typeof start === "number" ? mmss(start * 1e3) : "\u2014"
-    };
-  });
-}
-function checkingOf(live, startedAtMs, heartbeatAtMs, nowMs) {
-  if (!live) return { checking: false, checkingWhy: null };
-  const sinceBeat = heartbeatAtMs === null ? 0 : nowMs - heartbeatAtMs;
-  const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
-  if (sinceBeat > LIVE_STALE_MS) {
-    return {
-      checking: true,
-      checkingWhy: `no word from the phone provider for ${Math.round(sinceBeat / MIN_MS)} minutes`
-    };
-  }
-  if (sinceStart > LIVE_OVERLONG_MS) {
-    return { checking: true, checkingWhy: `live for over ${Math.floor(sinceStart / MIN_MS)} minutes` };
-  }
-  return { checking: false, checkingWhy: null };
-}
-function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
-  const nowMs = now.getTime();
-  const withheld = !dto.from_e164 && !dto.from_raw;
-  const phone = formatPhoneDisplay(dto.from_e164);
-  const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
-  const who = callerName(dto);
-  const whoShort = name ? /^[+\d(]/.test(name) ? name : name.split(" ")[0] : "the caller";
-  const live = isLiveCall(dto, now);
-  const missed = dto.status === "not_connected";
-  const startedAtMs = dto.started_at ? new Date(dto.started_at).getTime() : null;
-  const beat = dto.updated_at ?? dto.started_at;
-  const heartbeatAtMs = beat ? new Date(beat).getTime() : null;
-  const { checking, checkingWhy } = checkingOf(live, startedAtMs, heartbeatAtMs, nowMs);
-  const endedMs = dto.ended_at ? new Date(dto.ended_at).getTime() : null;
-  const summary = (dto.summary ?? "").trim() || null;
-  const summaryState = missed ? "missed" : summary ? "ready" : live || endedMs !== null && nowMs - endedMs < ANALYSIS_GRACE_MS ? "pending" : "none";
-  const recordingState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording?.fetch_state === "purged" ? "purged" : dto.recording ? "pending" : "none";
-  return {
-    callId: dto.id,
-    cvId: `cv-${dto.id}`,
-    clientId: dto.contact_id,
-    who,
-    whoShort,
-    initials: withheld ? "\u2013" : initialsOf(who),
-    // The CUSTOMER's number: on a call the receptionist placed, that is the one it dialled. The bell's missed-call
-    // row named the business's own line under an outbound dial that never connected (the 2 Oct 2026 audit).
-    number: withheld ? null : dto.direction === "outbound" ? formatPhoneDisplay(dto.to_e164) : phone ?? dto.from_raw,
-    from: withheld ? null : dto.from_e164,
-    direction: dto.direction,
-    status: dto.status,
-    live,
-    missed,
-    outcome: callOutcomeFor(dto, live),
-    stale: dto.status === "ongoing" && !live,
-    checking,
-    checkingWhy,
-    startedAtMs,
-    heartbeatAtMs,
-    startedLabel: shortTime(dto.started_at, tz, now),
-    duration: live || missed ? null : callLength(dto.duration_ms) ?? null,
-    summaryState,
-    summary,
-    sentiment: dto.sentiment,
-    endedHow: dto.disconnection_reason ? DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ") : null,
-    recordingState,
-    // The analysis's words, as toCallVM reads them; none while the call is still on the line.
-    wanted: live ? null : dto.wanted?.trim() || null,
-    outcomeWords: live ? null : callOutcomeWords(dto.outcome),
-    followUp: live ? null : dto.follow_up?.trim() || null,
-    callerName: dto.caller_name?.trim() || null,
-    lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
-    transcript: turnsOf(dto)
-  };
-}
-function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {
-  const vms = calls.map((c) => toLiveCallVM(c, tz, now));
-  const nowList = vms.filter((c) => c.live).sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
-  const recent = vms.filter((c) => !c.live).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0)).slice(0, RECENT_MAX);
-  const voice = channels?.find((ch) => ch.kind === "voice") ?? null;
-  const line = voice ? {
-    number: formatPhoneDisplay(voice.number_e164),
-    on: voice.status === "active",
-    lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, tz, now) : null
-  } : null;
-  return {
-    now: nowList,
-    recent,
-    line,
-    lineRead: channels !== null,
-    heartbeatMs: CALL_HEARTBEAT_MS,
-    fetchedAtMs: now.getTime()
-  };
 }
 
 // src/today/today-rows.ts
@@ -32701,6 +32717,7 @@ export {
   autoReplyHold,
   awayUntilOf,
   bellActionOf,
+  bellCalls,
   bellSections,
   billingAccountDto,
   billingDoorOpen,
@@ -33259,6 +33276,7 @@ export {
   messageVia,
   messageWhy,
   messageWords,
+  missedCallIsNews,
   mmss,
   modelRoute,
   momentOffered,

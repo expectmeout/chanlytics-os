@@ -1,5 +1,6 @@
-import { agoShort as spanAgo, DAY_MS, MIN_MS } from "../shared/time";
+import { agoShort as spanAgo, MIN_MS } from "../shared/time";
 import { callAttemptWords } from "../conversations/call-dto";
+import { missedCallIsNews } from "../voice/live";
 import { FINISH_SETTING_UP } from "../setup/first-run";
 import { firstLine } from "./push";
 import type { JobKind } from "../shared/enums";
@@ -71,6 +72,29 @@ export interface FeedCall {
   startedAtMs: number | null;
 }
 
+/**
+ * The slice of Live's value the bell reads (LiveVM): the calls on the line, the page's recent list, and every missed
+ * call still news (missedCalls, uncapped: the recent list holds only the newest few, and a busy day's would push the
+ * morning's missed call out of the bell).
+ */
+export interface FeedLive {
+  now?: readonly FeedCall[] | null;
+  recent?: readonly FeedCall[] | null;
+  missedCalls?: readonly FeedCall[] | null;
+}
+
+/** Every call Live holds, each once, for the bell: the feed's rows and the names a kept row borrows are read off this. */
+export function bellCalls(live: FeedLive | null | undefined): FeedCall[] {
+  const seen = new Set<string>();
+  const out: FeedCall[] = [];
+  for (const c of [...(live?.now ?? []), ...(live?.missedCalls ?? []), ...(live?.recent ?? [])]) {
+    if (seen.has(c.callId)) continue;
+    seen.add(c.callId);
+    out.push(c);
+  }
+  return out;
+}
+
 export interface FeedInvite {
   id: string;
   email: string;
@@ -128,8 +152,7 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
   }
 
   for (const c of input.calls ?? []) {
-    if (!c.missed || c.live || typeof c.startedAtMs !== "number") continue;
-    if (now - c.startedAtMs > DAY_MS) continue;
+    if (!missedCallIsNews(c, now)) continue;
     items.push({
       key: `call:${c.callId}`,
       kind: "missed_call",

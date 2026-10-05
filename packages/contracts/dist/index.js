@@ -30190,6 +30190,10 @@ var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
 var RECENT_MAX = 8;
+var MISSED_CALL_NEWS_MS = DAY_MS;
+function missedCallIsNews(c, now) {
+  return c.missed && !c.live && typeof c.startedAtMs === "number" && now - c.startedAtMs <= MISSED_CALL_NEWS_MS;
+}
 function fmtClock(seconds) {
   return mmss(Math.max(0, seconds) * 1e3);
 }
@@ -30304,7 +30308,9 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
 function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {
   const vms = calls.map((c) => toLiveCallVM(c, tz, now));
   const nowList = vms.filter((c) => c.live).sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
-  const recent = vms.filter((c) => !c.live).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0)).slice(0, RECENT_MAX);
+  const finished = vms.filter((c) => !c.live).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
+  const recent = finished.slice(0, RECENT_MAX);
+  const missedCalls = finished.filter((c) => missedCallIsNews(c, now.getTime()));
   const voice = channels?.find((ch) => ch.kind === "voice") ?? null;
   const line = voice ? {
     number: formatPhoneDisplay(voice.number_e164),
@@ -30314,6 +30320,7 @@ function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {
   return {
     now: nowList,
     recent,
+    missedCalls,
     line,
     lineRead: channels !== null,
     heartbeatMs: CALL_HEARTBEAT_MS,
@@ -31140,6 +31147,16 @@ var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var BELL_WINDOW_DAYS = 30;
 
 // src/today/notifications.ts
+function bellCalls(live) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const c of [...live?.now ?? [], ...live?.missedCalls ?? [], ...live?.recent ?? []]) {
+    if (seen.has(c.callId)) continue;
+    seen.add(c.callId);
+    out.push(c);
+  }
+  return out;
+}
 function buildNotificationFeed(input) {
   const { now } = input;
   const items = [];
@@ -31177,8 +31194,7 @@ function buildNotificationFeed(input) {
     }
   }
   for (const c of input.calls ?? []) {
-    if (!c.missed || c.live || typeof c.startedAtMs !== "number") continue;
-    if (now - c.startedAtMs > DAY_MS) continue;
+    if (!missedCallIsNews(c, now)) continue;
     items.push({
       key: `call:${c.callId}`,
       kind: "missed_call",
@@ -34176,6 +34192,7 @@ export {
   autoReplyHold,
   awayUntilOf,
   bellActionOf,
+  bellCalls,
   bellSections,
   billingAccountDto,
   billingDoorOpen,
@@ -34743,6 +34760,7 @@ export {
   messageVia,
   messageWhy,
   messageWords,
+  missedCallIsNews,
   mmss,
   modelRoute,
   momentOffered,
