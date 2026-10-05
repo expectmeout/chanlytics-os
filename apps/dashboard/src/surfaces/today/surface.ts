@@ -7,7 +7,13 @@
 
 import { read } from "@/legacy-bridge/api";
 import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
-import { conversationWaitsOnYou, toTodayVM, type CallDto, type LeadSearchDto } from "@chanlytics/contracts";
+import {
+  conversationWaitsOnYou,
+  toTodayVM,
+  type CallDto,
+  type LeadSearchDto,
+  type ReachOutReplyDto,
+} from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
 
@@ -44,12 +50,13 @@ export const todayOverride: SurfaceOverride = {
     // Calls are additive context, not a precondition — a voice outage must not
     // blank the brief — but they are fetched WITH the others rather than
     // waterfalled behind them, so the slowest request sets the wall clock.
-    const [metricsRes, convData, escData, callsRes, searchesRes] = await Promise.all([
+    const [metricsRes, convData, escData, callsRes, searchesRes, repliesRes] = await Promise.all([
       read("GET metrics", { query: { days: "1" } }),
       read("GET conversations"),
       read("GET escalations", { query: { state: "open" } }),
       read("GET calls").catch((e: unknown) => e as Error),
       read("GET lead-searches").catch((e: unknown) => e as Error),
+      read("GET reach-out-replies").catch((e: unknown) => e as Error),
     ]);
     // Null, not []: a calls read that failed is its own state, and the brief
     // says so rather than counting none.
@@ -69,9 +76,18 @@ export const todayOverride: SurfaceOverride = {
     } catch (e) {
       console.error("today_searches_fetch_failed", e instanceof Error ? e.message : e);
     }
+    // The readings of replies to reach-outs the same way: they say who is gone (a wrong person), whom nobody waits on.
+    // A failed read is null, and the brief then takes nobody for gone.
+    let readings: ReachOutReplyDto[] | null = null;
+    try {
+      if (repliesRes instanceof Error) throw repliesRes;
+      readings = repliesRes.replies;
+    } catch (e) {
+      console.error("today_replies_fetch_failed", e instanceof Error ? e.message : e);
+    }
     setSurfaceValue(
       "today",
-      toTodayVM(metricsRes.metrics, convData.conversations, escData.escalations, calls, new Date(), searches),
+      toTodayVM(metricsRes.metrics, convData.conversations, escData.escalations, calls, new Date(), searches, readings),
     );
 
     // The sidebar badge is seeded until the Inbox itself mounts, so a fresh

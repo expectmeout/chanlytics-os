@@ -19,6 +19,7 @@ import type { CallDto } from "../conversations/call-dto";
 import type { EscalationDto } from "../conversations/escalations";
 import type { ConversationDto } from "../conversations/thread-dto";
 import type { LeadSearchDto } from "../leads/leads";
+import type { ReachOutReplyDto } from "../reach-out/reach-out-reply-words";
 import {
   todayAskFacts,
   todayHeadline,
@@ -57,8 +58,10 @@ export function toTodayVM(
   now = new Date(),
   // After `now`, so every caller that never read the searches stands; null is "not read", the queue says nothing.
   searches: LeadSearchDto[] | null = null,
+  // After the searches, for the same reason: null is "not read", and nobody is then taken for gone (the no-reply rows).
+  readings: ReachOutReplyDto[] | null = null,
 ): TodayVM {
-  const f = todayFacts({ metrics: m, conversations, escalations, calls, now, searches });
+  const f = todayFacts({ metrics: m, conversations, escalations, calls, now, searches, readings });
   const { chips, lines, alert } = todayStanding(f);
   const eyebrow = `${f.datePart} · ${f.clock} · ${m.workspace.name}`;
   const proof = todayProof(f.live, f.tz, now);

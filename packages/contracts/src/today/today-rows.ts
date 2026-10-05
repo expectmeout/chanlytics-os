@@ -96,15 +96,16 @@ export const NO_REPLY_AFTER_MS = HOUR_MS;
  * row is about it (an escalation's thread and a closing window's thread are the queue's; nothing on this page is
  * said twice). The identity was in the conversations read all along and only the count survived into the view model.
  * What they wrote last is a person's own words (isTheirOwnWords, the one statement of it): an out-of-office, a
- * list's mail or a form's notification from their address is a program, and a program is not waiting on anybody.
+ * list's mail or a form's notification from their address is a program, and a program is not waiting on anybody. Nor is
+ * a reply to a reach-out read as a wrong person (`gone`): they are not the one to ask, so nobody there is waiting.
  */
 export function todayNoReply(f: TodayFacts): TodayNoReplyVM[] {
-  const { conversations, escSet, closingConvs, now } = f;
+  const { conversations, escSet, gone, closingConvs, now } = f;
   const closingSet = new Set(closingConvs.map((c) => c.id));
   return conversations
     .flatMap((c) => {
       // Archived is filed away, which standingOf reads as quiet; it is not waiting on anybody.
-      if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "archived") return [];
+      if (escSet.has(c.id) || closingSet.has(c.id) || gone.has(c.id) || c.state === "archived") return [];
       const { standing } = standingOf(
         {
           state: c.state,

@@ -1173,6 +1173,39 @@ test("who is waiting with nothing back: the customer wrote last an hour ago or m
   );
 });
 
+test("a reply to a reach-out read as a wrong person is not someone waiting with nothing back: nobody there is to answer, and a not-now still is one", () => {
+  const waiting = (readings) => toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW, null, readings).noReply;
+  const reading = (conversation_id, intent, over = {}) => ({
+    conversation_id,
+    intent,
+    undone: false,
+    claim: "person",
+    ...over,
+  });
+  const names = (readings) => waiting(readings).map((r) => r.who);
+
+  assert.deepEqual(names(null), ["Dulce Amaro"], "a Today that did not read the readings takes nobody for gone");
+  assert.deepEqual(names([]), ["Dulce Amaro"]);
+  assert.deepEqual(names([reading("cv-d", "wrong_person")]), [], "they are not the one to ask: nobody waits");
+  assert.deepEqual(
+    names([reading("cv-d", "wrong_person", { claim: "auto_reply" })]),
+    [],
+    "an automatic one says it too",
+  );
+  for (const intent of ["not_now", "interested", "question", "no", "away", "other"])
+    assert.deepEqual(names([reading("cv-d", intent)]), ["Dulce Amaro"], `${intent} is still someone waiting`);
+  assert.deepEqual(
+    names([reading("cv-d", "wrong_person", { undone: true })]),
+    ["Dulce Amaro"],
+    "a reading taken back reads as nothing",
+  );
+  // The newest reading of the thread decides (newest first): they wrote back since, and it was read as a question.
+  assert.deepEqual(names([reading("cv-d", "question"), reading("cv-d", "wrong_person")]), ["Dulce Amaro"]);
+  assert.deepEqual(names([reading("cv-d", "wrong_person"), reading("cv-d", "question")]), []);
+  // Another thread's reading changes nothing here.
+  assert.deepEqual(names([reading("cv-a", "wrong_person")]), ["Dulce Amaro"]);
+});
+
 test("one reading of each escalation: Ask's row and the queue's row agree, and a call-back carries the to-do it left", () => {
   const cb = [
     {

@@ -636,7 +636,7 @@ test("the wire's count is the chip's: each thread waits on you on the wire exact
 });
 
 /** The wire as the salon's Today reads it: the routes' answers, the metrics as the page's own fixtures write them. */
-const todayWire = (rows) => {
+const todayWire = (rows, replies) => {
   const metrics = {
     workspace: { name: "Marisa's Beauty Salon", timezone: ZONE, status: "active" },
     channels: [{ kind: "whatsapp", status: "active", number: "+13055550188" }],
@@ -682,6 +682,8 @@ const todayWire = (rows) => {
     },
     "/api/v1/calls": { calls: [] },
     "/api/v1/lead-searches": { searches: [] },
+    // The readings of replies to reach-outs, when the case has some: a route the wire does not answer is a read that failed.
+    ...(replies ? { "/api/v1/reach-out-replies": { replies, mailbox: null } } : {}),
   };
   globalThis.fetch = async (url) => {
     const data = answers[new URL(String(url), "https://app.chanlytics.com").pathname];
@@ -711,6 +713,35 @@ test("Today publishes the badge by the Inbox's rule: the sidebar does not drop a
     );
     const inbox = salon().map(({ dto, esc }) => toInboxThreadVM(dto, esc, ZONE, new Date()));
     assert.equal(counted.at(-1), inbox.filter((t) => ixWaitsOnYou(t)).length, "the chip's own number");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("Today reads the readings of replies to reach-outs, and does not list a wrong person as waiting with nothing back; a read that fails takes nobody for gone", async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    const { todayOverride } = await import(`${S}/surfaces/today/surface.ts`);
+    const { surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+    const waiting = async (replies) => {
+      VW_STORE.state = {};
+      todayWire(salon(), replies);
+      await todayOverride.apply();
+      return surfaceValue("today").noReply.map((r) => r.who);
+    };
+    const reading = (conversation_id, intent) => ({ conversation_id, intent, undone: false, claim: "person" });
+    assert.ok(
+      (await waiting(undefined)).includes("Zoe Martin"),
+      "the fixture: Zoe wrote an hour ago and nobody answered",
+    );
+    assert.ok(
+      !(await waiting([reading("c4", "wrong_person")])).includes("Zoe Martin"),
+      "REGRESSION: a reply read as a wrong person listed as a customer waiting",
+    );
+    assert.ok(
+      (await waiting([reading("c4", "not_now")])).includes("Zoe Martin"),
+      "a not-now is still someone to answer",
+    );
   } finally {
     globalThis.fetch = realFetch;
   }

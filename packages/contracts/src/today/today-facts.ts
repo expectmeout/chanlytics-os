@@ -14,6 +14,8 @@ import { waWindow } from "../config/policy";
 import { channelKindWords } from "../lines/channels";
 import { formatPhoneDisplay } from "../shared/phone";
 import type { LeadSearchDto } from "../leads/leads";
+import { threadsNobodyAnswersAt } from "../reach-out/reach-out-reply-today";
+import type { ReachOutReplyDto } from "../reach-out/reach-out-reply-words";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock, tzSince } from "./today-clock";
 import type { MetricsSummaryDto } from "./today-metrics";
@@ -39,6 +41,8 @@ interface TodayInput {
   now: Date;
   /** Null: the searches were not read; the queue says nothing about them. */
   searches: LeadSearchDto[] | null;
+  /** The readings of replies to reach-outs, newest first. Null: not read, and nobody is taken for gone. */
+  readings: ReachOutReplyDto[] | null;
 }
 
 /**
@@ -90,6 +94,8 @@ export interface TodayFacts extends TodayInput {
   escRecords: EscalationRecord[];
   /** Their threads: the queue's, so nothing on this page is said twice. */
   escSet: Set<string>;
+  /** The threads where nobody is there to answer (a reply read as a wrong person): nobody waits on them. */
+  gone: Set<string>;
   /** Threads where the customer spoke last and the free-reply window is running out. */
   closingConvs: ConversationDto[];
   sinceMs: number;
@@ -240,6 +246,7 @@ export function todayFacts(input: TodayInput): TodayFacts {
     needsYouCount: openEsc.length,
     escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),
     escSet,
+    gone: threadsNobodyAnswersAt(input.readings ?? []),
     closingConvs: closingConversations(conversations, escSet, now),
     sinceMs,
     callsInWindow: callDtos.filter((c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs),

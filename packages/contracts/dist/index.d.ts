@@ -26971,7 +26971,7 @@ declare function isPersonRow(r: Pick<TodayQueueRowVM, "kind">): boolean;
  */
 declare function toTodayVM(m: MetricsSummaryDto, conversations: ConversationDto[], escalations: Array<EscalationDto & {
     conversation_id: string;
-}>, calls: CallDto[] | null, now?: Date, searches?: LeadSearchDto[] | null): TodayVM;
+}>, calls: CallDto[] | null, now?: Date, searches?: LeadSearchDto[] | null, readings?: ReachOutReplyDto[] | null): TodayVM;
 
 /** What the day module reads, as the calendar surface publishes it. Minimal on purpose: the page hands the surface in. */
 interface DayFrameLike {
