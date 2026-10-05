@@ -234,26 +234,27 @@ test("a period that had people in it but nothing to act on says so in one line",
   );
 });
 
-test("the tiles: five counts, the period before said in counts beside the value, booked from the calendar", () => {
+test("the strip's figures: five counts, each named by its metric, the period before said in counts beside the value, booked from the calendar", () => {
   const read = (t) => [
-    t.props["data-tile"],
-    ...["rpt-tile-label", "rpt-tile-value", "rpt-tile-meta"].map((c) => textOf(cls(t, c))),
+    t.props["data-figure"],
+    ...["figure-label", "figure-value", "figure-meta"].map((c) => textOf(cls(t, c))),
   ];
-  const tiles = (opts) => all(card(page(opts), "reports-tiles"), (n) => classes(n).includes("rpt-tile")).map(read);
-  assert.deepEqual(tiles(), [
-    ["messages", "Customer messages", "17up from 7", "on 6 of 7 days"],
+  const figures = (opts) =>
+    all(card(page(opts), "reports-tiles"), (n) => n.type === "div" && classes(n).includes("figure")).map(read);
+  assert.deepEqual(figures(), [
+    ["customer_messages", "Customer messages", "17up from 7", "on 6 of 7 days"],
     ["calls", "Calls", "3none the 7 days before", "7 min on the phone · 1 to voicemail"],
-    ["people", "New people", "2down from 3", "first contact in this period, by evidence"],
+    ["new_people", "New people", "2down from 3", "first contact in this period, by evidence"],
     ["booked", "Booked", "3", "of 8 who asked"],
-    ["needed", "Needed you", "3none the 7 days before", "times the receptionist stopped"],
+    ["handovers", "Needed you", "3none the 7 days before", "times the receptionist stopped"],
   ]);
-  assert.deepEqual(tiles({ booking: { calendar: "none", days: 7, asked: 0, booked: 0 } })[3], [
+  assert.deepEqual(figures({ booking: { calendar: "none", days: 7, asked: 0, booked: 0 } })[3], [
     "booked",
     "Booked",
     "—",
     "no calendar to read",
   ]);
-  assert.deepEqual(tiles({ booking: { calendar: "unavailable", days: 7, asked: 4, booked: 0 } })[3], [
+  assert.deepEqual(figures({ booking: { calendar: "unavailable", days: 7, asked: 4, booked: 0 } })[3], [
     "booked",
     "Booked",
     "—",
@@ -923,7 +924,7 @@ test("REGRESSION (C28): a card with a table saves it as a CSV -- the numbers wer
 
 test("REGRESSION: a tile is a number, what it is and one line under it; the head says the period and its days once (#557)", () => {
   const tree = page();
-  assert.equal(all(tree, (n) => classes(n).includes("rpt-tile")).length, 5);
+  assert.equal(all(tree, (n) => n.type === "div" && classes(n).includes("rpt-cell")).length, 5);
   assert.equal(
     find(tree, (n) => /spark|delta/.test(String(n.props?.className || ""))),
     null,
@@ -1018,7 +1019,10 @@ test("Reports draws a Deals section where deals are on and a deal was recorded: 
     ].join(""),
   );
   // Inside the Deals section only: the five tiles stay five, and none of the copy the e2e holds Reports to appears.
-  assert.equal(all(byTestId(tree, "reports-tiles"), (n) => classes(n).includes("rpt-tile")).length, 5);
+  assert.equal(
+    all(byTestId(tree, "reports-tiles"), (n) => n.type === "div" && classes(n).includes("rpt-cell")).length,
+    5,
+  );
   for (const s of ["Revenue", "Lead sources", "Where bookings come from"]) assert.ok(!textOf(tree).includes(s), s);
 });
 

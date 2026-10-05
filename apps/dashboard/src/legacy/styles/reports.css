@@ -174,15 +174,10 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
 .rpt-fact-door { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--ink-muted); white-space: nowrap; transition: background var(--duration-fast), color var(--duration-fast); }
 .rpt-fact-quiet { margin: 4px 0 6px; font-size: 13px; color: var(--ink-dim); }
 
-/* The strip: five counts in one frame with hairline dividers, a list of terms and their values. */
-.rpt-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); }
-.rpt-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 18px 13px; min-width: 0; }
-.rpt-tile + .rpt-tile { border-left: 1px solid var(--line); }
-.rpt-tile dt, .rpt-tile dd { margin: 0; }
-.rpt-tile-label { font-size: var(--text-sm); color: var(--ink-muted); }
-.rpt-tile-value { display: flex; align-items: baseline; gap: 8px; font-size: var(--text-2xl); font-weight: 500; letter-spacing: -0.025em; color: var(--ink); line-height: 1.2; min-width: 0; }
-.rpt-tile-compare { font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rpt-tile-meta { font-size: 12px; color: var(--ink-dim); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The strip: five figures (the kit's Figure) in one frame with hairline dividers, a list of terms and their values. */
+.rpt-figures { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.rpt-cell { padding: 12px 18px 13px; }
+.rpt-cell + .rpt-cell { border-left: 1px solid var(--line); }
 /* Google's tiles further down are the shared RpTile (Today draws its week with it); on this page they wear this look. */
 .rpt .rp2-tiles { border-radius: var(--radius-lg); }
 .rpt .rp2-tile { padding: 12px 18px 13px; }
@@ -224,9 +219,9 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
   .rpt-grid > .rpt-span-4 { grid-column: span 6; }
   .rpt-grid > .rpt-span-5, .rpt-grid > .rpt-span-7, .rpt-grid > .rpt-span-8 { grid-column: 1 / -1; }
   .rpt-grid > .rpt-deals-lines { padding-left: 0; }
-  .rpt-tiles, .rpt .rp2-tiles, .rpt .rp2-tiles.four { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .rpt-tile:nth-child(4) { border-left: none; }
-  .rpt-tile:nth-child(n + 4) { border-top: 1px solid var(--line); }
+  .rpt-figures, .rpt .rp2-tiles, .rpt .rp2-tiles.four { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .rpt-cell:nth-child(4) { border-left: none; }
+  .rpt-cell:nth-child(n + 4) { border-top: 1px solid var(--line); }
 }
 @media (max-width: 760px) {
   .rpt-inner { padding: 0 16px 40px; }
@@ -248,13 +243,11 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
   .rpt-fact-copy { white-space: normal; }
   .rpt-fact-sub::before { content: ""; }
   .rpt-fact-sub { display: block; }
-  .rpt-tiles, .rpt .rp2-tiles, .rpt .rp2-tiles.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .rpt-tile:nth-child(n) { border-left: none; border-top: none; }
-  .rpt-tile:nth-child(even) { border-left: 1px solid var(--line); }
-  .rpt-tile:nth-child(n + 3) { border-top: 1px solid var(--line); }
-  .rpt-tile:last-child { grid-column: 1 / -1; border-left: none; }
-  /* Half a phone is narrow for a meta line: it may take two lines rather than lose its end ("1 to voicemail"). */
-  .rpt-tile-meta { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .rpt-figures, .rpt .rp2-tiles, .rpt .rp2-tiles.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rpt-cell:nth-child(n) { border-left: none; border-top: none; }
+  .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
+  .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  .rpt-cell:last-child { grid-column: 1 / -1; border-left: none; }
   .rpt .ck-card:not(.rpt-hero) { padding: 16px; }
   .rpt .ck-pie { flex-direction: column; align-items: stretch; }
   .rpt .ck-pie-figure { align-self: center; }

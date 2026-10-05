@@ -44,12 +44,12 @@ test.describe("Reports on a real workspace", () => {
 
     await expect(report.getByTestId("reports-hero")).toContainText("answered by your receptionist");
 
-    const tiles = report.getByTestId("reports-tiles").locator(".rpt-tile");
+    const tiles = report.getByTestId("reports-tiles").locator(".figure");
     await expect(tiles).toHaveCount(5);
-    const labels = (await tiles.locator(".rpt-tile-label").allInnerTexts()).map((l) => l.trim().toLowerCase());
+    const labels = (await tiles.locator(".figure-label").allInnerTexts()).map((l) => l.trim().toLowerCase());
     expect(labels).toEqual(["customer messages", "calls", "new people", "booked", "needed you"]);
     // A count (or a dash with no calendar), and the period before in counts when it had some: never a percentage.
-    for (const v of await tiles.locator(".rpt-tile-value").allInnerTexts()) {
+    for (const v of await tiles.locator(".figure-value").allInnerTexts()) {
       expect(v.trim()).toMatch(
         /^(\d+|—)\s*(up from \d+|down from \d+|same as the \d+ days before|none the \d+ days before)?$/,
       );
