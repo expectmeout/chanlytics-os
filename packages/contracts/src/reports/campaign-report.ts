@@ -1,14 +1,14 @@
 /**
  * Reports › Campaigns — what the campaigns sent and what came of it, as facts.
  *
- * Messages sent by broadcasts and playbook runs, WhatsApp's own delivered
- * and read receipts, who wrote back afterwards, and the people who said
+ * Messages sent by broadcasts and playbook runs, each channel's own delivered
+ * receipts (and WhatsApp's read receipts), who wrote back afterwards, and the people who said
  * yes or asked to stop — over the period and the one before it, and the
  * current period by source. Every number is a count over columns; the
  * shares are counts over counts; nothing is scored or estimated. Colors are
  * the page's.
  */
-import { REPLY_WINDOW_WORDS } from "../broadcasts/broadcasts";
+import { DELIVERY_RECEIPTS_WORDS, REPLY_WINDOW_WORDS } from "../broadcasts/broadcasts";
 import { dayDate, deltaOf, fmtDay, pointsDelta, priorOf, type ReportTileVM } from "./reports";
 import { templateTitle } from "../templates/template-titles";
 import { sumOf } from "../shared/numbers";
@@ -177,7 +177,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
       id: "delivered",
       label: "Delivered",
       value: pct(tot.delivered, tot.sent) === null ? "—" : `${pct(tot.delivered, tot.sent)}%`,
-      meta: tot.sent ? `${tot.delivered} of ${tot.sent} · WhatsApp's receipts` : "nothing sent",
+      meta: tot.sent ? `${tot.delivered} of ${tot.sent} · ${DELIVERY_RECEIPTS_WORDS}` : "nothing sent",
       delta: pointsDelta(pct(tot.delivered, tot.sent), pct(prev.delivered, prev.sent), noun),
       spark: points.map((p) => p.delivered),
       compare: null,

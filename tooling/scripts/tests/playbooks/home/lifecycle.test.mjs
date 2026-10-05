@@ -739,6 +739,41 @@ test("a moment that reaches people says how many, and who waits out the week; a 
   });
   assert.equal(sends.rows[0].why, "3 of 5 will get it · 2 heard from you this week and wait");
   assert.deepEqual(sends.rows[0].pill, { tone: "ok", label: "3 people" });
+  // A run sends its cap and no more: the next run's share is what "will get it" promises, and the rest wait for later
+  // runs. A new win-back with 300 quiet people said "300 will get it" over a run that sends 25.
+  const capped = coming({
+    playbooks: playbooks({
+      rows: [playbook({ candidates: 300, held: 4, cap_per_run: 25, named: { pool: 420, saidYes: 380 } })],
+    }),
+  });
+  assert.equal(
+    capped.rows[0].why,
+    "25 of 420 will get it · up to 275 more on later runs, 25 a run · 4 heard from you this week and wait",
+  );
+  // A visit's moment has no cap: a reminder is owed to everyone with a visit, and tomorrow's visits have no later run.
+  const visits = coming({
+    playbooks: playbooks({
+      rows: [
+        playbook({
+          trigger: "visit_tomorrow",
+          candidates: 40,
+          held: 0,
+          cap_per_run: 25,
+          named: { pool: 40, saidYes: 40 },
+        }),
+      ],
+    }),
+  });
+  assert.equal(visits.rows[0].why, "40 of 40 will get it");
+  assert.deepEqual(visits.rows[0].pill, { tone: "ok", label: "40 people" });
+  assert.deepEqual(capped.rows[0].pill, { tone: "ok", label: "25 people" });
+  // Under the cap, or a card drawn without one, the count is said whole, as before.
+  const under = coming({
+    playbooks: playbooks({
+      rows: [playbook({ candidates: 3, held: 0, cap_per_run: 25, named: { pool: 5, saidYes: 5 } })],
+    }),
+  });
+  assert.equal(under.rows[0].why, "3 of 5 will get it");
   const heard = coming({
     playbooks: playbooks({ rows: [playbook({ candidates: 0, held: 2, named: { pool: 5, saidYes: 5 } })] }),
   });

@@ -63,6 +63,35 @@ export const EVERYONE_HINT =
   "Everyone we can reach whose yes covers the message you pick, and by email whoever has dealt with you";
 
 /**
+ * The People lists that are no audience of their own because each restates the consent filter an audience is already
+ * crossed with: who said yes to messages, who said yes to offers, and who asked to stop. THE one list of them: the
+ * composer leaves them out of its audiences (the dashboard's broadcasts surface), and a door reads it below.
+ */
+export const CONSENT_LIST_IDS: readonly string[] = ["opted_in", "offers_ok", "opted_out"];
+
+/** Of those, the two that are a yes: a door that names one ("Broadcast to everyone who said yes") means Everyone. */
+const LISTS_THAT_MEAN_EVERYONE: readonly string[] = CONSENT_LIST_IDS.filter((id) => id !== "opted_out");
+
+/**
+ * Whether a door to the composer (`campaigns/new:to:<list>`) names a list the composer does not offer now: one archived
+ * or deleted since the link was made, one whose data the workspace has not switched on or could not read just now (a
+ * calendar's lists, the saved lists), or a word that was never a list.
+ * The composer is then on another audience (Everyone on a first draw, wherever it was on a page already open), and
+ * must say so (UNKNOWN_AUDIENCE_WORDS): it was there in silence, and a message meant for a few was one press from others. False while the audiences are not read yet (null).
+ */
+export function doorNamesNoAudience(
+  to: string | null,
+  audiences: ReadonlyArray<{ kind: string; id?: string | null }> | null,
+): boolean {
+  if (!to || !audiences || LISTS_THAT_MEAN_EVERYONE.includes(to)) return false;
+  return !audiences.some((a) => (a.kind === "saved" || a.kind === "list") && a.id === to);
+}
+
+/** What the composer says when the door it was opened by names no list it offers (doorNamesNoAudience). */
+export const UNKNOWN_AUDIENCE_WORDS =
+  "That list can't be messaged right now, so check who this is addressed to before you send.";
+
+/**
  * The people a broadcast may reach: the audience crossed with mayReceive.
  * The route enrols exactly these; the page shows exactly these counts.
  *

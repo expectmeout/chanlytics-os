@@ -231,6 +231,11 @@ export interface PersonCampaignDto {
   scheduled_for: string | null;
   /** The message it sent them, which names the thread a reply is looked for in. */
   message_id: string | null;
+  /**
+   * The channel the run picked for them (a recipient's own, 00298): whatsapp, sms or email. Null on a run made before
+   * runs had channels, which went by WhatsApp.
+   */
+  channel: string | null;
 }
 
 /** The lead a person was found as: the place the finder found, before they wrote or were called. */

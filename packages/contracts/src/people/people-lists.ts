@@ -38,8 +38,12 @@ const USE_IN_A_BROADCAST = "Use in a broadcast";
 
 // Broadcasts has no audience for this list: its people are exactly who a broadcast reaches, so the composer opens on
 // Everyone, and the button says who that reaches. It said "New broadcast" here and "Use in a broadcast" on Lists,
-// and opened an audience with another name.
-const OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts", broadcast: true };
+// and opened an audience with another name. The door names this list, as every list's step names its own
+// (`broadcasts/<list>` lands on `campaigns/new:to:<list>`, contracts doorOf): the composer reads a consent list as
+// Everyone (CONSENT_LIST_IDS), and a door that names a list wins over a draft kept in the tab, which a bare
+// `campaigns/new` does not. `broadcasts` alone is the Sent room, which is where this button landed: a list of what
+// went out and nothing to write in.
+const OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts/offers_ok", broadcast: true };
 
 /**
  * `answered`: what a step that is a door to the yes to offers becomes once everyone on the list has given it. Asking
@@ -146,7 +150,7 @@ export function noChannelWords(who: string, purpose: AskedPurpose): string {
 /**
  * How many on an audience said yes to what a message needs, as the send screen's line under the audience says it.
  * The number is who it reaches (`sending`: a yes and a number), in the shorthand People's list step uses ("N of M on
- * this list said yes to offers — a broadcast reaches them") -- except when that is 0 and somebody DID say yes
+ * this list said yes to offers — an offer reaches them") -- except when that is 0 and somebody DID say yes
  * (`saidYes`, audiencePreview's): "0 people … said yes" stood over `noNumberWords` and was false, so it says how many
  * did, and what they are missing.
  */
@@ -174,7 +178,7 @@ function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleL
     const said = members.filter((m) => m.saidYes.offers);
     if (members.length && said.length === 0) {
       return {
-        text: "Nobody on this list has said yes to offers yet — a broadcast reaches only that answer.",
+        text: "Nobody on this list has said yes to offers yet — an offer reaches only that answer.",
         cta: "Get their yes",
         to: GET_YES_ROUTE,
         enabled: true,
@@ -185,7 +189,7 @@ function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleL
     return { text: members.length ? why : "Nobody here right now.", cta, to, enabled: false };
   }
   return {
-    text: `${offersYes} of ${members.length} on this list said yes to offers — a broadcast reaches them.`,
+    text: `${offersYes} of ${members.length} on this list said yes to offers — an offer reaches them.`,
     cta,
     to,
     enabled: true,

@@ -330,6 +330,13 @@ function delayWords(ms2) {
   return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
 }
 var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
+function vetoRunNotice(name, people, when) {
+  const who = `${people} ${people === 1 ? "person" : "people"}`;
+  return {
+    subject: `Playbook \u201C${name}\u201D sends ${when}: ${who}`,
+    body: `${who} will be sent \u201C${name}\u201D ${when}. Stop the run on Today or in Campaigns before then if it should not go.`
+  };
+}
 var PLAYBOOK_NAME_MAX = 80;
 var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
 function triggerOf(id) {
@@ -9900,7 +9907,7 @@ function playbookName(trigger, tpl) {
 // src/people/people-lists.ts
 var GET_YES_ROUTE = "broadcasts/get-yes";
 var USE_IN_A_BROADCAST = "Use in a broadcast";
-var OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts", broadcast: true };
+var OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts/offers_ok", broadcast: true };
 var LIST_STEPS = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
   waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
@@ -9967,7 +9974,7 @@ function broadcastStep(cta, to, members) {
     const said = members.filter((m) => m.saidYes.offers);
     if (members.length && said.length === 0) {
       return {
-        text: "Nobody on this list has said yes to offers yet \u2014 a broadcast reaches only that answer.",
+        text: "Nobody on this list has said yes to offers yet \u2014 an offer reaches only that answer.",
         cta: "Get their yes",
         to: GET_YES_ROUTE,
         enabled: true
@@ -9978,7 +9985,7 @@ function broadcastStep(cta, to, members) {
     return { text: members.length ? why : "Nobody here right now.", cta, to, enabled: false };
   }
   return {
-    text: `${offersYes} of ${members.length} on this list said yes to offers \u2014 a broadcast reaches them.`,
+    text: `${offersYes} of ${members.length} on this list said yes to offers \u2014 an offer reaches them.`,
     cta,
     to,
     enabled: true
@@ -10736,6 +10743,13 @@ function audienceTrigger(audience) {
 }
 var EVERYONE_LABEL = "Everyone";
 var EVERYONE_HINT = "Everyone we can reach whose yes covers the message you pick, and by email whoever has dealt with you";
+var CONSENT_LIST_IDS = ["opted_in", "offers_ok", "opted_out"];
+var LISTS_THAT_MEAN_EVERYONE = CONSENT_LIST_IDS.filter((id) => id !== "opted_out");
+function doorNamesNoAudience(to, audiences) {
+  if (!to || !audiences || LISTS_THAT_MEAN_EVERYONE.includes(to)) return false;
+  return !audiences.some((a) => (a.kind === "saved" || a.kind === "list") && a.id === to);
+}
+var UNKNOWN_AUDIENCE_WORDS = "That list can't be messaged right now, so check who this is addressed to before you send.";
 function eligibleFor(rows, kind, id, savedIds, purpose, how) {
   return enrolFor(rows, kind, id, savedIds, purpose, how).map((e) => e.row);
 }
@@ -10948,6 +10962,8 @@ var HELD_REASONS = {
   sending_domain_not_ready: "the domain isn't sending",
   sending_domain_at_cap: "the domain's day is full"
 };
+var DELIVERY_RECEIPTS_WORDS = "each channel's own receipts";
+var DELIVERY_RECEIPTS_TIP = "Each channel's own receipts";
 var EMAIL_HOLDS = [
   "email_offers_paused",
   "email_marketing_disabled"
@@ -24438,7 +24454,7 @@ function campaignsOf(d, tz, nowMs) {
   for (const c of d.conversations) {
     for (const m of c.messages) {
       threadOf2.set(m.id, c.id);
-      if (m.direction === "inbound") repliesIn.set(c.id, [...repliesIn.get(c.id) ?? [], m.created_at]);
+      if (isTheirOwnWords(m)) repliesIn.set(c.id, [...repliesIn.get(c.id) ?? [], m.created_at]);
     }
   }
   return (d.campaigns ?? []).map((c) => {
@@ -24454,7 +24470,8 @@ function campaignsOf(d, tz, nowMs) {
       title: c.playbook_id ? c.playbook_name || c.name : c.name,
       when: at3 !== null ? clockDate(at3, tz, nowMs) : "\u2014",
       outcome,
-      line: `${c.playbook_id ? "Playbook" : "Broadcast"} \xB7 ${outcome}`,
+      // Which wire it went by, or would have: a person on three channels is not told "Sent" with nowhere to look.
+      line: `${c.playbook_id ? "Playbook" : "Broadcast"} \xB7 ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} \xB7 ${outcome}`,
       tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
       to: `broadcasts/run:${c.broadcast_id}`
     };
@@ -25057,11 +25074,16 @@ function whoWill(p) {
   const of = p.named ? ` of ${p.named.pool}` : "";
   const offers = purposeOfPlaybook(triggerOf(p.trigger)?.cls ?? null) === "marketing";
   switch (reach) {
-    case "sends":
+    case "sends": {
+      const all = p.candidates ?? 0;
+      const cap2 = triggerOf(p.trigger)?.kind === "visit" ? 0 : p.cap_per_run ?? 0;
+      const next = cap2 > 0 ? Math.min(all, cap2) : all;
+      const later = all - next;
       return {
-        why: `${p.candidates ?? 0}${of} will get it${p.held ? ` \xB7 ${p.held} heard from you this week and wait` : ""}`,
-        pill: { tone: "ok", label: plural(p.candidates ?? 0, "person", "people") }
+        why: `${next}${of} will get it` + (later > 0 ? ` \xB7 up to ${later} more on later runs, ${cap2} a run` : "") + (p.held ? ` \xB7 ${p.held} heard from you this week and wait` : ""),
+        pill: { tone: "ok", label: plural(next, "person", "people") }
       };
+    }
     case "nobody":
       return {
         why: p.named && p.named.pool > 0 && p.named.saidYes === 0 ? `0${of} will get it \xB7 none said yes to ${offers ? "offers" : "messages"}` : p.named && p.named.pool === 0 ? "Nobody is on it yet" : `0${of} will get it`,
@@ -26281,7 +26303,7 @@ function toCampaignReportVM(dto) {
       id: "delivered",
       label: "Delivered",
       value: pct2(tot.delivered, tot.sent) === null ? "\u2014" : `${pct2(tot.delivered, tot.sent)}%`,
-      meta: tot.sent ? `${tot.delivered} of ${tot.sent} \xB7 WhatsApp's receipts` : "nothing sent",
+      meta: tot.sent ? `${tot.delivered} of ${tot.sent} \xB7 ${DELIVERY_RECEIPTS_WORDS}` : "nothing sent",
       delta: pointsDelta(pct2(tot.delivered, tot.sent), pct2(prev.delivered, prev.sent), noun),
       spark: points.map((p) => p.delivered),
       compare: null
@@ -30527,11 +30549,15 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
       (p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.state === "running"
     );
     reminders = visit.length === 0 ? {
-      text: "No visit reminders yet \u2014 a playbook can text the day before an appointment and the day after a visit.",
+      // "Write", not "text": a playbook goes by WhatsApp, text or email, whichever each person is reached on.
+      text: "No visit reminders yet \u2014 a playbook can write the day before an appointment and the day after a visit.",
       to: "outbound"
     } : {
       text: visit.map(
-        (p) => `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 next run ${p.next}`
+        (p) => (
+          // A count that could not be read is left out, never said as "null people".
+          `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 `}next run ${p.next}`
+        )
       ).join(" \xB7 "),
       to: "outbound"
     };
@@ -33125,6 +33151,7 @@ export {
   CONNECTION_KINDS,
   CONSENT_CHANNELS,
   CONSENT_CHANNEL_WORDS,
+  CONSENT_LIST_IDS,
   CONSENT_PHRASE,
   CONSENT_PHRASE_ES,
   CONSENT_RESET_SOURCE,
@@ -33172,6 +33199,8 @@ export {
   DEFAULT_THEME_PREF,
   DEFAULT_TIMEZONE,
   DEFAULT_WEEK,
+  DELIVERY_RECEIPTS_TIP,
+  DELIVERY_RECEIPTS_WORDS,
   DELIVERY_REFUSALS,
   DEVICE_PREFS_STORAGE,
   DISCONNECTION_LABELS,
@@ -33785,6 +33814,7 @@ export {
   TRY_SKIPPED,
   TenantConfigSchema,
   TenantConfigWriteSchema,
+  UNKNOWN_AUDIENCE_WORDS,
   UNREAD_READING,
   UNSUBSCRIBE_PAGE_HEADER,
   US_STATE_ZONES,
@@ -34043,6 +34073,7 @@ export {
   domainRecordsIntro,
   domainRegistrarHint,
   domainStatsWords,
+  doorNamesNoAudience,
   doorOf,
   draftExcerpt,
   draftListRule,
@@ -35001,6 +35032,7 @@ export {
   versionSlotsRefusal,
   versionWords,
   versionsOf,
+  vetoRunNotice,
   viewerListWords,
   violatesNoPrices,
   visitAnswersAsk,

@@ -23543,6 +23543,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.billing_accounts REF
 
 
 --
+-- Name: broadcasts workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.broadcasts REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: business_records workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -23680,6 +23687,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.tenant_channels REFE
 --
 
 CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.billing_accounts REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: broadcasts workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.broadcasts REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -23841,6 +23855,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.tenant_channels REFE
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.billing_accounts REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: broadcasts workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.broadcasts REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --

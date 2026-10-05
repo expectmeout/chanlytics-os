@@ -27,7 +27,15 @@ import { bcRunActs, bcSendActs } from "./page/acts";
 import { bcLedger } from "./page/ledger-screen";
 import { bcPeopleOf, bcPreviewOf, bcReachOf, bcSlotChoicesOf, bcSlotWordsOf } from "./page/reach";
 import { bcComposerGlass } from "./page/send-screen";
-import { useBcList, useBcNow, useBcOffered, useBcRunLanding, useBcWords, useBcYes } from "./page/state";
+import {
+  useBcList,
+  useBcNow,
+  useBcOffered,
+  useBcRunLanding,
+  useBcWords,
+  useBcYes,
+  useUnknownAudienceNotice,
+} from "./page/state";
 import type { BcApproving, BcBase, BcV, Flash } from "./page/types";
 import { bcDefault, bcIsStarter } from "./page/words";
 import { BC_NONE } from "./run";
@@ -105,6 +113,7 @@ function useBroadcastsPage({
   const templatesRead = data.templates !== null;
   const { offered, link, templates } = useBcOffered(data);
   const { kept, aud, setAud, writing, setWriting } = useBcList(initialSegment, audiences, opened);
+  useUnknownAudienceNotice(initialSegment, data.audiences, flash);
   const [tplId, setTplId] = useState(() => {
     if (kept && kept.tplId && templates.some((t) => t.id === kept.tplId)) return kept.tplId;
     const d = bcDefault(templates);

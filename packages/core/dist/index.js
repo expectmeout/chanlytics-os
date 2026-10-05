@@ -1945,6 +1945,7 @@ async function assembleRun(ports, cmd) {
 
 // src/campaigns/run-playbook.ts
 import {
+  clockWhen,
   localDate,
   nextOpenMoment as nextOpenMoment3,
   parseParamSpecs as parseParamSpecs2,
@@ -1960,6 +1961,7 @@ import {
   touchesAfterRun,
   triggerOf as triggerOf2,
   triggerOffered,
+  vetoRunNotice,
   visitFactsFor
 } from "../../contracts/dist/index.js";
 
@@ -2118,6 +2120,35 @@ function touchEnrolled(r, goesAt, eligible, held) {
     eligible.filter((person) => !skipped.has(person.id)).map((person) => person.id)
   );
 }
+async function sayTheRun(run, made) {
+  const { ports, p, ctx, by, mode, channels } = run;
+  const { n, at } = made;
+  if (!at) {
+    await ports.notify(
+      `Playbook \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
+      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`
+    );
+    return;
+  }
+  await ports.decide({
+    broadcastId: made.madeId,
+    by,
+    payload: {
+      playbook_id: p.id,
+      playbook: p.name,
+      mode,
+      recipients: n,
+      channels: [...channels],
+      scheduled_for: at.toISOString(),
+      run_now: by.kind === "user",
+      ...made.movedFrom ? { moved_from: made.movedFrom } : {}
+    }
+  });
+  if (mode === "veto" && by.kind !== "user") {
+    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
+    await ports.notify(told.subject, told.body).catch(() => void 0);
+  }
+}
 async function runPlaybook(ports, cmd) {
   const { playbook: p, ctx, by } = cmd;
   const now = ctx.now;
@@ -2193,27 +2224,7 @@ async function runPlaybook(ports, cmd) {
   });
   if (!made.ok) return { outcome: "failed", error: made.error };
   touchEnrolled(run, goesAt, eligible, past.held);
-  if (open) {
-    await ports.decide({
-      broadcastId: made.id,
-      by,
-      payload: {
-        playbook_id: p.id,
-        playbook: p.name,
-        mode,
-        recipients: n,
-        channels: [...channels],
-        scheduled_for: open.at.toISOString(),
-        run_now: by.kind === "user",
-        ...movedFrom ? { moved_from: movedFrom } : {}
-      }
-    });
-  } else {
-    await ports.notify(
-      `Playbook \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
-      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`
-    );
-  }
+  await sayTheRun(run, { madeId: made.id, n, at: open ? open.at : null, movedFrom });
   await record({
     mode,
     eligible: n,
