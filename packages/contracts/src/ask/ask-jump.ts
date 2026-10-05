@@ -3,6 +3,7 @@
  * sometimes), and a few typed words matched against them and against the people, threads and calls the browser already
  * holds (askJump). A question is not a jump.
  */
+import { REPORT_LENSES, lensRoute, type LensRow } from "../reports/lenses";
 
 /* ------------------------------------------------------------------- jump */
 
@@ -19,6 +20,22 @@ export interface JumpEntry {
    */
   also?: readonly string[];
 }
+
+/** A lens of Reports as the palette jumps to it: its name beside Reports', and its own sub-line (the registry's). */
+const lensJump = (lens: LensRow): JumpEntry => ({
+  label: `Reports › ${lens.label}`,
+  to: lensRoute(lens.id),
+  kind: "page",
+  sub: lens.sub,
+});
+
+/** The lenses every workspace has, which sit under Reports; the Overview is Reports itself. */
+const LENS_JUMPS: JumpEntry[] = REPORT_LENSES.filter((l) => l.id !== "overview" && l.shownWhen === "always").map(
+  lensJump,
+);
+
+/** The lenses only a workspace with deals on has (the Pipeline's): after the others, where deals are on. */
+const DEALS_LENS_JUMPS: JumpEntry[] = REPORT_LENSES.filter((l) => l.shownWhen === "deals_on").map(lensJump);
 
 /**
  * The pages every real workspace has. Nothing here is seeded or demo-only, and every real page is here or in askPages
@@ -64,6 +81,7 @@ export const ASK_PAGES: JumpEntry[] = [
     also: ["templates", "messages", "wording"],
   },
   { label: "Reports", to: "reports", kind: "page" },
+  ...LENS_JUMPS,
   { label: "Settings", to: "admin/workspace", kind: "page" },
   {
     label: "Setting up",
@@ -123,9 +141,11 @@ const BACK_OFFICE: JumpEntry = {
 /** The pages this workspace has, for this person: every workspace's, the Pipeline after Leads, and the back office. */
 export function askPages(has: AskPagesHas): JumpEntry[] {
   const out: JumpEntry[] = [];
+  const lastLens = LENS_JUMPS.at(-1)?.to;
   for (const p of ASK_PAGES) {
     out.push(p);
     if (p.to === "clients/leads" && has.dealsOn) out.push(PIPELINE);
+    if (p.to === lastLens && has.dealsOn) out.push(...DEALS_LENS_JUMPS);
   }
   if (has.platformAdmin) out.push(BACK_OFFICE);
   return out;

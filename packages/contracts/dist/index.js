@@ -5297,6 +5297,147 @@ var FOLLOWUP_ECHO = [
   [/thread|hilo|conversation/i, /^inbox\/th-/]
 ];
 
+// src/config/roles.ts
+var ROLE_RANK = { viewer: 0, operator: 1, partner: 2, owner: 3 };
+function roleAtLeast(role, atLeast) {
+  const have = Object.prototype.hasOwnProperty.call(ROLE_RANK, role) ? ROLE_RANK[role] : void 0;
+  return have !== void 0 && have >= ROLE_RANK[atLeast];
+}
+
+// src/deals/sells-by.ts
+var SELLS_BY = ["booking", "proposal"];
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+function isSellsBy(s) {
+  return typeof s === "string" && SELLS_BY.includes(s);
+}
+var SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
+function dealsAreOn(sellsBy) {
+  return sellsBy === "proposal";
+}
+function bookingLinkOptional(sellsBy) {
+  return dealsAreOn(sellsBy);
+}
+var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
+var SELLS_BY_FIRST = "booking";
+var CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
+function sellsByVM(answer) {
+  const said = isSellsBy(answer) ? answer : null;
+  const on = dealsAreOn(said);
+  const verb = said ? "Change" : "Choose";
+  return {
+    question: SELLS_BY_QUESTION,
+    value: said ? SELLS_BY_WORDS[said].label : null,
+    empty: "Not said yet",
+    act: said ? "Change" : "Choose one",
+    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
+    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
+    refusal: SELLS_BY_REFUSAL,
+    first: said ?? SELLS_BY_FIRST,
+    dealsOn: on,
+    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null
+  };
+}
+function sellsBySaved(was, now) {
+  if (dealsAreOn(now)) return "Saved \u2014 deals are on.";
+  return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
+}
+
+// src/reports/lenses.ts
+var NOTHING_CAME_IN = (r2) => ({
+  title: "Nothing came in",
+  body: `Nobody wrote or called between ${r2.since} and ${r2.until}.`,
+  door: null
+});
+var REPORT_LENSES = [
+  {
+    id: "overview",
+    label: "Overview",
+    sub: "how the period went, and what needs a look",
+    shownWhen: "always",
+    role: "viewer",
+    empty: NOTHING_CAME_IN
+  },
+  {
+    id: "receptionist",
+    label: "Receptionist",
+    sub: "who answered, how fast, and why it stopped",
+    shownWhen: "always",
+    role: "viewer",
+    empty: NOTHING_CAME_IN
+  },
+  {
+    id: "people",
+    label: "People",
+    sub: "who reached you, and where and when",
+    shownWhen: "always",
+    role: "viewer",
+    empty: NOTHING_CAME_IN
+  },
+  {
+    id: "pipeline",
+    label: "Pipeline",
+    sub: "proposals, and what became of them",
+    shownWhen: "deals_on",
+    role: "viewer",
+    empty: () => ({
+      title: "No proposals to report",
+      body: "Proposals you send, and what became of them, show here. Where your customers book directly, there is nothing to report.",
+      door: { label: "Open Settings", to: "admin/workspace" }
+    })
+  },
+  {
+    id: "campaigns",
+    label: "Campaigns",
+    sub: "what went out, and who wrote back",
+    shownWhen: "always",
+    role: "viewer",
+    empty: (r2) => ({
+      title: "Nothing went out",
+      body: `No broadcast or playbook run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
+      door: { label: "Open Sent", to: "broadcasts" }
+    })
+  },
+  {
+    id: "reviews",
+    label: "Reviews",
+    sub: "what customers say on Google",
+    shownWhen: "always",
+    role: "viewer",
+    empty: () => ({
+      title: "Find your business on Google once.",
+      body: "Its rating, its count and its newest reviews show here for the period, with a line on Today and a row on the bell when one lands.",
+      door: { label: "Find it", to: "start/find" }
+    })
+  }
+];
+var lensRoute = (id) => id === "overview" ? "reports" : `reports/${id}`;
+var LENS_ROUTES = REPORT_LENSES.map((l) => lensRoute(l.id));
+var isLensParam = (param) => REPORT_LENSES.some((l) => l.id === param && l.id !== "overview");
+function lensOfRoute(route) {
+  if (route === "reports") return "overview";
+  const param = route.startsWith("reports/") ? route.slice("reports/".length) : "";
+  return isLensParam(param) ? param : null;
+}
+function lensesFor(who) {
+  return REPORT_LENSES.filter(
+    (l) => (l.shownWhen === "always" || dealsAreOn(who.sellsBy)) && roleAtLeast(who.role ?? "viewer", l.role)
+  );
+}
+var lensIsShown = (id, who) => lensesFor(who).some((l) => l.id === id);
+function lensOf(id) {
+  const found = REPORT_LENSES.find((l) => l.id === id);
+  if (!found) throw new Error(`Reports has no lens ${id}`);
+  return found;
+}
+var lensEmpty = (id, range) => lensOf(id).empty(range);
+
 // src/ask/citations.ts
 var ASK_CITATION_KINDS = [
   "thread",
@@ -5336,7 +5477,7 @@ var ASK_PAGE_ROUTES = [
   "outbound",
   "broadcasts",
   "messages",
-  "reports",
+  ...LENS_ROUTES,
   "start",
   "admin/workspace",
   "admin/team",
@@ -5794,13 +5935,6 @@ function leadTileSrc(url, px = LEAD_TILE_PX) {
   if (!url) return null;
   if (!/^https:\/\/lh3\.googleusercontent\.com\//.test(url)) return url;
   return url.replace(/=w\d+-h\d+(?:-[a-z0-9-]+)?$/i, `=s${px}-c`);
-}
-
-// src/config/roles.ts
-var ROLE_RANK = { viewer: 0, operator: 1, partner: 2, owner: 3 };
-function roleAtLeast(role, atLeast) {
-  const have = Object.prototype.hasOwnProperty.call(ROLE_RANK, role) ? ROLE_RANK[role] : void 0;
-  return have !== void 0 && have >= ROLE_RANK[atLeast];
 }
 
 // src/people/person-name.ts
@@ -7348,51 +7482,6 @@ var LIST_DRAFT_JSON_SCHEMA = {
     }
   }
 };
-
-// src/deals/sells-by.ts
-var SELLS_BY = ["booking", "proposal"];
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
-function isSellsBy(s) {
-  return typeof s === "string" && SELLS_BY.includes(s);
-}
-var SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
-function dealsAreOn(sellsBy) {
-  return sellsBy === "proposal";
-}
-function bookingLinkOptional(sellsBy) {
-  return dealsAreOn(sellsBy);
-}
-var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
-var SELLS_BY_FIRST = "booking";
-var CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
-function sellsByVM(answer) {
-  const said = isSellsBy(answer) ? answer : null;
-  const on = dealsAreOn(said);
-  const verb = said ? "Change" : "Choose";
-  return {
-    question: SELLS_BY_QUESTION,
-    value: said ? SELLS_BY_WORDS[said].label : null,
-    empty: "Not said yet",
-    act: said ? "Change" : "Choose one",
-    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
-    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
-    refusal: SELLS_BY_REFUSAL,
-    first: said ?? SELLS_BY_FIRST,
-    dealsOn: on,
-    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null
-  };
-}
-function sellsBySaved(was, now) {
-  if (dealsAreOn(now)) return "Saved \u2014 deals are on.";
-  return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
-}
 
 // src/people/lists/lists.ts
 var SAVED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -9190,6 +9279,16 @@ function detectLanguage(text) {
 }
 
 // src/ask/ask-jump.ts
+var lensJump = (lens) => ({
+  label: `Reports \u203A ${lens.label}`,
+  to: lensRoute(lens.id),
+  kind: "page",
+  sub: lens.sub
+});
+var LENS_JUMPS = REPORT_LENSES.filter((l) => l.id !== "overview" && l.shownWhen === "always").map(
+  lensJump
+);
+var DEALS_LENS_JUMPS = REPORT_LENSES.filter((l) => l.shownWhen === "deals_on").map(lensJump);
 var ASK_PAGES = [
   { label: "Today", to: "today", kind: "page" },
   { label: "Inbox", to: "inbox", kind: "page" },
@@ -9228,6 +9327,7 @@ var ASK_PAGES = [
     also: ["templates", "messages", "wording"]
   },
   { label: "Reports", to: "reports", kind: "page" },
+  ...LENS_JUMPS,
   { label: "Settings", to: "admin/workspace", kind: "page" },
   {
     label: "Setting up",
@@ -9270,9 +9370,11 @@ var BACK_OFFICE = {
 };
 function askPages(has3) {
   const out = [];
+  const lastLens = LENS_JUMPS.at(-1)?.to;
   for (const p of ASK_PAGES) {
     out.push(p);
     if (p.to === "clients/leads" && has3.dealsOn) out.push(PIPELINE);
+    if (p.to === lastLens && has3.dealsOn) out.push(...DEALS_LENS_JUMPS);
   }
   if (has3.platformAdmin) out.push(BACK_OFFICE);
   return out;
@@ -26852,6 +26954,25 @@ function toCampaignReportVM(dto) {
   };
 }
 
+// src/reports/lens-answer.ts
+function lensAnswerOf(lens, parts2) {
+  const { vm, campaigns, deals } = parts2;
+  switch (lens) {
+    case "overview":
+      return vm.empty ? void 0 : vm.lines.hero;
+    case "receptionist":
+      return vm.empty ? void 0 : vm.lines.answered ?? void 0;
+    case "people":
+      return vm.empty ? void 0 : vm.lines.channels ?? void 0;
+    case "pipeline":
+      return deals?.present ? deals.headline : void 0;
+    case "campaigns":
+      return campaigns && !campaigns.empty ? campaigns.lines.funnel : void 0;
+    case "reviews":
+      return void 0;
+  }
+}
+
 // src/reports/report-periods.ts
 var REPORT_PERIOD_DEFAULT = "30d";
 var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
@@ -33948,6 +34069,7 @@ export {
   LEAD_UNREACHABLE_KEY,
   LEAD_UNREACHABLE_WORD,
   LEAD_WORDS,
+  LENS_ROUTES,
   LIBRARY_WORDS,
   LIFECYCLE_TOAST,
   LIFECYCLE_WORDS,
@@ -34242,6 +34364,7 @@ export {
   REPLY_WINDOW_WORDS,
   REPLY_WORDS_MAX,
   REPORT_CHANNELS,
+  REPORT_LENSES,
   REPORT_PERIOD_DEFAULT,
   REPORT_RANGES,
   REPORT_WEEK_LONG,
@@ -34825,6 +34948,7 @@ export {
   isHeldDraft,
   isIdentifierName,
   isLeadList,
+  isLensParam,
   isLibrarySample,
   isLiveCall,
   isLookPref,
@@ -34950,6 +35074,12 @@ export {
   legacyErasedEmailHash,
   legacyErasedPhoneHash,
   legacyLeadSuppressionHash,
+  lensAnswerOf,
+  lensEmpty,
+  lensIsShown,
+  lensOfRoute,
+  lensRoute,
+  lensesFor,
   libraryCount,
   lifecycleKicker,
   lineCredentialFailure,

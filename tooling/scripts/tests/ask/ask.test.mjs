@@ -41,6 +41,8 @@ import {
   isUngrounded,
   scopeFromRoute,
   DATA_NOT_INSTRUCTIONS,
+  REPORT_LENSES,
+  lensRoute,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 import { fromContext } from "../../eval-ask-context.mjs";
@@ -229,6 +231,12 @@ const REACHED = {
 // People's scopes are listed by hand: a scope is an address of `clients`, which the registry routes as one page, so a
 // new scope's jump is this list's to add (surfaces/people/words.ts plScopes).
 const SCOPES = ["clients/pipeline"];
+// Reports' lenses are addresses of `reports`, which the registry routes as one page: each lens's jump is derived from the
+// lens registry (contracts REPORT_LENSES), so a lens that joins it is a jump here without a line of this table.
+for (const lens of REPORT_LENSES.filter((l) => l.id !== "overview")) {
+  REACHED[lensRoute(lens.id)] = [`Reports › ${lens.label}`, lensRoute(lens.id)];
+  SCOPES.push(lensRoute(lens.id));
+}
 
 /** Every page, for a workspace with deals on and a person on Chanlytics' staff. */
 const EVERY = askPages({ dealsOn: true, platformAdmin: true });
@@ -314,8 +322,8 @@ test("the bridge's jump index reads the two bits the pages draw those doors by, 
   const people = index({ ...on, __PEOPLE: { rows: [{ id: "p-1", name: "Pip Adams" }], dealsOn: true } });
   assert.deepEqual(
     askJump("pip", people).map((j) => j.label),
-    ["Pipeline", "Pip Adams"],
-    "a page before a person",
+    ["Pipeline", "Reports › Pipeline", "Pip Adams"],
+    "the pages before a person: the Pipeline, then the Reports lens whose name holds the word",
   );
 });
 

@@ -41,6 +41,18 @@ export type {
   ReportLinesVM,
   ReportVM,
 } from "./reports";
+export {
+  REPORT_LENSES,
+  LENS_ROUTES,
+  lensRoute,
+  isLensParam,
+  lensOfRoute,
+  lensesFor,
+  lensIsShown,
+  lensEmpty,
+} from "./lenses";
+export type { LensId, LensRow, LensRange, LensEmpty, LensWho } from "./lenses";
+export { lensAnswerOf } from "./lens-answer";
 export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./report-tiles";
 export type { ReportTileVM, ReportStripTile } from "./report-tiles";
 export {

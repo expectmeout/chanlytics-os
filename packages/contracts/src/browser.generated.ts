@@ -205,6 +205,8 @@ export { sendWindowsOf, timetable, SEND_WINDOW_MARGIN_MIN, SEND_DAY_FRAME, TIMET
 export { REACH_OUT_SLOTS, REACH_OUT_SLOT_SET, REACH_OUT_SLOT_WORDS, REACH_OUT_SUBJECT_MAX, REACH_OUT_BODY_MAX, REACH_OUT_WORDS_MAX, OPENING_WORDS_MAX, OPENING_CHARS_MAX, ANGLE_WORDS_MAX, REACH_OUT_STEPS_MAX, REACH_OUT_NAME_MAX, SIGNED_BY_MAX, REACH_OUT_GAP_MINUTES, REACH_OUT_AFTER_DAYS, slotCount, reachOutSlotFault, reachOutRules, wordsNeedOpening, wordCount, emailWordCount, linksIn, linkCount, shoutingLine, validateReachOutWords, wordsIssueWords, validateReachOutChain, chainIssueWords, OPENING_FACT_KEYS, isOpeningFactKey, factValue, OPENING_PROBLEMS, isOpeningProblem, checkOpening, openingProblemWords, CHAIN_MIN_LISTINGS, chainOf, customerDomainOf, REACH_OUT_HOLDS, isReachOutHold, holdWords, holdDoors, HOLD_DOOR_WORDS } from "./reach-out/reach-out-words";
 export { zoneOfRegion, US_STATE_ZONES } from "./reach-out/us-zones";
 export { toCampaignReportVM } from "./reports/campaign-report";
+export { lensAnswerOf } from "./reports/lens-answer";
+export { REPORT_LENSES, LENS_ROUTES, lensRoute, isLensParam, lensOfRoute, lensesFor, lensIsShown, lensEmpty } from "./reports/lenses";
 export { toReachOutReportVM, reachOutDayWords } from "./reports/reach-out-report";
 export { closedOf } from "./reports/report-closed";
 export { reportFacts } from "./reports/report-facts";

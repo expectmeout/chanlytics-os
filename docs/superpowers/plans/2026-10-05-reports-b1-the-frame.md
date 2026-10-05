@@ -1996,13 +1996,13 @@ git commit -m "The three report functions are called from packages/db, the one p
 **Why:** Six lenses, one table, in contracts: each row carries its id, its label (the strip's word), the palette's sub-line, when it is shown, the least role that may read it (`Role`, from `config/workspace-config/role-perms.ts`; `roleAtLeast` reads it) and its empty state's words. The route's `takes`, the strip, the palette's jumps and Ask's page routes are all derived from it; none spells a lens id. No row for a lens that is not drawn.
 
 **Files:**
-- Create: `packages/contracts/src/reports/lenses.ts`, `packages/contracts/src/reports/lens-answer.ts`, `tooling/scripts/tests/reports/report-lenses.test.mjs`
+- Create: `packages/contracts/src/reports/lenses.ts`, `packages/contracts/src/reports/lens-answer.ts`, `tooling/scripts/tests/reports/lenses/report-lenses.test.mjs`
 - Modify: `packages/contracts/src/reports/index.ts`, `packages/contracts/src/ask/ask-jump.ts`, `packages/contracts/src/ask/citations.ts`, `tooling/scripts/tests/ask/ask.test.mjs`
 - Regenerate: `packages/contracts/src/browser.generated.ts`, `packages/*/dist`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `tooling/scripts/tests/reports/report-lenses.test.mjs`:
+Create `tooling/scripts/tests/reports/lenses/report-lenses.test.mjs`:
 
 ```js
 /**
@@ -2144,7 +2144,7 @@ for (const lens of REPORT_LENSES.filter((l) => l.id !== "overview")) {
 - [ ] **Step 2: Run them to verify they fail**
 
 ```bash
-node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/report-lenses.test.mjs
+node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/lenses/report-lenses.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/ask/ask.test.mjs
 ```
 Expected: FAIL: `REPORT_LENSES` is not exported (`ask.test.mjs` fails at its import).
@@ -2422,10 +2422,10 @@ with
 - [ ] **Step 4: Regenerate, build, run**
 
 ```bash
-corepack pnpm exec prettier --write packages/contracts/src/reports packages/contracts/src/ask tooling/scripts/tests/reports/report-lenses.test.mjs tooling/scripts/tests/ask/ask.test.mjs
+corepack pnpm exec prettier --write packages/contracts/src/reports packages/contracts/src/ask tooling/scripts/tests/reports/lenses/report-lenses.test.mjs tooling/scripts/tests/ask/ask.test.mjs
 node tooling/scripts/gen/contracts-browser-entry.mjs
 corepack pnpm --filter "./packages/*" build
-node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/report-lenses.test.mjs
+node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/lenses/report-lenses.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/ask/ask.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/ask/ask-palette.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/workspace/team-writes.test.mjs
@@ -2439,7 +2439,7 @@ Expected: all PASS.
 
 ```bash
 for d in contracts db jobs channels core; do git diff -w --ignore-cr-at-eol --quiet -- packages/$d/dist && git checkout -- packages/$d/dist; done
-git add packages/contracts/src/reports packages/contracts/src/ask packages/contracts/src/browser.generated.ts packages/*/dist tooling/scripts/tests/reports/report-lenses.test.mjs tooling/scripts/tests/ask/ask.test.mjs
+git add packages/contracts/src/reports packages/contracts/src/ask packages/contracts/src/browser.generated.ts packages/*/dist tooling/scripts/tests/reports/lenses/report-lenses.test.mjs tooling/scripts/tests/ask/ask.test.mjs
 git commit -m "Reports has six lenses in one table, and the palette, Ask's page routes and the head's sentence are read from it." -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 

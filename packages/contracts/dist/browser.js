@@ -6380,6 +6380,95 @@ var FOLLOWUP_ECHO = [
   [/thread|hilo|conversation/i, /^inbox\/th-/]
 ];
 
+// src/reports/lenses.ts
+var NOTHING_CAME_IN = (r2) => ({
+  title: "Nothing came in",
+  body: `Nobody wrote or called between ${r2.since} and ${r2.until}.`,
+  door: null
+});
+var REPORT_LENSES = [
+  {
+    id: "overview",
+    label: "Overview",
+    sub: "how the period went, and what needs a look",
+    shownWhen: "always",
+    role: "viewer",
+    empty: NOTHING_CAME_IN
+  },
+  {
+    id: "receptionist",
+    label: "Receptionist",
+    sub: "who answered, how fast, and why it stopped",
+    shownWhen: "always",
+    role: "viewer",
+    empty: NOTHING_CAME_IN
+  },
+  {
+    id: "people",
+    label: "People",
+    sub: "who reached you, and where and when",
+    shownWhen: "always",
+    role: "viewer",
+    empty: NOTHING_CAME_IN
+  },
+  {
+    id: "pipeline",
+    label: "Pipeline",
+    sub: "proposals, and what became of them",
+    shownWhen: "deals_on",
+    role: "viewer",
+    empty: () => ({
+      title: "No proposals to report",
+      body: "Proposals you send, and what became of them, show here. Where your customers book directly, there is nothing to report.",
+      door: { label: "Open Settings", to: "admin/workspace" }
+    })
+  },
+  {
+    id: "campaigns",
+    label: "Campaigns",
+    sub: "what went out, and who wrote back",
+    shownWhen: "always",
+    role: "viewer",
+    empty: (r2) => ({
+      title: "Nothing went out",
+      body: `No broadcast or playbook run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
+      door: { label: "Open Sent", to: "broadcasts" }
+    })
+  },
+  {
+    id: "reviews",
+    label: "Reviews",
+    sub: "what customers say on Google",
+    shownWhen: "always",
+    role: "viewer",
+    empty: () => ({
+      title: "Find your business on Google once.",
+      body: "Its rating, its count and its newest reviews show here for the period, with a line on Today and a row on the bell when one lands.",
+      door: { label: "Find it", to: "start/find" }
+    })
+  }
+];
+var lensRoute = (id) => id === "overview" ? "reports" : `reports/${id}`;
+var LENS_ROUTES = REPORT_LENSES.map((l) => lensRoute(l.id));
+var isLensParam = (param) => REPORT_LENSES.some((l) => l.id === param && l.id !== "overview");
+function lensOfRoute(route) {
+  if (route === "reports") return "overview";
+  const param = route.startsWith("reports/") ? route.slice("reports/".length) : "";
+  return isLensParam(param) ? param : null;
+}
+function lensesFor(who) {
+  return REPORT_LENSES.filter(
+    (l) => (l.shownWhen === "always" || dealsAreOn(who.sellsBy)) && roleAtLeast(who.role ?? "viewer", l.role)
+  );
+}
+var lensIsShown = (id, who) => lensesFor(who).some((l) => l.id === id);
+function lensOf(id) {
+  const found = REPORT_LENSES.find((l) => l.id === id);
+  if (!found) throw new Error(`Reports has no lens ${id}`);
+  return found;
+}
+var lensEmpty = (id, range) => lensOf(id).empty(range);
+
 // src/ask/citations.ts
 var ASK_CITATION_KINDS = [
   "thread",
@@ -6419,7 +6508,7 @@ var ASK_PAGE_ROUTES = [
   "outbound",
   "broadcasts",
   "messages",
-  "reports",
+  ...LENS_ROUTES,
   "start",
   "admin/workspace",
   "admin/team",
@@ -7111,6 +7200,16 @@ function callsToday(calls, now, tz) {
 }
 
 // src/ask/ask-jump.ts
+var lensJump = (lens) => ({
+  label: `Reports \u203A ${lens.label}`,
+  to: lensRoute(lens.id),
+  kind: "page",
+  sub: lens.sub
+});
+var LENS_JUMPS = REPORT_LENSES.filter((l) => l.id !== "overview" && l.shownWhen === "always").map(
+  lensJump
+);
+var DEALS_LENS_JUMPS = REPORT_LENSES.filter((l) => l.shownWhen === "deals_on").map(lensJump);
 var ASK_PAGES = [
   { label: "Today", to: "today", kind: "page" },
   { label: "Inbox", to: "inbox", kind: "page" },
@@ -7149,6 +7248,7 @@ var ASK_PAGES = [
     also: ["templates", "messages", "wording"]
   },
   { label: "Reports", to: "reports", kind: "page" },
+  ...LENS_JUMPS,
   { label: "Settings", to: "admin/workspace", kind: "page" },
   {
     label: "Setting up",
@@ -7191,9 +7291,11 @@ var BACK_OFFICE = {
 };
 function askPages(has3) {
   const out = [];
+  const lastLens = LENS_JUMPS.at(-1)?.to;
   for (const p of ASK_PAGES) {
     out.push(p);
     if (p.to === "clients/leads" && has3.dealsOn) out.push(PIPELINE);
+    if (p.to === lastLens && has3.dealsOn) out.push(...DEALS_LENS_JUMPS);
   }
   if (has3.platformAdmin) out.push(BACK_OFFICE);
   return out;
@@ -25613,6 +25715,25 @@ function toCampaignReportVM(dto) {
   };
 }
 
+// src/reports/lens-answer.ts
+function lensAnswerOf(lens, parts2) {
+  const { vm, campaigns, deals } = parts2;
+  switch (lens) {
+    case "overview":
+      return vm.empty ? void 0 : vm.lines.hero;
+    case "receptionist":
+      return vm.empty ? void 0 : vm.lines.answered ?? void 0;
+    case "people":
+      return vm.empty ? void 0 : vm.lines.channels ?? void 0;
+    case "pipeline":
+      return deals?.present ? deals.headline : void 0;
+    case "campaigns":
+      return campaigns && !campaigns.empty ? campaigns.lines.funnel : void 0;
+    case "reviews":
+      return void 0;
+  }
+}
+
 // src/reports/reach-out-report.ts
 var pctText = (n, d) => d ? `${pct(n, d)}%` : "\u2014";
 var rateText = (n, d) => d ? `${Math.round(n / d * 1e3) / 10}%` : "\u2014";
@@ -32521,6 +32642,7 @@ export {
   LEAD_UNREACHABLE_KEY,
   LEAD_UNREACHABLE_WORD,
   LEAD_WORDS,
+  LENS_ROUTES,
   LIBRARY_WORDS,
   LIFECYCLE_TOAST,
   LIFECYCLE_WORDS,
@@ -32786,6 +32908,7 @@ export {
   REPLY_WINDOW_WORDS,
   REPLY_WORDS_MAX,
   REPORT_CHANNELS,
+  REPORT_LENSES,
   REPORT_PERIOD_DEFAULT,
   REPORT_RANGES,
   REPORT_WEEK_LONG,
@@ -33348,6 +33471,7 @@ export {
   isHeldDraft,
   isIdentifierName,
   isLeadList,
+  isLensParam,
   isLibrarySample,
   isLiveCall,
   isLookPref,
@@ -33466,6 +33590,12 @@ export {
   legacyErasedEmailHash,
   legacyErasedPhoneHash,
   legacyLeadSuppressionHash,
+  lensAnswerOf,
+  lensEmpty,
+  lensIsShown,
+  lensOfRoute,
+  lensRoute,
+  lensesFor,
   libraryCount,
   lifecycleKicker,
   lineCredentialFailure,
