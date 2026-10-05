@@ -2528,7 +2528,7 @@ CREATE FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with ti
            -- the hold the owner set, as the reply was queued (draft-queue.ts); none for a reply sent at once
            case when jsonb_typeof(o.meta->'delay_ms') = 'number'
                 then (o.meta->>'delay_ms')::numeric / 1000.0 else 0 end as hold_s,
-           -- written as 'human' and nobody's answer (00285)
+           -- written as 'human' and nobody's answer (00303)
            public.automated_send(o.meta) as automated
       from real_msgs o
      where o.direction = 'outbound'
@@ -7406,9 +7406,9 @@ begin
   replies as (select * from public.first_replies(p_tenant_id, v_start)),
   calls_win as (
     select * from calls where tenant_id = p_tenant_id and started_at >= v_start
-       and public.call_connected(status, duration_ms)   -- 00286: a call someone spoke on, one rule with Reports (00285)
+       and public.call_connected(status, duration_ms)   -- 00304: a call someone spoke on, one rule with Reports (00303)
   ),
-  -- Each person's first moment, one rule with report_series (00285): never the erased, never a person with neither.
+  -- Each person's first moment, one rule with report_series (00303): never the erased, never a person with neither.
   fresh_contacts as (
     select f.contact_id as id
       from public.contact_first_moments(p_tenant_id) f
@@ -14159,12 +14159,12 @@ begin
     select * from msgs
      where direction = 'outbound' and status in ('sent', 'delivered', 'read')
   ),
-  -- ONE definition of "who answered" and "how fast", shared with metrics_summary (00035, 00285).
+  -- ONE definition of "who answered" and "how fast", shared with metrics_summary (00035, 00303).
   answered as (
     select r.*, (r.asked_at at time zone v_tz)::date as day
       from public.first_replies(p_tenant_id, v_start) r
   ),
-  -- A call someone spoke on (00285).
+  -- A call someone spoke on (00303).
   calls_w as (
     select k.*, (k.started_at at time zone v_tz)::date as day
       from calls k
@@ -14176,7 +14176,7 @@ begin
       from escalations e
      where e.tenant_id = p_tenant_id and e.created_at >= v_start
   ),
-  -- Each person's first moment, one rule with metrics_summary (00285).
+  -- Each person's first moment, one rule with metrics_summary (00303).
   fresh as (
     select (f.first_at at time zone v_tz)::date as day
       from public.contact_first_moments(p_tenant_id) f
@@ -14205,7 +14205,7 @@ begin
                    from answered a group by a.day) a on a.day = d.day
       left join (select o.day,
                         count(*) filter (where o.sender = 'ai') as out_ai,
-                        -- the owner's own sends; a broadcast's, a playbook's or a reach-out's are not (00286)
+                        -- the owner's own sends; a broadcast's, a playbook's or a reach-out's are not (00304)
                         count(*) filter (where o.sender = 'human' and not public.automated_send(o.meta)) as out_you
                    from out_sent o group by o.day) o on o.day = d.day
       left join (select e.day, count(*) as escalations from escs e group by e.day) e on e.day = d.day
@@ -14231,7 +14231,7 @@ begin
       left join hour_counts hc on hc.dow = d.dow and hc.hr = h.hr
      group by d.dow
   ),
-  -- 00286: each local day and quarter hour something came in, for the page's while-you-were-closed (openAt).
+  -- 00304: each local day and quarter hour something came in, for the page's while-you-were-closed (openAt).
   arrival_counts as (
     select to_char(x.t::date, 'YYYY-MM-DD') as d,
            (extract(hour from x.t)::int * 4 + floor(extract(minute from x.t) / 15)::int) as q,

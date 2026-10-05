@@ -1390,7 +1390,7 @@ type Service = z$1.infer<typeof ServiceSchema>;
 type Interval = z$1.infer<typeof IntervalSchema>;
 type Closure = z$1.infer<typeof ClosureSchema>;
 
-/** When something came in, on the business's clock: a day ("2026-09-17"), its quarter hour (0..95) and how many (00286). */
+/** When something came in, on the business's clock: a day ("2026-09-17"), its quarter hour (0..95) and how many (00304). */
 interface ReportArrivalDto {
     d: string;
     q: number;
@@ -1404,7 +1404,7 @@ interface ReportProfile {
 /**
  * How many came while the business was closed by its own hours and closures, each quarter hour asked the one
  * question (openAt). A quarter hour is judged by its start: an opening at 9:20 calls the 9:15 quarter closed. Null
- * where the workspace has not said its hours, or the payload has no arrivals (a report from before 00286). The
+ * where the workspace has not said its hours, or the payload has no arrivals (a report from before 00304). The
  * arrivals are ReportDto's own (reports.ts).
  */
 declare function closedOf(arrivals: readonly ReportArrivalDto[] | undefined, profile: ReportProfile | null | undefined): number | null;
@@ -1443,8 +1443,8 @@ interface ReportDto {
     reply_seconds: number[];
     sentiments: Record<string, number>;
     voicemail: number;
-    /** v3 (00139): each receptionist first reply this period, with the day it was asked (tenant zone); 00286 adds the
-     *  hold it waited in seconds (0: none). Absent on a report from before 00286. */
+    /** v3 (00139): each receptionist first reply this period, with the day it was asked (tenant zone); 00304 adds the
+     *  hold it waited in seconds (0: none). Absent on a report from before 00304. */
     replies?: {
         day: string;
         s: number;
@@ -1457,7 +1457,7 @@ interface ReportDto {
     };
     /** v3: inbound customer messages plus connected calls this period, 7 rows (Monday first) of 24 hours. */
     hours?: number[][];
-    /** 00286: this period's customer messages and connected calls by local day and quarter hour. */
+    /** 00304: this period's customer messages and connected calls by local day and quarter hour. */
     arrivals?: ReportArrivalDto[];
     error?: string;
 }
