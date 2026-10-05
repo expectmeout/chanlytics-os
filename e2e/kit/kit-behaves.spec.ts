@@ -112,6 +112,14 @@ const focused = (page: Page) =>
 /** Each state the spec brings a component to, by the gallery entry it draws, and how it is brought there. */
 const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: string }[] = [
   { entry: "sheet-kit", bring: (p) => p.getByTestId("sheet-open").click(), ready: "section.sheet" },
+  {
+    entry: "sheet-kit-job",
+    bring: async (p) => {
+      await p.getByTestId("job-open").click();
+      await p.getByTestId("job-next").click();
+    },
+    ready: "section.sheet .sheet-job-back",
+  },
   { entry: "menu-kit", bring: (p) => p.getByTestId("menu-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-set", bring: (p) => p.getByTestId("menu-set-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-switches", bring: (p) => p.getByTestId("menu-switches-open").click(), ready: ".more-menu" },
@@ -405,6 +413,37 @@ const menuSwitches: Check = async (page) => {
     out.push("the switches: Escape left the menu open");
   else if ((await focused(page)) !== "menu-switches-open")
     out.push(`the switches: focus went to ${await focused(page)} after Escape`);
+  return out;
+};
+
+/**
+ * A phone's job in the kit's sheet: a step's way back goes back a step and leaves the sheet open, its word closes it
+ * and gives focus back to what opened it, and Escape closes it from a step as from the first.
+ */
+const sheetJob: Check = async (page) => {
+  const out: string[] = [];
+  const open = () => met(page, () => !!document.querySelector("section.sheet .sheet-job-head"), null);
+  const gone = () => met(page, () => !document.querySelector("section.sheet"), null);
+  const title = () =>
+    page.evaluate(() => document.querySelector("section.sheet .sheet-job-title")?.textContent ?? null);
+  await page.getByTestId("job-open").click();
+  if (!(await open())) return ["the job's sheet: a press did not open it"];
+  if (await page.getByTestId("job-sheet-back").count()) out.push("the job's sheet: its first step has a way back");
+  await page.getByTestId("job-next").click();
+  if (!(await met(page, () => !!document.querySelector("section.sheet .sheet-job-back"), null)))
+    out.push("the job's sheet: its second step has no way back");
+  await page.getByTestId("job-sheet-back").click();
+  if (!(await captionSays(page, "sheet-kit-job", "back"))) out.push("the job's sheet: its way back did not go back");
+  else if ((await title()) !== "3 selected") out.push(`the job's sheet: back on ${await title()}, not its first step`);
+  await page.getByTestId("job-sheet-close").click();
+  if (!(await gone())) out.push("the job's sheet: its word did not close it");
+  else if ((await focused(page)) !== "job-open")
+    out.push(`the job's sheet: focus went to ${await focused(page)} after its word`);
+  await page.getByTestId("job-open").click();
+  await open();
+  await page.getByTestId("job-next").click();
+  await page.keyboard.press("Escape");
+  if (!(await gone())) out.push("the job's sheet: Escape on a step left it open");
   return out;
 };
 
@@ -835,6 +874,7 @@ const CHECKS: [string, Check][] = [
   ["the date picker's keys walk its days and choose", datePickerKeys],
   ["the select opens, is walked, and chooses", selectChooses],
   ["the sheet closes for its Close and its wash", sheetCloses],
+  ["a job's sheet steps back on its way back, closes on its word and on Escape from a step", sheetJob],
   ["the sheet, an option and a select are named and described", namesAreWired],
   ["a switch answers Space", switchSpace],
   ["the segmented control answers the arrows", segmentedArrows],

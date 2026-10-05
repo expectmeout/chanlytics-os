@@ -503,9 +503,17 @@ const { PL_FIRST_ROWS, PL_WINDOW_ROWS, PL_WINDOW_STEP } =
   await import("../../../../apps/dashboard/src/surfaces/people/table/row-window.ts");
 // The person's lists are TSX (surfaces/people/person): they read People through the seam, which the override publishes.
 const { PersonLists } = await import("../../../../apps/dashboard/src/surfaces/people/person/lists.tsx");
-// The phone's sheets and their rows (surfaces/people/sheets/phone-sheet.tsx), which People and Leads import.
-const { PhoneSheet, PhoneSheetRow } =
+// A phone sheet's rows and a step's way back (surfaces/people/sheets/phone-sheet.tsx), which People and Leads import; the
+// sheets themselves are the kit's Sheet (kit/sheet/sheet.tsx), read by their type and what the page hands them.
+const { PhoneSheetRow, jobBack } =
   await import("../../../../apps/dashboard/src/surfaces/people/sheets/phone-sheet.tsx");
+const { Sheet } = await import("../../../../apps/dashboard/src/surfaces/kit/sheet/sheet.tsx");
+/**
+ * A sheet of the page's while it is open, by its test id: the kit's Sheet, read by what the page hands it. Its Escape,
+ * its wash and its pull down are Base UI's and the thumb reader's, driven in a browser (e2e/kit/kit-behaves.spec.ts);
+ * each asks the page through `onClose`.
+ */
+const openSheet = (tree, id) => find(tree, (n) => n.type === Sheet && n.props.testid === id && n.props.open) ?? null;
 // The kit's Menu, which the phone's bulk bar draws for Add to list (a node is found by its type).
 const { Menu } = await import("../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
 /** A bar's menu by its words, as the old MoreMenu's props read: the kit's Menu draws it, its trigger the page's Button, its groups
@@ -1284,15 +1292,16 @@ test("the phone's more-menu adds a person in a sheet, sorts as a desktop's headi
       .find((i) => i.label === "Add a person")
       .onClick();
     tree = draw();
-    const sheet = byTestId(tree, "add-person-sheet");
-    assert.equal(sheet.props.role, "dialog");
+    const sheet = openSheet(tree, "add-person-sheet");
+    assert.equal(sheet.props.shape, "job", "the kit's sheet, in a job's shape");
+    assert.deepEqual(sheet.props.close, { word: "Cancel" }, "its word to close it");
     assert.equal(byTestId(sheet, "add-person-phone").props.type, "tel", "a phone's number pad");
     byTestId(sheet, "add-person-phone").props.onChange({ target: { value: "+1 786 555 0100" } });
     tree = draw();
     await byTestId(tree, "add-person-save").props.onClick();
     tree = draw();
     assert.deepEqual(wrote(seen).at(-1), ["POST", "contacts", { phone: "+1 786 555 0100" }]);
-    assert.equal(byTestId(tree, "add-person-sheet"), null, "added: the sheet closes");
+    assert.equal(openSheet(tree, "add-person-sheet"), null, "added: the sheet closes");
     assert.equal(opened.at(-1), "p9", "and their page opens, as the desktop's form does");
     // A list open: its rename and its delete are the menu's.
     draw({ initialSaved: "s1" });
@@ -1301,14 +1310,14 @@ test("the phone's more-menu adds a person in a sheet, sorts as a desktop's headi
       .find((i) => i.label === "Rename this list")
       .onClick();
     tree = draw({ initialSaved: "s1" });
-    const name = byTestId(byTestId(tree, "list-act-sheet"), "list-rename-name");
+    const name = byTestId(openSheet(tree, "list-act-sheet"), "list-rename-name");
     assert.equal(name.props.value, "Regulars", "the name to change, in the box");
     name.props.onChange({ target: { value: "VIP" } });
     tree = draw({ initialSaved: "s1" });
     await byTestId(tree, "list-rename-save").props.onClick();
     tree = draw({ initialSaved: "s1" });
     assert.deepEqual(wrote(seen).at(-1), ["PUT", "segments/s1", { name: "VIP" }]);
-    assert.equal(byTestId(tree, "list-act-sheet"), null);
+    assert.equal(openSheet(tree, "list-act-sheet"), null);
     assert.ok(
       flashes.some((f) => textOf(f.msg).includes("VIP")),
       "said",
@@ -1317,7 +1326,7 @@ test("the phone's more-menu adds a person in a sheet, sorts as a desktop's headi
       .find((i) => i.label === "Delete this list…")
       .onClick();
     tree = draw({ initialSaved: "s1" });
-    const confirm = find(byTestId(tree, "list-act-sheet"), (n) => n.type === globalThis.Confirm);
+    const confirm = find(openSheet(tree, "list-act-sheet"), (n) => n.type === globalThis.Confirm);
     assert.equal(confirm.props.detail, "The people stay.", "asked through the one Confirm");
     await confirm.props.onYes();
     tree = draw({ initialSaved: "s1" });
@@ -1325,7 +1334,7 @@ test("the phone's more-menu adds a person in a sheet, sorts as a desktop's headi
     assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Everyone", "the list gone, everyone shown");
   }));
 
-test("Esc closes the phone's own sheet, and the page holds its keys while one is open", () =>
+test("the page holds its keys while a phone's sheet is open, leaves its Esc to it, and closes it when it asks", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1), person(2)] });
     let tree = draw();
@@ -1333,15 +1342,20 @@ test("Esc closes the phone's own sheet, and the page holds its keys while one is
       .find((i) => i.label === "Add a person")
       .onClick();
     tree = draw();
-    assert.ok(byTestId(tree, "add-person-sheet"));
+    const sheet = openSheet(tree, "add-person-sheet");
+    assert.ok(sheet);
+    // The kit's sheet as Base UI draws it open, on the body: the page holds still behind it.
+    overlayOpen = { role: "dialog", inApp: false, className: "sheet" };
     assert.equal(press("j"), false, "J walks nothing behind the sheet");
-    assert.equal(press("Escape"), true);
-    assert.equal(byTestId(draw(), "add-person-sheet"), null, "Esc closed it");
+    assert.equal(press("Escape"), false, "its Esc is its own");
+    overlayOpen = null;
+    // Its Esc, its wash, its word and a pull down all ask through onClose.
+    sheet.props.onClose();
+    assert.equal(openSheet(draw(), "add-person-sheet"), null, "asked, the page closed it");
   }));
 
 test("a phone sheet's list is rows of one shape, and a step inside a sheet has a way back", () => {
   const Row = PhoneSheetRow;
-  const Sheet = PhoneSheet;
   let pressed = 0;
   const row = Row({
     icon: "edit",
@@ -1371,23 +1385,15 @@ test("a phone sheet's list is rows of one shape, and a step inside a sheet has a
   click(refused);
   assert.equal(pressed, 1, "the gate's press, not the act");
   assert.equal(refused.props["aria-disabled"], true);
+  // A step's way back, as the kit's sheet draws it: named, the chevron, and the step it walks back to.
   let backs = 0;
-  const s = Sheet({
-    title: "Record a yes",
-    onClose: () => {},
-    onBack: () => {
-      backs += 1;
-    },
-    testid: "x",
-    children: [],
+  const back = jobBack(() => {
+    backs += 1;
   });
-  click(byTestId(s, "x-back"));
+  assert.equal(back.label, "Back");
+  assert.equal(back.glyph.props.name, "chevron");
+  back.onBack();
   assert.equal(backs, 1, "Back walks to the list the step came from");
-  assert.equal(
-    byTestId(Sheet({ title: "3 selected", onClose: () => {}, testid: "y", children: [] }), "y-back"),
-    null,
-    "the first step has no way back",
-  );
 });
 
 test("on a phone More › Select people starts a selection with nobody picked: the faces are rings, a tap selects, and ✕ ends it", () =>
@@ -1497,15 +1503,15 @@ test("REGRESSION: on a phone a selection is one row -- ✕, the count, Add to li
       add.props.groups.flatMap((g) => [g.header, ...g.items.map((i) => i.label)]),
       ["Add to", "Regulars", "New list…"],
     );
-    assert.equal(byTestId(tree, "bulk-sheet"), null, "the sheet waits for ⋯");
+    assert.equal(openSheet(tree, "bulk-sheet"), null, "the sheet waits for ⋯");
   }));
 
 test("on a phone ⋯ opens the selection's sheet -- Select all, Record a yes ›, Add a note ›, Export -- and a step asks, acts, then shuts", () =>
   onPhone(async () => {
     const seen = await freshPage({ people: [person(1), person(2), person(3)] });
     let tree = bulkSheetOpen();
-    let sheet = byTestId(tree, "bulk-sheet");
-    assert.equal(sheet.props["aria-label"], "2 selected");
+    let sheet = openSheet(tree, "bulk-sheet");
+    assert.equal(sheet.props.title, "2 selected");
     // The owner's Receptionist step is there too: the JSX drew it only where the shell had published its verb on the window (a
     // name this harness never gave it); the TSX imports the verb, so the step is always drawn for the role that may take it.
     assert.deepEqual(sheetRows(sheet), [
@@ -1519,8 +1525,8 @@ test("on a phone ⋯ opens the selection's sheet -- Select all, Record a yes ›
     // Record a yes, on a sign-up form: the step asks which forms, then records, then the sheet shuts.
     click(byTestId(sheet, "bulk-yes"));
     tree = draw();
-    sheet = byTestId(tree, "bulk-sheet");
-    assert.equal(sheet.props["aria-label"], "Record a yes");
+    sheet = openSheet(tree, "bulk-sheet");
+    assert.equal(sheet.props.title, "Record a yes");
     // The yes to offers has its row in the step too (in writing only, a sign-up form): the JSX drew it only where the shell
     // had published its verb on the window, which this harness had not; the TSX imports it.
     assert.deepEqual(sheetRows(sheet), [
@@ -1540,7 +1546,7 @@ test("on a phone ⋯ opens the selection's sheet -- Select all, Record a yes ›
       "contacts/consent",
       { ids: ["p1", "p2"], consent: "opted_in", source: "form", note: "Saturday's slips" },
     ]);
-    assert.equal(byTestId(tree, "bulk-sheet"), null, "the sheet shuts once it lands");
+    assert.equal(openSheet(tree, "bulk-sheet"), null, "the sheet shuts once it lands");
     assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "the selection stays, as on a desktop");
     // A spoken yes is recorded at the tap.
     click(byTestId(tree, "bulk-more"));
@@ -1552,12 +1558,12 @@ test("on a phone ⋯ opens the selection's sheet -- Select all, Record a yes ›
       "contacts/consent",
       { ids: ["p1", "p2"], consent: "opted_in", source: "in_person" },
     ]);
-    assert.equal(byTestId(draw(), "bulk-sheet"), null);
+    assert.equal(openSheet(draw(), "bulk-sheet"), null);
     // Add a note: one line, Add; noted, the selection is done with.
     click(byTestId(draw(), "bulk-more"));
     click(byTestId(draw(), "bulk-note"));
     tree = draw();
-    assert.equal(byTestId(tree, "bulk-sheet").props["aria-label"], "Add a note");
+    assert.equal(openSheet(tree, "bulk-sheet").props.title, "Add a note");
     byTestId(tree, "bulk-note-line").props.onChange({ target: { value: "Called about the move" } });
     await byTestId(draw(), "bulk-note-save").props.onClick();
     await settle();
@@ -1575,20 +1581,24 @@ test("on a phone Esc shuts the selection's sheet and keeps the selection; Back w
     let tree = bulkSheetOpen();
     click(byTestId(tree, "bulk-yes"));
     tree = draw();
-    click(byTestId(tree, "bulk-sheet-back"));
+    openSheet(tree, "bulk-sheet").props.back.onBack();
     tree = draw();
     assert.ok(byTestId(tree, "bulk-select-all"), "back at the list");
-    assert.equal(byTestId(tree, "bulk-sheet-back"), null, "the list has no way back of its own");
+    assert.equal(openSheet(tree, "bulk-sheet").props.back, null, "the list has no way back of its own");
+    // The kit's sheet, open on the body: the page holds still behind it, and its Esc is its own (Base UI's), which asks.
+    overlayOpen = { role: "dialog", inApp: false, className: "sheet" };
     assert.equal(press("j"), false, "the sheet holds the keys: J walks nothing behind it");
-    assert.equal(press("Escape"), true);
+    assert.equal(press("Escape"), false, "its Esc is its own");
+    overlayOpen = null;
+    openSheet(tree, "bulk-sheet").props.onClose();
     tree = draw();
-    assert.equal(byTestId(tree, "bulk-sheet"), null, "Esc shut the sheet");
+    assert.equal(openSheet(tree, "bulk-sheet"), null, "Esc shut the sheet");
     assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "REGRESSION: and not the selection behind it");
     click(byTestId(tree, "bulk-more"));
     click(byTestId(draw(), "bulk-select-all"));
     tree = draw();
     assert.match(textOf(byTestId(tree, "bulk-bar")), /3 selected/);
-    assert.equal(byTestId(tree, "bulk-sheet"), null, "Select all shuts the sheet");
+    assert.equal(openSheet(tree, "bulk-sheet"), null, "Select all shuts the sheet");
     assert.equal(press("Escape"), true);
     assert.equal(byTestId(draw(), "bulk-bar"), null, "and the next Esc clears the selection");
   }));
@@ -1604,7 +1614,7 @@ test("on a phone Add to list › New list… names the list in the sheet; a memb
       .onSelect();
     tree = draw();
     assert.equal(
-      byTestId(tree, "bulk-sheet").props["aria-label"],
+      openSheet(tree, "bulk-sheet").props.title,
       "New list",
       "the name is asked in the sheet, not in the row",
     );
@@ -1620,7 +1630,7 @@ test("on a phone Add to list › New list… names the list in the sheet; a memb
       "the list is made by its name, then filled with the one selected",
     );
     tree = draw();
-    assert.equal(byTestId(tree, "bulk-sheet"), null, "made, the sheet shuts");
+    assert.equal(openSheet(tree, "bulk-sheet"), null, "made, the sheet shuts");
     assert.match(textOf(flashes.at(-1).msg), /1 on the new list Saturday/);
     const me = globalThis.window.__ME;
     globalThis.window.__ME = { role: "viewer" };
@@ -1637,9 +1647,9 @@ test("on a phone Add to list › New list… names the list in the sheet; a memb
         "no Add to list for a member who may not edit",
       );
       click(byTestId(tree, "bulk-more"));
-      const sheet = byTestId(draw(), "bulk-sheet");
+      const sheet = openSheet(draw(), "bulk-sheet");
       assert.deepEqual(sheetRows(sheet), ["bulk-select-all", "bulk-export"]);
-      assert.match(textOf(sheet), /Only an owner or operator can add to lists or record a yes\./);
+      assert.match(textOf(sheet.props.children), /Only an owner or operator can add to lists or record a yes\./);
     } finally {
       globalThis.window.__ME = me;
       restore();
@@ -1991,7 +2001,7 @@ test("on a phone a smart list's rule is shown and changed from the more-menu: th
     assert.ok(rule, "the more-menu offers it for a smart list");
     rule.onClick();
     tree = draw({ initialSaved: "s2" });
-    const sheet = byTestId(tree, "list-act-sheet");
+    const sheet = openSheet(tree, "list-act-sheet");
     assert.match(textOf(byTestId(sheet, "rule-edit-now")), /^Now: Reaches you by WhatsApp/);
   }));
 

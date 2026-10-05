@@ -214,6 +214,45 @@ function MenuKitSwitches() {
   );
 }
 
+/**
+ * The kit's Sheet in a phone's small job's shape: the acts for a selection, and a step from them with its way back.
+ * Its caption says what the last press did, so the spec reads a step back apart from a close.
+ */
+function SheetKitJob() {
+  const [step, setStep] = useState<"more" | "why" | null>(null);
+  const [said, setSaid] = useState("closed");
+  const go = (next: "more" | "why" | null, word: string) => {
+    setStep(next);
+    setSaid(word);
+  };
+  return (
+    <Figure id="sheet-kit-job" about={`the kit's Sheet, a phone's job; ${said}`}>
+      <Button data-testid="job-open" onClick={() => go("more", "open")}>
+        Work the 3 selected
+      </Button>
+      <Sheet
+        open={step !== null}
+        shape="job"
+        onClose={() => go(null, "closed")}
+        title={step === "why" ? "Not a fit" : "3 selected"}
+        close={{ word: "Cancel" }}
+        back={step === "why" ? { label: "Back", glyph: glyph("chevron", 18), onBack: () => go("more", "back") } : null}
+        testid="job-sheet"
+      >
+        {step === "why" ? (
+          <Button variant="primary" onClick={() => go(null, "marked")}>
+            Too far away
+          </Button>
+        ) : (
+          <Button variant="primary" data-testid="job-next" onClick={() => go("why", "stepped")}>
+            Not a fit
+          </Button>
+        )}
+      </Sheet>
+    </Figure>
+  );
+}
+
 /** A menu of one of a set. */
 function MenuKitSet() {
   const [sort, setSort] = useState("newest");
@@ -597,6 +636,7 @@ function FieldKitTitle() {
  */
 export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[] = [
   { id: "sheet-kit", Draw: SheetKit, closed: false },
+  { id: "sheet-kit-job", Draw: SheetKitJob, closed: false },
   { id: "menu-kit", Draw: MenuKit, closed: false },
   { id: "menu-kit-set", Draw: MenuKitSet, closed: false },
   { id: "menu-kit-switches", Draw: MenuKitSwitches, closed: false },

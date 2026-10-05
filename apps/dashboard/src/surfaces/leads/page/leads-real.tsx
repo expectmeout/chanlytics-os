@@ -144,8 +144,7 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
  */
 function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: string) => void): LeadsPage {
   const { people, leads, swap, nav, leadView, hasCenter, controls, st, read, rows, place, deckMove } = v;
-  const { phone, bulkSheet, setBulkSheet, canExport, plFlash, setSel, setAllMatching, setSortBy, setSortDir, columns } =
-    controls;
+  const { canExport, plFlash, setSel, setAllMatching, setSortBy, setSortDir, columns } = controls;
   const { listsOpen, peekId, setPeekId, finder, closeFinder, peekMode, setPeekMode, armed, setArmed } = st;
   const { values, lightboxId, setLightboxId } = st;
   const acts = leadActs({ leads, leadView, plFlash, setSel, setAllMatching, ...st });
@@ -168,11 +167,11 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
   place.keysWith({
     open: setPeekId,
     canSelect: canFind || canExport,
-    // The selection's sheet is a phone's (drawn only there): a window widened past 900px with it open holds no keys.
-    sheetOpen: listsOpen || (phone && !!bulkSheet),
-    closeSheet: phone && bulkSheet ? () => setBulkSheet(null) : null,
+    // The Lists sheet is the page's own; the selection's is the kit's, in PL_OVERLAY while open, closed on its own Esc.
+    sheetOpen: listsOpen,
+    closeSheet: null,
     peekOpen: !!peekId || !!lightboxId,
-    // The order OUT here is the page's: the peek, the plan panel, the Columns menu, the selection.
+    // The order OUT here is the page's: the peek, the plan panel, the selection.
     closePeek,
     finderOpen: finder.open,
     // Esc lets an answer go as the close button does.

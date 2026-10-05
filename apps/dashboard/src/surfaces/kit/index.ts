@@ -36,7 +36,7 @@ export type { SegmentedOption, SegmentedProps } from "./segmented/segmented";
 export { Select } from "./select/select";
 export type { SelectOption, SelectProps } from "./select/select";
 export { Sheet } from "./sheet/sheet";
-export type { SheetProps } from "./sheet/sheet";
+export type { SheetBack, SheetProps } from "./sheet/sheet";
 export { SubTabs } from "./sub-tabs/sub-tabs";
 export type { SubTab, SubTabsProps } from "./sub-tabs/sub-tabs";
 export { Switch } from "./switch/switch";

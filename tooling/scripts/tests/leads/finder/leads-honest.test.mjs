@@ -533,6 +533,7 @@ recorded.set(MoreMenu, menus);
 // Leads' menus are the kit's Menu (Base UI's) since 5 Oct 2026, read here as every menu in this file is read: its name as
 // `title`, its control's test id, and its groups as one list, a heading where a group has one and a line between two.
 const { Menu } = await importSrc("apps/dashboard/src/surfaces/kit/menu/menu.tsx");
+const { Sheet } = await importSrc("apps/dashboard/src/surfaces/kit/sheet/sheet.tsx");
 const asMenuRecord = (p) => ({
   title: p.label,
   testid: p.trigger?.props?.["data-testid"] ?? null,
@@ -774,6 +775,11 @@ const all = (tree, pred) => {
   return out;
 };
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
+/**
+ * A sheet of the page's while it is open, by its test id: the kit's Sheet (kit/sheet/sheet.tsx), read by what the page
+ * hands it; its Escape, wash and pull are Base UI's and the thumb reader's, each asking through `onClose`.
+ */
+const openSheet = (tree, id) => find(tree, (n) => n.type === Sheet && n.props.testid === id && n.props.open) ?? null;
 const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
 const textOf = (n) => {
   if (n == null || typeof n === "boolean") return "";
@@ -2647,8 +2653,8 @@ test("REGRESSION: on a phone Leads' selection is one row -- ✕, the count, Mark
     assert.equal(byTestId(bar, "leads-bulk-copy"), null, "the rest are the sheet's");
     click(byTestId(tree, "leads-bulk-more"));
     tree = draw();
-    const sheet = byTestId(tree, "leads-bulk-sheet");
-    assert.equal(sheet.props["aria-label"], "5 selected");
+    const sheet = openSheet(tree, "leads-bulk-sheet");
+    assert.equal(sheet.props.title, "5 selected");
     const rows = all(
       sheet,
       (n) =>
@@ -2668,9 +2674,9 @@ test("REGRESSION: on a phone Leads' selection is one row -- ✕, the count, Mark
     click(byTestId(sheet, "leads-bulk-not-a-fit"));
     tree = draw();
     assert.equal(byTestId(tree, "peek-why"), null, "REGRESSION: the peek's own list, which a phone draws full screen");
-    const whys = byTestId(tree, "leads-bulk-why");
+    const whys = openSheet(tree, "leads-bulk-why");
     assert.ok(whys, "the five whys, as the sheet's step");
-    assert.ok(byTestId(whys, "leads-bulk-why-back"), "with a way back to the list");
+    assert.ok(whys.props.back, "with a way back to the list");
     click(byTestId(whys, "leads-bulk-why-chain"));
     await settle();
     // bulkNotAFit sends LeadsBulkSchema's body, which carries no reason: the ids shown and selected.
@@ -2678,13 +2684,17 @@ test("REGRESSION: on a phone Leads' selection is one row -- ✕, the count, Mark
       key: "POST /api/v1/leads/bulk",
       body: { by: "ids", action: "not_a_fit", ids: ["l1", "l2", "l3", "l4", "l5"] },
     });
-    assert.equal(byTestId(draw(), "leads-bulk-why"), null, "the sheet shuts on the pick");
-    // Esc shuts the sheet and keeps the selection; the next Esc clears it.
+    assert.equal(openSheet(draw(), "leads-bulk-why"), null, "the sheet shuts on the pick");
+    // Esc is the sheet's own (Base UI's), which asks; the page holds still behind it, and the selection stays.
     click(byTestId(draw(), "leads-bulk-more"));
-    assert.ok(byTestId(draw(), "leads-bulk-sheet"));
-    assert.equal(press("Escape"), true);
+    const more = openSheet(draw(), "leads-bulk-sheet");
+    assert.ok(more);
+    overlayOpen = { role: "dialog", inApp: false, className: "sheet" };
+    assert.equal(press("Escape"), false, "its Esc is its own");
+    overlayOpen = null;
+    more.props.onClose();
     tree = draw();
-    assert.equal(byTestId(tree, "leads-bulk-sheet"), null);
+    assert.equal(openSheet(tree, "leads-bulk-sheet"), null);
     assert.ok(byTestId(tree, "leads-bulk-bar"), "the selection stays");
   } finally {
     globalThis.__phone = false;

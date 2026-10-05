@@ -273,30 +273,33 @@ const recSheetFrame = (leaving = false) =>
   `<div class="rec-sheet-backdrop" aria-hidden="true"${going(leaving)}></div>` +
   `<section class="rec-sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"${going(leaving)}>` +
   `${SHEET_PARTS}</section>`;
-/** The same composer in PhoneSheet's frame and its handle (surfaces/people/sheets/phone-sheet.tsx), a phone's twin. */
-const phoneSheetFrame = (leaving = false) =>
-  `<div class="sb-sheet-backdrop"${going(leaving)}></div>` +
-  `<div class="sb-sheet pl-sheet pp-sheet" role="dialog" aria-modal="true" aria-label="Services"${going(leaving)}>` +
-  `<div class="pp-sheet-handle" aria-hidden="true"></div>${SHEET_PARTS}</div>`;
+/**
+ * A phone's small job in the kit's sheet: a field, its one wide button, and a question it asks (Delete the list). Until
+ * 5 Oct 2026 People's PhoneSheet drew it, and a twin held the two equal, frame, head and body, before PhoneSheet went.
+ */
+const jobBody = () =>
+  kitBox("Mobile number", "") +
+  `<button type="button" class="btn btn-primary">Add</button>` +
+  `<span class="confirm confirm-block" role="group" aria-label="Delete the list?">` +
+  `<span class="confirm-words"><span class="confirm-q">Delete the list?</span>` +
+  `<span class="confirm-detail">The people stay.</span></span>` +
+  `<span class="confirm-acts"><button type="button" class="btn btn-sm btn-danger">Yes, delete</button>` +
+  `<button type="button" class="cl-bucket-link">No</button></span></span>`;
+/** The kit's sheet in a job's shape (Sheet's `shape="job"`): a step's way back, its title and its word, the job under them. */
+const jobSheet = (leaving = false) =>
+  `<div class="sheet-backdrop" aria-hidden="true"${going(leaving)}></div>` +
+  `<section class="sheet" role="dialog" aria-modal="true" aria-label="Not a fit" tabindex="-1"${going(leaving)}>` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="sheet-job-head">` +
+  `<button type="button" class="sheet-job-back" aria-label="Back">${icon("chevron", 18)}</button>` +
+  `<h2 class="sheet-job-title">Not a fit</h2><button type="button" class="sheet-job-close">Cancel</button></header>` +
+  `<div class="sheet-job-body">${jobBody()}</div></section>`;
 /** A toast raised while the sheet is open, which stands clear of its foot. */
 const SHEET_TOAST =
   `<div class="pp-toast-stack"><div class="pp-toast pp-toast-ok" data-tone="ok" role="status">${icon("check", 13)}` +
   `<span class="pp-toast-msg"><b>Follow-up visit</b> is 45 minutes now</span>` +
   `<button type="button" class="pp-toast-cta">Undo</button>` +
   `<button type="button" class="pp-toast-x" aria-label="Dismiss">${icon("x", 11)}</button></div></div>`;
-/**
- * What the phone's twin does not compare. The one difference on purpose (the plan's spec, 3.5): a column where
- * PhoneSheet is a block, so its display and direction, and the handle's shrinking, which a column reads and a block
- * never does; the twin compares every element's box instead, which a column that laid out otherwise would move. And
- * the ring a focus draws: PhoneSheet takes no focus (it has no tabindex), so the ring the browser draws on it under the
- * spec's forced focus is one no member sees, where the kit's sheet takes focus as it opens, so a screen reader names
- * it, and draws no ring, as the record sheet does (kit.css, .rec-sheet:focus; the desk's twin holds the two equal).
- */
-const SHEET_APART = [
-  ...["display", "flex-direction", "flex-shrink"],
-  ...["outline-color", "outline-style", "outline-width"],
-];
-
 /* ---- the kit's components on Base UI, as they draw themselves (step 2.5; kit-behaves.tsx draws the same) ---- */
 
 /** Where a popup stands in its stage: Base UI places its positioner against the window with a style of its own. */
@@ -332,6 +335,21 @@ const kitSheet = () =>
   `<button type="button" class="btn btn-sm btn-ghost">Cancel</button>` +
   `<button type="button" tabindex="0" aria-label="More for the services" aria-haspopup="menu" aria-expanded="false" ` +
   `class="btn btn-icon btn-sm btn-ghost">${icon("more", 14)}</button></div></footer></section>`;
+
+/**
+ * The kit's Sheet in a phone's job's shape, open on its second step (kit-behaves.tsx's): the control that opened it,
+ * the wash, and the dialog with its way back, its title and its word, and the step's one act.
+ */
+const kitJobSheet = () =>
+  `<button type="button" class="btn">Work the 3 selected</button>` +
+  `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
+  `<section class="sheet" role="dialog" tabindex="-1">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="sheet-job-head">` +
+  `<button type="button" aria-label="Back" class="sheet-job-back">${icon("chevron", 18)}</button>` +
+  `<h2 class="sheet-job-title">Not a fit</h2>` +
+  `<button type="button" tabindex="0" class="sheet-job-close">Cancel</button></header>` +
+  `<div class="sheet-job-body"><button type="button" class="btn btn-primary">Too far away</button></div></section>`;
 
 /** A menu item of the kit's: a button, with its glyph, its words and what follows them. */
 const kitItem = (glyphName, label, { tone = "", after = "" } = {}) =>
@@ -1564,9 +1582,9 @@ export const FAMILIES = [
       "phone from the bottom edge, as tall as what it holds, a handle over its head and the ink's wash behind it; a " +
       "column at both widths, so the composer's foot stays at its foot. A toast raised while it is open stands clear " +
       "of that foot, beside the sheet on a desk and above it on a phone, which the spec checks at both widths. At " +
-      "each width beside the frame it reproduces, open and leaving, which the spec holds it equal to: the record " +
-      "sheet on a desk, and on a phone People's phone sheet, but for a column where PhoneSheet is a block (the spec " +
-      "compares every box instead) and the ring of a focus PhoneSheet never takes.",
+      "a desk's width beside the record sheet it reproduces, open and leaving, which the spec holds it equal to. On " +
+      "a phone also in a small job's shape: a step's way back, the title and a word to close it, then the job. " +
+      "People's phone sheet drew those until 5 Oct 2026, when twins held the kit's equal to it before it went.",
     entries: [
       { id: "sheet", stage: "sheet", html: sheet() + SHEET_TOAST },
       { id: "sheet-leaving", stage: "sheet", html: sheet({ leaving: true }) },
@@ -1592,37 +1610,10 @@ export const FAMILIES = [
         source: "surfaces/kit/kit.css:1139, styles/components.css:3050",
         html: recSheetFrame(true),
       },
-      {
-        id: "sheet-phone",
-        stage: "sheet",
-        width: "phone",
-        html: sheet(),
-        twin: "src-phone-sheet",
-        except: SHEET_APART,
-        boxes: true,
-      },
-      {
-        id: "src-phone-sheet",
-        stage: "sheet",
-        width: "phone",
-        source: "styles/components.css:1863, styles/mobile.css:170, styles/clients.css:2406",
-        html: phoneSheetFrame(),
-      },
-      {
-        id: "sheet-phone-leaving",
-        stage: "sheet",
-        width: "phone",
-        html: sheet({ leaving: true }),
-        twin: "src-phone-sheet-leaving",
-        except: SHEET_APART,
-      },
-      {
-        id: "src-phone-sheet-leaving",
-        stage: "sheet",
-        width: "phone",
-        source: "styles/components.css:3075, styles/mobile.css:170, styles/clients.css:2406",
-        html: phoneSheetFrame(true),
-      },
+      { id: "sheet-phone", stage: "sheet", width: "phone", html: sheet() },
+      { id: "sheet-phone-leaving", stage: "sheet", width: "phone", html: sheet({ leaving: true }) },
+      { id: "sheet-job", stage: "sheet", width: "phone", html: jobSheet() },
+      { id: "sheet-job-leaving", stage: "sheet", width: "phone", html: jobSheet(true) },
     ],
   },
   /* ---- the kit's components with behaviour of their own, on Base UI (step 2.5) ----
@@ -1635,8 +1626,12 @@ export const FAMILIES = [
     family: "Sheet, on Base UI",
     about:
       "The kit's Sheet (surfaces/kit/sheet/sheet.tsx), open over its wash: Base UI's modal dialog wearing the kit's " +
-      "sheet, the record sheet's head, tools, rows and foot inside it, and the control that opened it.",
-    entries: [{ id: "sheet-kit", stage: "sheet", html: kitSheet() }],
+      "sheet, the record sheet's head, tools, rows and foot inside it, and the control that opened it; and in a " +
+      "phone's small job's shape, on a step with its way back, its title, its word and the step's one act.",
+    entries: [
+      { id: "sheet-kit", stage: "sheet", html: kitSheet() },
+      { id: "sheet-kit-job", stage: "sheet", html: kitJobSheet() },
+    ],
   },
   {
     family: "Menu, on Base UI",

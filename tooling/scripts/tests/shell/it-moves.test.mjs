@@ -116,6 +116,17 @@ test("a page that asks first keeps its sheet: it leaves, the page asks, and it s
   assert.equal(el.style.transform, "translate3d(0, 0, 0)", "still on screen after the close: back");
 });
 
+test("a sheet still on the page as it plays its leaving (the kit's Sheet, which Base UI lets go after) stays where the pull took it", async () => {
+  const w = wash();
+  const el = element({ previousElementSibling: w, dataset: {} });
+  const h = touchSwipe({ onDown: () => (el.dataset.leaving = "true") });
+  drag(h, el, [100, 100], [100, 300], [100, 400]);
+  await wait(300);
+  assert.equal(el.dataset.leaving, "true", "the close was asked, and the sheet is leaving");
+  assert.equal(el.style.transform, "translate3d(0, 100%, 0)", "not settled back into view, nor put back for a frame");
+  assert.equal(w.style.opacity, "0", "and its wash stays gone");
+});
+
 test("a thread swipes back across, following the finger, and the page is told while it moves", async () => {
   const back = [];
   const grabs = [];

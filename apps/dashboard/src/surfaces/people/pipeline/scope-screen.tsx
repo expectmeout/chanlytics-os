@@ -256,9 +256,9 @@ function sheetsBlock(s: PipelineState) {
 /** New proposal: pick or add a person, then the sheet. */
 function newBlock(s: PipelineState) {
   const { f, ui, r, newActs } = s;
-  if (!ui.newOpen) return null;
   return (
     <PipelineNew
+      open={ui.newOpen}
       phone={f.controls.phone}
       rows={r.rows}
       q={ui.newQ}

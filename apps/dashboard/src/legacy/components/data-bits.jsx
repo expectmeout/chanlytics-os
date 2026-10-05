@@ -386,14 +386,13 @@ const swipeLeave = (g, close) => {
       return;
     }
     setTimeout(() => {
+      // One still on the page while it plays its leaving (the kit's Sheet: Base UI lets it go after) stays where it went.
+      if (el.dataset && el.dataset.leaving === "true") return;
       const shown = el.isConnected !== false && (!el.getClientRects || el.getClientRects().length > 0);
       if (shown) { swipeSettle(g); return; }
       if (g.onGrab) g.onGrab(el, false);
       if (!el.style) return;
-      for (const m of them) {
-        m.style.transition = "";
-        m.style.transform = "";
-      }
+      for (const m of them) { m.style.transition = ""; m.style.transform = ""; }
       if (wash && wash.style) { wash.style.transition = ""; wash.style.opacity = ""; }
     }, way === "page" ? PAGE_KEPT_MS : KEPT_AFTER_MS);
   };

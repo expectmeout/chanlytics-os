@@ -624,28 +624,26 @@ export function peopleScreen(s: PeopleState) {
         {/* The phone's rail, as a sheet (the rail itself is not drawn at 900px and under), last in the tree. Its switch is
             the bar's; its first row is Everyone. */}
         {listsOpen && listsSheet(s)}
-        {/* People's own two sheets on a phone, last in the tree like the Lists sheet. */}
-        {phone && addOpen && (
-          <PeopleAddSheet
-            draft={addDraft}
-            onDraft={(patch) => setAddDraft((d) => ({ ...d, ...patch }))}
-            onAdd={addOnPhone}
-            onClose={closePhoneSheet}
-          />
-        )}
-        {phone && listAct && (listAct === "save" || activeSaved) && (
-          <PeopleListActSheet
-            act={listAct}
-            list={activeSaved}
-            count={shown.length}
-            rule={viewRule}
-            flash={plFlash}
-            draft={listDraft}
-            onDraft={(patch) => setListDraft((d) => ({ ...d, ...patch }))}
-            onGo={listActGo}
-            onClose={closePhoneSheet}
-          />
-        )}
+        {/* People's own two sheets on a phone, the kit's: drawn while open, and on their way out. */}
+        <PeopleAddSheet
+          open={phone && addOpen}
+          draft={addDraft}
+          onDraft={(patch) => setAddDraft((d) => ({ ...d, ...patch }))}
+          onAdd={addOnPhone}
+          onClose={closePhoneSheet}
+        />
+        <PeopleListActSheet
+          open={phone && !!listAct && (listAct === "save" || !!activeSaved)}
+          act={listAct}
+          list={activeSaved}
+          count={shown.length}
+          rule={viewRule}
+          flash={plFlash}
+          draft={listDraft}
+          onDraft={(patch) => setListDraft((d) => ({ ...d, ...patch }))}
+          onGo={listActGo}
+          onClose={closePhoneSheet}
+        />
         {/* Import people, at every width: the record kit's sheet, drawn in .app-root, where the page's keys hold still
             while it is open (PL_OVERLAY) and it closes on its own Esc. */}
         {importOpen && <PeopleImportSheet onClose={() => setImportOpen(false)} flash={plFlash} />}
