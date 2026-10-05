@@ -61,7 +61,7 @@ It is PR 1 of phase B, "the frame". It adds no migration and no route to the API
 | `packages/contracts/src/ask/ask-jump.ts`, `citations.ts` | modify | The palette's jumps and Ask's page routes, derived from the registry |
 | `packages/contracts/src/shell/chrome.ts` | modify | `PREFETCH_READS.broadcasts` says `period=30d` |
 | `packages/contracts/src/browser.generated.ts`, `packages/*/dist` | regenerate | From the barrels and the sources |
-| `packages/db/src/repositories/reports.ts`, `packages/db/src/index.ts` | create, modify | `reportSeries`, `campaignSeries`, `reachOutReport`: the one place the three functions are called by name |
+| `packages/db/src/repositories/reports/report-series.ts`, `packages/db/src/index.ts` | create, modify | `reportSeries`, `campaignSeries`, `reachOutReport`: the one place the three functions are called by name |
 | `apps/dashboard/src/server/readers/report.ts` | create | The one query the three report routes take and the days it means |
 | `apps/dashboard/src/server/readers/report.ts`, `campaign-report.ts`, `apps/dashboard/src/server/campaigns/reach-out-report.ts` | modify | Call `packages/db` |
 | `apps/dashboard/app/api/v1/reports/route.ts`, `campaigns/route.ts`, `reach-outs/route.ts` | modify | One `period` parameter (and `days` until its day) |
@@ -1804,10 +1804,10 @@ git commit -m "Reports keeps its period under a key and a read of its own, four 
 
 ### Task 7: The report SQL is called from `packages/db`
 
-**Why:** `report_series` (`readers/report.ts`), `campaign_series` (`readers/campaign-report.ts`) and `reach_out_report` (`campaigns/reach-out-report.ts`) are called by name from the dashboard (three entries in `tables.json`). They move into `packages/db/src/repositories/reports.ts`, the one place those functions are typed. `metrics_summary` (Today's) stays for PR 2.
+**Why:** `report_series` (`readers/report.ts`), `campaign_series` (`readers/campaign-report.ts`) and `reach_out_report` (`campaigns/reach-out-report.ts`) are called by name from the dashboard (three entries in `tables.json`). They move into `packages/db/src/repositories/reports/report-series.ts`, the one place those functions are typed. `metrics_summary` (Today's) stays for PR 2.
 
 **Files:**
-- Create: `packages/db/src/repositories/reports.ts`, `tooling/scripts/tests/reports/report-repository.test.mjs`
+- Create: `packages/db/src/repositories/reports/report-series.ts`, `tooling/scripts/tests/reports/report-repository.test.mjs`
 - Modify: `packages/db/src/index.ts`, `apps/dashboard/src/server/readers/report.ts`, `apps/dashboard/src/server/readers/campaign-report.ts`, `apps/dashboard/src/server/campaigns/reach-out-report.ts`, `tooling/scripts/tests/baselines/tables.json`
 - Regenerate: `packages/*/dist`; `docs/debt.md` and `docs/takeover.md` (measured blocks)
 
@@ -1868,7 +1868,7 @@ Expected: FAIL, `reportSeries` is not exported by `@chanlytics/db`.
 
 - [ ] **Step 3: The repository**
 
-Create `packages/db/src/repositories/reports.ts`:
+Create `packages/db/src/repositories/reports/report-series.ts`:
 
 ```ts
 /**
@@ -1914,7 +1914,7 @@ export async function reachOutReport(
 In `packages/db/src/index.ts`, after the `reach-out-sheet` export blocks, add:
 
 ```ts
-export { reportSeries, campaignSeries, reachOutReport } from "./repositories/reports";
+export { reportSeries, campaignSeries, reachOutReport } from "./repositories/reports/report-series";
 ```
 
 - [ ] **Step 4: The three readers call it**
@@ -1966,7 +1966,7 @@ with
 - [ ] **Step 5: Build, bank, run**
 
 ```bash
-corepack pnpm exec prettier --write packages/db/src/repositories/reports.ts packages/db/src/index.ts apps/dashboard/src/server/readers apps/dashboard/src/server/campaigns/reach-out-report.ts tooling/scripts/tests/reports/report-repository.test.mjs
+corepack pnpm exec prettier --write packages/db/src/repositories/reports/report-series.ts packages/db/src/index.ts apps/dashboard/src/server/readers apps/dashboard/src/server/campaigns/reach-out-report.ts tooling/scripts/tests/reports/report-repository.test.mjs
 node -e "const fs=require('fs');const f='packages/db/src/database.types.ts';fs.writeFileSync(f,fs.readFileSync(f,'utf8').replace(/\r\n/g,'\n'))"
 corepack pnpm --filter "./packages/*" build
 git diff --stat -- packages/db/dist/index.d.ts
@@ -1986,7 +1986,7 @@ Expected: the new test and the route tests PASS; `git diff --stat packages/db/di
 
 ```bash
 for d in contracts db jobs channels core; do git diff -w --ignore-cr-at-eol --quiet -- packages/$d/dist && git checkout -- packages/$d/dist; done
-git add packages/db/src/repositories/reports.ts packages/db/src/index.ts packages/*/dist apps/dashboard/src/server/readers apps/dashboard/src/server/campaigns/reach-out-report.ts tooling/scripts/tests/reports/report-repository.test.mjs tooling/scripts/tests/baselines/tables.json docs/debt.md docs/takeover.md
+git add packages/db/src/repositories/reports/report-series.ts packages/db/src/index.ts packages/*/dist apps/dashboard/src/server/readers apps/dashboard/src/server/campaigns/reach-out-report.ts tooling/scripts/tests/reports/report-repository.test.mjs tooling/scripts/tests/baselines/tables.json docs/debt.md docs/takeover.md
 git commit -m "The three report functions are called from packages/db, the one place they are typed, and three SQL calls leave the dashboard." -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 

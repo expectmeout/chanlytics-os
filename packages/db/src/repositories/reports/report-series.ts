@@ -5,7 +5,7 @@
  * `reach_out_report` is a definer that checks the member again). A read that fails throws: "we could not read" is never "none".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../database.types";
+import type { Database, Json } from "../../database.types";
 
 type Db = SupabaseClient<Database>;
 

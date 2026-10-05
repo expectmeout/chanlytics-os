@@ -1,5 +1,5 @@
 /**
- * The three report functions as packages/db calls them (repositories/reports.ts): by name, for the workspace and the days,
+ * The three report functions as packages/db calls them (repositories/reports/report-series.ts): by name, for the workspace and the days,
  * over whatever client the caller holds (the session's, so RLS decides what a member reads). A read that fails throws;
  * the reach-outs' say the database's refusal with its code, for the door to word.
  */

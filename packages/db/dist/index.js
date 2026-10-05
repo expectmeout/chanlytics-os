@@ -1959,7 +1959,7 @@ async function workspaceAbout(db, tenantId) {
   return data?.about?.trim() || null;
 }
 
-// src/repositories/reports.ts
+// src/repositories/reports/report-series.ts
 async function reportSeries(db, tenantId, days) {
   const { data, error } = await db.rpc("report_series", { p_tenant_id: tenantId, p_days: days });
   if (error) throw new Error(`report_series: ${error.message}`);
