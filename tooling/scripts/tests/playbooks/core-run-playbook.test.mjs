@@ -531,6 +531,8 @@ test("auto: the row, the people, the send now, the system's decision, the run re
   assert.deepEqual(veto.of("notify")[0].slice(1), [
     "Playbook “Win-back” sends today 10:30 AM: 2 people",
     "2 people will be sent “Win-back” today 10:30 AM. Stop the run on Today or in Campaigns before then if it should not go.",
+    // The run it is about: the bell's row and the phone open that run, where Stop is (it named none, and opened Campaigns' home).
+    "b1",
   ]);
   // Made past the day's hours, it goes at nine tomorrow, and the notice says which day: "9:00 AM" alone reads as gone.
   const late = fakes();
@@ -587,6 +589,8 @@ test("ask: the row waits, nobody is scheduled, the owner is told in these words,
     "notify",
     "Playbook “Win-back” is ready: 2 people",
     "2 people have become eligible for “Win-back”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.",
+    // The run that waits: the row opens it, where Approve and Skip are.
+    "b1",
   ]);
   const one = fakes();
   await runPlaybook(one.ports, cmd({ ctx: context({ modes: new Map([["reengage", "ask"]]), people: [person("a")] }) }));

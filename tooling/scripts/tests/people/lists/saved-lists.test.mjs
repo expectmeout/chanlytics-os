@@ -302,9 +302,13 @@ test("Lists is a view of People: a kept list is the page's title with its rename
   // The phone's lists, behind one tap, as a sheet.
   fresh();
   let closed = 0;
-  tree = again(() => PeopleListsSheet({ onClose: () => closed++ }));
-  assert.ok(byTestId(tree, "people-lists-sheet"));
-  press(byTestId(tree, "people-lists-close"));
+  // The kit's Sheet, a phone's small job: its Done, its Esc, its wash and a pull each ask through onClose (Base UI's).
+  tree = again(() => PeopleListsSheet({ open: true, onClose: () => closed++ }));
+  assert.deepEqual(
+    [tree.props.shape, tree.props.open, tree.props.testid, tree.props.close],
+    ["job", true, "people-lists-sheet", { word: "Done" }],
+  );
+  tree.props.onClose();
   assert.equal(closed, 1);
   // list-action (the list's one door) and show-everyone are the page's own (page/screen.tsx): pressed in
   // people-honest.test.mjs, with the shell's and a profile's New list (segments:new) opening the box.

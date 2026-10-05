@@ -163,10 +163,8 @@
   /* The seeded page's list head on a narrow screen: the title, Show everyone and Delete on one line, and the "Save
      these as a list" door under them. The real page draws no list head on a phone (clients-a.jsx, the phone pass). */
   .clients .cl-section-head { flex-wrap: wrap; gap: 4px 12px; }
-  /* Every sheet from the bottom stands on the keyboard (--kb, data-bits watchKeyboard) and gives it its height. */
-  .pl-sheet { left: 0; right: 0; top: auto; bottom: var(--kb, 0px); transform: none; width: auto; max-height: calc(82vh - var(--kb, 0px)); max-height: calc(82dvh - var(--kb, 0px)); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); }
-  .pl-sheet .sb-sheet-head { padding: 0 16px 6px; }
-  .pl-sheet .cl-rail { display: block; width: auto; border-right: none; background: transparent; }
+  /* The phone's Lists sheet is the kit's (people/rail/lists-sheet.tsx), which stands on the keyboard; the rail in it is drawn. */
+  .pl-lists .cl-rail { display: block; width: auto; border-right: none; background: transparent; }
   .cl-triage-tabs { grid-template-columns: 1fr 1fr; }
   .cl-triage-tab { border-bottom: 1px solid var(--line); }
   .cl-decision-grid { grid-template-columns: 1fr; }
@@ -405,7 +403,7 @@
   .cl-prof-hero > .cl-prof-queue-actions > [data-testid="person-open-thread"] { flex: 1 1 auto; }
   /* The crumb names the person, and the name is the first thing under it: the crumb says People, once, with the
      back's chevron before it (drawn, not a glyph, so it sits on the word's middle in every font). */
-  .main:has(.cl-profile) .crumbs > :not(:first-child) { display: none; }
+  .main:has(.cl-profile) .crumbs > span:not(:first-child), .main:has(.cl-profile) .crumbs > button:not(:first-child) { display: none; }
   .main:has(.cl-profile) .crumbs .crumb-link { display: inline-flex; align-items: center; gap: 7px; color: var(--ink); font-weight: 500; }
   .main:has(.cl-profile) .crumbs .crumb-link::before { content: ""; flex: none; width: 7px; height: 7px; margin-left: 3px; border-left: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); }
 
@@ -523,7 +521,7 @@
   .tb-ask, .tb-theme { display: none; }
   /* On the Inbox it says Inbox, once: the open thread's header names the person, and the crumb named them again
      over it. */
-  .main:has(.inbox) .crumbs > :not(:first-child) { display: none; }
+  .main:has(.inbox) .crumbs > span:not(:first-child), .main:has(.inbox) .crumbs > button:not(:first-child) { display: none; }
   .main:has(.inbox) .crumbs .crumb-link { color: var(--ink); font-weight: 500; }
   .topbar .btn-icon { min-width: 44px; }
   /* The bell's sheet covers the tab bar, so while it is open the toast sits at the bottom edge, not over its notes. */

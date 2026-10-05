@@ -3,6 +3,7 @@
  * person typed, and what a set of deals comes to. The deal card, the sheet, the Pipeline and Reports say it so.
  */
 import { DEAL_PERS, DEAL_PER_WORDS, type DealPer } from "./deal-words";
+import { numberFormat } from "../shared/time";
 
 /** "$2,500 a month", "$999.50", "$1,200 a year"; null without an amount. */
 export function amountWords(
@@ -12,7 +13,7 @@ export function amountWords(
 ): string | null {
   if (cents === null || cents === undefined || !Number.isFinite(cents)) return null;
   const whole = cents % 100 === 0;
-  const money = new Intl.NumberFormat("en-US", {
+  const money = numberFormat("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
     minimumFractionDigits: whole ? 0 : 2,

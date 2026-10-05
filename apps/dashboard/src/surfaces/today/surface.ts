@@ -38,6 +38,10 @@ export const todayOverride: SurfaceOverride = {
   // its answer another. Every lead_rounds change goes through — they are rare
   // and each one changes what the queue says about a search waiting on you.
   refreshOnTables: [...DEFAULT_REFRESH_TABLES, "calls", "lead_rounds"],
+  // A send that fails, even long after it left, is a count on the day (the metrics' send_failures, 00327): the one
+  // message update Today is read again for. A receipt's ticks are the threads', and the day's figures do not move
+  // with them.
+  refreshOnMessageStatuses: ["failed"],
   refreshWhen: (c) => c.table !== "calls" || c.event !== "UPDATE" || c.row.status !== "ongoing",
   debounceMs: 800, // the recap is aggregate, not per-thread — no need to be twitchy
   apply: async () => {

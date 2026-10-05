@@ -7,7 +7,7 @@ import { CLOCK, hourOf } from "./lead-helpers";
 import type { LeadSlot, LeadSlotState } from "./lead-row";
 import { LEAD_KIND_KEY, LEAD_UNREACHABLE_KEY, leadKindWord } from "./search/class";
 import { LEAD_CHECK_WORDS, LEAD_LEFT_OUT_WORD, LEAD_MAILBOX_WORDS, LEAD_UNREACHABLE_WORD } from "./lead-words";
-import { DAY_MS } from "../shared/time";
+import { dateFormat, DAY_MS } from "../shared/time";
 
 /**
  * Today, as an owner about to call needs it: whether they are open NOW. "Open today · 11 AM to 5 PM" made them work
@@ -17,10 +17,9 @@ import { DAY_MS } from "../shared/time";
  */
 export function leadTodayLine(hours: { day: string; hours: string }[], tz: string, now: Date): string | null {
   if (!hours.length) return null;
-  const dayOf = (d: Date) =>
-    new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
+  const dayOf = (d: Date) => dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
   const hoursOn = (d: Date) => hours.find((x) => x.day.toLowerCase() === dayOf(d))?.hours.trim() ?? null;
-  const parts = new Intl.DateTimeFormat("en-US", {
+  const parts = dateFormat("en-US", {
     timeZone: tz,
     hour: "numeric",
     minute: "numeric",

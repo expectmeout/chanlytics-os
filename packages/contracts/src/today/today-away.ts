@@ -33,8 +33,8 @@ export type AwayQueueRef =
 
 /**
  * The title the edge gives a run held for a word: `Playbook “Win-back · quiet 30 days” is ready: 1 person`
- * (core run-playbook.ts). The row carries no `about` and its door is `outbound`, so the run's own name is
- * the only thing it shares with the queue's row about the same run.
+ * (core run-playbook.ts). A row kept before the notice named its run carries no `about` and its door is `outbound`,
+ * so the run's own name is the one thing every such row shares with the queue's row about the same run.
  */
 const readyRunTitle = (label: string) => `Playbook “${label}” is ready`;
 

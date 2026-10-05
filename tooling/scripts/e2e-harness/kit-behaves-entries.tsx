@@ -21,14 +21,17 @@ import {
   Field,
   Figure as KitFigure,
   Menu,
+  MenuTrigger,
   Picker,
   Popover,
   Segmented,
   SubTabs,
   Select,
+  SharedMenu,
   Sheet,
   Switch,
   Tooltip,
+  menuHandle,
   useToast,
 } from "../../../apps/dashboard/src/surfaces/kit/index.ts";
 import { GLYPHS, SHEET_SERVICES } from "./kit-shared.mjs";
@@ -250,6 +253,48 @@ function SheetKitJob() {
           </Button>
         )}
       </Sheet>
+    </Figure>
+  );
+}
+
+/** One menu its controls share, each control carrying its row (a table's Call): the menu says the row that opened it. */
+const CALL_ROWS = [
+  { name: "Sam's Gym", number: "(512) 555-0142" },
+  { name: "Ortega Fitness", number: "(512) 555-0177" },
+];
+function MenuKitShared() {
+  const [calls] = useState(() => menuHandle<(typeof CALL_ROWS)[number]>());
+  const [said, setSaid] = useState("nobody called");
+  return (
+    <Figure id="menu-kit-shared" about={`the kit's Menu, shared by its rows; ${said}`}>
+      {CALL_ROWS.map((row, at) => (
+        <MenuTrigger
+          key={row.name}
+          handle={calls}
+          payload={row}
+          trigger={
+            <Button variant="quiet" size="sm" data-testid={`shared-call-${at}`}>
+              Call {row.name}
+            </Button>
+          }
+        />
+      ))}
+      <SharedMenu
+        handle={calls}
+        label={(row) => `Call ${row.name}`}
+        groups={(row) => [
+          {
+            header: row.number,
+            items: [
+              {
+                label: "Call from your phone",
+                glyph: glyph("phone", 13),
+                onSelect: () => setSaid(`called ${row.name}`),
+              },
+            ],
+          },
+        ]}
+      />
     </Figure>
   );
 }
@@ -658,6 +703,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "menu-kit", Draw: MenuKit, closed: false },
   { id: "menu-kit-set", Draw: MenuKitSet, closed: false },
   { id: "menu-kit-switches", Draw: MenuKitSwitches, closed: false },
+  { id: "menu-kit-shared", Draw: MenuKitShared, closed: false },
   { id: "popover-kit", Draw: PopoverKit, closed: false },
   { id: "tooltip-kit", Draw: TooltipKit, closed: false },
   { id: "figure-defined", Draw: FigureDefined, closed: false },

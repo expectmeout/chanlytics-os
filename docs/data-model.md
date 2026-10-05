@@ -30,7 +30,7 @@ what the script writes.
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
 | [`contact_identities`](#contact_identities) | `packages/db/src/repositories/email.ts` | on, 1 policy |
 | [`contacts`](#contacts) | `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
-| [`conversations`](#conversations) | `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts` | on, 2 policies |
+| [`conversations`](#conversations) | `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts` | on, 2 policies |
 | [`deals`](#deals) | `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`decisions`](#decisions) | none | on, 2 policies |
 | [`erasure_keying`](#erasure_keying) | none | on, no policy, so only the service role reaches it |
@@ -596,7 +596,7 @@ Foreign keys:
 
 ### conversations
 
-- Owned by: `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`
+- Owned by: `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 

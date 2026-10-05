@@ -2342,7 +2342,7 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
      anywhere on a row selects it (clients-a.jsx, the table's onOpen). */
   .pl-table tbody tr.pl-card-row > td.cl-sel { position: absolute; left: 10px; top: 6px; z-index: 1; display: block; width: 44px; height: 44px; padding: 0; border: 0; }
   .pl-table tbody tr.pl-card-row > td.cl-sel .cl-check { display: block; width: 44px; height: 44px; margin: 0; opacity: 0; cursor: pointer; }
-  .pl-table tbody tr.pl-card-row:has(.cl-check:focus-visible) .pl-card > :first-child { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .pl-table tbody tr.pl-card-row:has(.cl-check:focus-visible) .pl-card > span:first-child { outline: 2px solid var(--accent); outline-offset: 2px; }
   /* A toast rises over the docked row rather than covering it: its Undo and the row's ✕ are both a thumb's. From 721
      to 900px the row stands at the screen's foot, where toasts sat 14px up (mobile.css). */
   body:has(.cl-bulk.pp-bulk) .pp-toast-stack { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
@@ -2358,31 +2358,31 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
 @media (max-width: 900px) {
   /* A cell of the phone's Lists sheet is its track's width, so what is picked and what is pressed is the whole cell:
      a row was as wide as its words, and Everyone's picked ground a box around two words. */
-  .pl-sheet .cl-rail-row { width: 100%; text-align: left; }
+  .pl-lists .cl-rail-row { width: 100%; text-align: left; }
   /* The sheet, compact (Ruben, 24 Sep: "too cluttered, takes most of the screen"). Its lists stand two to a row, as
      the Inbox's buckets do: the name and its count on one line, the picked one raised on the rail's own ground. One
      level of heading names each block (People's groups, Leads' Lists and Searches, the Pipeline's sections); a list
      with nobody in it is said in the block's one quiet line (RailEmpty), not drawn. What stands across the sheet:
      Everyone, a search with its menu, a heading, a hint, the quiet line and a box being filled in. */
-  .pl-sheet .cl-rail-section { padding: 6px 8px; }
-  .pl-sheet .cl-rail-section,
-  .pl-sheet .cl-rail-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 6px; }
-  .pl-sheet .cl-rail-section > :not(.cl-rail-row),
-  .pl-sheet .cl-rail-group > :not(.cl-rail-row),
-  .pl-sheet .cl-rail-row.has-acts,
-  .pl-sheet .cl-rail-everyone > .cl-rail-row { grid-column: 1 / -1; }
-  .pl-sheet .cl-rail-group + .cl-rail-group { margin-top: 6px; }
-  .pl-sheet .cl-rail-label,
-  .pl-sheet .cl-rail-group-label { margin: 0; padding: 4px 10px 2px; }
+  .pl-lists .cl-rail-section { padding: 6px 8px; }
+  .pl-lists .cl-rail-section,
+  .pl-lists .cl-rail-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 6px; }
+  .pl-lists .cl-rail-section > :not(.cl-rail-row),
+  .pl-lists .cl-rail-group > :not(.cl-rail-row),
+  .pl-lists .cl-rail-row.has-acts,
+  .pl-lists .cl-rail-everyone > .cl-rail-row { grid-column: 1 / -1; }
+  .pl-lists .cl-rail-group + .cl-rail-group { margin-top: 6px; }
+  .pl-lists .cl-rail-label,
+  .pl-lists .cl-rail-group-label { margin: 0; padding: 4px 10px 2px; }
   /* The cell's height is the padding's on a mouse and the touch floor's 44px on a thumb (legacy.css): a min-height
      here would outrank that floor. */
-  .pl-sheet .cl-rail-row { padding: 9px 10px; font-size: var(--text-sm); }
-  .pl-sheet .cl-rail-row.has-acts { padding: 0 4px 0 0; }
-  .pl-sheet .cl-rail-row .count { font-size: var(--text-sm); }
-  .pl-sheet .cl-rail-empty { margin: 0; padding: 2px 10px 4px; font-size: var(--text-xs); line-height: 1.5; color: var(--ink-dim); }
+  .pl-lists .cl-rail-row { padding: 9px 10px; font-size: var(--text-sm); }
+  .pl-lists .cl-rail-row.has-acts { padding: 0 4px 0 0; }
+  .pl-lists .cl-rail-row .count { font-size: var(--text-sm); }
+  .pl-lists .cl-rail-empty { margin: 0; padding: 2px 10px 4px; font-size: var(--text-xs); line-height: 1.5; color: var(--ink-dim); }
   /* New list is a quiet row under Saved, not a dashed box in a footer of its own. */
-  .pl-sheet .cl-rail-foot { margin: 0; padding: 0 8px 4px; border-top: 0; }
-  .pl-sheet .cl-rail-newseg { justify-content: flex-start; padding: 9px 10px; border: 0; font-size: var(--text-sm); color: var(--ink-muted); }
+  .pl-lists .cl-rail-foot { margin: 0; padding: 0 8px 4px; border-top: 0; }
+  .pl-lists .cl-rail-newseg { justify-content: flex-start; padding: 9px 10px; border: 0; font-size: var(--text-sm); color: var(--ink-muted); }
 }
 
 /* ---- The table in sections (surfaces/people/table/table.tsx `sections`): the Pipeline's stages, People › Pipeline (0008) -------

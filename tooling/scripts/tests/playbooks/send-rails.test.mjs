@@ -262,6 +262,28 @@ test("a playbook's totals and history come from every run it made, not the recen
     "newest first, with what each earned",
   );
   assert.equal(p.totals.lastRun.run_for, "2026-07-30");
+  assert.equal(p.totals.waiting, null, "no run waits");
+  // A run waiting for a person comes with its own day and moment: what the approve verb's refusal reads
+  // (contracts runApprovalRefusal), so the playbook's card can say an approval would be refused before it is pressed.
+  const waits = row("w1", {
+    created_at: "2026-08-02T10:00:00Z",
+    scheduled_for: "2026-08-02T10:00:00Z",
+    state: "pending_approval",
+    run_for: "2026-08-02",
+    audience: { kind: "playbook", id: "p1", label: "Win-back", trigger: "quiet_30" },
+    recipient_count: 4,
+  });
+  const [held] = await P.listPlaybooks(
+    ctx({ broadcasts: [waits, ...broadcasts], broadcast_recipients, messages: [], playbooks }),
+    T,
+  );
+  assert.deepEqual(held.totals.waiting, {
+    id: "w1",
+    recipient_count: 4,
+    name: waits.name,
+    run_for: "2026-08-02",
+    trigger: "quiet_30",
+  });
   const hand = await B.listBroadcasts(ctx({ broadcasts, broadcast_recipients, messages: [] }), T);
   assert.equal(hand.broadcasts.length, 50, "the Broadcasts page's own window is unchanged");
   assert.equal(hand.more, true, "and with 130 on file, the page is told older ones exist");

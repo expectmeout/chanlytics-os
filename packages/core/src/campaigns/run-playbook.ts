@@ -273,6 +273,7 @@ async function sayTheRun(
     await ports.notify(
       `Playbook “${p.name}” is ready: ${n} ${n === 1 ? "person" : "people"}`,
       `${n} ${n === 1 ? "person has" : "people have"} become eligible for “${p.name}”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`,
+      made.madeId,
     );
     return;
   }
@@ -295,7 +296,7 @@ async function sayTheRun(
     const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
     // The run is made and on the ledger: telling of it must not cost the run its record, so a bell that fails is let
     // go (the adapter says so in its own log), where the ask notice, the only way a waiting run is found, is not.
-    await ports.notify(told.subject, told.body).catch(() => undefined);
+    await ports.notify(told.subject, told.body, made.madeId).catch(() => undefined);
   }
 }
 

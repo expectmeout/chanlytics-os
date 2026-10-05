@@ -123,8 +123,8 @@ export const NOTIFICATION_KIND_GROUPS: readonly NotificationKindGroup[] = [
         kinds: ["broadcast_sent", "broadcast_stopped"],
       },
       {
-        title: "A playbook could not run",
-        what: "It could not run for the day, or could not read your calendar, so nobody was sent it. Tomorrow's run tries again.",
+        title: "A playbook's run needs you, or could not run",
+        what: "When a run waits for your approval, or is about to go unless you stop it, with how many people it reaches. And when a playbook could not run for the day, or could not read your calendar, so nobody was sent it: tomorrow's run tries again.",
         kinds: ["playbook"],
       },
       {

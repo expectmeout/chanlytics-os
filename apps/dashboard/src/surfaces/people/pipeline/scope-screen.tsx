@@ -232,11 +232,13 @@ function peekBlock(s: PipelineState) {
 function sheetsBlock(s: PipelineState) {
   const { f, ui, r, pickView } = s;
   const { words } = P;
-  return f.controls.phone && ui.listsOpen ? (
-    <PeopleListsSheet title={words.rail.sheet} onClose={() => ui.setListsOpen(false)}>
-      <aside className="cl-rail pipe-rail" data-testid="pipeline-rail">
-        <PipelineRailRows compact sections={r.rail} view={r.view} onPick={pickView} />
-      </aside>
+  return f.controls.phone ? (
+    <PeopleListsSheet open={ui.listsOpen} title={words.rail.sheet} onClose={() => ui.setListsOpen(false)}>
+      {ui.listsOpen ? (
+        <aside className="cl-rail pipe-rail" data-testid="pipeline-rail">
+          <PipelineRailRows compact sections={r.rail} view={r.view} onPick={pickView} />
+        </aside>
+      ) : null}
     </PeopleListsSheet>
   ) : null;
 }

@@ -9,7 +9,8 @@ import { refusalToast } from "../../legacy-verbs";
 import type { Flash } from "../../people/types";
 import { leadPhotoWarm } from "../peek/seams";
 import { leadsMore, leadsView, type LeadsSurface } from "../surface";
-import type { LeadCellCtx } from "../cells/types";
+import { leadCallHandle } from "../cells/call-menu";
+import type { LeadCallHandle, LeadCellCtx } from "../cells/types";
 import type { ReachOutLines } from "../reach-out/lines";
 import type { LeadView } from "./state";
 
@@ -164,7 +165,8 @@ const sameValues = (k: CellValues, v: CellValues) =>
  * left alone. People's rows ride in it (a converted lead's Client pill reads the person's deal, 0004): People publishes a
  * fresh array each time it lands, so the context is new then and the rows redraw -- on a cold load of Leads the rows paint
  * before the people. `stageShown` is whether the Stage column is drawn: then it says each lead's state, and the name's tag
- * gives way, so a row says it once. `reachOut` is the open search's reach-out lines (Reach out Part 6, H8).
+ * gives way, so a row says it once. `reachOut` is the open search's reach-out lines (Reach out Part 6, H8). `callMenu` ties
+ * the rows' Call to their one menu, the same handle for the page's life.
  */
 const leadCellCtxFor = (
   acts: RefObject<LeadCellDoors | null>,
@@ -178,6 +180,7 @@ const leadCellCtxFor = (
     stageShown?: boolean;
     reachOut?: ReachOutLines | null;
   },
+  callMenu: LeadCallHandle,
 ): LeadCellCtx => {
   const now: CellValues = { ...v, stageShown: v.stageShown ?? false, reachOut: v.reachOut ?? null };
   const k = kept.current;
@@ -199,6 +202,7 @@ const leadCellCtxFor = (
     onKeep: door("onKeep"),
     onExclude: door("onExclude"),
     onPutBack: door("onPutBack"),
+    callMenu,
   };
   kept.current = { ...now, ctx };
   return ctx;
@@ -220,6 +224,7 @@ export const useLeadCells = ({
   const acts = useRef<LeadCellDoors | null>(null);
   const kept = useRef<Kept>(null);
   const warm = useLeadPhotoWarm(leadShown);
+  const [callMenu] = useState(leadCallHandle);
   acts.current = { onWarm: warm, ...doors };
-  return leadCellCtxFor(acts, kept, values);
+  return leadCellCtxFor(acts, kept, values, callMenu);
 };

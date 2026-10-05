@@ -204,6 +204,8 @@ interface LiveFace {
   readonly pal: Palette;
   w: number;
   h: number;
+  // the canvas's laid-out size in CSS px, measured once and again only when it resizes (fitCanvas)
+  size: { cw: number; ch: number } | null;
   heardLevel: number;
   // the tile's size in CSS px: the target the page sets, and the one drawn, which follows it in about a tenth of a
   // second so the tiles grow with the stage instead of jumping ahead of it
@@ -252,6 +254,7 @@ function liveFaceOf(canvas: CanvasLike, opts: MountOptions): LiveFace | null {
     pal: clonePalette(palTarget),
     w: 0,
     h: 0,
+    size: null,
     heardLevel: 0,
     sideTarget,
     sideNow: sideTarget,
@@ -269,10 +272,23 @@ function liveFaceOf(canvas: CanvasLike, opts: MountOptions): LiveFace | null {
   return face;
 }
 
-function fitCanvas(face: LiveFace): boolean {
+/**
+ * The canvas's laid-out size, asked once and again only when it resizes (env.onResize clears it): asked on every frame,
+ * it laid the whole page out again on every frame while the page changed under it, 76 ms of a switch to Leads at 4x CPU
+ * (5 Oct 2026). A canvas not laid out yet has no size, and is asked again on the next frame.
+ */
+function canvasSize(face: LiveFace): { cw: number; ch: number } | null {
+  if (face.size) return face.size;
   const cw = face.canvas.clientWidth;
   const ch = face.canvas.clientHeight;
-  if (!cw || !ch) return false;
+  if (!cw || !ch) return null;
+  face.size = { cw, ch };
+  return face.size;
+}
+function fitCanvas(face: LiveFace): boolean {
+  const size = canvasSize(face);
+  if (!size) return false;
+  const { cw, ch } = size;
   const dpr = face.env.dpr();
   const nw = Math.round(cw * dpr);
   const nh = Math.round(ch * dpr);
@@ -386,6 +402,7 @@ function listenToPage(face: LiveFace): void {
   );
   undo.push(
     env.onResize(canvas as unknown as Element, () => {
+      face.size = null;
       if (!face.raf) drawFrame(face, 0);
     }),
   );

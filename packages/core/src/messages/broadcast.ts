@@ -25,8 +25,11 @@ import { isNotTakenError } from "../wire-senders";
 import { channelOf, countSent, overAllowance, queueEmailRow, rowFacts, prepare, type Work } from "./broadcast-channels";
 import { afterRefusal, pageTheDomain, release, stopForTheWorkspace, type Verdict } from "./broadcast-stops";
 import type { BroadcastBatchCommand, BroadcastBatchPorts, BroadcastRow, ContactRow, RecipientRow } from "./ports";
-import { LIMIT_WORDS, WIRE_WORDS, gotIt } from "./broadcast-words";
+import { LIMIT_WORDS, WIRE_WORDS, gotIt, thenWhat } from "./broadcast-words";
 import { pageTheProvider } from "./provider-page";
+
+/** A run as its stop's alert reads it: its name, and whose it is (thenWhat: a playbook's run is not sent again). */
+type StoppedRun = Pick<BroadcastRow, "id" | "name" | "playbook_id" | "audience">;
 
 /**
  * How long a batch that reached nobody waits before it is tried again. The
@@ -416,7 +419,9 @@ async function afterTheBatch(w: Work, picked: number): Promise<void> {
 /**
  * The run FINISHED. Said as what it is, not as a job that did not finish, which is what every alert from this file was
  * kept as until 00141, so two completed broadcasts were counted into Today's "6 jobs did not finish". And as many as it
- * reached, of how many: a run that reached nobody is not "sent". The reasons it gives for who was held name a hold of the
+ * reached, of how many: a run that reached nobody is not "sent", in its words or in its KIND (it was `broadcast_sent`
+ * under "reached nobody": the bell's green tick, and "1 broadcast finished" in what Today says you missed; it is a
+ * broadcast that did not go out, `broadcast_stopped`). The reasons it gives for who was held name a hold of the
  * workspace's on email only where it skipped someone for one (`emailHeld`, contracts finishedRunHeldWhy).
  */
 function finishedNews(
@@ -426,7 +431,7 @@ function finishedNews(
   const why = finishedRunHeldWhy(emailHeld);
   const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
   return {
-    kind: "broadcast_sent",
+    kind: sent > 0 ? "broadcast_sent" : "broadcast_stopped",
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
     subject: sent > 0 ? `Broadcast “${b.name}” sent` : `Broadcast “${b.name}” reached nobody`,
@@ -533,7 +538,7 @@ type NotTaken = { outcome: "not_taken"; status: number };
  */
 async function stall(
   ports: BroadcastBatchPorts,
-  b: { id: string; name: string },
+  b: StoppedRun,
   cmd: BroadcastBatchCommand,
   /** What could not be read: the people, or the credentials of this channel's wire (for the owner's words). */
   what: "people" | Channel,
@@ -549,6 +554,7 @@ async function stall(
     (t) => t.sent,
     () => null,
   );
+  const fine = what === "people" ? "Nothing is wrong with your channels" : WIRE_WORDS[what].fine;
   // The failure says what could not be read, and for a wire's credentials which wire: the words for each are the channel's own.
   await ports.fail(b.id, what === "people" ? "people_unreadable" : wireFailure("stalled", what));
   await ports.alert({
@@ -559,7 +565,7 @@ async function stall(
     body: [
       `${what === "people" ? "The people on it" : WIRE_WORDS[what].credentials} could not be read for about half an hour, so the rest was not sent.`,
       gotIt(sent),
-      `${what === "people" ? "Nothing is wrong with your channels" : WIRE_WORDS[what].fine}; send it again later.`,
+      thenWhat(b, fine, `${fine}; send it again later.`, "tomorrow"),
     ]
       .filter(Boolean)
       .join(" "),
@@ -571,11 +577,7 @@ async function stall(
  * A run that is found outside the day's sending hours, one that waited and woke there or one that went on into them, stops,
  * and the owner is told.
  */
-async function stopAfterHours(
-  ports: BroadcastBatchPorts,
-  b: { id: string; name: string },
-  waited: boolean,
-): Promise<void> {
+async function stopAfterHours(ports: BroadcastBatchPorts, b: StoppedRun, waited: boolean): Promise<void> {
   const sent = await ports.tally(b.id).then(
     (t) => t.sent,
     () => null,
@@ -591,7 +593,7 @@ async function stopAfterHours(
         ? "It was waiting to go on when the day's sending hours ran out, so the rest was not sent."
         : "The day's sending hours ran out before it was done, so the rest was not sent.",
       gotIt(sent),
-      "Send it again tomorrow.",
+      thenWhat(b, null, "Send it again tomorrow.", "tomorrow"),
     ]
       .filter(Boolean)
       .join(" "),
@@ -638,8 +640,8 @@ async function stopForTheWire(
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
     body: theirs
-      ? `${theirs.down} (HTTP ${out.status}), so the rest was not sent. ${theirs.fix}`
-      : `${words.down} (${cause}), so the rest was not sent. ${words.reconnect} and send it again.`,
+      ? `${theirs.down} (HTTP ${out.status}), so the rest was not sent. ${thenWhat(b, theirs.told, `${theirs.told}. Send it again later.`, "when_it_can")}`
+      : `${words.down} (${cause}), so the rest was not sent. ${thenWhat(b, words.reconnect, `${words.reconnect} and send it again.`, "tomorrow")}`,
   });
 }
 
@@ -668,7 +670,13 @@ async function stopForTheLimit(
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
-    body: [`${words.reached}, so the rest was not sent.`, gotIt(sent), words.again].filter(Boolean).join(" "),
+    body: [
+      `${words.reached}, so the rest was not sent.`,
+      gotIt(sent),
+      thenWhat(b, words.resets, words.again, words.next),
+    ]
+      .filter(Boolean)
+      .join(" "),
   });
   await pageForTheRun(w, out, "email");
 }
@@ -696,7 +704,7 @@ async function withdrawQueued(ports: BroadcastBatchPorts, b: { id: string }, del
  */
 async function backOff(
   ports: BroadcastBatchPorts,
-  b: { id: string; name: string },
+  b: StoppedRun,
   cmd: BroadcastBatchCommand,
   /** Why and on which channel (the verdict), and the zone the day's sending hours are kept by. */
   how: Extract<Verdict, { back: unknown }> & { timezone: string },
@@ -728,7 +736,7 @@ async function backOff(
     subject: `Broadcast “${b.name}” stopped`,
     body:
       why === "throttled"
-        ? `${words.limiting} ${until}, so the rest was not sent. ${gotIt(sent)} ${words.lifts}; send it again later.`
-        : `${words.reach} ${until}, so the rest was not sent. ${gotIt(sent)} ${words.fine}; send it again later.`,
+        ? `${words.limiting} ${until}, so the rest was not sent. ${gotIt(sent)} ${thenWhat(b, words.lifts, `${words.lifts}; send it again later.`, "tomorrow")}`
+        : `${words.reach} ${until}, so the rest was not sent. ${gotIt(sent)} ${thenWhat(b, words.fine, `${words.fine}; send it again later.`, "tomorrow")}`,
   });
 }

@@ -15,6 +15,7 @@ import type { ListRef } from "../people/lists/lists";
 import { localDate } from "./playbook-schedule";
 import { DAY_MS } from "./playbook-time";
 import { type PlaybookPolicyClass, type PlaybookState, type PlaybookTrigger, triggerOf } from "./playbook-triggers";
+import { dateFormat } from "../shared/time";
 export {
   PLAYBOOK_TRIGGERS,
   MOMENT_TRIGGERS,
@@ -186,7 +187,7 @@ export function visitDayWord(
   if (delta === 0) return "today";
   if (delta === -1) return "yesterday";
   try {
-    return `on ${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
+    return `on ${dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
   } catch {
     return delta > 0 ? "soon" : "recently";
   }

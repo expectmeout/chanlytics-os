@@ -1149,7 +1149,7 @@ test("REGRESSION: on a phone People is one bar, one line and the people -- a 57p
     // A pick in the sheet names the list in the bar.
     click(byTestId(tree, "people-phone-lists"));
     tree = draw();
-    click(find(byTestId(tree, "people-lists-sheet"), (n) => n.type === "button" && textOf(n).includes("Regulars")));
+    click(find(openSheet(tree, "people-lists-sheet"), (n) => n.type === "button" && textOf(n).includes("Regulars")));
     tree = draw();
     assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Regulars");
     assert.deepEqual(idsShown(tree), ["person-p1"]);
@@ -1671,14 +1671,14 @@ test("REGRESSION: on a phone the Lists sheet starts with Everyone and draws no s
     let tree = draw({ initialSaved: "s1" });
     click(byTestId(tree, "people-phone-lists"));
     tree = draw({ initialSaved: "s1" });
-    const sheet = byTestId(tree, "people-lists-sheet");
+    const sheet = openSheet(tree, "people-lists-sheet");
     assert.equal(byTestId(sheet, "people-scope"), null, "one switch, the bar's");
     const everyone = byTestId(sheet, "rail-everyone");
     assert.match(textOf(everyone), /Everyone\s*2/, "Everyone, first, with everyone's count");
     assert.equal(everyone.props["aria-current"], undefined, "not current while a list is open");
     click(everyone);
     tree = draw({ initialSaved: "s1" });
-    assert.equal(byTestId(tree, "people-lists-sheet"), null, "a pick closes the sheet");
+    assert.equal(openSheet(tree, "people-lists-sheet"), null, "a pick closes the sheet");
     assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Everyone");
     assert.equal(idsShown(tree).length, 2);
   }));
@@ -1711,10 +1711,10 @@ test("on a phone the lists are behind the bar's list button, as a sheet; a pick 
   onPhone(async () => {
     await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
     let tree = draw();
-    assert.equal(byTestId(tree, "people-lists-sheet"), null, "closed until asked");
+    assert.equal(openSheet(tree, "people-lists-sheet"), null, "closed until asked");
     click(byTestId(tree, "people-phone-lists"));
     tree = draw();
-    const sheet = byTestId(tree, "people-lists-sheet");
+    const sheet = openSheet(tree, "people-lists-sheet");
     assert.ok(sheet, "the sheet");
     assert.ok(
       find(sheet, (n) => n.type === "aside" && n.props?.className === "cl-rail"),
@@ -1722,13 +1722,13 @@ test("on a phone the lists are behind the bar's list button, as a sheet; a pick 
     );
     click(find(sheet, (n) => n.type === "button" && textOf(n).includes("Regulars")));
     tree = draw();
-    assert.equal(byTestId(tree, "people-lists-sheet"), null, "a pick closes it");
+    assert.equal(openSheet(tree, "people-lists-sheet"), null, "a pick closes it");
     assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Regulars", "and the bar names the list");
     // The shell's and a profile's New list: on a phone the sheet comes up with the box open.
     globalThis.window.dispatchEvent(new CustomEvent("segments:new"));
     draw();
     tree = draw();
-    assert.ok(byTestId(byTestId(tree, "people-lists-sheet"), "new-list-name"), "with the New list box open");
+    assert.ok(byTestId(openSheet(tree, "people-lists-sheet"), "new-list-name"), "with the New list box open");
   }));
 
 // Ruben, 24 Sep: the Lists sheet "looks too cluttered, takes most of the screen". On a phone it is compact: one level
@@ -1757,7 +1757,7 @@ test("on a phone the Lists sheet is compact: the groups name its blocks, an empt
       let tree = draw(props);
       click(byTestId(tree, "people-phone-lists"));
       tree = draw(props);
-      return byTestId(tree, "people-lists-sheet");
+      return openSheet(tree, "people-lists-sheet");
     };
     let sheet = sheetOf();
     assert.equal(
@@ -2154,7 +2154,7 @@ test("on a phone an empty list of your own is said in the quiet line, and a shee
       let tree = draw();
       click(byTestId(tree, "people-phone-lists"));
       tree = draw();
-      return byTestId(tree, "people-lists-sheet");
+      return openSheet(tree, "people-lists-sheet");
     };
     await freshPage({
       people: [person(1)],
@@ -2643,10 +2643,14 @@ test("Esc closes the phone's lists sheet first, and the selection stays; the nex
     await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
     byTestId(draw(), "select-all").props.onChange();
     click(byTestId(draw(), "people-phone-lists"));
-    assert.ok(byTestId(draw(), "people-lists-sheet"), "the sheet is open");
-    press("Escape");
+    assert.ok(openSheet(draw(), "people-lists-sheet"), "the sheet is open");
+    // The kit's sheet, open on the body: the page holds still behind it, and its Esc is its own (Base UI's), which asks.
+    overlayOpen = { role: "dialog", inApp: false, className: "sheet" };
+    assert.equal(press("Escape"), false, "its Esc is its own, and the selection behind it holds");
+    overlayOpen = null;
+    openSheet(draw(), "people-lists-sheet").props.onClose();
     let tree = draw();
-    assert.equal(byTestId(tree, "people-lists-sheet"), null, "Esc closed the sheet");
+    assert.equal(openSheet(tree, "people-lists-sheet"), null, "Esc closed the sheet");
     assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "and left the selection alone");
     assert.equal(press("Escape"), true);
     tree = draw();

@@ -50,6 +50,31 @@ function formatterOnUse(locales, options) {
   let built = null;
   return { format: (date) => (built ??= new Intl.DateTimeFormat(locales, options)).format(date) };
 }
+var FORMATS_KEPT = 256;
+var DATE_FORMATS = /* @__PURE__ */ new Map();
+var NUMBER_FORMATS = /* @__PURE__ */ new Map();
+function formatterKept(cache, key, make) {
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const made = make();
+  if (cache.size >= FORMATS_KEPT) cache.clear();
+  cache.set(key, made);
+  return made;
+}
+function dateFormat(locales, options) {
+  return formatterKept(
+    DATE_FORMATS,
+    `${locales}|${JSON.stringify(options)}`,
+    () => new Intl.DateTimeFormat(locales, options)
+  );
+}
+function numberFormat(locales, options) {
+  return formatterKept(
+    NUMBER_FORMATS,
+    `${locales}|${JSON.stringify(options)}`,
+    () => new Intl.NumberFormat(locales, options)
+  );
+}
 var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
 function spanUnits(ms2) {
   const gap = Math.max(0, ms2);
@@ -672,7 +697,7 @@ function policyClassOffered(cls, dealsOn) {
 
 // src/calendar/zone-math.ts
 function zoneParts(tz, at3) {
-  const parts2 = new Intl.DateTimeFormat("en-US", {
+  const parts2 = dateFormat("en-US", {
     timeZone: tz,
     hourCycle: "h23",
     weekday: "short",
@@ -3618,10 +3643,10 @@ function clockIn(tz, iso, now) {
   if (!iso) return "\u2014";
   const at3 = new Date(iso);
   if (Number.isNaN(at3.getTime())) return "\u2014";
-  const day = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
-  const clock3 = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at3);
+  const day = (d) => dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const clock3 = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at3);
   if (day(at3) === day(now)) return clock3;
-  return `${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at3)}, ${clock3}`;
+  return `${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at3)}, ${clock3}`;
 }
 var METRES_PER_MILE = 1609.344;
 var milesLabel = (m) => {
@@ -3765,9 +3790,9 @@ function classify(plan, answer, facts, emailState, inArea, phoneState) {
 // src/leads/lead-facts.ts
 function leadTodayLine(hours, tz, now) {
   if (!hours.length) return null;
-  const dayOf2 = (d) => new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
+  const dayOf2 = (d) => dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
   const hoursOn = (d) => hours.find((x) => x.day.toLowerCase() === dayOf2(d))?.hours.trim() ?? null;
-  const parts2 = new Intl.DateTimeFormat("en-US", {
+  const parts2 = dateFormat("en-US", {
     timeZone: tz,
     hour: "numeric",
     minute: "numeric",
@@ -3990,7 +4015,7 @@ function leadWeekSummary(week) {
   return days;
 }
 function leadWeekBars(hours, tz, now) {
-  const today = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(now).toLowerCase();
+  const today = dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(now).toLowerCase();
   return hours.map((h) => {
     const text = h.hours.trim();
     let bar = null;
@@ -4011,10 +4036,10 @@ function dayIn(tz, iso, now) {
   if (!iso) return "";
   const at3 = new Date(iso);
   if (Number.isNaN(at3.getTime())) return "";
-  const key = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const key = (d) => dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   if (key(at3) === key(now)) return "today";
   if (key(at3) === key(new Date(now.getTime() - DAY_MS))) return "yesterday";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at3);
+  return dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at3);
 }
 function foundWords(r2, term) {
   const host = r2.website;
@@ -4176,9 +4201,7 @@ function toLeadPeekVM(r2, search, tz, now) {
 var LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to.";
 function leadSearchWords(s, tz) {
   if (!s) return { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS };
-  const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(
-    new Date(s.asked_on)
-  );
+  const day = dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(s.asked_on));
   if (s.via === "import")
     return { askedLine: `Your list, imported on ${day}: \u201C${s.asked}\u201D.`, keepsLine: LEAD_REMOVE_KEEPS };
   if (s.via === "chosen") return { askedLine: `Leads you chose on ${day}.`, keepsLine: LEAD_REMOVE_KEEPS };
@@ -7161,7 +7184,7 @@ var DAY_WORDS = [
 ];
 function dayKey(atMs, tz) {
   try {
-    return new Intl.DateTimeFormat("en-CA", {
+    return dateFormat("en-CA", {
       timeZone: tz || "UTC",
       year: "numeric",
       month: "2-digit",
@@ -8275,11 +8298,16 @@ var RUN_STOP_AGAIN = {
 };
 var isRunStop = (code2) => code2 in RUN_STOP_REMEDY;
 function stoppedRunFix(why, run) {
-  if (!run.playbook_id) return RUN_STOP_AGAIN[why];
-  if (triggerOf(run.trigger ?? "")?.kind === "visit")
-    return `${RUN_STOP_REMEDY[why]}. It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.`;
-  return `${RUN_STOP_REMEDY[why]}. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.`;
+  const next = playbookRunNext(run, "tomorrow");
+  return next ? `${RUN_STOP_REMEDY[why]}. ${next}` : RUN_STOP_AGAIN[why];
 }
+function playbookRunNext(run, by) {
+  if (!run.playbook_id) return null;
+  if (triggerOf(run.trigger ?? "")?.kind === "visit")
+    return "It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.";
+  return by === "tomorrow" ? "It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice." : "It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
+}
+var OUTLASTS_TOMORROW = /* @__PURE__ */ new Set(["provider_limit", "template_not_approved"]);
 var WIRE_FAILURES = ["wire_unavailable", "throttled", "stalled"];
 var isFailure = (code2) => BROADCAST_FAILURES.includes(code2);
 var isWireFailure = (code2) => WIRE_FAILURES.includes(code2);
@@ -8357,11 +8385,38 @@ var BROADCAST_FAILURE_FIX_AFTER = {
   campaigns_domain_unverified: (n) => `The first ${n === 1 ? "one" : n} got it, then the domain offers by email leave from stopped being verified. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
   email_offers_paused: (n) => `The first ${n === 1 ? "one" : n} got it, then the workspace's offers by email were paused. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
 };
+var PLAYBOOK_RUN_REMEDY = {
+  template_not_approved: "Open it in the Library \u2014 it can be resubmitted.",
+  wire_unavailable: null,
+  run_interrupted: null,
+  throttled: {
+    whatsapp: "WhatsApp lifts these limits on its own.",
+    sms: "The texting provider lifts these limits on its own.",
+    email: "The mail provider lifts these limits on its own."
+  },
+  stalled: {
+    whatsapp: "Nothing is wrong with the number.",
+    sms: "Nothing is wrong with the line.",
+    email: "Nothing is wrong with the mailbox."
+  },
+  people_unreadable: "Nothing is wrong with your channels.",
+  after_hours: null,
+  provider_limit: "The mail provider's limit resets on its own."
+};
+function playbookRunFix(read, reached, next) {
+  const remedy = PLAYBOOK_RUN_REMEDY[read.code];
+  const got = reached > 0 ? `The first ${reached === 1 ? "one" : reached} got it.` : "Nobody got it.";
+  return [got, remedy ? wordsFor(remedy, read.channel) : null, next].filter(Boolean).join(" ");
+}
 function broadcastFailureFix(failure, reached = 0, run) {
   if (!failure) return null;
   const read = readFailure(failure);
   if (!read) return null;
-  if (isRunStop(read.code) && run?.playbook_id) return stoppedRunFix(read.code, run);
+  const next = run ? playbookRunNext(run, OUTLASTS_TOMORROW.has(read.code) ? "when_it_can" : "tomorrow") : null;
+  if (run && next) {
+    const { code: code2, channel } = read;
+    return isRunStop(code2) ? stoppedRunFix(code2, run) : playbookRunFix({ code: code2, channel }, reached, next);
+  }
   const after = reached > 0 ? BROADCAST_FAILURE_FIX_AFTER[read.code] : void 0;
   return after ? after(reached, read.channel) : wordsFor(BROADCAST_FAILURE_FIX[read.code], read.channel) || null;
 }
@@ -10103,7 +10158,7 @@ function shiftMonth(key, n) {
 }
 function monthLabelOf(key) {
   const { y, m } = keyParts(key);
-  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(
+  return dateFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(
     new Date(Date.UTC(y, m - 1, 1, 12))
   );
 }
@@ -10194,7 +10249,7 @@ function freeWindows(input) {
         // Noon on that local day: an instant the day owns whichever way the
         // clock moved, where midnight on a spring-forward day may not exist
         // and 1 AM on an autumn one happens twice.
-        label: new Intl.DateTimeFormat("en-US", {
+        label: dateFormat("en-US", {
           timeZone: input.tz,
           weekday: "long",
           month: "long",
@@ -10235,7 +10290,7 @@ function filterOpenings(openings, by) {
   return first.map((o) => ({ ...o, windows: o.windows.filter((w) => w.end - w.start >= minMs) })).filter((o) => o.windows.length > 0);
 }
 function span(tz, start, end) {
-  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  const f = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
   return `${f.format(new Date(start))} \u2013 ${f.format(new Date(end))}`;
 }
 function describeOpenings(openings, tz, opts) {
@@ -11025,13 +11080,13 @@ function visitDay(start, tz, nowMs) {
   const tomorrow = dayPlusInZone(tz, nowMs, 1).key;
   if (key === today) return "Today";
   if (key === tomorrow) return "Tomorrow";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(
+  return dateFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(
     new Date(ms(start))
   );
 }
 function visitTime(v, tz) {
   if (v.allDay || v.all_day) return "all day";
-  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  const f = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
   const a = f.format(new Date(ms(v.start)));
   const b = f.format(new Date(ms(v.end)));
   const sameHalf = a.slice(-2) === b.slice(-2);
@@ -11042,9 +11097,7 @@ function visitDateKey(start, tz) {
 }
 function visitStartTime(v, tz) {
   if (v.allDay || v.all_day) return "all day";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(
-    new Date(ms(v.start))
-  );
+  return dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
 }
 function visitLine(v, tz, nowMs) {
   return `${visitDay(v.start, tz, nowMs)} \xB7 ${visitTime(v, tz)}`;
@@ -11060,7 +11113,7 @@ function describeVisits(visits, tz, nowMs, opts) {
   if (visits.last) {
     const l = visits.last;
     out.push(
-      `Their last visit on the calendar: ${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`
+      `Their last visit on the calendar: ${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`
     );
   }
   return out.length ? out.join(" ") : null;
@@ -12777,7 +12830,7 @@ function offersAskRule() {
 // src/config/workspace-config/compose.ts
 function dateKeyInZone(tz, at3) {
   try {
-    const parts2 = new Intl.DateTimeFormat("en-US", {
+    const parts2 = dateFormat("en-US", {
       timeZone: tz,
       year: "numeric",
       month: "2-digit",
@@ -12793,7 +12846,7 @@ function dateKeyInZone(tz, at3) {
 function labelDate(key, withWeekday) {
   const at3 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   if (Number.isNaN(at3.getTime()) || dateKeyInZone("UTC", at3) !== key) return key;
-  return new Intl.DateTimeFormat("en-US", {
+  return dateFormat("en-US", {
     timeZone: "UTC",
     ...withWeekday ? { weekday: "long" } : {},
     month: "long",
@@ -12826,7 +12879,7 @@ var NO_CLOCK = "You do not know today's date or the current time. If a customer 
 function describeNow(tz, now = /* @__PURE__ */ new Date(), closures) {
   if (!tz) return NO_CLOCK;
   try {
-    const stamp = new Intl.DateTimeFormat("en-US", {
+    const stamp = dateFormat("en-US", {
       weekday: "long",
       month: "long",
       day: "numeric",
@@ -13633,7 +13686,7 @@ function trialWords(trialEnd, nowMs) {
 }
 function priceWords(p) {
   if (!p || p.unit_amount === null) return "";
-  const amount = new Intl.NumberFormat("en-US", { style: "currency", currency: p.currency.toUpperCase() }).format(
+  const amount = numberFormat("en-US", { style: "currency", currency: p.currency.toUpperCase() }).format(
     p.unit_amount / 100
   );
   const per = p.interval === "year" ? "a year" : p.interval === "week" ? "a week" : p.interval === "day" ? "a day" : "a month";
@@ -13792,9 +13845,7 @@ var CHECKOUT_OUTCOME_WORDS = {
 };
 function moneyWords(amountCents, currency) {
   try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(
-      amountCents / 100
-    );
+    return numberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(amountCents / 100);
   } catch {
     return `${(amountCents / 100).toFixed(2)} ${currency.toUpperCase()}`;
   }
@@ -16253,7 +16304,7 @@ function lastWordOf(dto) {
 function amountWords(cents, per, currency = "USD") {
   if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
   const whole = cents % 100 === 0;
-  const money2 = new Intl.NumberFormat("en-US", {
+  const money2 = numberFormat("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
     minimumFractionDigits: whole ? 0 : 2,
@@ -17626,7 +17677,7 @@ function planRun(mode, now) {
 }
 function parts(tz, now) {
   try {
-    const f = new Intl.DateTimeFormat("en-CA", {
+    const f = dateFormat("en-CA", {
       timeZone: tz,
       year: "numeric",
       month: "2-digit",
@@ -17937,6 +17988,61 @@ var PLAYBOOK_CLASS_LABEL = {
   outreach: POLICY_CLASS_WORDS.outreach.short
 };
 
+// src/reach-out/reach-out-rules.ts
+function outreachRefusalOf(f) {
+  if (!f.leadStage) return "outreach_not_a_lead";
+  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
+  if (f.suppressed) return "outreach_suppressed";
+  if (f.wroteBack) return "outreach_wrote_back";
+  if (f.away) return "outreach_away";
+  if (f.stopped) return "outreach_stopped";
+  return null;
+}
+var OUTREACH_WAIT_REFUSALS = [
+  "sending_domain_at_cap",
+  "sending_domain_not_ready",
+  "outreach_needs_own_domain",
+  "paused"
+];
+function isWaitRefusal(reason) {
+  return OUTREACH_WAIT_REFUSALS.includes(reason ?? "");
+}
+var REACH_OUT_MONTH_EMAILS = 2e3;
+var REACH_OUT_CHECKS_PER_DAY = 400;
+function isReachOutRun(audience) {
+  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
+}
+var REACH_OUT_LANGUAGE = "en";
+function reachOutValues(lead, workspace, opening) {
+  return slotValues(REACH_OUT_SLOT_SET, {
+    business: lead.business_name,
+    city: lead.city,
+    "your business": workspace.businessName,
+    "your name": workspace.yourName,
+    "booking link": workspace.bookingLink,
+    opening
+  });
+}
+function reachOutEmailOf(words2, lead, workspace, opening = null) {
+  const values = reachOutValues(lead, workspace, opening);
+  const texts = words2.subject === null ? [words2.body] : [words2.subject, words2.body];
+  if (texts.some((t) => slotHoles(REACH_OUT_SLOT_SET, t, values))) return { ok: false, reason: "missing_value" };
+  const email = renderOwnVersion("email", words2, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
+  return { ok: true, subject: words2.subject === null ? null : email.subject, body: email.body };
+}
+var EXAMPLE_LEAD = {
+  business_name: "Lakeside Bakery",
+  city: "Springfield",
+  opening: "Your 4.8 stars from 212 reviews caught my eye."
+};
+function reachOutExampleValues(workspace) {
+  return reachOutValues(
+    { business_name: EXAMPLE_LEAD.business_name, city: EXAMPLE_LEAD.city },
+    workspace,
+    EXAMPLE_LEAD.opening
+  );
+}
+
 // src/playbooks/playbook-approval.ts
 function poolWords(trigger) {
   const t = triggerOf(trigger);
@@ -18057,6 +18163,7 @@ function visitRunTooLate(run, days) {
   return moment?.kind === "visit" && !!run.run_for && days.sendsOn > run.run_for;
 }
 function runApprovalRefusal(run, days) {
+  if (isReachOutRun(run.audience)) return null;
   const day = dayHasPassed(run, days.today) ?? (run.playbook_id && run.run_for && visitRunTooLate(run, days) ? run.run_for : null);
   return day ? dayGoneWords(day, days.say) : null;
 }
@@ -18160,7 +18267,7 @@ function visitDayWord(visit, tz, sendAt, assumed) {
   if (delta === 0) return "today";
   if (delta === -1) return "yesterday";
   try {
-    return `on ${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
+    return `on ${dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
   } catch {
     return delta > 0 ? "soon" : "recently";
   }
@@ -22686,9 +22793,7 @@ function approvalWordsOf(r2, p) {
     }))
   };
 }
-var runDayWords = (runFor) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(
-  /* @__PURE__ */ new Date(`${runFor}T12:00:00Z`)
-);
+var runDayWords = (runFor) => dateFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(/* @__PURE__ */ new Date(`${runFor}T12:00:00Z`));
 function chainPaceOf(c) {
   return {
     host: c.domains.length === 1 ? c.domains[0].host : null,
@@ -23649,9 +23754,9 @@ function comingUpOf({ profile, nowMs, base }) {
         t,
         vm: {
           id: `v-${v.id}`,
-          month: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short" }).format(new Date(t)),
-          date: new Intl.DateTimeFormat("en-US", { timeZone: zone, day: "numeric" }).format(new Date(t)),
-          day: on === "Today" || on === "Tomorrow" ? on : new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" }).format(new Date(t)),
+          month: dateFormat("en-US", { timeZone: zone, month: "short" }).format(new Date(t)),
+          date: dateFormat("en-US", { timeZone: zone, day: "numeric" }).format(new Date(t)),
+          day: on === "Today" || on === "Tomorrow" ? on : dateFormat("en-US", { timeZone: zone, weekday: "short" }).format(new Date(t)),
           title: visitTitleFor(v.title, base.name),
           time: visitTime(v, zone),
           byName: v.via === "name",
@@ -25353,61 +25458,6 @@ function bellActionOf(row2, readings) {
   if (row2.kind !== "reach_out_replied" || !row2.about || row2.about.type !== "conversation") return row2.action;
   const r2 = readings.find((x) => x.conversation_id === row2.about?.id);
   return r2 && !r2.undone && drafted(r2) ? "Read the draft" : row2.action;
-}
-
-// src/reach-out/reach-out-rules.ts
-function outreachRefusalOf(f) {
-  if (!f.leadStage) return "outreach_not_a_lead";
-  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
-  if (f.suppressed) return "outreach_suppressed";
-  if (f.wroteBack) return "outreach_wrote_back";
-  if (f.away) return "outreach_away";
-  if (f.stopped) return "outreach_stopped";
-  return null;
-}
-var OUTREACH_WAIT_REFUSALS = [
-  "sending_domain_at_cap",
-  "sending_domain_not_ready",
-  "outreach_needs_own_domain",
-  "paused"
-];
-function isWaitRefusal(reason) {
-  return OUTREACH_WAIT_REFUSALS.includes(reason ?? "");
-}
-var REACH_OUT_MONTH_EMAILS = 2e3;
-var REACH_OUT_CHECKS_PER_DAY = 400;
-function isReachOutRun(audience) {
-  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
-}
-var REACH_OUT_LANGUAGE = "en";
-function reachOutValues(lead, workspace, opening) {
-  return slotValues(REACH_OUT_SLOT_SET, {
-    business: lead.business_name,
-    city: lead.city,
-    "your business": workspace.businessName,
-    "your name": workspace.yourName,
-    "booking link": workspace.bookingLink,
-    opening
-  });
-}
-function reachOutEmailOf(words2, lead, workspace, opening = null) {
-  const values = reachOutValues(lead, workspace, opening);
-  const texts = words2.subject === null ? [words2.body] : [words2.subject, words2.body];
-  if (texts.some((t) => slotHoles(REACH_OUT_SLOT_SET, t, values))) return { ok: false, reason: "missing_value" };
-  const email = renderOwnVersion("email", words2, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
-  return { ok: true, subject: words2.subject === null ? null : email.subject, body: email.body };
-}
-var EXAMPLE_LEAD = {
-  business_name: "Lakeside Bakery",
-  city: "Springfield",
-  opening: "Your 4.8 stars from 212 reviews caught my eye."
-};
-function reachOutExampleValues(workspace) {
-  return reachOutValues(
-    { business_name: EXAMPLE_LEAD.business_name, city: EXAMPLE_LEAD.city },
-    workspace,
-    EXAMPLE_LEAD.opening
-  );
 }
 
 // src/reach-out/reach-out-timetable.ts
@@ -28780,6 +28830,9 @@ var PUSH_KINDS = [
   "leads_question",
   "broadcast_sent",
   "broadcast_stopped",
+  // A playbook's run that waits for a word, or goes by itself unless it is stopped: the one notice with a deadline (a
+  // waiting run is refused once its day has passed, contracts runApprovalRefusal), and the phone never heard it.
+  "playbook",
   "job_failed",
   "billing",
   "number",
@@ -29020,6 +29073,8 @@ var ROUTE_VERBS = [
   // The old Playbooks list (`outbound`) is Campaigns' home now, and Sent and the Library its rooms: the door says the name.
   [/^outbound/, "Open Campaigns"],
   [/^campaigns/, "Open Campaigns"],
+  // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
+  [/^broadcasts\/run:/, "Open the run"],
   [/^broadcasts/, "Open Sent"],
   // The route is still `messages`; the page is the Library (a room of Campaigns), and the door says the page's name.
   [/^messages/, "Open Library"],
@@ -29155,8 +29210,8 @@ var NOTIFICATION_KIND_GROUPS = [
         kinds: ["broadcast_sent", "broadcast_stopped"]
       },
       {
-        title: "A playbook could not run",
-        what: "It could not run for the day, or could not read your calendar, so nobody was sent it. Tomorrow's run tries again.",
+        title: "A playbook's run needs you, or could not run",
+        what: "When a run waits for your approval, or is about to go unless you stop it, with how many people it reaches. And when a playbook could not run for the day, or could not read your calendar, so nobody was sent it: tomorrow's run tries again.",
         kinds: ["playbook"]
       },
       {
@@ -29610,7 +29665,7 @@ function tzClock(iso, tz, now) {
   if (!iso || !t) return t;
   const key = (d) => {
     try {
-      return new Intl.DateTimeFormat("en-CA", {
+      return dateFormat("en-CA", {
         timeZone: tz,
         year: "numeric",
         month: "2-digit",
@@ -29624,7 +29679,7 @@ function tzClock(iso, tz, now) {
   if (day === key(now)) return t;
   if (day === key(new Date(now.getTime() + DAY_MS))) return `tomorrow ${t}`;
   try {
-    return `${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`;
+    return `${dateFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`;
   } catch {
     return t;
   }
@@ -29634,7 +29689,7 @@ function tzSince(iso, tz, now) {
   if (!iso || !t) return t;
   const dayNumber2 = (d) => {
     try {
-      const parts2 = new Intl.DateTimeFormat("en-CA", {
+      const parts2 = dateFormat("en-CA", {
         timeZone: tz,
         year: "numeric",
         month: "2-digit",
@@ -29650,7 +29705,7 @@ function tzSince(iso, tz, now) {
   if (days === 1) return `yesterday ${t}`;
   try {
     const within2 = days < 7 ? { weekday: "short", timeZone: tz } : { month: "short", day: "numeric", timeZone: tz };
-    const day = new Intl.DateTimeFormat("en-US", within2).format(new Date(iso));
+    const day = dateFormat("en-US", within2).format(new Date(iso));
     return days < 7 ? `${day} ${t}` : `${day}, ${t}`;
   } catch {
     return t;
@@ -29659,7 +29714,7 @@ function tzSince(iso, tz, now) {
 function tzTime(iso, tz) {
   if (!iso) return null;
   try {
-    return new Intl.DateTimeFormat("en-US", {
+    return dateFormat("en-US", {
       hour: "numeric",
       minute: "2-digit",
       timeZone: tz
@@ -29672,7 +29727,7 @@ function tzDayAndTime(iso, tz, now) {
   if (!iso) return null;
   const t = tzTime(iso, tz);
   if (!t) return null;
-  const key = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const key = (d) => dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   const toUtc = (k) => Date.UTC(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, Number(k.slice(8, 10)));
   const days = Math.round((toUtc(key(now)) - toUtc(key(new Date(iso)))) / DAY_MS);
   if (days < 1) return t;
@@ -29680,10 +29735,10 @@ function tzDayAndTime(iso, tz, now) {
   try {
     const d = new Date(iso);
     if (days < 7) {
-      const day = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: tz }).format(d);
+      const day = dateFormat("en-US", { weekday: "long", timeZone: tz }).format(d);
       return `${day} at ${t}`;
     }
-    const md = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", timeZone: tz }).format(d);
+    const md = dateFormat("en-US", { month: "long", day: "numeric", timeZone: tz }).format(d);
     return `${md} at ${t}`;
   } catch {
     return t;
@@ -30721,6 +30776,7 @@ function todayRunWords(r2) {
       sentence: `${people}. Nothing sends until you say so.`,
       status: ["Waiting for your approval"]
     },
+    late: { meta: `${kind} \xB7 too late to approve`, status: ["Too late to approve"] },
     soon: {
       meta: `${kind} \xB7 sends ${r2.when}`,
       sentence: `${people}. Stop it if you'd rather not.`,
@@ -32247,7 +32303,7 @@ function timezoneWords(tz, nowMs = Date.now()) {
   const city = timezoneCity(zone);
   let timeThere;
   try {
-    timeThere = new Intl.DateTimeFormat("en-US", {
+    timeThere = dateFormat("en-US", {
       timeZone: zone,
       hour: "numeric",
       minute: "2-digit"
@@ -33847,6 +33903,7 @@ export {
   playbookPoolKey,
   playbookReach,
   playbookReachDoor,
+  playbookRunNext,
   playbookRunReach,
   playbookRunStop,
   playbookStopBy,

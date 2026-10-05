@@ -886,6 +886,40 @@ test("a run's Approve from the queue is said the moment the server takes it, wit
   assert.equal(flashes.length, 1, "and said once");
 });
 
+test("a waiting run whose day has passed is opened from the queue, never approved: its row says why, in the verb's words", async () => {
+  // approveRun refuses a playbook's run on a later day than it was made for (contracts runApprovalRefusal). Today's row
+  // offered Approve all the same, and the press answered "Not approved" over a 409.
+  clear();
+  const approvals = [];
+  const stale = zoneDayKey(Date.now() - 3 * 86_400_000, ZONE);
+  const rows = broadcasts().rows.map((r) => (r.id === "b-wait" ? { ...r, run_for: stale } : r));
+  set({
+    today: busy(),
+    __BROADCASTS: { ...broadcasts(), rows },
+    __broadcasts: {
+      approve: async (id) => {
+        approvals.push(id);
+        return { ok: true, data: {} };
+      },
+      cancel: async () => ({ ok: true, data: {} }),
+    },
+  });
+  const waiting = byTestId(byTestId(draw(AgentCommand), "today-queue"), "brief-run-row");
+  assert.equal(buttons(waiting, "Approve").length, 0, "REGRESSION: Approve over a run the verb refuses");
+  const w = todayRunWords(rows[0]);
+  assert.deepEqual([w.late.meta, w.late.status], ["Playbook · too late to approve", ["Too late to approve"]]);
+  const said = textOf(waiting);
+  assert.ok(said.includes(w.late.status[0]) && said.includes("that day has passed"), said);
+  assert.ok(!said.includes(w.waiting.sentence), "and not that nothing sends until you say so");
+  went.length = 0;
+  press(buttons(waiting, "Open")[0]);
+  assert.deepEqual(went, ["broadcasts/run:b-wait"], "it opens the run, where Skip is");
+  assert.deepEqual(approvals, []);
+  // The bell's row about one run says where it goes.
+  const { verbForRoute } = await import("@chanlytics/contracts");
+  assert.deepEqual([verbForRoute("broadcasts/run:b-wait"), verbForRoute("broadcasts")], ["Open the run", "Open Sent"]);
+});
+
 test("four rows: people take three while a run wants the fourth, and all four when none does", () => {
   clear();
   // Four people waiting — one more than the card gives them.

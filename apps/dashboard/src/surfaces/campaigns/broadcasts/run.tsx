@@ -22,7 +22,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
-import { gate, navigate } from "../../legacy-verbs";
+import { gate, gatedProps, navigate } from "../../legacy-verbs";
 import { CmDot } from "../parts/head";
 import { CmPane } from "../parts/split";
 import { ReachOutRun, roRunHead } from "../reach-out/approval";
@@ -31,6 +31,7 @@ import { starters } from "../templates/verbs";
 import { BcSheet, bcPersonRow, bcSheetSub, bcStopWords } from "./run-sheet";
 import type { BcSheetAsk } from "./run-sheet";
 import { broadcasts } from "./verbs";
+import { bcLateWords } from "./when-words";
 
 // Stable empties, so a workspace without lists or templates does not re-run
 // the effects on every render.
@@ -475,6 +476,9 @@ export function BcRunVerbs({
   cancel,
 }: BcRunVerbsProps) {
   const stop = bcStopWords(row.state);
+  // A run whose day has passed is refused by the verb (bcLateWords): the button says why instead of answering 409, and
+  // the Skip beside it is the act left.
+  const late = row.state === "pending_approval" ? bcLateWords(row) : null;
   if (armed && canSend) {
     return (
       <Confirm
@@ -496,9 +500,9 @@ export function BcRunVerbs({
           size="sm"
           variant="primary"
           disabled={approving}
-          onClick={() => approve(row)}
+          onClick={() => (late ? undefined : approve(row))}
           data-testid="bc-approve"
-          {...(canSend ? {} : gate("approve", "approve a run"))}
+          {...(!canSend ? gate("approve", "approve a run") : late ? gatedProps(late) : {})}
         >
           {approving ? "Approving…" : "Approve the run"}
         </Button>

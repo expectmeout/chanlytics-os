@@ -2,6 +2,7 @@
  * The small helpers leads.ts and the lead modules share. Internal: index.ts never re-exports it (the
  * person-words.ts / run-words.ts pattern).
  */
+import { dateFormat } from "../shared/time";
 export const CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
 
 export const hourOf = (h: string, m: string | undefined, ap: string): number =>
@@ -13,10 +14,10 @@ export function clockIn(tz: string, iso: string | null, now: Date): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "—";
   const day = (d: Date) =>
-    new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
-  const clock = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at);
+    dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const clock = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at);
   if (day(at) === day(now)) return clock;
-  return `${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at)}, ${clock}`;
+  return `${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at)}, ${clock}`;
 }
 
 const METRES_PER_MILE = 1609.344;

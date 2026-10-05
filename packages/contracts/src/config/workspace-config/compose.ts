@@ -11,6 +11,7 @@ import { policyRules } from "./policy-classes";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
 import { offersAskRule } from "./offers-ask";
 import { hoursLines, joinList } from "./prompt-hours";
+import { dateFormat } from "../../shared/time";
 
 /**
  * The receptionist's instructions, composed from the business's facts.
@@ -33,7 +34,7 @@ import { hoursLines, joinList } from "./prompt-hours";
 /** "YYYY-MM-DD" for an instant, as the business experiences it. */
 function dateKeyInZone(tz: string, at: Date): string | null {
   try {
-    const parts = new Intl.DateTimeFormat("en-US", {
+    const parts = dateFormat("en-US", {
       timeZone: tz,
       year: "numeric",
       month: "2-digit",
@@ -61,7 +62,7 @@ function dateKeyInZone(tz: string, at: Date): string | null {
 function labelDate(key: string, withWeekday: boolean): string {
   const at = new Date(`${key}T12:00:00Z`);
   if (Number.isNaN(at.getTime()) || dateKeyInZone("UTC", at) !== key) return key;
-  return new Intl.DateTimeFormat("en-US", {
+  return dateFormat("en-US", {
     timeZone: "UTC",
     ...(withWeekday ? { weekday: "long" as const } : {}),
     month: "long",
@@ -135,7 +136,7 @@ export function describeNow(
 ): string {
   if (!tz) return NO_CLOCK;
   try {
-    const stamp = new Intl.DateTimeFormat("en-US", {
+    const stamp = dateFormat("en-US", {
       weekday: "long",
       month: "long",
       day: "numeric",

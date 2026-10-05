@@ -351,6 +351,22 @@ const kitJobSheet = () =>
   `<button type="button" tabindex="0" class="sheet-job-close">Cancel</button></header>` +
   `<div class="sheet-job-body"><button type="button" class="btn btn-primary">Too far away</button></div></section>`;
 
+/**
+ * The kit's shared Menu, open from the second of its rows' controls (kit-behaves.tsx's): each control carries its row,
+ * and the menu says the row that opened it under its number.
+ */
+const kitMenuShared = () =>
+  `<button type="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" class="btn btn-sm btn-ghost">` +
+  `Call Sam's Gym</button>` +
+  `<button type="button" tabindex="0" aria-haspopup="menu" aria-expanded="true" class="btn btn-sm btn-ghost">` +
+  `Call Ortega Fitness</button>` +
+  `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
+  `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
+  `<div class="more-menu align-right" role="menu" tabindex="-1" aria-label="Call Ortega Fitness">` +
+  `<div role="group"><div class="more-header" aria-hidden="true">(512) 555-0177</div>` +
+  kitItem("phone", "Call from your phone") +
+  `</div></div></div>`;
+
 /** A menu item of the kit's: a button, with its glyph, its words and what follows them. */
 const kitItem = (glyphName, label, { tone = "", after = "" } = {}) =>
   `<button type="button" aria-disabled="false" role="menuitem" tabindex="-1" class="more-item${tone}">` +
@@ -1678,11 +1694,13 @@ export const FAMILIES = [
     about:
       "The kit's Menu (surfaces/kit/menu/menu.tsx), open: Base UI's menu on its positioner (.pop-place), a group under " +
       "its heading, a line, a door and the danger item; a set to choose one of, the tick beside the one chosen; and a " +
-      "set of switches it stays open over, ticked while on, one kept on by the page and refused.",
+      "set of switches it stays open over, ticked while on, one kept on by the page and refused; and one menu its " +
+      "rows' controls share, which says the row that opened it.",
     entries: [
       { id: "menu-kit", stage: "pop", html: kitMenu() },
       { id: "menu-kit-set", stage: "pop", html: kitMenuSet() },
       { id: "menu-kit-switches", stage: "pop", html: kitMenuSwitches() },
+      { id: "menu-kit-shared", stage: "pop", html: kitMenuShared() },
     ],
   },
   {
