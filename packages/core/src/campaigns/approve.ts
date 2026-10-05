@@ -12,6 +12,15 @@ import type { ApproveRunPorts, BroadcastRef } from "./ports";
 /** An approval's own lines, by name: what a job ledger said when it refused the send is the log's, never the answer's. */
 const approveLog = logger();
 
+/**
+ * What an approval says when its job could not be written AND the run could not be put back to wait: the run reads
+ * "scheduled" with nothing to send it, as far as this can tell (a put-back that threw may have landed, and a run that moved
+ * on was moved by something else). The edge's watchdog marks a run that still has no job not sent once its time has
+ * passed, and tells its owner (ops/stranded-runs.ts): the words promise only that.
+ */
+const STRANDED_WORDS =
+  "The send could not be scheduled, and the run could not be put back to wait for you. If it still says scheduled once its time has passed, it is marked not sent and you are told.";
+
 export interface ApproveReceipt {
   id: string;
   state: "scheduled";
@@ -58,9 +67,17 @@ export async function approveRun(
   try {
     await ports.schedule(b.id, at);
   } catch (e) {
-    await ports.hold(b.id);
     approveLog.error("campaign_step_failed", { step: "schedule", broadcast_id: b.id, error: errField(e) });
-    throw new AppError("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502);
+    // Put back to wait, and SAID only when it was: a put-back that failed leaves a run that reads "scheduled" with nothing
+    // to send it, and "still waiting; try again" over it was a button that answers 409 for ever.
+    const held = await ports.hold(b.id).catch((h: unknown) => {
+      approveLog.error("campaign_step_failed", { step: "hold", broadcast_id: b.id, error: errField(h) });
+      return null;
+    });
+    if (held)
+      throw new AppError("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502);
+    if (held === false) approveLog.error("campaign_step_failed", { step: "hold", broadcast_id: b.id, error: "no row" });
+    throw new AppError("upstream_meta", STRANDED_WORDS, 502);
   }
   const scheduledFor = at.toISOString();
   const movedFrom = open.moved ? cmd.now.toISOString() : null;

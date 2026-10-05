@@ -1848,8 +1848,12 @@ interface ApproveRunPorts {
     paused(): Promise<boolean>;
     /** pending_approval → scheduled for `at`, only while pending. True iff a row changed. The row carries the time the job carries (00119). */
     release(broadcastId: string, at: Date): Promise<boolean>;
-    /** Back to waiting, when the job could not be made. */
-    hold(broadcastId: string): Promise<void>;
+    /**
+     * scheduled → pending_approval, when the job could not be made: only while it is still scheduled. True iff a row
+     * changed; false, or a throw, is a run that says "scheduled" with nothing to send it (approveRun says so, and the
+     * edge's watchdog marks it not sent once its time has passed: ops/stranded-runs.ts).
+     */
+    hold(broadcastId: string): Promise<boolean>;
     schedule(broadcastId: string, at: Date): Promise<void>;
     record(subject: DecisionSubject, id: string, verb: DecisionVerb, payload: Json): Promise<string>;
 }

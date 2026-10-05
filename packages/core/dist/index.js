@@ -2605,6 +2605,7 @@ import {
   runApprovalRefusal
 } from "../../contracts/dist/index.js";
 var approveLog = logger7();
+var STRANDED_WORDS = "The send could not be scheduled, and the run could not be put back to wait for you. If it still says scheduled once its time has passed, it is marked not sent and you are told.";
 async function approveRun(ports, cmd) {
   const b = cmd.row;
   if (b.state !== "pending_approval") throw new AppError12("conflict", "This run is not waiting for approval.", 409);
@@ -2619,9 +2620,15 @@ async function approveRun(ports, cmd) {
   try {
     await ports.schedule(b.id, at);
   } catch (e) {
-    await ports.hold(b.id);
     approveLog.error("campaign_step_failed", { step: "schedule", broadcast_id: b.id, error: errField6(e) });
-    throw new AppError12("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502);
+    const held = await ports.hold(b.id).catch((h) => {
+      approveLog.error("campaign_step_failed", { step: "hold", broadcast_id: b.id, error: errField6(h) });
+      return null;
+    });
+    if (held)
+      throw new AppError12("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502);
+    if (held === false) approveLog.error("campaign_step_failed", { step: "hold", broadcast_id: b.id, error: "no row" });
+    throw new AppError12("upstream_meta", STRANDED_WORDS, 502);
   }
   const scheduledFor = at.toISOString();
   const movedFrom = open.moved ? cmd.now.toISOString() : null;
