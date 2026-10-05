@@ -1619,10 +1619,11 @@ test("REGRESSION: a cold open of Leads still takes the view the workspace rememb
   const held = viewSaves;
   holdViewSaves = true;
   let tree = draw();
+  // The view the page asks for is the one the boot read, held since with nothing changed: nothing is read again for it.
   assert.deepEqual(
-    [lastRead().sort, lastRead().dir, headings(tree).includes("Website")],
-    ["fit", "asc", false],
-    "nothing to go on yet: the page's own defaults",
+    [L().view.sort, L().view.dir, pageReads().length, headings(tree).includes("Website")],
+    ["fit", "asc", 0, false],
+    "nothing to go on yet: the page's own defaults, as the boot read them",
   );
   // People lands, carrying what this member chose on another computer.
   publishPeople(peopleWith({ leads: { list: "all", sortBy: "rating", sortDir: "desc", columns: { website: true } } }));
@@ -1645,12 +1646,16 @@ test("REGRESSION: a cold open of Leads still takes the view the workspace rememb
 test("a sort is the surface's to read, not the page's to re-order: the rows hold their order until the read lands", async () => {
   await fresh();
   let tree = draw();
-  assert.deepEqual(pageReads().length, 1, "one read for the view the address names");
+  assert.deepEqual(
+    pageReads().length,
+    0,
+    "nothing read for the view the address names: the boot read it, and nothing has changed since",
+  );
   sortByHeading(tree, "Rated");
   tree = draw();
   const views = pageReads();
-  assert.equal(views.length, 2, "the new sort is one more read, keyed by the whole view");
-  assert.deepEqual([views[1].sort, views[1].dir, views[1].list], ["rating", "desc", "all"]);
+  assert.equal(views.length, 1, "the new sort is one read, keyed by the whole view");
+  assert.deepEqual([views[0].sort, views[0].dir, views[0].list], ["rating", "desc", "all"]);
   assert.deepEqual(
     names(tree),
     ["Zilker Strength Lab", "Barton Creek Coaching", "Lamar Strength Co.", "GigaFit Austin", "Pflugerville Training"],
@@ -2015,7 +2020,11 @@ test("a lead opened over a view is not a new view: nothing is read again, the se
   at("leads");
   at(`leads:p-${UA}`);
   const tree = at(`leads:p-${UA}`);
-  assert.equal(pageReads().length, 1, "one read for the view, however many leads are opened over it");
+  assert.equal(
+    pageReads().length,
+    0,
+    "nothing read for the view (held since the last change), however many leads are opened over it",
+  );
   assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /3 selected/, "and the selection is still there");
   const said = navs.length;
   at(`leads:s-${SEARCH_A}`);
@@ -2028,7 +2037,7 @@ test("a lead opened over a view is not a new view: nothing is read again, the se
     "and a selection never outlives its view",
   );
   assert.equal(navs.length, said, "and the old view's lead is not written onto the new view's address");
-  assert.equal(pageReads().length, 2, "the new view is read, once");
+  assert.equal(pageReads().length, 1, "the new view is read, once");
 });
 
 /* ------------------------------ the page keeps your place ------------------------------ */
@@ -3458,13 +3467,10 @@ test("an ending's one next step opens the plan and starts nothing until it is ap
   reads.length = 0;
   off.onAction("sort_fit");
   draw({ leadsRoute: `leads:s-${SEARCH_A}` });
-  assert.deepEqual(
-    pageReads().map((q) => [q.search, q.sort, q.dir]),
-    [[SEARCH_A, "fit", "asc"]],
-    "Sort by fit is a new read of the same view, never a re-order of the rows on the page",
-  );
   await quiesce();
-  assert.deepEqual([L().view.sort, L().view.dir], ["fit", "asc"]);
+  // The surface's, never a re-order on the page: the fit order it read a moment ago, held, with nothing changed since.
+  assert.deepEqual(pageReads(), [], "the fit view read since the last change paints as it was read");
+  assert.deepEqual([L().view.sort, L().view.dir], ["fit", "asc"], "Sort by fit is the surface's view of fit");
 });
 
 test("the search menu removes the untouched leads and credits the month, named for what it does, and its toast puts them back", async () => {

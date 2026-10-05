@@ -15,6 +15,7 @@
  */
 import {
   LEAD_SORTS,
+  MIN_MS,
   leadsRoute,
   parseLeadsRoute,
   stageArgs,
@@ -143,8 +144,19 @@ interface LeadsLoaded {
   next: { key: string; id: string } | null;
   offered: LeadRowDto[];
   suggestions: LeadSuggestionsDto | null;
+  /** When this view was last asked for, page one and the searches: a held view read since the last change is fresh. */
+  readAt: number;
 }
 let leadsLoaded: LeadsLoaded | null = null;
+/**
+ * When Leads last changed, as this tab knows it: Realtime on its tables or a write's re-read, both through the surface's
+ * `apply`. A view held from before it is read again behind its paint; one read since paints with nothing read.
+ */
+let changedAt = 0;
+/** How long a held view is fresh without a change: a change Realtime missed (a dropped feed) is not kept past it. */
+const LEADS_HELD_FRESH_MS = 2 * MIN_MS;
+/** Whether a held view must be read again behind its paint. */
+const staleView = (l: LeadsLoaded): boolean => l.readAt < changedAt || Date.now() - l.readAt > LEADS_HELD_FRESH_MS;
 let view: LeadsView = DEFAULT_VIEW;
 /**
  * The views this tab has read, by their key (the workspace and the whole view), the last eight: a rail pick used to
@@ -229,6 +241,8 @@ async function leadsPage(v: LeadsView, after?: { key: string; id: string } | nul
 /** Page one of a view, read under its key: what a first read and a warm both do. */
 async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
   const key = viewKey(v);
+  // As it is asked: a change while the answer is on its way leaves the view older than the change.
+  const readAt = Date.now();
   const [searches, page, tz] = await Promise.all([
     leadRead<LeadSearchesAnswer>("GET lead-searches"),
     leadsPage(v),
@@ -250,12 +264,14 @@ async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
     next: page.next,
     offered: [],
     suggestions,
+    readAt,
   };
 }
 
 /**
- * A new view. One this tab holds paints at once and is read again behind (a refresh: patched, its pages kept);
- * one it does not is page one under its key, and the old rows go with the old key.
+ * A new view. One this tab holds paints at once, and is read again behind (a refresh: patched, its pages kept) when
+ * Leads changed since it was read, or it is a while old (staleView); one it does not hold is page one under its key,
+ * and the old rows go with the old key.
  */
 async function readView(v: LeadsView): Promise<void> {
   const ask = held.ask();
@@ -264,7 +280,7 @@ async function readView(v: LeadsView): Promise<void> {
     leadsLoaded = have;
     publishLeads();
     window.dispatchEvent(new CustomEvent("surface:leads"));
-    await refreshView();
+    if (staleView(have)) await refreshView();
     return;
   }
   const loaded = await readPageOne(v);
@@ -326,8 +342,10 @@ async function refreshView(): Promise<void> {
   const L = leadsLoaded;
   if (!L) return readView(view);
   const key = L.key;
+  const readAt = Date.now();
   const [searches, page] = await Promise.all([leadRead<LeadSearchesAnswer>("GET lead-searches"), leadsPage(L.view)]);
   if (!leadsLoaded || leadsLoaded.key !== key) return; // the view moved while this was out
+  L.readAt = readAt;
   const fresh = new Map(page.rows.map((r) => [r.id, r]));
   const loaded = new Set(L.rows.map((r) => r.id));
   const rows = L.rows.map((r) => fresh.get(r.id) ?? r);
@@ -362,6 +380,9 @@ export const leadsOverride: SurfaceOverride = {
   refreshOnTables: ["leads", "lead_searches", "lead_rounds", "lead_search_members"],
   debounceMs: 800,
   apply: async () => {
+    // Realtime on Leads' tables, a write's re-read, a reconnect: Leads changed, so every view held from before is read
+    // again when it is shown (staleView). The view on screen is read here.
+    changedAt = Date.now();
     try {
       if (!leadsLoaded) view = leadsBootView(routeOnScreen(), surfaceValue("leads"));
       await (leadsLoaded ? refreshView() : readView(view));
@@ -418,6 +439,7 @@ export async function leadsTakeOffered(): Promise<void> {
     rows: fresh.rows,
     next: fresh.next,
     offered: [],
+    readAt: fresh.readAt,
   });
   publishLeads();
   window.dispatchEvent(new CustomEvent("surface:leads"));
