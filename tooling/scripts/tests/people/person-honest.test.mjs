@@ -735,6 +735,73 @@ test("REGRESSION (B17): the timeline narrows by kind, and each linked item opens
   );
 });
 
+test("a call's to-do and what the caller gave are on the person's page, under the call they came from -- the history said only what they wanted (audit of 2 Oct 2026, #8)", async () => {
+  const call = (over) => ({
+    id: "k1",
+    retell_call_id: "r1",
+    direction: "inbound",
+    call_type: "phone_call",
+    status: "ended",
+    from_e164: "+17865550181",
+    from_raw: null,
+    to_e164: null,
+    started_at: iso(2 * D),
+    ended_at: iso(2 * D - 100_000),
+    duration_ms: 100_000,
+    disconnection_reason: "agent_hangup",
+    sentiment: null,
+    call_successful: true,
+    in_voicemail: false,
+    summary: "Asked about a bridal trial.",
+    wanted: "Wants a bridal trial in August",
+    outcome: "callback_needed",
+    follow_up: "Call back to confirm the bridal trial",
+    caller_name: "Daniela Reyes-Ortiz",
+    caller_email: "daniela@example.com",
+    transcript_object: null,
+    recording: { fetch_state: "stored" },
+    conversation_id: "cv1",
+    contact_id: "p1",
+    message_id: null,
+    contact: null,
+    ...over,
+  });
+  const vm = toPersonVM(
+    detail({
+      calls: [
+        call({}),
+        call({ id: "k2", started_at: iso(5 * D), follow_up: null, caller_name: null, caller_email: null }),
+      ],
+    }),
+    ZONE,
+    new Date(NOW),
+  );
+  const tree = (await profile(vm))();
+  const rows = all(tree, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes("cl-tl-row"),
+  );
+  const callRows = rows.filter((r) => /Inbound call/.test(textOf(r)));
+  assert.equal(callRows.length, 2, "both calls are in the history");
+  const said = (r) => all(r, (n) => n.props?.["data-testid"] === "timeline-note").map((n) => textOf(n));
+  assert.deepEqual(
+    said(callRows[0]),
+    [
+      "To do: Call back to confirm the bridal trial",
+      "Gave their name as Daniela Reyes-Ortiz",
+      "Gave their email as daniela@example.com",
+    ],
+    "REGRESSION: the call-back to-do was nowhere on the person's page",
+  );
+  assert.match(
+    textOf(callRows[0]),
+    /Wants a bridal trial in August/,
+    "what they wanted still leads, and the lines follow it",
+  );
+  assert.deepEqual(said(callRows[1]), [], "a call that left nothing has no lines");
+});
+
 test("REGRESSION (B26): the profile's next visit opens that day on the Calendar -- the tile opened nothing", async () => {
   const draw = await profile(toPersonVM(detail(), ZONE, new Date(NOW)));
   const tree = draw();
@@ -979,9 +1046,11 @@ test("a long record folds past twenty rows, and a fold of three is not worth a p
 test("Right now says the state once: the pill wears the standing's word, the sentence gives the reason, and the receptionist is named once", async () => {
   const vm = toPersonVM(detail(), ZONE, new Date(NOW));
   assert.equal(vm.rightNow.tone, "escalated");
+  // The operator's first sentence for the reason (contracts ESCALATION_SUMMARIES), after when it began: "Paused until
+  // someone answers" was said for every reason, over a person who had asked to stop (the 2 Oct 2026 audit).
   assert.match(
     vm.rightNow.detail,
-    /^Asked for a person · since .*\. Paused until someone answers\.$/,
+    /^Since .*\. They asked for a person\. A holding message went out — they're waiting on you\.$/,
     vm.rightNow.detail,
   );
   const draw = await profile(vm);
@@ -1566,6 +1635,8 @@ const run = (over) => ({
   sent_at: null,
   scheduled_for: null,
   message_id: null,
+  // The channel the run picked for them; null on a run made before runs had channels, which went by WhatsApp.
+  channel: null,
   ...over,
 });
 /** Five runs, newest first, as the route hands them: one answered, one not, one held, one refused, one on its way. */
@@ -1587,7 +1658,7 @@ const withRuns = () => {
     ...d.conversations[0].messages,
   ];
   d.campaigns = [
-    run({ broadcast_id: "b-queued", name: "Autumn offer", state: "queued", scheduled_for: ahead(D) }),
+    run({ broadcast_id: "b-queued", name: "Autumn offer", state: "queued", scheduled_for: ahead(D), channel: "email" }),
     run({
       broadcast_id: "b-win",
       name: "Win-back · Sep 1",
@@ -1595,6 +1666,7 @@ const withRuns = () => {
       playbook_name: "Win-back",
       sent_at: iso(10 * D),
       message_id: "mb-win",
+      channel: "whatsapp",
     }),
     run({ broadcast_id: "b-spring", name: "Spring offer", sent_at: iso(20 * D), message_id: "mb-spring" }),
     run({
@@ -1603,6 +1675,7 @@ const withRuns = () => {
       state: "skipped",
       reason: "no_marketing_consent",
       scheduled_for: iso(40 * D),
+      channel: "sms",
     }),
     run({
       broadcast_id: "b-refused",
@@ -1620,15 +1693,17 @@ test("a person's page names the runs that reached them and what came of each -- 
   assert.deepEqual(
     vm.campaigns.map((c) => [c.id, c.title, c.line, c.tone, c.to]),
     [
-      ["b-queued", "Autumn offer", "Broadcast · Waiting to send", "plain", "broadcasts/run:b-queued"],
-      ["b-win", "Win-back", "Playbook · Replied", "ok", "broadcasts/run:b-win"],
-      ["b-spring", "Spring offer", "Broadcast · Sent", "plain", "broadcasts/run:b-spring"],
-      ["b-held", "Summer offer", "Broadcast · Held — no yes to offers", "warn", "broadcasts/run:b-held"],
-      // A person's page does not carry the channel a run went by, so a refusal is the provider's, never WhatsApp's by default.
+      // Each says the wire it went by, or would have: a person on three channels knows where to look.
+      ["b-queued", "Autumn offer", "Broadcast · Email · Waiting to send", "plain", "broadcasts/run:b-queued"],
+      ["b-win", "Win-back", "Playbook · WhatsApp · Replied", "ok", "broadcasts/run:b-win"],
+      // A run made before runs had channels went by WhatsApp, and says so.
+      ["b-spring", "Spring offer", "Broadcast · WhatsApp · Sent", "plain", "broadcasts/run:b-spring"],
+      ["b-held", "Summer offer", "Broadcast · Text · Held — no yes to offers", "warn", "broadcasts/run:b-held"],
+      // The refusal's own words stay the provider's, never WhatsApp's by default: the wire is said beside them.
       [
         "b-refused",
         "May offer",
-        "Broadcast · Didn't send — the provider refused it",
+        "Broadcast · WhatsApp · Didn't send — the provider refused it",
         "warn",
         "broadcasts/run:b-refused",
       ],
@@ -1639,6 +1714,19 @@ test("a person's page names the runs that reached them and what came of each -- 
     vm.campaigns.every((c) => c.when && c.when !== "—"),
     "each is dated",
   );
+});
+
+test("a run's row on a person's page says Replied only for their own words: not a call's note, not their mailbox answering for them", () => {
+  const d = withRuns();
+  const [reply] = d.conversations[0].messages.filter((m) => m.id === "mr-win");
+  const outcomeOf = (over) => {
+    Object.assign(reply, { sender: "customer", type: "text", meta: null, ...over });
+    return toPersonVM(d, ZONE, new Date(NOW)).campaigns.find((c) => c.id === "b-win").outcome;
+  };
+  assert.equal(outcomeOf({}), "Replied");
+  assert.equal(outcomeOf({ sender: "system", type: "call_summary" }), "Sent", "a call's note is not a reply");
+  assert.equal(outcomeOf({ meta: { email: { claim: "auto_reply" } } }), "Sent", "nor an out-of-office");
+  assert.equal(outcomeOf({ meta: { email: { claim: "person" } } }), "Replied", "an email they wrote is");
 });
 
 test("REGRESSION: the timeline says who sent each of ours in the Inbox's words -- every one read 'You', a playbook's run among them", () => {
@@ -1822,7 +1910,10 @@ test("the profile's Campaigns rows open each run's report, and its Lists name th
   const draw = await profile(vm);
   const rows = all(draw(), (n) => n.props?.["data-testid"] === "person-campaign");
   assert.equal(rows.length, 5);
-  assert.ok(textOf(rows[1]).includes("Win-back") && textOf(rows[1]).includes("Playbook · Replied"), textOf(rows[1]));
+  assert.ok(
+    textOf(rows[1]).includes("Win-back") && textOf(rows[1]).includes("Playbook · WhatsApp · Replied"),
+    textOf(rows[1]),
+  );
   press(rows[1]);
   assert.deepEqual(went, ["broadcasts/run:b-win"]);
   const quiet = await profile(toPersonVM(detail(), ZONE, new Date(NOW)));

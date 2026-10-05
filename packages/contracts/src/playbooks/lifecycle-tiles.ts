@@ -121,11 +121,24 @@ function whoWill(p: LifecyclePlaybook): { why: string; pill: LifecycleComing["pi
   const of = p.named ? ` of ${p.named.pool}` : "";
   const offers = purposeOfPlaybook(triggerOf(p.trigger)?.cls ?? null) === "marketing";
   switch (reach) {
-    case "sends":
+    case "sends": {
+      // A run sends its cap and no more (core run-playbook draws the longest-unheard first, at most cap_per_run): a new
+      // win-back with 300 quiet people said "300 will get it" over a run that sends 25. The next run's share is what
+      // "will get it" promises. The rest are "up to": a later run draws them again, less whoever its own gap, the
+      // week's breath or the number's limit holds then. A visit's moment has no cap (contracts playbookRunReach: a
+      // reminder is owed to everyone with a visit, and tomorrow's visits have no later run), so its count is whole.
+      const all = p.candidates ?? 0;
+      const cap = triggerOf(p.trigger)?.kind === "visit" ? 0 : (p.cap_per_run ?? 0);
+      const next = cap > 0 ? Math.min(all, cap) : all;
+      const later = all - next;
       return {
-        why: `${p.candidates ?? 0}${of} will get it${p.held ? ` · ${p.held} heard from you this week and wait` : ""}`,
-        pill: { tone: "ok", label: plural(p.candidates ?? 0, "person", "people") },
+        why:
+          `${next}${of} will get it` +
+          (later > 0 ? ` · up to ${later} more on later runs, ${cap} a run` : "") +
+          (p.held ? ` · ${p.held} heard from you this week and wait` : ""),
+        pill: { tone: "ok", label: plural(next, "person", "people") },
       };
+    }
     case "nobody":
       return {
         why:

@@ -44,6 +44,17 @@ const people = () => [peopleOverride];
 // to stop (thread-dto.ts `contact`). An edit of those re-reads the threads with People, as a delete always did.
 const personAndThreads = () => [peopleOverride, ...thread()];
 const runs = () => [playbooksOverride, broadcastsOverride];
+// Who a campaign reaches is counted from people's answers and from who exists: the composers' audience counts and a
+// playbook's "N will get it" (broadcasts, playbooks). A write that moves either re-reads them, or a yes recorded and
+// New message opened showed the audience as it was before.
+const audiences = () => [broadcastsOverride, playbooksOverride];
+// A yes or a stop recorded, for one person or many: the one list, so the four writes cannot drift apart. Their row and
+// their threads say it (personAndThreads), the audiences count by it, and Reports counts the yeses and stops.
+const consentWrite = () => [...personAndThreads(), ...audiences(), reportsOverride];
+// A person added or imported is on an audience or off it, as one deleted is.
+const peopleAndAudiences = () => [peopleOverride, ...audiences()];
+// A playbook made, changed or removed moves what People's rows say of it (their `follow_up`, 0006), with its own pages.
+const runsAndPeople = () => [...runs(), peopleOverride];
 // What also moves a reach-out's row (Part 4 PR 8): its chain's pause and resume are the playbook's own door on its
 // first step, and its run waiting (the row's "next run") is approved or skipped as any run is. The chains' read scans
 // no audience (reach-outs.ts), so reading it behind a door that moved an ordinary playbook costs little.
@@ -79,25 +90,26 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST calls/[id]/end": () => [liveOverride],
   "POST calls/[id]/hand-over": () => [liveOverride],
   // People.
-  "DELETE contacts/[id]": personAndThreads,
+  "DELETE contacts/[id]": () => [...personAndThreads(), ...audiences()],
   "PUT contacts/[id]/receptionist": people,
-  "PUT contacts/[id]/consent": personAndThreads,
-  "PUT contacts/[id]/marketing-consent": personAndThreads,
-  "PUT contacts/consent": personAndThreads,
-  "PUT contacts/marketing-consent": personAndThreads,
+  "PUT contacts/[id]/consent": consentWrite,
+  "PUT contacts/[id]/marketing-consent": consentWrite,
+  "PUT contacts/consent": consentWrite,
+  "PUT contacts/marketing-consent": consentWrite,
   "PUT contacts/receptionist": people,
   "PUT contacts/notes": people,
-  "PUT contacts/[id]/details": personAndThreads,
+  // Their details carry the email address a campaign by email goes to: the audiences count by it.
+  "PUT contacts/[id]/details": () => [...personAndThreads(), ...audiences()],
   // A deal moves People's row and lists, and Reports' Deals section counts it (0004).
-  "POST contacts/[id]/deal": () => [peopleOverride, reportsOverride],
+  "POST contacts/[id]/deal": () => [peopleOverride, reportsOverride, ...audiences()],
   // A note may be a step, and a row carries the next one (00166): the Pipeline, Steps due and Today follow it.
   "POST contacts/[id]/notes": people,
   "POST contacts/[id]/notes/done": people,
   "POST contacts/[id]/notes/remove": people,
   // A receptionist's suggestion kept becomes a note, perhaps a step: the same rows move.
   "POST contacts/[id]/notes/decide": people,
-  "POST contacts": people,
-  "POST contacts/import": people,
+  "POST contacts": peopleAndAudiences,
+  "POST contacts/import": peopleAndAudiences,
   // A list is an audience and a playbook's moment too: the composer's chips and a playbook's count follow it.
   "POST segments": () => [peopleOverride, broadcastsOverride, playbooksOverride],
   "PUT segments/[id]": () => [peopleOverride, broadcastsOverride, playbooksOverride],
@@ -132,9 +144,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST broadcasts": runs,
   "POST broadcasts/[id]/approve": runsAndChains,
   "POST broadcasts/[id]/cancel": runsAndChains,
-  "POST playbooks": runs,
-  "PUT playbooks/[id]": runsAndChains,
-  "DELETE playbooks/[id]": runs,
+  "POST playbooks": runsAndPeople,
+  "PUT playbooks/[id]": () => [...runsAndChains(), peopleOverride],
+  "DELETE playbooks/[id]": runsAndPeople,
   "POST playbooks/[id]/run": runs,
   // A reach-out is a chain of playbooks over a search's leads (Part 4): its runs are broadcasts, its answers move leads,
   // and its chain is the reach-outs surface (Playbooks' row, and Templates' email rows drawn from it).
@@ -176,7 +188,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
     setupOverride,
     ...readiness(),
   ],
-  "PUT policies": settings,
+  // A class's mode is what lets a playbook send by itself, ask, or never: People's rows say it of the follow-up (0006).
+  "PUT policies": () => [settingsOverride, peopleOverride],
   // The zone is the workspace's, saved through its own route, and the prompt names it: the settings read's preview
   // carries the zone every fold's consequence is resolved with (business-tab.ts), and the prompt card states it. Not
   // re-read, they kept the old zone until something else was saved. How its customers buy is saved there too (0008),

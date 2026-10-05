@@ -17,6 +17,10 @@ import {
   DECISION_SUBJECTS,
   DECISION_VERBS,
   EVERYONE_LABEL,
+  UNKNOWN_AUDIENCE_WORDS,
+  CONSENT_LIST_IDS,
+  doorNamesNoAudience,
+  doorOf,
   PEOPLE_LISTS,
   broadcastName,
   channelsReady,
@@ -640,6 +644,7 @@ await import(`${SRC}/legacy/components/data-bits.jsx`);
 const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
+const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 const { SURFACE_ROUTES, routeHasPage } = await import(`${SRC}/surfaces/routes.ts`);
 
 const marketing = {
@@ -788,7 +793,10 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
     const demo = BroadcastsPage({});
     assert.ok(byTestId(demo, "broadcasts-real"), "the demo draws the page");
     assert.ok(textOf(byTestId(demo, "bc-runs")).includes("A quick note"), "over the sample's runs");
-    assert.ok(byTestId(demo, "bc-new"), "on its ledger, one press from a send");
+    assert.ok(
+      find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "bc-new"),
+      "on its ledger, one press from a send",
+    );
   } finally {
     globalThis.__DEMO_MODE = false;
   }
@@ -1073,4 +1081,32 @@ test("the page says once why a customer who only ever texted is not in an offer'
   assert.match(alone, /registered with the carriers for replies and appointment messages/);
   assert.match(alone, /nothing promotional is sent by text/);
   assert.match(alone, /once they say yes on WhatsApp/);
+});
+
+test("a door to the composer that names a list it does not offer says so: it opened on Everyone in silence", () => {
+  const audiences = [
+    { kind: "everyone", id: null },
+    { kind: "list", id: "lapsed" },
+    { kind: "saved", id: "s-vip" },
+  ];
+  assert.equal(doorNamesNoAudience("lapsed", audiences), false, "a People list the composer offers");
+  assert.equal(doorNamesNoAudience("s-vip", audiences), false, "a list kept by hand");
+  assert.equal(doorNamesNoAudience(null, audiences), false, "New message with no list named");
+  // The consent lists are the filter itself, so a door from one means Everyone and needs no word.
+  for (const to of ["opted_in", "offers_ok"]) assert.equal(doorNamesNoAudience(to, audiences), false, to);
+  // A list archived since the link was made, one this workspace has not the data for, a word that was never a list,
+  // and the people who asked to stop, who are nobody's audience.
+  for (const to of ["s-archived", "booked_week", "nonsense", "opted_out"])
+    assert.equal(doorNamesNoAudience(to, audiences), true, to);
+  // Before the audiences are read nothing is known, so nothing is said.
+  assert.equal(doorNamesNoAudience("s-archived", null), false);
+  // The consent lists are named once, for the composer's audiences and for this door (CONSENT_LIST_IDS).
+  assert.deepEqual([...CONSENT_LIST_IDS], ["opted_in", "offers_ok", "opted_out"]);
+  // People's own step for the Can receive offers list writes this door: the composer, on Everyone, with no word.
+  assert.equal(doorOf("broadcasts/offers_ok"), "campaigns/new:to:offers_ok");
+  assert.equal(doorNamesNoAudience("offers_ok", audiences), false);
+  assert.equal(
+    UNKNOWN_AUDIENCE_WORDS,
+    "That list can't be messaged right now, so check who this is addressed to before you send.",
+  );
 });

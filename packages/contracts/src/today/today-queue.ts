@@ -3,7 +3,7 @@
  * ear, a search waiting on its owner) in one row grammar, longest wait first. The facts are today-facts.ts's; the
  * calls worth an ear are today-rows.ts's.
  */
-import { ESCALATION_REASON_LABELS } from "../conversations/escalations";
+import { reasonLabelOf } from "../conversations/escalations";
 import { messageWords, clipAtWord } from "../conversations/message-words";
 import { threadChannelWords } from "../conversations/thread-channel";
 import { formatWaited } from "../conversations/thread-clock";
@@ -20,6 +20,19 @@ import type { TodayCallRowVM, TodayQueueEmptyVM, TodayQueueRowVM, TodayVM } from
 
 /** Six rows on Today; the rest is a count for the Inbox link. */
 const TODAY_QUEUE_MAX = 6;
+
+/** The kinds of row that are a person waiting on one; a search and a call worth a listen wait elsewhere and are said apart. */
+const PEOPLE_KINDS: ReadonlySet<TodayQueueRowVM["kind"]> = new Set(["handoff", "callback", "window", "reply"]);
+
+/**
+ * Whether a row is a person waiting on one. The one answer for the brief's names and its "and N more", the head's
+ * count and the foot's "more in the Inbox": each said a different thing about the same rows while the calls and the
+ * searches counted as people (the 2 Oct 2026 audit).
+ */
+export function isPersonRow(r: Pick<TodayQueueRowVM, "kind">): boolean {
+  return PEOPLE_KINDS.has(r.kind);
+}
+
 /** A question waited this long is warned: the sweep stops it after a day. */
 const SEARCH_WARN_MS = 12 * HOUR_MS;
 
@@ -65,7 +78,7 @@ function handoffRow(r: EscalationRecord): TodayQueueRowVM {
     initials: initialsOf(r.who),
     channel: r.conv ? threadChannelWords(r.conv.messages) : "WhatsApp",
     when: `waited ${formatWaited(r.waitedMs)}`,
-    sentence: r.quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason),
+    sentence: r.quote || reasonLabelOf(e.reason),
     quoted: !!r.quote,
     status: [
       "Escalated",
@@ -203,6 +216,13 @@ export function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: Tod
   return {
     rows: queueAll.slice(0, TODAY_QUEUE_MAX),
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
+    // The PEOPLE past the six, apart from the rest: the brief said "and 20 more need you" over sixteen people, counting
+    // the calls and the search that sort after them.
+    more_people: queueAll.slice(TODAY_QUEUE_MAX).filter(isPersonRow).length,
+    // Every call worth a listen and every search waiting for an answer, drawn or not: the brief counted only those
+    // among the six rows, so it said nothing of four calls the head had just counted.
+    calls: earN,
+    searches: searchN,
     parts,
     empty,
     waiting: needN + winN + searchN,

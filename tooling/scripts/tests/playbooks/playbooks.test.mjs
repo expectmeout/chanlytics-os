@@ -127,6 +127,7 @@ const { CampaignsHome } = await import(`${SRC}/surfaces/campaigns/home/home-page
 const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sample.ts`);
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 const winback = (over = {}) => ({
   id: "pb-1",
   name: "Win-back",
@@ -488,7 +489,10 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
     off.every((s) => find(s, (n) => n.props?.["data-testid"] === "cmh-turn-on")),
     "and says Turn on",
   );
-  assert.ok(byTestId(none, "cmh-new"), "New message at the head");
+  assert.ok(
+    find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "cmh-new"),
+    "New message at the head: said to the frame's, which draws it",
+  );
   // The home says no number the schema has no column for: the sample's runs, with every figure they carry, and a playbook's
   // own detail beside them (the drawer), draw no money and no attribution.
   const money = /\$[\d,]+|revenue|Attributed|booked/;
@@ -541,10 +545,16 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
   ])
     assert.deepEqual(
       AFTER[k]().map((o) => o.key),
-      // A reach-out's row moves with its first step's pause and resume, and with its run's approval (Part 4 PR 8).
-      ["PUT playbooks/[id]", "POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel"].includes(k)
-        ? ["playbooks", "broadcasts", "reach_outs"]
-        : ["playbooks", "broadcasts"],
+      [
+        "playbooks",
+        "broadcasts",
+        // A reach-out's row moves with its first step's pause and resume, and with its run's approval (Part 4 PR 8).
+        ...(["PUT playbooks/[id]", "POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel"].includes(k)
+          ? ["reach_outs"]
+          : []),
+        // A playbook made, changed or removed moves what People's rows say of it (their follow-up, W3).
+        ...(["POST playbooks", "PUT playbooks/[id]", "DELETE playbooks/[id]"].includes(k) ? ["people"] : []),
+      ],
       `${k}: every write re-fetches both surfaces`,
     );
   const pools = readCode("apps/dashboard/src/server/campaigns/playbooks.ts");

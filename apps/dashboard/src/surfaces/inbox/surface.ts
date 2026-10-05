@@ -6,7 +6,7 @@
 import { read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { toInboxThreadVM, type ConversationDto, type EscalationDto } from "@chanlytics/contracts";
+import { toInboxThreadVM, type ConversationDto, type EscalationDto, type TemplateHolds } from "@chanlytics/contracts";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
 import { inboxData } from "./store";
 import type { ApprovedTemplate, InboxBucket } from "./types";
@@ -70,11 +70,14 @@ export const inboxOverride: SurfaceOverride = {
       workspaceZone(),
     ]);
     let templates: ApprovedTemplate[] | null;
+    // Why the ones left out of the picker were: the read counts them, and an empty picker says it (noTemplateWords).
+    let templatesHeld: TemplateHolds | null = null;
     if (tplRes instanceof Error) {
       templates = null;
       console.error("templates_fetch_failed", tplRes.message);
     } else {
       templates = (tplRes.templates ?? []).filter((t) => t.channel === "whatsapp");
+      templatesHeld = tplRes.held;
     }
     const byConv = new Map<string, EscalationRow>();
     for (const e of escData.escalations) byConv.set(e.conversation_id, e);
@@ -116,6 +119,7 @@ export const inboxOverride: SurfaceOverride = {
       INBOX_BASELINE: { ...prev.INBOX_BASELINE, doneThisWeek: 0 },
       UNREAD_ESCALATED: unreadEscalated,
       templates,
+      templatesHeld,
     });
   },
 };

@@ -3,6 +3,7 @@ import {
   bookingTemplate,
   runsWords,
   templateBlocked,
+  templateHolds,
   templateParts,
   templateSends,
   templateUsage,
@@ -45,26 +46,33 @@ async function everyRow<T>(
 /** GET templates' body, as the route ran it: its answer's type is the body's own, as the route's was. */
 async function templatesOf(rc: ReaderContext, all: boolean) {
   const tenantId = rc.tenantId;
-  let q = rc.ctx.supabase.from("templates").select(COLUMNS).eq("tenant_id", tenantId);
-  // The composers: approved, and not hidden by the workspace. Settings sees everything.
-  if (!all) q = q.eq("meta_status", "approved").is("hidden_at", null);
-  const { data, error } = await q.order("name");
+  const { data, error } = await rc.ctx.supabase
+    .from("templates")
+    .select(COLUMNS)
+    .eq("tenant_id", tenantId)
+    .order("name");
   if (error) throw new Error(error.message);
   // The message as the customer receives it -- heading, footer, buttons -- and
   // why this product cannot send it, if it cannot. Meta's array stays behind:
   // three composers digging the same shapes out of it would put Meta's schema
   // in a .jsx file, where the compiler cannot see it.
-  const templates = (data ?? []).map(({ components, ...t }) => ({
+  const every = (data ?? []).map(({ components, ...t }) => ({
     ...t,
     ...templateParts(components),
     blocked: templateBlocked({ components }),
   }));
+  // The composers: approved, and not hidden by the workspace. Settings sees everything. The ones left out are counted by
+  // why, so an empty picker can say it (contracts noTemplateWords) -- the read that left them out is the one that knows.
+  const offered = (t: { meta_status: string; hidden_at: string | null }) =>
+    t.meta_status === "approved" && !t.hidden_at;
+  const templates = all ? every : every.filter(offered);
+  const held = templateHolds(every.filter((t) => !offered(t)));
   // What sends each of them, and how many of each went out, for the page that
   // lists every one. The composers (`!all`) are choosing a template to send and
   // never ask, so they do not pay for the reads. A workspace can carry a message
   // nothing has ever sent -- one written in WhatsApp Manager, or a starter added
   // and never wired up -- and this list was the one place that could not say so.
-  if (!all) return { templates };
+  if (!all) return { templates, held };
   const [pb, runs, recipients, inbox] = await Promise.all([
     // Its clock, for the line under what sends it ("runs daily at 10:00").
     rc.ctx.supabase
@@ -122,7 +130,7 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
     bookingName: bookingTemplate(templates)?.name ?? null,
   });
   const sends = templateSends({ runs, recipients, inbox });
-  return { templates, usedBy, sends };
+  return { templates, held, usedBy, sends };
 }
 
 /** GET templates' answer: the rows, and for Settings (`all`) what sends each and how many went out. */

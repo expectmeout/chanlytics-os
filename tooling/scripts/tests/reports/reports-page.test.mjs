@@ -1136,8 +1136,9 @@ test("REGRESSION: a period nobody wrote or called in still says its deals -- the
 
 test("REGRESSION: recording a deal re-reads Reports as well as People -- an open session kept the Deals section's old numbers until a reload", async () => {
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  // And the audiences with them (W3): a deal moved changes the deal lists and who a follow-up reaches.
   assert.deepEqual(
     AFTER["POST contacts/[id]/deal"]().map((o) => o.key),
-    ["people", "reports"],
+    ["people", "reports", "broadcasts", "playbooks"],
   );
 });

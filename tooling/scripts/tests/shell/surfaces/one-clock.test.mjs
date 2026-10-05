@@ -188,6 +188,7 @@ test("REGRESSION (D5): the Inbox and Conversations print a message's time by the
   assert.equal(snoozed.wake, "6:00 PM", "the wake: 09:00 UTC is 6 PM in Tokyo");
   const earlier = toConversationVM(
     conv([msg({ created_at: "2026-09-06T14:00:00Z" }), msg({ id: "m2", created_at: WROTE })]),
+    null,
     TOKYO,
     NOW,
   );
@@ -508,4 +509,22 @@ test("the pages read one clock, the workspace's: a time, a schedule box, when a 
     [true, "2026-09-16T00:00:00.000Z"],
     "10:30 PM in Tokyo waits for nine the next morning there",
   );
+});
+
+/* ---- one m:ss, and one transcript clock (the 2 Oct 2026 audit, A11) ---- */
+test("mmss is the one m:ss: rounded to the second, never below 0:00, and a transcript turn reads the same second in Conversations and on Live", () => {
+  assert.equal(C.mmss(41_600), "0:42");
+  assert.equal(C.mmss(125_000), "2:05");
+  assert.equal(C.mmss(59_999), "1:00", "a second rounds up where a floor would say 0:59");
+  assert.equal(C.mmss(-5), "0:00");
+  assert.equal(C.mmss(Number.NaN), "0:00");
+  const turns = [
+    { role: "agent", content: "Thanks for calling.", start: 0.4 },
+    { role: "user", content: "What time do you open?", start: 41.6 },
+    { role: "agent", content: "Nine.", words: [{ start: 125.4 }] },
+  ];
+  const a = toCallVM(call({ transcript_object: turns }), NY, NOW).transcript.map((t) => t.t);
+  const b = toLiveCallVM(call({ transcript_object: turns }), NY, NOW).transcript.map((t) => t.t);
+  assert.deepEqual(a, ["0:00", "0:42", "2:05"], "REGRESSION: Conversations floored a turn at 41.6 s to 0:41");
+  assert.deepEqual(a, b, "the same second on both pages");
 });

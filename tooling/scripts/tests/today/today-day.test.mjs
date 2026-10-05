@@ -28,7 +28,6 @@ installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
 const { TODAY_HELPERS, installToday } = await import("../../../../apps/dashboard/src/surfaces/today/helpers.ts");
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
 const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
-const { TodayDay } = await import("../../../../apps/dashboard/src/surfaces/today/pages/day.tsx");
 const { DashboardA } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-page.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
@@ -200,6 +199,20 @@ test("without a feed the day says nothing; with one and no visit playbook it off
     { trigger: "visited", state: "paused", run_hour: 18, candidates: 1, next: "paused" },
   ]);
   assert.match(paused.reminders.text, /^No visit reminders yet/, "a paused playbook is not a reminder going out");
+  // A playbook goes by WhatsApp, text or email, so the offer to start one says "write", not "text".
+  assert.equal(
+    on.reminders.text,
+    "No visit reminders yet — a playbook can write the day before an appointment and the day after a visit.",
+  );
+  // A count the server could not make is left out, never said as "null people".
+  const uncounted = todayDay(cal([day("2026-09-06", { today: true })]), [
+    { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: null, next: "today 10:00" },
+    { trigger: "visited", state: "running", run_hour: 18, candidates: 1, next: "today 18:00" },
+  ]);
+  assert.equal(
+    uncounted.reminders.text,
+    "Visit reminder: next run today 10:00 · After the visit: 1 person · next run today 18:00",
+  );
 });
 
 test("five rows on Today, the rest a line to the Calendar: what is over goes first, what is coming stays", () => {
@@ -380,7 +393,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     assert.ok(dayModule.includes(s), s);
   assert.match(
     dayModule,
-    /TODAY_HELPERS\.day\(C\.vm[^,]*,\s*\(P \? P\.rows : null\)[^,]*,\s*people \|\| null\)/,
+    /TODAY_HELPERS\.day\(C\.vm[^,]*,\s*\(?P \? P\.rows : null\)?[^,]*,\s*people \|\| null\)/,
     "the page composes the module: the calendar, the playbooks' rows or none, People or none",
   );
   // The hero and the card over a busy day, with a calendar the receptionist reads (what the one-line calendar beat drew
@@ -404,15 +417,9 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     assert.ok(!parts.includes("CalendarLine") && !parts.includes("DayFacts"), parts.join(", "));
   }
   assert.ok(!("dayLine" in TODAY_HELPERS), "no helper says the day's numbers as a sentence");
-  // The core: the queue, then the day; and the day is the module this file imports (what the manifest's load order
-  // held of the JSX pages is an import now).
-  const core = draw(DashboardA);
-  const drawn = all(core, (n) => typeof n.type === "function").map((n) => n.type);
-  assert.ok(drawn.indexOf(TodayDay) > -1, "the core draws the day's module");
-  assert.ok(
-    drawn.map((t) => t.name).indexOf("AgentCommand") < drawn.indexOf(TodayDay),
-    "the queue, then the day, in the core",
-  );
+  // The page draws no day pane since canvas E3 (the strip's Next cell says the day); the module stays for the Calendar's
+  // own card, which the calendar tests draw.
+  assert.equal(byTestId(draw(DashboardA), "today-day"), null, "no day pane on the page");
   delete globalThis.__CALENDAR;
   setSurfaceValue("today", undefined);
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");

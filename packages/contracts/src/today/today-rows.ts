@@ -6,9 +6,10 @@
 import { standingOf } from "../conversations/standing";
 import { abandonedCall, DISCONNECTION_LABELS, type CallDto } from "../conversations/call-dto";
 import { toCallVM, spokenDuration } from "../conversations/call-vm";
-import { ESCALATION_REASON_LABELS } from "../conversations/escalations";
+import { reasonLabelOf } from "../conversations/escalations";
+import { messageAuthor } from "../conversations/message-author";
 import { messageText } from "../conversations/message-words";
-import { threadChannelWords } from "../conversations/thread-channel";
+import { isTheirOwnWords, threadChannelWords } from "../conversations/thread-channel";
 import { formatWaited } from "../conversations/thread-clock";
 import { contactName, contactMeta } from "../conversations/thread-contact";
 import { waWindow } from "../config/policy";
@@ -28,7 +29,7 @@ function todayNeedsRows(f: TodayFacts): TodayNeedsRowVM[] {
     conversationId: r.e.conversation_id,
     escalationId: r.e.id,
     who: r.who,
-    reason: ESCALATION_REASON_LABELS[r.e.reason] ?? r.e.reason,
+    reason: reasonLabelOf(r.e.reason),
     waited: formatWaited(r.waitedMs),
     warn: r.warn,
     // The customer's words; for a call-back with none, the to-do the phone receptionist left.
@@ -94,6 +95,8 @@ export const NO_REPLY_AFTER_MS = HOUR_MS;
  * thread (the one rule, standing.ts: a thread a person paused or claimed is not waiting on nobody), and no queue
  * row is about it (an escalation's thread and a closing window's thread are the queue's; nothing on this page is
  * said twice). The identity was in the conversations read all along and only the count survived into the view model.
+ * What they wrote last is a person's own words (isTheirOwnWords, the one statement of it): an out-of-office, a
+ * list's mail or a form's notification from their address is a program, and a program is not waiting on anybody.
  */
 export function todayNoReply(f: TodayFacts): TodayNoReplyVM[] {
   const { conversations, escSet, closingConvs, now } = f;
@@ -114,7 +117,7 @@ export function todayNoReply(f: TodayFacts): TodayNoReplyVM[] {
       );
       if (standing !== "quiet" && standing !== "needs_you") return [];
       const last = c.messages[c.messages.length - 1];
-      if (!last || last.sender !== "customer") return [];
+      if (!last || !isTheirOwnWords(last)) return [];
       const lastMs = new Date(last.created_at).getTime();
       if (now.getTime() - lastMs < NO_REPLY_AFTER_MS) return [];
       return [{ conversationId: c.id, who: contactName(c), sinceMs: lastMs, to: `inbox/th-${c.id}` }];
@@ -127,6 +130,9 @@ const SENT = ["sent", "delivered", "read"];
 /**
  * Receipts quote the message that actually went out. She is spot-checking
  * tone, not reading a report — a summary of the reply defeats the purpose.
+ * It is the receptionist's tone she checks, so a receipt is one of its replies (messageAuthor, the one statement of
+ * who sent a message): not a person's own reply (the sentence over the receipts,
+ * "You sent N replies yourself", is where those are said), and not a campaign's send or a system note.
  *
  * Backfilled rows are excluded for the same reason the SQL excludes them:
  * their created_at is the moment the IMPORT ran, so the first live load
@@ -141,6 +147,7 @@ export function todayReceipts(f: TodayFacts): NonNullable<TodayVM["recap"]>["rec
         .filter(
           (x) =>
             x.direction === "outbound" &&
+            messageAuthor(x)?.kind === "receptionist" &&
             SENT.includes(String(x.status)) &&
             x.meta?.backfill !== true &&
             new Date(x.created_at).getTime() >= sinceMs,

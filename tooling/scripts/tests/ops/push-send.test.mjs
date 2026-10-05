@@ -82,7 +82,10 @@ test("every member's every phone hears a workspace row, in the bell's words; ano
   });
 });
 
-test("the badge is each reader's own bell number; the tickets go to one push_receipts job a quarter of an hour on", async () => {
+test("the badge is each reader's own bell number; the tickets go to one push_receipts job a quarter of an hour on", async (t) => {
+  // The rows are dated 26 September and the bell counts the last thirty days (BELL_WINDOW_DAYS): read on the real
+  // clock, this would count nothing from 26 October on. The clock is the one the other tests here hold.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-28T17:00:00Z") });
   // u1 opened the bell after the first row and marked nothing; u2 never opened it but dismissed one row.
   const tables = {
     notifications: [
@@ -122,6 +125,33 @@ test("the badge is each reader's own bell number; the tickets go to one push_rec
     scheduled[0].payload.tickets.find((t) => t.to === "tok-u2"),
     { id: "ticket-tok-u2", to: "tok-u2" },
   );
+});
+
+test("a note left for one member is counted on that member's badge alone", async (t) => {
+  // The rows are dated 26 September and the bell counts the last thirty days (BELL_WINDOW_DAYS), so the clock is the
+  // 28th: read off the wall clock, both would leave the window a month on and the count with them.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-28T17:00:00Z") });
+  // n1 is the workspace's; n2 was left for u2 (00158). The push is n1's, so both members' phones hear it, each with
+  // its own number: u1 does not count a note that was never theirs to read.
+  const db = fakeDb({
+    notifications: [
+      row(),
+      row({ id: "n2", kind: "note_for_you", recipient_user_id: "u2", created_at: "2026-09-26T11:00:00Z" }),
+    ],
+    memberships: [
+      { user_id: "u1", tenant_id: T, role: "owner" },
+      { user_id: "u2", tenant_id: T, role: "staff" },
+    ],
+    push_devices: [
+      { id: "d1", user_id: "u1", token: "tok-u1-a" },
+      { id: "d3", user_id: "u2", token: "tok-u2" },
+    ],
+  });
+  const p = port();
+  assert.equal(await dispatchJob(ctx(db, { push: p.push }), job), "done");
+  const badgeOf = (to) => p.sent.find((m) => m.to === to).badge;
+  assert.equal(badgeOf("tok-u1-a"), 1, "u1: the workspace's row; the note for u2 is not theirs");
+  assert.equal(badgeOf("tok-u2"), 2, "u2: the workspace's row and their own note");
 });
 
 test("a receipts job the ledger refuses does not make the alert leave twice", async () => {

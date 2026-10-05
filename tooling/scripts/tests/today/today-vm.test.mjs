@@ -1265,3 +1265,108 @@ test("an email's needs-you row quotes what they wrote, not the chain they quoted
   const vm = toTodayVM(m, [mail], esc, [], NOW);
   assert.equal(vm.needsYou.rows[0].quote, "Got it, thanks!", "REGRESSION: Today quoted the chain");
 });
+
+/* ---- who is waiting, and what is quoted as the receptionist's (the 2 Oct 2026 audit, B4 and C5) ---- */
+
+test("an out-of-office, a list's mail or a form's notification is nobody waiting with nothing back; a person's own words are", () => {
+  const sent = at("2026-08-27T09:00:00Z", {
+    direction: "outbound",
+    sender: "human",
+    channel: "email",
+    status: "delivered",
+  });
+  const back = (id, meta) =>
+    thread(id, `Writer ${id}`, [
+      sent,
+      at("2026-08-27T10:00:00Z", { channel: "email", body: "I am out of the office until the 9th.", meta }),
+    ]);
+  const vm = toTodayVM(
+    metrics({ period: { messages_in: 5 } }),
+    [
+      back("cv-none", null),
+      back("cv-person", { email: { claim: "person" } }),
+      back("cv-auto", { email: { claim: "auto_reply" } }),
+      back("cv-form", { email: { claim: "automated" } }),
+      back("cv-report", { email: { claim: "report" } }),
+    ],
+    [],
+    [],
+    NOW,
+  );
+  assert.deepEqual(
+    vm.noReply.map((r) => r.conversationId).sort(),
+    ["cv-none", "cv-person"],
+    "REGRESSION: an out-of-office listed as a customer waiting (the same words as a person's, from a program)",
+  );
+});
+
+test("the receipts quote the receptionist's replies: a person's reply, a campaign's send and a system note are not its tone to spot-check", () => {
+  const out = (iso, over) => at(iso, { direction: "outbound", status: "delivered", ...over });
+  const c = thread("cv-p", "Priya", [
+    at("2026-08-27T13:00:00Z"),
+    out("2026-08-27T13:00:30Z", { sender: "ai", body: "Yes, Tuesdays from 10." }),
+    out("2026-08-27T13:30:00Z", { sender: "human", body: "I will call you." }),
+    out("2026-08-27T13:45:00Z", {
+      sender: "human",
+      body: "Our spring offer",
+      meta: { source: "broadcast", broadcast_name: "Spring" },
+    }),
+    out("2026-08-27T13:50:00Z", { sender: "system", body: "Reminder sent" }),
+  ]);
+  const vm = toTodayVM(metrics({ period: { messages_in: 1, messages_out_you: 1 } }), [c], [], [], NOW);
+  assert.deepEqual(
+    vm.recap.receipts.map((r) => r.text),
+    ["replied to Priya: “Yes, Tuesdays from 10.”"],
+    "REGRESSION: the receipts, newest first, quoted a person's reply and a broadcast as the receptionist's",
+  );
+});
+
+/* ---- the oldest wait the headline names is the one of the thread it names (the 2 Oct 2026 audit, A5) ---- */
+const escAt = (id, conversation_id, created_at) => ({
+  id,
+  conversation_id,
+  reason: "human_token",
+  details: null,
+  state: "open",
+  created_at,
+});
+
+test("the oldest wait in the headline is among the threads waiting on YOU: not one you hold, and not a teammate's", () => {
+  const LATER_ISO = "2026-08-27T18:00:00Z";
+  // Open since 11:42 PM yesterday, but you have it: it is not waiting on you, and the metric still counts it.
+  const mine = conv({
+    id: "c-mine",
+    state: "open",
+    paused_until: LATER_ISO,
+    assignee_user_id: "me",
+    assignee_is_me: true,
+  });
+  const theirs = conv({ id: "c-ana", state: "open", assignee_user_id: "u-ana", assignee_is_me: false });
+  const waiting = conv({ id: "c1", state: "open" });
+  const m = metrics({ now: { escalations_open: 3, oldest_open_escalation_at: "2026-08-27T03:42:00Z" } });
+  const asking = [
+    escAt("e-mine", "c-mine", "2026-08-27T03:42:00Z"),
+    escAt("e-ana", "c-ana", "2026-08-27T05:10:00Z"),
+    escAt("e-new", "c1", "2026-08-27T10:30:00Z"),
+  ];
+  const one = toTodayVM(m, [mine, theirs, waiting], asking, [], NOW);
+  assert.equal(one.standing.headline, "One conversation needs you");
+  assert.equal(
+    one.standing.detail,
+    "Priya has been waiting since 6:30 AM.",
+    "REGRESSION: the thread you hold gave its time (yesterday 11:42 PM) to the name of the one waiting",
+  );
+  // Two waiting: the oldest of THEM, not of everything open.
+  const second = conv({ id: "c2", state: "open" });
+  const two = toTodayVM(
+    metrics({ now: { escalations_open: 4, oldest_open_escalation_at: "2026-08-27T03:42:00Z" } }),
+    [mine, theirs, waiting, second],
+    [...asking, escAt("e-2", "c2", "2026-08-27T12:00:00Z")],
+    [],
+    NOW,
+  );
+  assert.equal(two.standing.headline, "2 conversations need you.");
+  assert.equal(two.standing.detail, "The oldest has been waiting since 6:30 AM.");
+  // The headline's name and its time are one list: the first row of the queue is that thread, with that time.
+  assert.match(two.queue.rows[0].status.join(" "), /since 6:30 AM/);
+});

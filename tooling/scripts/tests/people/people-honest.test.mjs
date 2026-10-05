@@ -793,7 +793,11 @@ test("the rail's Saved section draws each kept list as a rail row, and the rail 
     railRows(draw())
       .filter((b) => b.props["aria-current"] === "true")
       .map((b) => textOf(b));
-  assert.deepEqual(current(), [], "nothing is picked: everyone");
+  assert.deepEqual(
+    current().map((t) => t.replace(/\d+$/, "")),
+    ["Everyone"],
+    "nothing is picked: the rail's Everyone row is current (canvas P1)",
+  );
   press(savedRows()[0]);
   assert.deepEqual(current(), ["Regulars1"], "one row picked, and a screen reader hears which");
   press(savedRows()[1]);
@@ -816,7 +820,11 @@ test("the rail's Saved section draws each kept list as a rail row, and the rail 
   press(smart);
   assert.deepEqual(current(), [textOf(smart)], "a smart list replaces a kept one, as a kept one replaces a smart one");
   press(railRows(draw()).find((b) => b.props["aria-current"] === "true"));
-  assert.deepEqual(current(), [], "the picked row pressed again: everyone");
+  assert.deepEqual(
+    current().map((t) => t.replace(/\d+$/, "")),
+    ["Everyone"],
+    "the picked row pressed again: everyone, the rail's first row current again",
+  );
 });
 
 test("a selection never outlives its view, and does outlive a search: a list picked on the rail drops it, words typed in the box do not", async () => {
@@ -2052,23 +2060,37 @@ test("export follows the list that is open, and is not offered for a list that c
     people: [person(1)],
     lists: [{ id: "s3", name: "Booked soon", ids: [], rule: { all: [{ field: "booked", op: "is", yes: true }] } }],
   });
-  // The link is the route's (the client's own url for GET contacts/export): its path, and the list it is asked for.
-  const linkOf = (n) => {
-    const u = new URL(n.props.href, "https://app.chanlytics.com");
-    return [u.pathname, u.searchParams.get("list")];
-  };
-  const everyone = byTestId(draw(), "people-export");
-  assert.deepEqual(linkOf(everyone), ["/api/v1/contacts/export", null], "no list open: everyone");
-  draw({ initialSegment: "opted_in" });
-  const one = byTestId(draw({ initialSegment: "opted_in" }), "people-export");
-  assert.deepEqual(linkOf(one), ["/api/v1/contacts/export", "seg:opted_in"]);
-  assert.equal(one.props.title, "Download the people on Said yes to messages as a CSV file");
-  // A smart list that reads visits, with no calendar read: the route would refuse it, so the button says why.
-  draw({ initialSaved: "s3" });
-  const blocked = byTestId(draw({ initialSaved: "s3" }), "people-export");
-  assert.equal(blocked.type, "button");
-  assert.equal(blocked.props.disabled, true);
-  assert.equal(blocked.props["data-tip"], globalThis.window.__PEOPLE.saved[0].unknown);
+  // Export is an item of the file menu after Columns (canvas P1; the kit's Menu, read by its groups): the link is
+  // the route's (the client's own url for GET contacts/export), opened in place, with its path and the list it is
+  // asked for.
+  const exportItem = (tree) =>
+    find(tree, (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "people-file-menu")
+      .props.groups.flatMap((g) => g.items || [])
+      .find((i) => i.label === "Export CSV");
+  const opened = [];
+  const open = globalThis.window.open;
+  globalThis.window.open = (u) => opened.push(String(u));
+  try {
+    const linkOf = (item) => {
+      item.onSelect();
+      const u = new URL(opened.at(-1), "https://app.chanlytics.com");
+      return [u.pathname, u.searchParams.get("list")];
+    };
+    assert.deepEqual(linkOf(exportItem(draw())), ["/api/v1/contacts/export", null], "no list open: everyone");
+    draw({ initialSegment: "opted_in" });
+    const one = exportItem(draw({ initialSegment: "opted_in" }));
+    assert.deepEqual(linkOf(one), ["/api/v1/contacts/export", "seg:opted_in"]);
+    assert.equal(one.title, "Download the people on Said yes to messages as a CSV file");
+    // A smart list that reads visits, with no calendar read: the route would refuse it, so the item says why and opens nothing.
+    draw({ initialSaved: "s3" });
+    const blocked = exportItem(draw({ initialSaved: "s3" }));
+    assert.equal(blocked.title, globalThis.window.__PEOPLE.saved[0].unknown);
+    const before = opened.length;
+    blocked.onSelect();
+    assert.equal(opened.length, before, "held: nothing opens");
+  } finally {
+    globalThis.window.open = open;
+  }
 });
 
 test("the New list door's address stands until a list is made, then is that list's: a reload opens the list, not the box", async () => {
@@ -2300,7 +2322,7 @@ const headings = (tree) =>
 /** A person's row, by their id. */
 const rowOf = (tree, id) => find(tree, (n) => n.type === "tr" && n.props?.id === `person-${id}`);
 
-test("the table's columns: Person, State, Last contact, the receptionist or, with a calendar, Visits, Offers, and Came from", async () => {
+test("the table's columns: Person, State, Last contact, the receptionist or, with a calendar, Visits, and Offers; Came from waits in the Columns menu", async () => {
   // The headings a press sorts by, as the table marks them; and each body row's cells against the headings above them.
   const sorting = (tree) =>
     all(tree, (n) => n.type === "th" && !colOff(n) && /\bsortable\b/.test(String(n.props?.className || ""))).map((th) =>
@@ -2325,25 +2347,26 @@ test("the table's columns: Person, State, Last contact, the receptionist or, wit
   };
   await freshPage({ people: [person(1), person(2)] });
   let tree = draw();
-  assert.deepEqual(headings(tree), ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Came from"]);
-  assert.deepEqual(
-    sorting(tree),
-    ["Person", "State", "Last contact", "Offers"],
-    "the receptionist and where they came from never sort",
-  );
+  assert.deepEqual(headings(tree), ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers"]);
+  assert.deepEqual(sorting(tree), ["Person", "State", "Last contact", "Offers"], "the receptionist never sorts");
   oneCellPerHeading(tree, "without a calendar");
+  // Where they came from is the member's to show (canvas P1: with it the table outgrew the pane at 1440), and never sorts.
+  await freshPage({
+    people: [person(1), person(2)],
+    views: { people: { sortBy: "last", sortDir: "desc", columns: { came_from: true } } },
+  });
+  tree = draw();
+  assert.deepEqual(headings(tree), ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Came from"]);
+  assert.deepEqual(sorting(tree), ["Person", "State", "Last contact", "Offers"], "where they came from never sorts");
+  oneCellPerHeading(tree, "with Came from shown");
   await freshPage({ people: [person(1), person(2)], calendar: "ok" });
   tree = draw();
   assert.deepEqual(
     headings(tree),
-    ["Person", "State", "Reach", "Last contact", "Visits", "Offers", "Came from"],
+    ["Person", "State", "Reach", "Last contact", "Visits", "Offers"],
     "with a calendar the outcome takes the receptionist's column",
   );
-  assert.deepEqual(
-    sorting(tree),
-    ["Person", "State", "Last contact", "Visits", "Offers"],
-    "the visit sorts; where they came from never does",
-  );
+  assert.deepEqual(sorting(tree), ["Person", "State", "Last contact", "Visits", "Offers"], "the visit sorts");
   oneCellPerHeading(tree, "with a calendar");
 });
 
@@ -2355,6 +2378,7 @@ test("a row says where the person came from, in words, and nothing when nothing 
       person(3, { came_from: null }),
       person(4),
     ],
+    views: { people: { sortBy: "last", sortDir: "desc", columns: { came_from: true } } },
   });
   const tree = draw();
   const said = (id) => textOf(byTestId(rowOf(tree, id), "row-came-from")).trim();
@@ -2734,20 +2758,30 @@ test("the Columns menu is the kit's switches: it shows and hides columns, and Pe
       { key: "last", on: true, locked: false },
       { key: "receptionist", on: true, locked: false },
       { key: "offers", on: true, locked: false },
-      { key: "came_from", on: true, locked: false },
+      { key: "came_from", on: false, locked: false },
       { key: "since", on: false, locked: false },
       { key: "email", on: false, locked: false },
       { key: "lists", on: false, locked: false },
     ],
     "every column this workspace can show; Visits waits for a calendar",
   );
+  assert.ok(!headings(tree).includes("Came from"), "off until asked for");
   flipColumn(tree, "came_from");
   tree = draw();
-  assert.ok(!headings(tree).includes("Came from"), "hidden");
-  assert.equal(menuItems(tree).find((c) => c.key === "came_from").on, false, "and its switch says so");
+  assert.ok(headings(tree).includes("Came from"), "shown");
+  assert.equal(menuItems(tree).find((c) => c.key === "came_from").on, true, "and its switch says so");
   flipColumn(tree, "lists");
   tree = draw();
-  assert.deepEqual(headings(tree), ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Lists"]);
+  assert.deepEqual(headings(tree), [
+    "Person",
+    "State",
+    "Reach",
+    "Last contact",
+    "Receptionist",
+    "Offers",
+    "Came from",
+    "Lists",
+  ]);
   assert.equal(
     textOf(byTestId(rowOf(tree, "p1"), "row-lists")).trim(),
     "Regulars",
@@ -2910,7 +2944,7 @@ test("a saved view's columns are read with care -- only a true or false for a co
   const tree = draw();
   assert.deepEqual(
     headings(tree),
-    ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Came from", "Email"],
+    ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Email"],
     "Person stays, and a word is not a false",
   );
   assert.ok(
@@ -2929,7 +2963,7 @@ test("a saved view's columns are read with care -- only a true or false for a co
     await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc", columns } } });
     assert.deepEqual(
       headings(draw()),
-      ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Came from"],
+      ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers"],
       `${JSON.stringify(columns)} is no set of columns: the defaults`,
     );
   }
@@ -2965,7 +2999,7 @@ test("a view saves one at a time, and only the latest waits -- two in flight cou
   flipColumn(draw(), "email");
   draw();
   assert.equal(calls.length, 1, "two quick toggles: the first goes, and the second waits for it to land");
-  assert.deepEqual(calls[0].view.columns, { came_from: false });
+  assert.deepEqual(calls[0].view.columns, { came_from: true });
   flipColumn(draw(), "lists");
   draw();
   assert.equal(calls.length, 1, "a third takes the second's place: only the latest waits");
@@ -2975,7 +3009,7 @@ test("a view saves one at a time, and only the latest waits -- two in flight cou
   assert.equal(calls[1].page, "people");
   assert.deepEqual(
     calls[1].view,
-    { sortBy: "last", sortDir: "desc", columns: { came_from: false, email: true, lists: true } },
+    { sortBy: "last", sortDir: "desc", columns: { came_from: true, email: true, lists: true } },
     "the latest view, whole",
   );
   calls[1].land({ ok: true });
@@ -3017,7 +3051,7 @@ test("a save that fails is tried once more, unless a newer view is waiting to go
     assert.equal(calls.length, 4);
     assert.deepEqual(
       calls[3].view.columns,
-      { email: true, lists: true, came_from: false },
+      { email: true, lists: true, came_from: true },
       "the newer view, not the failed one again",
     );
     calls[3].land({ ok: true });
@@ -3054,7 +3088,7 @@ test("a column put back the way its default has it is no choice any more -- the 
   await freshPage({ people: [person(1)], calendar: "ok", views: { people: saves().at(-1) } });
   assert.deepEqual(
     headings(draw()),
-    ["Person", "State", "Reach", "Last contact", "Visits", "Offers", "Came from"],
+    ["Person", "State", "Reach", "Last contact", "Visits", "Offers"],
     "a calendar connects, and Visits takes the receptionist's place, as it does for everyone",
   );
 });
@@ -3077,7 +3111,7 @@ test("with a calendar the menu offers Visits, shown, and the receptionist, hidde
       ["visits", true],
       ["receptionist", false],
       ["offers", true],
-      ["came_from", true],
+      ["came_from", false],
       ["since", false],
       ["email", false],
       ["lists", false],
@@ -3105,7 +3139,7 @@ test("with a calendar the menu offers Visits, shown, and the receptionist, hidde
   await freshPage({ people: [person(1)], calendar: "ok", views: { people: saves().at(-1) } });
   assert.deepEqual(
     headings(draw()),
-    ["Person", "State", "Reach", "Last contact", "Offers", "Came from", "Email"],
+    ["Person", "State", "Reach", "Last contact", "Offers", "Email"],
     "back up, and Visits is still hidden, as chosen",
   );
 });
@@ -3122,16 +3156,16 @@ test("REGRESSION: Back keeps the columns a member chose -- People mounted again 
   await settle();
   assert.deepEqual(
     seen.viewSaves,
-    [{ page: "people", view: { sortBy: "last", sortDir: "desc", columns: { came_from: false } } }],
+    [{ page: "people", view: { sortBy: "last", sortDir: "desc", columns: { came_from: true } } }],
     "the save landed",
   );
   // A profile opens, so the list goes; Back mounts it again, and it reads the surface as it stands.
   cells = [];
   const tree = draw();
-  assert.ok(!headings(tree).includes("Came from"), "REGRESSION: the column the member hid came back");
+  assert.ok(headings(tree).includes("Came from"), "REGRESSION: the column the member showed went away");
   assert.deepEqual(
     JSON.parse(globalThis.localStorage.getItem("chanlytics-people-view")).columns,
-    { came_from: false },
+    { came_from: true },
     "REGRESSION: and this device's copy was written over with the old columns",
   );
   sortByHeading(tree, "State");
@@ -3139,7 +3173,7 @@ test("REGRESSION: Back keeps the columns a member chose -- People mounted again 
   await settle();
   assert.deepEqual(
     seen.viewSaves.at(-1),
-    { page: "people", view: { sortBy: "state", sortDir: "desc", columns: { came_from: false } } },
+    { page: "people", view: { sortBy: "state", sortDir: "desc", columns: { came_from: true } } },
     "REGRESSION: a sort afterwards sent the columns from before, and the server lost the choice",
   );
 });
@@ -3158,18 +3192,18 @@ test("REGRESSION: a save made while People is being read is not undone by the re
   await settle();
   assert.deepEqual(
     seen.viewSaves.map((s) => s.view.columns),
-    [{ came_from: false }],
+    [{ came_from: true }],
     "the save went while the read was out",
   );
   cells = [];
   const tree = draw();
-  assert.ok(!headings(tree).includes("Came from"), "REGRESSION: the read put the column back");
+  assert.ok(headings(tree).includes("Came from"), "REGRESSION: the read took the column away");
   sortByHeading(tree, "State");
   draw();
   await settle();
   assert.deepEqual(
     seen.viewSaves.at(-1).view,
-    { sortBy: "state", sortDir: "desc", columns: { came_from: false } },
+    { sortBy: "state", sortDir: "desc", columns: { came_from: true } },
     "REGRESSION: and the next sort saved the old columns",
   );
 });
@@ -3186,7 +3220,7 @@ test("a read of People that overlapped no save takes the server's view -- anothe
   cells = [];
   assert.deepEqual(
     headings(draw()),
-    ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Came from", "Email"],
+    ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Email"],
     "the other device's columns, not this tab's last save",
   );
 });
@@ -3447,7 +3481,7 @@ test("REGRESSION: a desktop builds no cell of a column the member turned off -- 
     0,
     "State, Offers, Email and Lists are not in the row at all",
   );
-  assert.deepEqual(headings(desk), ["Person", "Reach", "Last contact", "Receptionist", "Came from"]);
+  assert.deepEqual(headings(desk), ["Person", "Reach", "Last contact", "Receptionist"]);
 });
 
 test("REGRESSION: a phone row is one cell -- the face, the name and the state; why they need a person, or their own words; the visit and the last contact -- and the member's desktop columns never reach it", () =>
@@ -3588,7 +3622,10 @@ test("REGRESSION: a person's cell is who they are and what they said -- the chan
 });
 
 test("a heading that sorts is a button a keyboard reaches; one that does not is words", async () => {
-  await freshPage({ people: [person(1)] });
+  await freshPage({
+    people: [person(1)],
+    views: { people: { sortBy: "last", sortDir: "desc", columns: { came_from: true } } },
+  });
   const tree = draw();
   const ths = all(
     find(tree, (n) => n.type === "thead"),
@@ -3602,11 +3639,10 @@ test("a heading that sorts is a button a keyboard reaches; one that does not is 
     "REGRESSION: the sort was the cell's own click, which Tab never found",
   );
   for (const th of withButton) assert.equal(find(th, isSort).props.type, "button", "a button, not a form's submit");
+  const cameFrom = ths.find((th) => textOf(th).trim() === "Came from");
+  assert.ok(cameFrom, "Came from is drawn, the member having shown it");
   assert.equal(
-    find(
-      ths.find((th) => textOf(th).trim() === "Came from"),
-      (n) => n.type === "button",
-    ),
+    find(cameFrom, (n) => n.type === "button"),
     null,
     "Came from does not sort, so it is words",
   );

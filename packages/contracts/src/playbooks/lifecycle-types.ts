@@ -34,6 +34,11 @@ export interface LifecyclePlaybook {
   state: string;
   run_hour: number;
   cadence_days: number;
+  /**
+   * The most one run sends (playbooks.cap_per_run): who is eligible past it goes on later runs. Absent where the card
+   * was drawn without it, and the count is then said whole.
+   */
+  cap_per_run?: number | null;
   last_run_for: string | null;
   /**
    * "today 10:00", "tomorrow 10:00", "today, within the hour" or "paused", by the business's clock; "after billing resumes"
@@ -132,6 +137,8 @@ export interface LifecycleTemplate {
   meta_status?: string | null;
   variables: unknown;
   hidden_at?: string | null;
+  /** Why this product cannot send it, as the reader answers (templateBlocked): the call's text is never one of those. */
+  blocked?: string | null;
 }
 
 export interface LifecycleInput {

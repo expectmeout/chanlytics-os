@@ -221,9 +221,16 @@ const useInboxNeeds = () => {
       T = T.filter((t) => t.real);
     }
     const D = (window.IX_STORE || {}).decisions || {};
-    // A real thread carries the answer (the view model's needsYou), the rule the
-    // Inbox counts by: a thread a teammate or you have is not waiting on you.
-    return T.filter((t) => (t.real ? t.needsYou : t.state === "needs" || (t.state === "escalated" && !t.takenOver)) && !D[t.id]).length;
+    // A real thread is counted by the Inbox's own rule (ixWaitsOnYou, the one the sidebar and the chip read): a thread a
+    // teammate or you have is not waiting on you, and a reply about to send is. This read needsYou alone, so the first
+    // number said 19 where the Inbox's chip said 21 (the 2 Oct 2026 audit).
+    const waits = (t) =>
+      t.real
+        ? window.ixWaitsOnYou
+          ? window.ixWaitsOnYou(t)
+          : !!t.needsYou
+        : t.state === "needs" || (t.state === "escalated" && !t.takenOver);
+    return T.filter((t) => waits(t) && !D[t.id]).length;
   });
 
   // Live Inbox badge — decisions made in the Inbox update the sidebar count

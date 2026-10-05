@@ -54,6 +54,7 @@ test("a call note never becomes the chat row's preview", () => {
         created_at: "2026-08-27T14:15:00Z",
       }),
     ]),
+    null,
     ZONE,
     NOW,
   );
@@ -83,6 +84,7 @@ test("a call note does not flip the pill to 'open'", () => {
         created_at: "2026-08-27T14:15:00Z",
       }),
     ]),
+    null,
     ZONE,
     NOW,
   );
@@ -110,6 +112,7 @@ test("the row's time comes from the message it is previewing", () => {
         created_at: "2026-08-27T14:15:00Z",
       }),
     ]),
+    null,
     ZONE,
     NOW,
   );
@@ -128,6 +131,7 @@ test("the row's time comes from the message it is previewing", () => {
         created_at: "2026-08-27T12:00:00Z",
       }),
     ]),
+    null,
     ZONE,
     NOW,
   );
@@ -145,6 +149,7 @@ test("a caller who never messaged is not given an empty chat row", () => {
         created_at: "2026-08-27T14:15:00Z",
       }),
     ]),
+    null,
     ZONE,
     NOW,
   );
@@ -152,7 +157,7 @@ test("a caller who never messaged is not given an empty chat row", () => {
 });
 
 test("a normal messaging thread still counts as chat", () => {
-  const vm = toConversationVM(conv([msg({ id: "m1" })]), ZONE, NOW);
+  const vm = toConversationVM(conv([msg({ id: "m1" })]), null, ZONE, NOW);
   assert.equal(vm.hasChat, true);
 });
 
@@ -168,6 +173,7 @@ test("the summary counts messages and calls separately", () => {
         created_at: "2026-08-27T14:15:00Z",
       }),
     ]),
+    null,
     ZONE,
     NOW,
   );
@@ -270,6 +276,7 @@ test("REGRESSION: the row and every bubble say which wire the words travelled, n
         created_at: "2026-08-27T12:00:41Z",
       }),
     ]),
+    null,
     ZONE,
     NOW,
   );
@@ -285,6 +292,7 @@ test("REGRESSION: the row and every bubble say which wire the words travelled, n
       msg({ id: "m1", channel: "whatsapp", body: "hi" }),
       msg({ id: "m2", channel: "email", body: "following up by email", created_at: "2026-08-27T12:05:00Z" }),
     ]),
+    null,
     ZONE,
     NOW,
   );
@@ -298,6 +306,7 @@ test("REGRESSION: the row and every bubble say which wire the words travelled, n
   // the phone rather than a WhatsApp conversation with no WhatsApp in it.
   const calls = toConversationVM(
     conv([msg({ id: "m1", channel: "voice", type: "call_summary", sender: "system", body: "Called about a quote." })]),
+    null,
     ZONE,
     NOW,
   );
@@ -308,6 +317,54 @@ test("REGRESSION: the row and every bubble say which wire the words travelled, n
   );
 
   // A row written before the column existed reads as WhatsApp, which is what it was.
-  const legacy = toConversationVM(conv([msg({ id: "m1", channel: null })]), ZONE, NOW);
+  const legacy = toConversationVM(conv([msg({ id: "m1", channel: null })]), null, ZONE, NOW);
   assert.equal(legacy.channel, "whatsapp");
+});
+
+/* ---- who has the thread: the Inbox's one rule, read here too (the 2 Oct 2026 audit) ---- */
+const LATER = "2026-08-27T18:00:00Z";
+const esc = { id: "e1", reason: "human_token", details: null, state: "open", created_at: "2026-08-27T12:00:30Z" };
+const ours = (over = {}) =>
+  msg({
+    id: "m2",
+    direction: "outbound",
+    sender: "ai",
+    body: "Someone will follow up.",
+    status: "delivered",
+    created_at: "2026-08-27T12:00:40Z",
+    ...over,
+  });
+
+test("an open escalation on an open thread is Needs you here, as it is in the Inbox", () => {
+  const vm = toConversationVM(conv([msg({ id: "m1" }), ours()]), esc, ZONE, NOW);
+  assert.equal(vm.standing, "needs_you");
+  assert.equal(vm.outcome, "escalated", "the row read 'Receptionist replied' over an open escalation");
+});
+
+test("a thread you took over is yours, not Needs you; a teammate's is theirs", () => {
+  const mine = toConversationVM(
+    { ...conv([msg({ id: "m1" })]), paused_until: LATER, assignee_user_id: "me", assignee_is_me: true },
+    esc,
+    ZONE,
+    NOW,
+  );
+  assert.equal(mine.standing, "yours");
+  assert.equal(mine.outcome, "escalated");
+  const theirs = toConversationVM(
+    { ...conv([msg({ id: "m1" })]), assignee_user_id: "them", assignee_is_me: false },
+    esc,
+    ZONE,
+    NOW,
+  );
+  assert.equal(theirs.standing, "theirs");
+});
+
+test("with no escalation the pill is open or handled, as it always was", () => {
+  assert.equal(toConversationVM(conv([msg({ id: "m1" }), ours()]), null, ZONE, NOW).standing, "quiet");
+  assert.equal(toConversationVM(conv([msg({ id: "m1" }), ours()]), null, ZONE, NOW).outcome, "handled");
+  assert.equal(toConversationVM(conv([msg({ id: "m1" })]), null, ZONE, NOW).outcome, "open");
+  assert.equal(
+    toConversationVM({ ...conv([msg({ id: "m1" })]), state: "snoozed" }, esc, ZONE, NOW).standing,
+    "snoozed",
+  );
 });

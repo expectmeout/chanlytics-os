@@ -8,6 +8,7 @@ export {
   purposeOfTemplate,
   purposeOfPlaybook,
   OPT_OUT_REFUSAL,
+  optOutWords,
   stopRequestQuestion,
   DELIVERY_REFUSALS,
   PURPOSE_REFUSALS,

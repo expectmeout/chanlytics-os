@@ -7,7 +7,6 @@ import type { SyntheticEvent } from "react";
 import { LEAD_WORDS as W } from "@chanlytics/contracts";
 import type { LeadPeekVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
-import { lookNow } from "../../kit/look/look";
 import type { Deck } from "./types";
 
 /** A photo that fails hides itself, and what is under it shows. */
@@ -168,8 +167,8 @@ function peekIdentity(vm: LeadPeekVM) {
           {vm.claimedNote ? <span data-testid="peek-claimed">{vm.claimedNote}</span> : null}
         </div>
       ) : null}
-      {/* Glass (canvas L2): how the ratings fall, five stars first, each bar its share. One svg a row, its own geometry. */}
-      {lookNow() === "glass" && vm.rated?.spread?.length ? (
+      {/* Canvas L2: how the ratings fall, five stars first, each bar its share. One svg a row, its own geometry. */}
+      {vm.rated?.spread?.length ? (
         <div className="pk-spread" data-testid="peek-spread">
           {vm.rated.spread.map((s) => (
             <div key={s.stars} className="pk-spread-row" data-testid="peek-spread-row">

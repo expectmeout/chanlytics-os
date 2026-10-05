@@ -534,14 +534,14 @@ a.lm-head-door:active { opacity: 0.72; }
    names the look inside :where(); none matches in Classic.
    ==================================================================== */
 @media (width > 900px) {
-  :where([data-look="glass"]) .main-scroll > .live-monitor {
+  .main-scroll > .live-monitor {
     padding: 0 var(--gutter-page) 16px;
   }
-  :where([data-look="glass"]) .lm-body {
+  .lm-body {
     column-gap: 14px;
     overflow: visible;
   }
-  :where([data-look="glass"]) :is(.lm-list, .lm-body > :last-child) {
+  :is(.lm-list, .lm-body > :last-child) {
   position: relative;
   border: 0;
   border-radius: var(--surface-pane-radius);
@@ -549,7 +549,7 @@ a.lm-head-door:active { opacity: 0.72; }
   box-shadow: var(--surface-pane-depth);
   overflow: hidden;
 }
-  :where([data-look="glass"]) :is(.lm-list, .lm-body > :last-child)::after {
+  :is(.lm-list, .lm-body > :last-child)::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -572,72 +572,72 @@ a.lm-head-door:active { opacity: 0.72; }
    house's 44px floor on a button (legacy.css) does not outrank them.
    ==================================================================== */
 @media (max-width: 900px) {
-  :where([data-look="glass"]) .main:has(> .main-scroll > .live-monitor) .pg-slot {
+  .main:has(> .main-scroll > .live-monitor) .pg-slot {
     padding-bottom: 8px;
   }
-  :where([data-look="glass"]) .main-scroll > .live-monitor {
+  .main-scroll > .live-monitor {
     padding: 0 12px 12px;
   }
   /* The calls, then the call: what the calls take is their own, and the call has the rest. */
-  :where([data-look="glass"]) .live-monitor > .lm-body {
+  .live-monitor > .lm-body {
     grid-template-rows: auto minmax(0, 1fr);
     gap: 10px;
   }
-  :where([data-look="glass"]) .live-monitor > .lm-body > :is(.lm-list, .lm-call) {
+  .live-monitor > .lm-body > :is(.lm-list, .lm-call) {
     border: 0;
     border-radius: var(--surface-pane-radius);
     background: var(--surface-pane-fill);
     box-shadow: var(--surface-pane-depth);
   }
   /* The call's pane is as tall as what it says, up to the screen's rest. */
-  :where([data-look="glass"]) .live-monitor > .lm-body > .lm-call {
+  .live-monitor > .lm-body > .lm-call {
     align-self: start;
     max-height: 100%;
   }
-  :where([data-look="glass"]) .live-monitor .lm-spacer {
+  .live-monitor .lm-spacer {
     display: none;
   }
 
   /* Right now: its name and count, the line's state in the muted ink, the door to every call as one quiet row. */
-  :where([data-look="glass"]) .live-monitor .lm-list-head {
+  .live-monitor .lm-list-head {
     padding: 16px 18px 6px;
   }
-  :where([data-look="glass"]) .live-monitor .lm-line-note {
+  .live-monitor .lm-line-note {
     padding: 0 18px 14px;
     font-size: var(--text-sm);
     color: var(--ink-muted);
   }
-  :where([data-look="glass"]) .live-monitor .lm-list-door {
+  .live-monitor .lm-list-door {
     margin-top: 0;
     padding: 14px 18px;
     font-size: var(--text-sm);
   }
-  :where([data-look="glass"]) .live-monitor .lm-rows {
+  .live-monitor .lm-rows {
     padding: 0 6px 6px;
   }
-  :where([data-look="glass"]) .live-monitor .lm-row {
+  .live-monitor .lm-row {
     border-bottom-color: transparent;
     border-radius: var(--surface-row-radius);
   }
-  :where([data-look="glass"]) .live-monitor .lm-row.active {
+  .live-monitor .lm-row.active {
     background: transparent;
     box-shadow: none;
   }
 
   /* The call: who and how it stands, with the caller's face at the right (the thread header's avatar, and their door to
      People); a call in progress is a thread of its own, below. */
-  :where([data-look="glass"]) .live-monitor .lm-head {
+  .live-monitor .lm-head {
     flex-wrap: nowrap;
     align-items: flex-start;
     padding: 16px 18px 10px;
     border-bottom: 0;
   }
-  :where([data-look="glass"]) .live-monitor .lm-head-titles {
+  .live-monitor .lm-head-titles {
     flex: 1 1 0;
   }
 
   /* What the caller wanted, on an inset of the pane; its facts one to a line, and the transcript as words with an arrow. */
-  :where([data-look="glass"]) .live-monitor .lm-summary {
+  .live-monitor .lm-summary {
     margin: 4px 12px 12px;
     padding: 14px 16px;
     border: 0;
@@ -645,11 +645,11 @@ a.lm-head-door:active { opacity: 0.72; }
     background: var(--surface-inset-fill);
     box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
   }
-  :where([data-look="glass"]) .live-monitor .lm-summary-meta {
+  .live-monitor .lm-summary-meta {
     flex-direction: column;
     gap: 2px;
   }
-  :where([data-look="glass"]) .live-monitor .lm-summary-actions > button {
+  .live-monitor .lm-summary-actions > button {
     justify-content: flex-start;
     height: 30px;
     min-height: 0;
@@ -660,25 +660,25 @@ a.lm-head-door:active { opacity: 0.72; }
     font-weight: var(--weight-semibold);
     color: var(--ink);
   }
-  :where([data-look="glass"]) .live-monitor .lm-waiting {
+  .live-monitor .lm-waiting {
     margin: 4px 12px 12px;
   }
 
   /* The foot is a caption: who is on the line is in the head, so only what is being done about the call is said. A call
      that is over says "Ended" in the head and holds its transcript's door in the card, so its foot leaves (a call that
      is live, or silent and being checked, keeps what it says). */
-  :where([data-look="glass"]) .live-monitor .lm-controls {
+  .live-monitor .lm-controls {
     padding: 2px 18px 16px;
     border-top: 0;
     background: transparent;
   }
-  :where([data-look="glass"]) .live-monitor .lm-controls.is-over {
+  .live-monitor .lm-controls.is-over {
     display: none;
   }
-  :where([data-look="glass"]) .live-monitor .lm-call:has(> .lm-controls.is-over) > .lm-summary {
+  .live-monitor .lm-call:has(> .lm-controls.is-over) > .lm-summary {
     margin-bottom: 16px;
   }
-  :where([data-look="glass"]) .live-monitor .lm-controls-who {
+  .live-monitor .lm-controls-who {
     display: none;
   }
 
@@ -689,41 +689,41 @@ a.lm-head-door:active { opacity: 0.72; }
      under it a bar with who has the call and what can be done (pass it, end it); the transcript anchored at the foot
      like a conversation; the whisper as a capsule composer, the mic when nothing is typed and the arrow once there are
      words, as Ask's field has it. */
-  :where([data-look="glass"]) .live-monitor:not([data-takeover]) > .lm-body[data-live] > .lm-call,
-  :where([data-look="glass"]) .live-monitor > .lm-body[data-idle] > .lm-call {
+  .live-monitor:not([data-takeover]) > .lm-body[data-live] > .lm-call,
+  .live-monitor > .lm-body[data-idle] > .lm-call {
     display: none;
   }
-  :where([data-look="glass"]) .main-scroll > .live-monitor[data-takeover] {
+  .main-scroll > .live-monitor[data-takeover] {
     padding: 0;
   }
-  :where([data-look="glass"]) .live-monitor[data-takeover] > .lm-body {
+  .live-monitor[data-takeover] > .lm-body {
     grid-template-rows: minmax(0, 1fr);
     gap: 0;
   }
-  :where([data-look="glass"]) .live-monitor[data-takeover] > .lm-body > .lm-list {
+  .live-monitor[data-takeover] > .lm-body > .lm-list {
     display: none;
   }
-  :where([data-look="glass"]) .live-monitor[data-takeover] > .lm-body > .lm-call {
+  .live-monitor[data-takeover] > .lm-body > .lm-call {
     align-self: stretch;
     max-height: none;
     border-radius: 0;
     background: transparent;
     box-shadow: none;
   }
-  :where([data-look="glass"]) .live-monitor > .lm-body > .lm-call > :is(.lm-head, .lm-head-actions, .lm-whisper, .lm-banner) {
+  .live-monitor > .lm-body > .lm-call > :is(.lm-head, .lm-head-actions, .lm-whisper, .lm-banner) {
     flex: none;
   }
   /* The head is one 52px pill of the control layer's glass, 8px from the sides, as the thread's is: the arrow, the face,
      the name over the number, and the call's clock. The state pill and the start time leave: the clock's dot says it is
      live, and the clock says how long. */
-  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head {
+  .live-monitor[data-takeover] .lm-head {
     flex-wrap: nowrap;
     align-items: center;
     gap: 6px;
     margin: 10px 8px 0;
     padding: 8px 10px 8px 6px;
   }
-  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-back {
+  .live-monitor[data-takeover] .lm-back {
     order: -2;
     display: inline-flex;
     flex: none;
@@ -739,33 +739,33 @@ a.lm-head-door:active { opacity: 0.72; }
     font-size: var(--text-lg);
     color: var(--ink-muted);
   }
-  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head-door {
+  .live-monitor[data-takeover] .lm-head-door {
     order: -1;
   }
-  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head-titles {
+  .live-monitor[data-takeover] .lm-head-titles {
     order: 0;
     flex: 1 1 0;
     min-width: 0;
   }
-  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head-name {
+  .live-monitor[data-takeover] .lm-head-name {
     flex-wrap: nowrap;
     font-size: var(--text-md);
     font-weight: var(--weight-semibold);
     line-height: 1.2;
   }
-  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head-name > :last-child:not(:first-child) {
+  .live-monitor[data-takeover] .lm-head-name > :last-child:not(:first-child) {
     display: none;
   }
-  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head-meta {
+  .live-monitor[data-takeover] .lm-head-meta {
     flex-wrap: nowrap;
     margin-top: 0;
     font-size: var(--text-sm);
     line-height: 1.2;
   }
-  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head-meta > :is(:nth-child(-n + 2), :nth-last-child(-n + 2)) {
+  .live-monitor[data-takeover] .lm-head-meta > :is(:nth-child(-n + 2), :nth-last-child(-n + 2)) {
     display: none;
   }
-  :where([data-look="glass"]) .live-monitor[data-takeover] .lm-head-clock {
+  .live-monitor[data-takeover] .lm-head-clock {
     order: 1;
     display: inline-flex;
     flex: none;
@@ -781,16 +781,16 @@ a.lm-head-door:active { opacity: 0.72; }
   }
   /* Under the pill, on the page: who has the call, and what can be done about it. Passing it is an inset capsule;
      ending it a quiet one in the danger tint (it asks once before it cuts the caller off). */
-  :where([data-look="glass"]) .live-monitor .lm-head-actions {
+  .live-monitor .lm-head-actions {
     flex-wrap: wrap;
     gap: 8px;
     padding: 10px 16px 0;
     border-bottom: 0;
   }
-  :where([data-look="glass"]) .live-monitor .lm-call-controls {
+  .live-monitor .lm-call-controls {
     gap: 6px;
   }
-  :where([data-look="glass"]) .live-monitor .lm-call-controls > button {
+  .live-monitor .lm-call-controls > button {
     height: 32px;
     min-height: 0;
     padding: 0 13px;
@@ -804,49 +804,49 @@ a.lm-head-door:active { opacity: 0.72; }
     font-weight: var(--weight-medium);
     color: var(--ink);
   }
-  :where([data-look="glass"]) .live-monitor .lm-call-controls > button[data-testid="live-end"] {
+  .live-monitor .lm-call-controls > button[data-testid="live-end"] {
     background: var(--danger-soft);
     box-shadow: none;
     color: var(--danger-ink);
   }
   /* The transcript is the conversation: anchored at the foot, centred times, bubbles at the phone's 88%. The caption
      over it names it and says no more. */
-  :where([data-look="glass"]) .live-monitor .lm-transcript-label {
+  .live-monitor .lm-transcript-label {
     justify-content: center;
     padding: 8px 18px 0;
     text-align: center;
     font-size: var(--text-xs);
     color: var(--ink-faint);
   }
-  :where([data-look="glass"]) .live-monitor .lm-scroll {
+  .live-monitor .lm-scroll {
     flex: 1 1 140px;
     display: flex;
     flex-direction: column;
     min-height: 140px;
     padding: 4px 14px 12px;
   }
-  :where([data-look="glass"]) .live-monitor .lm-scroll > .ix-timeline {
+  .live-monitor .lm-scroll > .ix-timeline {
     margin-top: auto;
   }
-  :where([data-look="glass"]) .live-monitor .lm-scroll .tl-msg-bubble > :not(.tl-msg-meta, .tl-msg-by) {
+  .live-monitor .lm-scroll .tl-msg-bubble > :not(.tl-msg-meta, .tl-msg-by) {
     max-width: 88%;
   }
   /* The whisper: a capsule of the control layer's glass at the foot, as the Inbox's reply box is, its one round button
      Ask's own (the mic held to talk while nothing is typed, the arrow once there are words); under it, one line of who
      hears it, which opens to what the receptionist does with it. */
-  :where([data-look="glass"]) .live-monitor .lm-whisper {
+  .live-monitor .lm-whisper {
     margin: 8px 12px calc(10px + env(safe-area-inset-bottom));
     padding: 0;
     border: 0;
     background: transparent;
     box-shadow: none;
   }
-  :where([data-look="glass"]) .live-monitor .lm-whisper-row {
+  .live-monitor .lm-whisper-row {
     gap: 6px;
     padding: 5px 5px 5px 16px;
     border: 0;
   }
-  :where([data-look="glass"]) .live-monitor .lm-whisper-row > input {
+  .live-monitor .lm-whisper-row > input {
     height: 36px;
     min-height: 0;
     padding: 0;
@@ -855,16 +855,16 @@ a.lm-head-door:active { opacity: 0.72; }
     box-shadow: none;
     font-size: var(--text-base);
   }
-  :where([data-look="glass"]) .live-monitor .lm-whisper-row > input:focus {
+  .live-monitor .lm-whisper-row > input:focus {
     outline: none;
     box-shadow: none;
   }
-  :where([data-look="glass"]) .live-monitor .lm-whisper-note {
+  .live-monitor .lm-whisper-note {
     justify-self: center;
     padding: 2px 6px;
     font-size: var(--text-xs);
   }
-  :where([data-look="glass"]) .live-monitor .lm-whisper-more {
+  .live-monitor .lm-whisper-more {
     padding: 0 10px;
     text-align: center;
     font-size: var(--text-xs);

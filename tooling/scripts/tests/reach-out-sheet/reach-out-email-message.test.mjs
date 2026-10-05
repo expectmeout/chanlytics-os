@@ -48,6 +48,7 @@ const { templates: verbs } = await import(`${S}/campaigns/templates/verbs.ts`);
 const { reachOuts } = await import(`${S}/campaigns/reach-out/surface.ts`);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const { Menu } = await import(`${S}/kit/menu/menu.tsx`);
+const { standingSaid } = await import(`${S}/kit/head/standing.ts`);
 const { FieldError } = await import(`${S}/kit/field-error/field-error.tsx`);
 const { SlotBox } = await import(`${S}/campaigns/templates/slots/slot-box.tsx`);
 const { SlotName } = await import(`${S}/campaigns/parts/slot.tsx`);
@@ -405,8 +406,10 @@ test("Templates: a chain's emails are messages in the list, on the Email channel
   const rows = rowsOf(tree);
   assert.equal(rows.length, 2);
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "custom-row").length, 1, "the WhatsApp row is unchanged");
-  assert.ok(textOf(byTestId(tree, "messages-standing")).includes("3 templates"), "the page counts both");
-  const tip = byTestId(tree, "messages-count").props["data-tip"];
+  // The page's line is the frame's head's (CmHead says it to the standing): the count, and its hover.
+  const line = standingSaid()?.sentence ?? null;
+  assert.ok(textOf(line).includes("3 templates"), "the page counts both");
+  const tip = find(line, (n) => n.props?.["data-testid"] === "messages-count").props["data-tip"];
   assert.ok(
     tip.endsWith("The count takes 2 emails of your reach-outs too: their own words, sent by email, with no review."),
     tip,

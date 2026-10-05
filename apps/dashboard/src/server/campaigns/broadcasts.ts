@@ -538,10 +538,11 @@ export async function personRuns(ctx: RouteContext, tenantId: string, contactId:
     reason: string | null;
     sent_at: string | null;
     message_id: string | null;
+    channel: string | null;
   }>("broadcast_recipients", (from, to) =>
     ctx.supabase
       .from("broadcast_recipients")
-      .select("broadcast_id, state, reason, sent_at, message_id")
+      .select("broadcast_id, state, reason, sent_at, message_id, channel")
       .eq("tenant_id", tenantId)
       .eq("contact_id", contactId)
       .order("broadcast_id")
@@ -579,6 +580,7 @@ export async function personRuns(ctx: RouteContext, tenantId: string, contactId:
       sent_at: r.sent_at,
       scheduled_for: b.scheduled_for,
       message_id: r.message_id,
+      channel: r.channel,
       at: r.sent_at ?? b.scheduled_for ?? b.created_at,
     });
   }

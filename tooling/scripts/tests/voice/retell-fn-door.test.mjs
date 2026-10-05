@@ -48,7 +48,7 @@ for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY", 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
-const { refusalScript } = await import(at("apps/edge/lib/receptionist/outbound-gate.ts"));
+const { refusalScript } = await import(at("packages/core/src/messages/outbound-gate.ts"));
 const hook = await import(at("apps/edge/api/retell-fn.ts"));
 
 /* -------------------------------------------------------------- the wire */
@@ -1186,6 +1186,18 @@ test("a workspace with no approved booking template is told so, in the cause a b
       ],
       "carries the link, but needs words nobody asked the caller for",
     ],
+    [
+      [
+        {
+          ...BOOKING_ROW,
+          components: [
+            { type: "HEADER", format: "IMAGE" },
+            { type: "BODY", text: "Hi {{1}}" },
+          ],
+        },
+      ],
+      "approved and carries the link, but its heading is a picture, which Meta refuses for a send that fills only the words",
+    ],
   ]) {
     const w = world({ templates });
     w.open();
@@ -1196,6 +1208,30 @@ test("a workspace with no approved booking template is told so, in the cause a b
     assert.match(said, /take their name/i, "and the agent is told what to do instead");
     assert.deepEqual(w.left().graph, [], `nothing reached Meta: ${why}`);
   }
+});
+
+test("a message with a picture for a heading is not the one a call texts: the workspace's plain message beside it is sent, by its own name", async () => {
+  // REGRESSION (audit of 2 Oct 2026, #10): bookingTemplate asked three questions and never whether Meta would take the
+  // send, so a promo with a picture, approved and carrying the link, was chosen on the call and refused with a 400.
+  const w = world({
+    templates: [
+      {
+        ...BOOKING_ROW,
+        name: "autumn_picture",
+        components: [
+          { type: "HEADER", format: "IMAGE" },
+          { type: "BODY", text: "Hi {{1}}" },
+        ],
+      },
+      { ...BOOKING_ROW, name: "reservar_ahora", components: [{ type: "BODY", text: "Hi {{1}}" }] },
+    ],
+  });
+  w.open();
+  const caller = w.number();
+  w.person(caller);
+  assert.equal(await listening(async () => spoken(await knock(w.ask(caller)))), SENT);
+  const [sent] = w.left().graph;
+  assert.equal(sent.body.template.name, "reservar_ahora", "the one Meta takes, though the picture's name sorts first");
 });
 
 test("a workspace that holds its bookings and has no approved booking template is told the hold, not that the caller can book online", async () => {

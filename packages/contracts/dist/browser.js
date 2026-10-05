@@ -46,7 +46,11 @@ var JITTER_SPREAD = 0.2;
 function jittered(ms2, random = Math.random) {
   return Math.round(ms2 * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
 }
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function formatterOnUse(locales, options) {
+  let built = null;
+  return { format: (date) => (built ??= new Intl.DateTimeFormat(locales, options)).format(date) };
+}
+var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
 function spanUnits(ms2) {
   const gap = Math.max(0, ms2);
   if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
@@ -605,6 +609,13 @@ function delayWords(ms2) {
   return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
 }
 var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
+function vetoRunNotice(name, people, when) {
+  const who = `${people} ${people === 1 ? "person" : "people"}`;
+  return {
+    subject: `Playbook \u201C${name}\u201D sends ${when}: ${who}`,
+    body: `${who} will be sent \u201C${name}\u201D ${when}. Stop the run on Today or in Campaigns before then if it should not go.`
+  };
+}
 var PLAYBOOK_NAME_MAX = 80;
 var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
 function triggerOf(id) {
@@ -2779,6 +2790,9 @@ function isOptedOutContact(c) {
 }
 var ASKED_TO_STOP = "asked to stop receiving messages";
 var OPT_OUT_REFUSAL = `This customer ${ASKED_TO_STOP}. They can text START to opt back in.`;
+function optOutWords(who) {
+  return `${who} ${ASKED_TO_STOP}. Nothing can be sent \u2014 they can text START to opt back in.`;
+}
 function stopRequestQuestion() {
   return { type: "noul", instructions: `Has the customer ${ASKED_TO_STOP}?` };
 }
@@ -2982,32 +2996,82 @@ function saidYesTo(r2, purpose, channel, about) {
   return mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about }).ok;
 }
 
-// src/people/person-row-facts.ts
-var REASON_SHORT = {
+// src/conversations/escalations.ts
+var ESCALATION_REASON_LABELS = {
+  human_token: "Customer asked for a person",
+  refusal: "Assistant declined to answer",
+  brain_error: "The receptionist hit an error \u2014 a holding message went out",
+  non_text: "Sent a voice note / photo",
+  send_failed: "Reply failed to deliver",
+  policy_block: "Held by your reply setting \u2014 nothing was sent",
+  policy_ask: "Set to Ask me first \u2014 a person answers this one",
+  person_hold: "You handle this person \u2014 the receptionist stays out",
+  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
+  deadman: "Nobody picked this up \u2014 flagged after silence",
+  manual: "Flagged manually",
+  opt_out: "Asked to stop receiving messages",
+  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
+  stale: "Arrived hours late \u2014 too old to answer automatically",
+  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
+  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
+  paused: "Held \u2014 the workspace is paused until billing resumes",
+  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
+  email_review: "Wrote by email \u2014 a person answers"
+};
+var ESCALATION_REASON_SHORT = {
   human_token: "asked for a person",
-  non_text: "sent something the receptionist can't read",
   refusal: "the receptionist declined to answer",
-  rate_cap: "reply limit reached",
-  policy_block: "held by your reply setting",
-  policy_ask: "a booking or a question set to Ask me first",
-  person_hold: "held for you",
-  carriers: "waiting on carriers",
-  email_review: "wrote by email",
-  send_failed: "a reply failed to send",
-  deadman: "no answer in time",
   brain_error: "the receptionist hit an error",
-  manual: "flagged by you",
+  non_text: "sent a voice note or photo",
+  send_failed: "reply failed to deliver",
+  policy_block: "held by your reply setting",
+  policy_ask: "set to Ask me first",
+  person_hold: "you handle this person",
+  rate_cap: "too many replies too fast",
+  deadman: "nobody picked this up",
+  manual: "flagged by hand",
   opt_out: "asked to stop",
-  state_unavailable: "memory was unavailable",
-  stale: "message arrived late",
+  state_unavailable: "the receptionist could not read this thread",
+  stale: "arrived hours late",
+  budget: "the day's model budget is used up",
   callback: "needs a call back",
-  budget: "the day\u2019s model budget is spent",
-  paused: "billing is paused"
+  paused: "the workspace is paused until billing resumes",
+  carriers: "the carriers have not approved this line",
+  email_review: "wrote by email"
 };
 function reasonShort(reason) {
   if (!reason) return "";
-  return REASON_SHORT[reason] ?? reason.replace(/_/g, " ");
+  return ESCALATION_REASON_SHORT[reason] ?? reason.replace(/_/g, " ");
 }
+var ESCALATION_SUMMARIES = {
+  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
+  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
+  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
+  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
+  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
+  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
+  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
+  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
+  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
+  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
+  manual: "Flagged by hand for a human.",
+  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
+  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
+  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
+  budget: "The day's model budget is used up, so the receptionist paused itself. NOTHING was sent \u2014 answer them yourself, or raise the budget under Settings \u203A Autonomy.",
+  callback: "They phoned and the receptionist couldn't finish it.",
+  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
+  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
+  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
+};
+function reasonLabelOf(reason) {
+  return ESCALATION_REASON_LABELS[reason] ?? reason;
+}
+function reasonSummaryOf(reason) {
+  return ESCALATION_SUMMARIES[reason] ?? `${reasonLabelOf(reason)}. Needs a human.`;
+}
+
+// src/people/person-row-facts.ts
 function ago(ms2, tz, nowMs) {
   return agoWords(ms2, nowMs, { dateAfterMs: WEEK_MS, date: (at3) => clockDate(at3, tz, nowMs) });
 }
@@ -3016,7 +3080,14 @@ function lastContactOf(r2, tz, nowMs) {
   const k = ts(r2.last_call_at);
   if (m === null && k === null) return { ts: null, at: null, kind: null, who: null, label: "No contact recorded" };
   if (k !== null && (m === null || k > m)) {
-    return { ts: k, at: r2.last_call_at, kind: "call", who: "they", label: `Phoned \xB7 ${ago(k, tz, nowMs)}` };
+    const theirs = ts(r2.last_inbound_call_at) === k;
+    return {
+      ts: k,
+      at: r2.last_call_at,
+      kind: "call",
+      who: theirs ? "they" : "system",
+      label: `${theirs ? "Phoned" : "We called"} \xB7 ${ago(k, tz, nowMs)}`
+    };
   }
   const who = r2.last_message_direction === "inbound" ? "they" : r2.last_message_sender === "human" ? "you" : r2.last_message_sender === "ai" ? "receptionist" : "system";
   const verb = who === "they" ? "They wrote" : who === "you" ? "You replied" : who === "receptionist" ? "Receptionist replied" : "We sent";
@@ -7901,6 +7972,13 @@ function audienceTrigger(audience) {
 }
 var EVERYONE_LABEL = "Everyone";
 var EVERYONE_HINT = "Everyone we can reach whose yes covers the message you pick, and by email whoever has dealt with you";
+var CONSENT_LIST_IDS = ["opted_in", "offers_ok", "opted_out"];
+var LISTS_THAT_MEAN_EVERYONE = CONSENT_LIST_IDS.filter((id) => id !== "opted_out");
+function doorNamesNoAudience(to, audiences) {
+  if (!to || !audiences || LISTS_THAT_MEAN_EVERYONE.includes(to)) return false;
+  return !audiences.some((a) => (a.kind === "saved" || a.kind === "list") && a.id === to);
+}
+var UNKNOWN_AUDIENCE_WORDS = "That list can't be messaged right now, so check who this is addressed to before you send.";
 function eligibleFor(rows, kind, id, savedIds, purpose, how) {
   return enrolFor(rows, kind, id, savedIds, purpose, how).map((e) => e.row);
 }
@@ -8698,7 +8776,7 @@ function playbookName(trigger, tpl) {
 // src/people/people-lists.ts
 var GET_YES_ROUTE = "broadcasts/get-yes";
 var USE_IN_A_BROADCAST = "Use in a broadcast";
-var OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts", broadcast: true };
+var OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts/offers_ok", broadcast: true };
 var LIST_STEPS = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
   waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
@@ -8765,7 +8843,7 @@ function broadcastStep(cta, to, members) {
     const said = members.filter((m) => m.saidYes.offers);
     if (members.length && said.length === 0) {
       return {
-        text: "Nobody on this list has said yes to offers yet \u2014 a broadcast reaches only that answer.",
+        text: "Nobody on this list has said yes to offers yet \u2014 an offer reaches only that answer.",
         cta: "Get their yes",
         to: GET_YES_ROUTE,
         enabled: true
@@ -8776,7 +8854,7 @@ function broadcastStep(cta, to, members) {
     return { text: members.length ? why : "Nobody here right now.", cta, to, enabled: false };
   }
   return {
-    text: `${offersYes} of ${members.length} on this list said yes to offers \u2014 a broadcast reaches them.`,
+    text: `${offersYes} of ${members.length} on this list said yes to offers \u2014 an offer reaches them.`,
     cta,
     to,
     enabled: true
@@ -8990,6 +9068,8 @@ var HELD_REASONS = {
   sending_domain_not_ready: "the domain isn't sending",
   sending_domain_at_cap: "the domain's day is full"
 };
+var DELIVERY_RECEIPTS_WORDS = "each channel's own receipts";
+var DELIVERY_RECEIPTS_TIP = "Each channel's own receipts";
 var EMAIL_HOLDS = [
   "email_offers_paused",
   "email_marketing_disabled"
@@ -13340,7 +13420,7 @@ function planBilling(before, sub, nowMs) {
   }
   return { row: row2, tenantStatus, switched, bell };
 }
-var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT2 = formatterOnUse("en-US", { month: "short", day: "numeric" });
 function dayWords(iso) {
   if (!iso) return "";
   const ms2 = Date.parse(iso);
@@ -13638,22 +13718,17 @@ function resolveTheme(pref, systemDark) {
 }
 var DEFAULT_THEME_PREF = "dark";
 var themePrefOf = (stored) => isThemePref(stored) ? stored : DEFAULT_THEME_PREF;
-var LOOK_OPTIONS = [
-  { id: "classic", label: "Classic" },
-  { id: "glass", label: "Glass" }
-];
-var isLookPref = (v) => v === "classic" || v === "glass";
+var LOOK_OPTIONS = [{ id: "glass", label: "Glass" }];
+var isLookPref = (v) => v === "glass";
 var DEFAULT_LOOK_PREF = "glass";
 var lookPrefOf = (stored) => isLookPref(stored) ? stored : DEFAULT_LOOK_PREF;
-var LOOK_OFFERED = true;
+var LOOK_OFFERED = false;
 var DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
 var LOOK_THEME_COLORS = {
-  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
   glass: { light: "#f1f2f6", dark: "#0f1014" }
 };
 var THEME_COLORS = LOOK_THEME_COLORS[DEFAULT_LOOK_PREF];
 var LOOK_THEME_INK = {
-  classic: { light: "#161616", dark: "#fbfaf8" },
   glass: { light: "#1b1c20", dark: "#f4f4f6" }
 };
 var THEME_INK = LOOK_THEME_INK[DEFAULT_LOOK_PREF];
@@ -13703,7 +13778,8 @@ var PREFETCH_SLOT = "__prefetched";
 var PREFETCH_READS = {
   today: ["metrics?days=1", "conversations", "escalations?state=open", "calls", "lead-searches", "setup", "views"],
   inbox: ["conversations", "escalations?state=open", "templates"],
-  conversations: ["conversations", "calls"],
+  // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
+  conversations: ["conversations", "calls", "escalations?state=open"],
   // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
   clients: ["contacts", "segments", "views"],
   segments: ["contacts", "segments", "views"],
@@ -14139,6 +14215,9 @@ function abandonedCall(dto) {
   if (typeof ms2 !== "number" || ms2 <= 0 || ms2 >= ABANDONED_MS) return false;
   return dto.disconnection_reason === "user_hangup";
 }
+function callAttemptWords(direction) {
+  return direction === "outbound" ? "Call didn't connect" : "Missed call";
+}
 var DISCONNECTION_LABELS = {
   user_hangup: "Customer hung up",
   agent_hangup: "Receptionist ended the call",
@@ -14222,6 +14301,23 @@ function callOutcomeWords(v) {
   const o = callOutcomeOf(v);
   return o ? CALL_OUTCOME_WORDS[o] : null;
 }
+function callTodoWords(followUp) {
+  const said = followUp?.trim();
+  return said ? `To do: ${said}` : null;
+}
+function callNotesOf(a) {
+  const name = a.caller_name?.trim();
+  return {
+    todo: callTodoWords(a.follow_up),
+    gave: [
+      name ? `Gave their name as ${name}` : "",
+      a.caller_email ? `Gave their email as ${a.caller_email}` : ""
+    ].filter(Boolean)
+  };
+}
+function callNoteLines(n) {
+  return n.todo ? [n.todo, ...n.gave] : n.gave;
+}
 function tidyCallSummary(text) {
   const t = (text ?? "").replace(/\s+/g, " ").trim();
   if (!t) return null;
@@ -14279,6 +14375,14 @@ var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
 
 // src/conversations/call-vm.ts
+function callOutcomeFor(dto, live) {
+  if (live) return "live";
+  if (dto.status === "not_connected") return "missed";
+  if (dto.status === "error") return "failed";
+  if (abandonedCall(dto)) return "abandoned";
+  if (callOutcomeOf(dto.outcome) === "callback_needed") return "callback";
+  return dto.in_voicemail ? "voicemail" : "handled";
+}
 function spokenDuration(ms2) {
   if (!ms2) return "Duration not recorded";
   const total = Math.round(ms2 / 1e3);
@@ -14314,9 +14418,9 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   }
   const outcomeWords = callOutcomeWords(dto.outcome);
   if (outcomeWords) bullets.push(outcomeWords);
-  if (dto.follow_up?.trim()) bullets.push(`To do: ${dto.follow_up.trim()}`);
-  if (dto.caller_name?.trim()) bullets.push(`Gave their name as ${dto.caller_name.trim()}`);
-  if (dto.caller_email) bullets.push(`Gave their email as ${dto.caller_email}`);
+  const notes = callNotesOf(dto);
+  if (notes.todo) bullets.push(notes.todo);
+  bullets.push(...notes.gave);
   const recState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording?.fetch_state === "purged" ? "purged" : dto.recording ? "pending" : "none";
   if (!missed) {
     bullets.push(
@@ -14341,7 +14445,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     const next = start == null ? null : starts.slice(i + 1).find((x) => x != null && x > start) ?? null;
     const end = start == null ? null : turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next;
     return {
-      t: typeof own === "number" ? `${Math.floor(own / 60)}:${String(Math.floor(own % 60)).padStart(2, "0")}` : "\u2014",
+      t: typeof own === "number" ? mmss(own * 1e3) : "\u2014",
       speaker: turn.role === "agent" ? "agent" : "client",
       text: turn.content ?? "",
       start,
@@ -14362,7 +14466,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     at: shortTime(dto.started_at, tz, now),
     ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...dur ? { duration: dur } : {},
-    outcome: live ? "live" : missed ? "missed" : abandonedCall(dto) ? "abandoned" : callOutcomeOf(dto.outcome) === "callback_needed" ? "callback" : "handled",
+    outcome: callOutcomeFor(dto, live),
     ...live ? { live: true } : {},
     snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
     summary: { headline: wanted || firstSentence || snippetBody, bullets },
@@ -14379,7 +14483,8 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     about: missed ? null : wanted || firstSentence || null,
     facts: [CALL_MOOD[dto.sentiment ?? ""], ending, missed ? void 0 : RECORDING_NOTE[recState]].filter(
       (f) => !!f
-    )
+    ),
+    notes
   };
 }
 
@@ -14538,6 +14643,9 @@ function messageStatusLabel(status) {
       return void 0;
   }
 }
+function isChatMessage(m) {
+  return m.type !== "call_summary" && m.type !== "note";
+}
 function reachedCustomer(status) {
   return status !== "queued" && status !== "failed" && status !== "canceled";
 }
@@ -14573,7 +14681,7 @@ function clipAtWord(text, max) {
 }
 
 // src/conversations/conversation-vm.ts
-function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
+function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const whoShort = isIdentifierName(who) ? who : who.split(" ")[0] || who;
   const msgs = dto.messages.map((m) => ({
@@ -14597,12 +14705,21 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     } : {}
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  const chat = dto.messages.filter((m) => m.type !== "call_summary");
+  const chat = dto.messages.filter(isChatMessage);
   const callNotes = dto.messages.length - chat.length;
   const last = [...chat].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastAuthor = last && last.direction === "outbound" ? messageAuthor(last) : null;
-  const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
-  const needsHuman = dto.state === "needs_human" || paused;
+  const v = standingOf(
+    {
+      state: dto.state,
+      paused_until: dto.paused_until,
+      assignee_user_id: dto.assignee_user_id,
+      assignee_is_me: dto.assignee_is_me,
+      open_escalation: !!escalation
+    },
+    now.getTime()
+  );
+  const needsHuman = v.flagged;
   const outcome = needsHuman ? "escalated" : last?.direction === "inbound" || dto.state === "snoozed" ? "open" : "handled";
   return {
     id: dto.id,
@@ -14621,6 +14738,7 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     // last_message_at ignored call notes, so a row read "3:22 AM" beside a
     // preview imported at 2:15 PM.
     at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
+    standing: v.standing,
     outcome,
     snippet: last ? messageWords(last).slice(0, 110) : "",
     hasChat: chat.length > 0,
@@ -14635,49 +14753,6 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     messages: msgs
   };
 }
-
-// src/conversations/escalations.ts
-var ESCALATION_REASON_LABELS = {
-  human_token: "Customer asked for a person",
-  refusal: "Assistant declined to answer",
-  brain_error: "The receptionist hit an error \u2014 a holding message went out",
-  non_text: "Sent a voice note / photo",
-  send_failed: "Reply failed to deliver",
-  policy_block: "Held by your reply setting \u2014 nothing was sent",
-  policy_ask: "Set to Ask me first \u2014 a person answers this one",
-  person_hold: "You handle this person \u2014 the receptionist stays out",
-  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
-  deadman: "Nobody picked this up \u2014 flagged after silence",
-  manual: "Flagged manually",
-  opt_out: "Asked to stop receiving messages",
-  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
-  stale: "Arrived hours late \u2014 too old to answer automatically",
-  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
-  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
-  paused: "Held \u2014 the workspace is paused until billing resumes",
-  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
-  email_review: "Wrote by email \u2014 a person answers"
-};
-var ESCALATION_SUMMARIES = {
-  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
-  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
-  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
-  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
-  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
-  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
-  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
-  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
-  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
-  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
-  manual: "Flagged by hand for a human.",
-  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
-  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
-  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
-  callback: "They phoned and the receptionist couldn't finish it.",
-  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
-  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
-  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
-};
 
 // src/conversations/first-touch.ts
 var REFERRAL_ID_MAX = 200;
@@ -15683,33 +15758,41 @@ function threadStanding(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const state = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
   return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
 }
+function heldDraftOf(messages) {
+  return [...messages].reverse().find(isHeldDraft) ?? null;
+}
+function conversationWaitsOnYou(dto, escalation, now = /* @__PURE__ */ new Date()) {
+  if (threadStanding(dto, escalation, now).needsYou) return true;
+  const draft = heldDraftOf(dto.messages);
+  return !!draft && replyWaitsOnYou({ endsAtMs: draftSendsAtMs(draft) }, now.getTime());
+}
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
-  let draftMsg = null;
-  for (let i = dto.messages.length - 1; i >= 0; i--) {
-    if (isHeldDraft(dto.messages[i])) {
-      draftMsg = dto.messages[i];
-      break;
-    }
-  }
+  const draftMsg = heldDraftOf(dto.messages);
   const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
-  const reasonLabel = escalation ? ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason : null;
+  const reasonLabel = escalation ? reasonLabelOf(escalation.reason) : null;
   const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const win = replyWindow(lastInbound?.channel, dto.last_wa_inbound_at, now).open;
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
-  const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
+  const hasChat = !!dto.last_wa_inbound_at || dto.messages.some(isChatMessage);
   const chatChannel = writtenChannelOf(lastInbound?.channel);
   const primaryChannel = hasChat || !hasCalls ? chatChannel : "phone";
-  const written = [
-    ...new Set(dto.messages.filter((m) => m.type !== "call_summary").map((m) => writtenChannelOf(m.channel)))
-  ];
+  const written = [...new Set(dto.messages.filter(isChatMessage).map((m) => writtenChannelOf(m.channel)))];
   const channels = [
     ...hasChat || !hasCalls ? [chatChannel, ...written.filter((c) => c !== chatChannel)] : [],
     ...hasCalls ? ["phone"] : []
   ];
   const timeline = dto.messages.map((m) => {
+    if (m.type === "note") {
+      return {
+        type: "event",
+        kind: "note",
+        at: bubbleTime(messageAt(m), tz, now),
+        body: `Note: ${messageText(m)}`
+      };
+    }
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
     const why = messageWhy(m);
@@ -15822,7 +15905,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? (
       // A call back's to-do is its one sentence: "They phoned and the receptionist couldn't finish it." sat beneath the
       // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
-      escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`
+      escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : reasonSummaryOf(escalation.reason)
     ) : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
     lastAt: shortTime(dto.last_message_at, tz, now),
     lastAtFull: shortTime(dto.last_message_at, tz, now),
@@ -15840,7 +15923,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
   };
 }
 function lastWordOf(dto) {
-  const chat = dto.messages.filter((m) => m.type !== "call_summary");
+  const chat = dto.messages.filter(isChatMessage);
   let at3 = chat.length - 1;
   let failed = null;
   for (; at3 >= 0; at3--) {
@@ -16994,6 +17077,9 @@ var TONE_OF = /* @__PURE__ */ (() => ({
   thread: {
     escalated: "warn",
     needs_you: "warn",
+    // Flagged and held: yours is in hand, a teammate's is theirs to answer -- neither is a warning to this reader.
+    yours: "info",
+    theirs: "plain",
     snoozed: "info",
     done: "plain",
     open: "plain",
@@ -17005,11 +17091,14 @@ var TONE_OF = /* @__PURE__ */ (() => ({
   call: {
     live: "accent",
     missed: "plain",
+    // The provider could not place or keep the call: a fault, not a customer's choice.
+    failed: "warn",
     handled: "plain",
     stale: "plain",
     ended: "plain",
     abandoned: "warn",
-    callback: "warn"
+    callback: "warn",
+    voicemail: "plain"
   },
   person: {
     needs_you: "warn",
@@ -17065,6 +17154,8 @@ var LABEL_OF = /* @__PURE__ */ (() => ({
   thread: {
     escalated: "Needs you",
     needs_you: "Needs you",
+    yours: "You have it",
+    theirs: "A teammate has it",
     snoozed: "Snoozed",
     done: "Done",
     open: "Customer wrote last",
@@ -17083,11 +17174,13 @@ var LABEL_OF = /* @__PURE__ */ (() => ({
   call: {
     live: "Live",
     missed: "Never connected",
+    failed: "Call failed",
     handled: "Handled",
     stale: "No word from the provider",
     ended: "Ended",
     abandoned: "Hung up early",
-    callback: "Asked for a call back"
+    callback: "Asked for a call back",
+    voicemail: "Reached voicemail"
   },
   person: PERSON_STATE_LABELS,
   consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
@@ -17803,7 +17896,8 @@ function proposalAction(replyVia, win, sentWords2) {
     ready: false
   };
 }
-function repliesWords(via, window) {
+function repliesWords(via, window, stop) {
+  if (stop.optedOut) return optOutWords(stop.who);
   if (via === "Email") return "Any time, by email";
   if (via === "Text") return "Any time, by text";
   if (via !== "WhatsApp" || !window) return null;
@@ -18350,7 +18444,7 @@ function pipelinePeekDetail(p) {
     reach.push({ id: "phone", label: W.phone, words: p.phone, call: dial ? `tel:${dial}` : null, copy: p.phone });
   }
   if (p.email) reach.push({ id: "email", label: W.email, words: p.email, call: null, copy: p.email });
-  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow) : null;
+  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name }) : null;
   if (replies) reach.push({ id: "replies", label: W.replies, words: replies, call: null, copy: null });
   const history = p.timeline.filter((t) => t.kind === "deal" && !t.ahead).sort((a, b) => b.ts - a.ts).slice(0, 3).map((t) => ({ id: t.id, words: t.text, when: t.day }));
   return { reach, history };
@@ -18704,7 +18798,7 @@ var EMAIL_NOT_ANSWERED_SENTENCE = "The receptionist does not answer email yet: e
 var EMAIL_ELSEWHERE_SENTENCE = "Replies you send from another mail app do not show here.";
 
 // src/email/sending-domains.ts
-var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DAY_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
 var SENDING_DOMAIN_STATES = ["records", "verifying", "verified", "held"];
 var DOMAIN_HOLDS = ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"];
 var REPUTATION_HOLDS = ["bounces", "complaint", "unsubscribes"];
@@ -19885,7 +19979,7 @@ function firstRunTryOf({ dto, calls, since, nowMs }) {
   const to = `conversations/${call.cvId}`;
   if (call.live) {
     const secs = Math.max(0, Math.floor((nowMs - (call.startedAtMs ?? nowMs)) / 1e3));
-    const clock3 = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+    const clock3 = mmss(secs * 1e3);
     return {
       ...base,
       stage: "call",
@@ -22739,12 +22833,13 @@ function lastExchangeOf({ profile, stamp }) {
       const t = ts(messageAt(m));
       if (t === null) continue;
       if (!customer && m.direction === "inbound" && m.body)
-        customer = { text: m.body, at: `${stamp(t).time} ${stamp(t).day}` };
+        customer = { text: messageWords(m), at: `${stamp(t).time} ${stamp(t).day}` };
       if (!reply && m.direction === "outbound" && m.status !== "canceled" && (m.sender === "ai" || m.sender === "human")) {
         reply = {
           text: messageText(m),
           at: `${stamp(t).time} ${stamp(t).day}`,
-          who: m.sender === "ai" ? "Receptionist" : "You"
+          // A person's reply is the team's (message-author.ts): the row does not say which member sent it.
+          who: m.sender === "ai" ? "Receptionist" : "Your team"
         };
       }
       if (customer && reply) break;
@@ -22768,7 +22863,9 @@ function rightNowOf({ profile, tz, now, nowMs, row: r2, base }) {
     return {
       tone: "escalated",
       title: `Escalated \xB7 ${reasonShort(r2.open_escalation_reason)}`,
-      detail: `${capitalize(reasonShort(r2.open_escalation_reason))}${since ? ` \xB7 since ${since}` : ""}. Paused until someone answers.`,
+      // The operator's first sentence for the reason (the Inbox's own): "Paused until someone answers" was appended to
+      // every reason, over a person who had asked to stop, where nothing may be answered (the 2 Oct 2026 audit).
+      detail: `${since ? `Since ${since}. ` : ""}${reasonSummaryOf(r2.open_escalation_reason)}`,
       cta: openThread
     };
   }
@@ -22834,6 +22931,7 @@ var TONE_WORD = {
 var receptionistMeta = (label) => label.includes(", ") ? label.slice(label.indexOf(", ") + 2) : label.toLowerCase();
 function personFactsOf({ profile, tz, nowMs, base, current, firstChannel }) {
   const lc = base.lastContact;
+  const attempts = profile.calls.filter((k) => k.status === "not_connected").length;
   const lastMeta = lc.who === "they" ? lc.kind === "call" ? "they phoned" : "they wrote" : lc.who === "you" ? "you replied" : lc.who === "receptionist" ? "receptionist replied" : lc.who === "system" ? "we sent" : "";
   const facts = [
     { label: "First contact", value: base.firstContact.label, meta: firstChannel },
@@ -22846,7 +22944,9 @@ function personFactsOf({ profile, tz, nowMs, base, current, firstChannel }) {
     {
       label: "Calls",
       value: base.calls,
-      meta: base.calls ? `${Math.max(1, Math.round(base.callSeconds / 60))} min total` : "no calls"
+      // A dial that never connected is not a call (people_list's rule), but it is in the history below: the strip said
+      // "0 calls" over a "Missed call" row (the 2 Oct 2026 audit). Said as what it is.
+      meta: `${base.calls ? `${Math.max(1, Math.round(base.callSeconds / 60))} min total` : "no calls"}${attempts ? `, ${attempts} didn't connect` : ""}`
     },
     // Consent is the two asks on the rail, each with how it was given. A fact, an About row and a pill said it
     // again, five times on one profile.
@@ -22889,7 +22989,7 @@ function aboutOf({
   });
   about.push({ k: "Channels", v: base.channels.map((c) => PERSON_CHANNEL_WORDS[c]).join(" \xB7 ") || "\u2014" });
   if (base.hasChat && reply) {
-    const v = repliesWords(REPLY_VIA[reply.via], reply.window);
+    const v = repliesWords(REPLY_VIA[reply.via], reply.window, { optedOut: base.stopped, who: base.name });
     if (v) about.push({ k: "Replies", v });
   }
   if (profile.visits) {
@@ -23042,14 +23142,16 @@ function callItems({ profile, stamp }) {
     const wanted = (k.wanted || "").trim();
     const summary = tidyCallSummary(k.summary) ?? "";
     const missed = k.status === "not_connected";
+    const notes = callNoteLines(callNotesOf(k));
     const sentence2 = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : k.in_voicemail ? "Reached voicemail." : "No summary from this call.");
     items.push({
       id: `k-${k.id}`,
       ts: t,
       ...stamp(t),
       kind: "call",
-      who: missed ? "Missed call" : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""}`,
+      who: missed ? callAttemptWords(k.direction) : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""}`,
       text: sentence2,
+      ...notes.length ? { notes } : {},
       sub: missed ? "Never connected" : k.recording?.fetch_state === "stored" ? "Recording and transcript in Conversations" : "Transcript in Conversations",
       link: { label: "Open", to: `conversations/cv-${k.id}` }
     });
@@ -23061,15 +23163,18 @@ function escalationItems({ profile, stamp }) {
   for (const e of profile.escalations) {
     const t = ts(e.created_at);
     if (t === null) continue;
+    const said = e.details?.trim();
+    const details = said && said.toLowerCase() !== reasonShort(e.reason).toLowerCase() ? clipAtWord(said, 120) : null;
+    const resolvedAt = e.state === "resolved" ? ts(e.updated_at) : null;
     items.push({
       id: `e-${e.id}`,
       ts: t,
       ...stamp(t),
       kind: "escalation",
       who: "Escalated",
-      text: capitalize(reasonShort(e.reason)) || "The receptionist stopped",
+      text: e.reason === "callback" && details ? details : `${capitalize(reasonShort(e.reason)) || "The receptionist stopped"}${details ? ` \xB7 \u201C${details}\u201D` : ""}`,
       // "Open" beside a row that opens something read as the verb; the state is what it says.
-      sub: e.state === "resolved" ? "Resolved" : "Still open",
+      sub: e.state === "resolved" ? `Resolved${resolvedAt !== null ? ` \xB7 ${stamp(resolvedAt).time} ${stamp(resolvedAt).day}` : ""}${e.resolved_by_user_id ? " \xB7 by a person" : ""}` : "Still open",
       link: { label: "Open the thread", to: `inbox/th-${e.conversation_id}` }
     });
   }
@@ -23326,7 +23431,7 @@ function campaignsOf(d, tz, nowMs) {
   for (const c of d.conversations) {
     for (const m of c.messages) {
       threadOf2.set(m.id, c.id);
-      if (m.direction === "inbound") repliesIn.set(c.id, [...repliesIn.get(c.id) ?? [], m.created_at]);
+      if (isTheirOwnWords(m)) repliesIn.set(c.id, [...repliesIn.get(c.id) ?? [], m.created_at]);
     }
   }
   return (d.campaigns ?? []).map((c) => {
@@ -23342,7 +23447,8 @@ function campaignsOf(d, tz, nowMs) {
       title: c.playbook_id ? c.playbook_name || c.name : c.name,
       when: at3 !== null ? clockDate(at3, tz, nowMs) : "\u2014",
       outcome,
-      line: `${c.playbook_id ? "Playbook" : "Broadcast"} \xB7 ${outcome}`,
+      // Which wire it went by, or would have: a person on three channels is not told "Sent" with nowhere to look.
+      line: `${c.playbook_id ? "Playbook" : "Broadcast"} \xB7 ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} \xB7 ${outcome}`,
       tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
       to: `broadcasts/run:${c.broadcast_id}`
     };
@@ -23416,6 +23522,122 @@ function templateUntranslatable(t) {
   if (buttons.length > 1) return "it has more than one button";
   const b = buttons[0];
   if (b && b.kind !== "url") return b.kind === "reply" ? "it has a reply button" : "it has a button that calls";
+  return null;
+}
+
+// src/templates/template-parts.ts
+function footerOf(components) {
+  if (!Array.isArray(components)) return null;
+  for (const c of components) {
+    if (!c || typeof c !== "object") continue;
+    const part = c;
+    if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
+    const text = typeof part.text === "string" ? part.text.trim() : "";
+    if (text) return text;
+  }
+  return null;
+}
+function templateFooter(t) {
+  if (typeof t.footer === "string" && t.footer.trim()) return t.footer.trim();
+  const stored = footerOf(t.components);
+  if (stored) return stored;
+  const s = starterByName(t.name);
+  return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
+}
+var partOf = (components, type) => {
+  if (!Array.isArray(components)) return null;
+  for (const c of components) {
+    if (c && typeof c === "object" && String(c.type ?? "").toUpperCase() === type)
+      return c;
+  }
+  return null;
+};
+var textOf = (part) => {
+  const t = part && typeof part.text === "string" ? part.text.trim() : "";
+  return t || null;
+};
+var BUTTON_KIND = { URL: "url", QUICK_REPLY: "reply", PHONE_NUMBER: "call" };
+function templateParts(components) {
+  const header = partOf(components, "HEADER");
+  const buttons = [];
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const kind = BUTTON_KIND[String(b.type ?? "").toUpperCase()];
+    const text = typeof b.text === "string" ? b.text.trim() : "";
+    if (kind && text) buttons.push({ text, kind });
+  }
+  return {
+    // A picture heading is not words and is not drawn as any.
+    header: header && String(header.format ?? "TEXT").toUpperCase() === "TEXT" ? textOf(header) : null,
+    footer: footerOf(components),
+    buttons
+  };
+}
+function templateBlocked(t) {
+  if (typeof t.blocked === "string") return t.blocked.trim() || null;
+  if (t.blocked === null) return null;
+  const components = t.components;
+  if (!Array.isArray(components)) return null;
+  const header = partOf(components, "HEADER");
+  if (header) {
+    const format = String(header.format ?? "TEXT").toUpperCase();
+    if (format !== "TEXT")
+      return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
+    if (/\{\{\d+\}\}/.test(String(header.text ?? ""))) return "a heading that takes a value";
+  }
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const button = b;
+    const type = String(button.type ?? "").toUpperCase();
+    if (!(type in BUTTON_KIND)) return "a button Chanlytics cannot fill";
+    if (type === "URL" && /\{\{\d+\}\}/.test(String(button.url ?? ""))) return "a button that takes a value";
+  }
+  return null;
+}
+function refusedWords(reason) {
+  const said = String(reason ?? "").trim().replace(/[.!?\s]+$/, "");
+  if (!said) return null;
+  const words2 = /^[A-Z0-9_]+$/.test(said) ? said.toLowerCase().replace(/_/g, " ") : said;
+  return `WhatsApp refused this one: ${words2}. Change the words and send it back.`;
+}
+var COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
+function blockedWords(reasons) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const r2 of reasons) seen.set(r2, (seen.get(r2) ?? 0) + 1);
+  const parts2 = [...seen].map(([reason, n]) => `${COUNT_WORDS[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
+  return parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}` : parts2[0];
+}
+function sendableTemplates(list2) {
+  const sendable = [];
+  const blocked = [];
+  for (const t of list2) (templateBlocked(t) ? blocked : sendable).push(t);
+  if (blocked.length === 0) return { sendable, blocked, why: null };
+  const n = blocked.length;
+  const reasons = blocked.map((t) => templateBlocked(t));
+  const words2 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
+  const many = COUNT_WORDS[n] ?? String(n);
+  const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
+  return {
+    sendable,
+    blocked,
+    why: `${lead} can't go out from here \u2014 ${words2}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
+  };
+}
+function templateLinkButton(components) {
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const x = b;
+    if (String(x.type ?? "").toUpperCase() !== "URL") continue;
+    const text = typeof x.text === "string" ? x.text.trim() : "";
+    const url = typeof x.url === "string" ? x.url.trim() : "";
+    if (text && url) return { text, url };
+  }
   return null;
 }
 
@@ -23500,7 +23722,13 @@ function inboxTemplates(templates, to) {
   const rows = [];
   let promotions = 0;
   let unfillable = 0;
+  const refused = [];
   for (const t of templates) {
+    const blocked = templateBlocked(t);
+    if (blocked) {
+      refused.push(blocked);
+      continue;
+    }
     if (slotToWrite(t)) {
       unfillable += 1;
       continue;
@@ -23526,10 +23754,36 @@ function inboxTemplates(templates, to) {
     label: reads(r2.title) > 1 ? `${r2.title} \xB7 ${languageWords(r2.template.language)}` : r2.title
   }));
   const held = [
+    refused.length ? `${refused.length} that WhatsApp would refuse (${[...new Set(refused)].join(", ")})` : "",
     promotions ? `${promotions} promotion${promotions === 1 ? "" : "s"} (${to.who} hasn't said yes to offers)` : "",
     unfillable ? `${unfillable} that ${unfillable === 1 ? "needs" : "need"} words the Inbox doesn't ask for` : ""
   ].filter(Boolean);
-  return { sendable, hidden: held.length ? `Not offered: ${held.join(" and ")}.` : null };
+  const said = held.length > 1 ? `${held.slice(0, -1).join(", ")} and ${held[held.length - 1]}` : held[0];
+  return { sendable, hidden: held.length ? `Not offered: ${said}.` : null };
+}
+function templateHolds(left) {
+  const out = { pending: 0, rejected: 0, paused: 0, disabled: 0, hidden: 0 };
+  for (const t of left) {
+    if (t.channel !== "whatsapp") continue;
+    const status = t.meta_status;
+    if (status === "pending" || status === "rejected" || status === "paused" || status === "disabled") out[status] += 1;
+    else if (status === "approved") out.hidden += 1;
+  }
+  return out;
+}
+var HOLD_WORDS2 = [
+  ["pending", "waiting for WhatsApp to review"],
+  ["rejected", "refused by WhatsApp"],
+  ["paused", "paused by WhatsApp"],
+  ["disabled", "disabled by WhatsApp"],
+  ["hidden", "hidden by you"]
+];
+function noTemplateWords(held) {
+  const parts2 = HOLD_WORDS2.flatMap(([key, words2]) => {
+    const n = held?.[key] ?? 0;
+    return n > 0 ? [`${n} ${words2}`] : [];
+  });
+  return `No approved template yet${parts2.length ? ` (${parts2.join(", ")})` : ""} \u2014 nothing can be sent until one is.`;
 }
 function inboxSlots(t) {
   return Array.isArray(t.variables) ? defaultParamSpecs({ name: t.name, variables: t.variables }) : [{ kind: "business_name" }, { kind: "booking_link" }];
@@ -23581,7 +23835,7 @@ function groupTemplates(list2) {
 }
 function bookingTemplate(templates) {
   const usable = templates.filter(
-    (t) => t.meta_status === "approved" && !slotToWrite(t) && defaultSlotKinds(t).includes("booking_link")
+    (t) => t.meta_status === "approved" && !templateBlocked(t) && !slotToWrite(t) && defaultSlotKinds(t).includes("booking_link")
   );
   return usable.find((t) => t.name === "call_text") ?? usable.find((t) => t.name === "booking_link") ?? usable.slice().sort(compareTemplates)[0] ?? null;
 }
@@ -23840,11 +24094,16 @@ function whoWill(p) {
   const of = p.named ? ` of ${p.named.pool}` : "";
   const offers = purposeOfPlaybook(triggerOf(p.trigger)?.cls ?? null) === "marketing";
   switch (reach) {
-    case "sends":
+    case "sends": {
+      const all = p.candidates ?? 0;
+      const cap = triggerOf(p.trigger)?.kind === "visit" ? 0 : p.cap_per_run ?? 0;
+      const next = cap > 0 ? Math.min(all, cap) : all;
+      const later = all - next;
       return {
-        why: `${p.candidates ?? 0}${of} will get it${p.held ? ` \xB7 ${p.held} heard from you this week and wait` : ""}`,
-        pill: { tone: "ok", label: plural(p.candidates ?? 0, "person", "people") }
+        why: `${next}${of} will get it` + (later > 0 ? ` \xB7 up to ${later} more on later runs, ${cap} a run` : "") + (p.held ? ` \xB7 ${p.held} heard from you this week and wait` : ""),
+        pill: { tone: "ok", label: plural(next, "person", "people") }
       };
+    }
     case "nobody":
       return {
         why: p.named && p.named.pool > 0 && p.named.saidYes === 0 ? `0${of} will get it \xB7 none said yes to ${offers ? "offers" : "messages"}` : p.named && p.named.pool === 0 ? "Nobody is on it yet" : `0${of} will get it`,
@@ -24976,7 +25235,7 @@ function zoneOfRegion(region) {
 
 // src/reports/campaign-report.ts
 var pct2 = (n, d) => d ? Math.round(n / d * 100) : null;
-var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN2 = formatterOnUse([], { month: "short", day: "numeric" });
 function toCampaignReportVM(dto) {
   const days = dto.days;
   const series = dto.series ?? [];
@@ -25043,7 +25302,7 @@ function toCampaignReportVM(dto) {
       id: "delivered",
       label: "Delivered",
       value: pct2(tot.delivered, tot.sent) === null ? "\u2014" : `${pct2(tot.delivered, tot.sent)}%`,
-      meta: tot.sent ? `${tot.delivered} of ${tot.sent} \xB7 WhatsApp's receipts` : "nothing sent",
+      meta: tot.sent ? `${tot.delivered} of ${tot.sent} \xB7 ${DELIVERY_RECEIPTS_WORDS}` : "nothing sent",
       delta: pointsDelta(pct2(tot.delivered, tot.sent), pct2(prev.delivered, prev.sent), noun),
       spark: points.map((p) => p.delivered),
       compare: null
@@ -27912,116 +28171,6 @@ function namedProblem(check, words2, set) {
   return namedRefusal(subject, set) ?? namedRefusal(words2.body, set) ?? check.error;
 }
 
-// src/templates/template-parts.ts
-function footerOf(components) {
-  if (!Array.isArray(components)) return null;
-  for (const c of components) {
-    if (!c || typeof c !== "object") continue;
-    const part = c;
-    if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
-    const text = typeof part.text === "string" ? part.text.trim() : "";
-    if (text) return text;
-  }
-  return null;
-}
-function templateFooter(t) {
-  if (typeof t.footer === "string" && t.footer.trim()) return t.footer.trim();
-  const stored = footerOf(t.components);
-  if (stored) return stored;
-  const s = starterByName(t.name);
-  return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
-}
-var partOf = (components, type) => {
-  if (!Array.isArray(components)) return null;
-  for (const c of components) {
-    if (c && typeof c === "object" && String(c.type ?? "").toUpperCase() === type)
-      return c;
-  }
-  return null;
-};
-var textOf = (part) => {
-  const t = part && typeof part.text === "string" ? part.text.trim() : "";
-  return t || null;
-};
-var BUTTON_KIND = { URL: "url", QUICK_REPLY: "reply", PHONE_NUMBER: "call" };
-function templateParts(components) {
-  const header = partOf(components, "HEADER");
-  const buttons = [];
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const kind = BUTTON_KIND[String(b.type ?? "").toUpperCase()];
-    const text = typeof b.text === "string" ? b.text.trim() : "";
-    if (kind && text) buttons.push({ text, kind });
-  }
-  return {
-    // A picture heading is not words and is not drawn as any.
-    header: header && String(header.format ?? "TEXT").toUpperCase() === "TEXT" ? textOf(header) : null,
-    footer: footerOf(components),
-    buttons
-  };
-}
-function templateBlocked(t) {
-  if (typeof t.blocked === "string") return t.blocked.trim() || null;
-  if (t.blocked === null) return null;
-  const components = t.components;
-  if (!Array.isArray(components)) return null;
-  const header = partOf(components, "HEADER");
-  if (header) {
-    const format = String(header.format ?? "TEXT").toUpperCase();
-    if (format !== "TEXT")
-      return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
-    if (/\{\{\d+\}\}/.test(String(header.text ?? ""))) return "a heading that takes a value";
-  }
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const button = b;
-    const type = String(button.type ?? "").toUpperCase();
-    if (!(type in BUTTON_KIND)) return "a button Chanlytics cannot fill";
-    if (type === "URL" && /\{\{\d+\}\}/.test(String(button.url ?? ""))) return "a button that takes a value";
-  }
-  return null;
-}
-var COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
-function blockedWords(reasons) {
-  const seen = /* @__PURE__ */ new Map();
-  for (const r2 of reasons) seen.set(r2, (seen.get(r2) ?? 0) + 1);
-  const parts2 = [...seen].map(([reason, n]) => `${COUNT_WORDS[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
-  return parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}` : parts2[0];
-}
-function sendableTemplates(list2) {
-  const sendable = [];
-  const blocked = [];
-  for (const t of list2) (templateBlocked(t) ? blocked : sendable).push(t);
-  if (blocked.length === 0) return { sendable, blocked, why: null };
-  const n = blocked.length;
-  const reasons = blocked.map((t) => templateBlocked(t));
-  const words2 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
-  const many = COUNT_WORDS[n] ?? String(n);
-  const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
-  return {
-    sendable,
-    blocked,
-    why: `${lead} can't go out from here \u2014 ${words2}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
-  };
-}
-function templateLinkButton(components) {
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const x = b;
-    if (String(x.type ?? "").toUpperCase() !== "URL") continue;
-    const text = typeof x.text === "string" ? x.text.trim() : "";
-    const url = typeof x.url === "string" ? x.url.trim() : "";
-    if (text && url) return { text, url };
-  }
-  return null;
-}
-
 // src/templates/template-preview.ts
 function fill(body, values) {
   return body.replace(/\{\{(\d+)\}\}/g, (m, n) => values[Number(n) - 1] ?? m);
@@ -28163,6 +28312,7 @@ function unreadFor(rows, seenAt, marks) {
   const gone = new Set(marks.filter((m) => m.read_at || m.dismissed_at).map((m) => m.notification_id));
   return rows.filter((r2) => Date.parse(r2.created_at) > seen && !gone.has(r2.id)).length;
 }
+var isForReader = (row2, userId) => row2.recipient_user_id === null || row2.recipient_user_id === userId;
 function firstLine(body, max = 160) {
   return body.split("\n").find((l) => l.trim())?.trim().slice(0, max) ?? "";
 }
@@ -28193,7 +28343,9 @@ function buildNotificationFeed(input) {
         kind: "needs_you",
         at: at3,
         title: `${t.who} needs you`,
-        message: t.preview ? `They wrote: \u201C${t.preview}\u201D` : "Flagged for a person.",
+        // The customer's own words (the thread's `ask`), never the thread's last message: that was the
+        // receptionist's holding reply on every handoff, quoted as if the customer had written it.
+        message: t.ask ? `${t.ask.label}: ${t.ask.quoted ? `\u201C${t.ask.text}\u201D` : t.ask.text}` : "Flagged for a person.",
         to: `inbox/${t.id}`,
         icon: "inbox",
         tone: "warn",
@@ -28222,7 +28374,7 @@ function buildNotificationFeed(input) {
       key: `call:${c.callId}`,
       kind: "missed_call",
       at: c.startedAtMs,
-      title: `Missed call \xB7 ${c.who}`,
+      title: `${callAttemptWords(c.direction ?? "inbound")} \xB7 ${c.who}`,
       message: c.number ? `${c.number} \u2014 the call never connected.` : "The call never connected.",
       to: `conversations/${c.cvId}`,
       icon: "phone",
@@ -28482,6 +28634,10 @@ var AWAY_NOUN = {
   // A reach-out that wrote to several businesses hears back from several (Reach out Part 5).
   reach_out_replied: ["reply to a reach-out", "replies to a reach-out"]
 };
+function groupTitle(members, noun, idOf) {
+  const subjects = new Set(members.map((m) => m.about ? `${m.about.type}:${m.about.id}` : idOf(m))).size;
+  return `${subjects} ${noun[subjects === 1 ? 0 : 1]}`;
+}
 var AWAY_TONE_RANK = { warn: 0, "": 1, ok: 2 };
 var AWAY_GROUP_MIN = 2;
 var AWAY_EMPTY_CLEAR = "All caught up.";
@@ -28540,7 +28696,7 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
     groups.push({
       row: members[0],
       count: members.length,
-      title: `${members.length} ${noun[1]}`,
+      title: groupTitle(members, noun, idOf),
       ids: members.map(idOf)
     });
   }
@@ -28579,7 +28735,7 @@ function bellSections(rows) {
         key: `${label}:${k}`,
         row: members[0],
         count: members.length,
-        title: `${members.length} ${noun[1]}`,
+        title: groupTitle(members, noun, idOf),
         members
       });
     }
@@ -28983,7 +29139,11 @@ function todayFacts(input) {
     callsInWindow: callDtos.filter((c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs),
     callMinutes: Math.round(period.call_seconds / 60),
     traffic: period.messages_in + period.calls + period.messages_out_you,
-    oldest: tzSince(metrics.now.oldest_open_escalation_at, tz, now)
+    // The oldest wait among the threads WAITING ON YOU: openEsc is the list the headline's count and its one name are
+    // read from, oldest first. The metric's oldest open escalation counts the ones you or a teammate hold and the
+    // snoozed too, so the headline paired one person's name with another thread's time ("Ana has been waiting since
+    // Aug 29"; the 2 Oct 2026 audit).
+    oldest: tzSince(openEsc[0]?.created_at, tz, now)
   };
 }
 
@@ -29206,6 +29366,21 @@ function turnsOf(dto) {
     };
   });
 }
+function checkingOf(live, startedAtMs, heartbeatAtMs, nowMs) {
+  if (!live) return { checking: false, checkingWhy: null };
+  const sinceBeat = heartbeatAtMs === null ? 0 : nowMs - heartbeatAtMs;
+  const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
+  if (sinceBeat > LIVE_STALE_MS) {
+    return {
+      checking: true,
+      checkingWhy: `no word from the phone provider for ${Math.round(sinceBeat / MIN_MS)} minutes`
+    };
+  }
+  if (sinceStart > LIVE_OVERLONG_MS) {
+    return { checking: true, checkingWhy: `live for over ${Math.floor(sinceStart / MIN_MS)} minutes` };
+  }
+  return { checking: false, checkingWhy: null };
+}
 function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const nowMs = now.getTime();
   const withheld = !dto.from_e164 && !dto.from_raw;
@@ -29218,19 +29393,7 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const startedAtMs = dto.started_at ? new Date(dto.started_at).getTime() : null;
   const beat = dto.updated_at ?? dto.started_at;
   const heartbeatAtMs = beat ? new Date(beat).getTime() : null;
-  let checking = false;
-  let checkingWhy = null;
-  if (live) {
-    const sinceBeat = heartbeatAtMs === null ? 0 : nowMs - heartbeatAtMs;
-    const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
-    if (sinceBeat > LIVE_STALE_MS) {
-      checking = true;
-      checkingWhy = `no word from the phone provider for ${Math.round(sinceBeat / MIN_MS)} minutes`;
-    } else if (sinceStart > LIVE_OVERLONG_MS) {
-      checking = true;
-      checkingWhy = `live for over ${Math.floor(sinceStart / MIN_MS)} minutes`;
-    }
-  }
+  const { checking, checkingWhy } = checkingOf(live, startedAtMs, heartbeatAtMs, nowMs);
   const endedMs = dto.ended_at ? new Date(dto.ended_at).getTime() : null;
   const summary = (dto.summary ?? "").trim() || null;
   const summaryState = missed ? "missed" : summary ? "ready" : live || endedMs !== null && nowMs - endedMs < ANALYSIS_GRACE_MS ? "pending" : "none";
@@ -29242,12 +29405,15 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     who,
     whoShort,
     initials: withheld ? "\u2013" : initialsOf(who),
-    number: withheld ? null : phone ?? dto.from_raw,
+    // The CUSTOMER's number: on a call the receptionist placed, that is the one it dialled. The bell's missed-call
+    // row named the business's own line under an outbound dial that never connected (the 2 Oct 2026 audit).
+    number: withheld ? null : dto.direction === "outbound" ? formatPhoneDisplay(dto.to_e164) : phone ?? dto.from_raw,
     from: withheld ? null : dto.from_e164,
     direction: dto.direction,
     status: dto.status,
     live,
     missed,
+    outcome: callOutcomeFor(dto, live),
     stale: dto.status === "ongoing" && !live,
     checking,
     checkingWhy,
@@ -29297,7 +29463,7 @@ function todayNeedsRows(f) {
     conversationId: r2.e.conversation_id,
     escalationId: r2.e.id,
     who: r2.who,
-    reason: ESCALATION_REASON_LABELS[r2.e.reason] ?? r2.e.reason,
+    reason: reasonLabelOf(r2.e.reason),
     waited: formatWaited(r2.waitedMs),
     warn: r2.warn,
     // The customer's words; for a call-back with none, the to-do the phone receptionist left.
@@ -29353,7 +29519,7 @@ function todayNoReply(f) {
     );
     if (standing !== "quiet" && standing !== "needs_you") return [];
     const last = c.messages[c.messages.length - 1];
-    if (!last || last.sender !== "customer") return [];
+    if (!last || !isTheirOwnWords(last)) return [];
     const lastMs = new Date(last.created_at).getTime();
     if (now.getTime() - lastMs < NO_REPLY_AFTER_MS) return [];
     return [{ conversationId: c.id, who: contactName(c), sinceMs: lastMs, to: `inbox/th-${c.id}` }];
@@ -29364,7 +29530,7 @@ function todayReceipts(f) {
   const { conversations, sinceMs, tz } = f;
   return conversations.flatMap(
     (c) => c.messages.filter(
-      (x) => x.direction === "outbound" && SENT.includes(String(x.status)) && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
+      (x) => x.direction === "outbound" && messageAuthor(x)?.kind === "receptionist" && SENT.includes(String(x.status)) && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
     ).map((x) => ({ conv: c, msg: x }))
   ).sort((a, b) => b.msg.created_at.localeCompare(a.msg.created_at)).slice(0, 3).map(({ conv, msg }) => ({
     at: tzTime(msg.created_at, tz) ?? "",
@@ -29415,6 +29581,10 @@ function todayCalls(f, rows) {
 
 // src/today/today-queue.ts
 var TODAY_QUEUE_MAX = 6;
+var PEOPLE_KINDS = /* @__PURE__ */ new Set(["handoff", "callback", "window", "reply"]);
+function isPersonRow(r2) {
+  return PEOPLE_KINDS.has(r2.kind);
+}
 var SEARCH_WARN_MS = 12 * HOUR_MS;
 function callbackRow(r2) {
   const e = r2.e;
@@ -29448,7 +29618,7 @@ function handoffRow2(r2) {
     initials: initialsOf(r2.who),
     channel: r2.conv ? threadChannelWords(r2.conv.messages) : "WhatsApp",
     when: `waited ${formatWaited(r2.waitedMs)}`,
-    sentence: r2.quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason),
+    sentence: r2.quote || reasonLabelOf(e.reason),
     quoted: !!r2.quote,
     status: [
       "Escalated",
@@ -29567,6 +29737,13 @@ function todayQueue(f, callRows, empty) {
   return {
     rows: queueAll.slice(0, TODAY_QUEUE_MAX),
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
+    // The PEOPLE past the six, apart from the rest: the brief said "and 20 more need you" over sixteen people, counting
+    // the calls and the search that sort after them.
+    more_people: queueAll.slice(TODAY_QUEUE_MAX).filter(isPersonRow).length,
+    // Every call worth a listen and every search waiting for an answer, drawn or not: the brief counted only those
+    // among the six rows, so it said nothing of four calls the head had just counted.
+    calls: earN,
+    searches: searchN,
     parts: parts2,
     empty,
     waiting: needN + winN + searchN
@@ -29602,7 +29779,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       noReply,
       calls: null,
       callsRead: f.callsRead,
-      queue: { rows: [], more: 0, parts: [], empty, waiting: 0 },
+      queue: { rows: [], more: 0, more_people: 0, calls: 0, searches: 0, parts: [], empty, waiting: 0 },
       quiet: { ...todayQuietDay(f, proof), figures: quietFigures(f.live, f.tz, now) }
     };
   }
@@ -29647,27 +29824,20 @@ function names2(who, rest) {
   if (left) out.push(plain(` and ${left} more`));
   return out;
 }
-var PEOPLE_KINDS = /* @__PURE__ */ new Set([
-  "handoff",
-  "callback",
-  "window",
-  "reply"
-]);
 function needsSentences(vm) {
   const rows = vm.queue.rows;
-  const people = [...new Set(rows.filter((r2) => PEOPLE_KINDS.has(r2.kind)).map((r2) => r2.who))];
-  const calls = rows.filter((r2) => r2.kind === "call").length;
-  const searches = rows.filter((r2) => r2.kind === "search").length;
+  const people = [...new Set(rows.filter(isPersonRow).map((r2) => r2.who))];
+  const { calls, searches } = vm.queue;
   const out = [];
   if (people.length) {
-    const one = people.length === 1 && vm.queue.more === 0;
+    const one = people.length === 1 && vm.queue.more_people === 0;
     const detail = vm.standing.detail;
     const [first = ""] = people;
     const lead = `${first} has been `;
     if (one && detail && detail.startsWith(lead))
       out.push([bold(first), plain(` needs you, ${detail.slice(lead.length)}`)]);
     else {
-      out.push([...names2(people, vm.queue.more), plain(one ? " needs you." : " need you.")]);
+      out.push([...names2(people, vm.queue.more_people), plain(one ? " needs you." : " need you.")]);
       if (detail) out.push([plain(detail)]);
     }
   }
@@ -29707,7 +29877,7 @@ function daySentence(day) {
 function cameIn(vm) {
   const line = vm.recap?.line;
   if (!line) return [];
-  return vm.quiet ? [[plain(line)], [plain(vm.proof)]] : [[plain(line)]];
+  return vm.quiet || vm.zero_figures ? [[plain(line)], [plain(vm.proof)]] : [[plain(line)]];
 }
 var runSentence = (r2) => [
   bold(r2.label),
@@ -29797,11 +29967,15 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
       (p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.state === "running"
     );
     reminders = visit.length === 0 ? {
-      text: "No visit reminders yet \u2014 a playbook can text the day before an appointment and the day after a visit.",
+      // "Write", not "text": a playbook goes by WhatsApp, text or email, whichever each person is reached on.
+      text: "No visit reminders yet \u2014 a playbook can write the day before an appointment and the day after a visit.",
       to: "outbound"
     } : {
       text: visit.map(
-        (p) => `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 next run ${p.next}`
+        (p) => (
+          // A count that could not be read is left out, never said as "null people".
+          `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 `}next run ${p.next}`
+        )
       ).join(" \xB7 "),
       to: "outbound"
     };
@@ -31713,6 +31887,7 @@ export {
   CONNECTION_KINDS,
   CONSENT_CHANNELS,
   CONSENT_CHANNEL_WORDS,
+  CONSENT_LIST_IDS,
   CONSENT_PHRASE,
   CONSENT_PHRASE_ES,
   CONSENT_RESET_SOURCE,
@@ -31755,6 +31930,8 @@ export {
   DEFAULT_THEME_PREF,
   DEFAULT_TIMEZONE,
   DEFAULT_WEEK,
+  DELIVERY_RECEIPTS_TIP,
+  DELIVERY_RECEIPTS_WORDS,
   DELIVERY_REFUSALS,
   DEVICE_PREFS_STORAGE,
   DISCONNECTION_LABELS,
@@ -31783,7 +31960,9 @@ export {
   ERROR_CODES,
   ESCALATION_REASONS,
   ESCALATION_REASON_LABELS,
+  ESCALATION_REASON_SHORT,
   ESCALATION_STATES,
+  ESCALATION_SUMMARIES,
   EVENT_EVIDENCE_KINDS,
   EVENT_KINDS,
   EVERYONE_HINT,
@@ -32294,6 +32473,7 @@ export {
   THEME_COLOR_META,
   THEME_INK,
   THEME_OPTIONS,
+  THREAD_CHANNEL_WORDS,
   TIMELINE_FILTERS,
   TIMETABLE_HORIZON_DAYS,
   TOAST_ICONS,
@@ -32311,6 +32491,7 @@ export {
   TRIAL_COVERS,
   TRY_QUIET_AFTER_MS,
   TRY_SKIPPED,
+  UNKNOWN_AUDIENCE_WORDS,
   UNREAD_READING,
   UNSUBSCRIBE_PAGE_HEADER,
   US_STATE_ZONES,
@@ -32417,11 +32598,15 @@ export {
   calendarPeekDeal,
   callActivityPropsOf,
   callActivityStart,
+  callAttemptWords,
   callLength,
   callMoodTone,
+  callNoteLines,
+  callNotesOf,
   callOfKey,
   callOutcomeOf,
   callOutcomeWords,
+  callTodoWords,
   callerName,
   callsAnswer,
   callsToday,
@@ -32509,6 +32694,7 @@ export {
   conversationMoveAllowed,
   conversationOfNeedsKey,
   conversationPatch,
+  conversationWaitsOnYou,
   coveredChannels,
   coversSpan,
   csvCell,
@@ -32569,6 +32755,7 @@ export {
   domainRecordsIntro,
   domainRegistrarHint,
   domainStatsWords,
+  doorNamesNoAudience,
   doorOf,
   draftExcerpt,
   draftListRule,
@@ -32733,6 +32920,7 @@ export {
   isBaselinePrompt,
   isCampaignEmail,
   isCarrier,
+  isChatMessage,
   isCheckoutReturn,
   isConsultationTitle,
   isDayKey,
@@ -32742,6 +32930,7 @@ export {
   isDealStage,
   isDraftWhy,
   isE164,
+  isForReader,
   isForwardingMode,
   isFreeMail,
   isFromTheirSide,
@@ -32759,6 +32948,7 @@ export {
   isOptedOutContact,
   isOwned,
   isPartnerCode,
+  isPersonRow,
   isPersonsWords,
   isPipelineView,
   isProductFallback,
@@ -32924,6 +33114,7 @@ export {
   messageVia,
   messageWhy,
   messageWords,
+  mmss,
   modelRoute,
   momentOffered,
   mondayOf,
@@ -32949,6 +33140,7 @@ export {
   noMessageWords,
   noNumberWords,
   noProposalSince,
+  noTemplateWords,
   nonBlankOrNull,
   normalizeAnswer,
   normalizeEmail,
@@ -32989,6 +33181,7 @@ export {
   optInConfirmation,
   optInLink,
   optInPurposeOf,
+  optOutWords,
   outcomeMove,
   outreachRefusalOf,
   overLimitRefusal,
@@ -33205,13 +33398,16 @@ export {
   readingSystemPrompt,
   readingUserContent,
   readyOrWhatsApp,
+  reasonLabelOf,
   reasonShort,
+  reasonSummaryOf,
   receiptWords,
   recencyCells,
   receptionistCardOf,
   receptionistOn,
   recordOrNull,
   refusalOf,
+  refusedWords,
   regionOf,
   registrationPathOf,
   registrationPreflight,
@@ -33390,6 +33586,7 @@ export {
   templateBlocked,
   templateComponents,
   templateFooter,
+  templateHolds,
   templateLanguage,
   templateLinkButton,
   templateNameOk,
@@ -33471,6 +33668,7 @@ export {
   triggerOffered,
   trimmedOrNull,
   tzClock,
+  tzSince,
   unknownDetails,
   unmetNeed,
   unreadCount,
@@ -33498,6 +33696,7 @@ export {
   versionSlotsRefusal,
   versionWords,
   versionsOf,
+  vetoRunNotice,
   viewerListWords,
   violatesNoPrices,
   visitAnswersAsk,

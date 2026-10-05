@@ -37,6 +37,45 @@ export function callOutcomeWords(v: unknown): string | null {
 }
 
 /**
+ * What a call's analysis left for the owner beyond what the caller wanted: the to-do the receptionist noted ("To do: Call
+ * back to confirm the bridal trial") and what the caller gave about themselves ("Gave their name as ...", "Gave their
+ * email as ..."), in the words every surface says them in. Each is only what the call's own row holds: a call with no
+ * follow-up has no to-do, a name or an address nobody spelled is not guessed, and none of it is written to the person --
+ * a suggestion for their page, never applied by itself.
+ */
+export interface CallNotes {
+  todo: string | null;
+  gave: string[];
+}
+
+/** The to-do the receptionist noted on a call, as a line: null when it noted none. */
+export function callTodoWords(followUp: string | null | undefined): string | null {
+  const said = followUp?.trim();
+  return said ? `To do: ${said}` : null;
+}
+
+/** What the call's analysis left, from the call's own row (the call DTO has these three). */
+export function callNotesOf(a: {
+  follow_up?: string | null;
+  caller_name?: string | null;
+  caller_email?: string | null;
+}): CallNotes {
+  const name = a.caller_name?.trim();
+  return {
+    todo: callTodoWords(a.follow_up),
+    gave: [
+      name ? `Gave their name as ${name}` : "",
+      a.caller_email ? `Gave their email as ${a.caller_email}` : "",
+    ].filter(Boolean),
+  };
+}
+
+/** The lines a surface draws for them, the to-do first: what a card or a history row says under the call. */
+export function callNoteLines(n: CallNotes): string[] {
+  return n.todo ? [n.todo, ...n.gave] : n.gave;
+}
+
+/**
  * A provider summary from before the analysis carried what the caller
  * wanted reads "The user called Marisa's Beauty Salon to inquire about…".
  * Nobody says that. The opening is folded to "Called to inquire about…"

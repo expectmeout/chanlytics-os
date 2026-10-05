@@ -360,19 +360,3 @@ export function DealSheetFieldsGlass(props: FieldsProps) {
     </div>
   );
 }
-
-export function DealSheetFields(props: FieldsProps) {
-  return (
-    <div className="deal-sheet-fields">
-      {whenField(props)}
-      {serviceField(props)}
-      {linkField(props)}
-      {valueField(props)}
-      {validField(props)}
-      {reasonField(props)}
-      {noteField(props)}
-      {howField(props)}
-      {sendField(props)}
-    </div>
-  );
-}

@@ -5,7 +5,7 @@
  * The composer is a function per box, called by `Composer` and not drawn as a component of its own, so the tree is the
  * tree it was; its hooks stay in `Composer`, in the order they were, and each effect's body is a function beside it.
  */
-import { inboxTemplates } from "@chanlytics/contracts";
+import { inboxTemplates, noTemplateWords, optOutWords, type TemplateHolds } from "@chanlytics/contracts";
 import { useEffect, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -95,18 +95,20 @@ function templateGap(p: {
   thread: Thread | null;
   readTemplates: ApprovedTemplate[] | null | undefined;
   templates: ApprovedTemplate[] | null;
+  /** Why the messages left out of the picker were, where the read counted them. */
+  held: TemplateHolds | null | undefined;
   have: TemplateChoice;
 }): ReactNode | undefined {
-  const { real, quiet, thread, readTemplates, templates, have } = p;
+  const { real, quiet, thread, readTemplates, templates, held, have } = p;
   const { choice, list } = have;
   // Nothing approved yet. Say so, rather than offering a send that cannot
   // happen: outside the window this is the only thing WhatsApp will deliver,
-  // so an operator needs to know the gap is at Meta and not on this screen.
+  // so an operator needs to know the gap is at Meta and not on this screen --
+  // and which gap, where the read counted them (noTemplateWords: waiting, refused,
+  // paused, hidden).
   // The window itself is the bar's to say (ThreadBar): it was said here too.
   if (real && templates && templates.length === 0) {
-    return quiet ? null : (
-      <span className="ix-tpl-none">No approved template yet — nothing can be sent until one is.</span>
-    );
+    return quiet ? null : <span className="ix-tpl-none">{noTemplateWords(held)}</span>;
   }
   if (real && readTemplates === null) {
     return quiet ? null : (
@@ -206,7 +208,7 @@ const TemplateComposer = ({
   // A caller with no WhatsApp thread whose call back the band offers: the call is what to do, so the reply box says
   // nothing of what cannot be sent beneath it -- "No approved message can go to Emily Chen yet" under Call back.
   const quiet = real && !!thread && thread.hasChat === false && ixBandCallBack(thread);
-  const gap = templateGap({ real, quiet, thread, readTemplates, templates, have });
+  const gap = templateGap({ real, quiet, thread, readTemplates, templates, held: inboxData().templatesHeld, have });
   if (gap !== undefined) {
     return (
       <div className="ix-composer">
@@ -402,9 +404,7 @@ function optedOutComposer(thread: Thread) {
     <div className="ix-composer">
       <div className="ix-composer-banner">
         <Icon name="shield" size={11} />
-        <span>
-          {thread.who} asked to stop receiving messages. Nothing can be sent — they can text START to opt back in.
-        </span>
+        <span>{optOutWords(thread.who)}</span>
       </div>
     </div>
   );

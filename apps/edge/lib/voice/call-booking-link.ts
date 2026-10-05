@@ -43,7 +43,7 @@ import {
   resolveOutboundTarget,
   countSentToday,
   personReplyMode,
-  templatesFor,
+  templatesToSend,
 } from "../packages/db.js";
 import {
   bookingHeld,
@@ -57,7 +57,7 @@ import {
   resolveFacts,
   resolveParams,
 } from "../packages/contracts.js";
-import { outboundGate, refusalScript, type OutboundRefusal } from "../receptionist/outbound-gate.js";
+import { outboundGate, refusalScript, type OutboundRefusal } from "../packages/core.js";
 import { voiceDoorAuth } from "./voice-door-auth.js";
 import { logger, errField, type Logger } from "../log.js";
 
@@ -73,9 +73,11 @@ import { logger, errField, type Logger } from "../log.js";
  * same literal behind for the same reason (legacy-bridge inbox-verbs.ts); this
  * was the last caller holding it.
  *
- * `bookingTemplate` asks the three questions that matter -- approved, fillable
- * from the workspace's own facts, carrying the booking link -- and a workspace
- * with none is told so in words a caller can hear.
+ * `bookingTemplate` asks the questions that matter -- approved, fillable
+ * from the workspace's own facts, carrying the booking link, and one this product
+ * can send whole (a picture for a heading is refused by Meta; the row carries
+ * the components it is judged by) -- and a workspace with none is told so in
+ * words a caller can hear.
  *
  * The PURPOSE comes from the template's own category again. It used to be
  * declared here, because the hand-written row said `marketing` and
@@ -269,7 +271,7 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
     // workspace that genuinely has none is told THAT, which is a different and
     // equally true thing, and the difference is what a business needs to hear
     // to fix it.
-    const booking = bookingTemplate(await templatesFor(db, routed.tenantId));
+    const booking = bookingTemplate(await templatesToSend(db, routed.tenantId));
     if (!booking) {
       // Unless it holds its bookings. Under the hold the link would not go whichever template there was, so the hold is
       // the reason given, and recorded as the gate records it. Answered first, the missing template told a caller of a

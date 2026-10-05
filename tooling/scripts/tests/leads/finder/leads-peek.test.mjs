@@ -630,11 +630,9 @@ test("the checks are what the verdict's evidence bar says: two groups, what was 
   assert.equal(all(seen, (n) => /pk-ck-check/.test(n.props?.className || "")).length, 4, "what was seen does");
 });
 
-test("in Glass the peek says more, as its canvas draws it (L2): the checks open under the verdict, the words under each way to reach them, the listing's facts open, and how the ratings fall; Classic draws none of it", () => {
+test("the peek says more, as its canvas draws it (L2): the checks open under the verdict, the words under each way to reach them, the listing's facts open, and how the ratings fall", () => {
   reset();
-  // The look is on the document (LegacyApp stamps it); the peek reads it as it draws (kit/look lookNow), hookless.
-  globalThis.document.documentElement = { getAttribute: (name) => (name === "data-look" ? "glass" : null) };
-  try {
+  {
     const vm = vmOf({ reviews_dist: { one: 2, two: 1, three: 1, four: 4, five: 8 } });
     const { tree } = page({ vm }).draw();
     const open = byTestId(tree, "peek-checks-open");
@@ -666,15 +664,7 @@ test("in Glass the peek says more, as its canvas draws it (L2): the checks open 
       ["50%", "25%", "6%", "6%", "13%"],
       "five stars first, each bar its share of the sixteen",
     );
-  } finally {
-    delete globalThis.document.documentElement;
   }
-  // Classic: the same draw says none of it (the recorder holds Classic to the JSX it replaced).
-  reset();
-  const { tree: classic } = page({ vm: vmOf({ reviews_dist: { one: 2, two: 1, three: 1, four: 4, five: 8 } }) }).draw();
-  for (const id of ["peek-checks-open", "peek-spread", "peek-phone-words", "peek-email-words", "peek-locked-words"])
-    assert.equal(byTestId(classic, id), null, `${id} is Glass's alone`);
-  assert.equal(byTestId(classic, "peek-found").props.open, undefined, "the facts fold, as they did");
 });
 
 test("a criterion Claude could not tell says so, in its own group, and never a check", () => {
@@ -1439,7 +1429,7 @@ test("the peek's folds: the week behind one line in its short hours, and no seco
 
   const week = byTestId(tree, "peek-week");
   assert.ok(week, "the week is in the peek, not only behind the photograph");
-  assert.equal(week.props.open, undefined, "folded, like the checks and the trace");
+  assert.equal(week.props.open, true, "open, as the canvas draws every fold (L2)");
   assert.equal(
     textOf(byTestId(tree, "peek-week-summary")),
     "Open 6 days · 11–10 most days",

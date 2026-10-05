@@ -240,6 +240,14 @@ const { broadcasts } = await import(`${SRC}/surfaces/campaigns/broadcasts/verbs.
 const { playbooks } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
 const { templates, starters } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
 const { Menu } = await import(`${SRC}/surfaces/kit/menu/menu.tsx`);
+const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
+/** What the page last said to the frame's head (kit/head/standing.ts): its line and its act, which the frame draws, not the page. */
+const headSaid = () => {
+  const said = standingSaid();
+  return { props: { children: [said?.sentence ?? null, said?.act ?? null] } };
+};
+/** A part of the page, or of its head where the page says it to the frame. */
+const headed = (tree, id) => byTestId(tree, id) ?? byTestId(headSaid(), id);
 const { AFTER } = await import(`${SRC}/legacy-bridge/refresh-map.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { SubTabs } = await import(`${SRC}/surfaces/kit/sub-tabs/sub-tabs.tsx`);
@@ -1227,7 +1235,7 @@ test("Broadcasts is one ledger: the runs waiting on you said at the head, the st
   assert.equal(band.tab("sent").tone, undefined, "only the run that waits on you is warn");
   assert.equal(band.tab("sending").testid, "bc-band-sending", "each tab keeps its test id");
   assert.equal(byTestId(tree, "bc-waiting"), null, "said once");
-  assert.ok(byTestId(tree, "bc-new"), "New message");
+  assert.ok(headed(tree, "bc-new"), "New message");
   assert.equal(byTestId(tree, "bc-composer"), null, "nothing is open beside the ledger at rest");
   // Everything open, what waits on you first, then what is going out, then what is to come; then the latest five gone.
   const cards = () =>
@@ -1279,9 +1287,9 @@ test("Broadcasts is one ledger: the runs waiting on you said at the head, the st
   );
   // New message is Campaigns' one door to the composer: the Sent room's act goes to its address, and the page opens nothing of
   // its own, so there is one name and one host (the home's sheet), and Back closes it.
-  assert.equal(textOf(byTestId(tree, "bc-new")).trim(), "New message", "one name for the one door");
+  assert.equal(textOf(headed(tree, "bc-new")).trim(), "New message", "one name for the one door");
   went.length = 0;
-  press(byTestId(tree, "bc-new"));
+  press(headed(tree, "bc-new"));
   assert.deepEqual(went, ["campaigns/new"]);
   tree = again(props);
   assert.equal(byTestId(tree, "bc-composer"), null, "the ledger opened no composer beside itself");
@@ -2212,7 +2220,7 @@ test("the run open beside the list is the address's: opening and closing it repl
     assert.deepEqual(calls.at(-1), ["broadcasts/run:b-sent", "replace"]);
     tree = again(props);
     assert.ok(byTestId(tree, "bc-run-solo"), "the pane opens at once, before the address's props follow it");
-    assert.ok(byTestId(tree, "bc-head"), "and the ledger stays the list beside it");
+    assert.ok(byTestId(tree, "bc-runs"), "and the ledger stays the list beside it");
     await settle();
     tree = again(props);
     // A door out of the page is a link: it pushes, as every link does.
@@ -2224,7 +2232,7 @@ test("the run open beside the list is the address's: opening and closing it repl
     assert.equal(calls.length, before, "and it did not replace the run's entry");
     // New message, with a run open, is the home's door: it pushes the composer's address and leaves the run where it is.
     const entries = calls.length;
-    press(byTestId(tree, "bc-new"));
+    press(headed(tree, "bc-new"));
     assert.equal(went.at(-1), "campaigns/new");
     assert.equal(calls.length, entries, "the page moved no entry of its own");
     tree = again(props);
@@ -2288,14 +2296,14 @@ test("the page counts templates: `message` is what a customer gets, and the word
   // With rows on file, so the line reaches its plural: an empty workspace says
   // "No template on file yet" whatever the word for a full one is.
   const tree = messages({ templatesAll: [templateRow(), templateRow({ id: "t8", name: "welcome" })] });
-  const line = textOf(byTestId(tree, "messages-standing"));
+  const line = textOf(headSaid());
   assert.match(
     line,
     /(No template on file yet|\d+ templates?\b)/,
     `REGRESSION: it counted "messages" under a tab beside the Inbox — ${line}`,
   );
   assert.ok(!/\bmessages?\b/i.test(line), `nothing on the line calls a template a message — ${line}`);
-  assert.equal(textOf(byTestId(tree, "template-new")).trim(), "New template", "and the act that makes one says so");
+  assert.equal(textOf(headed(tree, "template-new")).trim(), "New template", "and the act that makes one says so");
 });
 
 test("REGRESSION (C20): on Messages only the pressed control says it is working, and every control waits -- one flag relabelled every Add while a sync ran", async () => {
@@ -2388,13 +2396,13 @@ test("A row asks for attention when a language a playbook sends is missing or no
   let tree = messages({ templatesAll: [en], playbooks: sends("es"), templateUse: use });
   assert.ok(attn(tree), "a language a running playbook sends, missing");
   assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish missing");
-  assert.ok(textOf(byTestId(tree, "messages-standing")).includes("all approved"), "the one on file is approved");
+  assert.ok(textOf(headSaid()).includes("all approved"), "the one on file is approved");
   // It sends the approved English, and Spanish is in review: nothing is refused, so the row is at rest -- and the
   // pill still says Spanish is in review.
   tree = messages({ templatesAll: [en, es], playbooks: sends("en_US"), templateUse: use });
   assert.ok(!attn(tree), "REGRESSION: a language nobody sends asked for attention");
   assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish in review");
-  const head = textOf(byTestId(tree, "messages-standing"));
+  const head = textOf(headSaid());
   assert.ok(head.includes("1 approved") && head.includes("1 in review"), head);
   // Without the playbooks read, a language on file that is not approved, on a message something sends.
   tree = messages({ templatesAll: [en, es], playbooks: undefined, templateUse: use });
@@ -2546,7 +2554,7 @@ test("Templates is the Inbox's shape: the search and WhatsApp's sync are the lis
     let tree = messages({ templatesAll: [templateRow()] });
     // The head says the act alone. The search was in its act, which a phone draws as one coral circle (the box read
     // "Sea"), and the sync in its sentence, which Glass leaves out (it could not be reached at all).
-    const head = byTestId(tree, "messages-standing");
+    const head = headSaid();
     assert.ok(byTestId(head, "template-new"), "the head's act is New");
     assert.equal(byTestId(head, "templates-search"), null, "not the search");
     assert.equal(byTestId(head, "sync-templates"), null, "nor the sync");
@@ -2610,7 +2618,7 @@ test("Templates is the Inbox's shape: the search and WhatsApp's sync are the lis
 
     // New is a pane too: the list stays beside it, a message pressed gives it way, and Cancel with nothing written closes it.
     tree = messages({ templatesAll: [templateRow()] });
-    press(byTestId(tree, "template-new"));
+    press(headed(tree, "template-new"));
     tree = messagesAgain();
     assert.ok(byTestId(tree, "messages-composer"));
     assert.equal(textOf(find(tree, (n) => n.props?.className === "cm-pane-title")).trim(), "New template");
@@ -2619,7 +2627,7 @@ test("Templates is the Inbox's shape: the search and WhatsApp's sync are the lis
     tree = messagesAgain();
     assert.equal(byTestId(tree, "messages-composer"), null, "a message pressed gives it way");
     assert.ok(paneOf(tree));
-    press(byTestId(tree, "template-new"));
+    press(headed(tree, "template-new"));
     tree = messagesAgain();
     assert.equal(paneOf(tree), null, "and New gives way to the message");
     press(byTestId(tree, "tpl-close"));
@@ -3621,6 +3629,23 @@ test("A message says its state once, and a refusal is a line rather than a hover
   const said = textOf(byTestId(tree, "template-rejected"));
   assert.ok(said.includes("abusive content"), said);
   assert.ok(said.includes("send it back"), "and what to do about it");
+
+  // A reason Meta wrote as a sentence keeps its capital and its one full stop (contracts refusedWords).
+  tree = messages({
+    templatesAll: [
+      templateRow({
+        name: "offer",
+        language: "en_US",
+        meta_status: "rejected",
+        rejected_reason: "Variables can't be at the start or end of the template.",
+      }),
+    ],
+  });
+  assert.equal(
+    textOf(byTestId(tree, "template-rejected")),
+    "WhatsApp refused this one: Variables can't be at the start or end of the template. Change the words and send it back.",
+    "REGRESSION: 'variables can't be at the start or end of the template.. Change the words'",
+  );
 });
 
 test("A template written here keeps its footer everywhere, not only while it is being drafted", () => {

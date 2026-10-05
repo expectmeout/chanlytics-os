@@ -65,21 +65,19 @@ const REGISTRY = [...LISTS.classes, ...(LISTS.modifiers ?? [])];
 const recorder = () => import("../../tooling/scripts/checks/style-equality.mjs");
 
 type Theme = "dark" | "light";
-type Look = "classic" | "glass";
+type Look = "glass";
 type Run = { width: Width; theme: Theme; look: Look; reduced: boolean };
 
 const label = (r: Run) => `${r.width} ${r.theme} ${r.look}${r.reduced ? " reduced-motion" : ""}`;
-/** Every width, theme and look, and a desk with reduced motion: where a rule of the kit may hold. */
+/** Every width and theme in the one look, and a desk with reduced motion: where a rule of the kit may hold. */
 const EVERY: Run[] = [
   ...(["desk", "phone"] as const).flatMap((width) =>
     (["dark", "light"] as const).flatMap((theme) =>
-      (["classic", "glass"] as const).map((look) => ({ width, theme, look, reduced: false })),
+      (["glass"] as const).map((look) => ({ width, theme, look, reduced: false })),
     ),
   ),
-  { width: "desk", theme: "dark", look: "classic", reduced: true },
+  { width: "desk", theme: "dark", look: "glass", reduced: true },
 ];
-/** Where a twin is compared with its source: both widths and themes, under Classic. */
-const CLASSIC = EVERY.filter((r) => r.look === "classic" && !r.reduced);
 /** Where the look's own promises are held (a key's focus, the words' contrast): both widths and themes, under Glass. */
 const GLASS = EVERY.filter((r) => r.look === "glass" && !r.reduced);
 
@@ -94,7 +92,7 @@ async function open(browser: Browser, baseURL: string | undefined, width: Width,
 }
 
 /** The gallery in a theme and a look, held still, its fonts in. */
-async function show(page: Page, theme: Theme = "dark", look: Look = "classic") {
+async function show(page: Page, theme: Theme = "dark", look: Look = "glass") {
   const { STILL } = await recorder();
   await page.goto(`/?theme=${theme}&look=${look}`);
   const still = await page.addStyleTag({ content: STILL });
@@ -330,22 +328,9 @@ test("each entry reads its tokens, a press rule's with the presses forced, in ev
   ).toEqual([]);
 });
 
-test("each new primitive computes every longhand its source computes, pressed or not: dark and light, Classic", async ({
-  browser,
-  baseURL,
-}) => {
-  const failures: string[] = [];
-  const pairs: string[] = [];
-  await eachRun(browser, baseURL, CLASSIC, async (page, run) => {
-    const plain = await ask(page, await twinsQ(run.width));
-    const held = await pressing(page, async () => ask(page, await twinsQ(run.width)));
-    pairs.push(`${label(run)} ${plain.pairs}`);
-    failures.push(...plain.failures.map((f) => `${label(run)}: ${f}`));
-    failures.push(...held.failures.map((f) => `${label(run)} pressed: ${f}`));
-  });
-  console.log(`twins: element pairs compared per run, plain and pressed: ${pairs.join(", ")}`);
-  expect(failures, "a primitive that does not compute what its source computes").toEqual([]);
-});
+// The twins' comparison (each new primitive computing every longhand its source computes, Phase 2's identity proof)
+// ran under Classic alone, where a source read the theme's colours as the kit's twin did; it retired with Classic
+// (the plan's step 5.7). Check 4 below still proves the comparison itself on planted entries.
 
 test("a toast raised over an open sheet stands clear of its foot, where its Save is, at both widths, in both looks", async ({
   browser,
@@ -354,7 +339,7 @@ test("a toast raised over an open sheet stands clear of its foot, where its Save
   for (const width of ["desk", "phone"] as const) {
     const { context, page } = await open(browser, baseURL, width);
     try {
-      for (const look of ["classic", "glass"] as const) {
+      for (const look of ["glass"] as const) {
         await show(page, "dark", look);
         const found = await page.evaluate(toastsOverFeet);
         expect(found.pairs, `${width} ${look}: toasts compared with an open sheet's foot`).toBeGreaterThan(0);
@@ -675,7 +660,7 @@ test("check 5 names a toast over a sheet's foot: on a phone as the bell's list l
   for (const width of ["desk", "phone"] as const) {
     const { context, page } = await open(browser, baseURL, width);
     try {
-      for (const look of ["classic", "glass"] as const) {
+      for (const look of ["glass"] as const) {
         await show(page, "dark", look);
         expect((await page.evaluate(toastsOverFeet)).over).toEqual([]);
         await faults[width](page);

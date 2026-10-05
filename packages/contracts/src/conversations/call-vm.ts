@@ -2,11 +2,11 @@
  * A call's row and transcript (`toCallVM`), and a call's length in words. The call as the wire gives it, and
  * how it ended, is call-dto.ts; the caller's name and the times come from thread-contact.ts and thread-clock.ts.
  */
-import { callLength } from "../shared/clock";
+import { callLength, mmss } from "../shared/clock";
 import { whisperText } from "../voice/whisper";
 import { callerName } from "../people/person-name";
 import { isLiveCall } from "../config/policy";
-import { callOutcomeOf, callOutcomeWords, tidyCallSummary } from "../voice/call-words";
+import { callNotesOf, callOutcomeOf, callOutcomeWords, tidyCallSummary, type CallNotes } from "../voice/call-words";
 import { RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS } from "../workspace/retention";
 import { isIdentifierName, initialsOf } from "./thread-contact";
 import { shortTime } from "./thread-clock";
@@ -30,9 +30,11 @@ export interface CallVM {
   at: string;
   duration?: string;
   ts: number;
-  /** live: in progress under the heartbeat rule · missed: the dial never
-   *  connected (Retell's not_connected) · handled: everything else. */
-  outcome: "live" | "handled" | "missed" | "callback" | "abandoned";
+  /** live: in progress under the heartbeat rule · missed: the dial never connected (Retell's not_connected) ·
+   *  failed: the provider could not place or keep it (status error) · abandoned · callback · voicemail: they
+   *  reached the voicemail · handled: everything else. A voicemail and an errored call read "Receptionist
+   *  handled it" until the 2 Oct 2026 audit. */
+  outcome: "live" | "handled" | "missed" | "failed" | "callback" | "abandoned" | "voicemail";
   live?: boolean;
   snippet: string;
   summary: { headline: string; bullets: string[] };
@@ -61,6 +63,28 @@ export interface CallVM {
   /** How it went, a few words each: how the caller sounded, how it ended, why there is no recording to play. The call
    *  card's one quiet line. */
   facts: string[];
+  /** What the call's analysis left beyond what the caller wanted: the to-do the receptionist noted, and the name and
+   *  address the caller gave -- what the row holds, in the words every surface says them in (callNotesOf). The call
+   *  card draws them, and the person's page beside the call in their history. */
+  notes: CallNotes;
+}
+
+/**
+ * How a call ended, by the one ladder every call surface reads: in progress (the caller's heartbeat rule, `live`), the
+ * dial never connected, the provider could not place or keep it, the caller hung up with nothing, they asked for a call
+ * back, they reached the voicemail, else handled. Conversations' pill and Live's both read it; a voicemail and an errored
+ * call read "Receptionist handled it" before the 2 Oct 2026 audit, and Live had no abandoned or call-back at all.
+ */
+export function callOutcomeFor(
+  dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail" | "outcome">,
+  live: boolean,
+): CallVM["outcome"] {
+  if (live) return "live";
+  if (dto.status === "not_connected") return "missed";
+  if (dto.status === "error") return "failed";
+  if (abandonedCall(dto)) return "abandoned";
+  if (callOutcomeOf(dto.outcome) === "callback_needed") return "callback";
+  return dto.in_voicemail ? "voicemail" : "handled";
 }
 
 /** A call's length in words, the way the product says it everywhere: "2 min 5 sec", "6 sec". */
@@ -112,9 +136,9 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   }
   const outcomeWords = callOutcomeWords(dto.outcome);
   if (outcomeWords) bullets.push(outcomeWords);
-  if (dto.follow_up?.trim()) bullets.push(`To do: ${dto.follow_up.trim()}`);
-  if (dto.caller_name?.trim()) bullets.push(`Gave their name as ${dto.caller_name.trim()}`);
-  if (dto.caller_email) bullets.push(`Gave their email as ${dto.caller_email}`);
+  const notes = callNotesOf(dto);
+  if (notes.todo) bullets.push(notes.todo);
+  bullets.push(...notes.gave);
   // "purged": the audio was removed on the schedule the privacy page states
   // (retention.ts); the row keeps the transcript. Said so, rather than left to
   // read as "still processing" for ever.
@@ -169,7 +193,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     const next = start == null ? null : (starts.slice(i + 1).find((x) => x != null && x > start) ?? null);
     const end = start == null ? null : (turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next);
     return {
-      t: typeof own === "number" ? `${Math.floor(own / 60)}:${String(Math.floor(own % 60)).padStart(2, "0")}` : "—",
+      t: typeof own === "number" ? mmss(own * 1000) : "—",
       speaker: (turn.role === "agent" ? "agent" : "client") as "agent" | "client",
       text: turn.content ?? "",
       start,
@@ -193,15 +217,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     at: shortTime(dto.started_at, tz, now),
     ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...(dur ? { duration: dur } : {}),
-    outcome: live
-      ? "live"
-      : missed
-        ? "missed"
-        : abandonedCall(dto)
-          ? "abandoned"
-          : callOutcomeOf(dto.outcome) === "callback_needed"
-            ? "callback"
-            : "handled",
+    outcome: callOutcomeFor(dto, live),
     ...(live ? { live: true } : {}),
     snippet: withheld
       ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — caller ID withheld, so this call isn't linked to a customer.`
@@ -221,5 +237,6 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     facts: [CALL_MOOD[dto.sentiment ?? ""], ending, missed ? undefined : RECORDING_NOTE[recState]].filter(
       (f): f is string => !!f,
     ),
+    notes,
   };
 }

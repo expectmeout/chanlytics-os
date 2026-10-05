@@ -65,7 +65,10 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
   );
   const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
   assert.ok(css.includes(".phone-tabs { display: none; }"), "desktop never sees it");
-  assert.ok(css.includes("padding: 6px 4px calc(6px + env(safe-area-inset-bottom));"), "above the home bar");
+  assert.ok(
+    css.includes("bottom: max(14px, env(safe-area-inset-bottom));"),
+    "above the home bar: the boards' capsule floats clear of it",
+  );
   assert.ok(css.includes("min-height: 44px;"), "thumb-sized");
   // Inside the app: the native tab bar stands where the web one did, and the shell says how tall it is.
   assert.ok(
@@ -86,8 +89,8 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
   );
   // The ✦'s own lift lives in ask.css with the palette's rules (ask.test.mjs holds it there).
   assert.ok(
-    css.includes("position: fixed;") && css.includes("left: 0; right: 0; bottom: 0;"),
-    "fixed to the viewport: flowed, it lived below the fold",
+    css.includes("position: fixed;") && css.includes("bottom: max(14px, env(safe-area-inset-bottom));"),
+    "fixed to the viewport, floating clear of its bottom: flowed, it lived below the fold",
   );
   // The status the bridge's floating pill used to carry is the shell's one
   // line under the top bar now, mounted in shell-status.test.mjs; nothing

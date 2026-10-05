@@ -35,14 +35,14 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/clients.css": {
-    "font": 104,
+    "font": 97,
     "radius": 18,
     "shadow": 10,
     "colour": 7,
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/components.css": {
-    "font": 58,
+    "font": 55,
     "radius": 15,
     "shadow": 5,
     "colour": 7,
@@ -84,9 +84,9 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/inbox.css": {
-    "font": 79,
-    "radius": 22,
-    "shadow": 9,
+    "font": 72,
+    "radius": 20,
+    "shadow": 7,
     "colour": 2,
     "blur": 2
   },
@@ -105,9 +105,9 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/mobile.css": {
-    "font": 4,
+    "font": 3,
     "radius": 0,
-    "shadow": 1,
+    "shadow": 0,
     "colour": 1,
     "blur": 0
   },
@@ -127,8 +127,8 @@
   },
   "apps/dashboard/src/legacy/styles/reports.css": {
     "font": 18,
-    "radius": 2,
-    "shadow": 1,
+    "radius": 1,
+    "shadow": 0,
     "colour": 0,
     "blur": 0
   },
@@ -147,7 +147,7 @@
     "blur": 0
   },
   "apps/dashboard/src/surfaces/campaigns/campaigns.css": {
-    "font": 13,
+    "font": 12,
     "radius": 18,
     "shadow": 1,
     "colour": 1,
@@ -155,9 +155,9 @@
   },
   "apps/dashboard/src/surfaces/kit/kit.css": {
     "font": 17,
-    "radius": 5,
-    "shadow": 5,
-    "colour": 2,
+    "radius": 4,
+    "shadow": 3,
+    "colour": 0,
     "blur": 0
   }
 }

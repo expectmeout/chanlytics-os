@@ -6,7 +6,6 @@
  */
 import { Fragment } from "react";
 import { Icon } from "../../kit/icon/icon";
-import { lookNow } from "../../kit/look/look";
 import { PeopleBulkBar } from "../bulk/bulk-bar";
 import { PeopleListsSheet } from "../rail/lists-sheet";
 import { PeoplePhoneBar } from "../rail/phone-bar";
@@ -64,7 +63,7 @@ function standingLine(s: PipelineState) {
 
 /** The controls row: the search, which columns show, the list or the board, and the page's one filled button. */
 function controlsRow(s: PipelineState) {
-  const { f, r, newActs, newGate } = s;
+  const { f, r } = s;
   const { q, setQ, searchRef, colOptions, pickColumn, clearSelection, setExtraView } = f.controls;
   const { board, layout } = r;
   const { words } = P;
@@ -102,19 +101,8 @@ function controlsRow(s: PipelineState) {
             </button>
           ))}
         </div>
-        {/* The page's one filled button: shown to every role, and said why where the role may not press it. In Glass it
-            stands in the frame's head, at the right of the row of views (standing.tsx, canvas D1), not here. */}
-        {lookNow() === "glass" ? null : (
-          <button
-            type="button"
-            className="btn btn-primary btn-sm pipe-new-btn"
-            onClick={newActs.openNew}
-            data-testid="pipeline-new-open"
-            {...newGate}
-          >
-            <Icon name="plus" size={12} /> {words.newProposal.button}
-          </button>
-        )}
+        {/* The page's one filled button stands in the frame's head, at the right of the row of views (standing.tsx,
+            canvas D1), not here. */}
       </div>
     </div>
   );

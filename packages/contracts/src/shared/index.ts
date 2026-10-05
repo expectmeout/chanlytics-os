@@ -110,6 +110,7 @@ export {
   zonedInputValue,
   fromZonedInput,
   callLength,
+  mmss,
   durationWords,
 } from "./clock";
 export type { SchemaSetKey, SchemaSet, Exactly, Within, Holds, SchemaAgreement } from "./schema-sets";

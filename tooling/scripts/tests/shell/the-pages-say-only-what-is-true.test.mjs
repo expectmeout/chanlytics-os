@@ -369,6 +369,7 @@ Object.assign(globalThis.window, {
 // Today's pages are TSX (decision 0015): they draw the kit's AttnRow and read the day over the seam.
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
 const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
+const { TodayBriefPane } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief-pane.tsx");
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
 const { setSurfaceValue, surfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
@@ -767,7 +768,7 @@ test("REGRESSION (D5): Today's 'went out' line is the business's today, at the b
     frames.begin();
     // The line is drawn by a component that returns a list, which the walk does not enter: read it off its own node.
     let lines = null;
-    walk(TodayCard(), (n) => {
+    walk(TodayBriefPane(), (n) => {
       if (lines === null && typeof n.type === "function" && n.type.name === "RunsDone") lines = n.rendered;
     });
     const said = (lines || []).map(textOf).join(" | ");

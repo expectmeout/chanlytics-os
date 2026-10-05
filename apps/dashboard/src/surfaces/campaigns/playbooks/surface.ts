@@ -270,9 +270,10 @@ export const playbooksOverride: SurfaceOverride = {
   key: "playbooks",
   value: "playbooks",
   events: ["surface:playbooks"],
-  refreshOnMessageInserts: true,
-  // A message moves a playbook's replies: read again only while its page is on screen, and once when it comes back
-  // (surface-registry.ts).
+  // A run the sweep made, or one approved or stopped elsewhere (00321), moves a playbook's row and its "next run":
+  // heard wherever the tab is. A message moves a playbook's replies: read again only while its page is on screen, and
+  // once when it comes back (surface-registry.ts).
+  refreshOnTables: [...DEFAULT_REFRESH_TABLES, "broadcasts"],
   refreshWhen: onlyOnItsPage("playbooks", DEFAULT_REFRESH_TABLES),
   apply: async () => {
     const [pb, tpl, ch, cfg] = await Promise.all([

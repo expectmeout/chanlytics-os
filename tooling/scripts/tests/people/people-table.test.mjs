@@ -293,21 +293,13 @@ test("in sections the first row drawn is the tab stop, and a first draw's budget
   assert.equal(drawn(folded), 20);
 });
 
-test("Came from shows by default in Classic and waits in the Columns menu in Glass (canvas P1: with it the table outgrew the pane at 1440)", async () => {
+test("Came from waits in the Columns menu (canvas P1: with it the table outgrew the pane at 1440)", async () => {
   const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
   const { plShows } = await importSrc("apps/dashboard/src/surfaces/people/table/columns.ts");
   const came = PL_COLUMNS.find((c) => c.key === "came_from");
   const x = { withCalendar: false };
-  assert.equal(plShows(came, {}, x), true, "Classic draws it");
-  const was = globalThis.document;
-  globalThis.document = { documentElement: { getAttribute: (n) => (n === "data-look" ? "glass" : null) } };
-  try {
-    assert.equal(plShows(came, {}, x), false, "Glass: off until asked for");
-    assert.equal(plShows(came, { came_from: true }, x), true, "and the member's own choice stands");
-  } finally {
-    if (was === undefined) delete globalThis.document;
-    else globalThis.document = was;
-  }
+  assert.equal(plShows(came, {}, x), false, "off until asked for");
+  assert.equal(plShows(came, { came_from: true }, x), true, "and the member's own choice stands");
 });
 
 test("the list's head says how it is ordered: the sortable column's own words, and nothing for a key it has none for", async () => {

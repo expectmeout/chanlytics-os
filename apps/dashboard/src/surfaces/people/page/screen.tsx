@@ -19,7 +19,6 @@ import { PeoplePhoneBar } from "../rail/phone-bar";
 import { PeopleStanding } from "../rail/standing";
 import { PeopleAddSheet, PeopleListActSheet } from "../sheets/list-sheets";
 import { AddPersonButton } from "../sheets/add-person";
-import { lookNow } from "../../kit/look/look";
 import { PeopleColumnsMenu } from "../table/columns-menu";
 import { PeopleTable } from "../table/table";
 import type { TableEmpty } from "../types";
@@ -92,8 +91,8 @@ function peopleListHead(s: PeopleState) {
     openMade,
     sortBy,
   } = s;
-  // Glass says how the list is ordered at the head's right, where Classic's table heading arrow already does.
-  const sortedBy = lookNow() === "glass" ? plSortedBy(sortBy) : "";
+  // The list says how it is ordered at the head's right.
+  const sortedBy = plSortedBy(sortBy);
   return (
     <div className="cl-section-head">
       <div className="cl-section-lead">
@@ -250,66 +249,32 @@ function peopleDeskControls(s: PeopleState) {
       </div>
       <div className="cl-controls-right">
         {canEditLists && <AddPersonButton onAdded={onOpenProfile} flash={plFlash} />}
-        {lookNow() === "glass" ? null : (
-          <>
-            {/* A client list as a file, for the owner: read in the browser, counted, then written in parts of fifty
-                (import/import-sheet.tsx). */}
-            {canExport && (
-              <button className="btn btn-ghost btn-sm" onClick={() => setImportOpen(true)} data-testid="import-people">
-                <Icon name="download" size={12} /> Import
-              </button>
-            )}
-            {/* Everyone as a CSV, from the route: owner only, and the button says so for anyone else instead of leading to a refusal. */}
-            {!canDo("export") ? (
-              <button className="btn btn-ghost btn-sm" {...gate("export")}>
-                <Icon name="external" size={12} /> Export CSV
-              </button>
-            ) : exportBlocked ? (
-              <button className="btn btn-ghost btn-sm" disabled data-tip={exportBlocked} data-testid="people-export">
-                <Icon name="external" size={12} /> Export CSV
-              </button>
-            ) : (
-              <a
-                className="btn btn-ghost btn-sm"
-                href={exportHref}
-                download
-                title={
-                  exportName ? `Download the people on ${exportName} as a CSV file` : "Download everyone as a CSV file"
-                }
-                data-testid="people-export"
-              >
-                <Icon name="external" size={12} /> Export CSV
-              </a>
-            )}
-          </>
-        )}
         {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside them only
             turned round an order the table already shows and changes. */}
         <PeopleColumnsMenu options={colOptions} onPick={pickColumn} />
-        {lookNow() === "glass" && (
-          // The canvas (P1) folds the file acts under one ⋯ after Columns: Import, and Export CSV with its gate or the
-          // reason it is held, the same doors as the buttons Classic draws above.
-          <Menu
-            label="More"
-            trigger={moreButton({ title: "More", testid: "people-more" })}
-            groups={menuGroups([
-              ...(canExport ? [{ label: "Import", icon: "download", onClick: () => setImportOpen(true) }] : []),
-              !canDo("export")
-                ? { label: "Export CSV", icon: "external", gate: gate("export") }
-                : exportBlocked
-                  ? { label: "Export CSV", icon: "external", title: exportBlocked, onClick: () => undefined }
-                  : {
-                      label: "Export CSV",
-                      icon: "external",
-                      title: exportName
-                        ? `Download the people on ${exportName} as a CSV file`
-                        : "Download everyone as a CSV file",
-                      // The route answers as an attachment, so the page stays where it is (as Leads' export does).
-                      onClick: () => window.open(exportHref, "_self"),
-                    },
-            ])}
-          />
-        )}
+        {/* The canvas (P1) folds the file acts under one ⋯ after Columns: Import (a client list as a file, read in the
+            browser, counted, then written in parts of fifty, import/import-sheet.tsx), and Export CSV (everyone, from
+            the route: owner only) with its gate or the reason it is held. */}
+        <Menu
+          label="More"
+          trigger={moreButton({ title: "More", testid: "people-file-menu" })}
+          groups={menuGroups([
+            ...(canExport ? [{ label: "Import", icon: "download", onClick: () => setImportOpen(true) }] : []),
+            !canDo("export")
+              ? { label: "Export CSV", icon: "external", gate: gate("export") }
+              : exportBlocked
+                ? { label: "Export CSV", icon: "external", title: exportBlocked, onClick: () => undefined }
+                : {
+                    label: "Export CSV",
+                    icon: "external",
+                    title: exportName
+                      ? `Download the people on ${exportName} as a CSV file`
+                      : "Download everyone as a CSV file",
+                    // The route answers as an attachment, so the page stays where it is (as Leads' export does).
+                    onClick: () => window.open(exportHref, "_self"),
+                  },
+          ])}
+        />
       </div>
     </div>
   );
@@ -568,20 +533,15 @@ export function peopleScreen(s: PeopleState) {
       {/* The switch between the scopes is the frame's strip of views, over this page (surfaces/people/chrome.ts). */}
       <PeopleRail
         scope="people"
-        // In Glass the rail opens with everyone, the way the canvas draws it (P1); Classic's way back to everyone on a
-        // desk is Show everyone on the list's title line, and its rail says nothing of it.
-        everyone={
-          lookNow() === "glass"
-            ? {
-                count: agg.total,
-                active: !listId && !savedId,
-                onPick: () => {
-                  setListId(null);
-                  setSavedId(null);
-                },
-              }
-            : null
-        }
+        // The rail opens with everyone, the way the canvas draws it (P1).
+        everyone={{
+          count: agg.total,
+          active: !listId && !savedId,
+          onPick: () => {
+            setListId(null);
+            setSavedId(null);
+          },
+        }}
         lists={lists}
         groups={people.groups || PL_DEFAULT_GROUPS}
         active={listId}

@@ -42,8 +42,12 @@ test("the shell is as tall as the phone shows, not as tall as it could show: 100
     assert.ok(rule, `${root} has a rule`);
     assert.match(rule[0], /height: 100vh;\s*height: 100dvh;/, `${root}: 100vh for a browser without dvh, then 100dvh`);
   }
-  // The room under the bar, which dvh keeps on screen: the bar is 6 + 44 + 6px and a hairline over the safe area.
-  assert.match(MOBILE, /\.main-scroll \{ padding-bottom: calc\(64px \+ env\(safe-area-inset-bottom\)\); \}/);
+  // The room under the bar, which dvh keeps on screen: the boards' tab bar floats 14px (or the safe area) above the
+  // bottom and stands 62px tall with its capsule, so the page keeps 76px over that (mobile.css).
+  assert.match(
+    MOBILE,
+    /\.main-scroll \{\s*padding-bottom: calc\(max\(14px, env\(safe-area-inset-bottom\)\) \+ 76px\);\s*\}/,
+  );
 });
 
 test("the measures are tokens, and every page takes one of them", () => {
@@ -115,8 +119,13 @@ test("on a phone Settings' one column is as wide as the screen, whatever the str
 
 test("the thread pane has ONE gutter, and the pane owns it", () => {
   const inbox = readRaw("apps/dashboard/src/legacy/styles/inbox.css");
-  const scroll = inbox.slice(inbox.indexOf(".ix-th-scroll {"), inbox.indexOf(".ix-th-scroll::-webkit-scrollbar"));
-  assert.ok(scroll.includes("padding: 12px 24px;"), "the scroller sets the gutter");
+  // Every rule on the scroller, its layout and the look's gutter (16px 24px, set once, in the look's own rule).
+  const scroll = inbox
+    .split(".ix-th-scroll {")
+    .slice(1)
+    .map((s) => s.slice(0, s.indexOf("}")))
+    .join(" ");
+  assert.ok(scroll.includes("padding: 16px 24px;"), "the scroller sets the gutter");
   assert.ok(
     scroll.includes("gap: 12px;") && scroll.includes("flex-direction: column;"),
     "and separates its children with gap, not their margins",
@@ -218,7 +227,7 @@ test("a route on its way is an empty pane that says so after a beat, never a ske
   // these four agreed already and now say so.
   const tokens = readRaw("apps/dashboard/src/legacy/styles/tokens.css");
   assert.ok(
-    tokens.includes("--rail-nav: 220px") && tokens.includes("--rail-list: 340px"),
+    tokens.includes("--rail-nav: 220px") && tokens.includes("--rail-list: 360px"),
     "the two kinds of rail are named",
   );
   for (const [file, sel] of [

@@ -4,6 +4,7 @@
  * -- a call opens its thread at the call -- and a call no thread holds opens alone, in the thread's own frame.
  * The rules of which tab a row is in and of the address are cv-rules.ts.
  */
+import { mmss } from "@chanlytics/contracts";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -51,11 +52,14 @@ const CV_ANSWERED: Record<string, string> = {
 
 export const OutcomePill = ({
   outcome,
+  standing = null,
   decidedAction,
   channel,
   answeredBy = null,
 }: {
   outcome: string;
+  /** Who has the thread (contracts standingOf), read before the outcome: the Inbox's own word for the same row. */
+  standing?: string | null;
   decidedAction?: string | null;
   channel: string;
   answeredBy?: string | null;
@@ -75,9 +79,15 @@ export const OutcomePill = ({
     );
   if (outcome === "live") return <StatePill kind="call" value="live" />;
   if (outcome === "missed") return <StatePill kind="call" value="missed" />;
-  // A call's own story beats "handled": the caller who asked for a call back,
-  // and the one who hung up in seconds (contracts toCallVM decides both).
-  if (outcome === "callback" || outcome === "abandoned") return <StatePill kind="call" value={outcome} />;
+  // A call's own story beats "handled": the caller who asked for a call back, the one who hung up in seconds, the
+  // one who reached the voicemail, and the dial the provider could not place (contracts toCallVM decides each).
+  if (outcome === "callback" || outcome === "abandoned" || outcome === "voicemail" || outcome === "failed")
+    return <StatePill kind="call" value={outcome} />;
+  // A chat row: who has it is the Inbox's rule, said in the Inbox's words. "Needs you" here read "Receptionist
+  // replied" over an open escalation, and "Needs you" over a thread you had taken over (the 2 Oct 2026 audit).
+  if (standing === "needs_you") return <StatePill kind="thread" value="escalated" />;
+  if (standing === "yours" || standing === "theirs") return <StatePill kind="thread" value={standing} />;
+  if (standing === "snoozed") return <StatePill kind="thread" value="snoozed" />;
   if (outcome === "booked") return <StatePill kind="thread" value="booked" />;
   if (outcome === "escalated") return <StatePill kind="thread" value="escalated" />;
   if (outcome === "handled")
@@ -126,6 +136,7 @@ const CvRow = ({ c, active, onSelect }: { c: ConversationRow; active: boolean; o
           <span className="cv-row-who">{c.who}</span>
           <OutcomePill
             outcome={endedLive ? "handled" : c.outcome}
+            standing={c.standing ?? null}
             decidedAction={dec ? dec.action : null}
             channel={c.channel}
             answeredBy={c.answeredBy}
@@ -146,7 +157,7 @@ const CvRow = ({ c, active, onSelect }: { c: ConversationRow; active: boolean; o
 // In the thread's own frame: its header, and the call as a thread draws it (ThreadCall). A caller who withheld their
 // number, a call older than the threads the Inbox shows, a call still going. One still going is a line that says so and
 // opens Live, where it can be heard and steered; its clock is the wall clock since it started, never a seed's.
-const cvClock = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+const cvClock = (sec: number) => mmss(sec * 1000);
 
 /** The call's header: back, who it was with (a door to their page), and the one act. */
 function callHead(c: ConversationRow, onBack: (() => void) | null) {

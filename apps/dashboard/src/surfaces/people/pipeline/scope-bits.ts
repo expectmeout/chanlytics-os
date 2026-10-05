@@ -8,11 +8,7 @@ import { mayAtLeast } from "../../legacy-verbs";
 // The order the page opens in: Stage, the Pipeline's own (contracts pipelineOf), until the member picks a heading.
 export const PIPE_SORT = { by: "stage", dir: "asc" } as const;
 export const PIPE_CTX = {};
-// Beside an open peek on a desk the table keeps who and where it stands in a word: at 1280, beside the sidebar and the
-// rail, the rows have some 350px left of the peek, which holds those two and not the value, which the peek's card says
-// at its head. And of People's acts on a selection the Pipeline keeps its lists and its export, after its own Mark as
-// passed.
-export const PIPE_PEEK_KEEPS = new Set(["name", "chip"]);
+// Of People's acts on a selection the Pipeline keeps its lists and its export, after its own Mark as passed.
 export const PIPE_BULK_ACTS = ["lists", "export"];
 
 // The first layout a member who never chose one gets: what #941 kept in this browser, read once, else the list. The

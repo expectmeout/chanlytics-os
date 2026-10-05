@@ -37,6 +37,15 @@ const ASKED_TO_STOP = "asked to stop receiving messages";
 export const OPT_OUT_REFUSAL = `This customer ${ASKED_TO_STOP}. They can text START to opt back in.`;
 
 /**
+ * What the owner reads where a reply box would be, by name: the Inbox's composer and the person page's Replies fact
+ * say it in these words, and nowhere else. The person page said "Replies · Any time, by text" over a person who
+ * had texted STOP (the 2 Oct 2026 audit).
+ */
+export function optOutWords(who: string): string {
+  return `${who} ${ASKED_TO_STOP}. Nothing can be sent — they can text START to opt back in.`;
+}
+
+/**
  * Whether a customer's message asks to stop, put to a second model in shadow (decision 0023). The keyword door
  * (OPT_OUT_PATTERN) reads STOP, BAJA, ALTO and UNSUBSCRIBE alone; a message that reached the receptionist was read as
  * no such request, so the primary's answer to this question is always "false", and the shadow's yes is a stop the

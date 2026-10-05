@@ -59,6 +59,9 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
   { table: "segment_members", events: EVERY },
   // a reply to a reach-out read, drafted or undone: the Inbox's strip and chip repaint (00222)
   { table: "reach_out_replies", events: EVERY },
+  // a run made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
+  // repaint (00321). Its people are not watched: a run's page reads them when it opens.
+  { table: "broadcasts", events: EVERY },
 ];
 
 /** The tables the database tells a workspace about: a surface's refreshOnTables can only name one of these. */

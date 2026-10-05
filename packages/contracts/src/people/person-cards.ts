@@ -21,11 +21,11 @@ import { isOwned } from "./person-state";
 import { bookingLinkAction, type PersonProposalVM, repliesWords } from "./person-reach";
 import { toPersonRowVM, type PersonRowVM, visitTitleFor } from "./person-row";
 import { addedBy, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
-import { capitalize } from "../shared/words";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words";
 import { replyWindow } from "../config/policy";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
-import { messageText } from "../conversations/message-words";
+import { messageText, messageWords } from "../conversations/message-words";
+import { reasonSummaryOf } from "../conversations/escalations";
 import { shortTime } from "../conversations/thread-clock";
 import { writtenChannelOf } from "../conversations/thread-channel";
 import { HOUR_MS } from "../shared/time";
@@ -47,7 +47,7 @@ export interface PersonFact {
 /** The customer's last line and the last reply, verbatim. */
 export interface PersonLastExchange {
   customer: { text: string; at: string } | null;
-  reply: { text: string; at: string; who: "Receptionist" | "You" } | null;
+  reply: { text: string; at: string; who: "Receptionist" | "Your team" } | null;
 }
 
 /** The wire a reply goes out on, exactly, and WhatsApp's window on it as the row says it. */
@@ -245,8 +245,9 @@ export function lastExchangeOf({ profile, stamp }: PersonCardContext): PersonLas
       if (m.type === "call_summary") continue;
       const t = ts(messageAt(m));
       if (t === null) continue;
+      // Their words as the thread says them (messageWords): an email's quoted chain is not what they wrote.
       if (!customer && m.direction === "inbound" && m.body)
-        customer = { text: m.body, at: `${stamp(t).time} ${stamp(t).day}` };
+        customer = { text: messageWords(m), at: `${stamp(t).time} ${stamp(t).day}` };
       if (
         !reply &&
         m.direction === "outbound" &&
@@ -256,7 +257,8 @@ export function lastExchangeOf({ profile, stamp }: PersonCardContext): PersonLas
         reply = {
           text: messageText(m),
           at: `${stamp(t).time} ${stamp(t).day}`,
-          who: m.sender === "ai" ? "Receptionist" : "You",
+          // A person's reply is the team's (message-author.ts): the row does not say which member sent it.
+          who: m.sender === "ai" ? "Receptionist" : "Your team",
         };
       }
       if (customer && reply) break;
@@ -293,7 +295,9 @@ export function rightNowOf({ profile, tz, now, nowMs, row: r, base }: PersonCard
     return {
       tone: "escalated",
       title: `Escalated · ${reasonShort(r.open_escalation_reason)}`,
-      detail: `${capitalize(reasonShort(r.open_escalation_reason))}${since ? ` · since ${since}` : ""}. Paused until someone answers.`,
+      // The operator's first sentence for the reason (the Inbox's own): "Paused until someone answers" was appended to
+      // every reason, over a person who had asked to stop, where nothing may be answered (the 2 Oct 2026 audit).
+      detail: `${since ? `Since ${since}. ` : ""}${reasonSummaryOf(r.open_escalation_reason)}`,
       cta: openThread,
     };
   }
@@ -373,6 +377,7 @@ const receptionistMeta = (label: string) =>
 /** Facts strip: first and last contact, conversations, calls, the receptionist's standing, the deal, the next visit. */
 export function personFactsOf({ profile, tz, nowMs, base, current, firstChannel }: PersonCardContext): PersonFact[] {
   const lc = base.lastContact;
+  const attempts = profile.calls.filter((k) => k.status === "not_connected").length;
   const lastMeta =
     lc.who === "they"
       ? lc.kind === "call"
@@ -396,7 +401,11 @@ export function personFactsOf({ profile, tz, nowMs, base, current, firstChannel 
     {
       label: "Calls",
       value: base.calls,
-      meta: base.calls ? `${Math.max(1, Math.round(base.callSeconds / 60))} min total` : "no calls",
+      // A dial that never connected is not a call (people_list's rule), but it is in the history below: the strip said
+      // "0 calls" over a "Missed call" row (the 2 Oct 2026 audit). Said as what it is.
+      meta: `${base.calls ? `${Math.max(1, Math.round(base.callSeconds / 60))} min total` : "no calls"}${
+        attempts ? `, ${attempts} didn't connect` : ""
+      }`,
     },
     // Consent is the two asks on the rail, each with how it was given. A fact, an About row and a pill said it
     // again, five times on one profile.
@@ -451,7 +460,7 @@ export function aboutOf({
   });
   about.push({ k: "Channels", v: base.channels.map((c) => PERSON_CHANNEL_WORDS[c]).join(" · ") || "—" });
   if (base.hasChat && reply) {
-    const v = repliesWords(REPLY_VIA[reply.via], reply.window);
+    const v = repliesWords(REPLY_VIA[reply.via], reply.window, { optedOut: base.stopped, who: base.name });
     if (v) about.push({ k: "Replies", v });
   }
   if (profile.visits) {

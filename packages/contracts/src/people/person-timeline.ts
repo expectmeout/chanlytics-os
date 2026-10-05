@@ -6,7 +6,7 @@
  * by value. index.ts names the item types and consentChangeWords; the builders are internal.
  */
 import { visitDateKey, visitDay, visitTime } from "../calendar/calendar-people";
-import { tidyCallSummary } from "../voice/call-words";
+import { callNoteLines, callNotesOf, tidyCallSummary } from "../voice/call-words";
 import type { ConsentChange } from "../consent/consent";
 import { DEAL_LOST_REASON_WORDS, DEAL_STAGE_WORDS, isDealLostReason } from "../deals/deal-words";
 import { amountWords } from "../deals/deal-amount";
@@ -18,9 +18,10 @@ import { addedBy, ts } from "./person-helpers";
 import { capitalize } from "../shared/words";
 import { callLength } from "../shared/clock";
 import { isIdentifierName } from "../conversations/thread-contact";
+import { callAttemptWords } from "../conversations/call-dto";
 import { type MessageAuthor, messageAuthor } from "../conversations/message-author";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
-import { messageWords } from "../conversations/message-words";
+import { clipAtWord, messageWords } from "../conversations/message-words";
 import type { PersonCardContext } from "./person-cards";
 import { reachOutPersonOf, type ReachOutPersonVM } from "../reach-out/reach-out-leads";
 import { leadsRoute } from "../leads/lead-plan";
@@ -37,6 +38,8 @@ export interface PersonTimelineItemVM {
   who: string;
   text: string;
   sub?: string;
+  /** More lines under the row's text, each said once: what a call's analysis left (its to-do, what the caller gave). */
+  notes?: string[];
   link?: { label: string; to: string };
   /** A visit that has not ended yet: the page says it under Coming up (comingUp), not in what has happened. */
   ahead?: boolean;
@@ -225,6 +228,9 @@ function callItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[
     const wanted = (k.wanted || "").trim();
     const summary = tidyCallSummary(k.summary) ?? "";
     const missed = k.status === "not_connected";
+    // What the call's own row holds beyond what they wanted: the to-do the receptionist noted, what they gave about
+    // themselves. A dial that never connected has no analysis, and so nothing here.
+    const notes = callNoteLines(callNotesOf(k));
     const sentence = missed
       ? "The call never connected."
       : wanted ||
@@ -239,9 +245,10 @@ function callItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[
       ...stamp(t),
       kind: "call",
       who: missed
-        ? "Missed call"
+        ? callAttemptWords(k.direction)
         : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""}`,
       text: sentence,
+      ...(notes.length ? { notes } : {}),
       sub: missed
         ? "Never connected"
         : k.recording?.fetch_state === "stored"
@@ -259,15 +266,27 @@ function escalationItems({ profile, stamp }: PersonCardContext): PersonTimelineI
   for (const e of profile.escalations) {
     const t = ts(e.created_at);
     if (t === null) continue;
+    // The details say more (a call back's to-do, why a send failed): the page dropped them, and said "Resolved" with
+    // no when (the 2 Oct 2026 audit). A call back's details are its whole sentence, so they are not repeated as a quote.
+    // Details that only repeat the reason's own words ("asked for a person") say nothing more, and are left out.
+    const said = e.details?.trim();
+    const details = said && said.toLowerCase() !== reasonShort(e.reason).toLowerCase() ? clipAtWord(said, 120) : null;
+    const resolvedAt = e.state === "resolved" ? ts(e.updated_at) : null;
     items.push({
       id: `e-${e.id}`,
       ts: t,
       ...stamp(t),
       kind: "escalation",
       who: "Escalated",
-      text: capitalize(reasonShort(e.reason)) || "The receptionist stopped",
+      text:
+        e.reason === "callback" && details
+          ? details
+          : `${capitalize(reasonShort(e.reason)) || "The receptionist stopped"}${details ? ` · “${details}”` : ""}`,
       // "Open" beside a row that opens something read as the verb; the state is what it says.
-      sub: e.state === "resolved" ? "Resolved" : "Still open",
+      sub:
+        e.state === "resolved"
+          ? `Resolved${resolvedAt !== null ? ` · ${stamp(resolvedAt).time} ${stamp(resolvedAt).day}` : ""}${e.resolved_by_user_id ? " · by a person" : ""}`
+          : "Still open",
       link: { label: "Open the thread", to: `inbox/th-${e.conversation_id}` },
     });
   }

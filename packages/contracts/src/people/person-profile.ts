@@ -18,6 +18,7 @@ import { personNotesVM, type PersonNoteTeamDto, type PersonNoteVM } from "../not
 import { PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
 import { HELD_REASONS, isReplyTo } from "../broadcasts/run-words";
 import { messageAt } from "../conversations/thread-dto";
+import { THREAD_CHANNEL_WORDS, isTheirOwnWords, writtenChannelOf } from "../conversations/thread-channel";
 import {
   aboutOf,
   personFactsOf,
@@ -299,7 +300,8 @@ function campaignsOf(d: PersonDetailDto, tz: string, nowMs: number): PersonCampa
   for (const c of d.conversations) {
     for (const m of c.messages) {
       threadOf.set(m.id, c.id);
-      if (m.direction === "inbound") repliesIn.set(c.id, [...(repliesIn.get(c.id) ?? []), m.created_at]);
+      // A reply is their own words, as a run's page counts it (isTheirOwnWords): not a call's note, not their mailbox.
+      if (isTheirOwnWords(m)) repliesIn.set(c.id, [...(repliesIn.get(c.id) ?? []), m.created_at]);
     }
   }
   return (d.campaigns ?? []).map((c) => {
@@ -327,7 +329,8 @@ function campaignsOf(d: PersonDetailDto, tz: string, nowMs: number): PersonCampa
       title: c.playbook_id ? c.playbook_name || c.name : c.name,
       when: at !== null ? clockDate(at, tz, nowMs) : "—",
       outcome,
-      line: `${c.playbook_id ? "Playbook" : "Broadcast"} · ${outcome}`,
+      // Which wire it went by, or would have: a person on three channels is not told "Sent" with nowhere to look.
+      line: `${c.playbook_id ? "Playbook" : "Broadcast"} · ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} · ${outcome}`,
       tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
       to: `broadcasts/run:${c.broadcast_id}`,
     };

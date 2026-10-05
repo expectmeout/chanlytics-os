@@ -305,13 +305,13 @@
     "depth": 1
   },
   "packages/contracts/src/conversations/call-vm.ts::toCallVM#1": {
-    "lines": 140,
-    "branches": 69,
+    "lines": 133,
+    "branches": 61,
     "depth": 1
   },
   "packages/contracts/src/conversations/inbox-thread.ts::toInboxThreadVM#1": {
-    "lines": 219,
-    "branches": 53,
+    "lines": 218,
+    "branches": 49,
     "depth": 2
   },
   "packages/contracts/src/deals/sheet/deal-sheet-body.ts::dealSheetBody#1": {
@@ -390,9 +390,9 @@
     "depth": 2
   },
   "packages/contracts/src/voice/live.ts::toLiveCallVM#1": {
-    "lines": 86,
-    "branches": 54,
-    "depth": 2
+    "lines": 77,
+    "branches": 50,
+    "depth": 0
   },
   "packages/contracts/src/workspace/activity.ts::activityWords#1": {
     "lines": 154,

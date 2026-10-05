@@ -1824,12 +1824,12 @@ html.legacy-on .bt-link { position: relative; }
    none matches in Classic.
    ==================================================================== */
 @media (width > 900px) {
-  :where([data-look="glass"]) .main-scroll > .settings {
+  .main-scroll > .settings {
     padding: 0 var(--gutter-page) 16px;
     column-gap: 14px;
     overflow: visible;
   }
-  :where([data-look="glass"]) .set-nav {
+  .set-nav {
   position: relative;
   border: 0;
   border-radius: var(--surface-pane-radius);
@@ -1837,7 +1837,7 @@ html.legacy-on .bt-link { position: relative; }
   box-shadow: var(--surface-pane-depth);
   overflow: hidden;
 }
-  :where([data-look="glass"]) .set-nav::after {
+  .set-nav::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1849,13 +1849,13 @@ html.legacy-on .bt-link { position: relative; }
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-  :where([data-look="glass"]) .set-nav-row {
+  .set-nav-row {
     border-radius: var(--radius-xl);
   }
-  :where([data-look="glass"]) .set-nav-row:hover {
+  .set-nav-row:hover {
     background: var(--surface-inset-fill);
   }
-  :where([data-look="glass"]) .set-nav-row.active {
+  .set-nav-row.active {
     background: var(--selected-fill);
     box-shadow: var(--selected-depth);
   }
