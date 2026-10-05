@@ -20,9 +20,7 @@
     "@chanlytics/channels": "workspace:*",
     "@chanlytics/contracts": "workspace:*",
     "@chanlytics/db": "workspace:*",
-    "@supabase/supabase-js": "^2.116.0",
-    "html-to-text": "^9.0.5",
-    "zod": "^4.6.5"
+    "@supabase/supabase-js": "^2.116.0"
   },
   "devDependencies": {
     "tsup": "^8.3.0",

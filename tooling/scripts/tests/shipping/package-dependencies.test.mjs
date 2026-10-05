@@ -4,9 +4,9 @@
  * The hoisted linker (`nodeLinker` in pnpm-workspace.yaml) puts every third-party module at the root, so an import a project never declared
  * resolves anyway and nothing fails until the layout changes: core and jobs imported `@supabase/supabase-js`, and
  * their builds carried `html-to-text` inline, for weeks without declaring either (the scorecard's I1:3). A package's
- * built dist is what the edge executes (docs/decisions/0024-how-the-packages-ship.md): the workspace's own packages
- * are inlined into it, every third-party module stays an import, and a Dependabot bump of one changes a manifest and
- * the lockfile, never a committed dist.
+ * built dist is what the edge executes (docs/decisions/0024-how-the-packages-ship.md): it carries its own code alone,
+ * reaches a sibling by that sibling's built file's relative path (step 2), keeps every third-party module an import,
+ * and a Dependabot bump of one changes a manifest and the lockfile, never a committed dist.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -71,16 +71,60 @@ test("each package's built dist imports only what its package.json declares", ()
   );
 });
 
-test("no package's built JavaScript imports a workspace package: the inlining is what keeps a dist self-contained", () => {
-  // Until decision 0024's step 2 gives the siblings a relative path of their own. A dist that imported `@chanlytics/db`
-  // would pass the declaration test above (core declares it) and resolve under pnpm's links here, then fail on the
-  // edge, where Vercel's bundler follows no link.
-  const imported = PACKAGES.flatMap((p) =>
-    importsOf(parse(`packages/${p}/dist/index.js`))
-      .filter((i) => i.specifier.startsWith("@chanlytics/"))
-      .map((i) => `${p}: ${i.specifier}`),
+test("a package's built JavaScript reaches a sibling only by its built file's relative path, and only one it declares", () => {
+  // Decision 0024, step 2. A dist that imported `@chanlytics/db` by name would pass the declaration test above (core
+  // declares it) and resolve under pnpm's links here, then fail on the edge, where Vercel's bundler follows no link;
+  // the relative path is the file the edge's facades already name.
+  const wrong = [];
+  for (const p of PACKAGES) {
+    const declared = Object.keys(runtimeOf(manifest(`packages/${p}`)))
+      .filter((n) => n.startsWith("@chanlytics/"))
+      .map((n) => n.slice("@chanlytics/".length));
+    for (const { specifier } of importsOf(parse(`packages/${p}/dist/index.js`))) {
+      const sibling = /^\.\.\/\.\.\/([a-z]+)\/dist\/index\.js$/.exec(specifier)?.[1];
+      if (specifier.startsWith("@chanlytics/")) wrong.push(`${p}: ${specifier}, by name`);
+      else if (specifier.startsWith(".") && !sibling) wrong.push(`${p}: ${specifier} is not a sibling's built file`);
+      else if (sibling && !declared.includes(sibling)) wrong.push(`${p}: ${sibling} is not in its package.json`);
+    }
+  }
+  assert.deepEqual(wrong, [], "the package's tsup.config.ts hands its build siblingsByPath");
+});
+
+test("no package's dist carries a sibling's code: one module per package per process, one breaker, one AppError", () => {
+  // esbuild opens a module it inlined with a comment naming its path; at 1388f2cc6 core's dist opened
+  // `// ../contracts/dist/index.js`, `// ../db/dist/index.js` and `// ../channels/dist/index.js`, and carried its own
+  // copy of channels' providerFetch and the breaker map beside it, so a send through core's deliver counted toward a
+  // breaker the edge's direct channels calls never read.
+  const carried = PACKAGES.flatMap((p) =>
+    [
+      ...fs
+        .readFileSync(path.join(ROOT, `packages/${p}/dist/index.js`), "utf8")
+        .matchAll(/^\/\/ \.\.\/([a-z]+)\/dist\//gm),
+    ].map((m) => `${p} carries ${m[1]}`),
   );
-  assert.deepEqual(imported, [], "the package's tsup.config.ts inlines @chanlytics/* (noExternal)");
+  assert.deepEqual(carried, []);
+  for (const p of PACKAGES.filter((x) => x !== "channels")) {
+    const dist = fs.readFileSync(path.join(ROOT, `packages/${p}/dist/index.js`), "utf8");
+    assert.ok(!/async function providerFetch\(/.test(dist), `${p}: the breaker's module is channels' alone`);
+  }
+});
+
+test("a project that declares a package declares the siblings it imports, so an installed layout has them beside it", () => {
+  // Decision 0024's risk: the relative path assumes `@chanlytics/<p>`'s siblings sit beside it wherever it is installed.
+  const siblingsOf = Object.fromEntries(
+    PACKAGES.map((p) => [
+      `@chanlytics/${p}`,
+      Object.keys(runtimeOf(manifest(`packages/${p}`))).filter((n) => n.startsWith("@chanlytics/")),
+    ]),
+  );
+  const missing = [];
+  for (const dir of [...PACKAGES.map((p) => `packages/${p}`), "apps/edge", "apps/dashboard", "apps/mobile"]) {
+    const deps = runtimeOf(manifest(dir));
+    for (const name of Object.keys(deps).filter((n) => n in siblingsOf))
+      for (const sibling of siblingsOf[name])
+        if (!(sibling in deps)) missing.push(`${dir}: ${name} without ${sibling}`);
+  }
+  assert.deepEqual(missing, []);
 });
 
 /** The modules esbuild inlined into a bundle: it opens each one with a comment naming its path. */
@@ -106,7 +150,7 @@ test("no package's dist inlines a third-party module", () => {
   );
 });
 
-test("each package's build inlines only the workspace's own packages", async () => {
+test("each package's build keeps third-party code external and hands its siblings to siblingsByPath", async () => {
   // A package's config is one build or several (contracts builds its entries apart): each is held.
   const builds = [];
   for (const p of PACKAGES) {
@@ -115,13 +159,15 @@ test("each package's build inlines only the workspace's own packages", async () 
   }
   for (const [p, config] of builds) {
     assert.equal(config.skipNodeModulesBundle, true, `${p}: every bare import but @chanlytics/* stays external`);
-    // Every package but contracts imports a sibling, and its dist carries it: noExternal is what says so.
-    if (p !== "contracts") assert.ok((config.noExternal ?? []).length > 0, `${p}: inlines the workspace's packages`);
+    if (p === "contracts") continue;
+    // Every package but contracts imports a sibling: the plugin answers for it with its built file's relative path,
+    // and noExternal is what stops tsup naming a declared sibling external before the plugin is asked.
+    assert.ok(
+      (config.esbuildPlugins ?? []).some((pl) => pl.name === "siblings-by-path"),
+      `${p}: siblingsByPath (tooling/scripts/package-siblings.mjs)`,
+    );
     for (const re of config.noExternal ?? []) {
-      assert.ok(
-        re instanceof RegExp && re.test("@chanlytics/contracts"),
-        `${p}: noExternal names the workspace's packages`,
-      );
+      assert.ok(re instanceof RegExp && re.test("@chanlytics/contracts"), `${p}: noExternal names the siblings`);
       assert.ok(!re.test("html-to-text") && !re.test("@supabase/supabase-js"), `${p}: noExternal names nothing else`);
     }
   }

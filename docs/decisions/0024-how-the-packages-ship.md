@@ -1,10 +1,11 @@
 # 0024 · How the packages ship
 
-**Status:** Proposed on 29 September 2026 by the road-to-10 health lane; Ruben's confirmation owed. Step 1, third-party
-code stays an import, is built with this note (it moves no shape the wire or the two apps share); steps 2 to 4 wait for
-it. Written against `1388f2cc6` (main, 29 September
-2026, after #1332) and verified against the code at it; where this note and the code disagree, the code wins. The
-scorecard's move 5 ("Decide how packages ship") and `docs/debt.md`'s two packaging rows asked for it.
+**Status:** Accepted on 4 October 2026 (Ruben, approving the file-tree review's list as recommended). Steps 1 and 2
+built: third-party code stays an import (with this note), and the workspace's packages reach one another by relative
+path (4 October 2026, "Built" under step 2); steps 3 and 4 to come. Proposed on 29 September 2026 by the road-to-10
+health lane. Written against `1388f2cc6` (main, 29 September 2026, after #1332) and verified against the code at it;
+where this note and the code disagree, the code wins. The scorecard's move 5 ("Decide how packages ship") and
+`docs/debt.md`'s two packaging rows asked for it.
 
 ## Context
 
@@ -84,6 +85,20 @@ wire changes.
    fail on step 1 (a send through core's `deliver` and a direct channels call counting toward one breaker); and, once
    a preview deployment of each project exists, the golden probe against it. Then the brand stays for a week of
    production and may go.
+
+   **Built (4 October 2026).** One esbuild plugin, `siblingsByPath` (`tooling/scripts/package-siblings.mjs`), in the
+   four configs that import a sibling; `noExternal` stays beside it, since without it tsup names a declared sibling
+   external by name before the plugin is asked (a first build did exactly that). Every dist now imports a sibling as
+   `../../<p>/dist/index.js` and carries none (bytes, main at `d481afeed` → here): core's 1,551,883 → 965,834, jobs'
+   1,069,395 → 52,692, db's 308,393 → 156,905, channels' 346,720 → 196,372, contracts' unchanged; the declarations are
+   unchanged, keeping `@chanlytics/*`. Proved: all 56 edge doors traced with Vercel's own `@vercel/nft` 1.5.0 (TypeScript transpiled on
+   read), no unresolved import, every door that carries core carrying its three siblings; the doors that load jobs now
+   carry core's dist as a file of its own, and the two that load db alone now carry contracts'. Core's dist no longer
+   defines `providerFetch`, so the breaker is channels' alone; `shipping/package-dependencies.test.mjs` holds it (no
+   dist opens a sibling's module, which core's did three times at `d481afeed`; a sibling only by its relative path
+   and only one it declares; every project that declares a package declares that package's siblings). The suite ran
+   on the built dists in CI under the `suite` label, and `next build` in the Typecheck job. The brand stays, as above.
+
 3. **The edge's doors import the packages as the dashboard does**, once the organization wave has removed the five
    facades, keeping a relative dist path wherever the function bundler needs one.
 4. **Committed dist leaves git** (decision 3): its own note, when a preview can prove the edge's own bundle.

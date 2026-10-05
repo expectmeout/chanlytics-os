@@ -12,6 +12,7 @@ import { DELIVERY_RECEIPTS_WORDS, REPLY_WINDOW_WORDS } from "../broadcasts/broad
 import { dayDate, deltaOf, fmtDay, pointsDelta, priorOf, type ReportTileVM } from "./reports";
 import { templateTitle } from "../templates/template-titles";
 import { sumOf } from "../shared/numbers";
+import { formatterOnUse } from "../shared/time";
 
 export interface CampaignDayDto {
   day: string;
@@ -107,7 +108,7 @@ export interface CampaignReportVM {
 }
 
 const pct = (n: number, d: number): number | null => (d ? Math.round((n / d) * 100) : null);
-const WHEN = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+const WHEN = formatterOnUse([], { month: "short", day: "numeric" });
 
 export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
   const days = dto.days;

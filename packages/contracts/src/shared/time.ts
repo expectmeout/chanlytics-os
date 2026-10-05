@@ -37,8 +37,22 @@ export function jittered(ms: number, random: () => number = Math.random): number
   return Math.round(ms * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
 }
 
+/**
+ * A date formatter built on its first use rather than when contracts loads, so it keeps the zone the process has then.
+ * A process's zone never moves in production (a browser's, the server's UTC); but a suite pins UTC in a test file
+ * after the runner's preloads have already loaded contracts (tests/fixtures/pin-utc.mjs, the network stand-in), and a
+ * formatter built at load kept the machine's zone, a day off twelve hours east.
+ */
+export function formatterOnUse(
+  locales: Intl.LocalesArgument,
+  options: Intl.DateTimeFormatOptions,
+): Pick<Intl.DateTimeFormat, "format"> {
+  let built: Intl.DateTimeFormat | null = null;
+  return { format: (date) => (built ??= new Intl.DateTimeFormat(locales, options)).format(date) };
+}
+
 /** "Sep 6", in the runtime's own locale and zone: the date a sentence gives once a count would read oddly. */
-export const DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+export const DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
 
 export interface SpanUnits {
   n: number;

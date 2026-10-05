@@ -361,12 +361,6 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.116.0
         version: 2.116.0
-      html-to-text:
-        specifier: ^9.0.5
-        version: 9.0.5
-      zod:
-        specifier: ^4.6.5
-        version: 4.6.5
     devDependencies:
       tsup:
         specifier: ^8.3.0
@@ -414,12 +408,6 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.116.0
         version: 2.116.0
-      html-to-text:
-        specifier: ^9.0.5
-        version: 9.0.5
-      zod:
-        specifier: ^4.6.5
-        version: 4.6.5
     devDependencies:
       tsup:
         specifier: ^8.3.0
