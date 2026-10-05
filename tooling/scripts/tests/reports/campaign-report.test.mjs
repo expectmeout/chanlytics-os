@@ -202,8 +202,17 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
   assert.deepEqual([week, asked], [{ report: { days: 7 } }, [{ p_tenant_id: W, p_days: 7 }]]);
   await assert.rejects(
     route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?days=45&workspace=${W}`), ctx()),
-    (e) => e.status === 400 && e.message === "days must be 7, 30 or 90.",
-    "the same three presets as the receptionist's report",
+    (e) => e.status === 400 && e.message === "period must be 7d, 30d, 90d or month.",
+    "the same periods as the receptionist's report",
+  );
+  assert.deepEqual(
+    await route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?period=90d&workspace=${W}`), ctx()),
+    { report: { days: 90 } },
+    "one period parameter: `period` names the window",
+  );
+  await assert.rejects(
+    route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?period=14d&workspace=${W}`), ctx()),
+    (e) => e.status === 400,
   );
   const s = readCode("apps/dashboard/src/surfaces/reports/surface.ts");
   assert.ok(

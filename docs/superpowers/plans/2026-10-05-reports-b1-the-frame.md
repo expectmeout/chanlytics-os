@@ -991,14 +991,14 @@ git commit -m "Reports' one table of periods gains Month, the days since the 1st
 **Why:** One query, one place that says what it means. `period=7d|30d|90d|month` on `GET reports`, `GET reports/campaigns` and `GET reports/reach-outs`, with `days=` read until 19 October (Task 4's test). Month's days are read in the workspace's zone and only when Month is asked (the zone is the membership's own, `readerContext` seeds it, so no read is added). The Campaigns home and the head's prefetch move to `period=30d` in the same task, so a client and a server from either side of the deploy still agree.
 
 **Files:**
-- Create: `apps/dashboard/src/server/readers/report-period.ts`, `tooling/scripts/tests/reports/report-routes.test.mjs`
+- Create: `apps/dashboard/src/server/readers/report-period.ts`, `tooling/scripts/tests/reports/periods/report-routes.test.mjs`
 - Modify: `apps/dashboard/app/api/v1/reports/route.ts`, `apps/dashboard/app/api/v1/reports/campaigns/route.ts`, `apps/dashboard/app/api/v1/reports/reach-outs/route.ts`, `apps/dashboard/src/server/ask/context/pages.ts`, `apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts`, `packages/contracts/src/shell/chrome.ts`
 - Modify (tests): `tooling/scripts/tests/reports/campaign-report.test.mjs`, `tooling/scripts/tests/ask/ask-routes.test.mjs`, `tooling/scripts/tests/ask/ask-context.test.mjs`
 - Regenerate: `docs/api.md`, `packages/contracts/dist`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `tooling/scripts/tests/reports/report-routes.test.mjs`:
+Create `tooling/scripts/tests/reports/periods/report-routes.test.mjs`:
 
 ```js
 /**
@@ -1008,7 +1008,7 @@ Create `tooling/scripts/tests/reports/report-routes.test.mjs`:
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { importSrc } from "../_source.mjs";
+import { importSrc } from "../../_source.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -1091,7 +1091,7 @@ In `tooling/scripts/tests/ask/ask-context.test.mjs`, in `Reports: the period the
 - [ ] **Step 2: Run them to verify they fail**
 
 ```bash
-node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/report-routes.test.mjs
+node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/periods/report-routes.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/campaign-report.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/ask/ask-routes.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/ask/ask-context.test.mjs
@@ -1253,7 +1253,7 @@ corepack pnpm exec prettier --write apps/dashboard/app/api/v1/reports apps/dashb
 corepack pnpm --filter "./packages/*" build
 corepack pnpm gen:api-reference
 node tooling/scripts/gen/route-types.mjs --check
-node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/report-routes.test.mjs
+node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/periods/report-routes.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/reports/campaign-report.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/ask/ask-routes.test.mjs
 node tooling/scripts/checks/test.mjs tooling/scripts/tests/ask/ask-context.test.mjs

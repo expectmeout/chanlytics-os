@@ -13873,8 +13873,16 @@ var PREFETCH_READS = {
   clients: ["contacts", "segments", "views"],
   segments: ["contacts", "segments", "views"],
   live: ["calls", "channels"],
-  // The Campaigns home reads what the offers earned over its 30 days (broadcasts/surface.ts HOME_REPORT_DAYS).
-  broadcasts: ["broadcasts", "contacts", "segments", "templates", "channels", "settings", "reports/campaigns?days=30"],
+  // The Campaigns home reads what the offers earned over its 30 days (broadcasts/surface.ts HOME_REPORT_PERIOD).
+  broadcasts: [
+    "broadcasts",
+    "contacts",
+    "segments",
+    "templates",
+    "channels",
+    "settings",
+    "reports/campaigns?period=30d"
+  ],
   outbound: ["playbooks", "templates", "channels", "settings"],
   // Templates and every pane of Settings are drawn from the settings surface.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],
