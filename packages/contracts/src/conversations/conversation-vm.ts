@@ -112,7 +112,7 @@ export function toConversationVM(
     // and labelling it would be inventing one.
     ...(m.sender !== "customer"
       ? {
-          ...(messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {}),
+          ...(messageStatusLabel(m.status, m.channel) ? { statusLabel: messageStatusLabel(m.status, m.channel) } : {}),
           reachedCustomer: reachedCustomer(m.status),
         }
       : {}),

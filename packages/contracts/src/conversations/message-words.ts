@@ -7,6 +7,9 @@ import type { MessageDto } from "./thread-dto";
 import { MEDIA_LABEL, mediaKind } from "./message-media";
 import { splitQuotedReply } from "./message-email";
 
+/** What an email's `delivered` receipt says: their mail server took it, which is as far as an email can be followed. */
+const EMAIL_DELIVERED = "Reached their mail server";
+
 /**
  * What happened to a message we tried to send, in the operator's words.
  *
@@ -14,8 +17,13 @@ import { splitQuotedReply } from "./message-email";
  * nothing at all, so the same message read as "Canceled before sending" on one
  * screen and as an ordinary delivered reply on the other — and Conversations is
  * the screen whose entire job is "what is my receptionist saying to people".
+ *
+ * The wire is an input because one word does not mean one thing on every wire: a text's or a WhatsApp message's
+ * "Delivered" is on their phone, but an email's receipt says only that the receiving mail server accepted it (the
+ * provider's `delivered`), which is not the same as being in front of them. The email says what it knows. Every other
+ * wire, and a row that names none, keeps the words it always had.
  */
-export function messageStatusLabel(status: string | undefined): string | undefined {
+export function messageStatusLabel(status: string | undefined, channel?: string | null): string | undefined {
   switch (status) {
     case "queued":
       return "Sending…";
@@ -26,7 +34,7 @@ export function messageStatusLabel(status: string | undefined): string | undefin
     case "read":
       return "Read";
     case "delivered":
-      return "Delivered";
+      return channel === "email" ? EMAIL_DELIVERED : "Delivered";
     default:
       return undefined;
   }

@@ -16396,8 +16396,13 @@ declare function splitQuotedReply(body: string): {
  * nothing at all, so the same message read as "Canceled before sending" on one
  * screen and as an ordinary delivered reply on the other — and Conversations is
  * the screen whose entire job is "what is my receptionist saying to people".
+ *
+ * The wire is an input because one word does not mean one thing on every wire: a text's or a WhatsApp message's
+ * "Delivered" is on their phone, but an email's receipt says only that the receiving mail server accepted it (the
+ * provider's `delivered`), which is not the same as being in front of them. The email says what it knows. Every other
+ * wire, and a row that names none, keeps the words it always had.
  */
-declare function messageStatusLabel(status: string | undefined): string | undefined;
+declare function messageStatusLabel(status: string | undefined, channel?: string | null): string | undefined;
 /**
  * A message that is part of the conversation: words said on a wire. A call's note and a system note are not --
  * the first is the call's own row, the second a line the platform wrote on the thread, which read as "by WhatsApp

@@ -186,7 +186,9 @@ export function toInboxThreadVM(
             // The words themselves live in messageStatusLabel, so this pane and
             // the Conversations pane cannot describe the same message
             // differently — which is exactly what they were doing.
-            ...(messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {}),
+            ...(messageStatusLabel(m.status, m.channel)
+              ? { statusLabel: messageStatusLabel(m.status, m.channel) }
+              : {}),
             // Whether the words left: the receptionist's failed reply was drawn as a sent bubble (I1).
             reachedCustomer: reachedCustomer(m.status),
           }

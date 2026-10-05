@@ -14657,7 +14657,8 @@ function splitQuotedReply(body) {
 }
 
 // src/conversations/message-words.ts
-function messageStatusLabel(status) {
+var EMAIL_DELIVERED = "Reached their mail server";
+function messageStatusLabel(status, channel) {
   switch (status) {
     case "queued":
       return "Sending\u2026";
@@ -14668,7 +14669,7 @@ function messageStatusLabel(status) {
     case "read":
       return "Read";
     case "delivered":
-      return "Delivered";
+      return channel === "email" ? EMAIL_DELIVERED : "Delivered";
     default:
       return void 0;
   }
@@ -14730,7 +14731,7 @@ function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date())
     // Only for OUR messages. A customer's inbound message has no send status,
     // and labelling it would be inventing one.
     ...m.sender !== "customer" ? {
-      ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
+      ...messageStatusLabel(m.status, m.channel) ? { statusLabel: messageStatusLabel(m.status, m.channel) } : {},
       reachedCustomer: reachedCustomer(m.status)
     } : {}
   }));
@@ -15859,7 +15860,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
         // The words themselves live in messageStatusLabel, so this pane and
         // the Conversations pane cannot describe the same message
         // differently — which is exactly what they were doing.
-        ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
+        ...messageStatusLabel(m.status, m.channel) ? { statusLabel: messageStatusLabel(m.status, m.channel) } : {},
         // Whether the words left: the receptionist's failed reply was drawn as a sent bubble (I1).
         reachedCustomer: reachedCustomer(m.status)
       } : {},
