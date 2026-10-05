@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, ASK_SPEECH_MAX_CHARS, MIN_MS } from "@chanlytics/contracts";
+import { AppError, ASK_SPEECH_MAX_CHARS, MIN_MS, SPEECH_PURPOSES } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { log } from "@/server/log";
 import { edgeHeaders, edgeUrl, edgeConfigured, edgeReasonOf, edgeRefusalWords, type EdgeAnswer } from "@/server/edge";
@@ -21,7 +21,7 @@ import { edgeHeaders, edgeUrl, edgeConfigured, edgeReasonOf, edgeRefusalWords, t
  */
 const Input = z.object({
   text: z.string().min(1).max(ASK_SPEECH_MAX_CHARS),
-  purpose: z.enum(["brief", "answer"]),
+  purpose: z.enum(SPEECH_PURPOSES),
 });
 
 const DOOR = "/api/admin/voice/speech";

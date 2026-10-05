@@ -131,7 +131,7 @@ const useArLine = (A, H) => {
 /** Talking: held on the mic, a Space held on an empty line, a phone's three held a beat; said where the browser cannot listen. The hold is the one mic (the spec's §3.5 as amended 4 Oct, evening): the press asks for the agent's session too (H.useAskVoice, arVoiceInput), its microphone muted, so the words heard can go to it on the lift and be answered aloud (arSubmitter). */
 const useArVoice = (ln) => {
   const { A, H, M, lang, live, query, setQuery, typing, flash, t, submit } = ln;
-  const voice = H.useAskVoice({ A, M, hear: (a) => arVoiceHeard(ln, a) });
+  const voice = H.useAskVoice({ A, M });
   const talk = H.useAskTalk({
     lang,
     disabled: !!live,
@@ -274,6 +274,7 @@ const useArClose = ({ open, onClose, setQuick, setDoomed, setView, speech, voice
   // come back until Clear (D14, S9).
   useArEffect(() => {
     if (!open) { setQuick(null); setDoomed(null); setView("rows"); speech.stop(); if (voice.begun) voice.stop("navigated"); }
+    else voice.warm(); // the agent's client, fetched ahead of the first press (voice.ts warmVoice)
   }, [open]);
 };
 
@@ -479,7 +480,7 @@ const arSubmitter = (ln) => {
     setView("rows");
     setUnfolded(-1);
     setLang(A.language(q));
-    if (spoken && (await arSaidToAgent(ln, q, chip))) return;
+    if (spoken && (await arAskAgent(ln, q, chip))) return;
     if (!active) {
       const pending = A.quick(q);
       if (pending) {
@@ -500,12 +501,7 @@ const arSubmitter = (ln) => {
       const twin = list.find((th) => A.sameQuestion(th.title, q));
       if (twin) { base = await openThread(twin); if (chip) setScope(chip); } // the chip it is asked with, not the twin's stored scope
     }
-    const userMsg = { id: "u-" + Date.now(), role: "user", text: q, atMs: Date.now(), citations: [], followups: [], proposals: [] };
-    const thread = base ? { ...base, messages: [...base.messages, userMsg], scope: chip || base.scope || null } : { id: null, title: q, messages: [userMsg], scope: chip || null }; // asked with the chip's scope, else the thread's own, which it then holds (the Phase 5 plan, D9)
-    setActive(thread);
-    const mine = ++turnSeq.current;
-    setLive({ q, text: "", say: null, traces: [] });
-    const turn = { mine, threadId: thread.id, final: null, spoke: false, said: 0, spoken };
+    const { thread, turn } = arBeginTurn(ln, q, chip, base, { spoken });
     // The page, as it is now: the rows on screen and the row the words name, if they name one -- in the thread it joins, by its last answer's items first (legacy-bridge/ask/context.ts). A page that cannot say what it holds sends none: the question still goes.
     let context = null;
     try { context = A.context ? A.context(arRoute(), q, base && base.messages) : null; } catch (e) { context = null; }
@@ -567,41 +563,42 @@ const arTurnLanded = ({ A, M, t, turnSeq, setLive, setActive, setThreads, buzz, 
   });
   // "Open the 3:34 AM call": the app goes there as the answer lands (the answer's `now`, section 5.1).
   const o = turn.final.failed ? null : turn.final.answer ? turn.final.answer.do.open : turn.final.navigate && turn.final.navigate.to ? turn.final.navigate : null;
-  if (o && o.now) setTimeout(() => nav(o.to), 250);
+  if (o && o.now && !turn.byAgent) setTimeout(() => nav(o.to), 250);
 };
 
-// The agent's session for a hold (legacy-bridge/ask/voice.ts; the spec's §3.5 as amended 4 Oct 2026, evening): on the
-// Line's thread when it has one, with the page under it, asked for on the press and spoken to on the lift. What the
-// agent did comes back as actions (arVoiceHeard). Read aloud is the one-way speech (AskActs), not a conversation.
+// A turn begun on the Line, typed or spoken: the question on its thread (the conversation open, else a new one, on the
+// session's own thread where the agent named it) and the turn's record, which the stream writes and the landing reads.
+const arBeginTurn = ({ turnSeq, setActive, setLive }, q, chip, base, how) => {
+  const userMsg = { id: "u-" + Date.now(), role: "user", text: q, atMs: Date.now(), citations: [], followups: [], proposals: [] };
+  const thread = base ? { ...base, messages: [...base.messages, userMsg], scope: chip || base.scope || null } : { id: how.threadId || null, title: q, messages: [userMsg], scope: chip || null }; // asked with the chip's scope, else the thread's own, which it then holds (the Phase 5 plan, D9)
+  setActive(thread);
+  const mine = ++turnSeq.current;
+  setLive({ q, text: "", say: null, traces: [] });
+  return { thread, turn: { mine, threadId: thread.id, final: null, spoke: false, said: 0, spoken: !!how.spoken, byAgent: !!how.byAgent } };
+};
+// The agent's session for a hold (legacy-bridge/ask/voice.ts; the spec's §3.5 as amended 4 and 5 Oct 2026): on the
+// Line's thread when it has one, with the page under it, asked for on the press and spoken to on the lift. Read aloud
+// is the one-way speech (AskActs), not a conversation.
 const arVoiceInput = (ln) => {
   const { A, active, scope, surface } = ln;
   let context = null;
   try { context = A.context ? A.context(arRoute()) : null; } catch (e) { context = null; }
   return { threadId: active ? active.id : null, scope: active ? active.scope : scope, surface, context };
 };
-// A question spoken goes to the agent when the session the press asked for is up by the lift: the Line hears the
-// question from the module, the answer streams in as the agent speaks it (arVoiceHeard), and the stored turn is read
-// when it lands. Not up in time, or no session to be had: false, and the words go the typed way, read aloud as the
-// answer lands (arTurnLanded).
-const arSaidToAgent = async (ln, q, chip) => {
-  const { voice, active, setActive } = ln;
-  if (!voice || !voice.can) return false;
-  const up = await voice.soon(arVoiceInput(ln));
-  if (!up) return false;
-  if (!active) setActive({ id: up.threadId, title: q, messages: [], scope: chip || null });
-  return voice.say(q);
-};
-const arVoiceHeard = (ln, a) => {
-  const { A, M, voice, setActive, setLive, setThreads } = ln;
-  if (a.t === "question") { setActive((prev) => (prev ? { ...prev, messages: [...prev.messages, { id: "u-" + Date.now(), role: "user", text: a.text, atMs: Date.now(), citations: [], followups: [], proposals: [] }] } : prev)); setLive({ q: a.text, text: "", say: null, traces: [] }); }
-  else if (a.t === "trace") { setLive((prev) => (prev ? { ...prev, traces: [...prev.traces, a.text].slice(-3) } : prev)); if (M && M.mood.pulse) M.mood.pulse(0.7); }
-  else if (a.t === "say") { setLive((prev) => (prev ? { ...prev, say: { headline: a.headline, detail: a.detail } } : prev)); if (M) M.mood.beat(0.6); }
-  else if (a.t === "vad") { if (M) M.mood.hear(a.score); }
-  else if (a.t === "landed" || a.t === "cut" || a.t === "gone") {
-    setLive(null);
-    const id = voice.threadId();
-    if (id) A.thread(id).then((full) => { if (full && !full.missing) { setActive((prev) => (prev && prev.id === id ? { ...prev, title: full.thread.title, messages: full.messages } : prev)); A.threads().then(setThreads); } });
-  }
+// A question spoken goes to the agent when the session the press asked for is up by the lift (the bridge's spoken turn,
+// legacy-bridge/ask/spoken.ts): the turn begins as the session takes the words and is drawn as a typed one is, from the
+// stream's own events (arTurnHeard), its stored answer read off the thread as it lands; one it could not answer says
+// so. Not up in time, or no session to be had: false, and the words go the typed way, read aloud as the answer lands.
+const arAskAgent = async (ln, q, chip) => {
+  const { A, voice, active } = ln;
+  if (!voice || !voice.can || !A.sendSpoken) return false;
+  let turn = null;
+  const went = await A.sendSpoken(arVoiceInput(ln), q, (ev) => {
+    if (ev.t === "thread" && !turn) turn = arBeginTurn(ln, q, chip, active, { byAgent: true, threadId: ev.id }).turn;
+    if (turn) arTurnHeard(ln, turn, ev);
+  });
+  if (went && turn) arTurnLanded(ln, turn);
+  return went;
 };
 
 // ---- what is under the line, and the keys that walk it ----

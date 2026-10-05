@@ -1172,7 +1172,7 @@ function leadNoteLeft(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
 var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
-var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
+var ASK_VOICE_TOKEN_MIN_MS = 15 * MIN_MS;
 var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];

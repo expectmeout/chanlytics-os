@@ -1,12 +1,13 @@
 /**
  * Ask, wired to the workspace: window.__ask.
  *
- * Five small modules, composed here: what the palette shows before a model
+ * Six small modules, composed here: what the palette shows before a model
  * is asked (ask/palette.ts), the Ask routes and the streamed turn
  * (ask/api.ts), a card's commit and undo through the verbs' own routes
  * (ask/commit.ts), reading aloud in Ask's voice (ask/speech.ts: the brief, an
- * answer's say, through the speech route), and a voice conversation with Ask
- * on the agent (ask/voice.ts). The mockup's palette
+ * answer's say, through the speech route), the agent's session a hold speaks
+ * to (ask/voice.ts), and a spoken turn told in a typed turn's own events
+ * (ask/spoken.ts). The mockup's palette
  * reaches all of it through this one object and nothing else, so what a
  * palette may do is the list below.
  */
@@ -29,6 +30,7 @@ import { commitProposal, editReply, undoProposal, type CommitResult } from "./as
 import { askPalette, quickAnswer } from "./ask/palette";
 import { askSpeech, type SpeechPurpose } from "./ask/speech";
 import { installVoice } from "./ask/voice";
+import { spokenTurns } from "./ask/spoken";
 import { pageContext, type ThreadMessage } from "./ask/context";
 
 export type { SendEvent, CommitResult };
@@ -38,7 +40,8 @@ export { readLines } from "./ask/api";
 export type AskApi = ReturnType<typeof askPalette> &
   AskApiCalls &
   ReturnType<typeof askSpeech> &
-  ReturnType<typeof installVoice> & {
+  ReturnType<typeof installVoice> &
+  ReturnType<typeof spokenTurns> & {
     /** Approve a card: the verb's own route, then the surfaces refresh. */
     commit(p: AskProposal): Promise<CommitResult>;
     /** Undo a committed card, where the verb has one. */
@@ -66,7 +69,7 @@ export type AskApi = ReturnType<typeof askPalette> &
 
 /**
  * The member's session made fresh before a voice conversation: the brain door opens the member with the access token
- * the voice route seals, for as long as the conversation runs (the agent's thirty minutes), so a token with less life
+ * the voice route seals, for as long as the session runs (ten minutes at most), so a token with less life
  * than that is refreshed first, by the browser's own client with its own refresh token (never the server's: a refresh
  * there would race the browser's and sign the member out).
  */
@@ -125,12 +128,19 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     palette.rememberLanguage(palette.language(input.text));
     return api.send(input, on);
   };
+  // A question spoken to the agent is a turn like a typed one (ask/spoken.ts): the same events, and its language kept.
+  const spoken = spokenTurns(voice, api);
+  const sendSpoken: typeof spoken.sendSpoken = (input, words, on) => {
+    palette.rememberLanguage(palette.language(words));
+    return spoken.sendSpoken(input, words, on);
+  };
   const ask: AskApi = {
     ...palette,
     ...api,
     ...speech,
     ...voice,
     send,
+    sendSpoken,
     commit: (p) => commitProposal(win, p),
     undo: (p, o) => undoProposal(win, p, o),
     editReply: (p) => editReply(win, p),

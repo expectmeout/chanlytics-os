@@ -3,9 +3,9 @@
  * client, a recorder for the three voice routes and a timer the test moves by hand. The hold is the one mic (the
  * spec's §3.5 as amended 4 Oct 2026, evening): a press asks for the session (the token freshened, the row minted, the
  * vendor connected with the sealed session, its microphone muted once up), the lift sends the words heard as the
- * person's turn and the Line hears the question at once, a lift before the session is up waits the lift's patience
+ * person's turn and that turn's own listener hears its answer, a lift before the session is up waits the lift's patience
  * and then goes the typed way, the agent's voice is held down while the person holds, an idle minute ends the session
- * as `idle`, and every end reaches the Line as "gone" and the row with the browser's word for why (00300, 00302) and
+ * as `idle`, and every end reaches whoever watches the session as "gone" and the row with the browser's word for why (00300, 00302) and
  * what it measured from the press (to the connection, to the first audio). An end that comes while a start is still
  * connecting closes what the start opens, and a callback from a conversation that is over changes nothing of the one
  * running.
@@ -22,6 +22,8 @@ const { installVoice } = await import(at("apps/dashboard/src/legacy-bridge/ask/v
 
 const WIN = { isSecureContext: true, navigator: { mediaDevices: { getUserMedia: () => {} } } };
 const START = { threadId: null, scope: null, surface: "today", context: null };
+/** A turn nobody listens to: the test is about the session. */
+const NOBODY = () => {};
 
 /** The vendor's client stood in for: a conversation that connects when the test says (`connect`), and remembers what was done to it. */
 function vendor() {
@@ -111,9 +113,10 @@ function timer() {
     count: (ms) => [...waiting.values()].filter((w) => w.ms === ms).length,
   };
 }
-/** A session up: the press asked, the vendor connected. */
-async function up(voice, v, on = () => {}, input = START) {
-  const p = voice.ensureVoice(input, on);
+/** A session up: the press asked, the vendor connected; `watch`, when given, follows it. */
+async function up(voice, v, watch = null, input = START) {
+  if (watch) voice.watchVoice(watch);
+  const p = voice.ensureVoice(input);
   await settle();
   v.connect();
   return p;
@@ -125,8 +128,9 @@ test("the press asks for the session: the token freshened, the row minted as the
   const freshened = [];
   const voice = installVoice(WIN, { api: a, load: v.load, freshen: async () => freshened.push(1) });
   const heard = [];
-  const first = voice.ensureVoice(START, (x) => heard.push(x));
-  const second = voice.ensureVoice(START, (x) => heard.push(x));
+  voice.watchVoice((x) => heard.push(x));
+  const first = voice.ensureVoice(START);
+  const second = voice.ensureVoice(START);
   await settle();
   assert.deepEqual(freshened, [1], "the token freshened before the row is minted");
   assert.equal(a.calls.starts.length, 1, "one mint for two presses");
@@ -135,7 +139,7 @@ test("the press asks for the session: the token freshened, the row minted as the
   assert.equal(voice.voiceConnecting(), true, "and connecting meanwhile");
   v.connect();
   const got = await first;
-  assert.deepEqual(got, { threadId: "thread-1", title: "Voice" });
+  assert.deepEqual(got, { threadId: "thread-1" });
   assert.deepEqual(await second, got, "the second press is answered with the same session");
   assert.equal(voice.voiceUp(), true);
   assert.equal(voice.voiceConnecting(), false);
@@ -149,34 +153,43 @@ test("the press asks for the session: the token freshened, the row minted as the
   assert.deepEqual(conv.sent, [], "nothing said yet");
   assert.equal(voice.level(), 0.5);
   // A third press on the same thread, or with no thread yet: the session running, nothing new opened.
-  assert.deepEqual(await voice.ensureVoice({ ...START, threadId: "thread-1" }, (x) => heard.push(x)), {
-    threadId: "thread-1",
-    title: "",
-  });
+  assert.deepEqual(await voice.ensureVoice({ ...START, threadId: "thread-1" }), { threadId: "thread-1" });
   assert.equal(a.calls.starts.length, 1);
   await voice.stopVoice("navigated");
   assert.equal(conv.ended, 1, "the vendor's session ended");
   assert.deepEqual([a.calls.ends[0].session, a.calls.ends[0].reason], ["s1", "navigated"]);
-  assert.deepEqual(heard.at(-1), { t: "gone", reason: "navigated" }, "and the Line hears the end it asked for");
+  assert.deepEqual(heard.at(-1), { t: "gone", reason: "navigated" }, "and whoever watches hears the end");
   assert.equal(voice.voiceUp(), false);
 });
 
-test("the lift: the words heard go to the agent as the person's turn, and the Line hears the question at once (the vendor sends no transcript of a text turn); nothing to say with no session up, and empty words say nothing", async () => {
+test("the lift: the words heard go to the agent as the person's turn, and the listener given with them hears that turn's answer; nothing to say with no session up, and empty words say nothing", async () => {
   const v = vendor();
   const a = api();
   const voice = installVoice(WIN, { api: a, load: v.load });
-  assert.equal(voice.sayVoice("how did the week go"), false, "no session: the words go the typed way");
   const heard = [];
-  await up(voice, v, (x) => heard.push(x));
-  assert.equal(voice.sayVoice("  "), false);
-  assert.equal(voice.sayVoice(" how did the week go "), true);
+  const turn = (x) => heard.push(x);
+  assert.equal(voice.sayVoice("how did the week go", turn), false, "no session: the words go the typed way");
+  await up(voice, v);
+  assert.equal(voice.sayVoice("  ", turn), false);
+  assert.equal(voice.sayVoice(" how did the week go ", turn), true);
   assert.deepEqual(v.convs[0].sent, ["how did the week go"], "the words, trimmed, as the person's turn");
-  assert.deepEqual(heard, [{ t: "question", text: "how did the week go" }], "the Line hears the question from here");
+  assert.deepEqual(heard, [], "nothing told yet: whoever asked drew the question");
   // The agent answers as it speaks: its parts grow the Say, the whole is spoken, the end lands.
   v.convs[0].opts.onAgentChatResponsePart({ type: "start" });
   v.convs[0].opts.onAgentChatResponsePart({ type: "delta", text: "Two people need you. " });
   v.convs[0].opts.onIncomingEvent({ type: "agent_response_complete" });
-  assert.deepEqual(heard.slice(1), [{ t: "say", headline: "Two people need you.", detail: "" }, { t: "landed" }]);
+  assert.deepEqual(heard, [{ t: "say", headline: "Two people need you.", detail: "" }, { t: "landed" }]);
+  // The next turn's listener takes over: the first hears nothing of the second's answer.
+  const next = [];
+  assert.equal(
+    voice.sayVoice("and the month", (x) => next.push(x)),
+    true,
+  );
+  v.convs[0].opts.onAgentChatResponsePart({ type: "start" });
+  v.convs[0].opts.onAgentChatResponsePart({ type: "delta", text: "A good month. " });
+  assert.equal(heard.length, 2, "the first turn's listener hears no more");
+  assert.deepEqual(next, [{ t: "say", headline: "A good month.", detail: "" }]);
+  await voice.stopVoice("navigated");
 });
 
 test("a lift before the session is up waits the lift's patience, then goes the typed way (null) while the start goes on for the next hold; a lift with the session up answers at once", async () => {
@@ -184,8 +197,8 @@ test("a lift before the session is up waits the lift's patience, then goes the t
   const a = api();
   const tm = timer();
   const voice = installVoice(WIN, { api: a, load: v.load, timer: tm });
-  void voice.ensureVoice(START, () => {});
-  const soon = voice.soonVoice(START, () => {});
+  void voice.ensureVoice(START);
+  const soon = voice.soonVoice(START);
   await settle();
   assert.equal(a.calls.starts.length, 1, "the lift waits on the press's start and opens nothing of its own");
   assert.equal(tm.count(ASK_VOICE_UP_WAIT_MS), 1, "the lift's patience, waiting");
@@ -195,9 +208,9 @@ test("a lift before the session is up waits the lift's patience, then goes the t
   v.connect();
   await settle();
   assert.equal(voice.voiceUp(), true, "and is up for the next hold");
-  const now = voice.soonVoice(START, () => {});
+  const now = voice.soonVoice(START);
   await settle();
-  assert.deepEqual(await now, { threadId: "thread-1", title: "" }, "up: answered at once");
+  assert.deepEqual(await now, { threadId: "thread-1" }, "up: answered at once");
   assert.equal(tm.count(ASK_VOICE_UP_WAIT_MS), 0, "the patience cleared");
 });
 
@@ -222,7 +235,7 @@ test("idle: a minute after the last question or answer the browser ends the sess
   const heard = [];
   await up(voice, v, (x) => heard.push(x));
   assert.equal(tm.count(ASK_VOICE_IDLE_MS), 1, "the idle clock wound at the connection");
-  voice.sayVoice("how did the week go");
+  voice.sayVoice("how did the week go", NOBODY);
   assert.equal(tm.count(ASK_VOICE_IDLE_MS), 1, "wound again by the question, not doubled");
   v.convs[0].opts.onIncomingEvent({ type: "agent_response_complete" });
   assert.equal(tm.count(ASK_VOICE_IDLE_MS), 1, "and by the answer");
@@ -240,7 +253,7 @@ test("the timings: from the press to the connection and to the agent's first spe
   const a = api();
   const c = clock();
   const voice = installVoice(WIN, { api: a, load: v.load, now: c.now });
-  const started = voice.ensureVoice(START, () => {});
+  const started = voice.ensureVoice(START);
   await settle();
   c.advance(2_100);
   v.connect();
@@ -261,7 +274,8 @@ test("an end while the start is still connecting: once the vendor connects, what
   const a = api();
   const voice = installVoice(WIN, { api: a, load: v.load });
   const heard = [];
-  const started = voice.ensureVoice(START, (x) => heard.push(x));
+  voice.watchVoice((x) => heard.push(x));
+  const started = voice.ensureVoice(START);
   await settle();
   assert.equal(a.calls.starts.length, 1, "the row minted");
   await voice.stopVoice("navigated");
@@ -275,17 +289,16 @@ test("an end while the start is still connecting: once the vendor connects, what
     "the row is ended once (the stop found no session yet; the start ends it when it lands)",
   );
   assert.equal(a.calls.ends[0].timing.firstAudioMs, null, "no audio was heard");
-  assert.equal(heard.filter((x) => x.t === "gone").length, 1, "the Line hears one end");
+  assert.equal(heard.filter((x) => x.t === "gone").length, 1, "whoever watches hears one end");
 });
 
 test("a hold on another thread replaces the session (superseded); the first's late callbacks change nothing of the second; the far side going ends the row as the vendor's", async () => {
   const v = vendor();
   const a = api();
   const voice = installVoice(WIN, { api: a, load: v.load });
-  const heard1 = [];
-  await up(voice, v, (x) => heard1.push(x));
-  const heard2 = [];
-  const second = voice.ensureVoice({ ...START, threadId: "thread-other" }, (x) => heard2.push(x));
+  const heard = [];
+  await up(voice, v, (x) => heard.push(x));
+  const second = voice.ensureVoice({ ...START, threadId: "thread-other" });
   await settle();
   assert.equal(v.convs[0].ended, 1, "the first session ended by the second's press");
   assert.deepEqual([a.calls.ends[0].session, a.calls.ends[0].reason], ["s1", "superseded"]);
@@ -294,21 +307,22 @@ test("a hold on another thread replaces the session (superseded); the first's la
   await second;
   assert.equal(voice.voiceUp(), true);
   // The first conversation's client reports its disconnect late: the second is untouched.
+  assert.deepEqual(heard, [{ t: "gone", reason: "superseded" }], "the first's end, told once");
   v.convs[0].opts.onDisconnect({ reason: "user" });
   v.convs[0].opts.onMessage({ source: "ai", message: "Late words from the first." });
   assert.equal(voice.voiceUp(), true, "the second session still runs");
-  assert.deepEqual(heard2, [], "and heard nothing of the first");
+  assert.equal(heard.length, 1, "and nobody heard anything more of the first");
   assert.equal(a.calls.ends.length, 1, "no second end for the first's row");
   // The second's far side goes (the vendor's limit, a dropped connection): the Line hears the vendor's own word, and
   // the row is ended as the vendor's doing.
   v.convs[1].opts.onDisconnect({ reason: "agent" });
-  assert.deepEqual(heard2, [{ t: "gone", reason: "agent" }]);
+  assert.deepEqual(heard.at(-1), { t: "gone", reason: "agent" });
   assert.equal(voice.voiceUp(), false);
   await tick();
   assert.deepEqual([a.calls.ends.at(-1).session, a.calls.ends.at(-1).reason], ["s2", "vendor"]);
 });
 
-test("a start the vendor refuses: the press answers null, the row is ended as a start that failed, the Line hears gone", async () => {
+test("a start the vendor refuses: the press answers null, the row is ended as a start that failed, whoever watches hears gone", async () => {
   const a = api();
   const load = async () => ({
     Conversation: {
@@ -319,7 +333,8 @@ test("a start the vendor refuses: the press answers null, the row is ended as a 
   });
   const voice = installVoice(WIN, { api: a, load });
   const heard = [];
-  assert.equal(await voice.ensureVoice(START, (x) => heard.push(x)), null);
+  voice.watchVoice((x) => heard.push(x));
+  assert.equal(await voice.ensureVoice(START), null);
   await tick();
   assert.deepEqual([a.calls.ends[0].session, a.calls.ends[0].reason], ["s1", "start"]);
   assert.deepEqual(heard, [{ t: "gone", reason: "start" }]);
@@ -327,7 +342,7 @@ test("a start the vendor refuses: the press answers null, the row is ended as a 
   assert.equal(voice.voiceConnecting(), false, "nothing left connecting");
 });
 
-test("a mint the route refuses: no row to end, the Line hears gone as a start that failed, the press answers null", async () => {
+test("a mint the route refuses: no row to end, whoever watches hears gone as a start that failed, the press answers null", async () => {
   const v = vendor();
   const a = api();
   a.voiceStart = async () => {
@@ -335,29 +350,37 @@ test("a mint the route refuses: no row to end, the Line hears gone as a start th
   };
   const voice = installVoice(WIN, { api: a, load: v.load });
   const heard = [];
-  assert.equal(await voice.ensureVoice(START, (x) => heard.push(x)), null);
+  voice.watchVoice((x) => heard.push(x));
+  assert.equal(await voice.ensureVoice(START), null);
   assert.deepEqual(a.calls.ends, [], "no row was made");
   assert.deepEqual(heard, [{ t: "gone", reason: "start" }]);
   assert.equal(voice.voiceConnecting(), false);
 });
 
-test("a watcher follows a session it did not start: it hears the agent's words and every end, the Line's or the vendor's, and a watcher that lets go hears nothing more", async () => {
+test("a watcher follows the session across its turns: it hears the agent's mode, what each turn's listener hears, and every end, a stop's or the vendor's; a watcher that lets go hears nothing more", async () => {
   const v = vendor();
   const a = api();
   const voice = installVoice(WIN, { api: a, load: v.load });
-  const starter = [];
+  const turn = [];
   const watched = [];
-  await up(voice, v, (x) => starter.push(x));
+  await up(voice, v);
   const off = voice.watchVoice((x) => watched.push(x));
+  v.convs[0].opts.onModeChange({ mode: "speaking" });
+  assert.deepEqual(
+    watched,
+    [{ t: "mode", mode: "speaking" }],
+    "the mode, with no turn asked: the ring's and the three's",
+  );
+  voice.sayVoice("how did the week go", (x) => turn.push(x));
   v.convs[0].opts.onMessage({ source: "ai", message: "Two people need you." });
-  assert.deepEqual(watched, [{ t: "spoken", text: "Two people need you." }], "the watcher hears what the Line hears");
-  assert.deepEqual(starter, watched);
+  assert.deepEqual(turn, [{ t: "spoken", text: "Two people need you." }]);
+  assert.deepEqual(watched.at(-1), turn[0], "the watcher hears what the turn hears");
   await voice.stopVoice("navigated");
   assert.deepEqual(watched.at(-1), { t: "gone", reason: "navigated" }, "and the end the Line asked for");
   off();
   await up(voice, v);
   v.convs[1].opts.onDisconnect({ reason: "agent" });
-  assert.equal(watched.length, 2, "a watcher that let go hears nothing of the next session");
+  assert.equal(watched.length, 3, "a watcher that let go hears nothing of the next session");
 });
 
 test("the page moved: the row is told while a session runs, and not before or after", async () => {
@@ -387,8 +410,8 @@ test("a press the route refused is not asked for again at the lift: the words go
   };
   const tm = timer();
   const voice = installVoice(WIN, { api: a, load: v.load, timer: tm });
-  assert.equal(await voice.ensureVoice(START, () => {}), null, "the press: refused");
-  assert.equal(await voice.soonVoice(START, () => {}), null, "the lift: nothing to wait for");
+  assert.equal(await voice.ensureVoice(START), null, "the press: refused");
+  assert.equal(await voice.soonVoice(START), null, "the lift: nothing to wait for");
   assert.equal(mints, 1, "the lift did not ask again");
   assert.equal(tm.count(ASK_VOICE_UP_WAIT_MS), 0, "and waited for nothing");
 });
@@ -406,7 +429,7 @@ test("the vendor's own silent turn (its re-engage at the turn timeout, answered 
   v.convs[0].opts.onAgentChatResponsePart({ type: "delta", text: "... " });
   v.convs[0].opts.onIncomingEvent({ type: "agent_response_complete" });
   assert.equal(tm.wound(ASK_VOICE_IDLE_MS), woundAtConnect, "nobody asked: the minute keeps running");
-  assert.deepEqual(heard, [], "and the Line is told nothing landed");
+  assert.deepEqual(heard, [], "and nobody is told anything landed");
   tm.fire(ASK_VOICE_IDLE_MS);
   await settle();
   assert.deepEqual([a.calls.ends[0].session, a.calls.ends[0].reason], ["s1", "idle"], "so the idle minute ends it");
@@ -424,7 +447,7 @@ test("the idle minute never ends a session in use: not while the person holds th
   await settle();
   assert.equal(voice.voiceUp(), true, "held: not ended under the person's words");
   voice.hushVoice(false);
-  assert.equal(voice.sayVoice("how did the week go"), true);
+  assert.equal(voice.sayVoice("how did the week go", NOBODY), true);
   tm.fire(ASK_VOICE_IDLE_MS);
   await settle();
   assert.equal(voice.voiceUp(), true, "an answer on its way: not ended before it comes");
@@ -442,7 +465,7 @@ test("the idle minute never ends a session in use: not while the person holds th
   assert.deepEqual([a.calls.ends[0].session, a.calls.ends[0].reason], ["s1", "idle"]);
 });
 
-test("words the connection would not take go the typed way: nothing is told to the Line as asked, and the lift answers false", async () => {
+test("words the connection would not take go the typed way: the lift answers false, and the listener given with them hears nothing", async () => {
   const v = vendor();
   const a = api();
   const voice = installVoice(WIN, { api: a, load: v.load });
@@ -451,8 +474,17 @@ test("words the connection would not take go the typed way: nothing is told to t
   v.convs[0].sendUserMessage = () => {
     throw new Error("the data channel is closed");
   };
-  assert.equal(voice.sayVoice("how did the week go"), false);
-  assert.deepEqual(heard, [], "no question drawn for words that never left");
+  const turn = [];
+  assert.equal(
+    voice.sayVoice("how did the week go", (x) => turn.push(x)),
+    false,
+  );
+  v.convs[0].opts.onAgentChatResponsePart({ type: "delta", text: "Words of another turn. " });
+  assert.deepEqual(turn, [], "a turn that never left hears nothing");
+  assert.deepEqual(
+    heard.filter((x) => x.t === "question"),
+    [],
+  );
 });
 
 test("busy: a session up and quiet is not in a clip's way; one with an answer on its way, or speaking, is", async () => {
@@ -462,11 +494,85 @@ test("busy: a session up and quiet is not in a clip's way; one with an answer on
   assert.equal(voice.voiceBusy(), false, "no session");
   await up(voice, v);
   assert.equal(voice.voiceBusy(), false, "up and quiet");
-  voice.sayVoice("how did the week go");
+  voice.sayVoice("how did the week go", NOBODY);
   assert.equal(voice.voiceBusy(), true, "an answer on its way");
   v.convs[0].opts.onModeChange({ mode: "speaking" });
   v.convs[0].opts.onIncomingEvent({ type: "agent_response_complete" });
   assert.equal(voice.voiceBusy(), true, "generated, and still being spoken");
   v.convs[0].opts.onModeChange({ mode: "listening" });
   assert.equal(voice.voiceBusy(), false, "said");
+});
+
+test("the vendor's client is fetched ahead of the first press when asked (the Line opening), and a fetch that fails leaves the press to try again", async () => {
+  const v = vendor();
+  const a = api();
+  let loads = 0;
+  let fail = true;
+  const load = async () => {
+    loads += 1;
+    if (fail) throw new Error("the chunk did not load");
+    return v.load();
+  };
+  const voice = installVoice(WIN, { api: a, load });
+  voice.warmVoice();
+  await settle();
+  assert.equal(loads, 1, "fetched as asked, and its failure is nobody's error");
+  assert.equal(a.calls.starts.length, 0, "no session asked for: warming opens nothing");
+  fail = false;
+  const got = voice.ensureVoice(START);
+  await settle();
+  await settle();
+  assert.equal(loads, 2, "the press loads it itself");
+  v.connect();
+  assert.deepEqual(await got, { threadId: "thread-1" });
+  await voice.stopVoice("navigated");
+});
+
+test("a page that died under a session says so when it comes back: the session leaves a mark in the tab while it runs, a clean end takes it away, and a page that finds one tells the row how it came back and on what (seen 5 Oct 2026: a phone reloaded the page mid-answer, and the row could not say why it ended)", async () => {
+  /** A tab's storage and what a browser says of how the page was loaded, shared by the page that died and the next. */
+  const tab = new Map();
+  const win = (type, userAgent) => ({
+    ...WIN,
+    navigator: { ...WIN.navigator, userAgent },
+    sessionStorage: {
+      getItem: (k) => (tab.has(k) ? tab.get(k) : null),
+      setItem: (k, v) => tab.set(k, v),
+      removeItem: (k) => tab.delete(k),
+    },
+    performance: { getEntriesByType: (kind) => (kind === "navigation" ? [{ type }] : []) },
+    document: {},
+  });
+  const IPHONE =
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1";
+  const v = vendor();
+  const a = api();
+  const first = installVoice(win("navigate", IPHONE), { api: a, load: v.load, timer: timer() });
+  assert.deepEqual(a.calls.ends, [], "a tab with no mark says nothing");
+  await up(first, v);
+  assert.equal(tab.size, 1, "the session's mark, while it runs");
+  // The page is gone with no goodbye (the phone reloaded it). The next page in the same tab finds the mark.
+  const b = api();
+  installVoice(win("reload", IPHONE), { api: b, load: v.load, timer: timer() });
+  assert.deepEqual(b.calls.ends, [{ session: "s1", reason: "died:reload:ios", timing: undefined }]);
+  assert.equal(tab.size, 0, "said once");
+  // The phone app names itself; a desk is a desk.
+  tab.set("ask-voice-live", "s9");
+  const c = api();
+  installVoice(win("reload", `${IPHONE} ChanlyticsApp/1.4.0 (ios)`), { api: c, load: v.load, timer: timer() });
+  assert.equal(c.calls.ends[0].reason, "died:reload:app-ios");
+  // A session ended cleanly leaves no mark, so the next page says nothing.
+  const v2 = vendor();
+  const d = api();
+  const clean = installVoice(win("navigate", "Mozilla/5.0 (Windows NT 10.0)"), {
+    api: d,
+    load: v2.load,
+    timer: timer(),
+  });
+  await up(clean, v2);
+  assert.equal(tab.size, 1);
+  await clean.stopVoice("navigated");
+  assert.equal(tab.size, 0, "a clean end takes the mark away");
+  const e = api();
+  installVoice(win("reload", "Mozilla/5.0 (Windows NT 10.0)"), { api: e, load: v2.load, timer: timer() });
+  assert.deepEqual(e.calls.ends, []);
 });
