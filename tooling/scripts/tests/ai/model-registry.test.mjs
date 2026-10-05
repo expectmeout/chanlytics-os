@@ -13,7 +13,6 @@ import {
   MODEL_ROUTES,
   MODEL_PRICES,
   RETELL_MODELS,
-  ASK_MODELS,
   ASK_MODEL,
   NOTE_SUGGEST_MODEL,
   REACH_OUT_MODEL,
@@ -67,7 +66,6 @@ test("every purpose has a whole route, on a model the registry knows, with a pri
 });
 
 test("the old names read the registry: Ask's profiles, the notes' and the reach-out's model are one id each", () => {
-  assert.deepEqual([...ASK_MODELS], [MODEL_ROUTES.ask.model, MODEL_ROUTES.ask.fallback]);
   assert.equal(ASK_MODEL, MODEL_ROUTES.ask.model);
   // Defect 54: the reach-out's model repeated the notes' literal. Both are the registry's small-read model now.
   assert.equal(REACH_OUT_MODEL, MODEL_ROUTES.reach_out_check.model);
@@ -81,6 +79,9 @@ test("the fallback is the route's, Ask's pair swaps, and a purpose with none wai
   assert.equal(fallbackModel("receptionist", r.model), r.fallback);
   assert.equal(fallbackModel("ask", MODEL_ROUTES.ask.model), MODEL_ROUTES.ask.fallback);
   assert.equal(fallbackModel("ask", MODEL_ROUTES.ask.fallback), MODEL_ROUTES.ask.model);
+  // A model a variable names, the registry's or not, falls back to the route's own.
+  assert.equal(fallbackModel("ask", MODELS.SONNET_5_5), MODEL_ROUTES.ask.model);
+  assert.equal(fallbackModel("ask", "claude-some-model-9"), MODEL_ROUTES.ask.model);
   assert.equal(fallbackModel("lead_judge", MODEL_ROUTES.lead_judge.model), null);
 });
 

@@ -25,7 +25,7 @@ import {
   ASK_MAX_TOKENS,
   ASK_TURN_BUDGET_MS,
   ASK_MODEL,
-  ASK_MODEL_PROFILES,
+  ASK_EFFORT,
   answerForCards,
   answerText,
   clockStamp,
@@ -375,7 +375,7 @@ test("a read, then the answer: the read runs for real, its rows enter the read s
   assert.deepEqual(s.requests[0].tool_choice, { type: "auto" });
   assert.deepEqual(
     s.requests[0].output_config,
-    { effort: ASK_MODEL_PROFILES[ASK_MODEL].effort, format: { type: "json_schema", schema: ASK_ANSWER_FORMAT } },
+    { effort: ASK_EFFORT, format: { type: "json_schema", schema: ASK_ANSWER_FORMAT } },
     "every round may answer, in the answer's format, at the profile's effort",
   );
   assert.equal(s.requests[0].model, ASK_MODEL);
@@ -688,11 +688,7 @@ test("a format the API refuses is dropped and the same round asked again: words 
     ["prose", "Nobody is waiting on you.\nSam called once.", false, 1],
   );
   assert.deepEqual(named.requests[0].output_config.format, { type: "json_schema", schema: ASK_ANSWER_FORMAT });
-  assert.deepEqual(
-    named.requests[1].output_config,
-    { effort: ASK_MODEL_PROFILES[ASK_MODEL].effort },
-    "the same round, without the format",
-  );
+  assert.deepEqual(named.requests[1].output_config, { effort: ASK_EFFORT }, "the same round, without the format");
   const shaped = await refusing(["400 output_config.format: not supported"], answer("Nobody is waiting on you."));
   assert.deepEqual(
     [shaped.r.answer.form, shaped.r.text],

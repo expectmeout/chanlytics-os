@@ -8,8 +8,8 @@
  * Seven mechanisms carry them, and a new switch uses one of them rather than an eighth: a variable on the edge
  * (lib/env.ts) or the dashboard, a workspace's own feature (tenant_config.features), a secret that turns a CI job on,
  * the deployment itself (production or a preview), a model named by a variable (ASK_MODEL, LEAD_JUDGE_MODEL), which
- * the registry by purpose (models.ts) bounds to the ids it knows, and a rollout: a compatibility window in code that
- * no variable opens or closes, kept while the two apps' deployments may differ.
+ * may be any id that reads as a Claude model (models.ts readsAsModel), and a rollout: a compatibility window in code
+ * that no variable opens or closes, kept while the two apps' deployments may differ.
  *
  * The security switches are here too, and are the ones with a `weaker` mode: a fallback that kept production working
  * while a stronger credential was put in place, and that was meant to be temporary. Each says what its weaker mode
@@ -233,10 +233,18 @@ export const FLAGS: readonly Flag[] = [
   {
     name: "ASK_MODEL",
     mechanism: "model_override",
-    does: "The model Ask answers on, one of ASK_MODELS; empty is the registry's (MODEL_ROUTES.ask).",
+    does: "The model Ask answers on, any Claude model's id; empty is the registry's (MODEL_ROUTES.ask).",
     owner: "Ruben",
     sunset: null,
-    kept: "Ask is built to switch models by one variable (ask-model.ts); the gate re-runs on both at every phase.",
+    kept: "Ask is built to switch models by one variable (ask-model.ts), so trying one is never a code change.",
+  },
+  {
+    name: "ASK_EFFORT",
+    mechanism: "dashboard_env",
+    does: "How hard Ask's model is asked to think: low, medium or high; empty is low (ask-model.ts ASK_EFFORT).",
+    owner: "Ruben",
+    sunset: null,
+    kept: "It rides with ASK_MODEL: a model tried at another effort is the same variable-and-redeploy.",
   },
   {
     name: "EDGE_PROVIDERS",

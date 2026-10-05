@@ -29,12 +29,14 @@ export interface ModelPrice {
 
 /**
  * The list prices (Anthropic's model table, read 29 September 2026; Sonnet 5 and Opus 5.5 as ops/ask-day.mjs has
- * carried them since 23 September). A cache write is 1.25 times the input price, a read a tenth of it, but where the
- * table names a read price (Opus 5.5) that price is kept.
+ * carried them since 23 September; Sonnet 5.5 at Sonnet 5's, 5 October). A cache write is 1.25 times the input price,
+ * a read a tenth of it, but where the table names a read price (Opus 5.5) that price is kept. A model a variable names
+ * that has no row here is run all the same, and its dollars are left unsaid (priceOf).
  */
 export const MODEL_PRICES: Record<ModelId, ModelPrice> = {
   [MODELS.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
   [MODELS.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
+  [MODELS.SONNET_5_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
   [MODELS.SONNET_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
   [MODELS.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 },
 };
