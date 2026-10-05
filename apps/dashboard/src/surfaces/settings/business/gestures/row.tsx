@@ -33,7 +33,7 @@ interface BtCommit {
   said: ReactNode;
 }
 /** The other answer a row disagrees with, and the draft that takes it (`use`). */
-interface BtDisputed<D> {
+export interface BtDisputed<D> {
   value: ReactNode;
   source?: string | null;
   severity?: string;

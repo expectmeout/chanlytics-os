@@ -58,7 +58,7 @@ source-text reads in tests          771
 lint warnings                       358   in 155 files, 59 of them exhaustive-deps
 workspace route JS, KB gzipped      702   the shell included
 workspace route CSS, KB gzipped     147
-workspace pages' own JS, KB         542   gzipped, each page's chunks once, beside the route
+workspace pages' own JS, KB         535   gzipped, each page's chunks once, beside the route
 trees the lint's limits hold         44   15 of them with max-params waiting
 ```
 

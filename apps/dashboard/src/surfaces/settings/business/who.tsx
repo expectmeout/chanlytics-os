@@ -19,6 +19,7 @@ import { RecordField, RecordToggleGroup } from "../../kit/record/field";
 import { RecordRow } from "../../kit/record/row";
 import { BT_SAVED } from "./gestures/common";
 import { BtRow } from "./gestures/row";
+import type { BtDisputed } from "./gestures/row";
 import { phoneShown } from "./save";
 import type { Brain, Config, Saver } from "./save";
 import { businessTabSave } from "./saver";
@@ -318,7 +319,7 @@ export const BtBookingLinkRow = ({
   flash,
   saver,
   other = null,
-}: RowShared & { other?: ReturnType<typeof btDispute<string>> }) => {
+}: RowShared & { other?: BtDisputed<string> | null }) => {
   const S = businessTabSave;
   const link = btFactOf("booking_link", brain.booking_link);
   const sellsNow = S.answer();
