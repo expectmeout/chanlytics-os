@@ -3625,7 +3625,7 @@ a.list-row {
 }
 /* The name and the date as the phone boards draw them: the aurora flows through the letters. On the canvas the pools of
    light are layers above the header's text, so they tint it (Ruben, 2 Oct 2026: "glassy"). Here the page's own light
-   (--surface-page-light, the three pools, drifting) is painted over an ink fill and clipped to the letters, fixed to the
+   (--surface-page-light, the three pools, which stand still on a phone) is painted over an ink fill and clipped to the letters, fixed to the
    screen so it lines up with the light behind them and moves through the letters as the page scrolls. The name's fill is
    the ink a touch soft, the date's the dim ink. iOS Safari draws no fixed backgrounds, where the light would pool
    in the letters' own box, so there the soft fill stands alone. A desk's head keeps its plain ink. */

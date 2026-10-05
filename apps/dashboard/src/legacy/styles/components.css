@@ -2359,8 +2359,13 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 }
 
 /* The pools of light move as the canvases' do (their glow drifts over twenty seconds): the app's root carries their
-   centres from the tokens' registered properties, on a desk and a phone alike (the phone boards drift too), and never
-   where less motion is asked. */
+   centres from the tokens' registered properties, on a desk, and never where less motion is asked. Not on a phone:
+   the centres are properties every element inherits, so while they move every element of the page is styled again on
+   every frame, for as long as the page is open. Measured on production at a phone's size (5 Oct 2026, nothing
+   touched): the main thread 37% to 79% busy, 6% with the drift stilled, and iPhones reloaded the page under their
+   owners. A phone's pools stand where the canvases put them, which gives up about a pixel of motion a second
+   (styles/page-light-drift.test.mjs holds the three cases). The drift comes back to a phone when it is drawn on
+   layers of its own, moved by a transform, which costs the page nothing. */
 @keyframes pg-drift {
   0% {
     --pool-a-x: 23%;
@@ -2379,7 +2384,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     --pool-c-y: 86%;
   }
 }
-@media (prefers-reduced-motion: no-preference) {
+@media (prefers-reduced-motion: no-preference) and (min-width: 901px) {
   :where([data-look="glass"]) .app-root {
     animation: pg-drift 20s ease-in-out infinite alternate;
   }
