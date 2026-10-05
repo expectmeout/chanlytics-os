@@ -15,7 +15,7 @@ import { plRowCard } from "../../people/cells/row-card";
 import { plPhoneNow } from "../../people/words";
 import type { RowPick, TableColumn } from "../../people/types";
 import { LeadCallMenu, ldCallProps } from "./call-menu";
-import { LeadTip, ldPlacePop } from "./hover";
+import { LeadHover, LeadTip, ldPlacePop } from "./hover";
 import { LeadRatedCard, ldBusinessCell, ldClientOf } from "./name-cell";
 import { LeadSlot, LeadSlotShape } from "./shapes";
 import type { LeadCellCtx } from "./types";
@@ -167,21 +167,20 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
     label: "Rated",
     sortable: true,
     cell: (l) => (
-      <td
+      <LeadHover
+        as="td"
         key="rating"
         className="shrink ld-rated-cell ld-hover"
         data-testid="lead-rated"
-        onMouseEnter={ldPlacePop}
-        onFocus={ldPlacePop}
+        card={l.rated && l.spread ? <LeadRatedCard l={l} /> : null}
       >
         {l.rated ? (
           <>
             <span className="ld-rated-score">{l.rated.score}</span>
             <span className="ld-rated-count">{l.rated.count}</span>
-            {l.spread ? <LeadRatedCard l={l} /> : null}
           </>
         ) : null}
-      </td>
+      </LeadHover>
     ),
   },
   {

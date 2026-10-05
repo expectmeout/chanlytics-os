@@ -528,7 +528,7 @@ const { LeadStrip } = await importSrc("apps/dashboard/src/surfaces/leads/finder/
 const { LeadsPhoneBar, LeadPlanSheet } = await importSrc("apps/dashboard/src/surfaces/leads/scope/phone-bar.tsx");
 const { LeadsRailRows } = await importSrc("apps/dashboard/src/surfaces/leads/scope/rail.tsx");
 const { LEAD_COLUMNS, LEAD_PHONE_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/leads/cells/columns.tsx");
-const { ldPlacePop } = await importSrc("apps/dashboard/src/surfaces/leads/cells/hover.tsx");
+const { LeadHover, ldPlacePop } = await importSrc("apps/dashboard/src/surfaces/leads/cells/hover.tsx");
 recorded.set(MoreMenu, menus);
 // Leads' menus are the kit's Menu (Base UI's) since 5 Oct 2026, read here as every menu in this file is read: its name as
 // `title`, its control's test id, and its groups as one list, a heading where a group has one and a line between two.
@@ -1084,7 +1084,29 @@ test("the Leads scope draws the rows the surface read, in the order it read them
     0,
     "a lead with neither wears its initials, never a broken frame",
   );
-  assert.ok(byTestId(rowOf(tree, "l1"), "lead-card-name"), "the name's card is in the DOM, shown on hover");
+  // The name's card is drawn once a pointer, focus or a finger first reaches the name (cells/hover.tsx LeadHover, its
+  // own test below): on every row it was most of a row's DOM, and a second Call menu.
+  assert.equal(byTestId(rowOf(tree, "l1"), "lead-card-name"), null, "not drawn before anyone reaches it");
+});
+
+test("a hover's card is drawn once a pointer, focus or a finger first reaches its trigger, and kept from then on", () => {
+  frames.reset();
+  const card = globalThis.React.createElement("div", { "data-testid": "the-card" });
+  const drawHover = () => {
+    frames.begin();
+    return globalThis.React.createElement(LeadHover, { as: "div", className: "ld-hover", card }, "Sam's Gym");
+  };
+  const firstDiv = (node) => find(node, (n) => n.type === "div" && n.props?.className === "ld-hover");
+  let node = drawHover();
+  assert.equal(byTestId(node, "the-card"), null, "not before anyone reaches it");
+  assert.equal(textOf(node), "Sam's Gym", "the trigger's own words are there");
+  for (const reach of ["onMouseEnter", "onFocus", "onTouchStart"])
+    assert.equal(typeof firstDiv(node).props[reach], "function", reach);
+  firstDiv(node).props.onFocus({ currentTarget: {} });
+  node = drawHover();
+  assert.ok(byTestId(node, "the-card"), "focus reached it: drawn");
+  node = drawHover();
+  assert.ok(byTestId(node, "the-card"), "and kept");
 });
 
 // The first day is what every workspace opens Leads on, and it is what nothing drew: the component this file
@@ -3789,18 +3811,22 @@ test("a pop hangs above its row when the room is there, every hover asks where i
 
   // Every hover on a row asks, on the pointer arriving and on focus arriving alike.
   const row = rowOf(tree, "l1");
-  const hovers = [
-    byTestId(row, "lead-slot-phone"),
-    byTestId(row, "lead-slot-mailbox"),
-    find(row, (n) => /\bcl-row-name-block\b/.test(String(n.props?.className || ""))),
-    byTestId(row, "lead-rated"),
-    byTestId(row, "lead-found"),
-  ];
+  const hovers = [byTestId(row, "lead-slot-phone"), byTestId(row, "lead-slot-mailbox"), byTestId(row, "lead-found")];
   for (const h of hovers) {
     assert.ok(h, "each hover is drawn");
     assert.match(String(h.props.className), /\bld-hover\b/);
     assert.equal(h.props.onMouseEnter, place, `${h.props["data-testid"] || h.props.className}: asks on the pointer`);
     assert.equal(h.props.onFocus, place, "and on focus, so a keyboard gets the same placement");
+  }
+  // A card's trigger (the name, the rating) is a LeadHover, which asks as a card does, though its card is drawn only
+  // once it is reached (cells/hover.tsx).
+  const cardHovers = [
+    find(row, (n) => n.type === LeadHover && /\bcl-row-name-block\b/.test(String(n.props?.className || ""))),
+    find(row, (n) => n.type === LeadHover && n.props?.["data-testid"] === "lead-rated"),
+  ];
+  for (const h of cardHovers) {
+    assert.ok(h, "each card's trigger is a LeadHover");
+    assert.match(String(h.props.className), /\bld-hover\b/);
   }
 
   // The arithmetic, on elements that answer the questions a browser's would. The pane runs 100..700 with a 39px
@@ -3825,6 +3851,12 @@ test("a pop hangs above its row when the room is there, every hover asks where i
     return target.classList.has("ld-up");
   };
   assert.equal(up({ top: 150, bottom: 212, card: true }), false, "a card near the top has its room below");
+  {
+    // 100px below and 421 above: a tip's room, not a card's. The name's trigger asks as a card, its card not yet drawn.
+    const target = el({ top: 560, bottom: 600, card: false });
+    cardHovers[0].rendered.props.onMouseEnter({ currentTarget: target });
+    assert.ok(target.classList.has("ld-up"), "a card's trigger places a card's height before its card is drawn");
+  }
   assert.equal(
     up({ top: 600, bottom: 662, card: true }),
     true,
