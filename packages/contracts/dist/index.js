@@ -25072,11 +25072,15 @@ function whoWill(p) {
   const of = p.named ? ` of ${p.named.pool}` : "";
   const offers = purposeOfPlaybook(triggerOf(p.trigger)?.cls ?? null) === "marketing";
   switch (reach) {
-    case "sends":
+    case "sends": {
+      const all = p.candidates ?? 0;
+      const next = p.cap_per_run && p.cap_per_run > 0 ? Math.min(all, p.cap_per_run) : all;
+      const later = all - next;
       return {
-        why: `${p.candidates ?? 0}${of} will get it${p.held ? ` \xB7 ${p.held} heard from you this week and wait` : ""}`,
-        pill: { tone: "ok", label: plural(p.candidates ?? 0, "person", "people") }
+        why: `${next}${of} will get it` + (later > 0 ? ` \xB7 ${later} more on later runs, ${p.cap_per_run} a run` : "") + (p.held ? ` \xB7 ${p.held} heard from you this week and wait` : ""),
+        pill: { tone: "ok", label: plural(next, "person", "people") }
       };
+    }
     case "nobody":
       return {
         why: p.named && p.named.pool > 0 && p.named.saidYes === 0 ? `0${of} will get it \xB7 none said yes to ${offers ? "offers" : "messages"}` : p.named && p.named.pool === 0 ? "Nobody is on it yet" : `0${of} will get it`,

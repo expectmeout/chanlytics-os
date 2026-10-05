@@ -121,11 +121,21 @@ function whoWill(p: LifecyclePlaybook): { why: string; pill: LifecycleComing["pi
   const of = p.named ? ` of ${p.named.pool}` : "";
   const offers = purposeOfPlaybook(triggerOf(p.trigger)?.cls ?? null) === "marketing";
   switch (reach) {
-    case "sends":
+    case "sends": {
+      // A run sends its cap and no more (core run-playbook draws the longest-unheard first, at most cap_per_run): a new
+      // win-back with 300 quiet people said "300 will get it" over a run that sends 25. The next run's share is what
+      // "will get it" promises, and the rest are said as waiting for later runs.
+      const all = p.candidates ?? 0;
+      const next = p.cap_per_run && p.cap_per_run > 0 ? Math.min(all, p.cap_per_run) : all;
+      const later = all - next;
       return {
-        why: `${p.candidates ?? 0}${of} will get it${p.held ? ` · ${p.held} heard from you this week and wait` : ""}`,
-        pill: { tone: "ok", label: plural(p.candidates ?? 0, "person", "people") },
+        why:
+          `${next}${of} will get it` +
+          (later > 0 ? ` · ${later} more on later runs, ${p.cap_per_run} a run` : "") +
+          (p.held ? ` · ${p.held} heard from you this week and wait` : ""),
+        pill: { tone: "ok", label: plural(next, "person", "people") },
       };
+    }
     case "nobody":
       return {
         why:
