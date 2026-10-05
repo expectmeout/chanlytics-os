@@ -13387,6 +13387,12 @@ var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var EMAIL_STOP_PATTERN = /^\s*(stop|baja|alto)\s*[.!]?\s*$/i;
 var EMAIL_UNSUBSCRIBE_PATTERN = /^\s*(?:please\s+)?(?:unsubscribe(?:\s+me)?|desuscribir(?:me)?)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
+function asksToStop(channel, body) {
+  const words3 = body ?? "";
+  if (channel === "sms") return SMS_OPT_OUT_PATTERN.test(words3);
+  if (channel === "email") return EMAIL_STOP_PATTERN.test(words3) || EMAIL_UNSUBSCRIBE_PATTERN.test(words3);
+  return OPT_OUT_PATTERN.test(words3);
+}
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
 var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
 var CONVERSATION_OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
@@ -34361,6 +34367,7 @@ export {
   askModelProfile,
   askPages,
   askUndoOpen,
+  asksToStop,
   attentionOf,
   attentionRow,
   audienceMembers,

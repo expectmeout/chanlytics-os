@@ -335,6 +335,20 @@ export const SMS_OPT_OUT_PATTERN =
   /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
 
 /**
+ * Whether a customer's message is, whole, an ask to stop on the channel it came by: the words the inbound reading takes
+ * as a STOP there (a text's carrier list, an email's STOP or unsubscribe, WhatsApp's four). For a reader that counts
+ * what people SAID after a message of ours: such a message is their answer about hearing from the business, counted as
+ * that (a run's "asked to stop"), and is not a reply to what was sent. The inbound doors record the answer by the same
+ * patterns; this is not a second door.
+ */
+export function asksToStop(channel: string | null | undefined, body: string | null | undefined): boolean {
+  const words = body ?? "";
+  if (channel === "sms") return SMS_OPT_OUT_PATTERN.test(words);
+  if (channel === "email") return EMAIL_STOP_PATTERN.test(words) || EMAIL_UNSUBSCRIBE_PATTERN.test(words);
+  return OPT_OUT_PATTERN.test(words);
+}
+
+/**
  * Customer texts that mean opt back IN — the way out of an opt-out.
  *
  * Without this, enforcing opt-out silences someone permanently: they text STOP

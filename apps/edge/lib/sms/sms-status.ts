@@ -23,14 +23,19 @@
  * raiseLateFailure): the thread is flagged and the bell rings, once per message, BEFORE the row moves to failed, so a
  * flag the database would not take is a 503 with the row untouched and Twilio sends the callback again.
  *
+ * One refusal is not a failure of ours: 21610, the person having replied STOP to the number (channels
+ * SMS_OPTED_OUT_CODE). The send door records that as their STOP when the wire says it at once (core deliver.ts); told
+ * late, it is the same STOP, recorded here the same way (db recordLateCarrierOptOut) and never raised as a hold: the
+ * owner has nothing to fix, and every later send to the person is refused before the carrier is asked.
+ *
  * Twilio retries a status callback it could not deliver, so a database that
  * is down is a 503 and the word comes again; anything it should not retry is
  * a 2xx with nothing in it.
  */
 import { text } from "../http.js";
 import { pg } from "../pg.js";
-import { smsStatusFrom, smsStatusToRow, verifyTwilioSignature } from "../packages/channels.js";
-import { recordStatusByExternalId } from "../packages/db.js";
+import { SMS_OPTED_OUT_CODE, smsStatusFrom, smsStatusToRow, verifyTwilioSignature } from "../packages/channels.js";
+import { recordLateCarrierOptOut, recordStatusByExternalId } from "../packages/db.js";
 import { flagLateFailure } from "../receptionist/late-failure.js";
 import { lineByNumber, lineAccount } from "./sms.js";
 import { logger } from "../log.js";
@@ -80,15 +85,25 @@ export async function receiveSmsStatus(request: Request): Promise<Response> {
   }
   const failure =
     rowStatus === "failed" ? { carrier: s.status, ...(s.errorCode ? { code: s.errorCode } : {}) } : undefined;
+  // The person replied STOP to the number: their answer, recorded below, never a failed send to raise.
+  const stopped = !!failure && s.errorCode === String(SMS_OPTED_OUT_CODE);
   let flagged: string | null = null;
+  let carrierStop: boolean | null = null;
   try {
-    if (failure)
+    if (failure && !stopped)
       flagged = await flagLateFailure(db, line.tenant_id, { externalId: s.messageSid, channel: "sms", error: failure });
     await recordStatusByExternalId(db, line.tenant_id, s.messageSid, rowStatus, failure);
+    if (stopped)
+      carrierStop = await recordLateCarrierOptOut(db, { tenantId: line.tenant_id, externalId: s.messageSid });
   } catch (e) {
     L.error("sms_status_record_failed", { error: e instanceof Error ? e.message : String(e) });
     return empty(503);
   }
-  L.info("sms_status", { recorded: rowStatus, code: s.errorCode, ...(flagged ? { flagged } : {}) });
+  L.info("sms_status", {
+    recorded: rowStatus,
+    code: s.errorCode,
+    ...(flagged ? { flagged } : {}),
+    ...(carrierStop === null ? {} : { carrier_stop: carrierStop }),
+  });
   return empty(200);
 }

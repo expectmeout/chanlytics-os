@@ -1111,6 +1111,16 @@ async function recordWhatsAppOffersStop(db, p) {
   });
   return true;
 }
+async function recordLateCarrierOptOut(db, p) {
+  const sent = await db.from("messages").select("contact_id").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
+  if (sent.error) throw new Error(`reading the text the carrier refused (${p.externalId}): ${sent.error.message}`);
+  const contactId = sent.data?.contact_id;
+  if (!contactId) return false;
+  const who = await db.from("contacts").select("consent, erased_at").eq("id", contactId).eq("tenant_id", p.tenantId).maybeSingle();
+  if (who.error) throw new Error(`reading contact ${contactId} for the carrier's stop: ${who.error.message}`);
+  if (!who.data || who.data.erased_at) return false;
+  return recordCarrierOptOut(db, { tenantId: p.tenantId, contactId, channel: "sms", previous: who.data.consent });
+}
 
 // src/repositories/sending-domains.ts
 var must = (what, r) => {
@@ -3602,6 +3612,7 @@ export {
   recordEmailNo,
   recordEmailStatus,
   recordEvent,
+  recordLateCarrierOptOut,
   recordModelUsage,
   recordOutbound,
   recordPartnerSecondFactorReset,

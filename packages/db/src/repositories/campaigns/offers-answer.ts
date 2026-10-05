@@ -1,14 +1,16 @@
 /**
  * A person's answer about offers, where the edge reads and records it outside the inbound door: the one row a START's
  * confirmation on WhatsApp reads to say a STOP ended their yes (00323; contracts offersAfterStart), and WhatsApp's
- * report of a no we never heard (Meta's 131050 on a message of ours). A yes or a no the person texts is the inbound
- * door's (ingest.ts), and a member's is set_marketing_consent's. Nothing here is how a person is judged: that is
+ * report of a no we never heard (Meta's 131050 on a message of ours), and the carrier's of a STOP it tells us late
+ * (Twilio's 21610 on a text's status callback). A yes or a no the person texts is the inbound door's (ingest.ts), and a
+ * member's is set_marketing_consent's. Nothing here is how a person is judged: that is
  * contracts' mayMessageFor, which reads what these keep.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WHATSAPP_CONSENT_SOURCE } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
 import { emitEvent } from "../../events";
+import { recordCarrierOptOut } from "../ingest";
 
 type Db = SupabaseClient<Database>;
 
@@ -83,4 +85,32 @@ export async function recordWhatsAppOffersStop(db: Db, p: { tenantId: string; ex
     message_external_id: p.externalId,
   });
   return true;
+}
+
+/**
+ * The carrier's STOP, told late: a text Twilio accepted and then reports undelivered with 21610, the person having
+ * replied STOP to the number. The send door records the same code when the wire refuses it at once (core deliver.ts,
+ * recordCarrierOptOut); this is that record for the message the callback names, so the two cannot come to differ. The
+ * person is the one the text was written to. Someone already stopped, erased, or a message nobody knows is left as it
+ * is and answers false. A read or a write that fails THROWS: the status door answers 503 and the carrier says it again.
+ */
+export async function recordLateCarrierOptOut(db: Db, p: { tenantId: string; externalId: string }): Promise<boolean> {
+  const sent = await db
+    .from("messages")
+    .select("contact_id")
+    .eq("tenant_id", p.tenantId)
+    .eq("external_id", p.externalId)
+    .maybeSingle();
+  if (sent.error) throw new Error(`reading the text the carrier refused (${p.externalId}): ${sent.error.message}`);
+  const contactId = sent.data?.contact_id;
+  if (!contactId) return false;
+  const who = await db
+    .from("contacts")
+    .select("consent, erased_at")
+    .eq("id", contactId)
+    .eq("tenant_id", p.tenantId)
+    .maybeSingle();
+  if (who.error) throw new Error(`reading contact ${contactId} for the carrier's stop: ${who.error.message}`);
+  if (!who.data || who.data.erased_at) return false;
+  return recordCarrierOptOut(db, { tenantId: p.tenantId, contactId, channel: "sms", previous: who.data.consent });
 }

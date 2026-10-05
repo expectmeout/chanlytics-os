@@ -212,3 +212,66 @@ test("a flag the database would not take is a 503 with the row untouched, so the
   assert.equal(w.row.error, null);
   assert.deepEqual(raised(w), { holds: [], bell: [], events: [] });
 });
+
+test("a STOP the carrier tells us late (21610) is the person's STOP: recorded as the send door records one, and raised as nothing", async () => {
+  // Twilio took the text and then reported it undelivered with 21610: the person had replied STOP to the number. At
+  // the wire that code is their STOP (core deliver.ts). Told late it was a failed send to the owner, a hold on the
+  // thread, and nothing recorded, so the next text went to them too.
+  const w = world({ row: { contact_id: "k-1" } });
+  w.tables.contacts = [
+    { id: "k-1", tenant_id: w.T, consent: "opted_in", dnc: false, consent_source: "customer_message", erased_at: null },
+  ];
+  w.tables.events = [];
+  w.tables.escalations = [];
+  const stop = w.form({ MessageStatus: "undelivered", ErrorCode: "21610" });
+  assert.equal(await w.post(stop), 200);
+  const [k] = w.tables.contacts;
+  assert.deepEqual(
+    [k.consent, k.dnc, k.consent_source],
+    ["opted_out", true, "carrier"],
+    "the three consent columns, as a STOP is written, with the carrier as its source",
+  );
+  assert.equal(w.tables.messages[0].status, "failed", "the row still says what became of the text");
+  assert.deepEqual(
+    w.tables.events.map((e) => [e.kind, e.subject_id, e.data.consent, e.data.source, e.data.previous, e.data.channel]),
+    [["contact.consent_changed", "k-1", "opted_out", "carrier", "opted_in", "sms"]],
+    "one ledger row, the shape the send door's has, and no message.send_failed beside it",
+  );
+  assert.equal(w.tables.escalations.length, 0, "no hold: the owner has nothing to fix");
+
+  // Twilio says it again: nothing more is written.
+  assert.equal(await w.post(stop), 200);
+  assert.equal(w.tables.events.length, 1);
+});
+
+test("a late STOP for a text nobody knows, or a person already erased, writes nothing; a database that refuses it is a 503", async () => {
+  const unknown = world({ row: { contact_id: null } });
+  unknown.tables.contacts = [];
+  unknown.tables.events = [];
+  assert.equal(await unknown.post(unknown.form({ MessageStatus: "undelivered", ErrorCode: "21610" })), 200);
+  assert.equal(unknown.tables.events.length, 0);
+
+  const erased = world({ row: { contact_id: "k-2" } });
+  erased.tables.contacts = [
+    {
+      id: "k-2",
+      tenant_id: erased.T,
+      consent: "unknown",
+      dnc: true,
+      consent_source: "erasure",
+      erased_at: "2026-09-01T00:00:00Z",
+    },
+  ];
+  erased.tables.events = [];
+  assert.equal(await erased.post(erased.form({ MessageStatus: "undelivered", ErrorCode: "21610" })), 200);
+  assert.deepEqual([erased.tables.contacts[0].consent, erased.tables.events.length], ["unknown", 0]);
+
+  const down = world({ row: { contact_id: "k-3" }, faults: { "contacts.select": { message: "contacts is away" } } });
+  down.tables.contacts = [{ id: "k-3", tenant_id: down.T, consent: "opted_in", dnc: false, erased_at: null }];
+  down.tables.events = [];
+  assert.equal(
+    await down.post(down.form({ MessageStatus: "undelivered", ErrorCode: "21610" })),
+    503,
+    "the carrier says it again",
+  );
+});
