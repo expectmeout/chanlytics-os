@@ -1,6 +1,6 @@
 /**
  * Chanlytics, Reports: the page shell (moved from legacy/pages/reports.jsx, decision 0015). One row above everything
- * (the period, its days and the Ask door), then the sections (sections.tsx), then the reach-outs and Google's reviews.
+ * (the period, its days and the Ask door), then the lenses (lenses/), the reach-outs under Campaigns and Google's reviews last.
  * A real workspace draws the bridge's own numbers (`useSurface("reports")`); a demo session draws the same page from the
  * contracts sample (sample.ts); without either, the page says what Reports reads.
  */
@@ -10,11 +10,15 @@ import { askAbout, demoSession } from "../legacy-verbs";
 import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
 import { useSurface } from "../use-surface";
-import { GoogleSection } from "./google";
+import { useRptPhone } from "./blocks";
+import { CampaignsLens } from "./lenses/campaigns";
+import { OverviewLens } from "./lenses/overview";
+import { PeopleLens } from "./lenses/people";
+import { PipelineLens } from "./lenses/pipeline";
+import { ReceptionistLens } from "./lenses/receptionist";
+import { ReviewsLens } from "./lenses/reviews";
 import { setReportRange } from "./period";
-import { RptReachOuts } from "./reach-outs";
 import { reportsSample } from "./sample";
-import { ReportsSections } from "./sections";
 import type { ReportsSurface } from "./surface";
 
 /** Reports read nothing: a session with no workspace, and no demo to draw. */
@@ -81,6 +85,7 @@ function periodRow(p: {
 }
 
 export function ReportsPage() {
+  const phone = useRptPhone();
   const live = useSurface("reports");
   // A demo's own period: the sample answers at once, so the tabs switch it here.
   const [samplePeriod, setSamplePeriod] = useState<ReportPeriodId>(REPORT_PERIOD_DEFAULT);
@@ -117,10 +122,13 @@ export function ReportsPage() {
             Reports; the page does not title itself. */}
         {periodRow({ R, busy, failed, pick })}
         <div className="rpt-body" data-dims aria-busy={busy ? "true" : "false"}>
-          <ReportsSections R={R} pick={pick} />
-          {/* What the reach-outs wrote and what came back (Reach out Part 6, H3): a section of its own, after Campaigns. */}
-          <RptReachOuts R={R} />
-          <GoogleSection days={R.days} />
+          {/* Task 11 draws one of these by the address; until then the page draws them all, in the order it always did. */}
+          <OverviewLens R={R} pick={pick} phone={phone} />
+          <ReceptionistLens R={R} pick={pick} phone={phone} />
+          <PipelineLens R={R} pick={pick} phone={phone} />
+          <PeopleLens R={R} pick={pick} phone={phone} />
+          <CampaignsLens R={R} pick={pick} phone={phone} />
+          <ReviewsLens R={R} pick={pick} phone={phone} />
         </div>
       </div>
     </div>
