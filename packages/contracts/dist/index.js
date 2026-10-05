@@ -4886,11 +4886,13 @@ var ASK_TURN_BUDGET_MS = 45e3;
 var ASK_VOICE_PULSE_MS = 1e4;
 var ASK_VOICE_FIRST_WORDS_MS = 2500;
 var ASK_VOICE_CLAIM_STALE_MS = MIN_MS;
-var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
+var ASK_VOICE_TOKEN_MIN_MS = 15 * MIN_MS;
 var ASK_VOICE_ID = "UgBBYS2sOqTuMpoF3BR0";
 var ASK_VOICE_MODEL = "eleven_turbo_v2";
 var ASK_SPEECH_MAX_CHARS = 1500;
+var SPEECH_PURPOSES = ["brief", "answer"];
 var VOICE_END_REASONS = ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"];
+var isVoiceEndReason = (word) => VOICE_END_REASONS.includes(word ?? "");
 var ASK_VOICE_IDLE_MS = MIN_MS;
 var ASK_VOICE_UP_WAIT_MS = 2500;
 var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
@@ -33735,6 +33737,7 @@ export {
   SOLE_PROP_LIMITS,
   SOLE_PROP_TEXTING_SENTENCE,
   SOURCE_WORDS,
+  SPEECH_PURPOSES,
   SPEND_LEADS,
   SPEND_NUMBER,
   SPEND_TEXTING,
@@ -34256,6 +34259,7 @@ export {
   isUnread,
   isUsablePassword,
   isUuid,
+  isVoiceEndReason,
   isWaitRefusal,
   isWinBack,
   isYes,

@@ -873,7 +873,7 @@ function leadNoteLeft(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
 var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
-var ASK_VOICE_TOKEN_MIN_MS = 35 * MIN_MS;
+var ASK_VOICE_TOKEN_MIN_MS = 15 * MIN_MS;
 var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_UNDO_MS = 10 * 6e4;
 var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
@@ -4814,7 +4814,7 @@ function leadNoteLeft2(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
 var LEAD_UNCLAIMED_NOTE2 = "Listing not claimed by the owner";
-var ASK_VOICE_TOKEN_MIN_MS2 = 35 * MIN_MS2;
+var ASK_VOICE_TOKEN_MIN_MS2 = 15 * MIN_MS2;
 var ASK_VOICE_TIMING_MAX_MS2 = 10 * MIN_MS2;
 var ASK_UNDO_MS2 = 10 * 6e4;
 var ASK_SCOPE_KINDS2 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
@@ -8537,7 +8537,7 @@ function leadNoteLeft3(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
 var LEAD_UNCLAIMED_NOTE3 = "Listing not claimed by the owner";
-var ASK_VOICE_TOKEN_MIN_MS3 = 35 * MIN_MS3;
+var ASK_VOICE_TOKEN_MIN_MS3 = 15 * MIN_MS3;
 var ASK_VOICE_TIMING_MAX_MS3 = 10 * MIN_MS3;
 var ASK_UNDO_MS3 = 10 * 6e4;
 var ASK_SCOPE_KINDS3 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
@@ -12505,7 +12505,7 @@ function leadNoteLeft4(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
 var LEAD_UNCLAIMED_NOTE4 = "Listing not claimed by the owner";
-var ASK_VOICE_TOKEN_MIN_MS4 = 35 * MIN_MS4;
+var ASK_VOICE_TOKEN_MIN_MS4 = 15 * MIN_MS4;
 var ASK_VOICE_TIMING_MAX_MS4 = 10 * MIN_MS4;
 var ASK_UNDO_MS4 = 10 * 6e4;
 var ASK_SCOPE_KINDS4 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
@@ -16685,7 +16685,7 @@ function leadNoteLeft22(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
 var LEAD_UNCLAIMED_NOTE22 = "Listing not claimed by the owner";
-var ASK_VOICE_TOKEN_MIN_MS22 = 35 * MIN_MS22;
+var ASK_VOICE_TOKEN_MIN_MS22 = 15 * MIN_MS22;
 var ASK_VOICE_TIMING_MAX_MS22 = 10 * MIN_MS22;
 var ASK_UNDO_MS22 = 10 * 6e4;
 var ASK_SCOPE_KINDS22 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
@@ -20371,7 +20371,7 @@ function leadNoteLeft32(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
 var LEAD_UNCLAIMED_NOTE32 = "Listing not claimed by the owner";
-var ASK_VOICE_TOKEN_MIN_MS32 = 35 * MIN_MS32;
+var ASK_VOICE_TOKEN_MIN_MS32 = 15 * MIN_MS32;
 var ASK_VOICE_TIMING_MAX_MS32 = 10 * MIN_MS32;
 var ASK_UNDO_MS32 = 10 * 6e4;
 var ASK_SCOPE_KINDS32 = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];

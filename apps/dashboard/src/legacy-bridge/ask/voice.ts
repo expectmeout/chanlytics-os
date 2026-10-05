@@ -3,11 +3,14 @@
  * amended 4 Oct 2026, evening: the hold is the one mic). The person holds the mic and the browser's own recogniser
  * hears them, as it always did; what changes is the mouth. On the press the Line asks for a session (`ensureVoice`):
  * the voice route mints it as the member (POST ask/voice: the thread, the agent's token, the session the browser hands
- * the agent), the vendor's client is loaded then and not before (an on-demand chunk), and once the connection is up
- * its microphone is MUTED, so the agent hears nothing of the room. On the lift the words heard go to the agent as a
- * text turn (`sayVoice`: the client's `sendUserMessage`), and the agent, whose brain is Ask's own door, answers aloud
- * at once, its words streaming into the Line as it speaks (voice-events.ts), the stored turn read off the thread when
- * it lands. A hold while it speaks holds its voice down (`hushVoice`), and the next words cut it off: the vendor takes a
+ * the agent), the vendor's client is loaded by then (`warmVoice`, as the Line opens; an on-demand chunk either
+ * way), and once the connection is up its microphone is MUTED, so the agent hears nothing of the room. On the lift the
+ * words heard go to the agent as a text turn (`sayVoice`: the client's `sendUserMessage`), and the agent, whose
+ * brain is Ask's own door, answers aloud at once, its words told to the turn's own listener as it speaks
+ * (voice-events.ts; spoken.ts makes a turn of them, in a typed turn's shape). Who hears what: a turn's listener is
+ * given with its words and hears that turn; whoever follows the session itself (the mic's ring, the three: the
+ * agent's mode, the end) watches it (`watchVoice`). A press and a lift give no listener: they ask for a session, not
+ * a turn. A hold while it speaks holds its voice down (`hushVoice`), and the next words cut it off: the vendor takes a
  * new text turn as an interruption (measured 4 Oct). A session that is not up by the lift (`soonVoice`, a bounded
  * wait) is left to come up for the next hold, and the words go the typed way.
  *
@@ -22,6 +25,11 @@
  * of a closed set (contracts VOICE_END_REASONS), and what the browser measured from the press: to the connection, and
  * to the first audio heard. The vendor erases its own record after the call, so the row is the one record.
  *
+ * A page that dies under a session (a phone reloads a page it has killed; seen 5 Oct 2026, mid-answer) sends no end
+ * at all, and the row, ended by the vendor's webhook, cannot say why. So a session leaves a mark in the tab while it
+ * runs (`MARK`), every clean end takes it away, and a page that finds one as it loads tells the row how it came back
+ * and on what (`diedWord`: a word outside the closed set, which the end route keeps on its log line alone).
+ *
  * Each start is a generation: an end that comes while a start is still connecting is honoured once the connect lands,
  * by closing what it opened, the microphone and the row, with the reason the end gave; a callback from a conversation
  * that is over changes nothing of the one running.
@@ -35,7 +43,7 @@ import {
   type VoiceEndReason,
 } from "@chanlytics/contracts";
 import type { Callbacks } from "@elevenlabs/client";
-import type { AskApiCalls, VoiceEndTiming } from "./api";
+import type { AskApiCalls, VoiceDiedWord, VoiceEndTiming } from "./api";
 import {
   reduceVoiceEvent,
   VOICE_TURN_START,
@@ -54,10 +62,9 @@ export interface VoiceStart {
   context: PageContext | null;
 }
 
-/** The thread a session runs on, as the mint answered: the Line's own when it had one, else a new one, titled. */
+/** The thread a session runs on, as the mint answered: the Line's own when it had one, else a new one. */
 export interface VoiceUp {
   threadId: string;
-  title: string;
 }
 
 /**
@@ -100,6 +107,33 @@ const WORKLET_PATHS = {
   audioConcatProcessor: "/voice/audio-concat-processor.js",
 };
 
+/** The tab's key for the session running in it: its id, there only while it runs. */
+const MARK = "ask-voice-live";
+
+/** The tab's own storage, where the browser gives one (a private window, a stand-in, may not). */
+function tabStore(win: Window): Pick<Storage, "getItem" | "setItem" | "removeItem"> | null {
+  try {
+    return win.sessionStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * How a page came back after one that died under a session, and on what: the browser's own word for the load
+ * (`reload`, `navigate`, `back_forward`), whether it says it discarded the page, and the device (the phone app names
+ * itself in its user agent; else a phone's system, else a desk).
+ */
+function diedWord(win: Window): VoiceDiedWord {
+  const [nav] = win.performance?.getEntriesByType?.("navigation") ?? [];
+  const how = nav && "type" in nav ? String(nav.type) : "unknown";
+  const discarded = "wasDiscarded" in win.document && win.document.wasDiscarded ? ":discarded" : "";
+  const ua = win.navigator?.userAgent ?? "";
+  const app = /ChanlyticsApp\/\S+ \((ios|android)\)/.exec(ua);
+  const device = app ? `app-${app[1]}` : /iPhone|iPad|iPod/.test(ua) ? "ios" : /Android/.test(ua) ? "android" : "desk";
+  return `died:${how}${discarded}:${device}`;
+}
+
 /** What one session measured from its press: when it connected, when the agent first spoke. */
 interface Clock {
   tappedAt: number;
@@ -119,8 +153,9 @@ interface Line {
   threadId: string | null;
   clock: Clock | null;
   state: VoiceTurnState;
+  /** Who hears the turn being answered: given with its words (sayVoice), until the next turn's or the end. */
   listener: ((a: VoiceAction) => void) | null;
-  /** Who else follows the conversation: the three (the mascot), a pane drawn while it runs. */
+  /** Who follows the session itself, across its turns: the mic's ring and the three (the agent's mode, the end). */
   watchers: Set<(a: VoiceAction) => void>;
   /** Which start is the current one; an end moves it on, and a start that finds itself behind closes what it opened. */
   generation: number;
@@ -145,9 +180,11 @@ interface World {
   load: () => Promise<Client>;
   now: () => number;
   timer: VoiceTimer;
+  /** The tab's storage, for the running session's mark; null where the browser gives none. */
+  store: ReturnType<typeof tabStore>;
 }
 
-/** An event of the vendor's heard: reduced to the Line's actions, each told to the starter and to every watcher. */
+/** An event of the vendor's heard: reduced to the Line's actions, each told to the turn's listener and to every watcher. */
 const hear = (line: Line, ev: VoiceEvent) => {
   if (!line.listener && line.watchers.size === 0) return;
   const r = reduceVoiceEvent(line.state, ev);
@@ -163,6 +200,7 @@ const toldToAll = (line: Line, actions: VoiceAction[]) => {
 
 const forget = (w: World) => {
   const { line } = w;
+  w.store?.removeItem(MARK);
   if (line.idle != null) w.timer.clear(line.idle);
   line.idle = null;
   line.conv = null;
@@ -206,7 +244,7 @@ async function stopVoice(w: World, reason: VoiceEndReason): Promise<void> {
   const c = line.conv;
   const ended = line.session;
   const measured = line.clock;
-  const on = line.listener;
+  const turn = line.listener;
   forget(w);
   if (c) {
     try {
@@ -216,8 +254,8 @@ async function stopVoice(w: World, reason: VoiceEndReason): Promise<void> {
     }
   }
   if (ended) await w.deps.api.voiceEnd(ended, reason, timingOf(measured));
-  // The Line hears the end it asked for too, so a turn cut short is let go of and the thread read.
-  if (on) on({ t: "gone", reason });
+  // A turn cut short hears the end too, so it is let go of and the thread read; and so does whoever watches.
+  if (turn) turn({ t: "gone", reason });
   for (const watcher of line.watchers) watcher({ t: "gone", reason });
 }
 
@@ -290,7 +328,7 @@ const hush = (c: Conversation, on: boolean) => {
  * A session begun: the row, the vendor's client, the connection. Null when it was ended before it was up (nothing of
  * it is left running), else the thread it is on.
  */
-async function startVoice(w: World, input: VoiceStart, on: (a: VoiceAction) => void): Promise<VoiceUp | null> {
+async function startVoice(w: World, input: VoiceStart): Promise<VoiceUp | null> {
   const { line, deps, now } = w;
   if (line.conv || line.clock) await stopVoice(w, "superseded");
   const mine = ++line.generation;
@@ -315,7 +353,7 @@ async function startVoice(w: World, input: VoiceStart, on: (a: VoiceAction) => v
   } catch (e) {
     if (mine === line.generation) {
       forget(w);
-      on({ t: "gone", reason: "start" });
+      toldToAll(line, [{ t: "gone", reason: "start" }]);
     }
     throw e;
   }
@@ -326,7 +364,6 @@ async function startVoice(w: World, input: VoiceStart, on: (a: VoiceAction) => v
     endRow(w, started.session, line.stopped ?? "superseded", measured);
     return null;
   }
-  line.listener = on;
   line.state = VOICE_TURN_START;
   line.session = started.session;
   let c: Conversation;
@@ -344,7 +381,7 @@ async function startVoice(w: World, input: VoiceStart, on: (a: VoiceAction) => v
     if (mine === line.generation) {
       forget(w);
       endRow(w, started.session, "start", measured);
-      on({ t: "gone", reason: "start" });
+      toldToAll(line, [{ t: "gone", reason: "start" }]);
     }
     throw e;
   }
@@ -361,29 +398,29 @@ async function startVoice(w: World, input: VoiceStart, on: (a: VoiceAction) => v
   if (measured.connectedAt == null) measured.connectedAt = now();
   line.conv = c;
   line.threadId = started.thread_id;
+  w.store?.setItem(MARK, started.session);
   settle(w, c);
-  return { threadId: started.thread_id, title: started.title };
+  return { threadId: started.thread_id };
 }
 
-/** The session running, when it is the one this hold is for (its thread, or the Line has none yet): now this hold's to hear. */
-function running(line: Line, input: VoiceStart, on: (a: VoiceAction) => void): VoiceUp | null {
+/** The session running, when it is the one this hold is for: on its thread, or the Line has none yet. */
+function running(line: Line, input: VoiceStart): VoiceUp | null {
   if (!line.conv || !line.threadId) return null;
   if (input.threadId != null && input.threadId !== line.threadId) return null;
-  line.listener = on;
-  return { threadId: line.threadId, title: "" };
+  return { threadId: line.threadId };
 }
 
 /**
  * The session a hold needs: the one running when it is on this thread (or the Line has none yet), else a new one in
  * its place; a start already in flight is waited on, never doubled. Null when it could not come up (the mint refused,
- * the microphone denied, ended meanwhile): the Line said why if it was told, and the words go the typed way.
+ * the microphone denied, ended meanwhile), and the words go the typed way.
  */
-function ensureVoice(w: World, input: VoiceStart, on: (a: VoiceAction) => void): Promise<VoiceUp | null> {
+function ensureVoice(w: World, input: VoiceStart): Promise<VoiceUp | null> {
   const { line } = w;
-  const up = running(line, input, on);
+  const up = running(line, input);
   if (up) return Promise.resolve(up);
   if (line.pending) return line.pending;
-  const p = startVoice(w, input, on)
+  const p = startVoice(w, input)
     .catch(() => null)
     .finally(() => {
       if (line.pending === p) line.pending = null;
@@ -418,7 +455,14 @@ export function installVoice(win: Window, deps: VoiceDeps) {
       set: (fn, ms) => setTimeout(fn, ms),
       clear: (id) => clearTimeout(id as ReturnType<typeof setTimeout>),
     },
+    store: tabStore(win),
   };
+  // A mark already here is a session the last page in this tab died under: said once, as the page loads.
+  const left = w.store?.getItem(MARK);
+  if (left) {
+    w.store?.removeItem(MARK);
+    void deps.api.voiceEnd(left, diedWord(win));
+  }
   return {
     /** The device can talk with Ask: a microphone, on a secure page. */
     canVoice: (): boolean => !!(win.isSecureContext && win.navigator?.mediaDevices?.getUserMedia),
@@ -428,14 +472,21 @@ export function installVoice(win: Window, deps: VoiceDeps) {
     voiceConnecting: (): boolean => !line.conv && line.clock !== null,
     /** The thread the running session is on, for the Line to open as the words go. */
     voiceThread: (): string | null => line.threadId,
-    ensureVoice: (input: VoiceStart, on: (a: VoiceAction) => void) => ensureVoice(w, input, on),
+    ensureVoice: (input: VoiceStart) => ensureVoice(w, input),
+    /**
+     * The vendor's client fetched ahead of the first press (as the Line opens), so the press does not wait on a chunk
+     * before it can connect. A fetch that fails is tried again by the press itself.
+     */
+    warmVoice: (): void => {
+      void w.load().catch(() => {});
+    },
     /**
      * The session, if it is up within the lift's patience (ASK_VOICE_UP_WAIT_MS): the one running, or the one still
      * connecting from the press. Null past the wait, and the start goes on for the next hold. The lift opens nothing
      * of its own: a press that was refused is not asked for again (one hold, one mint), and the words go the typed way.
      */
-    soonVoice: (input: VoiceStart, on: (a: VoiceAction) => void): Promise<VoiceUp | null> => {
-      const up = running(line, input, on);
+    soonVoice: (input: VoiceStart): Promise<VoiceUp | null> => {
+      const up = running(line, input);
       if (up) return Promise.resolve(up);
       const coming = line.pending;
       if (!coming) return Promise.resolve(null);
@@ -448,11 +499,12 @@ export function installVoice(win: Window, deps: VoiceDeps) {
       });
     },
     /**
-     * The words heard, as the person's turn: the Line hears the question at once (the vendor sends no transcript of a
-     * text turn), the agent answers aloud, and the idle clock is wound. False with no session up, or when the
-     * connection would not take the words (gone, and not yet said so): they go the typed way, and nothing is drawn.
+     * The words heard, as the person's turn, and who hears its answer (`on`: the agent's reads, its Say, the landing,
+     * the end, until the next turn's words): the agent answers aloud, and the idle clock is wound. False with no
+     * session up, or when the connection would not take the words (gone, and not yet said so): they go the typed way,
+     * and `on` hears nothing.
      */
-    sayVoice: (text: string): boolean => {
+    sayVoice: (text: string, on: (a: VoiceAction) => void): boolean => {
       const words = text.trim();
       if (!line.conv || !words) return false;
       try {
@@ -462,7 +514,7 @@ export function installVoice(win: Window, deps: VoiceDeps) {
       }
       line.asked = true;
       line.state = VOICE_TURN_START;
-      toldToAll(line, [{ t: "question", text: words }]);
+      line.listener = on;
       armIdle(w);
       return true;
     },
@@ -479,9 +531,9 @@ export function installVoice(win: Window, deps: VoiceDeps) {
     /** The person ends it (Clear, typing, the Line closing), it idles out, or another use of the voice takes its place. */
     stopVoice: (reason: VoiceStopReason = "button") => stopVoice(w, reason),
     /**
-     * Follow the session that runs, from outside the hold that began it: the three, a pane drawn while the agent
-     * speaks, hear the end as the Line does. Answers the stop. A watcher never ends the session: it is the member's,
-     * not the pane's (seen on production, 4 Oct 2026, when a pane's unmount hung up every call).
+     * Follow the session itself, across its turns: the mic's ring and the three hear the agent's mode and every end,
+     * a start that failed included. Answers the stop. A watcher never ends the session: it is the member's, not a
+     * pane's (seen on production, 4 Oct 2026, when a pane's unmount hung up every call).
      */
     watchVoice(on: (a: VoiceAction) => void): () => void {
       line.watchers.add(on);
