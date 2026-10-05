@@ -111,6 +111,7 @@ export const ROUTES = {
   "POST client-errors": { method: "POST", path: "/api/v1/client-errors" },
   "POST contacts": { method: "POST", path: "/api/v1/contacts" },
   "POST contacts/[id]/deal": { method: "POST", path: "/api/v1/contacts/[id]/deal" },
+  "POST contacts/[id]/merge": { method: "POST", path: "/api/v1/contacts/[id]/merge" },
   "POST contacts/[id]/notes": { method: "POST", path: "/api/v1/contacts/[id]/notes" },
   "POST contacts/[id]/notes/decide": { method: "POST", path: "/api/v1/contacts/[id]/notes/decide" },
   "POST contacts/[id]/notes/done": { method: "POST", path: "/api/v1/contacts/[id]/notes/done" },
@@ -327,6 +328,7 @@ export type Routes = {
   "POST client-errors": typeof import("../../app/api/v1/client-errors/route").POST;
   "POST contacts": typeof import("../../app/api/v1/contacts/route").POST;
   "POST contacts/[id]/deal": typeof import("../../app/api/v1/contacts/[id]/deal/route").POST;
+  "POST contacts/[id]/merge": typeof import("../../app/api/v1/contacts/[id]/merge/route").POST;
   "POST contacts/[id]/notes": typeof import("../../app/api/v1/contacts/[id]/notes/route").POST;
   "POST contacts/[id]/notes/decide": typeof import("../../app/api/v1/contacts/[id]/notes/decide/route").POST;
   "POST contacts/[id]/notes/done": typeof import("../../app/api/v1/contacts/[id]/notes/done/route").POST;

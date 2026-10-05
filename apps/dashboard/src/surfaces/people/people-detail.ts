@@ -181,6 +181,17 @@ export async function deletePerson(id: string): Promise<DeleteResult> {
 }
 
 /**
+ * Two records of one person become one (decision 0028): `keep` stays, `merge` folds into it. Owner-only on the server,
+ * and never undone; the page asks for the kept person's name typed first. The merged record leaves the list (it is a
+ * marked row now, which People does not show), and the kept one is read again when its page draws.
+ */
+export async function mergePerson(keep: string, merge: string): Promise<DeleteResult> {
+  const r = await api()("POST contacts/[id]/merge", { params: { id: keep }, body: { merge } });
+  if (r.ok) people().forget(merge);
+  return r;
+}
+
+/**
  * Receptionist mode for one person.
  *
  * "auto" / "ask" / "never" set the person's own row; "inherit" removes it so

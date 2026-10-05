@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { DEAL_REFUSALS } from "@chanlytics/contracts";
+import { DEAL_REFUSALS, MERGE_REFUSALS } from "@chanlytics/contracts";
 import { asText } from "../_log-lines.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -30,6 +30,7 @@ const viewSet = await import(at("apps/dashboard/app/api/v1/views/[page]/route.ts
 const person = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
 const details = await import(at("apps/dashboard/app/api/v1/contacts/[id]/details/route.ts"));
 const deal = await import(at("apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts"));
+const merge = await import(at("apps/dashboard/app/api/v1/contacts/[id]/merge/route.ts"));
 const noteWrite = await import(at("apps/dashboard/app/api/v1/contacts/[id]/notes/route.ts"));
 const noteRemove = await import(at("apps/dashboard/app/api/v1/contacts/[id]/notes/remove/route.ts"));
 const noteDecide = await import(at("apps/dashboard/app/api/v1/contacts/[id]/notes/decide/route.ts"));
@@ -2029,4 +2030,70 @@ test("the proposal follow-up's facts (0006): answered with People's first page w
     console.error = keep;
   }
   assert.equal(logged.filter((l) => l.startsWith("follow_up_facts_failed")).length, 3, logged.join("\n"));
+});
+
+test("the merge of two records (0028): the owner's, judged on the kept record, the door's answer and its refusal as said", async () => {
+  assert.deepEqual(merge.POST.policy, { kind: "write", scope: "row", role: "owner", rate: "erase", spend: false });
+  const asked = [];
+  const door = (a) => {
+    asked.push(a);
+    if (a.p_merge === P3) {
+      throw Object.assign(new Error(MERGE_REFUSALS.phones), { code: "22023" });
+    }
+    return {
+      contact_id: a.p_keep,
+      merged: a.p_merge,
+      tenant_id: A,
+      decision_id: D1,
+      consent: "opted_in",
+      marketing_consent: "unknown",
+      email_marketing: "unknown",
+      counts: { identities: 1, messages: 2, threads: "folded" },
+    };
+  };
+  const tables = { memberships: both("owner", "viewer"), contacts: [contact(P1, A), contact(P2, A), contact(P3, A)] };
+  const out = await merge.POST.run(
+    send("POST", { merge: P2 }, inA),
+    ctxFor(tables, { id: P1 }, { merge_people: door }),
+  );
+  assert.deepEqual([out.contact_id, out.merged, out.counts.threads], [P1, P2, "folded"]);
+  assert.deepEqual(
+    asked,
+    [{ p_keep: P1, p_merge: P2 }],
+    "the kept record from the path, the other from the body, as the door takes them",
+  );
+
+  // The door's refusal comes back as it was said, as a 400.
+  await assert.rejects(
+    merge.POST.run(send("POST", { merge: P3 }, inA), ctxFor(tables, { id: P1 }, { merge_people: door })),
+    (e) => {
+      assert.equal(e.status, 400);
+      assert.equal(e.message, MERGE_REFUSALS.phones);
+      return true;
+    },
+  );
+  // Not a uuid, no body: refused before the door is asked.
+  await refused(
+    merge.POST.run(send("POST", { merge: "nope" }, inA), ctxFor(tables, { id: P1 }, { merge_people: door })),
+    "validation",
+    400,
+  );
+  // A kept record the caller cannot see is not found; an operator is refused; neither reaches the door.
+  await refused(
+    merge.POST.run(
+      send("POST", { merge: P2 }, inA),
+      ctxFor({ ...tables, contacts: [contact(P2, A)] }, { id: P1 }, { merge_people: door }),
+    ),
+    "not_found",
+    404,
+  );
+  await refused(
+    merge.POST.run(
+      send("POST", { merge: P2 }, inA),
+      ctxFor({ ...tables, memberships: both("operator", "viewer") }, { id: P1 }, { merge_people: door }),
+    ),
+    "forbidden",
+    403,
+  );
+  assert.equal(asked.length, 2, "the door was asked for the two merges and nothing else");
 });

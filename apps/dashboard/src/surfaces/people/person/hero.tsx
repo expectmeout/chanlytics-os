@@ -5,7 +5,7 @@
  * `personActs`. What an act does is its hover, never a sentence beside the label, which wrapped and ran past the menu's edge.
  */
 import type { ReactNode } from "react";
-import { proposalMessage } from "@chanlytics/contracts";
+import { MERGE_WORDS, proposalMessage } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { Menu } from "../../kit/menu/menu";
@@ -14,8 +14,10 @@ import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Icon } from "../../kit/icon/icon";
+import { Picker } from "../../kit/picker/picker";
+import type { PickerGroup } from "../../kit/picker/picker";
 import { navigate } from "../../legacy-verbs";
-import { deletePerson } from "../people-detail";
+import { deletePerson, mergePerson } from "../people-detail";
 import { PersonName } from "./name";
 import { digitsOf } from "./ctx";
 import type { PageCtx } from "./ctx";
@@ -26,6 +28,7 @@ const ACT_ICON: Record<string, string> = {
   call: "phone",
   "copy-phone": "copy",
   "copy-email": "mail",
+  merge: "users",
   delete: "x",
 };
 
@@ -69,7 +72,7 @@ function copyOut(c: PageCtx, text: string | null, what: string) {
 
 /** The acts the page keeps for its reader's role, as the kit Menu's groups: a few words each, a line between the groups. */
 function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGroup[] {
-  const { p, canRecord, isOwner, setDel } = c;
+  const { p, canRecord, isOwner, setDel, setMerge } = c;
   const doAct: Record<string, () => void> = {
     booking: () => {
       if (p.bookingLinkAction.ready) compose(`Here's the link to book your appointment: ${p.bookingLink}`);
@@ -85,6 +88,7 @@ function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGr
     "copy-phone": () => copyOut(c, p.phone, "the number"),
     "copy-email": () => copyOut(c, p.email, "the email"),
     delete: () => setDel({ open: true, typed: "", busy: false, error: null }),
+    merge: () => setMerge({ open: true, pick: null, typed: "", busy: false, error: null }),
   };
   const acts = (p.acts || []).filter((a) => a.needs === "any" || (a.needs === "record" ? canRecord : isOwner));
   // A few words each, a line between the groups, and what an act does on hover: a sentence beside every label was a
@@ -152,6 +156,90 @@ function deleteBox(c: PageCtx) {
         onYes={() => void confirmDelete()}
         onNo={() => setDel({ open: false, typed: "", busy: false, error: null })}
         testid="delete"
+      />
+    </div>
+  );
+}
+
+/**
+ * Two records of one person become one (0028): the other record chosen from People, then the kept person's name typed,
+ * as Delete asks. The door is the database's and cannot be undone; what it answers is said as a toast, and the page is
+ * read again, whole, with what moved.
+ */
+function mergeBox(c: PageCtx) {
+  const { p, merge, setMerge, others, flash, load } = c;
+  const other = others.find((r) => r.id === merge.pick) ?? null;
+  const typedMatches =
+    merge.typed.trim() === p.name ||
+    (!!p.phone && digitsOf(merge.typed).length >= 7 && digitsOf(merge.typed) === digitsOf(p.phone));
+  const groups: PickerGroup<string>[] = [
+    {
+      options: others.map((r) => ({
+        value: r.id,
+        label: r.name,
+        sub: [r.phone, r.email].filter(Boolean).join(" · ") || undefined,
+      })),
+    },
+  ];
+  const confirmMerge = async () => {
+    if (!other || !typedMatches) return;
+    setMerge((m) => ({ ...m, busy: true, error: null }));
+    const r = await mergePerson(p.id, other.id);
+    if (!r.ok) {
+      setMerge((m) => ({ ...m, busy: false, error: r.message || "Could not merge these records." }));
+      return;
+    }
+    flash({
+      msg: (
+        <>
+          <b>{other.name}</b> merged into <b>{p.name}</b>
+        </>
+      ),
+    });
+    setMerge({ open: false, pick: null, typed: "", busy: false, error: null });
+    load();
+  };
+  const name = other?.name ?? "the other record";
+  return (
+    <div className="cl-prof-danger" data-testid="merge">
+      <p>
+        {MERGE_WORDS.pick}{" "}
+        <Picker
+          label={MERGE_WORDS.pick}
+          value={merge.pick}
+          onValueChange={(v) => setMerge((m) => ({ ...m, pick: v, error: null }))}
+          groups={groups}
+          placeholder={MERGE_WORDS.pickNone}
+          chevron={<Icon name="chevron-down" size={11} />}
+          search={{
+            glass: <Icon name="search" size={12} />,
+            placeholder: MERGE_WORDS.pickPlaceholder,
+            empty: MERGE_WORDS.pickEmpty,
+            match: (o, q) => `${o.label} ${o.sub ?? ""}`.toLowerCase().includes(q.toLowerCase()),
+          }}
+          readOnly={merge.busy}
+          data-testid="merge-pick"
+        />
+      </p>
+      <Confirm
+        block
+        typed={p.name}
+        value={merge.typed}
+        onType={(v) => setMerge((m) => ({ ...m, typed: v }))}
+        ready={!!other && typedMatches}
+        question={MERGE_WORDS.question(p.name, name)}
+        detail={
+          <>
+            {MERGE_WORDS.detail(p.name, name)} {MERGE_WORDS.typed(p.name)}
+          </>
+        }
+        yes={MERGE_WORDS.yes}
+        busyLabel={MERGE_WORDS.busy}
+        busy={merge.busy}
+        error={merge.error}
+        onYes={() => void confirmMerge()}
+        onNo={() => setMerge({ open: false, pick: null, typed: "", busy: false, error: null })}
+        testid="merge"
       />
     </div>
   );
@@ -257,6 +345,7 @@ export function hero(c: PageCtx, compose: (text?: string | null) => void, phoneO
       {heroId(c, phoneOnly)}
       {heroActs(c, more)}
       {c.del.open && deleteBox(c)}
+      {c.merge.open && mergeBox(c)}
     </div>
   );
 }

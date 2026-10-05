@@ -11,6 +11,7 @@ import {
   EVENT_KINDS,
   MERGE_CONSENT_SOURCE,
   MERGE_REFUSALS,
+  MERGE_WORDS,
   consentChangeOf,
   consentChangeWords,
   consentSourceLabel,
@@ -103,4 +104,13 @@ test("the merge is in the closed sets, and a person's page says whose word a cha
   const said = Object.values(MERGE_REFUSALS);
   assert.equal(new Set(said).size, said.length);
   for (const s of said) assert.match(s, /^[A-Z].*\.$/);
+});
+
+test("the page's words name the two records, and say what cannot be undone", () => {
+  assert.equal(MERGE_WORDS.question("Maria Lopez", "maria@example.com"), "Merge maria@example.com into Maria Lopez?");
+  assert.match(MERGE_WORDS.detail("Maria Lopez", "maria@example.com"), /cannot be undone/);
+  assert.match(MERGE_WORDS.detail("Maria Lopez", "maria@example.com"), /more careful/);
+  assert.equal(MERGE_WORDS.typed("Maria Lopez"), "Type Maria Lopez to confirm.");
+  assert.equal(MERGE_WORDS.done("Maria Lopez", "maria@example.com"), "maria@example.com merged into Maria Lopez");
+  assert.match(MERGE_WORDS.act, /…$/);
 });

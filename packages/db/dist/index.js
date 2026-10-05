@@ -395,6 +395,11 @@ async function erasureDigests(db, tenantId, values) {
   }
   return out;
 }
+async function mergePeople(db, keep, merge) {
+  const { data, error } = await db.rpc("merge_people", { p_keep: keep, p_merge: merge });
+  if (error) throw error;
+  return data;
+}
 
 // src/repositories/campaigns/campaign-channels.ts
 async function whatsappChannelConfig(db, tenantId) {
@@ -3492,6 +3497,7 @@ export {
   markReplyTold,
   markWaitlistInvited,
   membershipCountOf,
+  mergePeople,
   messageSenders,
   messageSlots,
   migrationHead,

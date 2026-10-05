@@ -165,7 +165,7 @@ export { listToken, parseListToken, unmetNeed, listMembers, savedListIds, savedL
 export { peopleListAction, savedListAction, noNumberWords, noChannelWords, saidYesWords, peopleAggregates, recencyCells, GET_YES_ROUTE, NO_NUMBER_REACH, NO_CHANNEL_REACH } from "./people/people-lists";
 export { attentionRow } from "./people/person-attention";
 export { offersYesRefusal, ownMessageRefusal, consentSourceLabel, mayReceive, whyNotReceive, saidYesTo, CONSENT_SOURCES, CONSENT_RESET_SOURCE, OFFERS_YES_SOURCES, OWN_MESSAGE_REFUSALS, CARRIER_CONSENT_SOURCE, STOP_ENDED_OFFERS_SOURCE, WHATSAPP_CONSENT_SOURCE } from "./people/person-consent";
-export { MERGE_CONSENT_SOURCE, MERGE_REFUSALS, mergedAnswers } from "./people/person-merge";
+export { MERGE_CONSENT_SOURCE, MERGE_REFUSALS, MERGE_WORDS, mergedAnswers } from "./people/person-merge";
 export { callerName, personName } from "./people/person-name";
 export { filterTimeline, personActs, toPersonVM, TIMELINE_FILTERS } from "./people/person-profile";
 export { bookingLinkAction, proposalMessage, proposalAction, repliesWords, mayReach } from "./people/person-reach";

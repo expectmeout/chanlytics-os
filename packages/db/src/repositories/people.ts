@@ -125,3 +125,27 @@ export async function erasureDigests(db: Db, tenantId: string, values: string[])
   }
   return out;
 }
+
+/** What the merge door answers (merge_people, 00325): the kept record, the merged one, and what moved. */
+interface MergedPeople {
+  contact_id: string;
+  merged: string;
+  tenant_id: string;
+  decision_id: string;
+  consent: string;
+  marketing_consent: string;
+  email_marketing: string;
+  counts: Record<string, number | string>;
+}
+
+/**
+ * Two records of one person become one (decision 0028): the one door, `merge_people`, as the signed-in owner. The caller
+ * is `auth.uid()` inside the door, so the session client is what is handed in, never the service role. The door's
+ * refusals come back as the database's error with the sentence contracts holds (MERGE_REFUSALS); the route turns one
+ * into its own status (dbRefusal). Everything the door moves, it moves in one transaction.
+ */
+export async function mergePeople(db: Db, keep: string, merge: string): Promise<MergedPeople> {
+  const { data, error } = await db.rpc("merge_people", { p_keep: keep, p_merge: merge });
+  if (error) throw error;
+  return data as unknown as MergedPeople;
+}

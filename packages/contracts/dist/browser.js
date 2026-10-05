@@ -2949,6 +2949,20 @@ var MERGE_REFUSALS = {
   emails: "These two records have different email addresses, so they may be two people. They can't be merged.",
   deals: "Both records have an open deal for the same service. Close or move one of them first."
 };
+var MERGE_WORDS = {
+  act: "Merge with another record\u2026",
+  actHint: "Two records of one person become one",
+  pick: "Which record is the same person?",
+  pickPlaceholder: "Search by name, number or email",
+  pickEmpty: "Nobody else matches",
+  pickNone: "Choose the other record",
+  question: (kept, other) => `Merge ${other} into ${kept}?`,
+  detail: (kept, other) => `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. Their answers about messages and offers become the more careful of the two. ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
+  typed: (kept) => `Type ${kept} to confirm.`,
+  yes: "Merge the two records",
+  busy: "Merging\u2026",
+  done: (kept, other) => `${other} merged into ${kept}`
+};
 function offersAnswer(a, b, stopped) {
   if (a === "opted_out" || b === "opted_out") return "opted_out";
   if (stopped) return "unknown";
@@ -23437,6 +23451,7 @@ function personActs(p) {
     acts.push({ id: "copy-phone", label: "Copy number", hint: null, group: "reach", needs: "any" });
   }
   if (p.email) acts.push({ id: "copy-email", label: "Copy email", hint: null, group: "reach", needs: "any" });
+  acts.push({ id: "merge", label: MERGE_WORDS.act, hint: MERGE_WORDS.actHint, group: "delete", needs: "owner" });
   acts.push({ id: "delete", label: "Delete person\u2026", hint: null, group: "delete", needs: "owner", danger: true });
   return acts;
 }
@@ -25836,6 +25851,7 @@ var ROUTE_KEYS = [
   "POST client-errors",
   "POST contacts",
   "POST contacts/[id]/deal",
+  "POST contacts/[id]/merge",
   "POST contacts/[id]/notes",
   "POST contacts/[id]/notes/decide",
   "POST contacts/[id]/notes/done",
@@ -32241,6 +32257,7 @@ export {
   MEMBERSHIP_ROLES,
   MERGE_CONSENT_SOURCE,
   MERGE_REFUSALS,
+  MERGE_WORDS,
   MESSAGE_CHANNELS,
   MESSAGE_DIRECTIONS,
   MESSAGE_MOMENT_WORDS,

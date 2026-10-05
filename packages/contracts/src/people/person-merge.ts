@@ -29,6 +29,27 @@ export const MERGE_REFUSALS = {
   deals: "Both records have an open deal for the same service. Close or move one of them first.",
 } as const;
 
+/**
+ * The page's words for the act (decision 0028, step 3): the menu entry, the sheet that names the two records, and the
+ * typed confirmation, which asks for the kept person's name as Delete does. `question`, `detail` and `yes` take the
+ * names so the sheet says who is kept and who is merged in, never "this record" and "that one".
+ */
+export const MERGE_WORDS = {
+  act: "Merge with another record…",
+  actHint: "Two records of one person become one",
+  pick: "Which record is the same person?",
+  pickPlaceholder: "Search by name, number or email",
+  pickEmpty: "Nobody else matches",
+  pickNone: "Choose the other record",
+  question: (kept: string, other: string) => `Merge ${other} into ${kept}?`,
+  detail: (kept: string, other: string) =>
+    `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. Their answers about messages and offers become the more careful of the two. ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
+  typed: (kept: string) => `Type ${kept} to confirm.`,
+  yes: "Merge the two records",
+  busy: "Merging…",
+  done: (kept: string, other: string) => `${other} merged into ${kept}`,
+} as const;
+
 type Answer = "unknown" | "opted_in" | "opted_out";
 
 /** What one record has answered: the three questions, and the block a stop sets. */

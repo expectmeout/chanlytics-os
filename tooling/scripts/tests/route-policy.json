@@ -335,6 +335,13 @@
       "rate": "consent",
       "spend": false
     },
+    "POST contacts/[id]/merge": {
+      "kind": "write",
+      "scope": "row",
+      "role": "owner",
+      "rate": "erase",
+      "spend": false
+    },
     "POST contacts/[id]/notes/decide": {
       "kind": "write",
       "scope": "row",
