@@ -21,6 +21,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
+import { asksToStop } from "@chanlytics/contracts";
 
 const TID = "t-salon";
 
@@ -594,4 +595,72 @@ test("REGRESSION: a send to a list past a thousand people enrols every one of th
     null,
     "another workspace's list is no list",
   );
+});
+
+test("a STOP is their answer about hearing from the business, not a reply: a run that only heard STOP says nobody replied", async () => {
+  // The words that stop, by the channel they came by: what the inbound doors record as a STOP there.
+  assert.equal(asksToStop("whatsapp", "STOP"), true);
+  assert.equal(asksToStop("whatsapp", " baja. "), true);
+  assert.equal(asksToStop("whatsapp", "Cancel"), false, "on WhatsApp a template's Cancel button is a booking");
+  assert.equal(asksToStop("sms", "Cancel"), true, "on a texting line it is the carrier's word");
+  assert.equal(asksToStop("sms", "QUIT"), true);
+  assert.equal(asksToStop("email", "please unsubscribe me"), true);
+  assert.equal(asksToStop("email", "Cancel"), false);
+  assert.equal(asksToStop("whatsapp", "stop by at 4?"), false, "the whole message, never a word in it");
+  assert.equal(asksToStop(null, null), false);
+
+  const hour = 3_600_000;
+  const person = (who) => ({
+    tenant_id: TID,
+    broadcast_id: "b1",
+    contact_id: who,
+    state: "sent",
+    reason: null,
+    sent_at: at(0),
+    messages: { conversation_id: `cv-${who}`, status: "delivered", meta: {} },
+  });
+  const theirs = (id, who, ms, over = {}) => ({
+    id,
+    tenant_id: TID,
+    conversation_id: `cv-${who}`,
+    created_at: at(ms),
+    type: "text",
+    meta: {},
+    direction: "inbound",
+    sender: "customer",
+    channel: "whatsapp",
+    ...over,
+  });
+  const tables = {
+    broadcasts: [broadcast("b1")],
+    broadcast_recipients: ["ana", "bo", "cy", "di"].map(person),
+    messages: [
+      // Ana said stop, and nothing else.
+      theirs("m1", "ana", hour, { body: "STOP" }),
+      // Bo answered, and then said stop: the answer is the reply.
+      theirs("m2", "bo", hour, { body: "How much is it?" }),
+      theirs("m3", "bo", 2 * hour, { body: "stop" }),
+      // Cy texted the carrier's word; Di wrote a sentence with the word in it.
+      theirs("m4", "cy", hour, { channel: "sms", body: "Quit" }),
+      theirs("m5", "di", hour, { body: "Can I stop by at 4?" }),
+    ],
+  };
+  const d = await getBroadcast({ supabase: capped(tables) }, TID, "b1");
+  assert.deepEqual(Object.fromEntries(d.recipients.map((r) => [r.contact_id, [r.replied, r.reply_words]])), {
+    ana: [false, null],
+    bo: [true, "How much is it?"],
+    cy: [false, null],
+    di: [true, "Can I stop by at 4?"],
+  });
+  assert.equal(
+    d.broadcast.counts.replied,
+    2,
+    "two people replied; the two who only said stop are counted as that, elsewhere",
+  );
+  // The list's count is the detail's: one rule for both.
+  const [listed] = await listRuns(
+    { supabase: capped({ ...tables, broadcasts: [broadcast("b1", { playbook_id: "pb1" })] }) },
+    TID,
+  );
+  assert.equal(listed.counts.replied, 2);
 });
