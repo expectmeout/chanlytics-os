@@ -831,6 +831,13 @@ function waPricingOf(raw) {
   }
   return out.category ? out : null;
 }
+var WA_STOPPED_MARKETING = 131050;
+function waStoppedMarketing(errors) {
+  if (!Array.isArray(errors)) return false;
+  return errors.some(
+    (e) => e !== null && typeof e === "object" && Number(e.code) === WA_STOPPED_MARKETING
+  );
+}
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
   const a = await providerFetch("meta", `${GRAPH}/${cfg.phoneId}/messages`, {
@@ -5138,6 +5145,7 @@ export {
   voiceShellDrift,
   voiceShellTools,
   waPricingOf,
+  waStoppedMarketing,
   withCarrierConsent,
   withKey,
   withRequestId

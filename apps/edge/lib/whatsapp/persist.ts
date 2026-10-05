@@ -195,6 +195,7 @@ type PgStep =
   | "handled"
   | "media_fetch"
   | "note_email"
+  | "offers_stop"
   | "pause"
   | "processed"
   | "status"

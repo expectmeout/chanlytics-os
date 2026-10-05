@@ -8,7 +8,7 @@ import { agoWords, WEEK_MS } from "../shared/time";
 import { clockDate } from "../shared/clock";
 import { relationshipOnRecord } from "../consent/consent";
 import { channelsWords, coveredChannels } from "../consent/consent-channels";
-import { consentSourceLabel, type PersonConsent } from "./person-consent";
+import { consentSourceLabel, STOP_ENDED_OFFERS_SOURCE, type PersonConsent } from "./person-consent";
 import { fmtDate, ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";
 
@@ -96,7 +96,11 @@ export function firstContactOf(r: PersonRowDto, tz: string, nowMs: number): Pers
 /** One line for the person's profile about offers: how and when they said yes and on which channels, or what they said. */
 function offersSub(r: PersonRowDto, marketing: PersonConsent["marketing"], tz: string, nowMs: number): string {
   if (marketing === "opted_out") return "no offers";
-  if (marketing !== "opted_in") return "never asked about offers";
+  // A yes a stop ended (00323) is not "never asked": they said yes once, and took everything back.
+  if (marketing !== "opted_in")
+    return r.marketing_consent_source === STOP_ENDED_OFFERS_SOURCE
+      ? "their yes ended when they said stop"
+      : "never asked about offers";
   const when = ts(r.marketing_consent_updated_at ?? null);
   const how = consentSourceLabel(r.marketing_consent_source ?? null);
   const date = when !== null ? fmtDate(when, tz, nowMs) : "recorded";

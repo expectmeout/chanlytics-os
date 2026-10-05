@@ -5,7 +5,9 @@
  * migration's consent_channels_of is that function case by case; each contact.consent_changed event, written by the
  * doors it is written by, leaves the person's two lists as the table says; the backfill gives every yes already on a
  * row the channels its events give it; the receptionist's ask is stamped by the database, once; and people_list
- * answers the three new columns. A function body is exactly what reading source cannot prove, so these run against
+ * answers the three new columns. And the rule that leans on that trigger (00323, at the foot): a stop to every message
+ * ends the yes to offers, whichever door records the stop, and the channels it covered go with it. A function body is
+ * exactly what reading source cannot prove, so these run against
  * Postgres. Skipped without a local database (the member's doors also need SUPABASE_ANON_KEY); never production.
  */
 import { test, before, after } from "node:test";
@@ -16,10 +18,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { CONSENT_CHANNELS, channelsOfYes } from "../../../../packages/contracts/src/consent/consent-channels.ts";
-import { ingestInbound } from "../../../../packages/db/src/repositories/ingest.ts";
+import {
+  STOP_ENDED_OFFERS_SOURCE,
+  WHATSAPP_CONSENT_SOURCE,
+} from "../../../../packages/contracts/src/people/person-consent.ts";
+import {
+  offersAnswerOf,
+  recordWhatsAppOffersStop,
+} from "../../../../packages/db/src/repositories/campaigns/offers-answer.ts";
+import { ingestInbound, recordCarrierOptOut } from "../../../../packages/db/src/repositories/ingest.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const MIGRATION = path.join(ROOT, "supabase", "migrations", "00297_a_yes_covers_the_channels_it_was_given_for.sql");
+const STOP_MIGRATION = path.join(ROOT, "supabase", "migrations", "00323_a_stop_ends_the_yes_to_offers.sql");
 const CLI = process.env.SUPABASE_CLI || "supabase";
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -841,3 +852,426 @@ test("people_list answers the two lists and the ask beside the consent columns",
     assert.ok("consent_channels" in r && "marketing_channels" in r && "offers_asked_at" in r, "every row carries them");
   }
 });
+
+/* ------------------------------------------------------------------ a stop ends the yes to offers (00323) -- */
+
+// The 4 Oct wiring review's decision D3. The rule is a trigger on the change itself, so it is proved where it lives: each
+// of the four doors that record a no to every message (their own STOP through ingest_inbound, the unsubscribe page's
+// stop_all_messages, a member's set_contact_consent, the carrier's report through packages/db recordCarrierOptOut)
+// leaves the answer about offers at not asked, with the source contracts names, the channels the yes covered emptied
+// and one ledger entry that says so. A START after it restores messages about their visit and nothing more; a no to
+// offers stays a no; a person never asked is left alone; and the migration's last statement does the same for a stop
+// already on record.
+
+/** Their own YES OFFERS, as the edge records it. */
+const yesToOffers = async (contactId) =>
+  ok(
+    await db.rpc("set_marketing_consent", {
+      p_tenant_id: tenantId,
+      p_contact_id: contactId,
+      p_consent: "opted_in",
+      p_source: "customer_message",
+      p_note: null,
+      p_evidence: { channel: "whatsapp", words: "YES OFFERS" },
+    }),
+  );
+
+/** A person who wrote in, said yes to messages and yes to offers: the phone and the row's id. */
+async function subscriber() {
+  const p = phone();
+  const id = (await inbound(p, { p_body: "START", p_opt_in: true })).contact_id;
+  await yesToOffers(id);
+  const row = await answers(id);
+  assert.deepEqual(
+    [row.consent, row.marketing_consent, row.marketing_channels],
+    ["opted_in", "opted_in", ["whatsapp"]],
+    "the person starts with both yeses",
+  );
+  return { p, id };
+}
+
+const answers = async (contactId) =>
+  ok(
+    await db
+      .from("contacts")
+      .select(
+        "consent, dnc, consent_source, marketing_consent, marketing_consent_source, marketing_channels, email_marketing, email_marketing_source",
+      )
+      .eq("id", contactId)
+      .single(),
+  );
+
+/** The ledger's entries that say a stop ended this person's yes to offers. */
+const endings = async (contactId) =>
+  ok(
+    await db
+      .from("events")
+      .select("data")
+      .eq("tenant_id", tenantId)
+      .eq("kind", "contact.consent_changed")
+      .eq("subject_id", contactId),
+  )
+    .map((e) => e.data)
+    .filter((d) => d.purpose === "marketing" && d.source === STOP_ENDED_OFFERS_SOURCE);
+
+/** The yes is gone, the stop stands, and the ledger says both once. */
+async function assertEnded(contactId, stoppedBy) {
+  const row = await answers(contactId);
+  assert.deepEqual(
+    [row.consent, row.dnc, row.marketing_consent, row.marketing_consent_source, row.marketing_channels],
+    ["opted_out", true, "unknown", STOP_ENDED_OFFERS_SOURCE, []],
+    "the stop stands, the answer about offers is back to not asked, and the yes covers no channel",
+  );
+  const said = await endings(contactId);
+  assert.equal(said.length, 1, "one ledger entry says the yes ended");
+  assert.deepEqual(
+    [said[0].consent, said[0].previous, said[0].stopped_by],
+    ["unknown", "opted_in", stoppedBy],
+    "what it was, what it is, and which stop ended it",
+  );
+}
+
+test(
+  "their own STOP ends the yes to offers, and a START brings back messages about their visit alone",
+  { skip },
+  async () => {
+    const { p, id } = await subscriber();
+    await inbound(p, { p_body: "STOP", p_opt_out: true });
+    await assertEnded(id, "customer_message");
+
+    // A second STOP is no second ending.
+    await inbound(p, { p_body: "STOP", p_opt_out: true });
+    assert.equal((await endings(id)).length, 1);
+
+    await inbound(p, { p_body: "START", p_opt_in: true });
+    const back = await answers(id);
+    assert.deepEqual(
+      [back.consent, back.dnc, back.marketing_consent, back.marketing_consent_source, back.marketing_channels],
+      ["opted_in", false, "unknown", STOP_ENDED_OFFERS_SOURCE, []],
+      "a START is a yes to messages about their visit: the yes to offers does not come back with it",
+    );
+
+    // Only a new yes of their own turns offers on again.
+    await yesToOffers(id);
+    const again = await answers(id);
+    assert.deepEqual(
+      [again.marketing_consent, again.marketing_consent_source, again.marketing_channels],
+      ["opted_in", "customer_message", ["whatsapp"]],
+    );
+  },
+);
+
+test("a no to offers stays a no, and a person never asked is left as they are", { skip }, async () => {
+  const p = phone();
+  const said = (await inbound(p)).contact_id;
+  ok(
+    await db.rpc("set_marketing_consent", {
+      p_tenant_id: tenantId,
+      p_contact_id: said,
+      p_consent: "opted_out",
+      p_source: "customer_message",
+      p_evidence: { channel: "whatsapp", words: "no offers please" },
+    }),
+  );
+  await inbound(p, { p_body: "STOP", p_opt_out: true });
+  const no = await answers(said);
+  assert.deepEqual(
+    [no.consent, no.marketing_consent, no.marketing_consent_source],
+    ["opted_out", "opted_out", "customer_message"],
+    "their no to offers is theirs, and is not reset by a later stop",
+  );
+  assert.equal((await endings(said)).length, 0);
+
+  const q = phone();
+  const never = (await inbound(q)).contact_id;
+  await inbound(q, { p_body: "STOP", p_opt_out: true });
+  const row = await answers(never);
+  assert.deepEqual([row.consent, row.marketing_consent, row.marketing_consent_source], ["opted_out", "unknown", null]);
+  assert.equal((await endings(never)).length, 0);
+});
+
+test("the unsubscribe page's stop for everything ends it", { skip }, async () => {
+  const { id } = await subscriber();
+  ok(await db.rpc("stop_all_messages", { p_tenant_id: tenantId, p_contact_id: id, p_message_id: null }));
+  await assertEnded(id, "customer_message");
+});
+
+test("the carrier's report of a STOP we never heard ends it", { skip }, async () => {
+  const { id } = await subscriber();
+  assert.equal(
+    await recordCarrierOptOut(db, { tenantId, contactId: id, channel: "sms", previous: "opted_in" }),
+    true,
+    "the report is recorded",
+  );
+  await assertEnded(id, "carrier");
+});
+
+test("a no a member records ends it, and their reset to not asked does not", { skip: skipMember }, async () => {
+  const { id } = await subscriber();
+  ok(await owner.rpc("set_contact_consent", { p_contact_id: id, p_consent: "unknown", p_source: "operator" }));
+  assert.equal((await answers(id)).marketing_consent, "opted_in", "a reset of the other answer is not a stop");
+
+  ok(await owner.rpc("set_contact_consent", { p_contact_id: id, p_consent: "opted_out", p_source: "phone" }));
+  await assertEnded(id, "phone");
+});
+
+test(
+  "a stop already on record when the rule arrived: the migration's last statement ends that yes too",
+  { skip },
+  async () => {
+    // The state from before the rule, made the two ways the trigger does not see: the stop first, while there is no yes
+    // to end, then the yes written onto the row without a change of consent.
+    const p = phone();
+    const id = (await inbound(p)).contact_id;
+    await inbound(p, { p_body: "STOP", p_opt_out: true });
+    ok(
+      await db
+        .from("contacts")
+        .update({ marketing_consent: "opted_in", marketing_consent_source: "form", marketing_channels: ["whatsapp"] })
+        .eq("id", id),
+    );
+    assert.equal((await endings(id)).length, 0);
+
+    const text = fs.readFileSync(STOP_MIGRATION, "utf8").replace(/\r\n/g, "\n");
+    const from = text.indexOf("with ended as (");
+    assert.ok(from > 0, "the statements for the stops already on record are in the migration");
+    const statements = text
+      .slice(from)
+      .split(/;\s*(?:\n|$)/)
+      .map((q) => q.trim())
+      .filter(Boolean);
+    assert.equal(statements.length, 2, "one for the yes to offers, one for the yes to offers by email");
+    const replay = () => statements.forEach((q) => query(q));
+    replay();
+    const row = await answers(id);
+    assert.deepEqual(
+      [row.consent, row.marketing_consent, row.marketing_consent_source, row.marketing_channels],
+      ["opted_out", "unknown", STOP_ENDED_OFFERS_SOURCE, []],
+    );
+    const said = await endings(id);
+    assert.equal(said.length, 1);
+    assert.equal(said[0].via, "migration_00323");
+
+    // Re-runnable: a second run finds nobody.
+    replay();
+    assert.equal((await endings(id)).length, 1);
+
+    // A yes dated after their stop is a newer word than the stop, and is kept; email's yes on a stopped row ends too.
+    const q = phone();
+    const later = (await inbound(q)).contact_id;
+    await inbound(q, { p_body: "STOP", p_opt_out: true });
+    ok(
+      await db
+        .from("contacts")
+        .update({
+          marketing_consent: "opted_in",
+          marketing_consent_source: "customer_message",
+          marketing_consent_updated_at: new Date(Date.now() + 60_000).toISOString(),
+          email_marketing: "opted_in",
+          email_marketing_source: "customer_message",
+          email_marketing_updated_at: new Date(Date.now() - 86_400_000).toISOString(),
+        })
+        .eq("id", later),
+    );
+    replay();
+    const kept = await answers(later);
+    assert.deepEqual(
+      [kept.marketing_consent, kept.marketing_consent_source, kept.email_marketing, kept.email_marketing_source],
+      ["opted_in", "customer_message", "unknown", STOP_ENDED_OFFERS_SOURCE],
+      "the newer yes stands; the yes to offers by email, older than the stop, ends",
+    );
+    assert.equal((await endings(later)).length, 0);
+  },
+);
+
+test(
+  "WhatsApp's report that a person stopped marketing messages (131050) is their no to offers: the yes and its channels go, the stop does not follow",
+  { skip },
+  async () => {
+    // The receipts door's write, against the real tables: the plain update, the ledger row, and 00297's trigger on it.
+    const p = phone();
+    const first = await inbound(p, { p_body: "START", p_opt_in: true });
+    const id = first.contact_id;
+    await yesToOffers(id);
+    const offer = `wamid.offer-${Date.now()}`;
+    ok(
+      await db.from("messages").insert({
+        tenant_id: tenantId,
+        conversation_id: first.conversation_id,
+        contact_id: id,
+        channel: "whatsapp",
+        direction: "outbound",
+        sender: "system",
+        type: "template",
+        body: "This month's offer",
+        external_id: offer,
+        status: "sent",
+      }),
+    );
+    assert.equal(await recordWhatsAppOffersStop(db, { tenantId, externalId: offer }), true);
+    const row = await answers(id);
+    assert.deepEqual(
+      [row.consent, row.dnc, row.marketing_consent, row.marketing_consent_source, row.marketing_channels],
+      ["opted_in", false, "opted_out", WHATSAPP_CONSENT_SOURCE, []],
+      "a no to offers with WhatsApp as its source, the channels emptied, and messages about their visit untouched",
+    );
+    const said = ok(
+      await db
+        .from("events")
+        .select("data")
+        .eq("tenant_id", tenantId)
+        .eq("kind", "contact.consent_changed")
+        .eq("subject_id", id),
+    )
+      .map((e) => e.data)
+      .filter((d) => d.source === WHATSAPP_CONSENT_SOURCE);
+    assert.deepEqual(said, [
+      {
+        purpose: "marketing",
+        consent: "opted_out",
+        previous: "opted_in",
+        source: WHATSAPP_CONSENT_SOURCE,
+        channel: "whatsapp",
+        message_external_id: offer,
+      },
+    ]);
+    // A second report of the same refusal, and a message nobody knows: nothing more is written.
+    assert.equal(await recordWhatsAppOffersStop(db, { tenantId, externalId: offer }), false);
+    assert.equal(await recordWhatsAppOffersStop(db, { tenantId, externalId: "wamid.nobody-knows" }), false);
+  },
+);
+
+test("a stop ends email's own yes to offers too, and leaves an unsubscribe a no", { skip }, async () => {
+  const emailYes = async (id) =>
+    ok(
+      await db.rpc("set_email_offers_yes", {
+        p_tenant_id: tenantId,
+        p_contact_id: id,
+        p_source: "customer_message",
+        p_evidence: { channel: "email", words: "YES OFFERS" },
+      }),
+    );
+  const emailEndings = async (id) =>
+    ok(
+      await db
+        .from("events")
+        .select("data")
+        .eq("tenant_id", tenantId)
+        .eq("kind", "contact.consent_changed")
+        .eq("subject_id", id),
+    )
+      .map((e) => e.data)
+      .filter((d) => d.purpose === "email_marketing" && d.source === STOP_ENDED_OFFERS_SOURCE);
+
+  // A yes to offers by email and none to offers by WhatsApp: the stop still ends it.
+  const p = phone();
+  const id = (await inbound(p, { p_body: "START", p_opt_in: true })).contact_id;
+  assert.deepEqual(await emailYes(id), { changed: true, found: true });
+  await inbound(p, { p_body: "STOP", p_opt_out: true });
+  const stopped = await answers(id);
+  assert.deepEqual(
+    [stopped.consent, stopped.email_marketing, stopped.email_marketing_source, stopped.marketing_consent],
+    ["opted_out", "unknown", STOP_ENDED_OFFERS_SOURCE, "unknown"],
+  );
+  const said = await emailEndings(id);
+  assert.equal(said.length, 1);
+  assert.deepEqual(
+    [said[0].consent, said[0].previous, said[0].channel, said[0].stopped_by],
+    ["unknown", "opted_in", "email", "customer_message"],
+  );
+  await inbound(p, { p_body: "START", p_opt_in: true });
+  assert.equal((await answers(id)).email_marketing, "unknown", "a START does not bring it back");
+
+  // Both yeses, ended by the page's stop for everything: the page's own unsubscribe is the last word on email.
+  const both = await subscriber();
+  await emailYes(both.id);
+  ok(await db.rpc("stop_all_messages", { p_tenant_id: tenantId, p_contact_id: both.id, p_message_id: null }));
+  const after = await answers(both.id);
+  assert.deepEqual(
+    [after.consent, after.marketing_consent, after.marketing_consent_source, after.email_marketing],
+    ["opted_out", "unknown", STOP_ENDED_OFFERS_SOURCE, "opted_out"],
+  );
+
+  // An unsubscribe is a no, and a stop leaves it one.
+  const u = phone();
+  const gone = (await inbound(u, { p_body: "START", p_opt_in: true })).contact_id;
+  ok(
+    await db.rpc("set_email_marketing", {
+      p_tenant_id: tenantId,
+      p_contact_id: gone,
+      p_state: "opted_out",
+      p_source: "unsubscribe",
+    }),
+  );
+  await inbound(u, { p_body: "STOP", p_opt_out: true });
+  const no = await answers(gone);
+  assert.deepEqual([no.email_marketing, no.email_marketing_source], ["opted_out", "unsubscribe"]);
+  assert.equal((await emailEndings(gone)).length, 0);
+});
+
+test(
+  "a YES OFFERS from a person who is stopped is not recorded: START is the way back, and the gate then reads a yes a stop ended",
+  { skip },
+  async () => {
+    // Through the repository the edge calls. A yes stored under a stop would be one no later stop could end: a second
+    // STOP from a person already stopped records nothing, so the trigger would never see it.
+    const { p, id } = await subscriber();
+    const base = {
+      tenantId,
+      identityExternalId: p,
+      phoneE164: p,
+      waProfileName: null,
+      type: "text",
+      channel: "whatsapp",
+    };
+    const at = () => new Date().toISOString();
+    await ingestInbound(db, {
+      ...base,
+      body: "STOP",
+      channelTs: at(),
+      messageExternalId: `wamid.stop-${p}`,
+      optOut: true,
+    });
+    const yes = await ingestInbound(db, {
+      ...base,
+      body: "YES OFFERS",
+      channelTs: at(),
+      messageExternalId: `wamid.yes-${p}`,
+      optInMarketing: true,
+    });
+    assert.equal(yes.consent, "opted_out");
+    const under = await answers(id);
+    assert.deepEqual(
+      [under.marketing_consent, under.marketing_consent_source],
+      ["unknown", STOP_ENDED_OFFERS_SOURCE],
+      "nothing was written under the stop",
+    );
+    // What the START gate reads to say so (contracts offersAfterStart), by the person's id.
+    assert.deepEqual(await offersAnswerOf(db, tenantId, id), {
+      marketingConsent: "unknown",
+      marketingConsentSource: STOP_ENDED_OFFERS_SOURCE,
+    });
+    assert.equal(await offersAnswerOf(db, tenantId, "00000000-0000-4000-8000-000000000000"), null);
+
+    // After START, their YES OFFERS is their yes again.
+    await ingestInbound(db, {
+      ...base,
+      body: "START",
+      channelTs: at(),
+      messageExternalId: `wamid.start-${p}`,
+      optIn: true,
+    });
+    await ingestInbound(db, {
+      ...base,
+      body: "YES OFFERS",
+      channelTs: at(),
+      messageExternalId: `wamid.yes2-${p}`,
+      optInMarketing: true,
+    });
+    const back = await answers(id);
+    assert.deepEqual(
+      [back.consent, back.marketing_consent, back.marketing_consent_source, back.marketing_channels],
+      ["opted_in", "opted_in", "customer_message", ["whatsapp"]],
+    );
+  },
+);

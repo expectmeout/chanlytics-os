@@ -461,6 +461,9 @@ async function holdRecipients(db, p) {
 }
 
 // src/repositories/ingest.ts
+function stoppedNow(r) {
+  return r?.consent === "opted_out" || r?.dnc === true;
+}
 async function noteYesOnChannel(db, p, contactId) {
   const failed = (error) => dbLog().error("consent_channel_write_failed", { tenant_id: p.tenantId, contact_id: contactId, error });
   try {
@@ -496,7 +499,9 @@ async function ingestInbound(db, p) {
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   const out = data;
   if (p.optIn && out?.contact_id) await noteYesOnChannel(db, p, out.contact_id);
-  if (p.optInMarketing && out?.contact_id) {
+  if (p.optInMarketing && out?.contact_id && stoppedNow(out)) {
+    dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: p.channel });
+  } else if (p.optInMarketing && out?.contact_id) {
     const args = {
       p_tenant_id: p.tenantId,
       p_contact_id: out.contact_id,
@@ -887,7 +892,9 @@ async function ingestInboundEmail(db, p) {
       messageId: out.message_id,
       evidence: { ...evidence, via: "reply" }
     });
-  if (p.optInOffers && !out.processed) {
+  if (p.optInOffers && !out.processed && stoppedNow(out)) {
+    dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: "email" });
+  } else if (p.optInOffers && !out.processed) {
     try {
       const yes = await setEmailOffersYes(db, {
         tenantId: p.tenantId,
@@ -1033,6 +1040,39 @@ async function suppressEmailOf(db, p) {
   const { data, error } = await db.from("contacts").update({ email_suppressed_at: p.at, email_suppressed_reason: p.reason }).eq("id", sent.data.contact_id).eq("tenant_id", p.tenantId).in("email", p.addresses).is("email_suppressed_at", null).select("id");
   if (error) throw new Error(`email receipt: cannot stop sends to the address: ${error.message}`);
   return data?.[0]?.id ?? null;
+}
+
+// src/repositories/campaigns/offers-answer.ts
+import { WHATSAPP_CONSENT_SOURCE } from "../../contracts/dist/index.js";
+async function offersAnswerOf(db, tenantId, contactId) {
+  const { data, error } = await db.from("contacts").select("marketing_consent, marketing_consent_source").eq("tenant_id", tenantId).eq("id", contactId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? { marketingConsent: data.marketing_consent, marketingConsentSource: data.marketing_consent_source } : null;
+}
+async function recordWhatsAppOffersStop(db, p) {
+  const sent = await db.from("messages").select("contact_id").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
+  if (sent.error) throw new Error(`reading the message WhatsApp refused (${p.externalId}): ${sent.error.message}`);
+  const contactId = sent.data?.contact_id;
+  if (!contactId) return false;
+  const who = await db.from("contacts").select("marketing_consent, erased_at").eq("id", contactId).eq("tenant_id", p.tenantId).maybeSingle();
+  if (who.error) throw new Error(`reading contact ${contactId} for WhatsApp's stop: ${who.error.message}`);
+  if (!who.data || who.data.erased_at || who.data.marketing_consent === "opted_out") return false;
+  const { data, error } = await db.from("contacts").update({
+    marketing_consent: "opted_out",
+    marketing_consent_source: WHATSAPP_CONSENT_SOURCE,
+    marketing_consent_updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }).eq("id", contactId).eq("tenant_id", p.tenantId).neq("marketing_consent", "opted_out").select("id");
+  if (error) throw new Error(`recording WhatsApp's stop for contact ${contactId}: ${error.message}`);
+  if (!data || data.length === 0) return false;
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", contactId, {
+    purpose: "marketing",
+    consent: "opted_out",
+    previous: who.data.marketing_consent,
+    source: WHATSAPP_CONSENT_SOURCE,
+    channel: "whatsapp",
+    message_external_id: p.externalId
+  });
+  return true;
 }
 
 // src/repositories/sending-domains.ts
@@ -3464,6 +3504,7 @@ export {
   noticeKept,
   observeDb,
   offerLanguageOf,
+  offersAnswerOf,
   offersEmailReach,
   outreachFactsOf,
   outreachModeOf,
@@ -3515,6 +3556,7 @@ export {
   recordPartnerSecondFactorReset,
   recordProviderDomain,
   recordStatusByExternalId,
+  recordWhatsAppOffersStop,
   refreshWaitlistRow,
   releaseControl,
   releaseIdempotencyKey,

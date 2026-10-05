@@ -22,7 +22,15 @@ export type {
 } from "./models/anthropic";
 export { askSystemOne, SYSTEM_ONE_URL } from "./models/typesafe";
 export type { SystemOneAsk, SystemOneReply } from "./models/typesafe";
-export { normalizeInbound, waPricingOf, graphThrottled, sendText, sendTemplate, fetchMediaBytes } from "./whatsapp";
+export {
+  normalizeInbound,
+  waPricingOf,
+  waStoppedMarketing,
+  graphThrottled,
+  sendText,
+  sendTemplate,
+  fetchMediaBytes,
+} from "./whatsapp";
 export type {
   WaConfig,
   WaRawMessage,

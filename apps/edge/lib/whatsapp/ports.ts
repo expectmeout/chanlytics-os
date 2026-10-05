@@ -21,7 +21,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
 import { pg } from "../pg.js";
-import { readLeadContext, personReplyMode, describeLead } from "../packages/db.js";
+import { readLeadContext, personReplyMode, offersAnswerOf, describeLead } from "../packages/db.js";
 import { loadTenantRuntime, waCfgFor } from "../tenant-runtime.js";
 import { openingsFor, visitsFor } from "../calendar/availability.js";
 import { tokensLast24h } from "../receptionist/budget.js";
@@ -37,7 +37,11 @@ export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "
   db: () => SupabaseClient<Database> | null;
   /** The control plane's one door: the workspace's persona, policy, credentials. */
   runtime: typeof loadTenantRuntime;
-  leads: { read: typeof readLeadContext; personReplyMode: typeof personReplyMode };
+  leads: {
+    read: typeof readLeadContext;
+    personReplyMode: typeof personReplyMode;
+    offersAnswer?: typeof offersAnswerOf;
+  };
   calendar: { openings: typeof openingsFor; visits: typeof visitsFor };
   budget: { tokensLast24h: typeof tokensLast24h };
   /** The Postgres bookkeeping of one message: ingest, the memory, the held draft, the sink. */
@@ -87,7 +91,7 @@ export function realPorts(): InboundPorts {
   return {
     db: pg,
     runtime: loadTenantRuntime,
-    leads: { read: readLeadContext, personReplyMode },
+    leads: { read: readLeadContext, personReplyMode, offersAnswer: offersAnswerOf },
     calendar: { openings: openingsFor, visits: visitsFor },
     budget: { tokensLast24h },
     persist: { thread: pgThread, ingest: pgIngest, sink: pgSink, queueReply, turn: replyTurn },
