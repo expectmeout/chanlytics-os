@@ -339,8 +339,9 @@ test("sections with nobody in them are the one body with the page's empty words"
 
 /* ------------------------------------- how the rows move ------------------------------------- */
 
-const { riseRows } = await importSrc("apps/dashboard/src/surfaces/kit/motion/use-rows-arrive.ts");
-const { swapRise } = await importSrc("apps/dashboard/src/surfaces/kit/motion/use-swap-motion.ts");
+// By their paths, so the dead-export check sees who reads them (an importSrc string is not an import it can follow).
+const { riseRows } = await import("../../../../apps/dashboard/src/surfaces/kit/motion/use-rows-arrive.ts");
+const { swapRise } = await import("../../../../apps/dashboard/src/surfaces/kit/motion/use-swap-motion.ts");
 
 /** An element that records what it was asked to animate. */
 const moving = (name) => {

@@ -380,7 +380,7 @@ function useShellApp(
  * draws this frame no more than it did. `route`: the route of the router's pathname (LegacyHost), or null where there is
  * none (the home), and then the frame hears the address itself.
  */
-export default function LegacyApp({ routePage, route = null }: { routePage?: ReactNode; route?: string | null }) {
+export default function LegacyApp({ routePage, route }: { routePage?: ReactNode; route: string | null }) {
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs(browserStorage));
   // Another workspace, asked for from the workspace menu (shell.createWorkspace).
   const [creating, setCreating] = useState(false);

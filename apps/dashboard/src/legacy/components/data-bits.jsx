@@ -265,8 +265,8 @@ const keyPress = (fn) => (e) => {
 // asked once, as a touch is taken across (never from 24px of either edge, which is the phone's own back), with where
 // the touch began: `{ prev, next, moving, follow(progress, step, how), go(step) }`, or null for no page. The page moves
 // with the finger both ways; toward a side with no page it gives a quarter of the drag, 48px at most. `moving` names
-// what moves when it is not the element itself (People's strip is inside its page: all around it moves, it stays). Let go past a third (160px at most) or with a flick toward a page, it
-// leaves that way and then `go(step)`; otherwise it settles. `follow` hears every move ("move") and the end ("leave",
+// what moves when it is not the element itself (People's strip is inside its page: all around it moves, it stays). Let go past a third (160px at most) or with a flick toward a page, `go(step)`
+// at once and it leaves that way while the next draws (it waited the leave out, 5 Oct 2026); otherwise it settles. `follow` hears every move ("move") and the end ("leave",
 // "settle"). The answer is kept with the touch, so a page drawn again mid-gesture loses nothing. `back` goes first.
 // A page that `stays` (the Calendar's days: the same element shows the next ones) comes back in after `go`, from the
 // side it is going to, 40px, as a new view slides in (components.css route-slide-*).
@@ -366,10 +366,7 @@ const swipeArrive = (g) => {
     }
   }, SETTLE_MS + 20);
 };
-// Away the way it was pulled, then the close; still on screen after it (the page asked first), it settles back. A page
-// walked across to another view is the exception: its tab is pressed as the finger lets go, so the page beside draws while
-// this one leaves (it waited the leave out, and the screen stood empty for it, 5 Oct 2026). A page that stays turns
-// in place after the leave, as before.
+// Away the way it was pulled, then the close (a page walked across closes as it starts); still on screen after it, it settles back.
 const swipeLeave = (g, close) => {
   const { el, wash, way } = g;
   const them = (g.moving || [el]).filter((m) => m && m.style);
@@ -377,10 +374,7 @@ const swipeLeave = (g, close) => {
   if (early) close();
   const done = () => {
     if (!early) close();
-    if (way === "page" && g.pages && g.pages.stays) {
-      swipeArrive(g);
-      return;
-    }
+    if (way === "page" && g.pages && g.pages.stays) { swipeArrive(g); return; }
     if (way === "away") {
       setTimeout(() => {
         if (g.onGrab) g.onGrab(el, false);
