@@ -393,8 +393,8 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   assert.ok(
     persist.includes('channel: "whatsapp" | "sms" = "whatsapp"') &&
       /to,\s*channel,\s*sender: "ai",\s*purpose,\s*\.\.\.AN_ANSWER,/.test(persist) &&
-      // An answer, about something of theirs (contracts MessageAbout): no conversation started.
-      persist.includes('const AN_ANSWER = { proactive: false, about: "theirs" } as const;'),
+      // An answer, about something of theirs (contracts MessageAbout), and no playbook's run: no conversation started.
+      persist.includes('const AN_ANSWER = { proactive: false, about: "theirs", trigger: null } as const;'),
     "the sink's door sends on this message's channel, as the receptionist",
   );
   // Conversational unless the caller says otherwise, which only the confirmation
