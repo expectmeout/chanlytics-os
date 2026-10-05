@@ -6,6 +6,7 @@
  * of appointments (Ruben, 1 Oct 2026): the brief is everything that needs a person now, then the day, then the rest.
  */
 import type { TodayDayItemVM, TodayDayVM } from "./today-day";
+import { isPersonRow } from "./today-queue";
 import type { TodayVM } from "./today-vm";
 
 /** A run of words, in bold where the canvas sets a name so (read through TodayBriefWords; not exported on its own). */
@@ -44,23 +45,16 @@ function names(who: readonly string[], rest: number): TodayBriefSegment[] {
   return out;
 }
 
-/** The rows that are a person waiting on one (a search and a call worth a listen are said apart). */
-const PEOPLE_KINDS: ReadonlySet<TodayVM["queue"]["rows"][number]["kind"]> = new Set([
-  "handoff",
-  "callback",
-  "window",
-  "reply",
-]);
-
 /** Who needs you, with the oldest wait as the headline's detail says it; then the calls worth a listen and the searches. */
 function needsSentences(vm: TodayVM): TodayBriefSegment[][] {
   const rows = vm.queue.rows;
-  const people = [...new Set(rows.filter((r) => PEOPLE_KINDS.has(r.kind)).map((r) => r.who))];
-  const calls = rows.filter((r) => r.kind === "call").length;
-  const searches = rows.filter((r) => r.kind === "search").length;
+  const people = [...new Set(rows.filter(isPersonRow).map((r) => r.who))];
+  // The calls worth a listen and the searches waiting, all of them: counting the drawn rows alone said nothing of four
+  // calls the queue's head had counted, because they sort after everyone waiting (the 2 Oct 2026 audit).
+  const { calls, searches } = vm.queue;
   const out: TodayBriefSegment[][] = [];
   if (people.length) {
-    const one = people.length === 1 && vm.queue.more === 0;
+    const one = people.length === 1 && vm.queue.more_people === 0;
     const detail = vm.standing.detail;
     // One person: the headline's detail names them again ("Ana Reyes has been waiting since 2:20 PM."), so the two
     // sentences are one: "Ana Reyes needs you, waiting since 2:20 PM."
@@ -69,7 +63,8 @@ function needsSentences(vm: TodayVM): TodayBriefSegment[][] {
     if (one && detail && detail.startsWith(lead))
       out.push([bold(first), plain(` needs you, ${detail.slice(lead.length)}`)]);
     else {
-      out.push([...names(people, vm.queue.more), plain(one ? " needs you." : " need you.")]);
+      // The people not named, never the calls and the searches past the six: "and 20 more" over sixteen people.
+      out.push([...names(people, vm.queue.more_people), plain(one ? " needs you." : " need you.")]);
       if (detail) out.push([plain(detail)]);
     }
   }

@@ -245,6 +245,10 @@ export function todayFacts(input: TodayInput): TodayFacts {
     callsInWindow: callDtos.filter((c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs),
     callMinutes: Math.round(period.call_seconds / 60),
     traffic: period.messages_in + period.calls + period.messages_out_you,
-    oldest: tzSince(metrics.now.oldest_open_escalation_at, tz, now),
+    // The oldest wait among the threads WAITING ON YOU: openEsc is the list the headline's count and its one name are
+    // read from, oldest first. The metric's oldest open escalation counts the ones you or a teammate hold and the
+    // snoozed too, so the headline paired one person's name with another thread's time ("Ana has been waiting since
+    // Aug 29"; the 2 Oct 2026 audit).
+    oldest: tzSince(openEsc[0]?.created_at, tz, now),
   };
 }

@@ -8,7 +8,7 @@
  * Times are written in the business's own zone, once, in the header, so a file read months later still says which
  * clock it used.
  */
-import { callLength, csvCell, personName, whisperText, type CsvCell } from "@chanlytics/contracts";
+import { callLength, csvCell, mmss, personName, whisperText, type CsvCell } from "@chanlytics/contracts";
 import type { CallDto, ConversationDto, MessageDto, PersonRowDto } from "@chanlytics/contracts";
 
 interface ExportOpts {
@@ -126,14 +126,13 @@ export function transcriptText(
 }
 
 /**
- * "2:05" from a count of SECONDS (a transcript turn's start), floored, "--:--" for none: the file's own, since
- * contracts' mmss takes milliseconds and rounds. A turn's start is not a call's length: that is callLength's, the
- * call card's rule.
+ * "2:05" from a count of SECONDS (a transcript turn's start), "--:--" for none: the one clock (contracts mmss, which takes
+ * milliseconds), so a turn reads the second the page reads, in Conversations and on Live. It floored where they rounded.
+ * A turn's start is not a call's length: that is callLength's, the call card's rule.
  */
 function mmssFromSeconds(seconds: number | undefined): string {
   if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "--:--";
-  const t = Math.max(0, Math.floor(seconds));
-  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+  return mmss(seconds * 1000);
 }
 
 /** A phone call as plain text: the facts, the summary, then the turns. */

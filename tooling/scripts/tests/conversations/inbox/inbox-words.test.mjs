@@ -289,7 +289,7 @@ const { Menu } = await import(`${S}/kit/menu/menu.tsx`);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 after(() => setSurfaceValue("inbox", undefined));
 /** The Inbox's approved templates, as the surface publishes them (what window.__TEMPLATES was): the composer reads them from the seam. */
-const setTemplates = (templates) =>
+const setTemplates = (templates, templatesHeld) =>
   setSurfaceValue("inbox", {
     INBOX_BUCKETS: [],
     INBOX_VIEWS: [],
@@ -297,6 +297,7 @@ const setTemplates = (templates) =>
     CHANNEL_LABELS: {},
     INBOX_BASELINE: { doneThisWeek: 0 },
     templates,
+    ...(templatesHeld ? { templatesHeld } : {}),
   });
 
 const walk = (n, fn) => {
@@ -433,6 +434,24 @@ test("the template send is the reply box's capsule: the message it will send whe
 
   setTemplates([]);
   assert.match(textOf(composerOf(closed)), /No approved template yet/, "none approved is still its own answer");
+  // ...and it says which: the read counted the messages it left out, by why (noTemplateWords).
+  setTemplates([], { pending: 2, rejected: 1, paused: 0, disabled: 0, hidden: 0 });
+  assert.equal(
+    textOf(find(composerOf(closed), hasClass("ix-tpl-none"))),
+    "No approved template yet (2 waiting for WhatsApp to review, 1 refused by WhatsApp) — nothing can be sent until one is.",
+    "REGRESSION: 'none yet' over a workspace whose messages were all waiting for WhatsApp, refused, or paused",
+  );
+
+  // A message WhatsApp approved and would refuse is not offered, and the menu says so.
+  const picture = tpl("autumn_picture", { variables: booking.variables, blocked: "a picture for a heading" });
+  setTemplates([booking, picture]);
+  tree = composerOf(closed);
+  assert.deepEqual(
+    shape(menuIn(tree)),
+    ["[Not offered: 1 that WhatsApp would refuse (a picture for a heading).]"],
+    "REGRESSION: the picker offered a message Meta refuses for every send",
+  );
+  assert.equal(nameOf(tree), "Booking link");
 });
 
 test("the search asks for what it searches, and a teammate's email keeps its own letters", () => {

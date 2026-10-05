@@ -14311,6 +14311,23 @@ function callOutcomeWords(v) {
   const o = callOutcomeOf(v);
   return o ? CALL_OUTCOME_WORDS[o] : null;
 }
+function callTodoWords(followUp) {
+  const said = followUp?.trim();
+  return said ? `To do: ${said}` : null;
+}
+function callNotesOf(a) {
+  const name = a.caller_name?.trim();
+  return {
+    todo: callTodoWords(a.follow_up),
+    gave: [
+      name ? `Gave their name as ${name}` : "",
+      a.caller_email ? `Gave their email as ${a.caller_email}` : ""
+    ].filter(Boolean)
+  };
+}
+function callNoteLines(n) {
+  return n.todo ? [n.todo, ...n.gave] : n.gave;
+}
 function tidyCallSummary(text) {
   const t = (text ?? "").replace(/\s+/g, " ").trim();
   if (!t) return null;
@@ -14368,6 +14385,14 @@ var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
 
 // src/conversations/call-vm.ts
+function callOutcomeFor(dto, live) {
+  if (live) return "live";
+  if (dto.status === "not_connected") return "missed";
+  if (dto.status === "error") return "failed";
+  if (abandonedCall(dto)) return "abandoned";
+  if (callOutcomeOf(dto.outcome) === "callback_needed") return "callback";
+  return dto.in_voicemail ? "voicemail" : "handled";
+}
 function spokenDuration(ms2) {
   if (!ms2) return "Duration not recorded";
   const total = Math.round(ms2 / 1e3);
@@ -14403,9 +14428,9 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   }
   const outcomeWords = callOutcomeWords(dto.outcome);
   if (outcomeWords) bullets.push(outcomeWords);
-  if (dto.follow_up?.trim()) bullets.push(`To do: ${dto.follow_up.trim()}`);
-  if (dto.caller_name?.trim()) bullets.push(`Gave their name as ${dto.caller_name.trim()}`);
-  if (dto.caller_email) bullets.push(`Gave their email as ${dto.caller_email}`);
+  const notes = callNotesOf(dto);
+  if (notes.todo) bullets.push(notes.todo);
+  bullets.push(...notes.gave);
   const recState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording?.fetch_state === "purged" ? "purged" : dto.recording ? "pending" : "none";
   if (!missed) {
     bullets.push(
@@ -14430,7 +14455,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     const next = start == null ? null : starts.slice(i + 1).find((x) => x != null && x > start) ?? null;
     const end = start == null ? null : turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next;
     return {
-      t: typeof own === "number" ? `${Math.floor(own / 60)}:${String(Math.floor(own % 60)).padStart(2, "0")}` : "\u2014",
+      t: typeof own === "number" ? mmss(own * 1e3) : "\u2014",
       speaker: turn.role === "agent" ? "agent" : "client",
       text: turn.content ?? "",
       start,
@@ -14451,7 +14476,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     at: shortTime(dto.started_at, tz, now),
     ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...dur ? { duration: dur } : {},
-    outcome: live ? "live" : missed ? "missed" : dto.status === "error" ? "failed" : abandonedCall(dto) ? "abandoned" : callOutcomeOf(dto.outcome) === "callback_needed" ? "callback" : dto.in_voicemail ? "voicemail" : "handled",
+    outcome: callOutcomeFor(dto, live),
     ...live ? { live: true } : {},
     snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
     summary: { headline: wanted || firstSentence || snippetBody, bullets },
@@ -14468,7 +14493,8 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     about: missed ? null : wanted || firstSentence || null,
     facts: [CALL_MOOD[dto.sentiment ?? ""], ending, missed ? void 0 : RECORDING_NOTE[recState]].filter(
       (f) => !!f
-    )
+    ),
+    notes
   };
 }
 
@@ -15742,16 +15768,18 @@ function threadStanding(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const state = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
   return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
 }
+function heldDraftOf(messages) {
+  return [...messages].reverse().find(isHeldDraft) ?? null;
+}
+function conversationWaitsOnYou(dto, escalation, now = /* @__PURE__ */ new Date()) {
+  if (threadStanding(dto, escalation, now).needsYou) return true;
+  const draft = heldDraftOf(dto.messages);
+  return !!draft && replyWaitsOnYou({ endsAtMs: draftSendsAtMs(draft) }, now.getTime());
+}
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
-  let draftMsg = null;
-  for (let i = dto.messages.length - 1; i >= 0; i--) {
-    if (isHeldDraft(dto.messages[i])) {
-      draftMsg = dto.messages[i];
-      break;
-    }
-  }
+  const draftMsg = heldDraftOf(dto.messages);
   const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
   const reasonLabel = escalation ? reasonLabelOf(escalation.reason) : null;
   const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
@@ -19961,7 +19989,7 @@ function firstRunTryOf({ dto, calls, since, nowMs }) {
   const to = `conversations/${call.cvId}`;
   if (call.live) {
     const secs = Math.max(0, Math.floor((nowMs - (call.startedAtMs ?? nowMs)) / 1e3));
-    const clock3 = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+    const clock3 = mmss(secs * 1e3);
     return {
       ...base,
       stage: "call",
@@ -23135,6 +23163,7 @@ function callItems({ profile, stamp }) {
     const wanted = (k.wanted || "").trim();
     const summary = tidyCallSummary(k.summary) ?? "";
     const missed = k.status === "not_connected";
+    const notes = callNoteLines(callNotesOf(k));
     const sentence2 = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : k.in_voicemail ? "Reached voicemail." : "No summary from this call.");
     items.push({
       id: `k-${k.id}`,
@@ -23143,6 +23172,7 @@ function callItems({ profile, stamp }) {
       kind: "call",
       who: missed ? callAttemptWords(k.direction) : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""}`,
       text: sentence2,
+      ...notes.length ? { notes } : {},
       sub: missed ? "Never connected" : k.recording?.fetch_state === "stored" ? "Recording and transcript in Conversations" : "Transcript in Conversations",
       link: { label: "Open", to: `conversations/cv-${k.id}` }
     });
@@ -23516,6 +23546,122 @@ function templateUntranslatable(t) {
   return null;
 }
 
+// src/templates/template-parts.ts
+function footerOf(components) {
+  if (!Array.isArray(components)) return null;
+  for (const c of components) {
+    if (!c || typeof c !== "object") continue;
+    const part = c;
+    if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
+    const text = typeof part.text === "string" ? part.text.trim() : "";
+    if (text) return text;
+  }
+  return null;
+}
+function templateFooter(t) {
+  if (typeof t.footer === "string" && t.footer.trim()) return t.footer.trim();
+  const stored = footerOf(t.components);
+  if (stored) return stored;
+  const s = starterByName(t.name);
+  return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
+}
+var partOf = (components, type) => {
+  if (!Array.isArray(components)) return null;
+  for (const c of components) {
+    if (c && typeof c === "object" && String(c.type ?? "").toUpperCase() === type)
+      return c;
+  }
+  return null;
+};
+var textOf = (part) => {
+  const t = part && typeof part.text === "string" ? part.text.trim() : "";
+  return t || null;
+};
+var BUTTON_KIND = { URL: "url", QUICK_REPLY: "reply", PHONE_NUMBER: "call" };
+function templateParts(components) {
+  const header = partOf(components, "HEADER");
+  const buttons = [];
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const kind = BUTTON_KIND[String(b.type ?? "").toUpperCase()];
+    const text = typeof b.text === "string" ? b.text.trim() : "";
+    if (kind && text) buttons.push({ text, kind });
+  }
+  return {
+    // A picture heading is not words and is not drawn as any.
+    header: header && String(header.format ?? "TEXT").toUpperCase() === "TEXT" ? textOf(header) : null,
+    footer: footerOf(components),
+    buttons
+  };
+}
+function templateBlocked(t) {
+  if (typeof t.blocked === "string") return t.blocked.trim() || null;
+  if (t.blocked === null) return null;
+  const components = t.components;
+  if (!Array.isArray(components)) return null;
+  const header = partOf(components, "HEADER");
+  if (header) {
+    const format = String(header.format ?? "TEXT").toUpperCase();
+    if (format !== "TEXT")
+      return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
+    if (/\{\{\d+\}\}/.test(String(header.text ?? ""))) return "a heading that takes a value";
+  }
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const button = b;
+    const type = String(button.type ?? "").toUpperCase();
+    if (!(type in BUTTON_KIND)) return "a button Chanlytics cannot fill";
+    if (type === "URL" && /\{\{\d+\}\}/.test(String(button.url ?? ""))) return "a button that takes a value";
+  }
+  return null;
+}
+function refusedWords(reason) {
+  const said = String(reason ?? "").trim().replace(/[.!?\s]+$/, "");
+  if (!said) return null;
+  const words2 = /^[A-Z0-9_]+$/.test(said) ? said.toLowerCase().replace(/_/g, " ") : said;
+  return `WhatsApp refused this one: ${words2}. Change the words and send it back.`;
+}
+var COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
+function blockedWords(reasons) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const r2 of reasons) seen.set(r2, (seen.get(r2) ?? 0) + 1);
+  const parts2 = [...seen].map(([reason, n]) => `${COUNT_WORDS[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
+  return parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}` : parts2[0];
+}
+function sendableTemplates(list2) {
+  const sendable = [];
+  const blocked = [];
+  for (const t of list2) (templateBlocked(t) ? blocked : sendable).push(t);
+  if (blocked.length === 0) return { sendable, blocked, why: null };
+  const n = blocked.length;
+  const reasons = blocked.map((t) => templateBlocked(t));
+  const words2 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
+  const many = COUNT_WORDS[n] ?? String(n);
+  const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
+  return {
+    sendable,
+    blocked,
+    why: `${lead} can't go out from here \u2014 ${words2}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
+  };
+}
+function templateLinkButton(components) {
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const x = b;
+    if (String(x.type ?? "").toUpperCase() !== "URL") continue;
+    const text = typeof x.text === "string" ? x.text.trim() : "";
+    const url = typeof x.url === "string" ? x.url.trim() : "";
+    if (text && url) return { text, url };
+  }
+  return null;
+}
+
 // src/templates/template-slots.ts
 function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
@@ -23597,7 +23743,13 @@ function inboxTemplates(templates, to) {
   const rows = [];
   let promotions = 0;
   let unfillable = 0;
+  const refused = [];
   for (const t of templates) {
+    const blocked = templateBlocked(t);
+    if (blocked) {
+      refused.push(blocked);
+      continue;
+    }
     if (slotToWrite(t)) {
       unfillable += 1;
       continue;
@@ -23623,10 +23775,36 @@ function inboxTemplates(templates, to) {
     label: reads(r2.title) > 1 ? `${r2.title} \xB7 ${languageWords(r2.template.language)}` : r2.title
   }));
   const held = [
+    refused.length ? `${refused.length} that WhatsApp would refuse (${[...new Set(refused)].join(", ")})` : "",
     promotions ? `${promotions} promotion${promotions === 1 ? "" : "s"} (${to.who} hasn't said yes to offers)` : "",
     unfillable ? `${unfillable} that ${unfillable === 1 ? "needs" : "need"} words the Inbox doesn't ask for` : ""
   ].filter(Boolean);
-  return { sendable, hidden: held.length ? `Not offered: ${held.join(" and ")}.` : null };
+  const said = held.length > 1 ? `${held.slice(0, -1).join(", ")} and ${held[held.length - 1]}` : held[0];
+  return { sendable, hidden: held.length ? `Not offered: ${said}.` : null };
+}
+function templateHolds(left) {
+  const out = { pending: 0, rejected: 0, paused: 0, disabled: 0, hidden: 0 };
+  for (const t of left) {
+    if (t.channel !== "whatsapp") continue;
+    const status = t.meta_status;
+    if (status === "pending" || status === "rejected" || status === "paused" || status === "disabled") out[status] += 1;
+    else if (status === "approved") out.hidden += 1;
+  }
+  return out;
+}
+var HOLD_WORDS2 = [
+  ["pending", "waiting for WhatsApp to review"],
+  ["rejected", "refused by WhatsApp"],
+  ["paused", "paused by WhatsApp"],
+  ["disabled", "disabled by WhatsApp"],
+  ["hidden", "hidden by you"]
+];
+function noTemplateWords(held) {
+  const parts2 = HOLD_WORDS2.flatMap(([key, words2]) => {
+    const n = held?.[key] ?? 0;
+    return n > 0 ? [`${n} ${words2}`] : [];
+  });
+  return `No approved template yet${parts2.length ? ` (${parts2.join(", ")})` : ""} \u2014 nothing can be sent until one is.`;
 }
 function inboxSlots(t) {
   return Array.isArray(t.variables) ? defaultParamSpecs({ name: t.name, variables: t.variables }) : [{ kind: "business_name" }, { kind: "booking_link" }];
@@ -23678,7 +23856,7 @@ function groupTemplates(list2) {
 }
 function bookingTemplate(templates) {
   const usable = templates.filter(
-    (t) => t.meta_status === "approved" && !slotToWrite(t) && defaultSlotKinds(t).includes("booking_link")
+    (t) => t.meta_status === "approved" && !templateBlocked(t) && !slotToWrite(t) && defaultSlotKinds(t).includes("booking_link")
   );
   return usable.find((t) => t.name === "call_text") ?? usable.find((t) => t.name === "booking_link") ?? usable.slice().sort(compareTemplates)[0] ?? null;
 }
@@ -28014,116 +28192,6 @@ function namedProblem(check, words2, set) {
   return namedRefusal(subject, set) ?? namedRefusal(words2.body, set) ?? check.error;
 }
 
-// src/templates/template-parts.ts
-function footerOf(components) {
-  if (!Array.isArray(components)) return null;
-  for (const c of components) {
-    if (!c || typeof c !== "object") continue;
-    const part = c;
-    if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
-    const text = typeof part.text === "string" ? part.text.trim() : "";
-    if (text) return text;
-  }
-  return null;
-}
-function templateFooter(t) {
-  if (typeof t.footer === "string" && t.footer.trim()) return t.footer.trim();
-  const stored = footerOf(t.components);
-  if (stored) return stored;
-  const s = starterByName(t.name);
-  return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
-}
-var partOf = (components, type) => {
-  if (!Array.isArray(components)) return null;
-  for (const c of components) {
-    if (c && typeof c === "object" && String(c.type ?? "").toUpperCase() === type)
-      return c;
-  }
-  return null;
-};
-var textOf = (part) => {
-  const t = part && typeof part.text === "string" ? part.text.trim() : "";
-  return t || null;
-};
-var BUTTON_KIND = { URL: "url", QUICK_REPLY: "reply", PHONE_NUMBER: "call" };
-function templateParts(components) {
-  const header = partOf(components, "HEADER");
-  const buttons = [];
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const kind = BUTTON_KIND[String(b.type ?? "").toUpperCase()];
-    const text = typeof b.text === "string" ? b.text.trim() : "";
-    if (kind && text) buttons.push({ text, kind });
-  }
-  return {
-    // A picture heading is not words and is not drawn as any.
-    header: header && String(header.format ?? "TEXT").toUpperCase() === "TEXT" ? textOf(header) : null,
-    footer: footerOf(components),
-    buttons
-  };
-}
-function templateBlocked(t) {
-  if (typeof t.blocked === "string") return t.blocked.trim() || null;
-  if (t.blocked === null) return null;
-  const components = t.components;
-  if (!Array.isArray(components)) return null;
-  const header = partOf(components, "HEADER");
-  if (header) {
-    const format = String(header.format ?? "TEXT").toUpperCase();
-    if (format !== "TEXT")
-      return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
-    if (/\{\{\d+\}\}/.test(String(header.text ?? ""))) return "a heading that takes a value";
-  }
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const button = b;
-    const type = String(button.type ?? "").toUpperCase();
-    if (!(type in BUTTON_KIND)) return "a button Chanlytics cannot fill";
-    if (type === "URL" && /\{\{\d+\}\}/.test(String(button.url ?? ""))) return "a button that takes a value";
-  }
-  return null;
-}
-var COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
-function blockedWords(reasons) {
-  const seen = /* @__PURE__ */ new Map();
-  for (const r2 of reasons) seen.set(r2, (seen.get(r2) ?? 0) + 1);
-  const parts2 = [...seen].map(([reason, n]) => `${COUNT_WORDS[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
-  return parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}` : parts2[0];
-}
-function sendableTemplates(list2) {
-  const sendable = [];
-  const blocked = [];
-  for (const t of list2) (templateBlocked(t) ? blocked : sendable).push(t);
-  if (blocked.length === 0) return { sendable, blocked, why: null };
-  const n = blocked.length;
-  const reasons = blocked.map((t) => templateBlocked(t));
-  const words2 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
-  const many = COUNT_WORDS[n] ?? String(n);
-  const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
-  return {
-    sendable,
-    blocked,
-    why: `${lead} can't go out from here \u2014 ${words2}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
-  };
-}
-function templateLinkButton(components) {
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const x = b;
-    if (String(x.type ?? "").toUpperCase() !== "URL") continue;
-    const text = typeof x.text === "string" ? x.text.trim() : "";
-    const url = typeof x.url === "string" ? x.url.trim() : "";
-    if (text && url) return { text, url };
-  }
-  return null;
-}
-
 // src/templates/template-preview.ts
 function fill(body, values) {
   return body.replace(/\{\{(\d+)\}\}/g, (m, n) => values[Number(n) - 1] ?? m);
@@ -28265,6 +28333,7 @@ function unreadFor(rows, seenAt, marks) {
   const gone = new Set(marks.filter((m) => m.read_at || m.dismissed_at).map((m) => m.notification_id));
   return rows.filter((r2) => Date.parse(r2.created_at) > seen && !gone.has(r2.id)).length;
 }
+var isForReader = (row2, userId) => row2.recipient_user_id === null || row2.recipient_user_id === userId;
 function firstLine(body, max = 160) {
   return body.split("\n").find((l) => l.trim())?.trim().slice(0, max) ?? "";
 }
@@ -28586,6 +28655,10 @@ var AWAY_NOUN = {
   // A reach-out that wrote to several businesses hears back from several (Reach out Part 5).
   reach_out_replied: ["reply to a reach-out", "replies to a reach-out"]
 };
+function groupTitle(members, noun, idOf) {
+  const subjects = new Set(members.map((m) => m.about ? `${m.about.type}:${m.about.id}` : idOf(m))).size;
+  return `${subjects} ${noun[subjects === 1 ? 0 : 1]}`;
+}
 var AWAY_TONE_RANK = { warn: 0, "": 1, ok: 2 };
 var AWAY_GROUP_MIN = 2;
 var AWAY_EMPTY_CLEAR = "All caught up.";
@@ -28644,7 +28717,7 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
     groups.push({
       row: members[0],
       count: members.length,
-      title: `${members.length} ${noun[1]}`,
+      title: groupTitle(members, noun, idOf),
       ids: members.map(idOf)
     });
   }
@@ -28683,7 +28756,7 @@ function bellSections(rows) {
         key: `${label}:${k}`,
         row: members[0],
         count: members.length,
-        title: `${members.length} ${noun[1]}`,
+        title: groupTitle(members, noun, idOf),
         members
       });
     }
@@ -29087,7 +29160,11 @@ function todayFacts(input) {
     callsInWindow: callDtos.filter((c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs),
     callMinutes: Math.round(period.call_seconds / 60),
     traffic: period.messages_in + period.calls + period.messages_out_you,
-    oldest: tzSince(metrics.now.oldest_open_escalation_at, tz, now)
+    // The oldest wait among the threads WAITING ON YOU: openEsc is the list the headline's count and its one name are
+    // read from, oldest first. The metric's oldest open escalation counts the ones you or a teammate hold and the
+    // snoozed too, so the headline paired one person's name with another thread's time ("Ana has been waiting since
+    // Aug 29"; the 2 Oct 2026 audit).
+    oldest: tzSince(openEsc[0]?.created_at, tz, now)
   };
 }
 
@@ -29310,6 +29387,21 @@ function turnsOf(dto) {
     };
   });
 }
+function checkingOf(live, startedAtMs, heartbeatAtMs, nowMs) {
+  if (!live) return { checking: false, checkingWhy: null };
+  const sinceBeat = heartbeatAtMs === null ? 0 : nowMs - heartbeatAtMs;
+  const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
+  if (sinceBeat > LIVE_STALE_MS) {
+    return {
+      checking: true,
+      checkingWhy: `no word from the phone provider for ${Math.round(sinceBeat / MIN_MS)} minutes`
+    };
+  }
+  if (sinceStart > LIVE_OVERLONG_MS) {
+    return { checking: true, checkingWhy: `live for over ${Math.floor(sinceStart / MIN_MS)} minutes` };
+  }
+  return { checking: false, checkingWhy: null };
+}
 function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const nowMs = now.getTime();
   const withheld = !dto.from_e164 && !dto.from_raw;
@@ -29322,19 +29414,7 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const startedAtMs = dto.started_at ? new Date(dto.started_at).getTime() : null;
   const beat = dto.updated_at ?? dto.started_at;
   const heartbeatAtMs = beat ? new Date(beat).getTime() : null;
-  let checking = false;
-  let checkingWhy = null;
-  if (live) {
-    const sinceBeat = heartbeatAtMs === null ? 0 : nowMs - heartbeatAtMs;
-    const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
-    if (sinceBeat > LIVE_STALE_MS) {
-      checking = true;
-      checkingWhy = `no word from the phone provider for ${Math.round(sinceBeat / MIN_MS)} minutes`;
-    } else if (sinceStart > LIVE_OVERLONG_MS) {
-      checking = true;
-      checkingWhy = `live for over ${Math.floor(sinceStart / MIN_MS)} minutes`;
-    }
-  }
+  const { checking, checkingWhy } = checkingOf(live, startedAtMs, heartbeatAtMs, nowMs);
   const endedMs = dto.ended_at ? new Date(dto.ended_at).getTime() : null;
   const summary = (dto.summary ?? "").trim() || null;
   const summaryState = missed ? "missed" : summary ? "ready" : live || endedMs !== null && nowMs - endedMs < ANALYSIS_GRACE_MS ? "pending" : "none";
@@ -29354,6 +29434,7 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     status: dto.status,
     live,
     missed,
+    outcome: callOutcomeFor(dto, live),
     stale: dto.status === "ongoing" && !live,
     checking,
     checkingWhy,
@@ -29459,7 +29540,7 @@ function todayNoReply(f) {
     );
     if (standing !== "quiet" && standing !== "needs_you") return [];
     const last = c.messages[c.messages.length - 1];
-    if (!last || last.sender !== "customer") return [];
+    if (!last || !isTheirOwnWords(last)) return [];
     const lastMs = new Date(last.created_at).getTime();
     if (now.getTime() - lastMs < NO_REPLY_AFTER_MS) return [];
     return [{ conversationId: c.id, who: contactName(c), sinceMs: lastMs, to: `inbox/th-${c.id}` }];
@@ -29470,7 +29551,7 @@ function todayReceipts(f) {
   const { conversations, sinceMs, tz } = f;
   return conversations.flatMap(
     (c) => c.messages.filter(
-      (x) => x.direction === "outbound" && SENT.includes(String(x.status)) && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
+      (x) => x.direction === "outbound" && messageAuthor(x)?.kind === "receptionist" && SENT.includes(String(x.status)) && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
     ).map((x) => ({ conv: c, msg: x }))
   ).sort((a, b) => b.msg.created_at.localeCompare(a.msg.created_at)).slice(0, 3).map(({ conv, msg }) => ({
     at: tzTime(msg.created_at, tz) ?? "",
@@ -29521,6 +29602,10 @@ function todayCalls(f, rows) {
 
 // src/today/today-queue.ts
 var TODAY_QUEUE_MAX = 6;
+var PEOPLE_KINDS = /* @__PURE__ */ new Set(["handoff", "callback", "window", "reply"]);
+function isPersonRow(r2) {
+  return PEOPLE_KINDS.has(r2.kind);
+}
 var SEARCH_WARN_MS = 12 * HOUR_MS;
 function callbackRow(r2) {
   const e = r2.e;
@@ -29673,6 +29758,13 @@ function todayQueue(f, callRows, empty) {
   return {
     rows: queueAll.slice(0, TODAY_QUEUE_MAX),
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
+    // The PEOPLE past the six, apart from the rest: the brief said "and 20 more need you" over sixteen people, counting
+    // the calls and the search that sort after them.
+    more_people: queueAll.slice(TODAY_QUEUE_MAX).filter(isPersonRow).length,
+    // Every call worth a listen and every search waiting for an answer, drawn or not: the brief counted only those
+    // among the six rows, so it said nothing of four calls the head had just counted.
+    calls: earN,
+    searches: searchN,
     parts: parts2,
     empty,
     waiting: needN + winN + searchN
@@ -29708,7 +29800,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       noReply,
       calls: null,
       callsRead: f.callsRead,
-      queue: { rows: [], more: 0, parts: [], empty, waiting: 0 },
+      queue: { rows: [], more: 0, more_people: 0, calls: 0, searches: 0, parts: [], empty, waiting: 0 },
       quiet: { ...todayQuietDay(f, proof), figures: quietFigures(f.live, f.tz, now) }
     };
   }
@@ -29753,27 +29845,20 @@ function names2(who, rest) {
   if (left) out.push(plain(` and ${left} more`));
   return out;
 }
-var PEOPLE_KINDS = /* @__PURE__ */ new Set([
-  "handoff",
-  "callback",
-  "window",
-  "reply"
-]);
 function needsSentences(vm) {
   const rows = vm.queue.rows;
-  const people = [...new Set(rows.filter((r2) => PEOPLE_KINDS.has(r2.kind)).map((r2) => r2.who))];
-  const calls = rows.filter((r2) => r2.kind === "call").length;
-  const searches = rows.filter((r2) => r2.kind === "search").length;
+  const people = [...new Set(rows.filter(isPersonRow).map((r2) => r2.who))];
+  const { calls, searches } = vm.queue;
   const out = [];
   if (people.length) {
-    const one = people.length === 1 && vm.queue.more === 0;
+    const one = people.length === 1 && vm.queue.more_people === 0;
     const detail = vm.standing.detail;
     const [first = ""] = people;
     const lead = `${first} has been `;
     if (one && detail && detail.startsWith(lead))
       out.push([bold(first), plain(` needs you, ${detail.slice(lead.length)}`)]);
     else {
-      out.push([...names2(people, vm.queue.more), plain(one ? " needs you." : " need you.")]);
+      out.push([...names2(people, vm.queue.more_people), plain(one ? " needs you." : " need you.")]);
       if (detail) out.push([plain(detail)]);
     }
   }
@@ -32539,9 +32624,12 @@ export {
   callAttemptWords,
   callLength,
   callMoodTone,
+  callNoteLines,
+  callNotesOf,
   callOfKey,
   callOutcomeOf,
   callOutcomeWords,
+  callTodoWords,
   callerName,
   callsAnswer,
   callsToday,
@@ -32629,6 +32717,7 @@ export {
   conversationMoveAllowed,
   conversationOfNeedsKey,
   conversationPatch,
+  conversationWaitsOnYou,
   coveredChannels,
   coversSpan,
   csvCell,
@@ -32864,6 +32953,7 @@ export {
   isDealStage,
   isDraftWhy,
   isE164,
+  isForReader,
   isForwardingMode,
   isFreeMail,
   isFromTheirSide,
@@ -32881,6 +32971,7 @@ export {
   isOptedOutContact,
   isOwned,
   isPartnerCode,
+  isPersonRow,
   isPersonsWords,
   isPipelineView,
   isProductFallback,
@@ -33046,6 +33137,7 @@ export {
   messageVia,
   messageWhy,
   messageWords,
+  mmss,
   modelRoute,
   momentOffered,
   mondayOf,
@@ -33071,6 +33163,7 @@ export {
   noMessageWords,
   noNumberWords,
   noProposalSince,
+  noTemplateWords,
   nonBlankOrNull,
   normalizeAnswer,
   normalizeEmail,
@@ -33338,6 +33431,7 @@ export {
   receptionistOn,
   recordOrNull,
   refusalOf,
+  refusedWords,
   regionOf,
   registrationPathOf,
   registrationPreflight,
@@ -33516,6 +33610,7 @@ export {
   templateBlocked,
   templateComponents,
   templateFooter,
+  templateHolds,
   templateLanguage,
   templateLinkButton,
   templateNameOk,
@@ -33597,6 +33692,7 @@ export {
   triggerOffered,
   trimmedOrNull,
   tzClock,
+  tzSince,
   unknownDetails,
   unmetNeed,
   unreadCount,

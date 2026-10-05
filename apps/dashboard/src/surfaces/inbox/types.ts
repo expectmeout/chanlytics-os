@@ -7,7 +7,15 @@
  * other's fields as absent, so a field either draws is read off the thread as it always was, and the page narrows by
  * `t.real` where it must.
  */
-import type { CallVM, InboxThreadVM, MediaVM, ReplyWhyVM, Standing } from "@chanlytics/contracts";
+import type {
+  CallNotes,
+  CallVM,
+  InboxThreadVM,
+  MediaVM,
+  ReplyWhyVM,
+  Standing,
+  TemplateHolds,
+} from "@chanlytics/contracts";
 
 /** The states a seeded thread is in; a real thread is only ever escalated, snoozed or done. */
 export type ThreadState = "needs" | "watching" | "drafts" | "escalated" | "snoozed" | "done";
@@ -292,6 +300,8 @@ export interface InboxSurface {
   UNREAD_ESCALATED?: number;
   /** The workspace's approved WhatsApp templates; null when the read failed, absent while it is still being read. */
   templates?: ApprovedTemplate[] | null;
+  /** The WhatsApp messages left out of those, counted by why (contracts templateHolds); null where the read failed. */
+  templatesHeld?: TemplateHolds | null;
 }
 
 /** One line a call's transcript says, and where it starts in the recording. */
@@ -337,6 +347,8 @@ export interface ConversationRow {
   missed?: boolean;
   about?: string | null;
   facts?: string[];
+  /** What the call's analysis left: the to-do the receptionist noted, what the caller gave (contracts callNotesOf). */
+  notes?: CallNotes;
 }
 
 /** A tab of the Conversations strip. */

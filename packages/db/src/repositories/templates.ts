@@ -26,6 +26,12 @@ export interface TemplateRow {
   variables: unknown;
 }
 
+/** A template as the code that chooses what to SEND reads it: the row, and the components Meta holds for it. */
+export interface TemplateToSend extends TemplateRow {
+  /** Meta's component array: what makes a message one this product cannot send whole (contracts templateBlocked). */
+  components: unknown;
+}
+
 /**
  * Every template this workspace holds on a channel.
  *
@@ -41,6 +47,22 @@ export async function templatesFor(db: Db, tenantId: string, channel = "whatsapp
     .eq("tenant_id", tenantId)
     .eq("channel", channel);
   if (error) throw new Error(`templatesFor: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * Every template this workspace holds on a channel, with the components Meta holds for each: for the caller that
+ * chooses one to send (the receptionist's booking link), which must not choose a message WhatsApp will refuse
+ * (contracts bookingTemplate, templateBlocked). `templatesFor` stays the lighter read, for those that only need the
+ * row's own columns. A read that fails THROWS, as it does.
+ */
+export async function templatesToSend(db: Db, tenantId: string, channel = "whatsapp"): Promise<TemplateToSend[]> {
+  const { data, error } = await db
+    .from("templates")
+    .select("name, language, category, meta_status, body_preview, title, variables, components")
+    .eq("tenant_id", tenantId)
+    .eq("channel", channel);
+  if (error) throw new Error(`templatesToSend: ${error.message}`);
   return data ?? [];
 }
 

@@ -13,10 +13,11 @@ export type {
   TodayNoReplyVM,
   TodayVM,
 } from "./today-vm";
-export { tzClock } from "./today-clock";
+export { tzClock, tzSince } from "./today-clock";
 export { QUOTE_MAX } from "./today-facts";
 export { todayProof } from "./today-figures";
 export { NO_REPLY_AFTER_MS } from "./today-rows";
+export { isPersonRow } from "./today-queue";
 export { toTodayVM } from "./today-brief";
 export { todayBriefWords } from "./today-brief-words";
 export type { TodayBriefRun, TodayBriefWords } from "./today-brief-words";
@@ -84,5 +85,5 @@ export type {
 } from "./notifications";
 export { parseDevice, firstLine, pushFor, PUSH_PLATFORMS, PUSH_KINDS, isPushKind } from "./push";
 export type { PushPlatform, PushDevice, PushKind, PushMessage } from "./push";
-export { unreadFor, PUSH_RECEIPTS_AFTER_MS, BELL_WINDOW_DAYS } from "./push";
+export { unreadFor, isForReader, PUSH_RECEIPTS_AFTER_MS, BELL_WINDOW_DAYS } from "./push";
 export type { PushTarget } from "./push";

@@ -3629,6 +3629,23 @@ test("A message says its state once, and a refusal is a line rather than a hover
   const said = textOf(byTestId(tree, "template-rejected"));
   assert.ok(said.includes("abusive content"), said);
   assert.ok(said.includes("send it back"), "and what to do about it");
+
+  // A reason Meta wrote as a sentence keeps its capital and its one full stop (contracts refusedWords).
+  tree = messages({
+    templatesAll: [
+      templateRow({
+        name: "offer",
+        language: "en_US",
+        meta_status: "rejected",
+        rejected_reason: "Variables can't be at the start or end of the template.",
+      }),
+    ],
+  });
+  assert.equal(
+    textOf(byTestId(tree, "template-rejected")),
+    "WhatsApp refused this one: Variables can't be at the start or end of the template. Change the words and send it back.",
+    "REGRESSION: 'variables can't be at the start or end of the template.. Change the words'",
+  );
 });
 
 test("A template written here keeps its footer everywhere, not only while it is being drafted", () => {

@@ -137,6 +137,8 @@ export interface LifecycleTemplate {
   meta_status?: string | null;
   variables: unknown;
   hidden_at?: string | null;
+  /** Why this product cannot send it, as the reader answers (templateBlocked): the call's text is never one of those. */
+  blocked?: string | null;
 }
 
 export interface LifecycleInput {

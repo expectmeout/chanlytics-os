@@ -1079,6 +1079,7 @@ import {
   UNREAD_READING,
   zoneDayKey
 } from "../../contracts/dist/index.js";
+var INTAKE_FLAG = "email_review";
 var DRAFT_STAGE = "draft";
 function rereadOf(stage) {
   if (stage === void 0 || stage === null || stage === "read") return 0;
@@ -1138,6 +1139,13 @@ async function draftStage(ports, cmd, facts, kept) {
   await draftNow(ports, cmd, facts, kept.draft);
   return (await ports.reading(cmd.tenantId, cmd.messageId))?.draftText ?? null;
 }
+async function closeWhatTheIntakeOpened(ports, tenantId, conversationId, read) {
+  const { intent, claim } = read;
+  if (claim === "auto_reply") return;
+  if (intent !== "no" && intent !== "wrong_person" && intent !== "not_now") return;
+  await ports.resolveEscalation(tenantId, conversationId, INTAKE_FLAG);
+  if (intent === "no") await ports.archiveConversation(tenantId, conversationId);
+}
 async function draftLater(ports, cmd) {
   const facts = await ports.reply(cmd.tenantId, cmd.messageId);
   if (!facts) return "not_a_reply";
@@ -1156,6 +1164,7 @@ async function readReply(ports, cmd) {
   const facts = await ports.reply(tenantId, messageId);
   if (!facts) return "not_a_reply";
   let kept = await ports.reading(tenantId, messageId);
+  let applied = false;
   if (isDue(kept, n)) {
     const { reading, unread, now } = await readNow(ports, cmd, facts);
     const plan = readingPlan(reading, {
@@ -1170,7 +1179,7 @@ async function readReply(ports, cmd) {
       reread: n > 0,
       readAt: now
     });
-    await ports.apply(tenantId, messageId, { reading: reading ?? UNREAD_READING, unread, plan, reread: n });
+    applied = await ports.apply(tenantId, messageId, { reading: reading ?? UNREAD_READING, unread, plan, reread: n });
     kept = await ports.reading(tenantId, messageId);
     if (!kept) throw new Error("reply_read: the reading was applied and is not there");
   }
@@ -1179,6 +1188,11 @@ async function readReply(ports, cmd) {
     const at = rereadAt(kept.unread, n, facts.receivedAt, ports.now());
     if (at !== null) await ports.scheduleOnce(at, { message_id: messageId, stage: `reread-${n + 1}` });
   }
+  if (applied)
+    await closeWhatTheIntakeOpened(ports, tenantId, facts.conversationId, {
+      intent: kept.intent,
+      claim: facts.claim
+    });
   const draft = await draftStage(ports, cmd, facts, kept);
   if (!kept.tell || kept.told) return "read";
   const claim = await ports.claimTell(tenantId, messageId, ports.now() - cmd.tellStaleMs);

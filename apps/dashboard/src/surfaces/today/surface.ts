@@ -7,7 +7,7 @@
 
 import { read } from "@/legacy-bridge/api";
 import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
-import { threadStanding, toTodayVM, type CallDto, type LeadSearchDto } from "@chanlytics/contracts";
+import { conversationWaitsOnYou, toTodayVM, type CallDto, type LeadSearchDto } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
 
@@ -80,13 +80,15 @@ export const todayOverride: SurfaceOverride = {
     // REQUIRED: a detail-less inbox:counts zeroes the badge instead of
     // correcting it.
     //
-    // Counted with threadStanding, the same rule the Inbox itself uses. This
-    // used to publish metrics.now.escalations_open, which is a DIFFERENT
-    // number — it counts open escalations including ones a teammate has already
-    // claimed, so it read high exactly when someone was doing the work, and
-    // then overwrote the Inbox's correct count on every Today refresh.
+    // Counted with conversationWaitsOnYou, the Inbox's own rule over the wire: a thread that needs a person and nobody
+    // has, or a reply counting down that can still be stopped. This used to publish metrics.now.escalations_open
+    // (a teammate's threads included), then threadStanding alone (no drafts): each a DIFFERENT number from the
+    // Inbox's chip, overwriting its badge on every Today refresh.
     const openByConv = new Map(escData.escalations.map((e) => [e.conversation_id, e]));
-    const needs = convData.conversations.filter((c) => threadStanding(c, openByConv.get(c.id) ?? null).needsYou).length;
+    const now = new Date();
+    const needs = convData.conversations.filter((c) =>
+      conversationWaitsOnYou(c, openByConv.get(c.id) ?? null, now),
+    ).length;
     window.dispatchEvent(new CustomEvent("inbox:counts", { detail: { needs } }));
   },
 };

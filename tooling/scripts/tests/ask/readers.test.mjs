@@ -3992,15 +3992,16 @@ const TEMPLATES_ALL_ASKED_AT_MAIN = [
 
 test("the templates, for the composers, Settings and Ask: GET templates answers its reader's payload over outbound-routes' fixtures, `all` as the route parses it -- the composers' read the approved and unhidden alone, each row the message as the customer receives it and why this product cannot send it, and nothing more read; Settings' every template, with what sends each and how many went out -- and each template a row a citation names, with no address of its own: it opens the page it came from", async () => {
   for (const [q, all, names, keys, reads] of [
-    ["", false, ["visit_reminder"], ["templates"], ["templates.select"]],
+    // `held`: what the composers' read left out, counted by why, so an empty picker can say it (contracts noTemplateWords).
+    ["", false, ["visit_reminder"], ["templates", "held"], ["templates.select"]],
     [
       "&all=1",
       true,
       ["hello_world", "offer", "visit_reminder"],
-      ["templates", "usedBy", "sends"],
+      ["templates", "held", "usedBy", "sends"],
       TEMPLATES_ALL_ASKED_AT_MAIN,
     ],
-    ["&all=0", false, ["visit_reminder"], ["templates"], ["templates.select"]],
+    ["&all=0", false, ["visit_reminder"], ["templates", "held"], ["templates.select"]],
   ]) {
     const routed = dayCtx(templatesWorld());
     const page = await templatesRoute.GET.run(req(`?workspace=${B}${q}`), routed);

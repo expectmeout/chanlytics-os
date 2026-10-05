@@ -1231,6 +1231,11 @@ declare function ingestEmail(ports: EmailIngestPorts, cmd: {
  *     waiting, hands it to a job of its own (stage "draft"), and tells without it; that job tells nobody.
  *   - The notice, in two phases (B2): the claim, then the telling, then the mark only once the owner was told. A
  *     telling that failed throws, so the ledger tries again once the claim has gone stale; told is never marked before.
+ *   - What the intake opened, the reading closes (closeWhatTheIntakeOpened): the intake flags every reach-out reply
+ *     that is not an automatic one for a person (email_review), since until it is read nobody knows what it means. A
+ *     no resolves that flag and archives the thread; a wrong person and a not now resolve the flag; the rest leave it
+ *     to a person. An automatic reply was never flagged, so its reading closes nothing. The applying run's, after the
+ *     apply and before the notice.
  *
  * It sends nothing to the business. The pages (PRs 7 and 8) come later.
  */
@@ -1344,8 +1349,18 @@ interface ReplyReadPorts {
         message_id: string;
         stage: string;
     }): Promise<"scheduled" | "already_scheduled">;
+    /**
+     * The thread's open flag of this reason resolved as the platform's own close: no member is named as resolving it and
+     * no decision is recorded. True iff a row changed; false when none was open for that reason (a person resolved it
+     * first, or it was replaced by another). A write that fails throws.
+     */
+    resolveEscalation(tenantId: string, conversationId: string, reason: typeof INTAKE_FLAG): Promise<boolean>;
+    /** The thread archived (contracts' archive move, whole), unless it is archived already. True iff a row changed. A write that fails throws. */
+    archiveConversation(tenantId: string, conversationId: string): Promise<boolean>;
     now(): number;
 }
+/** The flag the intake raises on a reach-out reply's thread (email-ingest.ts flagForAPerson): what a reading may close. */
+declare const INTAKE_FLAG: "email_review";
 interface ReadReplyCommand {
     tenantId: string;
     messageId: string;

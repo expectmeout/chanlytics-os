@@ -179,8 +179,8 @@ test("a call exports its facts, its summary, and the turns with a clock; a whisp
   );
   assert.equal(
     lines[12],
-    "[1:01] Receptionist: We do. Saturday has an opening.",
-    "the raw provider shape still gives a clock",
+    "[1:02] Receptionist: We do. Saturday has an opening.",
+    "the raw provider shape still gives a clock, rounded to the second as the page's is (61.5 s is 1:02 on Live too)",
   );
   const anon = X.callText(
     { ...call, contact: null, summary: null, transcript_object: null, call_successful: null, sentiment: null },

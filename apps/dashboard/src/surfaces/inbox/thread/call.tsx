@@ -11,6 +11,7 @@
  * tree it was; its hooks stay in `ThreadCall`, in the order they were.
  */
 import { useEffect, useRef, useState, type CSSProperties, type RefObject, type SyntheticEvent } from "react";
+import { callAttemptWords, callNoteLines, mmss } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { demoSession } from "../shell";
 import { hasHref, hrefOf } from "./shell-thread";
@@ -39,10 +40,8 @@ const tlNoteOf = (body: string | null | undefined) => {
   };
 };
 
-const tlClock = (sec: number | null | undefined) => {
-  const s = Math.max(0, Math.floor(sec || 0));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
+// The one clock (contracts mmss) on the whole seconds a player reports.
+const tlClock = (sec: number | null | undefined) => mmss(Math.max(0, Math.floor(sec || 0)) * 1000);
 const TL_SPEEDS = [1, 1.5, 2];
 // The line being said at `pos` seconds: the last one that had begun by then. A line with no moment (a whisper) never is.
 const tlLineAt = (lines: Array<{ start?: number | null }>, pos: number) => {
@@ -79,6 +78,8 @@ interface CallWords {
   length: string | null;
   kind: string;
   facts: string[];
+  /** What the call's analysis left, a line each: its to-do first, then what the caller gave about themselves. */
+  noted: string[];
   them: string;
 }
 
@@ -93,6 +94,7 @@ function callWords(call: ConversationRow | null, note: string | null): CallWords
       length: said.length,
       kind: said.direction === "outbound" ? "Outbound call" : "Inbound call",
       facts: [],
+      noted: [],
       them: "Caller",
     };
   }
@@ -104,14 +106,10 @@ function callWords(call: ConversationRow | null, note: string | null): CallWords
     // A seeded call carries its words as the old card's headline.
     about: "about" in call ? call.about : call.summary ? call.summary.headline : null,
     length: missed ? null : call.duration || null,
-    kind: missed
-      ? direction === "outbound"
-        ? "Call didn't connect"
-        : "Missed call"
-      : direction === "outbound"
-        ? "Outbound call"
-        : "Inbound call",
+    // A dial that never connected is "Missed call" only where the customer dialled (contracts callAttemptWords).
+    kind: missed ? callAttemptWords(direction) : direction === "outbound" ? "Outbound call" : "Inbound call",
     facts: call.facts || [],
+    noted: call.notes ? callNoteLines(call.notes) : [],
     them: call.whoShort || call.who || "Caller",
   };
 }
@@ -418,13 +416,26 @@ function callLine(c: CallDraw, line: CallLine, i: number) {
   );
 }
 
+/**
+ * What the call's analysis left, one quiet line each, the to-do first: "To do: Call back to confirm the bridal trial",
+ * "Gave their name as ...". They are the call's own (its row holds them), said where the call is, in every state of the card.
+ */
+function notedLines(c: CallDraw) {
+  return c.noted.map((line, i) => (
+    <div key={i} className="tl-call-about" data-testid="tl-call-noted">
+      {line}
+    </div>
+  ));
+}
+
 /** The call's lines, and the quiet line where it ended, once it is opened. */
 function callOpened(c: CallDraw) {
-  const { lines, open, turnsRef, facts, file } = c;
+  const { lines, open, turnsRef, facts, file, noted } = c;
   return (
     lines &&
     open && (
       <>
+        {noted.length > 0 && <div className="tl-call-folded">{notedLines(c)}</div>}
         <div className="tl-call-turns" ref={turnsRef} data-testid="tl-call-lines">
           {lines.map((line, i) => callLine(c, line, i))}
         </div>
@@ -455,6 +466,7 @@ function callFolded(c: CallDraw) {
     !open && (
       <div className="tl-call-folded">
         {about && <span className="tl-call-about">{about}</span>}
+        {notedLines(c)}
         <button
           type="button"
           className="tl-call-open"
@@ -544,6 +556,7 @@ export const ThreadCall = ({
       {callOpened(c)}
       {callFolded(c)}
       {!lines && words.about && <div className="tl-call-about">{words.about}</div>}
+      {!lines && words.noted.length > 0 && <div className="tl-call-folded">{notedLines(c)}</div>}
     </div>
   );
 };

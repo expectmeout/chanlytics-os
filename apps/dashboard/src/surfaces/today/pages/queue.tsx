@@ -11,7 +11,7 @@
  * this page from its sample (legacy-bridge/today-sample.ts), which is gone.
  */
 import type { ReactElement } from "react";
-import type { TodayQueueRowVM, TodayVM } from "@chanlytics/contracts";
+import { isPersonRow, type TodayQueueRowVM, type TodayVM } from "@chanlytics/contracts";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -196,13 +196,18 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
     cut: runsCut,
   } = runRows(nav, ppFlash, verbKind, Math.max(0, CARD_MAX - drawn.length));
   // What the card could not hold is counted, never dropped: the rows past the cap and the ones the view
-  // model already counted for the Inbox are the same kind of thing to a reader.
-  const rowsCut = rows.length - drawn.length + vm.queue.more;
+  // model already counted for the Inbox are the same kind of thing to a reader. The PEOPLE among them, since the foot
+  // names the Inbox: it said "28 more in the Inbox" counting four calls and a search that live elsewhere, and the
+  // head's sentence already says those (the 2 Oct 2026 audit).
+  const rowsCut = rows.slice(drawn.length).filter(isPersonRow).length + vm.queue.more_people;
   const total = rows.length + runsCount + vm.queue.more;
+  // The head's number is who is waiting on a person (the people, the windows, the searches) and the runs, under a
+  // title that says "Need you": it counted the calls worth a listen too, so it read 24 over 19 (the 2 Oct 2026 audit).
+  const waiting = vm.queue.waiting + runsCount;
   return (
     <section className="tq today-queue" data-testid="today-queue">
       {/* No count over the rows: the sentence says what they hold, and the rows are right under it. */}
-      {queueHead(vm, runsCount, nav, { count: total })}
+      {queueHead(vm, runsCount, nav, { count: waiting })}
       <LiveRail nav={nav} />
       {queueList(vm, drawn, runs, total)}
       {queueFoot(rowsCut, runsCut, nav)}

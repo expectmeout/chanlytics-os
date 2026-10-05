@@ -395,6 +395,62 @@ test("a call the conversation moved on from folds to what it was about, and open
   assert.equal(spoken(call).length, 2, "and open on a tap");
 });
 
+test("what the call's analysis left is on the card, in every state of it: the to-do the receptionist noted, and what the caller gave -- the card said only what they wanted (audit of 2 Oct 2026, #8)", () => {
+  const noted = (call) => all(call, byTestId("tl-call-noted")).map(textOf);
+  const left = {
+    follow_up: "Call back to confirm the bridal trial",
+    caller_name: "Emily Chen",
+    caller_email: "emily@example.com",
+  };
+  const want = [
+    "To do: Call back to confirm the bridal trial",
+    "Gave their name as Emily Chen",
+    "Gave their email as emily@example.com",
+  ];
+  calls(toCallVM(callDto(left), ZONE, NOW));
+  // Open (the newest spoken entry): its lines follow them.
+  let call = cardOf(draw(emily()));
+  assert.deepEqual(noted(call), want, "REGRESSION: the row held all three and the card drew none");
+  assert.equal(spoken(call).length, 2, "and the call is there to read under them");
+  // Folded, where a message came after it: what it was about leads, they follow, the press that opens it is last.
+  const moved = toInboxThreadVM(
+    conv([note(), m("m2", 60, { body: "Thanks for calling back!" })], { last_wa_inbound_at: at(60) }),
+    null,
+    ZONE,
+    NOW,
+  );
+  call = cardOf(draw(moved));
+  assert.deepEqual(noted(call), want, "folded, they are still said");
+  assert.equal(
+    textOf(find(call, hasClass("tl-call-about"))),
+    "Wants to book a bridal trial on October 3 for herself and two bridesmaids",
+    "what the caller wanted still leads",
+  );
+  // A call with no lines to open (the recording alone): the same lines, under what it was about.
+  calls(toCallVM(callDto({ ...left, transcript_object: null }), ZONE, NOW));
+  assert.deepEqual(noted(cardOf(draw(emily()))), want, "no transcript, the same lines");
+  // A call that left nothing says nothing, and a call older than the calls read has no analysis to say.
+  calls(toCallVM(callDto({ follow_up: null, caller_name: null }), ZONE, NOW));
+  assert.deepEqual(noted(cardOf(draw(emily()))), []);
+  calls();
+  assert.deepEqual(noted(cardOf(draw(emily()))), []);
+});
+
+test("a dial that never connected is called by who dialled, in the card's one word for it", () => {
+  const kind = (over) => {
+    calls(
+      toCallVM(callDto({ status: "not_connected", duration_ms: 0, wanted: null, summary: null, ...over }), ZONE, NOW),
+    );
+    return textOf(find(cardOf(draw(emily())), hasClass("tl-call-kind")));
+  };
+  assert.equal(kind({ direction: "inbound" }), "Missed call", "a customer's dial that never connected");
+  assert.equal(
+    kind({ direction: "outbound" }),
+    "Call didn't connect",
+    "one the receptionist placed is not 'missed' by anyone",
+  );
+});
+
 test("the call plays from where it began: the recording is the route's own link, and listening floats a player over the thread", () => {
   calls(toCallVM(callDto(), ZONE, NOW));
   const vm = emily();
