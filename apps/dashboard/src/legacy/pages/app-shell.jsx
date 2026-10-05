@@ -38,10 +38,12 @@ const SurfaceUnavailable = ({ onNavigate }) => (
 );
 
 // ---- Route helpers ----------------------------------------------------
-const parseRoute = () => {
-  const [page, param] = window.CHANLY.address.route().split("/");
+/** A route's page and its param, from the route as written (`inbox/th-1`). */
+const routeParts = (route) => {
+  const [page, param] = route.split("/");
   return { page: page || "today", param: param || null };
 };
+const parseRoute = () => routeParts(window.CHANLY.address.route());
 
 /**
  * The route an address opens, resolved for the table and the gates: `page` and `param` as drawn, `raw` as written,
@@ -325,9 +327,13 @@ const useShellNavigate = (setRoute) => {
   return { navigate, backToPeople };
 };
 
-/** The address, followed: its route, the phone's keyboard, the old list route, and a person's crumb once People lands. */
-const useShellRouting = ({ route, setRoute, setReadyTick }) => {
-  useShellEffect(() => window.CHANLY.address.hear(() => setRoute(parseRoute())), []);
+/**
+ * The address, followed: its route, the phone's keyboard, the old list route, and a person's crumb once People lands.
+ * `follows`: the shell hears the address itself only where nobody hands it the route (the standalone mockup, a test);
+ * in the app the route is the router's (ChanlyticsApp's `routeNow`).
+ */
+const useShellRouting = ({ route, setRoute, setReadyTick, follows }) => {
+  useShellEffect(() => (follows ? window.CHANLY.address.hear(() => setRoute(parseRoute())) : undefined), [follows]);
   // What a phone's keyboard covers, as --kb, for Ask's screen and every sheet (data-bits watchKeyboard).
   useShellEffect(() => (window.watchKeyboard ? window.watchKeyboard() : undefined), []);
   // A list's own route (`segments/<id>`) is People with that list picked on a real workspace: its App Router page replaces
@@ -666,8 +672,14 @@ const appChrome = (s) => {
 // asks for both -- a look's dark side is [data-look][data-theme="dark"] -- matches wherever the theme's own rules do.
 // `routePage` is the page of a route that has left the shell (an App Router page, drawn by the layout's children) and
 // `surfaceRoutes` says how the frame wraps it (src/surfaces/routes.ts); `sharedPage` is the shared viewer's report.
-const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sidebar = "open", onSidebar = () => {}, inboxDensity, showInboxAgentRail, routePage = null, surfaceRoutes = null, sharedPage = null }) => {
-  const [route, setRoute] = useShellState(parseRoute());
+// `routeNow` is the route of the router's pathname, which the bridge hands the frame (LegacyHost), the same the pages
+// read: the frame and the page move in one render, the router's, so a move is drawn once, in the background, and the
+// press that asked for it answers first. The frame heard the address itself before, at once, while the page heard the
+// router a beat later: People's view remounted with the scope it was leaving, and every Inbox tab drew its page twice.
+// Without it (the standalone mockup, a test) the frame hears the address, as it always did.
+const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sidebar = "open", onSidebar = () => {}, inboxDensity, showInboxAgentRail, routePage = null, surfaceRoutes = null, sharedPage = null, routeNow = null }) => {
+  const [heard, setRoute] = useShellState(parseRoute());
+  const route = routeNow !== null ? routeParts(routeNow) : heard;
   const [askOpen, setAskOpen] = useShellState(false);
   const inboxNeeds = useInboxNeeds();
   const at = routeAt(route);
@@ -688,7 +700,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   // People view it was opened from.)
   Object.assign(window, { appNavigate: navigate, appAsk: openAsk, appBackToPeople: backToPeople });
 
-  useShellRouting({ route, setRoute, setReadyTick: gate.setReadyTick });
+  useShellRouting({ route, setRoute, setReadyTick: gate.setReadyTick, follows: routeNow === null });
   useShellKeys({ setAskOpen, sidebar, onSidebar });
   const { navOpen, setNavOpen } = useNavDrawer();
 

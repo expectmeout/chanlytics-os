@@ -66,6 +66,14 @@ const ST_GROUPS = {
 // or a finger reaches a tab, so the move that follows asks the server for nothing (workspace.ts warmRoute).
 const stAddress = () => (window.CHANLY && window.CHANLY.address) || null;
 const stWarm = (route) => { const a = stAddress(); if (a && a.warm) a.warm(route); };
+// The press is answered on the screen before the page it asks for is drawn: the tab lit and its underline on its way in
+// one painted frame, then the move. A page drawn in one long piece (People's scope, 60 to 120 ms on a phone) began
+// before the browser had painted, and the tab lit only with the page (5 Oct 2026); the Inbox's moves had a pause of the
+// router's own in between. One frame, where there are frames (the node suite has none and moves at once).
+const stAfterPaint = (fn) => {
+  if (typeof requestAnimationFrame !== "function") { fn(); return; }
+  requestAnimationFrame(() => setTimeout(fn, 0));
+};
 
 // `views` is a page that says its own views (surfaces/routes.ts SurfaceViews: People's scopes, from its chrome): the same strip,
 // drawn here once for every page, whether the views are a group's below or the page's own. A page's views are its tabs,
@@ -107,7 +115,7 @@ const SurfaceTabs = ({ page, param, views, onNavigate }) => {
         const badge = t.badge ? t.badge() : null;
         const pulse = t.pulse ? t.pulse() : false;
         return (
-          <button key={t.id} className={`stabs-tab ${(pending || pickedId) === t.id ? "active" : ""}`} aria-current={pickedId === t.id ? "page" : undefined} data-testid={t.testid} data-tip={t.tip || null} data-tip-side="bottom" onPointerEnter={() => stWarm(t.to)} onTouchStart={() => stWarm(t.to)} onFocus={() => stWarm(t.to)} onClick={(e) => { if (pickedId !== t.id) { stripTap(e.currentTarget.parentElement, e.currentTarget); setPending(t.id); } onNavigate(t.to); }}>
+          <button key={t.id} className={`stabs-tab ${(pending || pickedId) === t.id ? "active" : ""}`} aria-current={pickedId === t.id ? "page" : undefined} data-testid={t.testid} data-tip={t.tip || null} data-tip-side="bottom" onPointerEnter={() => stWarm(t.to)} onTouchStart={() => stWarm(t.to)} onFocus={() => stWarm(t.to)} onClick={(e) => { if (pickedId !== t.id) { stripTap(e.currentTarget.parentElement, e.currentTarget); setPending(t.id); } stAfterPaint(() => onNavigate(t.to)); }}>
             {t.label}
             {pulse && <span className="live-dot" style={{ width: 5, height: 5 }} />}
             {badge ? <span className={`stabs-badge tally${t.tone === "warn" ? " tally-warn" : ""}`} data-tone={t.tone || "plain"}>{badge}</span> : null}

@@ -1834,6 +1834,44 @@ test("a move that stays on the page -- People to Leads and back -- draws without
   }
 });
 
+test("given the router's route, the frame draws that route and no other: an address heard before the router lands moves nothing", () => {
+  // The frame and the page read one clock (LegacyHost hands the frame the route of Next's pathname, the page reads the
+  // same pathname): a pushed entry the router has not drawn yet must not remount the view with the page it is leaving,
+  // which on a phone slid People in under Leads' tab before Leads arrived (5 Oct 2026).
+  shell.installShell(win);
+  const view = (t) =>
+    find(t, (n) => typeof n.props?.className === "string" && n.props.className.includes("route-view"));
+  const draw = (routeNow) => {
+    deep = false;
+    frames.begin();
+    const t = win.ChanlyticsApp({
+      ...PAGES,
+      theme: "dark",
+      themePref: "dark",
+      sidebar: "open",
+      onSidebar() {},
+      onTheme() {},
+      routeNow,
+    });
+    deep = true;
+    return t;
+  };
+  cells = [];
+  placeAt("#/clients");
+  assert.equal(view(draw("clients")).props.key, "clients");
+  // The address moves first, as a pushed entry does before the router draws it.
+  placeAt("#/clients/leads");
+  fire("popstate");
+  assert.equal(view(draw("clients")).props.key, "clients", "the heard address does not move the view");
+  // The router lands: Leads, under its own mount.
+  assert.equal(view(draw("clients/leads")).props.key, "clients/leads");
+  // And Back, as the router says it.
+  placeAt("#/clients");
+  fire("popstate");
+  assert.equal(view(draw("clients/leads")).props.key, "clients/leads", "nor does Back before the router has it");
+  assert.equal(view(draw("clients")).props.key, "clients");
+});
+
 test("People › Pipeline is an address of People's route (clients/pipeline): the route takes it, deals on or off, its crumbs name the view, and the whole family is one mount -- and where deals are off it says People", async () => {
   // The frame draws no page of its own for it: the route's page does (surfaces/people/people-route.tsx: the Pipeline
   // where deals are on, People's own page where they are off), and the frame draws what surfaces/people/chrome.ts says
