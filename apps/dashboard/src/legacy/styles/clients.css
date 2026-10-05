@@ -1981,11 +1981,7 @@
 .cl-table-keys kbd { font: inherit; font-size: 10px; padding: 0 4px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: var(--radius-xs); color: var(--ink-dim); background: var(--bg-raised); }
 /* The lists a person is on: one quiet line, cut with an ellipsis rather than widening the table. */
 .cl-table td.cl-lists-cell { max-width: 24ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* The Columns menu: a check beside what shows; Person, which always shows, says so and does not press. */
-.pl-cols .more-item[aria-checked="false"] .icon { visibility: hidden; }
-.pl-cols .more-item[aria-disabled="true"] { cursor: default; color: var(--ink-dim); }
-.pl-cols .more-item[aria-disabled="true"]:hover { background: transparent; }
-/* A phone draws cards, not columns. */
+/* The Columns menu is the kit's (kit.css draws its ticks and Person's lock). A phone draws cards, not columns. */
 @media (max-width: 900px) { .pl-cols { display: none; } }
 /* People's controls wrap on a desktop too. Beside the sidebar and the rail, Add a person, Export CSV, Columns and the
    sort outgrow one row from 901px to about 1200px, and a row that never wrapped pushed the whole page sideways (178px

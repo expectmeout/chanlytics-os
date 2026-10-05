@@ -554,6 +554,15 @@ a.chip:focus-visible {
 .more-item[aria-checked="false"] .icon {
   visibility: hidden;
 }
+/* A switch the page keeps on (the Menu's `toggles`, `locked`: Person, which always shows): drawn on, in the dim ink,
+   and nothing lit under a pointer, since a press does nothing. */
+.more-item[role="menuitemcheckbox"][aria-disabled="true"] {
+  cursor: default;
+  color: var(--ink-dim);
+}
+.more-item[role="menuitemcheckbox"][aria-disabled="true"]:hover {
+  background: none;
+}
 .more-item .icon {
   color: var(--ink-dim);
   flex-shrink: 0;

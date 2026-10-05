@@ -22,7 +22,7 @@ export type { LinkButtonProps } from "./link-button/link-button";
 export { ListRow } from "./list-row/list-row";
 export type { ListRowProps } from "./list-row/list-row";
 export { Menu } from "./menu/menu";
-export type { MenuChoice, MenuGroup, MenuItem, MenuProps } from "./menu/menu";
+export type { MenuChoice, MenuGroup, MenuItem, MenuProps, MenuToggles } from "./menu/menu";
 export { Meter } from "./meter/meter";
 export type { MeterProps } from "./meter/meter";
 export { Panel } from "./panel/panel";

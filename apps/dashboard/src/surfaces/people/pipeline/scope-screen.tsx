@@ -65,18 +65,7 @@ function standingLine(s: PipelineState) {
 /** The controls row: the search, which columns show, the list or the board, and the page's one filled button. */
 function controlsRow(s: PipelineState) {
   const { f, r, newActs, newGate } = s;
-  const {
-    q,
-    setQ,
-    searchRef,
-    colsOpen,
-    setColsOpen,
-    colOptions,
-    pickColumn,
-    colsButton,
-    clearSelection,
-    setExtraView,
-  } = f.controls;
+  const { q, setQ, searchRef, colOptions, pickColumn, clearSelection, setExtraView } = f.controls;
   const { board, layout } = r;
   const { words } = P;
   return (
@@ -94,15 +83,7 @@ function controlsRow(s: PipelineState) {
       </div>
       <div className="cl-controls-right">
         {/* Which columns show, a member's own, kept in their view: People's menu (table/columns-menu.tsx). */}
-        {!board ? (
-          <PeopleColumnsMenu
-            open={colsOpen}
-            onOpenChange={setColsOpen}
-            options={colOptions}
-            onPick={pickColumn}
-            buttonRef={colsButton}
-          />
-        ) : null}
+        {!board ? <PeopleColumnsMenu options={colOptions} onPick={pickColumn} /> : null}
         {/* The list or the board: the house's small tab pair, a pressed state each, kept in the member's view. */}
         <div className="cl-tabs pipe-views" role="group" aria-label={words.views.label} data-testid="pipeline-views">
           {PIPE_LAYOUTS.map((v) => (

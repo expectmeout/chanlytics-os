@@ -555,8 +555,12 @@ const asMenuRecord = (p) => ({
       href: it.href,
     })),
   ]),
+  // A group of switches (the Columns menu's), as the page hands it.
+  toggles: p.groups.find((g) => g.toggles)?.toggles,
 });
 recorded.set(Menu, { push: (p) => menus.push(asMenuRecord(p)) });
+/** A switch of the Columns menu (people/table/columns-menu.tsx) as last drawn, flipped as Base UI's checkbox item flips it. */
+const flipColumn = (key) => menus.findLast((m) => m.title === "Columns").toggles.onToggle(key);
 recorded.set(Confirm, confirms);
 recorded.set(LeadPeek, peeks);
 recorded.set(LeadPlanPanel, panels);
@@ -1608,9 +1612,7 @@ test("the Leads view is saved with its list, sort and columns every time, over t
   let tree = draw();
   assert.ok(headings(tree).includes("Website"), "the member's own columns");
   assert.deepEqual(held, [], "the view it already holds is not saved again");
-  click(byTestId(tree, "people-columns"));
-  tree = draw();
-  click(byTestId(tree, "column-source"));
+  flipColumn("source");
   tree = draw();
   assert.equal(held.length, 1);
   assert.deepEqual(
@@ -1815,7 +1817,8 @@ test("REGRESSION: Leads draws no key -- its search box drew a / and Find leads a
   assert.equal(asks.at(-1), "open");
 });
 
-test("Esc closes the peek, then the plan panel, then the Columns menu, then the selection -- one press each, in that order", async () => {
+// The Columns menu is the kit's, which keeps its own Esc while it is open (PL_OVERLAY): no step of the page's order.
+test("Esc closes the peek, then the plan panel, then the selection -- one press each, in that order", async () => {
   await fresh();
   byTestId(draw(), "select-all").props.onChange();
   draw();
@@ -1827,13 +1830,10 @@ test("Esc closes the peek, then the plan panel, then the Columns menu, then the 
   menuOf("Personal trainers · Austin")
     .items.find((i) => i.label === "Search again, changed")
     .onClick();
+  // Everything of the page's own that can be open at once, opened: the peek, the plan panel and a selection.
   draw();
-  click(byTestId(draw(), "people-columns"));
-  // Everything the page can have open at once, opened: the peek, the plan panel, the Columns menu and a selection.
-  let tree = draw();
   const drawn = { peeks: peeks.length, panels: panels.length };
-  assert.ok(byTestId(tree, "people-columns-menu"), "the menu is open");
-  assert.equal(peeks.at(-1).vm.id, "l1", "so is the peek");
+  assert.equal(peeks.at(-1).vm.id, "l1", "the peek is open");
   assert.equal(panels.at(-1).open, true, "and the plan panel");
   assert.equal(press("j"), false, "the plan panel holds every key while it is open");
   assert.equal(press("Escape"), true);
@@ -1841,12 +1841,8 @@ test("Esc closes the peek, then the plan panel, then the Columns menu, then the 
   assert.equal(peeks.length, drawn.peeks, "the peek went first: it is not drawn any more");
   assert.equal(panels.length, drawn.panels + 1, "and the plan panel is still open");
   assert.equal(press("Escape"), true);
-  tree = draw();
+  const tree = draw();
   assert.equal(panels.length, drawn.panels + 1, "the plan panel went second");
-  assert.ok(byTestId(tree, "people-columns-menu"), "the Columns menu is still open");
-  assert.equal(press("Escape"), true);
-  tree = draw();
-  assert.equal(byTestId(tree, "people-columns-menu"), null, "the Columns menu went third");
   assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /5 selected/, "and the selection is still there");
   assert.equal(press("Escape"), true);
   assert.equal(byTestId(draw(), "leads-bulk-bar"), null, "the selection goes last");

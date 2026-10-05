@@ -114,6 +114,7 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
   { entry: "sheet-kit", bring: (p) => p.getByTestId("sheet-open").click(), ready: "section.sheet" },
   { entry: "menu-kit", bring: (p) => p.getByTestId("menu-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-set", bring: (p) => p.getByTestId("menu-set-open").click(), ready: ".more-menu" },
+  { entry: "menu-kit-switches", bring: (p) => p.getByTestId("menu-switches-open").click(), ready: ".more-menu" },
   { entry: "popover-kit", bring: (p) => p.getByTestId("popover-open").click(), ready: ".panel-pop" },
   { entry: "datepicker-kit", bring: (p) => p.getByTestId("datepicker-open").click(), ready: ".date-pick" },
   {
@@ -376,6 +377,34 @@ const menuActs: Check = async (page) => {
   );
   if (!ticked) out.push("the menu: the set does not mark the one chosen");
   await page.keyboard.press("Escape");
+  return out;
+};
+
+/**
+ * A menu of switches stays open as each is flipped, so the next can be flipped (a table's columns); the one the page keeps
+ * on refuses a press; Escape closes it and gives focus back to its control.
+ */
+const menuSwitches: Check = async (page) => {
+  const out: string[] = [];
+  const isOpen = () => met(page, () => !!document.querySelector(".more-menu"), null);
+  await page.getByTestId("menu-switches-open").click();
+  if (!(await isOpen())) return ["the switches: a press did not open the menu"];
+  await page.locator(".more-item", { hasText: "Email" }).click();
+  if (!(await captionSays(page, "menu-kit-switches", "on: name, state, email")))
+    out.push("the switches: a press on one did not flip it");
+  if (!(await isOpen())) out.push("the switches: flipping one closed the menu");
+  await page.locator(".more-item", { hasText: "Person" }).click({ force: true });
+  if (!(await captionSays(page, "menu-kit-switches", "on: name, state, email")))
+    out.push("the switches: the one kept on was flipped");
+  const lit = await page.evaluate(
+    () => document.querySelector(".more-menu [role=menuitemcheckbox][aria-checked=true]")?.textContent ?? null,
+  );
+  if (!lit || !lit.includes("Person")) out.push("the switches: the ones on are not marked on");
+  await page.keyboard.press("Escape");
+  if (!(await met(page, () => !document.querySelector(".more-menu"), null)))
+    out.push("the switches: Escape left the menu open");
+  else if ((await focused(page)) !== "menu-switches-open")
+    out.push(`the switches: focus went to ${await focused(page)} after Escape`);
   return out;
 };
 
@@ -801,6 +830,7 @@ const CHECKS: [string, Check][] = [
   ["the page behind the sheet holds still", pageHoldsStill],
   ["the menu's arrows and typing", menuKeys],
   ["the menu acts, opens a page as a link, and closes for a press outside", menuActs],
+  ["a menu of switches stays open as each flips, the one kept on refuses, Escape closes it", menuSwitches],
   ["the popover stays for a press inside and closes for one outside", popoverPresses],
   ["the date picker's keys walk its days and choose", datePickerKeys],
   ["the select opens, is walked, and chooses", selectChooses],

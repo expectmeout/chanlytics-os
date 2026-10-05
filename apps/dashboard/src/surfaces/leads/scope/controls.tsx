@@ -4,7 +4,6 @@
  * second live canvas). In Glass the canvas (L1) folds the map, Values ⁄ Signals and the file under one ⋯ beside Columns
  * (the look is read where the frame stamps it, as the top bar reads it); Classic keeps each as its own button.
  */
-import type { ReactNode, RefObject } from "react";
 import type { LeadSearchDto } from "@chanlytics/contracts";
 import { ReachOutDoor } from "../../campaigns/reach-out/door";
 import { Icon } from "../../kit/icon/icon";
@@ -12,6 +11,7 @@ import { lookNow } from "../../kit/look/look";
 import { Menu } from "../../kit/menu/menu";
 import { gate } from "../../legacy-verbs";
 import { MenuInPlace, menuGroups, moreButton } from "../../people/menu-groups";
+import type { ColumnOption } from "../../people/table/columns";
 import { PeopleColumnsMenu } from "../../people/table/columns-menu";
 
 interface ControlsProps {
@@ -22,11 +22,8 @@ interface ControlsProps {
   onMap: (on: boolean) => void;
   values: boolean;
   onValues: (on: boolean) => void;
-  colsOpen: boolean;
-  onColsOpen: (open: boolean) => void;
-  colOptions: readonly { key: string; label: ReactNode; on: boolean; locked: boolean }[];
+  colOptions: readonly ColumnOption[];
   onPickColumn: (key: string) => void;
-  colsButton: RefObject<HTMLButtonElement | null> | null;
   onFind: () => void;
 }
 
@@ -97,13 +94,7 @@ export const LeadsControlsRight = ({ p, search }: { p: ControlsProps; search: Le
   return (
     <div className="cl-controls-right">
       {glass ? null : classicToggles(p)}
-      <PeopleColumnsMenu
-        open={p.colsOpen}
-        onOpenChange={p.onColsOpen}
-        options={p.colOptions}
-        onPick={p.onPickColumn}
-        buttonRef={p.colsButton}
-      />
+      <PeopleColumnsMenu options={p.colOptions} onPick={p.onPickColumn} />
       {glass ? (
         // The kit's Menu, as People's ⋯ beside it is (people/page/screen.tsx).
         <MenuInPlace>

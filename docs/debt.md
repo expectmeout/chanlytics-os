@@ -198,12 +198,12 @@ edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
 literal style values               1028   in 23 stylesheets
-primitives outside the kit         1988   selectors naming 803 classes
+primitives outside the kit         1985   selectors naming 803 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     301
 source-text reads in tests          771
-lint warnings                       357   in 154 files, 59 of them exhaustive-deps
+lint warnings                       355   in 153 files, 59 of them exhaustive-deps
 workspace route JS, KB gzipped      702   the shell included
 workspace route CSS, KB gzipped     147
 workspace pages' own JS, KB         535   gzipped, each page's chunks once, beside the route

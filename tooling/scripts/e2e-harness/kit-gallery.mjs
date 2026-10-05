@@ -356,6 +356,31 @@ const kitMenu = () =>
   kitItem("x", "Delete person…", { tone: " danger" }) +
   `</div></div>`;
 
+/**
+ * The kit's Menu of switches, open (a table's columns): the tick drawn on each, seen beside each one on; one the page
+ * keeps on (Person) in the dim ink, refused, its word at its end.
+ */
+const kitMenuSwitches = () =>
+  `<button type="button" tabindex="0" aria-haspopup="menu" aria-expanded="true" class="btn btn-sm btn-ghost">` +
+  `${icon("eye", 12)} Columns</button>` +
+  `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
+  `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
+  `<div class="more-menu align-right" role="menu" tabindex="-1" aria-label="Columns">` +
+  `<div role="group"><div class="more-header" aria-hidden="true">Show on the table</div>` +
+  [
+    ["Person", true, "Always"],
+    ["State", true, null],
+    ["Email", false, null],
+  ]
+    .map(
+      ([label, on, locked]) =>
+        `<button type="button" aria-disabled="${locked ? "true" : "false"}" role="menuitemcheckbox" tabindex="-1" ` +
+        `aria-checked="${on}" class="more-item">${icon("check", 13)}<span class="more-item-label">${label}</span>` +
+        `${locked ? `<span class="more-item-meta">${locked}</span>` : ""}</button>`,
+    )
+    .join("") +
+  `</div></div></div>`;
+
 /** The kit's Menu of one of a set, open: the tick drawn on each option, seen beside the one chosen. */
 const kitMenuSet = () =>
   `<button type="button" tabindex="0" aria-haspopup="menu" aria-expanded="true" class="btn btn-sm">Sort ` +
@@ -1617,10 +1642,12 @@ export const FAMILIES = [
     family: "Menu, on Base UI",
     about:
       "The kit's Menu (surfaces/kit/menu/menu.tsx), open: Base UI's menu on its positioner (.pop-place), a group under " +
-      "its heading, a line, a door and the danger item; and a set to choose one of, the tick beside the one chosen.",
+      "its heading, a line, a door and the danger item; a set to choose one of, the tick beside the one chosen; and a " +
+      "set of switches it stays open over, ticked while on, one kept on by the page and refused.",
     entries: [
       { id: "menu-kit", stage: "pop", html: kitMenu() },
       { id: "menu-kit-set", stage: "pop", html: kitMenuSet() },
+      { id: "menu-kit-switches", stage: "pop", html: kitMenuSwitches() },
     ],
   },
   {

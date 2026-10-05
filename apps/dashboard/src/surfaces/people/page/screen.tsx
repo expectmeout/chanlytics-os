@@ -239,11 +239,8 @@ function peopleDeskControls(s: PeopleState) {
     exportBlocked,
     exportHref,
     exportName,
-    colsOpen,
-    setColsOpen,
     colOptions,
     pickColumn,
-    colsButton,
   } = s;
   return (
     <div className="cl-controls">
@@ -288,13 +285,7 @@ function peopleDeskControls(s: PeopleState) {
         )}
         {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside them only
             turned round an order the table already shows and changes. */}
-        <PeopleColumnsMenu
-          open={colsOpen}
-          onOpenChange={setColsOpen}
-          options={colOptions}
-          onPick={pickColumn}
-          buttonRef={colsButton}
-        />
+        <PeopleColumnsMenu options={colOptions} onPick={pickColumn} />
         {lookNow() === "glass" && (
           // The canvas (P1) folds the file acts under one ⋯ after Columns: Import, and Export CSV with its gate or the
           // reason it is held, the same doors as the buttons Classic draws above.

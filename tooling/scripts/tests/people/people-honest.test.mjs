@@ -2685,23 +2685,36 @@ test("a radio's arrow keys are the radio's; a held x, Space or Enter acts once, 
   assert.equal(cursorRow(draw()), "person-p3");
 });
 
-/** The Columns menu's rows: which column, whether it shows, and whether it is Person's, which always does. */
+/**
+ * The Columns menu (people/table/columns-menu.tsx): the kit's Menu named Columns, one group of switches under its heading.
+ * Its opening, its staying open while a switch flips, Person's refusal of a press and its Esc are Base UI's, driven in a
+ * browser by e2e/kit/kit-behaves.spec.ts ("a menu of switches"); here, what the page hands it and what a flip does.
+ */
+const columnsMenu = (tree) => find(tree, (n) => n.type === Menu && n.props.label === "Columns");
+/** Its switches: which column, whether it shows, and whether it is Person's, which always does. */
 const menuItems = (tree) =>
-  all(byTestId(tree, "people-columns-menu"), (n) => n.props?.role === "menuitemcheckbox").map((n) => ({
-    key: n.props["data-testid"].replace(/^column-/, ""),
-    on: n.props["aria-checked"],
-    locked: n.props["aria-disabled"] === true,
+  columnsMenu(tree).props.groups[0].toggles.items.map((t) => ({
+    key: t.value,
+    on: t.on,
+    locked: t.locked === "Always",
   }));
+/** A switch flipped, as Base UI's checkbox item flips it. */
+const flipColumn = (tree, key) => columnsMenu(tree).props.groups[0].toggles.onToggle(key);
 
-test("the Columns menu shows and hides columns and stays open while it does; Person always shows; Esc closes it", async () => {
+test("the Columns menu is the kit's switches: it shows and hides columns, and Person always shows", async () => {
   await freshPage({
     people: [person(1, { came_from: "whatsapp" }), person(2)],
     lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }],
   });
   let tree = draw();
-  assert.equal(byTestId(tree, "people-columns-menu"), null, "closed until asked");
-  click(byTestId(tree, "people-columns"));
-  tree = draw();
+  const menu = columnsMenu(tree);
+  assert.equal(textOf(menu.props.trigger).trim(), "Columns");
+  assert.equal(menu.props.trigger.props["data-testid"], "people-columns");
+  assert.deepEqual(
+    menu.props.groups.map((g) => g.header),
+    ["Show on the table"],
+    "one group of switches, under its heading",
+  );
   assert.deepEqual(
     menuItems(tree),
     [
@@ -2718,11 +2731,11 @@ test("the Columns menu shows and hides columns and stays open while it does; Per
     ],
     "every column this workspace can show; Visits waits for a calendar",
   );
-  click(byTestId(tree, "column-came_from"));
+  flipColumn(tree, "came_from");
   tree = draw();
-  assert.ok(byTestId(tree, "people-columns-menu"), "it stays open: MoreMenu closes on every pick");
   assert.ok(!headings(tree).includes("Came from"), "hidden");
-  click(byTestId(tree, "column-lists"));
+  assert.equal(menuItems(tree).find((c) => c.key === "came_from").on, false, "and its switch says so");
+  flipColumn(tree, "lists");
   tree = draw();
   assert.deepEqual(headings(tree), ["Person", "State", "Reach", "Last contact", "Receptionist", "Offers", "Lists"]);
   assert.equal(
@@ -2730,10 +2743,9 @@ test("the Columns menu shows and hides columns and stays open while it does; Per
     "Regulars",
     "the lists kept by hand that they are on",
   );
-  click(byTestId(tree, "column-name"));
+  // Base UI refuses a press on a disabled switch; the page refuses the flip too, whoever asks.
+  flipColumn(tree, "name");
   assert.ok(headings(draw()).includes("Person"), "Person cannot be hidden");
-  assert.equal(press("Escape"), true);
-  assert.equal(byTestId(draw(), "people-columns-menu"), null, "Esc closes it");
 });
 
 test("a Deal column waits in the Columns menu only where deals are a thing here, off until asked for, and wears the stage's pill", async () => {
@@ -2756,15 +2768,13 @@ test("a Deal column waits in the Columns menu only where deals are a thing here,
     dealsOn: true,
   });
   let tree = draw();
-  click(byTestId(tree, "people-columns"));
-  tree = draw();
   assert.deepEqual(
     menuItems(tree).find((c) => c.key === "deal"),
     { key: "deal", on: false, locked: false },
     "offered, off",
   );
   assert.ok(!headings(tree).includes("Deal"), "off until asked for");
-  click(byTestId(tree, "column-deal"));
+  flipColumn(tree, "deal");
   tree = draw();
   assert.ok(headings(tree).includes("Deal"));
   assert.equal(
@@ -2822,9 +2832,8 @@ test("a view keeps its columns with its sort, and every save sends every key -- 
     "the member's own columns",
   );
   assert.deepEqual(savedViews(seen), [], "the view it already holds is not saved again");
-  click(byTestId(tree, "people-columns"));
   tree = draw();
-  click(byTestId(tree, "column-lists"));
+  flipColumn(tree, "lists");
   tree = draw();
   assert.deepEqual(
     savedViews(seen).at(-1),
@@ -2847,9 +2856,8 @@ test("with a calendar the receptionist's word sits beside the state until its ow
   const stateCell = (t) => find(t, (n) => n.type === "td" && /\bcl-state-cell\b/.test(n.props?.className || ""));
   let tree = draw();
   assert.match(textOf(stateCell(tree)), /reply queued/, "beside the state");
-  click(byTestId(tree, "people-columns"));
   tree = draw();
-  click(byTestId(tree, "column-receptionist"));
+  flipColumn(tree, "receptionist");
   tree = draw();
   assert.ok(headings(tree).includes("Receptionist"), "in a column of its own");
   // Controller: after Task 3's review the mark always renders; a class hides it at 901px and up, where the column shows it,
@@ -2862,28 +2870,19 @@ test("with a calendar the receptionist's word sits beside the state until its ow
   );
 });
 
-test("Esc closes the Columns menu first and puts focus back on its button, and the selection stays; the rows hold still behind it, and the next Esc clears the selection", async () => {
+test("the Columns menu open holds the rows still and keeps its Esc, which Base UI closes it with: the selection stays, and the next Esc clears it", async () => {
   await freshPage({ people: [person(1), person(2)] });
   byTestId(draw(), "select-all").props.onChange();
-  click(byTestId(draw(), "people-columns"));
-  let tree = draw();
-  assert.ok(byTestId(tree, "people-columns-menu"), "the menu is open");
-  let focused = 0;
-  byTestId(tree, "people-columns").props.ref.current = {
-    focus: () => {
-      focused += 1;
-    },
-  };
+  draw();
+  // The kit's popup as Base UI draws it open on the body: no page's overlay any more, so the page holds still behind it.
+  overlayOpen = { role: "menu", inApp: false, className: "more-menu align-right" };
   assert.equal(press("j"), false, "J walks nothing behind the menu");
   assert.equal(cursorRow(draw()), null);
-  assert.equal(press("Escape"), true, "the menu is the page's own, so its Esc is the page's");
-  tree = draw();
-  assert.equal(byTestId(tree, "people-columns-menu"), null, "Esc closed the menu");
-  assert.equal(focused, 1, "and focus is back on the Columns button, not lost to the page");
-  assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "and left the selection alone");
+  assert.equal(press("Escape"), false, "the menu's Esc is its own");
+  assert.match(textOf(byTestId(draw(), "bulk-bar")), /2 selected/, "and left the selection alone");
+  overlayOpen = null;
   assert.equal(press("Escape"), true);
-  tree = draw();
-  assert.equal(byTestId(tree, "bulk-bar"), null, "the next Esc clears it");
+  assert.equal(byTestId(draw(), "bulk-bar"), null, "the next Esc clears it");
 });
 
 test("a saved view's columns are read with care -- only a true or false for a column a member may hide counts, and the next save drops the rest", async () => {
@@ -2909,8 +2908,7 @@ test("a saved view's columns are read with care -- only a true or false for a co
     "and so do the row's actions",
   );
   assert.deepEqual(savedViews(seen), [], "what it could read of the view is what it holds: nothing to save");
-  click(byTestId(tree, "people-columns"));
-  click(byTestId(draw(), "column-lists"));
+  flipColumn(draw(), "lists");
   draw();
   assert.deepEqual(
     savedViews(seen).at(-1),
@@ -2952,14 +2950,13 @@ const heldSaves = (seen) => {
 test("a view saves one at a time, and only the latest waits -- two in flight could land out of order and leave the older one on the member's row", async () => {
   const seen = await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc" } } });
   const calls = heldSaves(seen);
-  click(byTestId(draw(), "people-columns"));
-  click(byTestId(draw(), "column-came_from"));
+  flipColumn(draw(), "came_from");
   draw();
-  click(byTestId(draw(), "column-email"));
+  flipColumn(draw(), "email");
   draw();
   assert.equal(calls.length, 1, "two quick toggles: the first goes, and the second waits for it to land");
   assert.deepEqual(calls[0].view.columns, { came_from: false });
-  click(byTestId(draw(), "column-lists"));
+  flipColumn(draw(), "lists");
   draw();
   assert.equal(calls.length, 1, "a third takes the second's place: only the latest waits");
   calls[0].land({ ok: true });
@@ -2984,8 +2981,7 @@ test("a save that fails is tried once more, unless a newer view is waiting to go
   const error = console.error;
   console.error = (...a) => errors.push(a.join(" "));
   try {
-    click(byTestId(draw(), "people-columns"));
-    click(byTestId(draw(), "column-email"));
+    flipColumn(draw(), "email");
     draw();
     calls[0].land({ ok: false, message: "timed out" });
     await until(() => calls.length === 2, "tried once more");
@@ -3001,9 +2997,9 @@ test("a save that fails is tried once more, unless a newer view is waiting to go
       "then it says the view was not saved",
     );
     // A newer view waiting goes instead of a second try: it carries every key, the failed one's too.
-    click(byTestId(draw(), "column-lists"));
+    flipColumn(draw(), "lists");
     draw();
-    click(byTestId(draw(), "column-came_from"));
+    flipColumn(draw(), "came_from");
     draw();
     assert.equal(calls.length, 3, "one at a time");
     calls[2].land({ ok: false, message: "timed out" });
@@ -3024,35 +3020,24 @@ test("a save that fails is tried once more, unless a newer view is waiting to go
   }
 });
 
-test("a Columns menu left open as the window narrows to a phone's lets go: the key is the page's, and the menu closes -- hidden by the stylesheet, it held every key but Esc", async () => {
+test("a phone draws no Columns menu: its cards are not columns, and the kit's menu leaves with the desk's controls, so none is left open where nobody can see it", async () => {
   await freshPage({ people: [person(1), person(2)] });
-  click(byTestId(draw(), "people-columns"));
-  assert.ok(byTestId(draw(), "people-columns-menu"), "open on a desktop");
-  // 900px and under, clients.css hides it; it is still on the page when the key comes, so the check for what is open
-  // over the page must know it for the page's own.
-  globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
-  overlayOpen = { role: "menu", className: "more-menu align-right pl-cols-menu" };
-  try {
-    assert.equal(press("j"), true, "J is the page's again");
-    overlayOpen = null;
-    const tree = draw();
-    assert.equal(cursorRow(tree), "person-p1", "and walks the rows");
-    assert.equal(byTestId(tree, "people-columns-menu"), null, "the menu nobody could see is closed");
-  } finally {
-    delete globalThis.window.matchMedia;
-  }
+  assert.ok(columnsMenu(draw()), "on a desktop");
+  await onPhone(async () => {
+    await freshPage({ people: [person(1), person(2)] });
+    assert.equal(columnsMenu(draw()), null, "none on a phone");
+  });
 });
 
 test("a column put back the way its default has it is no choice any more -- the receptionist, turned off and on again, gives way to Visits once a calendar connects", async () => {
   const seen = await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc" } } });
   const saves = () => savedViews(seen).map(([, view]) => view);
-  click(byTestId(draw(), "people-columns"));
-  click(byTestId(draw(), "column-receptionist"));
+  flipColumn(draw(), "receptionist");
   draw();
   await until(() => seen.viewSaves.length === 1, "the choice was saved");
   assert.deepEqual(saves().at(-1).columns, { receptionist: false }, "off: the member's choice");
   await drained();
-  click(byTestId(draw(), "column-receptionist"));
+  flipColumn(draw(), "receptionist");
   draw();
   await until(() => seen.viewSaves.length === 2, "the choice put back was saved");
   assert.deepEqual(saves().at(-1).columns, {}, "on again, as it shows without a calendar: nothing left to keep");
@@ -3064,27 +3049,6 @@ test("a column put back the way its default has it is no choice any more -- the 
   );
 });
 
-test("the Columns button says whether its menu is open, and a second press or a press beside the menu closes it", async () => {
-  await freshPage({ people: [person(1)] });
-  const button = (t) => byTestId(t, "people-columns");
-  let tree = draw();
-  assert.equal(button(tree).props["aria-expanded"], false, "closed");
-  click(button(tree));
-  tree = draw();
-  assert.ok(byTestId(tree, "people-columns-menu"));
-  assert.equal(button(tree).props["aria-expanded"], true, "open, and it says so");
-  click(button(tree));
-  tree = draw();
-  assert.equal(byTestId(tree, "people-columns-menu"), null, "a second press closes it");
-  assert.equal(button(tree).props["aria-expanded"], false);
-  click(button(tree));
-  tree = draw();
-  click(find(tree, (n) => n.props?.className === "more-backdrop"));
-  tree = draw();
-  assert.equal(byTestId(tree, "people-columns-menu"), null, "a press beside it closes it");
-  assert.equal(button(tree).props["aria-expanded"], false);
-});
-
 test("with a calendar the menu offers Visits, shown, and the receptionist, hidden; a Visits hidden stays hidden through a calendar outage and rides in every save", async () => {
   let seen = await freshPage({
     people: [person(1)],
@@ -3092,7 +3056,6 @@ test("with a calendar the menu offers Visits, shown, and the receptionist, hidde
     views: { people: { sortBy: "last", sortDir: "desc" } },
   });
   const saves = () => savedViews(seen).map(([, view]) => view);
-  click(byTestId(draw(), "people-columns"));
   let tree = draw();
   assert.deepEqual(
     menuItems(tree).map((c) => [c.key, c.on]),
@@ -3111,18 +3074,17 @@ test("with a calendar the menu offers Visits, shown, and the receptionist, hidde
     ],
     "the visit shows; the receptionist waits in the menu",
   );
-  click(byTestId(tree, "column-visits"));
+  flipColumn(tree, "visits");
   draw();
   await until(() => seen.viewSaves.length === 1, "the choice was saved");
   const hidden = saves().at(-1);
   assert.deepEqual(hidden.columns, { visits: false });
   // The calendar stops answering: Visits cannot show and the menu does not offer it, but the choice is kept.
   seen = await freshPage({ people: [person(1)], calendar: "unavailable", views: { people: hidden } });
-  click(byTestId(draw(), "people-columns"));
   tree = draw();
   assert.ok(!headings(tree).includes("Visits"));
   assert.ok(!menuItems(tree).some((c) => c.key === "visits"), "the menu offers what this workspace can show now");
-  click(byTestId(tree, "column-email"));
+  flipColumn(tree, "email");
   draw();
   await until(() => seen.viewSaves.length === 1, "the choice was saved");
   assert.deepEqual(
@@ -3145,8 +3107,7 @@ test("REGRESSION: Back keeps the columns a member chose -- People mounted again 
     views: { people: { sortBy: "last", sortDir: "desc", columns: {} } },
   });
   // The bridge's own save over the wire: the save itself keeps the surface's copy in step.
-  click(byTestId(draw(), "people-columns"));
-  click(byTestId(draw(), "column-came_from"));
+  flipColumn(draw(), "came_from");
   draw();
   await settle();
   assert.deepEqual(
@@ -3178,11 +3139,10 @@ test("REGRESSION: a save made while People is being read is not undone by the re
     people: [person(1), person(2)],
     views: { people: { sortBy: "last", sortDir: "desc", columns: {} } },
   });
-  click(byTestId(draw(), "people-columns"));
   // A read of People goes out (a new message, the tab shown again, a load), and the server answers it with the view
   // it held before the save below.
   const reading = peopleOverride.apply();
-  click(byTestId(draw(), "column-came_from"));
+  flipColumn(draw(), "came_from");
   draw();
   await reading;
   await settle();
@@ -3207,8 +3167,7 @@ test("REGRESSION: a save made while People is being read is not undone by the re
 test("a read of People that overlapped no save takes the server's view -- another device's change shows", async () => {
   const people = [person(1), person(2)];
   await freshPage({ people, views: { people: { sortBy: "last", sortDir: "desc", columns: {} } } });
-  click(byTestId(draw(), "people-columns"));
-  click(byTestId(draw(), "column-came_from"));
+  flipColumn(draw(), "came_from");
   draw();
   await settle();
   // Later, on another device, the member shows Email and sorts by name; this tab reads People again.
