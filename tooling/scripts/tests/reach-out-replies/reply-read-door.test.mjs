@@ -9,8 +9,10 @@
  * It proves: the intake schedules one reading and tells nobody itself; the reading reaches the door with the plan and
  * the bare address; the receptionist's draft (PR 5, a port the test holds) is kept on the reading before the notice,
  * which carries it; one notice with the reading's subject; a second run asks no model, drafts nothing and tells nobody;
- * a second schedule of the same message is already there; and a notice whose mail failed leaves told unmarked, throws
- * for the ledger's retry, is left alone by a try inside its claim, and is told on the retry once its claim has gone stale.
+ * a second schedule of the same message is already there; a notice whose mail failed leaves told unmarked, throws
+ * for the ledger's retry, is left alone by a try inside its claim, and is told on the retry once its claim has gone
+ * stale; and the reading closes what the intake opened (the thread's email_review flag resolved by the platform, and
+ * on a no the thread archived), once, and never under a member's name.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -58,7 +60,9 @@ function world() {
     mailboxes: [{ id: "mb1", tenant_id: T, local_part: "harbor" }],
     contacts: [{ id: PERSON, tenant_id: T, email: set.lead.address, erased_at: null, merged_into_contact_id: null }],
     contact_identities: [],
-    conversations: [{ id: "conv-lead", tenant_id: T, contact_id: PERSON }],
+    conversations: [
+      { id: "conv-lead", tenant_id: T, contact_id: PERSON, state: "open", paused_until: null, assignee_user_id: null },
+    ],
     leads: [
       {
         id: LEAD,
@@ -99,9 +103,20 @@ function world() {
     jobs: [],
   };
   const applied = [];
+  // A thread ingest_inbound makes is open, with no pause and nobody's: the shape the reading's close reads.
   const convOf = (contactId) => {
     let c = tables.conversations.find((x) => x.contact_id === contactId);
-    if (!c) tables.conversations.push((c = { id: `conv-${contactId}`, tenant_id: T, contact_id: contactId }));
+    if (!c)
+      tables.conversations.push(
+        (c = {
+          id: `conv-${contactId}`,
+          tenant_id: T,
+          contact_id: contactId,
+          state: "open",
+          paused_until: null,
+          assignee_user_id: null,
+        }),
+      );
     return c;
   };
   const rpcs = {
@@ -294,6 +309,7 @@ function world() {
   });
   return {
     tables,
+    db,
     applied,
     told,
     drafts,
@@ -304,6 +320,16 @@ function world() {
     },
     job: (kind, payload) => ({ id: `job-${kind}`, tenant_id: T, kind, payload }),
     readJobs: () => tables.jobs.filter((j) => j.kind === "reply_read"),
+    /** The thread the reply was kept under: the lead's own, or a new one for a reply from another address. */
+    threadOf: () => {
+      const m = tables.messages.find((x) => x.direction === "inbound");
+      return tables.conversations.find((c) => c.id === m?.conversation_id);
+    },
+    /** The writes to the thread and its flag, in order, as the double saw them. */
+    closes: () =>
+      db.seen
+        .filter((q) => q.op === "update" && ["escalations", "conversations"].includes(q.table))
+        .map((q) => q.table),
   };
 }
 
@@ -380,6 +406,74 @@ test("a person's reply: the intake schedules one reading and tells nobody; the r
     assert.equal(calls.length, 1, "a reading kept asks no model");
     assert.equal(w.drafts.length, 1, "a draft kept is not drafted again");
     assert.equal(w.told.length, 1);
+    // Interested is a person's to answer: the intake's flag stands and the thread stays open.
+    assert.deepEqual(w.closes(), [], "nothing written to the flag or the thread");
+    assert.equal(w.threadOf().state, "open");
+  });
+});
+
+test("a no closes what the intake opened: the flag resolved by the platform, the thread archived, no decision in anyone's name; a second run changes nothing", async () => {
+  await withEnv(KEY, async () => {
+    const w = world();
+    const { reply, email } = provided(7);
+    model([reply.answer]);
+    await dispatchJob(w.ctx(email), w.job("email_ingest", { mailbox_id: "mb1", received_id: email.id }));
+    const [flag] = w.tables.escalations;
+    // Their no came from another address of the business, so it was kept under a thread of its own.
+    const thread = w.threadOf();
+    assert.deepEqual([flag.reason, flag.conversation_id, thread.state], ["email_review", thread.id, "open"]);
+    const [job] = w.readJobs();
+    assert.equal(await dispatchJob(w.ctx(email), w.job("reply_read", job.payload)), "done");
+    assert.equal(w.applied[0].p_plan.saidNo, true);
+    assert.equal(flag.state, "resolved", "Needs you is gone");
+    assert.equal(flag.resolved_by_user_id ?? null, null, "the platform's own close: no member resolved it");
+    assert.equal(flag.decision_id ?? null, null, "and no decision is linked, since none is recorded");
+    assert.deepEqual(
+      [thread.state, thread.paused_until, thread.assignee_user_id],
+      ["archived", null, null],
+      "contracts' archive move, whole: released completely; their next email reopens it (ingest's reopen)",
+    );
+    assert.equal(w.tables.decisions, undefined, "the platform records no decision for its own close (settle.ts)");
+    assert.equal(w.tables.escalations.length, 1, "resolved, not replaced");
+    // The flag then the thread, and both before the owner is told, so the thread the notice opens is closed already.
+    const order = w.db.seen.map((q) => q.rpc ?? `${q.op} ${q.table}`);
+    const told = order.indexOf("reach_out_reply_tell_claim");
+    assert.deepEqual(w.closes(), ["escalations", "conversations"]);
+    assert.ok(order.indexOf("update escalations") < order.indexOf("update conversations"), "the flag first");
+    assert.ok(order.indexOf("update conversations") < told, "both before the notice");
+    assert.equal(w.told[0].notice.subject, `${set.lead.business} said no`);
+
+    // The run again (the ledger's retry, a second webhook): the reading is kept, so nothing is written to the flag
+    // or the thread, and what they say stands.
+    const flags = structuredClone(w.tables.escalations);
+    const threads = structuredClone(w.tables.conversations);
+    const writes = w.closes().length;
+    assert.equal(await dispatchJob(w.ctx(email), w.job("reply_read", job.payload)), "done");
+    assert.deepEqual(w.tables.escalations, flags);
+    assert.deepEqual(w.tables.conversations, threads);
+    assert.equal(w.closes().length, writes, "a second run writes nothing to them");
+  });
+});
+
+test("a wrong person and a not now resolve the flag and leave the thread open for their step on Today", async () => {
+  await withEnv(KEY, async () => {
+    for (const [n, intent] of [
+      [8, "wrong_person"],
+      [3, "not_now"],
+    ]) {
+      const w = world();
+      const { reply, email } = provided(n);
+      model([reply.answer]);
+      await dispatchJob(w.ctx(email), w.job("email_ingest", { mailbox_id: "mb1", received_id: email.id }));
+      const [job] = w.readJobs();
+      assert.equal(await dispatchJob(w.ctx(email), w.job("reply_read", job.payload)), "done");
+      assert.equal(w.applied[0].p_reading.intent, intent);
+      assert.ok(w.applied[0].p_plan.step, `${intent}: a step on Today is what is left to do`);
+      assert.equal(w.tables.escalations[0].state, "resolved", `${intent}: the flag resolved`);
+      assert.equal(w.tables.escalations[0].resolved_by_user_id ?? null, null);
+      assert.equal(w.threadOf().state, "open", `${intent}: the thread stays open`);
+      assert.deepEqual(w.closes(), ["escalations"], `${intent}: the flag alone is written`);
+    }
   });
 });
 
@@ -411,6 +505,11 @@ test("an automatic 'remove us' is read and told (B1); an automatic out-of-office
     await dispatchJob(w.ctx(email), w.job("reply_read", job.payload));
     assert.equal(w.applied[0].p_plan.saidNo, true);
     assert.match(w.told[0].notice.subject, /automatic reply asks to be taken off your list/);
+    // An automatic no closes nothing: the intake flagged no automatic reply, so there is no flag of this reading's
+    // to resolve, and a thread is not archived over a robot's words (a person's flag on it would be hidden).
+    assert.equal(w.threadOf().state, "open");
+    assert.equal(w.tables.escalations.length, 0);
+    assert.deepEqual(w.closes(), [], "nothing written to the flag or the thread");
 
     const away = world();
     const out = provided(9);
@@ -420,6 +519,8 @@ test("an automatic 'remove us' is read and told (B1); an automatic out-of-office
     await dispatchJob(away.ctx(out.email), away.job("reply_read", awayJob.payload));
     assert.equal(away.applied[0].p_plan.awayUntil, "2026-10-06T04:00:00.000Z");
     assert.equal(away.told.length, 0);
+    assert.deepEqual(away.closes(), [], "an away closes nothing: they are back on the day the step names");
+    assert.equal(away.threadOf().state, "open");
   });
 });
 

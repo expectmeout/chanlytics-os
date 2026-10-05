@@ -15,6 +15,10 @@
  *                           then reads and writes the reading through replyReadingOf, applyReplyReading, markReplyDraft
  *                           and the notice's two phases, claimReplyTell and markReplyTold. takeReplyRead is the
  *                           workspace's daily cap on reads, taken by the edge (apps/edge/lib/reach-out/reply-read.ts).
+ *   what the intake         resolveEscalationByReason and archiveConversation: the flag the intake raised on the
+ *   opened, closed          reply's thread resolved, and on a no the thread archived, by the platform (core's
+ *                           reply-read.ts closeWhatTheIntakeOpened). The only writes to escalations and conversations
+ *                           here, each counted and guarded so it is once.
  *   what a member sees      repliesFor, replyReadingRefOf, replyUndoableOf and undoReplyReading, on the member's own
  *                           client (RLS decides), for apps/dashboard/src/server/campaigns/reach-out-replies.ts and
  *                           apps/dashboard/src/server/verbs.ts.
@@ -32,6 +36,7 @@
  * Cross-workspace: only reachOutDayDue, the 6 PM sweep over every workspace; every other door keeps to one.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { conversationPatch, type SchemaSet } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 import { erasureDigests } from "./people";
 
@@ -346,6 +351,49 @@ export async function markReplyTold(db: Db, p: { tenantId: string; messageId: st
     p_claimed_at: p.claim,
   });
   if (error) throw new Error(`cannot mark the reply's notice told: ${error.message}`);
+}
+
+/* ---- what the intake opened, the reading closes (packages/core reply-read.ts closeWhatTheIntakeOpened) ---- */
+
+/**
+ * The thread's open escalation of `reason` resolved by the platform: nobody is named as resolving it and no decision
+ * is linked (a member's resolve, apps/dashboard/src/server/verbs.ts resolveOpenEscalation, names both). Guarded by
+ * the reason, so a flag raised for something else (the carriers, a failed send, an opt-out) is never closed by a
+ * reading, and by the state, so it is once: 00106's guard keeps a resolved row resolved, and a thread's new concern is
+ * a new row. COUNTED, as every permission-sensitive update is: an UPDATE that matches nothing does not raise, so the
+ * rows are read back, and true means one changed. A write that fails throws.
+ */
+export async function resolveEscalationByReason(
+  db: Db,
+  p: { tenantId: string; conversationId: string; reason: SchemaSet<"escalations.reason"> },
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("escalations")
+    .update({ state: "resolved" })
+    .eq("tenant_id", p.tenantId)
+    .eq("conversation_id", p.conversationId)
+    .eq("reason", p.reason)
+    .eq("state", "open")
+    .select("id");
+  if (error) throw new Error(`cannot resolve the thread's flag: ${error.message}`);
+  return !!data && data.length > 0;
+}
+
+/**
+ * The thread archived by the platform: contracts' archive move, whole (the state, with the pause and the claim
+ * cleared), on a thread not archived already, so a second call changes nothing and says so. Their next message
+ * reopens it (ingest's reopen move). Counted as above; a write that fails throws.
+ */
+export async function archiveConversation(db: Db, p: { tenantId: string; conversationId: string }): Promise<boolean> {
+  const { data, error } = await db
+    .from("conversations")
+    .update(conversationPatch("archive"))
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.conversationId)
+    .neq("state", "archived")
+    .select("id");
+  if (error) throw new Error(`cannot archive the thread: ${error.message}`);
+  return !!data && data.length > 0;
 }
 
 /** A reading as the dashboard lists it: the row, and the lead, send and step it answers. */

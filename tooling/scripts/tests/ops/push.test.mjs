@@ -14,6 +14,7 @@ import {
   SERVER_NOTIFICATION_KINDS,
   JOB_KINDS,
   unreadFor,
+  isForReader,
   PUSH_RECEIPTS_AFTER_MS,
 } from "../../../../packages/contracts/src/index.ts";
 
@@ -104,4 +105,10 @@ test("the badge is the bell's number: rows newer than the seen moment, not marke
   );
   assert.equal(unreadFor([], "2026-09-26T10:30:00Z", marks), 0);
   assert.equal(PUSH_RECEIPTS_AFTER_MS, 15 * 60_000, "what Expo asks");
+});
+
+test("a row is on a member's bell when it is the workspace's own or a note left for them, and on no one else's (00158)", () => {
+  assert.equal(isForReader({ recipient_user_id: null }, "u1"), true, "no recipient: everyone's");
+  assert.equal(isForReader({ recipient_user_id: "u1" }, "u1"), true, "their own note");
+  assert.equal(isForReader({ recipient_user_id: "u2" }, "u1"), false, "another member's note is not theirs to count");
 });

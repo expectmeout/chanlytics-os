@@ -32,6 +32,11 @@ const facts = (over = {}) => ({
 });
 const INTERESTED = { intent: "interested", summary: "Wants more details", day: null, refer_to: null };
 const NO = { intent: "no", summary: "Asks to be taken off the list", day: null, refer_to: null };
+const QUESTION = { intent: "question", summary: "Asks the price", day: null, refer_to: null };
+const NOT_NOW = { intent: "not_now", summary: "Busy until the autumn", day: "2026-10-20", refer_to: null };
+const WRONG = { intent: "wrong_person", summary: "Has left", day: null, refer_to: "Dana at dana@example.com" };
+const AWAY = { intent: "away", summary: "Out until October 5", day: "2026-10-05", refer_to: null };
+const OTHER = { intent: "other", summary: "Received", day: null, refer_to: null };
 
 /**
  * Ports over one kept reading. `apply` keeps what the door would (the reading, its plan's tell, a re-read's count) so
@@ -94,6 +99,9 @@ function world(over = {}) {
       state.kept = { ...state.kept, told: true };
     }),
     scheduleOnce: call("scheduleOnce", async () => "scheduled"),
+    // What the intake opened, closed: true when a row changed, as the repository counts it.
+    resolveEscalation: call("resolveEscalation", async () => answers.resolveEscalation ?? true),
+    archiveConversation: call("archiveConversation", async () => answers.archiveConversation ?? true),
     now: () => state.now,
   };
   return {
@@ -367,6 +375,88 @@ test("an automatic reply (B1): a no and a wrong person are applied and told; an 
   assert.equal(await run(ack), "read");
   assert.equal(ack.calls("apply")[0][3].plan.stops, false, "an acknowledgement is not writing back");
   assert.equal(ack.calls("tell").length, 0);
+});
+
+test("the reading closes what the intake opened: a no resolves the flag and archives the thread, a wrong person or a not now resolves the flag, the rest leave it to a person", async () => {
+  const no = world({ answers: { ask: NO } });
+  assert.equal(await run(no), "told");
+  // After the apply and before the notice, so the thread the notice brings the owner to is already closed; the
+  // flag first, the thread after, each by the reading's own workspace and thread.
+  assert.deepEqual(no.ops(), [
+    "reply",
+    "reading",
+    "mayRead",
+    "ask",
+    "apply",
+    "reading",
+    "resolveEscalation",
+    "archiveConversation",
+    "claimTell",
+    "tell",
+    "told",
+  ]);
+  assert.deepEqual(no.calls("resolveEscalation")[0].slice(1), [T, "c1", "email_review"], "the intake's own flag");
+  assert.deepEqual(no.calls("archiveConversation")[0].slice(1), [T, "c1"]);
+
+  const closes = (w) => [w.calls("resolveEscalation").length, w.calls("archiveConversation").length];
+  for (const [name, answer] of [
+    ["wrong_person", WRONG],
+    ["not_now", NOT_NOW],
+  ]) {
+    const w = world({ answers: { ask: answer } });
+    await run(w);
+    assert.deepEqual(closes(w), [1, 0], `${name}: the flag resolved; the thread stays open for its step on Today`);
+  }
+  for (const [name, answer] of [
+    ["interested", INTERESTED],
+    ["question", QUESTION],
+    ["other", OTHER],
+    ["away", AWAY],
+  ]) {
+    const w = world({ answers: { ask: answer } });
+    await run(w);
+    assert.deepEqual(closes(w), [0, 0], `${name}: a person answers, so the flag stands`);
+  }
+  // Not read (other for want of a reader): nothing is closed on a reading that may yet be read as a no.
+  const unread = world({ answers: { mayRead: "day_spent" } });
+  await run(unread);
+  assert.deepEqual(closes(unread), [0, 0]);
+  // An automatic reply's no (B1) is applied and told, and closes nothing: the intake flags no automatic reply, so a
+  // flag on that thread is another email's (a person's), and a robot's "remove us" does not answer it.
+  for (const answer of [NO, WRONG, NOT_NOW]) {
+    const auto = world({ facts: { claim: "auto_reply", from: "noreply@example.com" }, answers: { ask: answer } });
+    await run(auto);
+    assert.deepEqual(closes(auto), [0, 0], `an automatic ${answer.intent} closes neither the flag nor the thread`);
+  }
+});
+
+test("the close is the applying run's: a re-read that reads a no closes then; a run that finds the reading kept closes nothing again", async () => {
+  const unread = {
+    intent: "other",
+    summary: null,
+    unread: "model_failed",
+    rereads: 0,
+    tell: true,
+    told: true,
+    undone: false,
+  };
+  const reread = world({ kept: unread, answers: { ask: NO }, now: RECEIVED + 2 * HOUR });
+  assert.equal(await run(reread, "reread-1"), "told");
+  assert.deepEqual([reread.calls("resolveEscalation").length, reread.calls("archiveConversation").length], [1, 1]);
+
+  // A run that died after the apply (its notice owed) tells on the next try and closes nothing again: the close was
+  // the applying run's, and a thread the business has written to since, under a new flag, is not closed under it.
+  const owed = world({
+    kept: { intent: "no", summary: "x", unread: null, rereads: 0, tell: true, told: false, undone: false },
+  });
+  assert.equal(await run(owed), "told");
+  assert.deepEqual(owed.ops(), ["reply", "reading", "claimTell", "tell", "told"]);
+  // A reading applied by another run meanwhile (apply answers false) is that run's to close.
+  const lost = world({ answers: { ask: NO, apply: false }, kept: null });
+  const kept = { intent: "no", summary: "x", unread: null, rereads: 0, tell: true, told: true, undone: false };
+  lost.ports.reading = async () => (lost.calls("apply").length ? { ...kept } : null);
+  assert.equal(await run(lost), "read");
+  assert.deepEqual([lost.calls("resolveEscalation").length, lost.calls("archiveConversation").length], [0, 0]);
 });
 
 test("the plan's context is the intake's bare from.address: a display-name form would suppress nothing", async () => {
