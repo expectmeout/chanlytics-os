@@ -264,7 +264,7 @@ function world() {
   };
 }
 
-const blank = () => ({ history: [], pausedUntil: 0, replies: [], repliedBefore: false });
+const blank = () => ({ history: [], pausedUntil: 0, replies: [], textedBefore: false });
 
 /**
  * The receptionist's world, handed in through setInboundPorts and recording

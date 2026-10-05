@@ -127,9 +127,30 @@ test("a recipient's line carries the times the receipts gave, and the first repl
     ],
     messages: [
       // Ada replied twice inside the window; Bo asked something two weeks later, which is not a reply.
-      { tenant_id: T, conversation_id: "c1", direction: "inbound", created_at: "2026-09-01T15:30:00Z" },
-      { tenant_id: T, conversation_id: "c1", direction: "inbound", created_at: "2026-09-01T14:20:00Z" },
-      { tenant_id: T, conversation_id: "c2", direction: "inbound", created_at: "2026-09-15T14:20:00Z" },
+      {
+        tenant_id: T,
+        conversation_id: "c1",
+        direction: "inbound",
+        sender: "customer",
+        meta: {},
+        created_at: "2026-09-01T15:30:00Z",
+      },
+      {
+        tenant_id: T,
+        conversation_id: "c1",
+        direction: "inbound",
+        sender: "customer",
+        meta: {},
+        created_at: "2026-09-01T14:20:00Z",
+      },
+      {
+        tenant_id: T,
+        conversation_id: "c2",
+        direction: "inbound",
+        sender: "customer",
+        meta: {},
+        created_at: "2026-09-15T14:20:00Z",
+      },
     ],
   };
   const d = await B.getBroadcast(ctx(tables), T, "b1");

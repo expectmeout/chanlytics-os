@@ -268,7 +268,7 @@ function world() {
   };
 }
 
-const blank = () => ({ history: [], pausedUntil: 0, replies: [], repliedBefore: false });
+const blank = () => ({ history: [], pausedUntil: 0, replies: [], textedBefore: false });
 
 /**
  * The receptionist's world, handed in through setInboundPorts and recording
@@ -279,7 +279,7 @@ const blank = () => ({ history: [], pausedUntil: 0, replies: [], repliedBefore: 
  * goes through the carrier the door made from the line and the vault.
  * `ingest` and `escalate` run inside those steps, so a case can make either throw.
  */
-function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {} } = {}) {
+function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {}, thread = blank } = {}) {
   const seen = {
     runtimes: [],
     ingested: [],
@@ -314,7 +314,7 @@ function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {} }
     calendar: { openings: async () => null, visits: async () => null },
     budget: { tokensLast24h: async () => 0 },
     persist: {
-      thread: async () => blank(),
+      thread: async () => thread(),
       ingest: async (_db, tenantId, n, channel) => {
         seen.ingested.push({ tenantId, channel, body: n.body });
         ingest(n);
@@ -666,6 +666,39 @@ test("a text on an approved line is answered on that line: the subaccount's own 
     assert.equal(log.said("sms_inbound")[0].held, false);
     assert.deepEqual(w.left().mail, [], "nobody is paged for a text that was answered");
   });
+});
+
+test("the footer rides the first TEXT to a person, whatever reached them on another wire: a campaign or the day's answers on WhatsApp do not spend it, and a text of ours does", async () => {
+  const bodyFor = async (thread) => {
+    const w = world();
+    w.open();
+    receptionist({ thread });
+    const from = w.customer();
+    let body;
+    await listening(async () => {
+      assert.deepEqual(await heard(await text(w.form(from), w.TOKEN)), twiml(200));
+      body = w.left().texts[0].form.Body;
+    });
+    return body;
+  };
+  // A WhatsApp campaign reached them last week and the receptionist answered them on WhatsApp this morning: the thread
+  // has an assistant turn and a reply spent today, and no text of ours. Their first text is still a first text.
+  assert.equal(
+    await bodyFor(() => ({
+      history: [{ role: "assistant", content: "Ten percent off this month." }],
+      pausedUntil: 0,
+      replies: [Date.now() - 60_000],
+      textedBefore: false,
+    })),
+    `${GREETING}\n${SMS_FOOTER}`,
+    "no text of ours has reached them: the line the filing promises is on this one",
+  );
+  // A text of ours has left before, however quiet the thread has been since: the footer is not said twice.
+  assert.equal(
+    await bodyFor(() => ({ history: [], pausedUntil: 0, replies: [], textedBefore: true })),
+    GREETING,
+    "they have had a text of ours: no footer",
+  );
 });
 
 test("the customer's number and words, and the line's token, are in no line of what an answered text says: the door's whole stdout, searched for what was planted", async () => {

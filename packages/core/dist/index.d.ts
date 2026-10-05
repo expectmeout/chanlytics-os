@@ -1154,10 +1154,20 @@ interface EmailIngestPorts {
         meta: Json;
         /** The email's own words are the opt-out (asksToStop): ingest_inbound then records the STOP, as it does for a text. */
         optOut: boolean;
+        /**
+         * The email's own words are START, from a sender the receiving side proved (asksToStart): ingest_inbound records the
+         * yes to hearing from the business again, as it does for a text, and the yes covers email.
+         */
+        optIn: boolean;
         /** The email's own words are UNSUBSCRIBE (asksToUnsubscribe): offers by email end, through the unsubscribe link's door. */
         unsubscribe: boolean;
         /** The email's own words are YES OFFERS, from a sender the receiving side proved (asksForOffers): the yes to offers by email. */
         optInOffers: boolean;
+        /**
+         * A person wrote it, from a sender the receiving side proved: the address works, whatever a hard bounce once said of
+         * it, so that stop is lifted (a complaint's, and the provider's own, are not this email's to lift).
+         */
+        fromThemProven: boolean;
         /** What they wrote, as the ledger quotes it: the words of the reply, never the history their client quoted. */
         words: string | null;
     }): Promise<{
@@ -3123,17 +3133,15 @@ interface ThreadState {
      */
     unknown?: boolean;
     /**
-     * We have written to this person before, per Postgres.
+     * A text of ours has reached this person before, per Postgres (db readThreadState).
      *
-     * It exists because the question "is this our first reply to them" — which
-     * decides whether a text carries the rates/STOP/HELP footer the campaign
-     * filing promises — cannot be answered from the history: a voice call note
-     * is an INBOUND row whose sender is "system", and assembleHistory maps that
-     * to an assistant turn, so a customer who phoned and then texted for the
-     * first time was taken for someone we had already written to and their
-     * first reply went out without the disclosure.
+     * It exists because the question "is this our first text to them", which decides whether a text carries the
+     * rates/STOP/HELP footer the campaign filing promises, cannot be answered from anything else here. The history reads a
+     * voice call note (an INBOUND row whose sender is "system") as an assistant turn, so a customer who phoned and then
+     * texted for the first time was taken for someone we had already written to. And a message of ours on another wire is
+     * not a text: a person a WhatsApp or email campaign had reached got their first text reply without the disclosure.
      */
-    repliedBefore?: boolean;
+    textedBefore?: boolean;
 }
 /**
  * The state of a thread nobody can read. `pausedUntil: -1` is a second line

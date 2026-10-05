@@ -8,6 +8,7 @@ import {
 import {
   CARRIER_CONSENT_SOURCE,
   domainDailyCap,
+  isAutomatedSend,
   isOfferByEmail as isOfferByEmail3,
   mayMessageFor,
   outreachRefusalOf,
@@ -300,10 +301,7 @@ async function overtakenByHuman(db, d) {
   if (!mine) return null;
   const { data: newer, error } = await db.from("messages").select("id, meta").eq("conversation_id", d.conversationId).eq("tenant_id", d.tenantId).eq("direction", "outbound").eq("sender", "human").gt("created_at", mine.created_at).order("created_at", { ascending: true }).limit(10);
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
-  const spoke = (newer ?? []).find((m) => {
-    const source = m.meta?.source;
-    return source !== "broadcast" && source !== "reach_out";
-  });
+  const spoke = (newer ?? []).find((m) => !isAutomatedSend(m.meta));
   return spoke ? spoke.id : null;
 }
 function event(db, d, kind, messageId, data) {
@@ -933,6 +931,7 @@ async function provisionLine(ports, cmd) {
 
 // src/messages/email-ingest.ts
 import {
+  CONVERSATION_OPT_IN_PATTERN,
   EMAIL_STOP_PATTERN,
   EMAIL_UNSUBSCRIBE_PATTERN,
   MARKETING_OPT_IN_PATTERN,
@@ -965,9 +964,7 @@ async function ingestEmail(ports, cmd) {
   if (await ports.erasedBefore(mailbox.tenant_id, address, email.receivedAt ?? at)) return "erased_person";
   const { claim } = email;
   if (claim === "report") return "not_a_conversation";
-  const stops = asksToStop(email);
-  const yes = !stops && saysYesToOffers(email);
-  const optInOffers = yes && email.senderAuthenticated === true;
+  const said = answersOf(email);
   const kept = await ports.record({
     tenantId: mailbox.tenant_id,
     address,
@@ -975,14 +972,15 @@ async function ingestEmail(ports, cmd) {
     body: bodyOf(email),
     channelTs: email.receivedAt ?? at,
     meta: metaOf(email),
-    optOut: stops,
-    // One word, one answer: a STOP stops everything and says nothing of offers; an unsubscribe and a yes are about offers.
-    unsubscribe: !stops && asksToUnsubscribe(email),
-    optInOffers,
+    optOut: said.optOut,
+    optIn: said.optIn,
+    unsubscribe: said.unsubscribe,
+    optInOffers: said.optInOffers,
+    fromThemProven: said.fromThemProven,
     words: replyTextOf(email.text).slice(0, 80) || null
   });
   if (!kept.is_new && kept.processed) return "already_handled";
-  if (yes && !optInOffers)
+  if (said.unproven)
     emailLog.warn("email_yes_unauthenticated", { tenant_id: mailbox.tenant_id, message_id: kept.message_id });
   const reachOut = await ports.reachOutReply(mailbox.tenant_id, kept.message_id);
   if (reachOut) await ports.readReply(mailbox.tenant_id, kept.message_id);
@@ -1019,6 +1017,20 @@ async function flagForAPerson(ports, email, p) {
     claim
   });
 }
+function answersOf(e) {
+  const optOut = asksToStop(e);
+  const yes = !optOut && saysYesToOffers(e);
+  const start = !optOut && asksToStart(e);
+  const proven = e.senderAuthenticated === true;
+  return {
+    optOut,
+    unsubscribe: !optOut && asksToUnsubscribe(e),
+    optInOffers: yes && proven,
+    optIn: start && proven,
+    unproven: (yes || start) && !proven,
+    fromThemProven: e.claim === "person" && proven
+  };
+}
 function asksToStop(e) {
   return EMAIL_STOP_PATTERN.test(replyTextOf(e.text));
 }
@@ -1027,6 +1039,9 @@ function asksToUnsubscribe(e) {
 }
 function saysYesToOffers(e) {
   return e.claim === "person" && MARKETING_OPT_IN_PATTERN.test(replyTextOf(e.text));
+}
+function asksToStart(e) {
+  return e.claim === "person" && CONVERSATION_OPT_IN_PATTERN.test(replyTextOf(e.text));
 }
 function bodyOf(e) {
   return e.text?.slice(0, EMAIL_BODY_MAX) ?? null;
@@ -37770,8 +37785,7 @@ async function ingestMessage(cx) {
     const given = addressInMessage(n.body);
     if (given) await sink.noteEmail(given);
   }
-  const repliedBefore = thread.repliedBefore ?? thread.history.some((h) => h.role === "assistant");
-  const firstReply = thread.replies.length === 0 && !repliedBefore;
+  const firstReply = thread.textedBefore === void 0 ? thread.replies.length === 0 && !thread.history.some((h) => h.role === "assistant") : !thread.textedBefore;
   const wire = (text) => carrier ? carrier.body(text, firstReply) : text;
   const send = (text, meta, purpose, kind) => sink.deliver(from, wire(text), meta, purpose, kind);
   const tell = (userText, botText, reason, pausedHours = null) => ports.alertStaff(from, userText, botText, reason, {
