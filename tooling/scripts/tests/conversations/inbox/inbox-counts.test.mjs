@@ -766,3 +766,59 @@ test("a Today load asks for the replies to reach-outs once, as the surface that 
     delete globalThis.__REPLIES;
   }
 });
+
+test("the Inbox reads its approved templates once in a few minutes, not with every message it reads again for: a write here forgets them, and a read that failed is not kept", async (t) => {
+  const realFetch = globalThis.fetch;
+  try {
+    const { inboxOverride, forgetInboxTemplates } = await import(`${S}/surfaces/inbox/surface.ts`);
+    const { inboxData } = await import(`${S}/surfaces/inbox/store.ts`);
+    const requests = [];
+    let templatesAnswer = true;
+    globalThis.fetch = async (url) => {
+      requests.push(String(url));
+      const answers = {
+        "/api/v1/conversations": { conversations: [] },
+        "/api/v1/escalations": { escalations: [] },
+        "/api/v1/workspaces": { workspaces: [] },
+        ...(templatesAnswer ? { "/api/v1/templates": { templates: [], held: null } } : {}),
+      };
+      const data = answers[new URL(String(url), "https://app.chanlytics.com").pathname];
+      return new Response(
+        JSON.stringify(data ? { ok: true, data } : { ok: false, error: { code: "not_found", message: "no" } }),
+        { status: data ? 200 : 404, headers: { "content-type": "application/json" } },
+      );
+    };
+    const asked = () => requests.filter((u) => u.includes("/api/v1/templates")).length;
+    t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-05T12:00:00Z") });
+    forgetInboxTemplates();
+
+    // Three passes as the feed brings them: a message, its receipt, a flag.
+    await inboxOverride.apply();
+    await inboxOverride.apply();
+    await inboxOverride.apply();
+    assert.equal(
+      asked(),
+      1,
+      "REGRESSION: the templates were read again with every message the Inbox read again for (B12)",
+    );
+
+    t.mock.timers.tick(5 * 60_000);
+    await inboxOverride.apply();
+    assert.equal(asked(), 2, "a read five minutes old is read again: an approval made elsewhere reaches an open Inbox");
+
+    forgetInboxTemplates();
+    await inboxOverride.apply();
+    assert.equal(asked(), 3, "a template written in this tab is read again at once (refresh-map's templates writes)");
+
+    // A read that failed is not kept: the next pass, the composer's Retry among them, asks again.
+    forgetInboxTemplates();
+    templatesAnswer = false;
+    await inboxOverride.apply();
+    assert.equal(inboxData().templates, null, "a read that failed is 'could not read', and the Inbox is still drawn");
+    templatesAnswer = true;
+    await inboxOverride.apply();
+    assert.equal(asked(), 5, "a failed read is asked for again, never kept as the answer");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

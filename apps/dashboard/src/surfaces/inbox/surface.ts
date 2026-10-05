@@ -7,7 +7,13 @@ import { read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import { LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { toInboxThreadVM, type ConversationDto, type EscalationDto, type TemplateHolds } from "@chanlytics/contracts";
+import {
+  MIN_MS,
+  toInboxThreadVM,
+  type ConversationDto,
+  type EscalationDto,
+  type TemplateHolds,
+} from "@chanlytics/contracts";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
 import { inboxData } from "./store";
 import type { ApprovedTemplate, InboxBucket } from "./types";
@@ -45,6 +51,30 @@ const REAL_BUCKETS: InboxBucket[] = [
 /** The most escalations one read by id holds: the escalations read holds a hundred at most. */
 const ESCALATIONS_BY_ID = 100;
 
+/**
+ * How long one read of the approved templates stands. The Inbox reads again on every message, receipt and flag the
+ * feed brings, and after a draft's deadline; the templates read went with each of them though templates change only
+ * when WhatsApp approves or blocks one, or a member writes one (the 2 Oct 2026 audit, B12). Templates are not on the
+ * feed, so an approval elsewhere is read again once this has passed; a write in this tab forgets the read at once.
+ */
+const TEMPLATES_FRESH_MS = 5 * MIN_MS;
+type TemplatesAnswer = Awaited<ReturnType<typeof readTemplates>>;
+const readTemplates = () => read("GET templates");
+let keptTemplates: { at: number; answer: TemplatesAnswer } | null = null;
+
+/** A template written in this tab: the Inbox's next read asks for them again (refresh-map's templates writes). */
+export function forgetInboxTemplates(): void {
+  keptTemplates = null;
+}
+
+/** The templates read, or the one kept from the last few minutes. A read that failed is never kept. */
+async function templatesFor(nowMs: number): Promise<TemplatesAnswer> {
+  if (keptTemplates && nowMs - keptTemplates.at < TEMPLATES_FRESH_MS) return keptTemplates.answer;
+  const answer = await readTemplates();
+  keptTemplates = { at: nowMs, answer };
+  return answer;
+}
+
 export const inboxOverride: SurfaceOverride = {
   key: "inbox",
   value: "inbox",
@@ -69,7 +99,8 @@ export const inboxOverride: SurfaceOverride = {
       // Additive, like calls: a template read that fails must not blank the
       // Inbox. It leaves null -- "could not read" -- which the composer says,
       // with a way to read it again; [] is the other answer, "none approved".
-      read("GET templates").catch((e: unknown) => e as Error),
+      // Read again only when the last read is a few minutes old (templatesFor), never for each message.
+      templatesFor(Date.now()).catch((e: unknown) => e as Error),
       // Every time on a thread is said by the business's clock (zone.ts).
       workspaceZone(),
     ]);

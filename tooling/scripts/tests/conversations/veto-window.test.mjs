@@ -231,9 +231,6 @@ test("the event names the usual cause rather than making someone guess", () => {
     assert.match(verbs2, /has no approved template yet/);
   });
 
-  test("a template read that fails degrades, it does not blank the Inbox", () => {
-    const at = seam.indexOf('read("GET templates")');
-    const around = seam.slice(at - 200, at + 400);
-    assert.match(around, /catch/, "the templates fetch is additive, like calls");
-  });
+  // That a template read that fails degrades rather than blanking the Inbox is run, not read off the source:
+  // inbox/inbox-counts.test.mjs, "the Inbox reads its approved templates once in a few minutes…".
 }

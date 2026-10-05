@@ -21,8 +21,10 @@ export const ixHeld = (state: Record<string, VetoState>, t: Thread): boolean => 
 
 // Past a real draft's deadline the only honest move is to go and look -- and to look again while the draft is still
 // there: the job fires on a ten-second tick, and one read at zero left "Auto-sends in 0s" until something else moved (I3).
-const IX_READ_AGAIN_MS = 5000;
-const IX_READ_AGAIN_TRIES = 6;
+// Since 00327 the send itself reaches the tab (a message's update, heard by status), so these looks are the fallback for
+// a feed that is down: one per job tick, three of them, where six five seconds apart re-read the whole Inbox each time.
+const IX_READ_AGAIN_MS = 10_000;
+const IX_READ_AGAIN_TRIES = 3;
 
 export const ixReadAgain = (st: VetoState, nowMs: number): boolean => {
   if ((st.tries || 0) >= IX_READ_AGAIN_TRIES || (st.lastTry != null && nowMs - st.lastTry < IX_READ_AGAIN_MS))
