@@ -2447,6 +2447,118 @@ test("the hold is the one mic: the press asks for the agent's session and starts
   }
 });
 
+test("a session still connecting is ended as one that is up is: by a typed question, and by the Line closing; it was left to come up with nobody using it", async () => {
+  const ph = phoneWindow();
+  const recs = [];
+  globalThis.window.SpeechRecognition = class {
+    constructor() {
+      recs.push(this);
+    }
+    start() {}
+    stop() {
+      this.onend();
+    }
+  };
+  const down = () => ({ ...pressOf(), pointerId: 7, currentTarget: { setPointerCapture: () => {} } });
+  const stops = [];
+  try {
+    ask([]);
+    Object.assign(globalThis.window.__ask, {
+      canVoice: () => true,
+      voiceUp: () => false,
+      voiceThread: () => null,
+      // The vendor is slow: the session the press asked for never lands while this test runs.
+      ensureVoice: () => new Promise(() => {}),
+      soonVoice: async () => null,
+      sayVoice: () => false,
+      hushVoice: () => {},
+      stopVoice: async (reason) => {
+        stops.push(reason);
+      },
+    });
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    // A press and a lift with nothing heard: the session is on its way, and the person types instead.
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerUp();
+    tree = await later(Palette, OPEN);
+    tree = await asks(tree, OPEN, "who wrote today?");
+    assert.deepEqual(stops, ["typed"], "a typed question ends the session on its way");
+    // Another press, and the Line closes under it.
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerUp();
+    tree = await later(Palette, OPEN);
+    await closes();
+    assert.deepEqual(stops, ["typed", "navigated"], "and so does the Line closing");
+  } finally {
+    await closes();
+    delete globalThis.window.SpeechRecognition;
+    ph.restore();
+  }
+});
+
+test("a press while Ask is still thinking of a spoken answer does not hold the agent's voice down: the recogniser cannot listen then, and the press swallowed the answer's first words", async () => {
+  const ph = phoneWindow();
+  const recs = [];
+  globalThis.window.SpeechRecognition = class {
+    constructor() {
+      recs.push(this);
+    }
+    start() {}
+    stop() {
+      this.onend();
+    }
+  };
+  const hears = (rec, words) => {
+    const r = [{ transcript: words }];
+    r.isFinal = true;
+    rec.onresult({ results: [r] });
+  };
+  const down = () => ({ ...pressOf(), pointerId: 7, currentTarget: { setPointerCapture: () => {} } });
+  const hushed = [];
+  let listener = null;
+  try {
+    ask([]);
+    Object.assign(globalThis.window.__ask, {
+      canVoice: () => true,
+      voiceUp: () => true,
+      voiceThread: () => "t-voice",
+      ensureVoice: async (input, on) => {
+        listener = on;
+        return { threadId: "t-voice", title: "Voice" };
+      },
+      soonVoice: async (input, on) => {
+        listener = on;
+        return { threadId: "t-voice", title: "Voice" };
+      },
+      sayVoice: () => true,
+      hushVoice: (on) => hushed.push(on),
+      stopVoice: async () => {},
+    });
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    hears(recs[0], "how did the week go");
+    tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerUp();
+    for (let i = 0; i < 4; i++) tree = await later(Palette, OPEN);
+    listener({ t: "question", text: "how did the week go" });
+    tree = await later(Palette, OPEN);
+    assert.deepEqual(hushed, [true, false], "the first hold: down, and back up");
+    // Thinking: the answer has not landed. A press now starts no recogniser, and must not mute what is about to be said.
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    tree = await later(Palette, OPEN);
+    assert.equal(recs.length, 1, "no recogniser while a turn runs");
+    assert.deepEqual(hushed, [true, false], "and the agent's voice is not held down under a press that hears nothing");
+  } finally {
+    await closes();
+    delete globalThis.window.SpeechRecognition;
+    ph.restore();
+  }
+});
+
 test("one button at the field's end: the mic with no words, Send with words, and Send alone where the browser cannot listen (S12)", async () => {
   // Where the browser listens: the mic at rest, Send once there are words, the mic again once they are cleared.
   globalThis.window.SpeechRecognition = class {

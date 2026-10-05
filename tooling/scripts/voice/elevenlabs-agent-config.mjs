@@ -208,3 +208,32 @@ export function agentDrift(sent, read) {
     out.push({ path: "…custom_llm.request_headers.x-chanlytics-agent", want: "<set>", got: "<missing>" });
   return out;
 }
+
+/**
+ * Whether a write to one agent named by id may go (the script's --delete and --set-url): a dry run until --apply, as
+ * every production script is; never production's agent, whatever the flags, so a mistyped id cannot take production's
+ * voice away or point its brain at a laptop; and nothing for an id that read as no agent.
+ *
+ * @param {object} o
+ * @param {"delete" | "set-url"} o.verb
+ * @param {string} o.id the agent's id, as typed
+ * @param {string | null} o.agentName the name the vendor read back for that id; null when it read as nothing
+ * @param {boolean} o.apply
+ * @returns {{ refused: string } | { dryRun: string } | { go: true }}
+ */
+export function agentWritePlan({ verb, id, agentName, apply }) {
+  if (!agentName) return { refused: `refused: no agent reads back for ${id}; nothing sent` };
+  if (agentName === PRODUCTION_AGENT_NAME) {
+    return {
+      refused:
+        verb === "delete"
+          ? `refused: ${id} is ${PRODUCTION_AGENT_NAME}; production's agent is never deleted by this script`
+          : `refused: ${id} is ${PRODUCTION_AGENT_NAME}; a tunnel goes on ${DEV_AGENT_NAME}`,
+    };
+  }
+  if (!apply) {
+    const what = verb === "delete" ? "delete" : "set the brain door's URL on";
+    return { dryRun: `dry run; --apply would ${what} ${id} (${agentName})` };
+  }
+  return { go: true };
+}

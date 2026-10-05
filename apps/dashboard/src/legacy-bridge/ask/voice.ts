@@ -13,7 +13,10 @@
  *
  * Between questions the session waits silently. The vendor's own after-last-message clock is reset by its own
  * re-engage ("..." at its turn timeout, which the brain door answers with nothing), so the browser is the one that
- * ends an idle session: a minute after the last question or answer (contracts ASK_VOICE_IDLE_MS), as `idle`.
+ * ends an idle session: a minute after the last question or the end of the last answer's speech (contracts
+ * ASK_VOICE_IDLE_MS), as `idle`. That re-engage completes a turn like any other, so only the answer to a question
+ * the person asked winds the minute again (`asked`); and the minute never ends a session in use: not under a hold,
+ * not while an answer is on its way, not while the agent speaks.
  *
  * Ending it, however it ends, ends the session's row too (POST ask/voice/end), with the browser's word for why, one
  * of a closed set (contracts VOICE_END_REASONS), and what the browser measured from the press: to the connection, and
@@ -129,6 +132,10 @@ interface Line {
   idle: unknown;
   /** The agent's voice held down while the person holds the mic; applied to a connection that lands meanwhile. */
   hushed: boolean;
+  /** A question sent whose answer has not landed: the vendor's own silent turns, which nobody asked, are told apart by it. */
+  asked: boolean;
+  /** The agent is speaking now (its mode), which outlasts the answer's landing by as long as the speech is. */
+  speaking: boolean;
 }
 
 /** What the verbs are given: the line, the deps, and the two clocks and loaders resolved once. */
@@ -164,16 +171,26 @@ const forget = (w: World) => {
   line.clock = null;
   line.listener = null;
   line.hushed = false;
+  line.asked = false;
+  line.speaking = false;
   line.state = VOICE_TURN_START;
 };
 
-/** The idle clock wound again: from a connection, a question or an answer, a minute to the end. */
+/** In use: the person holds the mic, an answer is on its way, or the agent speaks. */
+const inUse = (line: Line): boolean => line.hushed || line.asked || line.speaking;
+
+/**
+ * The idle clock wound again: from a connection, a question, or the end of an answer's speech, a minute to the end.
+ * A minute that runs out on a session in use runs again instead.
+ */
 const armIdle = (w: World) => {
   const { line } = w;
   if (line.idle != null) w.timer.clear(line.idle);
   line.idle = w.timer.set(() => {
     line.idle = null;
-    if (line.conv) void stopVoice(w, "idle");
+    if (!line.conv) return;
+    if (inUse(line)) armIdle(w);
+    else void stopVoice(w, "idle");
   }, ASK_VOICE_IDLE_MS);
 };
 
@@ -221,12 +238,21 @@ function callbacksFor(w: World, mine: number, measured: Clock): Callbacks {
       if (!live()) return;
       // The agent's first turn to speaking is the first audio the person hears (WebRTC plays it straight through).
       if (p.mode === "speaking" && measured.firstAudioAt == null) measured.firstAudioAt = now();
+      const was = line.speaking;
+      line.speaking = p.mode === "speaking";
+      // The speech is over: the idle clock runs from here.
+      if (was && !line.speaking && !line.asked) armIdle(w);
       hear(line, { kind: "mode", payload: p });
     },
     onIncomingEvent: (e: { type?: string }) => {
       if (!live()) return;
-      // An answer landed: the idle clock runs from here.
-      if (e.type === "agent_response_complete") armIdle(w);
+      if (e.type === "agent_response_complete") {
+        // A turn nobody asked for is the vendor's own re-engage, answered with nothing: not an answer, so the Line
+        // hears nothing of it and the minute keeps running.
+        if (!line.asked) return;
+        line.asked = false;
+        armIdle(w);
+      }
       hear(line, { kind: "event", payload: e });
     },
     onDisconnect: (d) => {
@@ -339,6 +365,14 @@ async function startVoice(w: World, input: VoiceStart, on: (a: VoiceAction) => v
   return { threadId: started.thread_id, title: started.title };
 }
 
+/** The session running, when it is the one this hold is for (its thread, or the Line has none yet): now this hold's to hear. */
+function running(line: Line, input: VoiceStart, on: (a: VoiceAction) => void): VoiceUp | null {
+  if (!line.conv || !line.threadId) return null;
+  if (input.threadId != null && input.threadId !== line.threadId) return null;
+  line.listener = on;
+  return { threadId: line.threadId, title: "" };
+}
+
 /**
  * The session a hold needs: the one running when it is on this thread (or the Line has none yet), else a new one in
  * its place; a start already in flight is waited on, never doubled. Null when it could not come up (the mint refused,
@@ -346,10 +380,8 @@ async function startVoice(w: World, input: VoiceStart, on: (a: VoiceAction) => v
  */
 function ensureVoice(w: World, input: VoiceStart, on: (a: VoiceAction) => void): Promise<VoiceUp | null> {
   const { line } = w;
-  if (line.conv && line.threadId && (input.threadId == null || input.threadId === line.threadId)) {
-    line.listener = on;
-    return Promise.resolve({ threadId: line.threadId, title: "" });
-  }
+  const up = running(line, input, on);
+  if (up) return Promise.resolve(up);
   if (line.pending) return line.pending;
   const p = startVoice(w, input, on)
     .catch(() => null)
@@ -374,6 +406,8 @@ export function installVoice(win: Window, deps: VoiceDeps) {
     pending: null,
     idle: null,
     hushed: false,
+    asked: false,
+    speaking: false,
   };
   const w: World = {
     line,
@@ -397,29 +431,46 @@ export function installVoice(win: Window, deps: VoiceDeps) {
     ensureVoice: (input: VoiceStart, on: (a: VoiceAction) => void) => ensureVoice(w, input, on),
     /**
      * The session, if it is up within the lift's patience (ASK_VOICE_UP_WAIT_MS): the one running, or the one still
-     * connecting from the press. Null past the wait, and the start, if any, goes on for the next hold.
+     * connecting from the press. Null past the wait, and the start goes on for the next hold. The lift opens nothing
+     * of its own: a press that was refused is not asked for again (one hold, one mint), and the words go the typed way.
      */
-    soonVoice: (input: VoiceStart, on: (a: VoiceAction) => void): Promise<VoiceUp | null> =>
-      new Promise((resolve) => {
+    soonVoice: (input: VoiceStart, on: (a: VoiceAction) => void): Promise<VoiceUp | null> => {
+      const up = running(line, input, on);
+      if (up) return Promise.resolve(up);
+      const coming = line.pending;
+      if (!coming) return Promise.resolve(null);
+      return new Promise((resolve) => {
         const late = w.timer.set(() => resolve(null), ASK_VOICE_UP_WAIT_MS);
-        void ensureVoice(w, input, on).then((up) => {
+        void coming.then((landed) => {
           w.timer.clear(late);
-          resolve(up);
+          resolve(landed);
         });
-      }),
+      });
+    },
     /**
      * The words heard, as the person's turn: the Line hears the question at once (the vendor sends no transcript of a
-     * text turn), the agent answers aloud, and the idle clock is wound. False with no session up.
+     * text turn), the agent answers aloud, and the idle clock is wound. False with no session up, or when the
+     * connection would not take the words (gone, and not yet said so): they go the typed way, and nothing is drawn.
      */
     sayVoice: (text: string): boolean => {
       const words = text.trim();
       if (!line.conv || !words) return false;
+      try {
+        line.conv.sendUserMessage(words);
+      } catch {
+        return false;
+      }
+      line.asked = true;
       line.state = VOICE_TURN_START;
       toldToAll(line, [{ t: "question", text: words }]);
-      line.conv.sendUserMessage(words);
       armIdle(w);
       return true;
     },
+    /**
+     * Whether the agent has the floor: an answer on its way, or being spoken. A clip read aloud meanwhile takes its
+     * place (ask.ts: one voice at a time); a session up and quiet is in no clip's way and is left running.
+     */
+    voiceBusy: (): boolean => !!line.conv && (line.asked || line.speaking),
     /** While the person holds the mic the agent's voice is held down; let go, it is back. Kept for a connection still landing. */
     hushVoice: (on: boolean): void => {
       line.hushed = on;

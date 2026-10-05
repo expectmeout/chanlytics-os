@@ -90,12 +90,16 @@ function clock(start = 1_000) {
 /** A timer the test fires by hand: every timer set for `ms`, or the count of them waiting. */
 function timer() {
   const waiting = new Map();
+  const wound = new Map();
   let n = 0;
   return {
     set: (fn, ms) => {
       waiting.set(++n, { fn, ms });
+      wound.set(ms, (wound.get(ms) ?? 0) + 1);
       return n;
     },
+    /** How many times a timer of `ms` was set: a clock wound again is one more. */
+    wound: (ms) => wound.get(ms) ?? 0,
     clear: (id) => waiting.delete(id),
     fire: (ms) => {
       for (const [id, w] of [...waiting]) {
@@ -180,8 +184,10 @@ test("a lift before the session is up waits the lift's patience, then goes the t
   const a = api();
   const tm = timer();
   const voice = installVoice(WIN, { api: a, load: v.load, timer: tm });
+  void voice.ensureVoice(START, () => {});
   const soon = voice.soonVoice(START, () => {});
   await settle();
+  assert.equal(a.calls.starts.length, 1, "the lift waits on the press's start and opens nothing of its own");
   assert.equal(tm.count(ASK_VOICE_UP_WAIT_MS), 1, "the lift's patience, waiting");
   tm.fire(ASK_VOICE_UP_WAIT_MS);
   assert.equal(await soon, null, "not up in time: the typed way");
@@ -369,4 +375,98 @@ test("the page moved: the row is told while a session runs, and not before or af
   voice.pageMoved(context);
   await tick();
   assert.equal(a.calls.pages.length, 1);
+});
+
+test("a press the route refused is not asked for again at the lift: the words go the typed way at once, and one hold is one mint", async () => {
+  const v = vendor();
+  const a = api();
+  let mints = 0;
+  a.voiceStart = async () => {
+    mints += 1;
+    throw new Error("You have reached this hour's voice conversations.");
+  };
+  const tm = timer();
+  const voice = installVoice(WIN, { api: a, load: v.load, timer: tm });
+  assert.equal(await voice.ensureVoice(START, () => {}), null, "the press: refused");
+  assert.equal(await voice.soonVoice(START, () => {}), null, "the lift: nothing to wait for");
+  assert.equal(mints, 1, "the lift did not ask again");
+  assert.equal(tm.count(ASK_VOICE_UP_WAIT_MS), 0, "and waited for nothing");
+});
+
+test("the vendor's own silent turn (its re-engage at the turn timeout, answered with nothing) is not an answer: the idle clock is not wound again and the Line hears nothing of it", async () => {
+  const v = vendor();
+  const a = api();
+  const tm = timer();
+  const voice = installVoice(WIN, { api: a, load: v.load, timer: tm });
+  const heard = [];
+  await up(voice, v, (x) => heard.push(x));
+  const woundAtConnect = tm.wound(ASK_VOICE_IDLE_MS);
+  // Thirty seconds of silence: the vendor asks the brain with "...", the door answers the buffer words, the turn completes.
+  v.convs[0].opts.onAgentChatResponsePart({ type: "start" });
+  v.convs[0].opts.onAgentChatResponsePart({ type: "delta", text: "... " });
+  v.convs[0].opts.onIncomingEvent({ type: "agent_response_complete" });
+  assert.equal(tm.wound(ASK_VOICE_IDLE_MS), woundAtConnect, "nobody asked: the minute keeps running");
+  assert.deepEqual(heard, [], "and the Line is told nothing landed");
+  tm.fire(ASK_VOICE_IDLE_MS);
+  await settle();
+  assert.deepEqual([a.calls.ends[0].session, a.calls.ends[0].reason], ["s1", "idle"], "so the idle minute ends it");
+});
+
+test("the idle minute never ends a session in use: not while the person holds the mic, not while an answer is on its way, not while the agent speaks; it runs again from the end of the speech", async () => {
+  const v = vendor();
+  const a = api();
+  const tm = timer();
+  const voice = installVoice(WIN, { api: a, load: v.load, timer: tm });
+  await up(voice, v);
+  // The person presses at the fifty-ninth second and is still talking as the minute ends.
+  voice.hushVoice(true);
+  tm.fire(ASK_VOICE_IDLE_MS);
+  await settle();
+  assert.equal(voice.voiceUp(), true, "held: not ended under the person's words");
+  voice.hushVoice(false);
+  assert.equal(voice.sayVoice("how did the week go"), true);
+  tm.fire(ASK_VOICE_IDLE_MS);
+  await settle();
+  assert.equal(voice.voiceUp(), true, "an answer on its way: not ended before it comes");
+  // The answer is generated in seconds and spoken for longer than a minute.
+  v.convs[0].opts.onModeChange({ mode: "speaking" });
+  v.convs[0].opts.onIncomingEvent({ type: "agent_response_complete" });
+  tm.fire(ASK_VOICE_IDLE_MS);
+  await settle();
+  assert.equal(voice.voiceUp(), true, "speaking: not cut off mid-sentence");
+  assert.equal(a.calls.ends.length, 0);
+  v.convs[0].opts.onModeChange({ mode: "listening" });
+  assert.equal(tm.count(ASK_VOICE_IDLE_MS), 1, "the minute runs from the end of the speech");
+  tm.fire(ASK_VOICE_IDLE_MS);
+  await settle();
+  assert.deepEqual([a.calls.ends[0].session, a.calls.ends[0].reason], ["s1", "idle"]);
+});
+
+test("words the connection would not take go the typed way: nothing is told to the Line as asked, and the lift answers false", async () => {
+  const v = vendor();
+  const a = api();
+  const voice = installVoice(WIN, { api: a, load: v.load });
+  const heard = [];
+  await up(voice, v, (x) => heard.push(x));
+  v.convs[0].sendUserMessage = () => {
+    throw new Error("the data channel is closed");
+  };
+  assert.equal(voice.sayVoice("how did the week go"), false);
+  assert.deepEqual(heard, [], "no question drawn for words that never left");
+});
+
+test("busy: a session up and quiet is not in a clip's way; one with an answer on its way, or speaking, is", async () => {
+  const v = vendor();
+  const a = api();
+  const voice = installVoice(WIN, { api: a, load: v.load });
+  assert.equal(voice.voiceBusy(), false, "no session");
+  await up(voice, v);
+  assert.equal(voice.voiceBusy(), false, "up and quiet");
+  voice.sayVoice("how did the week go");
+  assert.equal(voice.voiceBusy(), true, "an answer on its way");
+  v.convs[0].opts.onModeChange({ mode: "speaking" });
+  v.convs[0].opts.onIncomingEvent({ type: "agent_response_complete" });
+  assert.equal(voice.voiceBusy(), true, "generated, and still being spoken");
+  v.convs[0].opts.onModeChange({ mode: "listening" });
+  assert.equal(voice.voiceBusy(), false, "said");
 });

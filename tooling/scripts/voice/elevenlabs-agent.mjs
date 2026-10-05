@@ -14,8 +14,11 @@
  *   node tooling/scripts/voice/elevenlabs-agent.mjs --name chanlytics-ask-dev --url https://<tunnel>/… --apply
  *   node tooling/scripts/voice/elevenlabs-agent.mjs --check --url … [--name …] [--webhook <id>]              (read back and diff, write nothing)
  *   node tooling/scripts/voice/elevenlabs-agent.mjs --read <agent_id>
- *   node tooling/scripts/voice/elevenlabs-agent.mjs --set-url <agent_id> --url <url>                           (the dev agent's tunnel moved; refused for production's)
- *   node tooling/scripts/voice/elevenlabs-agent.mjs --delete <agent_id>
+ *   node tooling/scripts/voice/elevenlabs-agent.mjs --set-url <agent_id> --url <url> [--apply]                 (the dev agent's tunnel moved; refused for production's)
+ *   node tooling/scripts/voice/elevenlabs-agent.mjs --delete <agent_id> [--apply]                              (refused for production's)
+ *
+ * Every write is a dry run until --apply, and the agent as it stood is saved first (tooling/backups/, untracked): the
+ * body an update replaces, the agent a delete removes. The vendor keeps no history of either.
  *
  * The key is ELEVENLABS_API_KEY from the environment, else apps/edge/.env.local (the edge holds every provider key),
  * else apps/dashboard/.env.local (a laptop running the spike); it is never printed. The header's value is
@@ -23,14 +26,14 @@
  * key, so an --apply for production carries the header production's brain door checks; 4 Oct 2026 the dashboard's
  * file held a laptop's older one), else the dashboard's; never printed either.
  */
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   agentConfig,
   agentDrift,
+  agentWritePlan,
   shownConfig,
-  DEV_AGENT_NAME,
   PRODUCTION_AGENT_NAME,
 } from "./elevenlabs-agent-config.mjs";
 
@@ -84,6 +87,39 @@ async function findByName(name) {
   return list.find((a) => a.name === name) ?? null;
 }
 
+/** The agent as it stands, saved before a write changes or removes it (the vendor hides the header's value on a read). */
+function backUp(id, agent) {
+  const dir = path.join(ROOT, "tooling/backups");
+  mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `elevenlabs-agent-${id}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
+  writeFileSync(file, JSON.stringify(agent, null, 2));
+  console.log(`backup: ${file}`);
+}
+
+/**
+ * One agent named by id, read, and the write to it allowed or not (agentWritePlan): answers the agent as read when
+ * the write may go, having saved it; says why and exits when it may not, or when this is a dry run.
+ */
+async function readForWrite(verb, id) {
+  const current = await call("GET", `/v1/convai/agents/${id}`);
+  const plan = agentWritePlan({
+    verb,
+    id,
+    agentName: current.ok ? (current.json?.name ?? null) : null,
+    apply: flag("apply"),
+  });
+  if ("refused" in plan) {
+    console.error(plan.refused);
+    process.exit(1);
+  }
+  if ("dryRun" in plan) {
+    console.log(plan.dryRun);
+    process.exit(0);
+  }
+  backUp(id, current.json);
+  return current.json;
+}
+
 /** The differences printed, one a line, with the secret never among them (agentDrift leaves the header's value out). */
 function sayDrift(drift) {
   for (const d of drift) console.log(`  ${d.path}: want ${JSON.stringify(d.want)}, got ${JSON.stringify(d.got)}`);
@@ -122,6 +158,7 @@ async function main() {
   }
   if (flag("delete")) {
     const id = opt("delete");
+    await readForWrite("delete", id);
     const r = await call("DELETE", `/v1/convai/agents/${id}`);
     console.log(`delete ${id}: ${r.status}`);
     return;
@@ -135,11 +172,7 @@ async function main() {
       console.error("--url and ELEVENLABS_LLM_SECRET are required");
       process.exit(2);
     }
-    const current = await call("GET", `/v1/convai/agents/${id}`);
-    if (current.json?.name === PRODUCTION_AGENT_NAME) {
-      console.error(`refused: ${id} is ${PRODUCTION_AGENT_NAME}; a tunnel goes on ${DEV_AGENT_NAME}`);
-      process.exit(1);
-    }
+    await readForWrite("set-url", id);
     const r = await call("PATCH", `/v1/convai/agents/${id}`, {
       conversation_config: {
         agent: {
@@ -159,7 +192,9 @@ async function main() {
     process.exit(2);
   }
   if (!SECRET) {
-    console.error("ELEVENLABS_LLM_SECRET is not set (the environment or apps/dashboard/.env.local).");
+    console.error(
+      "ELEVENLABS_LLM_SECRET is not set (the environment, apps/edge/.env.local or apps/dashboard/.env.local).",
+    );
     process.exit(2);
   }
   const body = agentConfig({
@@ -186,6 +221,14 @@ async function main() {
     return;
   }
   const existing = await findByName(name);
+  if (existing) {
+    const before = await call("GET", `/v1/convai/agents/${existing.agent_id}`);
+    if (!before.ok) {
+      console.error(`the agent as it stands could not be read to save it: ${before.status}; nothing sent`);
+      process.exit(1);
+    }
+    backUp(existing.agent_id, before.json);
+  }
   const r = existing
     ? await call("PATCH", `/v1/convai/agents/${existing.agent_id}`, body)
     : await call("POST", "/v1/convai/agents/create", body);

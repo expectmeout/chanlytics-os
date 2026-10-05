@@ -250,6 +250,35 @@ deployment's profile (Opus 5.5 by default, low effort); the gate re-runs with sp
 
 ### 3.5 The Line, listening
 
+> **Amended 5 Oct 2026, after a review of the hold as built.** Seven things the evening's design said and the code
+> did not do, or did not say at all; each is held by a test now (voice-module, speech-module, one-voice, voice-door,
+> elevenlabs-agent, ask-palette):
+>
+> - **A clip leaves a quiet session running.** "One voice at a time" means the agent's floor: a clip takes the
+>   agent's place only while an answer is on its way or being spoken (`voiceBusy`). A session up and quiet, or still
+>   connecting, is in no clip's way. The clip that read a typed-way answer used to end the session the press had asked
+>   for, so after one slow connection every hold started cold. The clip starts inside the press and the hang-up
+>   beside it, never before it (a phone plays audio only from a gesture).
+> - **One hold, one mint.** The lift waits on the press's start and opens nothing of its own; a press that was
+>   refused is not asked for again at the lift.
+> - **Only an answer winds the idle minute.** The vendor's silent turn completes like any other; the browser tells
+>   it apart by whether a question was sent (`asked`), does not wind the clock for it and tells the Line nothing. The
+>   minute runs from the end of the answer's speech, not of its generation, and never ends a session under a hold,
+>   with an answer on its way, or while the agent speaks.
+> - **The vendor's silent turn spends nothing.** The brain door answers a silence, and a turn with no words, before
+>   it takes the person's Ask count.
+> - **Words the connection would not take go the typed way** (`sayVoice` answers false; nothing is drawn as asked).
+> - **A session on its way is ended as one that is up is:** by a typed question, by Clear, by the Line closing.
+> - **A press while a turn runs is nothing.** The recogniser does not listen then, and the agent's voice is no longer
+>   held down under that press. Cutting in while Ask is still thinking waits on a measurement: whether the vendor
+>   completes the turn a new text turn interrupted (the spike's question 5).
+>
+> And two of the clip's own: words longer than the route takes (`ASK_SPEECH_MAX_CHARS`) are read to the last whole
+> sentence that fits, never refused; a device that would not play the clip says "Tap again", never the browser's own
+> sentence, and a read that began outside a press does not spend the element's unlock. The agent's script
+> (`elevenlabs-agent.mjs`): `--delete` and `--set-url` are dry runs until `--apply`, neither touches
+> production's agent, and every write saves the agent as it stood first (tooling/backups/).
+>
 > **Amended 4 Oct 2026, evening: the hold is the one mic, and the agent is the mouth** (Ruben, after an afternoon on
 > the two systems: "that system works perfectly … the tap instead of hold I don't like as much … unify it somehow").
 > The tap that opened the agent's own microphone is gone. What stays is the hold the Line always had: the browser's

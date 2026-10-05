@@ -165,7 +165,7 @@ test("Stop during the fetch: idle at once, and the clip that lands late is let g
   assert.equal(s.state(), "idle", "the abort play() reports is our own stop, not a failure");
 });
 
-test("a clip that could not be made rejects with the server's words and the state is idle again; an element that will not play (no gesture) rejects with the browser's", async () => {
+test("a clip that could not be made rejects with the server's words and the state is idle again; an element that will not play (no gesture) rejects in words a person can act on, never the browser's own", async () => {
   const w = world();
   const a = api();
   const s = askSpeech(w.win, { api: a });
@@ -179,7 +179,11 @@ test("a clip that could not be made rejects with the server's words and the stat
   a.land();
   await tick();
   w.refuses();
-  await assert.rejects(again, /interact/);
+  await assert.rejects(again, (e) => {
+    assert.equal(e.message, "The sound was held back on this device. Tap again to hear it.");
+    assert.doesNotMatch(e.message, /interact|play\(\)/, "the browser's own sentence is not shown to a person");
+    return true;
+  });
   assert.equal(s.state(), "idle");
   assert.deepEqual(moves, ["loading", "idle", "loading", "idle"]);
 });
@@ -209,4 +213,59 @@ test("a second read supersedes the first: the first's clip, landing late, is let
   const bare = askSpeech({}, { api: a });
   assert.equal(bare.canSpeak(), false);
   await assert.rejects(bare.speak("x", "brief"), /cannot play audio/);
+});
+
+test("a read that began outside a press (an answer read aloud by itself) does not spend the unlock: refused for want of a gesture, the element is started on silence again inside the next press", async () => {
+  const w = world();
+  const a = api();
+  const s = askSpeech(w.win, { api: a });
+  const silences = () => w.elements[0].log.filter((l) => l.includes("audio/wav")).length;
+  // No gesture: the browser refuses the silence, and then the clip.
+  const first = s.speak("One.", "answer");
+  assert.equal(silences(), 1);
+  w.refuses();
+  await tick();
+  a.land();
+  await tick();
+  w.refuses();
+  await assert.rejects(first, /Tap again/);
+  // The person taps: this press must unlock the element, or a phone never plays a clip again until the page reloads.
+  const second = s.speak("One.", "answer");
+  assert.equal(silences(), 2, "started on silence again, inside the press");
+  w.plays();
+  await tick();
+  a.land();
+  await tick();
+  w.plays();
+  await second;
+  assert.equal(s.state(), "speaking");
+  // Unlocked now: a third read does not start on silence again.
+  s.stopSpeaking();
+  void s.speak("Two.", "answer");
+  assert.equal(silences(), 2, "unlocked once it has played from a press");
+});
+
+test("words longer than a clip may be are read up to the last whole sentence that fits, never refused: the route takes ASK_SPEECH_MAX_CHARS, and an answer over it could not be read aloud at all", async () => {
+  const { ASK_SPEECH_MAX_CHARS } = await import("@chanlytics/contracts");
+  const w = world();
+  const a = api();
+  const s = askSpeech(w.win, { api: a });
+  const sentence = "Nora wrote twice about Thursday and is still waiting on a time. ";
+  const long = sentence.repeat(40);
+  assert.ok(long.length > ASK_SPEECH_MAX_CHARS);
+  void s.speak(long, "answer");
+  const sent = a.calls[0].text;
+  assert.ok(sent.length <= ASK_SPEECH_MAX_CHARS, `within the route's bound (${sent.length})`);
+  assert.ok(sent.length > ASK_SPEECH_MAX_CHARS - sentence.length, "as much as fits");
+  assert.ok(sent.endsWith("waiting on a time."), "ended on a whole sentence");
+  assert.ok(long.startsWith(sent), "the words from the start, unchanged");
+  s.stopSpeaking();
+  // Words with no sentence end inside the bound are cut at a word, and short words go as they are.
+  void s.speak("word ".repeat(400), "answer");
+  assert.ok(a.calls[1].text.length <= ASK_SPEECH_MAX_CHARS);
+  assert.ok(a.calls[1].text.endsWith("word"), "cut between words");
+  s.stopSpeaking();
+  void s.speak("  Two   people need you. ", "brief");
+  assert.equal(a.calls[2].text, "Two people need you.", "folded, as the route folds it");
+  s.stopSpeaking();
 });
