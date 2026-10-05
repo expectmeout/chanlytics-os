@@ -85,7 +85,8 @@ test("totals, shares of sent, and deltas over the prior period", () => {
   assert.equal(by.sent.meta, "over 3 sends");
   assert.equal(by.sent.delta.text, "+400% vs prior 7 days");
   assert.equal(by.delivered.value, "80%", "16 of 20 delivered");
-  assert.equal(by.delivered.meta, "16 of 20 · WhatsApp's receipts");
+  // A campaign goes by WhatsApp, text and email, and each wire says what it delivered: not WhatsApp's alone.
+  assert.equal(by.delivered.meta, "16 of 20 · each channel's own receipts");
   assert.deepEqual(
     by.delivered.delta,
     { text: "-20 pts vs prior 7 days", tone: "neg" },

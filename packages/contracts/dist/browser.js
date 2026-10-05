@@ -9001,6 +9001,8 @@ var HELD_REASONS = {
   sending_domain_not_ready: "the domain isn't sending",
   sending_domain_at_cap: "the domain's day is full"
 };
+var DELIVERY_RECEIPTS_WORDS = "each channel's own receipts";
+var DELIVERY_RECEIPTS_TIP = "Each channel's own receipts";
 var EMAIL_HOLDS = [
   "email_offers_paused",
   "email_marketing_disabled"
@@ -25055,7 +25057,7 @@ function toCampaignReportVM(dto) {
       id: "delivered",
       label: "Delivered",
       value: pct2(tot.delivered, tot.sent) === null ? "\u2014" : `${pct2(tot.delivered, tot.sent)}%`,
-      meta: tot.sent ? `${tot.delivered} of ${tot.sent} \xB7 WhatsApp's receipts` : "nothing sent",
+      meta: tot.sent ? `${tot.delivered} of ${tot.sent} \xB7 ${DELIVERY_RECEIPTS_WORDS}` : "nothing sent",
       delta: pointsDelta(pct2(tot.delivered, tot.sent), pct2(prev.delivered, prev.sent), noun),
       spark: points.map((p) => p.delivered),
       compare: null
@@ -31771,6 +31773,8 @@ export {
   DEFAULT_THEME_PREF,
   DEFAULT_TIMEZONE,
   DEFAULT_WEEK,
+  DELIVERY_RECEIPTS_TIP,
+  DELIVERY_RECEIPTS_WORDS,
   DELIVERY_REFUSALS,
   DEVICE_PREFS_STORAGE,
   DISCONNECTION_LABELS,

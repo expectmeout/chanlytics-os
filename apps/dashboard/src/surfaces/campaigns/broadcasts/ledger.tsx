@@ -2,7 +2,7 @@
  * Chanlytics, Broadcasts: the ledger of runs, by playbook and by week, and a run's card (moved from
  * legacy/pages/broadcasts-ledger.jsx, decision 0015).
  */
-import { DAY_MS, HOUR_MS, MIN_MS } from "@chanlytics/contracts";
+import { DAY_MS, DELIVERY_RECEIPTS_WORDS, HOUR_MS, MIN_MS } from "@chanlytics/contracts";
 import type { BroadcastVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
@@ -117,7 +117,7 @@ export function BcHistoryStats({
       {messages > 0 && (
         <span className="cm-standing-part">
           {opened && dot}
-          <span className="tabular" data-tip="Delivered or read, over sent — WhatsApp's own receipts">
+          <span className="tabular" data-tip={`Delivered or read, over sent — ${DELIVERY_RECEIPTS_WORDS}`}>
             {messages.toLocaleString()} {messages === 1 ? "message" : "messages"}, {pct}% delivered
           </span>
         </span>

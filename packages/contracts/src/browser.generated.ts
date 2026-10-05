@@ -39,7 +39,7 @@ export { PREVIEW_WORDS, PREVIEW_CHANNEL_WORDS, previewOn, previewSays, previewVe
 export { READY_WHATSAPP_ALONE, readyOrWhatsApp, answeredYes, personReachOf } from "./broadcasts/reach-any";
 export { DEFAULT_CAMPAIGN_CHANNELS, CHANNEL_WORDS, CAMPAIGN_MONTH_ALLOWANCE, HELD_ON, channelRefuses, channelNeverCarries, offersNote, channelsReady, channelChoices, reachFor, reachSplit, reachSplitWords, heldByAllowance, allowanceRoom, pastAllowance, nextMonthStart, monthSentAt, allowanceBeforeSend, allowanceLine, allowanceLines } from "./broadcasts/reach-for";
 export { consentAnswerWords, receiptWords, toRunReportVM, RUN_REPORT_STEPS, RUN_FILTERS } from "./broadcasts/run-report";
-export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, EMAIL_HOLDS, finishedRunHeldWhy, isReplyTo } from "./broadcasts/run-words";
+export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, EMAIL_HOLDS, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, finishedRunHeldWhy, isReplyTo } from "./broadcasts/run-words";
 export { SEND_WHEN_WORDS } from "./broadcasts/send-when-words";
 export { dayIntervals, closedOn, openAt, hasHours, freeWindows, filterOpenings, describeOpenings, BOOKING_DEFAULTS } from "./calendar/availability";
 export { serviceOf, toCalendarVM } from "./calendar/calendar";

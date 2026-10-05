@@ -161,6 +161,8 @@ export {
   REPLY_WINDOW_WORDS,
   HELD_REASONS,
   EMAIL_HOLDS,
+  DELIVERY_RECEIPTS_TIP,
+  DELIVERY_RECEIPTS_WORDS,
   finishedRunHeldWhy,
   isReplyTo,
 } from "./run-words";
