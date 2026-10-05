@@ -8696,7 +8696,7 @@ function playbookName(trigger, tpl) {
 // src/people/people-lists.ts
 var GET_YES_ROUTE = "broadcasts/get-yes";
 var USE_IN_A_BROADCAST = "Use in a broadcast";
-var OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts", broadcast: true };
+var OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "campaigns/new", broadcast: true };
 var LIST_STEPS = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
   waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
