@@ -8,8 +8,9 @@ import type { ReactNode } from "react";
 import type { leadRail } from "@chanlytics/contracts";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { Menu } from "../../kit/menu/menu";
 import { gate } from "../../legacy-verbs";
+import { MenuInPlace, menuGroups, moreButton } from "../../people/menu-groups";
 import { RailEmpty, RailRow, RailSection, railQuiet } from "../../people/rail/rail-kit";
 
 export type LeadRail = ReturnType<typeof leadRail>;
@@ -20,8 +21,8 @@ interface SearchWords {
 }
 
 /**
- * A kept search says what was asked (§8.10). The menu closes after each item (MoreMenu), and every item is a route:
- * nothing here renames or removes on the spot.
+ * A kept search says what was asked (§8.10). The menu closes after each item (the kit's Menu, Base UI's), and every item
+ * is a route: nothing here renames or removes on the spot.
  */
 const LeadSearchMenu = ({
   s,
@@ -44,76 +45,79 @@ const LeadSearchMenu = ({
   onUndo: (s: RailSearch) => void;
   exportHref: string | null;
 }) => (
-  <MoreMenu
-    // It escapes the rail: the rail scrolls and cuts off whatever crosses its edge, so opening rightward showed 51px of 194,
-    // and a menu held inside it (196px) broke its words onto three to six lines. Placed against the window, it opens
-    // rightward over the table at a menu's full width.
-    escape
-    align="left"
-    // Its name is what it holds, for a screen reader and on hover: "What independent bookstores asked for" read as if the
-    // bookstores had asked. What the search asked for is the row's own tip (LeadsRailRows).
-    title={`More for ${s.name}`}
-    btnClass="btn btn-ghost btn-icon btn-sm ld-search-more"
-    items={[
-      { header: words.askedLine },
-      {
-        label: "Rename",
-        icon: "pencil",
-        onClick: () => onRename(s),
-        gate: canFind ? undefined : gate("find", "rename this search"),
-      },
-      // A list of your own (00242) is never searched again: its menu offers neither way back to the finder.
-      ...(s.list
-        ? []
-        : [
-            {
-              label: "Find new ones",
-              icon: "refresh",
-              meta: "Only places not already in your leads count",
-              onClick: () => onMore(s),
-              gate: canFind ? undefined : gate("find", "search again"),
-            },
-            // A door wears the three's mark, as Find leads does: the sparkle means written by Claude, and this is a press.
-            {
-              label: "Search again, changed",
-              icon: "three",
-              meta: "Opens the plan with what you asked",
-              onClick: () => onAgain(s),
-              gate: canFind ? undefined : gate("find", "search again"),
-            },
-          ]),
-      {
-        label: `Export these ${s.count}`,
-        icon: "external",
-        onClick: () => {
-          if (exportHref) window.open(exportHref, "_self");
+  // In the box the rail's rows name (clients.css: the ⋯ shows as a pointer reaches the row).
+  <MenuInPlace>
+    <Menu
+      // Drawn on the body, against the window: the rail scrolls and cut off whatever crossed its edge (51px of 194 showed),
+      // and a menu held inside it broke its words onto three to six lines. It opens rightward over the table, each item's
+      // sentence its second line (clients.css, `ld-search-acts`).
+      align="start"
+      className="ld-search-acts"
+      // Its name is what it holds, for a screen reader and on hover: "What independent bookstores asked for" read as if the
+      // bookstores had asked. What the search asked for is the row's own tip (LeadsRailRows).
+      label={`More for ${s.name}`}
+      trigger={moreButton({ title: `More for ${s.name}`, className: "ld-search-more" })}
+      groups={menuGroups([
+        { header: words.askedLine },
+        {
+          label: "Rename",
+          icon: "pencil",
+          onClick: () => onRename(s),
+          gate: canFind ? undefined : gate("find", "rename this search"),
         },
-        gate: canFind ? undefined : gate("find", "export these leads"),
-      },
-      // For a day after a round ends: the leads nobody has touched leave and the month is credited (§8.6). Named for what
-      // it does; the toast it answers with carries its own Undo, which puts them back.
-      ...(s.undoable
-        ? [
-            {
-              label: "Remove the ones you haven't touched",
-              icon: "undo",
-              meta: `Up to ${s.count} given back this month`,
-              onClick: () => onUndo(s),
-              gate: canFind ? undefined : gate("find", "remove these leads"),
-            },
-          ]
-        : []),
-      { divider: true },
-      {
-        label: "Remove this search",
-        icon: "x",
-        danger: true,
-        meta: words.keepsLine,
-        onClick: () => onRemove(s),
-        gate: canFind ? undefined : gate("find", "remove this search"),
-      },
-    ]}
-  />
+        // A list of your own (00242) is never searched again: its menu offers neither way back to the finder.
+        ...(s.list
+          ? []
+          : [
+              {
+                label: "Find new ones",
+                icon: "refresh",
+                meta: "Only places not already in your leads count",
+                onClick: () => onMore(s),
+                gate: canFind ? undefined : gate("find", "search again"),
+              },
+              // A door wears the three's mark, as Find leads does: the sparkle means written by Claude, and this is a press.
+              {
+                label: "Search again, changed",
+                icon: "three",
+                meta: "Opens the plan with what you asked",
+                onClick: () => onAgain(s),
+                gate: canFind ? undefined : gate("find", "search again"),
+              },
+            ]),
+        {
+          label: `Export these ${s.count}`,
+          icon: "external",
+          onClick: () => {
+            if (exportHref) window.open(exportHref, "_self");
+          },
+          gate: canFind ? undefined : gate("find", "export these leads"),
+        },
+        // For a day after a round ends: the leads nobody has touched leave and the month is credited (§8.6). Named for what
+        // it does; the toast it answers with carries its own Undo, which puts them back.
+        ...(s.undoable
+          ? [
+              {
+                label: "Remove the ones you haven't touched",
+                icon: "undo",
+                meta: `Up to ${s.count} given back this month`,
+                onClick: () => onUndo(s),
+                gate: canFind ? undefined : gate("find", "remove these leads"),
+              },
+            ]
+          : []),
+        { divider: true },
+        {
+          label: "Remove this search",
+          icon: "x",
+          danger: true,
+          meta: words.keepsLine,
+          onClick: () => onRemove(s),
+          gate: canFind ? undefined : gate("find", "remove this search"),
+        },
+      ])}
+    />
+  </MenuInPlace>
 );
 
 interface RailRowsProps {

@@ -530,6 +530,33 @@ const { LeadsRailRows } = await importSrc("apps/dashboard/src/surfaces/leads/sco
 const { LEAD_COLUMNS, LEAD_PHONE_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/leads/cells/columns.tsx");
 const { ldPlacePop } = await importSrc("apps/dashboard/src/surfaces/leads/cells/hover.tsx");
 recorded.set(MoreMenu, menus);
+// Leads' menus are the kit's Menu (Base UI's) since 5 Oct 2026, read here as every menu in this file is read: its name as
+// `title`, its control's test id, and its groups as one list, a heading where a group has one and a line between two.
+const { Menu } = await importSrc("apps/dashboard/src/surfaces/kit/menu/menu.tsx");
+const asMenuRecord = (p) => ({
+  title: p.label,
+  testid: p.trigger?.props?.["data-testid"] ?? null,
+  // The control's glyph, where it draws one (Call's phone, the ⋯).
+  icon: [p.trigger?.props?.children ?? []].flat(Infinity).find((c) => c?.props?.name)?.props.name,
+  align: p.align,
+  trigger: p.trigger,
+  items: p.groups.flatMap((g, at) => [
+    ...(at > 0 ? [{ divider: true }] : []),
+    ...(g.header !== undefined ? [{ header: g.header }] : []),
+    ...(g.items ?? []).map((it) => ({
+      label: it.label,
+      icon: it.glyph?.props?.name,
+      meta: it.meta,
+      hint: it.hint,
+      title: it.title,
+      gate: it.gate,
+      danger: it.tone === "danger",
+      onClick: it.onSelect,
+      href: it.href,
+    })),
+  ]),
+});
+recorded.set(Menu, { push: (p) => menus.push(asMenuRecord(p)) });
 recorded.set(Confirm, confirms);
 recorded.set(LeadPeek, peeks);
 recorded.set(LeadPlanPanel, panels);
@@ -3812,12 +3839,13 @@ test("a pop hangs above its row when the room is there, every hover asks where i
   place({ currentTarget: {} });
   place(null);
 
-  // A search's menu escapes the rail it lives in (MoreMenu `escape`, placed against the window by moreFit): held
-  // inside the rail it was 196px and broke its words onto three to six lines. It opens rightward, over the table.
+  // A search's menu escapes the rail it lives in: held inside the rail it was 196px and broke its words onto three to six
+  // lines. It is the kit's Menu (Base UI's), drawn on the body and placed against the window, which the rail's edge cannot
+  // cut off or squeeze; it opens rightward, over the table.
   const menu = menus.find((m) => /^More for .+$/.test(m.title || ""));
   assert.ok(menu, "a kept search has its menu");
-  assert.equal(menu.escape, true, "it escapes the rail, so the rail's edge cannot cut it off or squeeze it");
-  assert.equal(menu.align, "left", "hung from its trigger's left edge, so it opens over the table");
+  assert.ok(menu.trigger, "the kit's Menu, opened by its control, drawn on the body");
+  assert.equal(menu.align, "start", "hung from its trigger's start, so it opens over the table");
 });
 
 /* ------------------------------ a lead that became a client ------------------------------ */

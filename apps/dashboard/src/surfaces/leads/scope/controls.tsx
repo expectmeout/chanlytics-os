@@ -9,8 +9,9 @@ import type { LeadSearchDto } from "@chanlytics/contracts";
 import { ReachOutDoor } from "../../campaigns/reach-out/door";
 import { Icon } from "../../kit/icon/icon";
 import { lookNow } from "../../kit/look/look";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { Menu } from "../../kit/menu/menu";
 import { gate } from "../../legacy-verbs";
+import { MenuInPlace, menuGroups, moreButton } from "../../people/menu-groups";
 import { PeopleColumnsMenu } from "../../people/table/columns-menu";
 
 interface ControlsProps {
@@ -104,24 +105,28 @@ export const LeadsControlsRight = ({ p, search }: { p: ControlsProps; search: Le
         buttonRef={p.colsButton}
       />
       {glass ? (
-        <MoreMenu
-          testid="leads-more"
-          items={[
-            {
-              label: p.mapOpen ? "Table" : "Map",
-              icon: p.mapOpen ? "list" : "map",
-              title: "See these leads on the ground",
-              onClick: () => p.onMap(!p.mapOpen),
-            },
-            {
-              label: p.values ? "Signals" : "Values",
-              icon: "eye",
-              title: "Show the numbers and addresses in the rows",
-              onClick: () => p.onValues(!p.values),
-            },
-            exportItem,
-          ]}
-        />
+        // The kit's Menu, as People's ⋯ beside it is (people/page/screen.tsx).
+        <MenuInPlace>
+          <Menu
+            label="More"
+            trigger={moreButton({ title: "More", testid: "leads-more" })}
+            groups={menuGroups([
+              {
+                label: p.mapOpen ? "Table" : "Map",
+                icon: p.mapOpen ? "list" : "map",
+                title: "See these leads on the ground",
+                onClick: () => p.onMap(!p.mapOpen),
+              },
+              {
+                label: p.values ? "Signals" : "Values",
+                icon: "eye",
+                title: "Show the numbers and addresses in the rows",
+                onClick: () => p.onValues(!p.values),
+              },
+              exportItem,
+            ])}
+          />
+        </MenuInPlace>
       ) : (
         exportControl(p)
       )}

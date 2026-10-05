@@ -37,7 +37,12 @@ const LeadNameCard = ({ l, x }: { l: LeadRowVM; x: LeadCellCtx }) => (
       ) : null}
       <span className="sp" />
       {l.phone && !l.phoneWrong ? (
-        <LeadCallMenu {...ldCallProps(l, x)} btnClass="btn btn-sm btn-primary" label="Call" testid="lead-card-call" />
+        <LeadCallMenu
+          {...ldCallProps(l, x)}
+          look={{ variant: "primary", size: "sm", iconOnly: false }}
+          label="Call"
+          testid="lead-card-call"
+        />
       ) : null}
     </div>
   </LeadCard>
