@@ -86,19 +86,38 @@ export function offerPauseOf(at: string | null | undefined, reason: string | nul
   };
 }
 
+/** Why a gate paused a workspace's offers by email, as a clause: what the Campaigns head and the owner's notice both say. */
+const pausedBecause = (reason: OfferPauseReason | null): string =>
+  reason === "complaints"
+    ? "too many people marked offers as spam"
+    : reason === "bounces"
+      ? "too many offers went to addresses that did not accept them"
+      : "complaints and bounces need a look";
+
 /** The Campaigns head's and Connections' words for a pause: what it holds, why, and what it does not. */
 export const OFFERS_PAUSED_WORDS = {
-  head: (reason: OfferPauseReason | null): string => {
-    const why =
-      reason === "complaints"
-        ? "too many people marked offers as spam"
-        : reason === "bounces"
-          ? "too many offers went to addresses that did not accept them"
-          : "complaints and bounces need a look";
-    return `Offers by email are paused: ${why}. Appointment messages and replies still go by email.`;
-  },
+  head: (reason: OfferPauseReason | null): string =>
+    `Offers and news by email are paused: ${pausedBecause(reason)}. Appointment messages and replies still go by email.`,
   /** Where it is told once more, to the person who can do something about it. */
-  fix: "Check your list for old or wrong addresses. We'll turn offers by email back on once it looks right.",
+  fix: "Check your list for old or wrong addresses. We'll turn them back on once it looks right.",
+} as const;
+
+/**
+ * What the owner is told, in the bell and by mail (apps/edge lib/email/offer-gates.ts), when a gate pauses their offers by
+ * email: until now the pause was a log line and a page to the platform, so the rest of a run stopped person by person with
+ * its owner never told why. The business's own news by email is an offer at the door (decision D2), so the notice says it is
+ * held with them; WhatsApp is not touched. It opens Campaigns' home. (The resume is not told yet: it is a SQL function the
+ * back office runs, resume_email_offers, with no door of the edge's to say it from.)
+ */
+export const OFFERS_NOTICE_WORDS = {
+  paused: (reason: OfferPauseReason | null): { title: string; body: string } => ({
+    title: "Offers and news by email are paused",
+    body:
+      `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a ` +
+      `playbook that goes only by email stops when it reaches them, and one that also goes another way skips the people ` +
+      `it would reach by email and goes on for everyone else. Messages about a visit, replies by email and everything on ` +
+      `WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`,
+  }),
 } as const;
 
 /* ------------------------------------------------------------ readiness -- */

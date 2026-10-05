@@ -38,8 +38,10 @@ import {
 import {
   CARRIER_CONSENT_SOURCE,
   domainDailyCap,
+  isOfferByEmail,
   mayMessageFor,
   outreachRefusalOf,
+  passesHandoverPause,
   purposeOfTemplate,
   type DeliveryRefusal,
   type MessageAbout,
@@ -58,7 +60,7 @@ import {
   type EventData,
   type Json,
 } from "@chanlytics/db";
-import { asksRelationship, assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./deliver-email";
+import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./deliver-email";
 import { textRefusal } from "./deliver-text";
 import { namedFailure, putOnWire, type WireUnavailable } from "./wire-senders";
 
@@ -149,6 +151,12 @@ export interface Delivery {
    * covering email or a relationship on record; theirs asks no yes. Required: a sender says which.
    */
   about: MessageAbout;
+  /**
+   * The playbook moment a broadcast's run was made for (contracts audienceTrigger), null for any other send: only the
+   * day-before reminder passes the thread's 24-hour pause (contracts passesHandoverPause, decision D4). Required, as
+   * `about` is: a sender says which, so a new one cannot forget the moment and have its reminder held.
+   */
+  trigger: string | null;
   body: string;
   template?: TemplateSend;
   /** The frozen request, on the email wire (WirePayload.email). */
@@ -275,9 +283,12 @@ interface WireFacts {
  */
 async function wireFacts({ db, emailOffers }: DeliverPorts, d: Delivery): Promise<WireFacts> {
   // Read again without the channel arrays on a database 00297 has not reached (wireRowOf): a yes then covers WhatsApp alone.
-  // The sends that may rest on a relationship with the business: an offer by email, and the business's news by email (D1).
-  const relationship = asksRelationship(d);
-  const { data, error } = await wireRowOf(db, { tenantId: d.tenantId, conversationId: d.conversationId, relationship });
+  // The sends that may rest on a relationship with the business: an offer by email, which is also the business's news (D1, D2).
+  const { data, error } = await wireRowOf(db, {
+    tenantId: d.tenantId,
+    conversationId: d.conversationId,
+    relationship: isOfferByEmail(d),
+  });
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data as unknown as {
@@ -456,17 +467,18 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   // and it respects the pause like the machine it is.
   if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
-  // Is somebody speaking on this thread right now (00132)? A person who took it
-  // over, or a call in progress. It is asked as a LIVE fact with an expiry,
-  // never as "does a column name somebody": the assignee it used to read is
-  // never cleared, so a thread taken over one Tuesday refused every draft
-  // after it for the life of the workspace.
+  return heldByThread(d, f, nowMs, kind);
+}
+
+/** Whether somebody holds the thread, or its pause stands, for this send (what a draft, a system message and a broadcast each meet). */
+function heldByThread(d: Delivery, f: WireFacts, nowMs: number, kind: SendKind): DeliveryRefusal | null {
+  // Is somebody speaking on this thread right now (00132)? A person who took it over, or a call in progress. It is asked
+  // as a LIVE fact with an expiry, never as "does a column name somebody": the assignee it used to read is never cleared,
+  // so a thread taken over one Tuesday refused every draft after it for the life of the workspace.
   const held = !!f.control && nowMs < new Date(f.control.until).getTime();
-  // A thread somebody holds does not take the receptionist's draft. Taking
-  // over withdraws the drafts written before it; this is the same promise
-  // kept at the wire, for the withdrawal that failed or the draft written in
-  // the same second. Only the draft: an answer meets the hold below, a
-  // system message is owed whoever holds the thread.
+  // A thread somebody holds does not take the receptionist's draft. Taking over withdraws the drafts written before it;
+  // this is the same promise kept at the wire, for the withdrawal that failed or the draft written in the same second.
+  // Only the draft: an answer meets the hold below, a system message is owed whoever holds the thread.
   if (kind === "draft" && held) return "human_has_it";
   // The thread's pause holds the receptionist answering now, and a broadcast.
   // It does not hold a queued draft, written before the pause it now meets --
@@ -478,12 +490,14 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   // system message: an opt-in confirmation is owed the moment the yes was
   // given, whoever holds the thread.
   //
-  // A live hold stops them too, and that is what keeps two of our own agents
-  // off one person: while a call is in progress the thread is held, so the
-  // text receptionist stores what the customer writes and answers none of it,
-  // rather than talking over the call the same customer is on.
-  if (kind !== "draft" && kind !== "system" && (held || (f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime())))
-    return "human_has_it";
+  // A live hold stops them too, and that is what keeps two of our own agents off one person: while a call is in progress
+  // the thread is held, so the text receptionist stores what the customer writes and answers none of it, rather than
+  // talking over the call the same customer is on.
+  //
+  // The day-before reminder alone passes the thread's 24-hour pause (contracts passesHandoverPause, decision D4): it is
+  // about their own booking. The live hold above still holds it, and the batch waits for that rather than skipping.
+  const paused = !!f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime() && !passesHandoverPause(d.trigger);
+  if (kind !== "draft" && kind !== "system" && (held || paused)) return "human_has_it";
   return null;
 }
 

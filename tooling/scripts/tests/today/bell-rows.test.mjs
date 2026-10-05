@@ -38,20 +38,84 @@ const kept = (over) => ({
 test("every job kind has the owner's words and a page of its own, and none of them names the job", () => {
   for (const k of JOB_KINDS) {
     for (const end of ["failed", "unfinished", "unknown_kind"]) {
-      const w = jobNewsWords(k, end);
-      assert.ok(!w.title.includes(k) && !/\bjob\b/i.test(w.title), `${k} ${end}: "${w.title}"`);
-      assert.ok(!w.lead.includes(k) && !/[0-9a-f]{8}-/.test(w.lead), `${k} ${end}: "${w.lead}"`);
-      assert.ok(w.to && !w.to.startsWith("#"), k);
+      for (const resumed of [false, true]) {
+        const w = jobNewsWords(k, end, { attempts: 1, resumed });
+        assert.ok(!w.title.includes(k) && !/\bjob\b/i.test(w.title), `${k} ${end}: "${w.title}"`);
+        assert.ok(!w.lead.includes(k) && !/[0-9a-f]{8}-/.test(w.lead), `${k} ${end}: "${w.lead}"`);
+        assert.ok(w.to && !w.to.startsWith("#"), k);
+      }
     }
   }
   assert.deepEqual(
-    jobNewsWords("lead_collect", "failed").to,
+    jobNewsWords("lead_collect", "failed", { attempts: 1, resumed: false }).to,
     "clients/leads",
     "a search's news is on Leads, not the Inbox",
   );
-  assert.match(jobNewsWords("email_ingest", "failed", 5).lead, /^It stopped after 5 tries/);
-  assert.match(jobNewsWords("outbound_send", "unfinished").lead, /Check the conversation before sending it again/);
-  assert.equal(jobNewsWords("made_up", "failed").title, "Something in the background did not finish");
+  assert.match(
+    jobNewsWords("email_ingest", "failed", { attempts: 5, resumed: false }).lead,
+    /^It stopped after 5 tries/,
+  );
+  assert.match(
+    jobNewsWords("outbound_send", "unfinished", { attempts: 1, resumed: false }).lead,
+    /Check the conversation before sending it again/,
+  );
+  assert.equal(
+    jobNewsWords("made_up", "failed", { attempts: 1, resumed: false }).title,
+    "Something in the background did not finish",
+  );
+});
+
+test("a job's first line is worded from how the ledger settled it: carrying on in a fresh run says so, and only a job nothing carries on says it will not start again", () => {
+  const lead = (kind, end, how) => jobNewsWords(kind, end, how).lead;
+  // Failed: a fresh run carries a broadcast on; the line says that, whatever the tries.
+  assert.equal(
+    lead("broadcast_send", "failed", { attempts: 1, resumed: true }),
+    "It stopped and carries on in a fresh run.",
+  );
+  assert.equal(
+    lead("broadcast_send", "failed", { attempts: 3, resumed: true }),
+    "It stopped after 3 tries and carries on in a fresh run.",
+  );
+  assert.equal(
+    lead("broadcast_send", "failed", { attempts: 1, resumed: false }),
+    "It stopped and will not start again on its own.",
+  );
+  // Never started again: not carried on, and not claimed to be.
+  assert.doesNotMatch(lead("broadcast_send", "failed", { attempts: 1, resumed: true }), /will not start again/);
+  assert.doesNotMatch(lead("broadcast_send", "failed", { attempts: 1, resumed: false }), /fresh run/);
+  // Settling threw (resumed null): nobody knows whether anything carries on, and the line says neither.
+  assert.equal(
+    lead("broadcast_send", "failed", { attempts: 1, resumed: null }),
+    "It stopped, and whether it carries on in a fresh run could not be checked.",
+  );
+  assert.equal(
+    lead("broadcast_send", "failed", { attempts: 4, resumed: null }),
+    "It stopped after 4 tries, and whether it carries on in a fresh run could not be checked.",
+  );
+  assert.doesNotMatch(lead("broadcast_send", "failed", { attempts: 1, resumed: null }), /will not start again/);
+  assert.equal(
+    lead("lead_collect", "unfinished", { attempts: 1, resumed: null }),
+    "It started and never reported back, so how it ended is unknown.",
+    "an unfinished job already claims nothing about what comes next",
+  );
+  // Unfinished: how it ended is unknown, and where the rest carries on the line says so. A reply's words keep their warning.
+  assert.equal(
+    lead("broadcast_send", "unfinished", { attempts: 1, resumed: true }),
+    "It started and never reported back, so how it ended is unknown, and the rest carries on in a fresh run.",
+  );
+  assert.equal(
+    lead("lead_collect", "unfinished", { attempts: 1, resumed: false }),
+    "It started and never reported back, so how it ended is unknown.",
+  );
+  assert.match(
+    lead("outbound_send", "unfinished", { attempts: 1, resumed: true }),
+    /Check the conversation before sending it again\.$/,
+  );
+  // Work the app does not know how to do is never carried on.
+  assert.equal(
+    lead("made_up", "unknown_kind", { attempts: 1, resumed: true }),
+    "Nothing ran: this is work the app does not know how to do.",
+  );
 });
 
 test("a job's row the runner wrote before these words is said in them, on its work's page, and nothing else is touched", () => {

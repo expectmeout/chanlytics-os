@@ -2,6 +2,7 @@
  * A run's report: its figures over time, the people it reached and what each said back. Moved whole from
  * broadcasts.ts (Reach out Part 2.5), which re-exports it.
  */
+import { audienceTrigger } from "./broadcast-audience";
 import { broadcastFailureFix, broadcastFailureWords } from "./broadcast-failures";
 import type { BroadcastRecipientDto } from "./broadcasts";
 import { HELD_REASONS } from "./run-words";
@@ -422,7 +423,10 @@ function runStopOf({ d, sent }: RunFacts): RunReportVM["stop"] {
   return failed
     ? {
         words: broadcastFailureWords(code),
-        fix: broadcastFailureFix(code, sent),
+        fix: broadcastFailureFix(code, sent, {
+          playbook_id: d.broadcast?.playbook_id ?? null,
+          trigger: audienceTrigger(d.broadcast?.audience),
+        }),
         tone: code === "paused" ? "warn" : "danger",
       }
     : null;
@@ -548,7 +552,14 @@ const RUN_FIGURES: readonly RunFigureOf[] = [sentFigure, deliveredFigure, replie
  */
 export function toRunReportVM(
   d: {
-    broadcast?: { state?: string; failure?: string | null; params?: readonly ParamSpec[] };
+    broadcast?: {
+      state?: string;
+      failure?: string | null;
+      params?: readonly ParamSpec[];
+      /** A playbook's run: which, and the moment its audience names, which a stop's next step is worded by (stoppedRunFix). */
+      playbook_id?: string | null;
+      audience?: unknown;
+    };
     recipients: readonly ReportRecipient[];
   },
   opts: { windowMs: number; nowMs: number; clock?: (iso: string | null) => string | null },

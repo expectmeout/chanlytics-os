@@ -206,28 +206,28 @@ test("the reminder's words are relative to the moment it goes: tomorrow, today, 
   const sep6 = new Date("2026-09-06T15:00:00Z");
   const sep7 = new Date("2026-09-07T13:00:00Z"); // nine in the morning, the moment a night's run-now goes
   const sep5 = new Date("2026-09-05T15:00:00Z");
-  assert.deepEqual(visitFacts("visit_tomorrow", visit, TZ, sep6), {
+  assert.deepEqual(visitFacts("visit_tomorrow", visit, TZ, [], sep6), {
     visit_when: "tomorrow at 2:00 PM",
     visit_service: "Balayage",
   });
   assert.deepEqual(
-    visitFacts("visit_tomorrow", visit, TZ, sep7),
+    visitFacts("visit_tomorrow", visit, TZ, [], sep7),
     { visit_when: "today at 2:00 PM", visit_service: "Balayage" },
     "moved to nine the next morning, the visit is today",
   );
   assert.equal(
-    visitFacts("visit_tomorrow", visit, TZ, sep5).visit_when,
+    visitFacts("visit_tomorrow", visit, TZ, [], sep5).visit_when,
     "on Monday at 2:00 PM",
     "further off, the day's name",
   );
   assert.equal(
-    visitFacts("visit_tomorrow", visit, TZ).visit_when,
+    visitFacts("visit_tomorrow", visit, TZ, []).visit_when,
     "tomorrow at 2:00 PM",
     "without a moment, as the run assumes",
   );
-  assert.equal(visitFacts("visited", visit, TZ, new Date("2026-09-08T15:00:00Z")).visit_when, "yesterday");
+  assert.equal(visitFacts("visited", visit, TZ, [], new Date("2026-09-08T15:00:00Z")).visit_when, "yesterday");
   assert.equal(
-    visitFacts("visited", visit, TZ, new Date("2026-09-09T15:00:00Z")).visit_when,
+    visitFacts("visited", visit, TZ, [], new Date("2026-09-09T15:00:00Z")).visit_when,
     "on Monday",
     "a thank-you moved a day still names the day",
   );
@@ -371,18 +371,32 @@ test("when a run is due: the hour the owner picked, by the business's clock, onc
     "Every 30 days at 09:00 · up to 50 a day",
   );
   assert.equal(
-    nextRunLabel({ state: "running", run_hour: 11, last_run_for: null }, "America/New_York", now),
+    nextRunLabel({ state: "running", run_hour: 11, last_run_for: null }, "America/New_York", now, false),
     "today 11:00",
   );
   assert.equal(
-    nextRunLabel({ state: "running", run_hour: 10, last_run_for: null }, "America/New_York", now),
+    nextRunLabel({ state: "running", run_hour: 10, last_run_for: null }, "America/New_York", now, false),
     "today, within the hour",
   );
   assert.equal(
-    nextRunLabel({ state: "running", run_hour: 10, last_run_for: "2026-09-06" }, "America/New_York", now),
+    nextRunLabel({ state: "running", run_hour: 10, last_run_for: "2026-09-06" }, "America/New_York", now, false),
     "tomorrow 10:00",
   );
-  assert.equal(nextRunLabel({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now), "paused");
+  assert.equal(
+    nextRunLabel({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now, false),
+    "paused",
+  );
+  // A paused workspace promises no time: nothing a run sends leaves until billing resumes. A paused playbook is still paused.
+  for (const last_run_for of [null, "2026-09-06"])
+    assert.equal(
+      nextRunLabel({ state: "running", run_hour: 10, last_run_for }, "America/New_York", now, true),
+      "after billing resumes",
+      String(last_run_for),
+    );
+  assert.equal(
+    nextRunLabel({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now, true),
+    "paused",
+  );
 });
 
 test("a run that waits for a person is open, never sent by the job, approved through its own door, skipped through cancel", () => {

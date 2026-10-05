@@ -130,7 +130,21 @@ const tables = (over = {}) => ({
     { user_id: USER, tenant_id: A, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
   ],
   tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }],
-  tenant_config: [{ tenant_id: A, config: { brain: { business_name: "Harbor Moving" } }, version: 1 }],
+  // With its postal address: a broadcast's email is the business's news, an offer at the door, whose foot names it (decision D2).
+  tenant_config: [
+    {
+      tenant_id: A,
+      config: {
+        brain: {
+          business_name: "Harbor Moving",
+          system_prompt: "Answer as the front desk of Harbor Moving: brief and warm.",
+          fallbacks: { greeting: "g", error: "e", non_text: "n" },
+          profile: { address: "12 Main St, Springfield" },
+        },
+      },
+      version: 1,
+    },
+  ],
   tenant_channels: [
     {
       tenant_id: A,
@@ -169,6 +183,9 @@ const tables = (over = {}) => ({
 });
 
 /** What the edge answers about its email wire; an Error is a network that failed. */
+const OPEN_EDGE = { status: 200, body: { ok: true, ready: true, offers: true } };
+/** Email can send, and the campaigns domain is not verified: offers by email are closed. */
+const CLOSED_EDGE = { status: 200, body: { ok: true, ready: true, offers: false } };
 let edge;
 const real = globalThis.fetch;
 /** The edge answers `answer` from now on, and the dashboard's kept answer is the one it gives. */
@@ -185,7 +202,9 @@ beforeEach(async () => {
       headers: { "content-type": "application/json" },
     });
   };
-  await edgeSays({ status: 200, body: { ok: true, ready: true } });
+  // The deployment can send email, and the campaigns domain is verified: offers by email, and the business's own news with them
+  // (decision D2), can go. A case about them closed says so with `edgeSays(CLOSED_EDGE)`.
+  await edgeSays(OPEN_EDGE);
 });
 after(() => (globalThis.fetch = real));
 
@@ -259,8 +278,19 @@ test("a broadcast's channels are held to the route's own rule, in the composers'
   const offerByText = await propose({ ...BROADCAST, template_id: OFFER, channels: ["sms"] });
   assert.equal(offerByText.isError, true);
   assert.equal(said(offerByText), CHANNEL_WORDS.noOffersByText);
+  await edgeSays(CLOSED_EDGE);
   const offerByEmail = await propose({ ...BROADCAST, template_id: OFFER, channels: ["whatsapp", "email"] });
   assert.equal(said(offerByEmail), CHANNEL_WORDS.noOffersByEmailYet);
+  // The business's own news is held with them (decision D2): a utility message by email says the same, and by WhatsApp goes.
+  const newsByEmail = await propose({ ...BROADCAST, channels: ["whatsapp", "email"] });
+  assert.equal(said(newsByEmail), CHANNEL_WORDS.noOffersByEmailYet);
+  assert.equal(newsByEmail.proposal, null, "no card for the person to approve");
+  assert.equal(
+    (await propose({ ...BROADCAST, channels: ["whatsapp", "sms"] })).isError,
+    false,
+    "by WhatsApp and text it goes",
+  );
+  await edgeSays(OPEN_EDGE);
   // The message has no version there.
   const noVersion = await propose(
     { ...BROADCAST, channels: ["email"] },
@@ -270,8 +300,15 @@ test("a broadcast's channels are held to the route's own rule, in the composers'
   // The workspace cannot send there: no texting line, no mailbox, and a deployment whose edge holds no key.
   assert.equal(said(await propose({ ...BROADCAST, channels: ["sms"] }, { lines: [] })), CHANNEL_WORDS.noTextLine);
   assert.equal(said(await propose({ ...BROADCAST, channels: ["email"] }, { mailboxes: [] })), CHANNEL_WORDS.noMailbox);
+  // A deployment with no email wire cannot send the news either: offers by email wait for the campaigns domain, which is
+  // what its absence is (contracts channelsReady).
   await edgeSays({ status: 200, body: { ok: true, ready: false } });
-  assert.equal(said(await propose({ ...BROADCAST, channels: ["email"] })), CHANNEL_WORDS.noEmailDomain);
+  assert.equal(said(await propose({ ...BROADCAST, channels: ["email"] })), CHANNEL_WORDS.noOffersByEmailYet);
+  // A workspace with no postal address, which an offer's foot names: the same reason an offer's tick gives.
+  await edgeSays(OPEN_EDGE);
+  const bare = tables().tenant_config.map((r) => ({ ...r, config: { brain: { ...r.config.brain, profile: {} } } }));
+  const noAddress = await propose({ ...BROADCAST, channels: ["email"] }, { tenant_config: bare });
+  assert.equal(said(noAddress), "Add your business's address to send offers by email.");
   // An edge that could not be asked is not ready, and not guessed ready: the page's words for it.
   await edgeSays(new Error("connect ECONNREFUSED"));
   const unchecked = await propose({ ...BROADCAST, channels: ["email"] });

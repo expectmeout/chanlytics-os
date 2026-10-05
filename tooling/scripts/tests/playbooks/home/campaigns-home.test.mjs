@@ -817,7 +817,7 @@ test("the head says offers by email are paused, from the email channel's own rea
   fresh();
   assert.equal(
     textOf(byTestId(page(), "cmh-paused")),
-    "Offers by email are paused: too many offers went to addresses that did not accept them. Appointment messages and replies still go by email.",
+    "Offers and news by email are paused: too many offers went to addresses that did not accept them. Appointment messages and replies still go by email.",
     "the quiet line, under the sentence",
   );
   surfaces({ broadcasts: withOffers({ ok: true, why: null, paused: null }) });

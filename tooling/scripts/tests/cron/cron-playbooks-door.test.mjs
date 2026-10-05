@@ -18,10 +18,10 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { localDate, localHour } from "@chanlytics/contracts";
+import { doorOf, localDate, localHour } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { withoutRequestId } from "../_log-lines.mjs";
-import { at, knock, answer, refusedAtTheDoor, vault } from "../_cron-doors-world.mjs";
+import { at, knock, answer, refusedAtTheDoor, vault, wire, withEnv } from "../_cron-doors-world.mjs";
 
 for (const k of [
   "WHATSAPP_PHONE_ID",
@@ -34,7 +34,8 @@ for (const k of [
   delete process.env[k];
 
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
-const { POST, REACH_OUT_YIELD_AT_MS } = await import(at("apps/edge/api/cron/playbooks.ts"));
+const { POST, MOMENTS_YIELD_AT_MS, REACH_OUT_YIELD_AT_MS } = await import(at("apps/edge/api/cron/playbooks.ts"));
+const { forgetFeeds } = await import(at("apps/edge/lib/calendar/availability.ts"));
 const { PLAYBOOKS_PER_TICK } = await import(at("apps/edge/lib/ops/sweep-rotation.ts"));
 after(() => setPg(null));
 
@@ -151,6 +152,8 @@ function world({ people = {}, ticks = 1, faults = {}, rpcs = {} } = {}) {
     decisions: [],
     events: [],
     notifications: [],
+    // The platform's pager: its memory of what it has told, six hours a key.
+    operator_pages: [],
     // Reach out (Part 3): what a reach-out step's run reads and writes.
     billing_accounts: [],
     sending_domains: [],
@@ -603,7 +606,10 @@ test("twenty-six running moments in a paused workspace hold no place in the page
 
   const [status, first] = await answer(await w.tick());
   assert.equal(status, 200);
-  assert.deepEqual(first, counts({ tenants: 1, due: 2, sent: 2 }), "the first tick: the two run");
+  // The two run. They are two win-backs over the one person, and the week's breath (one message a person a week across every
+  // moment) holds the second: it ran, and found nobody the first had not just enrolled. Before the breath was kept between
+  // two runs in a tick this read sent: 2, one person messaged twice in the morning.
+  assert.deepEqual(first, counts({ tenants: 1, due: 2, sent: 1, empty: 1 }), "the first tick: the two run");
   assert.deepEqual(
     w.tables.playbooks
       .filter((p) => p.last_run_for === today)
@@ -970,5 +976,409 @@ test("a veto run goes on the record: the system's decision under the mode its ow
     w.tables.notifications.filter((n) => n.route === "broadcasts"),
     [],
     "nobody is asked",
+  );
+});
+
+/* ------------------------------------- nothing lost or doubled: the run side (the 4 Oct 2026 wiring review, W1) */
+
+/** The platform's mail, the owner's, and the deployment's: what the tick may send when a test lets it. */
+const OWNER = "owner@example.com";
+const PLATFORM = "ops@platform.test";
+const MAIL_ENV = { RESEND_API_KEY: "re_test", LEAD_FROM: "Chanlytics <alerts@platform.test>", LEAD_TO: PLATFORM };
+/** A workspace whose owner is told at `OWNER`. */
+const tellOwner = (w, id) => {
+  w.tables.tenant_config.find((r) => r.tenant_id === id).config = { notifications: { escalation_emails: [OWNER] } };
+};
+const mailTo = (line, who) => line.mail().filter((m) => m.to.includes(who));
+const bellOf = (w, id) => w.tables.notifications.filter((n) => n.tenant_id === id);
+
+test("two playbooks due in the same hour keep the week's breath between them: the second leaves out whoever the first just enrolled, and keeps whoever it did not (P1 3)", async () => {
+  // The first reaches one person (its cap); the second would reach all three, and is left with the two the first did not.
+  let w = world({ people: { [A]: [person("c1"), person("c2"), person("c3")] } });
+  workspace(w.tables, A, OPEN, "auto");
+  w.tables.playbooks.push(
+    playbook(A, "pb-1", { name: "Win-back", cap_per_run: 1, last_run_at: iso(2 * H) }),
+    playbook(A, "pb-2", { name: "Second chance", last_run_at: iso(H) }),
+  );
+  let [, body] = await answer(await w.tick());
+  assert.deepEqual(body, counts({ tenants: 1, due: 2, sent: 2 }));
+  const [first, second] = w.tables.broadcasts;
+  const reached = (run) =>
+    w.tables.broadcast_recipients.filter((r) => r.broadcast_id === run.id).map((r) => r.contact_id);
+  assert.deepEqual(reached(first), ["c1"]);
+  assert.deepEqual(reached(second), ["c2", "c3"], "never the same person twice in one morning");
+  assert.equal(second.audience.reach.heardAny, 1, "left out for the week's breath, and counted so");
+
+  // Everyone the first enrolled: the second finds nobody, says why, and the day is still its own.
+  w = world({ people: { [A]: [person("c1"), person("c2")] } });
+  workspace(w.tables, A, OPEN, "auto");
+  w.tables.playbooks.push(
+    playbook(A, "pb-1", { name: "Win-back", last_run_at: iso(2 * H) }),
+    playbook(A, "pb-2", { name: "Second chance", last_run_at: iso(H) }),
+  );
+  [, body] = await answer(await w.tick());
+  assert.deepEqual(body, counts({ tenants: 1, due: 2, sent: 1, empty: 1 }));
+  assert.equal(w.tables.broadcasts.length, 1, "one run, one send job");
+  const record = w.tables.events.find((e) => e.kind === "playbook.run" && e.subject_id === "pb-2");
+  assert.deepEqual([record.data.eligible, record.data.reach.heardAny], [0, 2]);
+  assert.equal(
+    w.tables.playbooks.find((p) => p.id === "pb-2").last_run_for,
+    localDate(OPEN, new Date()),
+    "its day is recorded as a run that found nobody",
+  );
+});
+
+/** A visit playbook's calendar: tomorrow's visit, the client's number in its description. */
+const stampOf = (d) => d.toISOString().replace(/[-:]|\.\d{3}/g, "");
+const feedWith = (phone) => {
+  const start = new Date(Date.now() + D);
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//booking tool//EN",
+    "BEGIN:VEVENT",
+    "UID:visit-1",
+    `DTSTART:${stampOf(start)}`,
+    `DTEND:${stampOf(new Date(start.getTime() + H))}`,
+    "SUMMARY:Balayage · Person c1",
+    `DESCRIPTION:Client: ${phone}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+    "",
+  ].join("\r\n");
+};
+const reminder = (tenant, id, over = {}) =>
+  playbook(tenant, id, {
+    name: "Visit reminder",
+    trigger: "visit_tomorrow",
+    policy_class: "booking",
+    params: [{ kind: "visit_when" }, { kind: "visit_service" }],
+    ...over,
+  });
+/** A workspace with a calendar connected at `url` and its booking class on auto. */
+function withCalendar(w, id, url) {
+  w.tables.tenant_config.find((r) => r.tenant_id === id).config = { calendar: { ical_url: url } };
+  w.tables.policies.push({
+    id: `pol-booking-${id.slice(0, 8)}`,
+    tenant_id: id,
+    class: "booking",
+    mode: "auto",
+    subject_type: null,
+    subject_id: null,
+    limits: {},
+    updated_at: iso(0),
+  });
+}
+
+test("a calendar that could not be read loses no day: nothing is recorded, the hourly tick asks again, and the reminder goes the hour it can; no calendar at all is still the day's final answer (P1 6)", async () => {
+  const url = "https://cal.example/a.ics";
+  const w = world({ people: { [A]: [person("c1")] } });
+  workspace(w.tables, A, OPEN, "auto");
+  withCalendar(w, A, url);
+  w.tables.playbooks.push(reminder(A, "pb-v", { last_run_at: iso(D) }));
+  const today = localDate(OPEN, new Date());
+  let feed = null;
+  const line = wire((u) =>
+    u.includes("api.resend.com")
+      ? new Response("{}", { status: 200 })
+      : feed
+        ? new Response(feed, { status: 200, headers: { "content-type": "text/calendar" } })
+        : new Response("calendar is down", { status: 503 }),
+  );
+  const said = hear();
+  try {
+    forgetFeeds();
+    // The calendar's server is down this hour.
+    let [, body] = await answer(await w.tick());
+    assert.deepEqual(body, counts({ tenants: 1, due: 1, failed: 1 }));
+    assert.equal(w.tables.playbooks[0].last_run_for, null, "the day stays open");
+    assert.deepEqual(w.tables.events, [], "no run recorded, so the day is not done as far as the sweep knows");
+    nothingMade(w);
+    const failed = said.lines.filter((l) => l.event === "playbook_run_failed");
+    assert.deepEqual(
+      failed.map((l) => [l.playbook_id, l.error]),
+      [["pb-v", "calendar: could not be read"]],
+    );
+
+    // The next hour it answers: the same sweep runs it, and the day is recorded as a run's.
+    feed = feedWith("+13055550101");
+    forgetFeeds();
+    [, body] = await answer(await w.tick());
+    assert.deepEqual(body, counts({ tenants: 1, due: 1, sent: 1 }));
+    assert.equal(w.tables.playbooks[0].last_run_for, today);
+    assert.equal(w.tables.broadcasts.length, 1);
+    assert.deepEqual(
+      w.tables.broadcast_recipients.map((r) => r.contact_id),
+      ["c1"],
+    );
+    const facts = w.tables.broadcast_recipients[0].facts;
+    assert.match(facts.visit_when, /^tomorrow at /);
+    assert.equal(
+      facts.visit_service,
+      "Balayage",
+      "the service alone: the name the title carried is not in the message",
+    );
+    [, body] = await answer(await w.tick());
+    assert.deepEqual(body, counts(), "and it runs once");
+  } finally {
+    said.restore();
+    line.restore();
+    forgetFeeds();
+  }
+
+  // No calendar connected is not a read that failed: the run says so, and the day is done.
+  const none = world({ people: { [P]: [person("c1")] } });
+  workspace(none.tables, P, OPEN, "auto");
+  none.tables.policies.push({ ...none.tables.policies[0], id: "pol-b", class: "booking" });
+  none.tables.playbooks.push(reminder(P, "pb-n", { last_run_at: iso(D) }));
+  const [, final] = await answer(await none.tick());
+  assert.deepEqual(final, counts({ tenants: 1, due: 1, off: 1 }));
+  assert.equal(none.tables.playbooks[0].last_run_for, today, "recorded: nothing to read will ever be there");
+  assert.equal(none.tables.events[0].data.skipped, "no_calendar");
+});
+
+test("a playbook that cannot run is told: the platform is paged once per workspace through the pager's memory, and the owner is told at the day's last chance, once", async () => {
+  const LAST = zoneWhere((h) => h === 20);
+  const failing = { "templates.select": { message: "canceling statement due to statement timeout" } };
+  const today = localDate(LAST, new Date());
+  const line = wire();
+  try {
+    await withEnv(MAIL_ENV, async () => {
+      // An hour before the last: the platform hears, the owner is not told (the next hour tries again).
+      const early = world({ people: { [A]: [person("c1")] }, faults: failing });
+      workspace(early.tables, A, OPEN, "auto");
+      tellOwner(early, A);
+      early.tables.playbooks.push(playbook(A, "pb-a", { name: "Win-back", last_run_at: iso(D) }));
+      let [, body] = await answer(await early.tick());
+      assert.deepEqual(body, counts({ tenants: 1, due: 1, failed: 1 }));
+      assert.deepEqual(
+        early.tables.operator_pages.map((p) => p.key),
+        [`playbook_failed:${A}`],
+      );
+      assert.deepEqual(bellOf(early, A), [], "the owner is not told before the last chance");
+      assert.deepEqual(mailTo(line, OWNER), []);
+      const page = mailTo(line, PLATFORM);
+      assert.equal(page.length, 1);
+      assert.ok(page[0].subject.startsWith("[Chanlytics] A playbook could not run in workspace"), page[0].subject);
+      for (const said of [A, "Win-back", "pb-a", "statement timeout"])
+        assert.ok(page[0].text.includes(said), `${said}: ${page[0].text}`);
+      line.calls.length = 0;
+
+      // The last hour of its day: the owner is told, in the bell and by mail, and once however many ticks follow.
+      const w = world({ people: { [A]: [person("c1")] }, faults: failing });
+      workspace(w.tables, A, LAST, "auto");
+      tellOwner(w, A);
+      w.tables.playbooks.push(playbook(A, "pb-a", { name: "Win-back", last_run_at: iso(D) }));
+      [, body] = await answer(await w.tick());
+      assert.deepEqual(body, counts({ tenants: 1, due: 1, failed: 1 }));
+      const [notice] = bellOf(w, A);
+      assert.deepEqual(
+        [notice.kind, notice.title, notice.route, notice.subject_type, notice.subject_id],
+        ["playbook", "“Win-back” could not run today", "outbound/pb-a", "playbook_day", `pb-a:${today}`],
+      );
+      assert.equal(doorOf(notice.route), "campaigns/moment:pb-a", "the bell opens the playbook itself");
+      assert.ok(
+        notice.body.startsWith("“Win-back” could not run today, so nobody was sent it. Tomorrow's run will try again."),
+        notice.body,
+      );
+      const told = mailTo(line, OWNER);
+      assert.equal(told.length, 1);
+      assert.equal(told[0].subject, notice.title);
+      assert.equal(mailTo(line, PLATFORM).length, 1, "and the platform was paged once too");
+      assert.equal(w.tables.operator_pages[0].count, 1);
+
+      // The day is still open: the next tick in the hour tries again, fails again, and says nothing twice.
+      [, body] = await answer(await w.tick());
+      assert.deepEqual(body, counts({ tenants: 1, due: 1, failed: 1 }));
+      assert.equal(bellOf(w, A).length, 1, "one notice for the playbook for the day");
+      assert.equal(mailTo(line, OWNER).length, 1);
+      assert.equal(mailTo(line, PLATFORM).length, 1, "the pager keeps six hours of memory per workspace");
+      assert.equal(w.tables.operator_pages[0].count, 2, "but it counts the second firing");
+    });
+  } finally {
+    line.restore();
+  }
+});
+
+test("a calendar that could not be read all day tells the owner what failed and where to look, and pages nobody: the link is the owner's to mend", async () => {
+  const LAST = zoneWhere((h) => h === 20);
+  const line = wire((u) =>
+    u.includes("api.resend.com") ? new Response("{}", { status: 200 }) : new Response("gone", { status: 404 }),
+  );
+  try {
+    forgetFeeds();
+    await withEnv(MAIL_ENV, async () => {
+      const w = world({ people: { [A]: [person("c1")] } });
+      workspace(w.tables, A, LAST, "auto");
+      withCalendar(w, A, "https://cal.example/dead.ics");
+      // The owner's address beside the calendar (tellOwner and withCalendar each write the whole config).
+      const cfg = w.tables.tenant_config.find((r) => r.tenant_id === A);
+      cfg.config = { ...cfg.config, notifications: { escalation_emails: [OWNER] } };
+      w.tables.playbooks.push(reminder(A, "pb-v", { last_run_at: iso(D) }));
+      const [, body] = await answer(await w.tick());
+      assert.deepEqual(body, counts({ tenants: 1, due: 1, failed: 1 }));
+      assert.deepEqual(w.tables.operator_pages ?? [], [], "no page: a dead link would page the platform for good");
+      assert.equal(mailTo(line, PLATFORM).length, 0);
+      const [notice] = bellOf(w, A);
+      const name = w.tables.playbooks[0].name;
+      assert.equal(notice.title, `“${name}” could not read your calendar today`);
+      assert.ok(notice.body.includes("Settings › Business"), `it says where the link is: ${notice.body}`);
+      assert.equal(mailTo(line, OWNER).length, 1, "and the owner has it by mail too");
+    });
+  } finally {
+    line.restore();
+    forgetFeeds();
+  }
+});
+
+test("a workspace whose context cannot be read pages once and tells each due playbook's owner once, at the last chance: one key per workspace, one notice per playbook", async () => {
+  const LAST = zoneWhere((h) => h === 20);
+  const today = localDate(LAST, new Date());
+  const line = wire();
+  const said = hear();
+  try {
+    await withEnv(MAIL_ENV, async () => {
+      const w = world({
+        rpcs: {
+          people_list: () => {
+            throw new Error("people_list: canceling statement due to statement timeout");
+          },
+        },
+      });
+      workspace(w.tables, A, LAST, "auto");
+      tellOwner(w, A);
+      w.tables.playbooks.push(
+        playbook(A, "pb-1", { name: "Win-back", last_run_at: iso(2 * D) }),
+        playbook(A, "pb-2", { name: "Second chance", last_run_at: iso(D) }),
+      );
+      const [, body] = await answer(await w.tick());
+      assert.deepEqual(body, counts({ tenants: 1, due: 2, failed: 2 }));
+      assert.equal(said.lines.filter((l) => l.event === "playbooks_context_failed").length, 1);
+      assert.deepEqual(
+        w.tables.operator_pages.map((p) => p.key),
+        [`playbook_failed:${A}`],
+        "one key for the workspace",
+      );
+      const page = mailTo(line, PLATFORM);
+      assert.equal(page.length, 1);
+      assert.ok(page[0].subject.startsWith("[Chanlytics] Playbooks could not run in workspace"), page[0].subject);
+      for (const named of ["Win-back", "Second chance", "pb-1", "pb-2"]) assert.ok(page[0].text.includes(named), named);
+      assert.deepEqual(
+        bellOf(w, A)
+          .map((n) => [n.title, n.subject_id])
+          .sort(),
+        [
+          ["“Second chance” could not run today", `pb-2:${today}`],
+          ["“Win-back” could not run today", `pb-1:${today}`],
+        ],
+      );
+      assert.equal(mailTo(line, OWNER).length, 2);
+      assert.equal(said.lines.filter((l) => l.event === "playbook_failed_told").length, 2);
+    });
+  } finally {
+    said.restore();
+    line.restore();
+  }
+});
+
+test("a paused workspace is not a failure: no page, no notice, however late in its day", async () => {
+  const LAST = zoneWhere((h) => h === 20);
+  const line = wire();
+  try {
+    await withEnv(MAIL_ENV, async () => {
+      const w = world({ people: { [P]: [person("c1")] }, rpcs: { playbooks_due: readBeforeThePause } });
+      workspace(w.tables, P, LAST, "auto", "paused");
+      w.tables.playbooks.push(playbook(P, "pb-p"));
+      const [, body] = await answer(await w.tick());
+      assert.deepEqual(body, counts({ tenants: 1, due: 1, off: 1 }));
+      assert.deepEqual([w.tables.operator_pages, bellOf(w, P), line.mail()], [[], [], []]);
+    });
+  } finally {
+    line.restore();
+  }
+});
+
+test("the moments have a budget, as the reach-outs do: past it no new moment is started, what is left stays due and is counted, and the sweep still notes its backlog and says it is done (P1 8)", async () => {
+  const realNow = Date.now;
+  const build = () => {
+    const w = world({ people: { [A]: [person("c1"), person("c2")], [P]: [person("c1")] } });
+    workspace(w.tables, A, OPEN, "auto");
+    workspace(w.tables, P, OPEN, "auto");
+    // Two moments in A, one in P, the longest waiting first: A's two, then P's.
+    w.tables.playbooks.push(
+      playbook(A, "pb-a1", { name: "First", cap_per_run: 1, last_run_at: iso(4 * H) }),
+      playbook(A, "pb-a2", { name: "Second", last_run_at: iso(3 * H) }),
+      playbook(P, "pb-p1", { name: "Third", last_run_at: iso(2 * H) }),
+    );
+    return w;
+  };
+
+  // Out of time before the first workspace is read: nothing is started, all three are left behind and still due.
+  let w = build();
+  const waiting = w.tables.playbooks.map((p) => p.last_run_at);
+  let reads = 0;
+  Date.now = () => realNow() + (reads++ === 0 ? 0 : MOMENTS_YIELD_AT_MS + 1_000);
+  let said = hear();
+  let body;
+  try {
+    [, body] = await answer(await w.tick());
+  } finally {
+    Date.now = realNow;
+    said.restore();
+  }
+  assert.deepEqual([body.due, body.sent, body.remaining], [0, 0, 3]);
+  nothingMade(w);
+  assert.ok(
+    w.tables.playbooks.every((p) => p.last_run_for === null),
+    "their day is open",
+  );
+  assert.deepEqual(
+    w.tables.playbooks.map((p) => p.last_run_at),
+    waiting,
+    "not stamped tried: they keep their places",
+  );
+  assert.deepEqual(w.backlog, [{ p_sweep: "playbooks", p_remaining: 3 }], "the backlog is noted all the same");
+  assert.deepEqual(
+    said.lines.filter((l) => l.event === "playbooks_yielded").map((l) => l.left),
+    [3],
+  );
+  assert.equal(said.lines.filter((l) => l.event === "playbooks_swept").length, 1, "and the closing line is said");
+
+  // Out of time after the first run is made: the second of the same workspace and the next workspace's wait.
+  w = build();
+  Date.now = () => realNow() + (w.tables.broadcasts.length > 0 ? MOMENTS_YIELD_AT_MS + 1_000 : 0);
+  said = hear();
+  try {
+    [, body] = await answer(await w.tick());
+  } finally {
+    Date.now = realNow;
+    said.restore();
+  }
+  assert.deepEqual(
+    [body.tenants, body.due, body.sent, body.remaining],
+    [1, 2, 1, 2],
+    "A's first ran; A's second and P's did not start",
+  );
+  assert.equal(w.tables.broadcasts.length, 1);
+  assert.deepEqual(
+    w.tables.playbooks.map((p) => [p.id, p.last_run_for !== null]),
+    [
+      ["pb-a1", true],
+      ["pb-a2", false],
+      ["pb-p1", false],
+    ],
+  );
+  assert.deepEqual(w.backlog, [{ p_sweep: "playbooks", p_remaining: 2 }]);
+  assert.deepEqual(
+    said.lines.filter((l) => l.event === "playbooks_yielded").map((l) => l.left),
+    [2],
+  );
+
+  // The next tick, with time: what was left runs.
+  const [, rest] = await answer(await w.tick());
+  assert.deepEqual(
+    [rest.sent, rest.empty, rest.remaining],
+    [2, 0, 0],
+    "the second is left with the one the first did not take, and the third's workspace has its turn",
   );
 });

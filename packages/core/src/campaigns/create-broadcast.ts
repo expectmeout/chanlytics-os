@@ -6,6 +6,7 @@ import {
   BROADCAST_NAME_MAX,
   BROADCAST_SCHEDULE_MAX_DAYS,
   BUILTIN_LISTS,
+  CAMPAIGNS_PAUSED_WORDS,
   EVERYONE_LABEL,
   broadcastName,
   emptyAudienceRefusal,
@@ -164,6 +165,10 @@ export async function campaignHowOf(
 ): Promise<{ how: CampaignHow; health: NumberHealth | null }> {
   // A broadcast is news the business chose to send, whatever its template's category (decision D1).
   const made = await campaignHow(ports, tpl, channels, "ours");
+  // A paused workspace sends nothing: the door refuses every message of the run (deliver.ts `paused`), so a broadcast made
+  // under one would be enrolled, scheduled, and stopped by the first batch. It is refused here, in the words the composers
+  // say it in (their Send is not offered), before the people are read.
+  if (made.how.ready.paused) throw new AppError("payment_required", CAMPAIGNS_PAUSED_WORDS);
   refuseTicks(made.how, purpose);
   return made;
 }
@@ -243,11 +248,25 @@ export async function createBroadcast(
   // who go by WhatsApp alone.
   const over = health ? overLimitRefusal(health, enrolled.filter((e) => e.channel === "whatsapp").length) : null;
   if (over) throw new AppError("validation", over);
+
+  // 4b. Never at 3 AM. The same window the playbooks keep, by the business's
+  // own clock: a time outside it -- asked for, or "now" at eleven at night --
+  // moves to nine the next morning, and the receipt says so. The ceiling is
+  // judged on the moment it really goes, not the one asked for. Before the month is counted, which is counted at that
+  // moment.
+  const tz = await ports.timezone();
+  const open = nextOpenMoment(tz, when);
+  const movedFrom = open.moved ? when.toISOString() : null;
+  when = open.at;
+  if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * DAY_MS)
+    throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
+
   // The month's allowance, read before anyone is enrolled: emails and texts are metered, and the people past the room are
   // enrolled held, so the run's report says so up front. A count that could not be made is not room, and the broadcast
   // waits for one rather than enrol past a month nobody counted. A broadcast has no moment, so every email and text is held.
+  // Counted in the month the run OPENS in, not the one it was made in: made on the 28th for the 1st, it sends in the new month.
   const past = await pastTheMonth(
-    ports,
+    { monthSent: (channel) => ports.monthSent(channel, when) },
     enrolled.map((e) => ({ id: e.row.id, channel: e.channel })),
     null,
     purpose,
@@ -260,16 +279,6 @@ export async function createBroadcast(
     );
   });
 
-  // 4b. Never at 3 AM. The same window the playbooks keep, by the business's
-  // own clock: a time outside it -- asked for, or "now" at eleven at night --
-  // moves to nine the next morning, and the receipt says so. The ceiling is
-  // judged on the moment it really goes, not the one asked for.
-  const tz = await ports.timezone();
-  const open = nextOpenMoment(tz, when);
-  const movedFrom = open.moved ? when.toISOString() : null;
-  when = open.at;
-  if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * DAY_MS)
-    throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
   // Named for the business's day, not the server's (UTC on Vercel).
   const name =
     typeof want.name === "string" && want.name.trim()

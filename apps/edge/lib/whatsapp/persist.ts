@@ -284,8 +284,11 @@ function pgFinishing(db: SupabaseClient<Database> | null, tenantId: string | nul
   };
 }
 
-/** A reply in the thread they wrote in: it starts no conversation, and it is about something of theirs (MessageAbout). */
-const AN_ANSWER = { proactive: false, about: "theirs" } as const;
+/**
+ * A reply in the thread they wrote in: it starts no conversation, it is about something of theirs (MessageAbout), and it
+ * is no playbook's run, so no moment's (Delivery.trigger).
+ */
+const AN_ANSWER = { proactive: false, about: "theirs", trigger: null } as const;
 
 /** All PG bookkeeping for one inbound message; every method no-ops when unconfigured. */
 /**

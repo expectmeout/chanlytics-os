@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   BROADCAST_MAX_RECIPIENTS,
+  CAMPAIGNS_PAUSED_WORDS,
   EVERYONE_LABEL,
   FOLLOW_UP_NEEDS_DEALS,
   REACH_OUT_IS_NOT_A_MOMENT,
@@ -101,11 +102,19 @@ const ACTIVE_LINE = { sms_state: "active", reg_mock: false };
  * by its number's health, a text by its line, an email by its mailbox and the deployment's domain. By default WhatsApp
  * alone is ready, as every workspace was before the channels.
  */
-const workspace = ({ health = GREEN, textLine = null, mailbox = false, domain = false, offers = null } = {}) => ({
+const workspace = ({
+  health = GREEN,
+  textLine = null,
+  mailbox = false,
+  domain = false,
+  offers = null,
+  paused = false,
+} = {}) => ({
   ready: channelsReady({
     whatsapp: health ? { canSend: health.canSend, refusal: health.refusal } : null,
     textLine,
     email: { mailbox, domain, ...(offers ? { offers } : {}) },
+    paused,
   }),
   health,
 });
@@ -129,6 +138,8 @@ function fakes(over = {}) {
     versions: [],
     // 14:00 UTC is 10:00 in New York: inside the hours a send may go out in.
     timezone: "America/New_York",
+    // Whether the workspace is paused (tenants.status): not, unless a test says so.
+    paused: false,
     assemble: "b1",
     // The month's allowance, counted before anyone is enrolled: the emails and texts this workspace's campaigns have sent
     // this month. None here; a test gives the count, or a refusal to read it.
@@ -569,9 +580,10 @@ const reachable = (id, over = {}) => {
 };
 
 test("a broadcast goes by the channels it ticks, each person once on the first that reaches them, the channel written on their row", async () => {
-  // A visit reminder, so a message about their own visit: no yes to offers needed, and an email carries it.
+  // A utility message: no yes to offers needed. By email it is the business's news, which waits for the workspace's offers as
+  // an offer does (decision D2): this workspace's are open.
   const utility = template({ category: "utility" });
-  const ready = workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true });
+  const ready = workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true, offers: OFFERS_OPEN });
   const people = [
     reachable("a"), // a number and an address, never wrote: WhatsApp, the first of the three
     reachable("b", { lastChannel: "email" }), // wrote by email last: the channel they last wrote on comes first
@@ -600,7 +612,7 @@ test("a broadcast is the business's own news, whatever its template's category: 
   // A utility template (the yes to messages is the one asked) with Email ticked: its WhatsApp twin is a utility, which was
   // all an email asked, so every address went. Now an address alone is held, as it is for an offer.
   const utility = template({ category: "utility" });
-  const ready = workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true });
+  const ready = workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true, offers: OFFERS_OPEN });
   /** An address and no number; the consent says what the person has done, and by default nothing at all. */
   const byEmail = (id, consent = {}) => {
     const r = reachable(id, { phone: null });
@@ -658,6 +670,64 @@ test("a broadcast is the business's own news, whatever its template's category: 
   );
 });
 
+test("a broadcast is refused while the workspace is paused, in the words the composers say it in, before the people are read, and Ask's card is refused with it", async () => {
+  const { campaignHowOf } = await importSrc("packages/core/src/campaigns/create-broadcast.ts");
+  const { CAMPAIGNS_PAUSED_WORDS } = await import("@chanlytics/contracts");
+  const f = fakes({ channels: workspace({ paused: true }), people: new Error("the people must not be read") });
+  await refused(make(f, { template_id: T1, audience: everyone }), "payment_required", 402, CAMPAIGNS_PAUSED_WORDS);
+  assert.deepEqual(f.ops(), [], "no run, no people, no job, nothing on the ledger");
+  // By any channel, and whatever the message: a pause is the workspace's.
+  for (const channels of [["whatsapp"], ["whatsapp", "email"]])
+    await refused(
+      make(fakes({ channels: workspace({ paused: true, mailbox: true, domain: true, offers: OFFERS_OPEN }) }), {
+        template_id: T1,
+        audience: everyone,
+        channels,
+      }),
+      "payment_required",
+      402,
+      "paused",
+    );
+  // The one rule a broadcast's ticks keep, which Ask asks before it proposes one: a card the route would refuse is never shown.
+  const asked = fakes({ channels: workspace({ paused: true }) });
+  await refused(campaignHowOf(asked.ports, template(), ["whatsapp"], "marketing"), "payment_required", 402, "paused");
+  // Not paused, the same broadcast is made.
+  const fine = fakes({ channels: workspace({ paused: false }) });
+  await make(fine, { template_id: T1, audience: everyone });
+  assert.deepEqual(fine.ops(), ["assemble", "record"]);
+});
+
+test("a broadcast of the business's news by email is refused at create while the workspace's offers are closed, with the reason an offer's tick gives (decision D2): the campaigns domain, the address, a pause", async () => {
+  const utility = template({ category: "utility" });
+  const news = (offers) =>
+    fakes({
+      template: utility,
+      people: [reachable("a")],
+      channels: workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true, ...(offers ? { offers } : {}) }),
+      versions: ["email"],
+    });
+  const tick = (f, channels = ["whatsapp", "email"]) => make(f, { template_id: T1, audience: everyone, channels });
+  const f = news();
+  await refused(tick(f), "conflict", 409, "Offers by email start once the campaigns domain is set up.");
+  assert.deepEqual(f.ops(), [], "refused before anyone is enrolled, a row or a decision");
+  await refused(
+    tick(news({ ...OFFERS_OPEN, campaigns: false })),
+    "conflict",
+    409,
+    "Offers by email start once the campaigns domain is set up.",
+  );
+  await refused(tick(news({ ...OFFERS_OPEN, address: false })), "conflict", 409, "Add your business's address");
+  await refused(
+    tick(news({ ...OFFERS_OPEN, paused: { at: "2026-10-01T10:00:00Z", reason: "bounces" } })),
+    "conflict",
+    409,
+    "Offers by email are paused while complaints and bounces settle.",
+  );
+  // Open, it goes; and by WhatsApp alone the news was never held by it.
+  await tick(news(OFFERS_OPEN));
+  await tick(news(), ["whatsapp"]);
+});
+
 test("a broadcast that ticks nothing goes by WhatsApp alone, as every one went before; the ledger says the channels", async () => {
   const f = fakes({ channels: workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true }) });
   await make(f, { template_id: T1, audience: everyone });
@@ -701,11 +771,19 @@ test("a tick the send cannot keep is refused at create, in the words the compose
     "Offers by email are paused while complaints and bounces settle.",
   );
   await tick(withOffers(OFFERS_OPEN), ["whatsapp", "email"]);
-  // A message about a visit goes by email and text, when the workspace is ready on them and the message has a version.
+  // A message that is not an offer goes by email and text, when the workspace is ready on them and the message has a version.
+  // By email a broadcast's is the business's news, which waits for the workspace's offers as an offer does (decision D2).
   const utility = template({ category: "utility" });
+  const opened = workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true, offers: OFFERS_OPEN });
   const visit = (over = {}) =>
-    fakes({ template: utility, channels: ready, versions: ["email", "sms"], people: [reachable("a")], ...over });
+    fakes({ template: utility, channels: opened, versions: ["email", "sms"], people: [reachable("a")], ...over });
   await tick(visit(), ["email"]);
+  await refused(
+    tick(visit({ channels: ready }), ["email"]),
+    "conflict",
+    409,
+    "Offers by email start once the campaigns domain is set up.",
+  );
   await refused(tick(visit({ channels: workspace() }), ["sms"]), "conflict", 409, "No texting line yet.");
   await refused(
     tick(visit({ channels: workspace({ textLine: { sms_state: "pending", reg_mock: false } }) }), ["sms"]),
@@ -720,13 +798,13 @@ test("a tick the send cannot keep is refused at create, in the words the compose
     "Your texting line is a test filing: it sends nothing.",
   );
   await refused(
-    tick(visit({ channels: workspace({ mailbox: false, domain: true }) }), ["email"]),
+    tick(visit({ channels: workspace({ mailbox: false, domain: true, offers: OFFERS_OPEN }) }), ["email"]),
     "conflict",
     409,
     "Set up email in Settings",
   );
   await refused(
-    tick(visit({ channels: workspace({ mailbox: true, domain: false }) }), ["email"]),
+    tick(visit({ channels: workspace({ mailbox: true, domain: false, offers: OFFERS_OPEN }) }), ["email"]),
     "conflict",
     409,
     "not switched on",
@@ -752,7 +830,7 @@ test("a tick the send cannot keep is refused at create, in the words the compose
 
 test("the WhatsApp number is asked about only when WhatsApp is ticked; the day's limit counts the people who go by it alone", async () => {
   const utility = template({ category: "utility" });
-  const noNumber = workspace({ health: null, mailbox: true, domain: true });
+  const noNumber = workspace({ health: null, mailbox: true, domain: true, offers: OFFERS_OPEN });
   // No number at all, and an email send goes: it never asks.
   const email = fakes({ template: utility, channels: noNumber, versions: ["email"], people: [reachable("a")] });
   await make(email, { template_id: T1, audience: everyone, channels: ["email"] });
@@ -773,6 +851,7 @@ test("the WhatsApp number is asked about only when WhatsApp is ticked; the day's
     health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_50" }),
     mailbox: true,
     domain: true,
+    offers: OFFERS_OPEN,
   });
   const crowd = (n, over) => Array.from({ length: n }, (_, i) => reachable(`${over?.lastChannel ?? "w"}${i}`, over));
   const mixed = fakes({
@@ -961,6 +1040,77 @@ test("approve: a playbook's run is a day's run: approved on a later day it is re
     "scheduled",
     "a broadcast made by hand has no day",
   );
+});
+
+test("approve: a visit's run made for today is refused when approving would send it on a later day: approved after the last sending hour it waits for nine, with the day before's words", async () => {
+  const night = new Date("2026-09-07T03:00:00Z"); // 11 PM in New York on 6 September: the next open moment is 9 AM on the 7th
+  const made = {
+    id: "b1",
+    tenant_id: "t1",
+    state: "pending_approval",
+    name: "Visit reminder · 2026-09-06",
+    recipient_count: 3,
+    playbook_id: "p1",
+    run_for: "2026-09-06",
+    audience: { kind: "playbook", trigger: "visit_tomorrow" },
+  };
+  const words =
+    "This run was made for 2026-09-06 and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.";
+  for (const trigger of ["visit_tomorrow", "visited"]) {
+    const f = fakes();
+    await refused(
+      approveRun(f.ports, { row: { ...made, audience: { kind: "playbook", trigger } }, now: night }),
+      "conflict",
+      409,
+      words,
+    );
+    assert.deepEqual(f.ops(), [], `${trigger}: refused before anything moves`);
+  }
+  // Inside the hours it goes now; before nine on the morning of the day it was made for, it goes at nine that morning.
+  const noon = await approveRun(fakes().ports, { row: made, now: NOW });
+  assert.deepEqual([noon.state, noon.scheduled_for, noon.moved_from], ["scheduled", NOW.toISOString(), null]);
+  const early = new Date("2026-09-06T10:00:00Z"); // 6 AM in New York
+  const dawn = await approveRun(fakes().ports, { row: made, now: early });
+  assert.deepEqual([dawn.scheduled_for, dawn.moved_from], ["2026-09-06T13:00:00.000Z", early.toISOString()]);
+  // Another moment's words name no day, and a run that kept no moment is as it was: approved at night, it goes at nine.
+  for (const audience of [{ kind: "playbook", trigger: "quiet_30" }, { kind: "playbook" }, null]) {
+    const r = await approveRun(fakes().ports, { row: { ...made, audience }, now: night });
+    assert.deepEqual([r.state, r.scheduled_for], ["scheduled", "2026-09-07T13:00:00.000Z"], JSON.stringify(audience));
+  }
+});
+
+test("approve: a paused workspace approves nothing: refused in the pause's words before anything moves, for a playbook's run, a broadcast's and a reach-out's; one that was not waiting is still said so first", async () => {
+  const waiting = {
+    id: "b1",
+    tenant_id: "t1",
+    state: "pending_approval",
+    name: "Win-back · 2026-09-06",
+    recipient_count: 3,
+    playbook_id: "p1",
+    run_for: "2026-09-06",
+  };
+  for (const row of [
+    waiting,
+    { ...waiting, playbook_id: null, run_for: null },
+    { ...waiting, audience: { kind: "reach_out", root_id: "r1" } },
+  ]) {
+    const f = fakes({ paused: true });
+    await refused(approveRun(f.ports, { row, now: NOW }), "payment_required", 402, CAMPAIGNS_PAUSED_WORDS);
+    assert.deepEqual(f.ops(), [], "nothing was released, scheduled or recorded");
+  }
+  assert.match(CAMPAIGNS_PAUSED_WORDS, /paused/);
+  await refused(
+    approveRun(fakes({ paused: true }).ports, { row: { ...waiting, state: "sending" }, now: NOW }),
+    "conflict",
+    409,
+    "This run is not waiting for approval.",
+  );
+  // A pause that could not be read is not a workspace that is not paused: the approval fails, and moves nothing.
+  const unreadable = fakes({ paused: new Error("cannot read the workspace") });
+  await assert.rejects(approveRun(unreadable.ports, { row: waiting, now: NOW }), /cannot read the workspace/);
+  assert.deepEqual(unreadable.ops(), []);
+  // Not paused, it goes.
+  assert.equal((await approveRun(fakes().ports, { row: waiting, now: NOW })).state, "scheduled");
 });
 
 test("approve: a run not waiting is refused; one that changed under the approver says so; a job the ledger refused leaves it waiting; else the send now and the approver's decision", async () => {
@@ -1499,7 +1649,7 @@ const byEmailAndText = () => [
 ];
 const MONTH = {
   template: template({ category: "utility" }),
-  channels: workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true }),
+  channels: workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true, offers: OFFERS_OPEN }),
   versions: ["email", "sms"],
 };
 const ALL_THREE = { template_id: T1, audience: everyone, channels: ["sms", "email"] };
@@ -1519,6 +1669,49 @@ test("the month is counted before anyone is enrolled, and whoever is past its ro
   assert.deepEqual(f.of("holdRecipients")[0], ["holdRecipients", "b1", ["e3", "e4", "t2", "t3"], "month_allowance"]);
   assert.equal(r.held_for_allowance, 4);
   assert.equal(f.of("record")[0][4].held_for_allowance, 4, "the ledger says how many were held");
+});
+
+test("the month is counted at the moment the run opens, not the day it is made: made on the 28th for the 1st it counts against the new month, and a send moved to nine tomorrow counts where it really goes", async () => {
+  // The workspace's month by its sends: September's room is used up, October's has none spent. The database counts the month
+  // `at` falls in; a count asked for no moment is the one it is made in (now).
+  const used = (calls) => (channel, at) => {
+    calls.push([channel, at ? at.toISOString() : null]);
+    return (at ?? new Date("2026-09-28T14:00:00Z")).toISOString().startsWith("2026-10") ? 0 : 2000;
+  };
+  const run = (f, now, scheduled_for) =>
+    createBroadcast(f.ports, {
+      userId: "u1",
+      body: { ...ALL_THREE, ...(scheduled_for ? { scheduled_for } : {}) },
+      now,
+    });
+  // Made on the 28th of September for the 1st of October, 10:00 in New York.
+  const calls = [];
+  const f = fakes({ ...MONTH, people: byEmailAndText(), monthSent: used(calls) });
+  const made = await run(f, new Date("2026-09-28T14:00:00Z"), "2026-10-01T10:00:00-04:00");
+  assert.deepEqual(
+    calls,
+    [
+      ["email", "2026-10-01T14:00:00.000Z"],
+      ["sms", "2026-10-01T14:00:00.000Z"],
+    ],
+    "each metered channel, asked at the run's opening moment",
+  );
+  assert.equal(made.held_for_allowance, 0, "nobody is held past the old month's room, as a final skip");
+  assert.deepEqual(f.ops(), ["assemble", "record"]);
+  // The same send for a day in the month it is made in is held at September's room, as it always was.
+  const same = fakes({ ...MONTH, people: byEmailAndText(), monthSent: used([]) });
+  const held = await run(same, new Date("2026-09-28T14:00:00Z"), "2026-09-29T10:00:00-04:00");
+  assert.equal(held.held_for_allowance, 7, "September has no room left");
+  // Asked at eleven at night on the 30th, a send goes at nine the next morning (the moment it really leaves), in October.
+  const night = [];
+  const moved = fakes({ ...MONTH, people: byEmailAndText(), monthSent: used(night) });
+  const r = await run(moved, new Date("2026-10-01T03:30:00Z"), undefined);
+  assert.equal(r.moved_from, "2026-10-01T03:30:00.000Z");
+  assert.deepEqual(
+    night.map((c) => c[1]),
+    ["2026-10-01T13:00:00.000Z", "2026-10-01T13:00:00.000Z"],
+  );
+  assert.equal(r.held_for_allowance, 0);
 });
 
 test("a run with room for everyone holds nobody, and a WhatsApp run never counts the month", async () => {

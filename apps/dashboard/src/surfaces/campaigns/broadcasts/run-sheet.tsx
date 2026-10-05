@@ -4,7 +4,7 @@
  * asks and promises.
  */
 import { Fragment } from "react";
-import { CONSENT_CHANNELS, purposeOfTemplate } from "@chanlytics/contracts";
+import { CONSENT_CHANNELS, messageAboutOfTrigger } from "@chanlytics/contracts";
 import type { ApprovalVM, BroadcastDetailDto, BroadcastDto, PreviewVersions, RunPersonVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -14,7 +14,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { gateTitle, navigate } from "../../legacy-verbs";
 import { cmSplitWords } from "../parts/channels";
 import { mpParts } from "../parts/message-preview";
-import { cmPreviewBy } from "../parts/preview-by";
+import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
 import type { CmPreviewBy } from "../parts/preview-by";
 import type { PlaybookCardVM } from "../playbooks/surface";
 
@@ -37,6 +37,8 @@ export interface BcSheetAsk {
   businessName: string;
   /** Its postal address where the Business record holds one: an offer's email names it in its foot. */
   businessAddress: string | null;
+  /** Whether the workspace is paused, from the page's readiness (ChannelsReady.paused); null where that was not read. */
+  paused: boolean | null;
   armed: boolean;
   onArm: (on: boolean) => void;
   stopping: boolean;
@@ -205,8 +207,9 @@ function bcSheetSays(tpl: NonNullable<BcSheetAsk["template"]>, avm: ApprovalVM, 
     business: sheet.businessName,
     address: sheet.businessAddress,
     labelled,
-    // An offer's email reads with the offer's foot, which owes the postal address: with none the preview says so.
-    ...(purposeOfTemplate(tpl.category) === "marketing" ? { offer: "customer" as const } : {}),
+    // An offer's email reads with the offer's foot, which owes the postal address: with none the preview says so. A run's
+    // moment says what its message is about (the business's news is an offer by email too, decision D2).
+    ...cmOfferFoot(tpl.category, messageAboutOfTrigger(sheet.playbook?.trigger)),
   });
 }
 

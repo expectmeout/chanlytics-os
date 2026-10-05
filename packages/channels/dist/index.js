@@ -2076,6 +2076,16 @@ var UNASKED = {
   has_relationship: false
 };
 var DEALT = { ...UNASKED, has_relationship: true };
+var RUN_STOP_REMEDY = {
+  paused: "Resume from Settings \u203A Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
+};
+var RUN_STOP_AGAIN = {
+  paused: `${RUN_STOP_REMEDY.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY.campaigns_domain_unverified}; send it again once the domain is verified.`
+};
 var OFFERS_BY_EMAIL_WORDS = {
   /** The deployment's campaigns domain is not set up or not verified yet. */
   noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
@@ -2136,6 +2146,7 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   15 * MIN_MS,
   30 * MIN_MS
 ];
+var BROADCAST_HOLD_WAIT_MS = 10 * MIN_MS;
 var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 var capitalised2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var PREVIEW_CHANNEL_WORDS = {
@@ -3475,7 +3486,14 @@ var LIFECYCLE_WORDS = {
     rules: `Sends wait for ${SENDING_HOURS_WORDS.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
-    waiting: "Waiting on you"
+    waiting: "Waiting on you",
+    // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
+    // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
+    paused: {
+      when: { day: "Paused", at: "for billing" },
+      why: "The workspace is paused, so nothing goes until billing resumes",
+      pill: "Workspace paused"
+    }
   },
   results: {
     title: "What came back",

@@ -93,7 +93,7 @@ what the script writes.
 | [`templates`](#templates) | `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts` | on, 1 policy |
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 2 policies |
-| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
+| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
 | [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
@@ -2542,7 +2542,7 @@ Foreign keys:
 
 ### tenants
 
-- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 

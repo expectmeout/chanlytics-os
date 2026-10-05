@@ -1863,6 +1863,16 @@ var UNASKED = {
   has_relationship: false
 };
 var DEALT = { ...UNASKED, has_relationship: true };
+var RUN_STOP_REMEDY = {
+  paused: "Resume from Settings \u203A Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
+};
+var RUN_STOP_AGAIN = {
+  paused: `${RUN_STOP_REMEDY.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY.campaigns_domain_unverified}; send it again once the domain is verified.`
+};
 var OFFERS_BY_EMAIL_WORDS = {
   /** The deployment's campaigns domain is not set up or not verified yet. */
   noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
@@ -1948,6 +1958,7 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   15 * MIN_MS,
   30 * MIN_MS
 ];
+var BROADCAST_HOLD_WAIT_MS = 10 * MIN_MS;
 var capitalised2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var PREVIEW_CHANNEL_WORDS = {
   whatsapp: capitalised2(CONSENT_CHANNEL_WORDS.whatsapp),
@@ -3312,7 +3323,14 @@ var LIFECYCLE_WORDS = {
     rules: `Sends wait for ${SENDING_HOURS_WORDS.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
-    waiting: "Waiting on you"
+    waiting: "Waiting on you",
+    // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
+    // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
+    paused: {
+      when: { day: "Paused", at: "for billing" },
+      why: "The workspace is paused, so nothing goes until billing resumes",
+      pill: "Workspace paused"
+    }
   },
   results: {
     title: "What came back",
@@ -4100,9 +4118,10 @@ async function queuedRecipients(db, p) {
   if (bare.error) throw new Error(`queued_recipients: ${bare.error.message}`);
   return bare.data ?? [];
 }
-async function runGoesByOthers(db, tenantId, broadcastId) {
-  const { count, error } = await db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId).in("channel", ["sms", "email"]);
-  if (noChannelColumns(error)) return false;
+async function runGoesByOthers(db, tenantId, broadcastId, than) {
+  const of = db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId);
+  const { count, error } = await (than === "whatsapp" ? of.in("channel", ["sms", "email"]) : of.or("channel.is.null,channel.eq.whatsapp,channel.eq.sms"));
+  if (noChannelColumns(error)) return than === "email";
   if (error) throw new Error(`run_goes_by_others: ${error.message}`);
   return (count ?? 0) > 0;
 }
@@ -5523,6 +5542,11 @@ async function forgetNotification(db, p) {
   const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
   if (error) throw new Error(`cannot take the notification back: ${error.message}`);
 }
+async function noticeKept(db, p) {
+  const { data, error } = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("kind", p.kind).eq("subject_type", p.subjectType).eq("subject_id", p.subjectId).limit(1);
+  if (error) throw new Error(`cannot read what the workspace was told: ${error.message}`);
+  return (data ?? []).length > 0;
+}
 async function activityTokensOf(db, tenantId, roles) {
   const { data: members, error: me } = await db.from("memberships").select("user_id").eq("tenant_id", tenantId).in("role", [...roles]);
   if (me) throw new Error(`cannot read who is in the workspace: ${me.message}`);
@@ -5536,6 +5560,13 @@ async function forgetActivityTokens(db, tokens) {
   if (!tokens.length) return;
   const { error } = await db.from("push_devices").update({ activity_token: null }).in("activity_token", [...tokens]);
   if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
+}
+
+// src/repositories/campaigns/workspace.ts
+async function workspacePaused(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  return data?.status === "paused";
 }
 
 // src/repositories/routing.ts
@@ -7060,6 +7091,7 @@ export {
   namedFetch,
   namesOfPeople,
   notesForReceptionist,
+  noticeKept,
   observeDb,
   offerLanguageOf,
   offersEmailReach,
@@ -7205,6 +7237,7 @@ export {
   workspaceMaySpend,
   workspaceMayUseModels,
   workspaceNameAndConfig,
+  workspacePaused,
   writtenEmail,
   writtenEmails,
   yesesSince

@@ -96,9 +96,9 @@ const VOICE_SENDS_PER_DAY = 3;
 
 /**
  * The link to the caller answers them; to a number they named it starts a conversation. Either way it is about the call
- * they are on: theirs (contracts MessageAbout, decision D1).
+ * they are on: theirs (contracts MessageAbout, decision D1), and no playbook's run, so no moment's (Delivery.trigger).
  */
-const onTheCall = (isCaller: boolean) => ({ proactive: !isCaller, about: "theirs" as const });
+const onTheCall = (isCaller: boolean) => ({ proactive: !isCaller, about: "theirs" as const, trigger: null });
 
 /** Spoken when we cannot send. Never names a fallback number we cannot verify. */
 const CANNOT_SEND =

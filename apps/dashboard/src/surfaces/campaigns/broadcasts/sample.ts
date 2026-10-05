@@ -165,6 +165,7 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
     }),
     // The demo sends nothing, so it has no month to say.
     month_sent: null,
+    month_sent_next: null,
     listsRead: true,
     audiences: [
       audience(

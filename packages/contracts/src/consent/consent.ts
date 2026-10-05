@@ -83,6 +83,29 @@ export type AskedPurpose = Exclude<SendPurpose, "outreach">;
  */
 export type MessageAbout = "theirs" | "ours";
 
+/**
+ * Whether a send is an OFFER BY EMAIL for the send door and everything that readies it (decision D2 of the Campaigns
+ * wiring review, 4 Oct 2026): a marketing message by email, or an email of the business's own choosing, which is what
+ * a broadcast's news and any moment's about "ours" are (a proactive conversational message about the business's news).
+ * An email of the business's own choosing is a commercial message whatever its template's category says, so it owes what
+ * an offer owes: the postal address and the one-click unsubscribe in its foot, the campaigns domain it leaves from, the
+ * deployment's switch for that domain, and the pause the bounce and complaint gates may put on it (deliver-email.ts, the
+ * composers' readiness in reach-for.ts channelRefuses). A visit, a proposal, a reply and a cold email are not: they keep
+ * their own foot and the mailbox. THE one statement of it, so the door, the batch and the pages never disagree about
+ * which email is which.
+ */
+export function isOfferByEmail(m: {
+  channel: string;
+  purpose: SendPurpose;
+  proactive: boolean;
+  about: MessageAbout;
+}): boolean {
+  return (
+    m.channel === "email" &&
+    (m.purpose === "marketing" || (m.purpose === "conversational" && m.proactive && m.about === "ours"))
+  );
+}
+
 export interface PurposeBearing extends ConsentBearing {
   marketing_consent?: string | null;
   /**

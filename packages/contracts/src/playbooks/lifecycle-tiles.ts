@@ -148,12 +148,29 @@ function whoWill(p: LifecyclePlaybook): { why: string; pill: LifecycleComing["pi
   }
 }
 
-/** A running moment's next run. */
-function momentRow(p: LifecyclePlaybook, nowMs: number, tz: string): LifecycleComing | null {
+/**
+ * A running moment's next run. While the workspace is paused (`workspacePaused`: contracts ChannelsReady.paused, which the
+ * surfaces read) the row says so where the time stood, and promises nobody: nothing goes until billing resumes.
+ */
+function momentRow(p: LifecyclePlaybook, nowMs: number, tz: string, workspacePaused: boolean): LifecycleComing | null {
   if (p.state !== "running" || p.off || p.listArchived) return null;
-  const next = nextRunOf(p.next, nowMs, tz);
   const who = whoWill(p);
-  if (!next || !who) return null;
+  if (!who) return null;
+  if (workspacePaused) {
+    const words = LIFECYCLE_WORDS.coming.paused;
+    return {
+      id: `moment:${p.id}`,
+      kind: "moment",
+      when: words.when,
+      what: p.name,
+      why: words.why,
+      pill: { tone: "warn", label: words.pill },
+      act: { kind: "open", label: "Open", playbookId: p.id },
+      atMs: nowMs,
+    };
+  }
+  const next = nextRunOf(p.next, nowMs, tz);
+  if (!next) return null;
   return {
     id: `moment:${p.id}`,
     kind: "moment",
@@ -248,7 +265,11 @@ export function lifecycleComing(input: LifecycleInput, stages: readonly Lifecycl
   const covered = new Set(
     broadcasts.rows.filter((r) => runs.some((x) => x.id === `run:${r.id}`) && r.playbook_id).map((r) => r.playbook_id),
   );
-  const moments = playbooks.rows.filter((p) => !covered.has(p.id)).flatMap((p) => momentRow(p, nowMs, tz) ?? []);
+  // The workspace's pause, as either surface's readiness says it (the playbooks' own, else the broadcasts').
+  const paused = playbooks.ready?.paused === true || broadcasts.ready?.paused === true;
+  const moments = playbooks.rows
+    .filter((p) => !covered.has(p.id))
+    .flatMap((p) => momentRow(p, nowMs, tz, paused) ?? []);
   const timed = [...moments, ...runs].sort((a, b) => a.atMs - b.atMs);
   const rows = [...timed, ...offRows(stages, nowMs)];
   return { read: "read", rows, empty: LIFECYCLE_WORDS.coming.empty, rules };

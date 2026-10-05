@@ -18,6 +18,28 @@ export async function forgetNotification(db: Db, p: { tenantId: string; id: stri
 }
 
 /**
+ * Whether the workspace has already kept a notice of this kind about this subject (`subject_type`, `subject_id`). The
+ * notification door keeps no memory of what it told, so news owed once a day -- a playbook that could not run, said at the
+ * day's last chance -- is keyed by what it is about and asked here first. A read that fails throws: "could not check" is
+ * not "never told".
+ */
+export async function noticeKept(
+  db: Db,
+  p: { tenantId: string; kind: string; subjectType: string; subjectId: string },
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("notifications")
+    .select("id")
+    .eq("tenant_id", p.tenantId)
+    .eq("kind", p.kind)
+    .eq("subject_type", p.subjectType)
+    .eq("subject_id", p.subjectId)
+    .limit(1);
+  if (error) throw new Error(`cannot read what the workspace was told: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+/**
  * The push-to-start tokens of the phones whose people hold one of `roles` in the workspace (00191), each once. Throws
  * when the people or their phones cannot be read.
  */

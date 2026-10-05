@@ -12,7 +12,7 @@ import {
   unsubscribeUrl,
   type EmailRequest,
 } from "@chanlytics/channels";
-import { CAMPAIGN_EMAIL_TAG, OUTCOME_UNKNOWN, parseTenantConfig } from "@chanlytics/contracts";
+import { CAMPAIGN_EMAIL_TAG, EMAIL_HOLDS, OUTCOME_UNKNOWN, parseTenantConfig } from "@chanlytics/contracts";
 import {
   deliver,
   isWireUnavailable,
@@ -32,6 +32,7 @@ import {
   resolveOutboundTargetForContact,
   runGoesByOthers,
   withdrawEmail,
+  workspacePaused,
   writtenEmail,
 } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -54,6 +55,7 @@ async function countRecipients(
   tenantId: string,
   broadcastId: string,
   state?: string,
+  reason?: string,
 ): Promise<number> {
   let q = db
     .from("broadcast_recipients")
@@ -61,6 +63,7 @@ async function countRecipients(
     .eq("tenant_id", tenantId)
     .eq("broadcast_id", broadcastId);
   if (state) q = q.eq("state", state);
+  if (reason) q = q.eq("reason", reason);
   const { count, error } = await q;
   if (error) throw new Error(`broadcast_send: cannot count ${state ?? "all"} recipients: ${error.message}`);
   return count ?? 0;
@@ -295,7 +298,7 @@ function peoplePorts(
       return prior;
     },
     // Whether anyone on the run goes by email or text: what WhatsApp's template not being approved asks (core sendBroadcastBatch).
-    byOtherChannels: (id) => runGoesByOthers(db, tenantId, id),
+    byOtherChannels: (id, than) => runGoesByOthers(db, tenantId, id, than),
     mark: markPort(db, tenantId),
   };
 }
@@ -347,14 +350,9 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         return withTemplate(data);
       },
       // The billing gate, so it fails CLOSED: a tenants row that cannot be read
-      // is not a workspace that is paying.
-      workspacePaused: async () => {
-        const row = must(
-          "broadcast_send: cannot read the workspace's status",
-          await db.from("tenants").select("status").eq("id", job.tenant_id).maybeSingle(),
-        );
-        return row?.status === "paused";
-      },
+      // is not a workspace that is paying. The one reading of it (packages/db workspacePaused), as the composers and the
+      // approval ask.
+      workspacePaused: () => workspacePaused(db, job.tenant_id),
       fail: async (id, failure) => {
         must(
           "broadcast_send: cannot mark the broadcast failed",
@@ -424,6 +422,13 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
           countRecipients(db, job.tenant_id, id, "sent"),
         ]);
         return { sent, held: all - sent };
+      },
+      // Counted, as the tally is: which of the workspace's holds on email the run skipped anyone for.
+      heldForEmail: async (id) => {
+        const counts = await Promise.all(
+          EMAIL_HOLDS.map((reason) => countRecipients(db, job.tenant_id, id, "skipped", reason)),
+        );
+        return EMAIL_HOLDS.filter((_, i) => (counts[i] ?? 0) > 0);
       },
       finish: async (id, tally) => {
         must(

@@ -67,6 +67,8 @@ test("a queued row goes through the door with the row's own sender, the template
     // One message to one person in their own thread (a reply, the receptionist's, a person's written one): theirs. A
     // campaign's news goes by the broadcast's batch, which says ours (decision D1).
     about: "theirs",
+    // No moment's: a reply is no playbook's run (Delivery.trigger).
+    trigger: null,
     body: "See you at 3",
     template: undefined,
     messageId: "m1",
@@ -230,6 +232,7 @@ test("an email's queued row leaves as the request it was frozen with, to the add
     purpose: "conversational",
     proactive: false,
     about: "theirs",
+    trigger: null,
     body: "We can do Saturday.",
     template: undefined,
     email: request,

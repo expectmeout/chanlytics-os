@@ -1935,6 +1935,16 @@ var UNASKED = {
   has_relationship: false
 };
 var DEALT = { ...UNASKED, has_relationship: true };
+var RUN_STOP_REMEDY = {
+  paused: "Resume from Settings \u203A Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
+};
+var RUN_STOP_AGAIN = {
+  paused: `${RUN_STOP_REMEDY.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY.campaigns_domain_unverified}; send it again once the domain is verified.`
+};
 var OFFERS_BY_EMAIL_WORDS = {
   /** The deployment's campaigns domain is not set up or not verified yet. */
   noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
@@ -1995,6 +2005,7 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   15 * MIN_MS,
   30 * MIN_MS
 ];
+var BROADCAST_HOLD_WAIT_MS = 10 * MIN_MS;
 var capitalised2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var PREVIEW_CHANNEL_WORDS = {
   whatsapp: capitalised2(CONSENT_CHANNEL_WORDS.whatsapp),
@@ -3233,7 +3244,14 @@ var LIFECYCLE_WORDS = {
     rules: `Sends wait for ${SENDING_HOURS_WORDS.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
-    waiting: "Waiting on you"
+    waiting: "Waiting on you",
+    // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
+    // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
+    paused: {
+      when: { day: "Paused", at: "for billing" },
+      why: "The workspace is paused, so nothing goes until billing resumes",
+      pill: "Workspace paused"
+    }
   },
   results: {
     title: "What came back",
@@ -4383,6 +4401,9 @@ function isOptedOutContact(c) {
 }
 var ASKED_TO_STOP2 = "asked to stop receiving messages";
 var OPT_OUT_REFUSAL2 = `This customer ${ASKED_TO_STOP2}. They can text START to opt back in.`;
+function isOfferByEmail(m) {
+  return m.channel === "email" && (m.purpose === "marketing" || m.purpose === "conversational" && m.proactive && m.about === "ours");
+}
 function mayMessageFor(c, purpose, opts) {
   if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
   if (purpose === "outreach")
@@ -7592,6 +7613,26 @@ function consentGuardWords(channels, purpose, about) {
     (g) => groups.length === 1 ? `Only people with ${g.words}.` : `${capitalised(channelsWords(g.channels))}: only people with ${g.words}.`
   );
 }
+function emailRunStop(reason) {
+  if (reason === "email_offers_paused") return "email_offers_paused";
+  return reason === "email_marketing_disabled" ? "campaigns_domain_unverified" : null;
+}
+var RUN_STOP_REMEDY2 = {
+  paused: "Resume from Settings \u203A Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
+};
+var RUN_STOP_AGAIN2 = {
+  paused: `${RUN_STOP_REMEDY2.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY2.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY2.campaigns_domain_unverified}; send it again once the domain is verified.`
+};
+function stoppedRunFix(why, run) {
+  if (!run.playbook_id) return RUN_STOP_AGAIN2[why];
+  if (triggerOf2(run.trigger ?? "")?.kind === "visit")
+    return `${RUN_STOP_REMEDY2[why]}. It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.`;
+  return `${RUN_STOP_REMEDY2[why]}. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.`;
+}
 function wireFailure(code2, channel) {
   return channel === "whatsapp" ? code2 : `${code2}:${channel}`;
 }
@@ -7623,19 +7664,16 @@ var CHANNEL_WORDS2 = {
 function channelNeverCarries(channel, purpose) {
   return purpose === "marketing" && channel === "sms" ? CHANNEL_WORDS2.noOffersByText : null;
 }
-function channelRefuses(channel, purpose, ready) {
+function channelRefuses(channel, purpose, about, ready) {
   const never = channelNeverCarries(channel, purpose);
   if (never) return never;
-  if (purpose !== "marketing") return null;
-  if (channel === "email") {
-    const offers = ready.email.offers;
-    return offers?.ok ? null : offers?.why ?? CHANNEL_WORDS2.noOffersByEmailYet;
-  }
-  return null;
+  if (!isOfferByEmail({ channel, purpose, proactive: true, about })) return null;
+  const offers = ready.email.offers;
+  return offers?.ok ? null : offers?.why ?? CHANNEL_WORDS2.noOffersByEmailYet;
 }
-function channelChoices(ready, purpose) {
+function channelChoices(ready, purpose, about) {
   return CONSENT_CHANNELS.map((channel) => {
-    const refuses = channelRefuses(channel, purpose, ready);
+    const refuses = channelRefuses(channel, purpose, about, ready);
     if (refuses) return { channel, ok: false, why: refuses };
     return { channel, ok: ready[channel].ready, why: ready[channel].why };
   });
@@ -7654,7 +7692,7 @@ var HELD_ON2 = Object.keys(HELD_ORDER2).sort(
 );
 function reachFor(r22, purpose, o) {
   const usable = CONSENT_CHANNELS.filter(
-    (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.ready) === null
+    (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.about, o.ready) === null
   );
   if (usable.length === 0) return { channel: null, held: "no_channel" };
   const last = r22.lastChannel ?? null;
@@ -7768,7 +7806,7 @@ function enrolFor(rows, kind, id, savedIds, purpose, how) {
 }
 function saidYesOnAny(r22, purpose, how) {
   return CONSENT_CHANNELS.some(
-    (c) => how.channels.includes(c) && how.ready[c].ready && channelRefuses(c, purpose, how.ready) === null && saidYesTo(r22, purpose, c, how.about)
+    (c) => how.channels.includes(c) && how.ready[c].ready && channelRefuses(c, purpose, how.about, how.ready) === null && saidYesTo(r22, purpose, c, how.about)
   );
 }
 function audienceMembers(rows, kind, id, savedIds) {
@@ -7794,6 +7832,79 @@ function overLimitRefusal(h, audience) {
 var REPLY_WINDOW_HOURS2 = 72;
 var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * HOUR_MS2;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
+var HELD_REASONS = {
+  opted_out: "asked to stop",
+  not_opted_in: "no recorded yes",
+  // The reason the send job writes when the OTHER yes is the missing one. It was
+  // added to the wire (00095) and not to these words, so the owner read the raw
+  // enum `no_marketing_consent` on the broadcast's own detail pane -- and the
+  // distinction it draws is the entire point of the split, so it is the last one
+  // that should have arrived untranslated.
+  no_marketing_consent: "no yes to offers",
+  no_phone: "no number",
+  // The channel picked was email and no address is on file (step 3), or no channel the send ticks could carry it.
+  no_address: "no email address",
+  no_channel: "no channel it can go by",
+  sms_line_not_active: "the texting line is not active",
+  // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
+  month_allowance: "this month's allowance is used up",
+  // Meta no longer approves the message's WhatsApp template: it holds the people who go by WhatsApp, and only them.
+  template_not_approved: "WhatsApp no longer approves its template",
+  // The number is on file but no thread answers to it on this line: a stored
+  // number that does not normalise, or one no contact row matches.
+  no_thread: "no thread for that number",
+  human_has_it: "a person had the thread",
+  paused: "the workspace was paused",
+  superseded_by_human: "a person answered first",
+  sms_carries_no_promotions: "no offers by text",
+  // The campaigns domain offers leave from is not this deployment's to use, or the provider does not verify it: the business's
+  // news by email is an offer at the door (decision D2), so it waits as an offer does. Each person's own skip, final.
+  email_marketing_disabled: "offers and news by email can't leave yet: the campaigns domain isn't switched on",
+  // The workspace's offers by email are paused while complaints or bounces settle (email-offers.ts), and the business's news
+  // by email with them (decision D2); a visit's reminder and a reply still go.
+  email_offers_paused: "offers and news by email are paused",
+  // An offer's foot names the business's address, and it has none on file: the person is held until it does.
+  no_business_address: "no business address on file",
+  email_suppressed: "their email address stopped accepting mail",
+  recipient_changed: "their email address changed",
+  erased: "deleted",
+  // The provider refused the send, on whichever channel the person was reached by: a page that knows the channel says
+  // it by SEND_REFUSED_WORDS, and a row that does not (a person's own page, a run made before rows kept theirs) says this.
+  send_failed: "the provider refused it",
+  missing_value: "a value was missing",
+  // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
+  // this object opaque to the bundler, which then carries the whole map into
+  // every package that imports anything from here. core-broadcast.test.mjs
+  // holds the two spellings together.
+  outcome_unknown: "a run that did not finish",
+  // Reach out's (a cold email), short, for a run's line.
+  unsubscribed: "unsubscribed",
+  outreach_is_email_only: "cold email goes by email only",
+  outreach_not_a_lead: "not a business your searches found",
+  outreach_lead_closed: "no longer being written to",
+  outreach_suppressed: "on the never-again list",
+  outreach_wrote_back: "wrote back or called",
+  outreach_away: "away until the day they're back",
+  outreach_stopped: "you stopped writing to them",
+  outreach_without_unsubscribe: "no unsubscribe link",
+  outreach_needs_own_domain: "not from your own domain",
+  sending_domain_not_ready: "the domain isn't sending",
+  sending_domain_at_cap: "the domain's day is full"
+};
+var EMAIL_HOLDS = [
+  "email_offers_paused",
+  "email_marketing_disabled"
+];
+function finishedRunHeldWhy(emailHeld) {
+  const why = [
+    HELD_REASONS.not_opted_in,
+    HELD_REASONS.opted_out,
+    HELD_REASONS.no_phone,
+    HELD_REASONS.human_has_it,
+    ...EMAIL_HOLDS.filter((r22) => emailHeld.includes(r22)).map((r22) => HELD_REASONS[r22])
+  ];
+  return `${why.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
+}
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
 var BROADCAST_THROTTLE_WAITS_MS2 = [
@@ -7804,6 +7915,7 @@ var BROADCAST_THROTTLE_WAITS_MS2 = [
   15 * MIN_MS2,
   30 * MIN_MS2
 ];
+var BROADCAST_HOLD_WAIT_MS2 = 10 * MIN_MS2;
 var BROADCAST_MAX_RECIPIENTS = 2e3;
 var BROADCAST_PARAM_MAX = 1024;
 var BROADCAST_SCHEDULE_MAX_DAYS = 30;
@@ -7986,6 +8098,7 @@ function hoursLines(hours) {
 }
 var SHORT2 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
 var LONG2 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
+var escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 var ms = (t) => typeof t === "number" ? t : Date.parse(t);
 function visitStartTime(v, tz) {
   if (v.allDay || v.all_day) return "all day";
@@ -9076,6 +9189,7 @@ var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * DAY_MS2;
 var REVIEW_NEWS_MS2 = 36 * HOUR_MS2;
 var REVIEW_NEWS_MAX_AGE_MS2 = 14 * DAY_MS2;
 var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
+var CAMPAIGNS_PAUSED_WORDS = "This workspace is paused, so nothing is sent until billing resumes. Resume it from Settings \u203A Billing.";
 var DATE_FMT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS2 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
@@ -9204,6 +9318,40 @@ var LEAD_MAP_STATE_WORDS2 = {
   ready: LEAD_STAGE_WORDS2.ready,
   out: `${LEAD_STAGE_WORDS2.archived} or ${LEAD_LEFT_OUT_WORD2.toLowerCase()}`
 };
+function fullNameKey(name) {
+  const n = (name ?? "").trim();
+  if (!n || /^[+\d(]/.test(n) || n.includes("@")) return null;
+  const words3 = n.split(/\s+/);
+  const first = words3.at(0);
+  const last = words3.at(-1);
+  const letters = (w) => (w.match(/\p{L}/gu) ?? []).length;
+  if (words3.length < 2 || !first || !last || letters(first) < 2 || letters(last) < 2) return null;
+  return words3.join(" ").toLowerCase();
+}
+var SERVICE_TAIL = /(?:^|[^\p{L}])(?:with|for|and|w\/)\s*$|[\s·•|:,/&+\-–—([{]+$/iu;
+var SERVICE_HEAD = /^[\s·•|:,./&+\-–—)\]}]+/u;
+function seamed(before, after) {
+  let left = before;
+  for (let prev = ""; prev !== left; ) {
+    prev = left;
+    left = left.replace(SERVICE_TAIL, "");
+  }
+  const right = after.replace(SERVICE_HEAD, "");
+  return left && right ? `${left} \xB7 ${right}` : left || right;
+}
+function visitServiceOf(title, names3) {
+  let service = title.trim();
+  for (const raw of names3) {
+    const name = (raw ?? "").trim();
+    if (name.length < 3 || /^[+\d(]/.test(name) || name.includes("@")) continue;
+    const edge = "[^\\p{L}\\p{N}'\u2019]";
+    const re = new RegExp(`(?<=^|${edge})${escapeRe(name)}(?=$|${edge})`, "iu");
+    for (let m = re.exec(service); m; m = re.exec(service)) {
+      service = seamed(service.slice(0, m.index), service.slice(m.index + m[0].length));
+    }
+  }
+  return service;
+}
 function planRun(mode, now) {
   switch (mode) {
     case "auto":
@@ -9276,6 +9424,9 @@ function messageAboutOfTrigger(trigger) {
   const kind = triggerOf2(trigger ?? "")?.kind;
   return kind === "visit" || kind === "deal" ? "theirs" : "ours";
 }
+function passesHandoverPause(trigger) {
+  return trigger === "visit_tomorrow";
+}
 function enrolPurpose(policyClass, message) {
   const byClass = purposeOfPlaybook(policyClass);
   if (!message || byClass === "marketing") return byClass;
@@ -9291,6 +9442,33 @@ function messageFitsMoment(policyClass, category) {
   if (moment === message) return { ok: true };
   const why = moment === "conversational" ? "offer_on_texts" : "texts_on_offers";
   return { ok: false, why, words: MESSAGE_MOMENT_WORDS[why] };
+}
+function touchesAfterRun(touches, run, people) {
+  const byThis = new Map(touches.byThis);
+  const mine = new Map(byThis.get(run.playbookId));
+  const byAny = new Map(touches.byAny);
+  const followUps = new Map(touches.followUps);
+  for (const id of people) {
+    mine.set(id, Math.max(mine.get(id) ?? 0, run.at));
+    byAny.set(id, Math.max(byAny.get(id) ?? 0, run.at));
+    if (run.followUp) followUps.set(id, Math.max(followUps.get(id) ?? 0, run.at));
+  }
+  byThis.set(run.playbookId, mine);
+  return { byThis, byAny, followUps };
+}
+var savedNameOf = (r22) => r22.givenName ?? r22.waName;
+function fullNameHolders(rows) {
+  const holders = /* @__PURE__ */ new Map();
+  for (const r22 of rows) {
+    const key = fullNameKey(savedNameOf(r22));
+    if (key !== null) holders.set(key, (holders.get(key) ?? 0) + 1);
+  }
+  return holders;
+}
+function visitIsTheirs(r22, via, holders) {
+  if (via !== "name") return true;
+  const key = fullNameKey(savedNameOf(r22));
+  return key !== null && holders.get(key) === 1;
 }
 function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   const reach = {
@@ -9315,13 +9493,15 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   if (t.kind === "reach_out") return none;
   const purpose = enrolPurpose(t.cls, p.message);
   const how = { channels: p.channels, ready: p.ready, about: messageAboutOfTrigger(p.trigger) };
+  const holders = t.kind === "visit" ? fullNameHolders(rows) : /* @__PURE__ */ new Map();
   const named = t.kind === "visit" ? (
-    // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow.
+    // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow. And a visit that is surely
+    // theirs (visitIsTheirs).
     rows.filter((r22) => {
       if (!r22.calendarTz) return false;
       if (p.trigger === "visit_tomorrow")
-        return r22.nextVisitDate !== null && r22.nextVisitDate === localDate(r22.calendarTz, new Date(nowMs + DAY_MS2));
-      return r22.lastVisitDate !== null && r22.lastVisitDate === localDate(r22.calendarTz, new Date(nowMs - DAY_MS2)) && !r22.booked;
+        return r22.nextVisitDate !== null && r22.nextVisitDate === localDate(r22.calendarTz, new Date(nowMs + DAY_MS2)) && visitIsTheirs(r22, r22.nextVisitVia, holders);
+      return r22.lastVisitDate !== null && r22.lastVisitDate === localDate(r22.calendarTz, new Date(nowMs - DAY_MS2)) && !r22.booked && visitIsTheirs(r22, r22.lastVisitVia, holders);
     })
   ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : t.kind === "deal" ? rows.filter((r22) => followUpNames(r22, nowMs, pace)) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
@@ -9384,8 +9564,19 @@ var PLAYBOOK_CLASS_LABEL2 = {
   follow_up: POLICY_CLASS_WORDS2.follow_up.short,
   outreach: POLICY_CLASS_WORDS2.outreach.short
 };
-function runDayPassed(run, today) {
-  return run.playbook_id && run.run_for && run.run_for !== today ? `This run was made for ${run.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.` : null;
+function dayHasPassed(run, today) {
+  return run.playbook_id && run.run_for && run.run_for !== today ? run.run_for : null;
+}
+function dayGoneWords(runFor, say2 = (ymd) => ymd) {
+  return `This run was made for ${say2(runFor)} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`;
+}
+function visitRunTooLate(run, days) {
+  const moment = triggerOf2(audienceTrigger(run.audience) ?? "");
+  return moment?.kind === "visit" && !!run.run_for && days.sendsOn > run.run_for;
+}
+function runApprovalRefusal(run, days) {
+  const day = dayHasPassed(run, days.today) ?? (run.playbook_id && run.run_for && visitRunTooLate(run, days) ? run.run_for : null);
+  return day ? dayGoneWords(day, days.say) : null;
 }
 function playbookListRef(p) {
   if (triggerOf2(p.trigger)?.kind !== "saved") return null;
@@ -9399,12 +9590,12 @@ function proposalFactsFor(trigger, row2) {
   const url = row2?.deal?.proposal?.url ?? null;
   return t && t.kind === "deal" && url ? { proposal_link: url } : null;
 }
-function visitFactsFor(trigger, visit, tz, sendAt) {
+function visitFactsFor(trigger, visit, tz, names3, sendAt) {
   const t = triggerOf2(trigger);
   if (!t || t.kind !== "visit" || !visit) return null;
   return {
     visit_when: trigger === "visit_tomorrow" ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}` : visitDayWord(visit, tz, sendAt, "yesterday"),
-    visit_service: visit.title.trim() || "your appointment"
+    visit_service: visitServiceOf(visit.title, names3) || "your appointment"
   };
 }
 function visitDayWord(visit, tz, sendAt, assumed) {
@@ -9847,6 +10038,7 @@ var ListDraftAnswerSchema2 = z132.object({
   cannot: z132.string().trim().max(200),
   all: z132.array(z132.unknown()).max(LIST_RULE_MAX2)
 });
+var PLAYBOOK_CALENDAR_UNREAD = "calendar: could not be read";
 function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
@@ -10017,7 +10209,14 @@ var LIFECYCLE_WORDS2 = {
     rules: `Sends wait for ${SENDING_HOURS_WORDS2.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
-    waiting: "Waiting on you"
+    waiting: "Waiting on you",
+    // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
+    // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
+    paused: {
+      when: { day: "Paused", at: "for billing" },
+      why: "The workspace is paused, so nothing goes until billing resumes",
+      pill: "Workspace paused"
+    }
   },
   results: {
     title: "What came back",
@@ -12466,6 +12665,16 @@ var UNASKED3 = {
   has_relationship: false
 };
 var DEALT3 = { ...UNASKED3, has_relationship: true };
+var RUN_STOP_REMEDY3 = {
+  paused: "Resume from Settings \u203A Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
+};
+var RUN_STOP_AGAIN3 = {
+  paused: `${RUN_STOP_REMEDY3.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY3.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY3.campaigns_domain_unverified}; send it again once the domain is verified.`
+};
 var OFFERS_BY_EMAIL_WORDS3 = {
   /** The deployment's campaigns domain is not set up or not verified yet. */
   noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
@@ -12534,6 +12743,7 @@ var BROADCAST_THROTTLE_WAITS_MS3 = [
   15 * MIN_MS3,
   30 * MIN_MS3
 ];
+var BROADCAST_HOLD_WAIT_MS3 = 10 * MIN_MS3;
 var capitalised23 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 var PREVIEW_CHANNEL_WORDS3 = {
   whatsapp: capitalised23(CONSENT_CHANNEL_WORDS3.whatsapp),
@@ -13764,7 +13974,14 @@ var LIFECYCLE_WORDS3 = {
     rules: `Sends wait for ${SENDING_HOURS_WORDS3.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
-    waiting: "Waiting on you"
+    waiting: "Waiting on you",
+    // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
+    // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
+    paused: {
+      when: { day: "Paused", at: "for billing" },
+      why: "The workspace is paused, so nothing goes until billing resumes",
+      pill: "Workspace paused"
+    }
   },
   results: {
     title: "What came back",
@@ -14344,12 +14561,6 @@ var POS_TTL_MS = 5 * MIN_MS3;
 var CALL_CONTROL_S = 15 * 60;
 
 // src/deliver-email.ts
-function isOfferByEmail(d) {
-  return d.channel === "email" && d.purpose === "marketing";
-}
-function asksRelationship(d) {
-  return isOfferByEmail(d) || d.channel === "email" && d.purpose === "conversational" && d.proactive && d.about === "ours";
-}
 async function offerFacts(d, emailOffers, pausedSince) {
   const open = emailOffers === true;
   const asked2 = open && isOfferByEmail(d);
@@ -14468,7 +14679,10 @@ async function putOnWire(wire, d, asReply, now) {
   const sent4 = await send(d.to, {
     body: d.body,
     template: d.template,
-    ...d.email ? { email: d.email, purpose: d.purpose } : {},
+    // The lane an email takes is chosen by the purpose it is handed (emailSender): an offer by email leaves by the campaigns
+    // domain, and the business's own news is one at the door (decision D2, contracts isOfferByEmail), so the wire is told it
+    // is, whatever its template's category says. Anything else keeps the purpose it asked with.
+    ...d.email ? { email: d.email, purpose: isOfferByEmail(d) ? "marketing" : d.purpose } : {},
     ...reply,
     ...bound
   });
@@ -14485,8 +14699,11 @@ function kindOf(d) {
   return d.messageId ? "draft" : "answer";
 }
 async function wireFacts({ db, emailOffers }, d) {
-  const relationship = asksRelationship(d);
-  const { data, error } = await wireRowOf(db, { tenantId: d.tenantId, conversationId: d.conversationId, relationship });
+  const { data, error } = await wireRowOf(db, {
+    tenantId: d.tenantId,
+    conversationId: d.conversationId,
+    relationship: isOfferByEmail(d)
+  });
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data;
@@ -14591,10 +14808,13 @@ function refusalFor(d, f, nowMs, o) {
   const kind = kindOf(d);
   if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
+  return heldByThread(d, f, nowMs, kind);
+}
+function heldByThread(d, f, nowMs, kind) {
   const held = !!f.control && nowMs < new Date(f.control.until).getTime();
   if (kind === "draft" && held) return "human_has_it";
-  if (kind !== "draft" && kind !== "system" && (held || f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()))
-    return "human_has_it";
+  const paused = !!f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime() && !passesHandoverPause(d.trigger);
+  if (kind !== "draft" && kind !== "system" && (held || paused)) return "human_has_it";
   return null;
 }
 async function overtakenByHuman(db, d) {
@@ -15123,6 +15343,8 @@ async function sendQueued(ports, cmd) {
       // One message to one person in their own thread (a reply, the receptionist's, a person's written one): theirs.
       // A campaign's news goes by the broadcast's batch, which says ours (contracts MessageAbout, decision D1).
       about: "theirs",
+      // No moment's: a reply is no playbook's run, so there is nothing for the door to pass the handover pause for.
+      trigger: null,
       body: p.body ?? msg.body ?? "",
       template: p.template,
       // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
@@ -15506,7 +15728,7 @@ async function emailDelivery(w, i, base) {
   });
   const { businessName, address } = w.facts;
   let foot;
-  if (w.purpose === "marketing") {
+  if (isOfferByEmail({ channel: "email", purpose: w.purpose, proactive: base.proactive, about: base.about })) {
     if (!address?.trim()) return { held: "no_business_address" };
     const unsubscribeUrl = await w.ports.unsubscribeUrl({ messageId, contactId: i.c.id });
     if (!unsubscribeUrl?.trim()) return { held: "no_channel" };
@@ -15555,6 +15777,8 @@ async function prepare(w, i) {
     // email asks a yes covering email or a relationship (contracts messageAboutOfTrigger, decision D1): the run's moment,
     // read as the enrolment read it, so the two cannot disagree about anyone.
     about: messageAboutOfTrigger(w.trigger),
+    // The moment itself, for the door's one question about it: whether this send passes the thread's 24-hour pause (D4).
+    trigger: w.trigger,
     // A send the provider provably did not take (a connection that never opened, its "not now") is handed back rather
     // than written as failed: this person waits in the queue, and the run waits with them (00282).
     holdIfNotTaken: true,
@@ -15627,6 +15851,19 @@ var WIRE_WORDS = {
     to: "the mail provider"
   }
 };
+function gotIt(sent4) {
+  if (sent4 === null) return "";
+  return sent4 === 0 ? "Nobody got it." : sent4 === 1 ? "One person got it." : `${sent4} people got it.`;
+}
+var RUN_STOP_CAUSE = {
+  paused: "The workspace is paused until billing resumes, so the rest was not sent.",
+  email_offers_paused: "Offers by email are paused while complaints and bounces settle, so the rest was not sent.",
+  campaigns_domain_unverified: "The domain offers by email go out from is not verified with the mail provider right now, so the rest was not sent."
+};
+function stoppedRunCause(why, sent4) {
+  if (why === "paused" && sent4 === 0) return "The workspace is paused until billing resumes, so nothing went out.";
+  return [RUN_STOP_CAUSE[why], gotIt(sent4)].filter(Boolean).join(" ");
+}
 var LIMIT_WORDS = {
   daily: {
     reached: "The mail provider's limit for the day was reached",
@@ -15637,6 +15874,76 @@ var LIMIT_WORDS = {
     again: "It resets with the new month; send it again then."
   }
 };
+
+// src/messages/broadcast-stops.ts
+var stopLog = logger();
+async function release(ports, broadcastId, contactId, reason) {
+  try {
+    return await ports.mark(broadcastId, contactId, { state: "queued", reason, message_id: null }) !== false;
+  } catch (e) {
+    stopLog.error("broadcast_release_refused", {
+      broadcast_id: broadcastId,
+      contact_id: contactId,
+      error: errField(e)
+    });
+    return false;
+  }
+}
+async function stopForTheWorkspace(ports, b, why) {
+  const sent4 = await ports.tally(b.id).then(
+    (t) => t.sent,
+    () => null
+  );
+  await ports.fail(b.id, why);
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast \u201C${b.name}\u201D ${why === "paused" && sent4 === 0 ? "not sent" : "stopped"}`,
+    body: `${stoppedRunCause(why, sent4)} ${stoppedRunFix(why, { playbook_id: b.playbook_id, trigger: audienceTrigger(b.audience) })}`
+  });
+}
+async function emailAlone(w) {
+  w.emailAlone ??= !await w.ports.byOtherChannels(w.b.id, "email");
+  return w.emailAlone;
+}
+async function pageTheDomain(ports, run, how) {
+  await ports.page?.(
+    "campaigns_domain_unverified",
+    "email: a broadcast's offers could not leave, the campaigns domain is not verified",
+    how.stopped ? `Tenant ${run.tenantId}, broadcast ${run.id} stopped, everyone not yet sent still queued: ${how.cause}.` : `Tenant ${run.tenantId}, broadcast ${run.id}: its offers and news by email are skipped person by person while this lasts, and the run goes on for everyone else: ${how.cause}.`
+  )?.catch(() => void 0);
+}
+async function afterRefusal(w, r4, reason) {
+  const { ports, b } = w;
+  const emailStop = emailRunStop(reason);
+  const stop = reason === "paused" ? "paused" : emailStop && await emailAlone(w) ? emailStop : null;
+  if (stop) {
+    await release(ports, b.id, r4.contact_id, "not_taken");
+    await stopForTheWorkspace(ports, b, stop);
+    if (stop === "campaigns_domain_unverified")
+      await pageTheDomain(
+        ports,
+        { tenantId: w.cmd.tenantId, id: b.id },
+        {
+          stopped: true,
+          cause: `the door refused an offer by email (${reason}): this runtime holds no verified campaigns domain`
+        }
+      );
+    return "stop";
+  }
+  if (reason === "human_has_it" && passesHandoverPause(w.trigger) && await holdForLater(w, r4)) return "go on";
+  await w.mark(r4.contact_id, { state: "skipped", reason });
+  return "go on";
+}
+async function holdForLater(w, r4) {
+  const retryAt = new Date(w.ports.now() + jittered2(BROADCAST_HOLD_WAIT_MS2, w.ports.random));
+  if (nextOpenMoment(w.facts.timezone, retryAt).moved) return false;
+  if (!await release(w.ports, w.b.id, r4.contact_id, "not_taken")) return false;
+  w.waiting.count += 1;
+  w.waiting.retryAt ??= retryAt;
+  return true;
+}
 
 // src/messages/broadcast.ts
 var BROADCAST_STALL_RETRY_MS = 6e4;
@@ -15653,14 +15960,7 @@ var ThrownAtTheDoor = class {
 };
 async function stoppedByBilling(ports, b) {
   if (!await ports.workspacePaused()) return false;
-  await ports.fail(b.id, "paused");
-  await ports.alert({
-    kind: "broadcast_stopped",
-    route: "broadcasts",
-    about: { type: "broadcast", id: b.id },
-    subject: `Broadcast \u201C${b.name}\u201D not sent`,
-    body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again."
-  });
+  await stopForTheWorkspace(ports, b, "paused");
   return true;
 }
 async function wireIsUnbound(ports, b, cmd, batch) {
@@ -15710,6 +16010,7 @@ async function sendOne(w, r4) {
     return "go on";
   }
   if (channel === "whatsapp" && !w.whatsappApproved) return skip("template_not_approved");
+  if (channel === "email" && w.offersClosed) return skip("email_marketing_disabled");
   if (channel !== "whatsapp" && await overAllowance(w, channel)) return skip("month_allowance");
   const target = channel === "email" ? await ports.targetOfContact(c.id) : await ports.target(where.to);
   if (!target) return skip("no_thread");
@@ -15746,7 +16047,7 @@ async function sendOne(w, r4) {
     await w.mark(r4.contact_id, { state: "sent", reason: null, message_id: out.messageId });
     return "go on";
   }
-  if (out.outcome === "refused") return skip(out.reason);
+  if (out.outcome === "refused") return afterRefusal(w, r4, out.reason);
   if (out.throttled) return giveBack(ports, { broadcastId: b.id, contactId: r4.contact_id }, true, channel);
   if (out.limit === "daily" || out.limit === "monthly") {
     await stopForTheLimit(w, r4.contact_id, out, out.limit);
@@ -15770,7 +16071,7 @@ async function sendBroadcastBatch(ports, cmd) {
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
   const tpl = await ports.template(b.template_name, b.template_language, "whatsapp");
   const whatsappApproved = tpl?.meta_status === "approved";
-  if (!whatsappApproved && !await ports.byOtherChannels(b.id)) {
+  if (!whatsappApproved && !await ports.byOtherChannels(b.id, "whatsapp")) {
     await ports.fail(b.id, "template_not_approved");
     await ports.alert({
       kind: "broadcast_stopped",
@@ -15782,7 +16083,10 @@ async function sendBroadcastBatch(ports, cmd) {
     return;
   }
   const purpose = purposeOfTemplate(tpl?.category);
-  if (await offersAreClosed(ports, { b, cmd, batch, purpose })) return;
+  const trigger = audienceTrigger(b.audience);
+  const offers = isOfferByEmail({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger(trigger) });
+  const head = await offersAtTheHead(ports, { b, cmd, batch, offers });
+  if (head === "wait" || head === "stopped") return;
   const { people, priors, unreadable } = await readPeople(ports, b, batch);
   const w = {
     ports,
@@ -15798,9 +16102,12 @@ async function sendBroadcastBatch(ports, cmd) {
     priors,
     versions: {},
     month: {},
-    // A visit run is never held by the month's allowance; its audience names the moment (contracts audienceTrigger).
-    trigger: audienceTrigger(b.audience),
+    offersClosed: head === "closed",
+    // The head asked, where the domain was closed: the run goes on, so somebody on it goes another way.
+    emailAlone: head === "closed" ? false : null,
+    trigger,
     marked: 0,
+    waiting: { count: 0, retryAt: null },
     mark: async (contactId, patch) => {
       w.marked += 1;
       await ports.mark(b.id, contactId, patch);
@@ -15823,19 +16130,30 @@ async function sendBroadcastBatch(ports, cmd) {
     if (verdict !== "go on") return backOff(ports, b, cmd, { ...verdict, timezone: facts.timezone });
     if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
+  await afterTheBatch(w, batch.length);
+}
+async function afterTheBatch(w, picked) {
+  const { ports, b, cmd } = w;
   const remaining = await ports.remaining(b.id);
-  if (remaining > 0) {
-    if (await ports.state(b.id) !== "sending") return;
-    if (batch.length > 0 && w.marked === 0) await stall(ports, b, cmd, "people");
-    else await ports.scheduleNext(b.id);
+  if (remaining <= 0) {
+    const { sent: sent4, held } = await ports.tally(b.id);
+    const emailHeld = held > 0 ? await ports.heldForEmail(b.id) : [];
+    await ports.finish(b.id, { sent: sent4, held });
+    await ports.alert(finishedNews(b, { sent: sent4, held, emailHeld }));
     return;
   }
-  const { sent: sent4, held } = await ports.tally(b.id);
-  await ports.finish(b.id, { sent: sent4, held });
-  await ports.alert(finishedNews(b, sent4, held));
+  if (await ports.state(b.id) !== "sending") return;
+  const { count, retryAt } = w.waiting;
+  if (retryAt && (w.marked === 0 || remaining === count))
+    await ports.scheduleNext(b.id, retryAt, {
+      ...cmd.waits ? { waits: cmd.waits } : {},
+      ...cmd.stalls ? { stalls: cmd.stalls } : {}
+    });
+  else if (picked > 0 && w.marked === 0) await stall(ports, b, cmd, "people");
+  else await ports.scheduleNext(b.id);
 }
-function finishedNews(b, sent4, held) {
-  const why = "no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish";
+function finishedNews(b, { sent: sent4, held, emailHeld }) {
+  const why = finishedRunHeldWhy(emailHeld);
   const people = (n) => `${n} ${n === 1 ? "person" : "people"}`;
   return {
     kind: "broadcast_sent",
@@ -15854,8 +16172,8 @@ async function outsideTheHours(ports, b, cmd, timezone) {
   else await ports.scheduleNext(b.id, open.at);
   return true;
 }
-async function offersAreClosed(ports, { b, cmd, batch, purpose }) {
-  if (purpose !== "marketing" || !batch.some((r4) => channelOf(r4) === "email")) return false;
+async function offersAtTheHead(ports, { b, cmd, batch, offers }) {
+  if (!offers || !batch.some((r4) => channelOf(r4) === "email")) return "open";
   const unread = await ports.offersUnread();
   if (unread) {
     broadcastLog.error("broadcast_wire_unavailable", { broadcast_id: b.id, channel: "email", reason: unread });
@@ -15865,40 +16183,18 @@ async function offersAreClosed(ports, { b, cmd, batch, purpose }) {
       "email: a broadcast's offers wait, the campaigns domain could not be checked",
       `Tenant ${cmd.tenantId}, broadcast ${b.id} ${stopped ? "stopped after waiting the most it may" : "waits"}, everyone still queued: ${unread}.`
     )?.catch(() => void 0);
-    return true;
+    return "wait";
   }
   const why = await ports.offersClosed();
-  if (!why) return false;
-  const sent4 = await ports.tally(b.id).then(
-    (t) => t.sent,
-    () => null
-  );
-  await ports.fail(b.id, "campaigns_domain_unverified");
-  await ports.alert({
-    kind: "broadcast_stopped",
-    route: "broadcasts",
-    about: { type: "broadcast", id: b.id },
-    subject: `Broadcast \u201C${b.name}\u201D stopped`,
-    body: [
-      "The domain offers by email go out from is not verified with the mail provider right now, so the rest was not sent.",
-      gotIt(sent4),
-      "Nothing is wrong with your mailbox, and the platform has been told; send it again once the domain is verified."
-    ].filter(Boolean).join(" ")
-  });
-  await ports.page?.(
-    "campaigns_domain_unverified",
-    "email: a broadcast's offers could not leave, the campaigns domain is not verified",
-    `Tenant ${cmd.tenantId}, broadcast ${b.id} stopped, everyone not yet sent still queued: ${why}.`
-  )?.catch(() => void 0);
-  return true;
+  if (!why) return "open";
+  const alone = !await ports.byOtherChannels(b.id, "email");
+  if (alone) await stopForTheWorkspace(ports, b, "campaigns_domain_unverified");
+  await pageTheDomain(ports, { tenantId: cmd.tenantId, id: b.id }, { stopped: alone, cause: why });
+  return alone ? "stopped" : "closed";
 }
 async function giveBack(ports, who, reached, channel) {
   await release(ports, who.broadcastId, who.contactId, reached ? "throttled" : "not_taken");
   return { back: reached ? "throttled" : "unreachable", channel };
-}
-function gotIt(sent4) {
-  if (sent4 === null) return "";
-  return sent4 === 0 ? "Nobody got it." : sent4 === 1 ? "One person got it." : `${sent4} people got it.`;
 }
 async function stall(ports, b, cmd, what) {
   const stalls = (cmd.stalls ?? 0) + 1;
@@ -15990,15 +16286,6 @@ async function withdrawQueued(ports, b, delivery) {
     broadcastLog.error("broadcast_email_not_withdrawn", { broadcast_id: b.id, message_id: email, error: errField(e) });
   });
 }
-async function release(ports, broadcastId, contactId, reason) {
-  await ports.mark(broadcastId, contactId, { state: "queued", reason, message_id: null }).catch((e) => {
-    broadcastLog.error("broadcast_release_refused", {
-      broadcast_id: broadcastId,
-      contact_id: contactId,
-      error: errField(e)
-    });
-  });
-}
 async function backOff(ports, b, cmd, how) {
   const { back: why, channel, timezone } = how;
   const words = WIRE_WORDS[channel];
@@ -16074,7 +16361,8 @@ function versionsHeld(own, whatsapp) {
 }
 function readyForMessage(ready, has2) {
   const out = { ...ready };
-  for (const c of CONSENT_CHANNELS) if (ready[c].ready && !has2[c]) out[c] = { ready: false, why: NO_VERSION[c] };
+  for (const c of CONSENT_CHANNELS)
+    if (ready[c].ready && !has2[c]) out[c] = { ...ready[c], ready: false, why: NO_VERSION[c] };
   return out;
 }
 function parseChannels(asked2, kept = null) {
@@ -16089,7 +16377,7 @@ function parseChannels(asked2, kept = null) {
   return known;
 }
 function refuseTicks(how, purpose) {
-  const no = channelChoices(how.ready, purpose).find((c) => how.channels.includes(c.channel) && !c.ok);
+  const no = channelChoices(how.ready, purpose, how.about).find((c) => how.channels.includes(c.channel) && !c.ok);
   if (!no) return;
   const words = no.why ?? `${no.channel} is not ready to send on.`;
   if (channelNeverCarries(no.channel, purpose)) throw new AppError("validation", words);
@@ -16108,6 +16396,9 @@ async function readMessage(r4) {
   }
 }
 var templateHolds = (r4, m, drawn) => drawn === 0 && !m.approved && r4.channels.includes("whatsapp");
+async function withoutCalendar(r4) {
+  return r4.ctx.calendar === "unavailable" ? { outcome: "failed", error: PLAYBOOK_CALENDAR_UNREAD } : r4.off("no_calendar");
+}
 async function allowed(r4, tpl) {
   const { p, ctx } = r4;
   const stop = playbookStopBy({
@@ -16119,7 +16410,7 @@ async function allowed(r4, tpl) {
   if (await r4.ports.alreadyRan(p.id, r4.runFor)) return { ended: await r4.off("already_ran_today", { record: false }) };
   const trig = triggerOf2(p.trigger);
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok")
-    return { ended: await r4.off("no_calendar") };
+    return { ended: await withoutCalendar(r4) };
   let listIds = null;
   let kept;
   if (trig?.kind === "saved") {
@@ -16127,7 +16418,7 @@ async function allowed(r4, tpl) {
     const m = ref ? ctx.listMembers(ref) : null;
     if (!m || !ref) return { ended: await r4.off("no_list") };
     if (m.state === "unknown")
-      return { ended: await r4.off(m.reason === "calendar" ? "no_calendar" : "list_uncounted") };
+      return { ended: m.reason === "calendar" ? await withoutCalendar(r4) : await r4.off("list_uncounted") };
     listIds = m.ids;
     kept = { token: listToken(ref), rule: m.rule ?? null, counted_at: ctx.now.toISOString() };
   }
@@ -16171,11 +16462,15 @@ function draw(r4, message, how, listIds) {
   }
   return { eligible, reach, channelOf: drawn.channelOf, dropped };
 }
-async function pastTheRoom(r4, message, eligible, channelOf2) {
+async function pastTheRoom(r4, message, drawn, goesAt) {
   try {
-    const people = eligible.map((person) => ({ id: person.id, channel: channelOf2[person.id] ?? "whatsapp" }));
+    const people = drawn.eligible.map((person) => ({
+      id: person.id,
+      channel: drawn.channelOf[person.id] ?? "whatsapp"
+    }));
     const purpose = enrolPurpose(triggerOf2(r4.p.trigger)?.cls, message);
-    return { held: (await pastTheMonth(r4.ports, people, r4.p.trigger, purpose)).map((person) => person.id) };
+    const month = { monthSent: (channel) => r4.ports.monthSent(channel, goesAt) };
+    return { held: (await pastTheMonth(month, people, r4.p.trigger, purpose)).map((person) => person.id) };
   } catch (e) {
     return { error: `month: ${e instanceof Error ? e.message : String(e)}` };
   }
@@ -16190,9 +16485,18 @@ function recipientFacts(r4, goesAt) {
       p.trigger,
       p.trigger === "visit_tomorrow" ? v?.next ?? null : v?.last ?? null,
       ctx.tz,
+      [person.givenName, person.waName],
       goesAt
     );
   };
+}
+function touchEnrolled(r4, goesAt, eligible, held) {
+  const skipped = new Set(held);
+  r4.ctx.touches = touchesAfterRun(
+    r4.ctx.touches,
+    { playbookId: r4.p.id, at: goesAt.getTime(), followUp: triggerOf2(r4.p.trigger)?.kind === "deal" },
+    eligible.filter((person) => !skipped.has(person.id)).map((person) => person.id)
+  );
 }
 async function runPlaybook(ports, cmd) {
   const { playbook: p, ctx, by } = cmd;
@@ -16228,7 +16532,7 @@ async function runPlaybook(ports, cmd) {
     await record({ mode, eligible: 0, reach, ...dropped ? { dropped } : {} });
     return { outcome: "empty", eligible: 0, mode };
   }
-  const past = await pastTheRoom(run, message.row, eligible, channelOf2);
+  const past = await pastTheRoom(run, message.row, { eligible, channelOf: channelOf2 }, goesAt);
   if ("error" in past) return { outcome: "failed", error: past.error };
   const specs = parseParamSpecs(p.params);
   const facts = recipientFacts(run, goesAt);
@@ -16268,6 +16572,7 @@ async function runPlaybook(ports, cmd) {
     held: past.held
   });
   if (!made.ok) return { outcome: "failed", error: made.error };
+  touchEnrolled(run, goesAt, eligible, past.held);
   if (open) {
     await ports.decide({
       broadcastId: made.id,
@@ -16410,6 +16715,7 @@ async function campaignHow(ports, tpl, channels, about) {
 }
 async function campaignHowOf(ports, tpl, channels, purpose) {
   const made = await campaignHow(ports, tpl, channels, "ours");
+  if (made.how.ready.paused) throw new AppError("payment_required", CAMPAIGNS_PAUSED_WORDS);
   refuseTicks(made.how, purpose);
   return made;
 }
@@ -16445,8 +16751,14 @@ async function createBroadcast(ports, cmd) {
     throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   const over = health ? overLimitRefusal(health, enrolled.filter((e) => e.channel === "whatsapp").length) : null;
   if (over) throw new AppError("validation", over);
+  const tz = await ports.timezone();
+  const open = nextOpenMoment(tz, when);
+  const movedFrom = open.moved ? when.toISOString() : null;
+  when = open.at;
+  if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * DAY_MS2)
+    throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
   const past = await pastTheMonth(
-    ports,
+    { monthSent: (channel) => ports.monthSent(channel, when) },
     enrolled.map((e) => ({ id: e.row.id, channel: e.channel })),
     null,
     purpose
@@ -16458,12 +16770,6 @@ async function createBroadcast(ports, cmd) {
       500
     );
   });
-  const tz = await ports.timezone();
-  const open = nextOpenMoment(tz, when);
-  const movedFrom = open.moved ? when.toISOString() : null;
-  when = open.at;
-  if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * DAY_MS2)
-    throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
   const name = typeof want.name === "string" && want.name.trim() ? want.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, tz, now, tpl.title);
   const audience = {
     kind: want.kind,
@@ -16526,11 +16832,12 @@ var approveLog = logger();
 async function approveRun(ports, cmd) {
   const b = cmd.row;
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
+  if (await ports.paused()) throw new AppError("payment_required", CAMPAIGNS_PAUSED_WORDS, 402);
   if (isReachOutRun(b.audience)) return approveReachOut(ports, b, cmd.now);
   const tz = await ports.timezone();
-  const late = runDayPassed(b, localDate(tz, cmd.now));
-  if (late) throw new AppError("conflict", late, 409);
   const open = nextOpenMoment(tz, cmd.now);
+  const late = runApprovalRefusal(b, { today: localDate(tz, cmd.now), sendsOn: localDate(tz, open.at) });
+  if (late) throw new AppError("conflict", late, 409);
   const at = open.at;
   if (!await ports.release(b.id, at)) throw new AppError("conflict", "This run just changed state; look again.", 409);
   try {

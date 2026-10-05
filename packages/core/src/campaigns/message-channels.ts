@@ -39,11 +39,13 @@ export function versionsHeld(own: readonly string[], whatsapp: boolean): Record<
 /**
  * The workspace's channels now, with the message in them: a channel that is ready but has no version of the message
  * is not ready, and says so in a sentence ("This message has no email version yet."). A channel the workspace is not
- * ready on keeps its own reason.
+ * ready on keeps its own reason. What else the channel carries stays (email's `offers`, which the news by email and an
+ * offer are judged by: closing the channel for a missing version must not make it say the campaigns domain is missing).
  */
 export function readyForMessage(ready: ChannelsReady, has: Record<ConsentChannel, boolean>): ChannelsReady {
   const out: ChannelsReady = { ...ready };
-  for (const c of CONSENT_CHANNELS) if (ready[c].ready && !has[c]) out[c] = { ready: false, why: NO_VERSION[c] };
+  for (const c of CONSENT_CHANNELS)
+    if (ready[c].ready && !has[c]) out[c] = { ...ready[c], ready: false, why: NO_VERSION[c] };
   return out;
 }
 
@@ -70,7 +72,7 @@ export function parseChannels(asked: unknown, kept: readonly string[] | null = n
  * on, or whose message has no version, is a state of the workspace that is not.
  */
 export function refuseTicks(how: CampaignHow, purpose: AskedPurpose): void {
-  const no = channelChoices(how.ready, purpose).find((c) => how.channels.includes(c.channel) && !c.ok);
+  const no = channelChoices(how.ready, purpose, how.about).find((c) => how.channels.includes(c.channel) && !c.ok);
   if (!no) return;
   const words = no.why ?? `${no.channel} is not ready to send on.`;
   if (channelNeverCarries(no.channel, purpose)) throw new AppError("validation", words);

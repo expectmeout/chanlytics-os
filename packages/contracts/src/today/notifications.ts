@@ -319,17 +319,32 @@ const JOB_WORK_OTHER = { stopped: "Something in the background did not finish", 
 /**
  * A job's news: its title, the one line under it, and its door. The job's id and kind are for whoever reads the
  * email to the end, so the runner keeps them as the body's last line, never its first (the bell shows the first).
+ *
+ * The line is worded from how the job was SETTLED, not from the fact that it ended (`how.resumed`: the ledger handed what
+ * it left to a fresh run, or one is already coming, jobs settle.ts and tick.ts conclude). A broadcast that stopped partway
+ * is carried on that way up to MAX_RESUMES times, and its alert said "will not start again on its own" each of them, the
+ * opposite of what happened, in the only line the bell and the phone show: an owner who believed it and sent again reached
+ * the whole audience twice. Only a job nothing carries on says it will not start again. `resumed` is null where settling
+ * threw, so nobody knows whether anything carries on: the line then says neither (its body says what could not be checked).
  */
-export function jobNewsWords(jobKind: string, end: JobEnd, attempts = 1): { title: string; lead: string; to: string } {
+export function jobNewsWords(
+  jobKind: string,
+  end: JobEnd,
+  how: { attempts: number; resumed: boolean | null },
+): { title: string; lead: string; to: string } {
   const w = (JOB_WORK as Record<string, typeof JOB_WORK_OTHER>)[jobKind] ?? JOB_WORK_OTHER;
+  const { attempts, resumed } = how;
+  const tries = attempts > 1 ? ` after ${attempts} tries` : "";
   const lead =
     end === "unfinished"
       ? jobKind === "outbound_send"
         ? "It started and never reported back, so it may or may not have reached the customer. Check the conversation before sending it again."
-        : "It started and never reported back, so how it ended is unknown."
+        : `It started and never reported back, so how it ended is unknown${resumed ? ", and the rest carries on in a fresh run" : ""}.`
       : end === "unknown_kind"
         ? "Nothing ran: this is work the app does not know how to do."
-        : `It stopped${attempts > 1 ? ` after ${attempts} tries` : ""} and will not start again on its own.`;
+        : resumed === null
+          ? `It stopped${tries}, and whether it carries on in a fresh run could not be checked.`
+          : `It stopped${tries} and ${resumed ? "carries on in a fresh run" : "will not start again on its own"}.`;
   return { title: w.stopped, lead, to: w.to };
 }
 
@@ -350,7 +365,8 @@ function jobRowWords(n: NotificationDto): { title: string; message: string; rout
   const m = OLD_JOB_TITLE.exec(n.title.trim());
   if (!m) return null;
   const tries = /after (\d+) tries/.exec(n.body);
-  const w = jobNewsWords(m[1], OLD_JOB_END[m[2]], tries ? Number(tries[1]) : 1);
+  // A row from before these words was never worded from how it was settled: it said it would not start again.
+  const w = jobNewsWords(m[1], OLD_JOB_END[m[2]], { attempts: tries ? Number(tries[1]) : 1, resumed: false });
   // The old rows all said "inbox", whatever the job was; a row that named another page keeps it.
   return { title: w.title, message: w.lead, route: n.route && n.route !== "inbox" ? n.route : w.to };
 }

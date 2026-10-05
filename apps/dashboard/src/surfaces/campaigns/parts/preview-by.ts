@@ -9,11 +9,26 @@
 import {
   PREVIEW_CHANNEL_WORDS,
   PREVIEW_WORDS,
+  isOfferByEmail,
   previewOn,
+  purposeOfTemplate,
   type ConsentChannel,
+  type MessageAbout,
   type PreviewVersions,
 } from "@chanlytics/contracts";
 import type { MessagePreviewProps } from "./message-preview";
+
+/**
+ * The foot an email of this message is drawn with, as `cmPreviewBy`'s `offer` option: the offer's (the reason, and the way out)
+ * where the message is an offer by email, a visit's otherwise. What makes it one is the send's own question (contracts
+ * isOfferByEmail, decision D2): a marketing message, and the business's own news, whatever its template's category. `about` is
+ * what the message is about: a broadcast's is ours, a moment's is messageAboutOfTrigger of it.
+ */
+export function cmOfferFoot(category: string | null | undefined, about: MessageAbout): { offer?: "customer" } {
+  return isOfferByEmail({ channel: "email", purpose: purposeOfTemplate(category), proactive: true, about })
+    ? { offer: "customer" }
+    : {};
+}
 
 /** What the template says on WhatsApp, as the page draws it. */
 type WhatsAppWords = Pick<MessagePreviewProps, "body" | "header" | "footer" | "buttons">;

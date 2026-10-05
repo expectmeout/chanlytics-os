@@ -55,11 +55,14 @@ export interface AssemblePorts {
    */
   assemble(row: NewBroadcast, recipients: NewRecipient[], sendAt: Date | null): Promise<string>;
   /**
-   * How many campaign emails or texts the workspace sent on this channel this calendar month, in its zone, that left, may
-   * have left or wait to go (packages/db campaignMonthSent): what its month's allowance has spent (contracts
-   * CAMPAIGN_MONTH_ALLOWANCE). Throws when it cannot be counted.
+   * How many campaign emails or texts the workspace sent on this channel in the calendar month `at` falls in, in its zone,
+   * that left, may have left or wait to go (packages/db campaignMonthSent): what that month's allowance has spent (contracts
+   * CAMPAIGN_MONTH_ALLOWANCE). `at` is the moment the run opens, which is when its people are counted against the month: a
+   * broadcast made on the 28th for the 1st counts against the new month, not the one it was made in, and a playbook's run
+   * against the month of the moment it goes. Required, so no caller counts the month it was made in by leaving it out.
+   * Throws when it cannot be counted.
    */
-  monthSent(channel: "email" | "sms"): Promise<number>;
+  monthSent(channel: "email" | "sms", at: Date): Promise<number>;
   /**
    * People of a run just assembled, held at once: each still queued is skipped, with `reason`, as the send would have
    * held them (allowance.ts). A person already settled is left as it is. Throws when it cannot be written, and then the
@@ -271,6 +274,8 @@ export interface CreateBroadcastCommand {
 export interface ApproveRunPorts {
   /** The business's clock, for the hours a send may go out in. */
   timezone(): Promise<string>;
+  /** Whether the workspace is paused (`tenants.status = 'paused'`): nothing is approved while it is. Throws when it cannot be read. */
+  paused(): Promise<boolean>;
   /** pending_approval → scheduled for `at`, only while pending. True iff a row changed. The row carries the time the job carries (00119). */
   release(broadcastId: string, at: Date): Promise<boolean>;
   /** Back to waiting, when the job could not be made. */

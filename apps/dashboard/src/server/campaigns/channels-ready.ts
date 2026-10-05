@@ -7,7 +7,13 @@ import {
   offerPauseOf,
   parseTenantConfig,
 } from "@chanlytics/contracts";
-import { getTenantConfig, mailboxOfTenant, textLineFacts, whatsappChannelConfig } from "@chanlytics/db";
+import {
+  getTenantConfig,
+  mailboxOfTenant,
+  textLineFacts,
+  whatsappChannelConfig,
+  workspacePaused,
+} from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import { emailWire } from "../connections/email-readiness";
 import { log } from "../log";
@@ -21,20 +27,27 @@ import { log } from "../log";
  * (contracts email-offers.ts): the edge's verdict on the campaigns domain, whether the business has its postal address on
  * file (the foot of every offer names it), and whether the mailbox's offers are paused by a gate. The address is read only
  * once the edge says the domain is verified: until then offers are closed for the deployment's reason, which comes first,
- * and nothing about the workspace's configuration is asked. The composers draw a channel's tick from it, the routes refuse
- * a tick it says no to, and the edge's run reads the same rows (packages/db campaign-channels.ts).
+ * and nothing about the workspace's configuration is asked. And whether the workspace is paused (`paused`, tenants.status):
+ * the composers say so where Send would be (contracts CAMPAIGNS_PAUSED_WORDS) and a broadcast made under it is refused. The
+ * composers draw a channel's tick from it, the routes refuse a tick it says no to, and the edge's run reads the same rows
+ * (packages/db campaign-channels.ts).
  */
 export async function channelsReadyOf(
   ctx: RouteContext,
   tenantId: string,
-  o: { fresh: boolean },
+  o: { fresh: boolean; withPause: boolean },
 ): Promise<ChannelsReady> {
   // Asked first, so the edge's answer (kept five minutes while all is well, a short while otherwise) overlaps the reads
   // below. A send that is about to be committed asks fresh: it must not go on a "ready" the edge has since taken back.
   const wire = emailWire({ fresh: o.fresh });
-  const [whatsapp, textLine] = await Promise.all([
+  // Whether the workspace is paused (billing) rides with the channels where a campaign is made or composed (`withPause`): the
+  // door refuses every message of a campaign under it, so the composers say so where Send would be and a broadcast made under
+  // it is refused (core campaignHowOf). A page that only counts who can be reached (People's rows, an export) never asks: a
+  // pause changes what is sent, not who can hear the business, and the read is one more query on a page that did not need it.
+  const [whatsapp, textLine, paused] = await Promise.all([
     whatsappHealthOf(ctx, tenantId),
     textLineFacts(ctx.supabase, tenantId),
+    o.withPause ? workspacePaused(ctx.supabase, tenantId) : Promise.resolve(false),
   ]);
   const { ready: domain, offers } = await wire;
   // The mailbox is read only where the wire says it can send: with no wire, or none known, there is nothing to offer.
@@ -53,6 +66,7 @@ export async function channelsReadyOf(
   return channelsReady({
     whatsapp,
     textLine,
+    paused,
     email: {
       mailbox: !!mailbox,
       domain,
@@ -70,10 +84,14 @@ export async function channelsReadyOf(
  * counts as it did before the channels were (WhatsApp, which its own number banner judges) and says the others could
  * not be checked, rather than losing the campaigns it was reading for a line about email.
  */
-export async function channelsReadyOrNull(ctx: RouteContext, tenantId: string): Promise<ChannelsReady | null> {
+export async function channelsReadyOrNull(
+  ctx: RouteContext,
+  tenantId: string,
+  o: { withPause: boolean },
+): Promise<ChannelsReady | null> {
   try {
     // A page that draws it reads what is kept: it commits nothing, and the routes that do ask fresh (campaign-ports.ts).
-    return await channelsReadyOf(ctx, tenantId, { fresh: false });
+    return await channelsReadyOf(ctx, tenantId, { fresh: false, withPause: o.withPause });
   } catch (e) {
     log.error("campaign_channels_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     return null;

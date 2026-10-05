@@ -15,7 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { sendsAs } from "@chanlytics/channels";
+import { sendsAs, sendsAsCampaigns } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
 import { middayZone } from "../shared/_midday-zone.mjs";
 
@@ -163,8 +163,18 @@ const world = ({ contacts = people(), ...over } = {}) => ({
   ...over,
 });
 
-/** The job's context: the three wires, as the edge binds them -- the email one the real sender over the hosted mailbox. */
-function context(t, { monthSent = 0 } = {}) {
+/** The campaigns lane the edge binds while its domain is verified: what the business's news by email leaves on (decision D2). */
+const LANE = {
+  domain: "campaigns.example.com",
+  unsubscribeSecret: "test-unsubscribe-secret",
+  unsubscribeOrigin: "https://app.example.com",
+};
+
+/**
+ * The job's context: the three wires, as the edge binds them -- the email one the real sender over the hosted mailbox, and
+ * over the campaigns domain too where `campaigns` is the lane (a broadcast's email is the business's news, an offer at the door).
+ */
+function context(t, { monthSent = 0, campaigns = null } = {}) {
   const wa = [];
   const sms = [];
   const posted = [];
@@ -180,9 +190,20 @@ function context(t, { monthSent = 0 } = {}) {
     wire: {
       whatsapp: async (to, p) => (wa.push({ to, p }), { ok: true, wamid: `wamid.${wa.length}`, status: 200 }),
       sms: async (to, p) => (sms.push({ to, p }), { ok: true, wamid: `SM${sms.length}`, status: 201 }),
-      email: emailSender([{ lane: "hosted", cfg: { apiKey: "test-key" }, as: sendsAs(MAILBOX, DOMAIN) }]),
+      email: emailSender([
+        { lane: "hosted", cfg: { apiKey: "test-key" }, as: sendsAs(MAILBOX, DOMAIN) },
+        ...(campaigns
+          ? [
+              {
+                lane: "campaigns",
+                cfg: { apiKey: "test-key" },
+                as: sendsAsCampaigns(MAILBOX, campaigns.domain, DOMAIN),
+              },
+            ]
+          : []),
+      ]),
     },
-    email: { domain: DOMAIN },
+    email: { domain: DOMAIN, ...(campaigns ? { campaigns } : {}) },
     alert: async (n) => news.push(n),
     schedule: async (kind, dueAt, payload) => later.push([kind, dueAt, payload]),
     deadline: Date.now() + 60_000,
@@ -382,21 +403,28 @@ test("the door holds a text until the line is approved, an email to an address t
     "its row says why it never left",
   );
   // The allowance: texts used up hold the text and nobody else; emails likewise. Never moved to another channel.
+  // Cy has a uuid for an id here: a broadcast's email is the business's news, an offer at the door (decision D2), whose link out
+  // is sealed for the person (channels signUnsubscribeToken).
+  const CY = "00000000-0000-4000-8000-000000000003";
   for (const [month, held] of [
     [500, ["k2"]],
-    [2000, ["k3"]],
+    [2000, [CY]],
   ]) {
     // A broadcast's run, which the month counts (a visit's message that offers nothing is not held by it: heldByAllowance).
     // Cy's yes covers email: a broadcast's email of the business's news asks it (decision D1), and this case is the month's.
+    const contacts = people().map((c) =>
+      c.id === "k3" ? { ...c, id: CY, consent_channels: ["whatsapp", "sms", "email"] } : c,
+    );
     const t = world({
-      contacts: people().map((c) => (c.id === "k3" ? { ...c, consent_channels: ["whatsapp", "sms", "email"] } : c)),
+      contacts,
+      broadcast_recipients: [recipient("k1", "whatsapp"), recipient("k2", "sms"), recipient(CY, "email")],
     });
     t.broadcasts[0] = {
       ...t.broadcasts[0],
       playbook_id: null,
       audience: { kind: "everyone", id: null, label: "Everyone" },
     };
-    const c = context(t, { monthSent: month });
+    const c = context(t, { monthSent: month, campaigns: LANE });
     try {
       await dispatchJob(c.ctx, JOB);
     } finally {

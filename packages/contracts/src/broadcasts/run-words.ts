@@ -53,9 +53,12 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   paused: "the workspace was paused",
   superseded_by_human: "a person answered first",
   sms_carries_no_promotions: "no offers by text",
-  email_marketing_disabled: "offers by email are not set up yet",
-  // The workspace's offers by email are paused while complaints or bounces settle (email-offers.ts); reminders still go.
-  email_offers_paused: "offers by email are paused",
+  // The campaigns domain offers leave from is not this deployment's to use, or the provider does not verify it: the business's
+  // news by email is an offer at the door (decision D2), so it waits as an offer does. Each person's own skip, final.
+  email_marketing_disabled: "offers and news by email can't leave yet: the campaigns domain isn't switched on",
+  // The workspace's offers by email are paused while complaints or bounces settle (email-offers.ts), and the business's news
+  // by email with them (decision D2); a visit's reminder and a reply still go.
+  email_offers_paused: "offers and news by email are paused",
   // An offer's foot names the business's address, and it has none on file: the person is held until it does.
   no_business_address: "no business address on file",
   email_suppressed: "their email address stopped accepting mail",
@@ -84,3 +87,32 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   sending_domain_not_ready: "the domain isn't sending",
   sending_domain_at_cap: "the domain's day is full",
 };
+
+/**
+ * The two reasons the workspace, not the person, holds an email for: its offers and news by email paused by a gate, and a
+ * campaigns domain that cannot be used. A run that also goes another way skips each email person for them, one by one, and
+ * goes on (core broadcast-stops.ts).
+ */
+export const EMAIL_HOLDS = [
+  "email_offers_paused",
+  "email_marketing_disabled",
+] as const satisfies readonly DeliveryRefusal[];
+export type EmailHold = (typeof EMAIL_HOLDS)[number];
+
+/**
+ * The reasons a finished run gives for the people it held back, in one list for its news (core broadcast.ts finishedNews):
+ * a run's tally counts who was held, not why, so the news names what any run is held for, each in the words the run's own
+ * page gives (HELD_REASONS). The workspace's holds on email are named only where this run skipped someone for one
+ * (`emailHeld`): a run that went on past its email people must say that is what happened to them, and a run nobody was
+ * held on for it must not suggest it.
+ */
+export function finishedRunHeldWhy(emailHeld: readonly EmailHold[]): string {
+  const why = [
+    HELD_REASONS.not_opted_in,
+    HELD_REASONS.opted_out,
+    HELD_REASONS.no_phone,
+    HELD_REASONS.human_has_it,
+    ...EMAIL_HOLDS.filter((r) => emailHeld.includes(r)).map((r) => HELD_REASONS[r]),
+  ];
+  return `${why.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
+}

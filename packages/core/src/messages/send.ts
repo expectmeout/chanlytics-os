@@ -86,6 +86,8 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
       // One message to one person in their own thread (a reply, the receptionist's, a person's written one): theirs.
       // A campaign's news goes by the broadcast's batch, which says ours (contracts MessageAbout, decision D1).
       about: "theirs",
+      // No moment's: a reply is no playbook's run, so there is nothing for the door to pass the handover pause for.
+      trigger: null,
       body: p.body ?? msg.body ?? "",
       template: p.template,
       // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.

@@ -629,6 +629,44 @@ test("a failed run's report says why it stopped and how to get past it, in the c
   );
 });
 
+test("a playbook's run that a billing pause stopped is told its own next step on the page, never to send it again; a broadcast keeps the page's words", () => {
+  const stopped = (broadcast, recipients = []) =>
+    C.toRunReportVM(
+      { broadcast: { state: "failed", failure: "paused", params: [], ...broadcast }, recipients },
+      { windowMs: C.REPLY_WINDOW_MS, nowMs: T0 },
+    ).stop;
+  // A broadcast: as before.
+  assert.equal(stopped({ playbook_id: null, audience: null }).fix, "Unpause it under Settings, then send it again.");
+  // A playbook's: Run now answers already-ran-today, and a re-send reaches the whole list. Tomorrow's run reaches who this one
+  // did not; a visit's moment is for the day of the visit.
+  const win = stopped({ playbook_id: "p1", audience: { kind: "playbook", id: "p1", trigger: "quiet_30" } });
+  assert.equal(
+    win.fix,
+    "Resume from Settings › Billing. It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
+  );
+  assert.equal(win.tone, "warn");
+  const visit = stopped({ playbook_id: "p1", audience: { kind: "playbook", id: "p1", trigger: "visit_tomorrow" } });
+  assert.match(
+    visit.fix,
+    /a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later\.$/,
+  );
+  // A playbook's run that reached some people first says the same: its next step is not a resend either.
+  const sent = [
+    { contact_id: "got", name: "Ada Lee", first_name: "Ada", state: "sent", sent_at: at(0), replied: false },
+  ];
+  assert.equal(
+    stopped({ playbook_id: "p1", audience: { trigger: "quiet_30" } }, sent).fix,
+    win.fix,
+    "however far it got",
+  );
+  // Another stop is worded as ever, for a playbook's run too: only the pause is the owner's to resume.
+  const wire = C.toRunReportVM(
+    { broadcast: { state: "failed", failure: "run_interrupted", params: [], playbook_id: "p1" }, recipients: [] },
+    { windowMs: C.REPLY_WINDOW_MS, nowMs: T0 },
+  ).stop;
+  assert.equal(wire.fix, C.broadcastFailureFix("run_interrupted"));
+});
+
 test("each part of a run's report says its own words: the span its bars cover, why the unreached were not reached, who answered, and each figure when nothing came back", () => {
   const person = (over) => ({
     contact_id: "p",

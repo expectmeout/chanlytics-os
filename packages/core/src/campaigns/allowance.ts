@@ -37,6 +37,12 @@ export function allowanceRecord(held: number, unheld: number): Record<string, nu
  * Which of a run's people are past the month's room, in the order given. The month's count is read for a channel only
  * when somebody goes by it, and not at all for a send the allowance never holds, so a WhatsApp run, a visit run and a
  * run with nobody on email or text cost no read. A read that fails throws: a count that could not be made is not room.
+ *
+ * The month it counts is the one `ports.monthSent` reads, which is the run's opening moment's, not necessarily now: a
+ * broadcast may be scheduled thirty days ahead, and one made on the 28th for the 1st would otherwise be held past the room
+ * of the month it was made in, as a final skip, though it sends in a new one. A caller whose run opens at a moment other than
+ * now (a broadcast's `when`) gives the moment to the port it hands in (create-broadcast.ts); a playbook's run is made when it
+ * sends, and hands in the port as it is.
  */
 export async function pastTheMonth<T extends { channel: ConsentChannel }>(
   ports: { monthSent(channel: keyof MonthSent): Promise<number> },

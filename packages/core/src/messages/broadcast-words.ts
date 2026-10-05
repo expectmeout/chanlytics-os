@@ -1,6 +1,7 @@
 /**
  * What a broadcast says to its owner when it stops on a wire, in the owner's words, one set per channel (broadcast.ts).
  */
+import type { RunStop } from "@chanlytics/contracts";
 import type { Channel } from "../deliver";
 
 /**
@@ -77,6 +78,30 @@ export const WIRE_WORDS: Record<
     to: "the mail provider",
   },
 };
+
+/** "N people got it", "One person got it", "Nobody got it", or nothing when the count could not be read. */
+export function gotIt(sent: number | null): string {
+  if (sent === null) return "";
+  return sent === 0 ? "Nobody got it." : sent === 1 ? "One person got it." : `${sent} people got it.`;
+}
+
+/** Why each stop for the workspace left the rest unsent (contracts RunStop), before how many the run had reached. */
+const RUN_STOP_CAUSE: Record<RunStop, string> = {
+  paused: "The workspace is paused until billing resumes, so the rest was not sent.",
+  email_offers_paused: "Offers by email are paused while complaints and bounces settle, so the rest was not sent.",
+  campaigns_domain_unverified:
+    "The domain offers by email go out from is not verified with the mail provider right now, so the rest was not sent.",
+};
+
+/**
+ * What a run says when it stops for a fact about the whole workspace (broadcast-stops.ts stopForTheWorkspace), in the
+ * owner's words: the cause, with how many it reached first (`sent`, null where that could not be counted). What to do next
+ * is contracts stoppedRunFix, by whose run it was. A run a pause let reach nobody says "nothing went out", as it always has.
+ */
+export function stoppedRunCause(why: RunStop, sent: number | null): string {
+  if (why === "paused" && sent === 0) return "The workspace is paused until billing resumes, so nothing went out.";
+  return [RUN_STOP_CAUSE[why], gotIt(sent)].filter(Boolean).join(" ");
+}
 
 /**
  * What a run says when the mail provider's own limit is used up (channels resendLimitOf: the day's or the month's): a no
