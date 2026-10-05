@@ -254,6 +254,20 @@ const ahSlide = (from, stage, hero) => {
 // must end) and the agent's mode, and while the agent speaks it feeds the three its voice (mascot mood.ts `voice`),
 // read off the client twenty times a second. Where the device cannot (no microphone, or no secure page) `can` is
 // false and nothing starts.
+// A question on its way warms the model's cache (legacy-bridge/ask/api.ts warmModel; the server's ask/warm.ts): words on
+// the Line, typed or heard, that are more than a jump -- two words or more, eight characters, and no page, person,
+// thread or call they reach -- so the answer's first words come about two seconds sooner after Ask has stood idle. The
+// bridge sends one warm in four minutes however often it is asked; a hold on the mic asks through its session.
+const AH_WARM_CHARS = 8;
+const useAskWarm = ({ A, open, query }) => {
+  useAhEffect(() => {
+    const q = (query || "").trim();
+    if (!open || !A || !A.warmModel || q.length < AH_WARM_CHARS || !q.includes(" ")) return;
+    if (A.jump && A.jump(q).length) return;
+    A.warmModel();
+  }, [A, open, query]);
+};
+
 const AH_VOICE_LEVEL_MS = 50;
 const useAskVoice = ({ A, M }) => {
   const [up, setUp] = useAhState(false);
@@ -292,6 +306,6 @@ const useAskVoice = ({ A, M }) => {
 };
 
 window.AskHooks = {
-  useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech, useAskVoice, useAskPin, useAskLatest,
+  useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech, useAskVoice, useAskWarm, useAskPin, useAskLatest,
   pinNow: ahPinNow, pinTop: ahPinTop, latestShown: ahLatestShown, slide: ahSlide, slideFrom: ahSlideFrom,
 };
