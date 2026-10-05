@@ -4,7 +4,7 @@
  * and the Setup row. No Stripe client, no network: the edge applies what
  * planBilling decides, and the tests read the same functions.
  */
-import { agoWords, DAY_MS, formatterOnUse } from "../shared/time";
+import { agoWords, DAY_MS, formatterOnUse, numberFormat } from "../shared/time";
 
 export const BILLING_MODES = ["stripe", "direct"] as const;
 export type BillingMode = (typeof BILLING_MODES)[number];
@@ -358,7 +358,7 @@ export function trialWords(trialEnd: string | null | undefined, nowMs: number): 
 /** "$49.00 a month" from Stripe's own figures; "" when the price is not readable. */
 export function priceWords(p: BillingPriceDto | null | undefined): string {
   if (!p || p.unit_amount === null) return "";
-  const amount = new Intl.NumberFormat("en-US", { style: "currency", currency: p.currency.toUpperCase() }).format(
+  const amount = numberFormat("en-US", { style: "currency", currency: p.currency.toUpperCase() }).format(
     p.unit_amount / 100,
   );
   const per =
@@ -602,9 +602,7 @@ export const CHECKOUT_OUTCOME_WORDS: Record<string, string> = {
 /** "$49.00" from cents and a currency, as Stripe states them. */
 export function moneyWords(amountCents: number, currency: string): string {
   try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(
-      amountCents / 100,
-    );
+    return numberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(amountCents / 100);
   } catch {
     return `${(amountCents / 100).toFixed(2)} ${currency.toUpperCase()}`;
   }

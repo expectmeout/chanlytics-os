@@ -23,6 +23,7 @@ import { NO_LINK_DETAILS } from "../config/no-booking-link";
 import { keyParts } from "./day-keys";
 import { WEEKDAY_KEYS, clockInZone, dayPlusInZone, localToUtcMs } from "./zone-math";
 import type { BusyBlock } from "./feed";
+import { dateFormat } from "../shared/time";
 
 /* ----------------------------------------------------------- the windows */
 
@@ -176,7 +177,7 @@ export function freeWindows(input: FreeWindowsInput): Opening[] {
         // Noon on that local day: an instant the day owns whichever way the
         // clock moved, where midnight on a spring-forward day may not exist
         // and 1 AM on an autumn one happens twice.
-        label: new Intl.DateTimeFormat("en-US", {
+        label: dateFormat("en-US", {
           timeZone: input.tz,
           weekday: "long",
           month: "long",
@@ -231,7 +232,7 @@ export function filterOpenings(
 
 /** "2:00 PM – 4:30 PM" in the business's zone. */
 function span(tz: string, start: number, end: number): string {
-  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  const f = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
   return `${f.format(new Date(start))} – ${f.format(new Date(end))}`;
 }
 

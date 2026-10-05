@@ -3,6 +3,7 @@
  * and the calendar day an instant falls on and the days after it, counted by the calendar and never by the clock.
  * The feed (feed.ts), the open times (availability.ts) and the board (calendar.ts) read a zone through here.
  */
+import { dateFormat } from "../shared/time";
 
 /* ------------------------------------------------------------- zone math */
 
@@ -17,7 +18,7 @@ interface ZoneParts {
 }
 
 export function zoneParts(tz: string, at: Date): ZoneParts {
-  const parts = new Intl.DateTimeFormat("en-US", {
+  const parts = dateFormat("en-US", {
     timeZone: tz,
     hourCycle: "h23",
     weekday: "short",

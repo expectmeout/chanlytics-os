@@ -38,7 +38,7 @@ import {
 } from "./lead-words";
 import { formatPhoneDisplay } from "../shared/phone";
 import { initialsOf } from "../conversations/thread-contact";
-import { DAY_MS } from "../shared/time";
+import { dateFormat, DAY_MS } from "../shared/time";
 
 /* ---------------------------------------------------------------- the peek */
 
@@ -200,7 +200,7 @@ export function leadWeekSummary(week: LeadWeekRow[]): string {
  * the end of the day. The listing's own order is kept; today is the business's own day (tz).
  */
 export function leadWeekBars(hours: { day: string; hours: string }[], tz: string, now: Date): LeadWeekRow[] {
-  const today = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(now).toLowerCase();
+  const today = dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(now).toLowerCase();
   return hours.map((h) => {
     const text = h.hours.trim();
     let bar: LeadWeekRow["bar"] = null;
@@ -224,10 +224,10 @@ function dayIn(tz: string, iso: string | null, now: Date): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
   const key = (d: Date) =>
-    new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+    dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   if (key(at) === key(now)) return "today";
   if (key(at) === key(new Date(now.getTime() - DAY_MS))) return "yesterday";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at);
+  return dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at);
 }
 
 /**
@@ -467,9 +467,7 @@ export function leadSearchWords(
   tz: string,
 ): { askedLine: string; keepsLine: string } {
   if (!s) return { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS };
-  const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(
-    new Date(s.asked_on),
-  );
+  const day = dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(s.asked_on));
   // A list of the owner's own (00242) asked the finder for nothing: it says where it came from.
   if (s.via === "import")
     return { askedLine: `Your list, imported on ${day}: “${s.asked}”.`, keepsLine: LEAD_REMOVE_KEEPS };

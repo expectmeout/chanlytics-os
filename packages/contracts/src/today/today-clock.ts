@@ -2,7 +2,7 @@
  * Today's clock words: a time, a day and a wait said in the workspace's own zone, never the reader's. Every
  * module of the brief that names a moment reads it from here.
  */
-import { DAY_MS } from "../shared/time";
+import { dateFormat, DAY_MS } from "../shared/time";
 
 /** Wall-clock time AT THE SALON, whatever clock the reader is holding. */
 /**
@@ -15,7 +15,7 @@ export function tzClock(iso: string | null | undefined, tz: string, now: Date): 
   if (!iso || !t) return t;
   const key = (d: Date) => {
     try {
-      return new Intl.DateTimeFormat("en-CA", {
+      return dateFormat("en-CA", {
         timeZone: tz,
         year: "numeric",
         month: "2-digit",
@@ -29,7 +29,7 @@ export function tzClock(iso: string | null | undefined, tz: string, now: Date): 
   if (day === key(now)) return t;
   if (day === key(new Date(now.getTime() + DAY_MS))) return `tomorrow ${t}`;
   try {
-    return `${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`;
+    return `${dateFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`;
   } catch {
     return t;
   }
@@ -46,7 +46,7 @@ export function tzSince(iso: string | null | undefined, tz: string, now: Date): 
   if (!iso || !t) return t;
   const dayNumber = (d: Date): number => {
     try {
-      const parts = new Intl.DateTimeFormat("en-CA", {
+      const parts = dateFormat("en-CA", {
         timeZone: tz,
         year: "numeric",
         month: "2-digit",
@@ -64,9 +64,9 @@ export function tzSince(iso: string | null | undefined, tz: string, now: Date): 
   if (days <= 0) return t;
   if (days === 1) return `yesterday ${t}`;
   try {
-    const within: Intl.DateTimeFormatOptions =
+    const within: Intl.DateTimeFormatOptions & { timeZone: string } =
       days < 7 ? { weekday: "short", timeZone: tz } : { month: "short", day: "numeric", timeZone: tz };
-    const day = new Intl.DateTimeFormat("en-US", within).format(new Date(iso));
+    const day = dateFormat("en-US", within).format(new Date(iso));
     return days < 7 ? `${day} ${t}` : `${day}, ${t}`;
   } catch {
     return t;
@@ -76,7 +76,7 @@ export function tzSince(iso: string | null | undefined, tz: string, now: Date): 
 export function tzTime(iso: string | null | undefined, tz: string): string | null {
   if (!iso) return null;
   try {
-    return new Intl.DateTimeFormat("en-US", {
+    return dateFormat("en-US", {
       hour: "numeric",
       minute: "2-digit",
       timeZone: tz,
@@ -93,7 +93,7 @@ export function tzDayAndTime(iso: string | null, tz: string, now: Date): string 
   // The tenant's calendar day, not a 24-hour multiple: at 8 AM, a message
   // from 9:15 AM yesterday is "yesterday", however few hours ago it was.
   const key = (d: Date) =>
-    new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+    dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   const toUtc = (k: string) => Date.UTC(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, Number(k.slice(8, 10)));
   const days = Math.round((toUtc(key(now)) - toUtc(key(new Date(iso)))) / DAY_MS);
   if (days < 1) return t;
@@ -101,10 +101,10 @@ export function tzDayAndTime(iso: string | null, tz: string, now: Date): string 
   try {
     const d = new Date(iso);
     if (days < 7) {
-      const day = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: tz }).format(d);
+      const day = dateFormat("en-US", { weekday: "long", timeZone: tz }).format(d);
       return `${day} at ${t}`;
     }
-    const md = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", timeZone: tz }).format(d);
+    const md = dateFormat("en-US", { month: "long", day: "numeric", timeZone: tz }).format(d);
     return `${md} at ${t}`;
   } catch {
     return t;

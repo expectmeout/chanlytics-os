@@ -51,6 +51,47 @@ export function formatterOnUse(
   return { format: (date) => (built ??= new Intl.DateTimeFormat(locales, options)).format(date) };
 }
 
+/** How many formatters each cache keeps before it starts again: zones times shapes, which a page uses a handful of. */
+const FORMATS_KEPT = 256;
+const DATE_FORMATS = new Map<string, Intl.DateTimeFormat>();
+const NUMBER_FORMATS = new Map<string, Intl.NumberFormat>();
+
+/** One formatter per locale and options, built on its first use and kept. */
+function formatterKept<F>(cache: Map<string, F>, key: string, make: () => F): F {
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const made = make();
+  if (cache.size >= FORMATS_KEPT) cache.clear();
+  cache.set(key, made);
+  return made;
+}
+
+/**
+ * A date formatter for a named zone, built once per locale and options and kept: building one costs far more than
+ * using it, and a list builds one per row (a Leads row built three for when it was found, 12% of a switch to Leads at
+ * 200 rows, 5 Oct 2026). Only for a zone the caller names: one in the runtime's own zone is built where it is used
+ * (formatterOnUse says why). An unknown zone throws as the constructor does, and nothing is kept.
+ */
+export function dateFormat(
+  locales: string,
+  options: Intl.DateTimeFormatOptions & { timeZone: string },
+): Intl.DateTimeFormat {
+  return formatterKept(
+    DATE_FORMATS,
+    `${locales}|${JSON.stringify(options)}`,
+    () => new Intl.DateTimeFormat(locales, options),
+  );
+}
+
+/** A number formatter (money, a count), built once per locale and options and kept, as dateFormat's are. */
+export function numberFormat(locales: string, options: Intl.NumberFormatOptions): Intl.NumberFormat {
+  return formatterKept(
+    NUMBER_FORMATS,
+    `${locales}|${JSON.stringify(options)}`,
+    () => new Intl.NumberFormat(locales, options),
+  );
+}
+
 /** "Sep 6", in the runtime's own locale and zone: the date a sentence gives once a count would read oddly. */
 export const DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
 

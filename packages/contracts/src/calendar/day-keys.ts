@@ -4,6 +4,7 @@
  * playbooks and Reach out step days here.
  */
 import { localToUtcMs } from "./zone-math";
+import { dateFormat } from "../shared/time";
 
 /* ------------------------------------------------------------ day keys */
 
@@ -56,7 +57,7 @@ export function shiftMonth(key: string, n: number): string {
 /** "September 2026": the key's month for every viewer, its first's UTC noon said in UTC (calendar-words.ts says why). */
 export function monthLabelOf(key: string): string {
   const { y, m } = keyParts(key);
-  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(
+  return dateFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(
     new Date(Date.UTC(y, m - 1, 1, 12)),
   );
 }

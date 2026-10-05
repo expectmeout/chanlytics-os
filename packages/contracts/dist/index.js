@@ -181,6 +181,31 @@ function formatterOnUse(locales, options) {
   let built = null;
   return { format: (date) => (built ??= new Intl.DateTimeFormat(locales, options)).format(date) };
 }
+var FORMATS_KEPT = 256;
+var DATE_FORMATS = /* @__PURE__ */ new Map();
+var NUMBER_FORMATS = /* @__PURE__ */ new Map();
+function formatterKept(cache, key, make) {
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const made = make();
+  if (cache.size >= FORMATS_KEPT) cache.clear();
+  cache.set(key, made);
+  return made;
+}
+function dateFormat(locales, options) {
+  return formatterKept(
+    DATE_FORMATS,
+    `${locales}|${JSON.stringify(options)}`,
+    () => new Intl.DateTimeFormat(locales, options)
+  );
+}
+function numberFormat(locales, options) {
+  return formatterKept(
+    NUMBER_FORMATS,
+    `${locales}|${JSON.stringify(options)}`,
+    () => new Intl.NumberFormat(locales, options)
+  );
+}
 var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
 function spanUnits(ms2) {
   const gap = Math.max(0, ms2);
@@ -801,7 +826,7 @@ function guardrailsInForce(g) {
 
 // src/calendar/zone-math.ts
 function zoneParts(tz, at3) {
-  const parts2 = new Intl.DateTimeFormat("en-US", {
+  const parts2 = dateFormat("en-US", {
     timeZone: tz,
     hourCycle: "h23",
     weekday: "short",
@@ -891,7 +916,7 @@ function shiftMonth(key, n) {
 }
 function monthLabelOf(key) {
   const { y, m } = keyParts(key);
-  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(
+  return dateFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(
     new Date(Date.UTC(y, m - 1, 1, 12))
   );
 }
@@ -5354,10 +5379,10 @@ function clockIn(tz, iso, now) {
   if (!iso) return "\u2014";
   const at3 = new Date(iso);
   if (Number.isNaN(at3.getTime())) return "\u2014";
-  const day = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
-  const clock3 = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at3);
+  const day = (d) => dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const clock3 = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at3);
   if (day(at3) === day(now)) return clock3;
-  return `${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at3)}, ${clock3}`;
+  return `${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at3)}, ${clock3}`;
 }
 var METRES_PER_MILE = 1609.344;
 var milesLabel = (m) => {
@@ -5369,9 +5394,9 @@ var milesLabel = (m) => {
 // src/leads/lead-facts.ts
 function leadTodayLine(hours, tz, now) {
   if (!hours.length) return null;
-  const dayOf2 = (d) => new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
+  const dayOf2 = (d) => dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
   const hoursOn = (d) => hours.find((x) => x.day.toLowerCase() === dayOf2(d))?.hours.trim() ?? null;
-  const parts2 = new Intl.DateTimeFormat("en-US", {
+  const parts2 = dateFormat("en-US", {
     timeZone: tz,
     hour: "numeric",
     minute: "numeric",
@@ -5584,7 +5609,7 @@ function leadWeekSummary(week) {
   return days;
 }
 function leadWeekBars(hours, tz, now) {
-  const today = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(now).toLowerCase();
+  const today = dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(now).toLowerCase();
   return hours.map((h) => {
     const text = h.hours.trim();
     let bar = null;
@@ -5605,10 +5630,10 @@ function dayIn(tz, iso, now) {
   if (!iso) return "";
   const at3 = new Date(iso);
   if (Number.isNaN(at3.getTime())) return "";
-  const key = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const key = (d) => dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   if (key(at3) === key(now)) return "today";
   if (key(at3) === key(new Date(now.getTime() - DAY_MS))) return "yesterday";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at3);
+  return dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at3);
 }
 function foundWords(r2, term) {
   const host = r2.website;
@@ -5770,9 +5795,7 @@ function toLeadPeekVM(r2, search, tz, now) {
 var LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to.";
 function leadSearchWords(s, tz) {
   if (!s) return { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS };
-  const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(
-    new Date(s.asked_on)
-  );
+  const day = dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(s.asked_on));
   if (s.via === "import")
     return { askedLine: `Your list, imported on ${day}: \u201C${s.asked}\u201D.`, keepsLine: LEAD_REMOVE_KEEPS };
   if (s.via === "chosen") return { askedLine: `Leads you chose on ${day}.`, keepsLine: LEAD_REMOVE_KEEPS };
@@ -9312,7 +9335,7 @@ var DAY_WORDS = [
 ];
 function dayKey(atMs, tz) {
   try {
-    return new Intl.DateTimeFormat("en-CA", {
+    return dateFormat("en-CA", {
       timeZone: tz || "UTC",
       year: "numeric",
       month: "2-digit",
@@ -12008,7 +12031,7 @@ function freeWindows(input) {
         // Noon on that local day: an instant the day owns whichever way the
         // clock moved, where midnight on a spring-forward day may not exist
         // and 1 AM on an autumn one happens twice.
-        label: new Intl.DateTimeFormat("en-US", {
+        label: dateFormat("en-US", {
           timeZone: input.tz,
           weekday: "long",
           month: "long",
@@ -12049,7 +12072,7 @@ function filterOpenings(openings, by) {
   return first.map((o) => ({ ...o, windows: o.windows.filter((w) => w.end - w.start >= minMs) })).filter((o) => o.windows.length > 0);
 }
 function span(tz, start, end) {
-  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  const f = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
   return `${f.format(new Date(start))} \u2013 ${f.format(new Date(end))}`;
 }
 function describeOpenings(openings, tz, opts) {
@@ -12801,13 +12824,13 @@ function visitDay(start, tz, nowMs) {
   const tomorrow = dayPlusInZone(tz, nowMs, 1).key;
   if (key === today) return "Today";
   if (key === tomorrow) return "Tomorrow";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(
+  return dateFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(
     new Date(ms(start))
   );
 }
 function visitTime(v, tz) {
   if (v.allDay || v.all_day) return "all day";
-  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  const f = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
   const a = f.format(new Date(ms(v.start)));
   const b = f.format(new Date(ms(v.end)));
   const sameHalf = a.slice(-2) === b.slice(-2);
@@ -12818,9 +12841,7 @@ function visitDateKey(start, tz) {
 }
 function visitStartTime(v, tz) {
   if (v.allDay || v.all_day) return "all day";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(
-    new Date(ms(v.start))
-  );
+  return dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
 }
 function visitLine(v, tz, nowMs) {
   return `${visitDay(v.start, tz, nowMs)} \xB7 ${visitTime(v, tz)}`;
@@ -12836,7 +12857,7 @@ function describeVisits(visits, tz, nowMs, opts) {
   if (visits.last) {
     const l = visits.last;
     out.push(
-      `Their last visit on the calendar: ${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`
+      `Their last visit on the calendar: ${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`
     );
   }
   return out.length ? out.join(" ") : null;
@@ -14078,7 +14099,7 @@ function offersAskRule() {
 // src/config/workspace-config/compose.ts
 function dateKeyInZone(tz, at3) {
   try {
-    const parts2 = new Intl.DateTimeFormat("en-US", {
+    const parts2 = dateFormat("en-US", {
       timeZone: tz,
       year: "numeric",
       month: "2-digit",
@@ -14094,7 +14115,7 @@ function dateKeyInZone(tz, at3) {
 function labelDate(key, withWeekday) {
   const at3 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   if (Number.isNaN(at3.getTime()) || dateKeyInZone("UTC", at3) !== key) return key;
-  return new Intl.DateTimeFormat("en-US", {
+  return dateFormat("en-US", {
     timeZone: "UTC",
     ...withWeekday ? { weekday: "long" } : {},
     month: "long",
@@ -14127,7 +14148,7 @@ var NO_CLOCK = "You do not know today's date or the current time. If a customer 
 function describeNow(tz, now = /* @__PURE__ */ new Date(), closures) {
   if (!tz) return NO_CLOCK;
   try {
-    const stamp = new Intl.DateTimeFormat("en-US", {
+    const stamp = dateFormat("en-US", {
       weekday: "long",
       month: "long",
       day: "numeric",
@@ -16271,7 +16292,7 @@ function trialWords(trialEnd, nowMs) {
 }
 function priceWords(p) {
   if (!p || p.unit_amount === null) return "";
-  const amount = new Intl.NumberFormat("en-US", { style: "currency", currency: p.currency.toUpperCase() }).format(
+  const amount = numberFormat("en-US", { style: "currency", currency: p.currency.toUpperCase() }).format(
     p.unit_amount / 100
   );
   const per = p.interval === "year" ? "a year" : p.interval === "week" ? "a week" : p.interval === "day" ? "a day" : "a month";
@@ -16430,9 +16451,7 @@ var CHECKOUT_OUTCOME_WORDS = {
 };
 function moneyWords(amountCents, currency) {
   try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(
-      amountCents / 100
-    );
+    return numberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(amountCents / 100);
   } catch {
     return `${(amountCents / 100).toFixed(2)} ${currency.toUpperCase()}`;
   }
@@ -17787,7 +17806,7 @@ function conversationMoveAllowed(move, state) {
 function amountWords(cents, per, currency = "USD") {
   if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
   const whole = cents % 100 === 0;
-  const money2 = new Intl.NumberFormat("en-US", {
+  const money2 = numberFormat("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
     minimumFractionDigits: whole ? 0 : 2,
@@ -18786,7 +18805,7 @@ function planRun(mode, now) {
 }
 function parts(tz, now) {
   try {
-    const f = new Intl.DateTimeFormat("en-CA", {
+    const f = dateFormat("en-CA", {
       timeZone: tz,
       year: "numeric",
       month: "2-digit",
@@ -19320,7 +19339,7 @@ function visitDayWord(visit, tz, sendAt, assumed) {
   if (delta === 0) return "today";
   if (delta === -1) return "yesterday";
   try {
-    return `on ${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
+    return `on ${dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
   } catch {
     return delta > 0 ? "soon" : "recently";
   }
@@ -23498,9 +23517,7 @@ function approvalWordsOf(r2, p) {
     }))
   };
 }
-var runDayWords = (runFor) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(
-  /* @__PURE__ */ new Date(`${runFor}T12:00:00Z`)
-);
+var runDayWords = (runFor) => dateFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(/* @__PURE__ */ new Date(`${runFor}T12:00:00Z`));
 function chainPaceOf(c) {
   return {
     host: c.domains.length === 1 ? c.domains[0].host : null,
@@ -24458,9 +24475,9 @@ function comingUpOf({ profile, nowMs, base }) {
         t,
         vm: {
           id: `v-${v.id}`,
-          month: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short" }).format(new Date(t)),
-          date: new Intl.DateTimeFormat("en-US", { timeZone: zone, day: "numeric" }).format(new Date(t)),
-          day: on === "Today" || on === "Tomorrow" ? on : new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" }).format(new Date(t)),
+          month: dateFormat("en-US", { timeZone: zone, month: "short" }).format(new Date(t)),
+          date: dateFormat("en-US", { timeZone: zone, day: "numeric" }).format(new Date(t)),
+          day: on === "Today" || on === "Tomorrow" ? on : dateFormat("en-US", { timeZone: zone, weekday: "short" }).format(new Date(t)),
           title: visitTitleFor(v.title, base.name),
           time: visitTime(v, zone),
           byName: v.via === "name",
@@ -29523,7 +29540,7 @@ function tzClock(iso, tz, now) {
   if (!iso || !t) return t;
   const key = (d) => {
     try {
-      return new Intl.DateTimeFormat("en-CA", {
+      return dateFormat("en-CA", {
         timeZone: tz,
         year: "numeric",
         month: "2-digit",
@@ -29537,7 +29554,7 @@ function tzClock(iso, tz, now) {
   if (day === key(now)) return t;
   if (day === key(new Date(now.getTime() + DAY_MS))) return `tomorrow ${t}`;
   try {
-    return `${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`;
+    return `${dateFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`;
   } catch {
     return t;
   }
@@ -29547,7 +29564,7 @@ function tzSince(iso, tz, now) {
   if (!iso || !t) return t;
   const dayNumber2 = (d) => {
     try {
-      const parts2 = new Intl.DateTimeFormat("en-CA", {
+      const parts2 = dateFormat("en-CA", {
         timeZone: tz,
         year: "numeric",
         month: "2-digit",
@@ -29563,7 +29580,7 @@ function tzSince(iso, tz, now) {
   if (days === 1) return `yesterday ${t}`;
   try {
     const within2 = days < 7 ? { weekday: "short", timeZone: tz } : { month: "short", day: "numeric", timeZone: tz };
-    const day = new Intl.DateTimeFormat("en-US", within2).format(new Date(iso));
+    const day = dateFormat("en-US", within2).format(new Date(iso));
     return days < 7 ? `${day} ${t}` : `${day}, ${t}`;
   } catch {
     return t;
@@ -29572,7 +29589,7 @@ function tzSince(iso, tz, now) {
 function tzTime(iso, tz) {
   if (!iso) return null;
   try {
-    return new Intl.DateTimeFormat("en-US", {
+    return dateFormat("en-US", {
       hour: "numeric",
       minute: "2-digit",
       timeZone: tz
@@ -29585,7 +29602,7 @@ function tzDayAndTime(iso, tz, now) {
   if (!iso) return null;
   const t = tzTime(iso, tz);
   if (!t) return null;
-  const key = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const key = (d) => dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   const toUtc = (k) => Date.UTC(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, Number(k.slice(8, 10)));
   const days = Math.round((toUtc(key(now)) - toUtc(key(new Date(iso)))) / DAY_MS);
   if (days < 1) return t;
@@ -29593,10 +29610,10 @@ function tzDayAndTime(iso, tz, now) {
   try {
     const d = new Date(iso);
     if (days < 7) {
-      const day = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: tz }).format(d);
+      const day = dateFormat("en-US", { weekday: "long", timeZone: tz }).format(d);
       return `${day} at ${t}`;
     }
-    const md = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", timeZone: tz }).format(d);
+    const md = dateFormat("en-US", { month: "long", day: "numeric", timeZone: tz }).format(d);
     return `${md} at ${t}`;
   } catch {
     return t;
@@ -31704,7 +31721,7 @@ function timezoneWords(tz, nowMs = Date.now()) {
   const city = timezoneCity(zone);
   let timeThere;
   try {
-    timeThere = new Intl.DateTimeFormat("en-US", {
+    timeThere = dateFormat("en-US", {
       timeZone: zone,
       hour: "numeric",
       minute: "2-digit"

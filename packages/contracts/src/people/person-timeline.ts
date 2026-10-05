@@ -31,6 +31,7 @@ import { clipAtWord, messageWords } from "../conversations/message-words";
 import type { PersonCardContext } from "./person-cards";
 import { reachOutPersonOf, type ReachOutPersonVM } from "../reach-out/reach-out-leads";
 import { leadsRoute } from "../leads/lead-plan";
+import { dateFormat } from "../shared/time";
 
 export type TimelineKind =
   "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent" | "deal";
@@ -469,12 +470,12 @@ export function comingUpOf({ profile, nowMs, base }: PersonCardContext): PersonV
         t,
         vm: {
           id: `v-${v.id}`,
-          month: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short" }).format(new Date(t)),
-          date: new Intl.DateTimeFormat("en-US", { timeZone: zone, day: "numeric" }).format(new Date(t)),
+          month: dateFormat("en-US", { timeZone: zone, month: "short" }).format(new Date(t)),
+          date: dateFormat("en-US", { timeZone: zone, day: "numeric" }).format(new Date(t)),
           day:
             on === "Today" || on === "Tomorrow"
               ? on
-              : new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" }).format(new Date(t)),
+              : dateFormat("en-US", { timeZone: zone, weekday: "short" }).format(new Date(t)),
           title: visitTitleFor(v.title, base.name),
           time: visitTime(v, zone),
           byName: v.via === "name",

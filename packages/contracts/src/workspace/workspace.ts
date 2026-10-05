@@ -1,5 +1,5 @@
 import { deviceTimezone as signupDeviceTimezone } from "./signup";
-import { timezoneCity } from "../shared/time";
+import { dateFormat, timezoneCity } from "../shared/time";
 
 /**
  * The workspace itself, in words.
@@ -66,7 +66,7 @@ export function timezoneWords(
   const city = timezoneCity(zone);
   let timeThere: string | null;
   try {
-    timeThere = new Intl.DateTimeFormat("en-US", {
+    timeThere = dateFormat("en-US", {
       timeZone: zone,
       hour: "numeric",
       minute: "2-digit",
