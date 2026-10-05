@@ -59,10 +59,10 @@ export async function pgThread(
       history: s.history,
       pausedUntil: s.pausedUntil,
       replies: s.replies,
-      // Carried so the handler does not have to infer "we have written to this
-      // person before" from the history, where a voice call note — an inbound
-      // row whose sender is "system" — reads as an assistant turn.
-      repliedBefore: s.repliedBefore,
+      // Carried so the handler does not have to infer "a text of ours has reached this person" from the history,
+      // where a voice call note (an inbound row whose sender is "system") reads as an assistant turn, and a
+      // campaign on another wire as something we texted.
+      textedBefore: s.textedBefore,
     };
   } catch (e) {
     logger({ tenant_id: tenantId }).error("pg_thread_read_failed", { error: errField(e) });

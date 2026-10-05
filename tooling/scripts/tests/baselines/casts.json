@@ -125,7 +125,7 @@
   },
   "apps/dashboard/src/server/campaigns/broadcasts.ts": {
     "unknownAs": 4,
-    "nonNull": 4
+    "nonNull": 2
   },
   "apps/dashboard/src/server/campaigns/playbook-row.ts": {
     "unknownAs": 1,

@@ -37,17 +37,15 @@ export interface ThreadState {
    */
   unknown?: boolean;
   /**
-   * We have written to this person before, per Postgres.
+   * A text of ours has reached this person before, per Postgres (db readThreadState).
    *
-   * It exists because the question "is this our first reply to them" — which
-   * decides whether a text carries the rates/STOP/HELP footer the campaign
-   * filing promises — cannot be answered from the history: a voice call note
-   * is an INBOUND row whose sender is "system", and assembleHistory maps that
-   * to an assistant turn, so a customer who phoned and then texted for the
-   * first time was taken for someone we had already written to and their
-   * first reply went out without the disclosure.
+   * It exists because the question "is this our first text to them", which decides whether a text carries the
+   * rates/STOP/HELP footer the campaign filing promises, cannot be answered from anything else here. The history reads a
+   * voice call note (an INBOUND row whose sender is "system") as an assistant turn, so a customer who phoned and then
+   * texted for the first time was taken for someone we had already written to. And a message of ours on another wire is
+   * not a text: a person a WhatsApp or email campaign had reached got their first text reply without the disclosure.
    */
-  repliedBefore?: boolean;
+  textedBefore?: boolean;
 }
 
 /**

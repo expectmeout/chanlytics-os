@@ -242,6 +242,92 @@ test(
 );
 
 test(
+  "a START by email is the way back from a STOP, recorded as a text's is: opted in, off the do-not-contact list, the yes covering email",
+  { skip },
+  async () => {
+    const stop = await ingestInboundEmail(db, {
+      ...email("rcv-33", "came-back@example.com", { body: "STOP" }),
+      optOut: true,
+    });
+    assert.deepEqual([stop.consent, stop.dnc], ["opted_out", true]);
+    const start = await ingestInboundEmail(db, {
+      ...email("rcv-34", "came-back@example.com", { body: "START" }),
+      optIn: true,
+    });
+    assert.equal(start.contact_id, stop.contact_id, "the same person");
+    const { data: person } = await db
+      .from("contacts")
+      .select("consent, dnc, consent_channels")
+      .eq("id", start.contact_id)
+      .single();
+    assert.deepEqual([person.consent, person.dnc], ["opted_in", false], "the START undid the STOP");
+    assert.ok((person.consent_channels ?? []).includes("email"), "and their yes covers the wire they said it on");
+    const { data: events } = await db
+      .from("events")
+      .select("data")
+      .eq("tenant_id", tenantId)
+      .eq("subject_id", start.contact_id)
+      .eq("kind", "contact.consent_changed")
+      .order("created_at");
+    assert.deepEqual(
+      events.map((e) => [e.data.consent, e.data.channel, e.data.message_external_id]),
+      [
+        ["opted_out", "email", "rcv-33"],
+        ["opted_in", "email", "rcv-34"],
+      ],
+      "both answers on the ledger, each with the email that said it",
+    );
+
+    // They stop again, by any wire. The provider then delivers the START a second time (or a run resumes): an email
+    // this workspace already holds says nothing new, so the yes is not written over the later no.
+    const again = await ingestInboundEmail(db, {
+      ...email("rcv-35", "came-back@example.com", { body: "STOP" }),
+      optOut: true,
+    });
+    assert.deepEqual([again.consent, again.dnc], ["opted_out", true]);
+    const replay = await ingestInboundEmail(db, {
+      ...email("rcv-34", "came-back@example.com", { body: "START" }),
+      optIn: true,
+    });
+    assert.equal(replay.is_new, false, "the same delivery");
+    const { data: now } = await db.from("contacts").select("consent, dnc").eq("id", start.contact_id).single();
+    assert.deepEqual(now, { consent: "opted_out", dnc: true }, "REGRESSION guard: a repeated START undid a later STOP");
+  },
+);
+
+test(
+  "a person who writes from an address a hard bounce stopped has an address that works: the stop is lifted, for a proven sender and that reason alone",
+  { skip },
+  async () => {
+    const stopped = async (id) =>
+      (await db.from("contacts").select("email_suppressed_at, email_suppressed_reason").eq("id", id).single()).data;
+    const bounce = async (id, reason) => {
+      const { error } = await db
+        .from("contacts")
+        .update({ email_suppressed_at: "2026-09-01T10:00:00Z", email_suppressed_reason: reason })
+        .eq("id", id);
+      assert.equal(error, null, error?.message);
+    };
+    const first = await ingestInboundEmail(db, email("rcv-40", "bounced@example.com"));
+    await bounce(first.contact_id, "hard_bounce");
+
+    // A From anyone can write proves nothing about the mailbox: the stop stays.
+    await ingestInboundEmail(db, email("rcv-41", "bounced@example.com"));
+    assert.equal((await stopped(first.contact_id)).email_suppressed_reason, "hard_bounce");
+
+    // They wrote from it, and the receiving side proved it was them: it takes and sends mail.
+    await ingestInboundEmail(db, { ...email("rcv-42", "bounced@example.com"), fromThemProven: true });
+    assert.deepEqual(await stopped(first.contact_id), { email_suppressed_at: null, email_suppressed_reason: null });
+
+    // A complaint is the person's no, not a fact about the mailbox: writing in does not lift it.
+    const other = await ingestInboundEmail(db, email("rcv-43", "complained@example.com"));
+    await bounce(other.contact_id, "complaint");
+    await ingestInboundEmail(db, { ...email("rcv-44", "complained@example.com"), fromThemProven: true });
+    assert.equal((await stopped(other.contact_id)).email_suppressed_reason, "complaint");
+  },
+);
+
+test(
   "a person the owner already gave this address to is joined, not doubled; what an owner typed is never overwritten",
   { skip },
   async () => {

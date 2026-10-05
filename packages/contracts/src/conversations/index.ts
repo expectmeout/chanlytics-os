@@ -1,7 +1,15 @@
 /** A thread as the pages draw it: the view models, and who has it. */
 export { messageAt, isOptedOut, memberMetaOf } from "./thread-dto";
 export type { MessageDto, ConversationDto } from "./thread-dto";
-export { agentFor, writtenChannelOf, threadChannelOf, threadChannelWords } from "./thread-channel";
+export {
+  agentFor,
+  isFromTheirSide,
+  isTheirOwnWords,
+  lastWroteOn,
+  writtenChannelOf,
+  threadChannelOf,
+  threadChannelWords,
+} from "./thread-channel";
 export { contactName, isIdentifierName, contactMeta, initialsOf } from "./thread-contact";
 export { shortTime, formatWaited } from "./thread-clock";
 export { mediaKind, mediaVM } from "./message-media";
@@ -16,7 +24,7 @@ export {
   messageText,
   clipAtWord,
 } from "./message-words";
-export { messageVia, messageAuthor, messageWhy } from "./message-author";
+export { isAutomatedSend, isPersonsWords, messageVia, messageAuthor, messageWhy } from "./message-author";
 export { HANDLED_OUTCOMES } from "./handled";
 export type { Handled } from "./handled";
 export { REFERRAL_ID_MAX } from "./first-touch";

@@ -87,7 +87,7 @@ const ingested = (n) => ({
 /** The handler's world, recording everything that crosses it. */
 function world(over = {}) {
   // The rows, as Postgres would hold them for this one conversation.
-  const memory = { history: [], replies: [], pausedUntil: 0, repliedBefore: false };
+  const memory = { history: [], replies: [], pausedUntil: 0, textedBefore: false };
   const delivered = new Set();
   const seen = {
     sent: [],
@@ -128,7 +128,7 @@ function world(over = {}) {
               history: memory.history,
               pausedUntil: memory.pausedUntil,
               replies: memory.replies,
-              repliedBefore: memory.repliedBefore,
+              textedBefore: memory.textedBefore,
             })
           : { history: [], pausedUntil: -1, replies: [], unknown: true },
       // Persist first, with the atomic is_new claim that IS the redelivery
@@ -145,7 +145,8 @@ function world(over = {}) {
           // that actually left is something "we said".
           if (out.outcome === "sent") {
             memory.history.push({ role: "assistant", content: body });
-            memory.repliedBefore = true;
+            // A text of ours that left, and only a text (db readThreadState asks the texting wire's rows).
+            if (channel === "sms") memory.textedBefore = true;
             if (!meta?.ack) memory.replies.push(Date.now());
           }
           return out;

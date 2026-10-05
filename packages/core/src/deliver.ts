@@ -38,6 +38,7 @@ import {
 import {
   CARRIER_CONSENT_SOURCE,
   domainDailyCap,
+  isAutomatedSend,
   isOfferByEmail,
   mayMessageFor,
   outreachRefusalOf,
@@ -531,11 +532,8 @@ async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
   // A campaign's email is no person speaking on this thread, whatever its row says wrote the words: a broadcast's, and
   // a reach-out's (written queued, and perhaps refused at this door, in a thread the receptionist is drafting in).
-  // public.automated_send (00303) lists the same sources in SQL, so the two change together.
-  const spoke = (newer ?? []).find((m) => {
-    const source = (m.meta as { source?: unknown } | null)?.source;
-    return source !== "broadcast" && source !== "reach_out";
-  });
+  // Which sends those are is said once (contracts isAutomatedSend, with its SQL twin).
+  const spoke = (newer ?? []).find((m) => !isAutomatedSend(m.meta));
   return spoke ? spoke.id : null;
 }
 

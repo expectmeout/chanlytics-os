@@ -76,7 +76,7 @@ test("a first-time customer is BLANK, not unknown", async () => {
   assert.equal(t.pausedUntil, 0, "a blank thread is not paused");
   assert.deepEqual(t.history, []);
   assert.deepEqual(t.replies, []);
-  assert.equal(t.repliedBefore, false);
+  assert.equal(t.textedBefore, false);
 });
 
 test("a conversation with rows comes back as the memory the gates read", async () => {
@@ -100,8 +100,43 @@ test("a conversation with rows comes back as the memory the gates read", async (
     ["user", "assistant"],
   );
   assert.equal(t.replies.length, 1, "the answer spent one of the day's replies");
-  assert.equal(t.repliedBefore, true, "something of ours has reached this person");
+  assert.equal(t.textedBefore, false, "an answer on WhatsApp is not a text of ours");
   assert.ok(t.pausedUntil > Date.now(), "the pause on the row IS the pause");
+});
+
+test("a text of ours that left is the only thing that says we have texted them: not a message on another wire, not one that never left, not theirs, and however far back it was", async () => {
+  const texted = async (messages) => (await pgThread(fakeDb({ messages }), T, ing())).textedBefore;
+  assert.equal(
+    await texted([
+      row({ id: "w1", created_at: at(60) }),
+      row({ id: "e1", created_at: at(50), channel: "email", sender: "human" }),
+    ]),
+    false,
+    "a WhatsApp answer and an email campaign are not texts",
+  );
+  assert.equal(
+    await texted([row({ id: "s0", created_at: at(60), channel: "sms", status: "failed" })]),
+    false,
+    "a text that never left reached nobody",
+  );
+  assert.equal(
+    await texted([
+      row({
+        id: "s1",
+        created_at: at(60),
+        channel: "sms",
+        direction: "inbound",
+        sender: "customer",
+        status: "received",
+      }),
+    ]),
+    false,
+    "their text is not ours",
+  );
+  // The one text of ours, then a long thread on another wire: the last rows the history reads no longer hold it.
+  const long = [row({ id: "s2", created_at: at(10_000), channel: "sms" })];
+  for (let i = 0; i < 80; i += 1) long.push(row({ id: `w${i}`, created_at: at(9_000 - i), body: `answer ${i}` }));
+  assert.equal(await texted(long), true, "asked of the whole conversation, not of its last rows");
 });
 
 test("a read that FAILED is unknown, and fails closed", async () => {
