@@ -74,3 +74,29 @@ test("the page head is its date, its name as the page's heading and its sentence
   assert.equal(noDate, null);
   assert.equal(bareLine.props.children[1], null);
 });
+
+test("the oldest's time says its day when it is not today, as Today's headline says the same wait (the 2 Oct 2026 audit, A5)", () => {
+  // 1,800 minutes before 4:02 PM on Friday is 10:02 AM on Thursday: a bare "10:02 AM" read as this morning's.
+  assert.equal(
+    inboxStanding([waiting("a", 1_800), waiting("b", 5)], NOW, ZONE),
+    "2 need you · the oldest since yesterday 10:02 AM",
+  );
+  // Four days: the weekday, and past a week the date, in the one spelling Today's headline uses (tzSince).
+  assert.equal(inboxStanding([waiting("a", 4 * 1440)], NOW, ZONE), "1 need you · the oldest since Mon 4:02 PM");
+  assert.equal(inboxStanding([waiting("a", 20 * 1440)], NOW, ZONE), "1 need you · the oldest since Sep 12, 4:02 PM");
+});
+
+test("the oldest's time is the escalation's own: it stays put as the minutes go by, where a count of minutes drifted later", () => {
+  const since = NOW - 96 * MIN;
+  const real = (id) => ({ ...waiting(id, 96), escalatedAtMs: since });
+  assert.equal(inboxStanding([real("a")], NOW, ZONE), "1 need you · the oldest since 2:26 PM");
+  // Eleven minutes on, the page has not read again: waitingMin is still the 96 it was built with.
+  assert.equal(
+    inboxStanding([real("a")], NOW + 11 * MIN, ZONE),
+    "1 need you · the oldest since 2:26 PM",
+    "REGRESSION: it said 2:37 PM, eleven minutes after the wait began",
+  );
+  // The oldest of several, by its own time; a thread with no wait yet gives none.
+  const older = { ...waiting("b", 200), escalatedAtMs: NOW - 200 * MIN };
+  assert.equal(inboxStanding([real("a"), older, waiting("c", 0)], NOW, ZONE), "3 need you · the oldest since 12:42 PM");
+});
