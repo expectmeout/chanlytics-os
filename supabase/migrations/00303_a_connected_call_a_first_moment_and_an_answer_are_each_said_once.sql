@@ -1,4 +1,4 @@
--- 00285 · A connected call, a person's first moment and an answer are each said once.
+-- 00303 · A connected call, a person's first moment and an answer are each said once.
 --
 -- Reports (report_series) and Today (metrics_summary) each wrote their own "a call that connected" (status is not
 -- not_connected, which counted a call that errored before anyone spoke) and their own "when a person first reached
@@ -101,7 +101,7 @@ as $$
            -- the hold the owner set, as the reply was queued (draft-queue.ts); none for a reply sent at once
            case when jsonb_typeof(o.meta->'delay_ms') = 'number'
                 then (o.meta->>'delay_ms')::numeric / 1000.0 else 0 end as hold_s,
-           -- written as 'human' and nobody's answer (00285)
+           -- written as 'human' and nobody's answer (00303)
            public.automated_send(o.meta) as automated
       from real_msgs o
      where o.direction = 'outbound'

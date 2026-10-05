@@ -1,5 +1,5 @@
 /**
- * 00286 on a real Postgres, in a zone that is not UTC: report_series and metrics_summary count only what they say.
+ * 00304 on a real Postgres, in a zone that is not UTC: report_series and metrics_summary count only what they say.
  * A broadcast is not "you"; a call that errored before anyone spoke is not a call; an erased person is not new, and
  * Reports and Today agree on who is; each reply carries its hold; and arrivals say each message and call by the local
  * day and quarter hour. Runs against the database `supabase start` builds on this machine, never production.

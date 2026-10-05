@@ -1,5 +1,5 @@
 /**
- * 00285 on a real Postgres: one rule for a connected call, one for an automated send, one for a person's first moment,
+ * 00303 on a real Postgres: one rule for a connected call, one for an automated send, one for a person's first moment,
  * and who answered with the hold the answer waited. A broadcast's or a reach-out's send is written as 'human' and is nobody's answer.
  * Runs against the database `supabase start` builds on this machine, never production.
  */
