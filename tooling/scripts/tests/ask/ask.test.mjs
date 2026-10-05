@@ -974,7 +974,8 @@ test("the gateway's usage tee reads the counts out of a passing stream and repor
     usage: { input_tokens: 1200, output_tokens: 88, cache_read_input_tokens: 900, cache_creation_input_tokens: 0 },
     stop: "tool_use",
   });
-  const bad = mod.validateGatewayRequest({ model: "claude-9", messages: [{}] });
+  // Ask may name any model that reads as one (ask-model.test.mjs); a name that reads as none is refused.
+  const bad = mod.validateGatewayRequest({ model: "gpt-9", messages: [{}] });
   assert.equal(bad.ok, false);
   const ok = mod.validateGatewayRequest({ max_tokens: 99999, messages: [{ role: "user", content: "hi" }], tools: [] });
   assert.ok(
@@ -1285,11 +1286,7 @@ test("context first: the page rides into every turn (ask-turn.test.mjs runs it),
   // The day is read once through the readers: ask-turn.test.mjs, a round that calls today, inbox.list and
   // calls.list together reads the conversations at most twice and the calls once. The readers, and the Inbox's paged
   // messages, in readers.test.mjs.
-  const gw = readCode("apps/edge/lib/ask-gateway.ts");
-  assert.ok(
-    gw.includes('const EFFORTS = new Set(["low", "medium", "high"]);'),
-    "the gateway passes a known effort through and nothing else",
-  );
+  // The gateway passes a known effort through and nothing else: executed in ask-model.test.mjs.
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(prompt.includes("Answer from it when it is enough, in one round."));
   const ev = readCode("tooling/scripts/eval-ask.mjs");

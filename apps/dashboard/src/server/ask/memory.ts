@@ -12,7 +12,6 @@ import {
   MIN_MS,
   type AskAnswer,
   type AskMessageVM,
-  type AskModelId,
   type AskRowRef,
   type AskScope,
   type AskTurnShape,
@@ -386,7 +385,7 @@ export function replayFor<W>(
 /** The round a turn ended on: the request as it went out, what the model wrote, what its calls answered, when it began. */
 interface LastRound {
   request: {
-    model: AskModelId;
+    model: string;
     system: unknown[];
     messages: Msg[];
     tools: unknown[];
@@ -444,7 +443,7 @@ export interface RawTurn {
   /** When the last round began, epoch ms: the cache's five minutes run from a request's start, not from the saved row. */
   at: number;
   /** The model the requests named. */
-  model: AskModelId;
+  model: string;
   /** What the last request sent besides its messages, hashed (prefixOf): a replay on another is cold. */
   prefix: string;
   /** A live turn's: the answer row whose turn it replayed last (Chain.after), the link the next replay follows. */
@@ -539,7 +538,7 @@ export function rawTurn(
  */
 export function storedRaw(raw: RawTurn | null): {
   at: number;
-  model: AskModelId;
+  model: string;
   prefix: string;
   blocks: string;
   id?: string;

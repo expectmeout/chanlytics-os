@@ -12,7 +12,7 @@
   ],
   "counts": {
     "ai/flag-registry.test.mjs": 3,
-    "ask/ask.test.mjs": 52,
+    "ask/ask.test.mjs": 51,
     "auth/auth-gate.test.mjs": 5,
     "auth/signup-posture.test.mjs": 5,
     "auth/signup.test.mjs": 9,

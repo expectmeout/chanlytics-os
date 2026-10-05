@@ -17,6 +17,7 @@
  * line, and the nightly titles its issue by which it was (the scorecard's I2:2).
  */
 import { writeFileSync, mkdirSync } from "node:fs";
+import { priceOf } from "@chanlytics/contracts";
 import { spread, pct, ms, missTally, askDayVerdict } from "../ask-stats.mjs";
 
 /** The exits the nightly reads: the day held its lines, crossed one, or could not be read. */
@@ -38,10 +39,10 @@ const JSON_OUT = process.argv.includes("--json");
 const CHECK = process.argv.includes("--check");
 if (!URL_ || !KEY) couldNotRun("NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY are required");
 
-/** Dollars per million tokens: uncached input, output, a five-minute cache write, a cache read (Anthropic's pages, read 23 Sep 2026). */
-const PRICE = {
-  "claude-sonnet-5": { input: 2, output: 10, cache_creation: 2.5, cache_read: 0.2 },
-  "claude-opus-5-5": { input: 4, output: 20, cache_creation: 5, cache_read: 0.2 },
+/** A model's list price as the usage rows name their tokens, from the one price list (contracts priceOf); null when it has none. */
+const priceFor = (model) => {
+  const p = priceOf(model ?? "");
+  return p && { input: p.input, output: p.output, cache_creation: p.cacheWrite, cache_read: p.cacheRead };
 };
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
@@ -95,10 +96,10 @@ const usage = (
   .map((r) => r.data ?? {})
   .filter((d) => !d.purpose || d.purpose === "ask");
 
-/** The dollars the window's rounds cost, by model, at list price; null for a model the table does not price. */
+/** The dollars the window's rounds cost, by model, at list price; null for a model the price list does not hold. */
 const cost = {};
 for (const d of usage) {
-  const p = PRICE[d.model];
+  const p = priceFor(d.model);
   const m = (cost[d.model ?? "?"] ??= { rounds: 0, dollars: p ? 0 : null });
   m.rounds++;
   if (p)

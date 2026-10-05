@@ -61,7 +61,7 @@
  * and their cost, with nothing read and nothing spent.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { ASK_TOKENS_DAY, BUILTIN_LISTS, cardOpenRoute, oneDoor } from "@chanlytics/contracts";
+import { ASK_TOKENS_DAY, BUILTIN_LISTS, cardOpenRoute, oneDoor, priceOf } from "@chanlytics/contracts";
 import { spread, wilson, pct } from "./ask-stats.mjs";
 import { askSpoken, spokenFails } from "./eval-ask-spoken.mjs";
 import { usedAny } from "../evals/rename-ask-tools.mjs";
@@ -164,11 +164,11 @@ function cookieHeader(session) {
   return parts.join("; ");
 }
 
-/* ---- the cost: Ask's usage rows, priced as Anthropic's pages list them (spec 8.1, read 23 Sep) ---- */
-/** Dollars per million tokens: uncached input, output, a five-minute cache write, a cache read. */
-const PRICE = {
-  "claude-sonnet-5": { input: 2, output: 10, cache_creation: 2.5, cache_read: 0.2 },
-  "claude-opus-5-5": { input: 4, output: 20, cache_creation: 5, cache_read: 0.2 },
+/* ---- the cost: Ask's usage rows, priced as Anthropic's pages list them (spec 8.1) ---- */
+/** A model's list price as the usage rows name their tokens, from the one price list (contracts priceOf); null when it has none. */
+const priceFor = (model) => {
+  const p = priceOf(model ?? "");
+  return p && { input: p.input, output: p.output, cache_creation: p.cacheWrite, cache_read: p.cacheRead };
 };
 const DAY_MS = 24 * 3600 * 1000;
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
@@ -191,7 +191,7 @@ const budgetTokens = (rows) => rows.reduce((s, d) => s + num(d.input_tokens) + n
 
 /**
  * A run's usage by model: the rounds, the tokens by kind, the rounds that stopped at the cap, and the dollars at list
- * price, null for a model the table above does not price. `answered` divides the cost into a per-turn figure.
+ * price, null for a model the price list does not hold. `answered` divides the cost into a per-turn figure.
  */
 function summarizeUsage(rows, answered) {
   const byModel = {};
@@ -213,7 +213,7 @@ function summarizeUsage(rows, answered) {
     if (d.stop_reason === "max_tokens") m.cap_hits++;
   }
   for (const [model, m] of Object.entries(byModel)) {
-    const p = PRICE[model];
+    const p = priceFor(model);
     if (p)
       m.cost =
         (m.input * p.input + m.output * p.output + m.cache_creation * p.cache_creation + m.cache_read * p.cache_read) /

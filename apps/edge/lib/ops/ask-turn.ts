@@ -14,7 +14,8 @@
  *
  * The request leaves through the model port (lib/model.ts, channels' adapter): the registry's route for the purpose
  * (Ask's, or the small JSON drafts'), asked once of its fallback model when the first gives no answer before the stream
- * starts (a 529, a 5xx, a timeout). An answer that never came is this door's own refusal, `model_unreachable` at 503, so
+ * starts (a 529, a 5xx, a timeout) or is a model the API does not know (a 404: Ask's model is its deployment's to name,
+ * and a misspelt name is answered by the route's own, said in the log as ask_gateway_fell_back). An answer that never came is this door's own refusal, `model_unreachable` at 503, so
  * the dashboard says the model could not be reached, never that it refused; the API's refusal of the request itself
  * (a 400) is forwarded in its own shape, which the dashboard reads to drop what the model would not take. A workspace
  * paused, ended or unbilled spends nothing (402 payment_required), and a day that could not be counted holds the turn
