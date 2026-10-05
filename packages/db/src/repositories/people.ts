@@ -126,7 +126,7 @@ export async function erasureDigests(db: Db, tenantId: string, values: string[])
   return out;
 }
 
-/** What the merge door answers (merge_people, 00325): the kept record, the merged one, and what moved. */
+/** What the merge door answers (merge_people, 00326): the kept record, the merged one, and what moved. */
 interface MergedPeople {
   contact_id: string;
   merged: string;

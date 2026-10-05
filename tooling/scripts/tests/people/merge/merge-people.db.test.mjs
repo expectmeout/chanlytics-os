@@ -1,5 +1,5 @@
 /**
- * Two records of one person become one -- on a real database (00325; decision 0028).
+ * Two records of one person become one -- on a real database (00326; decision 0028).
  *
  * merge_people is the one door, and what it does is exactly what reading source cannot prove: which rows move, what
  * the two threads become, what the merged person has answered, who may, and that a message still cannot change thread

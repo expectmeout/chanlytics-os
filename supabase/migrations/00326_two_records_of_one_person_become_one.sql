@@ -1,4 +1,4 @@
--- 00325 · Two records of one person become one.
+-- 00326 · Two records of one person become one.
 --
 -- An email from an address nobody holds makes a new person (packages/db ingestInboundEmail), and that person may be one
 -- the workspace already knows by their phone. The two rows then answer apart: a STOP on WhatsApp left the email twin
@@ -55,7 +55,7 @@ declare
   new_rank int;
   unknown  boolean;
 begin
-  -- A message never changes thread, with one exception (00325, decision 0028): into the thread of the person its
+  -- A message never changes thread, with one exception (00326, decision 0028): into the thread of the person its
   -- own was merged into. Read from the rows, never from a setting: merged_into_contact_id is written by merge_people
   -- alone, so the exception is true only inside a merge and for exactly the two threads it folds.
   if (NEW.conversation_id is distinct from OLD.conversation_id
@@ -322,7 +322,7 @@ begin
          erased_at          = now()
    where id = p_contact_id;
 
-  -- The records merged into this person ARE this person (00325, decision 0028): each is erased with them, the way
+  -- The records merged into this person ARE this person (00326, decision 0028): each is erased with them, the way
   -- this row is, so none returns as a person of its own once the pointer no longer matters. Their rows moved here
   -- when they were merged and are gone with these. Tenant-scoped, as every statement here is.
   update contacts

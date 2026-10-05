@@ -160,7 +160,7 @@ export function consentSourceLabel(source: string | null | undefined): string | 
   if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
   if (source === STOP_ENDED_OFFERS_SOURCE) return "Ended when they said stop";
   if (source === WHATSAPP_CONSENT_SOURCE) return "Reported by WhatsApp";
-  // The merge of two records changed the answer (00325).
+  // The merge of two records changed the answer (00326).
   if (source === MERGE_CONSENT_SOURCE) return "From a merged record";
   return source === CONSENT_RESET_SOURCE ? null : source;
 }

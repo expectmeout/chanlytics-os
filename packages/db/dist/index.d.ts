@@ -35133,7 +35133,7 @@ declare function everyoneIn(db: Db$6, tenantId: string): Promise<PersonRowDto[]>
  * twice is asked once. Throws when the database cannot answer: "we could not check" is never "nobody was erased".
  */
 declare function erasureDigests(db: Db$6, tenantId: string, values: string[]): Promise<Map<string, string>>;
-/** What the merge door answers (merge_people, 00325): the kept record, the merged one, and what moved. */
+/** What the merge door answers (merge_people, 00326): the kept record, the merged one, and what moved. */
 interface MergedPeople {
     contact_id: string;
     merged: string;

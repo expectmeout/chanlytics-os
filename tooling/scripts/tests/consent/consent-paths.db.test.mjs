@@ -265,7 +265,7 @@ test(
     );
     // erase_contact is the right to be forgotten (00027), and the only value it
     // writes is the absence of an answer: it can record no yes for anybody.
-    // merge_people (00325) writes the more careful of two answers the person
+    // merge_people (00326) writes the more careful of two answers the person
     // already gave, never a new one (people/merge/merge-people.db.test.mjs).
     const erase = query(`select p.prosrc ~ 'consent\\s*=\\s*''unknown''' as clears,
                               p.prosrc ~ 'consent\\s*=\\s*''opted_in''' as grants

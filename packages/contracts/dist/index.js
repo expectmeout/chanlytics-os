@@ -13224,7 +13224,7 @@ var EVENT_KINDS = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  /** Two records of one person became one (00325, decision 0028): on the kept record, with what moved. */
+  /** Two records of one person became one (00326, decision 0028): on the kept record, with what moved. */
   "contact.merged",
   "setup.requested",
   "voice.provisioned",
@@ -13462,7 +13462,7 @@ var DECISION_VERBS = [
    */
   "erase",
   /**
-   * Two records of one person became one (merge_people, 00325; decision 0028). On subject_type 'contact', the kept
+   * Two records of one person became one (merge_people, 00326; decision 0028). On subject_type 'contact', the kept
    * record; the payload names the merged one and counts what moved. Owner only, and never undone.
    */
   "merge",

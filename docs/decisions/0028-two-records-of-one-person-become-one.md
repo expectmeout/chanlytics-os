@@ -1,7 +1,7 @@
 # 0028 · Two records of one person become one
 
 **Status:** Decided on 5 October 2026 (Ruben: "yes to all three as you best recommend"). Built, steps 1 to 3 (5 October
-2026): the door, the guard's exception, the route and the person page's merge, with their tests (migration 00325). Written against `d6b9efb8f`
+2026): the door, the guard's exception, the route and the person page's merge, with their tests (migration 00326). Written against `d6b9efb8f`
 (main, 5 October 2026) and verified against the code and the schema snapshot at it; where this note and the code
 disagree, the code wins. It answers the
 4 October campaigns wiring review's P1 5 ("one human can be two people") and builds on its decision D5 (what a merge

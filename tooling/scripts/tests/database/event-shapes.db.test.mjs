@@ -13,7 +13,7 @@
  *     someone already opted in), set_contact_consent, set_marketing_consent, set_email_marketing (a no, and a reply's
  *     no taken back), set_email_offers_yes (a yes to offers by email, 00299), stop_all_messages (the unsubscribe page's
  *     second act: a STOP, and the email unsubscribe with it) and contact_stop_ends_offers_yes (the trigger that ends a
- *     yes to offers when a stop is recorded, 00323) and merge_people (two records of one person become one, 00325:
+ *     yes to offers when a stop is recorded, 00323) and merge_people (two records of one person become one, 00326:
  *     the more careful answer, from the merge);
  *   - platform.acted <- partner_status_set, partner_standing_set, partner_second_factor_reset (a platform admin's).
  * And the list of writers is not this file's word for it: the catalog is asked which functions insert into events with
@@ -628,7 +628,7 @@ test(
 
 /* ------------------------------------------------------------------------------------------ platform.acted */
 
-test("merge_people (00325): the more careful answer, written as the merge's", { skip }, async () => {
+test("merge_people (00326): the more careful answer, written as the merge's", { skip }, async () => {
   const kept = await contact(w.t, { consent: "opted_in", marketing_consent: "opted_in" });
   // A record known by its address alone: two numbers would be two people, and the door refuses them.
   const merged = await contact(w.t, {

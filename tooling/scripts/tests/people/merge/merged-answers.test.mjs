@@ -1,6 +1,6 @@
 /**
  * What a merged person has answered (decision 0028; the 4 Oct wiring review's D5): the most careful answer wins on
- * each question. The database applies the rule (merge_people, 00325) and merge-people.db.test.mjs holds the two
+ * each question. The database applies the rule (merge_people, 00326) and merge-people.db.test.mjs holds the two
  * spellings equal; this file is the rule itself, in the cases a person would name, and the words that go with it.
  */
 import { test } from "node:test";

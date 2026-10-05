@@ -95,7 +95,7 @@ function howKnown(c: ConsentChange): string {
     return "Reported by WhatsApp: they chose there to stop marketing messages from your business, so a message to them was not delivered";
   }
   if (c.source === MERGE_CONSENT_SOURCE) {
-    // Two records of this person were merged, and the more careful of their two answers stands (00325). Nobody on the
+    // Two records of this person were merged, and the more careful of their two answers stands (00326). Nobody on the
     // team recorded an answer, and the person said nothing new.
     return "Two records of this person were merged, and the more careful answer stands";
   }

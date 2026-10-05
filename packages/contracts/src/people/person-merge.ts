@@ -1,7 +1,7 @@
 /**
  * Two records of one person become one (decision 0028; the 4 Oct wiring review's P1 5 and D5).
  *
- * The act is the database's (`merge_people`, 00325): one owner-only door, one transaction, never undone. This module
+ * The act is the database's (`merge_people`, 00326): one owner-only door, one transaction, never undone. This module
  * holds what the door and the app must say the same way:
  *
  *   - the sentences the door refuses with (MERGE_REFUSALS), which the route carries back as they are;
@@ -18,7 +18,7 @@
 /** How an answer was given, in the ledger, when it is the merge that changed it on the kept record. */
 export const MERGE_CONSENT_SOURCE = "merge";
 
-/** What the door refuses, in the words the owner reads. The door raises exactly these (00325). */
+/** What the door refuses, in the words the owner reads. The door raises exactly these (00326). */
 export const MERGE_REFUSALS = {
   same: "Choose two different records to merge.",
   owner: "Only an owner can merge two records.",
