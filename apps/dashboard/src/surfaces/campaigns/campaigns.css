@@ -1,0 +1,5353 @@
+/* Campaigns: the Lifecycle home, the Sent room, the Library, the composers, the version editor and the reach-out's emails.
+   Moved out of components.css and mobile.css whole, in their order; the rules themselves are as they were. */
+
+.ob-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* Beside the state pill, and in the warning ink, because it IS the state: a
+   playbook that runs every day and reaches nobody reads as a working one. */
+.ob-reach {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--warn-ink);
+  white-space: nowrap;
+}
+/* ---- A playbook is a message, a list and a clock ----
+   The card led with the trigger, the schedule, the audience, the template's NAME
+   and the next run -- five chips and a meta line -- and the message itself was
+   two clamped lines at 12px in --ink-muted behind a "Show the whole message"
+   toggle: the least prominent thing on a card whose subject it is. The message
+   is the left column now and everything else is a sentence beside it.
+   The column is the preview's own width plus its gutter, so the two never fight;
+   under that it stacks, which is where a phone always is. */
+.ob-body {
+  display: grid;
+  grid-template-columns: 268px minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+.ob-words {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ob-words-name {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.ob-words-name:hover {
+  color: var(--ink);
+}
+.ob-words-name .dim {
+  color: var(--ink-dim);
+}
+.ob-facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+/* A warning under the sentence starts where the sentence does: the hint's own centring is for a line beside a control. */
+.ob-facts > .bc-excl-hint {
+  align-self: flex-start;
+}
+/* 68ch, the measure the clamped line used: on a 1280 page the facts column is
+   782px, which is about 120 characters -- half again past where the eye stops
+   tracking a line reliably. */
+.ob-sentence {
+  margin: 0;
+  max-width: 68ch;
+  font-size: var(--text-base);
+  line-height: var(--leading-relaxed);
+  color: var(--ink-muted);
+}
+.ob-sentence b {
+  color: var(--ink);
+  font-weight: var(--weight-medium);
+}
+.ob-sentence-dim {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+/* A word inside a sentence that opens something, drawn as the sentence plus an
+   underline -- never a button shape mid-sentence. */
+.ob-link {
+  font: inherit;
+  color: var(--ink);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-bottom: 1px solid var(--line-strong);
+}
+.ob-link:hover {
+  border-bottom-color: var(--ink);
+}
+@container (max-width: 640px) {
+  .ob-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.ob-history {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.ob-history .ob-history-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 0;
+  padding: 2px 0;
+  text-align: left;
+  border-radius: var(--radius-sm);
+}
+.ob-history-row .icon {
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+.ob-history-row:hover,
+.ob-history-row:focus-visible {
+  color: var(--ink);
+}
+.ob-history-row:hover .icon,
+.ob-history-row:focus-visible .icon {
+  opacity: 1;
+}
+.ob-history-more {
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  padding-top: 2px;
+}
+.msg-delete-held {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+.bc-page {
+  padding: 24px var(--gutter-page) 80px;
+  max-width: var(--measure-page);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+/* ---- The Campaigns standing line ----
+   One line above the work on all three tabs, the way Today, Reports, People and
+   the Calendar say their numbers. What it replaces, measured at 390px: Playbooks
+   opened with a title the top bar already showed, a two-line sub-headline, a
+   three-cell stat strip and a row of four filter chips (~467px before the first
+   card); Broadcasts with an h2, a three-line sub and a stat strip (~384px before
+   the composer); Messages with a six-line sub and a strip (~590px, and not one
+   message card on the first screen of the page that exists to show them).
+   The sentences those headers carried are on the line's first phrase, one hover
+   or tap away, and the numbers are in Reports > Campaigns where a chart is. */
+.cm-standing {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  padding: 2px 0 12px;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+/* One gutter per pane, owned by the parent. `.bc-page` supplies its children's
+   (24px top, --gutter-page each side), but `.reports` is full-bleed by design and
+   every direct child carries the pane's own -- .cl-head, .cl-controls and
+   .rp-body all do. The standing line replaced .cl-head on Playbooks and Messages
+   and carried none, so the line sat flush against the sidebar with everything
+   below it inset 28px, and started 24px higher than the same line on Broadcasts.
+   Three tabs of one nav item, three different page edges. */
+.reports > .cm-standing {
+  padding: 26px 28px 12px;
+}
+.cm-standing-lead {
+  color: var(--ink);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+.cm-standing-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cm-standing-dot {
+  color: var(--ink-faint);
+}
+/* The split reads as an aside on the count before it, not as another item. */
+.cm-standing-dash {
+  color: var(--ink-faint);
+}
+/* A comma belongs to the word before it. The row's gap and the tap's own bleed
+   would otherwise leave it floating: "by a playbook , 3 by hand". */
+.cm-standing-comma {
+  margin-left: -6px;
+  color: var(--ink-dim);
+}
+/* A count that is also its filter, as the People line's "needs you" is. */
+/* The bleed is on BOTH sides. With `margin-left` alone the padding cancelled
+   the flex gap on the left and ADDED to it on the right, so measured glyph to
+   glyph every dot after a tap sat 12px away while every dot before one sat at
+   6 -- the line looked kerned by hand. Broadcasts and Messages, which have no
+   taps, were even at 6 throughout, which is what made Playbooks look wrong
+   beside them. */
+.cm-standing-tap {
+  min-height: 28px;
+  padding: 0 6px;
+  margin: 0 -6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.cm-standing-tap:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+.cm-standing-tap.on {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+.cm-standing-tap.needs {
+  color: var(--warn-ink);
+}
+.cm-standing-tap.needs.on {
+  color: var(--ink);
+}
+
+.bc-composer {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* The composer asks three questions side by side and keeps the one irreversible
+   act alone at the foot. Stacked, the audience, the words and Send never shared
+   a screen: the owner scrolled PAST the preview to reach the button. */
+/* Flex-wrap, not a media query: the composer sits inside a pane beside the
+   sidebar, so what decides whether three columns fit is the PANE's width and
+   never the window's. A viewport breakpoint collapsed a wide composer on a
+   narrow window and kept three columns in a pane too narrow for them. */
+.bc-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-start;
+}
+.bc-col {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.bc-col-what {
+  flex: 2 1 400px;
+}
+.bc-col-label {
+  font-size: 10px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.bc-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.bc-foot .bc-foot-name {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+/* What keeps the send from going, on a line of its own over the name and the acts: the first thing, in one sentence. */
+.bc-foot .bc-foot-say {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.bc-row-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  width: 26px;
+  padding-top: 6px;
+  flex-shrink: 0;
+}
+.bc-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.bc-meta .icon {
+  color: var(--ink-faint);
+}
+.bc-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bc-actions-spacer {
+  flex: 1;
+}
+.bc-actions .btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* The Campaigns note line. It lived in people.css, at 10.5px in --ink-faint -- the
+   token whose own comment says "placeholder" -- and it carries every refusal on this
+   surface: the number over its daily limit, the list nobody has said yes on, a
+   template WhatsApp no longer approves. A refusal read at 2.3:1 beside a chunking
+   note at the same weight, so the two looked alike and neither looked urgent.
+   One class, three tones: a note is quiet, a refusal is not. */
+.bc-excl-hint {
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+  align-self: center;
+}
+.bc-excl-hint.warn {
+  color: var(--warn-ink);
+}
+.bc-excl-hint.danger {
+  color: var(--danger-ink);
+}
+
+.bc-meta {
+  flex-wrap: wrap;
+}
+
+/* Broadcasts, real: the template's values and the words a person will read. */
+.bc-vars {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+/* The schedule box's note, in amber when the time cannot be scheduled: passed, or past the ceiling. */
+.bc-when-note-warn {
+  color: var(--warn);
+}
+
+/* Broadcasts: the number's health. */
+.bc-number {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin: 0 0 8px;
+}
+.bc-number-warn {
+  color: var(--warn);
+}
+.bc-number-danger {
+  color: var(--danger);
+}
+
+/* Broadcasts: how a customer says yes. */
+.bc-optin-body {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.bc-optin-qr {
+  flex: 0 0 auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  padding: 4px;
+}
+.bc-optin-text p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Templates written here, and the slots' sources. */
+.tpl-composer {
+  margin-top: 10px;
+}
+.tpl-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 6px 0;
+}
+.tpl-row .bc-row-label {
+  padding-top: 7px;
+}
+.tpl-brief {
+  flex: 1;
+  min-width: 0;
+}
+.tpl-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+.tpl-fields .tpl-body {
+  grid-column: 1 / -1;
+}
+
+/* ---- The message as the customer sees it, and the starter set ---- */
+.bc-preview-wrap {
+  display: flex;
+  margin-bottom: 8px;
+}
+
+/* ---- The message as the customer receives it (components/message-preview.jsx) ----
+   What `.wa-bubble` was: --bg-sunken on --bg-raised, which is a 3% step on white
+   and reads as a disabled input; 460px wide where a real bubble is about 300;
+   the notch on the BOTTOM-left, which is the corner WhatsApp gives a message the
+   customer SENDS; the business's name inside the bubble in --accent, whose token
+   says "used ONLY for live/active agent state, never decorative" -- and which is
+   WhatsApp's group-chat treatment, not a 1:1 chat's; and the literal word "now"
+   on a send that goes out on Tuesday.
+   The frame is this product's own surfaces in both themes: no borrowed green, no
+   device bezel, no invented status bar. */
+.mp {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.mp-frame {
+  margin: 0;
+  max-width: 340px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: var(--bg-sunken);
+}
+.mp-compact .mp-frame {
+  max-width: 268px;
+}
+.mp-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--line);
+}
+.mp-avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: var(--bg-active);
+  color: var(--ink-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  font-weight: var(--weight-semibold);
+}
+.mp-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.mp-name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mp-kind {
+  font-size: 10.5px;
+  color: var(--ink-dim);
+}
+.mp-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 10px 16px;
+}
+.mp-day {
+  align-self: center;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-size: 10px;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+/* Incoming: the notch is the TOP-left corner. */
+.mp-bubble {
+  align-self: flex-start;
+  position: relative;
+  max-width: 272px;
+  padding: 8px 11px 18px;
+  background: var(--bg-raised);
+  border-radius: var(--radius-xs) var(--radius-lg) var(--radius-lg) var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--text-sm);
+  color: var(--ink);
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+/* A text heading, bold at the top of the bubble, where WhatsApp puts it. */
+.mp-header {
+  display: block;
+  margin-bottom: 3px;
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+}
+.mp-body {
+  display: block;
+  line-height: var(--leading-normal);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+/* What fills per person, so the eye can see what varies. A neutral tint, not the
+   accent: the accent means a live agent here and nothing else. */
+.mp-slot {
+  background: var(--bg-active);
+  border-radius: var(--radius-xs);
+  padding: 0 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.mp-link {
+  color: var(--info-ink);
+  text-decoration: none;
+  word-break: break-all;
+}
+.mp-link:hover {
+  text-decoration: underline;
+}
+.mp-foot {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.mp-stamp {
+  position: absolute;
+  right: 10px;
+  bottom: 4px;
+  font-size: 10px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.mp-held .mp-bubble {
+  opacity: 0.45;
+}
+/* The buttons: under the bubble, full width, divided, the way WhatsApp draws
+   them. Not real buttons -- this is a drawing of a message, and a preview whose
+   controls could be pressed would be a lie about whose screen this is. */
+.mp-buttons {
+  align-self: flex-start;
+  width: 100%;
+  max-width: 272px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.mp-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: var(--text-sm);
+  color: var(--info-ink);
+  border-top: 1px solid var(--line);
+}
+.mp-button:first-child {
+  border-top: none;
+}
+.mp-buttons .icon {
+  color: currentColor;
+}
+.mp-held .mp-buttons {
+  opacity: 0.45;
+}
+
+.mp-mark {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: var(--radius-full);
+  background: var(--bg-raised);
+  border: 1px solid var(--warn);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--warn-ink);
+}
+/* The walk through who reads it ("‹ Ana Reyes · 1 of 7 ›", message-preview.tsx PreviewStepper): the kit's quiet icon buttons either side of
+   one line, the name and its place. */
+.mp-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 340px;
+}
+.mp-step-btn {
+  flex-shrink: 0;
+}
+.mp-step-back .icon {
+  transform: scaleX(-1);
+}
+.mp-step-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--space-1);
+}
+.mp-step-name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mp-step-pos {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.mp-step-pos:not(:empty)::before {
+  content: "\00B7";
+  margin-right: var(--space-1);
+}
+.mp-note {
+  margin: 0;
+  max-width: 340px;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.mp-note.warn {
+  color: var(--warn-ink);
+}
+/* Where the person reads it, a quiet label over the preview ("By email"), and an email as its person reads it: who from, when,
+   the subject over the words and the foot the sender adds under them (message-preview.tsx MailFrame). */
+.mp-via {
+  align-self: flex-start;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.mp-mail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-4);
+  background: var(--bg-raised);
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+.mp-mail-when {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.mp-subject {
+  display: block;
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+}
+.mp-mail-foot {
+  display: block;
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+  white-space: pre-line;
+}
+/* The composer's rule line: the icon stays beside the first line of the
+   sentence instead of sitting alone above it when the sentence wraps. */
+.bc-composer .bc-meta {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+}
+.bc-composer .bc-meta .icon {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.bc-composer .bc-meta > span {
+  min-width: 0;
+}
+
+/* ---- Renaming a template, in place ---- */
+.tpl-rename {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tpl-rename .tpl-rename-name {
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+/* ---- Campaigns, as the canvas draws it ----
+   Every Campaigns page opens on a headline and one line under it, with the page's
+   own act at the right -- the canvas's head, on the real tokens. Where the canvas
+   spent its faintest grey on words, the words take --ink-dim, the grey that keeps
+   4.5:1 (#749); --ink-faint is a placeholder's grey. */
+/* One page edge and one scroll edge, on every Campaigns page: the home, Sent and the Library take Today's measure
+   (--measure-wide, on the left, inside the gutter), as a person's page and Reports do. */
+.cm-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+}
+.cm-head-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cm-head-title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.1;
+  color: var(--ink);
+}
+.cm-head-sub {
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 9px;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cm-head-dot {
+  color: var(--ink-faint);
+}
+.cm-head-n {
+  font-weight: 400;
+  color: var(--ink);
+}
+/* Good news is said in the quiet ink: a colour is kept for what asks for a look. */
+.cm-head-ok {
+  color: var(--ink-muted);
+}
+.cm-head-info {
+  color: var(--info-ink);
+}
+.cm-head-right {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* A tab's list: the tab says its name, so the head is one line -- the numbers, then the tools and the act (CmHead
+   quiet). The name stays for a screen reader. */
+.cm-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.cm-head.is-quiet {
+  align-items: center;
+  gap: 12px 18px;
+  min-height: 30px;
+}
+.cm-head.is-quiet .cm-head-sub {
+  margin-top: 0;
+}
+.cm-head.is-quiet .cm-head-right .btn {
+  height: 30px;
+}
+/* A notice between the head and the list: a bold sentence, what it costs, one act -- one slim line where it fits. */
+.cm-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+}
+.cm-banner[data-tone="warn"] {
+  border-color: var(--warn-soft);
+}
+.cm-banner > .icon {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--ink-dim);
+}
+.cm-banner[data-tone="warn"] > .icon {
+  color: var(--warn-ink);
+}
+.cm-banner-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+.cm-banner-text strong {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.cm-banner > .btn {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+}
+.cm-banner > .btn:not(.btn-primary) {
+  border-color: var(--line-strong);
+  color: var(--ink-muted);
+}
+/* Campaigns has no strip of tabs any more: its home is one page, and Sent and the Library are rooms reached from it
+   (surfaces/campaigns/home; the shell's SurfaceTabs draws nothing for it). */
+@media (max-width: 720px) {
+  .cm-head {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    row-gap: 12px;
+  }
+  .cm-head-right {
+    flex: 1 1 100%;
+  }
+  /* A tab's head on a phone is one slim bar: the numbers, and the act beside them where it fits. */
+  .cm-head.is-quiet {
+    align-items: center;
+    row-gap: 8px;
+    column-gap: 10px;
+  }
+  .cm-head.is-quiet .cm-head-text {
+    flex: 1 1 160px;
+  }
+  .cm-head.is-quiet .cm-head-right {
+    flex: 0 1 auto;
+  }
+  /* The act says "New" on a phone, and its whole name to a screen reader: the tab above says what it makes. */
+  .cm-act-noun {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* A notice is its sentence and its act: what it costs is the desk's (it was five lines of a phone). */
+  .cm-banner {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    row-gap: 6px;
+    padding: 10px 12px;
+  }
+  .cm-banner-text {
+    flex: 1 1 calc(100% - 27px);
+  }
+  .cm-banner-more {
+    display: none;
+  }
+  .cm-banner > .btn {
+    margin-left: 25px;
+  }
+}
+
+/* Being synced with WhatsApp is a state, so it is drawn as one, on the head's
+   line: a dot, when it last looked, and a press to look again. */
+.tpl-fresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 0 0 1px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.tpl-fresh:hover:not(:disabled) {
+  color: var(--ink-muted);
+}
+.tpl-fresh:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.tpl-fresh:disabled {
+  cursor: default;
+}
+.tpl-fresh-age {
+  color: var(--ink-dim);
+  opacity: 0.8;
+}
+.tpl-fresh-again {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--ink-faint);
+}
+.tpl-fresh:hover:not(:disabled) .tpl-fresh-again {
+  background: var(--bg-hover);
+  color: var(--ink-muted);
+}
+.tpl-fresh.is-busy .icon {
+  animation: tpl-fresh-spin 1.1s linear infinite;
+}
+/* Words on the head's line, not a button's box: a thumb's 44px would make the line twice its height (legacy.css). */
+html.legacy-on .tpl-fresh {
+  min-height: 0;
+  position: relative;
+}
+.tpl-fresh::after {
+  content: "";
+  position: absolute;
+  inset: -11px -4px;
+}
+.tpl-fresh-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--ok);
+  flex: none;
+}
+.tpl-fresh-dot.never {
+  background: var(--ink-faint);
+}
+.tpl-fresh.is-busy .tpl-fresh-dot {
+  background: var(--info);
+}
+@keyframes tpl-fresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tpl-fresh.is-busy .icon {
+    animation: none;
+  }
+}
+
+/* One language drawn: its colour is the vocabulary's, and absence is a dashed ring. */
+.cm-lang-glyph {
+  flex: none;
+  color: var(--ink-faint);
+}
+.cm-lang-glyph[data-tone="ok"] {
+  color: var(--ok-ink);
+}
+.cm-lang-glyph[data-tone="info"] {
+  color: var(--info-ink);
+}
+.cm-lang-glyph[data-tone="warn"] {
+  color: var(--warn-ink);
+}
+.cm-lang-glyph[data-tone="danger"] {
+  color: var(--danger-ink);
+}
+/* Who a run will reach: the number, of how many, a bar of the two, and a line per reason. */
+.cm-reach {
+  min-width: 0;
+}
+.cm-reach-n {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.cm-reach-will {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.cm-reach-of {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.cm-reach-bar {
+  display: flex;
+  gap: 2px;
+  height: 5px;
+  margin-top: 6px;
+}
+.cm-reach-bar > span {
+  display: block;
+  height: 100%;
+}
+.cm-reach-bar > span:first-child {
+  border-top-left-radius: 3px;
+  border-bottom-left-radius: 3px;
+}
+.cm-reach-bar-will {
+  background: var(--ok);
+}
+.cm-reach-bar-held {
+  background: var(--warn);
+}
+.cm-reach-bar-rest {
+  flex: 1 1 auto;
+  background: var(--line-strong);
+  border-radius: 0 3px 3px 0;
+}
+.cm-reach-why {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cm-reach-why li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.cm-reach-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--line-strong);
+}
+.cm-reach-dot[data-tone="warn"] {
+  background: var(--warn);
+}
+/* The one reason an owner can act on ("never said yes") opens where they act on it: a quiet underlined word, as on the sheet. */
+.cm-reach-door {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--line-strong);
+  cursor: pointer;
+}
+.cm-reach-door:hover {
+  text-decoration-color: currentColor;
+}
+.cm-reach-door:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 2px;
+}
+
+/* Open, the detail stands in the sheet over Campaigns' home (surfaces/campaigns/home/pane-sheet.tsx): the message beside its sentence, its runs, its verbs. */
+.ob-card-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  container-type: inline-size;
+}
+/* A reach-out's chain, open in its pane (Reach out Part 4 PR 8): its steps in a line, their counts in a quiet table. */
+.ro-open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ro-chain {
+  margin: 0;
+  color: var(--ink);
+}
+.ro-chain-gap,
+.ro-chain-stops {
+  color: var(--ink-muted);
+}
+.ro-steps {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.ro-steps th,
+.ro-steps td {
+  padding: 6px 10px 6px 0;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  font-weight: 400;
+}
+.ro-steps thead th {
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+}
+.ro-history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+.ro-acts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.ob-head-bare {
+  justify-content: flex-start;
+}
+/* ---- The playbook composer (outbound-real.jsx PlaybookComposer) ----
+   The record kit's sheet beside the page, read as a playbook is: who it is for,
+   what it says, when it runs. Two controls open lists (a moment, a message),
+   the numbers are chosen inside the sentence that says them, and nothing on it
+   changes height as it is filled in: a slot typed over keeps its row's height,
+   a number picked keeps its select's width. */
+@media (min-width: 761px) {
+  .rec-sheet.pb-sheet {
+    width: min(580px, 94vw);
+  }
+}
+/* The name is the sheet's title, and it is written where it is read. */
+.pb-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--ink-faint);
+}
+.pb-title-box {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.pb-title-wrap > .icon {
+  flex: none;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+.pb-title-wrap:hover > .icon,
+.pb-title-wrap:focus-within > .icon {
+  opacity: 1;
+}
+@media (hover: none) {
+  .pb-title-wrap > .icon {
+    opacity: 1;
+  }
+}
+.pb-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 20px 0 26px;
+}
+.pb-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.pb-sec-k {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+/* A choice drawn as the thing chosen: the search a reach-out is written to, with what it reaches. */
+.pb-pick-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pb-pick-title {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pb-pick-title.is-empty {
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+}
+.pb-pick-sub {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The message and the language it goes out in: one control and the one beside it, the same height. */
+.pb-msg-head {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+.pb-preview {
+  display: flex;
+  justify-content: center;
+  padding: 18px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: repeating-linear-gradient(135deg, transparent 0 7px, var(--bg-sunken) 7px 8px), var(--bg);
+}
+.pb-preview .mp {
+  width: 100%;
+  max-width: 360px;
+}
+.pb-preview .mp-frame {
+  max-width: none;
+  box-shadow: var(--shadow-sm);
+}
+.pb-preview .mp-bubble {
+  max-width: 90%;
+}
+/* Each slot on one line: what it is, what fills it, and -- where there is a choice -- the choice. */
+.pb-fills {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+.pb-fill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 6px 8px 6px 13px;
+}
+.pb-fill + .pb-fill {
+  border-top: 1px solid var(--line);
+}
+.pb-fill-key {
+  flex: 0 0 112px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pb-fill-val {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.pb-fill-words {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 65%;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pb-fill-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The clock, as one sentence with its numbers in it. */
+.pb-when {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 2.05;
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+.pb-rules-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.pb-runs-under {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.pb-guard {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px 3px 7px;
+  border-radius: var(--radius-full);
+  background: var(--bg-sunken);
+  color: var(--ink-muted);
+  cursor: help;
+}
+.pb-guard:hover {
+  color: var(--ink);
+  background: var(--bg-active);
+}
+.pb-guard:focus-visible {
+  outline: none;
+  color: var(--ink);
+  box-shadow: var(--focus-ring);
+}
+/* Who the run reaches, said where it is read: the guardrails' own line, under the row's other parts. */
+.pb-guard-words {
+  flex: 1 1 100%;
+  min-width: 0;
+  text-wrap: pretty;
+}
+/* What is missing where the message would be: dashed, as an unset moment is on the page. */
+.pb-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-sunken);
+}
+.pb-empty-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+.pb-empty-line > .icon {
+  flex: none;
+  margin-top: 3px;
+  color: var(--ink-dim);
+}
+.pb-empty-line.is-warn {
+  color: var(--warn-ink);
+}
+.pb-warn {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--warn-ink);
+}
+/* The reach-out sheet (Reach out Part 4 PR 6): the composer's parts, with a chain of steps and a preview of one email. */
+.pb-note {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+.ro-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ro-issues {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ro-issue {
+  font-size: var(--text-xs);
+  color: var(--warn-ink);
+}
+.ro-words {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.em-slots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.em-slots-hint {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.pb-chain {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+}
+.pb-chain-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 13px;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.pb-chain-row + .pb-chain-row,
+.pb-chain-add {
+  border-top: 1px solid var(--line);
+}
+.pb-chain-k {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.pb-chain-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 13px;
+  border-width: 1px 0 0;
+  border-style: solid;
+  border-color: var(--line);
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.pb-chain-add:hover {
+  background: var(--bg-hover);
+}
+.ro-domain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+.em-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.em-reader {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.em-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+}
+.em-frame-head {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+.em-frame-head > span {
+  color: var(--ink-dim);
+  margin-right: 6px;
+}
+.em-frame-body {
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+/* The Leads door: beside it, Find leads steps back from primary; on a phone it is the full-width button above the tab bar. */
+.cl-controls-right:has(> .ro-door) > .btn-primary[data-testid="leads-find"] {
+  background: var(--bg);
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+.ro-door-phone {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  width: 100%;
+  justify-content: center;
+  border-radius: 0;
+}
+.pb-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pb-foot-say {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.pb-foot-say[data-tone="danger"] {
+  color: var(--danger-ink);
+}
+.pb-foot-say[data-tone="plain"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pb-foot > .btn {
+  flex: none;
+  height: 34px;
+  padding: 0 15px;
+  border-radius: var(--radius-md);
+}
+@media (max-width: 760px) {
+  .pb-sheet .rec-sheet-sub {
+    display: none;
+  }
+  .pb-compose {
+    gap: 20px;
+    padding-top: 16px;
+  }
+  .pb-fill-key {
+    flex-basis: 92px;
+  }
+  .pb-fill-hint {
+    display: none;
+  }
+  .pb-preview {
+    padding: 12px 10px;
+  }
+  .pb-foot-say {
+    font-size: var(--text-xs);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pb-title-wrap > .icon {
+    transition: none;
+  }
+}
+
+/* ---- Broadcasts: the one ledger ----
+   One line -- the runs by state, each its own filter, what went out, and New
+   broadcast -- then the week ahead as one strip and the runs as People's table,
+   each row opening its report on a screen of its own. The composer is its own
+   screen, opened by New message. It was a headline, a card of a band bar over
+   its legend, seven rows of the week (209px) and a card per run. */
+/* Broadcasts scrolls in the shell, so its bar is already at the edge; it takes the tabs' one measure and top. */
+.bc-page {
+  max-width: var(--measure-wide);
+  padding-top: 16px;
+  gap: 0;
+}
+/* The week ahead, one strip: a day per cell, a mark per run in its state's tone -- a ring for a playbook's run to
+   come -- and the day's runs by the hour on its hover or focus. */
+.bc-week {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 6px 8px 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  container-type: inline-size;
+}
+.bc-week-k {
+  flex: none;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+  white-space: nowrap;
+  cursor: help;
+}
+.bc-week-k:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 2px;
+}
+.bc-week-days {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+.bc-week-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.bc-week-cell[tabindex]:hover,
+.bc-week-cell[tabindex]:focus-visible {
+  outline: none;
+  background: var(--bg-hover);
+}
+.bc-week-cell.is-today .bc-week-dname {
+  color: var(--ink);
+  font-weight: var(--weight-medium);
+}
+.bc-week-dname {
+  flex: none;
+}
+.bc-week-marks {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.bc-week-marks:empty {
+  display: none;
+}
+.bc-week-run {
+  width: 7px;
+  height: 7px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+.bc-week-run[data-tone="warn"] {
+  background: var(--warn);
+}
+.bc-week-run[data-tone="info"] {
+  background: var(--info);
+}
+.bc-week-run[data-tone="accent"] {
+  background: var(--accent);
+}
+.bc-week-run[data-tone="ok"] {
+  background: var(--ok);
+}
+.bc-week-run[data-tone="danger"] {
+  background: var(--danger);
+}
+.bc-week-run.is-projected {
+  border: 1.5px solid var(--line-strong);
+  background: none;
+}
+.bc-week-say {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A narrow strip: the day and its marks; what the day holds is the hover's, and a screen reader's still. */
+@container (max-width: 900px) {
+  .bc-week-say {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+/* The runs: People's table -- one hairline box, a hairline between rows, the hover's grey; the way to the rest of
+   what went is its foot. */
+/* One grid for the whole list, and each row a subgrid of it: a run waiting on you carries Approve and Skip where the
+   others carry only their mark, and rows that were grids of their own set their columns each to its own acts. The first
+   track is the mark and the row's 14px inset (a subgrid's padding is taken from its edge tracks). The acts' track stops
+   at 220px, so a question asked on one row (Skip?) wraps in its cell: as `auto` it took every row's name while it asked. */
+.bc-runs {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1.6fr) minmax(0, 150px) minmax(150px, 1fr) fit-content(220px);
+  column-gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: clip;
+  background: var(--bg);
+  container-type: inline-size;
+}
+.bc-runs:empty {
+  display: none;
+}
+.bc-runs > * {
+  grid-column: 1 / -1;
+}
+.bc-runs > * + * {
+  border-top: 1px solid var(--line);
+}
+.bc-run {
+  display: grid;
+  grid-template-columns: subgrid;
+}
+/* A run waiting on you: the urgency edge (legacy/CLAUDE.md), inside the row -- on the line, so its hover's grey
+   paints under the edge rather than over it. */
+.bc-run.is-urgent > .bc-run-line {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.bc-run-line {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  min-height: 56px;
+  box-sizing: border-box;
+  padding: 8px 8px 8px 14px;
+  cursor: pointer;
+}
+.bc-run-line:hover {
+  background: var(--bg-hover);
+}
+/* A run's kind (a playbook's or a one-off send), as the one mark (.mark): neutral. The pill beside it says its state. */
+.bc-run-what {
+  min-width: 0;
+}
+.bc-run-titles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.bc-run-name {
+  display: inline-block;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bc-run-name:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.bc-run-name:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 2px;
+}
+.bc-run-titles > .pill,
+.bc-run-titles > .pol-chip {
+  flex: none;
+}
+/* Why a run waits is its sheet's and its report's too: where the list is too narrow for the name beside its pill and
+   the chip, the chip gives way (at 944px the name kept 74 of its 136px, at 744px none). */
+@container (max-width: 1100px) {
+  .bc-run-titles > .pol-chip {
+    display: none;
+  }
+}
+/* The line under the name clips nothing itself, so the link's reach (below) is whole; the words after it take the
+   ellipsis. */
+.bc-run-sub {
+  display: flex;
+  min-width: 0;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.bc-run-aud {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+.bc-run-link {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.bc-run-link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.bc-run-when {
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bc-run-soon {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+}
+/* Who it reached: the count with its bar beside it, the reasons on one line under them. */
+.bc-run-reach {
+  min-width: 0;
+}
+.bc-run-reach .cm-reach {
+  display: grid;
+  grid-template-columns: auto minmax(32px, 1fr);
+  column-gap: 10px;
+  row-gap: 3px;
+  align-items: center;
+}
+.bc-run-reach .cm-reach-bar {
+  margin-top: 0;
+}
+.bc-run-reach .cm-reach-will {
+  font-size: var(--text-sm);
+}
+.bc-run-reach .cm-reach-of {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bc-run-reach .cm-reach-why {
+  grid-column: 1 / -1;
+  display: block;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bc-run-reach .cm-reach-why li {
+  display: inline;
+}
+.bc-run-reach .cm-reach-why li + li::before {
+  content: "\00B7";
+  margin: 0 6px;
+  color: var(--ink-faint);
+}
+.bc-run-reach .cm-reach-dot {
+  display: none;
+}
+.bc-run-acts {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.bc-run-acts .btn {
+  height: 28px;
+  padding: 0 11px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+/* Where the row goes: its report. The whole row presses it; this is its mark. */
+.bc-run-go {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+.bc-run-line:hover .bc-run-go,
+.bc-run-go:hover {
+  color: var(--ink);
+}
+.bc-run-go:focus-visible {
+  outline: none;
+  color: var(--ink);
+  box-shadow: var(--focus-ring);
+}
+.bc-runs-more {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 14px;
+  border: 0;
+  background: var(--bg-sunken);
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  text-align: left;
+  cursor: pointer;
+}
+.bc-runs-more:hover {
+  color: var(--ink);
+}
+/* A filter that leaves nothing: its line at the rows' inset, off the box's hairline. */
+.bc-runs > .empty {
+  padding-inline: 14px;
+}
+/* A thumb's reach without a taller row (legacy.css gives every button on a touch screen 44px): the row is the
+   opener (cmRowPress), and the words that are their own press take their reach from a box that takes no room. */
+html.legacy-on .bc-run-name,
+html.legacy-on .bc-run-line .bc-run-link {
+  min-height: 0;
+}
+html.legacy-on .bc-run-line .bc-run-link {
+  position: relative;
+}
+/* The link's reach grows down and to the sides, never up over the name, which opens the run. */
+.bc-run-line .bc-run-link::after {
+  content: "";
+  position: absolute;
+  inset: -2px -6px -8px;
+}
+/* A phone's list: People's row, on the row tokens. The name with its state; what sent it; when, and who it reached,
+   on one line, the bar left to the desk; and only on a run that waits, its acts. The row is the press, so the mark
+   of where it goes is the desk's. */
+@container (max-width: 640px) {
+  .bc-run {
+    display: block;
+  }
+  .bc-run-line {
+    grid-template-columns: var(--row-face) auto minmax(0, 1fr);
+    grid-template-areas: "mark what what" ". when reach" ". acts acts";
+    column-gap: var(--row-gap);
+    row-gap: var(--row-line-gap);
+    min-height: 0;
+    padding: var(--row-pad-y) var(--row-pad-x);
+  }
+  .bc-run-mark {
+    grid-area: mark;
+    align-self: start;
+  }
+  .bc-run-what {
+    grid-area: what;
+  }
+  .bc-run-name {
+    font-size: var(--text-base);
+    line-height: var(--row-name-line);
+  }
+  .bc-run-sub {
+    margin-top: var(--row-line-gap);
+    font-size: var(--row-facts);
+    line-height: var(--row-facts-line);
+  }
+  /* The row is a thumb's one press, as a person's is: the word Playbook is words here, and the run's report, a press
+     away, has the door to its playbook. As a 17px link between the name and the facts it was a target a thumb missed. */
+  .bc-run-line .bc-run-link {
+    pointer-events: none;
+  }
+  .bc-run-when {
+    grid-area: when;
+    font-size: var(--row-facts);
+    line-height: var(--row-facts-line);
+  }
+  .bc-run-when::after {
+    content: "\00B7";
+    margin-left: 6px;
+    color: var(--ink-faint);
+  }
+  /* The row's gap is the face's to the words; between when and who it reached, a dot's even 6px either side. */
+  .bc-run-reach {
+    grid-area: reach;
+    margin-left: calc(6px - var(--row-gap));
+  }
+  .bc-run-reach .cm-reach {
+    display: flex;
+    align-items: baseline;
+    min-width: 0;
+  }
+  .bc-run-reach .cm-reach-n {
+    flex: none;
+    gap: 4px;
+  }
+  .bc-run-reach .cm-reach-will {
+    font-family: inherit;
+    font-size: var(--row-facts);
+    font-weight: var(--weight-medium);
+  }
+  .bc-run-reach .cm-reach-of {
+    font-size: var(--row-facts);
+  }
+  .bc-run-reach .cm-reach-bar {
+    display: none;
+  }
+  .bc-run-reach .cm-reach-why {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-top: 0;
+    font-size: var(--row-facts);
+    line-height: var(--row-facts-line);
+  }
+  .bc-run-reach .cm-reach-why:not(:empty)::before {
+    content: "\00B7";
+    margin: 0 6px;
+    color: var(--ink-faint);
+  }
+  .bc-run-acts {
+    grid-area: acts;
+    justify-content: flex-start;
+  }
+  /* A run that does not wait has only the desk's mark of where it goes here, and no third line for it. */
+  .bc-run-acts:not(:has(> :not(.bc-run-go))) {
+    display: none;
+  }
+  .bc-run-go {
+    display: none;
+  }
+}
+/* Get their yes: folded to its one line under the runs; open, the code beside what it does. */
+.ct-section.bc-optin {
+  gap: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+.bc-yes > summary {
+  list-style: none;
+}
+.bc-yes > summary::-webkit-details-marker {
+  display: none;
+}
+.bc-yes-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  box-sizing: border-box;
+  padding: 0 12px 0 14px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.bc-yes-head:hover {
+  background: var(--bg-hover);
+}
+.bc-yes-head:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.bc-yes-k {
+  flex: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.bc-yes-note {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bc-yes-head > .icon {
+  flex: none;
+  margin-left: auto;
+  color: var(--ink-dim);
+  transition: rotate var(--duration-fast) var(--ease-out);
+}
+.bc-yes[open] > .bc-yes-head {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-bottom: 1px solid var(--line);
+}
+.bc-yes[open] > .bc-yes-head > .icon {
+  rotate: 180deg;
+}
+/* Open, what the fold is for is what it shows. */
+.bc-yes[open] .bc-yes-note {
+  display: none;
+}
+.bc-yes > .bc-optin-body {
+  padding: 14px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bc-yes-head > .icon {
+    transition: none;
+  }
+}
+/* The send, its own screen: three cards -- who, what, when -- and the act at the foot. */
+.bc-composer.bc-send {
+  padding: 0;
+  border: 0;
+  background: none;
+  gap: 16px;
+}
+.bc-send .bc-cols {
+  gap: 20px;
+  align-items: stretch;
+}
+.bc-send .bc-col {
+  flex: 1 1 280px;
+  gap: 12px;
+  padding: 15px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+}
+.bc-send .bc-col-what {
+  flex: 1.35 1 380px;
+}
+.bc-send .bc-col-label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+}
+.bc-send .bc-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: 0 calc(-1 * var(--gutter-page));
+  padding: 14px var(--gutter-page);
+  border-top: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+.bc-send .bc-actions .btn {
+  height: 36px;
+  padding: 0 15px;
+  border-radius: var(--radius-md);
+}
+/* The foot's two acts by their part, not their name: Send now is the main one until a time is picked, and then Schedule it is. */
+.bc-send .bc-act-second {
+  border-color: var(--line-strong);
+  color: var(--ink-muted);
+}
+.bc-send .bc-act-main {
+  padding: 0 17px;
+  font-size: var(--text-base);
+  gap: 8px;
+}
+/* ---- A run, opened: its report (the canvas's After board) ----
+   Its own screen, as the send is: the run's name and state as the headline, the
+   five figures Reports draws scoped to this run, everyone it touched beside what
+   came back, and -- for a run that stopped -- why, and what to do next. */
+.bc-report {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  container-type: inline-size;
+}
+.bc-report-wait {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cm-head-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.cm-head-line > .cm-head-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cm-head-line > .pill {
+  flex: none;
+}
+.bc-report-tpl {
+  font-size: var(--text-xs);
+}
+.bc-report .cm-head-right {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.bc-report .cm-head-right .btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+.bc-report .cm-head-right .btn:not(.btn-primary):not(.danger):not(.btn-ghost) {
+  border-color: var(--line);
+  color: var(--ink-muted);
+}
+.bc-report-values {
+  margin-top: -8px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.bc-report-values .cl-prof-aut-hint {
+  margin: 0;
+  font-size: inherit;
+  font-style: normal;
+  color: inherit;
+}
+/* The five figures: a label, the number with its share, when it came, and one line. */
+.bc-figs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.bc-fig {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+}
+.bc-fig[data-tone="warn"] {
+  border-color: var(--warn-soft);
+}
+.bc-fig-k {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.bc-fig-n {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 7px;
+}
+.bc-fig-v {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: var(--weight-medium);
+  line-height: 1.15;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+.bc-fig[data-tone="ok"] .bc-fig-v {
+  color: var(--ok-ink);
+}
+.bc-fig[data-tone="warn"] .bc-fig-v {
+  color: var(--warn-ink);
+}
+.bc-fig-pct {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.bc-fig-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 20px;
+  margin-top: 9px;
+}
+.bc-fig-bars > span {
+  flex: 1 1 0;
+  border-radius: 1px;
+  background: var(--line-strong);
+}
+.bc-fig[data-tone="ok"] .bc-fig-bars > span {
+  background: var(--ok);
+}
+.bc-fig[data-tone="warn"] .bc-fig-bars > span {
+  background: var(--warn);
+}
+.bc-fig-sub {
+  margin-top: 7px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* Everyone it touched, beside what came back. */
+.bc-report-body {
+  display: grid;
+  grid-template-columns: minmax(0, 660px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.bc-touched {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+.bc-touched-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 11px 15px;
+  border-bottom: 1px solid var(--line);
+}
+.bc-card-title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.bc-touched-filters {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.bc-person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 50px;
+  box-sizing: border-box;
+  padding: 0 15px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+.bc-person:last-child {
+  border-bottom: 0;
+}
+.bc-person.is-attn {
+  background: var(--bg-hover);
+}
+.bc-person-name {
+  display: inline-block;
+  width: 148px;
+  flex: none;
+  margin: -12px 0;
+  padding: 12px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.bc-person-name:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.bc-person.is-held .bc-person-name {
+  color: var(--ink-dim);
+}
+.bc-person-pill {
+  flex: none;
+}
+.bc-person-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bc-person-door {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.bc-person-door:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* A held email's doors (Include, Rewrite, Skip, Not a fit): one group, so each keeps its own place and its own press. */
+.bc-person-doors {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.bc-person-at {
+  width: 52px;
+  flex: none;
+  margin-left: auto;
+  text-align: right;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.bc-touched-none {
+  padding: 18px 15px;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+/* The aside: why it stopped, and what came back. */
+/* Beside a long list, what came back stays in view. */
+.bc-report-aside {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.bc-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 15px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+}
+.bc-card-lede {
+  margin: 6px 0 12px;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+.bc-back-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.bc-back-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bc-back-row:disabled {
+  cursor: default;
+}
+.bc-back-row:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-xs);
+}
+.bc-back-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.bc-back-quote {
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.bc-back-row:not(:disabled):hover .bc-back-quote {
+  color: var(--ink);
+}
+.bc-back-outcome {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.bc-back-outcome[data-tone="ok"] {
+  color: var(--ok-ink);
+}
+.bc-back-outcome[data-tone="warn"] {
+  color: var(--warn-ink);
+}
+.bc-back-none {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+.bc-back-all {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  cursor: pointer;
+}
+.bc-back-all:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.bc-stop-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 11px;
+  padding: 9px 11px;
+  border-radius: var(--radius-md);
+  background: var(--bg-sunken);
+}
+.bc-stop-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+.bc-stop-box[data-tone="warn"] .bc-stop-dot {
+  background: var(--warn);
+}
+.bc-stop-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.bc-stop-line {
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+.bc-stop-line strong {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.bc-stop-fix {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* ---- A run waiting on you: its sheet (the canvas's "approving from the sofa") ----
+   Its own screen at any width, one column: a back bar that says where it sits in
+   the queue, the run, who it reaches, the words, and the act alone at the foot,
+   pinned while the list of who gets it scrolls above it. */
+.bc-report.is-sheet {
+  max-width: 560px;
+}
+.bc-sheet {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--bg-raised);
+}
+.bc-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+}
+.bc-sheet-sub {
+  margin-top: 3px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* Who it reaches: the number it has, and the rules that made the list. */
+.bc-sheet-reach {
+  padding: 13px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-sunken);
+}
+.bc-sheet-n {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.bc-sheet-v {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: var(--weight-medium);
+  line-height: 1.15;
+  color: var(--ink);
+}
+.bc-sheet-will {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.bc-sheet-bar {
+  display: flex;
+  height: 6px;
+  margin-top: 9px;
+}
+.bc-sheet-bar > span {
+  flex: 1 1 auto;
+  border-radius: 3px;
+  background: var(--ok);
+}
+.bc-sheet-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* Out of everyone the moment named, as the run counted them: green reaches, amber
+   waits only for time, grey was left out -- the reach bars' own colours
+   (.cm-reach-bar) at the sheet's size, and a line per reason under them. */
+.bc-sheet-bar.is-parts {
+  gap: 2px;
+}
+.bc-sheet-bar.is-parts > span {
+  flex: none;
+  border-radius: 0;
+}
+.bc-sheet-bar.is-parts > span:first-child {
+  border-top-left-radius: 3px;
+  border-bottom-left-radius: 3px;
+}
+.bc-sheet-bar.is-parts > span:last-child {
+  border-top-right-radius: 3px;
+  border-bottom-right-radius: 3px;
+}
+.bc-sheet-bar.is-parts > .bc-sheet-bar-will {
+  background: var(--ok);
+}
+.bc-sheet-bar.is-parts > .bc-sheet-bar-held {
+  background: var(--warn);
+}
+.bc-sheet-bar.is-parts > .bc-sheet-bar-rest {
+  flex: 1 1 auto;
+  background: var(--line-strong);
+  border-radius: 0 3px 3px 0;
+}
+.bc-sheet-why {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.bc-sheet-why li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.bc-sheet-why .cm-reach-dot {
+  width: 6px;
+  height: 6px;
+}
+/* The door to getting their yes, here and in the send screen's sentence that says nobody has it (bc-nobody). */
+.bc-sheet-door,
+.bc-nobody-door {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--line-strong);
+  cursor: pointer;
+}
+.bc-sheet-door:hover,
+.bc-nobody-door:hover {
+  text-decoration-color: currentColor;
+}
+.bc-sheet-door:focus-visible,
+.bc-nobody-door:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 2px;
+}
+/* The words, as its first person reads them: what varies tinted as the preview tints it. */
+.bc-sheet-words {
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+.bc-sheet-quote {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+/* An email's subject over the words it opens with, and what the sender adds under a text's (its STOP line), or why the
+   reader's own channel could not be drawn: the same words the composers' previews carry (parts/preview-by.ts). */
+.bc-approval-subject {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.bc-approval-says {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.bc-sheet-slot {
+  padding: 0 3px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-active);
+  color: var(--ink);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.bc-sheet-reader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 8px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.bc-sheet-hi {
+  color: var(--warn-ink);
+}
+/* The act, alone at the foot and pinned there. */
+.bc-sheet-acts {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px 16px 16px;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  background: var(--bg-raised);
+}
+.bc-sheet-people + .bc-sheet-acts {
+  border-top: 1px solid var(--line);
+}
+.bc-sheet-pair {
+  display: flex;
+  gap: 9px;
+}
+/* The sheet's one act, tall and across the foot; and the two beside each other under it. Their look is the kit's button. */
+.bc-approve {
+  justify-content: center;
+  gap: var(--space-2);
+  height: 50px;
+  padding: 0 16px;
+}
+.bc-second {
+  flex: 1 1 0;
+  justify-content: center;
+  height: 44px;
+  padding: 0 12px;
+}
+.bc-sheet-note {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.bc-sheet-expired {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+.bc-sheet-acts .confirm {
+  width: 100%;
+}
+/* Who gets it, on asking: the report's list, inside the sheet. */
+.bc-sheet-people {
+  margin: 0 16px 4px;
+}
+/* A thumb's reach without a taller line (legacy.css gives a touch screen's buttons 44px): the text buttons take theirs from a box that takes no room. */
+html.legacy-on .bc-person-name,
+html.legacy-on .bc-person-door,
+html.legacy-on .bc-back-all,
+html.legacy-on .bc-report .bc-run-link,
+html.legacy-on .bc-nobody-door {
+  position: relative;
+  min-height: 0;
+}
+.bc-person-door::after,
+.bc-back-all::after,
+.bc-report .bc-run-link::after,
+.bc-nobody-door::after {
+  content: "";
+  position: absolute;
+  inset: -14px -8px;
+}
+/* A narrower pane: what came back first, and everyone under it. */
+@container (max-width: 980px) {
+  .bc-report-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bc-report-aside {
+    position: static;
+    order: -1;
+  }
+}
+@container (max-width: 760px) {
+  .bc-figs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bc-fig:first-child {
+    grid-column: 1 / -1;
+  }
+}
+/* A phone: a person's line is two -- who and how it went, then the words and the door. */
+@container (max-width: 560px) {
+  .bc-person {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr) auto auto;
+    grid-template-areas: "mark name pill at" "mark words words door";
+    column-gap: 10px;
+    row-gap: 3px;
+    height: auto;
+    padding: 10px 15px;
+  }
+  .bc-person-name {
+    grid-area: name;
+    width: auto;
+  }
+  .bc-person-pill {
+    grid-area: pill;
+  }
+  .bc-person-at {
+    grid-area: at;
+    width: auto;
+  }
+  .bc-person-words {
+    grid-area: words;
+    white-space: normal;
+  }
+  .bc-person-door {
+    grid-area: door;
+  }
+  /* A held email's doors are a line of their own under its reason, and what a door said under them. */
+  .bc-person:has(> .bc-person-doors) {
+    grid-template-areas: "mark name pill at" "mark words words words" "mark door door door";
+  }
+  .bc-person-doors {
+    grid-area: door;
+  }
+  .bc-person-doors ~ .pb-warn {
+    grid-column: 2 / -1;
+  }
+  .bc-touched-filters {
+    margin-left: 0;
+  }
+}
+@media (max-width: 720px) {
+  .bc-page {
+    padding-top: 12px;
+  }
+  /* The strip: seven days under a thumb, each its name over its marks. */
+  .bc-week {
+    padding: 4px;
+    gap: 0;
+  }
+  .bc-week-k {
+    display: none;
+  }
+  .bc-week-cell {
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    height: 40px;
+    padding: 0 2px;
+  }
+  .bc-yes-note {
+    display: none;
+  }
+}
+
+/* ---- The messages are a list, not a wall of chat ----
+   A row per message with the columns named once above them -- the mark's column,
+   the message, what sends it, what went out -- and the WHOLE message, with its
+   languages, opens under the row it belongs to, one at a time. */
+/* People's table, which is the list every Campaigns tab draws (.cl-table-wrap): one hairline box, a sunken head of
+   10px capitals, rows on the page's ground with a hairline between them, the hover's grey. */
+.msg-list {
+  container-type: inline-size;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: clip;
+  background: var(--bg);
+}
+.msg-list-head,
+.msg-row-line {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 220px 92px;
+  column-gap: 12px;
+  align-items: center;
+}
+.msg-list-head {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-sunken);
+  font-size: 10px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.msg-row {
+  border-bottom: 1px solid var(--line);
+}
+.msg-row:last-child {
+  border-bottom: 0;
+}
+.msg-row:hover {
+  background: var(--bg-hover);
+}
+/* A language something sends is missing or not approved: those sends are refused or
+   skipped. The row is the hover's grey, standing still. */
+.msg-row.is-attn {
+  background: var(--bg-hover);
+}
+.msg-row.is-open {
+  background: var(--bg-sunken);
+}
+.msg-row.is-hidden {
+  opacity: 0.7;
+}
+.msg-row-line {
+  padding: 0 14px;
+  min-height: 52px;
+}
+/* The press that opens a row covers the mark and the words, across the first two
+   columns, so its mark sits in the mark's column and its words under "The message". */
+.msg-row-what {
+  grid-column: span 2;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+  min-width: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 8px 0;
+  cursor: pointer;
+}
+/* Marketing or utility, as a mark (.mark): the glyph says which (a gift, a bell) and the tip says what it means for who
+   it reaches. Neutral, as every mark is: amber says a person is needed, and a marketing message needs nobody. */
+.msg-row-said {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.msg-row-titles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.msg-row-title {
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.msg-row.is-dim .msg-row-title {
+  color: var(--ink-dim);
+}
+.msg-tag {
+  flex: none;
+}
+.msg-row-words {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.msg-row-use {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  font-size: var(--text-xs);
+}
+.msg-use-link {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.msg-use-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.msg-use-note {
+  max-width: 100%;
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Nothing sends it: said plainly, in the caption grey, with an empty ring where
+   a thing that sends it would be. The row's dimmed title says the rest. */
+.msg-use-none {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.msg-use-ring {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  border: 1px solid var(--ink-faint);
+  flex: none;
+}
+/* What left, and when the latest did: counts to compare down the column, so
+   right-aligned in even figures, the heading over them too. */
+.msg-list-head-sent {
+  text-align: right;
+}
+.msg-row-sent {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  text-align: right;
+}
+.msg-row-sent-n {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.msg-row-sent-n.is-none {
+  color: var(--ink-faint);
+}
+.msg-row-sent-when,
+.msg-row-sent-never {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+/* Under a dash, in the case its neighbours' "today" and "2d ago" are in. */
+.msg-row-sent-never {
+  text-transform: lowercase;
+}
+/* "sent" beside the count is for whoever cannot see the heading: a screen reader
+   (the heading is aria-hidden) and a stacked row (the heading is gone). */
+.msg-row-sent-unit {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.msg-row-sent-dot {
+  display: none;
+}
+/* A refusal is the row's own line, under it and in line with its words. */
+.msg-row > .bc-excl-hint {
+  margin: 0 14px 10px 54px;
+}
+/* A thumb's reach without a taller row (legacy.css gives every button on a touch screen 44px, and a row's words are
+   buttons: the row stood 115px where its lines are 72). The opener is the whole line (cmRowPress) and needs no floor;
+   the words that are their own press take theirs from a box that takes no room, as a chip's buttons do. */
+html.legacy-on .msg-row-what,
+html.legacy-on .msg-use-link {
+  min-height: 0;
+}
+html.legacy-on .msg-use-link {
+  position: relative;
+}
+.msg-use-link::after {
+  content: "";
+  position: absolute;
+  inset: -10px -6px;
+}
+/* A message's languages, in the row it opens: which one is in view, its state, and every language behind it. */
+.msg-lang {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.msg-lang-k {
+  flex: none;
+}
+/* A language written in the row that opened it: the composer as a panel in the
+   fold, its fields beside the message as the customer will read it, and while
+   the assistant writes, the shape of the words rather than a spinner. */
+.msg-row-open .tpl-composer.is-translate {
+  margin-top: 0;
+  padding: 14px 16px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  gap: 12px;
+}
+.tpl-composer.is-translate .ct-sec-head {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+.tpl-composer.is-translate .ct-sec-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.tpl-composer.is-translate .ct-sec-title .icon {
+  color: var(--ink-dim);
+}
+.tpl-composer.is-translate .ct-sec-meta {
+  flex: 1 1 100%;
+  font-size: var(--text-xs);
+}
+.tpl-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  column-gap: 20px;
+  align-items: start;
+}
+.tpl-split .tpl-fields {
+  margin: 0;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+.tpl-split .bc-preview-wrap {
+  margin: 0;
+}
+.tpl-split .mp-bubble {
+  max-width: 100%;
+}
+.tpl-drafting {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 6px 0 10px;
+}
+.tpl-drafting-line {
+  height: 11px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--bg-active) 0%, var(--bg-hover) 45%, var(--bg-active) 90%);
+  background-size: 220% 100%;
+  animation: tpl-shimmer 1.3s ease-in-out infinite;
+}
+.tpl-drafting-line.is-short {
+  width: 58%;
+}
+@keyframes tpl-shimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tpl-drafting-line {
+    animation: none;
+  }
+}
+.tpl-retry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.msg-new-sent {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.msg-new-sent .icon {
+  color: var(--ok-ink);
+}
+/* The message itself, under the row it belongs to and in line with its words. */
+.msg-row-open {
+  padding: 0 14px 14px 54px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* A reach-out's slots as quiet chips, the buttons under a step's words in its sheet. */
+.em-slot {
+  vertical-align: baseline;
+}
+.msg-row-open .mp-frame {
+  max-width: none;
+}
+.msg-row-open .mp-bubble {
+  max-width: 300px;
+}
+.msg-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  margin-top: auto;
+}
+.msg-card-meta {
+  min-width: 0;
+}
+.msg-card-spacer {
+  flex: 1;
+}
+.msg-card-acts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+/* The foot of the list: the fold of what is kept out of the composers, tucked under the list it belongs to. */
+.msg-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  min-height: 32px;
+  padding: 0 2px;
+  margin-top: -6px;
+}
+.msg-list-hidden {
+  margin-top: -6px;
+}
+/* The list sits beside the sidebar, so what decides whether the columns fit is
+   the LIST's width and never the window's (#735). Under that, a row stacks, and
+   stacked it is People's row on a phone (the --row-* tokens): the title, the words
+   under it, and what sends it beside what went out on the third line --
+   "4 sent · Sep 14", with no heading left above it to say
+   what the number is. Each of the four had a line or two of its own, so a template
+   stood 178-229px tall at 390px, where a person stands 84. */
+@container (max-width: 774px) {
+  .msg-list-head {
+    display: none;
+  }
+  .msg-row-line {
+    grid-template-columns: var(--row-face) minmax(0, 1fr) auto;
+    column-gap: var(--row-gap);
+    row-gap: var(--row-line-gap);
+    min-height: 0;
+    padding: var(--row-pad-y) var(--row-pad-x);
+  }
+  .msg-row-what {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    grid-template-columns: var(--row-face) minmax(0, 1fr);
+    column-gap: var(--row-gap);
+    align-items: start;
+    padding: 0;
+  }
+  .msg-row-use {
+    grid-column: 2;
+    grid-row: 2;
+    flex-direction: row;
+    align-items: baseline;
+    min-width: 0;
+    font-size: var(--row-facts);
+    line-height: var(--row-facts-line);
+  }
+  .msg-row-use .msg-use-note {
+    display: none;
+  }
+  .msg-row-sent {
+    grid-column: 3;
+    grid-row: 2;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 5px;
+    font-size: var(--row-facts);
+    line-height: var(--row-facts-line);
+  }
+  .msg-row-title {
+    font-size: var(--text-base);
+    line-height: var(--row-name-line);
+  }
+  .msg-row-words {
+    font-size: var(--text-sm);
+    line-height: var(--row-said-line);
+  }
+  .msg-row-sent-unit {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    font-family: var(--font-sans);
+    font-size: var(--row-facts);
+    color: var(--ink-dim);
+  }
+  .msg-row-sent-n {
+    font-size: var(--row-facts);
+  }
+  .msg-row-sent-dot {
+    display: inline;
+    color: var(--ink-faint);
+  }
+  .msg-row-sent-n.is-none {
+    display: none;
+  }
+  .msg-row-sent-never {
+    text-transform: none;
+  }
+  .msg-row-open {
+    padding: 0 var(--row-pad-x) var(--row-pad-y);
+  }
+  .msg-row > .bc-excl-hint {
+    margin: 0 var(--row-pad-x) var(--row-pad-y) calc(var(--row-pad-x) + var(--row-face) + var(--row-gap));
+  }
+  /* The words over the message, not beside it. */
+  .tpl-split {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 12px;
+  }
+  .msg-row-open .tpl-composer.is-translate {
+    padding: 12px;
+  }
+}
+
+/* The playbook composer's rows (C2): the word at the left, what the row holds beside it, a hairline between rows. The
+   sections keep their own markup and testids; their eyebrows (Who it's for, What it says, When it runs) go, since the
+   row's word says it. */
+:where([data-look="glass"]) .pb-compose {
+  gap: 0;
+}
+:where([data-look="glass"]) .pb-grow {
+  display: grid;
+  grid-template-columns: var(--space-12) minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--line);
+}
+:where([data-look="glass"]) .pb-grow:last-of-type {
+  border-bottom: 0;
+}
+:where([data-look="glass"]) .pb-grow-word {
+  padding-top: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .pb-grow-body {
+  min-width: 0;
+}
+:where([data-look="glass"]) .pb-grow .pb-sec {
+  padding: 0;
+  gap: var(--space-2);
+}
+:where([data-look="glass"]) .pb-grow .pb-sec-k {
+  display: none;
+}
+
+/* In a row what a pick is for is said by the row (the reach, the message's line), not under it. */
+:where([data-look="glass"]) .pb-grow .pb-pick-sub {
+  display: none;
+}
+:where([data-look="glass"]) .pb-grow .pb-pick-text {
+  flex: 0 1 auto;
+}
+:where([data-look="glass"]) .pb-grow .pb-msg-head {
+  align-items: center;
+  flex-wrap: wrap;
+}
+:where([data-look="glass"]) .pb-when {
+  line-height: 2;
+}
+/* The bubble stands on the pane itself, not on a stage of its own; the fields under it are an inset. */
+:where([data-look="glass"]) .pb-preview {
+  justify-content: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+:where([data-look="glass"]) .pb-fills {
+  border: 0;
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .pb-guard {
+  border: 1px solid var(--surface-inset-edge);
+  background: var(--bg-sunken);
+}
+/* What is missing where the message would be is an inset, as the composer boards draw what a row holds, not a
+   dashed box; named by its testid, since its class is a primitive's word. */
+:where([data-look="glass"]) [data-testid="pb-message-empty"] {
+  border: 0;
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
+}
+
+/* The broadcast composer's rows (C2, the second door): one pane, the width of the canvases' composer, each question a
+   row with its word at the left, the foot the glass bar. The columns keep their own markup; their eyebrows go. */
+:where([data-look="glass"]) .bc-send.bc-glass {
+  position: relative;
+  max-width: 560px;
+  gap: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+:where([data-look="glass"]) .bc-send.bc-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .bc-grows {
+  padding: 0 calc(var(--space-4) + var(--space-2));
+}
+:where([data-look="glass"]) .bc-grow {
+  display: grid;
+  grid-template-columns: var(--space-12) minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--line);
+}
+:where([data-look="glass"]) .bc-grow:last-child {
+  border-bottom: 0;
+}
+:where([data-look="glass"]) .bc-grow-word {
+  padding-top: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .bc-grow-body {
+  min-width: 0;
+}
+:where([data-look="glass"]) .bc-glass .bc-col {
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+:where([data-look="glass"]) .bc-glass .bc-col-label {
+  display: none;
+}
+:where([data-look="glass"]) .bc-glass .bc-cols {
+  display: block;
+}
+:where([data-look="glass"]) .bc-send.bc-glass .bc-foot {
+  position: relative;
+  margin: 0 var(--space-4) var(--space-4);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-top: 0;
+  border-radius: var(--surface-control-radius);
+  background: var(--surface-control-fill);
+  box-shadow: var(--surface-control-depth);
+}
+:where([data-look="glass"]) .bc-send.bc-glass .bc-foot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .bc-send.bc-glass .bc-actions button {
+  height: var(--control-h-lg);
+  border-radius: var(--control-radius);
+}
+
+/* The template composer's rows (C2, the third door): one pane, the width of the canvases' composer, the kind first, then
+   what it says; its rows keep their own markup, the word at the left as the other two doors', its foot the glass bar. A
+   translation (a language added to a message) is the same form and keeps Classic's layout. */
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) {
+  position: relative;
+  max-width: 560px;
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) 0 0;
+  gap: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) .ct-sec-head {
+  flex-wrap: wrap;
+  padding: var(--space-3) calc(var(--space-4) + var(--space-2)) var(--space-1);
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) .ct-sec-title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) .ct-sec-meta {
+  flex: 1 1 100%;
+  order: 3;
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) .tpl-row {
+  margin: 0 calc(var(--space-4) + var(--space-2));
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--line);
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) .bc-row-label {
+  width: var(--space-12);
+  padding-top: var(--space-1);
+  font-size: var(--text-sm);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) .tpl-fields,
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-preview-wrap,
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-excl-hint {
+  margin: var(--space-3) calc(var(--space-4) + var(--space-2)) 0;
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-actions {
+  position: relative;
+  margin: var(--space-4);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-radius: var(--surface-control-radius);
+  background: var(--surface-control-fill);
+  box-shadow: var(--surface-control-depth);
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-actions::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-actions button {
+  height: var(--control-h-lg);
+  padding: 0 var(--space-4);
+  border-radius: var(--control-radius);
+}
+/* The card the page sets the composer in is the composer's own pane in Glass: it draws nothing of its own. */
+:where([data-look="glass"]) section:has(> .tpl-composer:not(.is-translate)) {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+/* The kind comes first, as the canvas asks it (Kind, then what it says): the composer's rows are From, Say, Kind in the
+   markup, and Kind is its fourth child, after the head. */
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .ct-sec-head {
+  order: -2;
+}
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .tpl-row:nth-child(4) {
+  order: -1;
+}
+
+/* Broadcasts' week and runs and Templates' list stand inside the list's one pane (parts/split.tsx), as the Playbooks'
+   list does: no pane of their own, their head the canvases' small capitals, their hairlines the roles'. */
+:where([data-look="glass"]) :is(.bc-week, .bc-runs, .msg-list, .bc-optin) {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+:where([data-look="glass"]) .bc-week {
+  padding-inline: var(--space-4) var(--space-3);
+}
+:where([data-look="glass"]) .msg-list-head {
+  padding: var(--space-4) calc(var(--space-2) + var(--space-3)) var(--space-2);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+}
+:where([data-look="glass"]) .msg-list > .msg-row:last-child {
+  border-bottom: 0;
+}
+
+/* ====================================================================
+   Campaigns, in the Inbox's shape (campaigns/parts/split.tsx; Claude Video/docs/2026-10-02-campaigns-on-the-kit.md §3.1)
+   The tab's list in a pane (the kit's Panel) and, while something is open, that thing in a second pane beside it: the
+   list narrows to the Inbox's column and each pane scrolls itself. On a phone the open thing is the screen
+   (data-takeover): its head the thread's capsule, its foot the docked bar. Layout, but for the open pane's head and
+   foot, which read the roles as a sheet's did.
+   ==================================================================== */
+.main-scroll.pane > .cm-split {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+.cm-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 14px;
+  padding: 0 var(--gutter-page) 16px;
+}
+.cm-split[data-open] {
+  grid-template-columns: var(--rail-list) minmax(0, 1fr);
+}
+.cm-split > :is(.cm-list, .cm-pane) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+/* The list scrolls itself, and is the container its rows fold against: a narrow list (beside an open pane, or a
+   phone's) sets a row's columns under its name. */
+.cm-list {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  container: cm-list / inline-size;
+}
+.cm-pane {
+  overflow: hidden;
+}
+.cm-pane-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 14px 12px 22px;
+}
+.cm-pane-titles {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cm-pane-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.cm-pane-sub {
+  margin: 3px 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cm-pane-acts {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+.cm-pane-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 22px 22px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* The foot: the composer's line and its acts on a capsule of the control layer's glass, standing clear of the pane's
+   edges as a sheet's foot did (kit.css, "A sheet, and the glass foot bar"). */
+.cm-pane-foot {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin: 0 14px 14px;
+  padding: 6px 6px 6px 16px;
+  border-radius: var(--surface-control-radius);
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  box-shadow: var(--surface-control-depth);
+}
+.cm-pane-foot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+.cm-pane-foot > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .cm-split {
+    gap: 12px;
+    padding: 0 12px 12px;
+  }
+  .cm-split[data-open] {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0;
+  }
+  .cm-split[data-open] > .cm-list {
+    display: none;
+  }
+  /* The open thing is the screen: no pane round it, its head the capsule the kit draws (kit.css, Capsule) at the top. */
+  .cm-split[data-open] > .cm-pane {
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .cm-split[data-open] > .cm-pane::after {
+    content: none;
+  }
+  .cm-pane-head {
+    gap: 8px;
+    margin: 12px 12px 4px;
+    padding: 4px 6px 4px 4px;
+  }
+  .cm-pane-title {
+    gap: 8px;
+    font-size: var(--text-md);
+  }
+  /* The capsule holds one line of name and one of what it is, each cut short with an ellipsis, as a thread's head does. */
+  .cm-pane-name,
+  .cm-pane-sub {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cm-pane-sub {
+    margin-top: 1px;
+    font-size: var(--text-xs);
+  }
+  .cm-pane-body {
+    padding: 8px 16px 16px;
+  }
+  .cm-pane-foot {
+    margin: 0 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ---- Playbooks in the split ---- */
+
+/* A slot the owner can change is a control in the bubble (parts/slot.tsx): its words as the bubble writes them, inline,
+   tinted as what varies, with a dotted rule under them that says a press changes them. */
+.mp-body > button.mp-slot {
+  display: inline;
+  padding: 0 2px;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--ink-dim);
+  text-underline-offset: 3px;
+}
+.mp-body > button.mp-slot:hover,
+.mp-body > button.mp-slot[data-popup-open] {
+  background: var(--selected-fill);
+  color: var(--ink);
+}
+.mp-body > button.mp-slot:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* What fills a slot, over the page: its name, the sources it may take, and the words typed. */
+.cm-slot-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(300px, calc(100vw - 32px));
+}
+.cm-slot-name {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.cm-slot-hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+
+/* ---- Broadcasts in the split ---- */
+/* The send's three questions are sentences of tokens (page/send-screen.tsx): the list and how many of it can hear the
+   message, the message and its language, "Now" or a day and a time. A sentence wraps where its tokens do not fit, and a
+   token is as wide as its words wherever it stands. */
+.bc-to-line,
+.bc-says-line,
+.bc-when-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.bc-to-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.bc-to-n {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.bc-to-bar {
+  min-width: 0;
+}
+/* The To line after its count: who it reaches on which channel, in one clause, where it goes by more than WhatsApp alone
+   (page/audience.tsx BcReachBy; the playbook's is parts/reach.tsx CmWho). The thin bar under it is the kit's meter, a focus
+   stop for its tip. */
+.bc-to-by,
+.cm-who-by {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--ink-dim);
+}
+.bc-to-bar:focus-visible,
+.cm-who-bar:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* The playbook composer's To count on one line, its bar under it, and the reasons behind "Who's held back". */
+.cm-who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.cm-who-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.cm-who .cm-reach-will {
+  font-size: var(--text-base);
+}
+.cm-who-bar {
+  min-width: 0;
+}
+/* The month's emails or texts running out for this run, under the bar, quiet (contracts allowanceBeforeSend). */
+.cm-who-allowance {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.bc-says-add {
+  align-self: flex-start;
+}
+/* Who is held back, over the page from the quiet link on the To sentence: each name (a press walks the bubble to them)
+   with the reason the wire would give under it, and how many more are held for the same reasons. */
+.bc-held-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(320px, calc(100vw - 32px));
+}
+.bc-held-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bc-held-list > li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+}
+.bc-held-why {
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--warn-ink);
+}
+.bc-held-rest {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* What stood as paragraphs under the To row, behind the same link: who said yes, the rules every send keeps, what an offer needs. */
+.bc-held-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.bc-held-notes:empty {
+  display: none;
+}
+.bc-held-box .bc-meta {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+}
+.bc-held-box .bc-meta .icon {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.bc-held-box .bc-excl-hint {
+  align-self: stretch;
+}
+.bc-held-yes {
+  margin: 0;
+  font-size: var(--text-xs);
+}
+/* A send that goes by more than WhatsApp alone (parts/channels.ts): the held counted by reason over the people, and, under
+   the bar, one quiet line of who it reaches on which channel -- the send screen's, the playbook's reach, and a waiting run's. */
+.bc-held-by {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--warn-ink);
+}
+.bc-reach-by,
+.cm-reach-by {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.cm-reach-by {
+  margin-top: var(--space-1);
+}
+/* Send by (parts/send-by.tsx): a switch beside its word for each channel, in one row that wraps. A channel that is closed
+   to this message says so in its word's ink, and why in the kit's tooltip. */
+.cm-via {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  min-width: 0;
+}
+.cm-via-one {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cm-via-word {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.cm-via-word[data-fixed="true"] {
+  color: var(--ink-faint);
+}
+/* A channel a playbook keeps that cannot send yet is on and live, where one that cannot be turned on is dimmed: its word is
+   underlined as a thing with a reason to read, in the tooltip and to a screen reader. */
+.cm-via-word[data-waiting="true"] {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+/* Why a channel is closed, as a line under the row where there is no pointer: the kit's tooltip never shows to a finger. A
+   screen reader has the same words as each switch's description, so the line is hidden from it. */
+.cm-via-whys {
+  display: none;
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.cm-via-why-word {
+  color: var(--ink-muted);
+}
+@media (hover: none) {
+  .cm-via-whys {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+}
+/* A row's word is one line: "Send by" is the longest of them. */
+.bc-grow-word,
+.pb-grow-word {
+  white-space: nowrap;
+}
+/* The ledger is always the list, in the split's one pane (parts/split.tsx): its head is the runs by state (the kit's
+   sub-tabs, whose strip keeps the list's own sides), what went out under them, and the week ahead; then the runs, which
+   fold their columns under the name where the list is narrow (their container queries above read the box they stand
+   in); then the section that gets a yes. */
+.bc-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+}
+.bc-by-state {
+  --subtabs-side: 0px;
+}
+.bc-list .cm-standing {
+  padding: 0;
+  font-size: var(--text-xs);
+}
+.bc-list .cm-standing:empty {
+  display: none;
+}
+/* The run whose report is the open pane is the row that is picked. */
+.bc-run.is-open > .bc-run-line {
+  background: var(--bg-active);
+}
+/* A phone's line is the strip and the act: what went out is the desk's, all but "the latest 50 broadcasts", which says
+   the counts are not everything. A strip with more states than a phone is wide scrolls across. */
+@media (max-width: 900px) {
+  .bc-by-state {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+}
+@media (max-width: 720px) {
+  .bc-list .cm-standing:not(:has(> .bc-latest)),
+  .bc-list .cm-standing > :not(.bc-latest),
+  .bc-list .cm-standing > .bc-latest > .cm-standing-dot {
+    display: none;
+  }
+}
+
+/* A run's pane, in every state it is in (run.tsx): its head wraps where its verbs and a question it asks do not fit
+   beside its name, the verbs one size whichever way they were drawn, and the link to its playbook a reach of its own. */
+.bc-pane .cm-pane-head {
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+}
+.bc-pane .cm-pane-titles {
+  flex: 1 1 var(--space-20);
+}
+.bc-pane .cm-pane-title {
+  overflow-wrap: anywhere;
+}
+.bc-pane .cm-pane-acts {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.bc-pane .cm-pane-acts button {
+  height: var(--control-h-md);
+  padding: 0 var(--space-3);
+  border-radius: var(--control-radius);
+  font-size: var(--text-sm);
+}
+html.legacy-on .cm-pane-sub .bc-run-link {
+  position: relative;
+  min-height: 0;
+}
+.cm-pane-sub .bc-run-link::after {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--space-3)) calc(-1 * var(--space-2));
+}
+/* The pane is the approval's frame now (a run's, and a reach-out's block): it keeps its words and its acts, and loses the
+   card it stood in and the padding it gave itself. Named for what it is, its own classes beside the old ones, which a
+   rule of the page's own over a sheet's would add to the count of what restyles the kit. */
+.bc-report.is-approval {
+  max-width: none;
+}
+.bc-approval {
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.bc-approval-body {
+  padding: 0 0 var(--space-4);
+}
+.bc-approval-acts {
+  padding: var(--space-3) 0 var(--space-4);
+}
+.bc-approval-people {
+  margin: 0 0 var(--space-1);
+}
+/* Everyone it touched: its filters (the kit's sub-tabs) on a line under the title, the strip's hairline theirs. */
+.bc-touched-head:has(> .bc-touched-filters) {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.bc-touched-head > .bc-touched-filters {
+  display: block;
+  flex: 1 1 100%;
+  margin-left: 0;
+  --subtabs-side: 0px;
+}
+/* A person is the kit's face (sm, 28px) where it was a 26px circle of its own, and their time stays on one line. */
+.bc-person-at {
+  width: auto;
+  min-width: calc(var(--space-12) + var(--space-1));
+  white-space: nowrap;
+}
+@container (max-width: 560px) {
+  .bc-person {
+    grid-template-columns: calc(var(--space-6) + var(--space-1)) minmax(0, 1fr) auto auto;
+  }
+  .bc-person-who {
+    grid-area: mark;
+    align-self: start;
+  }
+}
+
+/* The send, in the pane beside the ledger: who, what and when one under the other (and, in Glass, as the canvas's rows,
+   which the Glass block above lays out), the foot the pane's capsule with the name, the two acts, or the question that
+   asks first about what was written. */
+.cm-pane-body > .bc-composer {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.bc-composer > .bc-cols {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: var(--space-5);
+}
+.bc-composer > .bc-cols > .bc-col {
+  flex: none;
+}
+.bc-composer > .bc-grows {
+  padding: 0;
+}
+.cm-pane-foot > .bc-foot {
+  padding: 0;
+  border-top: 0;
+}
+.bc-pane .cm-pane-foot .bc-actions button {
+  height: var(--control-h-md);
+  padding: 0 var(--space-4);
+  border-radius: var(--control-radius);
+}
+.bc-pane .cm-pane-foot .bc-act-second {
+  border-color: var(--line-strong);
+  color: var(--ink-muted);
+}
+.bc-pane .cm-pane-foot .bc-act-main {
+  gap: var(--space-2);
+  font-size: var(--text-base);
+}
+.bc-pane .cm-pane-foot .bc-actions button {
+  height: var(--control-h-lg);
+}
+
+/* Every tab's rows as the Playbooks' and the Inbox's: no hairline between two, the line a lozenge inset from the pane's
+   sides under a pointer, and the one open beside the list an inset's fill, never a darker band. */
+.bc-runs > * + *,
+.msg-list > .msg-row {
+  border-top: 0;
+  border-bottom: 0;
+}
+.msg-list > .msg-row {
+  background: transparent;
+}
+:is(.bc-run-line, .msg-row-line) {
+  margin: 0 var(--space-2);
+  border-radius: var(--surface-inset-radius);
+}
+:is(.bc-run.is-open > .bc-run-line, .msg-row.is-open > .msg-row-line) {
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+/* "Get their yes" at the list's foot is an inset in the list's pane, as every fold in a pane is: it was the raised
+   ground's darker band. */
+.bc-list > .bc-optin {
+  border: 0;
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+/* The open thing's line under its name says its parts with a dot between each, as the frame's head said them. */
+.cm-pane-sub .cm-head-dot {
+  margin: 0 6px;
+  color: var(--ink-dim);
+}
+/* A narrow list (beside an open run, or a phone's) keeps the runs and their filters; the week ahead is the wide
+   list's overview, and in 360px its seven days were a line of initials. */
+@container cm-list (max-width: 640px) {
+  .bc-week {
+    display: none;
+  }
+}
+
+/* ---- Templates in the split ---- */
+/* The list's pane (templates/templates-page.tsx): the head's line, then the top bar, the notices and the rows. The pane
+   scrolls itself (.cm-list), so the page keeps no scroller of its own. */
+.tpl-wrap {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4) var(--space-4) var(--space-6);
+}
+.tpl-wrap > * {
+  flex-shrink: 0;
+}
+/* The top bar, as the Inbox's list opens on its search: the box takes the list's width and what WhatsApp's sync state
+   leaves, which is as wide as its words. The kit's search capsule is the box (by position: it is a kit class). */
+.tpl-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.tpl-bar > :first-child {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.tpl-bar > :not(:first-child) {
+  flex: none;
+}
+/* The open message in its pane: the pane's body is its inset, so what was the open row's own is not added to it. Its
+   fields and the message beside them fold by the pane's own width, as they folded by the row's list (the rules for
+   .tpl-split above measure the nearest container). */
+.tpl-read {
+  padding: 0;
+  container-type: inline-size;
+}
+/* A new message in its pane: its rows one under another, each with its word at the left, as the other doors' composers
+   draw theirs; a phone's put the word over the row, as the rows' own rules do (mobile.css). */
+.tpl-compose {
+  display: flex;
+  flex-direction: column;
+}
+.tpl-compose .tpl-row {
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.tpl-compose .bc-row-label {
+  flex: none;
+  width: var(--space-12);
+  padding-top: var(--space-1);
+  font-size: var(--text-sm);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-dim);
+}
+.tpl-compose .tpl-fields,
+.tpl-compose > .bc-preview-wrap,
+.tpl-compose > .bc-excl-hint {
+  margin: var(--space-3) 0 0;
+}
+@media (max-width: 900px) {
+  .tpl-compose .tpl-row {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .tpl-compose .bc-row-label {
+    width: auto;
+    padding-top: 0;
+  }
+}
+/* The kind comes first, as the canvas asks it (Kind, then what it says): the rows are From, Say, Kind in the markup. */
+.tpl-compose > .tpl-row:nth-child(3) {
+  order: -1;
+}
+/* A narrow list (beside an open pane, or a phone's): the columns' names go, and a row's columns fold under its name as
+   the playbooks' do -- the message, then what sends it beside what went out on the line under. It is the list's pane
+   the columns have to fit, so the pane is what is measured. */
+@container cm-list (max-width: 640px) {
+  .msg-list-head {
+    display: none;
+  }
+  .msg-row-line {
+    grid-template-columns: var(--row-face) minmax(0, 1fr) auto;
+    column-gap: var(--row-gap);
+    row-gap: var(--row-line-gap);
+    min-height: 0;
+    padding: var(--row-pad-y) var(--row-pad-x);
+  }
+  .msg-row-what {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    grid-template-columns: var(--row-face) minmax(0, 1fr);
+    column-gap: var(--row-gap);
+    align-items: start;
+    padding: 0;
+  }
+  .msg-row-use {
+    grid-column: 2;
+    grid-row: 2;
+    flex-direction: row;
+    align-items: baseline;
+    min-width: 0;
+    font-size: var(--row-facts);
+    line-height: var(--row-facts-line);
+  }
+  .msg-row-use .msg-use-note {
+    display: none;
+  }
+  .msg-row-sent {
+    grid-column: 3;
+    grid-row: 2;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 5px;
+    font-size: var(--row-facts);
+    line-height: var(--row-facts-line);
+  }
+  .msg-row-title {
+    font-size: var(--text-base);
+    line-height: var(--row-name-line);
+  }
+  .msg-row-words {
+    font-size: var(--text-sm);
+    line-height: var(--row-said-line);
+  }
+  .msg-row-sent-unit {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    font-family: var(--font-sans);
+    font-size: var(--row-facts);
+    color: var(--ink-dim);
+  }
+  .msg-row-sent-n {
+    font-size: var(--row-facts);
+  }
+  .msg-row-sent-dot {
+    display: inline;
+    color: var(--ink-faint);
+  }
+  .msg-row-sent-n.is-none {
+    display: none;
+  }
+  .msg-row-sent-never {
+    text-transform: none;
+  }
+  .msg-row > .bc-excl-hint {
+    margin: 0 var(--row-pad-x) var(--row-pad-y) calc(var(--row-pad-x) + var(--row-face) + var(--row-gap));
+  }
+}
+
+/* One message, every channel (step 1): the channels a row says it has, quietly, under its words. */
+.msg-row-channels {
+  overflow: hidden;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The open message's channel switch, beside its language control: the language keeps the left, the switch the right,
+   and on a narrow pane the switch wraps under it. */
+.tpl-viewbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  min-width: 0;
+}
+.tpl-channels {
+  flex: none;
+}
+/* An email's or a text's version in view: the preview with its menu beside it, the question under, and what a message with
+   none says. The preview rides the kit's inset, which it only places. */
+.tpl-ver,
+.tpl-ver-none,
+.tpl-ver-preview,
+.tpl-ver-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.tpl-ver-none {
+  align-items: flex-start;
+}
+.tpl-ver-preview {
+  gap: var(--space-2);
+}
+/* A hint is centred in a row of its own by default (.bc-excl-hint); under a version it reads from the left. */
+.tpl-ver > .bc-excl-hint,
+.tpl-ver-none > .bc-excl-hint,
+.tpl-ver-preview > .bc-excl-hint,
+.tpl-ver-edit > .bc-excl-hint {
+  align-self: flex-start;
+}
+.tpl-ver-read {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.tpl-ver-read > .tpl-ver-preview {
+  flex: 1 1 0;
+}
+.tpl-ver-read > :not(.tpl-ver-preview) {
+  flex: none;
+}
+/* The editor for an email's or a text's words (version-editor.tsx): the boxes of words beside how one person reads them,
+   side by side where the pane has room for each at a readable width, one over the other where it has not. */
+.tpl-ver-split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  align-items: start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.tpl-ver-write,
+.tpl-ver-see {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.tpl-ver-see {
+  gap: var(--space-2);
+}
+.tpl-ver-caption {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+/* A box of words with its slots drawn by their names (templates/slots/slot-box.tsx): a contenteditable standing in the
+   kit's box, so it keeps the lines it holds, wraps where a word does not fit and grows with what is written, from the
+   height of its lines. A slot in it is the bubble's tint, and one thing: the caret passes over it, Backspace takes it
+   whole. A number the message has no slot for is drawn as the problem it is. */
+div.tpl-slotbox {
+  height: auto;
+  padding: var(--space-2) 10px;
+  line-height: var(--leading-normal);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+div.tpl-slotbox[data-lines="1"] {
+  min-height: 32px;
+  padding-block: calc((30px - 1lh) / 2);
+}
+div.tpl-slotbox[data-lines="4"] {
+  min-height: calc(4lh + 2 * var(--space-2) + 2px);
+}
+div.tpl-slotbox[data-lines="8"] {
+  min-height: calc(8lh + 2 * var(--space-2) + 2px);
+}
+div.tpl-slotbox[aria-readonly="true"] {
+  cursor: progress;
+}
+.tpl-slotbox .mp-slot {
+  cursor: default;
+  white-space: nowrap;
+  /* The bubble's tint is the box's own ground here (3 Oct, on the page: a value read as a word), so a value is ringed
+     with the strong hairline, still neutral, never the accent. */
+  padding: 0 var(--space-1);
+  outline: 1px solid var(--line-strong);
+  outline-offset: -1px;
+}
+.tpl-slotbox .mp-slot[data-unknown="true"],
+.tpl-ver-see .mp-slot[data-unknown="true"] {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+}
+div.tpl-slotbox:not([data-lines="1"]) {
+  border-radius: var(--surface-inset-radius);
+}
+.tpl-mail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.tpl-mail-subject,
+.tpl-mail-body,
+.tpl-text-words,
+.tpl-text-stop {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.tpl-mail-subject {
+  font-weight: var(--weight-semibold);
+}
+.tpl-mail-body,
+.tpl-text-words {
+  white-space: pre-wrap;
+}
+.tpl-text-bubble {
+  align-self: flex-start;
+  max-width: 100%;
+}
+.tpl-text-stop {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.tpl-ver-acts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ====================================================================
+   Campaigns home (canvas A, "Lifecycle"; surfaces/campaigns/home/)
+   One page: the rail of five moments around a customer with the campaigns that are not one of them under it, and three
+   tiles (who can hear you, coming up, what came back); a moment or the composer opens in the kit's sheet from the side.
+   Layout and the page's own type only: the surfaces are the kit's (Panel, Button, Meter, Sheet), the page reads tokens.
+   No class here names a kit class or holds a primitive's word.
+   ==================================================================== */
+.cmh {
+  container: cmh / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-sizing: border-box;
+  max-width: var(--measure-wide);
+  padding: 16px var(--gutter-page) 120px;
+}
+/* Where the frame draws the head (the page's own CmHead draws none, so there is no .cm-head in it), the page starts under
+   it, at the page's gutter, as Today's does. */
+.main-scroll > .cmh:not(:has(> .cm-head)) {
+  padding-top: 0;
+}
+.cmh-block {
+  position: relative;
+  min-width: 0;
+}
+.cmh-block-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: 18px 22px 0;
+}
+.cmh-h {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+.cmh-more {
+  margin-left: auto;
+}
+.cmh-dim {
+  color: var(--ink-dim);
+}
+.cmh-n {
+  margin-left: var(--space-1);
+  font-weight: var(--weight-regular);
+  color: var(--ink-dim);
+}
+.cmh-figure {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1;
+  color: var(--ink);
+}
+.cmh-quiet {
+  margin: 14px 22px;
+  font-size: var(--text-sm);
+}
+/* A tile (or a sheet) whose read is still out: the shell's quiet "Reading…", which waits its beat before it shows, at the
+   tile's gutter. */
+.route-reading.cmh-reading {
+  margin: 0;
+  padding: 14px 22px;
+}
+/* A read that failed, the kit's failed read as a line: at the tile's gutter, and across both of the strips' columns. */
+.cmh-failed {
+  margin: 0 22px;
+}
+.cmh-strips .cmh-failed {
+  margin: 0;
+}
+.cmh-strips > .cmh-strip-failed {
+  grid-column: 1 / -1;
+}
+
+/* The rail: five moments on a line, each a column. A workspace without deals has four. */
+.cmh-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 8px 14px 0;
+  list-style: none;
+}
+.cmh-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  padding: 0 6px;
+  text-align: center;
+}
+.cmh-caps {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 28px;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.cmh-stage > .cmh-figure {
+  margin-top: var(--space-2);
+}
+.cmh-unit {
+  height: 16px;
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cmh-track {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 34px;
+  margin: var(--space-3) 0 10px;
+}
+.cmh-track::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  border-top: 2px dashed var(--line-strong);
+}
+.cmh-stage:is([data-state="always"], [data-state="on"]) .cmh-track::before {
+  border-top-style: solid;
+  border-top-color: var(--ink);
+}
+.cmh-stage:first-child .cmh-track::before {
+  left: 50%;
+}
+.cmh-stage:last-child .cmh-track::before {
+  right: 50%;
+}
+.cmh-node {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--line-strong);
+  border-radius: var(--radius-circle);
+  background: var(--bg-raised);
+  color: var(--ink-dim);
+}
+:is(.cmh-stage, .cmh-vstage):is([data-state="always"], [data-state="on"]) .cmh-node {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bg-raised);
+}
+:is(.cmh-stage, .cmh-vstage)[data-hint] .cmh-node {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.cmh-moment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 104px;
+  padding: var(--space-3) 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+}
+.cmh-moment:is([data-state="always"], [data-state="on"], [data-state="paused"]) {
+  border-color: transparent;
+  background: var(--surface-inset-fill);
+}
+.cmh .cmh-moment-name {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  line-height: 1.2;
+  color: var(--ink);
+}
+.cmh-moment[data-state="off"] .cmh-moment-name {
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+}
+.cmh-needs {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+.cmh-needs[data-needs="offers"] {
+  color: var(--warn-ink);
+}
+/* A Turn on that carries its hint ("Turn on · 3 tomorrow") is wider than a column of five: it wraps inside the moment's card
+   rather than run out of it (the kit's button keeps its words on one line, so the page's placement class lets them wrap). */
+.cmh .cmh-turn-on {
+  box-sizing: border-box;
+  max-width: 100%;
+  height: auto;
+  min-height: var(--control-h-sm);
+  padding-block: var(--space-1);
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+}
+
+/* Under 1100px of page the five moments no longer fit side by side, and they stand down the line instead: the phone's vertical
+   rail, drawn from the desk's own markup (a moment's people on the left of its card, its node on the line between). */
+@container cmh (max-width: 1100px) {
+  .cmh-rail {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--space-2) 22px 0;
+  }
+  .cmh-stage {
+    display: grid;
+    grid-template-columns: 30px minmax(5.5rem, auto) minmax(0, 1fr);
+    grid-template-areas:
+      "track caps moment"
+      "track figure moment"
+      "track unit moment";
+    align-items: center;
+    column-gap: var(--space-3);
+    padding: var(--space-2) 0;
+    text-align: start;
+  }
+  .cmh-caps {
+    grid-area: caps;
+    justify-content: flex-start;
+    height: auto;
+  }
+  .cmh-stage > .cmh-figure {
+    grid-area: figure;
+    margin: 0;
+  }
+  .cmh-unit {
+    grid-area: unit;
+    height: auto;
+    margin: 0;
+  }
+  .cmh-track {
+    grid-area: track;
+    align-self: stretch;
+    width: 30px;
+    height: auto;
+    margin: calc(-1 * var(--space-2)) 0;
+  }
+  .cmh-track::before {
+    top: 0;
+    right: auto;
+    bottom: 0;
+    left: 50%;
+    border-top: 0;
+    border-left: 2px dashed var(--line-strong);
+  }
+  .cmh-stage:is([data-state="always"], [data-state="on"]) .cmh-track::before {
+    border-top: 0;
+    border-left-style: solid;
+    border-left-color: var(--ink);
+  }
+  .cmh-stage:first-child .cmh-track::before {
+    top: 50%;
+    left: 50%;
+  }
+  .cmh-stage:last-child .cmh-track::before {
+    right: auto;
+    bottom: 50%;
+  }
+  .cmh-moment {
+    grid-area: moment;
+    flex-flow: row wrap;
+    justify-content: space-between;
+    min-height: 0;
+    padding: var(--space-3) var(--space-4);
+    text-align: start;
+  }
+  .cmh-moment > .cmh-needs {
+    flex-basis: 100%;
+  }
+}
+
+/* Under the rail: one quiet line for every other playbook or campaign, two to a row. */
+.cmh-strips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 22px 18px;
+  padding: 0;
+  list-style: none;
+}
+.cmh-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) 14px var(--space-3) var(--space-4);
+  border-radius: var(--radius-xl);
+  background: var(--surface-inset-fill);
+}
+.cmh-strip-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-base);
+}
+.cmh .cmh-strip-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.cmh-strip-more::before {
+  content: " · ";
+}
+
+/* The three tiles. */
+.cmh-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+@container cmh (max-width: 1000px) {
+  .cmh-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cmh-grid > :last-child {
+    grid-column: 1 / -1;
+  }
+}
+@container cmh (max-width: 720px) {
+  .cmh-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cmh-strips {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Who can hear you: the ladder, and how the yes is got. */
+.cmh-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 18px 22px 4px;
+  list-style: none;
+}
+.cmh-rung {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px var(--space-3);
+  align-items: baseline;
+}
+.cmh-rung-k {
+  font-size: var(--text-base);
+  color: var(--ink-muted);
+}
+.cmh-rung-v {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+.cmh-rung[data-tone="warn"] .cmh-rung-v {
+  color: var(--warn-ink);
+}
+.cmh-rung > .cmh-bar,
+.cmh-rung-w {
+  grid-column: 1 / -1;
+}
+.cmh-rung-w {
+  margin-top: -2px;
+  font-size: var(--text-sm);
+}
+.cmh-yes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: var(--space-4) 14px 14px;
+  padding: 14px var(--space-4);
+  border-radius: var(--radius-xl);
+  background: var(--surface-inset-fill);
+}
+.cmh-yes-note {
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--ink-muted);
+}
+.cmh-yes-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Coming up. */
+.cmh-coming-list {
+  margin: 0;
+  padding: 10px var(--space-3) var(--space-1);
+  list-style: none;
+}
+.cmh-coming-line {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 10px;
+}
+.cmh-coming-line + .cmh-coming-line {
+  border-top: 1px solid var(--line);
+}
+.cmh-when {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.25;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.cmh-what {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+.cmh .cmh-what-name {
+  align-self: flex-start;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.cmh-rules {
+  margin: 0 22px 18px;
+  font-size: var(--text-sm);
+}
+
+/* What came back. */
+.cmh-headline {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  padding: var(--space-4) 22px 0;
+  font-size: var(--text-md);
+  color: var(--ink-muted);
+}
+.cmh-headline > .cmh-figure {
+  font-size: var(--text-4xl);
+}
+.cmh-funnel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 14px 22px var(--space-1);
+  list-style: none;
+}
+.cmh-fstep {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 32px;
+  gap: 10px;
+  align-items: center;
+}
+.cmh-fk {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cmh-fv {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  text-align: right;
+  color: var(--ink);
+}
+.cmh-yes-line {
+  margin: var(--space-2) 22px 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.cmh-runs {
+  margin: 6px var(--space-3) var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.cmh-run {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  padding: 10px;
+}
+.cmh-run + .cmh-run {
+  border-top: 1px solid var(--line);
+}
+.cmh-run-result {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  text-align: right;
+}
+.cmh-run-words {
+  font-size: var(--text-sm);
+}
+
+/* The phone: one short tile for who can hear you, the moments down a line, and the other lines as one list. */
+.cmh[data-phone] {
+  gap: var(--space-3);
+  padding: 0 var(--space-3) 120px;
+}
+.cmh-phone-reach {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-4) 18px;
+}
+.cmh-phone-hear {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+}
+.cmh-phone-hear > .cmh-figure {
+  font-size: var(--text-3xl);
+}
+.cmh-phone-of {
+  font-size: var(--text-base);
+  color: var(--ink-muted);
+}
+.cmh-phone-hear > :last-child {
+  margin-left: auto;
+}
+.cmh-vrail {
+  margin: 0;
+  padding: var(--space-1) 10px 10px;
+  list-style: none;
+}
+.cmh-vstage {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 62px;
+  padding: var(--space-2) 6px;
+}
+.cmh-vstage::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 20px;
+  border-left: 2px dashed var(--line-strong);
+}
+.cmh-vstage:is([data-state="always"], [data-state="on"])::before {
+  border-left-style: solid;
+  border-left-color: var(--ink);
+}
+.cmh-vstage:first-child::before {
+  top: 50%;
+}
+.cmh-vstage:last-child::before {
+  bottom: 50%;
+}
+.cmh-vstage > .cmh-node {
+  width: 28px;
+  height: 28px;
+}
+.cmh-vwords {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+.cmh[data-phone] .cmh-strip-words {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-sm);
+}
+.cmh[data-phone] .cmh-strip-more::before {
+  content: none;
+}
+.cmh-also-block .cmh-strips {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 6px var(--space-2);
+}
+.cmh-also-block .cmh-strip {
+  background: none;
+}
+/* A strip's glyph keeps its size beside words that wrap (on a phone it shrank to a dot), and its name reads from the left. */
+.cmh-strip > svg {
+  flex: none;
+}
+.cmh .cmh-strip-name {
+  text-align: start;
+}
+/* On a phone a strip is two rows: what it is across the line, then its state and its act at the right (3 Oct: the words
+   were squeezed into a column a word wide beside them). */
+.cmh[data-phone] .cmh-strip {
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+}
+.cmh[data-phone] .cmh-strip-words {
+  flex-basis: calc(100% - 40px);
+}
+.cmh[data-phone] .cmh-strip-words + * {
+  margin-inline-start: auto;
+}
+/* The Library keeps its icon and its count where the page is a phone's (useCmPhone's 900px), and its word goes to a screen
+   reader alone: the act beside it is New. Hidden by size, never display: none, which left the link named by its count; and
+   by the width, not under .cmh[data-phone], since in Glass the act stands in the frame's head, outside .cmh. */
+@media (max-width: 900px) {
+  .cmh-library-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* A moment and the composer, in the kit's sheet from the side (home/pane-sheet.tsx). The pane is the page's own CmPane and
+   draws its head, body and foot as it does beside a list; the sheet is the surface it stands on, and its Close the one at
+   the corner, so the pane's own Close and Back are not drawn. The send screen's own head is not drawn either: the sheet's
+   says New message above the choice of kind. */
+.cmh-host.cmh-host {
+  width: min(560px, 92vw);
+}
+.cmh-host-wide.cmh-host-wide {
+  width: min(780px, 92vw);
+}
+.cmh-host-body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  margin: 0 calc(-1 * var(--rec-gutter, 22px));
+}
+.cmh-host-body > .cm-pane {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.cmh-host-body > .cm-pane::after {
+  content: none;
+}
+.cmh-host-body :is(.cm-pane-close, .cm-pane-back) {
+  display: none;
+}
+.cmh-host-body > .bc-pane > .cm-pane-head {
+  display: none;
+}
+@media (max-width: 900px) {
+  .cmh-host-body {
+    height: min(70dvh, 640px);
+  }
+}
+
+/* A thumb's press area where the home's words are small (as mobile.css gives a playbook's name its own): the moments' and
+   the lines' names, a run's and a coming-up line's, keep the size they are drawn at and answer a press toward 44px. */
+@media (pointer: coarse) {
+  .cmh .cmh-moment-name,
+  .cmh .cmh-strip-name,
+  .cmh .cmh-what-name {
+    position: relative;
+  }
+  .cmh .cmh-moment-name::after,
+  .cmh .cmh-strip-name::after,
+  .cmh .cmh-what-name::after {
+    content: "";
+    position: absolute;
+    inset: -12px 0;
+  }
+}
+
+/* ---------- Phone and touch (from mobile.css) ---------- */
+@media (max-width: 900px) {
+  /* And the line above them, which is a child of the same full-bleed pane. */
+  .reports > .cm-standing {
+    padding: 16px 16px 12px;
+  }
+}
+
+/* ====================================================================
+   Campaigns on a phone (Playbooks, Broadcasts, Messages).
+
+   This surface had three declarations in this file -- .bc-comp, and the
+   history table's sideways scroll -- and nothing else, while the Calendar
+   has forty and the Inbox thirty. What that cost, measured at a 375px
+   viewport with this stylesheet loaded:
+
+     .bc-actions   display:flex, no flex-wrap
+     children      491px of minimum width (the name field cannot go under
+                   160px; the datetime box is flex: 0 0 auto)
+     container     283px
+     .main-scroll  overflow-x: hidden
+
+   -- so "Send now", the last child and the page's whole purpose, sat 208px
+   past the right edge with no scrollbar to reach it. The primary action of
+   Broadcasts could not be pressed on a phone.
+
+   .bc-page also kept the 28px --gutter-page at every width while .rp-body
+   drops to 16, so two tabs of one nav item had different page edges.
+   ==================================================================== */
+@media (max-width: 720px) {
+  .bc-page {
+    --gutter-page: 16px;
+  }
+
+  /* The top bar says Campaigns, once, as it says Inbox once, and that crumb is the way back to the home. The room says
+     which it is in its own head (Sent, the Library: CmHead, drawn in every look but Glass, whose frame says it), so the
+     second crumb said it again over the head ("Campaigns / Sent" over "Sent"); a moment's or a run's own name is the
+     sheet's head. */
+  .main:has(.cm-page, .bc-page) .crumbs > :not(:first-child) {
+    display: none;
+  }
+  .main:has(.cm-page, .bc-page) .crumbs > :first-child {
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  /* The send row wraps: the name on its own line, the time on its own line,
+     then the two buttons sharing the last one. */
+  .bc-actions {
+    flex-wrap: wrap;
+  }
+  .bc-actions .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .bc-actions .confirm {
+    flex: 1 1 100%;
+  }
+  .bc-foot .bc-foot-name {
+    flex: 1 1 100%;
+  }
+  .bc-row-label {
+    width: auto;
+    padding-top: 0;
+  }
+  .tpl-row {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .tpl-row .bc-row-label {
+    padding-top: 0;
+  }
+
+  /* The QR and the wording it explains stopped being side by side. */
+  .bc-optin-body {
+    flex-wrap: wrap;
+  }
+}
+
+@media (pointer: coarse) {
+  /* A run's name clips its own overflow for its ellipsis, which would clip a box hung on it too: it bleeds its padding
+     instead, and gives the same room back as margin, so its words stay where they are drawn. */
+  .bc-run-name {
+    padding-block: 22px 2px;
+    margin-block: -22px -2px;
+  }
+  .msg-row-what::after {
+    inset: -2px 0;
+  }
+  .mp-step .mp-step-btn::after {
+    inset: 0 -7px;
+  }
+}

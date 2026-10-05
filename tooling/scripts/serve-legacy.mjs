@@ -12,12 +12,12 @@
  *
  * So: no-store, everything, always. This serves a design review, not traffic.
  *
- * Five files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
+ * Six files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
  * `data/inbox-globals.js`, the Inbox's and Conversations' seeded rows and rules under the names the pages here still read,
- * `data/people-globals.js`, People's shared parts (the table, the rail kit, the list page's two hooks: TSX since decision 0015,
- * step 5) the Leads scope, the Pipeline and the person page still draw by name,
+ * `data/people-globals.js`, People's parts the shell still draws by name (the strip's scopes and the deal and step sheets:
+ * TSX since decision 0015, step 5), `data/leads-globals.js`, Leads' plan card, which Ask's palette draws by name,
  * `data/business-tab.js`, the Business tab's helpers, and `data/mascot.js`
- * (see SAMPLES below). One is read from outside the tree: the kit's stylesheet (KIT_CSS below).
+ * (see SAMPLES below). Two are read from outside the tree: the kit's stylesheet and Campaigns' (OUTSIDE_CSS below).
  *
  *   node tooling/scripts/serve-legacy.mjs [port] [dir]
  */
@@ -86,7 +86,7 @@ const SAMPLES = {
     atDashboard: true,
     watch: ["apps/dashboard/src/surfaces/people", "apps/dashboard/src/legacy-bridge"],
   },
-  // The lead peek's names (surfaces/leads/globals.ts), on the page's own React, for the Leads pages that have not moved.
+  // Leads' plan card (surfaces/leads/globals.ts), on the page's own React, which Ask's palette draws by name until it moves.
   "/data/leads-globals.js": {
     entry: path.join(REPO, "apps/dashboard/src/surfaces/leads/globals.ts"),
     globalName: "__LG",
@@ -115,7 +115,8 @@ const SAMPLES = {
   "/data/business-tab.js": {
     entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/business-tab.ts"),
     globalName: "__BT",
-    footer: "__BT.installBusinessTab();",
+    // And the save's own rules, which the page asks for as the tab mounts: bundled in, so here at once.
+    footer: "__BT.installBusinessTab(); __BT.loadSaveRules();",
   },
   // Not a sample either: the three (legacy-bridge/mascot), the character Ask's face draws (components/ask-face.jsx:
   // the top bar's button, the Stage and the phone's ✦), so the mockup's Ask has its face.
@@ -170,6 +171,8 @@ async function sampleBundle(route) {
     write: false,
     logLevel: "silent",
     alias: {
+      // The schemas a page asks for by import() (contracts' write-rules entry), bundled in, as the mockup has no chunks.
+      "@chanlytics/contracts/write-rules": path.join(REPO, "packages/contracts/dist/write-rules.js"),
       "@chanlytics/contracts": CONTRACTS,
       ...(s.atDashboard ? { "@": path.join(REPO, "apps/dashboard/src") } : {}),
     },
@@ -196,11 +199,24 @@ export const send = (res, status, type, body) => {
 };
 
 /**
- * The one file the document names from outside the mockup's tree: the kit's stylesheet, which lives with the kit and
+ * A file the document names from outside the mockup's tree: the kit's stylesheet, which lives with the kit and
  * which the app imports right after the tokens (legacy-bridge/legacy.css). Chanlytics.html links it in the same place,
  * as `surfaces/kit/kit.css`, so it is asked for at this path.
  */
 const KIT_CSS = { at: "/surfaces/kit/kit.css", file: path.join(REPO, "apps/dashboard/src/surfaces/kit/kit.css") };
+
+/**
+ * The other: Campaigns' stylesheet, which lives with its surface (a moved surface keeps its rules in its own folder, as
+ * the kit does) and which the app imports right after components.css (legacy-bridge/legacy.css). Chanlytics.html links
+ * it in the same place, as `surfaces/campaigns/campaigns.css`.
+ */
+const CAMPAIGNS_CSS = {
+  at: "/surfaces/campaigns/campaigns.css",
+  file: path.join(REPO, "apps/dashboard/src/surfaces/campaigns/campaigns.css"),
+};
+
+/** The stylesheets the document names from outside the mockup's tree, each at its one path. */
+const OUTSIDE_CSS = [KIT_CSS, CAMPAIGNS_CSS];
 
 /**
  * Whether `file` is under `root`, compared as paths: `src/legacy-bridge` begins with the letters of `src/legacy`
@@ -213,13 +229,14 @@ const isUnder = (root, file) => {
 };
 
 /**
- * One file of the mockup, by its path under `root`, or the kit's stylesheet at its one path. Nothing else outside the
+ * One file of the mockup, by its path under `root`, or one of OUTSIDE_CSS at its one path. Nothing else outside the
  * tree, whatever the path says. Exported for the e2e harness, which serves the same tree with its own routes in front
  * of it.
  */
 export function serveStatic(res, root, rel) {
-  const file = rel === KIT_CSS.at ? KIT_CSS.file : path.join(root, rel);
-  if (file !== KIT_CSS.file && !isUnder(root, file)) {
+  const outside = OUTSIDE_CSS.find((css) => css.at === rel);
+  const file = outside ? outside.file : path.join(root, rel);
+  if (!outside && !isUnder(root, file)) {
     res.writeHead(403).end("Forbidden");
     return;
   }

@@ -18,8 +18,9 @@ import {
   type PersonVisitsDto,
   type VisitDto,
 } from "../calendar/calendar-people";
+import type { ChannelsReady } from "../broadcasts/reach-for";
 import { isConsultationTitle } from "../deals/deal-consultations";
-import type { ListContext } from "./lists";
+import type { ListContext } from "./lists/lists";
 import type { PersonRowDto } from "./person-dto";
 import { toPersonRowVM, type PersonRowVM } from "./person-row";
 
@@ -109,6 +110,12 @@ export interface PoolOptions {
   viewer: string | null;
   /** Deals are on here (dealsAreOn, 0008): where they are off, no row carries a deal, whatever the database holds. */
   dealsOn: boolean;
+  /**
+   * What the workspace can send on now, channel by channel (the dashboard's channels-ready.ts, the edge's own read of the
+   * same rows): each row's reach is judged against it (reach-any.ts). Required, as `dealsOn` is: no reader may leave it
+   * out and count another workspace's. Null where it could not be read: counted as before the channels were, by WhatsApp.
+   */
+  ready: ChannelsReady | null;
 }
 
 /**
@@ -116,7 +123,7 @@ export interface PoolOptions {
  * the row's second line, the thread's chip, or Today's proposals waiting, which all read it from here.
  */
 export function poolRowOf(person: PersonRowDto, o: PoolOptions): PersonRowVM {
-  const vm = toPersonRowVM(person, o.tz, o.now, o.viewer);
+  const vm = toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready);
   return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null };
 }
 

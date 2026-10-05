@@ -104,8 +104,11 @@ await import(`${L}/pages/business-tab-create.jsx`);
 await import(`${L}/pages/business-tab.jsx`);
 const W = globalThis.window;
 // The tab's helpers, from the module the app installs: the gap line, and what each row will tell the receptionist.
-const { installBusinessTab } = await import("../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
+const { installBusinessTab, loadSaveRules } = await import("../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
 installBusinessTab();
+// And the save's own rules, which the tab asks for as it mounts (business-tab.jsx): here before any page is drawn, as
+// they are in the app by the time a fold is open.
+await loadSaveRules();
 // What the receptionist is told, read off the settings read as the app reads it (inbox-verbs.ts composedPrompt, the
 // function itself): the prompt sheet cuts it, and draws nothing where it answers nothing.
 const { composedPrompt } = await import("../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
@@ -163,7 +166,7 @@ const brainOf = (profile, over = {}) => ({
 
 /**
  * The workspace's connections, as /api/v1/setup hands them over and the bridge publishes them
- * (legacy-bridge/setup.ts `__SETUP`). Both lines are present, active, have answered something and
+ * (surfaces/setup/surface.ts, its `__SETUP` mirror). Both lines are present, active, have answered something and
  * were switched on by the owner, which is the three things capabilityStatus calls live. Texting is
  * on none of it: the line carries no approved registration, which is what `ready` needs.
  */

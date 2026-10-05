@@ -64,7 +64,9 @@ const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
 const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
 const { ixHeld } = await import(`${S}/surfaces/inbox/rules.ts`);
 const { OWN_VERBS, VW_STORE } = await import(`${S}/surfaces/inbox/store.ts`);
-const { MoreMenu } = await import(`${S}/surfaces/kit/more-menu/more-menu.tsx`);
+const { Menu } = await import(`${S}/surfaces/kit/menu/menu.tsx`);
+// A kit Menu's items as one list, whatever the groups.
+const itemsIn = (menu) => menu.props.groups.flatMap((g) => g.items);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
 // The courier reads the surfaces again behind a write (refresh-map.ts), loaded on the first one: loaded here, so it is there.
@@ -481,11 +483,11 @@ test("Export is in the thread's menu, from the conversation's own route -- in wh
   };
   try {
     const tree = again(() => ThreadPane({ threadId: vm.id }));
-    const menu = find(tree, (n) => n.type === MoreMenu);
+    const menu = find(tree, (n) => n.type === Menu);
     assert.ok(menu, "the thread has its menu");
-    const item = menu.props.items.find((it) => it.label === "Export transcript");
+    const item = itemsIn(menu).find((it) => it.label === "Export transcript");
     assert.ok(item, "REGRESSION: Export was a button in Conversations' header only");
-    item.onClick();
+    item.onSelect();
     const a = anchors.find((x) => x.tag === "a");
     assert.equal(a.href, "GET conversations/[id]/export|c1", "the file the conversation's own route writes");
     assert.equal(a.download, "", "fetched as a file, not opened as a page");
@@ -610,9 +612,9 @@ test("a call no thread holds opens alone, in the thread's own frame: its header,
   assert.equal(textOf(find(alone, (n) => n.props?.className === "ix-th-meta")), "Phone");
   assert.match(textOf(find(alone, byTestId("tl-call"))), /Wants to book a bridal trial/);
   assert.ok(find(alone, byTestId("ix-back")), "and the phone's Back");
-  const menu = find(alone, (n) => n.type === MoreMenu);
+  const menu = find(alone, (n) => n.type === Menu);
   assert.deepEqual(
-    menu.props.items.map((it) => it.label),
+    itemsIn(menu).map((it) => it.label),
     ["Open profile"],
     "REGRESSION: the call header's Export and Assign did nothing outside a demo",
   );

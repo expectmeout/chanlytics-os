@@ -9,13 +9,14 @@ import {
   BROADCAST_CHUNK,
   BROADCAST_SCHEDULE_MAX_DAYS,
   DAY_MS,
+  EVERYONE_HINT,
   EVERYONE_LABEL,
   GET_YES_ROUTE,
   HELD_REASONS,
   HOUR_MS,
-  OFFERS_BY_WHATSAPP_NOTE,
   OFFERS_OPT_IN_PHRASES,
   REPLY_WINDOW_WORDS,
+  channelsReady,
   numberHealth,
   purposeOfTemplate,
   starterByKey,
@@ -50,13 +51,30 @@ function approved(key: string, syncedAt: string): BroadcastTemplate {
     source: "starter",
     title: null,
     purpose: purposeOfTemplate(s.category),
+    // The demo's starters are WhatsApp's alone: no email or text version is on file to send by.
+    channels: ["whatsapp"],
   };
 }
 
-/** Who a send to an audience opens on: a few of them, and how many it reaches and holds back. */
+/**
+ * Who a send to an audience opens on: a few of them, and how many it reaches and holds back. The demo sends by WhatsApp
+ * alone, so every one it reaches is on WhatsApp and the ones it holds never said yes.
+ */
 function preview(sending: number, held: number, names: string[]): AudiencePreview {
   return {
-    people: names.map((n, i) => ({ id: `p-sample-${i}`, label: n, firstName: n.split(" ")[0] ?? null, refusal: null })),
+    people: names.map((n, i) => ({
+      id: `p-sample-${i}`,
+      label: n,
+      firstName: n.split(" ")[0] ?? null,
+      refusal: null,
+      channel: "whatsapp" as const,
+    })),
+    split: {
+      reached: sending,
+      byChannel: { whatsapp: sending, sms: 0, email: 0 },
+      held,
+      heldBy: held > 0 ? { no_yes: held } : {},
+    },
     sending,
     held,
     saidYes: sending,
@@ -139,6 +157,14 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
   return {
     rows,
     templates: ["quick_note", "monthly_offer", "winback_offer"].map((key) => approved(key, iso(-7 * DAY))),
+    // The demo's workspace has its WhatsApp number and nothing else set up to send on: no texting line, no mailbox.
+    ready: channelsReady({
+      whatsapp: { canSend: true, refusal: null },
+      textLine: null,
+      email: { mailbox: false, domain: true },
+    }),
+    // The demo sends nothing, so it has no month to say.
+    month_sent: null,
     listsRead: true,
     audiences: [
       audience(
@@ -146,7 +172,7 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
           kind: "everyone",
           id: null,
           label: EVERYONE_LABEL,
-          hint: "Everyone with a number whose yes covers the message you pick",
+          hint: EVERYONE_HINT,
         },
         22,
       ),
@@ -169,6 +195,10 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
         5,
       ),
     ],
+    // The same people the audiences count over: 26 in People, 24 to message and 22 who said yes to offers (Everyone, above).
+    reach: { people: 26, canHear: 24, saidMessages: 24, saidOffers: 22 },
+    // The one run that went out (above), as the campaign report would count it over the last thirty days.
+    report: { days: 30, totals: { sent: 18, delivered: 17, read: 11, replied: 3, optIns: 4, optOuts: 1 } },
     number: {
       present: true,
       display: "+1 305-555-0100",
@@ -187,7 +217,6 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
     getYes: GET_YES_ROUTE,
     businessName: "Marisa's Studio",
     bookingLink: true,
-    offersNote: OFFERS_BY_WHATSAPP_NOTE,
     more: false,
     scheduleMaxDays: BROADCAST_SCHEDULE_MAX_DAYS,
     fetchedAt: now.getTime(),

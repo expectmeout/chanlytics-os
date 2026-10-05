@@ -88,7 +88,7 @@ function rangeLabel(p: { view: string; anchor: string; frames: CalendarFrame[]; 
 
 function CalendarReal({ initialDay = null, C }: CalendarAddress & { C: CalendarSurface }) {
   const st = useCalendarState(initialDay);
-  const { view, setView, anchorKey, setAnchorKey, openId, setOpenId, pending, setPending } = st;
+  const { view, setView, pickView, anchorKey, setAnchorKey, openId, setOpenId, pending, setPending } = st;
   const { failedSpan, setFailedSpan, serviceName, setServiceName, refreshing, setRefreshing } = st;
   const { aboutOpen, setAboutOpen, aboutRef, toastNode, flash } = st;
   const { vm } = C;
@@ -137,7 +137,23 @@ function CalendarReal({ initialDay = null, C }: CalendarAddress & { C: CalendarS
   const onOpen = (b: CalendarBlockVM) => setOpenId(b.id);
   const cards = { vm, refreshing, refreshNow };
   const label = rangeLabel({ view, anchor, frames, shown });
-  const bar = { vm, view, anchor, label, onToday, serviceName, move, setAnchorKey, setServiceName, setView };
+  const bar = {
+    vm,
+    view,
+    anchor,
+    label,
+    onToday,
+    serviceName,
+    move,
+    setAnchorKey,
+    setServiceName,
+    setView: pickView,
+    refreshing,
+    refreshNow,
+    aboutOpen,
+    toggleAbout,
+    copyLink,
+  };
 
   return (
     // Days on their way dim by the one rule every page uses (components.css [data-loading] [data-dims]): after a beat,
@@ -161,7 +177,15 @@ function CalendarReal({ initialDay = null, C }: CalendarAddress & { C: CalendarS
             <CrMonth frames={frames} monthKey={monthKey} feedOk={feedOk} fit={fit} onDay={openDay} />
           )}
           {view === "agenda" && (
-            <CrAgenda frames={frames} feedOk={feedOk} fit={fit} service={service} offer={vm.offer} onOpen={onOpen} />
+            <CrAgenda
+              frames={frames}
+              feedOk={feedOk}
+              fit={fit}
+              service={service}
+              offer={vm.offer}
+              now={vm.now}
+              onOpen={onOpen}
+            />
           )}
           {(view === "week" || view === "day") && (
             <CrBoard

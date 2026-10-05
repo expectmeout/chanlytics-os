@@ -117,6 +117,8 @@ export interface TurnInput {
   text: string;
   /** From the palette opening to the question being sent, as the tab measured it; null from an older tab or a script. */
   openedMs?: number | null;
+  /** The person is listening, not reading (the voice door): the spoken register rides in the turn's words. */
+  spoken?: boolean;
   /** How long after the thread's previous turn this question came; null on a thread's first. */
   sinceLastMs?: number | null;
   /**
@@ -257,6 +259,7 @@ function wordsBlock(
     focus,
     focusRead: !!focus && !!kind && kind !== "page" && rode.read[kind].has(focus.id),
     now,
+    spoken: input.spoken ?? false,
   };
   return (live: boolean, dataDropped: boolean) => ({
     type: "text",

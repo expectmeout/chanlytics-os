@@ -1,6 +1,7 @@
 /**
  * Work on a lead: its stage, one or many at once, a check again, an erase. Moved whole from leads.ts (Reach out Part 2.5), which
- * re-exports it.
+ * re-exports it. Every act runs on the member's own session through a lead_* door: the lead is a row the member's RLS
+ * showed them, and the bulk and check-again doors take the workspace the route proved and check the member in SQL.
  */
 import {
   AppError,

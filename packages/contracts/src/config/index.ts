@@ -40,27 +40,37 @@ export {
   POLICY_CLASS_MODES,
   policyModeOffered,
   policyModeRefusal,
-  PolicyLimitsSchema,
 } from "./workspace-config/policy-classes";
-export type { PolicyClass, PolicyMode, PolicyLimits, PolicyRow } from "./workspace-config/policy-classes";
+export { PolicyLimitsSchema } from "./workspace-config/policy-limits-schema";
+export type { PolicyClass, PolicyMode, PolicyRow } from "./workspace-config/policy-classes";
+export type { PolicyLimits } from "./workspace-config/policy-limits-schema";
 export { tokenCapOf, tokenBudgetSpent, TOKENS_DAY_DEFAULT } from "./limits";
 export {
+  DAYS,
+  DAY_NAMES,
+  isRealDate,
+  dayProblems,
+  MAX_INTERVALS_PER_DAY,
+  MAX_CLOSURES,
+  E164,
+  isE164,
+  INSTRUCTIONS_MAX,
+  PROFILE_LIMITS,
+  GUARDRAIL_KEYS,
   guardrailsInForce,
+} from "./workspace-config/config-rules";
+export type { ProfileLimitKey, BookingRuleKey, GuardrailKey, GuardrailsInForce } from "./workspace-config/config-rules";
+export {
   IntervalSchema,
   HoursSchema,
   ClosureSchema,
-  DAYS,
   ServiceSchema,
   GuardrailsSchema,
   NoteSchema,
   BookingRulesSchema,
-  E164,
-  isE164,
-  INSTRUCTIONS_MAX,
   BusinessProfileSchema,
 } from "./workspace-config/business-profile";
 export type {
-  GuardrailsInForce,
   Note,
   BookingRules,
   BusinessProfile,
@@ -69,11 +79,10 @@ export type {
   Interval,
   Closure,
 } from "./workspace-config/business-profile";
-export { newReceptionistDefaults, isBaselinePrompt, BrainConfigSchema } from "./workspace-config/brain-config";
-export type { BrainConfig } from "./workspace-config/brain-config";
+export { newReceptionistDefaults, isBaselinePrompt } from "./workspace-config/brain-config";
+export { BrainConfigSchema } from "./workspace-config/brain-config-schema";
+export type { BrainConfig } from "./workspace-config/brain-config-schema";
 export {
-  isRealDate,
-  dayProblems,
   parseTenantConfigResult,
   receptionistOf,
   parseTenantConfig,
@@ -83,9 +92,6 @@ export {
   CalendarConfigSchema,
   FeaturesConfigSchema,
   TenantConfigSchema,
-  MAX_INTERVALS_PER_DAY,
-  MAX_CLOSURES,
-  DAY_NAMES,
   TenantConfigWriteSchema,
 } from "./workspace-config/config-schema";
 export type {
@@ -99,6 +105,8 @@ export type {
 export { hoursRuns } from "./workspace-config/prompt-hours";
 export type { HoursRun } from "./workspace-config/prompt-hours";
 export { describeNow, composeSystemPrompt, PROMPT_OPENINGS } from "./workspace-config/compose";
+export { offersFacts } from "./workspace-config/offers-ask";
+export type { LeadChannel } from "./workspace-config/offers-ask";
 export {
   instructionsDraft,
   hasProfile,
@@ -121,13 +129,12 @@ export {
   ruleStrength,
   rulesKept,
   rulesWithoutFieldsWords,
-  GUARDRAIL_KEYS,
   ABILITY_CHANNEL_WORDS,
   VISION_STRENGTH,
   RULES_AT_REST_WORDS,
   RULES_WITHOUT_FIELDS_WORDS,
 } from "./business-tab/rule-strengths";
-export type { GuardrailKey, RuleStrength, RuleStrengthVM, RulesKeptInputs } from "./business-tab/rule-strengths";
+export type { RuleStrength, RuleStrengthVM, RulesKeptInputs } from "./business-tab/rule-strengths";
 export { bookingLinkRowWords, businessGap } from "./business-tab/business-gap";
 export type { StandingInputs, BusinessGap } from "./business-tab/business-gap";
 export { openWeekWords, hoursZoneWords, closuresAheadWords } from "./business-tab/open-week";
@@ -149,9 +156,9 @@ export {
   PROMPT_NOW,
 } from "./business-tab/prompt-cost-words";
 export { bookingRulesWords, bookingRuleRefusal, BOOKING_RULE_HINTS } from "./business-tab/booking-rules-words";
-export type { BookingRulesWordsInput, BookingRulesWordsVM, BookingRuleKey } from "./business-tab/booking-rules-words";
-export { profileRefusal, writtenOutDetail, PROFILE_CROSSING_WORDS, PROFILE_LIMITS } from "./business-tab/fold-limits";
-export type { ProfileCrossing, ProfileLimitKey, ProfileRefusalKey } from "./business-tab/fold-limits";
+export type { BookingRulesWordsInput, BookingRulesWordsVM } from "./business-tab/booking-rules-words";
+export { profileRefusal, writtenOutDetail, PROFILE_CROSSING_WORDS } from "./business-tab/fold-limits";
+export type { ProfileCrossing, ProfileRefusalKey } from "./business-tab/fold-limits";
 export {
   notesWords,
   instructionsWords,
@@ -166,17 +173,17 @@ export { abilityRows, cannotRows } from "./business-tab/abilities";
 export type { AbilityInputs, AbilityRowVM, AbilitiesVM, CannotRowVM } from "./business-tab/abilities";
 export { offersBookingLink, priceNextStep, NO_LINK_DETAILS } from "./no-booking-link";
 export {
-  parseBrainOutput,
   brainMetaOf,
   replyWhy,
   BRAIN_INTENTS,
   INTENT_LABELS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
-  BrainOutputSchema,
   CONFIDENCE_STEPS,
 } from "./brain";
-export type { BrainIntent, BrainOutput, BrainMeta, BrainStamp, ReplyWhyVM } from "./brain";
+export { parseBrainOutput, BrainOutputSchema } from "./brain-schema";
+export type { BrainIntent, BrainMeta, BrainStamp, ReplyWhyVM } from "./brain";
+export type { BrainOutput } from "./brain-schema";
 export {
   knownForwarding,
   sameAddress,

@@ -7,6 +7,7 @@
  *   - The key stays on the edge, which holds the day's count: the tokens spend Ask's one daily budget (ASK_USAGE_KIND),
  *     under the caller's own limits (the rate buckets, the suggestions' cache), and are written to the usage ledger for
  *     the workspace under the purpose the edge maps (lead_json). No second budget is kept here.
+ *   - An answer is bounded at a minute, the edge's own door, unless the caller passes a signal of its own.
  *   - A stream that does not begin is said in words as an AppError, and nothing is guessed: the day's budget spent is
  *     rate_limited, a paused or ended workspace payment_required, and a preview, a missing key, a model that could not be
  *     reached or the API's refusal of the request are one 503 "not available"; a stream that breaks, an answer that

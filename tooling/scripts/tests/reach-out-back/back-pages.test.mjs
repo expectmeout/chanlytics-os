@@ -8,17 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import {
-  installLegacyReact,
-  peoplePages,
-  fresh,
-  again,
-  all,
-  byTestId,
-  textOf,
-  press,
-  settle,
-} from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
 
 // The fixtures are dated around 28 Sep 2026 and the lines say "Tue" within a week and a date after it, so the clock
 // the bridge reads (Date.now) is the fixtures' own: a wall clock a week on turned "Written Tue" into "Written Sep 22".
@@ -30,12 +20,12 @@ const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
 // Reports' Reach-outs section is TSX (decision 0015): the surface's own module, on the same stub.
 const { RptReachOuts } = await import("../../../../apps/dashboard/src/surfaces/reports/reach-outs.tsx");
-await import(`${L}/pages/leads-finder.jsx`);
-// People's table and its helpers are TSX too (surfaces/people, decision 0015): the names the Leads scope reads off the window.
-Object.assign(W.window, peoplePages);
-await import(`${L}/pages/leads-cells.jsx`);
-await import(`${L}/pages/reach-out/reach-out-leads.jsx`);
-const bridge = await import("../../../../apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts");
+// Leads is TSX too (surfaces/leads, decision 0015 step 9): its reach-out block, strip and lines, and its Stage column.
+const S = "../../../../apps/dashboard/src/surfaces";
+const { useReachOutLeads, ReachOutLeadsStrip, LeadReachOut } = await import(`${S}/leads/reach-out/lines.tsx`);
+const { LEAD_COLUMNS } = await import(`${S}/leads/cells/columns.tsx`);
+const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
+const { replies } = await import("../../../../apps/dashboard/src/legacy-bridge/reach-out/replies.ts");
 
 const went = [];
 const flashed = [];
@@ -181,14 +171,14 @@ const world = ({
   stop = { ok: true, data: { stopped: true, already: false, skipped: 1, leaving: 0 } },
 } = {}) => {
   const asked = [];
-  W.__reachOuts = {
-    ...bridge.reachOuts,
+  // The page reads the bridge's own object (reachOuts) as it draws and acts: its reads and writes are replaced in place.
+  Object.assign(bridge.reachOuts, {
     leadLines: async (id) => (asked.push(["lines", id]), lines),
     leadTimeline: async (id) => (asked.push(["story", id]), story),
     stopLead: async (id) => (asked.push(["stop", id]), stop),
     pause: async (id) => (asked.push(["pause", id]), { ok: true, data: {} }),
     resume: async (id) => (asked.push(["resume", id]), { ok: true, data: {} }),
-  };
+  });
   return asked;
 };
 /** The hook, drawn in a component of its own, read once its read lands. */
@@ -196,7 +186,7 @@ const hooked = async (searchId) => {
   let got;
   const draw = () =>
     W.React.createElement(() => {
-      got = W.useReachOutLeads(searchId);
+      got = useReachOutLeads(searchId);
       return null;
     });
   fresh();
@@ -221,7 +211,7 @@ test("the open search's lines are read once, and say where each lead stands", as
 });
 
 test("the Stage column sits beside the name and says the lead's line under its stage", async () => {
-  const stage = W.LEAD_COLUMNS[1];
+  const stage = LEAD_COLUMNS[1];
   assert.equal(stage.key, "stage");
   world();
   const ro = await hooked("s1");
@@ -234,7 +224,7 @@ test("the Stage column sits beside the name and says the lead's line under its s
 
 const drawStrip = (leads) => {
   fresh();
-  return again(() => W.React.createElement(W.ReachOutLeadsStrip, { leads }));
+  return again(() => W.React.createElement(ReachOutLeadsStrip, { leads }));
 };
 
 test("the strip says how many, today's of the day's share, and its doors go where they say", async () => {
@@ -291,7 +281,7 @@ const storyDto = (over = {}) => ({
   ...over,
 });
 const drawPeek = async () => {
-  const draw = () => W.React.createElement(W.LeadReachOut, { lead: { id: "l1" }, flash: (m) => flashed.push(m) });
+  const draw = () => W.React.createElement(LeadReachOut, { lead: { id: "l1" }, flash: (m) => flashed.push(m) });
   fresh();
   again(draw);
   await settle();
@@ -359,7 +349,7 @@ test("a no that may be undone is undone from the lead", async () => {
     }),
   });
   const undone = [];
-  W.__replies = { undo: async (id) => (undone.push(id), { ok: true, data: { undone: true } }) };
+  Object.assign(replies, { undo: async (id) => (undone.push(id), { ok: true, data: { undone: true } }) });
   const { tree } = await drawPeek();
   assert.equal(textOf(byTestId(tree, "peek-reach-out-undo")), "Read as no · undo");
   press(byTestId(tree, "peek-reach-out-undo"));

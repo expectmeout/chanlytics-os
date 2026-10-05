@@ -27,6 +27,7 @@ import { Icon } from "./icon/icon";
 import { TlMedia } from "./media/tl-media";
 import { MoreMenu } from "./more-menu/more-menu";
 import { StatePill } from "./pill/state-pill";
+import { useHoldToTalk } from "./talk/use-hold-to-talk";
 import { PolicyChip } from "./policy-chip/policy-chip";
 import { RecordCombobox } from "./record/combobox";
 import { RecordBox, RecordField, RecordSwitch, RecordTip, RecordTipCard, RecordToggleGroup } from "./record/field";
@@ -79,6 +80,7 @@ export const KIT_GLOBALS = {
   useRecFocusOn,
   recKeys,
   useUnsavedWork,
+  useHoldToTalk,
   UnsavedAsk,
   tabDraft,
   RecordSheet,

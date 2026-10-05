@@ -100,15 +100,9 @@ test("the frame's chrome for the Calendar: the workspace's booking link, nothing
     "nothing to offer until the Calendar has loaded",
   );
   values.setSurfaceValue("calendar", CALENDAR);
-  assert.deepEqual(calendarChrome().act, {
-    href: "https://book.example/luna",
-    label: "Booking link",
-    glyph: "calendar",
-    primary: true,
-    testid: "cal-booking-link",
-  });
+  assert.equal(calendarChrome().act, null, "a real workspace's booking link is in the page's own menu, not the frame");
   values.setSurfaceValue("calendar", { vm: { bookingLink: null }, fetchedAt: 1 });
-  assert.equal(calendarChrome().act, null, "a workspace with no link offers none");
+  assert.equal(calendarChrome().act, null, "and one with no link offers none");
   values.setSurfaceValue("calendar", undefined);
   globalThis.__DEMO_MODE = true;
   assert.deepEqual(
@@ -117,7 +111,7 @@ test("the frame's chrome for the Calendar: the workspace's booking link, nothing
     "the demo keeps its detour",
   );
   values.setSurfaceValue("calendar", CALENDAR);
-  assert.equal(calendarChrome().act.href, "https://book.example/luna", "a read wins over the demo");
+  assert.equal(calendarChrome().act, null, "a read wins over the demo");
   values.setSurfaceValue("calendar", undefined);
   globalThis.__DEMO_MODE = false;
   assert.deepEqual(SURFACE_ROUTES.calendar.crumbs, ["Calendar"]);
@@ -179,7 +173,9 @@ test("the page draws what the seam holds; a demo session with none draws the sam
   assert.deepEqual(asked, [], "the demo reads nothing");
   const board = byTestId(demo, "calendar-real");
   assert.ok(board, "a demo draws the page over the sample");
-  assert.match(textOf(byTestId(demo, "cal-range")), /\d+ – .*\d+/, "the range names the days on screen");
+  // The range is the control that opens the kit's date picker, which holds it as a prop (Base UI draws it).
+  const pick = find(demo, (n) => typeof n.props?.today === "string" && typeof n.props?.onValueChange === "function");
+  assert.match(textOf(byTestId(pick.props.trigger, "cal-range")), /\d+ – .*\d+/, "the range names the days on screen");
   assert.ok(
     find(demo, (n) => n.props?.["data-testid"] === "cal-block"),
     "with the sample's appointments on it",

@@ -180,7 +180,7 @@ test("a request refuses to act on a workspace nobody named, read or write", () =
 });
 
 test("only /workspaces may take the default: answering where am I is its job", () => {
-  const ws = read("apps/dashboard/app/api/v1/workspaces/route.ts");
+  const ws = read("apps/dashboard/src/server/workspace/workspace-list.ts");
   assert.match(ws, /memberContext\(ctx, preferred, \{ defaultAllowed: true \}\)/);
   assert.ok(!read("apps/dashboard/src/server/route.ts").includes("defaultAllowed"), "route() never takes the default");
 });

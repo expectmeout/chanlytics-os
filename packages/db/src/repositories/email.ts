@@ -17,7 +17,8 @@
  *
  * Taking an email in goes through ingest_inbound, the atomic gate every channel uses (one advisory lock per identity,
  * one replay gate on the provider's id), with the sender's address as the identity; it is not recreated to learn a
- * column. The two things email needs around it are each idempotent, so a run that dies between them resumes. Before:
+ * column. An email whose own words are STOP (core email-ingest) carries the opt-out, so it is recorded as a text's is.
+ * The two things email needs around it are each idempotent, so a run that dies between them resumes. Before:
  * a person the owner already gave this address to (00125) has never written from it, so the identity is written first
  * and the ingest joins that person instead of making a second. After: a person who arrived by email gets the address
  * on their own row, only when it is empty, so what an owner typed is never overwritten (if another person was given
@@ -34,6 +35,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
 import { ingestInbound, type IngestResult } from "./ingest";
+import { setEmailOffersYes, setEmailUnsubscribed } from "./campaigns/email-offers";
 import { dbLog } from "../observe";
 
 type Db = SupabaseClient<Database>;
@@ -68,6 +70,22 @@ export interface IngestEmailParams {
   body: string | null;
   channelTs: string | null;
   meta: Json;
+  /** The email's own words are STOP: ingest_inbound records the opt-out (consent opted_out, dnc) as it does for a text. */
+  optOut?: boolean;
+  /**
+   * The email's own words are UNSUBSCRIBE: offers by email end through the one door the unsubscribe link writes through
+   * (set_email_marketing), and nothing else does (an unsubscribe is not a STOP). Recorded after the ingest, and a write that
+   * fails throws: a no is never lost, and the run that resumes writes it again, which changes nothing twice.
+   */
+  unsubscribe?: boolean;
+  /**
+   * The email's own words are YES OFFERS, from a sender nothing says is forged: the yes to offers by email, in their own
+   * message (set_email_offers_yes). Best-effort, as WhatsApp's is: they have been received, and a yes that has to be
+   * repaired is logged, never a reason to fail their message.
+   */
+  optInOffers?: boolean;
+  /** What they wrote, as the ledger quotes it (at most eighty characters). */
+  words?: string | null;
 }
 
 export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<IngestResult> {
@@ -101,6 +119,7 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     body: p.body,
     channelTs: p.channelTs,
     meta: p.meta,
+    optOut: p.optOut ?? false,
   });
 
   if (!known.data) {
@@ -116,6 +135,43 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     if (error && error.code !== "23505")
       throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
     if (error) dbLog().error("ingest_email_address_taken", { tenant_id: p.tenantId, contact_id: out.contact_id });
+  }
+
+  // Their word about offers by email, in their own message, once their address is on their row (an unsubscribe puts it on
+  // the never-again list): a no first, so it is never lost behind a yes. Only for an email not yet handled: a delivery the
+  // provider repeats after it was handled must not put back a yes the person has since taken away (a run that died before
+  // it finished finds the email unhandled, and writes again what it wrote, which changes nothing twice).
+  const evidence = { channel: "email", message_external_id: p.receivedId, words: (p.words ?? "").slice(0, 80) || null };
+  if (p.unsubscribe && !out.processed)
+    await setEmailUnsubscribed(db, {
+      tenantId: p.tenantId,
+      contactId: out.contact_id,
+      messageId: out.message_id,
+      evidence: { ...evidence, via: "reply" },
+    });
+  if (p.optInOffers && !out.processed) {
+    try {
+      const yes = await setEmailOffersYes(db, {
+        tenantId: p.tenantId,
+        contactId: out.contact_id,
+        source: "customer_message",
+        messageId: out.message_id,
+        evidence,
+      });
+      // A yes never undoes an unsubscribe: said, so "I wrote YES OFFERS and nothing happened" has an answer.
+      if (yes === "unsubscribed")
+        dbLog().warn("email_yes_refused", {
+          tenant_id: p.tenantId,
+          contact_id: out.contact_id,
+          reason: "unsubscribed",
+        });
+    } catch (e) {
+      dbLog().error("email_yes_not_recorded", {
+        tenant_id: p.tenantId,
+        contact_id: out.contact_id,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
   return out;
 }

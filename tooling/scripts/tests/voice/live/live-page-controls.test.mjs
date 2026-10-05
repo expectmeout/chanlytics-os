@@ -191,7 +191,7 @@ test("a call that has ended offers no control, only its summary and the way to t
       summary: "Asked for a person.",
     }),
   ]);
-  const tree = mount();
+  const tree = mount({ initialCallId: "c-live" });
   assert.equal(byTestId(tree, "live-controls"), null, "nothing to end or pass");
   assert.equal(byTestId(tree, "live-whisper"), null, "nobody to whisper to");
   const summary = byTestId(tree, "live-summary");

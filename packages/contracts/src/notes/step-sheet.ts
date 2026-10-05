@@ -5,7 +5,7 @@
  */
 import { NOTE_MAX, NOTE_REFUSALS, type PersonNoteTeamDto, type PersonNoteVM } from "./person-notes";
 import { stepDays, type StepDayChoice } from "./steps";
-import { isRealDate } from "../config/workspace-config/config-schema";
+import { isRealDate } from "../config/workspace-config/config-rules";
 
 /** Every word the sheet says. */
 export const STEP_SHEET_WORDS = {

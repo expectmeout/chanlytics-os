@@ -14,6 +14,7 @@ import {
 import type { Database, Json } from "../database.types";
 import { emitEvent } from "../events";
 import { dbLog } from "../observe";
+import { noChannelColumns, noRelationshipColumn } from "./campaigns/campaign-channels";
 
 type Db = SupabaseClient<Database>;
 
@@ -58,6 +59,35 @@ export interface IngestResult {
   dnc?: boolean | null;
 }
 
+/**
+ * A START is a yes on the channel it came on, and ingest_inbound writes its consent event only when the answer
+ * changes: a START by text from someone already opted in on WhatsApp left no event and covered no text. This door
+ * (00297) writes the event when their list lacks the channel, and the database adds it to the list. Best-effort, for the
+ * reason the offers write in ingestInbound is: the customer has been received, and a channel that has to be repaired is
+ * logged, never a reason to fail their message.
+ */
+async function noteYesOnChannel(db: Db, p: IngestInboundParams, contactId: string): Promise<void> {
+  const failed = (error: string) =>
+    dbLog().error("consent_channel_write_failed", { tenant_id: p.tenantId, contact_id: contactId, error });
+  try {
+    const { error } = await db.rpc("note_yes_on_channel", {
+      p_tenant_id: p.tenantId,
+      p_contact_id: contactId,
+      p_channel: p.channel,
+      p_message_external_id: p.messageExternalId,
+      p_words: (p.body ?? "").slice(0, 80),
+    });
+    // A database that has not been given 00297 has no such function, and PostgREST refuses the call by naming it:
+    // nothing is kept per channel there yet, so there is nothing to repair.
+    const missing =
+      error?.code === "PGRST202" ||
+      /Could not find the function public\.note_yes_on_channel/.test(error?.message ?? "");
+    if (error && !missing) failed(error.message);
+  } catch (e) {
+    failed(e instanceof Error ? e.message : String(e));
+  }
+}
+
 export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<IngestResult> {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,
@@ -76,6 +106,10 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   } as never);
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   const out = data as unknown as IngestResult;
+
+  // A START is a yes on the channel it came on (contracts consent-channels.ts): see noteYesOnChannel. After the ingest,
+  // using the contact it returned.
+  if (p.optIn && out?.contact_id) await noteYesOnChannel(db, p, out.contact_id);
 
   // The OTHER answer, if that is what arrived. Separate call, separate column,
   // separate ledger entry -- which is the whole point: the carriers refused a
@@ -291,6 +325,9 @@ export interface OutboundTarget extends PurposeBearing {
   // whole compiled, read `marketing_consent` as absent, and failed CLOSED: every
   // promotion silently refused, with no error anywhere to say why.
   marketing_consent: string | null;
+  /** The channels each yes covers, as the database keeps them (contracts consent-channels.ts); null: WhatsApp alone. */
+  consent_channels: string[] | null;
+  marketing_channels: string[] | null;
   /** A human has this thread until then. Carried for the same reason consent
    *  is: a sender that is not handed the fact cannot honour it. */
   pausedUntil: string | null;
@@ -318,32 +355,60 @@ export async function resolveOutboundTarget(
   // duplicate contact carrying none of the original's consent history.
   const phone = normalizePhone(p.phoneE164);
   if (!phone) return null;
-  const { data: existing, error: selErr } = await db
+  const first = await db
     .from("contacts")
-    .select("id, consent, dnc, marketing_consent")
+    .select("id, consent, dnc, marketing_consent, consent_channels, marketing_channels")
     .eq("tenant_id", p.tenantId)
     .eq("phone_e164", phone)
     .maybeSingle();
+  // A database 00297 has not reached has no channel arrays: read again without them, and WhatsApp alone is what a yes covers.
+  const { data: existing, error: selErr } = noChannelColumns(first.error)
+    ? await db
+        .from("contacts")
+        .select("id, consent, dnc, marketing_consent")
+        .eq("tenant_id", p.tenantId)
+        .eq("phone_e164", phone)
+        .maybeSingle()
+    : first;
   if (selErr) throw new Error(`resolve_outbound_target: ${selErr.message}`);
 
-  let contact = existing;
+  // A contact made here has said no yes on any channel yet: its channels are none kept.
+  let contact: OutboundContact | null = existing;
   if (!contact) {
     if (!p.create) return null;
     contact = await getOrCreateContact(db, p.tenantId, phone);
   }
+  return threadOf(db, p.tenantId, contact, p.touch);
+}
 
-  // `touch` because resolving a thread is not the same as writing to it. A
-  // broadcast resolves one per recipient BEFORE the door decides whether they
-  // may be messaged, and stamping last_message_at there sends every refused
-  // person's thread to the top of the Inbox as if something had happened in it.
-  // The stamp belongs to the message: recordOutbound writes it when one lands.
+/** The contact row an outbound target is made from: who they are to the consent predicate. */
+type OutboundContact = { id: string; consent: string; dnc: boolean; marketing_consent: string } & {
+  consent_channels?: string[] | null;
+  marketing_channels?: string[] | null;
+};
+
+/**
+ * The person's one thread (opened when they have none) and the target a send is judged by, from the contact row.
+ *
+ * `touch` because resolving a thread is not the same as writing to it. A
+ * broadcast resolves one per recipient BEFORE the door decides whether they
+ * may be messaged, and stamping last_message_at there sends every refused
+ * person's thread to the top of the Inbox as if something had happened in it.
+ * The stamp belongs to the message: recordOutbound writes it when one lands.
+ */
+async function threadOf(
+  db: Db,
+  tenantId: string,
+  contact: OutboundContact,
+  touch: boolean | undefined,
+): Promise<OutboundTarget> {
   const { data: conv, error: cErr } = await db
     .from("conversations")
     .upsert(
       {
-        tenant_id: p.tenantId,
+        tenant_id: tenantId,
         contact_id: contact.id,
-        ...(p.touch === false ? {} : { last_message_at: new Date().toISOString() }),
+        ...(touch === false ? {} : { last_message_at: new Date().toISOString() }),
       },
       { onConflict: "tenant_id,contact_id" },
     )
@@ -362,7 +427,68 @@ export async function resolveOutboundTarget(
     consent: contact.consent ?? null,
     dnc: contact.dnc ?? false,
     marketing_consent: contact.marketing_consent ?? null,
+    consent_channels: contact.consent_channels ?? null,
+    marketing_channels: contact.marketing_channels ?? null,
   };
+}
+
+/**
+ * The same target by the person's id, for a send that reaches them by something other than a number (an email): their
+ * one thread, opened when they have none, with the consent they are judged by. Never creates a contact; null for one
+ * that is gone, erased or merged into another, whose thread is the other's. Carried like resolveOutboundTarget's, so
+ * no caller can send without having been handed the consent state.
+ */
+export async function resolveOutboundTargetForContact(
+  db: Db,
+  p: { tenantId: string; contactId: string; touch?: boolean },
+): Promise<OutboundTarget | null> {
+  const first = await db
+    .from("contacts")
+    .select(
+      "id, consent, dnc, marketing_consent, consent_channels, marketing_channels, erased_at, merged_into_contact_id",
+    )
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.contactId)
+    .maybeSingle();
+  // The same answer on a database 00297 has not reached: without the channel arrays, a yes covers WhatsApp alone.
+  const { data, error } = noChannelColumns(first.error)
+    ? await db
+        .from("contacts")
+        .select("id, consent, dnc, marketing_consent, erased_at, merged_into_contact_id")
+        .eq("tenant_id", p.tenantId)
+        .eq("id", p.contactId)
+        .maybeSingle()
+    : first;
+  if (error) throw new Error(`resolve_outbound_target_for_contact: ${error.message}`);
+  if (!data || data.erased_at || data.merged_into_contact_id) return null;
+  return threadOf(db, p.tenantId, data, p.touch);
+}
+
+/**
+ * What the send door re-reads at the wire for one thread, in one query: its pause and who holds it, the person's consent
+ * row (with the channels each yes covers) and email, and the workspace's status; and, when `relationship` is asked,
+ * whether they have a relationship with the business (`has_relationship`, the other way into an offer by email). The
+ * relationship is asked only by a send that needs it, an email OFFER: it is a function of the person's row that reads their
+ * messages, calls and deals, so a WhatsApp reply or a reminder never pays for it. The answer as the database gives it,
+ * `{ data, error }`: the door words a failed read itself, because "we could not check" is not "yes". A database 00299
+ * has not reached has no `has_relationship`, and one 00297 has not reached has no channel arrays either: it is read
+ * again without them, a yes then covers WhatsApp alone and no relationship is on record, as before them: code that ships
+ * before its migration must keep every reply, answer and booking link going.
+ */
+export async function wireRowOf(db: Db, p: { tenantId: string; conversationId: string; relationship: boolean }) {
+  const head = "paused_until, control_kind, control_until, contact_id, contacts (consent, dnc, marketing_consent, ";
+  const tail = "email_marketing, erased_at, erasing_since, email, email_suppressed_at), tenants (status)";
+  const read = (columns: string) =>
+    db
+      .from("conversations")
+      .select(`${head}${columns}${tail}`)
+      .eq("id", p.conversationId)
+      .eq("tenant_id", p.tenantId)
+      .maybeSingle();
+  const full = await read(`consent_channels, marketing_channels, ${p.relationship ? "has_relationship, " : ""}`);
+  if (!noRelationshipColumn(full.error) && !noChannelColumns(full.error)) return full;
+  const withChannels = noRelationshipColumn(full.error) ? await read("consent_channels, marketing_channels, ") : full;
+  return noChannelColumns(withChannels.error) ? read("") : withChannels;
 }
 
 /**

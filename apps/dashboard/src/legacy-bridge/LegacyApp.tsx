@@ -21,7 +21,8 @@ import {
   type ReactNode,
 } from "react";
 import { FIRST_RUN_ROUTE, type PendingWorkspace, type Theme, type LookPref } from "@chanlytics/contracts";
-import { subscribeWorkspaceChanges } from "@chanlytics/db";
+// The live feed's own entry: the package's index is the server's repositories, and reached the browser whole for this.
+import { subscribeWorkspaceChanges } from "@chanlytics/db/realtime";
 import { authErrorInHash } from "@/auth/hash-error";
 import { createClient } from "@/lib/supabase/client";
 import { paintThemeColor } from "./theme-color";
@@ -59,17 +60,16 @@ import { hydrateSurfaceCache } from "./surface-cache";
 import { hearSurfaces, surfaceHook } from "./surface-status";
 import { installInboxVerbs } from "./inbox-verbs";
 import { installPeopleCourier, warmPersonOnScreen } from "@/surfaces/people/people-detail";
-import { installLeadsCourier, leadsOverride } from "./leads";
-import { installLeadMap } from "./lead-map";
+import { leadsOverride } from "@/surfaces/leads/surface";
+import { installLeadMap } from "@/surfaces/leads/map/lead-map";
 import { installTabMemory } from "./tab-memory";
 import { installLists } from "@/surfaces/people/people-lists";
 import { installPolicyStore } from "./policy-store";
 import { installNotifications } from "./notifications";
 import { installAsk } from "./ask";
-import { installWhatsAppConnect } from "./whatsapp-connect";
 import { installBroadcasts } from "@/surfaces/campaigns/broadcasts/verbs";
 import { installPlaybooks } from "@/surfaces/campaigns/playbooks/verbs";
-import { installReachOuts, reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
+import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
 import { installReplies, repliesOverride } from "./reach-out/replies";
 import { installCalendar } from "@/surfaces/calendar/verbs";
 import { installToday } from "@/surfaces/today/helpers";
@@ -77,13 +77,9 @@ import { installMascot } from "./mascot";
 import { installArrival } from "./arrival";
 import { installAppBridge } from "./app-bridge";
 import { installBusinessTab } from "./business-tab";
-import { installSetup, setupOverride } from "./setup";
-import { installGoogle, googleOverride } from "./google";
-import { installBilling, billingOverride } from "./billing";
-import { installConnections } from "./connections";
-import { installMailbox } from "./mailbox";
-import { installSendingDomains } from "./sending-domains";
-import { installBusinessRecord } from "./business-record";
+import { installSetup, setupOverride } from "@/surfaces/setup/surface";
+import { googleOverride } from "./google";
+import { installBilling, billingOverride } from "@/surfaces/settings/billing/surface";
 import { installPlatform } from "./platform";
 import { installPartner, partnerOverride } from "./partner";
 import { installActivity } from "./activity";
@@ -100,11 +96,7 @@ installClock();
 installTabMemory();
 installInboxVerbs();
 installPeopleCourier();
-// The Leads scope of People: its surface reads by view and patches what is
-// already loaded, and its courier carries the acts, one named function per
-// door (leads.ts).
-installLeadsCourier();
-// The streets under the lead map, when the product hosts a basemap (lead-map.ts); unset, the page keeps its square.
+// The streets under the lead map, when the product hosts a basemap (surfaces/leads/map/lead-map.ts); unset, the page keeps its square.
 installLeadMap(publicEnv.NEXT_PUBLIC_LEAD_MAP_BASE);
 installLists();
 // After the manifest (which seeds window.POLICY) and before React: the
@@ -117,10 +109,8 @@ installPolicyStore();
 // installed before the first fetch resolves.
 installNotifications();
 installAsk();
-installWhatsAppConnect();
 installBroadcasts();
 installPlaybooks();
-installReachOuts();
 installReplies();
 installCalendar();
 installToday();
@@ -132,12 +122,7 @@ installArrival();
 installAppBridge();
 installBusinessTab();
 installSetup();
-installGoogle();
 installBilling();
-installConnections();
-installMailbox();
-installSendingDomains();
-installBusinessRecord();
 installPlatform();
 installPartner();
 installActivity();

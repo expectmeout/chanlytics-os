@@ -101,6 +101,7 @@ const S = "../../../../../apps/dashboard/src";
 const { Inbox } = await import(`${S}/surfaces/inbox/pages/inbox-page.tsx`);
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
 const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
+const { SubTabs } = await import(`${S}/surfaces/kit/sub-tabs/sub-tabs.tsx`);
 const { ixReadAgain, ixHeld } = await import(`${S}/surfaces/inbox/rules.ts`);
 const { ixHoldAll } = await import(`${S}/surfaces/inbox/pages/hold-all.ts`);
 const { VW_STORE } = await import(`${S}/surfaces/inbox/store.ts`);
@@ -290,12 +291,13 @@ test("the buckets say which one is open, and the select-all box says what it sel
       onClearSelection() {},
     }),
   );
-  const bucket = (label) =>
-    find(tree, (n) => n.type === "button" && hasClass("ix-bucket")(n) && textOf(n).includes(label));
-  assert.deepEqual(
-    [bucket("Needs you").props["aria-pressed"], bucket("Handled").props["aria-pressed"]],
-    [true, false],
-    "REGRESSION: nothing said which bucket was open but its colour",
+  // The strip is the kit's (Base UI's Tabs, held in a browser): the page's part is which tab is picked and what it says.
+  const strip = find(tree, (n) => n.type === SubTabs);
+  assert.equal(strip.props.value, "escalated", "REGRESSION: nothing said which bucket was open but its colour");
+  const words = strip.props.tabs.map((t) => t.label);
+  assert.ok(
+    words.includes("Needs you") && words.includes("Handled"),
+    "the buckets are the strip's tabs: " + words.join(", "),
   );
   const all = find(tree, (n) => n.type === "input" && n.props?.type === "checkbox" && !hasClass("ix-thread-check")(n));
   assert.equal(all.props["aria-label"], "Select all 2 conversations", "REGRESSION: its name was the count beside it");

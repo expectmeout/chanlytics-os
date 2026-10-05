@@ -1,7 +1,7 @@
 /**
  * People's lists: a list Ask proposes, kept current by its rule (the Phase 4 plan, D10).
  */
-import { listToken } from "../people/lists";
+import { listToken } from "../people/lists/lists";
 import { PROPOSAL_WORDS, asText, idIn, rec, refuseWith, type ProposalSpec } from "./spec";
 
 /** The names a delete that archived says (`paused`, `read_by`), as text. */

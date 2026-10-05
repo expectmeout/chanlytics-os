@@ -165,6 +165,18 @@ before(async () => {
     role: "user",
     content: { text: "hi" },
   });
+  // The viewer's own voice session on their thread (00287): a member reads their own, nobody else's.
+  await seed("ask_voice_sessions", {
+    id: (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, ""),
+    tenant_id: A,
+    user_id: ctx.viewerId,
+    thread_id: ctx.thread,
+    conversation_id: "conv_viewer",
+    token_cipher: "sealed-elsewhere",
+    token_expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+    surface: "today",
+    language: "en",
+  });
   await seed("invitations", { tenant_id: A, email: "invited-1@example.com", invited_by: ctx.ownerId, role: "viewer" });
   ctx.template = await seed("templates", {
     tenant_id: A,
@@ -491,6 +503,21 @@ const TENANT_TABLES = {
       user_id: ctx.strangerId,
       role: "user",
       content: { text: "stranger" },
+    }),
+  ],
+  // A voice session: the member's own (00287); its id is the session's hash, unique per row.
+  ask_voice_sessions: [
+    "own",
+    () => ({
+      id: (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, ""),
+      tenant_id: A,
+      user_id: ctx.strangerId,
+      thread_id: ctx.thread,
+      conversation_id: "conv_stranger",
+      token_cipher: "sealed-elsewhere",
+      token_expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      surface: "today",
+      language: "en",
     }),
   ],
   memberships: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId, role: "viewer" })],

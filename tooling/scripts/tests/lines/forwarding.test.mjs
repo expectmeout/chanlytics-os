@@ -314,18 +314,22 @@ test("the wiring: the migration, the forwarding event kind, and the bridge and t
     readCode("apps/dashboard/src/server/connections/lines.ts").includes('forwarding: r.kind === "forwarded"'),
     "only a forwarded row shows its facts, and only the words",
   );
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
-  for (const pin of ['"POST lines/forwarding"', '"POST lines/forwarding/test"', "win.__forwarding = {"])
+  // Setup's surface and rows are TSX since decision 0015's step 10 (surfaces/setup): the card imports its words.
+  const bridge = readCode("apps/dashboard/src/surfaces/setup/surface.ts");
+  for (const pin of ['"POST lines/forwarding"', '"POST lines/forwarding/test"', "export const FORWARDING_WORDS"])
     assert.ok(bridge.includes(pin), pin);
-  const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
+  const rows = (f) => readCode(`apps/dashboard/src/surfaces/setup/rows/${f}`);
+  const card = rows("forwarding.tsx");
   for (const pin of [
-    "const ForwardingCard",
-    'verb.to === "verb:forwarding"',
-    'verb.to.startsWith("verb:forwarding-test:")',
+    "export const ForwardingCard",
+    "FORWARDING_WORDS",
     'data-testid="setup-fw-dial"',
     'data-testid="setup-fw-test"',
-    'data-testid="setup-keep-go"',
   ])
-    assert.ok(page.includes(pin), pin);
+    assert.ok(card.includes(pin), pin);
+  const acts = rows("acts.tsx");
+  for (const pin of ['to === "verb:forwarding"', 'to.startsWith("verb:forwarding-test:")'])
+    assert.ok(acts.includes(pin), pin);
+  assert.ok(rows("line-chooser.tsx").includes('data-testid="setup-keep-go"'));
   // The nightly spec walks the first run a step at a time (e2e/setup.spec.ts) and counts no rows at all.
 });

@@ -1,6 +1,6 @@
 /**
  * The rail (moved whole from legacy/pages/people.jsx, decision 0015). The switch between the scopes stands over it, the
- * page's own strip (PeopleScopeTabs), never in it; under Leads the rows are the Leads scope's (LeadsRailRows,
+ * frame's strip of views (surfaces/people/chrome.ts), never in it; under Leads the rows are the Leads scope's (LeadsRailRows,
  * leads-scope.jsx), drawn with the same kit, so the smart lists and the lists kept by hand are People's alone.
  * `everyone` ({ count, active, onPick }) is the phone sheet's first row, the way back to everyone. Under the Pipeline the
  * rows are People's own lists, and a pick opens that list on People (pipeline-scope.jsx). `compact` is the phone's
@@ -210,8 +210,6 @@ export function PeopleRail({
   onCreateList?: ((name: string, rule: ListRule | null) => Promise<ApiResult<unknown>>) | null;
   newListSignal?: number;
   compact?: boolean;
-  /** Passed by the sheet's caller; the rail does not read it. */
-  onScope?: unknown;
 }) {
   return (
     <aside className="cl-rail">

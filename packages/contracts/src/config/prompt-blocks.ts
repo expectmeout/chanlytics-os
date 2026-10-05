@@ -36,9 +36,10 @@ import { NO_FIELDS_COMPOSED_WORDS, whoseWords, type WhoseWords } from "./workspa
  *     workspace is given as its prompt. Named as the platform's wherever it is a
  *     block of its own. Two kinds of platform line are not: the composer writes
  *     them under the rules heading, among the rules the owner switches -- the
- *     line for a customer who replies YES OFFERS, on every workspace, and under
- *     "ask" the Autonomy tab's rules. That block stays the rules row's, and its
- *     note says which of its lines are not the owner's.
+ *     line for a customer who replies YES OFFERS, on every workspace, the line
+ *     that asks a customer once for that yes, where there is a WhatsApp number,
+ *     and under "ask" the Autonomy tab's rules. That block stays the rules row's,
+ *     and its note says which of its lines are not the owner's.
  *   - The Autonomy tab's rules, where they are the only rules: a workspace with
  *     no fields is handed its own prompt back as it stands, and nothing is
  *     composed around it but those.
@@ -127,7 +128,7 @@ const BLOCK_MARKS: readonly BlockMark[] = /* @__PURE__ */ (() => [
     row: "guardrails",
     label: "Rules it always keeps",
     startsWith: O.rules,
-    note: "Beside the rules on this row: a line Chanlytics writes for every workspace, for a customer who replies YES OFFERS, and any rule your Autonomy tab adds.",
+    note: "Beside the rules on this row: a line Chanlytics writes for every workspace, for a customer who replies YES OFFERS; where there is a WhatsApp number, a line that asks each customer once for that yes; and any rule your Autonomy tab adds.",
   },
 ])();
 
@@ -151,7 +152,7 @@ const PROMPT: BlockMark = {
   // The second sentence is the rules fold's own, word for word (config.ts NO_FIELDS_COMPOSED_WORDS): the two notes
   // are on one page, and an owner who reads both should read the same thing twice, not two near-misses.
   //
-  // Marked pure for the reason business-tab.ts gives beside GUARDRAIL_KEYS: a substitution makes this an expression
+  // Marked pure for the reason rule-strengths.ts gives beside STRENGTHS: a substitution makes this an expression
   // the bundler keeps at the top level, and the prompt view is drawn on one tab of the dashboard and nowhere else.
   note: /* @__PURE__ */ (() => `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS}`)(),
 };

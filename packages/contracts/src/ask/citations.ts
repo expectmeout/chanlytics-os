@@ -80,6 +80,7 @@ export const ASK_PAGE_ROUTES = [
   "conversations",
   "live",
   "calendar",
+  "campaigns",
   "outbound",
   "broadcasts",
   "messages",
@@ -100,7 +101,7 @@ export const ASK_PAGE_ROUTES = [
 // A list of the workspace's own is a row (`clients/list:<id>`, its reader's route), so its address is no page; a People
 // list's `clients/seg:<id>` is People's own view, and stays one.
 const PAGE_PREFIX =
-  /^(?!clients\/list:)(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|start|admin)(\/[A-Za-z0-9:_-]+)?$/;
+  /^(?!clients\/list:)(today|inbox|clients|segments|conversations|live|calendar|campaigns|outbound|broadcasts|messages|reports|start|admin)(\/[A-Za-z0-9:_-]+)?$/;
 
 /**
  * Drop every citation that names a row the tools did not return this turn.

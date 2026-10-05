@@ -3,7 +3,8 @@
  * hours, and the feed's state and what a read left out. The board, Today, Settings and Setup say each one way.
  */
 import { agoWords } from "../shared/time";
-import { DAYS, type BookingRules, type Closure, type Hours } from "../config/workspace-config/business-profile";
+import type { BookingRules, Closure, Hours } from "../config/workspace-config/business-profile";
+import { DAYS } from "../config/workspace-config/config-rules";
 import { hoursRuns } from "../config/workspace-config/prompt-hours";
 import { BOOKING_DEFAULTS, dayIntervals, type BookingRulesLike } from "./availability";
 import { DAY_SHORT, keyParts } from "./day-keys";

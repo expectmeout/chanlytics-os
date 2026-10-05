@@ -32,11 +32,10 @@ const WORKSPACE_APP = path.join(DASH, "../app/(os)/w/[workspace]");
 const { ROUTE_WORDS } = await import("@chanlytics/contracts");
 const wordOf = (route) => (Object.hasOwn(ROUTE_WORDS, route) ? ROUTE_WORDS[route] : route);
 // Rows a moved route keeps in app-routes.jsx: each for an address its page does not take, or (address null) for a session
-// its page is not drawn for. People's Leads scope is drawn by its own row until Leads leaves the shell (decision 0015, step
-// 9); the mockup's seeded Lists page is drawn where there is no workspace to read (a demo session), a real workspace's
-// Lists being the App Router page. A person's page and the Pipeline are the page's own since they moved.
+// its page is not drawn for. The mockup's seeded Lists page is drawn where there is no workspace to read (a demo session),
+// a real workspace's Lists being the App Router page. A person's page, the Pipeline and Leads are People's page's own since
+// they moved (Leads: decision 0015, step 9).
 const ROWS_LEFT = {
-  clients: [{ word: "leads", address: "leads" }],
   segments: [{ word: "realWorkspace", address: null }],
 };
 const { SURFACE_STATES, ROUTE_SURFACE, surfaceStateFor, routeSurfaceFor, surfaceRetiredTo } = await import(
@@ -168,6 +167,7 @@ test("the real set is exactly the converted surfaces", () => {
     "admin/workspace",
     "broadcasts",
     "calendar",
+    "campaigns",
     "clients",
     "conversations",
     "inbox",
@@ -277,38 +277,10 @@ test("REGRESSION: an unconfigured workspace is not shown somebody else's busines
   // save onto, the act is not offered at all" reads it again where there is no config behind the fold.
 });
 
-test("REGRESSION: the team card reads real members, not the seed store", () => {
-  // Shipped once and caught by LOOKING at the deployed page: the business card
-  // was real while the card beneath it listed four invented colleagues — and
-  // put "You" beside one of them, on a real owner's own settings page.
-  const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
-  assert.ok(settings.includes("const realTeam = window.__TEAM;"), "the card must read the fetched members");
-  assert.ok(
-    settings.includes("Array.isArray(realTeam)"),
-    "and must distinguish 'fetched' from 'could not fetch' — null is not an empty team",
-  );
-});
-
-test("'You' is decided by the signed-in email, not the mockup's operator", () => {
-  const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
-  assert.ok(settings.includes("m.isMe !== undefined ? m.isMe : m.id === S.meId"));
-});
-
-test("a real workspace is not given an invented seat plan", () => {
-  // Seats are a billing concept and billing is not wired. "4 of 5 seats" over
-  // real members would be a number nobody chose.
-  //
-  // Counted over realTeam, not over `team`: the list now also carries the
-  // invitations nobody has accepted, and an invitation is not a person. "3
-  // people" has to mean three people.
-  const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
-  assert.ok(settings.includes("Array.isArray(realTeam) ? realTeam.length : S.seatsUsed()"));
-  assert.ok(
-    !settings.includes("seatsIncluded - seatsUsed") ||
-      settings.includes("Array.isArray(realTeam) ? 1 : S.seatsIncluded - seatsUsed"),
-    "a real workspace must not be told how many seats a plan it does not have includes",
-  );
-});
+// The Team card reads the real roster, never the mockup's seeded one; "You" is decided by the signed-in email; a real
+// workspace is counted in people, never in seats of a plan it does not have. The card is TSX now (surfaces/settings/team,
+// decision 0015 step 11) and has no seeded roster at all: drawn in settings-honest.test.mjs ("a real roster is counted in
+// people") and settings-owner-panes.test.mjs ("a team read that failed ...").
 
 test("REGRESSION: a page opens on the pane it actually renders", () => {
   // The shell renders Settings as tab={param || "workspace"}, so /admin with no
@@ -392,26 +364,9 @@ test("the shell asks the gate with the pane it is about to render", () => {
   assert.ok(!shell.includes("routeReady(page)"), "the bare-page call IS the bug");
 });
 
-test("REGRESSION: a team we could not READ is not a team of four strangers", () => {
-  // window.__TEAM has three states and the card treated two of them as one.
-  // undefined = the bridge is not running (standalone mockup, seeds correct).
-  // null = the bridge ran and /api/v1/team FAILED — and that fell through to
-  // the same seeds, so a network blip put Sarah Chen, Marcus Webb, Lena Park
-  // and Jay Rivera on a real owner's settings page as their colleagues.
-  // The identical fabrication was caught and fixed once; it survived here.
-  const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
-  assert.ok(settings.includes("const teamUnavailable = realTeam === null;"), "null is its own state");
-  assert.ok(settings.includes("{!teamUnavailable && team.map("), "the seeded roster must not render");
-  assert.ok(settings.includes('what="your team"'), "and it must say what happened, through the one FailedRead");
-  assert.ok(settings.includes("{!teamUnavailable && (!seatsFull"), "no Invite button over a roster we could not read");
-});
-
-test("a failed team read still uses the REAL role, not the seed's opinion", () => {
-  // Only the team fetch failed; the settings read gave us the caller's role.
-  const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
-  assert.ok(settings.includes("teamUnavailable ? (serverRole || S.myRole())"));
-  assert.ok(settings.includes("Array.isArray(realTeam) || teamUnavailable"), "owner-ness comes from the server");
-});
+// A team we could not READ is not a team of four strangers, and a failed team read still uses the real role: drawn in
+// empty-failed.test.mjs ("a team that could not be read draws the one FailedRead") and settings-owner-panes.test.mjs ("a
+// team read that failed ...").
 
 test("the tab bar offers what the registry says is real, and only that", () => {
   // These two files drifted apart in both directions at once. Lists went real
@@ -427,7 +382,8 @@ test("the tab bar offers what the registry says is real, and only that", () => {
   const rows = [...tabsSrc.matchAll(/\{ id: "([a-z-]+)", label: "[^"]+", to: "([a-z-]+)"([^}]*)\}/g)].map(
     ([, id, to, rest]) => ({ id, to, demoOnly: /demoOnly: true/.test(rest) }),
   );
-  assert.ok(rows.length >= 12, `parsed ${rows.length} tabs — the shape of the file changed`);
+  // Campaigns' three tabs went with its strip (3 Oct 2026): the home is one page, and Sent and the Library are rooms reached from it.
+  assert.ok(rows.length >= 9, `parsed ${rows.length} tabs — the shape of the file changed`);
 
   for (const t of rows) {
     const state = SURFACE_STATES[t.to];

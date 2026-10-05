@@ -2,15 +2,18 @@
  * Campaigns, the loading standard's D and G: a playbook's act is said when the server takes it, and a composer's
  * words are kept in the tab, come back when it opens again, and are thrown away only after one question.
  *
- * - A playbook card's Pause, Run now, Approve, Skip and Delete waited for the write AND the refresh map's re-read of
- *   the playbooks and the broadcasts (the second reads every contact page) before saying anything. They say it from
- *   the server's answer (`onAccepted`), and the card's buttons wait for the re-read: a Run now pressed twice before
- *   the first run's rows had landed would be two runs.
- * - The playbook sheet's Escape dropped everything typed; the send screen's Cancel and a trip to another page lost a
+ * - A playbook's Pause, Run now, Approve, Skip and Delete (the pane the home opens it in, PlaybookPane) waited for the
+ *   write AND the refresh map's re-read of the playbooks and the broadcasts (the second reads every contact page) before
+ *   saying anything. They say it from the server's answer (`onAccepted`), and the pane's buttons wait for the re-read: a
+ *   Run now pressed twice before the first run's rows had landed would be two runs.
+ * - The playbook composer's Escape dropped everything typed; the send screen's Cancel and a trip to another page lost a
  *   name, a typed value and a picked time; a template half-written, or a translation the assistant had just been paid
  *   to write, went with a Cancel. Each is kept per tab (tab-memory.ts) under one rule (record-fold.jsx
  *   useUnsavedWork), the registry holds the tab from closing over it, and Cancel asks once (UnsavedAsk).
- * Run against the pages on a stub React, with the tab's memory installed as the app installs it.
+ * - Words kept come back as the page does: Campaigns' home reopens a half-written send, playbook or change to a playbook
+ *   by replacing its address (`campaigns/new`, `new:every`, `new:edit:<id>`, use-home.ts useReopenDrafts), and the
+ *   composer it lands on opens on the words.
+ * Run against the pages and the composers on a stub React, with the tab's memory installed as the app installs it.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -36,6 +39,7 @@ const NOW = Date.now();
 /* ---------------------------------- the window ---------------------------------- */
 
 const went = [];
+const replaced = [];
 const toasts = [];
 installLegacyReact({
   location: {
@@ -63,7 +67,7 @@ Object.assign(globalThis, {
   useHotkey: () => {},
   usePPToast: () => [null, (t) => toasts.push(t)],
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
-  appNavigate: (to) => went.push(to),
+  appNavigate: (to, opts) => (opts && opts.replace ? replaced : went).push(to),
   __chrome: { state: stateOf },
   __ME: { role: "owner" },
   canDo: () => true,
@@ -73,8 +77,27 @@ Object.assign(globalThis, {
   __DEMO_MODE: false,
 });
 const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
-const { PlaybooksPage } = await import(`${SRC}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
-const { PlaybookCard } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
+const { CampaignsHome } = await import(`${SRC}/surfaces/campaigns/home/home-page.tsx`);
+const { PlaybookPane } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
+const { Menu } = await import(`${SRC}/surfaces/kit/menu/menu.tsx`);
+const { Field } = await import(`${SRC}/surfaces/kit/field/field.tsx`);
+const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
+const { CmSlot } = await import(`${SRC}/surfaces/campaigns/parts/slot.tsx`);
+/** One of the composer's choices, the kit's Picker (surfaces/kit/picker/), by its test id. */
+const pickerOf = (tree, testid) => find(tree, (n) => n.type === Picker && n.props["data-testid"] === testid);
+/** What a picker's token says: the page's face, else the one chosen, else what it says with none. */
+const faceOf = (tree, testid) => {
+  const p = pickerOf(tree, testid);
+  const one = p.props.groups.flatMap((g) => g.options).find((o) => o.value === p.props.value);
+  return textOf(p.props.face ?? (one ? one.label : (p.props.placeholder ?? "")));
+};
+/** The kit menu's item by its words (the ⋯ beside Pause and Edit, where Run now and Delete live): what a press does. */
+const moreItem = (tree, label) => {
+  const menu = find(tree, (n) => n.type === Menu);
+  const item = menu && menu.props.groups.flatMap((g) => g.items || []).find((i) => i.label === label);
+  assert.ok(item, `the ⋯ menu offers ${label}`);
+  return item;
+};
 const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
@@ -85,11 +108,13 @@ const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-
 
 /* ---------------------------------- walking a tree ---------------------------------- */
 
-const type = (node, value) => node.props.onChange({ target: { value } });
+/** Words typed into one of the kit's Fields (surfaces/kit/field/), which says them as its own `onValueChange`. */
+const type = (node, value) => node.props.onValueChange(value);
 /** A fresh mount, as React mounts a page a person came back to: every cell forgotten, every listener gone. */
 const fresh = () => {
   freshTree();
   went.length = 0;
+  replaced.length = 0;
   toasts.length = 0;
 };
 /** The tree drawn again over the same cells, as React draws it after a state change. */
@@ -219,8 +244,19 @@ const playbook = (over = {}) => ({
   totals: { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] },
   ...over,
 });
+/** What a moment's count reads as the route answers it: who is on it, and who of them said yes. */
+const poolOf = (pool, candidates = pool) => ({
+  candidates,
+  held: 0,
+  pool,
+  noYes: 0,
+  stopped: 0,
+  noNumber: 0,
+  saidYes: pool,
+});
 const playbooksSurface = (over = {}) => ({
   rows: [playbook()],
+  pools: { quiet_30: poolOf(4), new_week: poolOf(0), visit_tomorrow: poolOf(3), visited: poolOf(2) },
   templates: [starterRow("winback_offer", "tpl-1")],
   triggers: contracts.PLAYBOOK_TRIGGERS.map((t) => ({
     id: t.id,
@@ -229,6 +265,8 @@ const playbooksSurface = (over = {}) => ({
     cls: t.cls,
     list: t.list,
     kind: t.kind,
+    // 2 Oct 2026: every moment offered, so a draft may name any (surface.ts says which a new playbook may start from).
+    offered: true,
     candidates: 4,
     held: 0,
   })),
@@ -251,10 +289,35 @@ broadcasts.send = async () => ({
 });
 
 const page = (props = { initialSegment: null, initialRun: null }) => BroadcastsPage(props);
-/** The send's name box, by its own words: the When box's input wears the same class. */
+/**
+ * The send screen, opened as the page still opens it: a link that names a list is asking to write to it. The Sent room's own New
+ * message is the home's address (campaigns/new, which hosts this same screen in a sheet), so the page opens nothing for it. Two
+ * draws: the first moves the page onto the link, the second draws the screen it opened (a mount opens on it at once).
+ */
+const openByLink = () => {
+  redraw(() => page({ initialSegment: "no-such-list", initialRun: null }));
+  return redraw(page);
+};
+/** The slots of the send's message that are typed, in their order: the bubble's controls (parts/slot.tsx), where the table's boxes were. */
+const typedSlots = (tree) => all(tree, (n) => n.type === CmSlot).filter((s) => s.props.kind === "text");
+/** The send's name box, by its own words: the foot's Field (the kit's, by its placeholder). */
 const nameBox = (tree) =>
-  find(tree, (n) => n.type === "input" && String(n.props?.placeholder || "").startsWith("Name this broadcast"));
-const playbooksPage = () => PlaybooksPage({});
+  find(tree, (n) => n.type === Field && String(n.props?.placeholder || "").startsWith("Name this broadcast"));
+/** Campaigns' home at an address's param (null: the home itself), as the route draws it. */
+const home = (param = null) => CampaignsHome({ param, nowMs: NOW });
+/** What the composer was told: the sheet closes on Cancel and on a thrown-away draft, and says what it saved on a Save. */
+const closed = [];
+const saved = [];
+/** The playbook composer drawn on its own, as the home's sheet draws it: a new playbook, or the one being changed. */
+const composer = (over = {}) =>
+  PlaybookComposer({
+    data: surfaceValue("playbooks"),
+    editing: null,
+    initialTrigger: null,
+    onDone: (d, changed) => saved.push([d, changed]),
+    onCancel: () => closed.push("cancel"),
+    ...over,
+  });
 const messagesPage = () => {
   setSurfaceValue("settings", {
     settings: { config: { brain: { business_name: "Northside Studio" } } },
@@ -267,6 +330,8 @@ const messagesPage = () => {
 beforeEach(() => {
   unmount();
   fresh();
+  closed.length = 0;
+  saved.length = 0;
   clearTabMemory();
   globalThis.__recordFolds.reset();
   setSurfaceValue("broadcasts", broadcastsSurface());
@@ -275,7 +340,7 @@ beforeEach(() => {
 
 /* ---------------------------------- D: an act is said when the server takes it ---------------------------------- */
 
-test("a playbook card's act is said the moment the server takes it, with what it answered -- not after the playbooks, the broadcasts and every contact are read again -- and the button waits for the re-read", async () => {
+test("a playbook's act is said the moment the server takes it, with what it answered -- not after the playbooks, the broadcasts and every contact are read again -- and the pane's button waits for the re-read", async () => {
   const keep = { ...playbooks };
   const reread = [];
   const acceptThenRead =
@@ -292,7 +357,8 @@ test("a playbook card's act is said the moment the server takes it, with what it
       scheduled_for: iso(0),
       moved_from: null,
     });
-    const draw = () => PlaybookCard({ p: playbook(), canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
+    const draw = () =>
+      PlaybookPane({ p: playbook(), canAct: true, onEdit() {}, flash: (t) => toasts.push(t), onClose() {} });
     let card = draw();
     press(byTestId(card, "pb-pause"));
     await settle();
@@ -302,7 +368,7 @@ test("a playbook card's act is said the moment the server takes it, with what it
     assert.equal(
       byTestId(card, "pb-pause").props.disabled,
       true,
-      "the card's buttons wait for the re-read: a second press now would be a second act",
+      "the pane's buttons wait for the re-read: a second press now would be a second act",
     );
     while (reread.length) reread.shift()();
     await settle();
@@ -311,7 +377,7 @@ test("a playbook card's act is said the moment the server takes it, with what it
     assert.equal(byTestId(card, "pb-pause").props.disabled, false, "free once the re-read landed");
 
     toasts.length = 0;
-    press(byTestId(card, "pb-run-now"));
+    moreItem(card, "Run now").onSelect();
     await settle();
     assert.equal(toasts.length, 1, "Run now says what the run did from the server's answer, at acceptance");
     assert.match(textOf(toasts[0].msg), /Win-back — 4 people/);
@@ -345,77 +411,68 @@ test("a playbook card's act is said the moment the server takes it, with what it
   }
 });
 
-/* ---------------------------------- G: the playbook sheet ---------------------------------- */
+/* ---------------------------------- G: the playbook composer ---------------------------------- */
 
-test("the playbook sheet keeps what was typed in the tab, opens again on it after the page was left, and its Cancel and Escape ask before throwing it away -- Escape dropped everything", () => {
-  playbooksPage();
-  globalThis.dispatchEvent({ type: "playbooks:new" });
-  let tree = redraw(playbooksPage);
-  assert.ok(byTestId(tree, "pb-composer"), "the sheet is open");
+test("the playbook composer keeps what was typed in the tab, opens again on it, and its Cancel and Escape ask before throwing it away -- Escape dropped everything", () => {
+  let tree = composer();
+  assert.ok(byTestId(tree, "pb-composer"), "the composer is open");
   assert.deepEqual(drafts(), {}, "nothing typed, nothing kept");
   // Cancel with nothing changed closes at once, as it did.
   press(byTestId(tree, "pb-cancel"));
-  tree = redraw(playbooksPage);
-  assert.equal(byTestId(tree, "pb-composer"), null, "Cancel closes it");
+  assert.deepEqual(closed, ["cancel"], "Cancel closes it");
+  closed.length = 0;
 
-  globalThis.dispatchEvent({ type: "playbooks:new" });
-  tree = redraw(playbooksPage);
+  unmount();
+  tree = composer();
   type(byTestId(tree, "pb-name"), "Sunday quiet");
-  tree = redraw(playbooksPage);
+  tree = redraw(composer);
   assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet");
   const kept = TM.draft("playbook", "new");
   assert.equal(kept && kept.name, "Sunday quiet", "kept in the tab under the composer's kind, as it is typed");
   assert.equal(tabClosing(), true, "and the tab asks before closing over it (the record kit's registry holds it)");
   assert.equal(globalThis.__settingsUnsaved(), true, "the rail's question hears it too");
 
-  // Escape is the sheet's Close (record-sheet.jsx): it asks, where the sheet's buttons were, and closes nothing.
+  // Escape is the pane's Close (useRecSheetEscape): it asks, where the pane's buttons were, and closes nothing.
   globalThis.dispatchEvent({ type: "keydown", key: "Escape", defaultPrevented: false, preventDefault() {} });
-  tree = redraw(playbooksPage);
-  assert.ok(byTestId(tree, "pb-composer"), "REGRESSION: Escape dropped the sheet and everything typed in it");
+  tree = redraw(composer);
+  assert.deepEqual(closed, [], "REGRESSION: Escape dropped the composer and everything typed in it");
+  assert.ok(byTestId(tree, "pb-composer"), "still open");
   assert.ok(byTestId(tree, "pb-leave-confirm"), "the one question");
   assert.equal(textOf(byTestId(tree, "pb-leave-confirm")).includes("Throw away what you've written?"), true);
   assert.equal(byTestId(tree, "pb-cancel"), null, "in the buttons' place");
   press(byTestId(tree, "pb-leave-no"));
-  tree = redraw(playbooksPage);
+  tree = redraw(composer);
   assert.ok(byTestId(tree, "pb-cancel"), "Keep writing: the buttons are back");
   assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet", "and the words with them");
+  assert.deepEqual(closed, [], "nothing was closed");
 
-  // The page left (People, a reload) and come back to: the sheet opens again on what was typed.
+  // The composer left (a trip to People, a reload) and opened again: on the words that were typed. The home is what opens
+  // it again as the page does (the next test).
   unmount();
   assert.equal(tabClosing(), false, "gone from the page, it holds the tab no longer");
-  tree = playbooksPage();
-  assert.ok(byTestId(tree, "pb-composer"), "opens again as the page does");
+  tree = composer();
   assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet", "on the words that were typed");
+  assert.ok(faceOf(tree, "pb-moment").includes("Welcome"), "the draft's moment: the first one nothing is doing yet");
 
-  // An empty moment's "Set it up" pressed while a new one is half-written: the sheet opens on THAT moment (the page
-  // keys the sheet by the slot, so React mounts it anew), with the words kept. Drawn on its own: the stub keeps one
-  // set of cells whatever the key.
-  assert.ok(
-    textOf(byTestId(tree, "pb-moment")).includes("Welcome"),
-    "the draft's moment: the first one nothing is doing yet",
-  );
+  // A moment's Turn on pressed while a new playbook is half-written: the composer opens on THAT moment (the sheet keys the
+  // composer by the moment, so React mounts it anew), with the words kept. Drawn on its own: the stub keeps one set of
+  // cells whatever the key.
   unmount();
-  const sheet = PlaybookComposer({
-    data: surfaceValue("playbooks"),
-    editing: null,
-    initialTrigger: "phoned_only",
-    onDone() {},
-    onCancel() {},
-  });
+  const pressed = composer({ initialTrigger: "phoned_only" });
   assert.ok(
-    textOf(byTestId(sheet, "pb-moment")).includes(contracts.triggerOf("phoned_only").label),
+    faceOf(pressed, "pb-moment").includes(contracts.triggerOf("phoned_only").label),
     "the moment pressed wins over the draft's",
   );
-  assert.equal(byTestId(sheet, "pb-name").props.value, "Sunday quiet", "and the words stay");
+  assert.equal(byTestId(pressed, "pb-name").props.value, "Sunday quiet", "and the words stay");
   unmount();
-  tree = playbooksPage();
+  tree = composer();
 
-  // Cancel, then Yes: gone, from the sheet and from the tab.
+  // Cancel, then Yes: gone, from the composer and from the tab.
   press(byTestId(tree, "pb-cancel"));
-  tree = redraw(playbooksPage);
+  tree = redraw(composer);
+  assert.deepEqual(closed, [], "asked first");
   press(byTestId(tree, "pb-leave-yes"));
-  tree = redraw(playbooksPage);
-  assert.equal(byTestId(tree, "pb-composer"), null, "thrown away: the sheet closes");
+  assert.deepEqual(closed, ["cancel"], "thrown away: the composer closes");
   assert.equal(TM.draft("playbook", "new"), null, "and nothing is kept");
   // The stub draws no unmount of a child the page stopped drawing: React would, and the hold goes with it.
   unmount();
@@ -429,14 +486,12 @@ test("a playbook being changed is kept under its own id, and Save, taken, keeps 
       ok: true,
       data: { id, name: body.name || "Win-back" },
     });
-    let tree = playbooksPage();
-    press(byTestId(tree, "pb-open"));
-    tree = redraw(playbooksPage);
-    press(byTestId(tree, "pb-edit"));
-    tree = redraw(playbooksPage);
+    const editing = playbook();
+    const change = () => composer({ editing });
+    let tree = change();
     assert.ok(byTestId(tree, "pb-composer"));
     type(byTestId(tree, "pb-name"), "Win-back, gentler");
-    tree = redraw(playbooksPage);
+    tree = redraw(change);
     assert.equal(
       TM.draft("playbook", "pb-1") && TM.draft("playbook", "pb-1").name,
       "Win-back, gentler",
@@ -444,41 +499,179 @@ test("a playbook being changed is kept under its own id, and Save, taken, keeps 
     );
     assert.equal(TM.draft("playbook", "new"), null, "not the new one's");
     unmount();
-    tree = playbooksPage();
-    assert.ok(byTestId(tree, "pb-composer"), "come back to, the change opens again");
-    assert.equal(byTestId(tree, "pb-name").props.value, "Win-back, gentler");
+    tree = change();
+    assert.equal(byTestId(tree, "pb-name").props.value, "Win-back, gentler", "come back to, the change opens again");
     await press(byTestId(tree, "pb-save"));
-    tree = redraw(playbooksPage);
-    assert.equal(byTestId(tree, "pb-composer"), null, "saved, the sheet closes");
+    assert.deepEqual(
+      saved,
+      [[{ id: "pb-1", name: "Win-back, gentler" }, true]],
+      "saved: the home is told it was a change",
+    );
     assert.equal(TM.draft("playbook", "pb-1"), null, "and the server has it: nothing to keep");
+    // The home closes the sheet on the answer (the stub draws no unmount of a child that stopped being drawn), and the hold goes with it.
+    unmount();
+    assert.equal(tabClosing(), false);
   } finally {
     Object.assign(playbooks, keep);
+  }
+});
+
+test("Edit in a playbook's pane pushes the composer on that playbook over the drawer, so Cancel returns to the detail, and the composer opens on its own words", () => {
+  const backs = [];
+  const keep = globalThis.history.back;
+  globalThis.history.back = () => backs.push("back");
+  try {
+    // The pane the home opens a playbook in: its Edit is pushed over the drawer (use-home.ts useHomeNav), not put in its place,
+    // so what the person came from is one Back away.
+    let tree = again(() => home("moment:pb-1"));
+    press(byTestId(tree, "pb-edit"));
+    assert.deepEqual(went, ["campaigns/new:edit:pb-1"], "pushed");
+    assert.deepEqual(replaced, [], "and never replaced");
+    // The address says it, so the home hosts the composer on that playbook and no choice of kind is drawn; the drawer's own
+    // address is gone, so it is closed.
+    const draw = () => again(() => home("new:edit:pb-1"));
+    tree = draw();
+    const drawer = find(tree, (n) => n.props?.testid === "cmh-drawer");
+    assert.equal(drawer.props.open, false, "the drawer is on its way out: its address has gone");
+    assert.equal(find(tree, (n) => n.type === PlaybookComposer).props.editing.id, "pb-1");
+    type(byTestId(tree, "pb-name"), "Win-back, gentler");
+    draw();
+    assert.equal(
+      TM.draft("playbook", "pb-1").name,
+      "Win-back, gentler",
+      "kept under the playbook's id, from the home's sheet too",
+    );
+    // Cancel (Escape, the sheet's Close) is a step Back: to the detail it was opened over, never to the home.
+    tree = draw();
+    press(byTestId(tree, "pb-cancel"));
+    press(byTestId(draw(), "pb-leave-yes"));
+    assert.deepEqual(backs, ["back"], "one entry back: the drawer's address");
+    assert.deepEqual(replaced, [], "the home is not where it lands");
+  } finally {
+    globalThis.history.back = keep;
+  }
+});
+
+/* ---------------------------------- G: the home reopens what was kept ---------------------------------- */
+
+/** Words typed into the composer's name box and kept in the tab (the draft is written as the composer draws again), then the page left. */
+const keepWords = (over, words) => {
+  unmount();
+  const draw = () => composer(over);
+  type(byTestId(draw(), "pb-name"), words);
+  redraw(draw);
+  unmount();
+};
+
+test("what the tab kept comes back as the home does: the address is replaced with the send, the new playbook or the change that was half-written", () => {
+  const nowhere = () => {
+    unmount();
+    fresh();
+    return home();
+  };
+  // Nothing kept: the home itself, and no address moved.
+  nowhere();
+  assert.deepEqual(replaced, [], "nothing kept, nothing reopened");
+
+  // A playbook half-written: on Every time a moment comes. The words are the composer's, and it opens on them.
+  keepWords({}, "Sunday quiet");
+  nowhere();
+  assert.deepEqual(replaced, ["campaigns/new:every"]);
+  fresh();
+  let tree = again(() => home("new:every"));
+  assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet", "the composer it lands on opens on the words");
+  assert.deepEqual(replaced, [], "an address that already names the composer is left where it is");
+
+  // One of the playbooks being changed, under its own address.
+  clearTabMemory();
+  keepWords({ editing: playbook() }, "Win-back, gentler");
+  nowhere();
+  assert.deepEqual(replaced, ["campaigns/new:edit:pb-1"]);
+  fresh();
+  tree = again(() => home("new:edit:pb-1"));
+  assert.equal(byTestId(tree, "pb-name").props.value, "Win-back, gentler");
+
+  // A change to a playbook the workspace no longer has is nobody's to reopen: the home, and the words wait their day.
+  unmount();
+  setSurfaceValue("playbooks", playbooksSurface({ rows: [] }));
+  nowhere();
+  assert.deepEqual(replaced, [], "no such playbook, no change to reopen");
+  setSurfaceValue("playbooks", playbooksSurface());
+
+  // A send half-written wins over a playbook's words: it is the home's first, as it was the page's.
+  clearTabMemory();
+  keepWords({}, "Sunday quiet");
+  let send = openByLink();
+  typedSlots(send)[0].props.onTyped("20% off colour");
+  redraw(page);
+  assert.ok(TM.draft("broadcast"), "the send's words are kept");
+  nowhere();
+  assert.deepEqual(replaced, ["campaigns/new"]);
+  fresh();
+  tree = again(() => home("new"));
+  assert.ok(
+    find(tree, (n) => n.props?.["data-testid"] === "cmh-composer"),
+    "and the composer is on Send once",
+  );
+  assert.equal(typedSlots(tree)[0].props.typed, "20% off colour", "on the words that were typed");
+  assert.equal(replaced.length, 0);
+});
+
+test("the home reopens once, when the playbooks are first read, and never over an address that names something", () => {
+  // Words kept for a playbook.
+  keepWords({}, "Sunday quiet");
+  fresh();
+
+  // Not read yet: nothing drawn, nothing reopened; read, and the home goes where the words are.
+  setSurfaceValue("playbooks", undefined);
+  assert.equal(
+    again(() => home()),
+    null,
+    "the surface is not read yet: nothing drawn",
+  );
+  assert.deepEqual(replaced, []);
+  setSurfaceValue("playbooks", playbooksSurface());
+  again(() => home());
+  assert.deepEqual(replaced, ["campaigns/new:every"], "once the first read lands");
+  // Back on the home itself (the sheet closed with its words kept) and the playbooks read again, as every write has them:
+  // it is not reopened again over the same page.
+  setSurfaceValue("playbooks", playbooksSurface());
+  again(() => home());
+  assert.deepEqual(replaced, ["campaigns/new:every"], "once, on arrival");
+
+  // A link that names a playbook, or the send, is the address asked for: the words wait.
+  for (const param of ["moment:pb-1", "new"]) {
+    unmount();
+    fresh();
+    again(() => home(param));
+    assert.deepEqual(replaced, [], `${param}: never over an address that names something`);
   }
 });
 
 /* ---------------------------------- G: the send screen ---------------------------------- */
 
 test("the send screen keeps its words -- a name, a typed value, a picked time -- and opens again on them; a list or a message chosen alone keeps nothing; Cancel asks once and Yes clears it", () => {
-  let tree = page();
-  press(byTestId(tree, "bc-new"));
-  tree = redraw(page);
+  let tree = openByLink();
   assert.ok(byTestId(tree, "bc-composer"));
   // The list and the message are choices, not words: chosen, nothing is kept and Cancel closes at once.
-  press(all(tree, (n) => n.props?.["data-testid"] === "bc-audience")[1]);
+  pickerOf(tree, "bc-audience").props.onValueChange("saved:s1");
   tree = redraw(page);
   assert.deepEqual(drafts(), {}, "a choice alone is not work");
   press(byTestId(tree, "bc-compose-close"));
   tree = redraw(page);
   assert.equal(byTestId(tree, "bc-composer"), null, "Cancel closes it, as it did");
 
-  press(byTestId(tree, "bc-new"));
-  tree = redraw(page);
-  type(byTestId(byTestId(tree, "bc-vars"), "bc-var-input"), "20% off colour");
+  tree = openByLink();
+  typedSlots(tree)[0].props.onTyped("20% off colour");
   tree = redraw(page);
   type(nameBox(tree), "Autumn colour");
   tree = redraw(page);
+  // A picked time is work too: the day and the time, kept as the instant the pair names.
+  pickerOf(tree, "bc-when-mode").props.onValueChange("later");
+  tree = redraw(page);
   const kept = TM.draft("broadcast");
   assert.equal(kept.name, "Autumn colour");
+  assert.ok(typeof kept.whenAt === "number" && kept.whenAt > Date.now(), "the time picked, as an instant ahead");
   assert.deepEqual(
     kept.params["tpl-own"],
     [null, "20% off colour"],
@@ -487,24 +680,32 @@ test("the send screen keeps its words -- a name, a typed value, a picked time --
   assert.equal(kept.aud, "saved:s1", "and the list it was for");
   assert.equal(tabClosing(), true, "the tab asks before closing over it");
 
-  // Cancel with words asks, where the Cancel was; Keep writing puts it back.
+  // Cancel with words asks -- in the pane's foot, where the send's acts were (the pane's Close stays at its head, as the
+  // layout is the Inbox's list + pane, docs/2026-10-02-campaigns-on-the-kit.md §3.1); Keep writing puts them back.
   press(byTestId(tree, "bc-compose-close"));
   tree = redraw(page);
   assert.ok(byTestId(tree, "bc-composer"), "not closed");
   assert.ok(byTestId(tree, "bc-leave-confirm"), "asked");
+  assert.equal(byTestId(tree, "bc-send"), null, "the question stands alone in the foot");
   press(byTestId(tree, "bc-leave-no"));
   tree = redraw(page);
   assert.ok(byTestId(tree, "bc-compose-close"));
-  assert.equal(byTestId(byTestId(tree, "bc-vars"), "bc-var-input").props.value, "20% off colour");
+  assert.ok(byTestId(tree, "bc-send"), "and the send's acts are back");
+  assert.equal(typedSlots(tree)[0].props.typed, "20% off colour");
 
   // Left and come back to: the send screen, on the same list, with the same words.
   unmount();
   tree = page();
   assert.ok(byTestId(tree, "bc-composer"), "opens on the send half-written");
   assert.equal(nameBox(tree).props.value, "Autumn colour");
-  assert.equal(byTestId(byTestId(tree, "bc-vars"), "bc-var-input").props.value, "20% off colour");
-  const chips = all(tree, (n) => n.props?.["data-testid"] === "bc-audience");
-  assert.ok(String(chips[1].props.className).includes("active"), "on Regulars, the list it was for");
+  assert.equal(typedSlots(tree)[0].props.typed, "20% off colour");
+  assert.equal(pickerOf(tree, "bc-audience").props.value, "saved:s1", "on Regulars, the list it was for");
+  assert.equal(pickerOf(tree, "bc-when-mode").props.value, "later", "and the time that was picked");
+  assert.equal(
+    pickerOf(tree, "bc-when-time").props.value,
+    globalThis.__clock.inputValue(kept.whenAt).split("T")[1],
+    "at the hour it was",
+  );
   // A link that names a list wins the list.
   unmount();
   tree = page({ initialSegment: "s1", initialRun: null });
@@ -512,24 +713,22 @@ test("the send screen keeps its words -- a name, a typed value, a picked time --
   unmount();
   tree = page();
 
-  // Yes, throw it away: closed, cleared, and nothing kept -- New broadcast opens empty.
+  // Yes, throw it away: closed, cleared, and nothing kept -- the next send opens empty.
   press(byTestId(tree, "bc-compose-close"));
   tree = redraw(page);
   press(byTestId(tree, "bc-leave-yes"));
   tree = redraw(page);
   assert.equal(byTestId(tree, "bc-composer"), null);
   assert.equal(TM.draft("broadcast"), null);
-  press(byTestId(tree, "bc-new"));
-  tree = redraw(page);
+  tree = openByLink();
   assert.equal(nameBox(tree).props.value, "", "REGRESSION: the last send's words stayed in the page after a Cancel");
-  assert.equal(byTestId(byTestId(tree, "bc-vars"), "bc-var-input").props.value, "");
+  assert.equal(typedSlots(tree)[0].props.typed, "");
+  assert.equal(pickerOf(tree, "bc-when-mode").props.value, "now", "and no time picked");
 });
 
-test("a send the server took keeps nothing: the screen closes onto the ledger and the next New broadcast is empty", async () => {
-  let tree = page();
-  press(byTestId(tree, "bc-new"));
-  tree = redraw(page);
-  type(byTestId(byTestId(tree, "bc-vars"), "bc-var-input"), "20% off colour");
+test("a send the server took keeps nothing: the screen closes onto the ledger and the next send is empty", async () => {
+  let tree = openByLink();
+  typedSlots(tree)[0].props.onTyped("20% off colour");
   tree = redraw(page);
   assert.ok(TM.draft("broadcast"));
   press(byTestId(tree, "bc-send"));
@@ -538,9 +737,111 @@ test("a send the server took keeps nothing: the screen closes onto the ledger an
   tree = redraw(page);
   assert.equal(byTestId(tree, "bc-composer"), null, "sent, the screen closes");
   assert.equal(TM.draft("broadcast"), null, "and nothing is kept");
-  press(byTestId(tree, "bc-new"));
-  tree = redraw(page);
-  assert.equal(byTestId(byTestId(tree, "bc-vars"), "bc-var-input").props.value, "", "the next one starts empty");
+  tree = openByLink();
+  assert.equal(typedSlots(tree)[0].props.typed, "", "the next one starts empty");
+});
+
+test("a send made from the home raises its toast on the home's own host: the screen draws none of its own, so the toast and its Stop outlive the sheet that closes over it", async () => {
+  const keepToast = globalThis.usePPToast;
+  const keepSend = broadcasts.send;
+  const keepCancel = broadcasts.cancel;
+  // One host to each component that asks for one, told apart by the node it would draw: the home's, asked for first, and the
+  // send screen's own (which, drawn, would go with the sheet the moment the send closes it).
+  const hosts = [];
+  globalThis.usePPToast = () => {
+    const ref = globalThis.React.useRef(null);
+    if (!ref.current) {
+      ref.current = { node: `HOST-${hosts.length}`, said: [] };
+      hosts.push(ref.current);
+    }
+    const host = ref.current;
+    return [host.node, (t) => host.said.push(t)];
+  };
+  const stopped = [];
+  broadcasts.send = async () => ({
+    ok: true,
+    data: { id: "b-new", name: "Autumn", recipient_count: 2, scheduled_for: iso(0), moved_from: null },
+  });
+  broadcasts.cancel = async (id, opts) => {
+    stopped.push(id);
+    const data = { was: "sending" };
+    if (opts && opts.onAccepted) opts.onAccepted(data);
+    return { ok: true, data };
+  };
+  try {
+    unmount();
+    fresh();
+    const draw = () => redraw(() => home("new"));
+    let tree = draw();
+    const [page] = hosts;
+    assert.ok(textOf(tree).includes(page.node), "the home draws its toast host");
+    for (const own of hosts.slice(1))
+      assert.ok(!textOf(tree).includes(own.node), "the send screen draws none of its own");
+    typedSlots(tree)[0].props.onTyped("20% off colour");
+    tree = draw();
+    press(byTestId(tree, "bc-send"));
+    tree = draw();
+    await press(byTestId(tree, "bc-send-yes"));
+    // The toast is said on the home's host, with its Stop and its See who; the screen's own host was never asked.
+    const said = page.said.at(-1);
+    assert.equal(said.action.label, "Stop it");
+    assert.equal(said.links[0].to, "broadcasts/run:b-new");
+    assert.match(textOf(said.msg), /Autumn/);
+    assert.deepEqual(
+      hosts.slice(1).flatMap((h) => h.said),
+      [],
+      "nothing was said on a host that would go with the sheet",
+    );
+    // The sheet closes onto the home and the screen goes with it; the toast is the home's, and its Stop still stops the send.
+    unmount();
+    await said.action.onClick();
+    assert.deepEqual(stopped, ["b-new"], "Stop it, after the sheet is gone");
+    assert.match(textOf(page.said.at(-1).msg), /stops after this batch/, "and says so on the same host");
+  } finally {
+    globalThis.usePPToast = keepToast;
+    broadcasts.send = keepSend;
+    broadcasts.cancel = keepCancel;
+  }
+});
+
+test("the send screen's door to their yes, pressed in the home's sheet, replaces the sheet's address with the section's: the sheet is not closed past it, which a step Back would undo", () => {
+  const backs = [];
+  const keep = globalThis.history.back;
+  globalThis.history.back = () => backs.push("back");
+  try {
+    setSurfaceValue(
+      "broadcasts",
+      broadcastsSurface({
+        audiences: [
+          { kind: "everyone", id: null, label: "Everyone who said yes", counts: { marketing: 0, conversational: 0 } },
+        ],
+        optIn: {
+          phrase: "YES OFFERS",
+          phraseEs: "SI OFERTAS",
+          link: "https://wa.me/13055550100?text=YES%20OFFERS",
+          qrPath: "/api/v1/consent/qr",
+          pageUrl: null,
+        },
+      }),
+    );
+    unmount();
+    fresh();
+    // New message pushes the composer's address; its screen says nobody on the list has said yes, with the door to get it.
+    let tree = redraw(() => home());
+    press(byTestId(tree, "cmh-new"));
+    assert.deepEqual(went, ["campaigns/new"]);
+    tree = redraw(() => home("new"));
+    press(byTestId(tree, "bc-nobody-door"));
+    assert.deepEqual(replaced, ["broadcasts/get-yes"], "the sheet's address becomes the section: one move");
+    // The screen has been left, and the host was not told it was done: a close now would go Back over the move.
+    redraw(() => home("new"));
+    redraw(() => home("new"));
+    assert.deepEqual(backs, [], "no step Back after the door");
+    assert.deepEqual(replaced, ["broadcasts/get-yes"], "and the address was not replaced with the home either");
+    assert.deepEqual(went, ["campaigns/new"]);
+  } finally {
+    globalThis.history.back = keep;
+  }
 });
 
 /* ---------------------------------- G: the template composer ---------------------------------- */
@@ -609,10 +910,7 @@ test("a template half-written is kept, comes back with the page, and Close asks 
     assert.equal(byTestId(tree, "tpl-body").props.value, "Hi {{1}}, 20% off any colour service this week.");
     type(byTestId(tree, "tpl-name"), "autumn_colour");
     tree = redraw(composeNew);
-    const ex = find(
-      tree,
-      (n) => n.type === "input" && String(n.props?.placeholder || "").includes("what a real value"),
-    );
+    const ex = find(tree, (n) => n.type === Field && String(n.props?.placeholder || "").includes("what a real value"));
     type(ex, "Dani");
     tree = redraw(composeNew);
     await press(byTestId(tree, "tpl-submit"));

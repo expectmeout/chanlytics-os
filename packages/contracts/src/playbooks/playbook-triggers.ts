@@ -50,19 +50,22 @@ export const PLAYBOOK_TRIGGERS = [
     kind: "visit",
     hint: "The day before an appointment on the calendar",
   },
+  // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the visit went and offers nothing,
+  // so it reaches a yes to texts. It was a re-engagement, and its "book your next visit" made it an offer.
   {
     id: "visited",
     label: "After the visit",
     list: null,
-    cls: "reengage",
+    cls: "booking",
     kind: "visit",
     hint: "The day after a visit, when nothing is booked next",
   },
-  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
-  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  // People's Lapsed list, by visits rather than silence (00155). Since 2 Oct 2026 it IS the win-back where a calendar is
+  // connected, and the quiet one is the win-back where none is: one moment, read the one way the workspace can
+  // (momentOffered), so both are called Win-back and their hints say which.
   {
     id: "lapsed",
-    label: "Lapsed",
+    label: "Win-back",
     list: "lapsed",
     cls: "reengage",
     kind: "list",
@@ -176,6 +179,52 @@ export function triggerOf(id: string): (typeof PLAYBOOK_TRIGGERS)[number] | null
 export function triggerOffered(t: { kind: string }, dealsOn: boolean): boolean {
   if (t.kind === "reach_out") return false;
   return t.kind !== "deal" || dealsOn;
+}
+
+/**
+ * The moments no longer offered for a new playbook (2 Oct 2026), each with why. A playbook already made on one keeps
+ * running: the run asks triggerOffered, which they still pass.
+ */
+export const MOMENTS_RETIRED: Partial<Record<PlaybookTrigger, string>> = {
+  new_week:
+    "Your receptionist answers a first contact itself, and asks there for the yes to offers that a welcome would need.",
+  phoned_only:
+    "The call's text does this during the call: the booking link and your WhatsApp, sent when a caller asks for them.",
+};
+
+/**
+ * The two win-backs, which are one moment read the one way a workspace can: by silence (quiet_30) where no calendar is
+ * connected, by visits (lapsed) where one is. momentOffered offers the one; the Playbooks page counts a playbook on
+ * either as the win-back made.
+ */
+const WIN_BACKS: readonly string[] = ["quiet_30", "lapsed"];
+
+export function isWinBack(id: string): boolean {
+  return WIN_BACKS.includes(id);
+}
+
+const hintOf = (id: PlaybookTrigger) => (triggerOf(id)?.hint ?? "").toLowerCase();
+
+/** What the check says of the win-back this workspace cannot read, when a new playbook asks for it. */
+export const WIN_BACK_WORDS = {
+  quiet_30: `A calendar is connected here, so the win-back goes by visits: ${hintOf("lapsed")}. Start that one.`,
+  lapsed: `The win-back by visits needs your calendar, and none is connected. Start the one that goes by silence: ${hintOf("quiet_30")}.`,
+} as const;
+
+/**
+ * Whether a moment is offered for a NEW playbook (2 Oct 2026, the lifecycle set): offered here at all
+ * (triggerOffered), not retired (MOMENTS_RETIRED), and of the two win-backs the one this workspace can read: by visits
+ * where a calendar is connected, by silence where none is. The Playbooks page's moments, its composer, Ask's proposals
+ * and the check that makes a playbook ask this; the run never does, so a playbook made before keeps running.
+ * `calendarOn` is a calendar connected here, whether or not its feed can be read just now: the page's calendar state
+ * is not "none".
+ */
+export function momentOffered(t: { id: string; kind: string }, o: { dealsOn: boolean; calendarOn: boolean }): boolean {
+  if (!triggerOffered(t, o.dealsOn)) return false;
+  if (t.id in MOMENTS_RETIRED) return false;
+  if (t.id === "quiet_30") return !o.calendarOn;
+  if (t.id === "lapsed") return o.calendarOn;
+  return true;
 }
 
 /**

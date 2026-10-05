@@ -16,6 +16,7 @@
  */
 import { Select as BaseSelect } from "@base-ui/react/select";
 import type { ReactElement, Ref } from "react";
+import { chosen } from "../chosen";
 import { Panel } from "../panel/panel";
 import { cx } from "../variants";
 
@@ -36,12 +37,11 @@ export type SelectProps<V extends string> = {
   label?: string;
   /** While a save is out: it keeps its focus and opens on nothing new (never `disabled`, which lets focus go). */
   readOnly?: boolean;
+  /** The id a test finds the box by (a page's tests and the browser's specs), on the box itself. */
+  "data-testid"?: string;
   className?: string;
   ref?: Ref<HTMLButtonElement>;
 };
-
-/** The one chosen, in the record kit's word for it (kit.css, .rec-combo-opt[data-chosen]). */
-const chosen = (state: { selected: boolean }) => (state.selected ? "true" : undefined);
 
 /** A select: a box that says the one chosen, over a list drawn on the document's body. */
 export function Select<V extends string>({
@@ -51,6 +51,7 @@ export function Select<V extends string>({
   chevron,
   label,
   readOnly,
+  "data-testid": testid,
   className,
   ref,
 }: SelectProps<V>) {
@@ -63,7 +64,12 @@ export function Select<V extends string>({
       items={options}
       readOnly={readOnly}
     >
-      <BaseSelect.Trigger ref={ref} className={cx("rec-input rec-select", className)} aria-label={label}>
+      <BaseSelect.Trigger
+        ref={ref}
+        className={cx("rec-input rec-select", className)}
+        aria-label={label}
+        data-testid={testid}
+      >
         <BaseSelect.Value />
         <BaseSelect.Icon>{chevron}</BaseSelect.Icon>
       </BaseSelect.Trigger>

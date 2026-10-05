@@ -88,6 +88,27 @@ export const PL_PHONE_SORTS: readonly {
   { by: "visits", dir: "asc", label: "Soonest visit first", needs: (x) => x.withCalendar },
 ];
 
+/** What the table is ordered by, said under the list's name (canvas P1: "Sorted by last contact"): each sortable column's own word. */
+const PL_SORTED_BY: Record<string, string> = {
+  name: "name",
+  state: "state",
+  last: "last contact",
+  visits: "visits",
+  offers: "offers",
+};
+export const plSortedBy = (by: string): string => (PL_SORTED_BY[by] ? `Sorted by ${PL_SORTED_BY[by]}` : "");
+
+/**
+ * A visit's hours as its start alone (canvas P1: "Sat, Oct 3 · 10:00 AM"): "2:00 – 3:00 PM" is "2:00 PM", "11:00 AM – 12:00 PM"
+ * is "11:00 AM". The whole range stays in the cell's tip. Anything that is not a range is said as it came.
+ */
+export const plVisitStart = (hours: string): string => {
+  const [start = "", end] = hours.split(" – ");
+  if (!end || /[AP]M$/i.test(start)) return start || hours;
+  const meridiem = /[AP]M$/i.exec(end);
+  return meridiem ? `${start} ${meridiem[0]}` : start;
+};
+
 /** A phone sheet's draft of Add a person and of a list's name and words: the page's state. */
 export interface AddDraft {
   name: string;
@@ -234,13 +255,20 @@ export const plTyping = (el: Element | null): boolean => {
 /** What Enter and Space press when it has focus, instead of the row under the cursor. */
 export const PL_CONTROL =
   'button, a[href], input, select, textarea, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="tab"], [role="option"]';
+/** The page's own overlays, which the listener names apart: the phone's sheets, the Columns menu, the peek, the plan panel. */
+const PL_OWN = ":not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-plan)";
 /**
  * What can be open over the page and has the keys while it is: a menu, Ask, the ? sheet, the notifications, a sidebar
- * menu, the phone's drawer. Only the app's (every one sits inside .app-root). Not the page's own overlays, which the
+ * menu, the phone's drawer. Only the app's (every one sits inside .app-root) and the kit's own Menu and Sheet, which are
+ * drawn on the document's body, past .app-root, and named by their class. Not the page's own overlays, which the
  * listener names apart.
  */
-export const PL_OVERLAY =
-  '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-plan), .app-root [role="dialog"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-plan)';
+export const PL_OVERLAY = [
+  `.app-root [role="menu"]${PL_OWN}`,
+  `.app-root [role="dialog"]${PL_OWN}`,
+  `.more-menu[role="menu"]${PL_OWN}`,
+  `.sheet[role="dialog"]${PL_OWN}`,
+].join(", ");
 
 /**
  * Where a list's own route lands now that Lists is a view of People: the list, picked, by its kind. A link that named the

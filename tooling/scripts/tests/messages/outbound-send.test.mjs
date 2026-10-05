@@ -55,6 +55,17 @@ const tables = (over = {}) => ({
   ],
   events: [],
   escalations: [],
+  // A text leaves only on a line the carriers approved (step 3): a workspace has an active one unless a test says otherwise.
+  lines: [
+    {
+      tenant_id: T,
+      messaging_service_sid: "MG1",
+      voice_state: "ready",
+      sms_state: "active",
+      reg_mock: false,
+      created_at: "2026-09-01T00:00:00.000Z",
+    },
+  ],
   ...over,
 });
 const job = (payload = {}) => ({

@@ -37,7 +37,9 @@ const ROUTES = [
   "conversations/phone:cv-k7",
   "live/c-live",
   "broadcasts/run:b-1",
-  "outbound",
+  "campaigns",
+  "campaigns/moment:pb-1",
+  "campaigns/new",
   "messages",
   "start",
   "start/phone",
@@ -204,21 +206,26 @@ test("the old name in an address moves to the word, for ever: a path, and a hash
   assert.equal(movedAddress({ pathname: "/login/clients", hash: "" }), null, "off a workspace page");
 });
 
-test("Campaigns take the product's words: playbooks and templates, where the shell's route says outbound and messages", () => {
-  assert.equal(workspacePath("acme", "outbound"), "/w/acme/playbooks");
-  assert.equal(workspacePath("acme", "outbound/pb-1"), "/w/acme/playbooks/pb-1");
+test("Campaigns' addresses: the page is `campaigns`, the Library keeps the product's word, and the old Playbooks list is a door to the home", () => {
+  assert.equal(workspacePath("acme", "campaigns"), "/w/acme/campaigns");
+  assert.equal(workspacePath("acme", "campaigns/moment:pb-1"), "/w/acme/campaigns/moment:pb-1");
   assert.equal(workspacePath("acme", "messages"), "/w/acme/templates");
   assert.equal(workspacePath("acme", "broadcasts/run:b-1"), "/w/acme/broadcasts/run:b-1", "Broadcasts keep their word");
-  assert.equal(routeOfPath("/w/acme/playbooks"), "outbound");
-  assert.equal(routeOfPath("/w/acme/playbooks/pb-1"), "outbound/pb-1");
+  assert.equal(routeOfPath("/w/acme/campaigns/new"), "campaigns/new");
   assert.equal(routeOfPath("/w/acme/templates"), "messages");
-  assert.equal(routeOfPath("/w/acme/outbound/pb-1"), "outbound/pb-1", "the old name still reads");
-  assert.equal(routeOfHash("#/playbooks"), "outbound");
-  // The old name, in a path or a hash, moves to the word for ever.
-  assert.equal(movedAddress({ pathname: "/w/acme/outbound/pb-1", hash: "" }), "/w/acme/playbooks/pb-1");
+  // The Playbooks list is Campaigns' home now (contracts doorOf): a route written the old way lands on the new one in one move.
+  assert.equal(workspacePath("acme", "outbound"), "/w/acme/campaigns");
+  assert.equal(workspacePath("acme", "outbound/pb-1"), "/w/acme/campaigns/moment:pb-1");
+  assert.equal(movedAddress({ pathname: "/w/acme/outbound/pb-1", hash: "" }), "/w/acme/campaigns/moment:pb-1");
+  assert.equal(movedAddress({ pathname: "/w/acme/playbooks/pb-1", hash: "" }), "/w/acme/campaigns/moment:pb-1");
+  assert.equal(movedAddress({ pathname: "/w/acme/playbooks", hash: "" }), "/w/acme/campaigns");
+  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/outbound" }), "/w/acme/campaigns");
+  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/outbound/pb-1" }), "/w/acme/campaigns/moment:pb-1");
+  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/playbooks" }), "/w/acme/campaigns");
+  assert.equal(movedAddress({ pathname: "/w/acme/campaigns", hash: "" }), null, "the home is where it should be");
+  // The Library's old name, in a path or a hash, moves to the word for ever.
   assert.equal(movedAddress({ pathname: "/w/acme/messages", search: "?a=1", hash: "" }), "/w/acme/templates?a=1");
-  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/outbound" }), "/w/acme/playbooks");
   assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/messages" }), "/w/acme/templates");
-  assert.equal(movedAddress({ pathname: "/w/acme/playbooks", hash: "" }), null, "the word is where it should be");
+  assert.equal(movedAddress({ pathname: "/w/acme/templates", hash: "" }), null, "the word is where it should be");
   assert.equal(movedAddress({ pathname: "/w/acme/broadcasts", hash: "" }), null);
 });

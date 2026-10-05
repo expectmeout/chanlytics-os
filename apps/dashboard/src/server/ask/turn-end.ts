@@ -127,6 +127,7 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     since_last_ms: input.sinceLastMs ?? null,
     replay: live ? "live" : input.history.length > 0 ? "rebuilt" : "none",
     opened_ms: input.openedMs ?? null,
+    spoken: input.spoken ?? false,
     context_rows: built ? built.rows : null,
     context_chars: built ? built.chars : null,
     warm: built ? (built.failed ? "failed" : built.warm) : input.context ? "failed" : "none",

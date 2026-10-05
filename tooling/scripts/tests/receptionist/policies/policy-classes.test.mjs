@@ -130,7 +130,7 @@ test("the wiring: the edge passes the rows to both prompts and checks after gene
   // The route refusing and the pane's dots, each by POLICY_CLASS_MODES, are run in policy-veto-option.test.mjs.
   const store = readCode("apps/dashboard/src/legacy-bridge/policy-store.ts");
   assert.ok(!store.includes("enforced: false"), "no row is stored-but-unenforced any more");
-  const pane = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  const pane = readCode("apps/dashboard/src/surfaces/settings/autonomy/matrix.tsx");
   assert.ok(
     pane.includes("r.modes && !r.modes.includes(m)") && pane.includes("(r.hints && r.hints[m]) || polMode(m).does"),
   );

@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import { inviteUserByEmail, type Database } from "@chanlytics/db";
 import { AppError } from "@chanlytics/contracts";
 import { deployment } from "../env";
 import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
@@ -59,7 +59,7 @@ export async function sendHandoverInvite(
     });
     if (error) throw new Error(error.message);
     if (!existing) {
-      const { error: mailErr } = await svc.auth.admin.inviteUserByEmail(email);
+      const { error: mailErr } = await inviteUserByEmail(svc, email);
       if (!mailErr) return true;
       // Made between the lookup and the invitation: the account exists now, so the edge writes instead.
       if (!/already (been )?registered|already exists/i.test(mailErr.message)) throw new Error(mailErr.message);

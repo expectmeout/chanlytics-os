@@ -29,6 +29,7 @@ import { isRetryableAuthError } from "./auth-errors";
 import { serverTimingHeader } from "./server-timing";
 import { REQUEST_ID_HEADER, requestIdOf } from "@chanlytics/channels";
 import { log, noteTenant, withRequestId } from "./log";
+import { tenantFactsOf } from "./tenant";
 
 /**
  * Whether the Auth server still knows a session: `live`, `gone` (revoked, signed out elsewhere, its user deleted), or
@@ -239,6 +240,12 @@ function answerOf<T>(
 export interface MemberContext {
   tenantId: string;
   role: Role;
+  /**
+   * The workspace's name and clock, read with the membership, from the same row a turn's facts reader reads
+   * (tenant.ts tenantFacts): the turn takes them from here and asks no one again (readers/index.ts readerContext).
+   * Absent where the membership's row did not carry them.
+   */
+  facts?: { name: string; timezone: string };
 }
 
 /**
@@ -265,7 +272,7 @@ export async function memberContext(
 ): Promise<MemberContext> {
   const { data, error } = await ctx.supabase
     .from("memberships")
-    .select("tenant_id, role, tenants (slug)")
+    .select("tenant_id, role, tenants (slug, name, timezone)")
     .eq("user_id", ctx.userId)
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
@@ -289,9 +296,13 @@ export async function memberContext(
   // The workspace this request acts on: every line logged after this carries it as tenant_id.
   noteTenant(m.tenant_id);
 
+  // The workspace's name and clock rode with the membership: a read that would have asked for them first (the
+  // Calendar's, the Leads page's) does not wait a round trip for them (2 Oct 2026).
+  const row = m.tenants;
   return {
     tenantId: m.tenant_id,
     role: m.role as MemberContext["role"],
+    ...(typeof row?.timezone === "string" ? { facts: tenantFactsOf(row) } : {}),
   };
 }
 

@@ -132,6 +132,7 @@ export const EDGE_ERROR_CODES = [
   "provider",
   "provider_refused",
   "provider_unauthorized",
+  "provider_unreachable",
   "purge_failed",
   "query_failed",
   "reach_out_step",

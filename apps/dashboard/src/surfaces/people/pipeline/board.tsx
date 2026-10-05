@@ -14,7 +14,8 @@
 import type { DragEvent } from "react";
 import type { PipelineGroupKey, PipelineMove, PipelineRowVM } from "@chanlytics/contracts";
 import { StatePill } from "../../kit/pill/state-pill";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { Menu } from "../../kit/menu/menu";
+import { menuGroups, moreButton } from "../menu-groups";
 import { Icon } from "../../kit/icon/icon";
 import { plFace, plIsNumber } from "../words";
 import { PipelineTrack } from "./row";
@@ -140,16 +141,13 @@ const PipelineCard = ({
       </article>
       {canDrag && moves.length ? (
         <span className="pipe-card-menu">
-          <MoreMenu
-            items={[
+          <Menu
+            label={`${W.menu} ${r.name}`}
+            trigger={moreButton({ title: `${W.menu} ${r.name}`, testid: "pipe-card-menu" })}
+            groups={menuGroups([
               { header: W.move },
               ...moves.map((m) => ({ label: m.label, onClick: () => onMove(r, group, m.key) })),
-            ]}
-            title={`${W.menu} ${r.name}`}
-            size={13}
-            btnClass="cl-row-act"
-            escape
-            testid="pipe-card-menu"
+            ])}
           />
         </span>
       ) : null}

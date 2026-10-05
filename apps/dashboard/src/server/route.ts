@@ -64,7 +64,7 @@ declare const memberBrand: unique symbol;
  * helper that takes a Member instead of a bare tenant id cannot be called
  * without the check having happened.
  */
-export type Member = Readonly<Pick<MemberContext, "tenantId" | "role">> & { readonly [memberBrand]: true };
+export type Member = Readonly<Pick<MemberContext, "tenantId" | "role" | "facts">> & { readonly [memberBrand]: true };
 
 type Scope =
   | { readonly kind: "workspace" }
@@ -151,7 +151,7 @@ interface WriteSpec<S extends Scope, I, O> {
 }
 
 function mint(m: MemberContext): Member {
-  return { tenantId: m.tenantId, role: m.role } as Member;
+  return { tenantId: m.tenantId, role: m.role, ...(m.facts ? { facts: m.facts } : {}) } as Member;
 }
 
 async function resolve(

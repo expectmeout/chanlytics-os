@@ -8,7 +8,8 @@
  *   focusable, described, inert, saying why when pressed, in contracts' words -- and each pane says why once.
  * - Activity (the wiring audit's S21): its filters had no names, the kind filter read the log on every keystroke and
  *   ate typed spaces, a slow answer could land over a newer one, and the first load showed nothing at all.
- * Run against settings.jsx and activity.jsx on a stub React, over data-bits' real gate and contracts' role table.
+ * Run against settings.jsx, the panes it draws by name (Notifications is TSX: surfaces/settings/notifications) and
+ * activity.jsx on a stub React, over data-bits' real gate and contracts' role table.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -24,7 +25,6 @@ import {
   POLICY_MODES,
   POLICY_MODE_WORDS,
 } from "@chanlytics/contracts";
-import { installPolicyStore } from "../../../../apps/dashboard/src/legacy-bridge/policy-store.ts";
 import { useStubHooks, kitPages } from "../_legacy-react.mjs";
 
 const TID = "t-studio";
@@ -154,6 +154,8 @@ globalThis.React = {
   },
   useMemo: (fn, deps) => memo(fn, deps),
   useCallback: (fn, deps) => memo(() => fn, deps),
+  // A surface's value through the seam (use-surface.ts): what it holds when the component draws.
+  useSyncExternalStore: (subscribe, snapshot) => snapshot(),
   useId: () => `id-${slot()}`,
   useEffect: (fn, deps) => {
     const k = slot();
@@ -214,6 +216,21 @@ Object.assign(globalThis.window, {
 await import("../../../../apps/dashboard/src/legacy/pages/business-tab-save.jsx");
 await import("../../../../apps/dashboard/src/legacy/pages/settings.jsx");
 await import("../../../../apps/dashboard/src/legacy/pages/activity.jsx");
+// Settings › Notifications is TSX (surfaces/settings/notifications), which the page draws by its old name, as the app
+// publishes it; it reads the settings read over the seam and saves through the bridge's saveSettings.
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { PaneNotificationsReal } =
+  await import("../../../../apps/dashboard/src/surfaces/settings/notifications/pane.tsx");
+globalThis.window.PaneNotificationsReal = PaneNotificationsReal;
+// Settings › Autonomy is TSX too (surfaces/settings/autonomy): its rows are the seam's policies, and its one door is a
+// module object a test stands a door in on.
+const { PaneAutonomyReal } = await import("../../../../apps/dashboard/src/surfaces/settings/autonomy/pane.tsx");
+const { autonomyVerbs } = await import("../../../../apps/dashboard/src/surfaces/settings/autonomy/verbs.ts");
+globalThis.window.PaneAutonomyReal = PaneAutonomyReal;
+// And Profile and Team (surfaces/settings/profile, team): Team's roster is the seam's settings value.
+const { PaneProfile } = await import("../../../../apps/dashboard/src/surfaces/settings/profile/pane.tsx");
+const { TeamSection } = await import("../../../../apps/dashboard/src/surfaces/settings/team/team.tsx");
+Object.assign(globalThis.window, { PaneProfile, TeamSection });
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -313,6 +330,18 @@ const workspace = (role, over = {}) => {
     ],
     __TEAM_INVITES: [],
     ...over,
+  });
+  // The seam's settings value beside the globals it copies (legacy-bridge/surfaces/settings.ts), for the moved panes.
+  setSurfaceValue("settings", {
+    settings: globalThis.window.__SETTINGS,
+    facts: globalThis.window.__FACTS,
+    channels: null,
+    templatesAll: null,
+    templateUse: null,
+    templateSent: null,
+    policies: globalThis.window.__POLICIES ?? null,
+    team: globalThis.window.__TEAM ?? null,
+    invites: globalThis.window.__TEAM_INVITES ?? null,
   });
   globalThis.window.ST_STORE.viewAsRole = null;
 };
@@ -524,13 +553,10 @@ test("Activity without its bridge says it cannot be read here, instead of readin
 // cannot trigger. And the money row put a tick under one of them, which stops
 // being true the moment the headings say what a mode does.
 
-/** The autonomy pane over real policy rows, with the store the bridge installs. */
-const autonomy = (rows, over = {}) => {
-  workspace("owner", over);
-  globalThis.window.__POLICIES = { role: "owner", rows };
-  globalThis.window.__hardLimits = (l) => ({ cap: Number(l.max_replies_day) || 20, hours: Number(l.pause_hours) || 4 });
-  globalThis.window.__setPolicy = async () => ({ ok: true });
-  installPolicyStore(globalThis.window);
+/** The autonomy pane over real policy rows, as the settings read publishes them, seen by `role`. */
+const autonomy = (rows, over = {}, role = "owner") => {
+  workspace(role, { ...over, __POLICIES: { role, rows } });
+  autonomyVerbs.setPolicy = async () => ({ ok: true });
   return settings("autonomy");
 };
 const headCells = (tree) =>
@@ -694,7 +720,7 @@ test("a class that cannot honour a mode still shows a dash there, and the rest s
     { class: "faq", mode: "auto", limits: {} },
     { class: "reply", mode: "ask", limits: {} },
   ]);
-  globalThis.window.__setPolicy = async (cls, mode) => {
+  autonomyVerbs.setPolicy = async (cls, mode) => {
     put.push([cls, mode]);
     return { ok: true };
   };
@@ -711,6 +737,99 @@ test("a class that cannot honour a mode still shows a dash there, and the rest s
   press(asks[0]);
   await flush();
   assert.deepEqual(put, [["faq", "ask"]], "REGRESSION: the heading changed and the stored word went with it");
+});
+
+test("F50: every dot and dial asks the autonomy gate, and a dial sends itself alone, never the row's mode", async () => {
+  // PUT /policies is an operator's or the owner's: the matrix keeps its own gate, where the business form asks
+  // settings'. A viewer's dots and steps say why when pressed, and send nothing.
+  const sent = [];
+  const tree = autonomy([{ class: "reply", mode: "ask", limits: {} }], {}, "viewer");
+  autonomyVerbs.setPolicy = async (...args) => {
+    sent.push(args);
+    return { ok: true };
+  };
+  const dots = all(tree, (n) => n.type === "button" && String(n.props.className || "").startsWith("pol-dot"));
+  assert.ok(dots.length > 0 && dots.every((d) => d.props["aria-disabled"] === true), "a viewer's dots are gated");
+  const steps = all(tree, (n) => n.type === "button" && n.props.className?.startsWith("cl-tab"));
+  assert.ok(steps.length > 0 && steps.every((b) => b.props["aria-disabled"] === true), "and so are the dials' steps");
+  press(dots[0]);
+  await flush();
+  assert.equal(sent.length, 0, "a gated press sends nothing");
+
+  // An owner's dial edit: the one dial, and no mode with it (a stale tab resent its remembered mode once).
+  let own = autonomy([{ class: "reply", mode: "ask", limits: {} }]);
+  autonomyVerbs.setPolicy = async (...args) => {
+    sent.push(args);
+    return { ok: true };
+  };
+  const step = (t, label, words) => {
+    const row = find(t, (n) => n.props?.className === "set-row" && textOf(n).startsWith(label));
+    return find(row, (n) => n.type === "button" && textOf(n).trim() === words);
+  };
+  press(step(own, "Hold window", "1m"));
+  await flush();
+  own = settle("autonomy");
+  press(step(own, "Send on its own only when it's sure", "75%"));
+  await flush();
+  assert.deepEqual(sent, [
+    ["reply", undefined, { replyDelayMs: 60000 }],
+    ["reply", undefined, { minConfidence: 0.75 }],
+  ]);
+});
+
+test("an open invitation's menu offers no role: there is no membership row to change it on, only Revoke", () => {
+  // The server looks a role change's id up among members and answers "not on this team" for an invitation; the role
+  // was chosen when it was sent.
+  workspace("owner", {
+    __TEAM_INVITES: [{ id: "inv-sam", email: "sam@northside.example", role: "viewer", expires_at: null }],
+  });
+  const tree = settings("team");
+  const menus = all(tree, (n) => typeof n.type === "function" && Array.isArray(n.props?.items));
+  const labels = (m) => m.props.items.map((i) => i.header || i.label || (i.divider ? "—" : "")).filter(Boolean);
+  const member = menus.find((m) => labels(m).includes("Remove"));
+  const invitation = menus.find((m) => labels(m).includes("Revoke invite"));
+  assert.ok(member && invitation, "a member's menu and an invitation's");
+  assert.ok(labels(member).includes("Role"), "a member's role can change");
+  assert.deepEqual(labels(invitation), ["Revoke invite"], "an invitation's cannot");
+});
+
+test("a team read that failed is said, with the server's role kept; a roster read says You by the signed-in email", () => {
+  // Only the team read failed: the settings read still gave the caller's role, so an owner keeps View-as, and nobody is
+  // invented -- no rows, no menus, no Invite over a roster that could not be read.
+  workspace("owner", { __TEAM: null, __TEAM_INVITES: null });
+  let tree = settings("team");
+  assert.ok(byTestId(tree, "team-failed"), "the one failed read");
+  assert.ok(
+    find(tree, (n) => n.props?.className === "set-viewas"),
+    "an owner, as the server says, keeps View-as",
+  );
+  assert.equal(
+    all(tree, (n) => String(n.props?.className || "").startsWith("set-team-row")).length,
+    0,
+    "nobody invented",
+  );
+  assert.equal(buttonSaying(tree, "Invite"), null, "no Invite over a roster that could not be read");
+  workspace("operator", { __TEAM: null, __TEAM_INVITES: null });
+  tree = settings("team");
+  assert.equal(
+    find(tree, (n) => n.props?.className === "set-viewas"),
+    null,
+    "an operator, as the server says, has none",
+  );
+  // A roster read: You is the row whose address is the signed-in one, and only that row.
+  workspace("owner");
+  tree = settings("team");
+  const rows = all(tree, (n) => String(n.props?.className || "").startsWith("set-team-row"));
+  const you = rows.filter((r) => find(r, (n) => n.props?.className === "chip set-team-you"));
+  assert.equal(you.length, 1, "You, once");
+  assert.ok(textOf(you[0]).includes("dana@northside.example") || textOf(you[0]).includes("Dana"), textOf(you[0]));
+});
+
+test("your name is a row on Profile, never in the Team card", () => {
+  // It lived inside the Team card under a roster of other people, while the account menu's "Your name" pointed there.
+  workspace("owner");
+  assert.ok(byTestId(settings("profile"), "set-you-change"), "Profile says your name, with its Change");
+  assert.equal(byTestId(settings("team"), "set-you-change"), null, "the roster is other people");
 });
 
 /* ------------------------------ the rail's question ------------------------------ */
@@ -765,36 +884,53 @@ test("the rail asks before a pane holding changes goes, and in words that are tr
   }
 });
 
-test("Notifications lists what is sent in contracts' groups, the Reach-outs group among them, and offers no switch (N2)", async () => {
-  const { NOTIFICATION_KIND_GROUPS } = await import("@chanlytics/contracts");
+test("F32: a config the parser refuses closes every notifications write, and says why on each", () => {
+  // The bridge reads a refused config as its own state: no config, and what was wrong (legacy-bridge/surfaces/settings.ts).
+  workspace("owner", {
+    __SETTINGS: { role: "owner", version: 3, config: null, broken: { issues: ["brain.business_name"] } },
+  });
+  const tree = settings("notifications");
+  const why = "This workspace's settings can't be read — Chanlytics has to repair them before anything here can change";
+  const add = buttonSaying(tree, "Add");
+  const box = labelled(tree, "input", "Add an address to alert");
+  assert.equal(box.props.disabled, true, "nothing can be typed to save over the broken row");
+  assert.equal(box.props.title, why);
+  type(box, "new@northside.example");
+  const typed = settle("notifications");
+  assert.equal(buttonSaying(typed, "Add").props.disabled, true, "and Add stays closed with an address typed");
+  assert.equal(add.props.title, why);
+  assert.equal(buttonSaying(tree, "Remove"), null, "nothing was read, so there is nothing to remove");
+  assert.equal(saved.length, 0);
+});
+
+test("Notifications lists what is sent in contracts' groups, the Reach-outs group among them, and offers no switch (N2)", () => {
   workspace("owner");
-  globalThis.window.__today = { notificationKinds: NOTIFICATION_KIND_GROUPS };
-  try {
-    const tree = settings("notifications");
-    const kinds = byTestId(tree, "notif-kinds");
-    const groups = all(kinds, (n) => n.props?.["data-testid"] === "notif-group");
-    assert.deepEqual(
-      groups.map((g) => textOf(find(g, (n) => n.type === "h3"))),
-      ["Customers", "Reach-outs", "To Chanlytics"],
-    );
-    const reach = groups[1];
-    const rows = all(reach, (n) => n.props?.className === "set-row").map((r) =>
-      textOf(find(r, (n) => n.props?.className === "set-row-label")).trim(),
-    );
-    assert.deepEqual(rows, [
-      "They wrote back",
-      "A reach-out waits for you",
-      "A reach-out holds an email for you",
-      "A sending domain is held, and when it sends again",
-      "The day's numbers",
-    ]);
-    assert.equal(
-      all(kinds, (n) => n.type === "input" || n.props?.role === "switch").length,
-      0,
-      "rows that say what is sent, never a switch no code reads",
-    );
-    assert.equal(all(groups[2], (n) => n.props?.className === "chip set-notif-platform").length, 2, "to Chanlytics");
-  } finally {
-    delete globalThis.window.__today;
-  }
+  const tree = settings("notifications");
+  assert.ok(
+    textOf(byTestId(tree, "notif-recipients")).includes("except the two marked for Chanlytics"),
+    "the recipients' card says which alerts are not theirs (F36)",
+  );
+  const kinds = byTestId(tree, "notif-kinds");
+  const groups = all(kinds, (n) => n.props?.["data-testid"] === "notif-group");
+  assert.deepEqual(
+    groups.map((g) => textOf(find(g, (n) => n.type === "h3"))),
+    ["Customers", "Reach-outs", "To Chanlytics"],
+  );
+  const reach = groups[1];
+  const rows = all(reach, (n) => n.props?.className === "set-row").map((r) =>
+    textOf(find(r, (n) => n.props?.className === "set-row-label")).trim(),
+  );
+  assert.deepEqual(rows, [
+    "They wrote back",
+    "A reach-out waits for you",
+    "A reach-out holds an email for you",
+    "A sending domain is held, and when it sends again",
+    "The day's numbers",
+  ]);
+  assert.equal(
+    all(kinds, (n) => n.type === "input" || n.props?.role === "switch").length,
+    0,
+    "rows that say what is sent, never a switch no code reads",
+  );
+  assert.equal(all(groups[2], (n) => n.props?.className === "chip set-notif-platform").length, 2, "to Chanlytics");
 });

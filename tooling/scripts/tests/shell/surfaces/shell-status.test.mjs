@@ -651,10 +651,10 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
   });
   assert.equal(
     mount("#/broadcasts/lapsed").title,
-    "Lapsed · Broadcasts · Campaigns · Chanlytics",
+    "Lapsed · Sent · Campaigns · Chanlytics",
     "a real audience by its own name",
   );
-  assert.equal(mount("#/broadcasts/lapsed-60").title, "Broadcasts · Campaigns · Chanlytics");
+  assert.equal(mount("#/broadcasts/lapsed-60").title, "Sent · Campaigns · Chanlytics");
 
   setPeople({ rows: [], lists: [{ id: "opted_in", label: "Opted in" }], saved: [] });
   assert.equal(mount("#/clients/seg:opted_in").title, "Opted in · People · Chanlytics");
@@ -897,57 +897,64 @@ test("REGRESSION (C9): a link to a run opens that broadcast, named in the crumbs
 });
 
 test("every view of Leads is one mount: a search, a list, a class or an open lead keeps the page that is there -- each rail pick tore it down, and the search box, the scroll and a half-typed Find went with it", () => {
+  // Leads is People's page's (decision 0015, step 9): the frame draws the route's page and keys its view by the mount the
+  // surface's chrome names (surfaces/people/chrome.ts), one for every view of Leads, which follows its own address.
   shell.installShell(win);
-  win.__LEADS = { searches: [] };
+  win.__surfaceGate = () => true;
   const SEARCH = "5e000000-0000-4000-8000-000000000001";
   const LEAD = "1ead0000-0000-4000-8000-000000000001";
   const at = (hash) => {
     const { tree } = mount(hash);
     return {
       key: find(tree, (n) => String(n.props?.className || "").includes("main-scroll")).props.key,
-      page: find(tree, (n) => n.type === "LeadsReal" || n.type === "RoutePage"),
+      page: find(tree, (n) => n.type === "RoutePage"),
     };
   };
-  const all = at("#/clients/leads");
-  assert.equal(all.page.props.scope, "leads");
-  for (const param of [
-    `leads:s-${SEARCH}`,
-    "leads:l-ready",
-    `leads:s-${SEARCH}:c-review`,
-    `leads:p-${LEAD}`,
-    `leads:s-${SEARCH}:l-nurture:p-${LEAD}`,
-  ]) {
-    const view = at(`#/clients/${param}`);
-    assert.equal(view.key, all.key, `${param} is the Leads page already on screen`);
-    assert.equal(view.page.props.leadsRoute, param, "and the page is handed the address to follow");
+  try {
+    const all = at("#/clients/leads");
+    assert.ok(all.page, "the route's page draws Leads, in the frame");
+    for (const param of [
+      `leads:s-${SEARCH}`,
+      "leads:l-ready",
+      `leads:s-${SEARCH}:c-review`,
+      `leads:p-${LEAD}`,
+      `leads:s-${SEARCH}:l-nurture:p-${LEAD}`,
+    ]) {
+      const view = at(`#/clients/${param}`);
+      assert.equal(view.key, all.key, `${param} is the Leads page already on screen`);
+      assert.ok(view.page, "the same page, which follows the address it is on (people-route.tsx)");
+    }
+    assert.notEqual(
+      at("#/clients").key,
+      all.key,
+      "People and Leads are two pages: each starts from its own sort and columns",
+    );
+    assert.notEqual(at("#/clients/c-1").key, at("#/clients/c-2").key, "two profiles are still two mounts");
+    // People's views are the page's, which follows its own address (surfaces/people/people-route.tsx): one mount for the
+    // list and every view of it. A page it did not write the address of mounts afresh on its own (people-address.test.mjs).
+    assert.equal(
+      at("#/clients/seg:opted_in").key,
+      at("#/clients").key,
+      "People's views are one mount, the page following its own address",
+    );
+    assert.equal(at("#/clients/new-list").key, at("#/clients").key, "the New list door too");
+  } finally {
+    delete win.__surfaceGate;
   }
-  assert.notEqual(
-    at("#/clients").key,
-    all.key,
-    "People and Leads are two pages: each starts from its own sort and columns",
-  );
-  assert.notEqual(at("#/clients/c-1").key, at("#/clients/c-2").key, "two profiles are still two mounts");
-  // People's views are the page's, which follows its own address (surfaces/people/people-route.tsx): one mount for the
-  // list and every view of it, where the frame keyed each view on its route. A page it did not write the address of
-  // mounts afresh on its own (people-address.test.mjs).
-  assert.equal(
-    at("#/clients/seg:opted_in").key,
-    at("#/clients").key,
-    "People's views are one mount, the page following its own address",
-  );
-  assert.equal(at("#/clients/new-list").key, at("#/clients").key, "the New list door too");
-  delete win.__LEADS;
 });
 
-test("a page can say the same place more exactly: a replaced address makes no entry, and the shell follows it at once, with nothing to wait for", () => {
+test("a page can say the same place more exactly: a replaced address makes no entry, and the shell follows it at once, with nothing to wait for", async () => {
+  // The Leads page walks its peek through the address with a replace (surfaces/leads/page/peek-hooks.ts, through the
+  // route's own door, people-route.tsx ownGo: the address's replace, quiet): no entry, and the frame stays on the page.
+  const { addressReplace } = await importSrc("apps/dashboard/src/surfaces/people/shell-verbs.ts");
   shell.installShell(win);
+  win.__surfaceGate = () => true;
   const LEAD = "1ead0000-0000-4000-8000-000000000001";
   const before = { pushed: history.pushed.length, replaced: history.replaced.length };
-  win.__LEADS = { searches: [] };
   try {
+    const key = (t) => find(t, (n) => String(n.props?.className || "").includes("main-scroll")).props.key;
     const { tree } = mount("#/clients/leads");
-    const page = (t) => find(t, (n) => n.type === "LeadsReal");
-    page(tree).props.onNavigate(`clients/leads:p-${LEAD}`, { replace: true });
+    addressReplace(`clients/leads:p-${LEAD}`, { quiet: true });
     assert.deepEqual(
       history.replaced.slice(before.replaced),
       [`/w/acme/people/leads:p-${LEAD}`],
@@ -966,17 +973,15 @@ test("a page can say the same place more exactly: a replaced address makes no en
       onTheme() {},
     });
     deep = true;
-    assert.equal(
-      page(again).props.leadsRoute,
-      `leads:p-${LEAD}`,
-      "the page is handed the address it asked for without waiting for an event that never comes",
-    );
-    page(again).props.onNavigate("clients/leads");
+    assert.equal(key(again), key(tree), "the same page, on the address it asked for, with no event to wait for");
+    assert.ok(find(again, (n) => n.type === "RoutePage"));
+    // A push is the shell's own navigate, which the shell's CHANLY.nav hands a route to (data/constants.jsx).
+    win.appNavigate("clients/leads");
     assert.equal(win.location.pathname, "/w/acme/people/leads", "and a plain navigation is still pushed");
     assert.equal(history.pushed.at(-1), "/w/acme/people/leads");
     assert.equal(history.replaced.length, before.replaced + 1);
   } finally {
-    delete win.__LEADS;
+    delete win.__surfaceGate;
     win.location.pathname = "/w/acme";
   }
 });
@@ -1054,17 +1059,23 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
   }
 });
 
-test("REGRESSION (C13): a link to a playbook opens Playbooks on its card, named in the crumbs -- the route dropped the id", () => {
+test("REGRESSION (C13): a link to a playbook opens Campaigns' home on it, named in the crumbs -- the route dropped the id", () => {
   shell.installShell(win);
   const keepGate = win.gate;
   win.gate = win.gate || (() => ({}));
   setSurfaceValue("playbooks", { rows: [{ id: "pb-1", name: "Win-back" }] });
   try {
     const crumbs = (hash) => find(mount(hash).tree, (n) => n.type === "Topbar").props.crumbs;
-    assert.equal(crumbs("#/outbound/pb-1").at(-1), "Win-back", "REGRESSION: the route dropped the playbook's id");
-    assert.deepEqual(crumbs("#/outbound"), ["Campaigns", "Playbooks"]);
+    // The old Playbooks list is a door (contracts doorOf): `outbound/<id>` is `campaigns/moment:<id>`, which the frame names.
     assert.equal(
-      crumbs("#/outbound/pb-gone").at(-1),
+      crumbs("#/campaigns/moment:pb-1").at(-1),
+      "Win-back",
+      "REGRESSION: the route dropped the playbook's id",
+    );
+    assert.deepEqual(crumbs("#/campaigns/moment:pb-1")[0], { label: "Campaigns", to: "campaigns" }, "back to the home");
+    assert.deepEqual(crumbs("#/campaigns"), ["Campaigns"]);
+    assert.equal(
+      crumbs("#/campaigns/moment:pb-gone").at(-1),
       "Playbook",
       "a playbook since deleted is still named for what it was",
     );
@@ -1076,7 +1087,7 @@ test("REGRESSION (C13): a link to a playbook opens Playbooks on its card, named 
 
 /* ------------------------------ the shell's own doors (B6a-2) ------------------------------ */
 
-test("REGRESSION (N10): a real workspace's Calendar and Playbooks offer no primary act until the page is ready -- Book and New campaign opened Ask over the skeleton or the failure pane", () => {
+test("REGRESSION (N10): a real workspace's Calendar and Campaigns offer no primary act in the top bar until the page is ready -- Book and New campaign opened Ask over the skeleton or the failure pane", () => {
   shell.installShell(win);
   const keepGate = win.gate;
   win.gate = () => ({});
@@ -1088,24 +1099,21 @@ test("REGRESSION (N10): a real workspace's Calendar and Playbooks offer no prima
       "REGRESSION: a Calendar still loading, or failed, offered Book, which opened Ask",
     );
     assert.equal(
-      right("#/outbound"),
+      right("#/campaigns"),
       null,
-      "REGRESSION: Playbooks still loading, or failed, offered New campaign, which opened Ask",
+      "REGRESSION: Campaigns still loading, or failed, offered New campaign, which opened Ask",
     );
     win.__DEMO_MODE = true;
     assert.equal(textOf(right("#/calendar")).trim(), "Book", "the demo keeps its detour");
-    assert.equal(textOf(right("#/outbound")).trim(), "New campaign");
+    assert.equal(right("#/campaigns"), null, "the demo's Campaigns draws its New message in the page's own head");
     delete win.__DEMO_MODE;
     setSurfaceValue("calendar", { vm: { bookingLink: "https://book.example/luna" }, fetchedAt: 1 });
-    assert.equal(
-      right("#/calendar").props.href,
-      "https://book.example/luna",
-      "a ready Calendar books through its own link",
-    );
-    // Ready, New playbook is the page's own, at the right of its one line beside Broadcasts' and Templates' acts
-    // (outbound-real.jsx pb-new), and the top bar carries none: the page draws only once the playbooks are read.
+    // A ready Calendar has none either: its booking link is in the page's own options menu (calendar/chrome.ts).
+    assert.equal(right("#/calendar"), null, "a ready Calendar keeps its link in the page's menu, not the top bar");
+    // Ready, New message is the page's own, in the head of Campaigns' home (surfaces/campaigns/home), and the top bar
+    // carries none: the page draws only once the playbooks are read.
     setSurfaceValue("playbooks", { rows: [] });
-    assert.equal(right("#/outbound"), null, "ready Playbooks keep their act on the page, not in the top bar");
+    assert.equal(right("#/campaigns"), null, "a ready Campaigns keeps its act on the page, not in the top bar");
   } finally {
     setSurfaceValue("calendar", undefined);
     setSurfaceValue("playbooks", undefined);
@@ -1270,7 +1278,6 @@ test("the look travels as the theme does: stamped beside it on every root the sh
     assert.equal(sidebar.props.onLook, onLook, "and changes it through the shell's own prop, as the theme");
   } finally {
     deep = true;
-    delete win.FirstRun;
     if (keptState !== undefined) win.__surfaceState = keptState;
   }
 });
@@ -1279,7 +1286,6 @@ test("the first run keeps Ask: the palette is drawn over the step, closed, and t
   shell.installShell(win);
   const keptState = win.__surfaceState;
   delete win.__surfaceState;
-  win.FirstRun = "FirstRun";
   const draw = () => {
     frames.begin();
     globalThis.ShellStatusBar = win.ShellStatusBar;
@@ -1309,12 +1315,14 @@ test("the first run keeps Ask: the palette is drawn over the step, closed, and t
     const keys = [...(heard.get("keydown") ?? [])].filter((fn) => !before.has(fn));
     assert.equal(tree.props.className, "fr-shell", "the first run, full screen");
     const kids = tree.props.children.filter((k) => k && typeof k === "object");
+    // The first run is an App Router page (surfaces/setup/first-run, decision 0015 step 10): the layout's children,
+    // which read their step from the path.
     assert.deepEqual(
       kids.map((k) => k.type),
-      ["FirstRun", "AskBar"],
+      ["RoutePage", "AskBar"],
       "the step, then the palette over it",
     );
-    assert.equal(kids[0].props.param, "phone");
+    assert.equal(kids[0], PAGES.routePage, "the page the layout gave the frame, as it is");
     assert.equal(kids[1].props.open, false, "closed until asked");
     for (const fn of keys) fn({ type: "keydown", key: "k", metaKey: true, target: null, preventDefault() {} });
     tree = draw();
@@ -1517,11 +1525,11 @@ test("Conversations and Live are views of the Inbox: the strip is drawn over all
   delete globalThis.LiveMonitorPage;
 });
 
-test("Campaigns' third door is Templates, on the route that is still `messages` -- the word `message` meant three things across one nav", () => {
+test("Campaigns' Library is the room on the route that is still `messages` -- the word `message` meant three things across one nav", () => {
   const { tree, title } = mount("#/messages");
   assert.equal(
     title,
-    "Templates · Campaigns · Chanlytics",
+    "Library · Campaigns · Chanlytics",
     "REGRESSION: the trail said Messages, beside an Inbox full of them",
   );
   const strip = find(tree, (n) => n.type === "SurfaceTabs");
@@ -1835,14 +1843,20 @@ test("People › Pipeline is an address of People's route (clients/pipeline): th
   const { peopleTakes, peopleChrome } = await importSrc("apps/dashboard/src/surfaces/people/chrome.ts");
   const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
   const chrome = (param) => peopleChrome({ param });
+  // The crumbs and the mount are what this pins; the views the frame's strip draws are people/moments/people-views.test.mjs's.
+  const where = (param) => {
+    const { crumbs, mount } = chrome(param);
+    return { crumbs, mount };
+  };
   const PEOPLE = { label: "People", to: "clients" };
   try {
     setSurfaceValue("people", { rows: [], lists: [], saved: [], dealsOn: true });
     for (const param of ["pipeline", "pipeline:v-proposals", "pipeline:v-proposals:p-5b3c1a2e"])
       assert.equal(peopleTakes(param), true, `the route takes ${param}`);
     assert.equal(peopleTakes("pipelines"), true, "an id that starts with the word is a person's: the page's");
-    assert.equal(peopleTakes("leads"), false, "Leads stays the frame's until it moves");
-    assert.deepEqual(chrome("pipeline"), { crumbs: [PEOPLE, "Pipeline"], mount: "clients/pipeline" });
+    assert.equal(peopleTakes("leads"), true, "Leads is the page's too, one mount of its own (decision 0015, step 9)");
+    assert.equal(chrome("leads").mount, "clients/leads");
+    assert.deepEqual(where("pipeline"), { crumbs: [PEOPLE, "Pipeline"], mount: "clients/pipeline" });
     // Every view of the Pipeline, and a person open over one, is the page already there: it follows its address (contracts
     // pipelineRoute), and the crumbs name the view.
     const viewed = chrome("pipeline:v-proposals:p-5b3c1a2e");
@@ -1867,9 +1881,9 @@ test("People › Pipeline is an address of People's route (clients/pipeline): th
     // Where deals are off the address draws People, and says People.
     setSurfaceValue("people", { rows: [], lists: [], saved: [], dealsOn: false });
     assert.equal(peopleTakes("pipeline:v-proposals"), true, "the route still takes it: it draws People");
-    assert.deepEqual(chrome("pipeline"), { crumbs: ["People"], mount: "clients/pipeline" });
+    assert.deepEqual(where("pipeline"), { crumbs: ["People"], mount: "clients/pipeline" });
     assert.deepEqual(
-      chrome("pipeline:v-proposals"),
+      where("pipeline:v-proposals"),
       { crumbs: ["People"], mount: "clients/pipeline" },
       "every view of it too",
     );

@@ -7,19 +7,14 @@
  * - The business record hid Save and File from anyone but an owner, under a sentence of the form's own (the one gate).
  * - Choosing Google's location offered "Disconnect instead", which disconnected at once, where the row's own
  *   Disconnect asks first (S17).
- * Run against billing-real.jsx, business-record.jsx and integrations-real.jsx on a stub React, over data-bits' real
- * gate, contracts' role table, view models and rows, and the billing bridge's own published words.
+ * Run against Settings › Billing and Settings › Connections (surfaces/settings/billing and surfaces/settings/connections,
+ * TSX since decision 0015's step 11: the pane, the business record's form and the sending domains' block) on a stub
+ * React, over data-bits' real gate, contracts' role table, view models and rows, the billing surface's own verbs and
+ * words, and the connections' verbs (their module objects, stubbed by assignment: nothing here reaches the wire).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  ROLE_PERMS,
-  roleGate,
-  stateOf,
-  billingAccountDto,
-  connectionRows,
-  CONNECTION_GROUP_WORDS,
-} from "@chanlytics/contracts";
+import { IN_APP_CLASS, ROLE_PERMS, roleGate, stateOf, billingAccountDto } from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../_legacy-react.mjs";
 
 /* ---------------------------------- the window ---------------------------------- */
@@ -35,7 +30,10 @@ const storage = () => {
 };
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
+/** The classes the head's boot script stamps on the document (contracts inAppBootScript): the phone app's, in a case. */
+const stamped = new Set();
 globalThis.document = {
+  documentElement: { classList: { contains: (c) => stamped.has(c) } },
   body: { appendChild() {} },
   activeElement: null,
   addEventListener() {},
@@ -141,6 +139,8 @@ globalThis.React = {
   },
   useMemo: (fn, deps) => memo(fn, deps),
   useCallback: (fn, deps) => memo(() => fn, deps),
+  // A surface's value through the seam (use-surface.ts): what it holds when the component draws.
+  useSyncExternalStore: (subscribe, snapshot) => snapshot(),
   // The record kit's field names itself with React's useId when the page gives it no id.
   useId: () => `id-${slot()}`,
   useEffect: (fn, deps) => {
@@ -165,13 +165,27 @@ Object.assign(globalThis.window, {
   CHANLY: { nav() {}, R: {} },
   __chrome: { state: stateOf },
 });
-// The billing bridge as the shell installs it: its view model and its words are the published ones.
-const { installBilling } = await import("../../../../apps/dashboard/src/legacy-bridge/billing.ts");
+// The billing surface as the shell installs it: the pane's verbs are the module's object, which `__billing` is.
+const { installBilling } = await import("../../../../apps/dashboard/src/surfaces/settings/billing/surface.ts");
 installBilling(globalThis.window);
-await import("../../../../apps/dashboard/src/legacy/pages/billing-real.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/business-record.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/sending-domains.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/integrations-real.jsx");
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { PaneBillingReal } = await import("../../../../apps/dashboard/src/surfaces/settings/billing/pane.tsx");
+// Settings › Connections (surfaces/settings/connections): the pane, the business record's form, and the verbs each takes
+// from a module object of its own (record.ts, domains.ts, mailbox.ts, whatsapp.ts, and the bridge's googleVerbs), which a
+// test stubs by assigning onto it.
+const SETTINGS = "../../../../apps/dashboard/src/surfaces/settings/connections";
+const { PaneIntegrationsReal } = await import(`${SETTINGS}/pane.tsx`);
+const { BusinessRecordForm } = await import(`${SETTINGS}/record-form.tsx`);
+const { businessRecord } = await import(`${SETTINGS}/record.ts`);
+const { sendingDomains } = await import(`${SETTINGS}/domains.ts`);
+const { mailbox } = await import(`${SETTINGS}/mailbox.ts`);
+const { waConnect } = await import(`${SETTINGS}/whatsapp.ts`);
+const { googleVerbs } = await import("../../../../apps/dashboard/src/legacy-bridge/google.ts");
+const { MoreMenu } = await import("../../../../apps/dashboard/src/surfaces/kit/more-menu/more-menu.tsx");
+// What every pane draw asks, and nothing here may send: Meta's door, asked once, has nothing to say, and the browser has
+// come back from nowhere on Google's side.
+Object.assign(waConnect, { config: async () => null });
+Object.assign(googleVerbs, { outcome: () => null, outcomeWords: {} });
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -237,7 +251,7 @@ const settle = (C, props = {}) => (dirty ? draw(C, props) : lastTree);
 
 /* ------------------------------ Billing ------------------------------ */
 
-const Billing = (props) => globalThis.window.PaneBillingReal(props);
+const Billing = (props) => PaneBillingReal(props);
 const PRICE = { id: "price_1", currency: "usd", unit_amount: 4900, interval: "month", product_name: "Chanlytics OS" };
 /** The row as the edge reads it (contracts billingAccountDto), in one Stripe state, on live keys unless a case says otherwise. */
 const billing = (over = {}, livemode = true) => {
@@ -256,10 +270,10 @@ const billing = (over = {}, livemode = true) => {
     updated_at: "2026-09-15T12:00:00Z",
     ...over,
   });
-  globalThis.window.__BILLING_ACCOUNT = {
+  setSurfaceValue("billing", {
     dto: { ready: true, livemode, account, price: PRICE, trial_days: 14, role: "owner" },
     fetchedAt: Date.now(),
-  };
+  });
 };
 const INVOICES = [
   {
@@ -425,8 +439,9 @@ test("REGRESSION (S9): on Stripe's test keys the pane says test mode, beside its
 
 /* ------------------------------ the business record ------------------------------ */
 
-const Form = (props) => globalThis.window.BusinessRecordForm(props);
-const businessRecord = (sent) => ({
+const Form = (props) => BusinessRecordForm(props);
+/** The record's verbs and words (record.ts's `businessRecord`), assigned onto it: what `sent` collects never reaches the wire. */
+const recordApi = (sent) => ({
   read: async () => ({
     ok: true,
     record: { legal_name: "Northside Studio LLC", ein: "12-3456789" },
@@ -469,7 +484,7 @@ const businessRecord = (sent) => ({
 test("REGRESSION (one gate): the business record shows Save and File to a role that may not press them, gated, and says why once -- they were hidden under a sentence of the form's own", async () => {
   asRole("operator");
   const sent = [];
-  globalThis.window.__businessRecord = businessRecord(sent);
+  Object.assign(businessRecord, recordApi(sent));
   const props = { line: { id: "l1", sms_state: "none" }, flash() {} };
   render(Form, props);
   await flush();
@@ -503,15 +518,33 @@ test("REGRESSION (one gate): the business record shows Save and File to a role t
 
 /* ------------------------------ Connections ------------------------------ */
 
-const Connections = (props) => globalThis.window.PaneIntegrationsReal(props);
+const Connections = (props) => PaneIntegrationsReal(props);
 
+/**
+ * What the pane reads over the seam (surface-values.ts, through useSurface): the settings read's channels, Setup's value
+ * (undefined before it is read, null where it failed) and Google's. A key a test does not name is held as it was.
+ */
+const seam = (held) => {
+  if ("channels" in held) {
+    setSurfaceValue("settings", {
+      settings: null,
+      facts: null,
+      channels: held.channels,
+      templatesAll: null,
+      templateUse: null,
+      templateSent: null,
+    });
+  }
+  if ("setup" in held) setSurfaceValue("setup", held.setup);
+  if ("google" in held) setSurfaceValue("google", held.google);
+};
 test("a connection on a phone offers its acts behind the row: one act is the row's press, two are its menu, Later offers nothing, and a desktop keeps the buttons", async () => {
   // 25 Sep: rows were 77 to 145px on a phone, each over a line of boxed buttons, Remove a thumb from Check now.
   asRole("owner");
-  Object.assign(globalThis.window, {
-    __CHANNELS: [],
-    __SETUP: null,
-    __GOOGLE: {
+  seam({
+    channels: [],
+    setup: null,
+    google: {
       dto: {
         ready: { places: true, profile: false },
         listing: {
@@ -529,17 +562,16 @@ test("a connection on a phone offers its acts behind the row: one act is the row
         connection: null,
       },
     },
-    __connections: { rows: connectionRows, groupWords: CONNECTION_GROUP_WORDS },
-    __waConnect: { config: async () => null },
-    __google: { outcome: () => null, outcomeWords: {}, unlink: async () => ({ ok: true, message: "" }) },
-    MoreMenu: (p) => ({ type: "MoreMenu", props: p }),
   });
+  Object.assign(googleVerbs, { unlink: async () => ({ ok: true, message: "" }) });
   render(Connections);
   await flush();
   const tree = settle(Connections);
   const listing = byTestId(tree, "connection-google_listing");
   assert.equal(listing.props["data-offers"], "menu", "Check now and Remove: two acts, a menu");
-  const menu = find(listing, (n) => n.type === "MoreMenu");
+  // The kit's own MoreMenu, drawn: its node in the tree carries the items the row handed it.
+  const menu = find(listing, (n) => n.type === MoreMenu);
+  assert.ok(menu, "the row draws the kit's menu");
   assert.deepEqual(
     menu.props.items.map((i) => [i.label, !!i.danger]),
     [
@@ -567,11 +599,11 @@ test("a connection on a phone offers its acts behind the row: one act is the row
 test("REGRESSION (S17): 'Disconnect instead' asks first, as the row's own Disconnect does -- it disconnected Google at once", async () => {
   asRole("owner");
   const done = [];
-  Object.assign(globalThis.window, {
-    __CHANNELS: [],
-    __SETUP: null,
+  seam({
+    channels: [],
+    setup: null,
     // Connected, with the location still to choose: the row's body is the chooser.
-    __GOOGLE: {
+    google: {
       dto: {
         ready: { places: false, profile: true },
         listing: null,
@@ -586,30 +618,26 @@ test("REGRESSION (S17): 'Disconnect instead' asks first, as the row's own Discon
         },
       },
     },
-    __connections: { rows: connectionRows, groupWords: CONNECTION_GROUP_WORDS },
-    __waConnect: { config: async () => null },
-    __google: {
-      outcome: () => null,
-      outcomeWords: {},
-      locations: async () => ({
-        ok: true,
-        locations: [
-          {
-            account_name: "accounts/1",
-            location_name: "locations/1",
-            title: "Northside Studio",
-            address: "1 Main St",
-            account_title: "Northside",
-          },
-        ],
-      }),
-      choose: async () => ({ ok: true, read: true, message: "" }),
-      disconnect: async () => {
-        done.push("disconnect");
-        return { ok: true, message: "" };
-      },
-      unlink: async () => ({ ok: true, message: "" }),
+  });
+  Object.assign(googleVerbs, {
+    locations: async () => ({
+      ok: true,
+      locations: [
+        {
+          account_name: "accounts/1",
+          location_name: "locations/1",
+          title: "Northside Studio",
+          address: "1 Main St",
+          account_title: "Northside",
+        },
+      ],
+    }),
+    choose: async () => ({ ok: true, read: true, message: "" }),
+    disconnect: async () => {
+      done.push("disconnect");
+      return { ok: true, message: "" };
     },
+    unlink: async () => ({ ok: true, message: "" }),
   });
   render(Connections);
   await flush();
@@ -632,8 +660,6 @@ test("REGRESSION (S17): 'Disconnect instead' asks first, as the row's own Discon
 
 test("the email row's form: offered from the business's name, judged under its own box before anything is asked, a taken address said there too, and closed by the yes", async () => {
   asRole("owner");
-  const { installMailbox } = await import("../../../../apps/dashboard/src/legacy-bridge/mailbox.ts");
-  installMailbox(globalThis.window);
   const asked = [];
   let answer = {
     ok: false,
@@ -644,17 +670,18 @@ test("the email row's form: offered from the business's name, judged under its o
     retryAfterS: null,
     fields: null,
   };
-  Object.assign(globalThis.window.__mailbox, {
+  // The mailbox's two acts are the module's object (mailbox.ts); its rules for what may be typed stay contracts' own.
+  Object.assign(mailbox, {
     create: async (input) => {
       asked.push(input);
       return answer;
     },
   });
   const email = { ready: true, domain: "mail.chanlytics.com", mailbox: null };
-  Object.assign(globalThis.window, {
-    __CHANNELS: [],
-    __GOOGLE: null,
-    __SETUP: {
+  seam({
+    channels: [],
+    google: null,
+    setup: {
       dto: {
         business: { name: "Best Movers" },
         lines: { rows: [], ready: false },
@@ -663,10 +690,8 @@ test("the email row's form: offered from the business's name, judged under its o
         email,
       },
     },
-    __connections: { rows: connectionRows, groupWords: CONNECTION_GROUP_WORDS },
-    __waConnect: { config: async () => null },
-    refusalToast: (r) => ({ tone: "danger", msg: r.message }),
   });
+  Object.assign(globalThis.window, { refusalToast: (r) => ({ tone: "danger", msg: r.message }) });
   let tree = render(Connections);
   assert.equal(byTestId(tree, "email-setup"), null, "the form waits for its verb");
   press(byTestId(tree, "connection-email-verb"));
@@ -750,7 +775,7 @@ test("inside the app the billing page keeps its status and says where billing li
   asRole("owner");
   stripe();
   billing({ status: "none" });
-  globalThis.window.__IN_APP = { version: "1.0.0", platform: "ios" };
+  stamped.add(IN_APP_CLASS);
   try {
     const tree = render(Billing, { flash() {} });
     assert.equal(byTestId(tree, "billing-checkout"), null, "no Start the trial");
@@ -760,7 +785,7 @@ test("inside the app the billing page keeps its status and says where billing li
     assert.ok(byTestId(tree, "billing-headline"), "the status stays");
     assert.ok(!textOf(tree).includes("Stripe"), "and no door names Stripe");
   } finally {
-    delete globalThis.window.__IN_APP;
+    stamped.delete(IN_APP_CLASS);
   }
   const tree = render(Billing, { flash() {} });
   assert.ok(byTestId(tree, "billing-checkout"), "on the web the door is back");
@@ -771,10 +796,9 @@ test("inside the app the billing page keeps its status and says where billing li
 
 test("the domains you send from: under the Email row, each in contracts' words, its records to copy, and an add judged under its own box", async () => {
   asRole("owner");
-  const { installSendingDomains } = await import("../../../../apps/dashboard/src/legacy-bridge/sending-domains.ts");
-  installSendingDomains(globalThis.window);
   const added = [];
-  Object.assign(globalThis.window.__sendingDomains, {
+  // The domains' acts are the module's object (domains.ts); the words and rules it holds stay contracts' own.
+  Object.assign(sendingDomains, {
     add: async (input) => {
       added.push(input);
       return {
@@ -848,10 +872,10 @@ test("the domains you send from: under the Email row, each in contracts' words, 
       ],
     },
   };
-  Object.assign(globalThis.window, {
-    __CHANNELS: [],
-    __GOOGLE: null,
-    __SETUP: {
+  seam({
+    channels: [],
+    google: null,
+    setup: {
       dto: {
         business: { name: "Harbor Moving" },
         lines: { rows: [], ready: false },
@@ -860,10 +884,8 @@ test("the domains you send from: under the Email row, each in contracts' words, 
         email,
       },
     },
-    __connections: { rows: connectionRows, groupWords: CONNECTION_GROUP_WORDS },
-    __waConnect: { config: async () => null },
-    refusalToast: (r) => ({ tone: "danger", msg: r.message }),
   });
+  Object.assign(globalThis.window, { refusalToast: (r) => ({ tone: "danger", msg: r.message }) });
   let tree = render(Connections);
   const block = byTestId(tree, "sending-domains");
   assert.ok(block, "drawn under the Email row");
@@ -941,15 +963,17 @@ test("the block is not drawn where own domains are off and there are none, nor b
     },
     { ready: true, domain: "mail.chanlytics.com", mailbox: null, sending: { ready: true, domains: [] } },
   ]) {
-    globalThis.window.__SETUP = {
-      dto: {
-        business: { name: "Harbor Moving" },
-        lines: { rows: [], ready: false },
-        requests: { line: null },
-        calendar: null,
-        email,
+    seam({
+      setup: {
+        dto: {
+          business: { name: "Harbor Moving" },
+          lines: { rows: [], ready: false },
+          requests: { line: null },
+          calendar: null,
+          email,
+        },
       },
-    };
+    });
     const tree = render(Connections);
     assert.equal(byTestId(tree, "sending-domains"), null, JSON.stringify(email.sending));
   }
@@ -992,15 +1016,17 @@ test("a held domain: a DNS hold shows its records and Check, a reputation hold o
       domains: [held("h1", "broke.example", "verification"), held("h2", "spam.example", "complaint")],
     },
   };
-  globalThis.window.__SETUP = {
-    dto: {
-      business: { name: "Harbor" },
-      lines: { rows: [], ready: false },
-      requests: { line: null },
-      calendar: null,
-      email,
+  seam({
+    setup: {
+      dto: {
+        business: { name: "Harbor" },
+        lines: { rows: [], ready: false },
+        requests: { line: null },
+        calendar: null,
+        email,
+      },
     },
-  };
+  });
   asRole("owner");
   let tree = render(Connections);
   assert.ok(byTestId(tree, "domain-records-broke.example"), "the records to fix are shown");
@@ -1023,7 +1049,7 @@ test("a held domain: a DNS hold shows its records and Check, a reputation hold o
 test("the records draw as a table a registrar can take: each name and value copied on its own, labelled for a screen reader", () => {
   const now = Date.now();
   const iso = (d) => new Date(now - d * 86_400_000).toISOString();
-  globalThis.window.__SETUP = {
+  const setup = {
     dto: {
       business: { name: "Harbor" },
       lines: { rows: [], ready: false },
@@ -1085,6 +1111,7 @@ test("the records draw as a table a registrar can take: each name and value copi
       },
     },
   };
+  seam({ setup });
   asRole("owner");
   const tree = render(Connections);
   const table = byTestId(tree, "domain-records-getharbor.com");
@@ -1102,10 +1129,13 @@ test("the records draw as a table a registrar can take: each name and value copi
 
 test("a person deletes their own account from Settings, in two steps, and the door's refusal is said where it happened (App Store 5.1.1(v), 00190)", async () => {
   asRole("owner");
-  await import("../../../../apps/dashboard/src/legacy/pages/settings.jsx");
-  const Profile = (props) => globalThis.window.PaneProfile(props);
+  // Profile is TSX (surfaces/settings/profile, decision 0015 step 11); its two doors are the bridge's meVerbs.
+  const { PaneProfile } = await import("../../../../apps/dashboard/src/surfaces/settings/profile/pane.tsx");
+  const { meVerbs } = await import("../../../../apps/dashboard/src/legacy-bridge/identity.ts");
+  const Profile = (props) => PaneProfile(props);
   const calls = [];
-  globalThis.window.__me = {
+  const real = { ...meVerbs };
+  Object.assign(meVerbs, {
     setName: async () => ({ ok: true, name: "", message: "" }),
     deleteAccount: async () => {
       calls.push("delete");
@@ -1114,7 +1144,7 @@ test("a person deletes their own account from Settings, in two steps, and the do
         message: "You are the only owner of a workspace with other members. Make someone else an owner first.",
       };
     },
-  };
+  });
   try {
     let tree = render(Profile, { flash() {} });
     assert.ok(byTestId(tree, "set-profile-delete"), "the row is there for everyone");
@@ -1129,6 +1159,6 @@ test("a person deletes their own account from Settings, in two steps, and the do
     assert.deepEqual(calls, ["delete"]);
     assert.ok(textOf(tree).includes("Make someone else an owner first"), "the door's refusal, where it happened");
   } finally {
-    delete globalThis.window.__me;
+    Object.assign(meVerbs, real);
   }
 });

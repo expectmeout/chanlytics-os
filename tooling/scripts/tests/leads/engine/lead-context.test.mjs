@@ -240,14 +240,15 @@ test("the owner's notes ride with who the person is — as facts, with the rule 
   );
   assert.ok(!none.includes("Notes from the owner"), "blank notes say nothing");
   const src = readCode("packages/db/src/repositories/thread.ts");
-  // Changed on purpose (0008, then 0009 for email): the workspace's answer and whether an address is on file ride on
-  // the same read, one round trip on the live path. Checked as the string literal alone, not the surrounding
-  // .select(...) call, since a line this long is Prettier's to wrap however it likes.
+  // Changed on purpose (0008, then 0009 for email, then the ask for the yes to offers): the workspace's answer, whether
+  // an address is on file, and their answer about offers with whether they were asked ride on the same read, one round
+  // trip on the live path. Checked as the string literal alone, not the surrounding .select(...) call, since a line
+  // this long is Prettier's to wrap however it likes.
   assert.ok(
     src.includes(
-      '"id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, tenants(sells_by)"',
+      '"id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)"',
     ),
-    "read with the rest of who they are, how their workspace's customers buy, and whether an email is on file",
+    "read with the rest of who they are, how their workspace's customers buy, whether an email is on file, what they said about offers and on which channels",
   );
 });
 
@@ -597,6 +598,113 @@ test("a database 00160 has not reached: who they are is read again without the w
   assert.equal(ctx.deal, null);
   assert.equal(ctx.proposalUrl, null);
 });
+
+test("readLeadContext carries what they said about offers and when they were asked, and says never-asked only where the column was read as null", async () => {
+  const T = "aaaaaaaa-0000-4000-8000-000000000001";
+  const row = (id, phone, over) => ({
+    id,
+    tenant_id: T,
+    phone_e164: phone,
+    display_name: "Lu",
+    marketing_consent: "unknown",
+    marketing_channels: null,
+    offers_asked_at: null,
+    tenants: { sells_by: "booking" },
+    ...over,
+  });
+  const asked = "2026-09-28T18:30:00.000Z";
+  const db = fakeDb({
+    contacts: [
+      row("k-never", "+13055550130"),
+      row("k-asked", "+13055550131", { offers_asked_at: asked }),
+      row("k-yes", "+13055550132", { marketing_consent: "opted_in", offers_asked_at: asked }),
+      row("k-text", "+13055550134", { marketing_consent: "opted_in", marketing_channels: ["sms"] }),
+    ],
+    conversations: [],
+    messages: [],
+    deals: [],
+  });
+  const never = await readLeadContext(db, T, "+13055550130");
+  assert.deepEqual([never.marketingConsent, never.offersAskedAt], ["unknown", null]);
+  const was = await readLeadContext(db, T, "+13055550131");
+  assert.deepEqual([was.marketingConsent, was.offersAskedAt], ["unknown", asked]);
+  const yes = await readLeadContext(db, T, "+13055550132");
+  assert.deepEqual([yes.marketingConsent, yes.offersAskedAt], ["opted_in", asked]);
+  // The channels a yes covers ride with it: a yes kept for text alone is read as it is, and judged by yesCovers.
+  assert.equal(never.marketingChannels, null, "none kept: a yes recorded before the channels were");
+  const text = await readLeadContext(db, T, "+13055550134");
+  assert.deepEqual([text.marketingConsent, text.marketingChannels], ["opted_in", ["sms"]]);
+  const named = (col) => db.seen.some((s) => s.table === "contacts" && String(s.columns ?? "").includes(col));
+  assert.ok(
+    named("offers_asked_at"),
+    "the contact read names the column, so the receptionist can say whether they were asked",
+  );
+  assert.ok(
+    named("marketing_channels"),
+    "and the channels their yes covers, so a yes for text alone is not taken for one here",
+  );
+});
+
+for (const missing of ["offers_asked_at", "marketing_channels"])
+  test(`a database the offers migration has not reached (${missing} does not exist): who they are is read again without those columns, and the receptionist is told nothing that lets it ask`, async () => {
+    // The edge may deploy before its migration: a missing column costs the answer to that one question, never the
+    // recognition of the person (the same guard as the workspace's answer above).
+    const T = "aaaaaaaa-0000-4000-8000-000000000001";
+    const PHONE = "+13055550133";
+    const c = {
+      id: "contact-5",
+      tenant_id: T,
+      phone_e164: PHONE,
+      display_name: "Mo",
+      marketing_consent: "unknown",
+      tenants: { sells_by: "booking" },
+    };
+    const db = fakeDb({ contacts: [c], conversations: [], messages: [], deals: [] });
+    const from = db.from;
+    const reads = [];
+    db.from = (table) => {
+      const q = from(table);
+      if (table !== "contacts") return q;
+      return new Proxy(q, {
+        get(target, key) {
+          if (key !== "select") return target[key];
+          return (cols, o) => {
+            reads.push(String(cols));
+            // PostgREST's answer for a column the database does not have.
+            return /\b(offers_asked_at|marketing_channels)\b/.test(String(cols))
+              ? {
+                  eq: () => ({
+                    eq: () => ({
+                      maybeSingle: async () => ({
+                        data: null,
+                        error: { message: `column contacts.${missing} does not exist`, code: "42703" },
+                      }),
+                    }),
+                  }),
+                }
+              : target.select(cols, o);
+          };
+        },
+      });
+    };
+    const ctx = await readLeadContext(db, T, PHONE);
+    assert.equal(ctx.contactId, "contact-5", "REGRESSION guard: the reply never loses who they are to the new column");
+    assert.equal(ctx.name, "Mo");
+    assert.equal(ctx.marketingConsent, "unknown", "their answer about offers was still read");
+    assert.equal(ctx.offersAskedAt, undefined, "not null, which would say never asked: the column could not be read");
+    assert.equal(reads.length, 2, "read again, once");
+    assert.ok(
+      !/offers_asked_at|marketing_channels/.test(reads[1]) && /tenants\(sells_by\)/.test(reads[1]),
+      "without only the columns the migration adds",
+    );
+    assert.equal(
+      ctx.marketingChannels,
+      undefined,
+      "unread, which yesCovers reads as WhatsApp alone, as before the channels",
+    );
+    const note = describeLead(ctx, NOW, "UTC", "whatsapp");
+    assert.ok(!/offers/.test(note), `nothing about offers is said, so nothing lets the receptionist ask: ${note}`);
+  });
 
 /* ------------------------ the words a thread or a call said --------------- */
 

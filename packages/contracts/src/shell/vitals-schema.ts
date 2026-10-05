@@ -1,0 +1,15 @@
+/**
+ * What the shell sends of a page load, as the route reads it (PageVitalsInput), apart from vitals.ts's pages, their
+ * words and the one report's check (PageVitalReport, in zod/mini). zod's classic API is not built into the browser's
+ * contracts (decision 0024, the browser's entry): a page that reports its load loads none of it.
+ */
+import { z } from "zod";
+import { PAGE_VITALS, PAGE_NAME, PageVitalReport } from "./vitals";
+
+/** What the shell sends: the page a load landed on, and what its metrics came to so far, each at most once. */
+export const PageVitalsInput = z.object({
+  page: z.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
+  vitals: z.array(PageVitalReport).min(1).max(PAGE_VITALS.length),
+});
+
+export type PageVitalsInputDto = z.infer<typeof PageVitalsInput>;

@@ -166,7 +166,7 @@ test("each entry is its own, a twin names a source, a source is a twin's and dra
           ...source,
           id: "src-two",
           source: "styles/inbox.css:276, styles/clients.css:2466",
-          html: '<div class="ix-thread-avatar pl-card-face">AR</div>',
+          html: '<div class="ix-thread-avatar cl-row-name-block">AR</div>',
         },
       ]),
       [],

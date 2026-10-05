@@ -157,6 +157,9 @@ test("the token budget: a policy limit, a check before the brain, a labelled rea
   assert.ok(wa.includes('"(no reply sent — the day\'s model budget is used up)"'));
   const sql = readRaw("supabase/migrations/00039_budget_reason.sql");
   assert.ok(sql.includes("'budget'"), "the CHECK admits the reason");
-  const route = readCode("apps/dashboard/app/api/v1/policies/route.ts");
+  const route = readCode(
+    "apps/dashboard/app/api/v1/policies/route.ts",
+    "apps/dashboard/src/server/campaigns/policy-write.ts",
+  );
   assert.ok(route.includes("limits.max_llm_tokens_day = Math.round(t);"));
 });

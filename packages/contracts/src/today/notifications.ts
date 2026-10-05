@@ -377,16 +377,16 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
      * a change is belongs to the change (waba-events.ts describeWabaChange), and
      * how it should read belongs here. Never inferred from the title.
      */
-    template_ready: { icon: "check", tone: "ok", action: "Open Templates", to: "messages" },
-    template_blocked: { icon: "alert", tone: "warn", action: "Open Templates", to: "messages" },
+    template_ready: { icon: "check", tone: "ok", action: "Open Library", to: "messages" },
+    template_blocked: { icon: "alert", tone: "warn", action: "Open Library", to: "messages" },
     sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
     /** A JOB that did not finish, and nothing else. See JobNewsKind. */
     job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
     /** A broadcast that ran to completion: good news, on the page it happened on. */
-    broadcast_sent: { icon: "check", tone: "ok", action: "Open Broadcasts", to: "broadcasts" },
+    broadcast_sent: { icon: "check", tone: "ok", action: "Open Sent", to: "broadcasts" },
     /** A broadcast that did not go out, or stopped partway. */
-    broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Broadcasts", to: "broadcasts" },
-    playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
+    broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Sent", to: "broadcasts" },
+    playbook: { icon: "bolt", tone: "ok", action: "Open Campaigns", to: "outbound" },
     calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
     /** A search that finished: good news, on the page the leads are on. */
     leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },
@@ -401,7 +401,7 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
     /** A business wrote back to a reach-out: its row names the thread, where the reply and what was read are. */
     reach_out_replied: { icon: "mail", tone: "", action: "Open the thread", to: "inbox", own: true },
     /** The day's reach-out numbers (H12): what they wrote and what came back, with the chains on Playbooks. */
-    reach_out_day: { icon: "mail", tone: "", action: "Open Playbooks", to: "outbound" },
+    reach_out_day: { icon: "mail", tone: "", action: "Open Campaigns", to: "outbound" },
     alert: { icon: "bell", tone: "", action: "Open Today", to: "today" },
   };
 
@@ -417,10 +417,12 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],
   [/^live/, "Open Live"],
-  [/^outbound/, "Open Playbooks"],
-  [/^broadcasts/, "Open Broadcasts"],
-  // The route is still `messages`; the page is Templates (#658), and the door says the page's name.
-  [/^messages/, "Open Templates"],
+  // The old Playbooks list (`outbound`) is Campaigns' home now, and Sent and the Library its rooms: the door says the name.
+  [/^outbound/, "Open Campaigns"],
+  [/^campaigns/, "Open Campaigns"],
+  [/^broadcasts/, "Open Sent"],
+  // The route is still `messages`; the page is the Library (a room of Campaigns), and the door says the page's name.
+  [/^messages/, "Open Library"],
   [/^calendar/, "Open Calendar"],
   // One person's page, by their id: the row is about them, so its door says so.
   [/^clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, "Open their page"],

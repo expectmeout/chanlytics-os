@@ -761,3 +761,44 @@ test("the save refuses an address every fetch would refuse, in the same words", 
     false,
   );
 });
+
+test("the people are read beside the calendar's feed, not after it: a slow feed no longer holds the board's names back", async () => {
+  // Measured on the salon's workspace: the route's median was 244ms, the feed already in the few minutes' cache, so the
+  // read it waited on was People's -- begun only once the feed had come back.
+  const order = [];
+  let open;
+  const gate = new Promise((r) => (open = r));
+  const scripted = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    order.push("feed asked");
+    await gate;
+    order.push("feed answered");
+    return scripted(url);
+  };
+  answers.set("https://cal.example/slow.ics", { body: ONE });
+  try {
+    const reading = calendarWeek(
+      ctxFor(tables("https://cal.example/slow.ics"), {
+        people_list: () => {
+          order.push("people asked");
+          return [];
+        },
+      }),
+      T,
+      { from: "2026-09-07", days: 7 },
+      NOW,
+    );
+    for (let i = 0; i < 20; i += 1) await new Promise((r) => setImmediate(r));
+    assert.ok(order.includes("feed asked"), "the feed was asked for");
+    assert.ok(
+      order.includes("people asked"),
+      `REGRESSION: People was not read while the feed was on its way (${order.join(", ")})`,
+    );
+    open();
+    const read = await reading;
+    assert.equal(read.feed.state, "ok", "and the board is the one it was");
+  } finally {
+    open();
+    globalThis.fetch = scripted;
+  }
+});

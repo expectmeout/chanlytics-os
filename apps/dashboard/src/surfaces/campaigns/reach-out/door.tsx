@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import type { ReachOutReachDto } from "@chanlytics/contracts";
 import { gate, navigate } from "../../legacy-verbs";
+import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { ReachOutSheet } from "./sheet";
 import { reachOuts } from "./surface";
@@ -53,16 +54,17 @@ export function ReachOutDoor({ search, phone = false }: DoorProps) {
   return (
     <>
       {door && (
-        <button
-          type="button"
-          className={`btn btn-primary ro-door${phone ? " ph-big ro-door-phone" : " btn-sm"}`}
+        <Button
+          variant="primary"
+          size={phone ? "md" : "sm"}
+          className={`ro-door${phone ? " ph-big ro-door-phone" : ""}`}
           onClick={press}
           {...gated}
           data-testid="leads-write"
           data-kind={door.kind}
         >
           <Icon name={door.kind === "open" ? "external" : "mail"} size={12} /> {door.label}
-        </button>
+        </Button>
       )}
       {open && search && (
         <ReachOutSheet

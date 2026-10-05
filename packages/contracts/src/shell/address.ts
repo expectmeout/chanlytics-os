@@ -39,6 +39,27 @@ export const ROUTE_WORDS: Readonly<Record<string, string>> = {
 
 const headOf = (route: string): string => (route.includes("/") ? route.slice(0, route.indexOf("/")) : route);
 
+/**
+ * The route a retired one lands on, or null when the route is where it always was (3 Oct 2026, Campaigns' home). Playbooks'
+ * list was a page of its own, `outbound`; Campaigns is one page now, `campaigns`, and a playbook is a drawer over it:
+ * `outbound` lands on `campaigns` and `outbound/<id>` on `campaigns/moment:<id>`, so every bell row, email link, Ask
+ * citation and bookmark that says the old route still opens what it meant. Applied where a route is written
+ * (`workspacePath`) and where an address is moved on load (`movedAddress`), so a link lands in one move, never two.
+ *
+ * Sent has one way to write, the home's New message (`campaigns/new`), so `broadcasts/<audience>`, which People and a list
+ * write when they ask to message these people, is a door to it: `campaigns/new:to:<audience>`. A run (`broadcasts/run:<id>`),
+ * Get their yes (`broadcasts/get-yes`) and the room itself stay where they are.
+ */
+export function doorOf(route: string): string | null {
+  const head = headOf(route);
+  const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
+  if (head === "broadcasts") {
+    return word && !word.startsWith("run:") && word !== "get-yes" ? `campaigns/new:to:${word}` : null;
+  }
+  if (head !== "outbound") return null;
+  return word ? `campaigns/moment:${word}` : "campaigns";
+}
+
 /** A route as the shell names it: the product's word at its head (`people/c1`) is the route's own name (`clients/c1`). */
 function shellRoute(route: string): string {
   const head = headOf(route);
@@ -81,8 +102,14 @@ export function routeOfAddress(address: AddressParts): string {
  */
 export function movedAddress(address: AddressParts): string | null {
   const m = WORKSPACE_PATH.exec(address.pathname ?? "");
-  if (m?.[2] && Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
-    return `/w/${m[1] ?? ""}/${pathRoute(m[2].replace(/\/+$/, ""))}${address.search ?? ""}${address.hash ?? ""}`;
+  if (m?.[2]) {
+    const written = m[2].replace(/\/+$/, "");
+    // A retired route, in the path's word or the shell's own, lands on the route that replaced it (doorOf).
+    const door = doorOf(shellRoute(written));
+    if (door !== null) return `/w/${m[1] ?? ""}/${door}${address.search ?? ""}${address.hash ?? ""}`;
+    if (Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
+      return `/w/${m[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
+    }
   }
   const route = routeOfHash(address.hash);
   if (!m || route === null || m[2]) return null;
@@ -93,10 +120,10 @@ export function movedAddress(address: AddressParts): string | null {
   const own = at < 0 ? "" : route.slice(at + 1);
   const search = address.search ?? "";
   const joined = own ? (search ? `${search}&${own}` : `?${own}`) : search;
-  return `/w/${m[1] ?? ""}/${pathRoute(name)}${joined}`;
+  return `/w/${m[1] ?? ""}/${pathRoute(doorOf(name) ?? name)}${joined}`;
 }
 
 /** Where a route lives in a workspace: `workspacePath("acme", "inbox/th-1")` is `/w/acme/inbox/th-1`. */
 export function workspacePath(slug: string, route = ""): string {
-  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(route)}` : ""}`;
+  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(doorOf(route) ?? route)}` : ""}`;
 }

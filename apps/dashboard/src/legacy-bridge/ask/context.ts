@@ -137,9 +137,9 @@ const reports: Provider = (w) => ({
   rows: [],
 });
 
-/** Campaigns is three pages: the tab is the page, and its rows are that page's. */
+/** Campaigns is its home, whose rows are the playbooks, and two rooms, Sent and the Library: the page is the view, and its rows are that page's. */
 const campaigns: Provider = (w, route) => {
-  if (route.page === "outbound")
+  if (route.page === "outbound" || route.page === "campaigns")
     return {
       view: "playbooks",
       rows: arr<{ id: string; name?: string }>(w.__PLAYBOOKS?.rows).map((p) => ({

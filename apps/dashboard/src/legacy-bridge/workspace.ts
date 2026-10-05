@@ -16,7 +16,7 @@
  * Its own module, importing only those pure words, so the client and the surfaces can both read it without either
  * importing the other.
  */
-import { movedAddress, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "@chanlytics/contracts";
+import { doorOf, movedAddress, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "@chanlytics/contracts";
 import type { AddressParts } from "@chanlytics/contracts";
 import { onOnePage, routeHasPage } from "../surfaces/routes";
 
@@ -178,6 +178,8 @@ export interface GoOptions {
 export interface AppRouter {
   push(href: string): void;
   replace(href: string): void;
+  /** Warm a route's page: its code and its payload, in full, so a move there asks the server for nothing. */
+  prefetch?(href: string, options?: { onInvalidate?: () => void }): void;
 }
 
 let appRouter: AppRouter | null = null;
@@ -200,7 +202,9 @@ export function setAppRouter(router: AppRouter | null): void {
  * replaces the address it stands at): the router's page for the route draws every address it takes and already stands
  * there, so that is a pushed or replaced entry like any other, with no request for a page that is drawn.
  */
-export function goToRoute(route: string, opts: GoOptions = {}, win: AddressWindow = window): void {
+export function goToRoute(asked: string, opts: GoOptions = {}, win: AddressWindow = window): void {
+  // A route that retired lands on the one that replaced it (`outbound/pb-1` on `campaigns/moment:pb-1`) in one move.
+  const route = doorOf(asked) ?? asked;
   const to = hrefOfRoute(route, win);
   const here = to.startsWith("#") ? win.location.hash : win.location.pathname;
   // A move within one route's page (`inbox/th-1` to `inbox/th-2`) stays on the patched history: the page follows the
@@ -213,6 +217,54 @@ export function goToRoute(route: string, opts: GoOptions = {}, win: AddressWindo
   if (!(opts.replace && opts.quiet)) notifyAddress();
 }
 
+/** The hrefs warmed, each until Next says its payload has gone stale (it lives five minutes). */
+const warmed = new Set<string>();
+
+/**
+ * Warm a route that has a page of its own, so a move there is a commit and not a round trip. Next prefetches a dynamic
+ * route's page only when asked in full (a <Link> skips it, without a loading boundary), and every route here is
+ * dynamic: the frame's pages draw from data the frame has read, but a press on the strip's Conversations waited on a
+ * server render for a page that draws nothing of its own (27 to 57 ms on localhost, a round trip and a cold function
+ * on a phone, with the swiped page already gone off the screen). Warmed in full, the same move asks for nothing.
+ * Nothing for the page already on screen, a route the frame draws itself, or one warmed already.
+ */
+export function warmRoute(asked: string, win: AddressWindow = window): void {
+  const route = doorOf(asked) ?? asked;
+  if (!appRouter?.prefetch || !routeHasPage(route)) return;
+  const to = hrefOfRoute(route, win);
+  if (to.startsWith("#") || warmed.has(to) || onOnePage(routeOnScreen(win), route)) return;
+  warmed.add(to);
+  appRouter.prefetch(to, { onInvalidate: () => warmed.delete(to) });
+}
+
+/** What a connection says about itself, where the browser says it (Chrome and Android's, not Safari's). */
+interface Link {
+  saveData?: boolean;
+  effectiveType?: string;
+}
+
+/** How long an idle page may wait before a warm goes, the wait where the browser has no idle callback, and the gap between two. */
+const WARM_IDLE_MS = 2500;
+const WARM_FALLBACK_MS = 1200;
+const WARM_GAP_MS = 120;
+
+/**
+ * Routes warmed once the page is idle, a breath apart, so none competes with the page's own reads: the strip's
+ * siblings, the phone's tab bar. Never where a person has asked to save data or the connection says 2g or 3g: then a route
+ * is warmed only when a pointer or a finger reaches it (warmRoute).
+ */
+export function warmSoon(routes: readonly string[], win: AddressWindow = window): void {
+  const link =
+    (typeof navigator === "undefined" ? undefined : (navigator as Navigator & { connection?: Link }).connection) ??
+    null;
+  if (link && (link.saveData || /(^|-)[23]g$/.test(link.effectiveType ?? ""))) return;
+  const later = (fn: () => void) =>
+    typeof requestIdleCallback === "function"
+      ? requestIdleCallback(fn, { timeout: WARM_IDLE_MS })
+      : setTimeout(fn, WARM_FALLBACK_MS);
+  routes.forEach((route, at) => later(() => void setTimeout(() => warmRoute(route, win), WARM_GAP_MS * at)));
+}
+
 /** The four of them on `window.__shell`, for the pages that cannot import (shell.ts installShell). */
 export function addressApi(win: AddressWindow = window) {
   return {
@@ -220,5 +272,7 @@ export function addressApi(win: AddressWindow = window) {
     href: (route: string) => hrefOfRoute(route, win),
     go: (route: string, opts?: GoOptions) => goToRoute(route, opts, win),
     hear: (fn: () => void) => hearAddress(fn, win),
+    warm: (route: string) => warmRoute(route, win),
+    warmSoon: (routes: readonly string[]) => warmSoon(routes, win),
   };
 }

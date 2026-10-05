@@ -110,6 +110,7 @@ export function surfaceFor(page: string, param?: string | null): AskSurface {
       return "settings";
     case "calendar":
       return "calendar";
+    case "campaigns":
     case "outbound":
     case "broadcasts":
     case "messages":

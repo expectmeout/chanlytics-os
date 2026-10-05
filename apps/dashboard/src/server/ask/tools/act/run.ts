@@ -53,9 +53,7 @@ async function proposeRun(
       "that broadcast is not a playbook's run: only a playbook's run waits for a person to approve or skip",
     );
   if (run.state !== "pending_approval")
-    return refuse(
-      `that run is not waiting for approval: the Broadcasts page says ${BROADCAST_STATE_LABELS[run.state]}`,
-    );
+    return refuse(`that run is not waiting for approval: it is ${BROADCAST_STATE_LABELS[run.state]}`);
   // A day's run approved on a later day: the route's refusal, in its words, before a card; a skip still ends it.
   const late = input.verb === "approve" ? runDayPassed(run, localDate(t.timezone, t.now)) : null;
   if (late) return refuse(late);

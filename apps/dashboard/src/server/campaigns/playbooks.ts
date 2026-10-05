@@ -5,7 +5,7 @@ import {
   parseParamSpecs,
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_TOUCH_WINDOW_MS,
-  playbookRunStop,
+  playbookStopBy,
   purposeOfTemplate,
   MOMENT_TRIGGERS,
   consultFirstOf,
@@ -16,32 +16,45 @@ import {
   membersOf,
   resolveList,
   playbookRunReach,
+  playbookPoolKey,
+  enrolPurpose,
+  triggerOf,
   triggerOffered,
   dealsAreOn,
   ruleNeedsViewer,
   viewerListWords,
+  DEFAULT_CAMPAIGN_CHANNELS,
+  readyOrWhatsApp,
+  type ChannelsReady,
+  type ConsentChannel,
   type DealPaceVM,
   type FollowUpFactsDto,
   type PersonRowDto,
   type PlaybookDto,
   type PlaybookPolicyClass,
   type PlaybookTrigger,
+  type RunMessage,
 } from "@chanlytics/contracts";
 import { checkPlaybook, type PlaybookInput } from "@chanlytics/core";
 import {
   followUpTouchesSince,
   listRow,
+  playbookChannels,
   readAllRows,
   savedListsFor,
+  templatesFor,
   touchIndex,
   touchesSince,
   type Touch,
 } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/campaigns/broadcasts";
+import { calendarOf } from "@/server/calendar/calendar-settings";
 import { peopleVisits, type ZoneAndSettings } from "@/server/calendar/people-visits";
+import { otherChannelSets } from "@/lib/campaign-channels";
 import { archivedListWords } from "@/server/people/audience";
-import { createBroadcastPorts, templateValuePorts } from "@/server/ports/campaign-ports";
+import { templateValuePorts } from "@/server/ports/campaign-ports";
+import { whatsappHealthOf } from "@/server/campaigns/channels-ready";
 import { everyone } from "@/server/people/people";
 import { sellsByOf } from "@/server/people/deals";
 import { lazily, type Lazy } from "@/server/lazy";
@@ -57,7 +70,7 @@ import { log } from "@/server/log";
  * broadcast could not send or a slot the workspace cannot fill.
  */
 const COLUMNS =
-  "id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at";
+  "id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at, channels";
 
 /** One run on a card's history: the day it ran for, and what it earned. */
 export interface RunSummary {
@@ -144,6 +157,27 @@ export async function proposalFollowUps(ctx: RouteContext, tenantId: string, now
 }
 
 /**
+ * Whether the number or Meta's approval stops a follow-up before it draws anyone: the run's own stop (contracts
+ * playbookStopBy, the one core's run-playbook asks) over the channels it ticks (null, a database before 00298, is WhatsApp
+ * alone) and the number as the send screen reads it (none cannot send). So a follow-up that also goes by email or text is
+ * not stopped by Meta not approving its WhatsApp template, as its run is not, and one that does not tick WhatsApp is not
+ * stopped by the number at all.
+ */
+function whatsappStops(
+  channels: readonly string[] | null,
+  number: Awaited<ReturnType<typeof whatsappHealthOf>>,
+  templateStatus: string | null,
+): boolean {
+  return (
+    playbookStopBy({
+      channels: channels ?? DEFAULT_CAMPAIGN_CHANNELS,
+      templateStatus,
+      numberCanSend: !!number?.canSend,
+    }) !== null
+  );
+}
+
+/**
  * The proposal follow-up as People and Today read it (0006, contracts FollowUpFactsDto): its playbook's clock,
  * whether its class asks, what its template is for, and, of the people who hold a proposal out, who had theirs, who
  * is in a run on its way or waiting for a person, and whom the week's breath holds. Null wherever the run itself
@@ -156,7 +190,7 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
   const [pb, cls, tenant, number, out] = await Promise.all([
     ctx.supabase
       .from("playbooks")
-      .select("state, run_hour, last_run_for, template_name, template_language")
+      .select("id, state, run_hour, last_run_for, template_name, template_language")
       .eq("tenant_id", tenantId)
       .eq("trigger", "proposal_waiting")
       .maybeSingle(),
@@ -168,8 +202,8 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
       .is("subject_type", null)
       .maybeSingle(),
     ctx.supabase.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
-    // The number as the send screen reads it (campaign ports): none, or its health.
-    createBroadcastPorts(ctx, tenantId).number(),
+    // The number as the send screen reads it (channels-ready.ts): none, or its health.
+    whatsappHealthOf(ctx, tenantId),
     proposalsOut(ctx, tenantId),
   ]);
   if (pb.error) throw new Error(pb.error.message);
@@ -177,20 +211,24 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
   if (tenant.error) throw new Error(tenant.error.message);
   const mode = cls.data?.mode ?? "ask";
   const p = pb.data;
-  if (!p || p.state !== "running" || mode === "never" || tenant.data?.status === "paused" || !number || !out)
-    return null;
+  if (!p || p.state !== "running" || mode === "never" || tenant.data?.status === "paused" || !out) return null;
   // A moment always has its template (00228's CHECK); only a reach-out's hand step has none.
   if (!p.template_name || !p.template_language) return null;
-  const tpl = await ctx.supabase
-    .from("templates")
-    .select("meta_status, category")
-    .eq("tenant_id", tenantId)
-    .eq("channel", "whatsapp")
-    .eq("name", p.template_name)
-    .eq("language", p.template_language)
-    .maybeSingle();
+  // The channels it ticks (step 3; null on a database before 00298, WhatsApp alone): the number and Meta's approval stop
+  // only a follow-up that goes by WhatsApp, as the run's own stop does (core run-playbook).
+  const [channels, tpl] = await Promise.all([
+    playbookChannels(ctx.supabase, p.id),
+    ctx.supabase
+      .from("templates")
+      .select("meta_status, category")
+      .eq("tenant_id", tenantId)
+      .eq("channel", "whatsapp")
+      .eq("name", p.template_name)
+      .eq("language", p.template_language)
+      .maybeSingle(),
+  ]);
   if (tpl.error) throw new Error(tpl.error.message);
-  if (playbookRunStop({ templateStatus: tpl.data?.meta_status ?? null, canSend: number.canSend })) return null;
+  if (whatsappStops(channels, number, tpl.data?.meta_status ?? null)) return null;
   const [followUps, recent] = await Promise.all([
     followUpTouchesFor(ctx, tenantId, now, out),
     touchesSince(ctx.supabase, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now),
@@ -214,13 +252,14 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
     queued,
     held,
     heard,
+    ...(channels ? { channels } : {}),
   };
 }
 
 /** A cap no workspace reaches: the pool is counted, not capped. */
 export const PLAYBOOK_POOL = 100_000;
 
-export interface TriggerPool {
+interface PoolCounts {
   /** Who a run would pick now. */
   candidates: number;
   /** Who waits only for the week's breath: eligible, but reached by some broadcast within the week. */
@@ -242,6 +281,129 @@ export interface TriggerPool {
    * list whose yes has no number from a list nobody said yes to (#663's rule).
    */
   saidYes: number;
+  /**
+   * No email address, where email was the only channel left; an address on file mail no longer goes to (it bounced, or they
+   * marked a message as spam); and no channel the playbook ticks could carry its message.
+   */
+  no_address: number;
+  address_stopped: number;
+  no_channel: number;
+  /** Who a run reaches on each channel (step 3), adding up to `candidates`. */
+  by_channel: Record<ConsentChannel, number>;
+}
+
+/**
+ * One moment's count for the channels a playbook on it ticks (reach-for.ts): the figures above are for WhatsApp alone,
+ * as every playbook went before, and `by` holds the same count for each other set the workspace could tick for this kind
+ * of message (campaign-channels.ts otherChannelSets), so a composer that ticks and unticks reads the one in front of it.
+ */
+export interface TriggerPool extends PoolCounts {
+  by?: Array<PoolCounts & { channels: ConsentChannel[] }>;
+}
+
+/**
+ * The playbooks whose message is stricter than their moment's class (contracts enrolPurpose): an After-the-visit playbook
+ * made when that moment was a re-engagement and still sending its offer, or a reminder whose template Meta has since
+ * filed as marketing. A run enrols them by the message's yes, so each is counted by it, under playbookPoolKey, beside its
+ * moment's own count. Only a playbook on a moment whose class is not marketing can be stricter, so the templates are read
+ * only when there is one; a read that fails leaves each uncounted (null), never counted by a yes its run does not use.
+ */
+async function strictMessagePools(
+  ctx: RouteContext,
+  tenantId: string,
+  playbooks: readonly Pick<PlaybookDto, "id" | "trigger" | "template_name" | "template_language">[],
+  count: (trigger: PlaybookTrigger, message: RunMessage) => TriggerPool,
+): Promise<Record<string, TriggerPool | null>> {
+  const mine = playbooks.filter((p) => {
+    const t = triggerOf(p.trigger);
+    return !!t && t.kind !== "reach_out" && enrolPurpose(t.cls, null) === "conversational";
+  });
+  const pools: Record<string, TriggerPool | null> = {};
+  if (!mine.length) return pools;
+  const categories = await templatesFor(ctx.supabase, tenantId).then(
+    (rows) => new Map(rows.map((r) => [`${r.name}/${r.language}`, r.category])),
+    (e: unknown) => {
+      log.error("playbook_pools_templates_failed", { tenant_id: tenantId, error: e });
+      return null;
+    },
+  );
+  for (const p of mine) {
+    const category = categories?.get(`${p.template_name}/${p.template_language}`);
+    // A template that is gone is a run that is off, counted as its moment is; one filed as an offer is counted as one.
+    if (categories === null) pools[playbookPoolKey(p.id)] = null;
+    else if (category !== undefined && enrolPurpose(triggerOf(p.trigger)?.cls, { category }) === "marketing")
+      pools[playbookPoolKey(p.id)] = count(p.trigger, { category });
+  }
+  return pools;
+}
+
+/** What `triggerPools` is handed beside the turn's own reads: the playbooks, to count the ones a message makes stricter. */
+interface PoolsFrom {
+  /** Everyone in People (readers/everyone.ts), the audience pool's too, read just where the pools read their own. */
+  people?: Lazy<PersonRowDto[]>;
+  /** The calendar's zone and settings, so the visits' lookup reads neither of them. */
+  known?: ZoneAndSettings;
+  /** The workspace's playbooks: those whose message is stricter than their moment are counted by it (strictMessagePools). */
+  playbooks?: readonly Pick<PlaybookDto, "id" | "trigger" | "template_name" | "template_language">[];
+  /**
+   * Whether the workspace can send on each channel now (channels-ready.ts), which a count is made against. Null where
+   * that could not be read: counted as before the channels were, by WhatsApp, which the pages' own number banner judges.
+   */
+  ready?: ChannelsReady | null;
+}
+
+/** What counting a moment is made from: the people with their visits, the week's touches, the pace, and what each channel can send on. */
+interface PoolCounting {
+  vms: Parameters<typeof playbookRunReach>[0];
+  breath: Parameters<typeof playbookRunReach>[2];
+  nowMs: number;
+  pace: Parameters<typeof playbookRunReach>[4];
+  ready: ChannelsReady;
+}
+
+/**
+ * How one moment is counted (the runner's own predicate, over everyone): with no message in view, its class's yes alone,
+ * or a playbook's own message where that is stricter, for WhatsApp alone as every playbook went, and for each other set of
+ * channels a playbook of this kind of message may tick (campaign-channels.ts otherChannelSets), each counted once.
+ */
+function poolCounter({ vms, breath, nowMs, pace, ready }: PoolCounting) {
+  const countFor = (
+    trigger: PlaybookDto["trigger"],
+    listIds: ReadonlySet<string> | null,
+    message: RunMessage,
+    channels: readonly ConsentChannel[],
+  ): PoolCounts => {
+    const { reach, saidYes } = playbookRunReach(
+      vms,
+      { trigger, cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0, message, channels, ready },
+      breath,
+      nowMs,
+      pace,
+      listIds,
+    );
+    return {
+      candidates: reach.will,
+      held: reach.heardAny,
+      pool: reach.pool,
+      noYes: reach.noYes,
+      stopped: reach.stopped,
+      noNumber: reach.noNumber,
+      saidYes,
+      no_address: reach.no_address ?? 0,
+      address_stopped: reach.address_stopped ?? 0,
+      no_channel: reach.no_channel ?? 0,
+      by_channel: reach.by_channel ?? { whatsapp: 0, sms: 0, email: 0 },
+    };
+  };
+  return (trigger: PlaybookDto["trigger"], listIds: ReadonlySet<string> | null, message: RunMessage): TriggerPool => {
+    const base = countFor(trigger, listIds, message, DEFAULT_CAMPAIGN_CHANNELS);
+    const purpose = enrolPurpose(triggerOf(trigger)?.cls, message);
+    const by = otherChannelSets(ready, purpose).map((channels) => ({
+      channels,
+      ...countFor(trigger, listIds, message, channels),
+    }));
+    return by.length > 0 ? { ...base, by } : base;
+  };
 }
 
 /**
@@ -264,10 +426,9 @@ export async function triggerPools(
   deals: { on: boolean; pace: Pick<DealPaceVM, "waitDays"> | null },
   /**
    * What the caller already holds this turn, or how to read it from the turn (readers/playbooks.ts): everyone in People
-   * (readers/everyone.ts, which the audience pool shares), read just where the pools read their own; and the calendar's
-   * zone and settings, which the visits' lookup then reads neither of. Without them, each is read here.
+   * and the calendar's zone and settings, which the visits' lookup then reads neither of. Without them, each is read here.
    */
-  from: { people?: Lazy<PersonRowDto[]>; known?: ZoneAndSettings } = {},
+  from: PoolsFrom = {},
 ): Promise<{
   pools: Record<string, TriggerPool | null>;
   calendar: "ok" | "unavailable" | "none";
@@ -304,7 +465,7 @@ export async function triggerPools(
   // are off. The visits are marked as consultations by the same rule the edge's runner reads them by.
   const vms = poolRowsOf(
     withVisitsOf(rows, pv?.visits ?? new Map(), pv?.calendar ?? { state: "none", timezone: tz, source: "calendar" }),
-    { tz, now, viewer: null, dealsOn: deals.on },
+    { tz, now, viewer: null, dealsOn: deals.on, ready: from.ready ?? null },
   );
   // Who already had their proposal's follow-up, from any playbook (proposalFollowUps): no run reaches them again for
   // that proposal (0006), so the moment's count leaves them out as its run does. Read only where deals are on;
@@ -324,25 +485,13 @@ export async function triggerPools(
   // week's breath, and who it names and leaves out whatever the week. A moment
   // the calendar names is not counted when the calendar could not be read.
   const pools: Record<string, TriggerPool | null> = {};
-  const count = (trigger: PlaybookDto["trigger"], listIds: ReadonlySet<string> | null): TriggerPool => {
-    const { reach, saidYes } = playbookRunReach(
-      vms,
-      { trigger, cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 },
-      breath,
-      now.getTime(),
-      deals.pace,
-      listIds,
-    );
-    return {
-      candidates: reach.will,
-      held: reach.heardAny,
-      pool: reach.pool,
-      noYes: reach.noYes,
-      stopped: reach.stopped,
-      noNumber: reach.noNumber,
-      saidYes,
-    };
-  };
+  const count = poolCounter({
+    vms,
+    breath,
+    nowMs: now.getTime(),
+    pace: deals.pace,
+    ready: readyOrWhatsApp(from.ready),
+  });
   for (const t of MOMENT_TRIGGERS) {
     // A moment the calendar names (a visit, or the Lapsed list) is not counted when the calendar could not be read;
     // one of the workspace's lists is counted per list, below.
@@ -356,8 +505,9 @@ export async function triggerPools(
       pools[t.id] = null;
       continue;
     }
-    pools[t.id] = count(t.id, null);
+    pools[t.id] = count(t.id, null, null);
   }
+  Object.assign(pools, await strictMessagePools(ctx, tenantId, from.playbooks ?? [], (t, m) => count(t, null, m)));
   // Every list a playbook may run on (decision 0009), counted as a run on it would count it: who is on it (membersOf),
   // then the runner's own rules, under its token (`seg:<id>` for People's, `list:<id>` for the workspace's own). A
   // playbook has no one looking, so a list about "me" is never offered; one it can't count here is null, never a zero.
@@ -370,7 +520,7 @@ export async function triggerPools(
   const builtins = listsFor(listCtx, []).filter((d) => d.ref.kind === "builtin");
   for (const d of builtins) {
     const m = membersOf(d, vms, listCtx);
-    pools[d.token] = m.state === "ok" ? count("saved_list", m.ids) : null;
+    pools[d.token] = m.state === "ok" ? count("saved_list", m.ids, null) : null;
   }
   let lists: { id: string; name: string; smart: boolean; archived: boolean; viewer?: boolean }[] | null = null;
   const people = builtins.map((d) => ({ key: d.ref.id, label: d.label, group: d.group }));
@@ -387,7 +537,7 @@ export async function triggerPools(
     for (const l of kept) {
       const def = resolveList({ kind: "saved", id: l.id }, kept);
       const m = def ? membersOf(def, vms, listCtx, kept) : null;
-      pools[`list:${l.id}`] = m && m.state === "ok" ? count("saved_list", m.ids) : null;
+      pools[`list:${l.id}`] = m && m.state === "ok" ? count("saved_list", m.ids, null) : null;
     }
   } catch (e) {
     log.error("playbook_pools_lists_failed", { tenant_id: tenantId, error: e });
@@ -399,36 +549,34 @@ export type PlaybookListRow = PlaybookDto & { totals: PlaybookTotals };
 
 export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promise<PlaybookListRow[]> {
   // The moments. A reach-out's steps are its own sheet's (Reach out, Part 4), never cards here.
-  const read = (columns: string, moments = true) => {
+  // The query is returned as it is built, and runs when it is awaited, so the runs' read starts first, as it did.
+  const read = (
+    columns: string,
+    moments = true,
+  ): PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }> => {
     const q = ctx.supabase.from("playbooks").select(columns).eq("tenant_id", tenantId);
-    return (moments ? q.eq("kind", "moment") : q).order("created_at", { ascending: false });
+    return (moments ? q.eq("kind", "moment") : q).order("created_at", {
+      ascending: false,
+    }) as unknown as ReturnType<typeof read>;
   };
   const [first, runs] = await Promise.all([read(COLUMNS), listRuns(ctx, tenantId)]);
   // A database 00168 has not reached has no list_key, and one 00155 has not reached no list_id: read again without
   // them, and no playbook runs on a People list (or on any list).
-  let { data: rows, error } = first as unknown as {
-    data: Record<string, unknown>[] | null;
-    error: { message: string } | null;
-  };
+  let { data: rows, error } = first;
   const missing = (col: string) =>
     !!error && new RegExp(col).test(error.message) && /does not exist|could not find/i.test(error.message);
+  // A database 00298 has not reached has no channels, and every playbook there goes by WhatsApp: read again without it,
+  // and each of the reads below keeps that.
+  let columns = COLUMNS;
+  if (missing("channels")) {
+    columns = columns.replace(", channels", "");
+    ({ data: rows, error } = await read(columns));
+  }
   // A database 00183 has not reached has no kind, and every playbook there is a moment.
   const moments = !missing("kind");
-  if (!moments)
-    ({ data: rows, error } = (await read(COLUMNS, false)) as unknown as {
-      data: Record<string, unknown>[] | null;
-      error: { message: string } | null;
-    });
-  if (missing("list_key"))
-    ({ data: rows, error } = (await read(COLUMNS.replace("list_key, ", ""), moments)) as unknown as {
-      data: Record<string, unknown>[] | null;
-      error: { message: string } | null;
-    });
-  if (missing("list_id"))
-    ({ data: rows, error } = (await read(COLUMNS.replace("list_id, list_key, ", ""), moments)) as unknown as {
-      data: Record<string, unknown>[] | null;
-      error: { message: string } | null;
-    });
+  if (!moments) ({ data: rows, error } = await read(columns, false));
+  if (missing("list_key")) ({ data: rows, error } = await read(columns.replace("list_key, ", ""), moments));
+  if (missing("list_id")) ({ data: rows, error } = await read(columns.replace("list_id, list_key, ", ""), moments));
   if (error) throw new Error(error.message);
   const totals = new Map<string, PlaybookTotals>();
   for (const b of runs) {
@@ -519,11 +667,18 @@ export function playbookWriteError(error: { code?: string; message: string }): E
     : new Error(error.message);
 }
 
-/** Everything a playbook names, checked the way the send route checks a broadcast: core's checkPlaybook over this workspace's template and link. */
+/**
+ * Everything a playbook names, checked the way the send route checks a broadcast: core's checkPlaybook over this
+ * workspace's template and link. `existing` is the playbook being changed, null for a new one (the check holds only a new
+ * playbook to the moments now offered). `known`: the zone and settings a caller holds this turn (Ask's), or how to read
+ * them from it, so the calendar's lookup reads neither again (people-visits.ts ZoneAndSettings).
+ */
 export async function checkPlaybookInput(
   ctx: RouteContext,
   tenantId: string,
   body: Record<string, unknown> | null,
+  existing: { trigger: string; channels?: string[] | null } | null,
+  known?: ZoneAndSettings,
 ): Promise<PlaybookInput> {
   return checkPlaybook(
     {
@@ -541,7 +696,14 @@ export async function checkPlaybookInput(
       },
       // How its customers buy (0008): a proposal follow-up is made only where deals are on (0006).
       dealsOn: async () => dealsAreOn(await sellsByOf(ctx, tenantId)),
+      // Whether a calendar is connected: an address in the settings, or one the settings lost (calendarOf), which is the
+      // page's calendar state not being "none" (peopleVisits) -- the feed is not fetched for it.
+      calendarOn: async () => {
+        const c = await calendarOf(ctx, tenantId, known === undefined ? undefined : await lazily(known));
+        return !!c.url || c.lostCalendar;
+      },
     },
     body,
+    existing,
   );
 }

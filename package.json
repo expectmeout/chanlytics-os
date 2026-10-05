@@ -2,13 +2,6 @@
   "name": "chanlytics",
   "private": true,
   "packageManager": "pnpm@10.34.5",
-  "pnpm": {
-    "auditConfig": {
-      "ignoreGhsas": [
-        "GHSA-86w9-cpqp-85rv"
-      ]
-    }
-  },
   "scripts": {
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "node tooling/scripts/checks/test.mjs",

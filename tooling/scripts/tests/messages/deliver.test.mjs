@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { isWaitRefusal } from "@chanlytics/contracts";
+import { OUTCOME_UNKNOWN, isWaitRefusal } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const {
@@ -45,7 +45,16 @@ const thread = (over = {}) => ({
   tenants: { status: "active" },
   ...over,
 });
-const tables = (over = {}) => ({ conversations: [thread()], messages: [], events: [], ...over });
+// A text leaves only on a line the carriers approved (step 3): a workspace has an active one unless a test says otherwise.
+const TEXT_LINE = {
+  tenant_id: T,
+  messaging_service_sid: "MG1",
+  voice_state: "ready",
+  sms_state: "active",
+  reg_mock: false,
+  created_at: "2026-09-01T00:00:00.000Z",
+};
+const tables = (over = {}) => ({ conversations: [thread()], messages: [], events: [], lines: [TEXT_LINE], ...over });
 
 /** A wire that says yes and remembers what it was handed. */
 function wireOf(result = { ok: true, wamid: "wamid.1", status: 200 }) {
@@ -113,6 +122,9 @@ const words = (over = {}) => ({
   sender: "human",
   purpose: "conversational",
   proactive: false,
+  // What the message is about, required of every sender (decision D1): a person's words in their own thread are theirs. A
+  // broadcast's news says "ours", as the door tests of the email row do below.
+  about: "theirs",
   body: "See you at 3",
   ...over,
 });
@@ -913,7 +925,9 @@ test("a wire that cannot be read is a failure with its own name, never a throw p
 
 /* ------------------------------------------------------------------ email */
 
-const { emailSender } = await import(pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href);
+const { emailSender, sendBroadcastBatch } = await import(
+  pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href
+);
 const { buildEmailRequest, ownDomainIdentity, sendsAsOwnDomain, sendsAs } = await import(
   pathToFileURL(path.join(ROOT, "packages/channels/dist/index.js")).href
 );
@@ -980,11 +994,61 @@ test("an email leaves as the request that was frozen for it, from the row it was
   assert.deepEqual([t.messages[0].status, t.messages[0].external_id], ["sent", "re_1"]);
 });
 
+test("an email is handed what is left of its caller's ceiling at the moment it is put on the wire (sendBy), never less than a request needs, and a send with no ceiling is handed none; no other channel is handed one", async () => {
+  const sentBy = async (over, wire = emailWire()) => {
+    const t = tables({ conversations: [thread({ contacts: onEmail() })], messages: [queuedEmail()] });
+    await deliver(ports(t, wire), emailed(over));
+    return wire.calls[0].p.deadlineMs;
+  };
+  // 10 s left of the function's room at NOW (the door's clock): that is what the wire is told, not the 32 s it takes alone.
+  assert.equal(await sentBy({ sendBy: NOW + 10_000 }), 10_000);
+  assert.equal(await sentBy({ sendBy: NOW + 40_000 }), 40_000, "the wire's own deadline caps it, not the door");
+  assert.equal(await sentBy({}), undefined, "no ceiling, none said");
+  // A send put on the wire after its ceiling has none left to give: zero, which the email wire raises to what one request
+  // needs (channels SEND_MIN_MS) rather than start a send that could only time out.
+  assert.equal(await sentBy({ sendBy: NOW - 5_000 }), 0);
+  // The wire itself: a smaller ceiling is the bound, and one that is smaller than a request needs is raised to it.
+  const asked = [];
+  const realTimeout = AbortSignal.timeout;
+  const realFetch = globalThis.fetch;
+  AbortSignal.timeout = (ms) => (asked.push(ms), realTimeout.call(AbortSignal, ms));
+  globalThis.fetch = async () => new Response(JSON.stringify({ id: "re_9" }), { status: 200 });
+  try {
+    const send = emailSender([
+      {
+        lane: "hosted",
+        cfg: { apiKey: "k" },
+        as: sendsAs(
+          { local_part: "bestmovers", reply_token: "abcdefghijklmnopqrstuvwx", from_name: "Best Movers" },
+          "mail.chanlytics.com",
+        ),
+      },
+    ]);
+    for (const deadlineMs of [10_000, 0, 100_000]) {
+      await send(ADDRESS, { body: "x", email: frozen(), purpose: "conversational", deadlineMs });
+    }
+    await send(ADDRESS, { body: "x", email: frozen(), purpose: "conversational" });
+  } finally {
+    AbortSignal.timeout = realTimeout;
+    globalThis.fetch = realFetch;
+  }
+  assert.deepEqual(asked, [10_000, 3_000, 15_000, 15_000], "each try is the smaller of 15 s and what is left");
+  // A text is handed none: only the email wire has a send that can outlive the tick.
+  const texts = [];
+  const sms = async (to, p) => (texts.push({ to, p }), { ok: true, wamid: "SM1", status: 200 });
+  await deliver(ports(tables(), { wire: { sms } }), {
+    ...words({ to: "+13475550101", channel: "sms", body: "hi" }),
+    sendBy: NOW + 10_000,
+  });
+  assert.equal(texts.length, 1);
+  assert.equal("deadlineMs" in texts[0].p, false);
+});
+
 test("email's three refusals, each a fact about the person or the product, asked before consent and before the wire", async () => {
   const cases = [
     [{ purpose: "marketing" }, onEmail({ marketing_consent: "opted_in" }), "email_marketing_disabled"],
-    // An email unsubscribe holds an offer by email too. Today every offer by email is refused before it is asked; the
-    // release that lets offers go by email makes this one `unsubscribed` (the campaigns spec's Email row), never sent.
+    // An offer by email is refused wherever the deployment cannot send one (these ports hold no campaigns domain), asked
+    // before the person's own no: the offers' own cells are the tests below (an unsubscribe is `unsubscribed` there).
     [
       { purpose: "marketing" },
       onEmail({ marketing_consent: "opted_in", email_marketing: "opted_out" }),
@@ -1747,4 +1811,680 @@ test("a lead its owner stopped writing to is refused its cold email, a skip and 
     cold({ leadId: "l1" }),
   );
   assert.equal(before.outcome, "sent");
+});
+
+/* ---- A text leaves only on a line the carriers approved (One message, every channel, step 3) ---- */
+
+test("a text is refused sms_line_not_active unless the workspace's line is active and no test filing: the row canceled with the reason, the wire never asked", async () => {
+  const text = (over = {}) => words({ channel: "sms", sender: "ai", ...over });
+  const queued = {
+    id: "m1",
+    tenant_id: T,
+    conversation_id: "c1",
+    status: "queued",
+    body: "x",
+    sender: "ai",
+    channel: "sms",
+    direction: "outbound",
+    created_at: "2026-09-10T09:59:00.000Z",
+  };
+  const states = {
+    "no line at all": [],
+    "a line the carriers have not approved": [{ ...TEXT_LINE, sms_state: "pending" }],
+    "a line whose registration failed": [{ ...TEXT_LINE, sms_state: "failed" }],
+    "a test filing, however it is marked": [{ ...TEXT_LINE, reg_mock: true }],
+    "another workspace's active line": [{ ...TEXT_LINE, tenant_id: "t2" }],
+    "a line with no messaging service": [{ ...TEXT_LINE, messaging_service_sid: null }],
+    "a line whose voice failed": [{ ...TEXT_LINE, voice_state: "failed" }],
+  };
+  for (const [why, lines] of Object.entries(states)) {
+    const t = tables({ lines, messages: [{ ...queued }] });
+    const w = wireOf();
+    const out = await deliver({ ...ports(t, w) }, text({ messageId: "m1" }));
+    assert.deepEqual(out, { outcome: "refused", reason: "sms_line_not_active", messageId: "m1" }, why);
+    assert.equal(w.calls.length, 0, `${why}: the wire is not asked`);
+    assert.equal(t.messages[0].status, "canceled", why);
+    assert.deepEqual(t.messages[0].error, { reason: "sms_line_not_active" }, why);
+    assert.deepEqual(kinds(t), ["message.send_blocked"], why);
+  }
+  // Active, no test filing: it goes, on the text wire.
+  const ok = tables({ lines: [TEXT_LINE] });
+  const calls = [];
+  const sent = await deliver(
+    ports(ok, { wire: { sms: async (to, p) => (calls.push({ to, p }), { ok: true, wamid: "SM1", status: 201 }) } }),
+    text(),
+  );
+  assert.equal(sent.outcome, "sent");
+  assert.equal(calls.length, 1);
+  // The newest of the workspace's lines is the one asked, as the edge's sender picks it.
+  const two = tables({
+    lines: [
+      { ...TEXT_LINE, sms_state: "active", created_at: "2026-09-01T00:00:00.000Z" },
+      { ...TEXT_LINE, sms_state: "pending", created_at: "2026-09-09T00:00:00.000Z" },
+    ],
+  });
+  assert.equal(
+    (await deliver(ports(two, wireOf()), text())).reason,
+    "sms_line_not_active",
+    "the newer line is not approved yet",
+  );
+});
+
+test("the line is judged as the workspace's channels are (contracts channelsReady): the door and the composer's tick agree on every state a line can be in", async () => {
+  const { channelsReady } = await import("@chanlytics/contracts");
+  const lines = [
+    null,
+    { sms_state: "active", reg_mock: false },
+    { sms_state: "active", reg_mock: true },
+    { sms_state: "pending", reg_mock: false },
+    { sms_state: "failed", reg_mock: false },
+    { sms_state: null, reg_mock: null },
+  ];
+  for (const line of lines) {
+    const ready = channelsReady({ whatsapp: null, textLine: line, email: { mailbox: false, domain: false } }).sms.ready;
+    const t = tables({ lines: line ? [{ ...TEXT_LINE, ...line }] : [] });
+    const out = await deliver(
+      ports(t, { wire: { sms: async () => ({ ok: true, wamid: "SM1", status: 201 }) } }),
+      words({ channel: "sms", sender: "ai" }),
+    );
+    assert.equal(out.outcome === "sent", ready, JSON.stringify(line));
+  }
+});
+
+test("only a text reads the line: a WhatsApp message or an email goes whatever the lines table holds, even when it cannot be read", async () => {
+  const blip = { message: "canceling statement due to statement timeout" };
+  const t = tables({ lines: [] });
+  const w = wireOf();
+  const out = await deliver(
+    { db: fakeDb(t, { "lines.select": blip }, outreachRpc(t)), wire: w.wire, now: () => NOW },
+    words(),
+  );
+  assert.equal(out.outcome, "sent");
+  // And a text whose line could not be READ is the door throwing, never a text sent or refused on a guess.
+  await assert.rejects(
+    deliver(
+      {
+        db: fakeDb(tables({ lines: [TEXT_LINE] }), { "lines.select": blip }, {}),
+        wire: { sms: async () => ({ ok: true, wamid: "SM1", status: 201 }) },
+        now: () => NOW,
+      },
+      words({ channel: "sms", sender: "ai" }),
+    ),
+    /text_line_facts/,
+  );
+});
+
+/* ----------------------------------------------------- offers by email (step 4) */
+
+const { campaignsIdentity, sendsAsCampaigns } = await import(
+  pathToFileURL(path.join(ROOT, "packages/channels/dist/index.js")).href
+);
+const OFFER_MAILBOX = {
+  local_part: "bestmovers",
+  reply_token: "abcdefghijklmnopqrstuvwx",
+  reply_token_prev: null,
+  from_name: "Best Movers",
+};
+const UNSUB = "https://app.example.com/u/token-for-this-person-and-this-email";
+/** An offer's frozen request: from the campaigns domain, answered at the mailbox's reply route, its unsubscribe in the headers and the foot. */
+const offerRequest = (over = {}) =>
+  buildEmailRequest({
+    identity: campaignsIdentity(OFFER_MAILBOX, "campaigns.example.com", "mail.chanlytics.com"),
+    to: ADDRESS,
+    parent: null,
+    subject: "October at Best Movers",
+    body: "Ten percent off a Saturday move.",
+    signature: null,
+    actor: "ai",
+    campaign: {
+      unsubscribeUrl: UNSUB,
+      footer: `You're a customer of Best Movers.\nBest Movers · 12 Main St\nUnsubscribe: ${UNSUB}`,
+      footerHtml: `<p>You&#39;re a customer of Best Movers.<br>Best Movers · 12 Main St<br><a href="${UNSUB}">Unsubscribe</a></p>`,
+    },
+    messageId: "m1",
+    tenantId: T,
+    ...over,
+  });
+const offered = (over = {}) =>
+  words({
+    to: ADDRESS,
+    channel: "email",
+    purpose: "marketing",
+    sender: "human",
+    proactive: true,
+    kind: "broadcast",
+    email: offerRequest(),
+    body: "Ten percent off a Saturday move.",
+    messageId: "m1",
+    ...over,
+  });
+/** A customer with a relationship on record and nobody's no: the person an offer by email may go to. */
+const customer = (over = {}) =>
+  onEmail({
+    marketing_consent: "unknown",
+    consent_channels: ["whatsapp", "sms"],
+    marketing_channels: null,
+    email_marketing: "unknown",
+    has_relationship: true,
+    ...over,
+  });
+const offerWorld = (who, over = {}) => ({
+  t: tables({
+    conversations: [thread({ contacts: who })],
+    messages: [queuedEmail()],
+    mailboxes: [{ tenant_id: T, offers_paused_at: null, offers_paused_reason: null, ...over }],
+  }),
+  w: emailWire(),
+});
+
+test("an offer by email is refused wherever the deployment cannot send one: the door says so before anything else about the email", async () => {
+  const { t, w } = offerWorld(customer());
+  const closed = await deliver(ports(t, w), offered());
+  assert.deepEqual(
+    [closed.outcome, closed.reason],
+    ["refused", "email_marketing_disabled"],
+    "no emailOffers: as it was",
+  );
+  const no = await deliver(ports(t, w, { emailOffers: false }), offered());
+  assert.equal(no.reason, "email_marketing_disabled");
+  assert.equal(w.calls.length, 0);
+  assert.equal(t.messages[0].status, "canceled", "the queued row says why, and the thread shows it");
+  // Open, the same person goes.
+  const open = offerWorld(customer());
+  const out = await deliver(ports(open.t, open.w, { emailOffers: true }), offered());
+  assert.equal(out.outcome, "sent", JSON.stringify(out));
+  assert.equal(open.w.calls.length, 1);
+});
+
+test("every cell of the email row at the door: a relationship or their own yes goes; an address alone, an unsubscribe, a stop and a row read without the facts do not", async () => {
+  const cases = [
+    ["a customer: wrote, called or has a deal, nobody's no", customer(), null],
+    [
+      "asked for offers by email, no relationship at all",
+      customer({ email_marketing: "opted_in", has_relationship: false }),
+      null,
+    ],
+    ["an address and nothing else", customer({ has_relationship: false }), "no_marketing_consent"],
+    // DECISION (3 Oct 2026): a recorded no to offers on WhatsApp bars an offer by email, a yes to it by email included.
+    [
+      "a customer who said no to offers on WhatsApp",
+      customer({ marketing_consent: "opted_out" }),
+      "no_marketing_consent",
+    ],
+    [
+      "asked for offers by email, but said no to them on WhatsApp",
+      customer({ email_marketing: "opted_in", marketing_consent: "opted_out" }),
+      "no_marketing_consent",
+    ],
+    [
+      "a row read before 00299, with no relationship column",
+      (() => {
+        const c = customer();
+        delete c.has_relationship;
+        return c;
+      })(),
+      "no_marketing_consent",
+    ],
+    ["unsubscribed, though a customer", customer({ email_marketing: "opted_out" }), "unsubscribed"],
+    [
+      "unsubscribed, though they once asked",
+      customer({ email_marketing: "opted_out", marketing_consent: "opted_in" }),
+      "unsubscribed",
+    ],
+    [
+      "a STOP, whatever else is true",
+      customer({ consent: "opted_out", dnc: true, email_marketing: "opted_in" }),
+      "opted_out",
+    ],
+    ["do-not-contact", customer({ dnc: true }), "opted_out"],
+    [
+      "the address stopped (a bounce or a complaint)",
+      customer({ email_suppressed_at: "2026-09-01T00:00:00Z" }),
+      "email_suppressed",
+    ],
+    [
+      "the address changed since the words were frozen",
+      customer({ email: "ana.new@example.com" }),
+      "recipient_changed",
+    ],
+    ["asked to be forgotten", customer({ erasing_since: "2026-09-10T09:00:00Z" }), "erased"],
+  ];
+  for (const [what, who, reason] of cases) {
+    const { t, w } = offerWorld(who);
+    const out = await deliver(ports(t, w, { emailOffers: true }), offered());
+    assert.equal(out.outcome === "refused" ? out.reason : null, reason, what);
+    assert.equal(w.calls.length, reason ? 0 : 1, `${what}: the wire is called only for an offer that may go`);
+    assert.equal(t.messages[0].status, reason ? "canceled" : "sent", what);
+  }
+  // A message about their visit goes to the very same unsubscribed address: unsubscribe is not STOP.
+  const unsub = offerWorld(customer({ email_marketing: "opted_out", has_relationship: false }));
+  const visit = await deliver(
+    ports(unsub.t, unsub.w, { emailOffers: true }),
+    emailed({ purpose: "conversational", sender: "ai", proactive: true, kind: "broadcast", about: "theirs" }),
+  );
+  assert.equal(visit.outcome, "sent", "reminders and replies go on");
+});
+
+/** The business's own news by email: a broadcast whose message is a utility, whatever its WhatsApp twin is (decision D1). */
+const news = (over = {}) =>
+  emailed({ purpose: "conversational", sender: "ai", proactive: true, kind: "broadcast", about: "ours", ...over });
+/** A person with an address and nothing else on record: no yes of any kind, no relationship, nobody's no. */
+const addressAlone = (over = {}) =>
+  customer({ consent: "unknown", consent_channels: null, has_relationship: false, ...over });
+
+test("the business's own news by email, at the door (decision D1): a relationship on record or a yes covering email sends it; an address alone, an unsubscribe and a stop do not; their visit's message needs none of them", async () => {
+  const cases = [
+    ["a relationship on record, no yes at all", addressAlone({ has_relationship: true }), null],
+    ["a customer, yes to messages kept for WhatsApp and text", customer(), null],
+    ["a yes covering email, no relationship", addressAlone({ consent: "opted_in", consent_channels: ["email"] }), null],
+    [
+      "a yes covering every channel, no relationship",
+      addressAlone({ consent: "opted_in", consent_channels: ["whatsapp", "sms", "email"] }),
+      null,
+    ],
+    ["an address and nothing else", addressAlone(), "not_opted_in"],
+    [
+      "a yes that does not cover email, no relationship",
+      addressAlone({ consent: "opted_in", consent_channels: ["whatsapp", "sms"] }),
+      "not_opted_in",
+    ],
+    [
+      "a yes from before the channels were (WhatsApp alone), no relationship",
+      addressAlone({ consent: "opted_in" }),
+      "not_opted_in",
+    ],
+    [
+      "a yes to email that was withdrawn (the state is not a yes)",
+      addressAlone({ consent: "unknown", consent_channels: ["email"] }),
+      "not_opted_in",
+    ],
+    [
+      "a row read without the relationship column",
+      (() => {
+        const c = addressAlone();
+        delete c.has_relationship;
+        return c;
+      })(),
+      "not_opted_in",
+    ],
+    [
+      "unsubscribed, though a customer with a yes covering email",
+      customer({ email_marketing: "opted_out", consent_channels: ["email"] }),
+      "unsubscribed",
+    ],
+    ["a STOP, whatever else is true", customer({ consent: "opted_out", consent_channels: ["email"] }), "opted_out"],
+    ["do-not-contact", customer({ dnc: true }), "opted_out"],
+    [
+      "the address stopped (a bounce or a complaint)",
+      customer({ email_suppressed_at: "2026-09-01T00:00:00Z" }),
+      "email_suppressed",
+    ],
+  ];
+  for (const [what, who, reason] of cases) {
+    const { t, w } = offerWorld(who);
+    const out = await deliver(ports(t, w), news());
+    assert.equal(out.outcome === "refused" ? out.reason : null, reason, what);
+    assert.equal(w.calls.length, reason ? 0 : 1, `${what}: the wire is called only for news that may go`);
+    assert.equal(t.messages[0].status, reason ? "canceled" : "sent", what);
+  }
+  // Their visit's message (or a reply) goes to every one of them but a STOP, a do-not-contact and a dead address.
+  for (const [what, who, stopped] of [
+    ["an address and nothing else", addressAlone(), false],
+    ["unsubscribed", customer({ email_marketing: "opted_out", has_relationship: false, consent: "unknown" }), false],
+    ["a STOP", customer({ consent: "opted_out" }), true],
+    ["do-not-contact", customer({ dnc: true }), true],
+  ]) {
+    for (const d of [news({ about: "theirs" }), news({ proactive: false })]) {
+      const { t, w } = offerWorld(who);
+      const out = await deliver(ports(t, w), d);
+      assert.equal(out.outcome === "refused" ? out.reason : null, stopped ? "opted_out" : null, `${what} ${d.about}`);
+      assert.equal(w.calls.length, stopped ? 0 : 1, what);
+    }
+  }
+  // No offers' gate is asked of it: the deployment's campaigns domain and the pause are an offer's alone.
+  const paused = offerWorld(addressAlone({ has_relationship: true }), {
+    offers_paused_at: "2026-10-01T10:00:00Z",
+    offers_paused_reason: "complaints",
+  });
+  const out = await deliver(ports(paused.t, paused.w), news());
+  assert.equal(out.outcome, "sent", "the news is no offer: a pause on offers does not hold it");
+  // A WhatsApp message is the same either way: only email asks what it is about (a yes kept for WhatsApp is all it asks).
+  for (const about of ["theirs", "ours"]) {
+    const t = tables({ conversations: [thread({ contacts: person({ consent_channels: ["whatsapp"] }) })] });
+    const sent = await deliver(ports(t, wireOf()), words({ proactive: true, about }));
+    assert.equal(sent.outcome, "sent", `WhatsApp ${about}`);
+    const none = tables({ conversations: [thread({ contacts: person({ consent: "unknown" }) })] });
+    const held = await deliver(ports(none, wireOf()), words({ proactive: true, about }));
+    assert.deepEqual([held.outcome, held.reason], ["refused", "not_opted_in"], `WhatsApp ${about}, no yes`);
+  }
+});
+
+test("the door reads whether the person has a relationship with the business only where the rule may rest on it, an OFFER by email and the business's own news by email (D1): a reply, a reminder about their visit, a WhatsApp send and a cold email never pay for it", async () => {
+  // The conversations select the door makes at the wire, by what it asked for.
+  const columnsOf = (p) =>
+    p.db.seen.filter((q) => q.table === "conversations" && q.op === "select").map((q) => q.columns);
+  const asked = async (d) => {
+    const { t, w } = offerWorld(customer());
+    const p = ports(t, w, { emailOffers: true });
+    await deliver(p, d);
+    return columnsOf(p);
+  };
+  const offer = await asked(offered());
+  assert.ok(offer.length >= 1 && offer.every((c) => /\bhas_relationship\b/.test(c)), "an offer by email asks it");
+  // The business's own news goes on a relationship as an offer does, so the wire read must have asked for it: unread, the
+  // relationship is none, and the news would be refused to everyone the enrolment let in on theirs.
+  const ours = await asked(news());
+  assert.ok(
+    ours.length >= 1 && ours.every((c) => /\bhas_relationship\b/.test(c)),
+    "the business's news by email asks it",
+  );
+  for (const [what, d] of [
+    ["a WhatsApp reply", words()],
+    ["a WhatsApp offer", words({ purpose: "marketing", proactive: true })],
+    ["a text reminder", words({ channel: "sms", purpose: "conversational", proactive: true })],
+    ["a reply by email", emailed()],
+    ["a reply by email whose thread is about the business's news", emailed({ about: "ours", proactive: false })],
+    [
+      "a reminder about their visit by email",
+      emailed({ purpose: "conversational", sender: "ai", proactive: true, kind: "broadcast", about: "theirs" }),
+    ],
+    ["the business's news by WhatsApp", words({ purpose: "conversational", proactive: true, about: "ours" })],
+  ]) {
+    const read = await asked(d);
+    assert.ok(read.length >= 1, `${what}: the door read the wire`);
+    assert.ok(
+      read.every((c) => !/has_relationship/.test(c)),
+      `${what}: never asks the relationship (the function reads their messages, calls and deals)`,
+    );
+    assert.ok(
+      read.every((c) => /consent_channels/.test(c)),
+      `${what}: and still reads the rest of the person`,
+    );
+  }
+});
+
+/**
+ * The broadcast batch (core sendBroadcastBatch) run into the REAL door over a world in memory: one person on email, and the
+ * words and the facts their run kept for them. What comes back is what the run wrote on their row, and what the wire was handed.
+ */
+async function broadcastBatchByEmail({ who, facts, trigger = null }) {
+  const t = tables({
+    conversations: [thread({ id: "cv-k1", contacts: who })],
+    messages: [],
+    mailboxes: [{ tenant_id: T, offers_paused_at: null, offers_paused_reason: null }],
+  });
+  const w = emailWire();
+  const door = ports(t, w);
+  const marks = [];
+  const reminder = {
+    meta_status: "approved",
+    category: "utility",
+    body_preview: "Hi {{1}}, a note from Best Movers.",
+    components: [
+      { type: "HEADER", format: "TEXT", text: "A note, {{1}}" },
+      { type: "BODY", text: "Hi {{1}}, a note from Best Movers." },
+    ],
+  };
+  await sendBroadcastBatch(
+    {
+      broadcast: async () => ({
+        id: "b1",
+        state: "sending",
+        name: "A note · 2026-09-10",
+        template_name: "a_note",
+        template_language: "en_US",
+        params: [{ kind: "first_name" }],
+        recipient_count: 1,
+        playbook_id: trigger ? "p1" : null,
+        // A playbook run's audience as run-playbook writes it, its moment named; a broadcast's names none.
+        audience: trigger ? { kind: "playbook", id: "p1", label: "A moment", trigger } : null,
+      }),
+      workspacePaused: async () => false,
+      fail: async () => {},
+      startSending: async () => true,
+      template: async () => reminder,
+      facts: async () => ({ businessName: "Best Movers", bookingLink: null, timezone: "UTC", address: "12 Main St" }),
+      batch: async () => [{ contact_id: "k1", facts, channel: "email" }],
+      contacts: async (ids) =>
+        new Map(
+          ids.map((id) => [
+            id,
+            {
+              id,
+              phone_e164: null,
+              email: ADDRESS,
+              email_marketing: who.email_marketing ?? null,
+              erased_at: null,
+              display_name: "Ana Reyes",
+              wa_profile_name: null,
+            },
+          ]),
+        ),
+      target: async () => null,
+      targetOfContact: async () => ({ conversationId: "cv-k1" }),
+      emailRequest: async (i) =>
+        buildEmailRequest({
+          identity: {
+            fromName: "Best Movers",
+            fromAddress: "bestmovers@mail.chanlytics.com",
+            replyTo: "r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com",
+          },
+          to: i.to,
+          parent: null,
+          subject: i.subject,
+          body: i.body,
+          signature: null,
+          actor: "human",
+          messageId: i.messageId,
+          tenantId: T,
+        }),
+      unsubscribeUrl: async () => UNSUB,
+      // The row the door sends from, written as the adapter writes it before the send.
+      queueEmail: async (row) => {
+        t.messages.push(
+          queuedEmail({ id: row.id, conversation_id: row.conversationId, contact_id: row.contactId, body: row.body }),
+        );
+        return { status: "queued" };
+      },
+      withdrawEmail: async () => {},
+      monthSent: async () => 0,
+      alreadySent: async () => new Map(),
+      byOtherChannels: async () => true,
+      mark: async (_id, contactId, patch) => (marks.push([contactId, patch.state, patch.reason ?? null]), true),
+      deliver: (d) => deliver(door, d),
+      wireUnavailable: async () => null,
+      remaining: async () => 0,
+      state: async () => "sending",
+      tally: async () => ({ sent: 1, held: 0 }),
+      scheduleNext: async () => {},
+      finish: async () => {},
+      alert: async () => {},
+      sleep: async () => {},
+      now: () => NOW,
+      random: () => 0,
+    },
+    { tenantId: T, broadcastId: "b1", deadline: NOW + 60_000 },
+  );
+  return { marks, wire: w.calls, t };
+}
+
+test("a broadcast's email through the real door (decision D1): the run's news is refused not_opted_in to an address alone and goes to a relationship or a yes covering email; a visit's or a follow-up's run goes with no yes", async () => {
+  const VISIT = { visit_when: "tomorrow at 2:00 PM", visit_service: "Balayage" };
+  const PROPOSAL = { proposal_link: "https://docs.example.com/proposal/1" };
+  // The person is claimed before the door (a claim that reads outcome_unknown) and settled after it.
+  const sent = [
+    ["k1", "failed", OUTCOME_UNKNOWN],
+    ["k1", "sent", null],
+  ];
+  const held = (reason) => [
+    ["k1", "failed", OUTCOME_UNKNOWN],
+    ["k1", "skipped", reason],
+  ];
+  const cases = [
+    // The business's own news: no visit or proposal kept for them.
+    ["news, an address alone", addressAlone(), null, held("not_opted_in")],
+    ["news, an empty set of facts", addressAlone(), {}, held("not_opted_in")],
+    ["news, a service alone is no visit", addressAlone(), { visit_service: "Balayage" }, held("not_opted_in")],
+    ["news, a relationship on record", addressAlone({ has_relationship: true }), null, sent],
+    ["news, a yes covering email", addressAlone({ consent: "opted_in", consent_channels: ["email"] }), null, sent],
+    ["news, a yes for WhatsApp alone", addressAlone({ consent: "opted_in" }), null, held("not_opted_in")],
+    ["news, unsubscribed with a relationship", customer({ email_marketing: "opted_out" }), null, held("unsubscribed")],
+    // A visit's or a proposal's run: about something of theirs (the run's moment, as its enrolment read it).
+    ["their visit, an address alone", addressAlone(), VISIT, sent, "visit_tomorrow"],
+    ["their proposal, an address alone", addressAlone(), PROPOSAL, sent, "proposal_waiting"],
+    ["their proposal, no link kept", addressAlone(), null, sent, "proposal_waiting"],
+    [
+      "their visit, though unsubscribed from email",
+      customer({ email_marketing: "opted_out", consent: "unknown", has_relationship: false }),
+      VISIT,
+      sent,
+      "visit_tomorrow",
+    ],
+    ["their visit, but they said STOP", customer({ consent: "opted_out" }), VISIT, held("opted_out"), "visit_tomorrow"],
+    // The moment, not the row, says it: a monthly offer's moment is the business's news though the row kept a visit.
+    ["news on a monthly moment, a visit kept", addressAlone(), VISIT, held("not_opted_in"), "everyone_monthly"],
+  ];
+  for (const [what, who, facts, marks, trigger] of cases) {
+    const out = await broadcastBatchByEmail({ who, facts, trigger });
+    assert.deepEqual(out.marks, marks, what);
+    assert.equal(
+      out.wire.length,
+      marks === sent ? 1 : 0,
+      `${what}: the wire is handed words only when the door lets them go`,
+    );
+  }
+});
+
+test("an offer goes only with the one-click unsubscribe it owes, and never while the workspace's offers are paused; reminders are not held by either", async () => {
+  // Built without the unsubscribe: an appointment's request, marked an offer by whoever asked, is refused.
+  const bare = offerWorld(customer());
+  const out = await deliver(
+    ports(bare.t, bare.w, { emailOffers: true }),
+    offered({
+      email: frozen({
+        identity: {
+          fromName: "Best Movers",
+          fromAddress: "bestmovers@campaigns.example.com",
+          replyTo: "r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com",
+        },
+        parent: null,
+        subject: "October",
+      }),
+    }),
+  );
+  assert.deepEqual([out.outcome, out.reason], ["refused", "outreach_without_unsubscribe"]);
+  // Only one of the two headers is no one click (RFC 8058 wants both).
+  const half = offerRequest();
+  delete half.headers["List-Unsubscribe-Post"];
+  const one = offerWorld(customer());
+  assert.equal(
+    (await deliver(ports(one.t, one.w, { emailOffers: true }), offered({ email: half }))).reason,
+    "outreach_without_unsubscribe",
+  );
+  // Paused: the mailbox says since when and why; the next offer is held at the wire, the one after that too.
+  const paused = offerWorld(customer(), {
+    offers_paused_at: "2026-10-01T10:00:00Z",
+    offers_paused_reason: "complaints",
+  });
+  const held = await deliver(ports(paused.t, paused.w, { emailOffers: true }), offered());
+  assert.deepEqual([held.outcome, held.reason], ["refused", "email_offers_paused"]);
+  assert.equal(paused.w.calls.length, 0);
+  // Reminders about their visit and replies by email go on, paused or not.
+  const reminder = await deliver(
+    ports(paused.t, paused.w, { emailOffers: true }),
+    emailed({
+      purpose: "conversational",
+      sender: "ai",
+      proactive: true,
+      kind: "broadcast",
+      about: "theirs",
+      messageId: "m1",
+    }),
+  );
+  assert.equal(reminder.outcome, "sent");
+  // Closed outranks paused: the deployment's reason first.
+  const closed = offerWorld(customer(), { offers_paused_at: "2026-10-01T10:00:00Z", offers_paused_reason: "bounces" });
+  assert.equal((await deliver(ports(closed.t, closed.w), offered())).reason, "email_marketing_disabled");
+});
+
+test("a database without 00299 sends no offer by email on a relationship alone, and breaks nothing else: no relationship column, no pause column", async () => {
+  // The contact row has no has_relationship and the mailbox no pause columns: the reads fall back, and the door judges what it has.
+  const who = customer();
+  delete who.has_relationship;
+  const t = tables({
+    conversations: [thread({ contacts: who })],
+    messages: [queuedEmail()],
+    mailboxes: [{ tenant_id: T }],
+  });
+  const w = emailWire();
+  const noRelationship = await deliver(ports(t, w, { emailOffers: true }), offered());
+  assert.equal(noRelationship.reason, "no_marketing_consent", "fails closed: the fact it cannot read is not a yes");
+  // The same database sends the person who asked for offers: nothing about the pause could be read, so it reads as none.
+  const asked = tables({
+    conversations: [thread({ contacts: { ...who, email_marketing: "opted_in" } })],
+    messages: [queuedEmail()],
+    mailboxes: [{ tenant_id: T }],
+  });
+  const out = await deliver(ports(asked, emailWire(), { emailOffers: true }), offered());
+  assert.equal(out.outcome, "sent");
+  // And a reply or a visit message, which never asked for either, goes as it always did.
+  const reply = await deliver(
+    ports(tables({ conversations: [thread({ contacts: onEmail() })], messages: [queuedEmail()] }), emailWire()),
+    emailed(),
+  );
+  assert.equal(reply.outcome, "sent");
+});
+
+test("the wire keeps each lane's domain: an offer leaves only by the campaigns route, and nothing else leaves by it", async () => {
+  const hosted = sendsAs(OFFER_MAILBOX, "mail.chanlytics.com");
+  const campaigns = sendsAsCampaigns(OFFER_MAILBOX, "campaigns.example.com", "mail.chanlytics.com");
+  assert.equal(campaigns.address, "bestmovers@campaigns.example.com", "the mailbox on the campaigns domain");
+  assert.deepEqual(
+    campaigns.replyRoutes,
+    hosted.replyRoutes,
+    "answered where every reply is: the mailbox's token address on the mail domain",
+  );
+  const sent = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    sent.push({ url: String(url), body: JSON.parse(init.body) });
+    return new Response(JSON.stringify({ id: "re_9" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    const send = emailSender([
+      { lane: "hosted", cfg: { apiKey: "k" }, as: hosted },
+      { lane: "campaigns", cfg: { apiKey: "k" }, as: campaigns },
+    ]);
+    const offer = offerRequest();
+    assert.equal((await send(ADDRESS, { body: "hi", email: offer, purpose: "marketing" })).ok, true);
+    assert.match(sent[0].body.from, /<bestmovers@campaigns\.example\.com>$/);
+    assert.deepEqual(sent[0].body.reply_to, ["r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com"]);
+    assert.equal(sent[0].body.headers["List-Unsubscribe"], `<${UNSUB}>`);
+    assert.equal(sent[0].body.headers["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click");
+    // An offer never leaves as the mailbox on the reply domain, whatever its request says...
+    const asHosted = frozen({ parent: null, subject: "October" });
+    assert.equal(
+      (await send(ADDRESS, { body: "hi", email: asHosted, purpose: "marketing" })).errorBody,
+      "request_leaves_as_another_sender",
+    );
+    // ...and nothing but an offer leaves from the campaigns domain.
+    for (const purpose of ["conversational", "outreach", undefined])
+      assert.equal(
+        (await send(ADDRESS, { body: "hi", email: offer, purpose })).errorBody,
+        "request_leaves_as_another_sender",
+        String(purpose),
+      );
+    // With no campaigns route bound (a deployment without the domain), an offer has nowhere to leave from.
+    const only = emailSender([{ lane: "hosted", cfg: { apiKey: "k" }, as: hosted }]);
+    assert.equal(
+      (await only(ADDRESS, { body: "hi", email: offer, purpose: "marketing" })).errorBody,
+      "request_leaves_as_another_sender",
+    );
+    assert.equal(sent.length, 1, "only the one offer reached the provider");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });

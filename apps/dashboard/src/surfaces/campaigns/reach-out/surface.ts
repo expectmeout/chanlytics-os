@@ -1,8 +1,7 @@
 /**
  * Reach-outs on Playbooks and Templates (Reach out, Part 4 PR 8): the reach-outs surface (the seam's `reach_outs`, mirrored
  * as `__REACH_OUTS`: the chains GET reach-outs lists, without their reports), and `reachOuts`, the verbs a chain's row
- * presses and (`.words`) every sentence the rows say (contracts reach-out-sheet.ts). Leads still reads the verbs as
- * `window.__reachOuts` (`installReachOuts`), until it moves.
+ * presses and (`.words`) every sentence the rows say (contracts reach-out-sheet.ts). Leads imports them (surfaces/leads).
  *
  * A chain's report is read when one of its rows opens (R23), here, and only then. Pause and Resume are the playbook's
  * own door on the chain's first step, which a chain's steps follow (run-context: a paused root pauses every step);
@@ -17,10 +16,7 @@ import {
   REACH_OUT_ROW_WORDS,
   REACH_OUT_SHEET_PARTS,
   REACH_OUT_SHEET_WORDS,
-  REACH_OUT_SLOTS,
-  REACH_OUT_SLOT_WORDS,
   firstNameOf,
-  insertSlotAt,
   paceWords,
   previewLinesOf,
   reachLineOf,
@@ -53,7 +49,6 @@ import {
   emailTemplateRowsOf,
   emailTemplateWords,
   nextRunWords,
-  slotParts,
   stepLabel,
   stepLabelOf,
   HAND_WORDS_MAX,
@@ -268,8 +263,6 @@ export const reachOuts = {
     REACH_OUT_ROW_WORDS,
     REACH_OUT_SHEET_PARTS,
     REACH_OUT_SHEET_WORDS,
-    REACH_OUT_SLOTS,
-    REACH_OUT_SLOT_WORDS,
     chainHintOf,
     chainPaceOf,
     chainPathWords,
@@ -279,7 +272,6 @@ export const reachOuts = {
     emailTemplateRowsOf,
     emailTemplateWords,
     firstNameOf,
-    insertSlotAt,
     nextRunWords,
     paceWords,
     previewLinesOf,
@@ -301,7 +293,6 @@ export const reachOuts = {
     reachOutSheetUnreadOf,
     reachOutWhoWords,
     sheetFootWords,
-    slotParts,
     startWords,
     stepLabel,
     stepLabelOf,
@@ -310,13 +301,3 @@ export const reachOuts = {
     REACH_OUT_STOP_WORDS,
   },
 };
-
-declare global {
-  interface Window {
-    __reachOuts?: typeof reachOuts;
-  }
-}
-
-export function installReachOuts(): void {
-  window.__reachOuts = reachOuts;
-}

@@ -10,7 +10,7 @@
  */
 import type { ParamSpec } from "../templates/templates";
 import { visitStartTime, type VisitDto } from "../calendar/calendar-people";
-import type { ListRef } from "../people/lists";
+import type { ListRef } from "../people/lists/lists";
 import { localDate } from "./playbook-schedule";
 import { DAY_MS } from "./playbook-time";
 import { type PlaybookPolicyClass, type PlaybookState, type PlaybookTrigger, triggerOf } from "./playbook-triggers";
@@ -29,6 +29,10 @@ export {
   REACH_OUT_IS_NOT_A_MOMENT,
   triggerOf,
   triggerOffered,
+  momentOffered,
+  MOMENTS_RETIRED,
+  isWinBack,
+  WIN_BACK_WORDS,
   policyClassOffered,
 } from "./playbook-triggers";
 export type { PlaybookTrigger, PlaybookTriggerKind, PlaybookPolicyClass, PlaybookState } from "./playbook-triggers";
@@ -42,6 +46,7 @@ export {
   breathHolds,
   followUpIsFor,
   playbookRunStop,
+  playbookStopBy,
   followUpRunAt,
   followUpStandOf,
   followUpWords,
@@ -53,10 +58,11 @@ export {
   playbookReach,
   playbookReachDoor,
   playbookNoNumberWords,
+  playbookPoolKey,
   PLAYBOOK_REACH_WORDS,
   PLAYBOOK_CLASS_LABEL,
 } from "./playbook-reach";
-export type { Touches, RunReach, PlaybookReach } from "./playbook-reach";
+export type { Touches, RunReach, PlaybookReach, RunPlaybook } from "./playbook-reach";
 export {
   planRun,
   localDate,
@@ -75,6 +81,8 @@ export interface PlaybookDto {
   id: string;
   name: string;
   trigger: PlaybookTrigger;
+  /** The channels it may go by (step 3; reach-for.ts): WhatsApp alone for one made before, as the column defaults. */
+  channels?: string[];
   /** The list of the workspace's own a saved_list playbook runs on; null for every other trigger, and for one whose list was deleted. */
   list_id: string | null;
   /** The People list a saved_list playbook runs on, by its id (00168); null otherwise. One or the other, never both. */

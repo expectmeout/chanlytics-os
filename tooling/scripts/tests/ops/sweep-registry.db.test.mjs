@@ -98,6 +98,8 @@ const EVERY_CLOCK = {
   purge_page_vitals: "purge-page-vitals",
   // Each workspace's day, counted (00277): nightly at 00:17 UTC, judged by its run.
   platform_metrics_roll: "platform-metrics-roll",
+  // A voice conversation's row, a day after its token expired (00288): nightly, judged by its run.
+  sweep_voice_sessions: "sweep-voice-sessions",
 };
 const RUN_JUDGED = [
   "partitions",
@@ -112,6 +114,7 @@ const RUN_JUDGED = [
   "purge_page_vitals",
   "purge_rate_hits",
   "snoozes",
+  "sweep_voice_sessions",
 ];
 
 let db;

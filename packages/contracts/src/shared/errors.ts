@@ -34,6 +34,8 @@ export const ERROR_CODES = [
   "upstream_email",
   /** Supabase Auth could not be reached — distinct from "not signed in". */
   "upstream_auth",
+  /** The voice agent's provider (ElevenLabs) could not be reached, refused, or is not set up on this deployment. */
+  "upstream_voice",
   "internal",
 ] as const;
 
@@ -88,5 +90,6 @@ const DEFAULT_STATUS: Record<ErrorCode, number> = {
   upstream_anthropic: 502,
   upstream_email: 502,
   upstream_auth: 503,
+  upstream_voice: 503,
   internal: 500,
 };

@@ -89,7 +89,7 @@ const withLive = (calls) => {
   fresh();
   intervals.length = 0;
 };
-const mount = () => again(() => LivePage({}));
+const mount = (props = {}) => again(() => LivePage(props));
 const spacers = (tree) => all(tree, (n) => classes(n).includes("lm-spacer"));
 
 test("the waiting state says the greeting is playing and words follow the first exchange", () => {
@@ -98,7 +98,7 @@ test("the waiting state says the greeting is playing and words follow the first 
   const waiting = find(tree, (n) => classes(n).includes("lm-waiting"));
   assert.ok(waiting, "a call with no turns yet is drawn as waiting");
   assert.ok(
-    textOf(waiting).includes("It opens with the greeting; the phone provider sends the words after the first exchange"),
+    textOf(waiting).includes("opening with the greeting. The words appear here turn by turn after the first exchange"),
   );
   assert.ok(
     !textOf(tree).includes("Nothing has been said yet"),
@@ -123,7 +123,11 @@ test("the whisper box sits directly under the transcript or the waiting state, a
   withLive([call()]);
   assert.equal(spacers(mount()).length, 0, "a transcript fills the panel on its own");
   withLive([call({ status: "ended", ended_at: iso(1_000), duration_ms: 89_000, summary: "Asked for a person." })]);
-  assert.equal(spacers(mount()).length, 1, "and an ended call keeps its foot at the bottom with the one");
+  assert.equal(
+    spacers(mount({ initialCallId: "c-live" })).length,
+    1,
+    "and an ended call keeps its foot at the bottom with the one",
+  );
 });
 
 test("while a call is live the page re-reads every 8 s beside the realtime channel", async (t) => {
@@ -186,5 +190,7 @@ test("while a call is live the page re-reads every 8 s beside the realtime chann
   assert.ok(byTestId(mount(), "live-real"), "and the page still draws the call that ended");
   // The control the owner reads the wait by names itself where it sits, directly under the transcript.
   withLive([call()]);
-  assert.match(textOf(mount()), /Whisper to the receptionist/, "the control says what it is where it is");
+  const field = find(byTestId(mount(), "live-whisper"), (n) => n.type === "input");
+  assert.equal(field.props["aria-label"], "Whisper to the receptionist", "the control says what it is where it is");
+  assert.match(field.props.placeholder, /Whisper to the receptionist/);
 });

@@ -211,7 +211,7 @@ test("a workspace that answers everywhere: nine of ten — the kept number is th
   const none = setupSteps({ ...live(), consent: { yes: 3, offers: 0, offersSaidYes: 0 } }, NOW);
   assert.equal(
     row(none, "yes").sentence,
-    "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.",
+    "Nobody has said yes to offers yet. The keyword and the QR are under Get their yes in Sent.",
   );
   assert.equal(row(none, "yes").state, "not_started", "three conversational yeses do not make this row ready");
   // The door lands on the QR itself (#663), as People's, Today's and Playbooks' do: the top of Broadcasts is the
@@ -283,7 +283,7 @@ test("REGRESSION: a yes to offers with no number to send one to is a yes -- Setu
   const one = row(setupSteps(live({ consent: { yes: 3, offers: 1, offersSaidYes: 2 } }), NOW), "yes");
   assert.deepEqual(
     [one.state, one.sentence, one.verb],
-    ["ready", "1 person said yes to offers.", { label: "Open Broadcasts", to: "broadcasts" }],
+    ["ready", "1 person said yes to offers.", { label: "Get their yes", to: GET_YES_ROUTE }],
   );
 });
 
@@ -677,7 +677,9 @@ test("WhatsApp waits on Meta while the first messages are with them, or while th
   assert.deepEqual(row(inactive, "whatsapp").verb, { label: "Open Connections", to: "admin/integrations" });
   const few = setupSteps(live({ templates: { approved: 2, pending: 0, startersApproved: 2 } }), NOW);
   assert.deepEqual(row(few, "whatsapp").verb, { label: "Add the starters", to: "outbound" });
-  assert.ok(row(few, "whatsapp").details.includes("Add the starter messages: welcome, win-back, the month's offer"));
+  assert.ok(
+    row(few, "whatsapp").details.includes("Add the starter messages: the visit reminder, how did it go, the win-back"),
+  );
 });
 
 test("business facts: partly there says what is missing; a broken config is its own state", () => {
@@ -999,7 +1001,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
       readCode("apps/dashboard/src/server/workspace/setup.ts"),
     ),
   );
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
+  const bridge = readCode("apps/dashboard/src/surfaces/setup/surface.ts");
   assert.ok(
     /refreshOnTables: \[\s*"lines",\s*"notifications",\s*"tenant_channels",\s*"capability_activations",\s*"business_records",\s*"billing_accounts",\s*"google_connections",\s*"calls",\s*(\/\/[^\n]*\s*)?"sending_domains",?\s*\]/.test(
       bridge,
@@ -1008,16 +1010,14 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   );
   for (const pin of ['"POST lines/search"', '"POST lines/buy"', '"POST lines/retry"'])
     assert.ok(bridge.includes(pin), pin);
-  const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
-  for (const pin of [
-    'verb.to === "verb:choose-line"',
-    'verb.to.startsWith("verb:retry-line:")',
-    'data-testid="setup-chooser"',
-    'data-testid="setup-buy"',
-    "Get this number",
-    'window.canDo("team")',
-  ])
-    assert.ok(page.includes(pin), pin);
+  // Setup's rows are TSX (surfaces/setup/rows, decision 0015 step 10): what a verb does, and the chooser it opens.
+  const [acts, chooser] = ["acts", "line-chooser"].map((f) =>
+    readCode(`apps/dashboard/src/surfaces/setup/rows/${f}.tsx`),
+  );
+  for (const pin of ['to === "verb:choose-line"', 'to.startsWith("verb:retry-line:")'])
+    assert.ok(acts.includes(pin), pin);
+  for (const pin of ['data-testid="setup-chooser"', 'data-testid="setup-buy"', "Get this number", 'canDo("team")'])
+    assert.ok(chooser.includes(pin), pin);
   assert.ok(
     readCode("apps/edge/lib/lines/lines.ts").includes('export { LINE_STEP_WORDS } from "../packages/contracts.js";'),
     "one list of step words",
@@ -1042,7 +1042,10 @@ test("the words: four states, no jargon, no trade", () => {
       "packages/contracts/src/setup/setup-rows-phone.ts",
     ]
       .map((f) => readCode(f))
-      .join("\n") + readCode("apps/dashboard/src/legacy/pages/setup.jsx");
+      .join("\n") +
+    ["rows", "acts", "card-row", "line-chooser", "forwarding", "try"]
+      .map((f) => readCode(`apps/dashboard/src/surfaces/setup/rows/${f}.tsx`))
+      .join("\n");
   const words = [...src.matchAll(/(["'`])((?:\\.|(?!\1)[^\\])*)\1/g)].map((m) => m[2]).join("\n");
   assert.doesNotMatch(
     words,
@@ -1052,10 +1055,11 @@ test("the words: four states, no jargon, no trade", () => {
   assert.doesNotMatch(words, /\$\d/, "no invented prices");
 });
 
-// Setup left Settings for the first run (#/start): surface-registry.test.mjs holds its route and the old address's
-// move, and first-run-page.test.mjs draws it.
-test("wiring: manifest, bridge, routes, rate bucket, event kind, migration", () => {
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/setup.jsx";'));
+// Setup left Settings for the first run (`start`): surface-registry.test.mjs holds its route and the old address's
+// move, and first-run-page.test.mjs draws it. Both are TSX on an App Router page since decision 0015's step 10.
+test("wiring: the page, the surface, routes, rate bucket, event kind, migration", () => {
+  // The page is an App Router page (start/[[...param]]): surface-registry.test.mjs holds the route to it.
+  assert.ok(!readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes("setup.jsx"), "no longer the shell's");
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(
     app.includes("installSetup();") &&
@@ -1068,11 +1072,13 @@ test("wiring: manifest, bridge, routes, rate bucket, event kind, migration", () 
     ),
   );
   assert.ok(EVENT_KINDS.includes("setup.requested"));
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
+  const bridge = readCode("apps/dashboard/src/surfaces/setup/surface.ts");
   assert.ok(
     bridge.includes('key: "setup"') &&
-      bridge.includes('globals: ["__SETUP"]') &&
+      bridge.includes('value: "setup"') &&
+      bridge.includes('declareSurfaceValue("setup", "__SETUP")') &&
       bridge.includes('events: ["surface:setup"]'),
+    "the seam's value, mirrored for the Settings panes that still read __SETUP",
   );
   // A row put off is the member's, and the landing is once a session: setup-later.test.mjs runs both.
   // One assembly, two callers: the workspace reads its own on the session
@@ -1112,18 +1118,18 @@ test("wiring: manifest, bridge, routes, rate bucket, event kind, migration", () 
     "grant execute on function public.setup_request(uuid, text) to authenticated",
   ])
     assert.ok(mig.includes(pin), pin);
-  const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
+  const page = readCode("apps/dashboard/src/surfaces/setup/rows/rows.tsx");
   for (const pin of [
-    "<window.AttnRow",
+    "<AttnRow",
     "status={[r.stateWords]}",
     'note={r.details.join(" · ")}',
     "testid={`setup-row-${r.id}`}",
     'ctaTestid="setup-verb"',
     "testid: `setup-later-${r.id}`",
-    'window.canDo("approve")',
-    "window.SetupRows = SetupRows;",
+    "export const SetupRows",
   ])
     assert.ok(page.includes(pin), pin);
+  // Each verb's own role, asked again at the press: setup-page-activate.test.mjs presses them as an operator.
   // Today's card of what is left to set up is drawn and pressed in today-doors.test.mjs.
   assert.ok(readCode("packages/contracts/src/index.ts").includes('export * from "./setup";'));
 });
@@ -1226,13 +1232,14 @@ test("an activated capability offers to withdraw its activation from its row, an
 
 test("a save in Workspace and a WhatsApp connect repaint Setup too", async () => {
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  // Both also move what the composers and People's reach read of the channels (refresh-coverage.test.mjs says which).
   assert.deepEqual(
     AFTER["PUT settings"]().map((o) => o.key),
-    ["settings", "today", "calendar", "setup"],
+    ["settings", "today", "calendar", "setup", "broadcasts", "playbooks", "people"],
   );
   assert.deepEqual(
     AFTER["POST channels/whatsapp/connect"]().map((o) => o.key),
-    ["settings", "setup"],
+    ["settings", "setup", "broadcasts", "playbooks", "people"],
   );
 });
 

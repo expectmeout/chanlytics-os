@@ -6,9 +6,19 @@
  */
 import { LEAD_WORDS as W, leadPeekMenu } from "@chanlytics/contracts";
 import type { LeadPeekVM } from "@chanlytics/contracts";
-import { refusalToast } from "../../legacy-verbs";
-import { leadReachOutPart, myRole, windowCourier } from "./doors";
+import { actingRole, refusalToast } from "../../legacy-verbs";
+import { LeadReachOut } from "../reach-out/lines";
+import { draftForLead, eraseLead, setLeadStage, undoLeadOperation } from "../surface";
 import type { Armed, DraftState, LeadCourier, PeekActs, PeekPage, StageData } from "./types";
+
+/** The acts the peek sends out, through the surface's own doors (../surface.ts); a test hands its stand-in as `courier`. */
+const surfaceCourier: LeadCourier = {
+  __leadStage: setLeadStage,
+  __leadUndo: undoLeadOperation,
+  // The wire's own type wants a draft's words; the pane hands it what the page holds, and the route refuses what is not one.
+  __leadDraft: (id, input) => draftForLead(id, input as Parameters<typeof draftForLead>[1]),
+  __leadErase: eraseLead,
+};
 
 /** A refusal, said at the page's toast in the route's own words: what did not happen first. */
 type Refuse = (r: { message?: string | null } | null | undefined, what: string) => void;
@@ -24,7 +34,7 @@ const pkErasing = new Set<string>();
  * has drawn "Erasing…" is a no-op.
  */
 const leadEraseActs = (p: PeekPage, api: LeadCourier, vm: LeadPeekVM, refuse: Refuse) => {
-  const role = myRole();
+  const role = actingRole();
   return {
     menu: leadPeekMenu(role),
     onEraseAsk: () => p.setMode("erase"),
@@ -132,7 +142,7 @@ const leadDraftActs = (
 };
 
 export const LeadPeekActions = (p: PeekPage): PeekActs => {
-  const api = p.courier || windowCourier;
+  const api = p.courier || surfaceCourier;
   const vm = p.vm;
   const refuse: Refuse = (r, what) => p.flash(refusalToast(r, what));
   const undoOf = (undo: StageData["undo"]) =>
@@ -167,7 +177,6 @@ export const LeadPeekActions = (p: PeekPage): PeekActs => {
     ((href: string | null) => {
       if (href && window.location && window.location.assign) window.location.assign(href);
     });
-  const LeadReachOut = leadReachOutPart();
   return {
     onClose: () => {
       p.setArmed(null);
@@ -216,6 +225,6 @@ export const LeadPeekActions = (p: PeekPage): PeekActs => {
     },
     onNotYet: () => p.setArmed(null),
     // A reach-out's story with this lead and its doors (Reach out Part 6, H9), drawn in the body under the fit.
-    reachOut: LeadReachOut ? <LeadReachOut key={vm.id} lead={vm} flash={p.flash} /> : null,
+    reachOut: <LeadReachOut key={vm.id} lead={vm} flash={p.flash} />,
   };
 };

@@ -177,3 +177,161 @@ test("a run that kept who it left out says the board's card: 186 of 312, the wai
   );
   assert.equal(all.of.held, 7, "the playbook's gap and the number's day are waits; the cap is a turn, drawn grey");
 });
+
+test("the month's allowance: people it already holds are in the held line and out of the count -- approving reaches none of them", () => {
+  // Core holds them at enrolment as skipped with month_allowance, on the channel each was to go by; the run's own count (will)
+  // was made before, so it still includes them.
+  const held = (n, channel) =>
+    Array.from({ length: n }, (_, i) =>
+      person(`held-${channel}-${i}`, `H${i}`, { state: "skipped", reason: "month_allowance", channel }),
+    );
+  const sent = [person("A", "A", { channel: "email" }), person("B", "B", { channel: "whatsapp" })];
+  const reach = kept({
+    pool: 20,
+    will: 10,
+    noYes: 6,
+    heardAny: 2,
+    overCap: 0,
+    by_channel: { whatsapp: 4, sms: 0, email: 6 },
+  });
+  const vm = C.toApprovalVM(
+    {
+      broadcast: run({ recipient_count: 10, audience: { kind: "playbook", id: "p1", label: "Win-back", reach } }),
+      recipients: [...sent, ...held(4, "email")],
+    },
+    opts(),
+  );
+  assert.equal(vm.will, 6, "ten enrolled, four held for the month: six will get it");
+  assert.equal(vm.approve, "Approve — 6 now", "the act says six");
+  assert.deepEqual(vm.byChannel, { whatsapp: 4, sms: 0, email: 2 }, "the four come off the channel they were to go by");
+  assert.equal(vm.of.pool, 20);
+  assert.equal(vm.of.held, 6, "the bar's amber holds the two who heard this week and the four the month holds");
+  assert.deepEqual(
+    vm.of.lines.map((l) => [l.words, l.tone]),
+    [
+      ["6 never said yes to offers", "plain"],
+      ["4 held for this month's allowance", "warn"],
+      ["2 heard from a playbook this week", "warn"],
+    ],
+    "one line for them, said in the contracts' words",
+  );
+  // Nobody held for it is the run as it was: the count, the act and the lines unchanged.
+  const plain = C.toApprovalVM(
+    {
+      broadcast: run({ recipient_count: 10, audience: { kind: "playbook", id: "p1", label: "Win-back", reach } }),
+      recipients: sent,
+    },
+    opts(),
+  );
+  assert.equal(plain.will, 10);
+  assert.equal(plain.approve, "Approve — 10 now");
+  assert.ok(!plain.of.lines.some((l) => /allowance/.test(l.words)));
+  // A run that kept no count of who it left out still takes the held off its number, and has no line to say them in.
+  const nocount = C.toApprovalVM(
+    { broadcast: run({ recipient_count: 5 }), recipients: [...sent, ...held(2, "sms")] },
+    opts(),
+  );
+  assert.deepEqual([nocount.will, nocount.of, nocount.byChannel], [3, null, null]);
+  // A person skipped for another reason is not the allowance's.
+  const other = C.toApprovalVM(
+    {
+      broadcast: run({ recipient_count: 3 }),
+      recipients: [person("X", "X", { state: "skipped", reason: "opted_out" })],
+    },
+    opts(),
+  );
+  assert.equal(other.will, 3);
+});
+
+test("a run's reasons name everyone it counted and left out: no address, an address that stopped and no channel each have their line, one person or many", () => {
+  // The run counted them (playbookRunReach) and the sheet said none of the three: the bar was shorter than the list.
+  const lines = (over) =>
+    counted(kept({ pool: 40, will: 20, noYes: 0, heardAny: 0, ...over })).of.lines.map((l) => [
+      l.words,
+      l.tone,
+      l.door,
+    ]);
+  assert.deepEqual(lines({ no_address: 5, address_stopped: 3, no_channel: 2 }), [
+    ["5 have no email address on file", "plain", null],
+    ["3 have an email address mail no longer goes to", "plain", null],
+    ["2 have no channel this message can go by here", "plain", null],
+  ]);
+  assert.deepEqual(
+    lines({ no_address: 1, address_stopped: 1, no_channel: 1 }).map(([words]) => words),
+    [
+      "1 has no email address on file",
+      "1 has an email address mail no longer goes to",
+      "1 has no channel this message can go by here",
+    ],
+  );
+  // A bounced address is said as itself, never as "no email address on file": that is the other fact.
+  assert.ok(!lines({ address_stopped: 3 }).some(([words]) => /no email address/.test(words)));
+  // Nothing counted, nothing said: a run counted before runs kept the three has no line for them.
+  assert.deepEqual(lines({}), []);
+  // They are not time's (the amber), so they do not move the bar's held.
+  assert.equal(
+    counted(kept({ pool: 40, will: 20, noYes: 0, heardAny: 0, no_address: 5, address_stopped: 3, no_channel: 2 })).of
+      .held,
+    0,
+  );
+  // And they sort with the rest, the most first.
+  assert.equal(lines({ noYes: 9, no_address: 5, heardAny: 0 })[0][0], "9 never said yes to offers");
+});
+
+test("the run's rules say what each person was asked on the channel they are reached on: a yes for WhatsApp and a text, not for an email about a visit, a yes or a relationship for an offer by email", () => {
+  const runBy = (by_channel, trigger, will = 10) =>
+    counted(
+      kept({ pool: 20, will, noYes: 0, heardAny: 0, by_channel }),
+      opts({ playbook: { trigger, cap_per_run: 25, gap_days: 90, cadence_days: 30 } }),
+    ).rules;
+  // WhatsApp alone, or no count of channels: the sentence every run said.
+  assert.equal(runBy({ whatsapp: 10, sms: 0, email: 0 }, "everyone_monthly")[0], "each said yes to offers");
+  assert.equal(runBy({ whatsapp: 10, sms: 0, email: 0 }, "visit_tomorrow")[0], "each said yes to hearing from you");
+  // An offer on WhatsApp and by email: two lines, each true of the people it names, and the moment's own rules after them.
+  assert.deepEqual(runBy({ whatsapp: 6, sms: 0, email: 4 }, "everyone_monthly"), [
+    "each reached on WhatsApp said yes to offers",
+    "each reached by email asked for offers by email, or has dealt with you",
+    "none heard from this playbook in 30 days",
+    "none heard from any playbook this week",
+  ]);
+  // An offer by email alone is not "said yes to offers": a relationship on record is enough.
+  assert.equal(
+    runBy({ whatsapp: 0, sms: 0, email: 10 }, "everyone_monthly")[0],
+    "each asked for offers by email, or has dealt with you",
+  );
+  // A message about a visit goes by WhatsApp and email: an email about a visit asks no yes at all (consent.ts), and the sheet no
+  // longer says they each said one. What it says of an email is what the one predicate asks, so it holds when that moves.
+  const visit = runBy({ whatsapp: 6, sms: 0, email: 4 }, "visit_tomorrow");
+  assert.equal(visit[0], "each reached on WhatsApp said yes to hearing from you");
+  assert.ok(
+    C.yesAsked("email", "conversational", "theirs") === "none"
+      ? visit[1] === "each reached by email has an email address that works"
+      : /^each reached by email said yes to hearing from you by email/.test(visit[1]),
+    visit[1],
+  );
+  assert.equal(visit[2], "each has a visit tomorrow on the calendar");
+  // A run that kept no count of channels is a WhatsApp run.
+  assert.equal(C.toApprovalVM({ broadcast: run(), recipients: people }, opts()).rules[0], "each said yes to offers");
+});
+
+test("the reader's channel is their row's own, WhatsApp where the run kept none: the sheet draws the words of the version they read", () => {
+  const on = (over) => [
+    person("+1 (917) 555-0142", null, over),
+    person("Priya Nair", "Priya", over),
+    person("Tom Baker", "Tom"),
+  ];
+  // The reader is the first person with a name: their channel, not the first row's.
+  const mixed = [
+    person("+1 (917) 555-0142", null, { channel: "sms" }),
+    person("Priya Nair", "Priya", { channel: "email" }),
+    person("Tom Baker", "Tom", { channel: "whatsapp" }),
+  ];
+  const vm = C.toApprovalVM({ broadcast: run(), recipients: mixed }, opts());
+  assert.equal(vm.reader, "Priya Nair");
+  assert.equal(vm.readerChannel, "email");
+  assert.equal(C.toApprovalVM({ broadcast: run(), recipients: on({ channel: "sms" }) }, opts()).readerChannel, "sms");
+  // A run made before channels were kept, an unknown word, or nobody on it: WhatsApp.
+  for (const channel of [undefined, null, "carrier pigeon"])
+    assert.equal(C.toApprovalVM({ broadcast: run(), recipients: on({ channel }) }, opts()).readerChannel, "whatsapp");
+  assert.equal(C.toApprovalVM({ broadcast: run(), recipients: [] }, opts()).readerChannel, "whatsapp");
+});

@@ -224,8 +224,8 @@ Each is its own pull request, in this order, and each ships alone.
    merges. Then either app may deploy first: each asks a database that answers the cursor.
 4. **Today counts new people by the kept first contact** (a migration, and contracts): `metrics_summary`, copied from
    its latest migration (#1249's 00254 once it lands), and People's list read `new_at`, and `last_inbound_at` has
-   its index. It changes a number Today shows, and says whose. Since 00286, Today (`metrics_summary`) and Reports
-   (`report_series`) read new people through one function, `contact_first_moments` (made in 00285); this step re-points that function at
+   its index. It changes a number Today shows, and says whose. Since 00304, Today (`metrics_summary`) and Reports
+   (`report_series`) read new people through one function, `contact_first_moments` (made in 00303); this step re-points that function at
    the kept moments, so the number changes in one place and People's `new_at` joins the same rule.
 5. **A refresh by person** (the dashboard). It needs step 3. Under 0019, it needs 0019's payload to name the people.
 

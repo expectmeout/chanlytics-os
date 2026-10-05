@@ -7,7 +7,9 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { isSurfaceFailed } from "@/legacy-bridge/surface-status";
 import { FailedRead } from "../../kit/empty/empty";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { Button } from "../../kit/button/button";
+import { Menu } from "../../kit/menu/menu";
+import { menuGroups } from "../menu-groups";
 import { Icon } from "../../kit/icon/icon";
 import { navigate } from "../../legacy-verbs";
 import { lists } from "../people-lists";
@@ -166,23 +168,25 @@ export function PersonLists({
         {on.map((s) => listChip(s, { personId, canEdit, busy, who, change }))}
         {on.length === 0 && smartChips.length === 0 && <span className="cl-prof-aut-hint">On no list yet.</span>}
       </div>
-      {/* A quiet link under the chips, as "Add an email" is, not a button among them. Its menu escapes the card
-          (MoreMenu escape): the card clips what crosses its rounded edge, and the menu opened cut off at its foot. It
-          hangs from the link's left edge, and above it where the window has more room there. */}
+      {/* A quiet link under the chips, as "Add an email" is, not a button among them. Its menu is the kit's, drawn on the
+          body, so the card's rounded edge cannot cut it off; it hangs from the link's left edge. */}
       {canEdit && off.length > 0 && (
-        <MoreMenu
-          btnClass="cl-prof-rename is-plain cl-prof-list-add"
-          label={
-            <>
+        <Menu
+          label="Add to a list"
+          align="start"
+          trigger={
+            <Button
+              variant="quiet"
+              size="sm"
+              className="cl-prof-rename is-plain cl-prof-list-add"
+              title="Add to a list"
+              data-testid="person-list-add"
+            >
               <Icon name="plus" size={11} /> Add to a list
-            </>
+            </Button>
           }
-          title="Add to a list"
-          align="left"
-          escape
-          testid="person-list-add"
-          items={[
-            ...off.map((s) => ({
+          groups={menuGroups(
+            off.map((s) => ({
               label: s.name,
               icon: "filter",
               onClick: () =>
@@ -193,7 +197,7 @@ export function PersonLists({
                   </>,
                 ),
             })),
-          ]}
+          )}
         />
       )}
     </div>

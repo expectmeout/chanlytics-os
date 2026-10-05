@@ -10,7 +10,8 @@ import { gate } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
 import { lookNow } from "../../kit/look/look";
 import { LeadCallAsk, LeadPeekAsk, LeadPeekMore, LeadSentAsk } from "./asks";
-import { leadCallMenuPart, leadSlotShapePart } from "./doors";
+import { LeadCallMenu } from "../cells/call-menu";
+import { LeadSlotShape } from "../cells/shapes";
 import { LeadEvidenceBar, PkHint, ldCheckMark, pkScrolling } from "./hint";
 import type { Armed, Deck, PeekActs, PeekMode } from "./types";
 
@@ -188,7 +189,6 @@ function peekDecide(vm: LeadPeekVM, on: PeekActs) {
  * phone's line copies the number rather than offer a second Call.
  */
 function peekReach(vm: LeadPeekVM, on: PeekActs) {
-  const LeadSlotShape = leadSlotShapePart();
   return (
     <div className="pk-reach">
       {eyebrow(W.reachHeading)}
@@ -416,7 +416,6 @@ function peekLinks(vm: LeadPeekVM) {
  * the button says the number, so the menu does not say it again.
  */
 function peekFoot(vm: LeadPeekVM, on: PeekActs) {
-  const LeadCallMenu = leadCallMenuPart();
   return (
     <div className="pk-foot pk-act" data-testid="peek-act">
       {vm.reach.phone && vm.reach.phone.tel ? (
