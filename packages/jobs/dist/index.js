@@ -17380,10 +17380,10 @@ var BRAIN_OUTPUT_JSON_SCHEMA22 = {
   required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
   additionalProperties: false
 };
-var metaOf = (meta, key) => meta !== null && typeof meta === "object" ? meta[key] : void 0;
+var metaKey = (meta, key) => meta !== null && typeof meta === "object" ? meta[key] : void 0;
 var AUTOMATED_SEND_SOURCES = ["broadcast", "reach_out"];
 function isAutomatedSend(meta) {
-  const source = metaOf(meta, "source");
+  const source = metaKey(meta, "source");
   return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
 }
 var MONTH_MS22 = 30 * DAY_MS22;
@@ -23709,7 +23709,7 @@ async function ingestEmail(ports, cmd) {
     receivedId: email.id,
     body: bodyOf(email),
     channelTs: email.receivedAt ?? at,
-    meta: metaOf2(email),
+    meta: metaOf(email),
     optOut: stops,
     // One word, one answer: a STOP stops everything and says nothing of offers; an unsubscribe and a yes are about offers.
     unsubscribe: !stops && asksToUnsubscribe(email),
@@ -23766,7 +23766,7 @@ function saysYesToOffers(e) {
 function bodyOf(e) {
   return e.text?.slice(0, EMAIL_BODY_MAX) ?? null;
 }
-function metaOf2(e) {
+function metaOf(e) {
   return {
     email: {
       subject: e.subject,
@@ -23923,7 +23923,7 @@ function channelOf(r42) {
 function rowFacts(r42) {
   return r42.facts !== null && typeof r42.facts === "object" && !Array.isArray(r42.facts) ? r42.facts : {};
 }
-function metaOf3(b) {
+function metaOf2(b) {
   const label = b.audience?.label;
   return {
     source: "broadcast",
@@ -23988,7 +23988,7 @@ async function emailDelivery(w, i, base) {
       contactId: i.c.id,
       body: said.body,
       request,
-      meta: metaOf3(w.b)
+      meta: metaOf2(w.b)
     }
   };
 }
@@ -24016,7 +24016,7 @@ async function prepare(w, i) {
     // than written as failed: this person waits in the queue, and the run waits with them (00282).
     holdIfNotTaken: true,
     // A run's message names its playbook, so a thread reads "by the Win-back playbook".
-    meta: metaOf3(b)
+    meta: metaOf2(b)
   };
   if (i.channel === "whatsapp") {
     return {

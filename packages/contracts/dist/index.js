@@ -7573,15 +7573,15 @@ function replyWhy(meta) {
 var CONFIDENCE_STEPS = [0, 0.6, 0.75, 0.9];
 
 // src/conversations/message-author.ts
-var metaOf = (meta, key) => meta !== null && typeof meta === "object" ? meta[key] : void 0;
+var metaKey = (meta, key) => meta !== null && typeof meta === "object" ? meta[key] : void 0;
 var AUTOMATED_SEND_SOURCES = ["broadcast", "reach_out"];
 function isAutomatedSend(meta) {
-  const source = metaOf(meta, "source");
+  const source = metaKey(meta, "source");
   return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
 }
 var NOT_A_PERSONS_CLAIMS = ["automated", "auto_reply", "report"];
 function isPersonsWords(meta) {
-  const claim = metaOf(metaOf(meta, "email"), "claim");
+  const claim = metaKey(metaKey(meta, "email"), "claim");
   return !(typeof claim === "string" && NOT_A_PERSONS_CLAIMS.includes(claim));
 }
 function messageVia(m) {

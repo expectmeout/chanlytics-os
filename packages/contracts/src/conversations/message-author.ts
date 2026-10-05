@@ -15,7 +15,7 @@ export interface MessageAuthor {
 }
 
 /** A key of a message's meta, read without trusting its shape (the column is free JSON). */
-const metaOf = (meta: unknown, key: string): unknown =>
+const metaKey = (meta: unknown, key: string): unknown =>
   meta !== null && typeof meta === "object" ? (meta as Record<string, unknown>)[key] : undefined;
 
 /**
@@ -31,7 +31,7 @@ const AUTOMATED_SEND_SOURCES: readonly string[] = ["broadcast", "reach_out"];
  * public.automated_send (00303) is its twin in SQL, read by first_replies and both reports: the two change together.
  */
 export function isAutomatedSend(meta: unknown): boolean {
-  const source = metaOf(meta, "source");
+  const source = metaKey(meta, "source");
   return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
 }
 
@@ -47,7 +47,7 @@ const NOT_A_PERSONS_CLAIMS: readonly string[] = ["automated", "auto_reply", "rep
  * has_relationship and the people list: the two change together.
  */
 export function isPersonsWords(meta: unknown): boolean {
-  const claim = metaOf(metaOf(meta, "email"), "claim");
+  const claim = metaKey(metaKey(meta, "email"), "claim");
   return !(typeof claim === "string" && NOT_A_PERSONS_CLAIMS.includes(claim));
 }
 
