@@ -588,6 +588,8 @@ const appChrome = (s) => {
     <div className="app-root" data-theme={theme} data-look={look}>
       {/* The first stop for Tab: a way past the sidebar and the bars to the page (drawn only while it has focus). */}
       <button type="button" className="skip-link" onClick={() => focusPage(true)}>Skip to the page</button>
+      {/* Glass's three pools of light, a layer each, which a desk drifts by a transform (components.css .pg-light). */}
+      {glass && <div className="pg-light" aria-hidden="true"><span /><span /><span /></div>}
       {/* On a phone the sidebar is a drawer. Open, it is a dialog, so a page's keys hold still behind it (People's Esc
           cleared its selection as the drawer closed). Not aria-modal: it does not move focus into itself. */}
       <div className={`side-wrap ${navOpen ? "open" : ""} ${sidebar === "rail" ? "rail" : ""}`} role={navOpen ? "dialog" : undefined} aria-label={navOpen ? "Navigation" : undefined} onPointerOver={sideWarm}>
