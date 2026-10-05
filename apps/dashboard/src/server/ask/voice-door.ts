@@ -430,16 +430,6 @@ async function answerAgent(req: Request, deps: VoiceDoorDeps): Promise<Response>
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const knock = await admit(body, deps);
   if (knock.kind === "answered") return knock.response;
-  // A voice turn is a turn: counted as the typed ones are, and a spent count is a line, not a 429.
-  try {
-    await takeRate(knock.ctx.userId, "ask", now());
-  } catch (e) {
-    if (e instanceof AppError && e.code === "rate_limited") {
-      log.warn("ask_voice_door_refused", { tenant_id: knock.row.tenant_id, why: "rate" });
-      return spoken(lineOf("busy", knock.language));
-    }
-    throw e;
-  }
   const text = lastUserText(body?.messages);
   // Every canned line is logged (4 Oct 2026): the doctor could not tell a conversation the agent nagged through its
   // silence from one that spoke, since "I'm here." left no line.
@@ -455,6 +445,18 @@ async function answerAgent(req: Request, deps: VoiceDoorDeps): Promise<Response>
   if (!/[\p{L}\p{N}]/u.test(text)) {
     log.info("ask_voice_door_refused", { tenant_id: knock.row.tenant_id, why: "silence" });
     return spoken(BUFFER_WORDS);
+  }
+  // A voice turn is a turn: counted as the typed ones are, and a spent count is a line, not a 429. Counted here,
+  // after the two answers above: the vendor's own re-engage comes every turn timeout for as long as a session waits,
+  // and nobody asked it, so it takes nothing of the person's count and a spent count never speaks into the silence.
+  try {
+    await takeRate(knock.ctx.userId, "ask", now());
+  } catch (e) {
+    if (e instanceof AppError && e.code === "rate_limited") {
+      log.warn("ask_voice_door_refused", { tenant_id: knock.row.tenant_id, why: "rate" });
+      return spoken(lineOf("busy", knock.language));
+    }
+    throw e;
   }
   // More than a turn takes: the typed route's 400 (ASK_MAX_CHARS), spoken; the vendor retries an empty stream.
   if (text.length > ASK_MAX_CHARS) {

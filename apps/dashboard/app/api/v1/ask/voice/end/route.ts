@@ -8,10 +8,10 @@ import { endVoiceSession, sessionHashOf, SESSION_ID } from "@/server/ask/voice-s
  * POST /api/v1/ask/voice/end — the voice conversation is over
  * (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.1; §3.5 as amended 4 Oct 2026): the session's row is
  * ended, so the brain door opens it no more, and the row keeps how it went (00300): the browser's word for why, one
- * of a closed set (contracts VOICE_END_REASONS: `button`, End pressed; `typed`, typing ends the spoken conversation;
+ * of a closed set (contracts VOICE_END_REASONS: `button`, Clear pressed; `typed`, a typed question ends the session;
  * `superseded`, another use of the voice replaced it; `navigated`, the Line closed; `vendor`, the far side ended it;
- * `start`, it never came up), and the two timings the browser measured from the tap (to the connection, to the first
- * audio heard). The vendor erases its own record once the minutes are written, so this row is the one record of what
+ * `start`, it never came up; `idle`, a minute with nothing asked), and the two timings the browser measured from the
+ * press (to the connection, to the first audio heard). The vendor erases its own record once the minutes are written, so this row is the one record of what
  * happened; the voice doctor reads it (docs/runbook.md). The member's own row (RLS); a row already ended, or gone (the
  * post-call webhook may have ended it first), is not an error: the conversation is over either way. Not counted, and
  * never refused for its reason: a word outside the set (an older bundle's "stopped", the vendor's own word) ends the

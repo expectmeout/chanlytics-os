@@ -524,7 +524,7 @@ const AskReads = ({ traces, t }) => {
 // answer's say, its headline then its detail (contracts answerText), written for the ear: what Copy takes and what
 // Read aloud speaks in Ask's one voice (the one-way speech, legacy-bridge/ask/speech.ts through AskHooks.useAskSpeech;
 // docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5 as amended 4 Oct 2026); the figures and rows are
-// drawn, never read. Nobody speaks back: a follow-up is typed, or the mic's tap. Between the press and the first word
+// drawn, never read. Nobody speaks back: a follow-up is typed, or said with the mic held. Between the press and the first word
 // the button says it is getting the voice, and a press then stops the wait; where the clip could not be made the
 // button says why, in the server's words.
 const AskActs = ({ words, speech, flash, t }) => {

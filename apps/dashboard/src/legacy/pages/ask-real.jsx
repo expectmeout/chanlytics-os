@@ -145,10 +145,10 @@ const useArVoice = (ln) => {
     },
   });
   // Every hold is one: the recogniser starts, the session is asked for (up by the lift, most holds), and the agent's
-  // voice is held down while the person talks; the lift stops the recogniser and lets the voice back up.
+  // voice is held down while the person talks; the lift lets it back up. Not while a turn runs: the recogniser is off then (`disabled`), and a voice held down under that press swallowed the answer's first words.
   const begin = (e) => {
     if (!talk.canTalk) { flash({ once: "ask-mic", msg: <>{t.noVoice}</> }); return; }
-    if (voice.can) { voice.hush(true); voice.ensure(arVoiceInput(ln)); }
+    if (voice.can && !live) { voice.hush(true); voice.ensure(arVoiceInput(ln)); }
     talk.start(e);
   };
   const end = () => { talk.stop(); if (voice.can) voice.hush(false); };
@@ -273,7 +273,7 @@ const useArClose = ({ open, onClose, setQuick, setDoomed, setView, speech, voice
   // Closed: nothing keeps reading or talking and the rows are home again; the words typed and an open conversation
   // come back until Clear (D14, S9).
   useArEffect(() => {
-    if (!open) { setQuick(null); setDoomed(null); setView("rows"); speech.stop(); if (voice.up) voice.stop("navigated"); }
+    if (!open) { setQuick(null); setDoomed(null); setView("rows"); speech.stop(); if (voice.begun) voice.stop("navigated"); }
   }, [open]);
 };
 
@@ -416,7 +416,7 @@ const arActs = (ln) => {
   const clearLine = () => {
     moveOn();
     setActive(null); setQuery(""); setQuick(null); setView("rows"); setUnfolded(-1); setFoldAll(false);
-    speech.stop(); if (ln.voice && ln.voice.up) ln.voice.stop("button");
+    speech.stop(); if (ln.voice && ln.voice.begun) ln.voice.stop("button");
   };
   // What became of a card, kept on the conversation the Line holds, so the card drawn again (a fold, the answer back
   // under the line) says "Sent" and never offers Send twice. The route keeps it too (AskCard `record`).
@@ -474,7 +474,7 @@ const arSubmitter = (ln) => {
     if (!q || live) return;
     arLetGo(inputRef.current); speech.stop();
     const spoken = !!(how && how.spoken);
-    if (!spoken && ln.voice && ln.voice.up) ln.voice.stop("typed"); // a typed question is answered in text alone: one voice at a time
+    if (!spoken && ln.voice && ln.voice.begun) ln.voice.stop("typed"); // a typed question is answered in text alone: one voice at a time
     setQuery("");
     setView("rows");
     setUnfolded(-1);

@@ -12,8 +12,10 @@
  * outside it. So the element is made and started on a clip of silence inside the press, which unlocks it; the real
  * clip then plays after the await on the same element. The browser's own synthesis is gone: it read a brief in a
  * robotic voice whenever the agent could not start, which hid the failure (4 Oct 2026). Where the clip cannot be
- * made, `speak` rejects with the server's words and the caller says them; nothing else speaks.
+ * made, `speak` rejects with the server's words and the caller says them; where the device would not play it, with
+ * words that say to tap again; nothing else speaks.
  */
+import { ASK_SPEECH_MAX_CHARS } from "@chanlytics/contracts";
 import type { AskApiCalls } from "./api";
 
 export type SpeechPurpose = "brief" | "answer";
@@ -30,6 +32,24 @@ type Device = Required<SpeechWindow>;
 export interface SpeechDeps {
   api: Pick<AskApiCalls, "speech">;
 }
+
+/**
+ * The words a clip is asked for: folded as the route folds them, and no longer than the route takes
+ * (ASK_SPEECH_MAX_CHARS), cut after the last whole sentence that fits, else between two words. A long answer is read
+ * as far as a clip goes; the route would refuse it whole, and nothing would be read.
+ */
+export function speechWords(text: string): string {
+  const words = text.replace(/\s+/g, " ").trim();
+  if (words.length <= ASK_SPEECH_MAX_CHARS) return words;
+  const head = words.slice(0, ASK_SPEECH_MAX_CHARS);
+  const sentence = Math.max(head.lastIndexOf(". "), head.lastIndexOf("! "), head.lastIndexOf("? "));
+  if (sentence > 0) return head.slice(0, sentence + 1);
+  const word = head.lastIndexOf(" ");
+  return word > 0 ? head.slice(0, word) : head;
+}
+
+/** What a person is told when the device would not play the clip (no gesture, most often): a second tap is one. */
+const HELD_BACK = "The sound was held back on this device. Tap again to hear it.";
 
 /** A clip of silence, one sample of 16-bit mono at 8 kHz: 46 bytes, played inside the press to unlock the element. */
 function silentWav(): ArrayBuffer {
@@ -110,7 +130,12 @@ export function askSpeech(win: Window, deps: SpeechDeps) {
       const src = d.URL.createObjectURL(new d.Blob([silentWav()], { type: "audio/wav" }));
       setUrl(src);
       a.src = src;
-      a.play().catch(() => {});
+      // A read that began outside a press (an answer read aloud by itself) is refused for want of a gesture: the
+      // unlock is not spent on it, so the next press starts on silence again. Any other end of this play (our own
+      // pause as the clip replaces it) was inside a gesture and stands.
+      a.play().catch((e: unknown) => {
+        if (e instanceof Error && e.name === "NotAllowedError") unlocked = false;
+      });
     } catch {
       /* a browser with no gesture to honour: the real play says so */
     }
@@ -144,7 +169,7 @@ export function askSpeech(win: Window, deps: SpeechDeps) {
       move("loading");
       let clip: Blob;
       try {
-        clip = await deps.api.speech(text, purpose);
+        clip = await deps.api.speech(speechWords(text), purpose);
       } catch (e) {
         if (mine !== generation) return;
         move("idle");
@@ -168,7 +193,8 @@ export function askSpeech(win: Window, deps: SpeechDeps) {
         if (mine !== generation) return;
         release();
         move("idle");
-        throw new Error(words(e), { cause: e });
+        // The browser's own sentence is for a developer; a person is told what to do.
+        throw new Error(HELD_BACK, { cause: e });
       }
       if (mine !== generation) return;
       move("speaking");

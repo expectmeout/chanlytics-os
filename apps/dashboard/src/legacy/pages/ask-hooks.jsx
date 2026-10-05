@@ -86,8 +86,6 @@ const useAskFocus = (ref, when, deps) => {
   }, deps);
 };
 
-// Reading an answer aloud: one at a time, a toggle per answer, stopped when
-// the palette closes. The browser's own synthesis; nothing leaves the device.
 // Reading aloud in Ask's voice (legacy-bridge/ask/speech.ts): the bridge holds what is happening (idle, loading,
 // speaking) and tells every watcher, so the Line reads it rather than keeping a copy, and a Stop from anywhere (the
 // Line closing, a question asked, Today's own button) is seen here. `toggle` reads, or stops what is read or awaited;
@@ -248,12 +246,13 @@ const ahSlide = (from, stage, hero) => {
   }
 };
 
-// A voice conversation with Ask on the agent (legacy-bridge/ask/voice.ts; docs/superpowers/specs/2026-10-03-ask-spoken-design.md,
-// §3.5): one at a time, begun from the mic's tap or an answer's Read aloud, ended by the person, by typing, by Esc, by
-// closing, or by the agent going. `hear` is given the Line's actions (the question, a read, the Say, the landing, a
-// cut, the mode, how loud the person is, gone); the hook keeps whether it runs, the agent's mode and the thread it runs
-// on, and while the agent speaks feeds the three its voice (mascot mood.ts `voice`), read off the client twenty times a
-// second. Where the device cannot (no microphone, or no secure page) `can` is false and nothing starts.
+// The agent's session a hold speaks to (legacy-bridge/ask/voice.ts; docs/superpowers/specs/2026-10-03-ask-spoken-design.md,
+// §3.5 as amended 4 Oct 2026, evening): one at a time, asked for on the press of a hold (`ensure`), spoken to on its
+// lift (`soon`, `say`), ended by Clear, by a typed question, by the Line closing, by a minute idle, or by the agent
+// going. `hear` is given the Line's actions (the question, a read, the Say, the landing, the mode, gone); the hook
+// keeps whether it is up or on its way (`begun` is either: what an end must end), the agent's mode and the thread it
+// runs on, and while the agent speaks feeds the three its voice (mascot mood.ts `voice`), read off the client twenty
+// times a second. Where the device cannot (no microphone, or no secure page) `can` is false and nothing starts.
 const AH_VOICE_LEVEL_MS = 50;
 const useAskVoice = ({ A, M, hear }) => {
   const [up, setUp] = useAhState(false);
@@ -280,7 +279,7 @@ const useAskVoice = ({ A, M, hear }) => {
   const hush = (on) => { if (A && A.hushVoice) A.hushVoice(on); };
   // The end, with the person's reason (voice.ts: `button` Clear, `typed`, `navigated` the Line closing), kept on the row (00300).
   const stop = async (reason = "button") => {
-    setUp(false); setMode("listening");
+    rest();
     if (A && A.stopVoice) await A.stopVoice(reason);
   };
   const speaking = up && mode === "speaking";
@@ -289,7 +288,7 @@ const useAskVoice = ({ A, M, hear }) => {
     const id = setInterval(() => M.mood.voice(A.level ? A.level() : 0, true), AH_VOICE_LEVEL_MS);
     return () => { clearInterval(id); M.mood.voice(0, false); };
   }, [speaking, A, M]);
-  return { can, up, connecting, speaking, ensure, soon, say, hush, stop, threadId: () => (A && A.voiceThread ? A.voiceThread() : null) };
+  return { can, up, connecting, begun: up || connecting, speaking, ensure, soon, say, hush, stop, threadId: () => (A && A.voiceThread ? A.voiceThread() : null) };
 };
 
 window.AskHooks = {

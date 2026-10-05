@@ -200,3 +200,26 @@ test("the body printed hides the secret; the dry run prints it and calls nothing
   assert.ok(out.includes('"url": "https://app.example.com/api/ask/voice/llm"'));
   assert.ok(out.includes('"first_message": ""'), "the agent says nothing on connect");
 });
+
+test("a write to one agent by id (--delete, --set-url) is a dry run until --apply, never touches production's agent, and does nothing to an agent it could not read", async () => {
+  const { agentWritePlan } = await import("../../voice/elevenlabs-agent-config.mjs");
+  const spike = { id: "agent_spike", agentName: "chanlytics-ask-spike" };
+  assert.deepEqual(agentWritePlan({ verb: "delete", ...spike, apply: false }), {
+    dryRun: "dry run; --apply would delete agent_spike (chanlytics-ask-spike)",
+  });
+  assert.deepEqual(agentWritePlan({ verb: "delete", ...spike, apply: true }), { go: true });
+  assert.deepEqual(agentWritePlan({ verb: "set-url", ...spike, apply: false }), {
+    dryRun: "dry run; --apply would set the brain door's URL on agent_spike (chanlytics-ask-spike)",
+  });
+  assert.deepEqual(agentWritePlan({ verb: "set-url", ...spike, apply: true }), { go: true });
+  // Production's agent: refused whatever the flags, so a mistyped id can never take production's voice away.
+  for (const verb of ["delete", "set-url"]) {
+    for (const apply of [false, true]) {
+      const plan = agentWritePlan({ verb, id: "agent_prod", agentName: PRODUCTION_AGENT_NAME, apply });
+      assert.match(plan.refused, /agent_prod is chanlytics-ask/, `${verb} apply=${apply}`);
+      assert.equal("go" in plan, false);
+    }
+  }
+  // An id that reads as nothing (a typo, an agent already gone): nothing is sent.
+  assert.match(agentWritePlan({ verb: "delete", id: "agent_typo", agentName: null, apply: true }).refused, /no agent/);
+});
